@@ -3411,3 +3411,27 @@ claims:
         - formal/tla/TauStateAppHashStableWindow.tla
         - formal/tla/TauStateAppHashStableWindow.cfg
         - tools/run_tla_models.py
+
+  - id: tla:fcis_m6_j09_migration_crash:phase_crash_retry_safety
+    status: supported
+    layer: safety
+    statement: >
+      In the bounded TLA+ FCIS M6 migration/crash model, the seven migration
+      phases advance only by the declared successor relation, one configured
+      writer is active at a time, complete history/residual/nullifier/outbox
+      cardinalities remain aligned, PRE and POST are the only crash
+      observations, restart clears active authorization, evidence versions do
+      not mix, and acknowledgments cannot precede delivery.
+    evidence:
+      kind: tla
+      note: >
+        Bounded TLC control-model evidence for the migration lifecycle and
+        crash/retry ordering. The model does not authenticate external state,
+        prove datastore atomicity, establish runtime reachability, or certify
+        production migration and value movement.
+      check:
+        - cmd: python3 tools/run_tla_models.py --json
+      files:
+        - formal/tla/FCISM6J09MigrationCrash.tla
+        - formal/tla/FCISM6J09MigrationCrash.cfg
+        - tools/run_tla_models.py

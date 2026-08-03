@@ -2,8 +2,8 @@
 
 <!-- Generated from docs/claims_registry.yaml and formal/tla/*.cfg. -->
 
-- Supported TLA claims: `37`
-- Discovered TLC models: `37`
+- Supported TLA claims: `38`
+- Discovered TLC models: `38`
 - Batch checker: `python3 tools/run_tla_models.py --json`
 - Inventory guard: `pytest -q tests/formal/test_tla_claim_inventory.py tests/test_claims_registry.py`
 
@@ -26,6 +26,15 @@
 - Invariants: `TypeOK`, `IdleAlwaysAccepted`, `AcceptedOnlyWhenRequestedEnvelopeValid`, `RejectedRequestedTxHasSpecificReason`
 - Properties: _none_
 - Statement: In the bounded TLA+ autotrader transaction-envelope shadow model, idle states remain accepted, accepted requested transactions require a valid requested envelope, and rejected requested transactions carry a specific rejection reason.
+
+### `FCISM6J09MigrationCrash`
+
+- Claim: `tla:fcis_m6_j09_migration_crash:phase_crash_retry_safety`
+- Module: `formal/tla/FCISM6J09MigrationCrash.tla`
+- Config: `formal/tla/FCISM6J09MigrationCrash.cfg`
+- Invariants: `TypeOK`, `PhaseShape`, `OneWriter`, `CompleteHistory`, `CompletePublicationAtom`, `NoMixedEvidence`, `CrashObservationClosed`, `FreshAuthorizationLatch`, `DeliveryAckProvenance`, `VarsBounded`
+- Properties: _none_
+- Statement: In the bounded TLA+ FCIS M6 migration/crash model, the seven migration phases advance only by the declared successor relation, one configured writer is active at a time, complete history/residual/nullifier/outbox cardinalities remain aligned, PRE and POST are the only crash observations, restart clears active authorization, evidence versions do not mix, and acknowledgments cannot precede delivery.
 
 ### `OracleFreshnessBoundedShadow`
 

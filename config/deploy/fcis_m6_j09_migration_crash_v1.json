@@ -1,0 +1,53 @@
+{
+  "schema": "zenodex/fcis/m6/j09/migration-crash-config/v1",
+  "profile_id": "research-unmounted-j09-migration-crash",
+  "max_depth": 10,
+  "max_history": 2,
+  "max_generation": 4,
+  "phase_manifest": [
+    "LEGACY",
+    "SHADOW_REPLAY",
+    "DUAL_CHECK",
+    "QUIESCED",
+    "AUTHORITY_SWITCH",
+    "POST_SWITCH_VALIDATION",
+    "LEGACY_DISABLED"
+  ],
+  "action_manifest": [
+    "advance_phase",
+    "prepare_legacy",
+    "prepare_target",
+    "publish_pending",
+    "retry_legacy",
+    "retry_target",
+    "crash_pre",
+    "crash_post",
+    "restart",
+    "fresh_authorize",
+    "deliver_outbox",
+    "ack_outbox",
+    "stale_legacy_commit",
+    "stale_target_commit",
+    "skip_phase",
+    "dual_writer",
+    "mixed_v1_v2_evidence",
+    "rollback"
+  ],
+  "required_mutants": [
+    "skipped_phase",
+    "dual_writers",
+    "missing_residual_transport",
+    "mixed_v1_v2_evidence",
+    "restart_without_fresh_authorization",
+    "ack_before_delivery",
+    "effect_id_rebound",
+    "rollback_balance_only"
+  ],
+  "tla_module": "formal/tla/FCISM6J09MigrationCrash.tla",
+  "tla_config": "formal/tla/FCISM6J09MigrationCrash.cfg",
+  "nonclaims": [
+    "research-only bounded model",
+    "no production datastore or runtime authority",
+    "no external authentication or crash-durable storage proof"
+  ]
+}
