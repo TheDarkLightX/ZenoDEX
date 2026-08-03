@@ -19,7 +19,7 @@ ESSO supplies the small finite and inductive state-machine obligations. ATDD/BDD
 
 ## Exact formal decomposition
 
-The global property is deliberately split into twelve small models. None has more than eleven state variables, and all parameter domains are finite.
+The global property is deliberately split into thirteen small models. None has more than eleven state variables, and all parameter domains are finite.
 
 | Model | Principal claim | External premise left visible |
 | --- | --- | --- |
@@ -35,8 +35,11 @@ The global property is deliberately split into twelve small models. None has mor
 | `fcis_m6_history_fixed_point_v1` | Canonical reopen accepts only a complete relation-valid whole-layout encoder fixed point | The storage engine exposes the complete layout checked by reopen |
 | `fcis_m6_proof_context_v1` | Proof acceptance requires a pinned registry, present proof, exact authority context, and verifier receipt | Cryptographic verification and registry authentication are sound |
 | `fcis_m6_oracle_risk_gate_v1` | Risk increase requires an exact bound finalized fresh non-deficit oracle context; recovery may use an exact finalized deficit context | Oracle authentication and finality are sound |
+| `fcis_m6_zenoledger_tau_continuity_v1` | ZenoLedger remains the canonical economic ledger during Tau unavailability or censorship; Tau rejoin uses an authenticated current ZenoLedger checkpoint and cannot reorganize ledger history | ZenoLedger is operational, its concrete consensus and durability are sound, and Tau checkpoint authentication is sound |
 
 The suite is intentionally not a monolithic model of ZenoDEX. A monolith would either be intractable or hide important assumptions in coarse Boolean variables.
+
+The concrete authority decision is fixed for this packet: ZenoLedger is the canonical durable economic ledger. Authenticated Tau integration is preferred when available and may provide ingress, verification, anchoring, or Tau-dependent services. Loss or censorship of Tau disables only Tau-dependent operations. SQLite remains an unmounted reference and conformance adapter.
 
 ## Formal top-level theorem
 
@@ -74,7 +77,7 @@ FormalStep(pre, command) = Reject(reason)
 /\ outbox = empty
 ```
 
-ESSO verifies the finite state-machine premises. A small Lean or Tau composition theorem should combine the twelve premise families without hiding inventory completeness, cryptographic soundness, or concrete durability as axioms.
+ESSO verifies the finite state-machine premises. A small Lean or Tau composition theorem should combine the thirteen premise families without hiding inventory completeness, cryptographic soundness, ZenoLedger durability, or Tau checkpoint authentication as axioms.
 
 ## Formal-to-runtime refinement relation
 
@@ -112,7 +115,7 @@ Each formal action needs scenarios for:
 - concurrent or crash interleavings when the action touches authority or persistence;
 - the corresponding implementation mutant.
 
-Each formal invariant needs at least one retained mutant that violates it and is killed by the formal checker and the mounted runtime tests. The current bounded campaign has one or more mutants for every invariant in the twelve models.
+Each formal invariant needs at least one retained mutant that violates it and is killed by the formal checker and the mounted runtime tests. The current bounded campaign has one or more mutants for every invariant in the thirteen models.
 
 BDD scenarios become promotion evidence only when their step definitions call the actual mounted entrypoint and inspect the complete authoritative post-state, history atom, receipt, nullifier, economic certificate, outbox, and authority epoch. Calling a pure helper or research adapter is not mounted evidence.
 
@@ -129,7 +132,7 @@ BDD scenarios become promotion evidence only when their step definitions call th
 ### Grade R — implementation refinement
 
 - Canonical projection functions are implemented and independently reviewed.
-- ATDD/BDD action parity passes against Python, Rust, Tau, and/or the selected authority implementation.
+- ATDD/BDD action parity passes against Python, Rust, Tau integration, and the canonical ZenoLedger authority implementation.
 - Rejection and complete-successor equality are checked, not merely selected roots.
 - Static checks prevent direct authoritative constructors and forbidden effects in the functional core.
 
@@ -175,13 +178,13 @@ The checked-in bounded result is reproducible, but it is not an ESSO solver rece
 
 ## Required next implementation order
 
-1. Pin and run ESSO/Z3/cvc5 over all twelve models.
+1. Pin and run ESSO/Z3/cvc5 over all thirteen models.
 2. Add the abstract Lean/Tau composition theorem with visible premises.
 3. Freeze `ManagedAssetPolicyV1`, including zUSD exclusion from generic mint, burn, and faucet paths.
 4. Freeze authenticated request identity, nonce/nullifier, proof-context, oracle-context, and history-layout schemas.
-5. Freeze the full mounted command/entrypoint inventory, including the Tau application host.
-6. Implement canonical runtime-to-formal projections for all twelve models.
-7. Make the feature scenarios executable against the selected authority runtime.
+5. Freeze the full mounted command/entrypoint inventory, including ZenoLedger-native entrypoints and optional Tau integration paths.
+6. Implement canonical runtime-to-formal projections for all thirteen models.
+7. Make the feature scenarios executable against the canonical ZenoLedger authority and the optional Tau integration boundary.
 8. Mount one atomic publication capability and run concrete retry, crash, concurrency, reopen, proof, oracle, outbox, and migration refinement.
 9. Bind every receipt to one promotion subject and permit promotion only after the four exact-lineage gates.
 

@@ -1,1 +1,787 @@
-{"base_commit":"b0ddd579377f916081bd1c79b69e989927f4655d","expected_action_coverage":{"fcis_m6_managed_asset_issuance_v1":{"disabled":["generic_mint_managed_asset","generic_burn_managed_asset"]},"fcis_m6_oracle_risk_gate_v1":{"disabled":["accept_pending_risk_increase","accept_deficit_risk_increase","accept_unbound_risk_reduce"]},"fcis_m6_proof_context_v1":{"disabled":["accept_without_registry","accept_without_proof","accept_faulty_context"]}},"formal_nonclaims":["The bounded models do not prove inventory completeness, cryptographic soundness, compiler correctness, SQLite/Tau durability, or implementation refinement.","ESSO verification must be rerun with pinned z3 and cvc5 on the committed files.","The generic value-flow model does not enumerate every ZenoDEX command; the ATDD/refinement manifest must map every mounted command to one formal action or a separately proved command theorem."],"models":[{"path":"formal/esso/fcis_m6_value_flow_kernel_v1.yaml","role":"generic_asset_quantity_conservation"},{"path":"formal/esso/fcis_m6_managed_asset_issuance_v1.yaml","role":"managed_asset_debt_supply_identity"},{"path":"formal/esso/fcis_m6_atomic_publication_v1.yaml","role":"atomic_publication"},{"path":"formal/esso/fcis_m6_reopen_reauthorization_v1.yaml","role":"reopen_and_fresh_authority"},{"path":"formal/esso/fcis_m6_outbox_delivery_v1.yaml","role":"external_effect_identity_and_ack"},{"path":"formal/esso/fcis_m6_migration_writer_v1.yaml","role":"migration_unique_writer"},{"path":"formal/esso/fcis_m6_no_bypass_v1.yaml","role":"mounted_no_bypass_conditional_on_inventory"},{"path":"formal/esso/fcis_m6_promotion_subject_v1.yaml","role":"same_lineage_promotion"},{"path":"formal/esso/fcis_m6_nonce_retry_classifier_v1.yaml","role":"nonce_retry_total_classifier"},{"path":"formal/esso/fcis_m6_history_fixed_point_v1.yaml","role":"canonical_history_fixed_point"},{"path":"formal/esso/fcis_m6_proof_context_v1.yaml","role":"proof_context_binding"},{"path":"formal/esso/fcis_m6_oracle_risk_gate_v1.yaml","role":"oracle_gated_risk_safety"}],"mutants":[{"action":"atomic_publish","expect_invariant":"history_publishedIffCommit","id":"AP_STATE_ONLY_WITHOUT_HISTORY","model":"fcis_m6_atomic_publication_v1","op":"remove_update","var":"history_published"},{"action":"atomic_publish","expect_invariant":"economic_certificate_publishedIffCommit","id":"AP_NO_ECONOMIC_CERTIFICATE","model":"fcis_m6_atomic_publication_v1","op":"remove_update","var":"economic_certificate_published"},{"action":"atomic_publish","expect_invariant":"CommitRequiresVerifiedCandidate","id":"AP_PUBLISH_WITHOUT_VERIFICATION","model":"fcis_m6_atomic_publication_v1","op":"replace_guard_true"},{"action":"atomic_publish","expect_invariant":"CommitConsumesHeadAuthorization","id":"AP_AUTH_NOT_CONSUMED","model":"fcis_m6_atomic_publication_v1","op":"remove_update","var":"head_authorized"},{"action":"atomic_publish","expect_invariant":"state_publishedIffCommit","id":"AP_STATE_NOT_PUBLISHED","model":"fcis_m6_atomic_publication_v1","op":"remove_update","var":"state_published"},{"action":"atomic_publish","expect_invariant":"nullifier_publishedIffCommit","id":"AP_NULLIFIER_NOT_PUBLISHED","model":"fcis_m6_atomic_publication_v1","op":"remove_update","var":"nullifier_published"},{"action":"atomic_publish","expect_invariant":"receipt_publishedIffCommit","id":"AP_RECEIPT_NOT_PUBLISHED","model":"fcis_m6_atomic_publication_v1","op":"remove_update","var":"receipt_published"},{"action":"atomic_publish","expect_invariant":"outbox_publishedIffCommit","id":"AP_OUTBOX_NOT_PUBLISHED","model":"fcis_m6_atomic_publication_v1","op":"remove_update","var":"outbox_published"},{"action":"atomic_publish","expect_invariant":"authority_epoch_publishedIffCommit","id":"AP_EPOCH_NOT_PUBLISHED","model":"fcis_m6_atomic_publication_v1","op":"remove_update","var":"authority_epoch_published"},{"action":"issue_head_authorization","expect_invariant":"CommitRequiresIssuedAuthorization","id":"AP_AUTH_ISSUANCE_NOT_RETAINED","model":"fcis_m6_atomic_publication_v1","op":"remove_update","var":"authorization_issued"},{"action":"remove_state_row","expect_invariant":"OpenRequiresStateRow","id":"HF_REMOVE_STATE_RETAINS_OPEN","model":"fcis_m6_history_fixed_point_v1","op":"remove_update","var":"canonical_open"},{"action":"remove_history_row","expect_invariant":"OpenRequiresHistoryRow","id":"HF_REMOVE_HISTORY_RETAINS_OPEN","model":"fcis_m6_history_fixed_point_v1","op":"remove_update","var":"canonical_open"},{"action":"remove_evidence_row","expect_invariant":"OpenRequiresEvidenceRow","id":"HF_REMOVE_EVIDENCE_RETAINS_OPEN","model":"fcis_m6_history_fixed_point_v1","op":"remove_update","var":"canonical_open"},{"action":"remove_nullifier_row","expect_invariant":"OpenRequiresNullifierRow","id":"HF_REMOVE_NULLIFIER_RETAINS_OPEN","model":"fcis_m6_history_fixed_point_v1","op":"remove_update","var":"canonical_open"},{"action":"remove_receipt_row","expect_invariant":"OpenRequiresReceiptRow","id":"HF_REMOVE_RECEIPT_RETAINS_OPEN","model":"fcis_m6_history_fixed_point_v1","op":"remove_update","var":"canonical_open"},{"action":"remove_outbox_row","expect_invariant":"OpenRequiresOutboxRow","id":"HF_REMOVE_OUTBOX_RETAINS_OPEN","model":"fcis_m6_history_fixed_point_v1","op":"remove_update","var":"canonical_open"},{"action":"remove_authority_row","expect_invariant":"OpenRequiresAuthorityRow","id":"HF_REMOVE_AUTHORITY_RETAINS_OPEN","model":"fcis_m6_history_fixed_point_v1","op":"remove_update","var":"canonical_open"},{"action":"cross_relation_rows","expect_invariant":"OpenRequiresValidRelations","id":"HF_CROSSED_RELATION_RETAINS_OPEN","model":"fcis_m6_history_fixed_point_v1","op":"remove_update","var":"canonical_open"},{"action":"add_surplus_row","expect_invariant":"OpenRequiresExactLayout","id":"HF_SURPLUS_ROW_RETAINS_OPEN","model":"fcis_m6_history_fixed_point_v1","op":"remove_update","var":"canonical_open"},{"action":"reopen_accept","expect_invariant":"OpenRequiresFixedPoint","id":"HF_REOPEN_IGNORES_FIXED_POINT","model":"fcis_m6_history_fixed_point_v1","op":"replace_guard_true"},{"action":"canonical_reencode","expect_invariant":"FixedPointRequiresCompleteLayout","id":"HF_REENCODE_PARTIAL_LAYOUT","model":"fcis_m6_history_fixed_point_v1","op":"replace_guard_true"},{"action":"generic_mint_managed_asset","expect_invariant":"DebtEqualsSupplyPlusClaim","id":"MA_GENERIC_MINT_ENABLED","model":"fcis_m6_managed_asset_issuance_v1","op":"replace_guard_true"},{"action":"generic_burn_managed_asset","expect_invariant":"DebtEqualsSupplyPlusClaim","id":"MA_GENERIC_BURN_ENABLED","model":"fcis_m6_managed_asset_issuance_v1","op":"replace_guard_true"},{"action":"protocol_borrow","expect_invariant":"DebtEqualsSupplyPlusClaim","id":"MA_BORROW_DEBT_OMITTED","model":"fcis_m6_managed_asset_issuance_v1","op":"remove_update","var":"debt"},{"action":"realize_protocol_claim","expect_invariant":"DebtEqualsSupplyPlusClaim","id":"MA_CLAIM_REALIZED_WITHOUT_CLAIM_DEBIT","model":"fcis_m6_managed_asset_issuance_v1","op":"remove_update","var":"protocol_claim"},{"action":"quiesce","expect_invariant":"QuiescedNoWriter","expr":{"enum":"TARGET_WRITER"},"id":"MW_QUIESCE_WITH_TARGET_WRITER","model":"fcis_m6_migration_writer_v1","op":"replace_update","var":"writer_mode"},{"action":"switch_authority","expect_invariant":"NeverDualEnabledWriters","id":"MW_SWITCH_LEAVES_LEGACY_ENABLED","model":"fcis_m6_migration_writer_v1","op":"remove_update","var":"legacy_enabled"},{"action":"switch_authority","expect_invariant":"PostSwitchRequiresQuiescence","id":"MW_SWITCH_SKIPS_QUIESCENCE","model":"fcis_m6_migration_writer_v1","op":"replace_guard_true"},{"action":"switch_authority","expect_invariant":"AuthorizationEpochCurrent","id":"MW_STALE_AUTH_SURVIVES_EPOCH","model":"fcis_m6_migration_writer_v1","op":"remove_update","var":"head_authorized"},{"action":"enter_shadow_replay","expect_invariant":"PreSwitchLegacyWriter","expr":{"enum":"TARGET_WRITER"},"id":"MW_PRE_SWITCH_TARGET_WRITER","model":"fcis_m6_migration_writer_v1","op":"append_update","var":"writer_mode"},{"action":"switch_authority","expect_invariant":"PostSwitchTargetWriter","expr":{"enum":"LEGACY_WRITER"},"id":"MW_POST_SWITCH_LEGACY_WRITER","model":"fcis_m6_migration_writer_v1","op":"replace_update","var":"writer_mode"},{"action":"enter_shadow_replay","expect_invariant":"LegacyWriterImpliesLegacyEnabled","expr":{"bool":false},"id":"MW_LEGACY_DISABLED_PRE_SWITCH","model":"fcis_m6_migration_writer_v1","op":"append_update","var":"legacy_enabled"},{"action":"switch_authority","expect_invariant":"TargetWriterImpliesTargetEnabled","id":"MW_TARGET_NOT_ENABLED","model":"fcis_m6_migration_writer_v1","op":"remove_update","var":"target_enabled"},{"action":"switch_authority","expect_invariant":"PostSwitchRequiresDualEquality","expr":{"bool":false},"id":"MW_DUAL_EQUALITY_ERASED_AT_SWITCH","model":"fcis_m6_migration_writer_v1","op":"append_update","var":"dual_equal"},{"action":"switch_authority","expect_invariant":"PostSwitchRequiresTransportComplete","expr":{"bool":false},"id":"MW_TRANSPORT_ERASED_AT_SWITCH","model":"fcis_m6_migration_writer_v1","op":"append_update","var":"transport_complete"},{"action":"publish_value_change","expect_invariant":"ValueChangeRequiresAttestedInventory","id":"NB_VALUE_CHANGE_WITHOUT_PORT","model":"fcis_m6_no_bypass_v1","op":"replace_guard_true"},{"action":"publish_value_change","expect_invariant":"ValueChangeRequiresReceipt","id":"NB_VALUE_CHANGE_WITHOUT_RECEIPT","model":"fcis_m6_no_bypass_v1","op":"remove_update","var":"receipt_published"},{"action":"select_entrypoint","expect_invariant":"ValueChangePortBindsSelectedEntrypoint","id":"NB_SELECT_RETAINS_OLD_PORT","model":"fcis_m6_no_bypass_v1","op":"remove_update","var":"commit_port_reached"},{"action":"publish_value_change","expect_invariant":"ValueChangeRequiresMountedDeployment","id":"NB_VALUE_CHANGE_WITHOUT_MOUNT","model":"fcis_m6_no_bypass_v1","op":"replace_guard_true"},{"action":"publish_value_change","expect_invariant":"ValueChangeRequiresUniqueCommitPort","id":"NB_VALUE_CHANGE_WITHOUT_UNIQUE_PORT","model":"fcis_m6_no_bypass_v1","op":"replace_guard_true"},{"action":"publish_value_change","expect_invariant":"ReceiptIffValueChange","id":"NB_RECEIPT_WITHOUT_VALUE_CHANGE","model":"fcis_m6_no_bypass_v1","op":"remove_update","var":"value_changed"},{"action":"commit_new_request","expect_invariant":"CommittedIffOneCount","id":"NR_COMMIT_COUNT_OMITTED","model":"fcis_m6_nonce_retry_classifier_v1","op":"remove_update","var":"commit_count"},{"action":"commit_new_request","expect_invariant":"HeadEqualsCommitCount","id":"NR_HEAD_NOT_ADVANCED","model":"fcis_m6_nonce_retry_classifier_v1","op":"remove_update","var":"head"},{"action":"commit_new_request","expect_invariant":"CommittedIdentitySealed","id":"NR_IDENTITY_NOT_SEALED","model":"fcis_m6_nonce_retry_classifier_v1","op":"remove_update","var":"identity_sealed"},{"action":"commit_new_request","expect_invariant":"CommittedNullifierConsumed","id":"NR_NULLIFIER_NOT_CONSUMED","model":"fcis_m6_nonce_retry_classifier_v1","op":"remove_update","var":"nullifier_consumed"},{"action":"commit_new_request","expect_invariant":"AbsentRelationClassifiesNew","expr":{"enum":"ALREADY_COMMITTED"},"id":"NR_ABSENT_CLASS_WRONG","model":"fcis_m6_nonce_retry_classifier_v1","op":"replace_update","var":"last_class"},{"action":"retry_exact_request","expect_invariant":"ExactRetryClassifiesAlready","expr":{"enum":"NEWLY_COMMITTED"},"id":"NR_RETRY_CLASS_WRONG","model":"fcis_m6_nonce_retry_classifier_v1","op":"replace_update","var":"last_class"},{"action":"reject_id_collision","expect_invariant":"CollisionClassifiesRejection","expr":{"enum":"ALREADY_COMMITTED"},"id":"NR_COLLISION_CLASS_WRONG","model":"fcis_m6_nonce_retry_classifier_v1","op":"replace_update","var":"last_class"},{"action":"classify_stale_head","expect_invariant":"StaleRelationClassifiesStale","expr":{"enum":"NEWLY_COMMITTED"},"id":"NR_STALE_CLASS_WRONG","model":"fcis_m6_nonce_retry_classifier_v1","op":"replace_update","var":"last_class"},{"action":"accept_pending_risk_increase","expect_invariant":"RiskIncreaseRequiresFinalFresh","id":"OR_ACCEPT_PENDING_RISK","model":"fcis_m6_oracle_risk_gate_v1","op":"replace_guard_true"},{"action":"accept_unbound_risk_reduce","expect_invariant":"PriceDependentAcceptRequiresBoundContext","id":"OR_ACCEPT_UNBOUND_REDUCE","model":"fcis_m6_oracle_risk_gate_v1","op":"replace_guard_true"},{"action":"accept_risk_increase","expect_invariant":"ValueChangeRequiresEconomicCertificate","id":"OR_RISK_CHANGE_NO_CERT","model":"fcis_m6_oracle_risk_gate_v1","op":"remove_update","var":"economic_certificate"},{"action":"reject_invalid_context","expect_invariant":"RejectHasNoValueChange","expr":{"bool":true},"id":"OR_REJECT_CHANGES_VALUE","model":"fcis_m6_oracle_risk_gate_v1","op":"replace_update","var":"value_changed"},{"action":"atomic_commit_outbox","expect_invariant":"OutboxIffCommitted","id":"OB_COMMIT_WITHOUT_OUTBOX","model":"fcis_m6_outbox_delivery_v1","op":"remove_update","var":"outbox_present"},{"action":"deliver_effect","expect_invariant":"DeliveryRequiresCommittedOutbox","id":"OB_DELIVER_BEFORE_COMMIT","model":"fcis_m6_outbox_delivery_v1","op":"replace_guard_true"},{"action":"acknowledge_effect","expect_invariant":"AckBindsCommittedEffect","id":"OB_ACK_FOREIGN_EFFECT","model":"fcis_m6_outbox_delivery_v1","op":"replace_guard_true"},{"action":"redeliver_same_effect","expect_invariant":"AtMostOneSemanticEffect","expr":{"args":[{"var":"effect_count"},{"const":1}],"op":"+"},"id":"OB_REDELIVERY_DUPLICATES_EFFECT","model":"fcis_m6_outbox_delivery_v1","op":"append_update","var":"effect_count"},{"action":"acknowledge_effect","expect_invariant":"AckRequiresDelivery","id":"OB_ACK_WITHOUT_DELIVERY","model":"fcis_m6_outbox_delivery_v1","op":"replace_guard_true"},{"action":"deliver_effect","expect_invariant":"DeliveredIffOneSemanticEffect","id":"OB_DELIVERY_WITHOUT_COUNT","model":"fcis_m6_outbox_delivery_v1","op":"remove_update","var":"effect_count"},{"action":"promote_m6","expect_invariant":"PromotionRequiresAllFourGates","id":"PS_PROMOTE_WITHOUT_GATES","model":"fcis_m6_promotion_subject_v1","op":"replace_guard_true"},{"action":"promote_m6","expect_invariant":"PromotionRequiresProofImplementationSubjectEquality","id":"PS_CROSS_SUBJECT_PROMOTION","model":"fcis_m6_promotion_subject_v1","op":"replace_guard_true"},{"action":"promote_m6","expect_invariant":"PromotionRequiresProofMountSubjectEquality","id":"PS_PROOF_MOUNT_CROSS_LINEAGE","model":"fcis_m6_promotion_subject_v1","op":"replace_guard_true"},{"action":"promote_m6","expect_invariant":"PromotionRequiresProofTestSubjectEquality","id":"PS_PROOF_TEST_CROSS_LINEAGE","model":"fcis_m6_promotion_subject_v1","op":"replace_guard_true"},{"action":"verify_exact_proof","expect_invariant":"AcceptedIffVerifierReceipt","id":"PC_VERIFY_NO_RECEIPT","model":"fcis_m6_proof_context_v1","op":"remove_update","var":"verifier_receipt"},{"action":"accept_without_registry","expect_invariant":"AcceptedRequiresPinnedRegistry","id":"PC_ACCEPT_WITHOUT_REGISTRY","model":"fcis_m6_proof_context_v1","op":"replace_guard_true"},{"action":"accept_without_proof","expect_invariant":"AcceptedRequiresProofPresent","id":"PC_ACCEPT_WITHOUT_PROOF","model":"fcis_m6_proof_context_v1","op":"replace_guard_true"},{"action":"accept_faulty_context","expect_invariant":"AcceptedRequiresExactContext","id":"PC_ACCEPT_FAULTY_CONTEXT","model":"fcis_m6_proof_context_v1","op":"replace_guard_true"},{"action":"restart_process","expect_invariant":"AuthorizedOnlyAfterCanonicalOpen","id":"RR_RESTART_RETAINS_AUTH","model":"fcis_m6_reopen_reauthorization_v1","op":"remove_update","var":"write_authorized"},{"action":"grant_write_authority","expect_invariant":"AuthorizedHeadIsCurrentReopenedHead","id":"RR_GRANT_IGNORES_HEAD_EPOCH","model":"fcis_m6_reopen_reauthorization_v1","op":"replace_guard_true"},{"action":"commit_next_head","expect_invariant":"AuthorizedHeadIsCurrentReopenedHead","id":"RR_COMMIT_RETAINS_AUTH","model":"fcis_m6_reopen_reauthorization_v1","op":"remove_update","var":"write_authorized"},{"action":"switch_authority_epoch","expect_invariant":"AuthorizedEpochIsCurrent","id":"RR_EPOCH_SWITCH_RETAINS_AUTH","model":"fcis_m6_reopen_reauthorization_v1","op":"remove_update","var":"write_authorized"},{"action":"canonical_reopen","expect_invariant":"CanonicalOpenMatchesStoredHead","expr":{"const":2},"id":"RR_REOPEN_WRONG_HEAD","model":"fcis_m6_reopen_reauthorization_v1","op":"replace_update","var":"reopened_head"},{"action":"transfer_alice_to_bob","expect_invariant":"AssetQuantityConservation","id":"VF_TRANSFER_MISSING_CREDIT","model":"fcis_m6_value_flow_kernel_v1","op":"remove_update","var":"bob"},{"action":"escrow_lock","expect_invariant":"AssetQuantityConservation","id":"VF_ESCROW_LOCK_MISSING_DEBIT","model":"fcis_m6_value_flow_kernel_v1","op":"remove_update","var":"alice"},{"action":"authorized_mint","expect_invariant":"AssetQuantityConservation","id":"VF_MINT_WITHOUT_ISSUANCE","model":"fcis_m6_value_flow_kernel_v1","op":"remove_update","var":"issued"},{"action":"authorized_burn","expect_invariant":"AssetQuantityConservation","id":"VF_BURN_WITHOUT_HOLDING_DEBIT","model":"fcis_m6_value_flow_kernel_v1","op":"remove_update","var":"alice"}],"schema":"zenodex/fcis/m6/formal-suite/v1"}
+{
+  "base_commit": "b0ddd579377f916081bd1c79b69e989927f4655d",
+  "expected_action_coverage": {
+    "fcis_m6_managed_asset_issuance_v1": {
+      "disabled": [
+        "generic_mint_managed_asset",
+        "generic_burn_managed_asset"
+      ]
+    },
+    "fcis_m6_oracle_risk_gate_v1": {
+      "disabled": [
+        "accept_pending_risk_increase",
+        "accept_deficit_risk_increase",
+        "accept_unbound_risk_reduce"
+      ]
+    },
+    "fcis_m6_proof_context_v1": {
+      "disabled": [
+        "accept_without_registry",
+        "accept_without_proof",
+        "accept_faulty_context"
+      ]
+    },
+    "fcis_m6_zenoledger_tau_continuity_v1": {
+      "disabled": [
+        "tau_rewrite_ledger_head"
+      ]
+    }
+  },
+  "formal_nonclaims": [
+    "The bounded models do not prove inventory completeness, cryptographic soundness, compiler correctness, ZenoLedger consensus or durability, Tau checkpoint authentication, or implementation refinement.",
+    "SQLite remains an unmounted conformance adapter and is not the canonical economic ledger or production durability authority.",
+    "The Tau-continuity lane assumes ZenoLedger itself is operational; it models Tau unavailability, censorship, and authenticated rejoin rather than a simultaneous ZenoLedger failure.",
+    "ESSO verification must be rerun with pinned z3 and cvc5 on the committed files.",
+    "The generic value-flow model does not enumerate every ZenoDEX command; the ATDD/refinement manifest must map every mounted command to one formal action or a separately proved command theorem."
+  ],
+  "models": [
+    {
+      "path": "formal/esso/fcis_m6_value_flow_kernel_v1.yaml",
+      "role": "generic_asset_quantity_conservation"
+    },
+    {
+      "path": "formal/esso/fcis_m6_managed_asset_issuance_v1.yaml",
+      "role": "managed_asset_debt_supply_identity"
+    },
+    {
+      "path": "formal/esso/fcis_m6_atomic_publication_v1.yaml",
+      "role": "atomic_publication"
+    },
+    {
+      "path": "formal/esso/fcis_m6_reopen_reauthorization_v1.yaml",
+      "role": "reopen_and_fresh_authority"
+    },
+    {
+      "path": "formal/esso/fcis_m6_outbox_delivery_v1.yaml",
+      "role": "external_effect_identity_and_ack"
+    },
+    {
+      "path": "formal/esso/fcis_m6_migration_writer_v1.yaml",
+      "role": "migration_unique_writer"
+    },
+    {
+      "path": "formal/esso/fcis_m6_no_bypass_v1.yaml",
+      "role": "mounted_no_bypass_conditional_on_inventory"
+    },
+    {
+      "path": "formal/esso/fcis_m6_promotion_subject_v1.yaml",
+      "role": "same_lineage_promotion"
+    },
+    {
+      "path": "formal/esso/fcis_m6_nonce_retry_classifier_v1.yaml",
+      "role": "nonce_retry_total_classifier"
+    },
+    {
+      "path": "formal/esso/fcis_m6_history_fixed_point_v1.yaml",
+      "role": "canonical_history_fixed_point"
+    },
+    {
+      "path": "formal/esso/fcis_m6_proof_context_v1.yaml",
+      "role": "proof_context_binding"
+    },
+    {
+      "path": "formal/esso/fcis_m6_oracle_risk_gate_v1.yaml",
+      "role": "oracle_gated_risk_safety"
+    },
+    {
+      "path": "formal/esso/fcis_m6_zenoledger_tau_continuity_v1.yaml",
+      "role": "zenoledger_canonical_tau_optional_continuity"
+    }
+  ],
+  "mutants": [
+    {
+      "action": "atomic_publish",
+      "expect_invariant": "history_publishedIffCommit",
+      "id": "AP_STATE_ONLY_WITHOUT_HISTORY",
+      "model": "fcis_m6_atomic_publication_v1",
+      "op": "remove_update",
+      "var": "history_published"
+    },
+    {
+      "action": "atomic_publish",
+      "expect_invariant": "economic_certificate_publishedIffCommit",
+      "id": "AP_NO_ECONOMIC_CERTIFICATE",
+      "model": "fcis_m6_atomic_publication_v1",
+      "op": "remove_update",
+      "var": "economic_certificate_published"
+    },
+    {
+      "action": "atomic_publish",
+      "expect_invariant": "CommitRequiresVerifiedCandidate",
+      "id": "AP_PUBLISH_WITHOUT_VERIFICATION",
+      "model": "fcis_m6_atomic_publication_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "atomic_publish",
+      "expect_invariant": "CommitConsumesHeadAuthorization",
+      "id": "AP_AUTH_NOT_CONSUMED",
+      "model": "fcis_m6_atomic_publication_v1",
+      "op": "remove_update",
+      "var": "head_authorized"
+    },
+    {
+      "action": "atomic_publish",
+      "expect_invariant": "state_publishedIffCommit",
+      "id": "AP_STATE_NOT_PUBLISHED",
+      "model": "fcis_m6_atomic_publication_v1",
+      "op": "remove_update",
+      "var": "state_published"
+    },
+    {
+      "action": "atomic_publish",
+      "expect_invariant": "nullifier_publishedIffCommit",
+      "id": "AP_NULLIFIER_NOT_PUBLISHED",
+      "model": "fcis_m6_atomic_publication_v1",
+      "op": "remove_update",
+      "var": "nullifier_published"
+    },
+    {
+      "action": "atomic_publish",
+      "expect_invariant": "receipt_publishedIffCommit",
+      "id": "AP_RECEIPT_NOT_PUBLISHED",
+      "model": "fcis_m6_atomic_publication_v1",
+      "op": "remove_update",
+      "var": "receipt_published"
+    },
+    {
+      "action": "atomic_publish",
+      "expect_invariant": "outbox_publishedIffCommit",
+      "id": "AP_OUTBOX_NOT_PUBLISHED",
+      "model": "fcis_m6_atomic_publication_v1",
+      "op": "remove_update",
+      "var": "outbox_published"
+    },
+    {
+      "action": "atomic_publish",
+      "expect_invariant": "authority_epoch_publishedIffCommit",
+      "id": "AP_EPOCH_NOT_PUBLISHED",
+      "model": "fcis_m6_atomic_publication_v1",
+      "op": "remove_update",
+      "var": "authority_epoch_published"
+    },
+    {
+      "action": "issue_head_authorization",
+      "expect_invariant": "CommitRequiresIssuedAuthorization",
+      "id": "AP_AUTH_ISSUANCE_NOT_RETAINED",
+      "model": "fcis_m6_atomic_publication_v1",
+      "op": "remove_update",
+      "var": "authorization_issued"
+    },
+    {
+      "action": "remove_state_row",
+      "expect_invariant": "OpenRequiresStateRow",
+      "id": "HF_REMOVE_STATE_RETAINS_OPEN",
+      "model": "fcis_m6_history_fixed_point_v1",
+      "op": "remove_update",
+      "var": "canonical_open"
+    },
+    {
+      "action": "remove_history_row",
+      "expect_invariant": "OpenRequiresHistoryRow",
+      "id": "HF_REMOVE_HISTORY_RETAINS_OPEN",
+      "model": "fcis_m6_history_fixed_point_v1",
+      "op": "remove_update",
+      "var": "canonical_open"
+    },
+    {
+      "action": "remove_evidence_row",
+      "expect_invariant": "OpenRequiresEvidenceRow",
+      "id": "HF_REMOVE_EVIDENCE_RETAINS_OPEN",
+      "model": "fcis_m6_history_fixed_point_v1",
+      "op": "remove_update",
+      "var": "canonical_open"
+    },
+    {
+      "action": "remove_nullifier_row",
+      "expect_invariant": "OpenRequiresNullifierRow",
+      "id": "HF_REMOVE_NULLIFIER_RETAINS_OPEN",
+      "model": "fcis_m6_history_fixed_point_v1",
+      "op": "remove_update",
+      "var": "canonical_open"
+    },
+    {
+      "action": "remove_receipt_row",
+      "expect_invariant": "OpenRequiresReceiptRow",
+      "id": "HF_REMOVE_RECEIPT_RETAINS_OPEN",
+      "model": "fcis_m6_history_fixed_point_v1",
+      "op": "remove_update",
+      "var": "canonical_open"
+    },
+    {
+      "action": "remove_outbox_row",
+      "expect_invariant": "OpenRequiresOutboxRow",
+      "id": "HF_REMOVE_OUTBOX_RETAINS_OPEN",
+      "model": "fcis_m6_history_fixed_point_v1",
+      "op": "remove_update",
+      "var": "canonical_open"
+    },
+    {
+      "action": "remove_authority_row",
+      "expect_invariant": "OpenRequiresAuthorityRow",
+      "id": "HF_REMOVE_AUTHORITY_RETAINS_OPEN",
+      "model": "fcis_m6_history_fixed_point_v1",
+      "op": "remove_update",
+      "var": "canonical_open"
+    },
+    {
+      "action": "cross_relation_rows",
+      "expect_invariant": "OpenRequiresValidRelations",
+      "id": "HF_CROSSED_RELATION_RETAINS_OPEN",
+      "model": "fcis_m6_history_fixed_point_v1",
+      "op": "remove_update",
+      "var": "canonical_open"
+    },
+    {
+      "action": "add_surplus_row",
+      "expect_invariant": "OpenRequiresExactLayout",
+      "id": "HF_SURPLUS_ROW_RETAINS_OPEN",
+      "model": "fcis_m6_history_fixed_point_v1",
+      "op": "remove_update",
+      "var": "canonical_open"
+    },
+    {
+      "action": "reopen_accept",
+      "expect_invariant": "OpenRequiresFixedPoint",
+      "id": "HF_REOPEN_IGNORES_FIXED_POINT",
+      "model": "fcis_m6_history_fixed_point_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "canonical_reencode",
+      "expect_invariant": "FixedPointRequiresCompleteLayout",
+      "id": "HF_REENCODE_PARTIAL_LAYOUT",
+      "model": "fcis_m6_history_fixed_point_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "generic_mint_managed_asset",
+      "expect_invariant": "DebtEqualsSupplyPlusClaim",
+      "id": "MA_GENERIC_MINT_ENABLED",
+      "model": "fcis_m6_managed_asset_issuance_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "generic_burn_managed_asset",
+      "expect_invariant": "DebtEqualsSupplyPlusClaim",
+      "id": "MA_GENERIC_BURN_ENABLED",
+      "model": "fcis_m6_managed_asset_issuance_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "protocol_borrow",
+      "expect_invariant": "DebtEqualsSupplyPlusClaim",
+      "id": "MA_BORROW_DEBT_OMITTED",
+      "model": "fcis_m6_managed_asset_issuance_v1",
+      "op": "remove_update",
+      "var": "debt"
+    },
+    {
+      "action": "realize_protocol_claim",
+      "expect_invariant": "DebtEqualsSupplyPlusClaim",
+      "id": "MA_CLAIM_REALIZED_WITHOUT_CLAIM_DEBIT",
+      "model": "fcis_m6_managed_asset_issuance_v1",
+      "op": "remove_update",
+      "var": "protocol_claim"
+    },
+    {
+      "action": "quiesce",
+      "expect_invariant": "QuiescedNoWriter",
+      "expr": {
+        "enum": "TARGET_WRITER"
+      },
+      "id": "MW_QUIESCE_WITH_TARGET_WRITER",
+      "model": "fcis_m6_migration_writer_v1",
+      "op": "replace_update",
+      "var": "writer_mode"
+    },
+    {
+      "action": "switch_authority",
+      "expect_invariant": "NeverDualEnabledWriters",
+      "id": "MW_SWITCH_LEAVES_LEGACY_ENABLED",
+      "model": "fcis_m6_migration_writer_v1",
+      "op": "remove_update",
+      "var": "legacy_enabled"
+    },
+    {
+      "action": "switch_authority",
+      "expect_invariant": "PostSwitchRequiresQuiescence",
+      "id": "MW_SWITCH_SKIPS_QUIESCENCE",
+      "model": "fcis_m6_migration_writer_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "switch_authority",
+      "expect_invariant": "AuthorizationEpochCurrent",
+      "id": "MW_STALE_AUTH_SURVIVES_EPOCH",
+      "model": "fcis_m6_migration_writer_v1",
+      "op": "remove_update",
+      "var": "head_authorized"
+    },
+    {
+      "action": "enter_shadow_replay",
+      "expect_invariant": "PreSwitchLegacyWriter",
+      "expr": {
+        "enum": "TARGET_WRITER"
+      },
+      "id": "MW_PRE_SWITCH_TARGET_WRITER",
+      "model": "fcis_m6_migration_writer_v1",
+      "op": "append_update",
+      "var": "writer_mode"
+    },
+    {
+      "action": "switch_authority",
+      "expect_invariant": "PostSwitchTargetWriter",
+      "expr": {
+        "enum": "LEGACY_WRITER"
+      },
+      "id": "MW_POST_SWITCH_LEGACY_WRITER",
+      "model": "fcis_m6_migration_writer_v1",
+      "op": "replace_update",
+      "var": "writer_mode"
+    },
+    {
+      "action": "enter_shadow_replay",
+      "expect_invariant": "LegacyWriterImpliesLegacyEnabled",
+      "expr": {
+        "bool": false
+      },
+      "id": "MW_LEGACY_DISABLED_PRE_SWITCH",
+      "model": "fcis_m6_migration_writer_v1",
+      "op": "append_update",
+      "var": "legacy_enabled"
+    },
+    {
+      "action": "switch_authority",
+      "expect_invariant": "TargetWriterImpliesTargetEnabled",
+      "id": "MW_TARGET_NOT_ENABLED",
+      "model": "fcis_m6_migration_writer_v1",
+      "op": "remove_update",
+      "var": "target_enabled"
+    },
+    {
+      "action": "switch_authority",
+      "expect_invariant": "PostSwitchRequiresDualEquality",
+      "expr": {
+        "bool": false
+      },
+      "id": "MW_DUAL_EQUALITY_ERASED_AT_SWITCH",
+      "model": "fcis_m6_migration_writer_v1",
+      "op": "append_update",
+      "var": "dual_equal"
+    },
+    {
+      "action": "switch_authority",
+      "expect_invariant": "PostSwitchRequiresTransportComplete",
+      "expr": {
+        "bool": false
+      },
+      "id": "MW_TRANSPORT_ERASED_AT_SWITCH",
+      "model": "fcis_m6_migration_writer_v1",
+      "op": "append_update",
+      "var": "transport_complete"
+    },
+    {
+      "action": "publish_value_change",
+      "expect_invariant": "ValueChangeRequiresAttestedInventory",
+      "id": "NB_VALUE_CHANGE_WITHOUT_PORT",
+      "model": "fcis_m6_no_bypass_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "publish_value_change",
+      "expect_invariant": "ValueChangeRequiresReceipt",
+      "id": "NB_VALUE_CHANGE_WITHOUT_RECEIPT",
+      "model": "fcis_m6_no_bypass_v1",
+      "op": "remove_update",
+      "var": "receipt_published"
+    },
+    {
+      "action": "select_entrypoint",
+      "expect_invariant": "ValueChangePortBindsSelectedEntrypoint",
+      "id": "NB_SELECT_RETAINS_OLD_PORT",
+      "model": "fcis_m6_no_bypass_v1",
+      "op": "remove_update",
+      "var": "commit_port_reached"
+    },
+    {
+      "action": "publish_value_change",
+      "expect_invariant": "ValueChangeRequiresMountedDeployment",
+      "id": "NB_VALUE_CHANGE_WITHOUT_MOUNT",
+      "model": "fcis_m6_no_bypass_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "publish_value_change",
+      "expect_invariant": "ValueChangeRequiresUniqueCommitPort",
+      "id": "NB_VALUE_CHANGE_WITHOUT_UNIQUE_PORT",
+      "model": "fcis_m6_no_bypass_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "publish_value_change",
+      "expect_invariant": "ReceiptIffValueChange",
+      "id": "NB_RECEIPT_WITHOUT_VALUE_CHANGE",
+      "model": "fcis_m6_no_bypass_v1",
+      "op": "remove_update",
+      "var": "value_changed"
+    },
+    {
+      "action": "commit_new_request",
+      "expect_invariant": "CommittedIffOneCount",
+      "id": "NR_COMMIT_COUNT_OMITTED",
+      "model": "fcis_m6_nonce_retry_classifier_v1",
+      "op": "remove_update",
+      "var": "commit_count"
+    },
+    {
+      "action": "commit_new_request",
+      "expect_invariant": "HeadEqualsCommitCount",
+      "id": "NR_HEAD_NOT_ADVANCED",
+      "model": "fcis_m6_nonce_retry_classifier_v1",
+      "op": "remove_update",
+      "var": "head"
+    },
+    {
+      "action": "commit_new_request",
+      "expect_invariant": "CommittedIdentitySealed",
+      "id": "NR_IDENTITY_NOT_SEALED",
+      "model": "fcis_m6_nonce_retry_classifier_v1",
+      "op": "remove_update",
+      "var": "identity_sealed"
+    },
+    {
+      "action": "commit_new_request",
+      "expect_invariant": "CommittedNullifierConsumed",
+      "id": "NR_NULLIFIER_NOT_CONSUMED",
+      "model": "fcis_m6_nonce_retry_classifier_v1",
+      "op": "remove_update",
+      "var": "nullifier_consumed"
+    },
+    {
+      "action": "commit_new_request",
+      "expect_invariant": "AbsentRelationClassifiesNew",
+      "expr": {
+        "enum": "ALREADY_COMMITTED"
+      },
+      "id": "NR_ABSENT_CLASS_WRONG",
+      "model": "fcis_m6_nonce_retry_classifier_v1",
+      "op": "replace_update",
+      "var": "last_class"
+    },
+    {
+      "action": "retry_exact_request",
+      "expect_invariant": "ExactRetryClassifiesAlready",
+      "expr": {
+        "enum": "NEWLY_COMMITTED"
+      },
+      "id": "NR_RETRY_CLASS_WRONG",
+      "model": "fcis_m6_nonce_retry_classifier_v1",
+      "op": "replace_update",
+      "var": "last_class"
+    },
+    {
+      "action": "reject_id_collision",
+      "expect_invariant": "CollisionClassifiesRejection",
+      "expr": {
+        "enum": "ALREADY_COMMITTED"
+      },
+      "id": "NR_COLLISION_CLASS_WRONG",
+      "model": "fcis_m6_nonce_retry_classifier_v1",
+      "op": "replace_update",
+      "var": "last_class"
+    },
+    {
+      "action": "classify_stale_head",
+      "expect_invariant": "StaleRelationClassifiesStale",
+      "expr": {
+        "enum": "NEWLY_COMMITTED"
+      },
+      "id": "NR_STALE_CLASS_WRONG",
+      "model": "fcis_m6_nonce_retry_classifier_v1",
+      "op": "replace_update",
+      "var": "last_class"
+    },
+    {
+      "action": "accept_pending_risk_increase",
+      "expect_invariant": "RiskIncreaseRequiresFinalFresh",
+      "id": "OR_ACCEPT_PENDING_RISK",
+      "model": "fcis_m6_oracle_risk_gate_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "accept_unbound_risk_reduce",
+      "expect_invariant": "PriceDependentAcceptRequiresBoundContext",
+      "id": "OR_ACCEPT_UNBOUND_REDUCE",
+      "model": "fcis_m6_oracle_risk_gate_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "accept_risk_increase",
+      "expect_invariant": "ValueChangeRequiresEconomicCertificate",
+      "id": "OR_RISK_CHANGE_NO_CERT",
+      "model": "fcis_m6_oracle_risk_gate_v1",
+      "op": "remove_update",
+      "var": "economic_certificate"
+    },
+    {
+      "action": "reject_invalid_context",
+      "expect_invariant": "RejectHasNoValueChange",
+      "expr": {
+        "bool": true
+      },
+      "id": "OR_REJECT_CHANGES_VALUE",
+      "model": "fcis_m6_oracle_risk_gate_v1",
+      "op": "replace_update",
+      "var": "value_changed"
+    },
+    {
+      "action": "atomic_commit_outbox",
+      "expect_invariant": "OutboxIffCommitted",
+      "id": "OB_COMMIT_WITHOUT_OUTBOX",
+      "model": "fcis_m6_outbox_delivery_v1",
+      "op": "remove_update",
+      "var": "outbox_present"
+    },
+    {
+      "action": "deliver_effect",
+      "expect_invariant": "DeliveryRequiresCommittedOutbox",
+      "id": "OB_DELIVER_BEFORE_COMMIT",
+      "model": "fcis_m6_outbox_delivery_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "acknowledge_effect",
+      "expect_invariant": "AckBindsCommittedEffect",
+      "id": "OB_ACK_FOREIGN_EFFECT",
+      "model": "fcis_m6_outbox_delivery_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "redeliver_same_effect",
+      "expect_invariant": "AtMostOneSemanticEffect",
+      "expr": {
+        "args": [
+          {
+            "var": "effect_count"
+          },
+          {
+            "const": 1
+          }
+        ],
+        "op": "+"
+      },
+      "id": "OB_REDELIVERY_DUPLICATES_EFFECT",
+      "model": "fcis_m6_outbox_delivery_v1",
+      "op": "append_update",
+      "var": "effect_count"
+    },
+    {
+      "action": "acknowledge_effect",
+      "expect_invariant": "AckRequiresDelivery",
+      "id": "OB_ACK_WITHOUT_DELIVERY",
+      "model": "fcis_m6_outbox_delivery_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "deliver_effect",
+      "expect_invariant": "DeliveredIffOneSemanticEffect",
+      "id": "OB_DELIVERY_WITHOUT_COUNT",
+      "model": "fcis_m6_outbox_delivery_v1",
+      "op": "remove_update",
+      "var": "effect_count"
+    },
+    {
+      "action": "promote_m6",
+      "expect_invariant": "PromotionRequiresAllFourGates",
+      "id": "PS_PROMOTE_WITHOUT_GATES",
+      "model": "fcis_m6_promotion_subject_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "promote_m6",
+      "expect_invariant": "PromotionRequiresProofImplementationSubjectEquality",
+      "id": "PS_CROSS_SUBJECT_PROMOTION",
+      "model": "fcis_m6_promotion_subject_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "promote_m6",
+      "expect_invariant": "PromotionRequiresProofMountSubjectEquality",
+      "id": "PS_PROOF_MOUNT_CROSS_LINEAGE",
+      "model": "fcis_m6_promotion_subject_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "promote_m6",
+      "expect_invariant": "PromotionRequiresProofTestSubjectEquality",
+      "id": "PS_PROOF_TEST_CROSS_LINEAGE",
+      "model": "fcis_m6_promotion_subject_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "verify_exact_proof",
+      "expect_invariant": "AcceptedIffVerifierReceipt",
+      "id": "PC_VERIFY_NO_RECEIPT",
+      "model": "fcis_m6_proof_context_v1",
+      "op": "remove_update",
+      "var": "verifier_receipt"
+    },
+    {
+      "action": "accept_without_registry",
+      "expect_invariant": "AcceptedRequiresPinnedRegistry",
+      "id": "PC_ACCEPT_WITHOUT_REGISTRY",
+      "model": "fcis_m6_proof_context_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "accept_without_proof",
+      "expect_invariant": "AcceptedRequiresProofPresent",
+      "id": "PC_ACCEPT_WITHOUT_PROOF",
+      "model": "fcis_m6_proof_context_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "accept_faulty_context",
+      "expect_invariant": "AcceptedRequiresExactContext",
+      "id": "PC_ACCEPT_FAULTY_CONTEXT",
+      "model": "fcis_m6_proof_context_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "restart_process",
+      "expect_invariant": "AuthorizedOnlyAfterCanonicalOpen",
+      "id": "RR_RESTART_RETAINS_AUTH",
+      "model": "fcis_m6_reopen_reauthorization_v1",
+      "op": "remove_update",
+      "var": "write_authorized"
+    },
+    {
+      "action": "grant_write_authority",
+      "expect_invariant": "AuthorizedHeadIsCurrentReopenedHead",
+      "id": "RR_GRANT_IGNORES_HEAD_EPOCH",
+      "model": "fcis_m6_reopen_reauthorization_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "commit_next_head",
+      "expect_invariant": "AuthorizedHeadIsCurrentReopenedHead",
+      "id": "RR_COMMIT_RETAINS_AUTH",
+      "model": "fcis_m6_reopen_reauthorization_v1",
+      "op": "remove_update",
+      "var": "write_authorized"
+    },
+    {
+      "action": "switch_authority_epoch",
+      "expect_invariant": "AuthorizedEpochIsCurrent",
+      "id": "RR_EPOCH_SWITCH_RETAINS_AUTH",
+      "model": "fcis_m6_reopen_reauthorization_v1",
+      "op": "remove_update",
+      "var": "write_authorized"
+    },
+    {
+      "action": "canonical_reopen",
+      "expect_invariant": "CanonicalOpenMatchesStoredHead",
+      "expr": {
+        "const": 2
+      },
+      "id": "RR_REOPEN_WRONG_HEAD",
+      "model": "fcis_m6_reopen_reauthorization_v1",
+      "op": "replace_update",
+      "var": "reopened_head"
+    },
+    {
+      "action": "transfer_alice_to_bob",
+      "expect_invariant": "AssetQuantityConservation",
+      "id": "VF_TRANSFER_MISSING_CREDIT",
+      "model": "fcis_m6_value_flow_kernel_v1",
+      "op": "remove_update",
+      "var": "bob"
+    },
+    {
+      "action": "escrow_lock",
+      "expect_invariant": "AssetQuantityConservation",
+      "id": "VF_ESCROW_LOCK_MISSING_DEBIT",
+      "model": "fcis_m6_value_flow_kernel_v1",
+      "op": "remove_update",
+      "var": "alice"
+    },
+    {
+      "action": "authorized_mint",
+      "expect_invariant": "AssetQuantityConservation",
+      "id": "VF_MINT_WITHOUT_ISSUANCE",
+      "model": "fcis_m6_value_flow_kernel_v1",
+      "op": "remove_update",
+      "var": "issued"
+    },
+    {
+      "action": "authorized_burn",
+      "expect_invariant": "AssetQuantityConservation",
+      "id": "VF_BURN_WITHOUT_HOLDING_DEBIT",
+      "model": "fcis_m6_value_flow_kernel_v1",
+      "op": "remove_update",
+      "var": "alice"
+    },
+    {
+      "action": "tau_rewrite_ledger_head",
+      "expect_invariant": "LedgerHeadEqualsCommitCount",
+      "id": "ZT_TAU_REWRITES_LEDGER_HEAD",
+      "model": "fcis_m6_zenoledger_tau_continuity_v1",
+      "op": "replace_guard_true"
+    },
+    {
+      "action": "tau_becomes_unavailable",
+      "expect_invariant": "TauDisruptionPreservesLedgerWriter",
+      "expr": {
+        "bool": false
+      },
+      "id": "ZT_OUTAGE_DISABLES_LEDGER_WRITER",
+      "model": "fcis_m6_zenoledger_tau_continuity_v1",
+      "op": "append_update",
+      "var": "ledger_writer_enabled"
+    },
+    {
+      "action": "tau_becomes_unavailable",
+      "expect_invariant": "TauAnchorNotAheadOfLedger",
+      "expr": {
+        "const": 2
+      },
+      "id": "ZT_TAU_ANCHOR_ADVANCES_AHEAD",
+      "model": "fcis_m6_zenoledger_tau_continuity_v1",
+      "op": "append_update",
+      "var": "tau_anchor_head"
+    },
+    {
+      "action": "commit_with_tau_available",
+      "expect_invariant": "AuthenticatedCheckpointIsCurrent",
+      "id": "ZT_COMMIT_RETAINS_CHECKPOINT_AUTH",
+      "model": "fcis_m6_zenoledger_tau_continuity_v1",
+      "op": "remove_update",
+      "var": "checkpoint_authenticated"
+    },
+    {
+      "action": "tau_becomes_unavailable",
+      "expect_invariant": "TauAuthorityRequiresAvailable",
+      "id": "ZT_OUTAGE_RETAINS_TAU_AUTHORITY",
+      "model": "fcis_m6_zenoledger_tau_continuity_v1",
+      "op": "remove_update",
+      "var": "tau_dependent_authorized"
+    },
+    {
+      "action": "commit_with_tau_available",
+      "expect_invariant": "TauAuthorityRequiresCurrentAnchor",
+      "id": "ZT_COMMIT_RETAINS_TAU_AUTHORITY",
+      "model": "fcis_m6_zenoledger_tau_continuity_v1",
+      "op": "remove_update",
+      "var": "tau_dependent_authorized"
+    },
+    {
+      "action": "anchor_authenticated_checkpoint",
+      "expect_invariant": "TauAuthorityRequiresCurrentCheckpoint",
+      "id": "ZT_ANCHOR_WITHOUT_CURRENT_CHECKPOINT",
+      "model": "fcis_m6_zenoledger_tau_continuity_v1",
+      "op": "replace_guard_true"
+    }
+  ],
+  "schema": "zenodex/fcis/m6/formal-suite/v1"
+}

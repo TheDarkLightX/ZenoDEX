@@ -1,0 +1,79 @@
+name: FCIS M6 bounded formal assurance
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/fcis-m6-bounded-formal-assurance.yml"
+      - "docs/research/FCIS_M6_FORMAL_*"
+      - "features/fcis_m6_formal_runtime_refinement.feature"
+      - "formal/esso/fcis_m6_*"
+      - "tests/test_fcis_m6_formal_assurance_packet.py"
+      - "tools/build_fcis_m6_formal_source_manifest.py"
+      - "tools/check_fcis_m6_formal_runtime_matrix.py"
+      - "tools/check_fcis_m6_formal_specs.py"
+      - "tools/run_fcis_m6_formal_assurance_gate.sh"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bounded-public-gate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout exact source head
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - name: Install development requirements
+        run: python -m pip install --requirement requirements-dev.txt
+      - name: Compile focused checkers and tests
+        run: |
+          python -m py_compile \
+            tools/build_fcis_m6_formal_source_manifest.py \
+            tools/check_fcis_m6_formal_specs.py \
+            tools/check_fcis_m6_formal_runtime_matrix.py \
+            tests/test_fcis_m6_formal_assurance_packet.py
+      - name: Lint and format-check focused Python
+        run: |
+          python -m ruff check \
+            tools/build_fcis_m6_formal_source_manifest.py \
+            tools/check_fcis_m6_formal_specs.py \
+            tools/check_fcis_m6_formal_runtime_matrix.py \
+            tests/test_fcis_m6_formal_assurance_packet.py
+          python -m ruff format --check \
+            tools/build_fcis_m6_formal_source_manifest.py \
+            tools/check_fcis_m6_formal_specs.py \
+            tools/check_fcis_m6_formal_runtime_matrix.py \
+            tests/test_fcis_m6_formal_assurance_packet.py
+      - name: Run deterministic bounded assurance gate
+        run: tools/run_fcis_m6_formal_assurance_gate.sh
+      - name: Run focused packet tests
+        run: python -m pytest -q tests/test_fcis_m6_formal_assurance_packet.py
+      - name: Preserve Grade F boundary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          matrix = json.loads(
+              Path(
+                  "docs/research/FCIS_M6_FORMAL_RUNTIME_REFINEMENT_MATRIX_V1.json"
+              ).read_text(encoding="utf-8")
+          )
+          assert (
+              matrix["composition_obligation"]["status"]
+              == "THEOREM_STATEMENT_FROZEN_PROOF_OPEN"
+          )
+          assert (
+              matrix["projection_contract"]["status"]
+              == "DECLARED_ONLY_NO_RUNTIME_IMPLEMENTATION"
+          )
+          PY

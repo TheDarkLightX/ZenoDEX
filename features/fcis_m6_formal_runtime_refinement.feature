@@ -234,3 +234,29 @@ Feature: Mounted runtime refines the FCIS M6 formal safety suite
       | risk_increase | FINAL_DEFICIT |
       | risk_reduce | FINAL_FRESH |
       | risk_reduce | FINAL_DEFICIT |
+
+  @model_fcis_m6_zenoledger_tau_continuity_v1 @resilience
+  Scenario Outline: ZenoLedger remains canonical across Tau disruption and rejoin
+    Given ZenoLedger is the canonical economic ledger and is operational
+    And Tau integration starts from an authenticated current ZenoLedger checkpoint
+    When the mounted runtime executes "<formal_action>"
+    Then the result matches "fcis_m6_zenoledger_tau_continuity_v1"
+    And Tau unavailability or censorship cannot disable ZenoLedger-native publication
+    And Tau-dependent authority is absent until the current ZenoLedger checkpoint is authenticated
+    And Tau cannot rewrite or reorganize the committed ZenoLedger head
+
+    Examples:
+      | formal_action |
+      | commit_with_tau_available |
+      | commit_with_tau_unavailable |
+      | commit_with_tau_censoring |
+      | commit_during_tau_rejoin |
+      | tau_becomes_unavailable |
+      | tau_begins_censoring |
+      | tau_recovers_from_unavailable |
+      | tau_recovers_from_censorship |
+      | authenticate_current_ledger_checkpoint |
+      | anchor_authenticated_checkpoint |
+      | execute_tau_dependent_operation |
+      | reject_tau_dependent_operation |
+      | tau_rewrite_ledger_head |

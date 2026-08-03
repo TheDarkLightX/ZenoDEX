@@ -3,11 +3,11 @@
 ## Result
 
 - Verdict: `PASS_BOUNDED_INDEPENDENT_REPLAY`
-- Models: 12
-- Reachable states: 982
-- Enabled transitions: 7336
-- Formal invariants: 69
-- Named adversarial mutants killed: 76 of 76
+- Models: 13
+- Reachable states: 1031
+- Enabled transitions: 7496
+- Formal invariants: 76
+- Named adversarial mutants killed: 83 of 83
 - ESSO dual-solver receipt: **not produced in this environment**; the committed gate must be rerun with pinned Z3 and cvc5.
 
 ## Model sizes
@@ -26,6 +26,7 @@
 | `fcis_m6_proof_context_v1` | 23 | 273 | 0 |
 | `fcis_m6_reopen_reauthorization_v1` | 69 | 288 | 0 |
 | `fcis_m6_value_flow_kernel_v1` | 126 | 539 | 0 |
+| `fcis_m6_zenoledger_tau_continuity_v1` | 49 | 160 | 0 |
 
 ## Adversarial refinement history
 
@@ -36,7 +37,9 @@ The first bounded replay was not accepted. It exposed four specification weaknes
 3. authority switch without quiescence was not represented by a state predicate strong enough to refute the phase skip;
 4. the no-bypass model did not bind the commit-port capability to the currently selected entrypoint.
 
-The models were revised by making terminal evidence immutable, adding a quiescence ghost/premise, and binding the commit-port entrypoint identity. The second pass killed all original mutants. A further invariant-coverage pass added retained mutants until every one of the original 42 invariants killed at least one named mutant. A second completeness review added separate nonce/retry, canonical-history, proof-context, and oracle-risk models rather than expanding the existing models. The final campaign contains 76 mutants, and each of the 69 invariants has at least one retained killing mutant.
+The models were revised by making terminal evidence immutable, adding a quiescence ghost/premise, and binding the commit-port entrypoint identity. The second pass killed all original mutants. A further invariant-coverage pass added retained mutants until every one of the original 42 invariants killed at least one named mutant. A second completeness review added separate nonce/retry, canonical-history, proof-context, and oracle-risk models rather than expanding the existing models.
+
+The PR review then found two packet-level defects: a stale source manifest and a replay checker whose default pretty-printed output did not reproduce the committed compact evidence bytes. The checker now emits one canonical compact representation, checks the committed evidence by default, and requires explicit `--output` for regeneration. The same review found that the suite treated Tau as a possible durability authority and omitted the required ZenoLedger continuity lane. The thirteenth model freezes ZenoLedger as the canonical economic ledger, treats authenticated Tau integration as optional, and covers Tau unavailability, censorship, current-checkpoint rejoin, and forbidden Tau-driven ledger rewrites. The repaired campaign contains 83 mutants, and each of the 76 invariants has at least one retained killing mutant.
 
 ## Final negative classes
 
@@ -116,8 +119,17 @@ The models were revised by making terminal evidence immutable, adding a quiescen
 - `OR_ACCEPT_UNBOUND_REDUCE` -> `PriceDependentAcceptRequiresBoundContext`
 - `OR_RISK_CHANGE_NO_CERT` -> `ValueChangeRequiresEconomicCertificate`
 - `OR_REJECT_CHANGES_VALUE` -> `RejectHasNoValueChange`
+- `ZT_TAU_REWRITES_LEDGER_HEAD` -> `LedgerHeadEqualsCommitCount`
+- `ZT_OUTAGE_DISABLES_LEDGER_WRITER` -> `TauDisruptionPreservesLedgerWriter`
+- `ZT_TAU_ANCHOR_ADVANCES_AHEAD` -> `TauAnchorNotAheadOfLedger`
+- `ZT_COMMIT_RETAINS_CHECKPOINT_AUTH` -> `AuthenticatedCheckpointIsCurrent`
+- `ZT_OUTAGE_RETAINS_TAU_AUTHORITY` -> `TauAuthorityRequiresAvailable`
+- `ZT_COMMIT_RETAINS_TAU_AUTHORITY` -> `TauAuthorityRequiresCurrentAnchor`
+- `ZT_ANCHOR_WITHOUT_CURRENT_CHECKPOINT` -> `TauAuthorityRequiresCurrentCheckpoint`
 
 ## Required solver gate
+
+The hosted `FCIS M6 bounded formal assurance` workflow checks exact source hashes, canonical bounded replay bytes, the formal/runtime obligation matrix, focused tests, and the open Grade F boundary. It does not claim or fabricate a private ESSO receipt.
 
 ```bash
 FCIS_REQUIRE_ESSO=1 ESSO_ROOT=external/ESSO tools/run_fcis_m6_formal_assurance_gate.sh
@@ -129,6 +141,8 @@ The gate must fail on solver disagreement, `UNKNOWN`, timeout, unsupported opera
 
 - The ESSO specifications and theorem statement are frozen candidates.
 - Independent finite replay is reproducibly green.
+- ZenoLedger is the canonical durability target; Tau is an optional authenticated integration and SQLite remains an unmounted conformance adapter.
 - The abstract composition theorem remains `THEOREM_STATEMENT_FROZEN_PROOF_OPEN`.
+- The 32 runtime projection identifiers are closed source obligations with status `DECLARED_ONLY_NO_RUNTIME_IMPLEMENTATION`; registry consistency is not Grade R evidence.
 - Runtime projections, ATDD step definitions, concrete storage refinement, mounted inventory completeness, and production promotion remain open.
 - No value movement or production authority is granted by this packet.

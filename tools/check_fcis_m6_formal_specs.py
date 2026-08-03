@@ -5,6 +5,7 @@ This checker intentionally implements only the small ESSO-IR subset used by the
 committed models. It is an independent bounded oracle, not a replacement for
 `ESSO verify-multi --solvers z3,cvc5`.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -117,7 +118,9 @@ def _load_model(path: Path) -> dict[str, Any]:
     return data
 
 
-def _initial_state(model: Mapping[str, Any]) -> tuple[tuple[str, ...], tuple[Any, ...], dict[str, tuple[Any, ...]]]:
+def _initial_state(
+    model: Mapping[str, Any],
+) -> tuple[tuple[str, ...], tuple[Any, ...], dict[str, tuple[Any, ...]]]:
     names = tuple(item["id"] for item in model["state_vars"])
     domains = {item["id"]: _domain(item["type"]) for item in model["state_vars"]}
     init_map: dict[str, Any] = {}
@@ -151,22 +154,48 @@ def explore(model: Mapping[str, Any], *, state_cap: int = 200_000) -> Exploratio
     transitions = 0
     action_counts = {a["id"]: 0 for a in actions}
     violations: list[Violation] = []
-    violation_keys: set[tuple[str, tuple[Any, ...], str | None, tuple[tuple[str, Any], ...], str]] = set()
+    violation_keys: set[
+        tuple[str, tuple[Any, ...], str | None, tuple[tuple[str, Any], ...], str]
+    ] = set()
 
-    def check_state(state_tuple: tuple[Any, ...], action: str | None, params: Mapping[str, Any]) -> None:
+    def check_state(
+        state_tuple: tuple[Any, ...], action: str | None, params: Mapping[str, Any]
+    ) -> None:
         state = dict(zip(names, state_tuple, strict=True))
         for name, value in state.items():
             if value not in domains[name]:
-                key = ("__TYPE_DOMAIN__", state_tuple, action, tuple(sorted(params.items())), f"{name}={value!r}")
+                key = (
+                    "__TYPE_DOMAIN__",
+                    state_tuple,
+                    action,
+                    tuple(sorted(params.items())),
+                    f"{name}={value!r}",
+                )
                 if key not in violation_keys:
                     violation_keys.add(key)
-                    violations.append(Violation("__TYPE_DOMAIN__", state_tuple, action, tuple(sorted(params.items())), f"{name}={value!r} outside {domains[name]!r}"))
+                    violations.append(
+                        Violation(
+                            "__TYPE_DOMAIN__",
+                            state_tuple,
+                            action,
+                            tuple(sorted(params.items())),
+                            f"{name}={value!r} outside {domains[name]!r}",
+                        )
+                    )
         for invariant in invariants:
             if not bool(_eval(invariant["expr"], state, params)):
                 key = (invariant["id"], state_tuple, action, tuple(sorted(params.items())), "false")
                 if key not in violation_keys:
                     violation_keys.add(key)
-                    violations.append(Violation(invariant["id"], state_tuple, action, tuple(sorted(params.items())), "invariant evaluated false"))
+                    violations.append(
+                        Violation(
+                            invariant["id"],
+                            state_tuple,
+                            action,
+                            tuple(sorted(params.items())),
+                            "invariant evaluated false",
+                        )
+                    )
 
     check_state(initial, None, {})
     while queue:
@@ -176,7 +205,9 @@ def explore(model: Mapping[str, Any], *, state_cap: int = 200_000) -> Exploratio
             for params in _params(action):
                 if not bool(_eval(action["guard"], state, params)):
                     continue
-                updates = {u["var"]: _eval(u["expr"], state, params) for u in action.get("updates", [])}
+                updates = {
+                    u["var"]: _eval(u["expr"], state, params) for u in action.get("updates", [])
+                }
                 successor = list(current)
                 for name, value in updates.items():
                     successor[index[name]] = value
@@ -184,7 +215,10 @@ def explore(model: Mapping[str, Any], *, state_cap: int = 200_000) -> Exploratio
                 transitions += 1
                 action_counts[action["id"]] += 1
                 check_state(successor_tuple, action["id"], params)
-                if all(successor_tuple[index[name]] in domains[name] for name in names) and successor_tuple not in seen:
+                if (
+                    all(successor_tuple[index[name]] in domains[name] for name in names)
+                    and successor_tuple not in seen
+                ):
                     seen.add(successor_tuple)
                     if len(seen) > state_cap:
                         raise CheckError(f"{model_id}: state cap exceeded")
@@ -193,7 +227,7 @@ def explore(model: Mapping[str, Any], *, state_cap: int = 200_000) -> Exploratio
 
 
 def mutate(model: Mapping[str, Any], mutation: Mapping[str, Any]) -> dict[str, Any]:
-    out = copy.deepcopy(model)
+    out = copy.deepcopy(dict(model))
     action = next((a for a in out["actions"] if a["id"] == mutation["action"]), None)
     if action is None:
         raise CheckError(f"unknown action {mutation['action']!r}")
@@ -230,7 +264,7 @@ def _violation_doc(v: Violation, names: tuple[str, ...]) -> dict[str, Any]:
     }
 
 
-def run(root: Path, output: Path) -> dict[str, Any]:
+def run(root: Path) -> dict[str, Any]:
     manifest_path = root / "formal/esso/fcis_m6_formal_suite_v1.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     models: dict[str, dict[str, Any]] = {}
@@ -275,7 +309,10 @@ def run(root: Path, output: Path) -> dict[str, Any]:
         mutant_doc = json.loads((root / relative).read_text(encoding="utf-8"))
         if mutant_doc.get("schema") != "zenodex/fcis/m6/formal-mutants/v1":
             raise CheckError(f"{relative}: unsupported mutant manifest")
-        if any(item.get("model") != mutant_doc.get("model_id") for item in mutant_doc.get("mutants", [])):
+        if any(
+            item.get("model") != mutant_doc.get("model_id")
+            for item in mutant_doc.get("mutants", [])
+        ):
             raise CheckError(f"{relative}: crossed model identity")
         mutations.extend(mutant_doc.get("mutants", []))
 
@@ -291,23 +328,31 @@ def run(root: Path, output: Path) -> dict[str, Any]:
         if not killed:
             errors.append(f"mutant {mutation['id']} survived; expected {expected}")
         else:
-            invariant_kills[(mutation["model"], expected)] = invariant_kills.get((mutation["model"], expected), 0) + 1
+            invariant_kills[(mutation["model"], expected)] = (
+                invariant_kills.get((mutation["model"], expected), 0) + 1
+            )
         names = tuple(v["id"] for v in model["state_vars"])
-        mutant_results.append({
-            "id": mutation["id"],
-            "model": mutation["model"],
-            "operation": mutation["op"],
-            "expected_invariant": expected,
-            "killed": killed,
-            "states": result.states,
-            "transitions": result.transitions,
-            "witness": _violation_doc(matching[0], names) if matching else None,
-            "other_violations": sorted({v.invariant for v in result.violations if v.invariant != expected}),
-        })
+        mutant_results.append(
+            {
+                "id": mutation["id"],
+                "model": mutation["model"],
+                "operation": mutation["op"],
+                "expected_invariant": expected,
+                "killed": killed,
+                "states": result.states,
+                "transitions": result.transitions,
+                "witness": _violation_doc(matching[0], names) if matching else None,
+                "other_violations": sorted(
+                    {v.invariant for v in result.violations if v.invariant != expected}
+                ),
+            }
+        )
 
     invariant_coverage: dict[str, dict[str, int]] = {}
     for mid, model in models.items():
-        coverage = {item["id"]: invariant_kills.get((mid, item["id"]), 0) for item in model["invariants"]}
+        coverage = {
+            item["id"]: invariant_kills.get((mid, item["id"]), 0) for item in model["invariants"]
+        }
         invariant_coverage[mid] = coverage
         for invariant_id, kills in coverage.items():
             if kills == 0:
@@ -336,29 +381,63 @@ def run(root: Path, output: Path) -> dict[str, Any]:
         "nonclaims": manifest["formal_nonclaims"],
         "verdict": "PASS_BOUNDED_INDEPENDENT_REPLAY" if not errors else "FAIL",
     }
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return report
+
+
+def canonical_report_bytes(report: Mapping[str, Any]) -> bytes:
+    """Return the one committed byte representation for bounded evidence."""
+
+    return (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
-    parser.add_argument("--output", type=Path, default=None)
+    output_group = parser.add_mutually_exclusive_group()
+    output_group.add_argument("--output", type=Path, default=None)
+    output_group.add_argument(
+        "--check",
+        action="store_true",
+        help="compare a fresh canonical replay with the committed result",
+    )
     args = parser.parse_args()
-    output = args.output or (args.root / "docs/research/FCIS_M6_FORMAL_SUITE_BOUNDED_RESULT_V1.json")
-    report = run(args.root, output)
-    print(json.dumps({
-        "verdict": report["verdict"],
-        "models": len(report["models"]),
-        "states": sum(m["states"] for m in report["models"].values()),
-        "transitions": sum(m["transitions"] for m in report["models"].values()),
-        "mutants_killed": report["mutants_killed"],
-        "mutants_total": report["mutants_total"],
-        "output": str(output),
-        "errors": report["errors"],
-    }, indent=2))
-    return 0 if report["verdict"].startswith("PASS") else 1
+    committed_output = args.root / "docs/research/FCIS_M6_FORMAL_SUITE_BOUNDED_RESULT_V1.json"
+    report = run(args.root)
+    encoded = canonical_report_bytes(report)
+    replay_error: str | None = None
+    if args.output is not None:
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_bytes(encoded)
+        output_label = str(args.output)
+    else:
+        output_label = str(committed_output)
+        if not committed_output.is_file():
+            replay_error = f"committed bounded result missing: {committed_output}"
+        elif committed_output.read_bytes() != encoded:
+            replay_error = (
+                "committed bounded result differs from a fresh canonical replay; "
+                "regenerate it with --output"
+            )
+    verdict = report["verdict"] if replay_error is None else "FAIL_REPLAY_DRIFT"
+    errors = list(report["errors"])
+    if replay_error is not None:
+        errors.append(replay_error)
+    print(
+        json.dumps(
+            {
+                "verdict": verdict,
+                "models": len(report["models"]),
+                "states": sum(m["states"] for m in report["models"].values()),
+                "transitions": sum(m["transitions"] for m in report["models"].values()),
+                "mutants_killed": report["mutants_killed"],
+                "mutants_total": report["mutants_total"],
+                "output": output_label,
+                "errors": errors,
+            },
+            indent=2,
+        )
+    )
+    return 0 if verdict.startswith("PASS") else 1
 
 
 if __name__ == "__main__":
