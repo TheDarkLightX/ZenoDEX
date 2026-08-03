@@ -11,6 +11,21 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CLI_PATH = REPO_ROOT / "tools" / "zusd_tau_wallet.py"
 
 
+def test_zusd_tau_wallet_cli_help_exposes_transfer_only() -> None:
+    proc = subprocess.run(
+        [sys.executable, str(CLI_PATH), "--help"],
+        cwd=str(REPO_ROOT),
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert proc.returncode == 0
+    assert "{transfer}" in proc.stdout
+    assert "\n    mint" not in proc.stdout
+    assert "\n    burn" not in proc.stdout
+
+
 def test_zusd_tau_wallet_cli_transfer_roundtrip(tmp_path: Path) -> None:
     privkey = 51
     sender = "0x" + bls_pubkey_hex_from_privkey(privkey)
@@ -64,7 +79,7 @@ def test_zusd_tau_wallet_cli_transfer_roundtrip(tmp_path: Path) -> None:
     assert persisted["asset_id"] == report["asset_id"]
 
 
-def test_zusd_tau_wallet_cli_mint_roundtrip(tmp_path: Path) -> None:
+def test_zusd_tau_wallet_cli_mint_requires_monetary_path(tmp_path: Path) -> None:
     operator = "0x" + bls_pubkey_hex_from_privkey(53)
     recipient = "0x" + bls_pubkey_hex_from_privkey(54)
 
@@ -96,11 +111,10 @@ def test_zusd_tau_wallet_cli_mint_roundtrip(tmp_path: Path) -> None:
         text=True,
     )
 
-    assert proc.returncode == 0, proc.stderr
-    report = json.loads(proc.stdout)
-    assert report["action"] == "mint"
-    assert report["recipient_balance_after"] == 15
-    assert report["supply_after"] == 105
+    assert proc.returncode == 1
+    report = json.loads(proc.stderr)
+    assert report["ok"] is False
+    assert "generic_mint requires authority zenodex/zusd-monetary-kernel/v1" in report["error"]
 
 
 def test_zusd_tau_wallet_cli_signer_mismatch_fails() -> None:

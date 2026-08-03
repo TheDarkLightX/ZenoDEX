@@ -56,6 +56,14 @@ test('ZUSDTauWalletSurface binds the connected account and renders account_view'
   assert.match(tau, /curr\.sender_pubkey === previous/);
 });
 
+test('ZUSDTauWalletSurface exposes transfer only and ignores supply-action query input', () => {
+  assert.match(tau, /action:\s*'transfer'/);
+  assert.doesNotMatch(tau, /params\.get\('zusdAction'\)/);
+  assert.doesNotMatch(tau, /<option\s+value="mint"/);
+  assert.doesNotMatch(tau, /<option\s+value="burn"/);
+  assert.doesNotMatch(tau, /id="zusd-operator"/);
+});
+
 test('MintPanel clears the auto-bound owner only on a matching disconnect', () => {
   // prevWalletRef + clear-if-equals-previous guard (manual edits preserved).
   assert.match(workbench, /curr === previous \? '' : curr/);

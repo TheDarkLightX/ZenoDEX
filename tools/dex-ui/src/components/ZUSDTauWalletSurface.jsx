@@ -3,10 +3,8 @@ import { apiGetZusdWalletStatus, apiPrepareZusdWallet, apiSubmitZusdWallet } fro
 import './ZUSDTauWalletSurface.css';
 
 const EMPTY_FORM = {
-  action: 'transfer',
   sender_pubkey: '',
   recipient_pubkey: '',
-  operator_pubkey: '',
   signer_privkey: '',
   amount: '100',
   deadline: '',
@@ -21,10 +19,8 @@ function readSmokeConfig() {
     return null;
   }
   return {
-    action: params.get('zusdAction') || 'transfer',
     sender_pubkey: params.get('senderPubkey') || '',
     recipient_pubkey: params.get('recipientPubkey') || '',
-    operator_pubkey: params.get('operatorPubkey') || '',
     signer_privkey: params.get('signerPrivkey') || params.get('smokeSignerPrivkey') || '',
     amount: params.get('zusdAmount') || '100',
     deadline: params.get('zusdDeadline') || '',
@@ -33,7 +29,7 @@ function readSmokeConfig() {
 
 function buildPayload(form) {
   const payload = {
-    action: form.action,
+    action: 'transfer',
     amount: Number.parseInt(form.amount || '0', 10),
   };
   if (form.deadline.trim()) {
@@ -44,9 +40,6 @@ function buildPayload(form) {
   }
   if (form.recipient_pubkey.trim()) {
     payload.recipient_pubkey = form.recipient_pubkey.trim();
-  }
-  if (form.operator_pubkey.trim()) {
-    payload.operator_pubkey = form.operator_pubkey.trim();
   }
   if (form.signer_privkey.trim()) {
     payload.signer_privkey = form.signer_privkey.trim();
@@ -65,10 +58,6 @@ function ZUSDTauWalletSurface({ wallet = null }) {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const smokeRan = useRef(false);
-
-  const isTransfer = form.action === 'transfer';
-  const isMint = form.action === 'mint';
-  const isBurn = form.action === 'burn';
 
   async function loadStatus() {
     try {
@@ -203,7 +192,6 @@ function ZUSDTauWalletSurface({ wallet = null }) {
             <div className="zusd-wallet-kv"><span>Endpoint</span><span>{status?.tau_host || 'network'}:{status?.tau_port || '-'}</span></div>
             <div className="zusd-wallet-kv"><span>Bridge</span><span>{status?.app_bridge_available ? 'available' : 'not detected'}</span></div>
             <div className="zusd-wallet-kv"><span>Signing</span><span>{status?.allow_local_signing ? 'Local signer' : 'External signer'}</span></div>
-            <div className="zusd-wallet-kv"><span>Operator</span><span className="zusd-mono">{status?.token_operator_pubkey || 'not configured'}</span></div>
           </div>
           {statusError ? <p className="zusd-wallet-error">Status error: {statusError}</p> : null}
           {!statusError ? (
@@ -219,56 +207,23 @@ function ZUSDTauWalletSurface({ wallet = null }) {
             <span className="zusd-section-badge">Signed transaction</span>
           </div>
           <div className="zusd-wallet-form">
-            <label className="label" htmlFor="zusd-action">Action</label>
-            <select
-              id="zusd-action"
+            <label className="label" htmlFor="zusd-sender">Sender Pubkey</label>
+            <input
+              id="zusd-sender"
               className="input"
-              value={form.action}
-              onChange={(event) => setForm((current) => ({ ...current, action: event.target.value }))}
-            >
-              <option value="transfer">Transfer</option>
-              <option value="mint">Mint</option>
-              <option value="burn">Burn</option>
-            </select>
+              value={form.sender_pubkey}
+              onChange={(event) => setForm((current) => ({ ...current, sender_pubkey: event.target.value }))}
+              placeholder="0x..."
+            />
 
-            {(isTransfer || isBurn) ? (
-              <>
-                <label className="label" htmlFor="zusd-sender">Sender Pubkey</label>
-                <input
-                  id="zusd-sender"
-                  className="input"
-                  value={form.sender_pubkey}
-                  onChange={(event) => setForm((current) => ({ ...current, sender_pubkey: event.target.value }))}
-                  placeholder="0x..."
-                />
-              </>
-            ) : null}
-
-            {(isTransfer || isMint) ? (
-              <>
-                <label className="label" htmlFor="zusd-recipient">Recipient Pubkey</label>
-                <input
-                  id="zusd-recipient"
-                  className="input"
-                  value={form.recipient_pubkey}
-                  onChange={(event) => setForm((current) => ({ ...current, recipient_pubkey: event.target.value }))}
-                  placeholder="0x..."
-                />
-              </>
-            ) : null}
-
-            {isMint ? (
-              <>
-                <label className="label" htmlFor="zusd-operator">Operator Pubkey</label>
-                <input
-                  id="zusd-operator"
-                  className="input"
-                  value={form.operator_pubkey}
-                  onChange={(event) => setForm((current) => ({ ...current, operator_pubkey: event.target.value }))}
-                  placeholder="0x..."
-                />
-              </>
-            ) : null}
+            <label className="label" htmlFor="zusd-recipient">Recipient Pubkey</label>
+            <input
+              id="zusd-recipient"
+              className="input"
+              value={form.recipient_pubkey}
+              onChange={(event) => setForm((current) => ({ ...current, recipient_pubkey: event.target.value }))}
+              placeholder="0x..."
+            />
 
             <label className="label" htmlFor="zusd-amount">Amount</label>
             <input

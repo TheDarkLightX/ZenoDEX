@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 
-from src.integration.zusd_tau_token import derive_zusd_tau_asset_id, token_sender_nonce_key
-import src.integration.zusd_tau_wallet_api as wallet_api
+import pytest
 
+import src.integration.zusd_tau_wallet_api as wallet_api
+from src.integration.zusd_tau_token import derive_zusd_tau_asset_id, token_sender_nonce_key
 
 SENDER = "0x" + "11" * 48
 RECIPIENT = "0x" + "22" * 48
@@ -224,13 +225,27 @@ def test_prepare_transfer_uses_tau_app_state_balances_and_nonce(monkeypatch) -> 
     assert report["tau_tx_payload"] is None
 
 
-def test_prepare_burn_uses_tau_app_state_balances_and_nonce(monkeypatch) -> None:
+@pytest.mark.parametrize(
+    ("action", "expected_operation"),
+    [("mint", "generic_mint"), ("burn", "generic_burn")],
+)
+def test_prepare_supply_change_requires_monetary_path_before_tau_io(
+    monkeypatch,
+    action: str,
+    expected_operation: str,
+) -> None:
     monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
-    monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FakeClient)
+
+    def unexpected_tau_client(_cfg=None):
+        raise AssertionError("managed zUSD supply rejection must precede Tau IO")
+
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", unexpected_tau_client)
 
     body = {
-        "action": "burn",
+        "action": action,
         "sender_pubkey": SENDER,
+        "recipient_pubkey": RECIPIENT,
+        "operator_pubkey": OPERATOR,
         "amount": 100,
         "deadline": 123456789,
     }
@@ -240,21 +255,28 @@ def test_prepare_burn_uses_tau_app_state_balances_and_nonce(monkeypatch) -> None
         json.dumps(body).encode("utf-8"),
     )
 
-    assert status_code == 200
-    assert payload["ok"] is True
-    transport = payload["transport"]
-    report = payload["report"]
-    assert transport["sender_balance_before"] == 400
-    assert transport["recipient_balance_before"] == 0
-    assert transport["total_supply_before"] == 450
-    assert transport["last_used_nonce"] == 4
-    assert transport["tx_sequence_number"] == 7
-    assert report["nonce_before"] == 4
-    assert report["nonce_after"] == 5
-    assert report["sender_balance_after"] == 300
-    assert report["recipient_balance_after"] == 0
-    assert report["supply_after"] == 350
-    assert report["tau_tx_payload"] is None
+    assert status_code == 400
+    assert payload["ok"] is False
+    assert (
+        f"{expected_operation} requires authority zenodex/zusd-monetary-kernel/v1"
+        in str(payload["error"])
+    )
+
+
+@pytest.mark.parametrize("action", [True, "TRANSFER", " transfer"])
+def test_prepare_rejects_noncanonical_action_before_tau_io(monkeypatch, action: object) -> None:
+    def unexpected_tau_client(_cfg=None):
+        raise AssertionError("noncanonical action rejection must precede Tau IO")
+
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", unexpected_tau_client)
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/prepare",
+        json.dumps({"action": action, "amount": 1, "deadline": 2}).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {"ok": False, "error": "unsupported_action"}
 
 
 def test_submit_requires_explicit_local_signing_and_returns_sendtx(monkeypatch) -> None:

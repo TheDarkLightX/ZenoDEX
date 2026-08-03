@@ -1,9 +1,10 @@
-"""Tau-node-backed zUSD wallet transport API.
+"""Tau-node-backed zUSD transfer-wallet API.
 
 This module exposes a narrow HTTP surface for the zUSD TauToken transport lane.
 It is separate from ``zusd_api.py`` because the latter is a local demo state
 machine, while this module talks to a Tau testnet node and prepares or submits
-stream-9 TauToken operations.
+stream-9 TauToken transfers. Supply-changing zUSD commands use the monetary
+kernel API.
 """
 
 from __future__ import annotations
@@ -16,11 +17,12 @@ from typing import Any, Dict, Mapping, Optional, Tuple, cast
 from urllib.parse import parse_qs, urlsplit
 
 from ..state.canonical import canonical_hex_fixed_allow_0x
-from .tau_net_client import TauNetTcpClient, TauNetTcpConfig, TauNetRpcError
+from .tau_net_client import TauNetRpcError, TauNetTcpClient, TauNetTcpConfig
 from .zusd_tau_token import (
     ZUSDTauTokenConfig,
     derive_zusd_tau_asset_id,
     prepare_zusd_tau_token_operation,
+    require_zusd_tau_transport_action,
     token_sender_nonce_key,
 )
 
@@ -227,21 +229,15 @@ def _last_used_token_nonce(app_state: Mapping[str, Any], *, actor_pubkey: str) -
 def _transport_context(
     *,
     client: TauNetTcpClient,
-    action: str,
     sender_pubkey: Optional[str],
     recipient_pubkey: Optional[str],
-    operator_pubkey: Optional[str],
     asset_id: str,
 ) -> Dict[str, Any]:
     app_state, app_hash = _load_app_state(client)
     balances = _balances_for_asset(app_state, asset_id=asset_id)
     total_supply_before = int(sum(int(v) for v in balances.values()))
 
-    actor_pubkey: Optional[str]
-    if action == "mint":
-        actor_pubkey = operator_pubkey
-    else:
-        actor_pubkey = sender_pubkey
+    actor_pubkey = sender_pubkey
     if actor_pubkey is None:
         raise ValueError("missing actor pubkey")
     last_used_nonce = _last_used_token_nonce(app_state, actor_pubkey=actor_pubkey)
@@ -263,8 +259,8 @@ def _transport_context(
 
 
 def _request_action(body: Mapping[str, Any]) -> str:
-    action = str(body.get("action", "")).strip().lower()
-    if action not in {"transfer", "mint", "burn"}:
+    action = body.get("action")
+    if type(action) is not str or action not in {"transfer", "mint", "burn"}:
         raise ValueError("unsupported_action")
     return action
 
@@ -306,37 +302,29 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     action = _request_action(body)
     amount = _request_int(body, name="amount", default=None)
     deadline = _request_int(body, name="deadline", default=_default_deadline())
+    chain_id = str(body.get("chain_id") or _tau_chain_id())
+    explicit_asset_id = body.get("asset_id")
+    asset_id = (
+        canonical_hex_fixed_allow_0x(explicit_asset_id, nbytes=32, name="asset_id")
+        if isinstance(explicit_asset_id, str) and explicit_asset_id.strip()
+        else derive_zusd_tau_asset_id(chain_id=chain_id)
+    )
+    action = require_zusd_tau_transport_action(action=action, asset_id=asset_id)
     sender_pubkey = None
     recipient_pubkey = None
-    operator_pubkey = None
     if "sender_pubkey" in body:
         sender_pubkey = _canonical_pubkey(body.get("sender_pubkey"), name="sender_pubkey")
     if "recipient_pubkey" in body:
         recipient_pubkey = _canonical_pubkey(body.get("recipient_pubkey"), name="recipient_pubkey")
-    if "operator_pubkey" in body:
-        operator_pubkey = _canonical_pubkey(body.get("operator_pubkey"), name="operator_pubkey")
-
-    if action in {"transfer", "burn"} and sender_pubkey is None:
+    if sender_pubkey is None:
         raise ValueError("missing_sender_pubkey")
-    if action in {"transfer", "mint"} and recipient_pubkey is None:
+    if recipient_pubkey is None:
         raise ValueError("missing_recipient_pubkey")
-    if action == "mint" and operator_pubkey is None:
-        raise ValueError("missing_operator_pubkey")
-
-    chain_id = str(body.get("chain_id") or _tau_chain_id())
-    explicit_asset_id = body.get("asset_id")
-    asset_id = (
-        canonical_hex_fixed_allow_0x(cast(str, explicit_asset_id), nbytes=32, name="asset_id")
-        if isinstance(explicit_asset_id, str) and explicit_asset_id.strip()
-        else derive_zusd_tau_asset_id(chain_id=chain_id)
-    )
     client = _tau_client()
     context = _transport_context(
         client=client,
-        action=action,
         sender_pubkey=sender_pubkey,
         recipient_pubkey=recipient_pubkey,
-        operator_pubkey=operator_pubkey,
         asset_id=asset_id,
     )
 
@@ -347,7 +335,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         raise ValueError("local_signing_disabled")
 
     report = prepare_zusd_tau_token_operation(
-        action=cast(Any, action),
+        action=action,
         amount=amount,
         deadline=deadline,
         last_used_nonce=int(context["last_used_nonce"]),
@@ -356,7 +344,6 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         recipient_balance_before=int(context["recipient_balance_before"]),
         sender_pubkey=sender_pubkey,
         recipient_pubkey=recipient_pubkey,
-        operator_pubkey=operator_pubkey,
         asset_id=asset_id,
         chain_id=chain_id,
         tau_config=_tau_verify_config(),
@@ -405,11 +392,12 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     }
     if for_submit:
         send_resp = client.sendtx(cast(Mapping[str, Any], report.tau_tx_payload))
-        payload["submission"] = {
+        submission: Dict[str, Any] = {
             "sendtx_response": send_resp,
         }
         if _auto_mine():
-            payload["submission"]["createblock_response"] = client.createblock()
+            submission["createblock_response"] = client.createblock()
+        payload["submission"] = submission
         app_state_after, app_hash_after = _load_app_state(client)
         payload["post_submit"] = {
             "app_hash": app_hash_after,
@@ -481,22 +469,20 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
             return 400, {"ok": False, "error": "bad_json"}
         if rest == ["inspect"]:
             action = _request_action(parsed)
-            sender_pubkey = _canonical_pubkey(parsed.get("sender_pubkey"), name="sender_pubkey") if "sender_pubkey" in parsed else None
-            recipient_pubkey = _canonical_pubkey(parsed.get("recipient_pubkey"), name="recipient_pubkey") if "recipient_pubkey" in parsed else None
-            operator_pubkey = _canonical_pubkey(parsed.get("operator_pubkey"), name="operator_pubkey") if "operator_pubkey" in parsed else None
             chain_id = str(parsed.get("chain_id") or _tau_chain_id())
             explicit_asset_id = parsed.get("asset_id")
             asset_id = (
-                canonical_hex_fixed_allow_0x(cast(str, explicit_asset_id), nbytes=32, name="asset_id")
+                canonical_hex_fixed_allow_0x(explicit_asset_id, nbytes=32, name="asset_id")
                 if isinstance(explicit_asset_id, str) and explicit_asset_id.strip()
                 else derive_zusd_tau_asset_id(chain_id=chain_id)
             )
+            action = require_zusd_tau_transport_action(action=action, asset_id=asset_id)
+            sender_pubkey = _canonical_pubkey(parsed.get("sender_pubkey"), name="sender_pubkey") if "sender_pubkey" in parsed else None
+            recipient_pubkey = _canonical_pubkey(parsed.get("recipient_pubkey"), name="recipient_pubkey") if "recipient_pubkey" in parsed else None
             context = _transport_context(
                 client=_tau_client(),
-                action=action,
                 sender_pubkey=sender_pubkey,
                 recipient_pubkey=recipient_pubkey,
-                operator_pubkey=operator_pubkey,
                 asset_id=asset_id,
             )
             return 200, {"ok": True, "transport": context, "chain_id": chain_id}

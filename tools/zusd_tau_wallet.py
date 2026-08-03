@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Wallet-facing CLI for Tau-native zUSD token transport."""
+"""Wallet-facing CLI for Tau-native zUSD transfers.
+
+Collateralized minting, repayment, redemption, and protocol burns use the zUSD
+monetary command surface.
+"""
 
 from __future__ import annotations
 
@@ -18,6 +22,7 @@ from src.integration.zusd_tau_token import (  # noqa: E402
     ZUSDTauTokenReport,
     derive_zusd_tau_asset_id,
     prepare_zusd_tau_token_operation,
+    require_zusd_tau_transport_action,
 )
 
 
@@ -71,8 +76,30 @@ def _add_common_args(parser: argparse.ArgumentParser) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    if raw_argv and raw_argv[0] in {"mint", "burn"}:
+        try:
+            require_zusd_tau_transport_action(
+                action=raw_argv[0],
+                asset_id=derive_zusd_tau_asset_id(),
+            )
+        except ValueError as exc:
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": f"ValueError: {exc}",
+                        "derived_asset_id": None,
+                    },
+                    sort_keys=True,
+                ),
+                file=sys.stderr,
+            )
+            return 1
+        raise RuntimeError("managed zUSD supply command unexpectedly passed policy")
+
     parser = argparse.ArgumentParser(description=__doc__)
-    sub = parser.add_subparsers(dest="action", required=True)
+    sub = parser.add_subparsers(dest="action", required=True, metavar="{transfer}")
 
     transfer = sub.add_parser("transfer")
     _add_common_args(transfer)
@@ -83,18 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     transfer.add_argument("--paused", action="store_true")
     transfer.add_argument("--auth-ok", action=argparse.BooleanOptionalAction, default=True)
 
-    mint = sub.add_parser("mint")
-    _add_common_args(mint)
-    mint.add_argument("--operator-pubkey", required=True)
-    mint.add_argument("--recipient-pubkey", required=True)
-    mint.add_argument("--recipient-balance-before", required=True, type=int)
-
-    burn = sub.add_parser("burn")
-    _add_common_args(burn)
-    burn.add_argument("--sender-pubkey", required=True)
-    burn.add_argument("--sender-balance-before", required=True, type=int)
-
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_argv)
     try:
         tau_config = ZUSDTauTokenConfig(
             enabled=bool(args.tau_enabled),

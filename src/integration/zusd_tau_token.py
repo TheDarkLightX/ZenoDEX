@@ -1,4 +1,9 @@
-"""Tau-native zUSD token transport helpers and replayable proof lane."""
+"""Tau-native zUSD transfer helpers and replayable proof lane.
+
+zUSD supply changes belong to the collateralized monetary kernel.  The generic
+TauToken constructor remains available for non-managed assets, while this zUSD
+transport surface admits transfers only.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +12,11 @@ import os
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from ..core.managed_asset_policy import (
+    AssetOperationV1,
+    build_zusd_managed_asset_policy,
+    check_managed_asset_operation,
+)
 from ..state.canonical import canonical_hex_fixed_allow_0x, domain_sep_bytes
 from .tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 from .tau_runner import find_tau_bin, run_tau_spec_steps
@@ -18,6 +28,7 @@ from .tau_witness import (
 )
 
 TokenAction = Literal["transfer", "mint", "burn"]
+ZUSDTransportAction = Literal["transfer"]
 _TOKEN_OPS_KEY = "9"
 _U32_MAX = 0xFFFFFFFF
 
@@ -88,7 +99,7 @@ def token_sender_nonce_key(sender_pubkey: str) -> str:
 
 def create_tau_token_operation(
     *,
-    action: TokenAction,
+    action: object,
     asset_id: str,
     nonce: int,
     amount: int,
@@ -97,6 +108,8 @@ def create_tau_token_operation(
     to_pubkey: str | None = None,
     operator_pubkey: str | None = None,
 ) -> dict[str, Any]:
+    if type(action) is not str or action not in {"transfer", "mint", "burn"}:
+        raise ValueError("action must be transfer, mint, or burn")
     nonce = _require_u32("nonce", nonce, minimum=1)
     amount = _require_u32("amount", amount, minimum=1)
     deadline = _require_u32("deadline", deadline, minimum=1)
@@ -125,6 +138,33 @@ def create_tau_token_operation(
             raise ValueError("burn requires sender_pubkey")
         op["sender_pubkey"] = _canonical_pubkey(sender_pubkey, name="sender_pubkey")
     return op
+
+
+def require_zusd_tau_transport_action(
+    *,
+    action: object,
+    asset_id: str,
+) -> ZUSDTransportAction:
+    """Return the sole zUSD token-transport action or raise a typed-policy error."""
+
+    if type(action) is not str or action not in {"transfer", "mint", "burn"}:
+        raise ValueError("action must be transfer, mint, or burn")
+    asset = _canonical_asset_id(asset_id, name="asset_id")
+    if action == "transfer":
+        return "transfer"
+    operation = (
+        AssetOperationV1.GENERIC_MINT
+        if action == "mint"
+        else AssetOperationV1.GENERIC_BURN
+    )
+    reject = check_managed_asset_operation(
+        policy=build_zusd_managed_asset_policy(asset),
+        asset_id=asset,
+        operation=operation,
+    )
+    if reject is None:
+        raise RuntimeError("managed zUSD supply policy failed to reject generic operation")
+    raise ValueError(reject.message())
 
 
 def _resolve_tau_bin(config: ZUSDTauTokenConfig) -> tuple[bool, str | None, str | None]:
@@ -200,46 +240,28 @@ def prepare_zusd_tau_token_operation(
     if (tx_sequence_number is None) != (tx_expiration_time is None):
         raise ValueError("tx_sequence_number and tx_expiration_time must be provided together")
 
-    asset = _canonical_asset_id(asset_id, name="asset_id") if asset_id is not None else derive_zusd_tau_asset_id(chain_id=chain_id)
+    asset = (
+        _canonical_asset_id(asset_id, name="asset_id")
+        if asset_id is not None
+        else derive_zusd_tau_asset_id(chain_id=chain_id)
+    )
+    action = require_zusd_tau_transport_action(action=action, asset_id=asset)
     nonce = nonce_before + 1
     if nonce > _U32_MAX:
         raise ValueError("next token nonce exceeds u32")
 
-    if action == "transfer":
-        if sender_pubkey is None or recipient_pubkey is None:
-            raise ValueError("transfer requires sender_pubkey and recipient_pubkey")
-        sender = _canonical_pubkey(sender_pubkey, name="sender_pubkey")
-        recipient = _canonical_pubkey(recipient_pubkey, name="recipient_pubkey")
-        if sender_before < amount:
-            raise ValueError("sender_balance_before insufficient for transfer")
-        if recipient_before + amount > _U32_MAX:
-            raise ValueError("recipient balance overflow")
-        sender_after = sender_before - amount
-        recipient_after = recipient_before + amount
-        supply_after = supply_before
-        actor_pubkey = sender
-    elif action == "mint":
-        if operator_pubkey is None or recipient_pubkey is None:
-            raise ValueError("mint requires operator_pubkey and recipient_pubkey")
-        sender = ""
-        recipient = _canonical_pubkey(recipient_pubkey, name="recipient_pubkey")
-        actor_pubkey = _canonical_pubkey(operator_pubkey, name="operator_pubkey")
-        if recipient_before + amount > _U32_MAX or supply_before + amount > _U32_MAX:
-            raise ValueError("mint overflow")
-        sender_after = 0
-        recipient_after = recipient_before + amount
-        supply_after = supply_before + amount
-    else:
-        if sender_pubkey is None:
-            raise ValueError("burn requires sender_pubkey")
-        sender = _canonical_pubkey(sender_pubkey, name="sender_pubkey")
-        recipient = ""
-        actor_pubkey = sender
-        if sender_before < amount or supply_before < amount:
-            raise ValueError("burn amount exceeds balance or supply")
-        sender_after = sender_before - amount
-        recipient_after = 0
-        supply_after = supply_before - amount
+    if sender_pubkey is None or recipient_pubkey is None:
+        raise ValueError("transfer requires sender_pubkey and recipient_pubkey")
+    sender = _canonical_pubkey(sender_pubkey, name="sender_pubkey")
+    recipient = _canonical_pubkey(recipient_pubkey, name="recipient_pubkey")
+    if sender_before < amount:
+        raise ValueError("sender_balance_before insufficient for transfer")
+    if recipient_before + amount > _U32_MAX:
+        raise ValueError("recipient balance overflow")
+    sender_after = sender_before - amount
+    recipient_after = recipient_before + amount
+    supply_after = supply_before
+    actor_pubkey = sender
 
     if signer_privkey is not None:
         signer_pubkey = _canonical_pubkey(
@@ -250,37 +272,37 @@ def prepare_zusd_tau_token_operation(
             raise ValueError("signer_privkey does not match token actor pubkey")
 
     operation = create_tau_token_operation(
-        action=action,
+        action="transfer",
         asset_id=asset,
         nonce=nonce,
         amount=amount,
         deadline=deadline,
-        sender_pubkey=(sender if action in {"transfer", "burn"} else None),
-        to_pubkey=(recipient if action in {"transfer", "mint"} else None),
-        operator_pubkey=(actor_pubkey if action == "mint" else None),
+        sender_pubkey=sender,
+        to_pubkey=recipient,
     )
     operations = {_TOKEN_OPS_KEY: [operation]}
 
-    tau_receipts: list[TokenTauReceipt] = []
-    if action == "transfer":
-        tau_receipts.append(
-            TokenTauReceipt(
-                spec_id=ZUSD_TRANSFER_GUARD_V1.spec_id,
-                gate_output=ZUSD_TRANSFER_GUARD_V1.gate_output,
-                steps=(
-                    build_zusd_transfer_guard_v1_step(
-                        amount_positive=1,
-                        sender_has_balance=1 if sender_before >= amount else 0,
-                        transfer_deltas_match=1 if sender_after + amount == sender_before and recipient_after - amount == recipient_before else 0,
-                        sender_auth_ok=1 if auth_ok else 0,
-                        recipient_valid=1,
-                        paused=1 if paused else 0,
+    tau_receipts: list[TokenTauReceipt] = [
+        TokenTauReceipt(
+            spec_id=ZUSD_TRANSFER_GUARD_V1.spec_id,
+            gate_output=ZUSD_TRANSFER_GUARD_V1.gate_output,
+            steps=(
+                build_zusd_transfer_guard_v1_step(
+                    amount_positive=1,
+                    sender_has_balance=1 if sender_before >= amount else 0,
+                    transfer_deltas_match=(
+                        1
+                        if sender_after + amount == sender_before
+                        and recipient_after - amount == recipient_before
+                        else 0
                     ),
+                    sender_auth_ok=1 if auth_ok else 0,
+                    recipient_valid=1,
+                    paused=1 if paused else 0,
                 ),
-                expected_ok=(not paused) and bool(auth_ok),
-            )
-        )
-    tau_receipts.append(
+            ),
+            expected_ok=(not paused) and bool(auth_ok),
+        ),
         TokenTauReceipt(
             spec_id=PROTOCOL_TOKEN_V1.spec_id,
             gate_output=PROTOCOL_TOKEN_V1.gate_output,
@@ -293,14 +315,14 @@ def prepare_zusd_tau_token_operation(
                     from_after=sender_after,
                     to_after=recipient_after,
                     supply_after=supply_after,
-                    do_transfer=1 if action == "transfer" else 0,
-                    do_mint=1 if action == "mint" else 0,
-                    do_burn=1 if action == "burn" else 0,
+                    do_transfer=1,
+                    do_mint=0,
+                    do_burn=0,
                 ),
             ),
             expected_ok=True,
-        )
-    )
+        ),
+    ]
 
     resolved_tau_config = tau_config or ZUSDTauTokenConfig()
     if resolved_tau_config.enabled:

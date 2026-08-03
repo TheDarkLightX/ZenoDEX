@@ -17,7 +17,6 @@ import pytest
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id, token_sender_nonce_key
 
-
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
 
@@ -109,21 +108,14 @@ class _TauRpcState:
             action = str(op["action"])
             asset = str(op["asset"]).lower()
             amount = int(op["amount"])
-            if action == "mint":
-                recipient = str(op["to_pubkey"]).lower()
-                current = int(self.balances.get((recipient, asset), 0))
-                self.balances[(recipient, asset)] = current + amount
-            elif action == "transfer":
+            if action == "transfer":
                 recipient = str(op["to_pubkey"]).lower()
                 sender_current = int(self.balances.get((balance_sender_pubkey, asset), 0))
                 recipient_current = int(self.balances.get((recipient, asset), 0))
                 self.balances[(balance_sender_pubkey, asset)] = sender_current - amount
                 self.balances[(recipient, asset)] = recipient_current + amount
-            elif action == "burn":
-                sender_current = int(self.balances.get((balance_sender_pubkey, asset), 0))
-                self.balances[(balance_sender_pubkey, asset)] = sender_current - amount
             else:
-                raise AssertionError(f"unexpected token action in smoke server: {action}")
+                raise AssertionError(f"managed zUSD supply action reached smoke server: {action}")
             nonce_key = token_sender_nonce_key("0x" + sender_pubkey).lower()
             self.nonces[nonce_key] = int(op["nonce"])
             self.sequences[sender_pubkey] = sequence_number + 1
@@ -219,31 +211,8 @@ def test_zusd_tau_wallet_status_propagates_account_end_to_end(monkeypatch) -> No
     assert bad_payload["ok"] is False
 
 
-@pytest.mark.parametrize(
-    ("action", "extra_query", "dom_needles"),
-    [
-        (
-            "mint",
-            {},
-            ['"action": "mint"', '"recipient_balance_after": 15', '"supply_after": 415'],
-        ),
-        (
-            "transfer",
-            {},
-            ['"action": "transfer"', '"sender_balance_after": 395', '"recipient_balance_after": 15'],
-        ),
-        (
-            "burn",
-            {},
-            ['"action": "burn"', '"sender_balance_after": 395', '"supply_after": 405'],
-        ),
-    ],
-)
-def test_zusd_tau_wallet_ui_smoke_through_browser(
+def test_zusd_tau_wallet_ui_smoke_ignores_supply_action_query(
     tmp_path: Path,
-    action: str,
-    extra_query: dict[str, str],
-    dom_needles: list[str],
 ) -> None:
     chrome = _chrome_binary()
     if chrome is None:
@@ -318,14 +287,15 @@ def test_zusd_tau_wallet_ui_smoke_through_browser(
                 "tab": "zusd",
                 "demo": "false",
                 "zenodexUiSmokeZusd": "1",
-                "zusdAction": action,
+                # A stale or crafted link cannot turn this transfer surface into
+                # a generic zUSD supply-changing client.
+                "zusdAction": "mint",
                 "operatorPubkey": operator_pubkey,
                 "senderPubkey": sender_pubkey,
                 "recipientPubkey": recipient_pubkey,
-                "signerPrivkey": str(operator_privkey if action == "mint" else sender_privkey),
+                "signerPrivkey": str(sender_privkey),
                 "zusdAmount": "5",
                 "zusdDeadline": str(int(time.time()) + 3600),
-                **extra_query,
             }
         )
         chrome_profile = tmp_path / "chrome-profile"
@@ -347,9 +317,14 @@ def test_zusd_tau_wallet_ui_smoke_through_browser(
         )
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
-        assert "Tau node connected" in dom
+        assert "Network connected" in dom
         assert "SUCCESS tx accepted" in dom
-        for needle in dom_needles:
+        for needle in (
+            '"action": "transfer"',
+            '"sender_balance_after": 395',
+            '"recipient_balance_after": 15',
+            '"supply_after": 410',
+        ):
             assert needle in dom
     finally:
         vite_proc.terminate()
