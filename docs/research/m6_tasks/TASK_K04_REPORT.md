@@ -1,32 +1,32 @@
 # FCIS M6 Task K04 Report
 
 TASK_ID: K04
-BASE_SHA: 83d033e4c914c89638b33620b1977abf3a4db9d7
-SOURCE_HEAD_SHA: a2399ef21e36eacc4ba1aa3d51a4651bb1f05365
-SOURCE_HEAD_TREE: 86a2ca351419ecef3b96053888b8618342924d19
-BRANCH: codex/task-H03-deterministic-crash-20260801
+BASE_SHA: 7da3b05d4161c961f1a57cf798307a3e125a2dab
+SOURCE_HEAD_SHA: 26da7c198a43e0c248cd5823d98c6ce3037c2813
+SOURCE_HEAD_TREE: 556ded187ad630ff3e5a4b5ec5422faca7946d9f
+BRANCH: codex/task-m6-receipt-rebind-20260802
 
 FILES_CHANGED:
 
 - config/deploy/fcis_m6_k04_topology_anchor_v1.json
+- docs/research/m6_tasks/TASK_K04_TOPOLOGY_ANCHOR_V1.json
 - src/core/fcis_m6_k04_topology_anchor.py
 - tools/build_fcis_m6_k04_topology_anchor.py
 - experiments/fcis_m6_k04_topology_anchor_check.py
 - tests/tools/test_fcis_m6_k04_topology_anchor.py
-- docs/research/m6_tasks/TASK_K04_TOPOLOGY_ANCHOR_V1.json
 - docs/research/m6_tasks/FCIS_M6_K04_ANCHORED_TOPOLOGY_SCHEMA_V1.md
 - docs/research/m6_tasks/TASK_K04_PLAN.md
 
-IMPLEMENTATION_HEAD_SHA: a2399ef21e36eacc4ba1aa3d51a4651bb1f05365
-IMPLEMENTATION_TREE: 86a2ca351419ecef3b96053888b8618342924d19
-IMPLEMENTATION_PARENT: 83d033e4c914c89638b33620b1977abf3a4db9d7
+IMPLEMENTATION_HEAD_SHA: 26da7c198a43e0c248cd5823d98c6ce3037c2813
+IMPLEMENTATION_TREE: 556ded187ad630ff3e5a4b5ec5422faca7946d9f
+IMPLEMENTATION_PARENT: 7da3b05d4161c961f1a57cf798307a3e125a2dab
 
-CLAIM_IMPLEMENTED: K04 derives and pins a domain-separated topology anchor
-from the D05 publisher inventory root, D05 topology root, K01 entrypoint
-inventory root, K02 unique port ID, fifteen K01 publisher IDs, and the union
-of D05/K01 source paths. The builder regenerates D05 and K01 before accepting
-the K04 pin. The pinned K04 root is
-60c11a0b9f694712abb452434481105f63c8576f1897994fa745bed0f42e0577.
+CLAIM_IMPLEMENTED: K04 has been rebound to the current D05 publisher
+inventory, D05 topology, and K01 entrypoint inventory. The existing typed
+builder and checker were unchanged; the repair updates the authoritative
+configuration and generated vector so the builder again regenerates and pins
+the current topology anchor. The current K04 root is
+da8e43caab444a5f88e7f7affede1671822fb63d6de890daf80fea88c07a5c35.
 
 COMMANDS_RUN:
 
@@ -47,10 +47,14 @@ COMMANDS_RUN:
 
 RESULTS:
 
-- D05 regeneration passed with its pinned roots.
-- K01 regeneration passed with its pinned entrypoint inventory root.
+- D05 regeneration passed with current inventory root
+  `e3b8fc99092de0fb56d08bf68ccb2f03278c776b684939765f86f1284fa9379e` and
+  current topology root
+  `e9fa1351ab36ecafa75ea9919ed791e31e17e998aa25521c4e3ce8a8f18f1857`.
+- K01 regeneration passed with current entrypoint root
+  `fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a`.
 - K04 regeneration and checked vector passed with root
-  60c11a0b9f694712abb452434481105f63c8576f1897994fa745bed0f42e0577.
+  `da8e43caab444a5f88e7f7affede1671822fb63d6de890daf80fea88c07a5c35`.
 - Publisher insertion, source-set insertion, D05-root substitution, and
   noncanonical ordering changed or rejected the topology anchor as expected.
 - Focused K04 suite passed: 3 passed.
@@ -67,8 +71,8 @@ reachability proof, or mounted authority certificate.
 
 REMAINING_NONCLAIMS:
 
-- The K04 anchor is complete only relative to the reviewed D05/K01 inputs and
-  their declared source sets.
+- The K04 anchor is complete only relative to the reviewed current D05/K01
+  inputs and their declared source sets.
 - K04 does not prove that all production publishers, workers, credentials,
   processes, or effect sinks are represented.
 - K04 does not prove runtime reachability, datastore authority, deployment
