@@ -1,0 +1,156 @@
+# [FORGE] FCIS fee-configuration exact-state binding v2
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "fcis_fee_configuration_state_binding_v2"
+  created_by: "zenodex"
+  notes: |
+    Finite guard model for the four B1B active-configuration laws plus exact
+    state-projection validity.  A binding can be emitted only when the B1A
+    configuration is self-consistent, its root and deployment match the exact
+    authority header, and activation is no later than the header sequence.
+
+    This model does not establish store currentness, full runtime-state
+    projection, publication, mounting, or no-bypass.
+
+observables:
+  state_vars:
+    - "state_projection_valid"
+    - "configuration_self_consistent"
+    - "configuration_root_matches"
+    - "deployment_matches"
+    - "activation_mature"
+    - "binding_count"
+    - "invalid_accept"
+  effects: []
+
+types: []
+
+state_vars:
+  - id: "state_projection_valid"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "configuration_self_consistent"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "configuration_root_matches"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "deployment_matches"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "activation_mature"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "binding_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "invalid_accept"
+    role: "data"
+    type: { kind: "int", min: 0, max: 5 }
+
+init:
+  - { var: "state_projection_valid", expr: { const: 1 } }
+  - { var: "configuration_self_consistent", expr: { const: 1 } }
+  - { var: "configuration_root_matches", expr: { const: 1 } }
+  - { var: "deployment_matches", expr: { const: 1 } }
+  - { var: "activation_mature", expr: { const: 1 } }
+  - { var: "binding_count", expr: { const: 0 } }
+  - { var: "invalid_accept", expr: { const: 0 } }
+
+invariants:
+  - id: "inv_no_invalid_state_binding"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "invalid_accept" }, { const: 0 }] }
+
+actions:
+  - id: "bind_active_configuration"
+    params: []
+    guard:
+      op: "and"
+      args:
+        # MUTANT_GUARD_STATE_PROJECTION
+        - { op: "=", args: [{ var: "state_projection_valid" }, { const: 1 }] }
+        # MUTANT_GUARD_CONFIGURATION
+        - { op: "=", args: [{ var: "configuration_self_consistent" }, { const: 1 }] }
+        # MUTANT_GUARD_CONFIGURATION_ROOT
+        - { op: "=", args: [{ var: "configuration_root_matches" }, { const: 1 }] }
+        # MUTANT_GUARD_DEPLOYMENT
+        - { op: "=", args: [{ var: "deployment_matches" }, { const: 1 }] }
+        # MUTANT_GUARD_ACTIVATION
+        - { op: "=", args: [{ var: "activation_mature" }, { const: 1 }] }
+        - { op: "<", args: [{ var: "binding_count" }, { const: 2 }] }
+    updates:
+      - { var: "binding_count", expr: { op: "+", args: [{ var: "binding_count" }, { const: 1 }] } }
+      - var: "invalid_accept"
+        expr:
+          op: "+"
+          args:
+            - { op: "-", args: [{ const: 1 }, { var: "state_projection_valid" }] }
+            - op: "+"
+              args:
+                - { op: "-", args: [{ const: 1 }, { var: "configuration_self_consistent" }] }
+                - op: "+"
+                  args:
+                    - { op: "-", args: [{ const: 1 }, { var: "configuration_root_matches" }] }
+                    - op: "+"
+                      args:
+                        - { op: "-", args: [{ const: 1 }, { var: "deployment_matches" }] }
+                        - { op: "-", args: [{ const: 1 }, { var: "activation_mature" }] }
+    effects: {}
+
+  - id: "invalidate_state_projection"
+    params: []
+    guard: { op: "=", args: [{ var: "state_projection_valid" }, { const: 1 }] }
+    updates: [{ var: "state_projection_valid", expr: { const: 0 } }]
+    effects: {}
+  - id: "restore_state_projection"
+    params: []
+    guard: { op: "=", args: [{ var: "state_projection_valid" }, { const: 0 }] }
+    updates: [{ var: "state_projection_valid", expr: { const: 1 } }]
+    effects: {}
+  - id: "invalidate_configuration"
+    params: []
+    guard: { op: "=", args: [{ var: "configuration_self_consistent" }, { const: 1 }] }
+    updates: [{ var: "configuration_self_consistent", expr: { const: 0 } }]
+    effects: {}
+  - id: "restore_configuration"
+    params: []
+    guard: { op: "=", args: [{ var: "configuration_self_consistent" }, { const: 0 }] }
+    updates: [{ var: "configuration_self_consistent", expr: { const: 1 } }]
+    effects: {}
+  - id: "invalidate_configuration_root"
+    params: []
+    guard: { op: "=", args: [{ var: "configuration_root_matches" }, { const: 1 }] }
+    updates: [{ var: "configuration_root_matches", expr: { const: 0 } }]
+    effects: {}
+  - id: "restore_configuration_root"
+    params: []
+    guard: { op: "=", args: [{ var: "configuration_root_matches" }, { const: 0 }] }
+    updates: [{ var: "configuration_root_matches", expr: { const: 1 } }]
+    effects: {}
+  - id: "invalidate_deployment"
+    params: []
+    guard: { op: "=", args: [{ var: "deployment_matches" }, { const: 1 }] }
+    updates: [{ var: "deployment_matches", expr: { const: 0 } }]
+    effects: {}
+  - id: "restore_deployment"
+    params: []
+    guard: { op: "=", args: [{ var: "deployment_matches" }, { const: 0 }] }
+    updates: [{ var: "deployment_matches", expr: { const: 1 } }]
+    effects: {}
+  - id: "invalidate_activation"
+    params: []
+    guard: { op: "=", args: [{ var: "activation_mature" }, { const: 1 }] }
+    updates: [{ var: "activation_mature", expr: { const: 0 } }]
+    effects: {}
+  - id: "restore_activation"
+    params: []
+    guard: { op: "=", args: [{ var: "activation_mature" }, { const: 0 }] }
+    updates: [{ var: "activation_mature", expr: { const: 1 } }]
+    effects: {}
+  - id: "stutter"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects: {}
+

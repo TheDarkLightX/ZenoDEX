@@ -12,8 +12,10 @@ from src.core.fcis_m6_e01_request_identity import (
     E01CommandFamilyV1,
     E01Error,
     E01RequestIdentityV1,
+    _mint_authenticated_command_v1,
     derive_request_identity_v1,
     request_identity_root_from_body_v1,
+    revalidate_request_identity_v1,
 )
 from tools.build_fcis_m6_e01_request_identity import build_payload
 
@@ -87,3 +89,28 @@ def test_e01_identity_root_changes_when_authenticated_command_changes() -> None:
     changed_body = dict(body)
     changed_body["command_root"] = "0" * 64
     assert request_identity_root_from_body_v1(changed_body) != original
+
+
+def test_e01_public_revalidation_requires_registered_unchanged_identity() -> None:
+    payload = build_payload()
+    raw_command = payload["authenticated_command"]
+    raw_identity = payload["request_identity"]
+    assert type(raw_command) is dict
+    assert type(raw_identity) is dict
+    command = _mint_authenticated_command_v1(
+        command_root=raw_command["command_root"],
+        sender_id=raw_command["sender_id"],
+        command_family=E01CommandFamilyV1(raw_command["command_family"]),
+        nonce=raw_command["nonce"],
+        authentication_profile_root=raw_command["authentication_profile_root"],
+        authentication_evidence_root=raw_command["authentication_evidence_root"],
+    )
+    identity = derive_request_identity_v1(
+        authenticated_command=command,
+        deployment_config_root=raw_identity["deployment_config_root"],
+        expected_sequence=raw_identity["expected_sequence"],
+        authority_epoch_index=raw_identity["authority_epoch_index"],
+    )
+    assert revalidate_request_identity_v1(identity)
+    object.__setattr__(identity, "nonce", identity.nonce + 1)
+    assert not revalidate_request_identity_v1(identity)

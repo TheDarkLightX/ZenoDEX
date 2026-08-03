@@ -1,0 +1,172 @@
+# [FORGE] State-bound authenticated zUSD fee accrual allocation v2
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_state_bound_fee_accrual_allocation_v2"
+  created_by: "zenodex"
+  notes: |
+    Finite composition model joining one controlled active configuration, one
+    authenticated borrowing-fee occurrence, exact request context, exact
+    zUSD/claim/role/apportionment roots, managed-asset and custody identity,
+    the zUSD fee domain, cumulative fee history, and one valid SRGD allocation.
+
+    The request-context flag abbreviates three independent equalities:
+    expected sequence, deployment configuration root, and authority epoch.
+    The managed-identity flag abbreviates zUSD asset and fee-claim custody.
+
+    This model does not establish runtime projection from global state, store
+    currentness, external authentication, U256 implementation refinement,
+    atomic publication, mounting, or no-bypass.
+
+observables:
+  state_vars:
+    - "controlled_sources_valid"
+    - "request_context_matches"
+    - "zusd_state_matches"
+    - "component_roots_match"
+    - "managed_identity_matches"
+    - "fee_domain_matches"
+    - "cumulative_history_matches"
+    - "allocation_valid"
+    - "accepted_count"
+  effects: []
+
+types: []
+
+state_vars:
+  - id: "controlled_sources_valid"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "request_context_matches"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "zusd_state_matches"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "component_roots_match"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "managed_identity_matches"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "fee_domain_matches"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "cumulative_history_matches"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "allocation_valid"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "accepted_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - { var: "controlled_sources_valid", expr: { const: 1 } }
+  - { var: "request_context_matches", expr: { const: 1 } }
+  - { var: "zusd_state_matches", expr: { const: 1 } }
+  - { var: "component_roots_match", expr: { const: 1 } }
+  - { var: "managed_identity_matches", expr: { const: 1 } }
+  - { var: "fee_domain_matches", expr: { const: 1 } }
+  - { var: "cumulative_history_matches", expr: { const: 1 } }
+  - { var: "allocation_valid", expr: { const: 1 } }
+  - { var: "accepted_count", expr: { const: 0 } }
+
+invariants:
+  - id: "inv_accept_requires_controlled_sources"
+    kind: "safety"
+    expr: { op: "or", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "controlled_sources_valid" }, { const: 1 }] }] }
+  - id: "inv_accept_requires_request_context"
+    kind: "safety"
+    expr: { op: "or", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "request_context_matches" }, { const: 1 }] }] }
+  - id: "inv_accept_requires_zusd_state"
+    kind: "safety"
+    expr: { op: "or", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "zusd_state_matches" }, { const: 1 }] }] }
+  - id: "inv_accept_requires_component_roots"
+    kind: "safety"
+    expr: { op: "or", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "component_roots_match" }, { const: 1 }] }] }
+  - id: "inv_accept_requires_managed_identity"
+    kind: "safety"
+    expr: { op: "or", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "managed_identity_matches" }, { const: 1 }] }] }
+  - id: "inv_accept_requires_fee_domain"
+    kind: "safety"
+    expr: { op: "or", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "fee_domain_matches" }, { const: 1 }] }] }
+  - id: "inv_accept_requires_cumulative_history"
+    kind: "safety"
+    expr: { op: "or", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "cumulative_history_matches" }, { const: 1 }] }] }
+  - id: "inv_accept_requires_allocation"
+    kind: "safety"
+    expr: { op: "or", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "allocation_valid" }, { const: 1 }] }] }
+
+actions:
+  - id: "compose_state_bound_fee_allocation"
+    params: []
+    guard:
+      op: "and"
+      args:
+        # MUTANT_GUARD_CONTROLLED_SOURCES
+        - { op: "=", args: [{ var: "controlled_sources_valid" }, { const: 1 }] }
+        # MUTANT_GUARD_REQUEST_CONTEXT
+        - { op: "=", args: [{ var: "request_context_matches" }, { const: 1 }] }
+        # MUTANT_GUARD_ZUSD_STATE
+        - { op: "=", args: [{ var: "zusd_state_matches" }, { const: 1 }] }
+        # MUTANT_GUARD_COMPONENT_ROOTS
+        - { op: "=", args: [{ var: "component_roots_match" }, { const: 1 }] }
+        # MUTANT_GUARD_MANAGED_IDENTITY
+        - { op: "=", args: [{ var: "managed_identity_matches" }, { const: 1 }] }
+        # MUTANT_GUARD_FEE_DOMAIN
+        - { op: "=", args: [{ var: "fee_domain_matches" }, { const: 1 }] }
+        # MUTANT_GUARD_CUMULATIVE_HISTORY
+        - { op: "=", args: [{ var: "cumulative_history_matches" }, { const: 1 }] }
+        # MUTANT_GUARD_ALLOCATION
+        - { op: "=", args: [{ var: "allocation_valid" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }
+    updates:
+      - { var: "accepted_count", expr: { const: 1 } }
+    effects: {}
+
+  - id: "invalidate_controlled_sources"
+    params: []
+    guard: { op: "and", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "controlled_sources_valid" }, { const: 1 }] }] }
+    updates: [{ var: "controlled_sources_valid", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_request_context"
+    params: []
+    guard: { op: "and", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "request_context_matches" }, { const: 1 }] }] }
+    updates: [{ var: "request_context_matches", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_zusd_state"
+    params: []
+    guard: { op: "and", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "zusd_state_matches" }, { const: 1 }] }] }
+    updates: [{ var: "zusd_state_matches", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_component_roots"
+    params: []
+    guard: { op: "and", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "component_roots_match" }, { const: 1 }] }] }
+    updates: [{ var: "component_roots_match", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_managed_identity"
+    params: []
+    guard: { op: "and", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "managed_identity_matches" }, { const: 1 }] }] }
+    updates: [{ var: "managed_identity_matches", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_fee_domain"
+    params: []
+    guard: { op: "and", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "fee_domain_matches" }, { const: 1 }] }] }
+    updates: [{ var: "fee_domain_matches", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_cumulative_history"
+    params: []
+    guard: { op: "and", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "cumulative_history_matches" }, { const: 1 }] }] }
+    updates: [{ var: "cumulative_history_matches", expr: { const: 0 } }]
+    effects: {}
+  - id: "invalidate_allocation"
+    params: []
+    guard: { op: "and", args: [{ op: "=", args: [{ var: "accepted_count" }, { const: 0 }] }, { op: "=", args: [{ var: "allocation_valid" }, { const: 1 }] }] }
+    updates: [{ var: "allocation_valid", expr: { const: 0 } }]
+    effects: {}
+  - id: "stutter"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects: {}

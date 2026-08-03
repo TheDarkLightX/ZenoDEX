@@ -1,0 +1,207 @@
+# [FORGE] Authenticated zUSD borrowing-fee occurrence v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_authenticated_borrow_fee_occurrence_v1"
+  created_by: "zenodex"
+  notes: |
+    Finite source-lineage and arithmetic model for a positive borrowing fee.
+    Acceptance requires a verifier-owned request identity, the state-change
+    command family, an exact pre-state, a command root over the borrower,
+    principal, and pre-state, and a successful kernel replay.  The debt delta
+    must equal principal plus fee.
+
+    This model does not establish external authentication, current state,
+    token issuance, fee allocation, atomic publication, mounting, or no-bypass.
+
+observables:
+  state_vars:
+    - "debt"
+    - "free_debt"
+    - "issued_principal"
+    - "protocol_fee"
+    - "occurrence_total"
+    - "identity_valid"
+    - "command_family_valid"
+    - "pre_state_valid"
+    - "command_root_matches"
+    - "kernel_accepts"
+    - "invalid_accept"
+  effects: []
+
+types: []
+
+state_vars:
+  - id: "debt"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "free_debt"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "issued_principal"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "protocol_fee"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "occurrence_total"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "identity_valid"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "command_family_valid"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "pre_state_valid"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "command_root_matches"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "kernel_accepts"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "invalid_accept"
+    role: "data"
+    type: { kind: "int", min: 0, max: 5 }
+
+init:
+  - { var: "debt", expr: { const: 0 } }
+  - { var: "free_debt", expr: { const: 0 } }
+  - { var: "issued_principal", expr: { const: 0 } }
+  - { var: "protocol_fee", expr: { const: 0 } }
+  - { var: "occurrence_total", expr: { const: 0 } }
+  - { var: "identity_valid", expr: { const: 1 } }
+  - { var: "command_family_valid", expr: { const: 1 } }
+  - { var: "pre_state_valid", expr: { const: 1 } }
+  - { var: "command_root_matches", expr: { const: 1 } }
+  - { var: "kernel_accepts", expr: { const: 1 } }
+  - { var: "invalid_accept", expr: { const: 0 } }
+
+invariants:
+  - id: "inv_debt_equals_free_debt"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "debt" }, { var: "free_debt" }] }
+  - id: "inv_fee_equals_occurrence_total"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "protocol_fee" }, { var: "occurrence_total" }] }
+  - id: "inv_debt_is_principal_plus_fee"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "debt" }
+        - { op: "+", args: [{ var: "issued_principal" }, { var: "protocol_fee" }] }
+  - id: "inv_no_invalid_occurrence"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "invalid_accept" }, { const: 0 }] }
+
+actions:
+  - id: "derive_authenticated_borrow_fee_occurrence"
+    params:
+      - id: "principal"
+        type: { kind: "int", min: 1, max: 2 }
+      - id: "fee"
+        type: { kind: "int", min: 1, max: 1 }
+      - id: "debt_delta"
+        type: { kind: "int", min: 2, max: 3 }
+    guard:
+      op: "and"
+      args:
+        # MUTANT_GUARD_IDENTITY
+        - { op: "=", args: [{ var: "identity_valid" }, { const: 1 }] }
+        # MUTANT_GUARD_COMMAND_FAMILY
+        - { op: "=", args: [{ var: "command_family_valid" }, { const: 1 }] }
+        # MUTANT_GUARD_PRE_STATE
+        - { op: "=", args: [{ var: "pre_state_valid" }, { const: 1 }] }
+        # MUTANT_GUARD_COMMAND_ROOT
+        - { op: "=", args: [{ var: "command_root_matches" }, { const: 1 }] }
+        # MUTANT_GUARD_KERNEL_ACCEPT
+        - { op: "=", args: [{ var: "kernel_accepts" }, { const: 1 }] }
+        # MUTANT_GUARD_DEBT_DELTA
+        - op: "="
+          args:
+            - { param: "debt_delta" }
+            - { op: "+", args: [{ param: "principal" }, { param: "fee" }] }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "debt" }, { param: "debt_delta" }] }, { const: 6 }] }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "issued_principal" }, { param: "principal" }] }, { const: 4 }] }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "protocol_fee" }, { param: "fee" }] }, { const: 2 }] }
+    updates:
+      - { var: "debt", expr: { op: "+", args: [{ var: "debt" }, { param: "debt_delta" }] } }
+      - { var: "free_debt", expr: { op: "+", args: [{ var: "free_debt" }, { param: "debt_delta" }] } }
+      - { var: "issued_principal", expr: { op: "+", args: [{ var: "issued_principal" }, { param: "principal" }] } }
+      - { var: "protocol_fee", expr: { op: "+", args: [{ var: "protocol_fee" }, { param: "fee" }] } }
+      - { var: "occurrence_total", expr: { op: "+", args: [{ var: "occurrence_total" }, { param: "fee" }] } }
+      - var: "invalid_accept"
+        expr:
+          op: "+"
+          args:
+            - { op: "-", args: [{ const: 1 }, { var: "identity_valid" }] }
+            - op: "+"
+              args:
+                - { op: "-", args: [{ const: 1 }, { var: "command_family_valid" }] }
+                - op: "+"
+                  args:
+                    - { op: "-", args: [{ const: 1 }, { var: "pre_state_valid" }] }
+                    - op: "+"
+                      args:
+                        - { op: "-", args: [{ const: 1 }, { var: "command_root_matches" }] }
+                        - { op: "-", args: [{ const: 1 }, { var: "kernel_accepts" }] }
+    effects: {}
+
+  - id: "invalidate_identity"
+    params: []
+    guard: { op: "=", args: [{ var: "identity_valid" }, { const: 1 }] }
+    updates: [{ var: "identity_valid", expr: { const: 0 } }]
+    effects: {}
+  - id: "restore_identity"
+    params: []
+    guard: { op: "=", args: [{ var: "identity_valid" }, { const: 0 }] }
+    updates: [{ var: "identity_valid", expr: { const: 1 } }]
+    effects: {}
+  - id: "invalidate_command_family"
+    params: []
+    guard: { op: "=", args: [{ var: "command_family_valid" }, { const: 1 }] }
+    updates: [{ var: "command_family_valid", expr: { const: 0 } }]
+    effects: {}
+  - id: "restore_command_family"
+    params: []
+    guard: { op: "=", args: [{ var: "command_family_valid" }, { const: 0 }] }
+    updates: [{ var: "command_family_valid", expr: { const: 1 } }]
+    effects: {}
+  - id: "invalidate_pre_state"
+    params: []
+    guard: { op: "=", args: [{ var: "pre_state_valid" }, { const: 1 }] }
+    updates: [{ var: "pre_state_valid", expr: { const: 0 } }]
+    effects: {}
+  - id: "restore_pre_state"
+    params: []
+    guard: { op: "=", args: [{ var: "pre_state_valid" }, { const: 0 }] }
+    updates: [{ var: "pre_state_valid", expr: { const: 1 } }]
+    effects: {}
+  - id: "invalidate_command_root"
+    params: []
+    guard: { op: "=", args: [{ var: "command_root_matches" }, { const: 1 }] }
+    updates: [{ var: "command_root_matches", expr: { const: 0 } }]
+    effects: {}
+  - id: "restore_command_root"
+    params: []
+    guard: { op: "=", args: [{ var: "command_root_matches" }, { const: 0 }] }
+    updates: [{ var: "command_root_matches", expr: { const: 1 } }]
+    effects: {}
+  - id: "invalidate_kernel_accept"
+    params: []
+    guard: { op: "=", args: [{ var: "kernel_accepts" }, { const: 1 }] }
+    updates: [{ var: "kernel_accepts", expr: { const: 0 } }]
+    effects: {}
+  - id: "restore_kernel_accept"
+    params: []
+    guard: { op: "=", args: [{ var: "kernel_accepts" }, { const: 0 }] }
+    updates: [{ var: "kernel_accepts", expr: { const: 1 } }]
+    effects: {}
+  - id: "stutter"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects: {}
+

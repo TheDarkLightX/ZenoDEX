@@ -265,3 +265,4 @@ import Proofs.ZUSDSupplyLiabilityDelta
 import Proofs.ZUSDProtocolFeeClaim
 import Proofs.ZUSDProtocolFeeAccrualAllocation
 import Proofs.ZUSDProtocolFeeClaimRealization
+import Proofs.FCISM6FeeSourceBinding

@@ -407,6 +407,12 @@ def derive_request_identity_v1(
     )
 
 
+def revalidate_request_identity_v1(value: object) -> bool:
+    """Require the exact unchanged identity minted by the E01 verifier boundary."""
+
+    return _is_registered_request_identity_v1(value)
+
+
 def same_request_identity_v1(
     left: E01RequestIdentityV1,
     right: E01RequestIdentityV1,
@@ -430,6 +436,7 @@ __all__ = [
     "FCIS_M6_E01_ROOT_SCHEMA_V1",
     "FCIS_M6_E01_SCHEMA_V1",
     "derive_request_identity_v1",
+    "revalidate_request_identity_v1",
     "request_identity_body_v1",
     "request_identity_root_from_body_v1",
     "same_request_identity_v1",
