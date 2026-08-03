@@ -262,3 +262,4 @@ import Proofs.ZUSDFeePipeline
 import Proofs.ZUSDMCRHeadroom
 import Proofs.ZUSDSPWholeVaultLiquidation
 import Proofs.ZUSDSupplyLiabilityDelta
+import Proofs.ZUSDProtocolFeeClaim

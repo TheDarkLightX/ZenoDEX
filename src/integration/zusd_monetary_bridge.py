@@ -20,17 +20,27 @@ from typing import Any, Mapping, Optional
 
 from ..core.dex import DexState
 from ..core.zusd import BPS_SCALE, E8, ZUSDCommand, ZUSDState, check_invariants, init_state, step
-from ..core.zusd_supply_delta_certificate import (
-    ZUSDSupplyDeltaCertificateV1,
-    ZUSDSupplyDeltaRejectV1,
-    derive_zusd_supply_delta_certificate_v1,
+from ..core.zusd_protocol_fee_claim import (
+    ZUSD_PROTOCOL_FEE_CLAIM_SCHEMA_V1,
+    ZUSDProtocolFeeClaimTransitionV1,
+    ZUSDProtocolFeeClaimV1,
+    accrue_zusd_protocol_fee_claim_v1,
+    decode_zusd_protocol_fee_claim_v1,
+    empty_zusd_protocol_fee_claim_v1,
+)
+from ..core.zusd_supply_claim_delta_certificate import (
+    ZUSDSupplyClaimDeltaCertificateV2,
+    ZUSDSupplyClaimDeltaRejectV2,
+    derive_zusd_supply_claim_delta_certificate_v2,
 )
 from ..state.balances import NATIVE_ASSET, BalanceTable
 from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x
 from ..state.nonces import NonceTable
 from .zusd_tau_token import derive_zusd_tau_asset_id
 
-ZUSD_MONETARY_SCHEMA = "zenodex/zusd_monetary_state/v1"
+ZUSD_MONETARY_SCHEMA_V1 = "zenodex/zusd_monetary_state/v1"
+ZUSD_MONETARY_SCHEMA_V2 = "zenodex/zusd_monetary_state/v2"
+ZUSD_MONETARY_SCHEMA = ZUSD_MONETARY_SCHEMA_V2
 ZUSD_MONETARY_MODULE = "ZUSDFinance"
 ZUSD_MONETARY_VERSION = "0.1"
 
@@ -62,6 +72,7 @@ class ZUSDMonetaryState:
     vault_owner_pubkey: Optional[str] = None
     sp_deposits_e8: Mapping[str, int] | None = None
     sp_collateral_claims_e8: Mapping[str, int] | None = None
+    protocol_fee_claim: ZUSDProtocolFeeClaimV1 | None = None
 
     def __post_init__(self) -> None:
         if self.vault_owner_pubkey is not None:
@@ -74,6 +85,13 @@ class ZUSDMonetaryState:
                 _require_nonnegative_int(amount, name=f"{table_name}[{pk}]")
         object.__setattr__(self, "sp_deposits_e8", deposits)
         object.__setattr__(self, "sp_collateral_claims_e8", claims)
+        if self.protocol_fee_claim is not None and type(self.protocol_fee_claim) is not ZUSDProtocolFeeClaimV1:
+            raise TypeError("protocol_fee_claim must be an exact ZUSDProtocolFeeClaimV1")
+        if self.protocol_fee_claim is None:
+            if self.core.protocol_revenue_zusd_cum_e8 != 0:
+                raise ValueError("legacy state cannot recover protocol fee claim from nonzero cumulative revenue")
+        elif self.protocol_fee_claim.accrued_cumulative_e8 != self.core.protocol_revenue_zusd_cum_e8:
+            raise ValueError("protocol fee claim accrual does not match core cumulative revenue")
 
 
 @dataclass(frozen=True)
@@ -103,13 +121,31 @@ def init_monetary_state(config: ZUSDMonetaryConfig | None = None) -> ZUSDMonetar
                 ),
             }
         )
-    return ZUSDMonetaryState(core=core, sp_deposits_e8={}, sp_collateral_claims_e8={})
+    claim_config = config or ZUSDMonetaryConfig()
+    return ZUSDMonetaryState(
+        core=core,
+        sp_deposits_e8={},
+        sp_collateral_claims_e8={},
+        protocol_fee_claim=empty_zusd_protocol_fee_claim_v1(
+            asset_id=claim_config.zusd_asset,
+            custody_pubkey=protocol_fee_escrow_pubkey(chain_id=claim_config.chain_id),
+        ),
+    )
 
 
 def stability_pool_pubkey(*, chain_id: str) -> str:
     if not isinstance(chain_id, str) or not chain_id.strip():
         raise ValueError("chain_id must be a non-empty string")
     payload = b"zenodex:zusd:stability_pool:v1\x00" + chain_id.strip().encode("utf-8")
+    return "0x" + hashlib.sha384(payload).hexdigest()
+
+
+def protocol_fee_escrow_pubkey(*, chain_id: str) -> str:
+    """Return the deterministic custody identity for unallocated borrowing fees."""
+
+    if not isinstance(chain_id, str) or not chain_id.strip():
+        raise ValueError("chain_id must be a non-empty string")
+    payload = b"zenodex:zusd:protocol_fee_escrow:v1\x00" + chain_id.strip().encode("utf-8")
     return "0x" + hashlib.sha384(payload).hexdigest()
 
 
@@ -130,30 +166,53 @@ def zusd_monetary_state_to_obj(state: ZUSDMonetaryState) -> dict[str, Any]:
         for pk, amount in sorted(dict(state.sp_collateral_claims_e8 or {}).items())
         if int(amount) > 0
     ]
-    return {
-        "schema": ZUSD_MONETARY_SCHEMA,
-        "version": 1,
+    body: dict[str, Any] = {
+        "schema": ZUSD_MONETARY_SCHEMA_V1 if state.protocol_fee_claim is None else ZUSD_MONETARY_SCHEMA_V2,
+        "version": 1 if state.protocol_fee_claim is None else 2,
         "core": dict(state.core.__dict__),
         "vault_owner_pubkey": state.vault_owner_pubkey,
         "sp_deposits": deposits,
         "sp_collateral_claims": claims,
     }
+    if state.protocol_fee_claim is not None:
+        body["protocol_fee_claim"] = {
+            "schema": ZUSD_PROTOCOL_FEE_CLAIM_SCHEMA_V1,
+            "version": 1,
+            "asset_id": state.protocol_fee_claim.asset_id,
+            "custody_pubkey": state.protocol_fee_claim.custody_pubkey,
+            "outstanding_e8": state.protocol_fee_claim.outstanding_e8,
+            "accrued_cumulative_e8": state.protocol_fee_claim.accrued_cumulative_e8,
+        }
+    return body
 
 
 def zusd_monetary_state_from_obj(obj: Mapping[str, Any]) -> ZUSDMonetaryState:
     if not isinstance(obj, Mapping):
         raise TypeError("zusd_monetary must be an object")
-    _reject_unknown_fields(
-        obj,
-        allowed={"schema", "version", "core", "vault_owner_pubkey", "sp_deposits", "sp_collateral_claims"},
-        name="zusd_monetary",
-    )
     schema = _require_str(obj.get("schema"), name="zusd_monetary.schema")
-    if schema != ZUSD_MONETARY_SCHEMA:
-        raise ValueError(f"unsupported zusd_monetary schema: {schema!r}")
     version = _require_int(obj.get("version"), name="zusd_monetary.version", minimum=1)
-    if version != 1:
-        raise ValueError(f"unsupported zusd_monetary version: {version}")
+    if (schema, version) == (ZUSD_MONETARY_SCHEMA_V1, 1):
+        allowed = {
+            "schema",
+            "version",
+            "core",
+            "vault_owner_pubkey",
+            "sp_deposits",
+            "sp_collateral_claims",
+        }
+    elif (schema, version) == (ZUSD_MONETARY_SCHEMA_V2, 2):
+        allowed = {
+            "schema",
+            "version",
+            "core",
+            "vault_owner_pubkey",
+            "sp_deposits",
+            "sp_collateral_claims",
+            "protocol_fee_claim",
+        }
+    else:
+        raise ValueError(f"unsupported zusd_monetary schema: {schema!r}")
+    _reject_unknown_fields(obj, allowed=allowed, name="zusd_monetary")
     core_obj = obj.get("core")
     if not isinstance(core_obj, Mapping):
         raise TypeError("zusd_monetary.core must be an object")
@@ -162,11 +221,20 @@ def zusd_monetary_state_from_obj(obj: Mapping[str, Any]) -> ZUSDMonetaryState:
     owner = None if owner_raw is None else _canonical_pubkey(owner_raw, name="zusd_monetary.vault_owner_pubkey")
     deposits = _parse_account_amount_entries(obj.get("sp_deposits"), name="zusd_monetary.sp_deposits")
     claims = _parse_account_amount_entries(obj.get("sp_collateral_claims"), name="zusd_monetary.sp_collateral_claims")
+    if version == 1:
+        if core.protocol_revenue_zusd_cum_e8 != 0:
+            raise ValueError("V1 state cannot recover protocol fee claim from nonzero cumulative revenue")
+        protocol_fee_claim = None
+    else:
+        if "protocol_fee_claim" not in obj:
+            raise ValueError("zusd_monetary.protocol_fee_claim is required in V2")
+        protocol_fee_claim = decode_zusd_protocol_fee_claim_v1(obj.get("protocol_fee_claim"))
     state = ZUSDMonetaryState(
         core=core,
         vault_owner_pubkey=owner,
         sp_deposits_e8=deposits,
         sp_collateral_claims_e8=claims,
+        protocol_fee_claim=protocol_fee_claim,
     )
     err = _state_invariant_error(state)
     if err is not None:
@@ -192,7 +260,10 @@ def apply_zusd_monetary_ops(
         sender = _canonical_pubkey(tx_sender_pubkey, name="tx_sender_pubkey")
         balances = _copy_balance_table(state.balances)
         nonces = _copy_nonce_table(state.nonces)
-        working = zusd_state or init_monetary_state(config)
+        working = _bind_protocol_fee_claim_to_config(
+            zusd_state or init_monetary_state(config),
+            config=config,
+        )
         effects: list[dict[str, Any]] = []
         zusd_asset = config.zusd_asset
         sp_pubkey = stability_pool_pubkey(chain_id=config.chain_id)
@@ -231,7 +302,9 @@ def apply_zusd_monetary_ops(
                     balances,
                     zusd_asset=zusd_asset,
                 )
-                protocol_fee_accrual_pre_e8 = int(working.core.protocol_revenue_zusd_cum_e8)
+                if working.protocol_fee_claim is None:
+                    raise ValueError("protocol fee claim migration failed")
+                protocol_fee_claim_pre = working.protocol_fee_claim
                 working, balance_effect = _apply_one(
                     config=config,
                     balances=balances,
@@ -243,8 +316,12 @@ def apply_zusd_monetary_ops(
                     zusd_asset=zusd_asset,
                     sp_pubkey=sp_pubkey,
                 )
-                certificate = derive_zusd_supply_delta_certificate_v1(
+                if working.protocol_fee_claim is None:
+                    raise ValueError("protocol fee claim missing after transition")
+                certificate = derive_zusd_supply_claim_delta_certificate_v2(
                     action=action,
+                    pre_claim=protocol_fee_claim_pre,
+                    post_claim=working.protocol_fee_claim,
                     debt_pre_e8=debt_pre_e8,
                     debt_post_e8=working.core.debt_e8,
                     ledger_supply_pre_e8=ledger_supply_pre_e8,
@@ -252,12 +329,10 @@ def apply_zusd_monetary_ops(
                         balances,
                         zusd_asset=zusd_asset,
                     ),
-                    protocol_fee_accrual_pre_e8=protocol_fee_accrual_pre_e8,
-                    protocol_fee_accrual_post_e8=working.core.protocol_revenue_zusd_cum_e8,
                 )
-                if type(certificate) is ZUSDSupplyDeltaRejectV1:
+                if type(certificate) is ZUSDSupplyClaimDeltaRejectV2:
                     raise ValueError(f"zUSD supply delta rejected: {certificate.code.value}")
-                if type(certificate) is not ZUSDSupplyDeltaCertificateV1:
+                if type(certificate) is not ZUSDSupplyClaimDeltaCertificateV2:
                     raise TypeError("unexpected zUSD supply-delta result")
             except Exception as exc:
                 return ZUSDMonetaryTxResult(ok=False, error=f"zusd op[{i}] {exc}")
@@ -294,6 +369,9 @@ def _apply_one(
     owner = monetary_state.vault_owner_pubkey
     deposits = dict(monetary_state.sp_deposits_e8 or {})
     claims = dict(monetary_state.sp_collateral_claims_e8 or {})
+    fee_claim = monetary_state.protocol_fee_claim
+    if type(fee_claim) is not ZUSDProtocolFeeClaimV1:
+        raise ValueError("protocol fee claim is not bound")
 
     if action in {"bootstrap_oracle", "oracle_report", "oracle_commit"}:
         _require_oracle_sender(config, sender=sender)
@@ -303,7 +381,7 @@ def _apply_one(
         result = step(core, ZUSDCommand(tag=action, args=args))
         if not result.ok or result.state is None:
             raise ValueError(result.error or f"{action} rejected")
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = replace(monetary_state, core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
         _raise_if_bad_state(next_state)
         return next_state, dict(result.effects or {})
 
@@ -312,7 +390,7 @@ def _apply_one(
         result = step(core, ZUSDCommand(tag=action, args={"delta": delta}))
         if not result.ok or result.state is None:
             raise ValueError(result.error or "advance_epoch rejected")
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = replace(monetary_state, core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
         _raise_if_bad_state(next_state)
         return next_state, dict(result.effects or {})
 
@@ -335,7 +413,7 @@ def _apply_one(
         if not result.ok or result.state is None:
             raise ValueError(result.error or "deposit_collateral rejected")
         balances.subtract(native_sender, NATIVE_ASSET, amount_e8)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = replace(monetary_state, core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
         _raise_if_bad_state(next_state)
         return next_state, {**dict(result.effects or {}), "native_balance_delta_e8": -amount_e8}
 
@@ -345,7 +423,7 @@ def _apply_one(
         if not result.ok or result.state is None:
             raise ValueError(result.error or "withdraw_collateral rejected")
         balances.add(native_sender, NATIVE_ASSET, amount_e8)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = replace(monetary_state, core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
         _raise_if_bad_state(next_state)
         return next_state, {**dict(result.effects or {}), "native_balance_delta_e8": amount_e8}
 
@@ -359,13 +437,32 @@ def _apply_one(
             name="mint_zusd.mint_fee_e8",
             minimum=0,
         )
+        claim_transition = accrue_zusd_protocol_fee_claim_v1(
+            expected_asset_id=zusd_asset,
+            expected_custody_pubkey=fee_claim.custody_pubkey,
+            expected_pre_state=fee_claim,
+            amount_e8=mint_fee_e8,
+        )
+        if type(claim_transition) is not ZUSDProtocolFeeClaimTransitionV1:
+            raise ValueError("zUSD borrowing fee claim accrual rejected")
         if mint_fee_e8 != 0:
             raise ValueError("zUSD borrowing fee claim settlement is not mounted")
         minted_units = _e8_to_whole_units(int((result.effects or {}).get("principal_e8", amount_e8)), name="mint_zusd.principal_e8")
         balances.add(sender, zusd_asset, minted_units)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = replace(
+            monetary_state,
+            core=result.state,
+            vault_owner_pubkey=owner,
+            sp_deposits_e8=deposits,
+            sp_collateral_claims_e8=claims,
+            protocol_fee_claim=claim_transition.post_state,
+        )
         _raise_if_bad_state(next_state)
-        return next_state, {**dict(result.effects or {}), "zusd_balance_delta": minted_units}
+        return next_state, {
+            **dict(result.effects or {}),
+            "zusd_balance_delta": minted_units,
+            "protocol_fee_claim_transition": claim_transition.to_obj(),
+        }
 
     if action == "repay_zusd":
         amount_e8 = _require_whole_zusd_amount(op.get("amount_e8"), name="repay_zusd.amount_e8")
@@ -376,7 +473,7 @@ def _apply_one(
         if not result.ok or result.state is None:
             raise ValueError(result.error or "repay_zusd rejected")
         balances.subtract(sender, zusd_asset, units)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = replace(monetary_state, core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
         _raise_if_bad_state(next_state)
         return next_state, {**dict(result.effects or {}), "zusd_balance_delta": -units}
 
@@ -392,7 +489,7 @@ def _apply_one(
         balances.subtract(account, zusd_asset, units)
         balances.add(sp_pubkey, zusd_asset, units)
         deposits[account] = int(deposits.get(account, 0)) + amount_e8
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = replace(monetary_state, core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
         _raise_if_bad_state(next_state)
         return next_state, {**dict(result.effects or {}), "zusd_balance_delta": -units, "sp_escrow_delta": units}
 
@@ -411,7 +508,7 @@ def _apply_one(
         balances.subtract(sp_pubkey, zusd_asset, units)
         balances.add(account, zusd_asset, units)
         deposits = _set_or_drop(deposits, account, current - amount_e8)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = replace(monetary_state, core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
         _raise_if_bad_state(next_state)
         return next_state, {**dict(result.effects or {}), "zusd_balance_delta": units, "sp_escrow_delta": -units}
 
@@ -428,7 +525,7 @@ def _apply_one(
         balances.subtract(account, zusd_asset, units)
         native_account = native_sender if account == sender else account
         balances.add(native_account, NATIVE_ASSET, collateral_out)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = replace(monetary_state, core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
         _raise_if_bad_state(next_state)
         return next_state, {**dict(result.effects or {}), "zusd_balance_delta": -units, "native_balance_delta_e8": collateral_out}
 
@@ -457,7 +554,7 @@ def _apply_one(
         deposits, coll_gains = _allocate_liquidation(pre_deposits, debt_e8=liquidated_debt, collateral_e8=liquidated_coll)
         for pk, gain in coll_gains.items():
             claims[pk] = int(claims.get(pk, 0)) + int(gain)
-        next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = replace(monetary_state, core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
         _raise_if_bad_state(next_state)
         return next_state, {
             **dict(result.effects or {}),
@@ -481,7 +578,7 @@ def _apply_one(
         native_account = native_sender if account == sender else account
         balances.add(native_account, NATIVE_ASSET, amount_e8)
         claims = _set_or_drop(claims, account, current - amount_e8)
-        next_state = ZUSDMonetaryState(core=next_core, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
+        next_state = replace(monetary_state, core=next_core, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
         _raise_if_bad_state(next_state)
         return next_state, {"event": "sp_collateral_claimed", "amount_e8": amount_e8, "native_balance_delta_e8": amount_e8}
 
@@ -712,6 +809,29 @@ def _set_or_drop(table: dict[str, int], key: str, value: int) -> dict[str, int]:
     else:
         out[key] = int(value)
     return out
+
+
+def _bind_protocol_fee_claim_to_config(
+    state: ZUSDMonetaryState,
+    *,
+    config: ZUSDMonetaryConfig,
+) -> ZUSDMonetaryState:
+    expected_asset = config.zusd_asset
+    expected_custody = protocol_fee_escrow_pubkey(chain_id=config.chain_id)
+    claim = state.protocol_fee_claim
+    if claim is None:
+        if state.core.protocol_revenue_zusd_cum_e8 != 0:
+            raise ValueError("legacy state cannot recover protocol fee claim")
+        return replace(
+            state,
+            protocol_fee_claim=empty_zusd_protocol_fee_claim_v1(
+                asset_id=expected_asset,
+                custody_pubkey=expected_custody,
+            ),
+        )
+    if (claim.asset_id, claim.custody_pubkey) != (expected_asset, expected_custody):
+        raise ValueError("protocol fee claim identity mismatch")
+    return state
 
 
 def _state_invariant_error(state: ZUSDMonetaryState) -> str | None:

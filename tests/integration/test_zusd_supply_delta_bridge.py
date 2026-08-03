@@ -2,13 +2,22 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 import src.integration.zusd_monetary_bridge as bridge
 from src.core.dex import DexState
 from src.core.zusd import E8, ZUSDState, ZUSDStepResult
+from src.core.zusd_protocol_fee_claim import empty_zusd_protocol_fee_claim_v1
 from src.integration.zusd_monetary_bridge import (
+    ZUSD_MONETARY_SCHEMA_V1,
+    ZUSD_MONETARY_SCHEMA_V2,
     ZUSDMonetaryConfig,
     ZUSDMonetaryState,
     apply_zusd_monetary_ops,
+    init_monetary_state,
+    protocol_fee_escrow_pubkey,
+    zusd_monetary_state_from_obj,
+    zusd_monetary_state_to_obj,
 )
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
@@ -49,7 +58,7 @@ def _mint_op() -> dict[str, object]:
     }
 
 
-def test_bridge_emits_zero_fee_supply_delta_certificate() -> None:
+def test_bridge_emits_zero_fee_supply_claim_delta_certificate() -> None:
     result = apply_zusd_monetary_ops(
         config=ZUSDMonetaryConfig(chain_id="tau-test-supply-delta"),
         state=_dex_state(),
@@ -63,10 +72,13 @@ def test_bridge_emits_zero_fee_supply_delta_certificate() -> None:
     assert result.zusd_state is not None
     assert result.effects is not None
     certificate = result.effects[0]["supply_delta_certificate"]
+    assert certificate["schema"] == "zenodex/zusd/supply-claim-delta-certificate/v2"
     assert certificate["debt_delta_e8"] == 100 * E8
     assert certificate["ledger_supply_delta_e8"] == 100 * E8
-    assert certificate["protocol_fee_accrual_delta_e8"] == 0
+    assert certificate["outstanding_claim_delta_e8"] == 0
     assert result.zusd_state.core.protocol_revenue_zusd_cum_e8 == 0
+    assert result.zusd_state.protocol_fee_claim is not None
+    assert result.zusd_state.protocol_fee_claim.outstanding_e8 == 0
 
 
 def test_bridge_rejects_fee_bearing_mint_until_claim_settlement_exists() -> None:
@@ -125,3 +137,93 @@ def test_bridge_fails_closed_when_core_debt_omits_matching_fee_accrual(monkeypat
         )
         == 0
     )
+
+
+def test_v1_zero_fee_state_migrates_to_exact_v2_claim_identity() -> None:
+    config = ZUSDMonetaryConfig(chain_id="tau-test-supply-delta")
+    legacy = {
+        "schema": ZUSD_MONETARY_SCHEMA_V1,
+        "version": 1,
+        "core": dict(_fee_ready_state(fee_bps=0).core.__dict__),
+        "vault_owner_pubkey": ALICE,
+        "sp_deposits": [],
+        "sp_collateral_claims": [],
+    }
+    decoded = zusd_monetary_state_from_obj(legacy)
+    assert decoded.protocol_fee_claim is None
+    assert zusd_monetary_state_to_obj(decoded) == legacy
+
+    result = apply_zusd_monetary_ops(
+        config=config,
+        state=_dex_state(),
+        zusd_state=decoded,
+        operations=[_mint_op()],
+        tx_sender_pubkey=ALICE,
+        block_timestamp=1,
+    )
+    assert result.ok is True, result.error
+    assert result.zusd_state is not None
+    assert result.zusd_state.protocol_fee_claim is not None
+    encoded = zusd_monetary_state_to_obj(result.zusd_state)
+    assert encoded["schema"] == ZUSD_MONETARY_SCHEMA_V2
+    assert encoded["version"] == 2
+    claim = encoded["protocol_fee_claim"]
+    assert isinstance(claim, dict)
+    assert claim["asset_id"] == config.zusd_asset
+    assert claim["custody_pubkey"] == protocol_fee_escrow_pubkey(chain_id=config.chain_id)
+    assert zusd_monetary_state_from_obj(encoded) == result.zusd_state
+
+
+def test_v1_nonzero_fee_history_cannot_guess_current_claim_state() -> None:
+    legacy_core = replace(
+        _fee_ready_state(fee_bps=0).core,
+        protocol_revenue_zusd_cum_e8=E8,
+    )
+    legacy = {
+        "schema": ZUSD_MONETARY_SCHEMA_V1,
+        "version": 1,
+        "core": dict(legacy_core.__dict__),
+        "vault_owner_pubkey": ALICE,
+        "sp_deposits": [],
+        "sp_collateral_claims": [],
+    }
+
+    with pytest.raises(ValueError, match="cannot recover protocol fee claim"):
+        zusd_monetary_state_from_obj(legacy)
+
+
+def test_bridge_rejects_foreign_v2_claim_identity_without_effects() -> None:
+    config = ZUSDMonetaryConfig(chain_id="tau-test-supply-delta")
+    state = init_monetary_state(config)
+    assert state.protocol_fee_claim is not None
+    foreign = replace(
+        state,
+        protocol_fee_claim=empty_zusd_protocol_fee_claim_v1(
+            asset_id=config.zusd_asset,
+            custody_pubkey="0x" + "cc" * 48,
+        ),
+    )
+
+    result = apply_zusd_monetary_ops(
+        config=config,
+        state=_dex_state(),
+        zusd_state=foreign,
+        operations=[
+            {
+                "module": "ZUSDFinance",
+                "version": "0.1",
+                "action": "advance_epoch",
+                "delta": 1,
+                "nonce": 1,
+                "deadline": 10,
+            }
+        ],
+        tx_sender_pubkey=ALICE,
+        block_timestamp=1,
+    )
+    assert result.ok is False
+    assert result.state is None
+    assert result.zusd_state is None
+    assert result.effects is None
+    assert result.error is not None
+    assert "protocol fee claim identity mismatch" in result.error
