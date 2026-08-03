@@ -1,0 +1,46 @@
+{
+  "schema": "zenodex/fcis_m6_zusd_transfer_surface_closure_evidence/v1",
+  "implementation_commit": "80b0779138d44b9161a604767480db99f5659704",
+  "implementation_tree": "195a69d6303562d4b63955b9dde3ebb5788eaab4",
+  "implementation_parent": "a398c35f3f1c6c0741536bf6431f16d4e3dd630a",
+  "posture": "IMPLEMENTED_TESTED_UNMOUNTED",
+  "m6_complete": false,
+  "r12_complete": false,
+  "r13_complete": false,
+  "tests": {
+    "python_passed": 90,
+    "python_failed": 0,
+    "ui_source_contract": "PASS",
+    "browser_api_tau_smoke": "PASS"
+  },
+  "gates": {
+    "ruff_check": "PASS",
+    "mypy_changed_source_and_tool_modules": "PASS",
+    "py_compile_changed_python_files": "PASS",
+    "eslint": "PASS",
+    "vite_build": "PASS_156_MODULES",
+    "git_diff_check": "PASS",
+    "security_redflags": "NO_HIGH_3_MEDIUM_5_LOW_EXISTING_PATTERNS",
+    "ruff_format_check": "INHERITED_DEBT_SIX_TOUCHED_LEGACY_FILES",
+    "full_ui_sdk": "STOPPED_NONTERMINATING_WITHIN_REVIEW_WINDOW"
+  },
+  "closed_counterexamples": [
+    "zusd_token_helper_generic_mint",
+    "zusd_token_helper_generic_burn",
+    "zusd_wallet_api_supply_action_before_tau_io",
+    "zusd_wallet_api_noncanonical_action_alias",
+    "zusd_wallet_cli_advertised_supply_action",
+    "zusd_wallet_ui_supply_controls",
+    "zusd_wallet_ui_query_action_injection"
+  ],
+  "explicit_nonclaims": [
+    "M6 completion",
+    "R12 completion",
+    "R13 completion",
+    "mounted production mediation",
+    "formal runtime refinement",
+    "authenticated managed-asset configuration",
+    "borrowing fee supply identity",
+    "all managed asset families covered"
+  ]
+}
