@@ -261,3 +261,4 @@ import Proofs.ZUSDDualConservation
 import Proofs.ZUSDFeePipeline
 import Proofs.ZUSDMCRHeadroom
 import Proofs.ZUSDSPWholeVaultLiquidation
+import Proofs.ZUSDSupplyLiabilityDelta

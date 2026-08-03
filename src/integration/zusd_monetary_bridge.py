@@ -16,21 +16,26 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, replace
-from typing import Any, Mapping, Optional, Tuple
+from typing import Any, Mapping, Optional
 
 from ..core.dex import DexState
 from ..core.zusd import BPS_SCALE, E8, ZUSDCommand, ZUSDState, check_invariants, init_state, step
-from ..state.balances import BalanceTable, NATIVE_ASSET
+from ..core.zusd_supply_delta_certificate import (
+    ZUSDSupplyDeltaCertificateV1,
+    ZUSDSupplyDeltaRejectV1,
+    derive_zusd_supply_delta_certificate_v1,
+)
+from ..state.balances import NATIVE_ASSET, BalanceTable
 from ..state.canonical import bounded_json_utf8_size, canonical_hex_fixed_allow_0x
 from ..state.nonces import NonceTable
 from .zusd_tau_token import derive_zusd_tau_asset_id
-
 
 ZUSD_MONETARY_SCHEMA = "zenodex/zusd_monetary_state/v1"
 ZUSD_MONETARY_MODULE = "ZUSDFinance"
 ZUSD_MONETARY_VERSION = "0.1"
 
 _U32_MAX = 0xFFFFFFFF
+_U256_MAX = (1 << 256) - 1
 _MAX_OPS = 128
 _MAX_OP_BYTES = 64_000
 _MAX_TOTAL_OPS_BYTES = 512_000
@@ -198,6 +203,7 @@ def apply_zusd_monetary_ops(
             sender_had_0x=sender_had_0x,
         )
 
+        _raise_if_bad_state(working)
         _assert_sp_escrow_matches(balances, working, zusd_asset=zusd_asset, sp_pubkey=sp_pubkey)
 
         nonce_key = zusd_monetary_sender_nonce_key(sender)
@@ -220,6 +226,12 @@ def apply_zusd_monetary_ops(
                 return ZUSDMonetaryTxResult(ok=False, error=f"zusd op[{i}] unknown fields: {sorted(extra)}")
 
             try:
+                debt_pre_e8 = int(working.core.debt_e8)
+                ledger_supply_pre_e8 = _zusd_ledger_supply_e8(
+                    balances,
+                    zusd_asset=zusd_asset,
+                )
+                protocol_fee_accrual_pre_e8 = int(working.core.protocol_revenue_zusd_cum_e8)
                 working, balance_effect = _apply_one(
                     config=config,
                     balances=balances,
@@ -231,11 +243,32 @@ def apply_zusd_monetary_ops(
                     zusd_asset=zusd_asset,
                     sp_pubkey=sp_pubkey,
                 )
+                certificate = derive_zusd_supply_delta_certificate_v1(
+                    action=action,
+                    debt_pre_e8=debt_pre_e8,
+                    debt_post_e8=working.core.debt_e8,
+                    ledger_supply_pre_e8=ledger_supply_pre_e8,
+                    ledger_supply_post_e8=_zusd_ledger_supply_e8(
+                        balances,
+                        zusd_asset=zusd_asset,
+                    ),
+                    protocol_fee_accrual_pre_e8=protocol_fee_accrual_pre_e8,
+                    protocol_fee_accrual_post_e8=working.core.protocol_revenue_zusd_cum_e8,
+                )
+                if type(certificate) is ZUSDSupplyDeltaRejectV1:
+                    raise ValueError(f"zUSD supply delta rejected: {certificate.code.value}")
+                if type(certificate) is not ZUSDSupplyDeltaCertificateV1:
+                    raise TypeError("unexpected zUSD supply-delta result")
             except Exception as exc:
                 return ZUSDMonetaryTxResult(ok=False, error=f"zusd op[{i}] {exc}")
 
             nonces.set_last(nonce_key, nonce)
-            effect = {"i": i, "action": action, "effects": balance_effect}
+            effect = {
+                "i": i,
+                "action": action,
+                "effects": balance_effect,
+                "supply_delta_certificate": certificate.to_obj(),
+            }
             effects.append(effect)
             _assert_sp_escrow_matches(balances, working, zusd_asset=zusd_asset, sp_pubkey=sp_pubkey)
 
@@ -321,6 +354,13 @@ def _apply_one(
         result = step(core, ZUSDCommand(tag=action, args={"amount_e8": amount_e8}))
         if not result.ok or result.state is None:
             raise ValueError(result.error or "mint_zusd rejected")
+        mint_fee_e8 = _require_int(
+            (result.effects or {}).get("mint_fee_e8", 0),
+            name="mint_zusd.mint_fee_e8",
+            minimum=0,
+        )
+        if mint_fee_e8 != 0:
+            raise ValueError("zUSD borrowing fee claim settlement is not mounted")
         minted_units = _e8_to_whole_units(int((result.effects or {}).get("principal_e8", amount_e8)), name="mint_zusd.principal_e8")
         balances.add(sender, zusd_asset, minted_units)
         next_state = ZUSDMonetaryState(core=result.state, vault_owner_pubkey=owner, sp_deposits_e8=deposits, sp_collateral_claims_e8=claims)
@@ -599,6 +639,21 @@ def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
     return copied
 
 
+def _zusd_ledger_supply_e8(balances: BalanceTable, *, zusd_asset: str) -> int:
+    """Return exact Tau-ledger zUSD supply in E8, rejecting invalid transport state."""
+
+    total_units = 0
+    for (_pubkey, asset), amount in balances.get_all_balances().items():
+        if asset != zusd_asset:
+            continue
+        if type(amount) is not int or amount < 0:
+            raise ValueError("zUSD transferable balance must be a nonnegative exact int")
+        total_units += amount
+        if total_units > _U256_MAX // E8:
+            raise ValueError("zUSD transferable supply exceeds E8 U256 range")
+    return total_units * E8
+
+
 def _parse_account_amount_entries(value: Any, *, name: str) -> dict[str, int]:
     if value is None:
         return {}
@@ -665,6 +720,16 @@ def _state_invariant_error(state: ZUSDMonetaryState) -> str | None:
         return f"invariant violation: {','.join(failed)}"
     deposits = {pk: int(amount) for pk, amount in dict(state.sp_deposits_e8 or {}).items() if int(amount) > 0}
     claims = {pk: int(amount) for pk, amount in dict(state.sp_collateral_claims_e8 or {}).items() if int(amount) > 0}
+    for field_name in (
+        "debt_e8",
+        "free_debt_e8",
+        "sp_debt_e8",
+        "protocol_revenue_zusd_cum_e8",
+    ):
+        if int(getattr(state.core, field_name)) % E8 != 0:
+            return f"{field_name} must use whole zUSD E8 transport"
+    if any(amount % E8 != 0 for amount in deposits.values()):
+        return "stability pool deposits must use whole zUSD E8 transport"
     if sum(deposits.values()) != int(state.core.sp_debt_e8):
         return "stability pool account deposits do not match core sp_debt_e8"
     if sum(claims.values()) > int(state.core.sp_coll_e8):

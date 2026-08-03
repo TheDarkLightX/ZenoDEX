@@ -1,0 +1,119 @@
+# [FORGE] zUSD transition-local supply/liability delta v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_supply_liability_delta_v1"
+  created_by: "zenodex"
+  notes: |
+    Finite transition system for the exact zUSD monetary certificate identity:
+
+      debt_delta = ledger_supply_delta + protocol_fee_accrual_delta
+
+    Each action overwrites the observable signed deltas with one complete
+    transition certificate. Minting records principal plus fee debt, principal
+    ledger supply, and nonnegative protocol fee accrual. Repayment, redemption,
+    and liquidation burn ledger supply and debt equally. Custody-only movements
+    are zero-delta certificates at this abstraction.
+
+    This model proves only the transition-local identity. It does not identify
+    cumulative fee revenue with an outstanding current claim, establish a
+    fee-claim realization path, sum AMM/perps/host custody, or prove a global
+    supply invariant. The current Python bridge accepts only fee=0; fee-bearing
+    certificates are a prospective relation for a later claim lifecycle.
+
+observables:
+  state_vars: ["debt_delta", "ledger_supply_delta", "protocol_fee_accrual_delta"]
+  effects: ["debt_delta", "ledger_supply_delta", "protocol_fee_accrual_delta"]
+
+types: []
+
+state_vars:
+  - id: "debt_delta"
+    role: "data"
+    type: { kind: "int", min: -2, max: 4 }
+  - id: "ledger_supply_delta"
+    role: "data"
+    type: { kind: "int", min: -2, max: 2 }
+  - id: "protocol_fee_accrual_delta"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+
+init:
+  - var: "debt_delta"
+    expr: { const: 0 }
+  - var: "ledger_supply_delta"
+    expr: { const: 0 }
+  - var: "protocol_fee_accrual_delta"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_debt_delta_equals_supply_plus_fee_accrual_delta"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "debt_delta" }
+        - op: "+"
+          args:
+            - { var: "ledger_supply_delta" }
+            - { var: "protocol_fee_accrual_delta" }
+  - id: "inv_fee_accrual_delta_nonnegative"
+    kind: "safety"
+    expr:
+      op: ">="
+      args: [{ var: "protocol_fee_accrual_delta" }, { const: 0 }]
+
+actions:
+  - id: "certify_mint"
+    params:
+      - id: "principal"
+        type: { kind: "int", min: 1, max: 2 }
+      - id: "fee"
+        type: { kind: "int", min: 0, max: 2 }
+    guard: { bool: true }
+    updates:
+      - var: "debt_delta"
+        expr:
+          op: "+"
+          args: [{ param: "principal" }, { param: "fee" }]
+      - var: "ledger_supply_delta"
+        expr: { param: "principal" }
+      - var: "protocol_fee_accrual_delta"
+        expr: { param: "fee" }
+    effects:
+      debt_delta:
+        op: "+"
+        args: [{ param: "principal" }, { param: "fee" }]
+      ledger_supply_delta: { param: "principal" }
+      protocol_fee_accrual_delta: { param: "fee" }
+
+  - id: "certify_burn"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 2 }
+    guard: { bool: true }
+    updates:
+      - var: "debt_delta"
+        expr: { op: "-", args: [{ const: 0 }, { param: "amount" }] }
+      - var: "ledger_supply_delta"
+        expr: { op: "-", args: [{ const: 0 }, { param: "amount" }] }
+      - var: "protocol_fee_accrual_delta"
+        expr: { const: 0 }
+    effects:
+      debt_delta: { op: "-", args: [{ const: 0 }, { param: "amount" }] }
+      ledger_supply_delta: { op: "-", args: [{ const: 0 }, { param: "amount" }] }
+      protocol_fee_accrual_delta: { const: 0 }
+
+  - id: "certify_custody_stutter"
+    params: []
+    guard: { bool: true }
+    updates:
+      - var: "debt_delta"
+        expr: { const: 0 }
+      - var: "ledger_supply_delta"
+        expr: { const: 0 }
+      - var: "protocol_fee_accrual_delta"
+        expr: { const: 0 }
+    effects:
+      debt_delta: { const: 0 }
+      ledger_supply_delta: { const: 0 }
+      protocol_fee_accrual_delta: { const: 0 }
