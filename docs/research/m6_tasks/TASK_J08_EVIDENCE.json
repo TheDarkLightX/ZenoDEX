@@ -32,7 +32,7 @@
     "python3 -m ruff format --check src/core/fcis_m6_j08_rollback.py experiments/fcis_m6_j08_rollback_check.py tools/build_fcis_m6_j08_rollback.py tests/core/test_fcis_m6_j08_rollback.py tests/core/test_fcis_m6_j08_rollback_properties.py",
     "python3 -m mypy --strict src/core/fcis_m6_j08_rollback.py experiments/fcis_m6_j08_rollback_check.py tools/build_fcis_m6_j08_rollback.py tests/core/test_fcis_m6_j08_rollback.py tests/core/test_fcis_m6_j08_rollback_properties.py",
     "git diff --check",
-    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J08",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J08 --expected-head 91bce42607c2c2365087976bed1bee4a38cc1812",
     "sha256sum --check --strict docs/research/m6_tasks/TASK_J08_SOURCE_MANIFEST.sha256"
   ],
   "tool_versions": {
@@ -58,6 +58,7 @@
     "public_vector": "pass; J08_ROLLBACK_VECTOR_MATCH",
     "focused_and_property_tests": "pass; 11 passed",
     "adjacent_regression": "pass; 55 passed in 4.65 seconds",
+    "lineage_binding": "pass; Git objects, commit/tree pairs, report/evidence identities, and ancestry verified to expected packet head 91bce42607c2c2365087976bed1bee4a38cc1812",
     "rollback_sequence": 5,
     "source_epoch": 4,
     "target_phase": "POST_SWITCH_VALIDATION",
@@ -77,6 +78,7 @@
     "mypy_strict": "pass",
     "dependency_refresh_commit": "4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6",
     "dependency_refresh_tree": "95ae78274eb6695be508283bd34eac2e3118b093",
+    "dependency_refresh_parent": "6b3110f3d392d9fa23727e6b1e63be7edce6f8c2",
     "implementation_commit": "d92c98fd9911741c2be6a3a1af9d7d1ff1bccbb3",
     "implementation_tree": "f409c5381210827160a016f9eec78755b3f4690c",
     "implementation_parent": "b72aa9d997e7cfb5db49e8ea91dcebba2a1f2193"

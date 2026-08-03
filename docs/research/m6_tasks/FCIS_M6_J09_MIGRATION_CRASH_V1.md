@@ -67,7 +67,7 @@ good main checkout because this isolated recovery worktree does not contain
 that external dependency:
 
 ```text
-java -cp /home/trevormoc/Downloads/Autonomous Tau DEX/external/tla-tools/tla2tools.jar tlc2.TLC -cleanup -workers 1 -config formal/tla/FCISM6J09MigrationCrash.cfg formal/tla/FCISM6J09MigrationCrash.tla
+java -cp "${REPO_ROOT:?}/external/tla-tools/tla2tools.jar" tlc2.TLC -cleanup -workers 1 -config formal/tla/FCISM6J09MigrationCrash.cfg formal/tla/FCISM6J09MigrationCrash.tla
 ```
 
 The TLA claim registry and generated summary remain scoped to this bounded

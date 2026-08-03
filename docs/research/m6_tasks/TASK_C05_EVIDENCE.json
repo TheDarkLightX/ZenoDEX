@@ -62,7 +62,7 @@
     "lean-mathlib/Proofs/FCISFeeApportionmentSRGDAdaptiveTrace.lean": "9c70689a7d08f5b8178ae7d119d88fe0ae49d4e7e6d6045ee62850d4e85fdf79",
     "lean-mathlib/Proofs/FCISFeeApportionmentSRGDTrace.lean": "b3f51628cce67f18669dc9eb59040497e1d20c9a000c36198bf66e6ad36abde7",
     "lean-mathlib/Proofs/FCISFeeApportionmentSRGD.lean": "a7104b2abca37e9ababbe121db34c91bf4fa973a3042f9ed30f165b37bfc92b0",
-    "docs/research/m6_tasks/TASK_C04_REPORT.md": "170f279c34e22e484de264a5f10f82e2685b2b9245cdd7cdf9814fdd4f86390f",
+    "docs/research/m6_tasks/TASK_C04_REPORT.md": "2a4c1c5878ea94c1e3c348df21da857b40b48158f608b72d2745af252f441016",
     "docs/research/m6_tasks/TASK_C04_EVIDENCE.json": "147f3e1e4de9153abf65b12a98a250693e41e3fc1aaa95157625e7415eff8548",
     "docs/research/m6_tasks/TASK_C04_SOURCE_MANIFEST.sha256": "9c7319564092b52cb2b66caf5fb151e70083aa872f3cf31e3a5c51633e7f6bd7",
     "src/core/fcis_entitlement_transport_v1.py": "a225e0df0fb9ca47e7e1af05d9896fac561ecb6b41cef76677605799a1262076",

@@ -148,3 +148,26 @@ The next safe implementation slice is the concrete expected-root CAS and
 canonical durable-layout adapter, followed by two-connection concurrency and
 PRE/POST crash-recovery evidence. Keep the work unmounted until the production
 shell, proof context, and no-bypass gates pass.
+
+## Receipt-rebind repair addendum (2026-08-03)
+
+The exact-head fields above describe the earlier PR #501 delivery. This
+addendum is the authoritative record for the receipt-rebind repair slice.
+
+- Prior packet head: `f36e1e301135b69a39f040e34c7de79a40054ff8`
+- Implementation target commit: `91bce42607c2c2365087976bed1bee4a38cc1812`
+- Implementation target tree: `d79465f3abc421838d6864368a57ac2ef48dc3ca`
+- Implementation target parent: `f36e1e301135b69a39f040e34c7de79a40054ff8`
+- Validator source SHA-256: `a3a328c9bb220a82b566e8683fa8aefe378b9083d5a7a9bab863ded9f33c320f`
+- Packet-child parent: `91bce42607c2c2365087976bed1bee4a38cc1812`
+
+The packet child records the strengthened Git-object lineage gate, report /
+evidence identity bindings, the permanent zero-commit and foreign-tree
+mutants, the ten public-text repairs, and the synchronized J07/J08/K06/K07
+receipts. An external delivery receipt generated after the packet-child
+commit records that child's exact commit/tree/parent, the deterministic
+receipt archive digest, the branch, and every packet-file digest.
+
+This repair remains `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED`. It does not add a
+production datastore adapter, runtime mount, authority switch, deployment,
+merge, or value movement.

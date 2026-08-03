@@ -115,12 +115,12 @@
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_REPAIR_REPORT_20260731.md",
-      "sha256": "390d8187717b82cf4027d41456f172c95c9c9f1cce7f6ea26607cb6f0c007f4f",
+      "sha256": "1b7b156df347ae3e71ba55911ac3ff04560d10f6d907e01704fb022779b5ba55",
       "role": "repair_report"
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_CHANGE_INVENTORY_V1.md",
-      "sha256": "a43ff44654f53b766652093f68176d14b462b187464f009b0969fe4e45556201",
+      "sha256": "c607d236155dea61dcb184cac00bf8c91d9600f03b82693518231783eb53d20b",
       "role": "change_inventory"
     },
     {

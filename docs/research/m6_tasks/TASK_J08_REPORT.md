@@ -46,7 +46,7 @@ COMMANDS_RUN:
 - `python3 -m py_compile` on all J08 Python files
 - `python3 -m json.tool` on the J08 configuration and vector
 - `git diff --check`
-- `python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J08`
+- `python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J08 --expected-head 91bce42607c2c2365087976bed1bee4a38cc1812`
 - `sha256sum --check --strict docs/research/m6_tasks/TASK_J08_SOURCE_MANIFEST.sha256`
 
 RESULTS:
@@ -66,6 +66,9 @@ RESULTS:
 - Six target root substitutions and history erasure rejected during
   certificate validation.
 - Strict Ruff, formatting, mypy, compilation, JSON, and diff checks passed.
+- The packet lineage gate passed: Git objects, commit/tree pairs,
+  report/evidence identities, and ancestry resolve to expected packet head
+  `91bce42607c2c2365087976bed1bee4a38cc1812`.
 
 MUTANTS_ADDED: Forged source state root, forged anchor residual root,
 balance-only target state, deployment-only target mutation, residual-only

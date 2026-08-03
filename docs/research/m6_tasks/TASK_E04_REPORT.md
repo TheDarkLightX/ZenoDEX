@@ -71,7 +71,7 @@ its lock file from this sandbox:
 ```text
 cd lean-mathlib && lake env lean Proofs/FCISM6E04RetryClassifier.lean
 error: read-only file system while opening
-/home/trevormoc/deps/mathlib4/.lake/config/mathlib/lakefile.olean.lock
+the shared Mathlib checkout's `.lake/config/mathlib/lakefile.olean.lock`
 
 direct Lean 4.27 compilation: exit 0
 ```

@@ -33,14 +33,14 @@ replacement of a nonzero source entry is a typed zero-reset rejection.
 COMMANDS_RUN:
 
 - python3 -m compileall -q src/core/fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_transport_v1.py
-- /home/trevormoc/.local/bin/ruff check src/core/fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_transport_v1.py
-- /home/trevormoc/.local/bin/mypy --strict src/core/fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_transport_v1.py
+- python3 -m ruff check src/core/fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_transport_v1.py
+- python3 -m mypy --strict src/core/fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_transport_v1.py
 - pytest -q tests/core/test_fcis_entitlement_transport_v1.py
 - pytest -q tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py
 - python3 -m experiments.fcis_m6_c04_vector_check
 - python3 -m compileall -q experiments/fcis_m6_c04_vector_check.py
-- /home/trevormoc/.local/bin/ruff check experiments/fcis_m6_c04_vector_check.py
-- /home/trevormoc/.local/bin/mypy --strict experiments/fcis_m6_c04_vector_check.py
+- python3 -m ruff check experiments/fcis_m6_c04_vector_check.py
+- python3 -m mypy --strict experiments/fcis_m6_c04_vector_check.py
 - python3 -m json.tool docs/research/m6_tasks/TASK_C04_SIGN_DUAL_VECTOR.json
 - python3 experiments/fcis_m6_c04_vector_check.py
 - python3 .claude/skills/zenodex-style-map/scripts/which_style.py src/core/fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_transport_v1.py

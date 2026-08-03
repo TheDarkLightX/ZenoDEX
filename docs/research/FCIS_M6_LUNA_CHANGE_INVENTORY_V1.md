@@ -44,3 +44,14 @@ Lean `.lake` outputs, Python caches, Ruff/mypy/Pytest caches, and the local
 Private ESSO and mathlib dependency checkouts are verification material, not
 source artifacts. Their exact commits are recorded where relevant in the repair
 report.
+
+## Receipt-rebind repair child (2026-08-03)
+
+The receipt-rebind implementation target is commit
+`91bce42607c2c2365087976bed1bee4a38cc1812`, tree
+`d79465f3abc421838d6864368a57ac2ef48dc3ca`, with prior packet head
+`f36e1e301135b69a39f040e34c7de79a40054ff8` as its parent. Its two changed
+files are the fail-closed task-packet validator and its permanent regression
+test. The following child contains receipt, manifest, report, and public-text
+updates only. It has no functional-core, runtime, datastore, authority,
+migration, deployment, or value-moving changes.

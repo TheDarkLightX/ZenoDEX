@@ -35,7 +35,7 @@
     "python3 tools/build_fcis_m6_d05_tcg_inventory.py --check",
     "python3 tools/build_fcis_m6_k04_topology_anchor.py --check",
     "git diff --check",
-    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K06",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K06 --expected-head 91bce42607c2c2365087976bed1bee4a38cc1812",
     "sha256sum --check --strict docs/research/m6_tasks/TASK_K06_SOURCE_MANIFEST.sha256"
   ],
   "tool_versions": {
@@ -66,9 +66,11 @@
     "legacy_admission": "typed legacy_writer_disabled rejection",
     "focused_tests": "pass; 1 passed",
     "adjacent_regression": "45 passed; current K04/K06/K03/K05/J07/J08/J09 regression",
+    "lineage_binding": "pass; Git objects, commit/tree pairs, report/evidence identities, and ancestry verified to expected packet head 91bce42607c2c2365087976bed1bee4a38cc1812",
     "mutant_campaign": "pass; 10 of 10 named mutants killed",
     "dependency_refresh_commit": "92040e214c4dcd36c4e5172e7098f19e26f0300f",
     "dependency_refresh_tree": "89b4704ef62940fcfd24f568f8f74152420a0e5a",
+    "dependency_refresh_parent": "4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6",
     "implementation_commit": "7824b451eaabf3b2649b7a9f7cb09dddffe225ac",
     "implementation_tree": "af89e4e284135681f24b471afa236a4ec665fc8a",
     "implementation_parent": "0b307ca01bfaa14d961ded7842b8023ad80e280b",

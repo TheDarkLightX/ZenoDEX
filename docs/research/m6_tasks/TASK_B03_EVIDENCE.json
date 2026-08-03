@@ -37,7 +37,7 @@
     "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
     "docs/research/FCIS_M6_LUNA_IMPLEMENTATION_TASKBOOK_V1.md": "7beba9e72b63db6e59c25b1679731fe4f94f1d573323dcb59c9e68e1f791f068",
     "docs/research/m6_tasks/TASK_EVIDENCE_SCHEMA_V1.json": "9dd6d015ef69c31c5a41a61f7a73c5c3d8057baf4cfc6f85eb52fffd065d5640",
-    "docs/research/m6_tasks/validate_task_packet.py": "cda422bb55c5601e8be42148454d7affc44df9c22d66f749861592f3e4549c3a",
+    "docs/research/m6_tasks/validate_task_packet.py": "a3a328c9bb220a82b566e8683fa8aefe378b9083d5a7a9bab863ded9f33c320f",
     "docs/research/m6_tasks/TASK_B03_LEAN_PROOF_RECEIPT.json": "a4071d92a662ff29473c61537a262e0669d97ce572ca040671707447eb5ab595",
     "lean-mathlib/Proofs/FCISFeeApportionmentSRGDTrace.lean": "b3f51628cce67f18669dc9eb59040497e1d20c9a000c36198bf66e6ad36abde7",
     "lean-mathlib/Proofs.lean": "82af09fe31b3809480010ef35a24a167f9cfa90146b6178ae131ee30fd075052",

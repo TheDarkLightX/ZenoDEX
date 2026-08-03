@@ -74,7 +74,7 @@ COMMANDS_RUN:
 - `python3 -m pytest -q tests/tools/test_fcis_m6_k07_deployment_audit.py`
 - `python3 -m pytest -q tests/tools/test_fcis_m6_k07_deployment_audit.py tests/tools/test_fcis_m6_k04_topology_anchor.py tests/tools/test_fcis_m6_k06_legacy_seal.py tests/tools/test_check_fcis_m6_k03_static_no_bypass.py tests/tools/test_fcis_m6_k05_bypass_mutation.py tests/core/test_fcis_m6_j07_authority_switch.py tests/core/test_fcis_m6_j07_authority_switch_properties.py tests/core/test_fcis_m6_j08_rollback.py tests/core/test_fcis_m6_j08_rollback_properties.py tests/core/test_fcis_m6_j09_migration_crash.py tests/core/test_fcis_m6_j09_migration_crash_properties.py`
 - `git diff --check`
-- `python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K07`
+- `python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K07 --expected-head 91bce42607c2c2365087976bed1bee4a38cc1812`
 - `sha256sum --check --strict docs/research/m6_tasks/TASK_K07_SOURCE_MANIFEST.sha256`
 
 RESULTS:
@@ -93,6 +93,9 @@ RESULTS:
 - Adjacent K03-K07/J07-J09 regression passed: 48 passed in 28.41 seconds.
 - Python compilation, Ruff, formatting, strict mypy, JSON/vector checks, and
   diff whitespace checks passed.
+- The packet lineage gate passed: Git objects, commit/tree pairs,
+  report/evidence identities, and ancestry resolve to expected packet head
+  `91bce42607c2c2365087976bed1bee4a38cc1812`.
 
 MUTANTS_ADDED: K07 preserves four verifier-provenance/status/root/constructor
 mutants. The repair slice adds a synthetic credential-default mutation witness

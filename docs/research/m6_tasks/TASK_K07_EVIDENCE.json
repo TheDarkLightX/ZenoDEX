@@ -42,7 +42,7 @@
     "python3 -m pytest -q tests/tools/test_fcis_m6_k07_deployment_audit.py",
     "python3 -m pytest -q tests/tools/test_fcis_m6_k07_deployment_audit.py tests/tools/test_fcis_m6_k04_topology_anchor.py tests/tools/test_fcis_m6_k06_legacy_seal.py tests/tools/test_check_fcis_m6_k03_static_no_bypass.py tests/tools/test_fcis_m6_k05_bypass_mutation.py tests/core/test_fcis_m6_j07_authority_switch.py tests/core/test_fcis_m6_j07_authority_switch_properties.py tests/core/test_fcis_m6_j08_rollback.py tests/core/test_fcis_m6_j08_rollback_properties.py tests/core/test_fcis_m6_j09_migration_crash.py tests/core/test_fcis_m6_j09_migration_crash_properties.py",
     "git diff --check",
-    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K07",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K07 --expected-head 91bce42607c2c2365087976bed1bee4a38cc1812",
     "sha256sum --check --strict docs/research/m6_tasks/TASK_K07_SOURCE_MANIFEST.sha256"
   ],
   "tool_versions": {
@@ -64,7 +64,7 @@
     "docs/research/m6_tasks/TASK_K06_LEGACY_SEAL_V1.json": "ebd1f6df884a0e01326f3d800c3f481d1be476ef3879116b4e82324449f3a8ca",
     "docs/research/m6_tasks/TASK_K07_DEPLOYMENT_AUDIT_V1.json": "6dd4903978ed8f0aafa11c74f181d634a295d8d919d424d5305ec1a5479a00eb",
     "docs/research/m6_tasks/TASK_K07_PLAN.md": "817204273f1cf963a5db7a9ed69c0ec67e5e11daf156d54e895006a5013d0df0",
-    "docs/research/m6_tasks/TASK_K07_REPORT.md": "63de5a63413a9c5d61c6d4f682f07c2c9386102bf7f194e83770609916d02af2",
+    "docs/research/m6_tasks/TASK_K07_REPORT.md": "c844a7966fb5a2332707a07499e1dc6110fdf74974ec280ab09126bddf60535a",
     "experiments/fcis_m6_k07_deployment_audit_check.py": "37be13b6c01e6df9c1d2ba73f97c60e1b2ccba8396dfd8c156e9ae0f42b5dd4f",
     "src/core/fcis_m6_k07_deployment_audit.py": "ff70a4ffc9b5e6411f42127db8679ccb8f37c41ebe246ed290416840bfb7bf1b",
     "tests/tools/test_fcis_m6_k07_deployment_audit.py": "2b56a6d3d1ee037d2f2935287e276ac834f50669c5f37882d2bbec4ca7c00819",
@@ -82,6 +82,7 @@
     "clean_gate": "blocked; finding count 3",
     "focused_tests": "pass; 3 passed",
     "adjacent_regression": "pass; 48 passed in 28.41 seconds",
+    "lineage_binding": "pass; Git objects, commit/tree pairs, report/evidence identities, and ancestry verified to expected packet head 91bce42607c2c2365087976bed1bee4a38cc1812",
     "entrypoint_missing_secret": "pass; typed rejection before service launch",
     "d05_publisher_inventory_root": "fe407a21588db0932df41b224234a5a5950478aa12cc1c564857b7a5bbc41ac2",
     "d05_topology_root": "9b2db149fd06876cf9e9fa592d891042320e52dcf0640c952431d913f12402e1",
@@ -90,6 +91,7 @@
     "k06_seal_root": "fa7707f4bb75a01643bdc375ab74cbcf9f108162bdbf462868b707f12e96a753",
     "dependency_refresh_commit": "92040e214c4dcd36c4e5172e7098f19e26f0300f",
     "dependency_refresh_tree": "89b4704ef62940fcfd24f568f8f74152420a0e5a",
+    "dependency_refresh_parent": "4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6",
     "implementation_commit": "379e0717137fb122175995de7c20250856375151",
     "implementation_tree": "5ff6f00973a948315d1c25575eab6c348055c5b2",
     "implementation_parent": "f0abe01a98247a1cf803e0a11c710786cfccfbce"

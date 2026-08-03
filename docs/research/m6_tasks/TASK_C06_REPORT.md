@@ -32,8 +32,8 @@ substitutions reject with typed results.
 COMMANDS_RUN:
 
 - python3 -m compileall -q src/core/fcis_entitlement_rotation_admission_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py
-- /home/trevormoc/.local/bin/ruff check src/core/fcis_entitlement_rotation_admission_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py
-- /home/trevormoc/.local/bin/mypy --strict src/core/fcis_entitlement_rotation_admission_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py
+- python3 -m ruff check src/core/fcis_entitlement_rotation_admission_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py
+- python3 -m mypy --strict src/core/fcis_entitlement_rotation_admission_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py
 - pytest -q tests/core/test_fcis_entitlement_rotation_admission_v1.py
 - pytest -q tests/core/test_fcis_m6_profile_ids.py tests/core/test_fcis_entitlement_key_v1.py tests/core/test_fcis_entitlement_migration_v1.py tests/core/test_fcis_entitlement_transport_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py
 - python3 .claude/skills/zenodex-style-map/scripts/which_style.py src/core/fcis_entitlement_rotation_admission_v1.py tests/core/test_fcis_entitlement_rotation_admission_v1.py

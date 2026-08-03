@@ -45,6 +45,7 @@ COMMANDS_RUN:
   source, checker, tool, and test files
 - JSON parsing for the J07 configuration and vector
 - `git diff --check`
+- `python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J07 --expected-head 91bce42607c2c2365087976bed1bee4a38cc1812`
 
 RESULTS:
 - The independent checker passed with switch root
@@ -52,6 +53,9 @@ RESULTS:
 - The public vector matched source regeneration.
 - Focused and property tests passed: 15 passed.
 - The adjacent regression passed: 55 passed in 4.70 seconds.
+- The packet lineage gate passed: Git objects, commit/tree pairs,
+  report/evidence identities, and ancestry resolve to expected packet head
+  `91bce42607c2c2365087976bed1bee4a38cc1812`.
 - F06 migration authorization was checked at issue and use; the J07 fixture
   recorded two verifier calls.
 - Exact-class forged J06 gates and F06 tokens rejected.

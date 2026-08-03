@@ -32,7 +32,7 @@
     "python3 -m ruff format --check src/core/fcis_m6_j07_authority_switch.py experiments/fcis_m6_j07_authority_switch_check.py tools/build_fcis_m6_j07_authority_switch.py tests/core/test_fcis_m6_j07_authority_switch.py tests/core/test_fcis_m6_j07_authority_switch_properties.py",
     "python3 -m mypy --strict src/core/fcis_m6_j07_authority_switch.py experiments/fcis_m6_j07_authority_switch_check.py tools/build_fcis_m6_j07_authority_switch.py tests/core/test_fcis_m6_j07_authority_switch.py tests/core/test_fcis_m6_j07_authority_switch_properties.py",
     "git diff --check",
-    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J07",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J07 --expected-head 91bce42607c2c2365087976bed1bee4a38cc1812",
     "sha256sum --check --strict docs/research/m6_tasks/TASK_J07_SOURCE_MANIFEST.sha256"
   ],
   "tool_versions": {
@@ -58,6 +58,7 @@
     "public_vector": "pass; J07_AUTHORITY_SWITCH_VECTOR_MATCH",
     "focused_and_property_tests": "pass; 15 passed",
     "adjacent_regression": "pass; 55 passed in 4.70 seconds",
+    "lineage_binding": "pass; Git objects, commit/tree pairs, report/evidence identities, and ancestry verified to expected packet head 91bce42607c2c2365087976bed1bee4a38cc1812",
     "f06_verifier_calls": 2,
     "pre_phase": "QUIESCED",
     "post_phase": "AUTHORITY_SWITCH",
@@ -77,6 +78,7 @@
     "rejection_path_bounds": "pass; empty, over-capacity, and overlong components rejected",
     "dependency_refresh_commit": "4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6",
     "dependency_refresh_tree": "95ae78274eb6695be508283bd34eac2e3118b093",
+    "dependency_refresh_parent": "6b3110f3d392d9fa23727e6b1e63be7edce6f8c2",
     "implementation_commit": "d40e2d7bc028d93c5f38f24b158567a9fff752fc",
     "implementation_tree": "3e1c984da840c02854e7846362bcffc340e7981b",
     "implementation_parent": "c8a861119e59701c96c9106ff4ba154f7b4650a2"

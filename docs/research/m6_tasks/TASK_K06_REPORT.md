@@ -48,6 +48,7 @@ COMMANDS_RUN:
 - python3 experiments/fcis_m6_k03_static_no_bypass_check.py
 - python3 tools/build_fcis_m6_d05_tcg_inventory.py --check
 - git diff --check
+- python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K06 --expected-head 91bce42607c2c2365087976bed1bee4a38cc1812
 
 RESULTS:
 
@@ -70,6 +71,9 @@ RESULTS:
 - Ten named adversarial mutants were killed by the independent checker.
 - Python compilation, Ruff, formatting, strict mypy, JSON parsing, and diff
   whitespace checks passed.
+- The packet lineage gate passed: Git objects, commit/tree pairs,
+  report/evidence identities, and ancestry resolve to expected packet head
+  `91bce42607c2c2365087976bed1bee4a38cc1812`.
 
 UPSTREAM_REFRESH: The K06 packet now records the current D05, K01, and K04
 roots after the entrypoint credential repair. The K04, K06, and K07 dependency

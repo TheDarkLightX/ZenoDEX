@@ -28,7 +28,7 @@ COMMANDS_RUN:
 - cd lean-mathlib && lake build Proofs.FCISDurableRetraction Proofs.FCISTreeChordGateAuthority
 - cd lean-mathlib && lake env lean Proofs/FCISANFComposition.lean
 - cd lean-mathlib && lake build
-- python3 /home/trevormoc/.codex/skills/proof-engineering/scripts/scan_proof_placeholders.py --json --flag-axiom lean-mathlib/Proofs/FCISANFComposition.lean
+- python3 "${CODEX_SKILLS:?}/proof-engineering/scripts/scan_proof_placeholders.py" --json --flag-axiom lean-mathlib/Proofs/FCISANFComposition.lean
 - rg -n -i '\b(sorry|admit|axiom)\b|\?_+' lean-mathlib/Proofs/FCISANFComposition.lean
 - git diff --check
 - python3 -m json.tool docs/research/m6_tasks/TASK_D10_EVIDENCE.json

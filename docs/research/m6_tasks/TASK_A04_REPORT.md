@@ -99,7 +99,7 @@ RESULTS:
 - Focused tests: `97 passed`.
 - Lean: blocked on the current isolated rerun because the shared mathlib
   checkout is read-only and cannot create
-  `/home/trevormoc/deps/mathlib4/.lake/config/mathlib/lakefile.olean.lock`
+  the shared Mathlib checkout's `.lake/config/mathlib/lakefile.olean.lock`
   (errno 30). The temporary symlink was removed. The earlier 8153-job result
   remains historical evidence and is not re-promoted for this exact head.
 - Julia 1.12.6 TCG oracle: pass, 9 gates, safe baseline, all five targeted
