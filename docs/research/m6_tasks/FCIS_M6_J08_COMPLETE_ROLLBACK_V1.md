@@ -37,7 +37,7 @@ fresh authorization and exposes no value-moving capability.
 - exact implementation tree:
   `f409c5381210827160a016f9eec78755b3f4690c`;
 - pinned rollback root:
-  `f7f6f445cc6958380925d5f7fb4c6cc1e7033a6ddfcd88214ec92c1462ddc6a1`.
+  `a96d917c3939f277fec0ecf525f2413984403e4a4222b9d70b5ebeefbea69fa6`.
 
 The negative evidence covers balance-only and partial auxiliary rollback,
 history erasure, forged source/anchor complete-state disagreement, stale or

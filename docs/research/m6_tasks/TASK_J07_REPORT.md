@@ -2,8 +2,8 @@
 
 TASK_ID: J07
 BASE_SHA: c8a861119e59701c96c9106ff4ba154f7b4650a2
-SOURCE_HEAD_SHA: d40e2d7bc028d93c5f38f24b158567a9fff752fc
-SOURCE_HEAD_TREE: 3e1c984da840c02854e7846362bcffc340e7981b
+SOURCE_HEAD_SHA: 4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6
+SOURCE_HEAD_TREE: 95ae78274eb6695be508283bd34eac2e3118b093
 BRANCH: codex/task-m6-receipt-rebind-20260802
 
 FILES_CHANGED:
@@ -18,6 +18,14 @@ FILES_CHANGED:
 IMPLEMENTATION_HEAD_SHA: d40e2d7bc028d93c5f38f24b158567a9fff752fc
 IMPLEMENTATION_TREE: 3e1c984da840c02854e7846362bcffc340e7981b
 IMPLEMENTATION_PARENT: c8a861119e59701c96c9106ff4ba154f7b4650a2
+
+DEPENDENCY_REFRESH_HEAD: 4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6
+DEPENDENCY_REFRESH_TREE: 95ae78274eb6695be508283bd34eac2e3118b093
+DEPENDENCY_REFRESH_PARENT: 6b3110f3d392d9fa23727e6b1e63be7edce6f8c2
+
+DEPENDENCY_REBIND: The J06 K01 inventory rebind changed the gate and switch
+roots. J07 was regenerated at the exact dependency-refresh head above; J07
+implementation code is unchanged.
 
 CLAIM_IMPLEMENTED: J07 adds an isolated authority-switch relation. It
 requires a verifier-owned J06 QUIESCED gate and rechecks the F06 migration
@@ -40,7 +48,7 @@ COMMANDS_RUN:
 
 RESULTS:
 - The independent checker passed with switch root
-  `e44729c68c7b9de2876772f2d08123b048f1a6767dc26f45c10cec1f35e73fcb`.
+  `acdc6ceaa486f697f12d249b5c72af5c8290b0bdf6532059995c75ea54028686`.
 - The public vector matched source regeneration.
 - Focused and property tests passed: 15 passed.
 - The adjacent regression passed: 55 passed in 4.70 seconds.

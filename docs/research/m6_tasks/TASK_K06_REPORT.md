@@ -2,13 +2,17 @@
 
 TASK_ID: K06
 BASE_SHA: 0b307ca01bfaa14d961ded7842b8023ad80e280b
-SOURCE_HEAD_SHA: 379e0717137fb122175995de7c20250856375151
-SOURCE_HEAD_TREE: 5ff6f00973a948315d1c25575eab6c348055c5b2
+SOURCE_HEAD_SHA: 92040e214c4dcd36c4e5172e7098f19e26f0300f
+SOURCE_HEAD_TREE: 89b4704ef62940fcfd24f568f8f74152420a0e5a
 BRANCH: codex/task-m6-receipt-rebind-20260802
 
-DEPENDENCY_REFRESH_HEAD: The entrypoint credential repair changed the D05,
-K01, and K04 roots consumed by K06. K06 was regenerated at the exact
-functional head above; the K06 implementation code is unchanged.
+DEPENDENCY_REFRESH_HEAD: 92040e214c4dcd36c4e5172e7098f19e26f0300f
+DEPENDENCY_REFRESH_TREE: 89b4704ef62940fcfd24f568f8f74152420a0e5a
+DEPENDENCY_REFRESH_PARENT: 4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6
+
+DEPENDENCY_REBIND: The J07 switch and post-context roots changed after the
+J06/K01 rebind. K06 was regenerated at the exact dependency-refresh head
+above; K06 implementation code is unchanged.
 
 FILES_CHANGED:
 
@@ -47,7 +51,7 @@ COMMANDS_RUN:
 
 RESULTS:
 
-- K06 deterministic seal root: `6da2c97dc141c631966a0960d4210799aa3881a7cc62c6c1d377b0ca0bf6130f`.
+- K06 deterministic seal root: `fa7707f4bb75a01643bdc375ab74cbcf9f108162bdbf462868b707f12e96a753`.
 - K03 policy and scan roots matched the K06 pins; the scan reported zero
   issues over four protected Python files and zero protected Rust files.
 - D05 regeneration matched the current K06 inventory and topology roots
@@ -61,9 +65,8 @@ RESULTS:
 - Target admission passed; legacy admission rejected with
   `legacy_writer_disabled`.
 - Focused K06 suite passed: 1 passed.
-- Adjacent J07/J08/J09/K03/K05 regression passed: 41 passed.
-- The 3 K04 tests failed at the pre-existing D05 pin check; this is the
-  upstream drift recorded below, not a K06 failure.
+- Adjacent J07/J08/J09/K03/K05 regression passed: 45 passed.
+- The current K04 dependency check passed after the D05/K01 rebind.
 - Ten named adversarial mutants were killed by the independent checker.
 - Python compilation, Ruff, formatting, strict mypy, JSON parsing, and diff
   whitespace checks passed.

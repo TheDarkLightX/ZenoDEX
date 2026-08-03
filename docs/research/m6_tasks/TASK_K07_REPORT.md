@@ -2,8 +2,8 @@
 
 TASK_ID: K07
 BASE_SHA: f0abe01a98247a1cf803e0a11c710786cfccfbce
-SOURCE_HEAD_SHA: 379e0717137fb122175995de7c20250856375151
-SOURCE_HEAD_TREE: 5ff6f00973a948315d1c25575eab6c348055c5b2
+SOURCE_HEAD_SHA: 92040e214c4dcd36c4e5172e7098f19e26f0300f
+SOURCE_HEAD_TREE: 89b4704ef62940fcfd24f568f8f74152420a0e5a
 BRANCH: codex/task-m6-receipt-rebind-20260802
 
 FILES_CHANGED:
@@ -39,14 +39,23 @@ FUNCTIONAL_HEAD:
 - tree: `5ff6f00973a948315d1c25575eab6c348055c5b2`
 - parent: `f0abe01a98247a1cf803e0a11c710786cfccfbce`
 
+DEPENDENCY_REFRESH_HEAD:
+
+- commit: `92040e214c4dcd36c4e5172e7098f19e26f0300f`
+- tree: `89b4704ef62940fcfd24f568f8f74152420a0e5a`
+- parent: `4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6`
+
+The J07 switch and K06 seal were regenerated after the J06/K01 rebind. K07
+implementation code is unchanged.
+
 ROOTS:
 
 - D05 publisher inventory: `fe407a21588db0932df41b224234a5a5950478aa12cc1c564857b7a5bbc41ac2`
 - D05 topology: `9b2db149fd06876cf9e9fa592d891042320e52dcf0640c952431d913f12402e1`
 - K01 entrypoint inventory: `c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2`
 - K04 topology anchor: `6644cae606656411d0da64461d80a13030be65905cfd31916a33f1143bc25ee3`
-- K06 legacy seal: `6da2c97dc141c631966a0960d4210799aa3881a7cc62c6c1d377b0ca0bf6130f`
-- K07 audit: `2390524e3a6dbd115f8e8270cddbbfbafc44b76ca2970e00b056b4ce16e7a55d`
+- K06 legacy seal: `fa7707f4bb75a01643bdc375ab74cbcf9f108162bdbf462868b707f12e96a753`
+- K07 audit: `7bea72c3418b600a3f34bc06473aa84c33747287d00b9597964c9a3729724d30`
 
 COMMANDS_RUN:
 
@@ -81,7 +90,7 @@ RESULTS:
 - Clean-deployment gate: typed `GAP` block with finding count 3.
 - Focused K07 suite passed: 3 passed, including the credential-default
   mutation witness and missing-secret startup test.
-- Adjacent K03-K07/J07-J09 regression passed: 47 passed.
+- Adjacent K03-K07/J07-J09 regression passed: 48 passed in 28.41 seconds.
 - Python compilation, Ruff, formatting, strict mypy, JSON/vector checks, and
   diff whitespace checks passed.
 

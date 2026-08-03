@@ -2,8 +2,8 @@
 
 TASK_ID: J08
 BASE_SHA: b72aa9d997e7cfb5db49e8ea91dcebba2a1f2193
-SOURCE_HEAD_SHA: d92c98fd9911741c2be6a3a1af9d7d1ff1bccbb3
-SOURCE_HEAD_TREE: f409c5381210827160a016f9eec78755b3f4690c
+SOURCE_HEAD_SHA: 4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6
+SOURCE_HEAD_TREE: 95ae78274eb6695be508283bd34eac2e3118b093
 BRANCH: codex/task-m6-receipt-rebind-20260802
 
 FILES_CHANGED:
@@ -18,6 +18,14 @@ FILES_CHANGED:
 IMPLEMENTATION_HEAD_SHA: d92c98fd9911741c2be6a3a1af9d7d1ff1bccbb3
 IMPLEMENTATION_TREE: f409c5381210827160a016f9eec78755b3f4690c
 IMPLEMENTATION_PARENT: b72aa9d997e7cfb5db49e8ea91dcebba2a1f2193
+
+DEPENDENCY_REFRESH_HEAD: 4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6
+DEPENDENCY_REFRESH_TREE: 95ae78274eb6695be508283bd34eac2e3118b093
+DEPENDENCY_REFRESH_PARENT: 6b3110f3d392d9fa23727e6b1e63be7edce6f8c2
+
+DEPENDENCY_REBIND: The J07 switch rebind changed the complete source state
+used by J08. J08 was regenerated at the exact dependency-refresh head above;
+J08 implementation code is unchanged.
 
 CLAIM_IMPLEMENTED: J08 defines an isolated verifier-gated rollback relation
 over a complete state aggregate. The J07 post-switch source and pre-switch
@@ -43,7 +51,7 @@ COMMANDS_RUN:
 
 RESULTS:
 - The independent checker passed with rollback root
-  `f7f6f445cc6958380925d5f7fb4c6cc1e7033a6ddfcd88214ec92c1462ddc6a1`.
+  `a96d917c3939f277fec0ecf525f2413984403e4a4222b9d70b5ebeefbea69fa6`.
 - The public vector matched source regeneration.
 - Focused and property tests passed: 11 passed.
 - The adjacent regression passed: 55 passed in 4.65 seconds.

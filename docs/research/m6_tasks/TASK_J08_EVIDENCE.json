@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "J08",
   "base_sha": "b72aa9d997e7cfb5db49e8ea91dcebba2a1f2193",
-  "source_head_sha": "d92c98fd9911741c2be6a3a1af9d7d1ff1bccbb3",
-  "source_head_tree": "f409c5381210827160a016f9eec78755b3f4690c",
+  "source_head_sha": "4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6",
+  "source_head_tree": "95ae78274eb6695be508283bd34eac2e3118b093",
   "branch": "codex/task-m6-receipt-rebind-20260802",
   "status": "TESTED",
   "evidence_files": [
@@ -44,17 +44,17 @@
   },
   "source_hashes": {
     "config/deploy/fcis_m6_j08_rollback_v1.json": "bba67b717895d200e0eedf395d2b63015c8f03a36f29a9a73e8d063af5e4c4fd",
-    "docs/research/m6_tasks/TASK_J08_ROLLBACK_V1.json": "48a49a679bf2dd5014d2483e13ad88aded8d83ebfc7aa67c335b9af381107bc3",
+    "docs/research/m6_tasks/TASK_J08_ROLLBACK_V1.json": "3f2026317e3f482fbd66caf47cc044eb157f58d6d9a85c3eac5f352b751993a7",
     "experiments/fcis_m6_j08_rollback_check.py": "19870d483b959680259a4e54c0f45c5a84a64e57e9b4fa7a37352b372d9433bf",
     "src/core/fcis_m6_j08_rollback.py": "3b5bbbdcb878b67a3c143f7fb02ffad959eba8d59b376e902cbb90f21e0bdef9",
     "tests/core/test_fcis_m6_j08_rollback.py": "f44b7d1197a6512fe9df02698ea180fe8f1d2224018c6a9df46eceea3f783825",
     "tests/core/test_fcis_m6_j08_rollback_properties.py": "4d626be85397c90ab8163e61554089d4242ab05c2cd7cddd761fdf8eb85b0ef6",
     "tools/build_fcis_m6_j08_rollback.py": "0b6bcdf2fb3a71d38ddb78d17cb20fa5a4184229061717603cd4ab3f40be8945",
-    "docs/research/m6_tasks/FCIS_M6_J08_COMPLETE_ROLLBACK_V1.md": "4464a3a2b5cd5d0290bd2c0f19404d90fa87c7d962ea7790a3d167166078e970",
+    "docs/research/m6_tasks/FCIS_M6_J08_COMPLETE_ROLLBACK_V1.md": "e9cc5fb4cf1a97ab92b82c42f5397ec3f883e2269717d0e224d0de3a92acea73",
     "docs/research/m6_tasks/TASK_J08_PLAN.md": "79862ef2e06505afe88463a8190925773d3cc9c9dad559c7b824a423ad349c2c"
   },
   "results": {
-    "independent_checker": "pass; J08_ROLLBACK_MATCH f7f6f445cc6958380925d5f7fb4c6cc1e7033a6ddfcd88214ec92c1462ddc6a1",
+    "independent_checker": "pass; J08_ROLLBACK_MATCH a96d917c3939f277fec0ecf525f2413984403e4a4222b9d70b5ebeefbea69fa6",
     "public_vector": "pass; J08_ROLLBACK_VECTOR_MATCH",
     "focused_and_property_tests": "pass; 11 passed",
     "adjacent_regression": "pass; 55 passed in 4.65 seconds",
@@ -75,6 +75,8 @@
     "ruff": "pass",
     "ruff_format": "pass",
     "mypy_strict": "pass",
+    "dependency_refresh_commit": "4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6",
+    "dependency_refresh_tree": "95ae78274eb6695be508283bd34eac2e3118b093",
     "implementation_commit": "d92c98fd9911741c2be6a3a1af9d7d1ff1bccbb3",
     "implementation_tree": "f409c5381210827160a016f9eec78755b3f4690c",
     "implementation_parent": "b72aa9d997e7cfb5db49e8ea91dcebba2a1f2193"
