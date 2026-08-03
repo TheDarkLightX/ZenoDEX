@@ -10,6 +10,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 LEAN_DIR = ROOT / "lean-mathlib"
 TARGET = "Proofs/ZUSDProtocolFeeClaimRealization.lean"
+AGGREGATE = LEAN_DIR / "Proofs.lean"
 TOOLCHAIN_DIR = Path(os.environ.get("ZENODEX_LEAN_TOOLCHAIN_DIR", str(LEAN_DIR)))
 
 
@@ -32,3 +33,8 @@ def test_lean_zusd_protocol_fee_claim_realization_has_no_placeholders() -> None:
     source = (LEAN_DIR / TARGET).read_text(encoding="utf-8")
     forbidden = ("sorry", "admit", "axiom ", "unsafe ")
     assert not any(token in source for token in forbidden)
+
+
+def test_lean_zusd_protocol_fee_claim_realization_is_in_default_aggregate() -> None:
+    source = AGGREGATE.read_text(encoding="utf-8")
+    assert "import Proofs.ZUSDProtocolFeeClaimRealization" in source.splitlines()
