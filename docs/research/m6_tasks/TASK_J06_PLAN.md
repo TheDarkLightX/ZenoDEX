@@ -31,8 +31,8 @@ legacy, outbox lease, and direct datastore adapter surfaces.
   identity mutants reject;
 - an exact-class `object.__new__` forged gate is rejected at the admission
   boundary;
-- strict Python quality gates pass; the current full receipt is blocked by the
-  pre-existing K01 inventory-root drift.
+- strict Python quality gates pass; the K01 inventory rebind is regenerated and
+  the current J06 vector matches the derived payload.
 
 ## Nonclaims
 

@@ -58,7 +58,7 @@ RESULTS:
 - K01 regeneration passed with current entrypoint root
   `c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2`.
 - K04 regeneration and checked vector passed with root
-  `da8e43caab444a5f88e7f7affede1671822fb63d6de890daf80fea88c07a5c35`.
+  `6644cae606656411d0da64461d80a13030be65905cfd31916a33f1143bc25ee3`.
 - Publisher insertion, source-set insertion, D05-root substitution, and
   noncanonical ordering changed or rejected the topology anchor as expected.
 - Focused K04 suite passed: 3 passed.

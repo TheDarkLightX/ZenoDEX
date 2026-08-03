@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "J06",
   "base_sha": "868ae8ef0da8a4f7fc52f444d7b459987f76c51e",
-  "source_head_sha": "8cd4e451138e86a3fa1012b1081112644114fa97",
-  "source_head_tree": "e58d21d10835bfe5dddb314d1cc11bf7bd773dd8",
+  "source_head_sha": "7ff2578780b11d678f4ddddd14d18f4bb85778ff",
+  "source_head_tree": "afb155441fb485b7b8539bfc62eae17faddf9469",
   "branch": "codex/task-m6-receipt-rebind-20260802",
   "status": "TESTED",
   "evidence_files": [
@@ -47,12 +47,12 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
-    "config/deploy/fcis_m6_j06_quiescence_v1.json": "227f60333e23e0defc9026ec3475dd1df9a0554221daf8349fe62657d932549e",
+    "config/deploy/fcis_m6_j06_quiescence_v1.json": "59f2222072d5905f0fecec0bdf7fb5236e73cae2d0ee0bc7177bfc12c2bdcb8e",
     "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json": "8617e1f5f89ebe333085d6021334b061ce37a4970b5d84a87c18f8efc360fdef",
     "docs/research/m6_tasks/FCIS_M6_J06_QUIESCENCE_GATE_SCHEMA_V1.md": "730b3466b39c376991d51ef42adbbbf684196c9746fffe979df7efc85c1faf35",
-    "docs/research/m6_tasks/TASK_J06_PLAN.md": "c8acc6a136b7e7fe4f3d3675f648f4150592869e383a9d3b1e79e855c8f8081e",
+    "docs/research/m6_tasks/TASK_J06_PLAN.md": "5dc59830be67d02e2590c8bbdaf5c0f9532ed06c515708dfabd2c3ae0b8b0631",
     "docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_SCHEMA_V1.json": "bfaa85ed0b35d5c05240ed46217d172e4789746dafebe02b5657d1b813f1f1ad",
-    "docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_V1.json": "67efd7fadc739fa723c2782237270f0acfd15e1f3fbcfc7764175ec7bd1b3a30",
+    "docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_V1.json": "8cb142f07751c25f74d273514bbd919dfd227df28e2bb13d0b7577bbda0da808",
     "experiments/fcis_m6_j06_quiescence_check.py": "eb3098f2c74bb494250daa77ae6946f8d039e52e41ec06e0c27b019c4b6c7c6d",
     "src/core/fcis_m6_j06_quiescence.py": "2d104b1977d39e03032ee77a122fbb7d10a4eade8dd03b116b3e1e1025f1be90",
     "tests/core/test_fcis_m6_j06_quiescence.py": "6a5387bd63f6dd9c3d57a38d442e46c41a2a2209270e48c048fde93b9896b39b",
@@ -60,14 +60,16 @@
     "tools/check_fcis_m6_j06_quiescence.py": "55e71514f5885b17c2a0418d05facc7aea73bfc3838da40110774cb2de4ea6da"
   },
   "results": {
-    "quiescence_root": "9aafe665d1715757c852f65700f9e1c9d202d216afc5f44398941612ddb0e34a",
+    "quiescence_root": "0e9d6c2aea9ae0f1fed031427f884c28f4211de337b2998bbe3fe3659083de10",
     "covered_writer_ids": "9",
     "valid_attempts": "revalidated by the J06 checker",
     "valid_attempts_rejected": "revalidated by the J06 checker",
     "focused_tests": "pass; 9 passed",
     "migration_regression": "pass; 20 passed",
     "source_quality_gates": "pass; Ruff, formatting, strict mypy, and Python compilation",
-    "dependency_pins": "pass; K01 root fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a is bound in the J06 configuration",
+    "dependency_pins": "pass; K01 root c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2 is bound in the J06 configuration",
+    "dependency_refresh_commit": "7ff2578780b11d678f4ddddd14d18f4bb85778ff",
+    "dependency_refresh_tree": "afb155441fb485b7b8539bfc62eae17faddf9469",
     "implementation_commit": "8cd4e451138e86a3fa1012b1081112644114fa97",
     "implementation_tree": "e58d21d10835bfe5dddb314d1cc11bf7bd773dd8",
     "implementation_parent": "868ae8ef0da8a4f7fc52f444d7b459987f76c51e"

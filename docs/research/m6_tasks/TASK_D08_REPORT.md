@@ -2,9 +2,9 @@
 
 TASK_ID: D08
 BASE_SHA: f721d3bc11929c7649f93655f362e7ee0cc13a07
-SOURCE_HEAD_SHA: cc6627f5d07ecbba27594650c9bd367850fb80a4
-SOURCE_HEAD_TREE: 7af5f9e993e21b3fe7be03248adbe5a66e48eade
-BRANCH: codex/task-D08-replayable-accept-20260802
+SOURCE_HEAD_SHA: 7ff2578780b11d678f4ddddd14d18f4bb85778ff
+SOURCE_HEAD_TREE: afb155441fb485b7b8539bfc62eae17faddf9469
+BRANCH: codex/task-m6-receipt-rebind-20260802
 FILES_CHANGED:
 - src/core/fcis_m6_d08_combined_anf.py
 - experiments/fcis_m6_d08_combined_anf_check.py
@@ -33,6 +33,15 @@ IMPLEMENTATION_HEAD_SHA: cc6627f5d07ecbba27594650c9bd367850fb80a4
 IMPLEMENTATION_TREE: 7af5f9e993e21b3fe7be03248adbe5a66e48eade
 IMPLEMENTATION_PARENT: e52c52207b6f7df432331830f66f7ee294827f00
 
+DEPENDENCY_REFRESH_HEAD: 7ff2578780b11d678f4ddddd14d18f4bb85778ff
+DEPENDENCY_REFRESH_TREE: afb155441fb485b7b8539bfc62eae17faddf9469
+DEPENDENCY_REFRESH_PARENT: 04f9661d57f58d0b54ddf959067ee13f1551eb7c
+
+DEPENDENCY_REBIND: The D05 publisher inventory changed when the entrypoint
+credential repair altered a source included in the reviewed deployment set.
+D08 was replayed and its stored vector was regenerated at the exact
+dependency-refresh head above. D08 implementation code is unchanged.
+
 COMMANDS_RUN:
 - python3 -m py_compile src/core/fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d08_combined_anf.py experiments/fcis_m6_d08_combined_anf_check.py
 - python3 -m ruff check src/core/fcis_m6_d08_combined_anf.py tests/core/test_fcis_m6_d08_combined_anf.py experiments/fcis_m6_d08_combined_anf_check.py
@@ -57,6 +66,8 @@ COMMANDS_RUN:
 - sha256sum --check --strict docs/research/m6_tasks/TASK_D08_SOURCE_MANIFEST.sha256
 
 RESULTS:
+- D05 dependency regeneration passed with publisher inventory root
+  `fe407a21588db0932df41b224234a5a5950478aa12cc1c564857b7a5bbc41ac2`.
 - D08 focused tests passed: 7 passed.
 - D08, D09, K02, and upstream dependency regression tests passed: 224 passed.
 - H02/H03/H04/K05 publication, crash, recovery, and bypass regression tests

@@ -2,8 +2,8 @@
 
 TASK_ID: J06
 BASE_SHA: 868ae8ef0da8a4f7fc52f444d7b459987f76c51e
-SOURCE_HEAD_SHA: 8cd4e451138e86a3fa1012b1081112644114fa97
-SOURCE_HEAD_TREE: e58d21d10835bfe5dddb314d1cc11bf7bd773dd8
+SOURCE_HEAD_SHA: 7ff2578780b11d678f4ddddd14d18f4bb85778ff
+SOURCE_HEAD_TREE: afb155441fb485b7b8539bfc62eae17faddf9469
 BRANCH: codex/task-m6-receipt-rebind-20260802
 FILES_CHANGED:
 - config/deploy/fcis_m6_j06_quiescence_v1.json
@@ -21,6 +21,15 @@ IMPLEMENTATION_HEAD_SHA: 8cd4e451138e86a3fa1012b1081112644114fa97
 IMPLEMENTATION_TREE: e58d21d10835bfe5dddb314d1cc11bf7bd773dd8
 IMPLEMENTATION_PARENT: 868ae8ef0da8a4f7fc52f444d7b459987f76c51e
 
+DEPENDENCY_REFRESH_HEAD: 7ff2578780b11d678f4ddddd14d18f4bb85778ff
+DEPENDENCY_REFRESH_TREE: afb155441fb485b7b8539bfc62eae17faddf9469
+DEPENDENCY_REFRESH_PARENT: 04f9661d57f58d0b54ddf959067ee13f1551eb7c
+
+DEPENDENCY_REBIND: The entrypoint credential repair changed the K01
+deployment-source inventory. J06 was regenerated after the K01 rebind and
+now binds the current inventory root and derived quiescence root at the exact
+dependency-refresh head above. J06 implementation code is unchanged.
+
 CLAIM_IMPLEMENTED: J06 uses verifier-owned gate and result witnesses. Each
 admission result now carries a canonical full-attempt root and repeats the
 attempt's sequence, expected head, authority root, epoch, command, publisher,
@@ -34,6 +43,7 @@ and exact-class forged gates reject.
 
 COMMANDS_RUN:
 - `python3 tools/build_fcis_m6_j06_quiescence.py --check`
+- `python3 tools/build_fcis_m6_j06_quiescence.py` (dependency rebind)
 - `PYTHONPATH=. python3 tools/check_fcis_m6_j06_quiescence.py`
 - `PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_j06_quiescence.py`
 - `PYTHONPATH=. python3 -m pytest -q tests/core/test_fcis_m6_j01_migration_lifecycle.py tests/core/test_fcis_m6_j02_writer_matrix.py tests/core/test_fcis_m6_j04_migration_manifest.py tests/core/test_fcis_m6_j05_shadow_dual_check.py`
@@ -52,10 +62,11 @@ COMMANDS_RUN:
 RESULTS:
 - J06 source, Ruff, formatting, strict mypy, and Python compilation gates pass
   for the changed implementation surface.
-- K01 was regenerated after the later H02 source edit, producing inventory
-  root `fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a`.
+- K01 was regenerated after the entrypoint credential repair, producing
+  inventory root
+  `c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2`.
   J06 now binds that root and derives quiescence root
-  `9aafe665d1715757c852f65700f9e1c9d202d216afc5f44398941612ddb0e34a`.
+  `0e9d6c2aea9ae0f1fed031427f884c28f4211de337b2998bbe3fe3659083de10`.
 - The J06 checker passed; focused J06 tests passed: 9 passed. The migration
   regression passed: 20 passed.
 - The source change binds every rejection result to a canonical full attempt
