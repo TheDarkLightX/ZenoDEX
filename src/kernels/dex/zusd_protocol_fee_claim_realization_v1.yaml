@@ -1,0 +1,155 @@
+# [FORGE] zUSD protocol-fee claim realization v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_protocol_fee_claim_realization_v1"
+  created_by: "zenodex"
+  notes: |
+    Finite atomic-composition model for converting an exact outstanding zUSD
+    protocol-fee claim into issued ledger supply held by protocol escrow.
+
+      debt = ledger_supply + outstanding_claim
+      escrow_balance <= ledger_supply
+      outstanding_claim <= accrued_cumulative
+
+    Realization increases ledger supply and protocol escrow by the same amount,
+    decreases the current claim by that amount, and leaves debt and historical
+    accrual unchanged.
+
+    The model uses whole-zUSD units. It does not authenticate the caller or fee
+    policy, prove inventory completeness, refine U256/E8 conversion, publish a
+    database transaction, distribute escrow, or establish runtime no-bypass.
+
+observables:
+  state_vars:
+    - "debt"
+    - "ledger_supply"
+    - "outstanding_claim"
+    - "accrued_cumulative"
+    - "escrow_balance"
+  effects: []
+
+types: []
+
+state_vars:
+  - id: "debt"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "ledger_supply"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "outstanding_claim"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "accrued_cumulative"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+  - id: "escrow_balance"
+    role: "data"
+    type: { kind: "int", min: 0, max: 8 }
+
+init:
+  - var: "debt"
+    expr: { const: 0 }
+  - var: "ledger_supply"
+    expr: { const: 0 }
+  - var: "outstanding_claim"
+    expr: { const: 0 }
+  - var: "accrued_cumulative"
+    expr: { const: 0 }
+  - var: "escrow_balance"
+    expr: { const: 0 }
+
+invariants:
+  - id: "inv_debt_equals_supply_plus_claim"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "debt" }
+        - op: "+"
+          args: [{ var: "ledger_supply" }, { var: "outstanding_claim" }]
+  - id: "inv_claim_bounded_by_cumulative_accrual"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "outstanding_claim" }, { var: "accrued_cumulative" }]
+  - id: "inv_protocol_escrow_is_issued_supply"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "escrow_balance" }, { var: "ledger_supply" }]
+
+actions:
+  - id: "mint_principal_and_fee_claim"
+    params:
+      - id: "principal"
+        type: { kind: "int", min: 1, max: 2 }
+      - id: "fee"
+        type: { kind: "int", min: 0, max: 2 }
+    guard:
+      op: "and"
+      args:
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "debt" }
+                - { op: "+", args: [{ param: "principal" }, { param: "fee" }] }
+            - { const: 8 }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "ledger_supply" }, { param: "principal" }] }
+            - { const: 8 }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "outstanding_claim" }, { param: "fee" }] }
+            - { const: 8 }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "accrued_cumulative" }, { param: "fee" }] }
+            - { const: 8 }
+    updates:
+      - var: "debt"
+        expr:
+          op: "+"
+          args:
+            - { var: "debt" }
+            - { op: "+", args: [{ param: "principal" }, { param: "fee" }] }
+      - var: "ledger_supply"
+        expr: { op: "+", args: [{ var: "ledger_supply" }, { param: "principal" }] }
+      - var: "outstanding_claim"
+        expr: { op: "+", args: [{ var: "outstanding_claim" }, { param: "fee" }] }
+      - var: "accrued_cumulative"
+        expr: { op: "+", args: [{ var: "accrued_cumulative" }, { param: "fee" }] }
+    effects: {}
+
+  - id: "realize_claim_into_protocol_escrow"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 2 }
+    guard:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ param: "amount" }, { var: "outstanding_claim" }] }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "ledger_supply" }, { param: "amount" }] }
+            - { const: 8 }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "escrow_balance" }, { param: "amount" }] }
+            - { const: 8 }
+    updates:
+      - var: "ledger_supply"
+        expr: { op: "+", args: [{ var: "ledger_supply" }, { param: "amount" }] }
+      - var: "outstanding_claim"
+        expr: { op: "-", args: [{ var: "outstanding_claim" }, { param: "amount" }] }
+      - var: "escrow_balance"
+        expr: { op: "+", args: [{ var: "escrow_balance" }, { param: "amount" }] }
+    effects: {}
+
+  - id: "custody_stutter"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects: {}
