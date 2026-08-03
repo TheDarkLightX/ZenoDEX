@@ -1,0 +1,83 @@
+{
+  "schema": "zenodex/fcis_m6_zusd_protocol_fee_claim_evidence/v1",
+  "implementation_commit": "f17fa72cfec0c4b9a2b65603c401caaf337747e5",
+  "implementation_tree": "f0a30529e97288f718a598578f44c948288e6a8b",
+  "implementation_parent": "43f302a454500e05fea98b499ece4a93971f45f9",
+  "posture": "IMPLEMENTED_TESTED_UNMOUNTED",
+  "m6_complete": false,
+  "r13_complete": false,
+  "runtime_fee_bearing_borrowing_enabled": false,
+  "current_protocol_fee_claim_implemented": true,
+  "claim_settlement_runtime_mounted": false,
+  "closed_relations": [
+    "accrued_cumulative_e8 = outstanding_e8 + realized_cumulative_e8",
+    "debt_e8 = ledger_supply_e8 + outstanding_e8",
+    "debt_delta_e8 = ledger_supply_delta_e8 + outstanding_claim_delta_e8"
+  ],
+  "tests": {
+    "focused_passed": 17,
+    "core_passed": 61,
+    "integration_passed": 134,
+    "integration_skipped": 10,
+    "failed": 0
+  },
+  "gates": {
+    "ruff": "PASS",
+    "mypy_changed_source_modules": "PASS",
+    "python_compilation": "PASS",
+    "new_file_format_check": "PASS",
+    "git_diff_check": "PASS",
+    "lean_exact_theorem_file": "PASS",
+    "lean_placeholder_scan": "PASS",
+    "security_redflags": {
+      "high": 0,
+      "medium": 2,
+      "low": 3
+    }
+  },
+  "esso": {
+    "model_sha256": "f1f2433fbc049d9189ea52299cee18ec51262a1eb153c18d1c13c63dc5fc6fea",
+    "ir_sha256": "e653501bf51bfccd6526f76d09cf9999b19907a33f5b191c33ac259526957ab7",
+    "esso_source_commit": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "z3_version": "4.15.4",
+    "cvc5_version": "1.1.2",
+    "verified_queries": 5,
+    "total_queries": 5,
+    "solver_agreement": true,
+    "determinism_trials": 2,
+    "fingerprint": "9385398823ebd4b362847e5394d28d840cf559940f7d60df99502abd20740cca"
+  },
+  "lean": {
+    "compiled": true,
+    "placeholder_scan": "PASS",
+    "main_theorem_axioms": [
+      "propext",
+      "Quot.sound"
+    ]
+  },
+  "closed_counterexamples": [
+    "cumulative_history_used_as_current_liability",
+    "noninjective_v1_nonzero_fee_migration",
+    "foreign_claim_identity",
+    "parallel_claim_root_amount_substitution",
+    "claim_transition_action_mismatch",
+    "omitted_or_invented_claim_delta",
+    "boolean_integer_alias",
+    "hostile_frozen_claim_mutation",
+    "zero_value_settlement_alias",
+    "fee_bearing_mint_without_atomic_claim_realization",
+    "debt_increase_without_supply_or_claim_accrual",
+    "rejection_with_escaped_successor_nonce_or_effect"
+  ],
+  "explicit_nonclaims": [
+    "M6 completion",
+    "R13 completion",
+    "mounted production mediation",
+    "authenticated fee claimant or recipient policy",
+    "atomic claim realization",
+    "global supply and custody completeness",
+    "runtime forward simulation",
+    "receipt bundle publication lineage",
+    "Rust Tau or ZenoLedger parity"
+  ]
+}
