@@ -263,4 +263,5 @@ import Proofs.ZUSDMCRHeadroom
 import Proofs.ZUSDSPWholeVaultLiquidation
 import Proofs.ZUSDSupplyLiabilityDelta
 import Proofs.ZUSDProtocolFeeClaim
+import Proofs.ZUSDProtocolFeeAccrualAllocation
 import Proofs.ZUSDProtocolFeeClaimRealization

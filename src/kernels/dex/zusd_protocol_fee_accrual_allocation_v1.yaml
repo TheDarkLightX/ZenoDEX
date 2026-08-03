@@ -1,0 +1,285 @@
+# [FORGE] zUSD protocol-fee accrual allocation v1
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_protocol_fee_accrual_allocation_v1"
+  created_by: "zenodex"
+  notes: |
+    Finite composition model for allocating each exact positive borrowing-fee
+    occurrence when it accrues.  Scalar outstanding and cumulative claims must
+    equal the sum of the three role-qualified claims after every transition.
+
+    The action is enabled only under a self-consistent configuration claim,
+    matching scalar-custody identity, matching apportionment-state lineage,
+    and exact conservation of the scalar occurrence amount.
+    The model deliberately abstracts SRGD selection to a conserved allocation.
+    It does not prove configuration activation against current state,
+    authenticated borrow lineage, U256 arithmetic, policy-destination lineage,
+    publication, runtime mounting, or no-bypass.
+
+observables:
+  state_vars:
+    - "scalar_outstanding"
+    - "scalar_cumulative"
+    - "buyback_outstanding"
+    - "treasury_outstanding"
+    - "rewards_outstanding"
+    - "buyback_cumulative"
+    - "treasury_cumulative"
+    - "rewards_cumulative"
+    - "configuration_self_consistent"
+    - "scalar_custody_matches"
+    - "apportionment_lineage_matches"
+    - "invalid_accept"
+  effects: []
+
+types: []
+
+state_vars:
+  - id: "scalar_outstanding"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "scalar_cumulative"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "buyback_outstanding"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "treasury_outstanding"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "rewards_outstanding"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "buyback_cumulative"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "treasury_cumulative"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "rewards_cumulative"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "configuration_self_consistent"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "scalar_custody_matches"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "apportionment_lineage_matches"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "invalid_accept"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3 }
+
+init:
+  - { var: "scalar_outstanding", expr: { const: 0 } }
+  - { var: "scalar_cumulative", expr: { const: 0 } }
+  - { var: "buyback_outstanding", expr: { const: 0 } }
+  - { var: "treasury_outstanding", expr: { const: 0 } }
+  - { var: "rewards_outstanding", expr: { const: 0 } }
+  - { var: "buyback_cumulative", expr: { const: 0 } }
+  - { var: "treasury_cumulative", expr: { const: 0 } }
+  - { var: "rewards_cumulative", expr: { const: 0 } }
+  - { var: "configuration_self_consistent", expr: { const: 1 } }
+  - { var: "scalar_custody_matches", expr: { const: 1 } }
+  - { var: "apportionment_lineage_matches", expr: { const: 1 } }
+  - { var: "invalid_accept", expr: { const: 0 } }
+
+invariants:
+  - id: "inv_scalar_outstanding_equals_role_partition"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "scalar_outstanding" }
+        - op: "+"
+          args:
+            - { var: "buyback_outstanding" }
+            - op: "+"
+              args: [{ var: "treasury_outstanding" }, { var: "rewards_outstanding" }]
+  - id: "inv_scalar_cumulative_equals_role_partition"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "scalar_cumulative" }
+        - op: "+"
+          args:
+            - { var: "buyback_cumulative" }
+            - op: "+"
+              args: [{ var: "treasury_cumulative" }, { var: "rewards_cumulative" }]
+  - id: "inv_buyback_outstanding_bounded_by_cumulative"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "buyback_outstanding" }, { var: "buyback_cumulative" }]
+  - id: "inv_treasury_outstanding_bounded_by_cumulative"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "treasury_outstanding" }, { var: "treasury_cumulative" }]
+  - id: "inv_rewards_outstanding_bounded_by_cumulative"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "rewards_outstanding" }, { var: "rewards_cumulative" }]
+  - id: "inv_inconsistent_configuration_never_accepts"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "invalid_accept" }, { const: 0 }] }
+
+actions:
+  - id: "accrue_allocated_occurrence"
+    params:
+      - id: "amount"
+        type: { kind: "int", min: 1, max: 2 }
+      - id: "buyback_amount"
+        type: { kind: "int", min: 0, max: 2 }
+      - id: "treasury_amount"
+        type: { kind: "int", min: 0, max: 2 }
+      - id: "rewards_amount"
+        type: { kind: "int", min: 0, max: 2 }
+    guard:
+      op: "and"
+      args:
+        # MUTANT_GUARD_CONFIGURATION
+        - { op: "=", args: [{ var: "configuration_self_consistent" }, { const: 1 }] }
+        # MUTANT_GUARD_SCALAR_CUSTODY
+        - { op: "=", args: [{ var: "scalar_custody_matches" }, { const: 1 }] }
+        # MUTANT_GUARD_APPORTIONMENT_LINEAGE
+        - { op: "=", args: [{ var: "apportionment_lineage_matches" }, { const: 1 }] }
+        # MUTANT_GUARD_CONSERVATION
+        - op: "="
+          args:
+            - { param: "amount" }
+            - op: "+"
+              args:
+                - { param: "buyback_amount" }
+                - op: "+"
+                  args: [{ param: "treasury_amount" }, { param: "rewards_amount" }]
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "scalar_outstanding" }, { param: "amount" }] }
+            - { const: 6 }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ var: "scalar_cumulative" }, { param: "amount" }] }
+            - { const: 6 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "buyback_outstanding" }, { param: "buyback_amount" }]
+            - { const: 6 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "treasury_outstanding" }, { param: "treasury_amount" }]
+            - { const: 6 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "rewards_outstanding" }, { param: "rewards_amount" }]
+            - { const: 6 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "buyback_cumulative" }, { param: "buyback_amount" }]
+            - { const: 6 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "treasury_cumulative" }, { param: "treasury_amount" }]
+            - { const: 6 }
+        - op: "<="
+          args:
+            - op: "+"
+              args: [{ var: "rewards_cumulative" }, { param: "rewards_amount" }]
+            - { const: 6 }
+    updates:
+      - var: "scalar_outstanding"
+        expr: { op: "+", args: [{ var: "scalar_outstanding" }, { param: "amount" }] }
+      - var: "scalar_cumulative"
+        expr: { op: "+", args: [{ var: "scalar_cumulative" }, { param: "amount" }] }
+      - var: "buyback_outstanding"
+        expr:
+          op: "+"
+          args: [{ var: "buyback_outstanding" }, { param: "buyback_amount" }]
+      - var: "treasury_outstanding"
+        expr:
+          op: "+"
+          args: [{ var: "treasury_outstanding" }, { param: "treasury_amount" }]
+      - var: "rewards_outstanding"
+        expr:
+          op: "+"
+          args: [{ var: "rewards_outstanding" }, { param: "rewards_amount" }]
+      - var: "buyback_cumulative"
+        expr: { op: "+", args: [{ var: "buyback_cumulative" }, { param: "buyback_amount" }] }
+      - var: "treasury_cumulative"
+        expr: { op: "+", args: [{ var: "treasury_cumulative" }, { param: "treasury_amount" }] }
+      - var: "rewards_cumulative"
+        expr: { op: "+", args: [{ var: "rewards_cumulative" }, { param: "rewards_amount" }] }
+      - var: "invalid_accept"
+        expr:
+          op: "+"
+          args:
+            - op: "-"
+              args: [{ const: 1 }, { var: "configuration_self_consistent" }]
+            - op: "+"
+              args:
+                - op: "-"
+                  args: [{ const: 1 }, { var: "scalar_custody_matches" }]
+                - op: "-"
+                  args: [{ const: 1 }, { var: "apportionment_lineage_matches" }]
+    effects: {}
+
+  - id: "invalidate_configuration"
+    params: []
+    guard:
+      op: "="
+      args: [{ var: "configuration_self_consistent" }, { const: 1 }]
+    updates:
+      - { var: "configuration_self_consistent", expr: { const: 0 } }
+    effects: {}
+
+  - id: "restore_configuration"
+    params: []
+    guard:
+      op: "="
+      args: [{ var: "configuration_self_consistent" }, { const: 0 }]
+    updates:
+      - { var: "configuration_self_consistent", expr: { const: 1 } }
+    effects: {}
+
+  - id: "invalidate_scalar_custody"
+    params: []
+    guard: { op: "=", args: [{ var: "scalar_custody_matches" }, { const: 1 }] }
+    updates:
+      - { var: "scalar_custody_matches", expr: { const: 0 } }
+    effects: {}
+
+  - id: "restore_scalar_custody"
+    params: []
+    guard: { op: "=", args: [{ var: "scalar_custody_matches" }, { const: 0 }] }
+    updates:
+      - { var: "scalar_custody_matches", expr: { const: 1 } }
+    effects: {}
+
+  - id: "invalidate_apportionment_lineage"
+    params: []
+    guard: { op: "=", args: [{ var: "apportionment_lineage_matches" }, { const: 1 }] }
+    updates:
+      - { var: "apportionment_lineage_matches", expr: { const: 0 } }
+    effects: {}
+
+  - id: "restore_apportionment_lineage"
+    params: []
+    guard: { op: "=", args: [{ var: "apportionment_lineage_matches" }, { const: 0 }] }
+    updates:
+      - { var: "apportionment_lineage_matches", expr: { const: 1 } }
+    effects: {}
+
+  - id: "stutter"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects: {}
