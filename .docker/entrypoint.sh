@@ -20,7 +20,10 @@ fi
 if [[ "${ZENODEX_TESTNET_DEMO:-0}" == "1" ]]; then
     export ZENODEX_ENV="${ZENODEX_ENV:-local}"
     export ALLOW_DEMO_TOKEN_AUTH="${ALLOW_DEMO_TOKEN_AUTH:-1}"
-    export DEMO_API_TOKEN="${DEMO_API_TOKEN:-zenodex-local-demo-token}"
+    if [[ -z "${DEMO_API_TOKEN+x}" || -z "$DEMO_API_TOKEN" ]]; then
+        echo "ERROR: DEMO_API_TOKEN must be supplied through the testnet secret environment" >&2
+        exit 1
+    fi
     export DEX_API_ENABLED="${DEX_API_ENABLED:-true}"
     export PERPS_API_ENABLED="${PERPS_API_ENABLED:-true}"
     export ZUSD_API_ENABLED="${ZUSD_API_ENABLED:-true}"

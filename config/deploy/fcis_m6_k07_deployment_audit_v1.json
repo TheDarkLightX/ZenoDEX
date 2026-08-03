@@ -4,9 +4,9 @@
   "k01_vector_path": "docs/research/m6_tasks/TASK_K01_VALUE_MOVING_ENTRYPOINT_INVENTORY_V1.json",
   "k04_vector_path": "docs/research/m6_tasks/TASK_K04_TOPOLOGY_ANCHOR_V1.json",
   "k06_vector_path": "docs/research/m6_tasks/TASK_K06_LEGACY_SEAL_V1.json",
-  "expected_k01_entrypoint_inventory_root": "fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a",
-  "expected_k04_topology_root": "da8e43caab444a5f88e7f7affede1671822fb63d6de890daf80fea88c07a5c35",
-  "expected_k06_seal_root": "139a29f1938dfffb9ea4c72b5f6e99765bb9d1d0254654941ddf3c9f20a82ab0",
+  "expected_k01_entrypoint_inventory_root": "c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2",
+  "expected_k04_topology_root": "6644cae606656411d0da64461d80a13030be65905cfd31916a33f1143bc25ee3",
+  "expected_k06_seal_root": "6da2c97dc141c631966a0960d4210799aa3881a7cc62c6c1d377b0ca0bf6130f",
   "deployment_paths": [
     ".docker/entrypoint.sh",
     "bin/zenoctl",
@@ -47,16 +47,6 @@
   ],
   "expected_findings": [
     {
-      "kind": "credential_policy_gap",
-      "path": ".docker/entrypoint.sh",
-      "marker": "DEMO_API_TOKEN:-"
-    },
-    {
-      "kind": "credential_policy_gap",
-      "path": ".docker/entrypoint.sh",
-      "marker": "zenodex-local-demo-token"
-    },
-    {
       "kind": "direct_protected_writer",
       "path": "experiments/fcis_m6_h02_sqlite_publication.py",
       "marker": "INSERT INTO"
@@ -75,7 +65,7 @@
   "nonclaims": [
     "K07 audits the exact reviewed K04 source set and four declared deployment paths.",
     "K07 does not prove an exhaustive operating-system process graph, image contents, credential isolation, or live datastore ownership.",
-    "The direct H02 writer and demo-token findings are blocking gaps, not production exploits, because this M6 slice is unmounted.",
+    "The direct H02 writer finding is a blocking gap, not a production exploit, because this M6 slice is unmounted.",
     "A GAP result cannot authorize deployment, authority switching, or value movement.",
     "No mounted caller, deployment, migration, or value movement is claimed."
   ]

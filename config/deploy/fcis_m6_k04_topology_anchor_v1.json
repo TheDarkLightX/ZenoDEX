@@ -1,9 +1,9 @@
 {
   "schema": "zenodex/fcis/m6/k04/topology-anchor-config/v1",
   "profile_id": "research-unmounted-k04-pinned-topology",
-  "expected_d05_inventory_root": "e3b8fc99092de0fb56d08bf68ccb2f03278c776b684939765f86f1284fa9379e",
-  "expected_d05_topology_root": "e9fa1351ab36ecafa75ea9919ed791e31e17e998aa25521c4e3ce8a8f18f1857",
-  "expected_k01_entrypoint_inventory_root": "fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a",
+  "expected_d05_inventory_root": "fe407a21588db0932df41b224234a5a5950478aa12cc1c564857b7a5bbc41ac2",
+  "expected_d05_topology_root": "9b2db149fd06876cf9e9fa592d891042320e52dcf0640c952431d913f12402e1",
+  "expected_k01_entrypoint_inventory_root": "c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2",
   "unique_port_id": "fcis/m6/unique-atomic-commit-port/v1",
   "expected_publisher_ids": [
     "api_http_ingress",
@@ -22,7 +22,7 @@
     "zusd_monetary_bridge",
     "zusd_monetary_wallet_api"
   ],
-  "pinned_topology_anchor_root": "da8e43caab444a5f88e7f7affede1671822fb63d6de890daf80fea88c07a5c35",
+  "pinned_topology_anchor_root": "6644cae606656411d0da64461d80a13030be65905cfd31916a33f1143bc25ee3",
   "nonclaims": [
     "The D05 and K01 roots are reviewed upstream expectations, not runtime certificates.",
     "The K04 root does not prove deployment reachability or complete production publisher coverage.",

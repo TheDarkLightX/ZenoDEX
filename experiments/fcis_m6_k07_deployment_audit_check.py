@@ -51,19 +51,16 @@ def run_checks() -> dict[str, object]:
         raise AssertionError("canonical K07 audit failed fresh provenance verification")
     if audit.status is not K07AuditStatusV1.GAP:
         raise AssertionError("K07 silently promoted a nonempty audit to PASS")
-    if len(audit.findings) != 5:
+    if len(audit.findings) != 3:
         raise AssertionError(f"unexpected K07 finding count: {len(audit.findings)}")
     kinds = {finding.kind for finding in audit.findings}
-    if kinds != {
-        K07FindingKindV1.CREDENTIAL_POLICY_GAP,
-        K07FindingKindV1.DIRECT_PROTECTED_WRITER,
-    }:
+    if kinds != {K07FindingKindV1.DIRECT_PROTECTED_WRITER}:
         raise AssertionError(f"unexpected K07 finding classes: {kinds!r}")
     if any(finding.kind is K07FindingKindV1.UNTRACKED_WORKER for finding in audit.findings):
         raise AssertionError("K07 reported an unexpected untracked worker")
 
     decision = require_clean_deployment_audit_v1(audit)
-    if type(decision) is not K07AuditBlockedV1 or decision.finding_count != 5:
+    if type(decision) is not K07AuditBlockedV1 or decision.finding_count != 3:
         raise AssertionError("K07 GAP did not produce a typed blocking decision")
 
     forged = _copy_with(audit, "status", K07AuditStatusV1.PASS)
