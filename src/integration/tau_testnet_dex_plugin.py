@@ -9,7 +9,7 @@ It applies DEX operations from a Tau transaction's `operations` dict:
   - "6": settlement (object) [optional if allow_missing_settlement]
   - "7": faucet (object) [optional, test-only; requires TAU_DEX_FAUCET=1]
   - "8": perps (list) [optional; isolated markets require an operator key for admin actions]
-  - "9": token ops (list) [optional; transfer/mint/burn for non-native assets]
+  - "9": token ops (list) [optional; managed assets may forbid generic supply changes]
   - "10": proof mining claim (object) [optional; bound to verified DEX proof context]
   - "11": zUSD monetary ops (list) [optional; collateral, mint/repay, stability pool]
 
@@ -19,17 +19,23 @@ Legacy key aliases are also accepted when invoking the plugin directly:
 
 from __future__ import annotations
 
-import json
-import os
 import hashlib
+import json
 import math
+import os
 from dataclasses import replace
 from typing import Any, Dict, Mapping, Optional, Tuple
 
 from ..core.dex import DexState
+from ..core.managed_asset_policy import (
+    AssetOperationV1,
+    ManagedAssetPolicyV1,
+    build_zusd_managed_asset_policy,
+    check_managed_asset_operation,
+)
 from ..core.perp_tau_ingress_stream import evaluate_perp_tau_ingress_stream
+from ..state.balances import NATIVE_ASSET, BalanceTable
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
-from ..state.balances import BalanceTable, NATIVE_ASSET
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable
 from .dex_engine import DexEngineConfig, apply_ops
@@ -51,7 +57,6 @@ from .zusd_monetary_bridge import (
     zusd_monetary_state_from_obj,
     zusd_monetary_state_to_obj,
 )
-
 
 _DEX_INTENTS_KEY = "5"
 _DEX_SETTLEMENT_KEY = "6"
@@ -332,6 +337,7 @@ def _apply_faucet(
     faucet_op: Any,
     *,
     allow: bool,
+    managed_asset_policy: ManagedAssetPolicyV1,
 ) -> Tuple[bool, DexState, Optional[str]]:
     if faucet_op is None:
         return True, state, None
@@ -351,6 +357,13 @@ def _apply_faucet(
         if parsed is None:
             return False, state, f"internal faucet parse error at index {i}"
         pk, asset, amount = parsed
+        managed_asset_reject = check_managed_asset_operation(
+            policy=managed_asset_policy,
+            asset_id=asset,
+            operation=AssetOperationV1.FAUCET_MINT,
+        )
+        if managed_asset_reject is not None:
+            return False, state, managed_asset_reject.message()
 
         current = balances_copy.get(pk, asset)
         balances_copy.set(pk, asset, int(current) + int(amount))
@@ -457,6 +470,7 @@ def _apply_token_ops(
     *,
     tx_sender_pubkey: str,
     block_timestamp: int,
+    managed_asset_policy: ManagedAssetPolicyV1,
 ) -> Tuple[bool, DexState, Optional[str]]:
     if token_ops is None:
         return True, state, None
@@ -526,6 +540,13 @@ def _apply_token_ops(
                 amount = _require_u32_positive(op.get("amount"), name=f"token op[{i}].amount")
             except Exception as exc:
                 return False, state, str(exc)
+            managed_asset_reject = check_managed_asset_operation(
+                policy=managed_asset_policy,
+                asset_id=asset,
+                operation=AssetOperationV1.TRANSFER,
+            )
+            if managed_asset_reject is not None:
+                return False, state, managed_asset_reject.message()
             sender_balance = int(balances.get(sender, asset))
             if sender_balance < amount:
                 return False, state, f"token op[{i}] insufficient balance"
@@ -567,6 +588,13 @@ def _apply_token_ops(
                 amount = _require_u32_positive(op.get("amount"), name=f"token op[{i}].amount")
             except Exception as exc:
                 return False, state, str(exc)
+            managed_asset_reject = check_managed_asset_operation(
+                policy=managed_asset_policy,
+                asset_id=asset,
+                operation=AssetOperationV1.GENERIC_MINT,
+            )
+            if managed_asset_reject is not None:
+                return False, state, managed_asset_reject.message()
             recipient_balance = int(balances.get(to_pubkey, asset))
             balances.set(to_pubkey, asset, recipient_balance + amount)
 
@@ -597,6 +625,13 @@ def _apply_token_ops(
                 amount = _require_u32_positive(op.get("amount"), name=f"token op[{i}].amount")
             except Exception as exc:
                 return False, state, str(exc)
+            managed_asset_reject = check_managed_asset_operation(
+                policy=managed_asset_policy,
+                asset_id=asset,
+                operation=AssetOperationV1.GENERIC_BURN,
+            )
+            if managed_asset_reject is not None:
+                return False, state, managed_asset_reject.message()
             sender_balance = int(balances.get(sender, asset))
             if sender_balance < amount:
                 return False, state, f"token op[{i}] insufficient balance"
@@ -917,6 +952,11 @@ def apply_app_tx(
     except ValueError as exc:
         return False, app_state_json, "", None, str(exc)
     chain_id = os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or os.environ.get("TAU_NETWORK_ID", "").strip() or "tau-local"
+    try:
+        zusd_cfg = _build_zusd_monetary_config(chain_id=chain_id)
+        managed_asset_policy = build_zusd_managed_asset_policy(zusd_cfg.zusd_asset)
+    except Exception as exc:
+        return False, app_state_json, "", None, str(exc)
 
     stream_selection_error = _reserved_stream_selection_error(operations)
     if stream_selection_error is not None:
@@ -940,7 +980,12 @@ def apply_app_tx(
             return False, app_state_json, "", None, str(exc)
 
     faucet_op = operations.get(_DEX_FAUCET_KEY, operations.get(_LEGACY_DEX_FAUCET_KEY))
-    ok, state, err = _apply_faucet(state, faucet_op, allow=allow_faucet)
+    ok, state, err = _apply_faucet(
+        state,
+        faucet_op,
+        allow=allow_faucet,
+        managed_asset_policy=managed_asset_policy,
+    )
     if not ok:
         return False, app_state_json, "", None, err
 
@@ -971,15 +1016,12 @@ def apply_app_tx(
             token_ops.get(_TOKEN_OPS_KEY),
             tx_sender_pubkey=canonical_tx_sender_pubkey,
             block_timestamp=int(block_timestamp),
+            managed_asset_policy=managed_asset_policy,
         )
         if not ok:
             return False, app_state_json, "", None, token_err or "token op rejected"
 
     if zusd_monetary_ops:
-        try:
-            zusd_cfg = _build_zusd_monetary_config(chain_id=chain_id)
-        except Exception as exc:
-            return False, app_state_json, "", None, str(exc)
         zusd_res = apply_zusd_monetary_ops(
             config=zusd_cfg,
             state=next_state,

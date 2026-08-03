@@ -92,6 +92,84 @@ def _apply(app_state_json: str, *, operations, sender: str, block_timestamp: int
     )
 
 
+def _fund_zusd_accounts_through_monetary_kernel(monkeypatch) -> tuple[str, str]:
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", ORACLE)
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    chain_balances = {ALICE: 40 * E8}
+    app_state_json = ""
+
+    setup = (
+        (
+            ORACLE,
+            {
+                "module": "ZUSDFinance",
+                "action": "bootstrap_oracle",
+                "price_e8": 100 * E8,
+                "nonce": 1,
+                "deadline": DEADLINE,
+            },
+        ),
+        (
+            ALICE,
+            {
+                "module": "ZUSDFinance",
+                "action": "deposit_collateral",
+                "owner_pubkey": ALICE,
+                "amount_e8": 40 * E8,
+                "nonce": 1,
+                "deadline": DEADLINE,
+            },
+        ),
+        (
+            ALICE,
+            {
+                "module": "ZUSDFinance",
+                "action": "mint_zusd",
+                "owner_pubkey": ALICE,
+                "amount_e8": 2_000 * E8,
+                "nonce": 2,
+                "deadline": DEADLINE,
+            },
+        ),
+    )
+    for timestamp, (sender, operation) in enumerate(setup, start=1):
+        ok, next_state, _app_hash, patch, err = _apply(
+            app_state_json,
+            operations={"11": [operation]},
+            sender=sender,
+            block_timestamp=timestamp,
+            chain_balances=chain_balances,
+        )
+        assert ok is True, err
+        app_state_json = next_state
+        for pubkey, amount in (patch or {}).items():
+            chain_balances[pubkey] = int(amount)
+
+    ok, app_state_json, _app_hash, _patch, err = _apply(
+        app_state_json,
+        operations={
+            "9": [
+                {
+                    "module": "TauToken",
+                    "action": "transfer",
+                    "asset": quote_asset,
+                    "sender_pubkey": ALICE,
+                    "to_pubkey": BOB,
+                    "amount": 1_000,
+                    "nonce": 1,
+                    "deadline": DEADLINE,
+                }
+            ]
+        },
+        sender=ALICE,
+        block_timestamp=4,
+        chain_balances=chain_balances,
+    )
+    assert ok is True, err
+    return app_state_json, quote_asset
+
+
 def test_stream8_app_bridge_rejects_nonce_replay_without_side_effect(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
@@ -226,54 +304,22 @@ def test_stream8_settle_epoch_requires_oracle_adapter_when_configured(monkeypatc
 def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_deposits(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
     monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
-    monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    app_state_json0, quote_asset = _fund_zusd_accounts_through_monetary_kernel(monkeypatch)
     market_id = "perp:ch2p:position"
-
-    ok0, app_state_json0, _hash0, _patch0, err0 = _apply(
-        "",
-        operations={
-            "9": [
-                {
-                    "module": "TauToken",
-                    "action": "mint",
-                    "asset": quote_asset,
-                    "to_pubkey": ALICE,
-                    "amount": 1_000,
-                    "nonce": 1,
-                    "deadline": DEADLINE,
-                    "operator_pubkey": OPERATOR,
-                },
-                {
-                    "module": "TauToken",
-                    "action": "mint",
-                    "asset": quote_asset,
-                    "to_pubkey": BOB,
-                    "amount": 1_000,
-                    "nonce": 2,
-                    "deadline": DEADLINE,
-                    "operator_pubkey": OPERATOR,
-                },
-            ]
-        },
-        sender=OPERATOR,
-        block_timestamp=1,
-    )
-    assert ok0 is True, err0
 
     ok1, app_state_json1, _hash1, _patch1, err1 = _apply(
         app_state_json0,
         operations={"8": [_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1)]},
         sender=OPERATOR,
-        block_timestamp=2,
+        block_timestamp=5,
     )
     assert ok1 is True, err1
 
     for op, timestamp in (
-        ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}, 3),
-        (_signed_publish_price(market_id=market_id, price_e8=100_000_000, oracle_nonce=1), 4),
-        ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "settle_epoch"}, 5),
+        ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}, 6),
+        (_signed_publish_price(market_id=market_id, price_e8=100_000_000, oracle_nonce=1), 7),
+        ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "settle_epoch"}, 8),
     ):
         ok_epoch, app_state_json1, _hash_epoch, _patch_epoch, err_epoch = _apply(
             app_state_json1,
@@ -283,7 +329,7 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
         )
         assert ok_epoch is True, err_epoch
 
-    for sender, amount, timestamp in ((ALICE, 250, 6), (BOB, 250, 7)):
+    for sender, amount, timestamp in ((ALICE, 250, 9), (BOB, 250, 10)):
         ok_deposit, app_state_json1, _hash, _patch, err_deposit = _apply(
             app_state_json1,
             operations={
@@ -307,7 +353,7 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
         app_state_json1,
         operations={"8": [_signed_set_position(market_id=market_id, new_a=1, new_b=-1, nonce_a=2, nonce_b=2)]},
         sender=OPERATOR,
-        block_timestamp=8,
+        block_timestamp=11,
     )
     assert ok2 is True, err2
     parsed = json.loads(app_state_json2)
@@ -320,47 +366,15 @@ def test_stream8_app_bridge_accepts_signed_position_pair_after_zusd_collateral_d
 def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(monkeypatch) -> None:
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", CHAIN_ID)
     monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
-    monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", OPERATOR)
     monkeypatch.setenv("TAU_DEX_PERP_ORACLE_PUBKEY", ORACLE)
-    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    app_state_json, quote_asset = _fund_zusd_accounts_through_monetary_kernel(monkeypatch)
     market_id = "perp:ch2p:position-out-of-order"
 
-    ok0, app_state_json, _hash0, _patch0, err0 = _apply(
-        "",
-        operations={
-            "9": [
-                {
-                    "module": "TauToken",
-                    "action": "mint",
-                    "asset": quote_asset,
-                    "to_pubkey": ALICE,
-                    "amount": 1_000,
-                    "nonce": 1,
-                    "deadline": DEADLINE,
-                    "operator_pubkey": OPERATOR,
-                },
-                {
-                    "module": "TauToken",
-                    "action": "mint",
-                    "asset": quote_asset,
-                    "to_pubkey": BOB,
-                    "amount": 1_000,
-                    "nonce": 2,
-                    "deadline": DEADLINE,
-                    "operator_pubkey": OPERATOR,
-                },
-            ]
-        },
-        sender=OPERATOR,
-        block_timestamp=1,
-    )
-    assert ok0 is True, err0
-
     for op, sender, timestamp in (
-        (_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1), OPERATOR, 2),
-        ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}, OPERATOR, 3),
-        (_signed_publish_price(market_id=market_id, price_e8=100_000_000, oracle_nonce=1), ORACLE, 4),
-        ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "settle_epoch"}, OPERATOR, 5),
+        (_signed_init_market(market_id=market_id, quote_asset=quote_asset, nonce_a=1, nonce_b=1), OPERATOR, 5),
+        ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "advance_epoch", "delta": 1}, OPERATOR, 6),
+        (_signed_publish_price(market_id=market_id, price_e8=100_000_000, oracle_nonce=1), ORACLE, 7),
+        ({"module": "TauPerp", "version": "1.0", "market_id": market_id, "action": "settle_epoch"}, OPERATOR, 8),
         (
             {
                 "module": "TauPerp",
@@ -371,7 +385,7 @@ def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(
                 "amount": 250,
             },
             ALICE,
-            6,
+            9,
         ),
         (
             {
@@ -383,7 +397,7 @@ def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(
                 "amount": 250,
             },
             BOB,
-            7,
+            10,
         ),
     ):
         ok_step, app_state_json, _hash_step, _patch_step, err_step = _apply(
@@ -398,7 +412,7 @@ def test_stream8_rejects_out_of_order_signed_position_nonce_without_side_effect(
         app_state_json,
         operations={"8": [_signed_set_position(market_id=market_id, new_a=1, new_b=-1, nonce_a=3, nonce_b=3)]},
         sender=OPERATOR,
-        block_timestamp=8,
+        block_timestamp=11,
     )
 
     assert ok_bad is False

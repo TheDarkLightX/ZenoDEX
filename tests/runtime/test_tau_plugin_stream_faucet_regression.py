@@ -18,6 +18,7 @@ plugin-level test:
 from __future__ import annotations
 
 from src.core.dex import DexState
+from src.core.managed_asset_policy import build_zusd_managed_asset_policy
 from src.integration.tau_testnet_dex_plugin import (
     _DEX_INTENTS_KEY,
     _LEGACY_DEX_INTENTS_KEY,
@@ -35,10 +36,15 @@ from src.state.nonces import NonceTable
 
 _PK = "0x" + "11" * 48
 _TOKEN = "0x" + "0a" * 32
+_MANAGED_TOKEN = "0x" + "0b" * 32
 
 
 def _state() -> DexState:
     return DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable(), nonces=NonceTable())
+
+
+def _managed_asset_policy():
+    return build_zusd_managed_asset_policy(_MANAGED_TOKEN)
 
 
 # --- D-STREAM-001: stream "5" never double-applies -----------------------------
@@ -84,24 +90,36 @@ def test_upstream_perp_stream8_and_dex_stream5_are_independent():
 
 # --- D-FAUCET-001: faucet gated + native-safe ----------------------------------
 def test_faucet_none_is_noop():
-    ok, _state_out, err = _apply_faucet(_state(), None, allow=False)
+    ok, _state_out, err = _apply_faucet(
+        _state(), None, allow=False, managed_asset_policy=_managed_asset_policy()
+    )
     assert ok is True and err is None
 
 
 def test_faucet_rejected_when_disabled():
-    ok, _state_out, err = _apply_faucet(_state(), {"mint": []}, allow=False)
+    ok, _state_out, err = _apply_faucet(
+        _state(), {"mint": []}, allow=False, managed_asset_policy=_managed_asset_policy()
+    )
     assert ok is False and "faucet disabled" in (err or "")
 
 
 def test_faucet_cannot_mint_native_even_when_enabled():
     ok, _state_out, err = _apply_faucet(
-        _state(), {"mint": [[_PK, NATIVE_ASSET, 5]]}, allow=True
+        _state(),
+        {"mint": [[_PK, NATIVE_ASSET, 5]]},
+        allow=True,
+        managed_asset_policy=_managed_asset_policy(),
     )
     assert ok is False and "native" in (err or "")
 
 
 def test_faucet_mints_non_native_when_enabled():
-    ok, state_out, err = _apply_faucet(_state(), {"mint": [[_PK, _TOKEN, 100]]}, allow=True)
+    ok, state_out, err = _apply_faucet(
+        _state(),
+        {"mint": [[_PK, _TOKEN, 100]]},
+        allow=True,
+        managed_asset_policy=_managed_asset_policy(),
+    )
     assert ok is True and err is None
     assert state_out.balances.get(_PK, _TOKEN) == 100
     # native untouched

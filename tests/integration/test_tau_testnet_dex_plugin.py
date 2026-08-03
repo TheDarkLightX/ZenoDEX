@@ -34,7 +34,12 @@ def _settlement_commitment_dict_from_settlement(settlement_obj: dict) -> dict:
 
 
 def _batch_commitment(*, signing_dicts: list[dict], settlement_obj: dict) -> str:
-    from src.state.canonical import CANONICAL_ENCODING_VERSION, canonical_json_bytes, domain_sep_bytes, sha256_hex
+    from src.state.canonical import (
+        CANONICAL_ENCODING_VERSION,
+        canonical_json_bytes,
+        domain_sep_bytes,
+        sha256_hex,
+    )
 
     payload = {
         "schema": "zenodex_batch",
@@ -94,10 +99,31 @@ def test_apply_app_tx_rejects_malformed_consensus_boolean_env(monkeypatch):
     assert "TAU_DEX_REQUIRE_INTENT_SIGS" in str(err)
 
 
+def test_apply_app_tx_rejects_malformed_managed_zusd_asset_config(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+    monkeypatch.setenv("TAU_DEX_ZUSD_ASSET_ID", "not-an-asset")
+
+    ok, app_state_json, app_hash_hex, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash_hex == ""
+    assert balances_patch is None
+    assert "asset_id" in str(err)
+
+
 def test_apply_app_tx_rejects_unknown_wrapper_state_fields(monkeypatch):
+    from src.core.dex import DexState
     from src.integration import tau_testnet_dex_plugin as plugin
     from src.integration.dex_snapshot import snapshot_from_state
-    from src.core.dex import DexState
     from src.state.balances import BalanceTable
     from src.state.lp import LPTable
 
@@ -765,6 +791,365 @@ def test_apply_app_tx_token_mint_and_burn(monkeypatch):
     assert balances.get((user, token)) == 450
 
 
+def test_apply_app_tx_rejects_generic_zusd_mint_without_state_change(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
+
+    chain_id = "tau-local-managed-zusd-mint"
+    operator = "0x" + "ab" * 48
+    user = "0x" + "cd" * 48
+    zusd_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
+    monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", operator)
+
+    ok, state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={
+            "9": [
+                {
+                    "module": "TauToken",
+                    "action": "mint",
+                    "asset": zusd_asset,
+                    "to_pubkey": user,
+                    "amount": 1,
+                    "nonce": 1,
+                }
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=10,
+    )
+
+    assert ok is False
+    assert state_json == ""
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == (
+        "managed asset operation generic_mint requires authority "
+        "zenodex/zusd-monetary-kernel/v1"
+    )
+
+
+def test_apply_app_tx_rejects_generic_mint_for_configured_zusd_asset(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    operator = "0x" + "ab" * 48
+    user = "0x" + "cd" * 48
+    configured_zusd_asset = "0x" + "ef" * 32
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local-configured-managed-zusd")
+    monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", operator)
+    monkeypatch.setenv("TAU_DEX_ZUSD_ASSET_ID", configured_zusd_asset)
+
+    ok, state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={
+            "9": [
+                {
+                    "module": "TauToken",
+                    "action": "mint",
+                    "asset": configured_zusd_asset,
+                    "to_pubkey": user,
+                    "amount": 1,
+                    "nonce": 1,
+                }
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=10,
+    )
+
+    assert ok is False
+    assert state_json == ""
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == (
+        "managed asset operation generic_mint requires authority "
+        "zenodex/zusd-monetary-kernel/v1"
+    )
+
+
+def test_apply_app_tx_rejects_token_batch_without_prior_foreign_mint(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
+
+    chain_id = "tau-local-managed-zusd-token-batch"
+    operator = "0x" + "ab" * 48
+    user = "0x" + "cd" * 48
+    foreign_asset = "0x" + "12" * 32
+    zusd_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
+    monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", operator)
+
+    ok, state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={
+            "9": [
+                {
+                    "module": "TauToken",
+                    "action": "mint",
+                    "asset": foreign_asset,
+                    "to_pubkey": user,
+                    "amount": 10,
+                    "nonce": 1,
+                },
+                {
+                    "module": "TauToken",
+                    "action": "mint",
+                    "asset": zusd_asset,
+                    "to_pubkey": user,
+                    "amount": 1,
+                    "nonce": 2,
+                },
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=10,
+    )
+
+    assert ok is False
+    assert state_json == ""
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == (
+        "managed asset operation generic_mint requires authority "
+        "zenodex/zusd-monetary-kernel/v1"
+    )
+
+
+def test_apply_app_tx_rejects_faucet_zusd_mint_without_state_change(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
+
+    chain_id = "tau-local-managed-zusd-faucet"
+    user = "0x" + "cd" * 48
+    zusd_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
+    monkeypatch.setenv("TAU_DEX_FAUCET", "1")
+
+    ok, state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={"7": {"mint": [[user, zusd_asset, 1]]}},
+        tx_sender_pubkey=user,
+        block_timestamp=10,
+    )
+
+    assert ok is False
+    assert state_json == ""
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == (
+        "managed asset operation faucet_mint requires authority "
+        "zenodex/zusd-monetary-kernel/v1"
+    )
+
+
+def test_apply_app_tx_rejects_faucet_batch_without_prior_foreign_mint(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
+
+    chain_id = "tau-local-managed-zusd-faucet-batch"
+    user = "0x" + "cd" * 48
+    foreign_asset = "0x" + "12" * 32
+    zusd_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
+    monkeypatch.setenv("TAU_DEX_FAUCET", "1")
+
+    ok, state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={},
+        operations={
+            "7": {
+                "mint": [
+                    [user, foreign_asset, 10],
+                    [user, zusd_asset, 1],
+                ]
+            }
+        },
+        tx_sender_pubkey=user,
+        block_timestamp=10,
+    )
+
+    assert ok is False
+    assert state_json == ""
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == (
+        "managed asset operation faucet_mint requires authority "
+        "zenodex/zusd-monetary-kernel/v1"
+    )
+
+
+def _build_collateral_backed_zusd_app_state(
+    monkeypatch,
+    *,
+    chain_id: str,
+    oracle_privkey: int = 81,
+    alice_privkey: int = 82,
+):
+    from src.core.zusd import E8
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
+    from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
+
+    oracle = "0x" + bls_pubkey_hex_from_privkey(oracle_privkey)
+    alice = "0x" + bls_pubkey_hex_from_privkey(alice_privkey)
+    deadline = 999_999_999
+    chain_balances = {alice: 20 * E8}
+
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", oracle)
+    monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", alice)
+
+    app_state_json = ""
+    setup_steps = (
+        (
+            oracle,
+            {
+                "module": "ZUSDFinance",
+                "action": "bootstrap_oracle",
+                "price_e8": 100 * E8,
+                "nonce": 1,
+                "deadline": deadline,
+            },
+        ),
+        (
+            alice,
+            {
+                "module": "ZUSDFinance",
+                "action": "deposit_collateral",
+                "owner_pubkey": alice,
+                "amount_e8": 20 * E8,
+                "nonce": 1,
+                "deadline": deadline,
+            },
+        ),
+        (
+            alice,
+            {
+                "module": "ZUSDFinance",
+                "action": "mint_zusd",
+                "owner_pubkey": alice,
+                "amount_e8": 1_000 * E8,
+                "nonce": 2,
+                "deadline": deadline,
+            },
+        ),
+    )
+    for block_timestamp, (sender, body) in enumerate(setup_steps, start=1):
+        ok, next_state_json, _app_hash, balances_patch, err = plugin.apply_app_tx(
+            app_state_json=app_state_json,
+            chain_balances=chain_balances,
+            operations={"11": [body]},
+            tx_sender_pubkey=sender,
+            block_timestamp=block_timestamp,
+        )
+        assert ok is True, err
+        app_state_json = next_state_json
+        for pubkey, amount in (balances_patch or {}).items():
+            chain_balances[pubkey] = int(amount)
+
+    return (
+        app_state_json,
+        chain_balances,
+        alice,
+        derive_zusd_tau_asset_id(chain_id=chain_id),
+        deadline,
+    )
+
+
+def test_apply_app_tx_rejects_generic_zusd_burn_from_valid_monetary_state(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    state_json, chain_balances, alice, zusd_asset, deadline = _build_collateral_backed_zusd_app_state(
+        monkeypatch,
+        chain_id="tau-local-managed-zusd-burn",
+    )
+
+    ok, next_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json=state_json,
+        chain_balances=chain_balances,
+        operations={
+            "9": [
+                {
+                    "module": "TauToken",
+                    "action": "burn",
+                    "asset": zusd_asset,
+                    "amount": 1,
+                    "nonce": 1,
+                    "deadline": deadline,
+                }
+            ]
+        },
+        tx_sender_pubkey=alice,
+        block_timestamp=4,
+    )
+
+    assert ok is False
+    assert next_state_json == state_json
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == (
+        "managed asset operation generic_burn requires authority "
+        "zenodex/zusd-monetary-kernel/v1"
+    )
+
+
+def test_apply_app_tx_rejects_generic_mint_then_zusd_repay_same_transaction(monkeypatch):
+    from src.core.zusd import E8
+    from src.integration import tau_testnet_dex_plugin as plugin
+
+    state_json, chain_balances, alice, zusd_asset, deadline = _build_collateral_backed_zusd_app_state(
+        monkeypatch,
+        chain_id="tau-local-managed-zusd-mint-repay",
+    )
+
+    ok, next_state_json, app_hash, balances_patch, err = plugin.apply_app_tx(
+        app_state_json=state_json,
+        chain_balances=chain_balances,
+        operations={
+            "9": [
+                {
+                    "module": "TauToken",
+                    "action": "mint",
+                    "asset": zusd_asset,
+                    "to_pubkey": alice,
+                    "amount": 1,
+                    "nonce": 1,
+                    "deadline": deadline,
+                }
+            ],
+            "11": [
+                {
+                    "module": "ZUSDFinance",
+                    "action": "repay_zusd",
+                    "owner_pubkey": alice,
+                    "amount_e8": 1_001 * E8,
+                    "nonce": 3,
+                    "deadline": deadline,
+                }
+            ],
+        },
+        tx_sender_pubkey=alice,
+        block_timestamp=4,
+    )
+
+    assert ok is False
+    assert next_state_json == state_json
+    assert app_hash == ""
+    assert balances_patch is None
+    assert err == (
+        "managed asset operation generic_mint requires authority "
+        "zenodex/zusd-monetary-kernel/v1"
+    )
+
+
 def test_select_perp_ops_prefers_upstream_stream_8() -> None:
     from src.integration import tau_testnet_dex_plugin as plugin
 
@@ -882,51 +1267,45 @@ def test_apply_app_tx_token_ops_reject_native_and_expired(monkeypatch):
 def test_apply_app_tx_perps_accepts_zusd_token_as_quote_collateral(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
     from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
-    from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 
     chain_id = "tau-local-perps-zusd"
-    operator_privkey = 71
+    oracle_privkey = 71
     alice_privkey = 72
     bob_privkey = 73
-    operator = "0x" + bls_pubkey_hex_from_privkey(operator_privkey)
     alice = "0x" + bls_pubkey_hex_from_privkey(alice_privkey)
     bob = "0x" + bls_pubkey_hex_from_privkey(bob_privkey)
-    zusd_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
     market_id = "perp:ch2p:zusd-collateral"
     deadline = 999_999_999
 
-    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
-    monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", operator)
+    app_state_json0, chain_balances, funded_alice, zusd_asset, _deadline = (
+        _build_collateral_backed_zusd_app_state(
+            monkeypatch,
+            chain_id=chain_id,
+            oracle_privkey=oracle_privkey,
+            alice_privkey=alice_privkey,
+        )
+    )
+    assert funded_alice == alice
 
     ok0, app_state_json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
-        app_state_json="",
-        chain_balances={},
+        app_state_json=app_state_json0,
+        chain_balances=chain_balances,
         operations={
             "9": [
                 {
                     "module": "TauToken",
-                    "action": "mint",
+                    "action": "transfer",
                     "asset": zusd_asset,
-                    "to_pubkey": alice,
-                    "amount": 1_000,
+                    "sender_pubkey": alice,
+                    "to_pubkey": bob,
+                    "amount": 400,
                     "nonce": 1,
                     "deadline": deadline,
-                    "operator_pubkey": operator,
-                },
-                {
-                    "module": "TauToken",
-                    "action": "mint",
-                    "asset": zusd_asset,
-                    "to_pubkey": bob,
-                    "amount": 1_000,
-                    "nonce": 2,
-                    "deadline": deadline,
-                    "operator_pubkey": operator,
                 },
             ]
         },
-        tx_sender_pubkey=operator,
-        block_timestamp=1,
+        tx_sender_pubkey=alice,
+        block_timestamp=4,
     )
     assert ok0 is True, err0
 
@@ -958,16 +1337,16 @@ def test_apply_app_tx_perps_accepts_zusd_token_as_quote_collateral(monkeypatch):
     )
     ok1, app_state_json1, _hash1, _patch1, err1 = plugin.apply_app_tx(
         app_state_json=app_state_json0,
-        chain_balances={},
+        chain_balances=chain_balances,
         operations={"8": [init_market]},
-        tx_sender_pubkey=operator,
-        block_timestamp=2,
+        tx_sender_pubkey=alice,
+        block_timestamp=5,
     )
     assert ok1 is True, err1
 
     ok2, app_state_json2, _hash2, _patch2, err2 = plugin.apply_app_tx(
         app_state_json=app_state_json1,
-        chain_balances={},
+        chain_balances=chain_balances,
         operations={
             "8": [
                 {
@@ -981,13 +1360,13 @@ def test_apply_app_tx_perps_accepts_zusd_token_as_quote_collateral(monkeypatch):
             ]
         },
         tx_sender_pubkey=alice,
-        block_timestamp=3,
+        block_timestamp=6,
     )
     assert ok2 is True, err2
 
     ok3, app_state_json3, _hash3, _patch3, err3 = plugin.apply_app_tx(
         app_state_json=app_state_json2,
-        chain_balances={},
+        chain_balances=chain_balances,
         operations={
             "8": [
                 {
@@ -1001,16 +1380,23 @@ def test_apply_app_tx_perps_accepts_zusd_token_as_quote_collateral(monkeypatch):
             ]
         },
         tx_sender_pubkey=bob,
-        block_timestamp=4,
+        block_timestamp=7,
     )
     assert ok3 is True, err3
 
     parsed = json.loads(app_state_json3)
-    balances = {(b["pubkey"], b["asset"]): int(b["amount"]) for b in parsed.get("balances", [])}
-    assert balances[(alice, zusd_asset)] == 750
-    assert balances[(bob, zusd_asset)] == 700
+    balances = {
+        (b["pubkey"], b["asset"]): int(b["amount"])
+        for b in parsed["dex_state"].get("balances", [])
+    }
+    assert balances[(alice, zusd_asset)] == 350
+    assert balances[(bob, zusd_asset)] == 100
 
-    market = next(entry for entry in parsed["perps"]["markets"] if entry["market_id"] == market_id)
+    market = next(
+        entry
+        for entry in parsed["dex_state"]["perps"]["markets"]
+        if entry["market_id"] == market_id
+    )
     assert market["quote_asset"] == zusd_asset
     assert market["state"]["collateral_e8_a"] == 250 * 100_000_000
     assert market["state"]["collateral_e8_b"] == 300 * 100_000_000
