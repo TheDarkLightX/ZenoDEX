@@ -1,0 +1,158 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_proof_context_v1
+  created_by: gpt-5.6-pro-fcis-formal-closure
+  seed: 0
+  notes: >-
+    Pinned proof-context authority. A proof is accepted only through the pinned
+    verifier registry, with a present proof and no deployment/state/config/key/
+    schema/algorithm/freshness/public-input substitution. Disabled hostile
+    accept actions are retained as formal negative classes.
+observables:
+  state_vars:
+  - registry_pinned
+  - proof_present
+  - context_fault
+  - accepted
+  - verifier_receipt
+  effects: []
+types: []
+state_vars:
+- id: registry_pinned
+  role: data
+  type: {kind: bool}
+- id: proof_present
+  role: data
+  type: {kind: bool}
+- id: context_fault
+  role: control
+  type:
+    kind: enum
+    symbols: [NONE, DEPLOYMENT, STATE, CONFIG, VERIFIER, KEY, SCHEMA, ALGORITHM, FRESHNESS, CALLER_PUBLIC_INPUT]
+- id: accepted
+  role: data
+  type: {kind: bool}
+- id: verifier_receipt
+  role: data
+  type: {kind: bool}
+invariants:
+- id: AcceptedIffVerifierReceipt
+  kind: safety
+  expr:
+    op: '='
+    args: [{var: accepted}, {var: verifier_receipt}]
+- id: AcceptedRequiresPinnedRegistry
+  kind: safety
+  expr: {op: '=>', args: [{var: accepted}, {var: registry_pinned}]}
+- id: AcceptedRequiresProofPresent
+  kind: safety
+  expr: {op: '=>', args: [{var: accepted}, {var: proof_present}]}
+- id: AcceptedRequiresExactContext
+  kind: safety
+  expr:
+    op: '=>'
+    args:
+    - {var: accepted}
+    - op: '='
+      args: [{var: context_fault}, {enum: NONE}]
+init:
+- var: registry_pinned
+  expr: {bool: false}
+- var: proof_present
+  expr: {bool: false}
+- var: context_fault
+  expr: {enum: NONE}
+- var: accepted
+  expr: {bool: false}
+- var: verifier_receipt
+  expr: {bool: false}
+actions:
+- id: pin_verifier_registry
+  params: []
+  guard: {op: not, args: [{var: registry_pinned}]}
+  updates:
+  - {var: registry_pinned, expr: {bool: true}}
+  effects: {}
+- id: supply_exact_proof
+  params: []
+  guard: {bool: true}
+  updates:
+  - {var: proof_present, expr: {bool: true}}
+  - {var: context_fault, expr: {enum: NONE}}
+  - {var: accepted, expr: {bool: false}}
+  - {var: verifier_receipt, expr: {bool: false}}
+  effects: {}
+- id: supply_faulty_context
+  params:
+  - id: fault
+    type:
+      kind: enum
+      symbols: [DEPLOYMENT, STATE, CONFIG, VERIFIER, KEY, SCHEMA, ALGORITHM, FRESHNESS, CALLER_PUBLIC_INPUT]
+  guard: {bool: true}
+  updates:
+  - {var: proof_present, expr: {bool: true}}
+  - {var: context_fault, expr: {param: fault}}
+  - {var: accepted, expr: {bool: false}}
+  - {var: verifier_receipt, expr: {bool: false}}
+  effects: {}
+- id: verify_exact_proof
+  params: []
+  guard:
+    op: and
+    args:
+    - {var: registry_pinned}
+    - {var: proof_present}
+    - op: '='
+      args: [{var: context_fault}, {enum: NONE}]
+  updates:
+  - {var: accepted, expr: {bool: true}}
+  - {var: verifier_receipt, expr: {bool: true}}
+  effects: {}
+- id: reject_faulty_proof
+  params: []
+  guard:
+    op: and
+    args:
+    - {var: proof_present}
+    - op: '!='
+      args: [{var: context_fault}, {enum: NONE}]
+  updates:
+  - {var: accepted, expr: {bool: false}}
+  - {var: verifier_receipt, expr: {bool: false}}
+  effects: {}
+- id: retire_registry
+  params: []
+  guard: {var: registry_pinned}
+  updates:
+  - {var: registry_pinned, expr: {bool: false}}
+  - {var: accepted, expr: {bool: false}}
+  - {var: verifier_receipt, expr: {bool: false}}
+  effects: {}
+- id: accept_without_registry
+  params: []
+  guard: {bool: false}
+  updates:
+  - {var: proof_present, expr: {bool: true}}
+  - {var: context_fault, expr: {enum: NONE}}
+  - {var: accepted, expr: {bool: true}}
+  - {var: verifier_receipt, expr: {bool: true}}
+  effects: {}
+- id: accept_without_proof
+  params: []
+  guard: {bool: false}
+  updates:
+  - {var: registry_pinned, expr: {bool: true}}
+  - {var: context_fault, expr: {enum: NONE}}
+  - {var: accepted, expr: {bool: true}}
+  - {var: verifier_receipt, expr: {bool: true}}
+  effects: {}
+- id: accept_faulty_context
+  params: []
+  guard: {bool: false}
+  updates:
+  - {var: registry_pinned, expr: {bool: true}}
+  - {var: proof_present, expr: {bool: true}}
+  - {var: context_fault, expr: {enum: DEPLOYMENT}}
+  - {var: accepted, expr: {bool: true}}
+  - {var: verifier_receipt, expr: {bool: true}}
+  effects: {}

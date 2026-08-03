@@ -1,0 +1,232 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_promotion_subject_v1
+  created_by: gpt-5.6-pro-fcis-formal-closure
+  seed: 0
+  notes: Strict M6 promotion lineage. PROVED, IMPLEMENTED, MOUNTED, and TESTED may compose only when all evidence binds the same exact promotion subject. Cross-head or cross-deployment evidence can never accumulate into promotion.
+observables:
+  state_vars:
+  - proof_ready
+  - implementation_ready
+  - mount_ready
+  - tests_ready
+  - proof_subject
+  - implementation_subject
+  - mount_subject
+  - test_subject
+  - promoted
+  effects: []
+types: []
+state_vars:
+- id: proof_ready
+  role: data
+  type:
+    kind: bool
+- id: implementation_ready
+  role: data
+  type:
+    kind: bool
+- id: mount_ready
+  role: data
+  type:
+    kind: bool
+- id: tests_ready
+  role: data
+  type:
+    kind: bool
+- id: proof_subject
+  role: control
+  type:
+    kind: enum
+    symbols: &id001
+    - SUBJECT_A
+    - SUBJECT_B
+- id: implementation_subject
+  role: control
+  type:
+    kind: enum
+    symbols: *id001
+- id: mount_subject
+  role: control
+  type:
+    kind: enum
+    symbols: *id001
+- id: test_subject
+  role: control
+  type:
+    kind: enum
+    symbols: *id001
+- id: promoted
+  role: data
+  type:
+    kind: bool
+invariants:
+- id: PromotionRequiresAllFourGates
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: promoted
+    - op: and
+      args:
+      - var: proof_ready
+      - var: implementation_ready
+      - var: mount_ready
+      - var: tests_ready
+- id: PromotionRequiresProofImplementationSubjectEquality
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: promoted
+    - op: '='
+      args:
+      - var: proof_subject
+      - var: implementation_subject
+- id: PromotionRequiresProofMountSubjectEquality
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: promoted
+    - op: '='
+      args:
+      - var: proof_subject
+      - var: mount_subject
+- id: PromotionRequiresProofTestSubjectEquality
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: promoted
+    - op: '='
+      args:
+      - var: proof_subject
+      - var: test_subject
+init:
+- var: proof_ready
+  expr:
+    bool: false
+- var: implementation_ready
+  expr:
+    bool: false
+- var: mount_ready
+  expr:
+    bool: false
+- var: tests_ready
+  expr:
+    bool: false
+- var: proof_subject
+  expr:
+    enum: SUBJECT_A
+- var: implementation_subject
+  expr:
+    enum: SUBJECT_A
+- var: mount_subject
+  expr:
+    enum: SUBJECT_A
+- var: test_subject
+  expr:
+    enum: SUBJECT_A
+- var: promoted
+  expr:
+    bool: false
+actions:
+- id: record_proof
+  params:
+  - id: subject
+    type:
+      kind: enum
+      symbols: *id001
+  guard:
+    op: not
+    args:
+    - var: promoted
+  updates:
+  - var: proof_ready
+    expr:
+      bool: true
+  - var: proof_subject
+    expr:
+      param: subject
+  effects: {}
+- id: record_implementation
+  params:
+  - id: subject
+    type:
+      kind: enum
+      symbols: *id001
+  guard:
+    op: not
+    args:
+    - var: promoted
+  updates:
+  - var: implementation_ready
+    expr:
+      bool: true
+  - var: implementation_subject
+    expr:
+      param: subject
+  effects: {}
+- id: record_mount
+  params:
+  - id: subject
+    type:
+      kind: enum
+      symbols: *id001
+  guard:
+    op: not
+    args:
+    - var: promoted
+  updates:
+  - var: mount_ready
+    expr:
+      bool: true
+  - var: mount_subject
+    expr:
+      param: subject
+  effects: {}
+- id: record_tests
+  params:
+  - id: subject
+    type:
+      kind: enum
+      symbols: *id001
+  guard:
+    op: not
+    args:
+    - var: promoted
+  updates:
+  - var: tests_ready
+    expr:
+      bool: true
+  - var: test_subject
+    expr:
+      param: subject
+  effects: {}
+- id: promote_m6
+  params: []
+  guard:
+    op: and
+    args:
+    - var: proof_ready
+    - var: implementation_ready
+    - var: mount_ready
+    - var: tests_ready
+    - op: '='
+      args:
+      - var: proof_subject
+      - var: implementation_subject
+    - op: '='
+      args:
+      - var: proof_subject
+      - var: mount_subject
+    - op: '='
+      args:
+      - var: proof_subject
+      - var: test_subject
+  updates:
+  - var: promoted
+    expr:
+      bool: true
+  effects: {}

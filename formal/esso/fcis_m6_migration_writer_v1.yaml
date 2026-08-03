@@ -1,0 +1,457 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_migration_writer_v1
+  created_by: gpt-5.6-pro-fcis-formal-closure
+  seed: 0
+  notes: Seven-phase authority migration with one writer. Shadow and dual-check never publish through the target. Quiescence has no writer. Authority switch requires equal replay, complete evidence transport, a fresh exact-epoch authorization token, and disables the legacy writer as the target writer becomes authoritative.
+observables:
+  state_vars:
+  - phase
+  - writer_mode
+  - authority_epoch
+  - head_authorized
+  - token_epoch
+  - dual_equal
+  - transport_complete
+  - legacy_enabled
+  - target_enabled
+  - quiescence_seen
+  effects: []
+types: []
+state_vars:
+- id: phase
+  role: control
+  type:
+    kind: enum
+    symbols:
+    - LEGACY
+    - SHADOW_REPLAY
+    - DUAL_CHECK
+    - QUIESCED
+    - AUTHORITY_SWITCH
+    - POST_SWITCH_VALIDATION
+    - LEGACY_DISABLED
+- id: writer_mode
+  role: control
+  type:
+    kind: enum
+    symbols:
+    - LEGACY_WRITER
+    - NO_WRITER
+    - TARGET_WRITER
+- id: authority_epoch
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 2
+- id: head_authorized
+  role: data
+  type:
+    kind: bool
+- id: token_epoch
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 2
+- id: dual_equal
+  role: data
+  type:
+    kind: bool
+- id: transport_complete
+  role: data
+  type:
+    kind: bool
+- id: legacy_enabled
+  role: data
+  type:
+    kind: bool
+- id: target_enabled
+  role: data
+  type:
+    kind: bool
+- id: quiescence_seen
+  role: data
+  type:
+    kind: bool
+invariants:
+- id: PreSwitchLegacyWriter
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: LEGACY
+      - op: '='
+        args:
+        - var: phase
+        - enum: SHADOW_REPLAY
+      - op: '='
+        args:
+        - var: phase
+        - enum: DUAL_CHECK
+    - op: '='
+      args:
+      - var: writer_mode
+      - enum: LEGACY_WRITER
+- id: QuiescedNoWriter
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: '='
+      args:
+      - var: phase
+      - enum: QUIESCED
+    - op: '='
+      args:
+      - var: writer_mode
+      - enum: NO_WRITER
+- id: PostSwitchTargetWriter
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: AUTHORITY_SWITCH
+      - op: '='
+        args:
+        - var: phase
+        - enum: POST_SWITCH_VALIDATION
+      - op: '='
+        args:
+        - var: phase
+        - enum: LEGACY_DISABLED
+    - op: '='
+      args:
+      - var: writer_mode
+      - enum: TARGET_WRITER
+- id: NeverDualEnabledWriters
+  kind: safety
+  expr:
+    op: not
+    args:
+    - op: and
+      args:
+      - var: legacy_enabled
+      - var: target_enabled
+- id: LegacyWriterImpliesLegacyEnabled
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: '='
+      args:
+      - var: writer_mode
+      - enum: LEGACY_WRITER
+    - var: legacy_enabled
+- id: TargetWriterImpliesTargetEnabled
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: '='
+      args:
+      - var: writer_mode
+      - enum: TARGET_WRITER
+    - var: target_enabled
+- id: AuthorizationEpochCurrent
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: head_authorized
+    - op: '='
+      args:
+      - var: token_epoch
+      - var: authority_epoch
+- id: PostSwitchRequiresQuiescence
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: AUTHORITY_SWITCH
+      - op: '='
+        args:
+        - var: phase
+        - enum: POST_SWITCH_VALIDATION
+      - op: '='
+        args:
+        - var: phase
+        - enum: LEGACY_DISABLED
+    - var: quiescence_seen
+- id: PostSwitchRequiresDualEquality
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: AUTHORITY_SWITCH
+      - op: '='
+        args:
+        - var: phase
+        - enum: POST_SWITCH_VALIDATION
+      - op: '='
+        args:
+        - var: phase
+        - enum: LEGACY_DISABLED
+    - var: dual_equal
+- id: PostSwitchRequiresTransportComplete
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: phase
+        - enum: AUTHORITY_SWITCH
+      - op: '='
+        args:
+        - var: phase
+        - enum: POST_SWITCH_VALIDATION
+      - op: '='
+        args:
+        - var: phase
+        - enum: LEGACY_DISABLED
+    - var: transport_complete
+init:
+- var: phase
+  expr:
+    enum: LEGACY
+- var: writer_mode
+  expr:
+    enum: LEGACY_WRITER
+- var: authority_epoch
+  expr:
+    const: 0
+- var: head_authorized
+  expr:
+    bool: false
+- var: token_epoch
+  expr:
+    const: 0
+- var: dual_equal
+  expr:
+    bool: false
+- var: transport_complete
+  expr:
+    bool: false
+- var: legacy_enabled
+  expr:
+    bool: true
+- var: target_enabled
+  expr:
+    bool: false
+- var: quiescence_seen
+  expr:
+    bool: false
+actions:
+- id: grant_epoch_authority
+  params:
+  - id: epoch
+    type:
+      kind: int
+      min: 0
+      max: 2
+  guard:
+    op: '='
+    args:
+    - param: epoch
+    - var: authority_epoch
+  updates:
+  - var: head_authorized
+    expr:
+      bool: true
+  - var: token_epoch
+    expr:
+      param: epoch
+  effects: {}
+- id: enter_shadow_replay
+  params: []
+  guard:
+    op: and
+    args:
+    - var: head_authorized
+    - op: '='
+      args:
+      - var: phase
+      - enum: LEGACY
+  updates:
+  - var: phase
+    expr:
+      enum: SHADOW_REPLAY
+  - var: head_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: record_dual_equality
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: phase
+    - enum: SHADOW_REPLAY
+  updates:
+  - var: dual_equal
+    expr:
+      bool: true
+  effects: {}
+- id: enter_dual_check
+  params: []
+  guard:
+    op: and
+    args:
+    - var: head_authorized
+    - var: dual_equal
+    - op: '='
+      args:
+      - var: phase
+      - enum: SHADOW_REPLAY
+  updates:
+  - var: phase
+    expr:
+      enum: DUAL_CHECK
+  - var: head_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: record_transport_complete
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: phase
+    - enum: DUAL_CHECK
+  updates:
+  - var: transport_complete
+    expr:
+      bool: true
+  effects: {}
+- id: quiesce
+  params: []
+  guard:
+    op: and
+    args:
+    - var: head_authorized
+    - var: dual_equal
+    - var: transport_complete
+    - op: '='
+      args:
+      - var: phase
+      - enum: DUAL_CHECK
+  updates:
+  - var: phase
+    expr:
+      enum: QUIESCED
+  - var: writer_mode
+    expr:
+      enum: NO_WRITER
+  - var: head_authorized
+    expr:
+      bool: false
+  - var: quiescence_seen
+    expr:
+      bool: true
+  effects: {}
+- id: switch_authority
+  params: []
+  guard:
+    op: and
+    args:
+    - var: head_authorized
+    - op: '='
+      args:
+      - var: token_epoch
+      - var: authority_epoch
+    - var: dual_equal
+    - var: transport_complete
+    - op: '='
+      args:
+      - var: phase
+      - enum: QUIESCED
+    - op: <
+      args:
+      - var: authority_epoch
+      - const: 2
+  updates:
+  - var: phase
+    expr:
+      enum: AUTHORITY_SWITCH
+  - var: writer_mode
+    expr:
+      enum: TARGET_WRITER
+  - var: authority_epoch
+    expr:
+      op: +
+      args:
+      - var: authority_epoch
+      - const: 1
+  - var: legacy_enabled
+    expr:
+      bool: false
+  - var: target_enabled
+    expr:
+      bool: true
+  - var: head_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: validate_post_switch
+  params: []
+  guard:
+    op: and
+    args:
+    - var: head_authorized
+    - op: '='
+      args:
+      - var: phase
+      - enum: AUTHORITY_SWITCH
+  updates:
+  - var: phase
+    expr:
+      enum: POST_SWITCH_VALIDATION
+  - var: head_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: disable_legacy
+  params: []
+  guard:
+    op: and
+    args:
+    - var: head_authorized
+    - op: '='
+      args:
+      - var: phase
+      - enum: POST_SWITCH_VALIDATION
+  updates:
+  - var: phase
+    expr:
+      enum: LEGACY_DISABLED
+  - var: legacy_enabled
+    expr:
+      bool: false
+  - var: head_authorized
+    expr:
+      bool: false
+  effects: {}

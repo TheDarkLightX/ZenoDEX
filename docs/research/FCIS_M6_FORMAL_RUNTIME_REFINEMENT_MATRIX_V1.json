@@ -1,0 +1,711 @@
+{
+  "bounded_result": "docs/research/FCIS_M6_FORMAL_SUITE_BOUNDED_RESULT_V1.json",
+  "composition_obligation": {
+    "additional_premises": [
+      "canonical_projection_total_on_accepted_runtime_values",
+      "complete_mounted_inventory",
+      "cryptographic_verifier_soundness",
+      "oracle_authentication_and_finality_soundness",
+      "concrete_atomicity_refinement",
+      "zenoledger_concrete_durability_and_tau_checkpoint_authentication"
+    ],
+    "conclusion": "Every mounted accepted value change preserves the global formal invariant and every external effect has committed outbox ancestry.",
+    "premises": [
+      "fcis_m6_value_flow_kernel_v1",
+      "fcis_m6_managed_asset_issuance_v1",
+      "fcis_m6_atomic_publication_v1",
+      "fcis_m6_reopen_reauthorization_v1",
+      "fcis_m6_outbox_delivery_v1",
+      "fcis_m6_migration_writer_v1",
+      "fcis_m6_no_bypass_v1",
+      "fcis_m6_promotion_subject_v1",
+      "fcis_m6_nonce_retry_classifier_v1",
+      "fcis_m6_history_fixed_point_v1",
+      "fcis_m6_proof_context_v1",
+      "fcis_m6_oracle_risk_gate_v1",
+      "fcis_m6_zenoledger_tau_continuity_v1"
+    ],
+    "status": "THEOREM_STATEMENT_FROZEN_PROOF_OPEN",
+    "theorem_id": "MountedAcceptRefinesSafeFormalTraceV1"
+  },
+  "entries": [
+    {
+      "action_to_scenario": {
+        "authorized_burn": "@model_fcis_m6_value_flow_kernel_v1",
+        "authorized_mint": "@model_fcis_m6_value_flow_kernel_v1",
+        "escrow_lock": "@model_fcis_m6_value_flow_kernel_v1",
+        "escrow_release": "@model_fcis_m6_value_flow_kernel_v1",
+        "external_delivery": "@model_fcis_m6_value_flow_kernel_v1",
+        "fee_charge": "@model_fcis_m6_value_flow_kernel_v1",
+        "transfer_alice_to_bob": "@model_fcis_m6_value_flow_kernel_v1"
+      },
+      "formal_actions": [
+        "transfer_alice_to_bob",
+        "escrow_lock",
+        "escrow_release",
+        "fee_charge",
+        "external_delivery",
+        "authorized_mint",
+        "authorized_burn"
+      ],
+      "formal_invariants": [
+        "AssetQuantityConservation"
+      ],
+      "model_id": "fcis_m6_value_flow_kernel_v1",
+      "model_path": "formal/esso/fcis_m6_value_flow_kernel_v1.yaml",
+      "principal_role": "generic_asset_quantity_conservation",
+      "required_runtime_evidence": [
+        "per-command differential parity",
+        "rejection no-op checks",
+        "production-width arithmetic proof",
+        "complete asset-domain inventory"
+      ],
+      "runtime_projection": [
+        "project_asset_state_v1",
+        "project_value_command_v1",
+        "project_value_result_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_value_flow_kernel_v1",
+      "visible_trust_premises": [
+        "asset classification is correct",
+        "all value buckets are included"
+      ]
+    },
+    {
+      "action_to_scenario": {
+        "cancel_protocol_claim": "@model_fcis_m6_managed_asset_issuance_v1",
+        "generic_burn_managed_asset": "@model_fcis_m6_managed_asset_issuance_v1",
+        "generic_mint_managed_asset": "@model_fcis_m6_managed_asset_issuance_v1",
+        "generic_transfer": "@model_fcis_m6_managed_asset_issuance_v1",
+        "protocol_borrow": "@model_fcis_m6_managed_asset_issuance_v1",
+        "realize_protocol_claim": "@model_fcis_m6_managed_asset_issuance_v1",
+        "repay_and_burn": "@model_fcis_m6_managed_asset_issuance_v1"
+      },
+      "formal_actions": [
+        "protocol_borrow",
+        "realize_protocol_claim",
+        "repay_and_burn",
+        "cancel_protocol_claim",
+        "generic_transfer",
+        "generic_mint_managed_asset",
+        "generic_burn_managed_asset"
+      ],
+      "formal_invariants": [
+        "DebtEqualsSupplyPlusClaim"
+      ],
+      "model_id": "fcis_m6_managed_asset_issuance_v1",
+      "model_path": "formal/esso/fcis_m6_managed_asset_issuance_v1.yaml",
+      "principal_role": "managed_asset_debt_supply_identity",
+      "required_runtime_evidence": [
+        "generic mint/burn/faucet negative tests",
+        "zUSD supply/debt whole-layout reconciliation",
+        "fee-claim policy proof",
+        "mounted command inventory"
+      ],
+      "runtime_projection": [
+        "project_zusd_supply_debt_claim_v1",
+        "project_managed_asset_command_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_managed_asset_issuance_v1",
+      "visible_trust_premises": [
+        "managed asset identifier and policy root are authentic"
+      ]
+    },
+    {
+      "action_to_scenario": {
+        "atomic_publish": "@model_fcis_m6_atomic_publication_v1",
+        "crash_after_commit": "@model_fcis_m6_atomic_publication_v1",
+        "crash_before_commit": "@model_fcis_m6_atomic_publication_v1",
+        "issue_head_authorization": "@model_fcis_m6_atomic_publication_v1",
+        "retry_same_commit": "@model_fcis_m6_atomic_publication_v1",
+        "verify_candidate": "@model_fcis_m6_atomic_publication_v1"
+      },
+      "formal_actions": [
+        "verify_candidate",
+        "issue_head_authorization",
+        "atomic_publish",
+        "retry_same_commit",
+        "crash_before_commit",
+        "crash_after_commit"
+      ],
+      "formal_invariants": [
+        "state_publishedIffCommit",
+        "history_publishedIffCommit",
+        "nullifier_publishedIffCommit",
+        "receipt_publishedIffCommit",
+        "economic_certificate_publishedIffCommit",
+        "outbox_publishedIffCommit",
+        "authority_epoch_publishedIffCommit",
+        "CommitRequiresVerifiedCandidate",
+        "CommitRequiresIssuedAuthorization",
+        "CommitConsumesHeadAuthorization"
+      ],
+      "model_id": "fcis_m6_atomic_publication_v1",
+      "model_path": "formal/esso/fcis_m6_atomic_publication_v1.yaml",
+      "principal_role": "atomic_publication",
+      "required_runtime_evidence": [
+        "one concrete ZenoLedger publication transaction",
+        "expected-head CAS",
+        "process crash matrix",
+        "ZenoLedger durability and finality configuration assertions",
+        "canonical reopen equality"
+      ],
+      "runtime_projection": [
+        "project_publication_atom_v1",
+        "project_durable_layout_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_atomic_publication_v1",
+      "visible_trust_premises": [
+        "the concrete ZenoLedger publication and durability semantics are correctly qualified"
+      ]
+    },
+    {
+      "action_to_scenario": {
+        "canonical_reopen": "@model_fcis_m6_reopen_reauthorization_v1",
+        "commit_next_head": "@model_fcis_m6_reopen_reauthorization_v1",
+        "corrupt_reopen": "@model_fcis_m6_reopen_reauthorization_v1",
+        "grant_write_authority": "@model_fcis_m6_reopen_reauthorization_v1",
+        "restart_process": "@model_fcis_m6_reopen_reauthorization_v1",
+        "switch_authority_epoch": "@model_fcis_m6_reopen_reauthorization_v1"
+      },
+      "formal_actions": [
+        "canonical_reopen",
+        "corrupt_reopen",
+        "grant_write_authority",
+        "commit_next_head",
+        "restart_process",
+        "switch_authority_epoch"
+      ],
+      "formal_invariants": [
+        "AuthorizedOnlyAfterCanonicalOpen",
+        "AuthorizedHeadIsCurrentReopenedHead",
+        "AuthorizedEpochIsCurrent",
+        "CanonicalOpenMatchesStoredHead"
+      ],
+      "model_id": "fcis_m6_reopen_reauthorization_v1",
+      "model_path": "formal/esso/fcis_m6_reopen_reauthorization_v1.yaml",
+      "principal_role": "reopen_and_fresh_authority",
+      "required_runtime_evidence": [
+        "authenticated genesis",
+        "complete canonical reopen",
+        "fresh token verification",
+        "restart and stale-epoch tests"
+      ],
+      "runtime_projection": [
+        "project_reopened_head_v1",
+        "project_authorization_token_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_reopen_reauthorization_v1",
+      "visible_trust_premises": [
+        "external signature/quorum verifier is sound"
+      ]
+    },
+    {
+      "action_to_scenario": {
+        "acknowledge_effect": "@model_fcis_m6_outbox_delivery_v1",
+        "atomic_commit_outbox": "@model_fcis_m6_outbox_delivery_v1",
+        "deliver_effect": "@model_fcis_m6_outbox_delivery_v1",
+        "lose_ack_transport": "@model_fcis_m6_outbox_delivery_v1",
+        "redeliver_same_effect": "@model_fcis_m6_outbox_delivery_v1",
+        "worker_crash": "@model_fcis_m6_outbox_delivery_v1"
+      },
+      "formal_actions": [
+        "atomic_commit_outbox",
+        "deliver_effect",
+        "redeliver_same_effect",
+        "acknowledge_effect",
+        "lose_ack_transport",
+        "worker_crash"
+      ],
+      "formal_invariants": [
+        "OutboxIffCommitted",
+        "DeliveryRequiresCommittedOutbox",
+        "AckRequiresDelivery",
+        "AckBindsCommittedEffect",
+        "AtMostOneSemanticEffect",
+        "DeliveredIffOneSemanticEffect"
+      ],
+      "model_id": "fcis_m6_outbox_delivery_v1",
+      "model_path": "formal/esso/fcis_m6_outbox_delivery_v1.yaml",
+      "principal_role": "external_effect_identity_and_ack",
+      "required_runtime_evidence": [
+        "real destination idempotency contract",
+        "lease/reclaim tests",
+        "lost-ack crash tests",
+        "receipt-byte provenance verification"
+      ],
+      "runtime_projection": [
+        "project_committed_outbox_v1",
+        "project_destination_receipt_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_outbox_delivery_v1",
+      "visible_trust_premises": [
+        "destination contract truthfully provides the declared idempotency mechanism"
+      ]
+    },
+    {
+      "action_to_scenario": {
+        "disable_legacy": "@model_fcis_m6_migration_writer_v1",
+        "enter_dual_check": "@model_fcis_m6_migration_writer_v1",
+        "enter_shadow_replay": "@model_fcis_m6_migration_writer_v1",
+        "grant_epoch_authority": "@model_fcis_m6_migration_writer_v1",
+        "quiesce": "@model_fcis_m6_migration_writer_v1",
+        "record_dual_equality": "@model_fcis_m6_migration_writer_v1",
+        "record_transport_complete": "@model_fcis_m6_migration_writer_v1",
+        "switch_authority": "@model_fcis_m6_migration_writer_v1",
+        "validate_post_switch": "@model_fcis_m6_migration_writer_v1"
+      },
+      "formal_actions": [
+        "grant_epoch_authority",
+        "enter_shadow_replay",
+        "record_dual_equality",
+        "enter_dual_check",
+        "record_transport_complete",
+        "quiesce",
+        "switch_authority",
+        "validate_post_switch",
+        "disable_legacy"
+      ],
+      "formal_invariants": [
+        "PreSwitchLegacyWriter",
+        "QuiescedNoWriter",
+        "PostSwitchTargetWriter",
+        "NeverDualEnabledWriters",
+        "LegacyWriterImpliesLegacyEnabled",
+        "TargetWriterImpliesTargetEnabled",
+        "AuthorizationEpochCurrent",
+        "PostSwitchRequiresQuiescence",
+        "PostSwitchRequiresDualEquality",
+        "PostSwitchRequiresTransportComplete"
+      ],
+      "model_id": "fcis_m6_migration_writer_v1",
+      "model_path": "formal/esso/fcis_m6_migration_writer_v1.yaml",
+      "principal_role": "migration_unique_writer",
+      "required_runtime_evidence": [
+        "complete evidence transport map",
+        "same-transaction writer-epoch check",
+        "quiescence barrier",
+        "old-writer rejection",
+        "phase crash model"
+      ],
+      "runtime_projection": [
+        "project_migration_phase_v1",
+        "project_writer_epoch_v1",
+        "project_transport_receipt_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_migration_writer_v1",
+      "visible_trust_premises": [
+        "writer inventory and deployment process inventory are complete"
+      ]
+    },
+    {
+      "action_to_scenario": {
+        "attest_complete_inventory": "@model_fcis_m6_no_bypass_v1",
+        "enter_unique_commit_port": "@model_fcis_m6_no_bypass_v1",
+        "mount_deployment": "@model_fcis_m6_no_bypass_v1",
+        "publish_value_change": "@model_fcis_m6_no_bypass_v1",
+        "reject_without_commit": "@model_fcis_m6_no_bypass_v1",
+        "select_entrypoint": "@model_fcis_m6_no_bypass_v1"
+      },
+      "formal_actions": [
+        "attest_complete_inventory",
+        "mount_deployment",
+        "select_entrypoint",
+        "enter_unique_commit_port",
+        "publish_value_change",
+        "reject_without_commit"
+      ],
+      "formal_invariants": [
+        "ValueChangeRequiresAttestedInventory",
+        "ValueChangeRequiresMountedDeployment",
+        "ValueChangeRequiresUniqueCommitPort",
+        "ValueChangeRequiresReceipt",
+        "ReceiptIffValueChange",
+        "ValueChangePortBindsSelectedEntrypoint"
+      ],
+      "model_id": "fcis_m6_no_bypass_v1",
+      "model_path": "formal/esso/fcis_m6_no_bypass_v1.yaml",
+      "principal_role": "mounted_no_bypass_conditional_on_inventory",
+      "required_runtime_evidence": [
+        "source/build/deployment inventory",
+        "static dependency gate",
+        "dynamic entrypoint mutation",
+        "credential/table ownership audit",
+        "actual mounted-call tests"
+      ],
+      "runtime_projection": [
+        "project_mounted_entrypoint_v1",
+        "project_unique_commit_capability_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_no_bypass_v1",
+      "visible_trust_premises": [
+        "anchored inventory completeness attestation is correct"
+      ]
+    },
+    {
+      "action_to_scenario": {
+        "promote_m6": "@model_fcis_m6_promotion_subject_v1",
+        "record_implementation": "@model_fcis_m6_promotion_subject_v1",
+        "record_mount": "@model_fcis_m6_promotion_subject_v1",
+        "record_proof": "@model_fcis_m6_promotion_subject_v1",
+        "record_tests": "@model_fcis_m6_promotion_subject_v1"
+      },
+      "formal_actions": [
+        "record_proof",
+        "record_implementation",
+        "record_mount",
+        "record_tests",
+        "promote_m6"
+      ],
+      "formal_invariants": [
+        "PromotionRequiresAllFourGates",
+        "PromotionRequiresProofImplementationSubjectEquality",
+        "PromotionRequiresProofMountSubjectEquality",
+        "PromotionRequiresProofTestSubjectEquality"
+      ],
+      "model_id": "fcis_m6_promotion_subject_v1",
+      "model_path": "formal/esso/fcis_m6_promotion_subject_v1.yaml",
+      "principal_role": "same_lineage_promotion",
+      "required_runtime_evidence": [
+        "proof receipt root",
+        "implementation source/build root",
+        "mounted deployment root",
+        "test evidence root",
+        "cross-subject rejection tests"
+      ],
+      "runtime_projection": [
+        "derive_m6_promotion_subject_v1",
+        "project_evidence_subject_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_promotion_subject_v1",
+      "visible_trust_premises": [
+        "promotion subject includes every authority-bearing identity"
+      ]
+    },
+    {
+      "action_to_scenario": {
+        "classify_stale_head": "@model_fcis_m6_nonce_retry_classifier_v1",
+        "commit_new_request": "@model_fcis_m6_nonce_retry_classifier_v1",
+        "lookup_committed_request": "@model_fcis_m6_nonce_retry_classifier_v1",
+        "lose_request_before_server": "@model_fcis_m6_nonce_retry_classifier_v1",
+        "lose_response_after_commit": "@model_fcis_m6_nonce_retry_classifier_v1",
+        "reject_id_collision": "@model_fcis_m6_nonce_retry_classifier_v1",
+        "reject_nullifier_conflict": "@model_fcis_m6_nonce_retry_classifier_v1",
+        "retry_exact_request": "@model_fcis_m6_nonce_retry_classifier_v1"
+      },
+      "formal_actions": [
+        "commit_new_request",
+        "retry_exact_request",
+        "reject_id_collision",
+        "reject_nullifier_conflict",
+        "classify_stale_head",
+        "lose_response_after_commit",
+        "lose_request_before_server",
+        "lookup_committed_request"
+      ],
+      "formal_invariants": [
+        "CommittedIffOneCount",
+        "HeadEqualsCommitCount",
+        "CommittedIdentitySealed",
+        "CommittedNullifierConsumed",
+        "AbsentRelationClassifiesNew",
+        "ExactRetryClassifiesAlready",
+        "CollisionClassifiesRejection",
+        "StaleRelationClassifiesStale"
+      ],
+      "model_id": "fcis_m6_nonce_retry_classifier_v1",
+      "model_path": "formal/esso/fcis_m6_nonce_retry_classifier_v1.yaml",
+      "principal_role": "nonce_retry_total_classifier",
+      "required_runtime_evidence": [
+        "real CAS transaction",
+        "independent-connection concurrency tests",
+        "transport-loss lookup tests",
+        "nullifier and fingerprint uniqueness constraints"
+      ],
+      "runtime_projection": [
+        "project_request_identity_v1",
+        "project_retry_classifier_v1",
+        "project_client_observation_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_nonce_retry_classifier_v1",
+      "visible_trust_premises": [
+        "authenticated request identity and nonce derivation are sound"
+      ]
+    },
+    {
+      "action_to_scenario": {
+        "add_surplus_row": "@model_fcis_m6_history_fixed_point_v1",
+        "canonical_reencode": "@model_fcis_m6_history_fixed_point_v1",
+        "cross_relation_rows": "@model_fcis_m6_history_fixed_point_v1",
+        "materialize_canonical_layout": "@model_fcis_m6_history_fixed_point_v1",
+        "remove_authority_row": "@model_fcis_m6_history_fixed_point_v1",
+        "remove_evidence_row": "@model_fcis_m6_history_fixed_point_v1",
+        "remove_history_row": "@model_fcis_m6_history_fixed_point_v1",
+        "remove_nullifier_row": "@model_fcis_m6_history_fixed_point_v1",
+        "remove_outbox_row": "@model_fcis_m6_history_fixed_point_v1",
+        "remove_receipt_row": "@model_fcis_m6_history_fixed_point_v1",
+        "remove_state_row": "@model_fcis_m6_history_fixed_point_v1",
+        "reopen_accept": "@model_fcis_m6_history_fixed_point_v1",
+        "reopen_reject": "@model_fcis_m6_history_fixed_point_v1",
+        "restart_reopen_boundary": "@model_fcis_m6_history_fixed_point_v1"
+      },
+      "formal_actions": [
+        "materialize_canonical_layout",
+        "reopen_accept",
+        "restart_reopen_boundary",
+        "remove_state_row",
+        "remove_history_row",
+        "remove_evidence_row",
+        "remove_nullifier_row",
+        "remove_receipt_row",
+        "remove_outbox_row",
+        "remove_authority_row",
+        "cross_relation_rows",
+        "add_surplus_row",
+        "canonical_reencode",
+        "reopen_reject"
+      ],
+      "formal_invariants": [
+        "OpenRequiresStateRow",
+        "OpenRequiresHistoryRow",
+        "OpenRequiresEvidenceRow",
+        "OpenRequiresNullifierRow",
+        "OpenRequiresReceiptRow",
+        "OpenRequiresOutboxRow",
+        "OpenRequiresAuthorityRow",
+        "OpenRequiresValidRelations",
+        "OpenRequiresExactLayout",
+        "OpenRequiresFixedPoint",
+        "FixedPointRequiresCompleteLayout"
+      ],
+      "model_id": "fcis_m6_history_fixed_point_v1",
+      "model_path": "formal/esso/fcis_m6_history_fixed_point_v1.yaml",
+      "principal_role": "canonical_history_fixed_point",
+      "required_runtime_evidence": [
+        "one canonical history encoder",
+        "total fail-closed reopen",
+        "all-table corruption campaign",
+        "concrete storage refinement"
+      ],
+      "runtime_projection": [
+        "project_durable_layout_v1",
+        "project_authorized_history_v1",
+        "project_reencoded_layout_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_history_fixed_point_v1",
+      "visible_trust_premises": [
+        "storage engine exposes the complete physical layout checked by reopen"
+      ]
+    },
+    {
+      "action_to_scenario": {
+        "accept_faulty_context": "@model_fcis_m6_proof_context_v1",
+        "accept_without_proof": "@model_fcis_m6_proof_context_v1",
+        "accept_without_registry": "@model_fcis_m6_proof_context_v1",
+        "pin_verifier_registry": "@model_fcis_m6_proof_context_v1",
+        "reject_faulty_proof": "@model_fcis_m6_proof_context_v1",
+        "retire_registry": "@model_fcis_m6_proof_context_v1",
+        "supply_exact_proof": "@model_fcis_m6_proof_context_v1",
+        "supply_faulty_context": "@model_fcis_m6_proof_context_v1",
+        "verify_exact_proof": "@model_fcis_m6_proof_context_v1"
+      },
+      "formal_actions": [
+        "pin_verifier_registry",
+        "supply_exact_proof",
+        "supply_faulty_context",
+        "verify_exact_proof",
+        "reject_faulty_proof",
+        "retire_registry",
+        "accept_without_registry",
+        "accept_without_proof",
+        "accept_faulty_context"
+      ],
+      "formal_invariants": [
+        "AcceptedIffVerifierReceipt",
+        "AcceptedRequiresPinnedRegistry",
+        "AcceptedRequiresProofPresent",
+        "AcceptedRequiresExactContext"
+      ],
+      "model_id": "fcis_m6_proof_context_v1",
+      "model_path": "formal/esso/fcis_m6_proof_context_v1.yaml",
+      "principal_role": "proof_context_binding",
+      "required_runtime_evidence": [
+        "canonical context bytes",
+        "pinned key and verifier registry",
+        "public-input recomputation",
+        "cross-deployment and stale-key negative tests"
+      ],
+      "runtime_projection": [
+        "project_proof_context_v1",
+        "project_pinned_verifier_registry_v1",
+        "project_public_inputs_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_proof_context_v1",
+      "visible_trust_premises": [
+        "cryptographic verifier and registry authentication are sound"
+      ]
+    },
+    {
+      "action_to_scenario": {
+        "accept_deficit_risk_increase": "@model_fcis_m6_oracle_risk_gate_v1",
+        "accept_pending_risk_increase": "@model_fcis_m6_oracle_risk_gate_v1",
+        "accept_risk_increase": "@model_fcis_m6_oracle_risk_gate_v1",
+        "accept_risk_reduce": "@model_fcis_m6_oracle_risk_gate_v1",
+        "accept_unbound_risk_reduce": "@model_fcis_m6_oracle_risk_gate_v1",
+        "bind_oracle_context": "@model_fcis_m6_oracle_risk_gate_v1",
+        "prepare_unbound_context": "@model_fcis_m6_oracle_risk_gate_v1",
+        "reject_invalid_context": "@model_fcis_m6_oracle_risk_gate_v1"
+      },
+      "formal_actions": [
+        "bind_oracle_context",
+        "prepare_unbound_context",
+        "accept_risk_increase",
+        "accept_risk_reduce",
+        "reject_invalid_context",
+        "accept_pending_risk_increase",
+        "accept_deficit_risk_increase",
+        "accept_unbound_risk_reduce"
+      ],
+      "formal_invariants": [
+        "RiskIncreaseRequiresFinalFresh",
+        "PriceDependentAcceptRequiresBoundContext",
+        "ValueChangeRequiresEconomicCertificate",
+        "RejectHasNoValueChange"
+      ],
+      "model_id": "fcis_m6_oracle_risk_gate_v1",
+      "model_path": "formal/esso/fcis_m6_oracle_risk_gate_v1.yaml",
+      "principal_role": "oracle_gated_risk_safety",
+      "required_runtime_evidence": [
+        "seen/positive/finalized/fresh oracle checks",
+        "execution-context binding",
+        "risk-increasing command inventory",
+        "deficit/recovery-mode tests"
+      ],
+      "runtime_projection": [
+        "project_oracle_context_v1",
+        "project_risk_classification_v1",
+        "project_economic_certificate_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_oracle_risk_gate_v1",
+      "visible_trust_premises": [
+        "oracle authentication and finality source are sound"
+      ]
+    },
+    {
+      "action_to_scenario": {
+        "anchor_authenticated_checkpoint": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+        "authenticate_current_ledger_checkpoint": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+        "commit_during_tau_rejoin": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+        "commit_with_tau_available": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+        "commit_with_tau_censoring": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+        "commit_with_tau_unavailable": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+        "execute_tau_dependent_operation": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+        "reject_tau_dependent_operation": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+        "tau_becomes_unavailable": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+        "tau_begins_censoring": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+        "tau_recovers_from_censorship": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+        "tau_recovers_from_unavailable": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+        "tau_rewrite_ledger_head": "@model_fcis_m6_zenoledger_tau_continuity_v1"
+      },
+      "formal_actions": [
+        "commit_with_tau_available",
+        "commit_with_tau_unavailable",
+        "commit_with_tau_censoring",
+        "commit_during_tau_rejoin",
+        "tau_becomes_unavailable",
+        "tau_begins_censoring",
+        "tau_recovers_from_unavailable",
+        "tau_recovers_from_censorship",
+        "authenticate_current_ledger_checkpoint",
+        "anchor_authenticated_checkpoint",
+        "execute_tau_dependent_operation",
+        "reject_tau_dependent_operation",
+        "tau_rewrite_ledger_head"
+      ],
+      "formal_invariants": [
+        "LedgerHeadEqualsCommitCount",
+        "TauDisruptionPreservesLedgerWriter",
+        "TauAnchorNotAheadOfLedger",
+        "AuthenticatedCheckpointIsCurrent",
+        "TauAuthorityRequiresAvailable",
+        "TauAuthorityRequiresCurrentAnchor",
+        "TauAuthorityRequiresCurrentCheckpoint"
+      ],
+      "model_id": "fcis_m6_zenoledger_tau_continuity_v1",
+      "model_path": "formal/esso/fcis_m6_zenoledger_tau_continuity_v1.yaml",
+      "principal_role": "zenoledger_canonical_tau_optional_continuity",
+      "required_runtime_evidence": [
+        "concrete ZenoLedger durability and finality refinement",
+        "Tau outage and censorship continuity tests through mounted ZenoLedger entrypoints",
+        "authenticated current-checkpoint rejoin tests",
+        "reorganization and stale-checkpoint rejection tests"
+      ],
+      "runtime_projection": [
+        "project_zenoledger_tau_continuity_state_v1",
+        "project_tau_integration_event_v1",
+        "project_zenoledger_checkpoint_binding_v1"
+      ],
+      "runtime_status": "SPEC_ONLY_UNMOUNTED",
+      "scenario_tag": "@model_fcis_m6_zenoledger_tau_continuity_v1",
+      "visible_trust_premises": [
+        "ZenoLedger itself is operational and its consensus and durability contract is sound",
+        "Tau checkpoint authentication and finality are sound"
+      ]
+    }
+  ],
+  "feature_file": "features/fcis_m6_formal_runtime_refinement.feature",
+  "formal_suite": "formal/esso/fcis_m6_formal_suite_v1.json",
+  "promotion_rule": "No entry may become IMPLEMENTED, MOUNTED, or TESTED unless its evidence binds the same exact promotion subject as the formal solver receipts.",
+  "promotion_subject_required": true,
+  "projection_contract": {
+    "promotion_condition": "Each declared projection must become a total canonical callable with same-subject differential evidence before Grade R.",
+    "registered_ids": [
+      "derive_m6_promotion_subject_v1",
+      "project_asset_state_v1",
+      "project_authorization_token_v1",
+      "project_authorized_history_v1",
+      "project_client_observation_v1",
+      "project_committed_outbox_v1",
+      "project_destination_receipt_v1",
+      "project_durable_layout_v1",
+      "project_economic_certificate_v1",
+      "project_evidence_subject_v1",
+      "project_managed_asset_command_v1",
+      "project_migration_phase_v1",
+      "project_mounted_entrypoint_v1",
+      "project_oracle_context_v1",
+      "project_pinned_verifier_registry_v1",
+      "project_proof_context_v1",
+      "project_public_inputs_v1",
+      "project_publication_atom_v1",
+      "project_reencoded_layout_v1",
+      "project_reopened_head_v1",
+      "project_request_identity_v1",
+      "project_retry_classifier_v1",
+      "project_risk_classification_v1",
+      "project_tau_integration_event_v1",
+      "project_transport_receipt_v1",
+      "project_unique_commit_capability_v1",
+      "project_value_command_v1",
+      "project_value_result_v1",
+      "project_writer_epoch_v1",
+      "project_zenoledger_checkpoint_binding_v1",
+      "project_zenoledger_tau_continuity_state_v1",
+      "project_zusd_supply_debt_claim_v1"
+    ],
+    "status": "DECLARED_ONLY_NO_RUNTIME_IMPLEMENTATION"
+  },
+  "schema": "zenodex/fcis/m6/formal-runtime-refinement-matrix/v1"
+}

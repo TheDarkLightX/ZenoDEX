@@ -1,0 +1,263 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_nonce_retry_classifier_v1
+  created_by: gpt-5.6-pro-fcis-formal-closure
+  seed: 0
+  notes: >-
+    One-request bounded classifier for authenticated nonce/nullifier publication,
+    exact retry, identity collision, nullifier conflict, stale expected head, and
+    transport uncertainty. INDETERMINATE exists only as a client observation;
+    the durable classification enum has no indeterminate member.
+observables:
+  state_vars:
+  - commit_status
+  - commit_count
+  - head
+  - identity_sealed
+  - nullifier_consumed
+  - last_relation
+  - last_class
+  - client_observation
+  effects: []
+types: []
+state_vars:
+- id: commit_status
+  role: control
+  type:
+    kind: enum
+    symbols: [ABSENT, COMMITTED]
+- id: commit_count
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 1
+- id: head
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 1
+- id: identity_sealed
+  role: data
+  type: {kind: bool}
+- id: nullifier_consumed
+  role: data
+  type: {kind: bool}
+- id: last_relation
+  role: control
+  type:
+    kind: enum
+    symbols: [NONE, ABSENT, EXACT_RETRY, ID_COLLISION, NULLIFIER_CONFLICT, STALE]
+- id: last_class
+  role: control
+  type:
+    kind: enum
+    symbols: [NONE, NEWLY_COMMITTED, ALREADY_COMMITTED, DEFINITE_REJECTION, STALE_STATE]
+- id: client_observation
+  role: control
+  type:
+    kind: enum
+    symbols: [NONE, CONFIRMED_NEW, CONFIRMED_ALREADY, CONFIRMED_STALE, CONFIRMED_REJECTION, INDETERMINATE]
+invariants:
+- id: CommittedIffOneCount
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - op: '='
+      args: [{var: commit_status}, {enum: COMMITTED}]
+    - op: '='
+      args: [{var: commit_count}, {const: 1}]
+- id: HeadEqualsCommitCount
+  kind: safety
+  expr:
+    op: '='
+    args: [{var: head}, {var: commit_count}]
+- id: CommittedIdentitySealed
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: '='
+      args: [{var: commit_status}, {enum: COMMITTED}]
+    - {var: identity_sealed}
+- id: CommittedNullifierConsumed
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: '='
+      args: [{var: commit_status}, {enum: COMMITTED}]
+    - {var: nullifier_consumed}
+- id: AbsentRelationClassifiesNew
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: '='
+      args: [{var: last_relation}, {enum: ABSENT}]
+    - op: '='
+      args: [{var: last_class}, {enum: NEWLY_COMMITTED}]
+- id: ExactRetryClassifiesAlready
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: '='
+      args: [{var: last_relation}, {enum: EXACT_RETRY}]
+    - op: '='
+      args: [{var: last_class}, {enum: ALREADY_COMMITTED}]
+- id: CollisionClassifiesRejection
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: or
+      args:
+      - op: '='
+        args: [{var: last_relation}, {enum: ID_COLLISION}]
+      - op: '='
+        args: [{var: last_relation}, {enum: NULLIFIER_CONFLICT}]
+    - op: '='
+      args: [{var: last_class}, {enum: DEFINITE_REJECTION}]
+- id: StaleRelationClassifiesStale
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: '='
+      args: [{var: last_relation}, {enum: STALE}]
+    - op: '='
+      args: [{var: last_class}, {enum: STALE_STATE}]
+init:
+- var: commit_status
+  expr: {enum: ABSENT}
+- var: commit_count
+  expr: {const: 0}
+- var: head
+  expr: {const: 0}
+- var: identity_sealed
+  expr: {bool: false}
+- var: nullifier_consumed
+  expr: {bool: false}
+- var: last_relation
+  expr: {enum: NONE}
+- var: last_class
+  expr: {enum: NONE}
+- var: client_observation
+  expr: {enum: NONE}
+actions:
+- id: commit_new_request
+  params: []
+  guard:
+    op: and
+    args:
+    - op: '='
+      args: [{var: commit_status}, {enum: ABSENT}]
+    - op: '='
+      args: [{var: head}, {const: 0}]
+  updates:
+  - var: commit_status
+    expr: {enum: COMMITTED}
+  - var: commit_count
+    expr: {const: 1}
+  - var: head
+    expr: {const: 1}
+  - var: identity_sealed
+    expr: {bool: true}
+  - var: nullifier_consumed
+    expr: {bool: true}
+  - var: last_relation
+    expr: {enum: ABSENT}
+  - var: last_class
+    expr: {enum: NEWLY_COMMITTED}
+  - var: client_observation
+    expr: {enum: CONFIRMED_NEW}
+  effects: {}
+- id: retry_exact_request
+  params: []
+  guard:
+    op: '='
+    args: [{var: commit_status}, {enum: COMMITTED}]
+  updates:
+  - var: last_relation
+    expr: {enum: EXACT_RETRY}
+  - var: last_class
+    expr: {enum: ALREADY_COMMITTED}
+  - var: client_observation
+    expr: {enum: CONFIRMED_ALREADY}
+  effects: {}
+- id: reject_id_collision
+  params: []
+  guard:
+    op: '='
+    args: [{var: commit_status}, {enum: COMMITTED}]
+  updates:
+  - var: last_relation
+    expr: {enum: ID_COLLISION}
+  - var: last_class
+    expr: {enum: DEFINITE_REJECTION}
+  - var: client_observation
+    expr: {enum: CONFIRMED_REJECTION}
+  effects: {}
+- id: reject_nullifier_conflict
+  params: []
+  guard:
+    op: and
+    args:
+    - op: '='
+      args: [{var: commit_status}, {enum: COMMITTED}]
+    - {var: nullifier_consumed}
+  updates:
+  - var: last_relation
+    expr: {enum: NULLIFIER_CONFLICT}
+  - var: last_class
+    expr: {enum: DEFINITE_REJECTION}
+  - var: client_observation
+    expr: {enum: CONFIRMED_REJECTION}
+  effects: {}
+- id: classify_stale_head
+  params: []
+  guard:
+    op: '='
+    args: [{var: head}, {const: 1}]
+  updates:
+  - var: last_relation
+    expr: {enum: STALE}
+  - var: last_class
+    expr: {enum: STALE_STATE}
+  - var: client_observation
+    expr: {enum: CONFIRMED_STALE}
+  effects: {}
+- id: lose_response_after_commit
+  params: []
+  guard:
+    op: '='
+    args: [{var: commit_status}, {enum: COMMITTED}]
+  updates:
+  - var: client_observation
+    expr: {enum: INDETERMINATE}
+  effects: {}
+- id: lose_request_before_server
+  params: []
+  guard:
+    op: '='
+    args: [{var: commit_status}, {enum: ABSENT}]
+  updates:
+  - var: client_observation
+    expr: {enum: INDETERMINATE}
+  effects: {}
+- id: lookup_committed_request
+  params: []
+  guard:
+    op: '='
+    args: [{var: commit_status}, {enum: COMMITTED}]
+  updates:
+  - var: last_relation
+    expr: {enum: EXACT_RETRY}
+  - var: last_class
+    expr: {enum: ALREADY_COMMITTED}
+  - var: client_observation
+    expr: {enum: CONFIRMED_ALREADY}
+  effects: {}

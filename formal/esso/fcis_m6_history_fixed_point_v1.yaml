@@ -1,0 +1,265 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_history_fixed_point_v1
+  created_by: gpt-5.6-pro-fcis-formal-closure
+  seed: 0
+  notes: >-
+    Canonical durable history abstraction. Physical partial, surplus, crossed,
+    or corrupted layouts may exist after faults, but canonical reopen may accept
+    only a complete relation-valid whole-layout encoder fixed point.
+observables:
+  state_vars:
+  - state_row
+  - history_row
+  - evidence_row
+  - nullifier_row
+  - receipt_row
+  - outbox_row
+  - authority_row
+  - relations_valid
+  - layout_exact
+  - fixed_point
+  - canonical_open
+  effects: []
+types: []
+state_vars:
+- id: state_row
+  role: data
+  type: {kind: bool}
+- id: history_row
+  role: data
+  type: {kind: bool}
+- id: evidence_row
+  role: data
+  type: {kind: bool}
+- id: nullifier_row
+  role: data
+  type: {kind: bool}
+- id: receipt_row
+  role: data
+  type: {kind: bool}
+- id: outbox_row
+  role: data
+  type: {kind: bool}
+- id: authority_row
+  role: data
+  type: {kind: bool}
+- id: relations_valid
+  role: data
+  type: {kind: bool}
+- id: layout_exact
+  role: data
+  type: {kind: bool}
+- id: fixed_point
+  role: data
+  type: {kind: bool}
+- id: canonical_open
+  role: control
+  type: {kind: bool}
+invariants:
+- id: OpenRequiresStateRow
+  kind: safety
+  expr: {op: '=>', args: [{var: canonical_open}, {var: state_row}]}
+- id: OpenRequiresHistoryRow
+  kind: safety
+  expr: {op: '=>', args: [{var: canonical_open}, {var: history_row}]}
+- id: OpenRequiresEvidenceRow
+  kind: safety
+  expr: {op: '=>', args: [{var: canonical_open}, {var: evidence_row}]}
+- id: OpenRequiresNullifierRow
+  kind: safety
+  expr: {op: '=>', args: [{var: canonical_open}, {var: nullifier_row}]}
+- id: OpenRequiresReceiptRow
+  kind: safety
+  expr: {op: '=>', args: [{var: canonical_open}, {var: receipt_row}]}
+- id: OpenRequiresOutboxRow
+  kind: safety
+  expr: {op: '=>', args: [{var: canonical_open}, {var: outbox_row}]}
+- id: OpenRequiresAuthorityRow
+  kind: safety
+  expr: {op: '=>', args: [{var: canonical_open}, {var: authority_row}]}
+- id: OpenRequiresValidRelations
+  kind: safety
+  expr: {op: '=>', args: [{var: canonical_open}, {var: relations_valid}]}
+- id: OpenRequiresExactLayout
+  kind: safety
+  expr: {op: '=>', args: [{var: canonical_open}, {var: layout_exact}]}
+- id: OpenRequiresFixedPoint
+  kind: safety
+  expr: {op: '=>', args: [{var: canonical_open}, {var: fixed_point}]}
+- id: FixedPointRequiresCompleteLayout
+  kind: safety
+  expr:
+    op: '=>'
+    args:
+    - {var: fixed_point}
+    - op: and
+      args:
+      - {var: state_row}
+      - {var: history_row}
+      - {var: evidence_row}
+      - {var: nullifier_row}
+      - {var: receipt_row}
+      - {var: outbox_row}
+      - {var: authority_row}
+      - {var: relations_valid}
+      - {var: layout_exact}
+init:
+- var: state_row
+  expr: {bool: false}
+- var: history_row
+  expr: {bool: false}
+- var: evidence_row
+  expr: {bool: false}
+- var: nullifier_row
+  expr: {bool: false}
+- var: receipt_row
+  expr: {bool: false}
+- var: outbox_row
+  expr: {bool: false}
+- var: authority_row
+  expr: {bool: false}
+- var: relations_valid
+  expr: {bool: false}
+- var: layout_exact
+  expr: {bool: false}
+- var: fixed_point
+  expr: {bool: false}
+- var: canonical_open
+  expr: {bool: false}
+actions:
+- id: materialize_canonical_layout
+  params: []
+  guard: {bool: true}
+  updates:
+  - {var: state_row, expr: {bool: true}}
+  - {var: history_row, expr: {bool: true}}
+  - {var: evidence_row, expr: {bool: true}}
+  - {var: nullifier_row, expr: {bool: true}}
+  - {var: receipt_row, expr: {bool: true}}
+  - {var: outbox_row, expr: {bool: true}}
+  - {var: authority_row, expr: {bool: true}}
+  - {var: relations_valid, expr: {bool: true}}
+  - {var: layout_exact, expr: {bool: true}}
+  - {var: fixed_point, expr: {bool: true}}
+  - {var: canonical_open, expr: {bool: false}}
+  effects: {}
+- id: reopen_accept
+  params: []
+  guard:
+    op: and
+    args:
+    - {var: state_row}
+    - {var: history_row}
+    - {var: evidence_row}
+    - {var: nullifier_row}
+    - {var: receipt_row}
+    - {var: outbox_row}
+    - {var: authority_row}
+    - {var: relations_valid}
+    - {var: layout_exact}
+    - {var: fixed_point}
+  updates:
+  - {var: canonical_open, expr: {bool: true}}
+  effects: {}
+- id: restart_reopen_boundary
+  params: []
+  guard: {bool: true}
+  updates:
+  - {var: canonical_open, expr: {bool: false}}
+  effects: {}
+- id: remove_state_row
+  params: []
+  guard: {var: state_row}
+  updates:
+  - {var: state_row, expr: {bool: false}}
+  - {var: fixed_point, expr: {bool: false}}
+  - {var: canonical_open, expr: {bool: false}}
+  effects: {}
+- id: remove_history_row
+  params: []
+  guard: {var: history_row}
+  updates:
+  - {var: history_row, expr: {bool: false}}
+  - {var: fixed_point, expr: {bool: false}}
+  - {var: canonical_open, expr: {bool: false}}
+  effects: {}
+- id: remove_evidence_row
+  params: []
+  guard: {var: evidence_row}
+  updates:
+  - {var: evidence_row, expr: {bool: false}}
+  - {var: fixed_point, expr: {bool: false}}
+  - {var: canonical_open, expr: {bool: false}}
+  effects: {}
+- id: remove_nullifier_row
+  params: []
+  guard: {var: nullifier_row}
+  updates:
+  - {var: nullifier_row, expr: {bool: false}}
+  - {var: fixed_point, expr: {bool: false}}
+  - {var: canonical_open, expr: {bool: false}}
+  effects: {}
+- id: remove_receipt_row
+  params: []
+  guard: {var: receipt_row}
+  updates:
+  - {var: receipt_row, expr: {bool: false}}
+  - {var: fixed_point, expr: {bool: false}}
+  - {var: canonical_open, expr: {bool: false}}
+  effects: {}
+- id: remove_outbox_row
+  params: []
+  guard: {var: outbox_row}
+  updates:
+  - {var: outbox_row, expr: {bool: false}}
+  - {var: fixed_point, expr: {bool: false}}
+  - {var: canonical_open, expr: {bool: false}}
+  effects: {}
+- id: remove_authority_row
+  params: []
+  guard: {var: authority_row}
+  updates:
+  - {var: authority_row, expr: {bool: false}}
+  - {var: fixed_point, expr: {bool: false}}
+  - {var: canonical_open, expr: {bool: false}}
+  effects: {}
+- id: cross_relation_rows
+  params: []
+  guard: {bool: true}
+  updates:
+  - {var: relations_valid, expr: {bool: false}}
+  - {var: fixed_point, expr: {bool: false}}
+  - {var: canonical_open, expr: {bool: false}}
+  effects: {}
+- id: add_surplus_row
+  params: []
+  guard: {bool: true}
+  updates:
+  - {var: layout_exact, expr: {bool: false}}
+  - {var: fixed_point, expr: {bool: false}}
+  - {var: canonical_open, expr: {bool: false}}
+  effects: {}
+- id: canonical_reencode
+  params: []
+  guard:
+    op: and
+    args:
+    - {var: state_row}
+    - {var: history_row}
+    - {var: evidence_row}
+    - {var: nullifier_row}
+    - {var: receipt_row}
+    - {var: outbox_row}
+    - {var: authority_row}
+    - {var: relations_valid}
+    - {var: layout_exact}
+  updates:
+  - {var: fixed_point, expr: {bool: true}}
+  effects: {}
+- id: reopen_reject
+  params: []
+  guard: {bool: true}
+  updates:
+  - {var: canonical_open, expr: {bool: false}}
+  effects: {}

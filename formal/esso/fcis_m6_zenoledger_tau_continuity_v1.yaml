@@ -1,0 +1,468 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_zenoledger_tau_continuity_v1
+  created_by: codex-fcis-m6-pr509-repair
+  seed: 0
+  notes: >-
+    ZenoLedger is the canonical economic ledger. Authenticated Tau integration
+    is an optional preferred service. Tau unavailability or censorship removes
+    Tau-dependent authority without changing ZenoLedger write authority. A Tau
+    rejoin may anchor only a freshly authenticated current ZenoLedger checkpoint
+    and never rewrites the canonical ZenoLedger head. This bounded lane assumes
+    ZenoLedger itself remains operational; its concrete consensus, durability,
+    and no-bypass refinement remain external premises.
+observables:
+  state_vars:
+  - ledger_head
+  - committed_count
+  - ledger_writer_enabled
+  - tau_status
+  - tau_anchor_head
+  - checkpoint_authenticated
+  - authenticated_checkpoint_head
+  - tau_dependent_authorized
+  effects: []
+types: []
+state_vars:
+- id: ledger_head
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 2
+- id: committed_count
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 2
+- id: ledger_writer_enabled
+  role: control
+  type:
+    kind: bool
+- id: tau_status
+  role: control
+  type:
+    kind: enum
+    symbols:
+    - AVAILABLE
+    - UNAVAILABLE
+    - CENSORING
+    - REJOINING
+- id: tau_anchor_head
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 2
+- id: checkpoint_authenticated
+  role: data
+  type:
+    kind: bool
+- id: authenticated_checkpoint_head
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 2
+- id: tau_dependent_authorized
+  role: control
+  type:
+    kind: bool
+invariants:
+- id: LedgerHeadEqualsCommitCount
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: ledger_head
+    - var: committed_count
+- id: TauDisruptionPreservesLedgerWriter
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - op: '!='
+      args:
+      - var: tau_status
+      - enum: AVAILABLE
+    - var: ledger_writer_enabled
+- id: TauAnchorNotAheadOfLedger
+  kind: safety
+  expr:
+    op: <=
+    args:
+    - var: tau_anchor_head
+    - var: ledger_head
+- id: AuthenticatedCheckpointIsCurrent
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: checkpoint_authenticated
+    - op: '='
+      args:
+      - var: authenticated_checkpoint_head
+      - var: ledger_head
+- id: TauAuthorityRequiresAvailable
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: tau_dependent_authorized
+    - op: '='
+      args:
+      - var: tau_status
+      - enum: AVAILABLE
+- id: TauAuthorityRequiresCurrentAnchor
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: tau_dependent_authorized
+    - op: '='
+      args:
+      - var: tau_anchor_head
+      - var: ledger_head
+- id: TauAuthorityRequiresCurrentCheckpoint
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: tau_dependent_authorized
+    - op: and
+      args:
+      - var: checkpoint_authenticated
+      - op: '='
+        args:
+        - var: authenticated_checkpoint_head
+        - var: ledger_head
+init:
+- var: ledger_head
+  expr:
+    const: 0
+- var: committed_count
+  expr:
+    const: 0
+- var: ledger_writer_enabled
+  expr:
+    bool: true
+- var: tau_status
+  expr:
+    enum: AVAILABLE
+- var: tau_anchor_head
+  expr:
+    const: 0
+- var: checkpoint_authenticated
+  expr:
+    bool: true
+- var: authenticated_checkpoint_head
+  expr:
+    const: 0
+- var: tau_dependent_authorized
+  expr:
+    bool: true
+actions:
+- id: commit_with_tau_available
+  params: []
+  guard:
+    op: and
+    args:
+    - var: ledger_writer_enabled
+    - op: '='
+      args:
+      - var: tau_status
+      - enum: AVAILABLE
+    - op: <
+      args:
+      - var: ledger_head
+      - const: 2
+  updates:
+  - var: ledger_head
+    expr:
+      op: +
+      args:
+      - var: ledger_head
+      - const: 1
+  - var: committed_count
+    expr:
+      op: +
+      args:
+      - var: committed_count
+      - const: 1
+  - var: checkpoint_authenticated
+    expr:
+      bool: false
+  - var: tau_dependent_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: commit_with_tau_unavailable
+  params: []
+  guard:
+    op: and
+    args:
+    - var: ledger_writer_enabled
+    - op: '='
+      args:
+      - var: tau_status
+      - enum: UNAVAILABLE
+    - op: <
+      args:
+      - var: ledger_head
+      - const: 2
+  updates:
+  - var: ledger_head
+    expr:
+      op: +
+      args:
+      - var: ledger_head
+      - const: 1
+  - var: committed_count
+    expr:
+      op: +
+      args:
+      - var: committed_count
+      - const: 1
+  - var: checkpoint_authenticated
+    expr:
+      bool: false
+  - var: tau_dependent_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: commit_with_tau_censoring
+  params: []
+  guard:
+    op: and
+    args:
+    - var: ledger_writer_enabled
+    - op: '='
+      args:
+      - var: tau_status
+      - enum: CENSORING
+    - op: <
+      args:
+      - var: ledger_head
+      - const: 2
+  updates:
+  - var: ledger_head
+    expr:
+      op: +
+      args:
+      - var: ledger_head
+      - const: 1
+  - var: committed_count
+    expr:
+      op: +
+      args:
+      - var: committed_count
+      - const: 1
+  - var: checkpoint_authenticated
+    expr:
+      bool: false
+  - var: tau_dependent_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: commit_during_tau_rejoin
+  params: []
+  guard:
+    op: and
+    args:
+    - var: ledger_writer_enabled
+    - op: '='
+      args:
+      - var: tau_status
+      - enum: REJOINING
+    - op: <
+      args:
+      - var: ledger_head
+      - const: 2
+  updates:
+  - var: ledger_head
+    expr:
+      op: +
+      args:
+      - var: ledger_head
+      - const: 1
+  - var: committed_count
+    expr:
+      op: +
+      args:
+      - var: committed_count
+      - const: 1
+  - var: checkpoint_authenticated
+    expr:
+      bool: false
+  - var: tau_dependent_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: tau_becomes_unavailable
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: tau_status
+    - enum: AVAILABLE
+  updates:
+  - var: tau_status
+    expr:
+      enum: UNAVAILABLE
+  - var: checkpoint_authenticated
+    expr:
+      bool: false
+  - var: tau_dependent_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: tau_begins_censoring
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: tau_status
+    - enum: AVAILABLE
+  updates:
+  - var: tau_status
+    expr:
+      enum: CENSORING
+  - var: checkpoint_authenticated
+    expr:
+      bool: false
+  - var: tau_dependent_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: tau_recovers_from_unavailable
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: tau_status
+    - enum: UNAVAILABLE
+  updates:
+  - var: tau_status
+    expr:
+      enum: REJOINING
+  - var: checkpoint_authenticated
+    expr:
+      bool: false
+  - var: tau_dependent_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: tau_recovers_from_censorship
+  params: []
+  guard:
+    op: '='
+    args:
+    - var: tau_status
+    - enum: CENSORING
+  updates:
+  - var: tau_status
+    expr:
+      enum: REJOINING
+  - var: checkpoint_authenticated
+    expr:
+      bool: false
+  - var: tau_dependent_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: authenticate_current_ledger_checkpoint
+  params: []
+  guard:
+    op: or
+    args:
+    - op: '='
+      args:
+      - var: tau_status
+      - enum: AVAILABLE
+    - op: '='
+      args:
+      - var: tau_status
+      - enum: REJOINING
+  updates:
+  - var: checkpoint_authenticated
+    expr:
+      bool: true
+  - var: authenticated_checkpoint_head
+    expr:
+      var: ledger_head
+  - var: tau_dependent_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: anchor_authenticated_checkpoint
+  params: []
+  guard:
+    op: and
+    args:
+    - var: checkpoint_authenticated
+    - op: '='
+      args:
+      - var: authenticated_checkpoint_head
+      - var: ledger_head
+    - op: or
+      args:
+      - op: '='
+        args:
+        - var: tau_status
+        - enum: AVAILABLE
+      - op: '='
+        args:
+        - var: tau_status
+        - enum: REJOINING
+  updates:
+  - var: tau_anchor_head
+    expr:
+      var: ledger_head
+  - var: tau_status
+    expr:
+      enum: AVAILABLE
+  - var: tau_dependent_authorized
+    expr:
+      bool: true
+  effects: {}
+- id: execute_tau_dependent_operation
+  params: []
+  guard:
+    op: and
+    args:
+    - var: tau_dependent_authorized
+    - op: '='
+      args:
+      - var: tau_status
+      - enum: AVAILABLE
+    - op: '='
+      args:
+      - var: tau_anchor_head
+      - var: ledger_head
+    - var: checkpoint_authenticated
+  updates: []
+  effects: {}
+- id: reject_tau_dependent_operation
+  params: []
+  guard:
+    op: or
+    args:
+    - op: '!='
+      args:
+      - var: tau_status
+      - enum: AVAILABLE
+    - op: not
+      args:
+      - var: tau_dependent_authorized
+  updates: []
+  effects: {}
+- id: tau_rewrite_ledger_head
+  params: []
+  guard:
+    bool: false
+  updates:
+  - var: ledger_head
+    expr:
+      const: 2
+  effects: {}

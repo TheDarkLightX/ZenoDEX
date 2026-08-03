@@ -1,0 +1,186 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_oracle_risk_gate_v1
+  created_by: gpt-5.6-pro-fcis-formal-closure
+  seed: 0
+  notes: >-
+    Price-dependent risk gate. Risk-increasing value movement is accepted only
+    under an execution-context-bound, positive, finalized, fresh, non-deficit
+    observation. Risk-reducing recovery/liquidation may operate under an exact
+    finalized deficit context. Disabled hostile accepts retain stale, pending,
+    deficit, and unbound counterexamples.
+observables:
+  state_vars:
+  - oracle_status
+  - context_bound
+  - last_decision
+  - value_changed
+  - economic_certificate
+  effects: []
+types: []
+state_vars:
+- id: oracle_status
+  role: control
+  type:
+    kind: enum
+    symbols: [UNSEEN, NONPOSITIVE, PENDING, STALE, FINAL_FRESH, FINAL_DEFICIT]
+- id: context_bound
+  role: data
+  type: {kind: bool}
+- id: last_decision
+  role: control
+  type:
+    kind: enum
+    symbols: [NONE, RISK_INCREASE_ACCEPT, RISK_REDUCE_ACCEPT, REJECT]
+- id: value_changed
+  role: data
+  type: {kind: bool}
+- id: economic_certificate
+  role: data
+  type: {kind: bool}
+invariants:
+- id: RiskIncreaseRequiresFinalFresh
+  kind: safety
+  expr:
+    op: '=>'
+    args:
+    - op: '='
+      args: [{var: last_decision}, {enum: RISK_INCREASE_ACCEPT}]
+    - op: '='
+      args: [{var: oracle_status}, {enum: FINAL_FRESH}]
+- id: PriceDependentAcceptRequiresBoundContext
+  kind: safety
+  expr:
+    op: '=>'
+    args:
+    - op: or
+      args:
+      - op: '='
+        args: [{var: last_decision}, {enum: RISK_INCREASE_ACCEPT}]
+      - op: '='
+        args: [{var: last_decision}, {enum: RISK_REDUCE_ACCEPT}]
+    - {var: context_bound}
+- id: ValueChangeRequiresEconomicCertificate
+  kind: safety
+  expr: {op: '=>', args: [{var: value_changed}, {var: economic_certificate}]}
+- id: RejectHasNoValueChange
+  kind: safety
+  expr:
+    op: '=>'
+    args:
+    - op: '='
+      args: [{var: last_decision}, {enum: REJECT}]
+    - op: not
+      args: [{var: value_changed}]
+init:
+- var: oracle_status
+  expr: {enum: UNSEEN}
+- var: context_bound
+  expr: {bool: false}
+- var: last_decision
+  expr: {enum: NONE}
+- var: value_changed
+  expr: {bool: false}
+- var: economic_certificate
+  expr: {bool: false}
+actions:
+- id: bind_oracle_context
+  params:
+  - id: status
+    type:
+      kind: enum
+      symbols: [UNSEEN, NONPOSITIVE, PENDING, STALE, FINAL_FRESH, FINAL_DEFICIT]
+  guard:
+    op: '='
+    args: [{var: last_decision}, {enum: NONE}]
+  updates:
+  - {var: oracle_status, expr: {param: status}}
+  - {var: context_bound, expr: {bool: true}}
+  effects: {}
+- id: prepare_unbound_context
+  params:
+  - id: status
+    type:
+      kind: enum
+      symbols: [UNSEEN, NONPOSITIVE, PENDING, STALE, FINAL_FRESH, FINAL_DEFICIT]
+  guard:
+    op: '='
+    args: [{var: last_decision}, {enum: NONE}]
+  updates:
+  - {var: oracle_status, expr: {param: status}}
+  - {var: context_bound, expr: {bool: false}}
+  effects: {}
+- id: accept_risk_increase
+  params: []
+  guard:
+    op: and
+    args:
+    - op: '='
+      args: [{var: last_decision}, {enum: NONE}]
+    - {var: context_bound}
+    - op: '='
+      args: [{var: oracle_status}, {enum: FINAL_FRESH}]
+  updates:
+  - {var: last_decision, expr: {enum: RISK_INCREASE_ACCEPT}}
+  - {var: value_changed, expr: {bool: true}}
+  - {var: economic_certificate, expr: {bool: true}}
+  effects: {}
+- id: accept_risk_reduce
+  params: []
+  guard:
+    op: and
+    args:
+    - op: '='
+      args: [{var: last_decision}, {enum: NONE}]
+    - {var: context_bound}
+    - op: or
+      args:
+      - op: '='
+        args: [{var: oracle_status}, {enum: FINAL_FRESH}]
+      - op: '='
+        args: [{var: oracle_status}, {enum: FINAL_DEFICIT}]
+  updates:
+  - {var: last_decision, expr: {enum: RISK_REDUCE_ACCEPT}}
+  - {var: value_changed, expr: {bool: true}}
+  - {var: economic_certificate, expr: {bool: true}}
+  effects: {}
+- id: reject_invalid_context
+  params: []
+  guard:
+    op: '='
+    args: [{var: last_decision}, {enum: NONE}]
+  updates:
+  - {var: last_decision, expr: {enum: REJECT}}
+  - {var: value_changed, expr: {bool: false}}
+  - {var: economic_certificate, expr: {bool: false}}
+  effects: {}
+- id: accept_pending_risk_increase
+  params: []
+  guard: {bool: false}
+  updates:
+  - {var: oracle_status, expr: {enum: PENDING}}
+  - {var: context_bound, expr: {bool: true}}
+  - {var: last_decision, expr: {enum: RISK_INCREASE_ACCEPT}}
+  - {var: value_changed, expr: {bool: true}}
+  - {var: economic_certificate, expr: {bool: true}}
+  effects: {}
+- id: accept_deficit_risk_increase
+  params: []
+  guard: {bool: false}
+  updates:
+  - {var: oracle_status, expr: {enum: FINAL_DEFICIT}}
+  - {var: context_bound, expr: {bool: true}}
+  - {var: last_decision, expr: {enum: RISK_INCREASE_ACCEPT}}
+  - {var: value_changed, expr: {bool: true}}
+  - {var: economic_certificate, expr: {bool: true}}
+  effects: {}
+- id: accept_unbound_risk_reduce
+  params: []
+  guard: {bool: false}
+  updates:
+  - {var: oracle_status, expr: {enum: FINAL_DEFICIT}}
+  - {var: context_bound, expr: {bool: false}}
+  - {var: last_decision, expr: {enum: RISK_REDUCE_ACCEPT}}
+  - {var: value_changed, expr: {bool: true}}
+  - {var: economic_certificate, expr: {bool: true}}
+  effects: {}

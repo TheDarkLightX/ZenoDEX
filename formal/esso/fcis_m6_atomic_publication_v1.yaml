@@ -1,0 +1,269 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_atomic_publication_v1
+  created_by: gpt-5.6-pro-fcis-formal-closure
+  seed: 0
+  notes: One-commit abstract publication machine. A verifier-derived candidate and fresh head authorization are prerequisites. State, complete history, nullifier, receipt, economic certificate, outbox, and authority epoch are one atomic logical set. Crash and retry never expose a partial authoritative layout.
+observables:
+  state_vars:
+  - candidate_verified
+  - authorization_issued
+  - head_authorized
+  - commit_seen
+  - state_published
+  - history_published
+  - nullifier_published
+  - receipt_published
+  - economic_certificate_published
+  - outbox_published
+  - authority_epoch_published
+  effects: []
+types: []
+state_vars:
+- id: candidate_verified
+  role: data
+  type:
+    kind: bool
+- id: authorization_issued
+  role: data
+  type:
+    kind: bool
+- id: head_authorized
+  role: data
+  type:
+    kind: bool
+- id: commit_seen
+  role: data
+  type:
+    kind: bool
+- id: state_published
+  role: data
+  type:
+    kind: bool
+- id: history_published
+  role: data
+  type:
+    kind: bool
+- id: nullifier_published
+  role: data
+  type:
+    kind: bool
+- id: receipt_published
+  role: data
+  type:
+    kind: bool
+- id: economic_certificate_published
+  role: data
+  type:
+    kind: bool
+- id: outbox_published
+  role: data
+  type:
+    kind: bool
+- id: authority_epoch_published
+  role: data
+  type:
+    kind: bool
+invariants:
+- id: state_publishedIffCommit
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: state_published
+    - var: commit_seen
+- id: history_publishedIffCommit
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: history_published
+    - var: commit_seen
+- id: nullifier_publishedIffCommit
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: nullifier_published
+    - var: commit_seen
+- id: receipt_publishedIffCommit
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: receipt_published
+    - var: commit_seen
+- id: economic_certificate_publishedIffCommit
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: economic_certificate_published
+    - var: commit_seen
+- id: outbox_publishedIffCommit
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: outbox_published
+    - var: commit_seen
+- id: authority_epoch_publishedIffCommit
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: authority_epoch_published
+    - var: commit_seen
+- id: CommitRequiresVerifiedCandidate
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: commit_seen
+    - var: candidate_verified
+- id: CommitRequiresIssuedAuthorization
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: commit_seen
+    - var: authorization_issued
+- id: CommitConsumesHeadAuthorization
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: commit_seen
+    - op: not
+      args:
+      - var: head_authorized
+init:
+- var: candidate_verified
+  expr:
+    bool: false
+- var: authorization_issued
+  expr:
+    bool: false
+- var: head_authorized
+  expr:
+    bool: false
+- var: commit_seen
+  expr:
+    bool: false
+- var: state_published
+  expr:
+    bool: false
+- var: history_published
+  expr:
+    bool: false
+- var: nullifier_published
+  expr:
+    bool: false
+- var: receipt_published
+  expr:
+    bool: false
+- var: economic_certificate_published
+  expr:
+    bool: false
+- var: outbox_published
+  expr:
+    bool: false
+- var: authority_epoch_published
+  expr:
+    bool: false
+actions:
+- id: verify_candidate
+  params: []
+  guard:
+    op: not
+    args:
+    - var: candidate_verified
+  updates:
+  - var: candidate_verified
+    expr:
+      bool: true
+  effects: {}
+- id: issue_head_authorization
+  params: []
+  guard:
+    op: and
+    args:
+    - op: not
+      args:
+      - var: head_authorized
+    - op: not
+      args:
+      - var: commit_seen
+  updates:
+  - var: authorization_issued
+    expr:
+      bool: true
+  - var: head_authorized
+    expr:
+      bool: true
+  effects: {}
+- id: atomic_publish
+  params: []
+  guard:
+    op: and
+    args:
+    - var: candidate_verified
+    - var: head_authorized
+    - op: not
+      args:
+      - var: commit_seen
+  updates:
+  - var: state_published
+    expr:
+      bool: true
+  - var: history_published
+    expr:
+      bool: true
+  - var: nullifier_published
+    expr:
+      bool: true
+  - var: receipt_published
+    expr:
+      bool: true
+  - var: economic_certificate_published
+    expr:
+      bool: true
+  - var: outbox_published
+    expr:
+      bool: true
+  - var: authority_epoch_published
+    expr:
+      bool: true
+  - var: commit_seen
+    expr:
+      bool: true
+  - var: head_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: retry_same_commit
+  params: []
+  guard:
+    var: commit_seen
+  updates: []
+  effects: {}
+- id: crash_before_commit
+  params: []
+  guard:
+    op: not
+    args:
+    - var: commit_seen
+  updates:
+  - var: head_authorized
+    expr:
+      bool: false
+  effects: {}
+- id: crash_after_commit
+  params: []
+  guard:
+    var: commit_seen
+  updates:
+  - var: head_authorized
+    expr:
+      bool: false
+  effects: {}

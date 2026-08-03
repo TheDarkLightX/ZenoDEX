@@ -1,0 +1,256 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_managed_asset_issuance_v1
+  created_by: gpt-5.6-pro-fcis-formal-closure
+  seed: 0
+  notes: Bounded managed-asset issuance kernel for zUSD-like assets. Debt is exactly circulating supply plus an explicit not-yet-issued protocol claim. Generic mint and burn are impossible; only protocol borrow, repayment, claim realization, or claim cancellation may change the identity. A production profile may constrain protocol_claim to zero by realizing fees immediately.
+observables:
+  state_vars:
+  - supply
+  - debt
+  - protocol_claim
+  effects: []
+types: []
+state_vars:
+- id: supply
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 5
+- id: debt
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 5
+- id: protocol_claim
+  role: data
+  type:
+    kind: int
+    min: 0
+    max: 5
+invariants:
+- id: DebtEqualsSupplyPlusClaim
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: debt
+    - op: +
+      args:
+      - var: supply
+      - var: protocol_claim
+init:
+- var: supply
+  expr:
+    const: 0
+- var: debt
+  expr:
+    const: 0
+- var: protocol_claim
+  expr:
+    const: 0
+actions:
+- id: protocol_borrow
+  params:
+  - id: principal
+    type:
+      kind: int
+      min: 1
+      max: 2
+  - id: fee
+    type:
+      kind: int
+      min: 0
+      max: 1
+  guard:
+    op: and
+    args:
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: debt
+        - param: principal
+        - param: fee
+      - const: 5
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: supply
+        - param: principal
+      - const: 5
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: protocol_claim
+        - param: fee
+      - const: 5
+  updates:
+  - var: debt
+    expr:
+      op: +
+      args:
+      - var: debt
+      - param: principal
+      - param: fee
+  - var: supply
+    expr:
+      op: +
+      args:
+      - var: supply
+      - param: principal
+  - var: protocol_claim
+    expr:
+      op: +
+      args:
+      - var: protocol_claim
+      - param: fee
+  effects: {}
+- id: realize_protocol_claim
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    op: and
+    args:
+    - op: '>='
+      args:
+      - var: protocol_claim
+      - param: amount
+    - op: <=
+      args:
+      - op: +
+        args:
+        - var: supply
+        - param: amount
+      - const: 5
+  updates:
+  - var: protocol_claim
+    expr:
+      op: '-'
+      args:
+      - var: protocol_claim
+      - param: amount
+  - var: supply
+    expr:
+      op: +
+      args:
+      - var: supply
+      - param: amount
+  effects: {}
+- id: repay_and_burn
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    op: and
+    args:
+    - op: '>='
+      args:
+      - var: supply
+      - param: amount
+    - op: '>='
+      args:
+      - var: debt
+      - param: amount
+  updates:
+  - var: supply
+    expr:
+      op: '-'
+      args:
+      - var: supply
+      - param: amount
+  - var: debt
+    expr:
+      op: '-'
+      args:
+      - var: debt
+      - param: amount
+  effects: {}
+- id: cancel_protocol_claim
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    op: and
+    args:
+    - op: '>='
+      args:
+      - var: protocol_claim
+      - param: amount
+    - op: '>='
+      args:
+      - var: debt
+      - param: amount
+  updates:
+  - var: protocol_claim
+    expr:
+      op: '-'
+      args:
+      - var: protocol_claim
+      - param: amount
+  - var: debt
+    expr:
+      op: '-'
+      args:
+      - var: debt
+      - param: amount
+  effects: {}
+- id: generic_transfer
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    bool: true
+  updates: []
+  effects: {}
+- id: generic_mint_managed_asset
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    bool: false
+  updates:
+  - var: supply
+    expr:
+      op: +
+      args:
+      - var: supply
+      - param: amount
+  effects: {}
+- id: generic_burn_managed_asset
+  params:
+  - id: amount
+    type:
+      kind: int
+      min: 1
+      max: 2
+  guard:
+    bool: false
+  updates:
+  - var: supply
+    expr:
+      op: '-'
+      args:
+      - var: supply
+      - param: amount
+  effects: {}

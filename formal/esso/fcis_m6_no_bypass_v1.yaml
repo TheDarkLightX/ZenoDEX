@@ -1,0 +1,210 @@
+ir_version: esso-ir/v1
+meta:
+  model_id: fcis_m6_no_bypass_v1
+  created_by: gpt-5.6-pro-fcis-formal-closure
+  seed: 0
+  notes: Bounded mounted-mediation theorem over the externally attested publisher inventory. Every protected value change requires an attested complete inventory, mounted deployment, and traversal of the unique commit port, and yields a durable receipt. Inventory completeness itself is a deployment/refinement premise and is intentionally visible.
+observables:
+  state_vars:
+  - inventory_attested
+  - deployment_mounted
+  - commit_port_reached
+  - value_changed
+  - receipt_published
+  - selected_entrypoint
+  - port_entrypoint
+  effects: []
+types: []
+state_vars:
+- id: inventory_attested
+  role: data
+  type:
+    kind: bool
+- id: deployment_mounted
+  role: data
+  type:
+    kind: bool
+- id: commit_port_reached
+  role: data
+  type:
+    kind: bool
+- id: value_changed
+  role: data
+  type:
+    kind: bool
+- id: receipt_published
+  role: data
+  type:
+    kind: bool
+- id: selected_entrypoint
+  role: control
+  type:
+    kind: enum
+    symbols: &id001
+    - API
+    - CLI
+    - ADMIN
+    - MIGRATION
+    - RECOVERY
+    - OUTBOX_WORKER
+    - LEDGER_HOST
+- id: port_entrypoint
+  role: control
+  type:
+    kind: enum
+    symbols:
+    - API
+    - CLI
+    - ADMIN
+    - MIGRATION
+    - RECOVERY
+    - OUTBOX_WORKER
+    - LEDGER_HOST
+invariants:
+- id: ValueChangeRequiresAttestedInventory
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: value_changed
+    - var: inventory_attested
+- id: ValueChangeRequiresMountedDeployment
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: value_changed
+    - var: deployment_mounted
+- id: ValueChangeRequiresUniqueCommitPort
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: value_changed
+    - var: commit_port_reached
+- id: ValueChangeRequiresReceipt
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: value_changed
+    - var: receipt_published
+- id: ReceiptIffValueChange
+  kind: safety
+  expr:
+    op: '='
+    args:
+    - var: receipt_published
+    - var: value_changed
+- id: ValueChangePortBindsSelectedEntrypoint
+  kind: safety
+  expr:
+    op: =>
+    args:
+    - var: value_changed
+    - op: '='
+      args:
+      - var: port_entrypoint
+      - var: selected_entrypoint
+init:
+- var: inventory_attested
+  expr:
+    bool: false
+- var: deployment_mounted
+  expr:
+    bool: false
+- var: commit_port_reached
+  expr:
+    bool: false
+- var: value_changed
+  expr:
+    bool: false
+- var: receipt_published
+  expr:
+    bool: false
+- var: selected_entrypoint
+  expr:
+    enum: API
+- var: port_entrypoint
+  expr:
+    enum: API
+actions:
+- id: attest_complete_inventory
+  params: []
+  guard:
+    op: not
+    args:
+    - var: inventory_attested
+  updates:
+  - var: inventory_attested
+    expr:
+      bool: true
+  effects: {}
+- id: mount_deployment
+  params: []
+  guard:
+    var: inventory_attested
+  updates:
+  - var: deployment_mounted
+    expr:
+      bool: true
+  effects: {}
+- id: select_entrypoint
+  params:
+  - id: entrypoint
+    type:
+      kind: enum
+      symbols: *id001
+  guard:
+    bool: true
+  updates:
+  - var: selected_entrypoint
+    expr:
+      param: entrypoint
+  - var: commit_port_reached
+    expr:
+      bool: false
+  - var: value_changed
+    expr:
+      bool: false
+  - var: receipt_published
+    expr:
+      bool: false
+  effects: {}
+- id: enter_unique_commit_port
+  params: []
+  guard:
+    op: and
+    args:
+    - var: inventory_attested
+    - var: deployment_mounted
+  updates:
+  - var: commit_port_reached
+    expr:
+      bool: true
+  - var: port_entrypoint
+    expr:
+      var: selected_entrypoint
+  effects: {}
+- id: publish_value_change
+  params: []
+  guard:
+    op: and
+    args:
+    - var: inventory_attested
+    - var: deployment_mounted
+    - var: commit_port_reached
+  updates:
+  - var: value_changed
+    expr:
+      bool: true
+  - var: receipt_published
+    expr:
+      bool: true
+  effects: {}
+- id: reject_without_commit
+  params: []
+  guard:
+    bool: true
+  updates: []
+  effects: {}
