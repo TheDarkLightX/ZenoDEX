@@ -1,0 +1,97 @@
+{
+  "schema": "zenodex/fcis_m6_zusd_protocol_fee_claim_realization_evidence/v1",
+  "implementation_commit": "a97db8f76c791e11a376cc2dfa9acf9ac47cfe81",
+  "implementation_tree": "7620c82ffa3e345cbb94098b74c9ac055909f6c5",
+  "implementation_parent": "11c6cc923865e5a186138e48786706f9297f15b7",
+  "functional_base": "14eaa2d8626bbdff8546f1dc88d84dd04bdfbc8e",
+  "posture": "IMPLEMENTED_TESTED_UNMOUNTED",
+  "m6_complete": false,
+  "r13_complete": false,
+  "fee_bearing_borrowing_enabled": false,
+  "claim_realization_implemented": true,
+  "claim_realization_mounted": false,
+  "distribution_policy_authenticated": false,
+  "closed_relations": [
+    "debt_pre_e8 = ledger_supply_pre_e8 + outstanding_claim_pre_e8",
+    "debt_post_e8 = ledger_supply_post_e8 + outstanding_claim_post_e8",
+    "debt_delta_e8 = ledger_supply_delta_e8 + outstanding_claim_delta_e8",
+    "ledger_supply_delta_e8 = realized_amount_e8",
+    "outstanding_claim_delta_e8 = -realized_amount_e8",
+    "protocol_escrow_delta_units = realized_amount_e8 / 100000000",
+    "sub-whole E8 residue remains in the exact outstanding claim"
+  ],
+  "tests": {
+    "realization_passed": 14,
+    "related_zusd_and_fee_custody_passed": 91,
+    "formal_wrapper_passed": 4,
+    "focused_failed": 0,
+    "complete_core_passed_before_first_failure": 723,
+    "complete_core_skipped_before_first_failure": 1,
+    "complete_core_first_failure": "stale tests/fixtures/fcis_fee_apportionment_v2_golden.json"
+  },
+  "gates": {
+    "production_boundary": "PASS",
+    "ruff": "PASS",
+    "format_check": "PASS",
+    "strict_mypy_changed_source_modules": "PASS",
+    "python_compilation": "PASS",
+    "git_diff_check": "PASS",
+    "machine_local_path_scan": "PASS",
+    "source_manifest": "PASS; 19 entries",
+    "security_redflags": {
+      "high": 0,
+      "medium": 0,
+      "low": 0
+    }
+  },
+  "esso": {
+    "model_sha256": "6cb0613fd393fd5e06203f10c35ca0a988f6726462e841b9da3e57a9becd1aea",
+    "ir_sha256": "7abf92ebab3fc4446b439d7349a6ec745124d8471036931f1f10cb75c741c1fe",
+    "esso_source_commit": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "z3_version": "4.15.4",
+    "cvc5_version": "1.1.2",
+    "verified_queries": 4,
+    "total_queries": 4,
+    "solver_agreement": true,
+    "determinism_trials": 2,
+    "fingerprint": "c1f84f6dad88d771aff4eca0ae20faf31ffa9e4563c6e4cf5365a8c718f482a2"
+  },
+  "lean": {
+    "exact_file_compiled": true,
+    "default_aggregate_imported": true,
+    "placeholder_scan": "PASS",
+    "full_aggregate_build_completed": false,
+    "full_aggregate_build_stopped_at": "603/8162 jobs for low-disk safety",
+    "printed_theorem_dependencies": [
+      "propext",
+      "Quot.sound",
+      "Classical.choice"
+    ]
+  },
+  "closed_counterexamples": [
+    "invalid_absolute_debt_supply_claim_prestate",
+    "claim_reduction_without_exact_escrow_credit",
+    "sub_whole_residue_erasure",
+    "boolean_integer_alias",
+    "negative_zero_nonwhole_or_overclaim_amount",
+    "u256_ledger_supply_overflow",
+    "mutable_unowned_balance_source",
+    "foreign_claim_or_custody_identity",
+    "hostile_frozen_claim_mutation",
+    "crossed_external_prestate",
+    "caller_constructed_or_replaced_result",
+    "downstream_same_asset_nonconservation"
+  ],
+  "explicit_nonclaims": [
+    "M6 completion",
+    "R13 completion",
+    "mounted production mediation",
+    "datastore currentness",
+    "authenticated distribution policy",
+    "atomic realization and distribution publication",
+    "deployment-complete supply inventory",
+    "receipt bundle reopen or outbox lineage",
+    "Rust Tau or ZenoLedger parity",
+    "fee-bearing borrowing enablement"
+  ]
+}
