@@ -1,0 +1,82 @@
+{
+  "schema": "zenodex/fcis/m6/k07/deployment-audit-config/v1",
+  "profile_id": "research-unmounted-k07-deployment-boundary",
+  "k01_vector_path": "docs/research/m6_tasks/TASK_K01_VALUE_MOVING_ENTRYPOINT_INVENTORY_V1.json",
+  "k04_vector_path": "docs/research/m6_tasks/TASK_K04_TOPOLOGY_ANCHOR_V1.json",
+  "k06_vector_path": "docs/research/m6_tasks/TASK_K06_LEGACY_SEAL_V1.json",
+  "expected_k01_entrypoint_inventory_root": "fc150266a7932c32d67ac5674251ae96db7f65a633a0e0b8eba791431682e31a",
+  "expected_k04_topology_root": "da8e43caab444a5f88e7f7affede1671822fb63d6de890daf80fea88c07a5c35",
+  "expected_k06_seal_root": "139a29f1938dfffb9ea4c72b5f6e99765bb9d1d0254654941ddf3c9f20a82ab0",
+  "deployment_paths": [
+    ".docker/entrypoint.sh",
+    "bin/zenoctl",
+    "config/deploy/production-strict.yaml",
+    "rust-runtime/crates/zenodex-runtime-cli/src/main.rs"
+  ],
+  "direct_writer_markers": [
+    "DELETE FROM",
+    "INSERT INTO",
+    "UPDATE ",
+    "sqlite3.connect"
+  ],
+  "forbidden_plaintext_markers": [
+    "DEMO_API_TOKEN:-",
+    "zenodex-local-demo-token"
+  ],
+  "required_production_markers": [
+    "env_config_file_allowlist_required: true",
+    "external_signer_required: true",
+    "production_key_receipts_required: true",
+    "secret_scan_required: true"
+  ],
+  "known_launch_bindings": [
+    {
+      "launcher_id": "api_server",
+      "source_path": ".docker/entrypoint.sh",
+      "command": "python -m src.integration.api_server",
+      "publisher_id": "api_http_ingress",
+      "effect_capable": true
+    },
+    {
+      "launcher_id": "nginx",
+      "source_path": ".docker/entrypoint.sh",
+      "command": "nginx -g \"daemon off;\"",
+      "publisher_id": "container_static_proxy",
+      "effect_capable": false
+    }
+  ],
+  "expected_findings": [
+    {
+      "kind": "credential_policy_gap",
+      "path": ".docker/entrypoint.sh",
+      "marker": "DEMO_API_TOKEN:-"
+    },
+    {
+      "kind": "credential_policy_gap",
+      "path": ".docker/entrypoint.sh",
+      "marker": "zenodex-local-demo-token"
+    },
+    {
+      "kind": "direct_protected_writer",
+      "path": "experiments/fcis_m6_h02_sqlite_publication.py",
+      "marker": "INSERT INTO"
+    },
+    {
+      "kind": "direct_protected_writer",
+      "path": "experiments/fcis_m6_h02_sqlite_publication.py",
+      "marker": "UPDATE "
+    },
+    {
+      "kind": "direct_protected_writer",
+      "path": "experiments/fcis_m6_h02_sqlite_publication.py",
+      "marker": "sqlite3.connect"
+    }
+  ],
+  "nonclaims": [
+    "K07 audits the exact reviewed K04 source set and four declared deployment paths.",
+    "K07 does not prove an exhaustive operating-system process graph, image contents, credential isolation, or live datastore ownership.",
+    "The direct H02 writer and demo-token findings are blocking gaps, not production exploits, because this M6 slice is unmounted.",
+    "A GAP result cannot authorize deployment, authority switching, or value movement.",
+    "No mounted caller, deployment, migration, or value movement is claimed."
+  ]
+}
