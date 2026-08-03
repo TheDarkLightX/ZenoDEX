@@ -1,0 +1,74 @@
+{
+  "schema": "zenodex/fcis_m6_zusd_supply_delta_closure_evidence/v1",
+  "implementation_commit": "f0b35143e7a8d6271c956340fdaad42042dfea3f",
+  "implementation_tree": "38363dbe0fe92978058de33dab5f2681f3c37328",
+  "implementation_parent": "f5c3d0e66852c8ec49112a7ed3a8119bab71bf47",
+  "posture": "IMPLEMENTED_TESTED_UNMOUNTED",
+  "m6_complete": false,
+  "r13_complete": false,
+  "runtime_fee_bearing_borrowing_enabled": false,
+  "closed_relation": "debt_delta = ledger_supply_delta + protocol_fee_accrual_delta",
+  "tests": {
+    "passed": 42,
+    "failed": 0,
+    "deselected": 38,
+    "duration_seconds": 3.87
+  },
+  "gates": {
+    "ruff": "PASS",
+    "mypy_changed_source_modules": "PASS",
+    "python_compilation": "PASS",
+    "git_diff_check": "PASS",
+    "lean_exact_theorem_file": "PASS",
+    "lean_placeholder_scan": "PASS",
+    "security_redflags": {
+      "high": 0,
+      "medium": 2,
+      "low": 3
+    }
+  },
+  "esso": {
+    "model_sha256": "cdfcaa6a230a3414f257176d96144b85a37c8e9643a450d05b831b8337a7f240",
+    "esso_source_commit": "7f80c6216be85c827e8d1cc2fa08ee3107a74588",
+    "z3_version": "4.15.4",
+    "cvc5_version": "1.1.2",
+    "verified_queries": 4,
+    "total_queries": 4,
+    "solver_agreement": true,
+    "determinism_trials": 2,
+    "fingerprint": "3b1629dfe49162b4a6104a59b05dc2bc3e1c0efc3e1df43f238debcf7d6ffd56"
+  },
+  "lean": {
+    "compiled": true,
+    "placeholder_scan": "PASS",
+    "main_theorem_axioms": [
+      "propext",
+      "Quot.sound"
+    ]
+  },
+  "closed_counterexamples": [
+    "fee_accrual_omitted_from_delta_certificate",
+    "boolean_integer_alias",
+    "crossed_transition_certificate",
+    "decreasing_cumulative_fee_accrual",
+    "fractional_fee_mint_without_claim_settlement",
+    "whole_fee_mint_without_claim_settlement",
+    "debt_increase_without_supply_or_fee_accrual",
+    "rejection_with_escaped_successor_or_effect"
+  ],
+  "baseline_failure": {
+    "path": "tests/chaos/test_live_surface_tau_network_chaos.py",
+    "present_at_parent": true,
+    "error": "TypeError: committed state snapshot is immutable"
+  },
+  "explicit_nonclaims": [
+    "M6 completion",
+    "R13 completion",
+    "mounted production mediation",
+    "global custody conservation",
+    "runtime forward simulation",
+    "fee claimant settlement",
+    "receipt bundle publication lineage",
+    "Rust or Tau parity"
+  ]
+}
