@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.luna-source-manifest.v1",
   "contract": "fcis-m6-durable-retraction-luna-repair-v1",
   "base_commit": "babffa56dcbddc5886487fbb6e62740b15370000",
-  "implementation_target_commit": "2c3f21d87d49a31bceb1e74b19077bebcdb3cd2c",
-  "implementation_target_tree": "16e6a2ee03e9e949431605c493c7ff9bc3aad5c7",
+  "implementation_target_commit": "9bc1a0f2bc271021432f690f3628e8cf58aa6996",
+  "implementation_target_tree": "7e493180bf0c17185d71a926d4a6952e8ce955c2",
   "canonical_archive": "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz",
   "archive_excludes": [
     "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz"
@@ -17,6 +17,96 @@
       "path": ".github/workflows/fcis-m6-durable-retraction.yml",
       "sha256": "efa1b83042c8d7b7484ee61936aceb1a9c4506db2a76ab475163018cc8a239c6",
       "role": "read_only_ci"
+    },
+    {
+      "path": ".github/workflows/fcis-b1b-revision34.yml",
+      "sha256": "e36cf63bbc82ac6599e385b19478af3fb7bbf91dd32fa14e4e1bf053fc9634cb",
+      "role": "b1b_compatibility_workflow"
+    },
+    {
+      "path": "config/proof_profiles/risc0_dependency_audit_policy_v2.json",
+      "sha256": "2913f714083b0ab1884282bf6401b6b9cfaf3b2b610301f1bb6bae2cc1433108",
+      "role": "risc0_residual_advisory_policy"
+    },
+    {
+      "path": "config/proof_profiles/risc0_recursive_active_reproof_reference_v3.json",
+      "sha256": "dc182ba0508fadee2f41dc6c5c255c8bbd2aec900193f595868d1cb7eef6817b",
+      "role": "source_bound_reproof_reference"
+    },
+    {
+      "path": "docs/dependency_pinning_status.json",
+      "sha256": "9ad4492a7de87c44e7b2b40a62fb484a97b6811b50e9b01ea41310a901e66893",
+      "role": "dependency_pinning_status"
+    },
+    {
+      "path": "tests/integration/test_check_risc0_dependency_audit.py",
+      "sha256": "e0172f1929ce61c8ec3e8832c93ac4e7c47d15064c8cb2680ae39eecbd287fd9",
+      "role": "risc0_advisory_mutation_tests"
+    },
+    {
+      "path": "tests/tools/test_build_fcis_b1b1_implementation_review_packet.py",
+      "sha256": "30f6ff90d5fef960da06abdaef2d7bf7f70a646ca9580b35e86634f99a1be2ef",
+      "role": "sealed_b1b_packet_tests"
+    },
+    {
+      "path": "tests/tools/test_check_fcis_b1b_revision34_contract.py",
+      "sha256": "82428c8a2b5e21867c634cba40b356bb7bbd8822cc694ce8e61e0767175123ea",
+      "role": "b1b_reachability_mutation_tests"
+    },
+    {
+      "path": "tests/tools/test_check_fcis_m5_p4b5a_atdd_contract.py",
+      "sha256": "f79db75b516d8a114bc6b1d9e1e634feb557b8891a1eafbdccb148c51a7e502f",
+      "role": "b1b_diff_ownership_mutation_tests"
+    },
+    {
+      "path": "tools/build_fcis_b1b1_implementation_review_packet.py",
+      "sha256": "c62fec432c0105943b2c57194fbb3ea30b8863f5ecfe6c2da9fe60fb93355821",
+      "role": "sealed_b1b_packet_checker"
+    },
+    {
+      "path": "tools/check_fcis_b1b_revision34_contract.py",
+      "sha256": "742a69f15d77d2dca03fe03485ecf3afba464027201c898bb6a006fa4238a052",
+      "role": "b1b_closed_research_reachability_checker"
+    },
+    {
+      "path": "tools/check_fcis_m5_p4b5a_atdd_contract.py",
+      "sha256": "582ac66dd172116cf4d43b0c491f3fd96a48b4f34fbdae7cb22dfa8a255c47b4",
+      "role": "b1b_event_diff_ownership_checker"
+    },
+    {
+      "path": "tools/check_risc0_dependency_audit.py",
+      "sha256": "67587fcda2f10f44a9394883dc6b69d1a389f69320e140a134c65906489066e4",
+      "role": "risc0_dependency_audit_checker"
+    },
+    {
+      "path": "tools/fcis_m5_p4b5a_atdd_policy.py",
+      "sha256": "79e0c91e463a826ea2ae22036df84b39513e936679de38611036f125facc816d",
+      "role": "b1b_closed_ownership_policy"
+    },
+    {
+      "path": "tools/fcis_m5_p4b5a_atdd_validation.py",
+      "sha256": "c3a4383c02cbcc57401374f95c6b30eaf0fc9360cdd3513a404b237d63d1db89",
+      "role": "b1b_closed_ownership_validation"
+    },
+    {
+      "path": "zk/recursive_stark_v2_active_reproof_risc0/Cargo.lock",
+      "sha256": "1a918b3c188bdd16e381dc959b6c0ce21ceb59735a8e797d68f4578f2173e98d",
+      "role": "proof_bound_risc0_lock"
+    },
+    {
+      "path": "zk/recursive_stark_v2_risc0/Cargo.lock",
+      "sha256": "45cd06efebd2a989b7a1061e4958a45520cec388fe0ac9f8987c16fe9a5fef64",
+      "role": "proof_bound_risc0_lock"
+    },
+    {
+      "path": "zk/state_proof_risc0/Cargo.lock",
+      "sha256": "d30f07417921c475d99826eb10a45c17ec059c88b53c3f835702f27b509442ba",
+      "role": "proof_bound_risc0_lock"
+    },
+    {
+      "path": "zk/zrpf_risc0/Cargo.lock",
+      "sha256": "1c3ea17c920eb539080d641ad2ab46d40d4fb50d5ee4464cea90f2f694787937",
+      "role": "proof_bound_risc0_lock"
     },
     {
       "path": "requirements-dev.lock.txt",
@@ -115,17 +205,17 @@
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_REPAIR_REPORT_20260731.md",
-      "sha256": "005ff6437979be73e3b1fc983bb2093209d2df81d6755fd38c5b73385303469e",
+      "sha256": "bfc783c80206c3d96067c4c17d81d517061e213409b8b1d1033df4c64855a11f",
       "role": "repair_report"
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_CHANGE_INVENTORY_V1.md",
-      "sha256": "4629241a918a55696ab72bea8671a94a7631a6903fa7df518a6b4da06ae3b362",
+      "sha256": "e72d86f5d8e06da19ce2866b4cac371158d6f091f0c9946ffdf61daa2bd8eee5",
       "role": "change_inventory"
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_TOOLCHAIN_V1.json",
-      "sha256": "be62560bb18964490c3a9d527d68b083b88f4e049842d1d29d279850aa0225ad",
+      "sha256": "ed0dfe3ddab069bf54647227254a553c5c60223518b496e4b4d561aa8db73cd9",
       "role": "exact_toolchain_record"
     },
     {

@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.luna-toolchain.v1",
   "contract": "fcis-m6-durable-retraction-luna-repair-v1",
   "base_commit": "babffa56dcbddc5886487fbb6e62740b15370000",
-  "implementation_target_commit": "2c3f21d87d49a31bceb1e74b19077bebcdb3cd2c",
-  "implementation_target_tree": "16e6a2ee03e9e949431605c493c7ff9bc3aad5c7",
+  "implementation_target_commit": "9bc1a0f2bc271021432f690f3628e8cf58aa6996",
+  "implementation_target_tree": "7e493180bf0c17185d71a926d4a6952e8ce955c2",
   "python": {
     "workflow_version": "3.12.3",
     "requirements_lock": "requirements-dev.lock.txt",
@@ -60,11 +60,21 @@
     "z3": "4.15.4",
     "cvc5": "1.1.2"
   },
+  "risc0_retained_proof_dependency": {
+    "cargo_audit_version": "0.22.1",
+    "advisory_database_revision": "6d7aef354b4144c1ede046034adfd00246d3b0c0",
+    "policy_sha256": "2913f714083b0ab1884282bf6401b6b9cfaf3b2b610301f1bb6bae2cc1433108",
+    "advisory": "RUSTSEC-2026-0220",
+    "locked_package": "ruint 1.19.0",
+    "scope": "experimental_risc0_dependency_audit_only",
+    "production_authority": false,
+    "removal_gate": "fresh image IDs, receipts, and source-bound replay evidence under ruint 1.20.0 or later"
+  },
   "workflow_action_commits": {
     "actions/checkout": "df4cb1c069e1874edd31b4311f1884172cec0e10",
     "actions/setup-python": "ece7cb06caefa5fff74198d8649806c4678c61a1",
     "elan_installer": "b6cec7e10fe4965a605aaf60d1cb4a5837f0462b",
     "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02"
   },
-  "dependency_policy": "No new runtime or formal dependency was added. Public CI is self-contained apart from hash-locked public packages and pinned mathlib. Private ESSO evidence is optional and never a required public gate."
+  "dependency_policy": "No new runtime or formal dependency was added. Public CI is self-contained apart from hash-locked public packages and pinned mathlib. Private ESSO evidence is optional and never a required public gate. Four unmounted RISC0 workspaces retain proof-bound locks and expose RUSTSEC-2026-0220 as scoped residual debt until fresh proofs are generated."
 }

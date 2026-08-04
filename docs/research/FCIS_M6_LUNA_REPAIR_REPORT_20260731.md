@@ -200,3 +200,54 @@ unmaintained-package warnings; this repair does not broaden those dispositions.
 The packet remains `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED`. Dependency repair and
 source rebinding do not establish production durability, mounted no-bypass,
 external destination behavior, or whole-system M6 closure.
+
+## Sealed-evidence compatibility addendum (2026-08-04)
+
+This addendum supersedes the preceding RISC0-lock posture for the current
+packet target:
+
+- Prior packet head: `4ff2122ebcc5ea848361dad23d7d587c304cac10`
+- Implementation target commit: `9bc1a0f2bc271021432f690f3628e8cf58aa6996`
+- Implementation target tree: `7e493180bf0c17185d71a926d4a6952e8ce955c2`
+- Implementation target parent: `4ff2122ebcc5ea848361dad23d7d587c304cac10`
+- RISC0 dependency policy SHA-256:
+  `2913f714083b0ab1884282bf6401b6b9cfaf3b2b610301f1bb6bae2cc1433108`
+- RustSec advisory database revision:
+  `6d7aef354b4144c1ede046034adfd00246d3b0c0`
+
+A pinned RISC0 force-build with the attempted `ruint 1.20.0` and `spin 0.9.9`
+locks produced guest image identities different from the retained receipts.
+Those locks therefore could not be presented as a dependency-only repair. The
+current implementation target restores all four proof-bound lockfiles and
+keeps every retained image ID, receipt, evidence inventory root, and proof
+source inventory root unchanged.
+
+`RUSTSEC-2026-0220` remains visible. Exact `risc0-binfmt 3.0.4` source review
+found only ordinary ruint shifts with fixed 32-bit and 96-bit amounts and no
+calls to the advisory's affected overflowing, checked, saturating, or wrapping
+shift methods or `to_base_be`. The exact cargo-audit `0.22.1` gate accepts 12
+scoped dispositions across four unmounted RISC0 workspaces and reports no
+unused disposition. This is a bounded reachability disposition, not proof that
+the dependency graph is safe. Removal requires new image IDs, fresh receipts,
+and source-bound replay evidence under `ruint 1.20.0` or later.
+
+The target also repairs two stale B1B CI assumptions. The ownership checker now
+derives the exact pull-request merge base and validates only the closed B1B
+subsystem surface, retaining every registered owner and forbidden path. The
+workflow validates the immutable historical B1B packet by exact ancestry and
+bytes rather than requiring the current head to be that historical packet
+child. A closed source-only M6 state-binding chain is admitted as unmounted
+research composition; any carrier or chain consumer outside the exact set is
+rejected.
+
+Local evidence at the implementation target includes 175 B1B Python tests,
+nine Rust B1B parity tests, Rust formatting and clippy, the 1,011-file B1B
+reachability scan, 42 RISC0 dependency/profile tests, the exact five-workspace
+cargo-audit result, 740 ZRPF Python/evidence tests in the default sandbox, 19
+sealed-verifier tests outside the sandbox's `/proc/self/fd` execution
+restriction, and 16 clean-checkout source-closure tests. The ZRPF CBC report
+still records five pending obligations and does not authorize production.
+
+This packet remains `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED`. It adds no runtime
+mount, production datastore, publication authority, migration switch,
+deployment, merge, or value movement.

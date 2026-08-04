@@ -72,3 +72,29 @@ The following child updates only this packet's report, toolchain identity,
 manifest, integrity ledger, and canonical archive. It changes no functional
 core, runtime transition, datastore, authority, migration, deployment, or
 value-moving path.
+
+## Sealed-evidence compatibility repair child (2026-08-04)
+
+The sealed-evidence compatibility implementation target is commit
+`9bc1a0f2bc271021432f690f3628e8cf58aa6996`, tree
+`7e493180bf0c17185d71a926d4a6952e8ce955c2`, with prior packet head
+`4ff2122ebcc5ea848361dad23d7d587c304cac10` as its parent.
+
+The target restores the four RISC0 lockfiles to their retained proof-source
+identities after the patched dependency graph produced different guest image
+identities. It records `RUSTSEC-2026-0220` as narrowly dispositioned residual
+debt for the unmounted proof lanes, binds that disposition to exact
+`risc0-binfmt 3.0.4` source observations, and requires fresh image IDs,
+receipts, and source-bound replay evidence before removal.
+
+The target also repairs the B1B compatibility workflow. Event diffs are
+derived from the trusted pull-request merge base and filtered through the
+closed B1B ownership surface. The sealed historical B1B packet remains
+byte-identical and ancestry-checked. The later state-binding research chain is
+explicitly closed, while any consumer outside that exact unmounted chain is a
+reachability failure.
+
+The following child updates this packet's report, toolchain identity,
+manifest, integrity ledger, and canonical archive. It changes no functional
+core, runtime transition, datastore, production authority, migration,
+deployment, or value-moving path.
