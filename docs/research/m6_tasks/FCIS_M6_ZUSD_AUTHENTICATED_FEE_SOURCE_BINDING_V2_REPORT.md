@@ -54,9 +54,9 @@ COMMANDS_RUN:
 - `python3 -m mypy`
 - `python3 -m py_compile` over all nine changed core source modules
 - `python3 -m pytest -q tests/core/test_fcis_m6_e01_request_identity.py tests/core/test_fcis_fee_configuration_state_binding_v2.py tests/core/test_zusd_authenticated_borrow_fee_occurrence_v1.py tests/core/test_zusd_state_bound_fee_accrual_allocation_v2.py`
-- `ESSO_ROOT=/home/trevormoc/Downloads/ESSO PYTHONPATH=. python3 -m pytest -q tests/formal/test_esso_fcis_fee_source_binding_v1.py`
+- `ESSO_ROOT=external/ESSO PYTHONPATH=. python3 -m pytest -q tests/formal/test_esso_fcis_fee_source_binding_v1.py`
 - `PYTHONPATH=. python3 -m pytest -q tests/formal/test_lean_fcis_m6_fee_source_binding.py`
-- `PYTHONPATH=/home/trevormoc/Downloads/ESSO python3 -m ESSO verify-multi <each of the three exact model paths> --solvers z3,cvc5 --determinism-trials 2 --timeout-ms 5000`
+- `PYTHONPATH=external/ESSO python3 -m ESSO verify-multi <each of the three exact model paths> --solvers z3,cvc5 --determinism-trials 2 --timeout-ms 5000`
 - `lake env lean Proofs/FCISM6FeeSourceBinding.lean`
 - `lake build Proofs` before the final Python-only module split; the Lean sources were unchanged afterward
 - `python3 tools/check_production_boundary.py --json`
@@ -115,4 +115,3 @@ refinement. The repository also retains unrelated stale fee-apportionment
 golden-fixture debt. Independent review should attack root projection
 completeness, configuration activation semantics, state-subroot derivation,
 managed-asset identity, and end-to-end publication lineage.
-

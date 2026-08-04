@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 BASE_PACKET_COMMIT = "1665e788a4c4daf43982262c307d0c04b914d89b"
+SEALED_PACKET_COMMIT = "554758aa1536b01b911ba40b21afa4aec55c1b60"
 REPORT_PATH = Path("docs/research/FCIS_M5_P4B5A_B1B1_IMPLEMENTATION_REPORT_20260729.md")
 PACKET_DIR = Path("docs/research/prompts/fcis_m5_p4b5a_b1b1_implementation_review_v1")
 README_PATH = PACKET_DIR / "README.md"
@@ -446,12 +447,21 @@ def _expected_outputs(target_commit: str) -> dict[Path, bytes]:
     }
 
 
-def _packet_target_from_metadata() -> str:
-    document = json.loads(METADATA_PATH.read_text(encoding="utf-8"))
+def _packet_target_from_metadata_at(commit: str | None = None) -> str:
+    payload = (
+        METADATA_PATH.read_bytes()
+        if commit is None
+        else _commit_blob(commit, METADATA_PATH)
+    )
+    document = json.loads(payload)
     target = document.get("target_commit")
     if type(target) is not str or not re_full_hex(target):
         raise ValueError("packet metadata has no exact target commit")
     return target
+
+
+def _packet_target_from_metadata() -> str:
+    return _packet_target_from_metadata_at()
 
 
 def re_full_hex(value: str) -> bool:
@@ -492,6 +502,34 @@ def _check() -> None:
         actual = path.read_bytes()
         if actual != expected:
             raise ValueError(f"stale packet output: {path}")
+
+
+def _check_packet_commit(packet_commit: str) -> None:
+    target_commit = _packet_target_from_metadata_at(packet_commit)
+    _verify_packet_commit_relation(packet_commit, target_commit)
+    for path, expected in _expected_outputs(target_commit).items():
+        if _commit_blob(packet_commit, path) != expected:
+            raise ValueError(f"stale sealed packet output: {path}")
+
+
+def _verify_current_packet_outputs(packet_commit: str) -> None:
+    for path in OUTPUT_PATHS:
+        if path.read_bytes() != _commit_blob(packet_commit, path):
+            raise ValueError(f"current packet output drift: {path}")
+
+
+def _check_sealed_history() -> None:
+    head = _git_text("rev-parse", "HEAD")
+    ancestor = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", SEALED_PACKET_COMMIT, head],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    if ancestor.returncode != 0:
+        raise ValueError("sealed packet is not an ancestor of current head")
+    _check_packet_commit(SEALED_PACKET_COMMIT)
+    _verify_current_packet_outputs(SEALED_PACKET_COMMIT)
 
 
 def _build() -> None:
@@ -657,12 +695,15 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--check", action="store_true")
+    mode.add_argument("--check-sealed-history", action="store_true")
     mode.add_argument("--export-delivery", type=Path)
     mode.add_argument("--check-delivery", type=Path)
     args = parser.parse_args()
     try:
         if args.check:
             _check()
+        elif args.check_sealed_history:
+            _check_sealed_history()
         elif args.export_delivery is not None:
             _export_delivery(args.export_delivery)
         elif args.check_delivery is not None:

@@ -3,7 +3,7 @@
   "profile_id": "research-unmounted-k04-pinned-topology",
   "expected_d05_inventory_root": "fe407a21588db0932df41b224234a5a5950478aa12cc1c564857b7a5bbc41ac2",
   "expected_d05_topology_root": "9b2db149fd06876cf9e9fa592d891042320e52dcf0640c952431d913f12402e1",
-  "expected_k01_entrypoint_inventory_root": "c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2",
+  "expected_k01_entrypoint_inventory_root": "b8c1ff0c8d8d8fba815cd500909e923aa2cf6b41ebbca92e9056cd9b33f98559",
   "unique_port_id": "fcis/m6/unique-atomic-commit-port/v1",
   "expected_publisher_ids": [
     "api_http_ingress",
@@ -22,7 +22,7 @@
     "zusd_monetary_bridge",
     "zusd_monetary_wallet_api"
   ],
-  "pinned_topology_anchor_root": "6644cae606656411d0da64461d80a13030be65905cfd31916a33f1143bc25ee3",
+  "pinned_topology_anchor_root": "4db1203f194a99a144c4b2a0a2613df288ac0f428959f87e9e529b4a35f576dd",
   "nonclaims": [
     "The D05 and K01 roots are reviewed upstream expectations, not runtime certificates.",
     "The K04 root does not prove deployment reachability or complete production publisher coverage.",

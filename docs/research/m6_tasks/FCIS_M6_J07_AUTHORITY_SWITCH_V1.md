@@ -37,7 +37,7 @@ registered writer tokens are rejected at point of use.
 - exact implementation tree:
   `3e1c984da840c02854e7846362bcffc340e7981b`;
 - pinned switch root:
-  `acdc6ceaa486f697f12d249b5c72af5c8290b0bdf6532059995c75ea54028686`.
+  `962ccd5b225b9d35165748d70ea0412e1a3856e475d5b3349e73533e94cdc1e2`.
 
 The J07 fixture constructs a canonical history whose final authority row is
 `QUIESCED`; its publication atom is authorized at the preceding

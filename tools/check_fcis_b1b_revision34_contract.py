@@ -24,6 +24,22 @@ SCHEMA_PATH = Path("src/core/fcis_b1b_authority_schema.py")
 ADMISSION_PATH = Path("src/core/fcis_b1b_authority_admission.py")
 CODEC_PATH = Path("src/core/fcis_b1b_authority_codec.py")
 PYTHON_PATHS = (VALUES_PATH, SCHEMA_PATH, ADMISSION_PATH, CODEC_PATH)
+# Later M6 research composes the B1B carrier into one closed, still-unmounted
+# state-binding chain.  These exact source paths may consume the carrier.  Any
+# reference to the carrier or this chain outside the closed set remains a
+# reachability failure.
+PYTHON_RESEARCH_CONSUMER_PATHS = (
+    Path("src/core/fcis_fee_configuration_state_binding_v2.py"),
+    Path("src/core/zusd_state_bound_fee_accrual_allocation_roots_v2.py"),
+    Path("src/core/zusd_state_bound_fee_accrual_allocation_v2.py"),
+    Path("src/core/zusd_state_bound_fee_accrual_allocation_values_v2.py"),
+)
+PYTHON_RESEARCH_CONSUMER_MARKERS = (
+    "fcis_fee_configuration_state_binding_v2",
+    "StateBoundActiveFeeConfigurationV2",
+    "zusd_state_bound_fee_accrual_allocation_v2",
+    "ZUSDStateBoundFeeAccrualAllocation",
+)
 CANONICAL_PATH = Path("src/state/canonical.py")
 RUST_PATH = Path("rust-runtime/crates/zenodex-runtime-core/src/fcis_b1b_authority.rs")
 RUST_LIB_PATH = Path("rust-runtime/crates/zenodex-runtime-core/src/lib.rs")
@@ -1569,11 +1585,20 @@ def _runtime_candidate_paths(root: Path) -> tuple[Path, ...]:
 
 
 def _check_runtime_reachability(root: Path, findings: list[Finding]) -> int:
-    allowed = {path.as_posix() for path in (*PYTHON_PATHS, RUST_PATH, RUST_LIB_PATH)}
+    allowed = {
+        path.as_posix()
+        for path in (
+            *PYTHON_PATHS,
+            *PYTHON_RESEARCH_CONSUMER_PATHS,
+            RUST_PATH,
+            RUST_LIB_PATH,
+        )
+    }
     markers = (
         "fcis_b1b_authority",
         *tuple(PYTHON_CARRIER_NAMES),
         *tuple(RUST_CARRIER_NAMES),
+        *PYTHON_RESEARCH_CONSUMER_MARKERS,
     )
     paths = _runtime_candidate_paths(root)
     for path in paths:

@@ -29,6 +29,34 @@
       "workspace_id": "recursive_stark_v2_active_reproof_risc0"
     },
     {
+      "advisory_id": "RUSTSEC-2026-0220",
+      "category": "vulnerability",
+      "dependency_path": "risc0-zkvm 3.0.5 -> risc0-binfmt 3.0.4 -> ruint 1.19.0",
+      "no_raw_untrusted_terminal_logging": true,
+      "no_secret_input": true,
+      "package": "ruint",
+      "production_authority": false,
+      "reachability": "The crate is transitively present through risc0-binfmt 3.0.4. Exact source review found only ordinary ruint shift operators with fixed 32-bit and 96-bit amounts, and no calls to the advisory's affected overflowing, checked, saturating, or wrapping shift methods or to_base_be. This unmounted retained-proof lane rejects raw untrusted terminal logging. Its exact source lock remains frozen because a lock change invalidates the retained proof-source inventory. Removal requires fresh image IDs, receipts, and source-bound replay evidence under ruint 1.20.0 or later.",
+      "scope": "experimental_risc0_dependency_audit_only",
+      "version": "1.19.0",
+      "workspace_id": "recursive_stark_v2_active_reproof_risc0"
+    },
+    {
+      "advisory_id": "",
+      "category": "yanked",
+      "dependency_path": "risc0-binfmt 3.0.4 -> postcard 1.1.3 -> heapless 0.7.17 -> spin 0.9.8",
+      "lockfile_checksum": "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67",
+      "lockfile_source": "registry+https://github.com/rust-lang/crates.io-index",
+      "no_raw_untrusted_terminal_logging": true,
+      "no_secret_input": true,
+      "package": "spin",
+      "production_authority": false,
+      "reachability": "spin 0.9.8 is yanked without a RustSec advisory ID. The exact spin-only A/B comparison in docs/research/RISC0_SPIN_099_PROOF_IDENTITY_COMPARISON_20260804.json changed 8/8 ZRPF guest ELF hashes and image IDs, and this lockfile is part of retained proof-source identity. This disposition is restricted to the unmounted retained-proof lane. Removal requires fresh image IDs, receipts, and source-bound replay evidence under spin 0.9.9 or later.",
+      "scope": "experimental_risc0_dependency_audit_only",
+      "version": "0.9.8",
+      "workspace_id": "recursive_stark_v2_active_reproof_risc0"
+    },
+    {
       "advisory_id": "RUSTSEC-2023-0071",
       "category": "vulnerability",
       "dependency_path": "risc0-zkvm 3.0.5 -> rzup 0.5.1 -> rsa 0.9.10",
@@ -52,6 +80,34 @@
       "reachability": "The crate is transitively present in the proof stack. The audited verifier-only evidence lane emits bounded structured output and does not route raw untrusted input through this subscriber.",
       "scope": "experimental_risc0_dependency_audit_only",
       "version": "0.2.25",
+      "workspace_id": "state_proof_risc0"
+    },
+    {
+      "advisory_id": "RUSTSEC-2026-0220",
+      "category": "vulnerability",
+      "dependency_path": "risc0-zkvm 3.0.5 -> risc0-binfmt 3.0.4 -> ruint 1.19.0",
+      "no_raw_untrusted_terminal_logging": true,
+      "no_secret_input": true,
+      "package": "ruint",
+      "production_authority": false,
+      "reachability": "The crate is transitively present through risc0-binfmt 3.0.4. Exact source review found only ordinary ruint shift operators with fixed 32-bit and 96-bit amounts, and no calls to the advisory's affected overflowing, checked, saturating, or wrapping shift methods or to_base_be. This unmounted retained-proof lane rejects raw untrusted terminal logging. Its exact source lock remains frozen because a lock change invalidates the retained proof-source inventory. Removal requires fresh image IDs, receipts, and source-bound replay evidence under ruint 1.20.0 or later.",
+      "scope": "experimental_risc0_dependency_audit_only",
+      "version": "1.19.0",
+      "workspace_id": "state_proof_risc0"
+    },
+    {
+      "advisory_id": "",
+      "category": "yanked",
+      "dependency_path": "risc0-binfmt 3.0.4 -> postcard 1.1.3 -> heapless 0.7.17 -> spin 0.9.8",
+      "lockfile_checksum": "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67",
+      "lockfile_source": "registry+https://github.com/rust-lang/crates.io-index",
+      "no_raw_untrusted_terminal_logging": true,
+      "no_secret_input": true,
+      "package": "spin",
+      "production_authority": false,
+      "reachability": "spin 0.9.8 is yanked without a RustSec advisory ID. The exact spin-only A/B comparison in docs/research/RISC0_SPIN_099_PROOF_IDENTITY_COMPARISON_20260804.json changed 8/8 ZRPF guest ELF hashes and image IDs, and this lockfile is part of retained proof-source identity. This disposition is restricted to the unmounted retained-proof lane. Removal requires fresh image IDs, receipts, and source-bound replay evidence under spin 0.9.9 or later.",
+      "scope": "experimental_risc0_dependency_audit_only",
+      "version": "0.9.8",
       "workspace_id": "state_proof_risc0"
     },
     {
@@ -81,6 +137,34 @@
       "workspace_id": "recursive_stark_v2_risc0"
     },
     {
+      "advisory_id": "RUSTSEC-2026-0220",
+      "category": "vulnerability",
+      "dependency_path": "risc0-zkvm 3.0.5 -> risc0-binfmt 3.0.4 -> ruint 1.19.0",
+      "no_raw_untrusted_terminal_logging": true,
+      "no_secret_input": true,
+      "package": "ruint",
+      "production_authority": false,
+      "reachability": "The crate is transitively present through risc0-binfmt 3.0.4. Exact source review found only ordinary ruint shift operators with fixed 32-bit and 96-bit amounts, and no calls to the advisory's affected overflowing, checked, saturating, or wrapping shift methods or to_base_be. This unmounted retained-proof lane rejects raw untrusted terminal logging. Its exact source lock remains frozen because a lock change invalidates the retained proof-source inventory. Removal requires fresh image IDs, receipts, and source-bound replay evidence under ruint 1.20.0 or later.",
+      "scope": "experimental_risc0_dependency_audit_only",
+      "version": "1.19.0",
+      "workspace_id": "recursive_stark_v2_risc0"
+    },
+    {
+      "advisory_id": "",
+      "category": "yanked",
+      "dependency_path": "risc0-binfmt 3.0.4 -> postcard 1.1.3 -> heapless 0.7.17 -> spin 0.9.8",
+      "lockfile_checksum": "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67",
+      "lockfile_source": "registry+https://github.com/rust-lang/crates.io-index",
+      "no_raw_untrusted_terminal_logging": true,
+      "no_secret_input": true,
+      "package": "spin",
+      "production_authority": false,
+      "reachability": "spin 0.9.8 is yanked without a RustSec advisory ID. The exact spin-only A/B comparison in docs/research/RISC0_SPIN_099_PROOF_IDENTITY_COMPARISON_20260804.json changed 8/8 ZRPF guest ELF hashes and image IDs, and this lockfile is part of retained proof-source identity. This disposition is restricted to the unmounted retained-proof lane. Removal requires fresh image IDs, receipts, and source-bound replay evidence under spin 0.9.9 or later.",
+      "scope": "experimental_risc0_dependency_audit_only",
+      "version": "0.9.8",
+      "workspace_id": "recursive_stark_v2_risc0"
+    },
+    {
       "advisory_id": "RUSTSEC-2023-0071",
       "category": "vulnerability",
       "dependency_path": "risc0-zkvm 3.0.5 -> rzup 0.5.1 -> rsa 0.9.10",
@@ -105,6 +189,34 @@
       "scope": "experimental_risc0_dependency_audit_only",
       "version": "0.2.25",
       "workspace_id": "zrpf_risc0"
+    },
+    {
+      "advisory_id": "RUSTSEC-2026-0220",
+      "category": "vulnerability",
+      "dependency_path": "risc0-zkvm 3.0.5 -> risc0-binfmt 3.0.4 -> ruint 1.19.0",
+      "no_raw_untrusted_terminal_logging": true,
+      "no_secret_input": true,
+      "package": "ruint",
+      "production_authority": false,
+      "reachability": "The crate is transitively present through risc0-binfmt 3.0.4. Exact source review found only ordinary ruint shift operators with fixed 32-bit and 96-bit amounts, and no calls to the advisory's affected overflowing, checked, saturating, or wrapping shift methods or to_base_be. This unmounted retained-proof lane rejects raw untrusted terminal logging. Its exact source lock remains frozen because a lock change invalidates the retained proof-source inventory. Removal requires fresh image IDs, receipts, and source-bound replay evidence under ruint 1.20.0 or later.",
+      "scope": "experimental_risc0_dependency_audit_only",
+      "version": "1.19.0",
+      "workspace_id": "zrpf_risc0"
+    },
+    {
+      "advisory_id": "",
+      "category": "yanked",
+      "dependency_path": "risc0-binfmt 3.0.4 -> postcard 1.1.3 -> heapless 0.7.17 -> spin 0.9.8",
+      "lockfile_checksum": "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67",
+      "lockfile_source": "registry+https://github.com/rust-lang/crates.io-index",
+      "no_raw_untrusted_terminal_logging": true,
+      "no_secret_input": true,
+      "package": "spin",
+      "production_authority": false,
+      "reachability": "spin 0.9.8 is yanked without a RustSec advisory ID. The exact spin-only A/B comparison in docs/research/RISC0_SPIN_099_PROOF_IDENTITY_COMPARISON_20260804.json changed 8/8 ZRPF guest ELF hashes and image IDs, and this lockfile is part of retained proof-source identity. This disposition is restricted to the unmounted retained-proof lane. Removal requires fresh image IDs, receipts, and source-bound replay evidence under spin 0.9.9 or later.",
+      "scope": "experimental_risc0_dependency_audit_only",
+      "version": "0.9.8",
+      "workspace_id": "zrpf_risc0"
     }
   ],
   "nonclaims": [
@@ -112,7 +224,8 @@
     "does_not_authorize_production_or_settlement",
     "does_not_authorize_unsound_dependency_dispositions",
     "does_not_replace_source_to_binary_provenance",
-    "does_not_establish_dependency_non_reachability"
+    "does_not_establish_dependency_non_reachability",
+    "does_not_pin_the_crates_io_index_for_future_yank_discovery"
   ],
   "policy_id": "zenodex-risc0-five-workspace-active-reproof-audit-20260712",
   "production_authority": false,

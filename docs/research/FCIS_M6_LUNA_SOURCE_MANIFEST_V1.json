@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.luna-source-manifest.v1",
   "contract": "fcis-m6-durable-retraction-luna-repair-v1",
   "base_commit": "babffa56dcbddc5886487fbb6e62740b15370000",
-  "implementation_target_commit": "ecf26f987c3d6393501fec66ddfc3429fb8634c7",
-  "implementation_target_tree": "fdf154ac143a9f9a9e840fbbf49761190d138920",
+  "implementation_target_commit": "bfc3b10fe84f5807a226e4b564127c1ffb5ff0d6",
+  "implementation_target_tree": "b836be736af365d3b4cc58995f280892ea6bea94",
   "canonical_archive": "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz",
   "archive_excludes": [
     "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz"
@@ -19,8 +19,113 @@
       "role": "read_only_ci"
     },
     {
+      "path": ".github/workflows/fcis-b1b-revision34.yml",
+      "sha256": "e36cf63bbc82ac6599e385b19478af3fb7bbf91dd32fa14e4e1bf053fc9634cb",
+      "role": "b1b_compatibility_workflow"
+    },
+    {
+      "path": "config/proof_profiles/risc0_dependency_audit_policy_v2.json",
+      "sha256": "fd47e366052bcb149bdff1cb0688922e31b52130c1c2723d1b9a42a6ece188f1",
+      "role": "risc0_residual_advisory_policy"
+    },
+    {
+      "path": "config/proof_profiles/risc0_recursive_active_reproof_reference_v3.json",
+      "sha256": "1a5e65f595e2a70e64ed17f82d4abdb19dcbb426c83ea9bacd0798aaf46e1d8d",
+      "role": "source_bound_reproof_reference"
+    },
+    {
+      "path": "docs/dependency_pinning_status.json",
+      "sha256": "204879f22327a5625ca90d082464dd56c3f547d09b308573a5a3ca549c40508c",
+      "role": "dependency_pinning_status"
+    },
+    {
+      "path": "docs/research/RISC0_SPIN_099_LOCK_DELTA_20260804.patch",
+      "role": "spin_only_lock_delta_evidence",
+      "sha256": "139a13fbfe6dc34d10ef438693eb75d484475503be838aa5a1bcfee304cee7b4"
+    },
+    {
+      "path": "docs/research/RISC0_SPIN_099_PROOF_IDENTITY_COMPARISON_20260804.json",
+      "role": "spin_only_proof_identity_comparison",
+      "sha256": "aea09b01b4190a8c2d0a5db52b293a1a1e931dfc318964adf6dfcc178426607e"
+    },
+    {
+      "path": "tests/integration/test_check_risc0_dependency_audit.py",
+      "sha256": "efd290dc8982826bd7c11164905d2257e9eac52613481603bdd057b568da88f0",
+      "role": "risc0_advisory_mutation_tests"
+    },
+    {
+      "path": "tests/tools/test_build_fcis_b1b1_implementation_review_packet.py",
+      "sha256": "30f6ff90d5fef960da06abdaef2d7bf7f70a646ca9580b35e86634f99a1be2ef",
+      "role": "sealed_b1b_packet_tests"
+    },
+    {
+      "path": "tests/tools/test_check_fcis_b1b_revision34_contract.py",
+      "sha256": "82428c8a2b5e21867c634cba40b356bb7bbd8822cc694ce8e61e0767175123ea",
+      "role": "b1b_reachability_mutation_tests"
+    },
+    {
+      "path": "tests/tools/test_check_fcis_m5_p4b5a_atdd_contract.py",
+      "sha256": "f79db75b516d8a114bc6b1d9e1e634feb557b8891a1eafbdccb148c51a7e502f",
+      "role": "b1b_diff_ownership_mutation_tests"
+    },
+    {
+      "path": "tools/build_fcis_b1b1_implementation_review_packet.py",
+      "sha256": "c62fec432c0105943b2c57194fbb3ea30b8863f5ecfe6c2da9fe60fb93355821",
+      "role": "sealed_b1b_packet_checker"
+    },
+    {
+      "path": "tools/check_fcis_b1b_revision34_contract.py",
+      "sha256": "742a69f15d77d2dca03fe03485ecf3afba464027201c898bb6a006fa4238a052",
+      "role": "b1b_closed_research_reachability_checker"
+    },
+    {
+      "path": "tools/check_fcis_m5_p4b5a_atdd_contract.py",
+      "sha256": "582ac66dd172116cf4d43b0c491f3fd96a48b4f34fbdae7cb22dfa8a255c47b4",
+      "role": "b1b_event_diff_ownership_checker"
+    },
+    {
+      "path": "tools/check_risc0_dependency_audit.py",
+      "sha256": "a6a0dda885518e8b5f51b913fdc58bec88e561973dac124011e3f1d63a1dc91d",
+      "role": "risc0_dependency_audit_checker"
+    },
+    {
+      "path": "tools/check_risc0_recursive_active_reproof_v3.py",
+      "role": "source_bound_reproof_checker",
+      "sha256": "94f311cd2e0b527e072aef74a75ae4c9bf4aa001d3285e842441cb53e0592476"
+    },
+    {
+      "path": "tools/fcis_m5_p4b5a_atdd_policy.py",
+      "sha256": "79e0c91e463a826ea2ae22036df84b39513e936679de38611036f125facc816d",
+      "role": "b1b_closed_ownership_policy"
+    },
+    {
+      "path": "tools/fcis_m5_p4b5a_atdd_validation.py",
+      "sha256": "c3a4383c02cbcc57401374f95c6b30eaf0fc9360cdd3513a404b237d63d1db89",
+      "role": "b1b_closed_ownership_validation"
+    },
+    {
+      "path": "zk/recursive_stark_v2_active_reproof_risc0/Cargo.lock",
+      "sha256": "1a918b3c188bdd16e381dc959b6c0ce21ceb59735a8e797d68f4578f2173e98d",
+      "role": "proof_bound_risc0_lock"
+    },
+    {
+      "path": "zk/recursive_stark_v2_risc0/Cargo.lock",
+      "sha256": "45cd06efebd2a989b7a1061e4958a45520cec388fe0ac9f8987c16fe9a5fef64",
+      "role": "proof_bound_risc0_lock"
+    },
+    {
+      "path": "zk/state_proof_risc0/Cargo.lock",
+      "sha256": "d30f07417921c475d99826eb10a45c17ec059c88b53c3f835702f27b509442ba",
+      "role": "proof_bound_risc0_lock"
+    },
+    {
+      "path": "zk/zrpf_risc0/Cargo.lock",
+      "sha256": "1c3ea17c920eb539080d641ad2ab46d40d4fb50d5ee4464cea90f2f694787937",
+      "role": "proof_bound_risc0_lock"
+    },
+    {
       "path": "requirements-dev.lock.txt",
-      "sha256": "8ae2a245984d66a60e7fde6c0504b79b1de8fbcc86027b2a42c4adb7164229d8",
+      "sha256": "f19d92eb044fdf0b23c50cba4a4d0054d5608579c0c04ab05d93a4a3880cc53e",
       "role": "hash_locked_python_dependencies"
     },
     {
@@ -55,7 +160,7 @@
     },
     {
       "path": "lean-mathlib/lakefile.lean",
-      "sha256": "269e55625ea26d5a01938dcfd15b87b19eccbc3f8ac8b95b53f06882bd9c7c33",
+      "sha256": "2bb569ac28cdc0ab5d69618cb506e47f9103589d4d1c0cea2e977c146aeebaed",
       "role": "lean_project_root"
     },
     {
@@ -67,6 +172,36 @@
       "path": "tests/core/test_fcis_durable_retraction.py",
       "sha256": "393db55a223498d5283e24c563a61b7a8fcb0baa20df1a6edaa02f7f579ba090",
       "role": "permanent_regression_witnesses"
+    },
+    {
+      "path": "src/integration/settlement_end_to_end_certificate_packet.py",
+      "sha256": "82122c97b2393dc56c7972f3e5288b7746fc64c8a63093dbf39ff12a4379daca",
+      "role": "settlement_replay_adapter"
+    },
+    {
+      "path": "tools/dex_engine_sequence_grammar_fuzz.py",
+      "sha256": "e4482ee427d20d2edfb7672fc065b47a010011bff8fa7ca13b8fe004e1cde16f",
+      "role": "bounded_sequence_trace_tool"
+    },
+    {
+      "path": "tools/stateful_scenario_bridge.py",
+      "sha256": "84c323865b43723501193ec551c592b15f66f8af7af8f01a7f80c1b9fe49c2fa",
+      "role": "closed_disaster_receipt_runner"
+    },
+    {
+      "path": "tests/integration/test_operations_grammar_fuzz.py",
+      "sha256": "ef8a20e913f7ddb079f1e89f0d16d561056b53fdc475868e68839fcf7c6c0faa",
+      "role": "minimized_witness_regression"
+    },
+    {
+      "path": "tests/integration/test_quote_receipt_transport_grammar_fuzz.py",
+      "sha256": "a8c68efed9d639797e0a9f973c933b4f1fad64e99ab074561ac897141e6c1714",
+      "role": "minimized_witness_regression"
+    },
+    {
+      "path": "tests/integration/test_stateful_scenario_bridge.py",
+      "sha256": "532e8b05ef0429287b454c2841ea3a11f22e865c890e12131b83c050b9abf3de",
+      "role": "closed_disaster_failure_isolation_tests"
     },
     {
       "path": "README_BUNDLE.md",
@@ -90,7 +225,7 @@
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json",
-      "sha256": "c81e593e09aac415df664e45329aacc42f9db61565d4f13bdc372aceb8305dae",
+      "sha256": "8617e1f5f89ebe333085d6021334b061ce37a4970b5d84a87c18f8efc360fdef",
       "role": "task_graph"
     },
     {
@@ -115,17 +250,17 @@
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_REPAIR_REPORT_20260731.md",
-      "sha256": "1b7b156df347ae3e71ba55911ac3ff04560d10f6d907e01704fb022779b5ba55",
+      "sha256": "efe7ef2c5a8002aacc18f0d9e03193378ccfe2fb1046fe9c842b3622d2adddfb",
       "role": "repair_report"
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_CHANGE_INVENTORY_V1.md",
-      "sha256": "c607d236155dea61dcb184cac00bf8c91d9600f03b82693518231783eb53d20b",
+      "sha256": "4eee9dc8a9eb11be2fc24242626f19f6976ca85e417020ef78db0e53838dcfcc",
       "role": "change_inventory"
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_TOOLCHAIN_V1.json",
-      "sha256": "e85dd671b7458fd5fe86ef9c09adeb18c87ea2a7e74d782879ec33ea5f702421",
+      "sha256": "2f25537ab361c61dfc06307d7fdfa1adbad9f61a13dc9744f345b3650232587c",
       "role": "exact_toolchain_record"
     },
     {

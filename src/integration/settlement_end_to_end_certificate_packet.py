@@ -351,7 +351,10 @@ def enforce_settlement_end_to_end_certificate(
         settlement=settlement,
         intents=intents,
         pre_balances=pre_balances,
-        pre_pools=dict(pre_pools),
+        # Preserve the exact mounted pool carrier.  Coercing a FrozenDict to a
+        # plain dict also preserves its FrozenPoolState values, which no longer
+        # form a valid legacy dict carrier and therefore fail closed admission.
+        pre_pools=pre_pools,
         pre_lp_balances=pre_lp_balances,
         mode=mode,
         allow_cow_netting=allow_cow_netting,

@@ -171,3 +171,208 @@ receipt archive digest, the branch, and every packet-file digest.
 This repair remains `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED`. It does not add a
 production datastore adapter, runtime mount, authority switch, deployment,
 merge, or value movement.
+
+## Dependency-assurance rebind addendum (2026-08-04)
+
+This addendum binds the current packet to the audited dependency repair:
+
+- Prior packet head: `3c2a016e7ae702bddcca47831e15a5d17509010f`
+- Implementation target commit: `2c3f21d87d49a31bceb1e74b19077bebcdb3cd2c`
+- Implementation target tree: `16e6a2ee03e9e949431605c493c7ff9bc3aad5c7`
+- Implementation target parent: `3c2a016e7ae702bddcca47831e15a5d17509010f`
+- Hash-locked development requirements SHA-256:
+  `f19d92eb044fdf0b23c50cba4a4d0054d5608579c0c04ab05d93a4a3880cc53e`
+
+The implementation target raises the Python cryptography floor to `50.0.0`,
+the MCP floor to `1.28.1`, and resolves the exact locks to cryptography
+`50.0.0` and MCP `1.29.0`. The UI lock removes the retained npm advisories.
+The four affected RISC0 locks use `ruint` `1.20.0` and `spin` `0.9.9`.
+
+Local evidence includes an isolated `--require-hashes` installation with a
+clean `pip check`, clean audits of all three Python locks, a clean UI audit,
+the exact cargo-audit `0.22.1` RISC0 checker, compile checks for all four
+patched RISC0 workspaces under Rust `1.90.0`, 61 focused dependency/profile
+tests, 38 dependency-permission parser tests, and the UI contract, 86-test SDK,
+configuration, lint, and production-build gates. The RISC0 checker continues
+to expose its declared RSA and tracing-subscriber dispositions and
+unmaintained-package warnings; this repair does not broaden those dispositions.
+
+The packet remains `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED`. Dependency repair and
+source rebinding do not establish production durability, mounted no-bypass,
+external destination behavior, or whole-system M6 closure.
+
+## Sealed-evidence compatibility addendum (2026-08-04)
+
+This addendum supersedes the preceding RISC0-lock posture for the current
+packet target:
+
+- Prior packet head: `4ff2122ebcc5ea848361dad23d7d587c304cac10`
+- Implementation target commit: `9bc1a0f2bc271021432f690f3628e8cf58aa6996`
+- Implementation target tree: `7e493180bf0c17185d71a926d4a6952e8ce955c2`
+- Implementation target parent: `4ff2122ebcc5ea848361dad23d7d587c304cac10`
+- RISC0 dependency policy SHA-256:
+  `2913f714083b0ab1884282bf6401b6b9cfaf3b2b610301f1bb6bae2cc1433108`
+- RustSec advisory database revision:
+  `6d7aef354b4144c1ede046034adfd00246d3b0c0`
+
+A pinned RISC0 force-build with the attempted `ruint 1.20.0` and `spin 0.9.9`
+locks produced guest image identities different from the retained receipts.
+Those locks therefore could not be presented as a dependency-only repair. The
+current implementation target restores all four proof-bound lockfiles and
+keeps every retained image ID, receipt, evidence inventory root, and proof
+source inventory root unchanged.
+
+`RUSTSEC-2026-0220` remains visible. Exact `risc0-binfmt 3.0.4` source review
+found only ordinary ruint shifts with fixed 32-bit and 96-bit amounts and no
+calls to the advisory's affected overflowing, checked, saturating, or wrapping
+shift methods or `to_base_be`. The exact cargo-audit `0.22.1` gate accepts 12
+scoped dispositions across four unmounted RISC0 workspaces and reports no
+unused disposition. This is a bounded reachability disposition, not proof that
+the dependency graph is safe. Removal requires new image IDs, fresh receipts,
+and source-bound replay evidence under `ruint 1.20.0` or later.
+
+The target also repairs two stale B1B CI assumptions. The ownership checker now
+derives the exact pull-request merge base and validates only the closed B1B
+subsystem surface, retaining every registered owner and forbidden path. The
+workflow validates the immutable historical B1B packet by exact ancestry and
+bytes rather than requiring the current head to be that historical packet
+child. A closed source-only M6 state-binding chain is admitted as unmounted
+research composition; any carrier or chain consumer outside the exact set is
+rejected.
+
+Local evidence at the implementation target includes 175 B1B Python tests,
+nine Rust B1B parity tests, Rust formatting and clippy, the 1,011-file B1B
+reachability scan, 42 RISC0 dependency/profile tests, the exact five-workspace
+cargo-audit result, 740 ZRPF Python/evidence tests in the default sandbox, 19
+sealed-verifier tests outside the sandbox's `/proc/self/fd` execution
+restriction, and 16 clean-checkout source-closure tests. The ZRPF CBC report
+still records five pending obligations and does not authorize production.
+
+This packet remains `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED`. It adds no runtime
+mount, production datastore, publication authority, migration switch,
+deployment, merge, or value movement.
+
+## Lock-bound yanked-dependency addendum (2026-08-04)
+
+This addendum is the authoritative dependency posture for the current packet:
+
+- Prior packet head: `ee3618631c7a4266c05d15d9fdd3c8de6d1d600f`
+- Implementation target commit:
+  `92cc27f6315cbaa9c830066c41585a075f07857d`
+- Implementation target tree:
+  `4ee19c42470bd13cbe9ec2b2aef5ce0ad5a48c86`
+- Implementation target parent:
+  `ee3618631c7a4266c05d15d9fdd3c8de6d1d600f`
+- RISC0 dependency policy SHA-256:
+  `fd47e366052bcb149bdff1cb0688922e31b52130c1c2723d1b9a42a6ece188f1`
+- Spin-only lock patch SHA-256:
+  `139a13fbfe6dc34d10ef438693eb75d484475503be838aa5a1bcfee304cee7b4`
+- Spin-only proof-identity comparison SHA-256:
+  `aea09b01b4190a8c2d0a5db52b293a1a1e931dfc318964adf6dfcc178426607e`
+- RustSec advisory database revision:
+  `6d7aef354b4144c1ede046034adfd00246d3b0c0`
+
+Hosted `cargo-audit 0.22.1` reported yanked `spin 0.9.8` in all four retained
+proof workspaces. A local `--no-fetch` replay at the same RustSec database
+revision omitted those yank warnings because cargo-audit obtains yank status
+from the local crates.io index. The repaired checker does not treat the absent
+local warning as proof that the package is not yanked. It applies the known
+exception only when the committed lock contains exactly:
+
+```text
+package  = spin
+version  = 0.9.8
+source   = registry+https://github.com/rust-lang/crates.io-index
+checksum = 6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67
+```
+
+The exact whole-workspace checker accepts 16 narrowly scoped dispositions: the
+three prior vulnerability dispositions and one lock-bound yank disposition in
+each of four unmounted proof workspaces. It reports no unused disposition.
+Unknown, changed-version, changed-source, changed-checksum, or additional
+yanked findings still reject. The crates.io index revision remains unpinned,
+so hosted cargo-audit remains required to discover other or future yanks.
+The public payload evaluator exposes no lock-authority parameter. Duplicate
+cargo vulnerability or warning identities reject instead of being silently
+collapsed.
+
+The retained A/B experiment changed only `spin 0.9.8` to `0.9.9` in the four
+proof-bound lockfiles and kept `ruint 1.19.0`. Under the pinned RISC0 toolchain,
+all eight ZRPF guest ELF hashes and all eight image IDs changed. The exact lock
+patch, baseline and trial lock hashes, guest hashes, image IDs, and toolchain
+identities are source-bound in the comparison report. Guest binaries were
+deleted after verification and no receipts were regenerated.
+
+Local evidence includes 71 dependency-workflow and active-reproof tests, Ruff,
+strict mypy, Python compilation, the active-reproof source-inventory checker,
+the workflow-permission checker, the exact five-workspace cargo-audit replay,
+and mutation tests for omitted/duplicated hosted yank warnings, direct
+payload-only authorization, package source/checksum drift, and future unknown
+yanks, plus duplicate warning and vulnerability identities.
+
+This repair does not prove `spin 0.9.8` safe and does not authorize the yanked
+dependency in production. Removal still requires `spin 0.9.9` or later, fresh
+image IDs, fresh receipts, and source-bound replay evidence. The packet remains
+`RESEARCH_ONLY_EXECUTABLE_UNMOUNTED` and adds no runtime mount, datastore,
+publication authority, deployment, merge, or value movement.
+
+## Closed-disaster receipt repair addendum (2026-08-04)
+
+This addendum binds the packet to the exact disaster-receipt repair target:
+
+- Prior packet head: `4b5c59dc2f8c132bdd059c7f9b7af3286eb80f30`
+- Implementation target commit:
+  `bfc3b10fe84f5807a226e4b564127c1ffb5ff0d6`
+- Implementation target tree:
+  `b836be736af365d3b4cc58995f280892ea6bea94`
+- Implementation target parent:
+  `4b5c59dc2f8c132bdd059c7f9b7af3286eb80f30`
+- Closed receipt SHA-256:
+  `105f1682ee839ae22c8d46a39730e67a3828f34bba55387a825dfeace0af298e`
+- Closed ratchet SHA-256:
+  `074f91a2f6bfd5457fc665a050c78d5b06a8999ab5cecd9de2aa001c041c1c9b`
+
+The implementation target repairs three independent evidence failures. The
+settlement certificate boundary now preserves the exact mounted immutable pool
+carrier through fresh replay. The closed-disaster runner executes one bounded
+pytest shard per exact path and `-k` expression, shares only identical shards,
+and requires every shard of an original command to pass. A failing or slow
+path can no longer make unrelated axes inconclusive. The dex-engine sequence
+tracer caches source membership per code object, preserving its declared line
+trace while removing path-resolution work from every traced event. Two stale
+minimized-witness path identities were regenerated from the exact repaired
+source.
+
+Exact local evidence includes:
+
+```text
+stateful scenario bridge:                    24 passed
+settlement and two grammar suites:           31 passed
+dex-engine sequence grammar suite:            5 passed
+surrounding assurance and coverage suites:   39 passed
+API loopback suite:                          85 passed
+strict mypy:                                 PASS
+Python compilation:                         PASS
+
+closed disaster receipt ratchet:
+  pinned axes:                               29
+  selected axes:                             29
+  unreachable under current bounds:         29
+  failed:                                     0
+  inconclusive:                               0
+```
+
+The API and full receipt gates used an execution environment permitted to bind
+ephemeral localhost ports. The default sandbox rejects those existing tests at
+socket creation. The structured receipt, exact-path regression, and permanent
+failure-isolation regression are the retained evidence. Whole-file Ruff still
+reports inherited import-layout findings and one unrelated duplicate mapping
+key in the large scenario tool; this slice does not claim a clean whole-file
+Ruff gate.
+
+This repair changes evidence execution and an unmounted settlement replay
+adapter. It does not establish that the bounded disaster inventory is complete,
+prove any disaster unreachable outside the declared bounds, or add production
+authority. The packet remains `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED` and adds no
+runtime mount, datastore publication, migration switch, deployment, merge, or
+value movement.

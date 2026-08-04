@@ -10,6 +10,7 @@ import os
 import re
 import stat
 import subprocess
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -70,7 +71,11 @@ PERMITTED_DISPOSITION_KEYS: frozenset[DispositionKey] = frozenset(
     for advisory_id, package, version in (
         ("RUSTSEC-2023-0071", "rsa", "0.9.10"),
         ("RUSTSEC-2025-0055", "tracing-subscriber", "0.2.25"),
+        ("RUSTSEC-2026-0220", "ruint", "1.19.0"),
     )
+) | frozenset(
+    (workspace_id, "yanked", "", "spin", "0.9.8")
+    for workspace_id in RISC0_WORKSPACE_IDS
 )
 KNOWN_WARNING_CATEGORIES = frozenset({"unmaintained", "unsound", "yanked"})
 DENIED_WARNING_CATEGORIES = frozenset({"unsound", "yanked"})
@@ -102,6 +107,16 @@ DISPOSITION_FIELDS = frozenset(
         "workspace_id",
     }
 )
+YANKED_DISPOSITION_FIELDS = DISPOSITION_FIELDS | frozenset(
+    {"lockfile_checksum", "lockfile_source"}
+)
+CRATES_IO_REGISTRY_SOURCE = "registry+https://github.com/rust-lang/crates.io-index"
+SPIN_0_9_8_CHECKSUM = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+LOCK_BOUND_YANKED_IDENTITIES: Mapping[tuple[str, str], tuple[str, str]] = {
+    ("spin", "0.9.8"): (CRATES_IO_REGISTRY_SOURCE, SPIN_0_9_8_CHECKSUM)
+}
+
+
 class AuditInputError(ValueError):
     """A local policy, lockfile, database, or cargo-audit report is unsafe."""
 
@@ -239,31 +254,58 @@ def _validate_policy_header(policy: Mapping[str, Any]) -> None:
         _nonempty_ascii(nonclaim, label=f"policy nonclaim[{index}]", max_chars=128)
 
 
-def _validate_disposition(
-    raw: object,
+def _validate_yanked_lock_identity(
+    row: Mapping[str, Any],
     *,
     index: int,
-) -> DispositionKey:
-    if not isinstance(raw, Mapping):
-        raise AuditInputError(f"disposition[{index}] fields mismatch")
-    category = _nonempty_ascii(
-        raw.get("category"), label=f"disposition[{index}] category", max_chars=32
+    package: str,
+    version: str,
+) -> None:
+    expected_lock_identity = LOCK_BOUND_YANKED_IDENTITIES.get((package, version))
+    if expected_lock_identity is None:
+        raise AuditInputError("yanked disposition lock identity is not permitted")
+    lockfile_source = _nonempty_ascii(
+        row.get("lockfile_source"),
+        label=f"disposition[{index}] lockfile source",
+        max_chars=256,
     )
-    row = _exact_fields(raw, DISPOSITION_FIELDS, label=f"disposition[{index}]")
-    workspace_id = _nonempty_ascii(
-        row.get("workspace_id"), label=f"disposition[{index}] workspace", max_chars=64
+    lockfile_checksum = _nonempty_ascii(
+        row.get("lockfile_checksum"),
+        label=f"disposition[{index}] lockfile checksum",
+        max_chars=64,
     )
-    advisory_id = _nonempty_ascii(
-        row.get("advisory_id"), label=f"disposition[{index}] advisory", max_chars=64
-    )
+    if (lockfile_source, lockfile_checksum) != expected_lock_identity:
+        raise AuditInputError("yanked disposition lock identity mismatch")
+
+
+def _disposition_identity(
+    row: Mapping[str, Any], *, index: int, category: str
+) -> tuple[str, str, str]:
     package = _nonempty_ascii(
         row.get("package"), label=f"disposition[{index}] package", max_chars=128
     )
-    package_version = _nonempty_ascii(
+    version = _nonempty_ascii(
         row.get("version"), label=f"disposition[{index}] version", max_chars=64
     )
-    if category != "vulnerability":
+    if category == "vulnerability":
+        advisory_id = _nonempty_ascii(
+            row.get("advisory_id"),
+            label=f"disposition[{index}] advisory",
+            max_chars=64,
+        )
+    elif category == "yanked":
+        if row.get("advisory_id") != "":
+            raise AuditInputError("yanked disposition advisory must be empty")
+        advisory_id = ""
+        _validate_yanked_lock_identity(
+            row, index=index, package=package, version=version
+        )
+    else:
         raise AuditInputError("disposition category is not permitted")
+    return advisory_id, package, version
+
+
+def _validate_disposition_controls(row: Mapping[str, Any], *, index: int) -> None:
     if row.get("scope") != EXPECTED_CLAIM_SCOPE:
         raise AuditInputError("disposition scope mismatch")
     if row.get("no_secret_input") is not True:
@@ -274,7 +316,30 @@ def _validate_disposition(
         raise AuditInputError("disposition production authority must remain false")
     _nonempty_ascii(row.get("dependency_path"), label=f"disposition[{index}] dependency path")
     _nonempty_ascii(row.get("reachability"), label=f"disposition[{index}] reachability")
-    key = (workspace_id, category, advisory_id, package, package_version)
+
+
+def _validate_disposition(
+    raw: object,
+    *,
+    index: int,
+) -> DispositionKey:
+    if not isinstance(raw, Mapping):
+        raise AuditInputError(f"disposition[{index}] fields mismatch")
+    category = _nonempty_ascii(
+        raw.get("category"), label=f"disposition[{index}] category", max_chars=32
+    )
+    expected_fields = (
+        YANKED_DISPOSITION_FIELDS if category == "yanked" else DISPOSITION_FIELDS
+    )
+    row = _exact_fields(raw, expected_fields, label=f"disposition[{index}]")
+    workspace_id = _nonempty_ascii(
+        row.get("workspace_id"), label=f"disposition[{index}] workspace", max_chars=64
+    )
+    advisory_id, package, version = _disposition_identity(
+        row, index=index, category=category
+    )
+    _validate_disposition_controls(row, index=index)
+    key = (workspace_id, category, advisory_id, package, version)
     if key not in PERMITTED_DISPOSITION_KEYS:
         raise AuditInputError("dependency-audit disposition identity is not permitted")
     return key
@@ -366,6 +431,7 @@ def _evaluate_vulnerabilities(
 ) -> tuple[list[dict[str, Any]], set[DispositionKey], list[str]]:
     findings: list[dict[str, Any]] = []
     applied: set[DispositionKey] = set()
+    seen: set[tuple[str, str, str]] = set()
     errors: list[str] = []
     if not isinstance(vulnerabilities, Mapping):
         return findings, applied, ["cargo-audit vulnerabilities must be an object"]
@@ -401,6 +467,18 @@ def _evaluate_vulnerabilities(
             finding["package"],
             finding["version"],
         )
+        identity = (
+            finding["advisory_id"],
+            finding["package"],
+            finding["version"],
+        )
+        if identity in seen:
+            errors.append(
+                "duplicate cargo-audit vulnerability finding: "
+                f"{finding['advisory_id']} {finding['package']} {finding['version']}"
+            )
+            continue
+        seen.add(identity)
         finding["disposition_applied"] = key in dispositions
         findings.append(finding)
         if key in dispositions:
@@ -418,9 +496,11 @@ def _evaluate_warnings(
     *,
     workspace_id: str,
     dispositions: frozenset[DispositionKey],
+    lock_bound_yanked_dispositions: frozenset[DispositionKey],
 ) -> tuple[list[dict[str, Any]], set[DispositionKey], list[str]]:
     findings: list[dict[str, Any]] = []
     applied: set[DispositionKey] = set()
+    seen: set[tuple[str, str, str, str]] = set()
     errors: list[str] = []
     if not isinstance(warnings, Mapping):
         return findings, applied, ["cargo-audit warnings must be an object"]
@@ -449,24 +529,42 @@ def _evaluate_warnings(
                 finding["package"],
                 finding["version"],
             )
-            finding["disposition_applied"] = key in dispositions
+            warning_identity = (
+                category,
+                finding["advisory_id"],
+                finding["package"],
+                finding["version"],
+            )
+            if warning_identity in seen:
+                errors.append(
+                    "duplicate cargo-audit warning finding: "
+                    f"{category} {finding['advisory_id'] or 'no-advisory-id'} "
+                    f"{finding['package']} {finding['version']}"
+                )
+                continue
+            seen.add(warning_identity)
+            disposition_applied = key in dispositions and (
+                category != "yanked" or key in lock_bound_yanked_dispositions
+            )
+            finding["disposition_applied"] = disposition_applied
             findings.append(finding)
-            if key in dispositions:
+            if disposition_applied:
                 applied.add(key)
             elif category in DENIED_WARNING_CATEGORIES:
-                identity = finding["advisory_id"] or "no-advisory-id"
+                display_identity = finding["advisory_id"] or "no-advisory-id"
                 errors.append(
                     f"denied {category} warning: "
-                    f"{identity} {finding['package']} {finding['version']}"
+                    f"{display_identity} {finding['package']} {finding['version']}"
                 )
     return findings, applied, errors
 
 
-def evaluate_audit_payload(
+def _evaluate_audit_payload(
     payload: object,
     *,
     workspace_id: str,
     dispositions: frozenset[DispositionKey],
+    lock_bound_yanked_dispositions: frozenset[DispositionKey],
 ) -> dict[str, Any]:
     if not isinstance(payload, Mapping):
         return {
@@ -487,6 +585,7 @@ def evaluate_audit_payload(
         payload.get("warnings"),
         workspace_id=workspace_id,
         dispositions=dispositions,
+        lock_bound_yanked_dispositions=lock_bound_yanked_dispositions,
     )
     applied.update(warning_applied)
     errors.extend(vulnerability_errors)
@@ -511,6 +610,22 @@ def evaluate_audit_payload(
     }
 
 
+def evaluate_audit_payload(
+    payload: object,
+    *,
+    workspace_id: str,
+    dispositions: frozenset[DispositionKey],
+) -> dict[str, Any]:
+    """Evaluate cargo-audit data without granting lock-derived authority."""
+
+    return _evaluate_audit_payload(
+        payload,
+        workspace_id=workspace_id,
+        dispositions=dispositions,
+        lock_bound_yanked_dispositions=frozenset(),
+    )
+
+
 def _discover_workspace_locks(root: Path) -> list[str]:
     zk_root = root / "zk"
     if not zk_root.is_dir():
@@ -530,6 +645,125 @@ def _discover_workspace_locks(root: Path) -> list[str]:
     return paths
 
 
+def _parse_lock_packages(lock_raw: bytes, *, label: str) -> list[Mapping[str, Any]]:
+    try:
+        document = tomllib.loads(lock_raw.decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        raise AuditInputError(f"{label} is invalid TOML: {exc}") from exc
+    packages = document.get("package")
+    if not isinstance(packages, list):
+        raise AuditInputError(f"{label} package registry must be an array")
+    result: list[Mapping[str, Any]] = []
+    for index, package in enumerate(packages):
+        if not isinstance(package, Mapping):
+            raise AuditInputError(f"{label} package[{index}] must be an object")
+        result.append(package)
+    return result
+
+
+def _matching_lock_packages(
+    packages: Sequence[Mapping[str, Any]], *, name: str, version: str
+) -> list[Mapping[str, Any]]:
+    return [
+        package
+        for package in packages
+        if package.get("name") == name and package.get("version") == version
+    ]
+
+
+def _lock_bound_yanked_findings(
+    lock_raw: bytes,
+    *,
+    workspace_id: str,
+    dispositions: frozenset[DispositionKey],
+    label: str,
+) -> tuple[list[dict[str, Any]], set[DispositionKey], list[str]]:
+    findings: list[dict[str, Any]] = []
+    applied: set[DispositionKey] = set()
+    errors: list[str] = []
+    try:
+        packages = _parse_lock_packages(lock_raw, label=label)
+    except AuditInputError as exc:
+        return findings, applied, [str(exc)]
+
+    for key in sorted(dispositions):
+        key_workspace, category, advisory_id, package_name, package_version = key
+        if key_workspace != workspace_id or category != "yanked":
+            continue
+        if advisory_id:
+            errors.append("lock-bound yanked disposition advisory must be empty")
+            continue
+        expected_identity = LOCK_BOUND_YANKED_IDENTITIES.get(
+            (package_name, package_version)
+        )
+        if expected_identity is None:
+            errors.append(
+                f"unsupported lock-bound yanked disposition: {package_name} {package_version}"
+            )
+            continue
+        matches = _matching_lock_packages(
+            packages, name=package_name, version=package_version
+        )
+        if len(matches) != 1:
+            errors.append(
+                "lock-bound yanked package occurrence mismatch: "
+                f"{package_name} {package_version} expected 1 found {len(matches)}"
+            )
+            continue
+        package = matches[0]
+        source = package.get("source")
+        checksum = package.get("checksum")
+        if (source, checksum) != expected_identity:
+            errors.append(
+                "lock-bound yanked package identity mismatch: "
+                f"{package_name} {package_version}"
+            )
+            continue
+        findings.append(
+            {
+                "advisory_id": "",
+                "category": "yanked",
+                "disposition_applied": True,
+                "evidence_source": "policy_and_cargo_lock",
+                "package": package_name,
+                "version": package_version,
+            }
+        )
+        applied.add(key)
+    return findings, applied, errors
+
+
+def _canonical_workspace_warnings(
+    evaluation: Mapping[str, Any],
+    *,
+    workspace_id: str,
+    lock_findings: Sequence[Mapping[str, Any]],
+    lock_applied: set[DispositionKey],
+) -> list[Mapping[str, Any]]:
+    warnings = [
+        warning
+        for warning in evaluation["warnings"]
+        if (
+            workspace_id,
+            warning["category"],
+            warning["advisory_id"],
+            warning["package"],
+            warning["version"],
+        )
+        not in lock_applied
+    ]
+    warnings.extend(lock_findings)
+    warnings.sort(
+        key=lambda item: (
+            item["category"],
+            item["advisory_id"],
+            item["package"],
+            item["version"],
+        )
+    )
+    return warnings
+
+
 def _workspace_report(
     spec: WorkspaceSpec,
     *,
@@ -538,6 +772,7 @@ def _workspace_report(
     dispositions: frozenset[DispositionKey],
 ) -> tuple[dict[str, Any], set[DispositionKey]]:
     errors: list[str] = []
+    lock_raw = b""
     lock_sha256 = ""
     lock_size_bytes = 0
     try:
@@ -550,16 +785,31 @@ def _workspace_report(
         lock_size_bytes = len(lock_raw)
     except AuditInputError as exc:
         errors.append(str(exc))
-    evaluation = evaluate_audit_payload(
+    lock_findings, lock_applied, lock_errors = _lock_bound_yanked_findings(
+        lock_raw,
+        workspace_id=spec.workspace_id,
+        dispositions=dispositions,
+        label=spec.lockfile,
+    )
+    errors.extend(lock_errors)
+    evaluation = _evaluate_audit_payload(
         payload,
         workspace_id=spec.workspace_id,
         dispositions=dispositions,
+        lock_bound_yanked_dispositions=frozenset(lock_applied),
     )
     errors.extend(evaluation["errors"])
     applied = {tuple(row) for row in evaluation["applied_dispositions"]}
+    applied.update(lock_applied)
+    warnings = _canonical_workspace_warnings(
+        evaluation,
+        workspace_id=spec.workspace_id,
+        lock_findings=lock_findings,
+        lock_applied=lock_applied,
+    )
     return (
         {
-            "applied_dispositions": evaluation["applied_dispositions"],
+            "applied_dispositions": [list(key) for key in sorted(applied)],
             "errors": list(dict.fromkeys(errors)),
             "lockfile": spec.lockfile,
             "lockfile_sha256": lock_sha256,
@@ -567,7 +817,7 @@ def _workspace_report(
             "ok": not errors,
             "retained_unsound_boundary_verified": False,
             "vulnerabilities": evaluation["vulnerabilities"],
-            "warnings": evaluation["warnings"],
+            "warnings": warnings,
             "workspace": spec.relative_path,
             "workspace_id": spec.workspace_id,
         },
@@ -612,7 +862,7 @@ def check_audit_payloads(
         applied_dispositions.update(applied)
     unused_dispositions = sorted(dispositions - applied_dispositions)
     if unused_dispositions:
-        errors.append("policy contains stale or unreachable vulnerability dispositions")
+        errors.append("policy contains stale or unreachable dependency dispositions")
     all_ok = not errors and all(report["ok"] for report in workspace_reports)
     return {
         "advisory_database_revision": advisory_database_revision,

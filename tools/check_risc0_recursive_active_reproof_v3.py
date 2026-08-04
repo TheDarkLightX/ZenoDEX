@@ -30,6 +30,8 @@ PROMOTION_SOURCE_PATHS = (
     "docs/research/RECURSIVE_STARK_ACTIVE_REPROOF_V3_SPEC_20260712.md",
     "docs/research/RECURSIVE_STARK_CBC_MATRIX_20260709.json",
     "docs/research/RECURSIVE_STARK_VERICODING_SPEC_20260709.md",
+    "docs/research/RISC0_SPIN_099_LOCK_DELTA_20260804.patch",
+    "docs/research/RISC0_SPIN_099_PROOF_IDENTITY_COMPARISON_20260804.json",
     "tests/integration/test_check_risc0_dependency_audit.py",
     "tests/test_check_recursive_stark_cbc_spec.py",
     "tests/test_check_risc0_recursive_active_reproof_v3.py",

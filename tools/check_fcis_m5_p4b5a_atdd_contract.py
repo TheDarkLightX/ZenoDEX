@@ -25,7 +25,10 @@ from tools.fcis_m5_p4b5a_atdd_policy import (  # noqa: E402
     B1B2_PROMOTION_GATE,
     PATH_OWNERS,
 )
-from tools.fcis_m5_p4b5a_atdd_validation import validate_policy  # noqa: E402
+from tools.fcis_m5_p4b5a_atdd_validation import (  # noqa: E402
+    select_relevant_changed_paths,
+    validate_policy,
+)
 
 SCHEMA = "zenodex/fcis-m5-p4b5a-atdd-contract/v1"
 PHASE_ORDER = ["B1B-1", "B1B-2"]
@@ -550,6 +553,27 @@ def discover_changed_paths(repo_root: Path, diff_base: str) -> tuple[str, ...]:
     return tuple(sorted(tracked_changes | untracked))
 
 
+def resolve_merge_base(repo_root: Path, other_commit: str) -> str:
+    """Resolve the exact event merge base from one trusted full commit ID."""
+
+    if re.fullmatch(r"[0-9a-f]{40}", other_commit) is None:
+        raise GitDiffDiscoveryError(
+            "merge-base peer must be a lowercase full SHA"
+        )
+    _run_git(
+        repo_root,
+        ["rev-parse", "--verify", "--quiet", f"{other_commit}^{{commit}}"],
+    )
+    raw = _run_git(repo_root, ["merge-base", other_commit, "HEAD"])
+    try:
+        merge_base = raw.decode("ascii", errors="strict").strip()
+    except UnicodeDecodeError as exc:
+        raise GitDiffDiscoveryError("merge base is not ASCII") from exc
+    if re.fullmatch(r"[0-9a-f]{40}", merge_base) is None:
+        raise GitDiffDiscoveryError("git returned no unique full merge base")
+    return merge_base
+
+
 def _report(
     *,
     assigned_id: str,
@@ -575,10 +599,19 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--matrix", type=Path, default=DEFAULT_MATRIX)
     parser.add_argument("--assigned-id", required=True)
-    parser.add_argument("--diff-base", default="HEAD")
+    diff_source = parser.add_mutually_exclusive_group()
+    diff_source.add_argument("--diff-base")
+    diff_source.add_argument("--merge-base-with")
     args = parser.parse_args()
     try:
-        changed_paths = discover_changed_paths(REPO_ROOT, args.diff_base)
+        diff_base = "HEAD"
+        if args.merge_base_with is not None:
+            diff_base = resolve_merge_base(REPO_ROOT, args.merge_base_with)
+        elif args.diff_base is not None:
+            diff_base = args.diff_base
+        changed_paths = select_relevant_changed_paths(
+            discover_changed_paths(REPO_ROOT, diff_base)
+        )
     except GitDiffDiscoveryError as exc:
         report = _report(
             assigned_id=args.assigned_id,

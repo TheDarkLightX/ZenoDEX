@@ -13,8 +13,10 @@ import pytest
 from tools.check_fcis_m5_p4b5a_atdd_contract import (
     GitDiffDiscoveryError,
     discover_changed_paths,
+    resolve_merge_base,
     validate_matrix,
 )
+from tools.fcis_m5_p4b5a_atdd_validation import select_relevant_changed_paths
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKER = REPO_ROOT / "tools/check_fcis_m5_p4b5a_atdd_contract.py"
@@ -289,6 +291,28 @@ def test_unowned_changed_path_is_rejected() -> None:
     assert "CHANGED_PATH_UNOWNED:src/core/fcis_b1b_unreviewed_authority.py" in errors
 
 
+def test_event_scope_ignores_unrelated_cumulative_paths() -> None:
+    assert select_relevant_changed_paths(
+        (
+            "docs/research/m6_tasks/TASK_J07_REPORT.md",
+            "requirements-core.lock.txt",
+            "src/core/fcis_b1b_unreviewed_authority.py",
+        )
+    ) == ("src/core/fcis_b1b_unreviewed_authority.py",)
+
+
+def test_event_scope_retains_every_forbidden_path() -> None:
+    path = "src/core/fcis_fee_distribution_configuration_content_validation.py"
+
+    assert select_relevant_changed_paths((path,)) == (path,)
+
+
+def test_event_scope_retains_registered_shared_integration_path() -> None:
+    path = "rust-runtime/crates/zenodex-runtime-core/src/lib.rs"
+
+    assert select_relevant_changed_paths((path,)) == (path,)
+
+
 def test_changed_path_must_be_owned_by_active_assigned_id() -> None:
     errors, _, _ = validate_matrix(
         _load_matrix(),
@@ -346,6 +370,39 @@ def test_changed_paths_are_derived_from_git_without_caller_enumeration(
         "tracked.txt",
         "untracked.txt",
     )
+
+
+def test_event_diff_uses_the_exact_git_merge_base(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def run_git(*arguments: str) -> str:
+        return subprocess.run(
+            ["git", *arguments],
+            cwd=repo,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+
+    run_git("init", "-q")
+    run_git("config", "user.email", "atdd@example.invalid")
+    run_git("config", "user.name", "FCIS ATDD")
+    (repo / "base.txt").write_text("base\n", encoding="utf-8")
+    run_git("add", "base.txt")
+    run_git("commit", "-qm", "base")
+    common = run_git("rev-parse", "HEAD")
+    run_git("branch", "feature")
+    (repo / "main.txt").write_text("main\n", encoding="utf-8")
+    run_git("add", "main.txt")
+    run_git("commit", "-qm", "main advances")
+    main_head = run_git("rev-parse", "HEAD")
+    run_git("checkout", "-q", "feature")
+    (repo / "feature.txt").write_text("feature\n", encoding="utf-8")
+    run_git("add", "feature.txt")
+    run_git("commit", "-qm", "feature advances")
+
+    assert resolve_merge_base(repo, main_head) == common
 
 
 def test_ignored_owned_evidence_path_must_be_force_added(tmp_path: Path) -> None:

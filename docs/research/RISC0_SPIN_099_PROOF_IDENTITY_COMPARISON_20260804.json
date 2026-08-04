@@ -1,0 +1,136 @@
+{
+  "baseline": {
+    "package": "spin",
+    "version": "0.9.8",
+    "checksum": "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67",
+    "methods_rs_sha256": "77c594fb6e6efb080e33a7f663367af2acb604f3a405889312bf9f471ae55234",
+    "guest_hash_list_sha256": "a0dd680b94f6f524203b1ea3e10a37081c2bc674ebbc519053276b8a249fcc3e"
+  },
+  "claim_scope": "same_source_same_toolchain_spin_only_zrpf_guest_comparison",
+  "claims": {
+    "all_compared_elf_hashes_changed": true,
+    "all_compared_image_ids_changed": true,
+    "compared_program_count": 8,
+    "dependency_only_upgrade_preserves_retained_proof_identity": false,
+    "guest_elf_files_retained": false,
+    "production_authority": false,
+    "receipts_regenerated": false,
+    "settlement_authority": false
+  },
+  "lock_delta": {
+    "changed_package": "spin",
+    "from_version": "0.9.8",
+    "patch_path": "docs/research/RISC0_SPIN_099_LOCK_DELTA_20260804.patch",
+    "patch_sha256": "139a13fbfe6dc34d10ef438693eb75d484475503be838aa5a1bcfee304cee7b4",
+    "to_version": "0.9.9",
+    "unchanged_ruint_version": "1.19.0",
+    "workspace_lockfiles": [
+      {
+        "path": "zk/state_proof_risc0/Cargo.lock",
+        "baseline_sha256": "d30f07417921c475d99826eb10a45c17ec059c88b53c3f835702f27b509442ba",
+        "trial_sha256": "31ee13e4cd873a5c69bed22974bd69f110099664f89531d52b0ef171d21b608e"
+      },
+      {
+        "path": "zk/recursive_stark_v2_risc0/Cargo.lock",
+        "baseline_sha256": "45cd06efebd2a989b7a1061e4958a45520cec388fe0ac9f8987c16fe9a5fef64",
+        "trial_sha256": "783a3b7eea68d9cd7965e39828f95dfe366fccb8145351420a0257ad8d8a466b"
+      },
+      {
+        "path": "zk/recursive_stark_v2_active_reproof_risc0/Cargo.lock",
+        "baseline_sha256": "1a918b3c188bdd16e381dc959b6c0ce21ceb59735a8e797d68f4578f2173e98d",
+        "trial_sha256": "5258a6a8cfb2700b178aa2ad721ac1251052904f0355acfa4c0245bc8d4e0c95"
+      },
+      {
+        "path": "zk/zrpf_risc0/Cargo.lock",
+        "baseline_sha256": "1c3ea17c920eb539080d641ad2ab46d40d4fb50d5ee4464cea90f2f694787937",
+        "trial_sha256": "348aa1c1034489588e9ef48ea29beada8180714645109ca630541109d64fe443"
+      }
+    ]
+  },
+  "nonclaims": [
+    "The comparison does not prove spin 0.9.8 safe.",
+    "The comparison does not authorize a yanked dependency in production.",
+    "The comparison does not replace fresh proof generation under spin 0.9.9.",
+    "The comparison does not establish cross-host reproducibility.",
+    "The comparison does not transfer retained receipts to the changed image identities."
+  ],
+  "programs": [
+    {
+      "role": "ordinary_spot_settlement",
+      "baseline_elf_sha256": "e048762c0c213f8d7f96ec3c1adac089841236ccfbfe9d2f20c29e4702a54707",
+      "baseline_image_id": "0a2772938f4ce08a33ed0a57653a413249b1c03b141a1236eee3d0e968760d27",
+      "spin_0_9_9_elf_sha256": "c677a3679c39f8132f300e23378377ac9f64b411f2aa50a84666d006ab2eb933",
+      "spin_0_9_9_image_id": "2b56be5c397b88e534bc5a71c9c616d32e290558281bef1f5cb2375baa23ba3b"
+    },
+    {
+      "role": "semantic_epoch",
+      "baseline_elf_sha256": "4d79f81f4c57be9dbbd0f99f833f6f2bf66939cd33cd56461cb26f4c79cfe825",
+      "baseline_image_id": "1657dc1f9ab8c875b48e6a441737294b0282bdde30198e67f4ba364a3e96c687",
+      "spin_0_9_9_elf_sha256": "5bf014ee5d124f9be3793bd498fc6afb673134cf9a07412b2a3293d78bae3adb",
+      "spin_0_9_9_image_id": "bcbab2cd1d4d29cdcc027bc50358e66d3030a3f44599b5fd8af5ce70007c884b"
+    },
+    {
+      "role": "spot_value_leaf_v4",
+      "baseline_elf_sha256": "1327b57754e4abf6e722a829a59e8e31b9367141a5e3718d5cf80b60ab680b21",
+      "baseline_image_id": "05838547e4d60757ece98f7fbef9d7eddf3a9cefbacdac01044475397c9cc869",
+      "spin_0_9_9_elf_sha256": "b39e49a44c381680237eb7ad39015af864b3e5461e1c10e0124acf4b4ce5d80d",
+      "spin_0_9_9_image_id": "703fb4633ee8b1b107695cd796de7975e537bd9e550278d5239a3d64fb441d80"
+    },
+    {
+      "role": "structural_aggregate_l1",
+      "baseline_elf_sha256": "ffe417d8a26b8775d164fed05264f8ed9a0c0a85a9e51553cc5f1f97b93ab339",
+      "baseline_image_id": "b44905fd3ae6457640ba8daf5ae3672bd0a92a9112789ad52a518eb6bb88713c",
+      "spin_0_9_9_elf_sha256": "6f20fa5997867f2b0ada211e108ff275961c09b6e093f327cc8c22ce9d682c1a",
+      "spin_0_9_9_image_id": "d0350ca8e2c104786a435135de789e4eac2d52a138ae4fd011822d6792e0b9d5"
+    },
+    {
+      "role": "structural_aggregate_l2",
+      "baseline_elf_sha256": "96b13214671cd6a254daa1688b33a3ab221ae530d14894a50e618fc58aee4dae",
+      "baseline_image_id": "06f8198511ab908c40e3774c58d170e5a3b1611c07a0bb1373bcace96260a244",
+      "spin_0_9_9_elf_sha256": "3d27e23e3917dd48f35e01e5e432d633bddbde7960bed3f5647c9f33dec717a9",
+      "spin_0_9_9_image_id": "66530f3e60e2961d91f6a7a89c72697b3d60d7a6dfc3916b182e90a60ccc6180"
+    },
+    {
+      "role": "v1_leaf_adapter",
+      "baseline_elf_sha256": "e472f273916ed5a48ef8338c4900836ad2f1c0d3059635836973a184d26edb1d",
+      "baseline_image_id": "013291cf05006f41a4d03384c1dec691111f5d4a6b9857b528167a1598d66aeb",
+      "spin_0_9_9_elf_sha256": "195dbedfab048dd77a4fcfda306487a1a67c578cd83bff6c47cedb3a5d24c40a",
+      "spin_0_9_9_image_id": "713514fcb722e5e6f0249998aeb0f73ef00f852c9153047089e3c394a6ad4c12"
+    },
+    {
+      "role": "value_aggregate_l1",
+      "baseline_elf_sha256": "b76313d5e17422a176cc179f11137009e15c600a9dec3c2a52bcc853ffddb891",
+      "baseline_image_id": "b871ed5c2665dbc3fda16c66911a6ac462ee0d06526ce26938b1bd2ba9f5991f",
+      "spin_0_9_9_elf_sha256": "f6110b933ea4971aaac9b93f59b2da35f64cd9d3190db30812d330af37cf706e",
+      "spin_0_9_9_image_id": "32008dd53b82e8be8dc166bee044e89a146e2e5706ee0ac168942b4a43955b13"
+    },
+    {
+      "role": "value_aggregate_l2",
+      "baseline_elf_sha256": "1bc764d3505fe892b218aaeced111d5060e1f78dc805285553a2b9fc371b1310",
+      "baseline_image_id": "07bcdd79644ea14d149da671411bd88285d28fda4601cc082e44c5b306a23b6a",
+      "spin_0_9_9_elf_sha256": "d0b448a1068da501e462109632aa2864b077fa98755533661e4d8c6b39539dfe",
+      "spin_0_9_9_image_id": "268818b41661626fd5bc84ecb2665bedd9c7b5dfb816d837600446ec507fc453"
+    }
+  ],
+  "schema": "zenodex/risc0_spin_proof_identity_comparison/v1",
+  "source": {
+    "commit": "c09ef94eb63ec2f1ff7e3ff4f6ce26fc0607eb6c",
+    "tree": "6f166af77589efa1855363a14f5acdbfafa05ec4"
+  },
+  "toolchain": {
+    "cargo": "cargo 1.94.1-dev (29ea6fb6a 2026-03-24)",
+    "cargo_sha256": "b1d3a17e834a1cd593634d8f6e7866bbc498e56f5205560c7418bae6ee4447da",
+    "offline": true,
+    "r0vm_sha256": "36c016a5bb2ded5bd1f8f92cc487e6ffaeb1e95ec05850c983081a0f716b515b",
+    "rustc": "rustc 1.94.1-dev (06e01cb0d 2026-04-09)",
+    "rustc_sha256": "e7fd8dcc397b4e4756cdb8ceb1851347daf326234b78abea3d42d4e61ad5e8e5",
+    "target": "riscv32im-risc0-zkvm-elf"
+  },
+  "trial": {
+    "package": "spin",
+    "version": "0.9.9",
+    "checksum": "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e",
+    "methods_rs_sha256": "7d9497ddba30c43113d6b7923c025decd51680cefe179d3b270915b2a2f207a5",
+    "guest_hash_list_sha256": "bd03e7348a432a38e32bfa42efd91d6526ed17a764b5f9b4923ef33c177f5c44"
+  }
+}

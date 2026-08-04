@@ -10,8 +10,9 @@ import json
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -31,6 +32,10 @@ MINIMAL_WITNESS_LANGUAGE_AUDIT_SCHEMA = "zenodex/stateful-minimal-witness-langua
 CROSS_SURFACE_WITNESS_EXPLORATION_SCHEMA = "zenodex/stateful-cross-surface-witness-exploration/v1"
 DISASTER_SEARCH_EXPANSION_PLAN_SCHEMA = "zenodex/stateful-disaster-search-expansion-plan/v1"
 DISASTER_SEARCH_EXPANSION_RECEIPT_SCHEMA = "zenodex/stateful-disaster-search-expansion-receipt/v1"
+MAX_AGGREGATE_PYTEST_WORKERS = 4
+_PytestShardKey: TypeAlias = tuple[str | None, str]
+_ParsedPytestCommand: TypeAlias = tuple[list[str], tuple[_PytestShardKey, ...]]
+_AxisPytestCommands: TypeAlias = tuple[dict[str, Any], list[_ParsedPytestCommand]]
 
 DEFAULT_TARGET_MANIFEST = REPO_ROOT / "tools" / "acceptance_tcb_dangerous_surfaces.json"
 DEFAULT_WORLD_MODEL = REPO_ROOT / "docs" / "zenodex" / "world_model_promoted" / "zenodex_world_model.seed.json"
@@ -5613,15 +5618,12 @@ def _pytest_group_key(command: list[str]) -> tuple[str | None, tuple[str, ...]] 
     return k_expr, tuple(paths)
 
 
-def _run_aggregate_pytest_axes(
+def _parse_aggregate_pytest_axes(
     raw_axes: list[Any],
-    *,
     selected_axis_ids: set[str] | None,
-    timeout_s: int,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
-    axis_commands: list[tuple[dict[str, Any], list[tuple[list[str], str | None]]]] = []
-    group_paths: dict[str | None, set[str]] = {}
-
+) -> tuple[list[_AxisPytestCommands], list[_PytestShardKey]] | None:
+    axis_commands: list[_AxisPytestCommands] = []
+    shard_keys: set[_PytestShardKey] = set()
     for axis in raw_axes:
         if not isinstance(axis, dict):
             return None
@@ -5632,7 +5634,7 @@ def _run_aggregate_pytest_axes(
         if not isinstance(raw_commands, list) or not raw_commands:
             return None
 
-        parsed_commands: list[tuple[list[str], str | None]] = []
+        parsed_commands: list[_ParsedPytestCommand] = []
         for command in raw_commands:
             if not isinstance(command, list) or not all(isinstance(item, str) for item in command):
                 return None
@@ -5640,50 +5642,121 @@ def _run_aggregate_pytest_axes(
             if parsed is None:
                 return None
             k_expr, paths = parsed
-            group_paths.setdefault(k_expr, set()).update(paths)
-            parsed_commands.append((command, k_expr))
+            command_shards = tuple((k_expr, path) for path in paths)
+            shard_keys.update(command_shards)
+            parsed_commands.append((command, command_shards))
         axis_commands.append((axis, parsed_commands))
 
     if not axis_commands:
         return None
+    ordered_shard_keys = sorted(
+        shard_keys,
+        key=lambda key: ("" if key[0] is None else str(key[0]), key[1]),
+    )
+    return axis_commands, ordered_shard_keys
 
-    aggregate_results_by_key: dict[str | None, dict[str, Any]] = {}
-    aggregate_results: list[dict[str, Any]] = []
-    for k_expr in sorted(group_paths, key=lambda item: "" if item is None else item):
+
+def _run_aggregate_pytest_shards(
+    ordered_shard_keys: list[_PytestShardKey],
+    *,
+    timeout_s: int,
+) -> tuple[list[dict[str, Any]], dict[_PytestShardKey, dict[str, Any]]]:
+    component_id_by_shard = {
+        shard_key: f"pytest-component-{component_index:03d}"
+        for component_index, shard_key in enumerate(ordered_shard_keys)
+    }
+
+    def run_component(shard_key: _PytestShardKey) -> dict[str, Any]:
+        k_expr, path = shard_key
         command = [sys.executable, "-m", "pytest", "-q"]
         if k_expr is not None:
             command.extend(["-k", k_expr])
-        command.extend(sorted(group_paths[k_expr]))
+        command.append(path)
         result = _run_obligation_command(command, timeout_s=timeout_s)
         result["aggregate_pytest_group"] = {
+            "component_id": component_id_by_shard[shard_key],
             "k_expr": k_expr,
-            "path_count": len(group_paths[k_expr]),
+            "path_count": 1,
         }
-        aggregate_results_by_key[k_expr] = result
-        aggregate_results.append(result)
+        return result
+
+    worker_count = min(MAX_AGGREGATE_PYTEST_WORKERS, len(ordered_shard_keys))
+    with ThreadPoolExecutor(max_workers=worker_count) as executor:
+        aggregate_results = list(executor.map(run_component, ordered_shard_keys))
+    return (
+        aggregate_results,
+        dict(zip(ordered_shard_keys, aggregate_results, strict=True)),
+    )
+
+
+def _aggregate_pytest_command_result(
+    command: list[str],
+    command_shards: tuple[_PytestShardKey, ...],
+    aggregate_results_by_shard: dict[_PytestShardKey, dict[str, Any]],
+) -> dict[str, Any]:
+    aggregates = [aggregate_results_by_shard[shard] for shard in command_shards]
+    statuses = {str(aggregate.get("status")) for aggregate in aggregates}
+    if "failed" in statuses:
+        status = "failed"
+    elif "inconclusive" in statuses:
+        status = "inconclusive"
+    else:
+        status = "passed"
+    returncodes = [aggregate.get("returncode") for aggregate in aggregates]
+    returncode = next((code for code in returncodes if code not in {0, None}), None)
+    if status == "passed":
+        returncode = 0
+    return {
+        "command": command,
+        "status": status,
+        "ok": status == "passed",
+        "returncode": returncode,
+        "duration_s": round(
+            sum(float(aggregate.get("duration_s", 0.0)) for aggregate in aggregates),
+            3,
+        ),
+        "stdout": "",
+        "stderr": "",
+        "covered_by_aggregate_pytest": True,
+        "aggregate_commands": [aggregate.get("command") for aggregate in aggregates],
+        "aggregate_pytest_groups": [
+            aggregate.get("aggregate_pytest_group") for aggregate in aggregates
+        ],
+    }
+
+
+def _run_aggregate_pytest_axes(
+    raw_axes: list[Any],
+    *,
+    selected_axis_ids: set[str] | None,
+    timeout_s: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
+    parsed = _parse_aggregate_pytest_axes(raw_axes, selected_axis_ids)
+    if parsed is None:
+        return None
+    axis_commands, ordered_shard_keys = parsed
+
+    # Run one shard per exact test path and -k expression.  Commands that name
+    # the same path share one result, while a slow or failing path cannot spend
+    # the evidence budget of an unrelated axis.  An original multi-path
+    # command closes only when every one of its shards passes.
+    aggregate_results, aggregate_results_by_shard = _run_aggregate_pytest_shards(
+        ordered_shard_keys,
+        timeout_s=timeout_s,
+    )
 
     axis_results: list[dict[str, Any]] = []
     for axis, parsed_commands in axis_commands:
         command_results: list[dict[str, Any]] = []
         command_statuses: set[str] = set()
-        for command, k_expr in parsed_commands:
-            aggregate = aggregate_results_by_key[k_expr]
-            status = str(aggregate.get("status"))
-            command_statuses.add(status)
-            command_results.append(
-                {
-                    "command": command,
-                    "status": status,
-                    "ok": status == "passed",
-                    "returncode": aggregate.get("returncode"),
-                    "duration_s": aggregate.get("duration_s"),
-                    "stdout": "",
-                    "stderr": "",
-                    "covered_by_aggregate_pytest": True,
-                    "aggregate_command": aggregate.get("command"),
-                    "aggregate_pytest_group": aggregate.get("aggregate_pytest_group"),
-                }
+        for command, command_shards in parsed_commands:
+            command_result = _aggregate_pytest_command_result(
+                command,
+                command_shards,
+                aggregate_results_by_shard,
             )
+            command_statuses.add(str(command_result["status"]))
+            command_results.append(command_result)
         if "failed" in command_statuses:
             axis_status = "found_or_regressed"
         elif "inconclusive" in command_statuses:

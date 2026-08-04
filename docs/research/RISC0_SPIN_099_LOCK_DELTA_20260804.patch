@@ -1,0 +1,64 @@
+diff --git a/zk/recursive_stark_v2_active_reproof_risc0/Cargo.lock b/zk/recursive_stark_v2_active_reproof_risc0/Cargo.lock
+index 80a4f82aa..9234209b3 100644
+--- a/zk/recursive_stark_v2_active_reproof_risc0/Cargo.lock
++++ b/zk/recursive_stark_v2_active_reproof_risc0/Cargo.lock
+@@ -2693,9 +2693,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "spin"
+-version = "0.9.8"
++version = "0.9.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
++checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
+ dependencies = [
+  "lock_api",
+ ]
+diff --git a/zk/recursive_stark_v2_risc0/Cargo.lock b/zk/recursive_stark_v2_risc0/Cargo.lock
+index 6dd9ccf02..2436fad4f 100644
+--- a/zk/recursive_stark_v2_risc0/Cargo.lock
++++ b/zk/recursive_stark_v2_risc0/Cargo.lock
+@@ -2673,9 +2673,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "spin"
+-version = "0.9.8"
++version = "0.9.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
++checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
+ dependencies = [
+  "lock_api",
+ ]
+diff --git a/zk/state_proof_risc0/Cargo.lock b/zk/state_proof_risc0/Cargo.lock
+index e715cc86b..05335e5b3 100644
+--- a/zk/state_proof_risc0/Cargo.lock
++++ b/zk/state_proof_risc0/Cargo.lock
+@@ -2650,9 +2650,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "spin"
+-version = "0.9.8"
++version = "0.9.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
++checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
+ dependencies = [
+  "lock_api",
+ ]
+diff --git a/zk/zrpf_risc0/Cargo.lock b/zk/zrpf_risc0/Cargo.lock
+index 048d10b3b..e59f2d24a 100644
+--- a/zk/zrpf_risc0/Cargo.lock
++++ b/zk/zrpf_risc0/Cargo.lock
+@@ -2684,9 +2684,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "spin"
+-version = "0.9.8"
++version = "0.9.9"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
++checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
+ dependencies = [
+  "lock_api",
+ ]

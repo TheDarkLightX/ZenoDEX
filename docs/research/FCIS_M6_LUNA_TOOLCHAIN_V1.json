@@ -2,12 +2,12 @@
   "schema_version": "zenodex.fcis.m6.luna-toolchain.v1",
   "contract": "fcis-m6-durable-retraction-luna-repair-v1",
   "base_commit": "babffa56dcbddc5886487fbb6e62740b15370000",
-  "implementation_target_commit": "ecf26f987c3d6393501fec66ddfc3429fb8634c7",
-  "implementation_target_tree": "fdf154ac143a9f9a9e840fbbf49761190d138920",
+  "implementation_target_commit": "bfc3b10fe84f5807a226e4b564127c1ffb5ff0d6",
+  "implementation_target_tree": "b836be736af365d3b4cc58995f280892ea6bea94",
   "python": {
     "workflow_version": "3.12.3",
     "requirements_lock": "requirements-dev.lock.txt",
-    "requirements_lock_sha256": "8ae2a245984d66a60e7fde6c0504b79b1de8fbcc86027b2a42c4adb7164229d8",
+    "requirements_lock_sha256": "f19d92eb044fdf0b23c50cba4a4d0054d5608579c0c04ab05d93a4a3880cc53e",
     "local_gate_versions": {
       "python": "3.12.3",
       "pytest": "7.4.4",
@@ -46,6 +46,17 @@
     "self_test_mutants_killed": 4,
     "public_ci_required": true
   },
+  "closed_disaster_receipt": {
+    "command": "PYTHONPATH=. python3 tools/check_disaster_search_closed_receipt.py --timeout-s 600",
+    "pinned_axes": 29,
+    "selected_axes": 29,
+    "unreachable_under_current_bounds": 29,
+    "failed": 0,
+    "inconclusive": 0,
+    "receipt_sha256": "105f1682ee839ae22c8d46a39730e67a3828f34bba55387a825dfeace0af298e",
+    "ratchet_sha256": "074f91a2f6bfd5457fc665a050c78d5b06a8999ab5cecd9de2aa001c041c1c9b",
+    "production_authority": false
+  },
   "esso": {
     "status": "PRIVATE_OPTIONAL_HISTORICAL_EVIDENCE",
     "public_ci_required": false,
@@ -60,11 +71,40 @@
     "z3": "4.15.4",
     "cvc5": "1.1.2"
   },
+  "risc0_retained_proof_dependency": {
+    "cargo_audit_version": "0.22.1",
+    "advisory_database_revision": "6d7aef354b4144c1ede046034adfd00246d3b0c0",
+    "crates_io_index_revision_pinned": false,
+    "policy_sha256": "fd47e366052bcb149bdff1cb0688922e31b52130c1c2723d1b9a42a6ece188f1",
+    "retained_findings": [
+      "RUSTSEC-2026-0220 ruint 1.19.0",
+      "yanked-without-advisory-id spin 0.9.8"
+    ],
+    "lock_bound_yanked_identity": {
+      "package": "spin",
+      "version": "0.9.8",
+      "source": "registry+https://github.com/rust-lang/crates.io-index",
+      "checksum": "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+    },
+    "spin_identity_comparison": {
+      "patch_path": "docs/research/RISC0_SPIN_099_LOCK_DELTA_20260804.patch",
+      "patch_sha256": "139a13fbfe6dc34d10ef438693eb75d484475503be838aa5a1bcfee304cee7b4",
+      "report_path": "docs/research/RISC0_SPIN_099_PROOF_IDENTITY_COMPARISON_20260804.json",
+      "report_sha256": "aea09b01b4190a8c2d0a5db52b293a1a1e931dfc318964adf6dfcc178426607e",
+      "compared_programs": 8,
+      "changed_guest_elf_hashes": 8,
+      "changed_image_ids": 8,
+      "receipts_regenerated": false
+    },
+    "scope": "experimental_risc0_dependency_audit_only",
+    "production_authority": false,
+    "removal_gate": "fresh image IDs, receipts, and source-bound replay evidence under ruint 1.20.0 or later and spin 0.9.9 or later"
+  },
   "workflow_action_commits": {
     "actions/checkout": "df4cb1c069e1874edd31b4311f1884172cec0e10",
     "actions/setup-python": "ece7cb06caefa5fff74198d8649806c4678c61a1",
     "elan_installer": "b6cec7e10fe4965a605aaf60d1cb4a5837f0462b",
     "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02"
   },
-  "dependency_policy": "No new runtime or formal dependency was added. Public CI is self-contained apart from hash-locked public packages and pinned mathlib. Private ESSO evidence is optional and never a required public gate."
+  "dependency_policy": "No new runtime or formal dependency was added. Public CI is self-contained apart from hash-locked public packages and pinned mathlib. Private ESSO evidence is optional and never a required public gate. Four unmounted RISC0 workspaces retain proof-bound locks and expose RUSTSEC-2026-0220 plus yanked spin 0.9.8 as exact scoped residual debt until fresh proofs are generated. Hosted cargo-audit remains required for future yank discovery because the crates.io index revision is not pinned."
 }

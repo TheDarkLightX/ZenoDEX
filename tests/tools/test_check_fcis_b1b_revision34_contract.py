@@ -108,6 +108,18 @@ def test_runtime_carrier_import_is_detected(tmp_path: Path) -> None:
     assert "B1B1_RUNTIME_REACHABILITY" in _codes(root)
 
 
+def test_runtime_state_binding_consumer_is_detected(tmp_path: Path) -> None:
+    root, _, _ = _copy_required(tmp_path)
+    path = root / "src/integration/runtime_consumer_mutant.py"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "from ..core.fcis_fee_configuration_state_binding_v2 "
+        "import StateBoundActiveFeeConfigurationV2\n",
+        encoding="utf-8",
+    )
+    assert "B1B1_RUNTIME_REACHABILITY" in _codes(root)
+
+
 def test_forbidden_content_authority_path_is_detected(tmp_path: Path) -> None:
     root, _, _ = _copy_required(tmp_path)
     path = root / "src/core/fcis_fee_distribution_configuration_content_validation.py"

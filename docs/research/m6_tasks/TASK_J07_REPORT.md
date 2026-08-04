@@ -2,9 +2,9 @@
 
 TASK_ID: J07
 BASE_SHA: 225e99f9fe862cb06818515c53666352a031ee5d
-SOURCE_HEAD_SHA: cd29859c3c8604279c80fec5956f8dc9595ab359
-SOURCE_HEAD_TREE: 75165d79a31a9d69066eec7e7b6b2677b8a8db28
-BRANCH: codex/tau-placement-frontier-20260803
+SOURCE_HEAD_SHA: dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240
+SOURCE_HEAD_TREE: 1bf3896b12f238e693c11d2726a75d2346643b51
+BRANCH: codex/j07-k01-j06-dependency-rebind-20260804
 
 FILES_CHANGED:
 - docs/research/m6_tasks/TASK_J07_TAU_WRITER_AUTHORITY_V2.json
@@ -21,6 +21,26 @@ FILES_CHANGED:
 IMPLEMENTATION_HEAD_SHA: cd29859c3c8604279c80fec5956f8dc9595ab359
 IMPLEMENTATION_TREE: 75165d79a31a9d69066eec7e7b6b2677b8a8db28
 IMPLEMENTATION_PARENT: 23fae16a41744a0d709639fa85cc45bd5e46389b
+
+DEPENDENCY_REFRESH_HEAD: dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240
+DEPENDENCY_REFRESH_TREE: 1bf3896b12f238e693c11d2726a75d2346643b51
+DEPENDENCY_REFRESH_PARENT: e45e4c685e70eb0fa54a69e678132cb134ccb920
+
+DEPENDENCY_REFRESH_FILES:
+- config/deploy/fcis_m6_j06_quiescence_v1.json
+- config/deploy/fcis_m6_j07_authority_switch_v1.json
+- config/deploy/fcis_m6_k04_topology_anchor_v1.json
+- config/deploy/fcis_m6_k06_legacy_seal_v1.json
+- config/deploy/fcis_m6_k07_deployment_audit_v1.json
+- docs/research/m6_tasks/TASK_J06_QUIESCENCE_GATE_V1.json
+- docs/research/m6_tasks/TASK_J07_AUTHORITY_SWITCH_V1.json
+- docs/research/m6_tasks/TASK_J07_TAU_WRITER_AUTHORITY_V2.json
+- docs/research/m6_tasks/TASK_J08_ROLLBACK_V1.json
+- docs/research/m6_tasks/TASK_K01_VALUE_MOVING_ENTRYPOINT_INVENTORY_V1.json
+- docs/research/m6_tasks/TASK_K04_TOPOLOGY_ANCHOR_V1.json
+- docs/research/m6_tasks/TASK_K06_LEGACY_SEAL_V1.json
+- docs/research/m6_tasks/TASK_K07_DEPLOYMENT_AUDIT_V1.json
+- tests/integration/test_fcis_m6_tau_j07_writer_eligibility_v1.py
 
 CLAIM_IMPLEMENTED: J07 remains an isolated, unmounted authority-switch
 relation. The repaired live path requires one verified post-switch authority
@@ -49,12 +69,12 @@ COMMANDS_RUN:
 
 RESULTS:
 - The authority-switch checker passed with switch root
-  `acdc6ceaa486f697f12d249b5c72af5c8290b0bdf6532059995c75ea54028686`.
+  `962ccd5b225b9d35165748d70ea0412e1a3856e475d5b3349e73533e94cdc1e2`.
 - The Tau writer-authority checker passed with V3 token root
-  `e52dcd85a16d3899f57124a1beec8f2c6e263b4b66b435af150676208538ebd0`.
+  `04da0c5d4604278e41bddcb750fb0c5a291bc28b6eda46ac5669c4d732b0efa6`.
 - Both generated public vectors matched exact source regeneration.
 - Focused J07, eligibility, and Tau refinement tests passed: 66 passed.
-- The feasible adjacent regression passed: 130 passed, 2 skipped because the
+- The complete adjacent regression passed: 170 passed, 2 skipped because the
   exact Tau binary was unavailable.
 - Ruff, formatting, targeted strict mypy, Python compilation, JSON parsing,
   and the security red-flag scan passed.
@@ -105,8 +125,8 @@ authenticated verifier outputs, bind the selected verifier and policy to the
 exact promotion subject and current state, and consume the complete relation
 inside the unique linearized publication transaction. The 8,192-value bound
 fails closed under resource pressure and does not establish production sizing.
-The sparse worktree omitted several J01-J06 helper modules, so the full adjacent
-migration regression could not collect; the strongest available 130-test
-subset passed. The peer-review service was unavailable with an authentication
-error, so the retained adversarial review evidence comes from two existing
-read-only review agents rather than that service.
+The complete checkout regression passed with 170 tests and two Tau-runtime
+skips caused by the unavailable exact Tau binary. The peer-review service was
+unavailable with an authentication error, so the retained adversarial review
+evidence comes from two existing read-only review agents rather than that
+service.

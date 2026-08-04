@@ -2,23 +2,25 @@
   "schema_version": "zenodex.fcis.m6.task-evidence.v1",
   "task_id": "J08",
   "base_sha": "b72aa9d997e7cfb5db49e8ea91dcebba2a1f2193",
-  "source_head_sha": "4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6",
-  "source_head_tree": "95ae78274eb6695be508283bd34eac2e3118b093",
-  "branch": "codex/task-m6-receipt-rebind-20260802",
+  "source_head_sha": "dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240",
+  "source_head_tree": "1bf3896b12f238e693c11d2726a75d2346643b51",
+  "branch": "codex/j07-k01-j06-dependency-rebind-20260804",
   "status": "TESTED",
   "evidence_files": [
+    "config/deploy/fcis_m6_j07_authority_switch_v1.json",
     "config/deploy/fcis_m6_j08_rollback_v1.json",
-    "docs/research/m6_tasks/TASK_J08_ROLLBACK_V1.json",
     "docs/research/m6_tasks/FCIS_M6_J08_COMPLETE_ROLLBACK_V1.md",
+    "docs/research/m6_tasks/TASK_J07_AUTHORITY_SWITCH_V1.json",
+    "docs/research/m6_tasks/TASK_J08_EVIDENCE.json",
     "docs/research/m6_tasks/TASK_J08_PLAN.md",
     "docs/research/m6_tasks/TASK_J08_REPORT.md",
-    "docs/research/m6_tasks/TASK_J08_EVIDENCE.json",
+    "docs/research/m6_tasks/TASK_J08_ROLLBACK_V1.json",
+    "docs/research/m6_tasks/TASK_J08_SOURCE_MANIFEST.sha256",
     "experiments/fcis_m6_j08_rollback_check.py",
     "src/core/fcis_m6_j08_rollback.py",
     "tests/core/test_fcis_m6_j08_rollback.py",
     "tests/core/test_fcis_m6_j08_rollback_properties.py",
-    "tools/build_fcis_m6_j08_rollback.py",
-    "docs/research/m6_tasks/TASK_J08_SOURCE_MANIFEST.sha256"
+    "tools/build_fcis_m6_j08_rollback.py"
   ],
   "commands": [
     "python3 -m json.tool config/deploy/fcis_m6_j08_rollback_v1.json",
@@ -32,7 +34,7 @@
     "python3 -m ruff format --check src/core/fcis_m6_j08_rollback.py experiments/fcis_m6_j08_rollback_check.py tools/build_fcis_m6_j08_rollback.py tests/core/test_fcis_m6_j08_rollback.py tests/core/test_fcis_m6_j08_rollback_properties.py",
     "python3 -m mypy --strict src/core/fcis_m6_j08_rollback.py experiments/fcis_m6_j08_rollback_check.py tools/build_fcis_m6_j08_rollback.py tests/core/test_fcis_m6_j08_rollback.py tests/core/test_fcis_m6_j08_rollback_properties.py",
     "git diff --check",
-    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J08 --expected-head 91bce42607c2c2365087976bed1bee4a38cc1812",
+    "python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J08 --expected-head $(git rev-parse HEAD)",
     "sha256sum --check --strict docs/research/m6_tasks/TASK_J08_SOURCE_MANIFEST.sha256"
   ],
   "tool_versions": {
@@ -43,22 +45,24 @@
     "git": "git version 2.54.0"
   },
   "source_hashes": {
+    "config/deploy/fcis_m6_j07_authority_switch_v1.json": "54ffc232cd988d222cae193e71b9898438bf82236067f42d001973a1b0419394",
     "config/deploy/fcis_m6_j08_rollback_v1.json": "bba67b717895d200e0eedf395d2b63015c8f03a36f29a9a73e8d063af5e4c4fd",
-    "docs/research/m6_tasks/TASK_J08_ROLLBACK_V1.json": "3f2026317e3f482fbd66caf47cc044eb157f58d6d9a85c3eac5f352b751993a7",
+    "docs/research/m6_tasks/FCIS_M6_J08_COMPLETE_ROLLBACK_V1.md": "e9cc5fb4cf1a97ab92b82c42f5397ec3f883e2269717d0e224d0de3a92acea73",
+    "docs/research/m6_tasks/TASK_J07_AUTHORITY_SWITCH_V1.json": "0ece5bf4f0f375d13de2530c622c59ccfab0995da9d0902c7705d7d60e81e725",
+    "docs/research/m6_tasks/TASK_J08_PLAN.md": "79862ef2e06505afe88463a8190925773d3cc9c9dad559c7b824a423ad349c2c",
+    "docs/research/m6_tasks/TASK_J08_ROLLBACK_V1.json": "5ffa476b98a53b37f14b6ba9192d660535c5548079668cd09a0c3671f957d57b",
     "experiments/fcis_m6_j08_rollback_check.py": "19870d483b959680259a4e54c0f45c5a84a64e57e9b4fa7a37352b372d9433bf",
     "src/core/fcis_m6_j08_rollback.py": "3b5bbbdcb878b67a3c143f7fb02ffad959eba8d59b376e902cbb90f21e0bdef9",
     "tests/core/test_fcis_m6_j08_rollback.py": "f44b7d1197a6512fe9df02698ea180fe8f1d2224018c6a9df46eceea3f783825",
     "tests/core/test_fcis_m6_j08_rollback_properties.py": "4d626be85397c90ab8163e61554089d4242ab05c2cd7cddd761fdf8eb85b0ef6",
-    "tools/build_fcis_m6_j08_rollback.py": "0b6bcdf2fb3a71d38ddb78d17cb20fa5a4184229061717603cd4ab3f40be8945",
-    "docs/research/m6_tasks/FCIS_M6_J08_COMPLETE_ROLLBACK_V1.md": "e9cc5fb4cf1a97ab92b82c42f5397ec3f883e2269717d0e224d0de3a92acea73",
-    "docs/research/m6_tasks/TASK_J08_PLAN.md": "79862ef2e06505afe88463a8190925773d3cc9c9dad559c7b824a423ad349c2c"
+    "tools/build_fcis_m6_j08_rollback.py": "0b6bcdf2fb3a71d38ddb78d17cb20fa5a4184229061717603cd4ab3f40be8945"
   },
   "results": {
-    "independent_checker": "pass; J08_ROLLBACK_MATCH a96d917c3939f277fec0ecf525f2413984403e4a4222b9d70b5ebeefbea69fa6",
+    "independent_checker": "pass; J08_ROLLBACK_MATCH c956968ab7061d6d382c09323e0e4146c91c5cc0d22b94eca44076afbd139ef3",
     "public_vector": "pass; J08_ROLLBACK_VECTOR_MATCH",
     "focused_and_property_tests": "pass; 11 passed",
     "adjacent_regression": "pass; 55 passed in 4.65 seconds",
-    "lineage_binding": "pass; Git objects, commit/tree pairs, report/evidence identities, and ancestry verified to expected packet head 91bce42607c2c2365087976bed1bee4a38cc1812",
+    "lineage_binding": "pass; Git objects, commit/tree pairs, report/evidence identities, and ancestry verified to the supplied exact packet head",
     "rollback_sequence": 5,
     "source_epoch": 4,
     "target_phase": "POST_SWITCH_VALIDATION",
@@ -76,12 +80,13 @@
     "ruff": "pass",
     "ruff_format": "pass",
     "mypy_strict": "pass",
-    "dependency_refresh_commit": "4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6",
-    "dependency_refresh_tree": "95ae78274eb6695be508283bd34eac2e3118b093",
-    "dependency_refresh_parent": "6b3110f3d392d9fa23727e6b1e63be7edce6f8c2",
+    "dependency_refresh_commit": "dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240",
+    "dependency_refresh_tree": "1bf3896b12f238e693c11d2726a75d2346643b51",
+    "dependency_refresh_parent": "e45e4c685e70eb0fa54a69e678132cb134ccb920",
     "implementation_commit": "d92c98fd9911741c2be6a3a1af9d7d1ff1bccbb3",
     "implementation_tree": "f409c5381210827160a016f9eec78755b3f4690c",
-    "implementation_parent": "b72aa9d997e7cfb5db49e8ea91dcebba2a1f2193"
+    "implementation_parent": "b72aa9d997e7cfb5db49e8ea91dcebba2a1f2193",
+    "expanded_dependency_regression": "pass; 170 passed, 2 skipped because the exact Tau binary was unavailable"
   },
   "mutants": [
     "forged source current-state root",

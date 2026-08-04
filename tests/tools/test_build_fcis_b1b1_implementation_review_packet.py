@@ -16,8 +16,10 @@ from tools.build_fcis_b1b1_implementation_review_packet import (
     ChangeEntry,
     _change_inventory_document,
     _changed_entries,
+    _check_sealed_history,
     _expected_outputs,
     _parse_name_status_z,
+    _verify_current_packet_outputs,
     _verify_packet_relation,
 )
 
@@ -147,6 +149,26 @@ def test_source_manifest_hashes_all_packet_siblings_and_rust_closure() -> None:
     assert inventory["schema"] == "zenodex/fcis/b1b1-change-inventory/v2"
     assert inventory["base_tree"]
     assert inventory["target_tree"]
+
+
+def test_sealed_packet_history_accepts_a_later_descendant() -> None:
+    _check_sealed_history()
+
+
+def test_current_packet_output_drift_is_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original = packet_builder._commit_blob
+
+    def changed_blob(commit: str, path: Path) -> bytes:
+        payload = original(commit, path)
+        if path == packet_builder.README_PATH:
+            return payload + b"drift\n"
+        return payload
+
+    monkeypatch.setattr(packet_builder, "_commit_blob", changed_blob)
+    with pytest.raises(ValueError, match="current packet output drift"):
+        _verify_current_packet_outputs(packet_builder.SEALED_PACKET_COMMIT)
 
 
 def test_packet_relation_accepts_only_one_parent_and_exact_outputs(

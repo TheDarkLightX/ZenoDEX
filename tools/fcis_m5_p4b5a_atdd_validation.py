@@ -6,12 +6,32 @@ from fnmatch import fnmatchcase
 from typing import cast
 
 from tools.fcis_m5_p4b5a_atdd_policy import (
+    ATDD_RELEVANT_CHANGED_PATH_PATTERNS,
     B1B2_DESIGN_GATE,
     FORBIDDEN_CHANGED_PATH_PATTERNS,
     INTEGRATION_ACCEPTANCE_ID,
     PATH_OWNERS,
     lifecycle_as_json,
 )
+
+
+def select_relevant_changed_paths(paths: tuple[str, ...]) -> tuple[str, ...]:
+    """Select the closed B1B ownership surface from a complete event diff."""
+
+    owner_patterns = tuple(cast(str, row["pattern"]) for row in PATH_OWNERS)
+    selected = {
+        path
+        for path in paths
+        if any(
+            fnmatchcase(path, pattern)
+            for pattern in (
+                *owner_patterns,
+                *ATDD_RELEVANT_CHANGED_PATH_PATTERNS,
+                *FORBIDDEN_CHANGED_PATH_PATTERNS,
+            )
+        )
+    }
+    return tuple(sorted(selected))
 
 
 def _string_list(value: object) -> list[str] | None:

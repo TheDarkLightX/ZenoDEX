@@ -9,10 +9,12 @@
   "known_unpinned_python_requirements": [
     "requirements-agents.txt:openai-agents>=0.1.0",
     "requirements-agents.txt:openai>=1.40.0",
+    "requirements-agents.txt:cryptography>=50.0.0",
+    "requirements-agents.txt:mcp>=1.28.1",
     "requirements-agents.txt:python-dotenv>=1.0.0",
     "requirements-core.txt:canonicaljson>=1.6.0",
     "requirements-core.txt:cbor2>=5.6.0",
-    "requirements-core.txt:cryptography>=42.0.0",
+    "requirements-core.txt:cryptography>=50.0.0",
     "requirements-core.txt:py-ecc>=6.1.0",
     "requirements-core.txt:pyyaml>=6.0",
     "requirements-core.txt:typing-extensions>=4.8.0",
@@ -38,19 +40,21 @@
     "zk/state_proof_risc0/Cargo.lock"
   ],
   "required_lock_artifact_sha256": {
-    "requirements-core.lock.txt": "5eb655035d6277b1ce9819880bad15e612d06cb82ede7b7076413eac807581da",
-    "requirements-agents.lock.txt": "406222b9ca09f80bbc865c5f608a5d86d7d51af9e3a7db1ac7223ec1feae3f1a",
-    "requirements-dev.lock.txt": "8ae2a245984d66a60e7fde6c0504b79b1de8fbcc86027b2a42c4adb7164229d8",
+    "requirements-core.lock.txt": "34387bcd999412e9a6bc589e9bda64fdd3084493846eb8918f8df19345cfcc5a",
+    "requirements-agents.lock.txt": "0fd58c2b7e863c591c2b1bfc32ac53ee547128c47a62da8ee5284ab28e61d582",
+    "requirements-dev.lock.txt": "f19d92eb044fdf0b23c50cba4a4d0054d5608579c0c04ab05d93a4a3880cc53e",
     "lean-mathlib/lean-toolchain": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb",
-    "lean-mathlib/lakefile.lean": "d34c0792dcb7073fcf4cbaf63fc582931f6bcd885c7df6ff9f3d8537d94a42d2",
+    "lean-mathlib/lakefile.lean": "2bb569ac28cdc0ab5d69618cb506e47f9103589d4d1c0cea2e977c146aeebaed",
     "tools/confidential_attestation_verifier_rust/Cargo.lock": "61c0f121360aab1ecd80dfbc6efc3cc08955c6d87d5a3fb44bb03186ba7c7443",
-    "tools/dex-ui/package-lock.json": "f3eb2cbe5d1809f61438a803b829de8188ba5eb2ce1230dabb932a745c7b4be2",
+    "tools/dex-ui/package-lock.json": "ad48c7a343fc92a3f1ee85c87ac6fdd878883ca2fa68388b0d97d83c64dc79bd",
     "zk/state_proof_risc0/Cargo.lock": "d30f07417921c475d99826eb10a45c17ec059c88b53c3f835702f27b509442ba"
   },
   "exact_python_pins_required": [],
   "residual_limits": [
     "Python runtime and dev hash-pinned lockfiles are present and tracked by committed SHA-256 hashes.",
     "This ratchet prevents new unpinned Python source requirements and confirms current proof-toolchain lock artifacts exist with committed SHA-256 hashes.",
-    "Production install helpers and docs use pip require-hashes over the committed Python lockfiles; source requirement files remain local convenience and lock-refresh inputs."
+    "Production install helpers and docs use pip require-hashes over the committed Python lockfiles; source requirement files remain local convenience and lock-refresh inputs.",
+    "The four unmounted RISC0 proof workspaces retain ruint 1.19.0 because their Cargo lockfiles are part of retained proof-source identity. RUSTSEC-2026-0220 is narrowly dispositioned for the build and image-parsing path until fresh image IDs and receipts are regenerated under ruint 1.20.0 or later.",
+    "The same four unmounted proof workspaces retain yanked spin 0.9.8. An exact spin-only A/B build changed all eight compared ZRPF guest ELF hashes and image IDs under spin 0.9.9. The yanked-package disposition is bound to the exact committed package name, version, registry source, and checksum so local index drift cannot make the known disposition stale. Hosted cargo-audit remains required to discover other or future yanks because the crates.io index revision is not pinned. The disposition remains non-production until fresh image IDs, receipts, and source-bound replay evidence are regenerated under spin 0.9.9 or later."
   ]
 }

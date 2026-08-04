@@ -3,8 +3,9 @@
 # Cryptographic operations (intent/tx signing and verification)
 py-ecc>=6.1.0  # BLS12-381 signatures (same as tau-testnet)
 
-# AES-GCM encryption for SSS backup envelopes and COSE signature verification
-cryptography>=42.0.0
+# AES-GCM encryption for SSS backup envelopes and COSE signature verification.
+# Minimum fixed release for CVE-2026-69247.
+cryptography>=50.0.0
 
 # CBOR/COSE parsing for AWS Nitro Enclave attestation documents
 cbor2>=5.6.0
