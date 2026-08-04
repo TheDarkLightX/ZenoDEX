@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.luna-toolchain.v1",
   "contract": "fcis-m6-durable-retraction-luna-repair-v1",
   "base_commit": "babffa56dcbddc5886487fbb6e62740b15370000",
-  "implementation_target_commit": "92cc27f6315cbaa9c830066c41585a075f07857d",
-  "implementation_target_tree": "4ee19c42470bd13cbe9ec2b2aef5ce0ad5a48c86",
+  "implementation_target_commit": "bfc3b10fe84f5807a226e4b564127c1ffb5ff0d6",
+  "implementation_target_tree": "b836be736af365d3b4cc58995f280892ea6bea94",
   "python": {
     "workflow_version": "3.12.3",
     "requirements_lock": "requirements-dev.lock.txt",
@@ -45,6 +45,17 @@
     "invariants": 10,
     "self_test_mutants_killed": 4,
     "public_ci_required": true
+  },
+  "closed_disaster_receipt": {
+    "command": "PYTHONPATH=. python3 tools/check_disaster_search_closed_receipt.py --timeout-s 600",
+    "pinned_axes": 29,
+    "selected_axes": 29,
+    "unreachable_under_current_bounds": 29,
+    "failed": 0,
+    "inconclusive": 0,
+    "receipt_sha256": "105f1682ee839ae22c8d46a39730e67a3828f34bba55387a825dfeace0af298e",
+    "ratchet_sha256": "074f91a2f6bfd5457fc665a050c78d5b06a8999ab5cecd9de2aa001c041c1c9b",
+    "production_authority": false
   },
   "esso": {
     "status": "PRIVATE_OPTIONAL_HISTORICAL_EVIDENCE",

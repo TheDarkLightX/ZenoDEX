@@ -315,3 +315,64 @@ dependency in production. Removal still requires `spin 0.9.9` or later, fresh
 image IDs, fresh receipts, and source-bound replay evidence. The packet remains
 `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED` and adds no runtime mount, datastore,
 publication authority, deployment, merge, or value movement.
+
+## Closed-disaster receipt repair addendum (2026-08-04)
+
+This addendum binds the packet to the exact disaster-receipt repair target:
+
+- Prior packet head: `4b5c59dc2f8c132bdd059c7f9b7af3286eb80f30`
+- Implementation target commit:
+  `bfc3b10fe84f5807a226e4b564127c1ffb5ff0d6`
+- Implementation target tree:
+  `b836be736af365d3b4cc58995f280892ea6bea94`
+- Implementation target parent:
+  `4b5c59dc2f8c132bdd059c7f9b7af3286eb80f30`
+- Closed receipt SHA-256:
+  `105f1682ee839ae22c8d46a39730e67a3828f34bba55387a825dfeace0af298e`
+- Closed ratchet SHA-256:
+  `074f91a2f6bfd5457fc665a050c78d5b06a8999ab5cecd9de2aa001c041c1c9b`
+
+The implementation target repairs three independent evidence failures. The
+settlement certificate boundary now preserves the exact mounted immutable pool
+carrier through fresh replay. The closed-disaster runner executes one bounded
+pytest shard per exact path and `-k` expression, shares only identical shards,
+and requires every shard of an original command to pass. A failing or slow
+path can no longer make unrelated axes inconclusive. The dex-engine sequence
+tracer caches source membership per code object, preserving its declared line
+trace while removing path-resolution work from every traced event. Two stale
+minimized-witness path identities were regenerated from the exact repaired
+source.
+
+Exact local evidence includes:
+
+```text
+stateful scenario bridge:                    24 passed
+settlement and two grammar suites:           31 passed
+dex-engine sequence grammar suite:            5 passed
+surrounding assurance and coverage suites:   39 passed
+API loopback suite:                          85 passed
+strict mypy:                                 PASS
+Python compilation:                         PASS
+
+closed disaster receipt ratchet:
+  pinned axes:                               29
+  selected axes:                             29
+  unreachable under current bounds:         29
+  failed:                                     0
+  inconclusive:                               0
+```
+
+The API and full receipt gates used an execution environment permitted to bind
+ephemeral localhost ports. The default sandbox rejects those existing tests at
+socket creation. The structured receipt, exact-path regression, and permanent
+failure-isolation regression are the retained evidence. Whole-file Ruff still
+reports inherited import-layout findings and one unrelated duplicate mapping
+key in the large scenario tool; this slice does not claim a clean whole-file
+Ruff gate.
+
+This repair changes evidence execution and an unmounted settlement replay
+adapter. It does not establish that the bounded disaster inventory is complete,
+prove any disaster unreachable outside the declared bounds, or add production
+authority. The packet remains `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED` and adds no
+runtime mount, datastore publication, migration switch, deployment, merge, or
+value movement.

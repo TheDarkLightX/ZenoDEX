@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.luna-source-manifest.v1",
   "contract": "fcis-m6-durable-retraction-luna-repair-v1",
   "base_commit": "babffa56dcbddc5886487fbb6e62740b15370000",
-  "implementation_target_commit": "92cc27f6315cbaa9c830066c41585a075f07857d",
-  "implementation_target_tree": "4ee19c42470bd13cbe9ec2b2aef5ce0ad5a48c86",
+  "implementation_target_commit": "bfc3b10fe84f5807a226e4b564127c1ffb5ff0d6",
+  "implementation_target_tree": "b836be736af365d3b4cc58995f280892ea6bea94",
   "canonical_archive": "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz",
   "archive_excludes": [
     "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz"
@@ -174,6 +174,36 @@
       "role": "permanent_regression_witnesses"
     },
     {
+      "path": "src/integration/settlement_end_to_end_certificate_packet.py",
+      "sha256": "82122c97b2393dc56c7972f3e5288b7746fc64c8a63093dbf39ff12a4379daca",
+      "role": "settlement_replay_adapter"
+    },
+    {
+      "path": "tools/dex_engine_sequence_grammar_fuzz.py",
+      "sha256": "e4482ee427d20d2edfb7672fc065b47a010011bff8fa7ca13b8fe004e1cde16f",
+      "role": "bounded_sequence_trace_tool"
+    },
+    {
+      "path": "tools/stateful_scenario_bridge.py",
+      "sha256": "84c323865b43723501193ec551c592b15f66f8af7af8f01a7f80c1b9fe49c2fa",
+      "role": "closed_disaster_receipt_runner"
+    },
+    {
+      "path": "tests/integration/test_operations_grammar_fuzz.py",
+      "sha256": "ef8a20e913f7ddb079f1e89f0d16d561056b53fdc475868e68839fcf7c6c0faa",
+      "role": "minimized_witness_regression"
+    },
+    {
+      "path": "tests/integration/test_quote_receipt_transport_grammar_fuzz.py",
+      "sha256": "a8c68efed9d639797e0a9f973c933b4f1fad64e99ab074561ac897141e6c1714",
+      "role": "minimized_witness_regression"
+    },
+    {
+      "path": "tests/integration/test_stateful_scenario_bridge.py",
+      "sha256": "532e8b05ef0429287b454c2841ea3a11f22e865c890e12131b83c050b9abf3de",
+      "role": "closed_disaster_failure_isolation_tests"
+    },
+    {
       "path": "README_BUNDLE.md",
       "sha256": "24ab28c83e90e792f111eef3c1b21f7aff43d8e8162258c720eb3de4611acaba",
       "role": "packet_readme"
@@ -220,17 +250,17 @@
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_REPAIR_REPORT_20260731.md",
-      "sha256": "13c7ddfbdf5f1e26621d01f5e3493c9bcbc6a6c9ab1b0a065c1e94323a99207d",
+      "sha256": "efe7ef2c5a8002aacc18f0d9e03193378ccfe2fb1046fe9c842b3622d2adddfb",
       "role": "repair_report"
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_CHANGE_INVENTORY_V1.md",
-      "sha256": "fce2ab18088770e9b0a62ea887ce6e38d3709d9fd456ea4e52fbd4155b52bec9",
+      "sha256": "4eee9dc8a9eb11be2fc24242626f19f6976ca85e417020ef78db0e53838dcfcc",
       "role": "change_inventory"
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_TOOLCHAIN_V1.json",
-      "sha256": "29e2ff6e7311792da00db26a07906ac984a9c4ec25fe8e4a856019cc422f3c66",
+      "sha256": "2f25537ab361c61dfc06307d7fdfa1adbad9f61a13dc9744f345b3650232587c",
       "role": "exact_toolchain_record"
     },
     {

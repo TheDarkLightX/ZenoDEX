@@ -125,3 +125,30 @@ The following child updates only this packet's report, toolchain identity,
 manifest, integrity ledger, and canonical archive. It changes no functional
 core, runtime transition, datastore, production authority, migration,
 deployment, or value-moving path.
+
+## Closed-disaster receipt repair child (2026-08-04)
+
+The closed-disaster implementation target is commit
+`bfc3b10fe84f5807a226e4b564127c1ffb5ff0d6`, tree
+`b836be736af365d3b4cc58995f280892ea6bea94`, with prior packet head
+`4b5c59dc2f8c132bdd059c7f9b7af3286eb80f30` as its parent.
+
+The target changes six files:
+
+- `src/integration/settlement_end_to_end_certificate_packet.py`
+- `tools/dex_engine_sequence_grammar_fuzz.py`
+- `tools/stateful_scenario_bridge.py`
+- `tests/integration/test_operations_grammar_fuzz.py`
+- `tests/integration/test_quote_receipt_transport_grammar_fuzz.py`
+- `tests/integration/test_stateful_scenario_bridge.py`
+
+It preserves the exact mounted pool carrier through settlement replay, isolates
+closed-disaster pytest execution by exact path, retains deterministic joins for
+overlapping evidence, optimizes declared-source trace collection, and refreshes
+two exact minimized-witness identities. Permanent tests cover overlapping-path
+sharing and disjoint failure isolation.
+
+The following child updates only this packet's report, toolchain identity,
+manifest, integrity ledger, and canonical archive. It adds no runtime mount,
+datastore publication, production authority, migration switch, deployment, or
+value movement.
