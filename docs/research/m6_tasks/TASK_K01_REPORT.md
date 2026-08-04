@@ -2,9 +2,9 @@
 
 TASK_ID: K01
 BASE_SHA: 868ae8ef0da8a4f7fc52f444d7b459987f76c51e
-SOURCE_HEAD_SHA: 379e0717137fb122175995de7c20250856375151
-SOURCE_HEAD_TREE: 5ff6f00973a948315d1c25575eab6c348055c5b2
-BRANCH: codex/task-m6-receipt-rebind-20260802
+SOURCE_HEAD_SHA: dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240
+SOURCE_HEAD_TREE: 1bf3896b12f238e693c11d2726a75d2346643b51
+BRANCH: codex/j07-k01-j06-dependency-rebind-20260804
 
 FILES_CHANGED:
 
@@ -21,12 +21,13 @@ IMPLEMENTATION_HEAD_SHA: 8cd4e451138e86a3fa1012b1081112644114fa97
 IMPLEMENTATION_TREE: e58d21d10835bfe5dddb314d1cc11bf7bd773dd8
 IMPLEMENTATION_PARENT: 868ae8ef0da8a4f7fc52f444d7b459987f76c51e
 
-DEPENDENCY_REFRESH_HEAD: The entrypoint credential repair changed a source
-file included in the K01 deployment-source set. K01 was regenerated at the
-exact functional head above; K01 implementation code is unchanged.
+DEPENDENCY_REFRESH_HEAD: dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240
+DEPENDENCY_REFRESH_TREE: 1bf3896b12f238e693c11d2726a75d2346643b51
+DEPENDENCY_REFRESH_PARENT: e45e4c685e70eb0fa54a69e678132cb134ccb920
 
-DEPENDENCY_REBIND: The entrypoint source edit changed a file included in the
-K01 deployment-source set. K01 was regenerated at the exact repair head and
+DEPENDENCY_REBIND: The zUSD monetary bridge source changed after the prior
+receipt and is included in the K01 deployment-source set. K01 was regenerated
+at the exact repair head and
 the current root is pinned by the K04, K06, and K07 dependency chain.
 
 CLAIM_IMPLEMENTED: K01 adds a typed, source-bound inventory for fifteen
@@ -35,7 +36,7 @@ proof-input, and external-effect candidate surfaces. The inventory requires
 the nine D05 publisher IDs, records caller/input/state-effect/ANF-commit-port
 fields, classifies legacy and proof-only paths, hashes its exact source set,
 and derives the canonical entrypoint inventory root
-c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2.
+b8c1ff0c8d8d8fba815cd500909e923aa2cf6b41ebbca92e9056cd9b33f98559.
 
 COMMANDS_RUN:
 
@@ -56,9 +57,9 @@ COMMANDS_RUN:
 RESULTS:
 
 - K01 vector regeneration passed with the exact root
-  c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2.
-- The source-bound vector was regenerated after the entrypoint credential
-  repair; the changed deployment bytes are therefore included in the K01 root.
+  b8c1ff0c8d8d8fba815cd500909e923aa2cf6b41ebbca92e9056cd9b33f98559.
+- The source-bound vector was regenerated after the zUSD monetary bridge
+  refresh; the changed bridge bytes are therefore included in the K01 root.
 - The inventory contains fifteen canonically ordered rows and four explicit
   coverage notes.
 - The nine required D05 publisher IDs are present; omission is rejected.

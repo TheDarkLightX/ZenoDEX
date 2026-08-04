@@ -2,9 +2,9 @@
 
 TASK_ID: J08
 BASE_SHA: b72aa9d997e7cfb5db49e8ea91dcebba2a1f2193
-SOURCE_HEAD_SHA: 4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6
-SOURCE_HEAD_TREE: 95ae78274eb6695be508283bd34eac2e3118b093
-BRANCH: codex/task-m6-receipt-rebind-20260802
+SOURCE_HEAD_SHA: dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240
+SOURCE_HEAD_TREE: 1bf3896b12f238e693c11d2726a75d2346643b51
+BRANCH: codex/j07-k01-j06-dependency-rebind-20260804
 
 FILES_CHANGED:
 - config/deploy/fcis_m6_j08_rollback_v1.json
@@ -19,9 +19,9 @@ IMPLEMENTATION_HEAD_SHA: d92c98fd9911741c2be6a3a1af9d7d1ff1bccbb3
 IMPLEMENTATION_TREE: f409c5381210827160a016f9eec78755b3f4690c
 IMPLEMENTATION_PARENT: b72aa9d997e7cfb5db49e8ea91dcebba2a1f2193
 
-DEPENDENCY_REFRESH_HEAD: 4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6
-DEPENDENCY_REFRESH_TREE: 95ae78274eb6695be508283bd34eac2e3118b093
-DEPENDENCY_REFRESH_PARENT: 6b3110f3d392d9fa23727e6b1e63be7edce6f8c2
+DEPENDENCY_REFRESH_HEAD: dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240
+DEPENDENCY_REFRESH_TREE: 1bf3896b12f238e693c11d2726a75d2346643b51
+DEPENDENCY_REFRESH_PARENT: e45e4c685e70eb0fa54a69e678132cb134ccb920
 
 DEPENDENCY_REBIND: The J07 switch rebind changed the complete source state
 used by J08. J08 was regenerated at the exact dependency-refresh head above;
@@ -46,12 +46,12 @@ COMMANDS_RUN:
 - `python3 -m py_compile` on all J08 Python files
 - `python3 -m json.tool` on the J08 configuration and vector
 - `git diff --check`
-- `python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J08 --expected-head 91bce42607c2c2365087976bed1bee4a38cc1812`
+- `python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks J08 --expected-head $(git rev-parse HEAD)`
 - `sha256sum --check --strict docs/research/m6_tasks/TASK_J08_SOURCE_MANIFEST.sha256`
 
 RESULTS:
 - The independent checker passed with rollback root
-  `a96d917c3939f277fec0ecf525f2413984403e4a4222b9d70b5ebeefbea69fa6`.
+  `c956968ab7061d6d382c09323e0e4146c91c5cc0d22b94eca44076afbd139ef3`.
 - The public vector matched source regeneration.
 - Focused and property tests passed: 11 passed.
 - The adjacent regression passed: 55 passed in 4.65 seconds.
@@ -67,8 +67,8 @@ RESULTS:
   certificate validation.
 - Strict Ruff, formatting, mypy, compilation, JSON, and diff checks passed.
 - The packet lineage gate passed: Git objects, commit/tree pairs,
-  report/evidence identities, and ancestry resolve to expected packet head
-  `91bce42607c2c2365087976bed1bee4a38cc1812`.
+  report/evidence identities, and ancestry resolve to the supplied exact
+  packet head.
 
 MUTANTS_ADDED: Forged source state root, forged anchor residual root,
 balance-only target state, deployment-only target mutation, residual-only

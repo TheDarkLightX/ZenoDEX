@@ -2,9 +2,9 @@
 
 TASK_ID: K04
 BASE_SHA: 7da3b05d4161c961f1a57cf798307a3e125a2dab
-SOURCE_HEAD_SHA: 379e0717137fb122175995de7c20250856375151
-SOURCE_HEAD_TREE: 5ff6f00973a948315d1c25575eab6c348055c5b2
-BRANCH: codex/task-m6-receipt-rebind-20260802
+SOURCE_HEAD_SHA: dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240
+SOURCE_HEAD_TREE: 1bf3896b12f238e693c11d2726a75d2346643b51
+BRANCH: codex/j07-k01-j06-dependency-rebind-20260804
 
 FILES_CHANGED:
 
@@ -21,16 +21,16 @@ IMPLEMENTATION_HEAD_SHA: 26da7c198a43e0c248cd5823d98c6ce3037c2813
 IMPLEMENTATION_TREE: 556ded187ad630ff3e5a4b5ec5422faca7946d9f
 IMPLEMENTATION_PARENT: 7da3b05d4161c961f1a57cf798307a3e125a2dab
 
-DEPENDENCY_REFRESH_HEAD: The entrypoint credential repair changed the D05
-and K01 roots consumed by K04. K04 was rebound and regenerated at the exact
-functional head above; the typed K04 implementation is unchanged.
+DEPENDENCY_REFRESH_HEAD: dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240
+DEPENDENCY_REFRESH_TREE: 1bf3896b12f238e693c11d2726a75d2346643b51
+DEPENDENCY_REFRESH_PARENT: e45e4c685e70eb0fa54a69e678132cb134ccb920
 
-CLAIM_IMPLEMENTED: K04 has been rebound to the current D05 publisher
-inventory, D05 topology, and K01 entrypoint inventory. The existing typed
+CLAIM_IMPLEMENTED: K04 has been rebound to the unchanged D05 publisher
+inventory/topology and the current K01 entrypoint inventory. The existing typed
 builder and checker were unchanged; the repair updates the authoritative
 configuration and generated vector so the builder again regenerates and pins
 the current topology anchor. The current K04 root is
-6644cae606656411d0da64461d80a13030be65905cfd31916a33f1143bc25ee3.
+4db1203f194a99a144c4b2a0a2613df288ac0f428959f87e9e529b4a35f576dd.
 
 COMMANDS_RUN:
 
@@ -56,9 +56,9 @@ RESULTS:
   current topology root
   `9b2db149fd06876cf9e9fa592d891042320e52dcf0640c952431d913f12402e1`.
 - K01 regeneration passed with current entrypoint root
-  `c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2`.
+  `b8c1ff0c8d8d8fba815cd500909e923aa2cf6b41ebbca92e9056cd9b33f98559`.
 - K04 regeneration and checked vector passed with root
-  `6644cae606656411d0da64461d80a13030be65905cfd31916a33f1143bc25ee3`.
+  `4db1203f194a99a144c4b2a0a2613df288ac0f428959f87e9e529b4a35f576dd`.
 - Publisher insertion, source-set insertion, D05-root substitution, and
   noncanonical ordering changed or rejected the topology anchor as expected.
 - Focused K04 suite passed: 3 passed.

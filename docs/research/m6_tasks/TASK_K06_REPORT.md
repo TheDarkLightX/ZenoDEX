@@ -2,13 +2,13 @@
 
 TASK_ID: K06
 BASE_SHA: 0b307ca01bfaa14d961ded7842b8023ad80e280b
-SOURCE_HEAD_SHA: 92040e214c4dcd36c4e5172e7098f19e26f0300f
-SOURCE_HEAD_TREE: 89b4704ef62940fcfd24f568f8f74152420a0e5a
-BRANCH: codex/task-m6-receipt-rebind-20260802
+SOURCE_HEAD_SHA: dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240
+SOURCE_HEAD_TREE: 1bf3896b12f238e693c11d2726a75d2346643b51
+BRANCH: codex/j07-k01-j06-dependency-rebind-20260804
 
-DEPENDENCY_REFRESH_HEAD: 92040e214c4dcd36c4e5172e7098f19e26f0300f
-DEPENDENCY_REFRESH_TREE: 89b4704ef62940fcfd24f568f8f74152420a0e5a
-DEPENDENCY_REFRESH_PARENT: 4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6
+DEPENDENCY_REFRESH_HEAD: dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240
+DEPENDENCY_REFRESH_TREE: 1bf3896b12f238e693c11d2726a75d2346643b51
+DEPENDENCY_REFRESH_PARENT: e45e4c685e70eb0fa54a69e678132cb134ccb920
 
 DEPENDENCY_REBIND: The J07 switch and post-context roots changed after the
 J06/K01 rebind. K06 was regenerated at the exact dependency-refresh head
@@ -48,20 +48,20 @@ COMMANDS_RUN:
 - python3 experiments/fcis_m6_k03_static_no_bypass_check.py
 - python3 tools/build_fcis_m6_d05_tcg_inventory.py --check
 - git diff --check
-- python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K06 --expected-head 91bce42607c2c2365087976bed1bee4a38cc1812
+- python3 docs/research/m6_tasks/validate_task_packet.py docs/research/m6_tasks K06 --expected-head $(git rev-parse HEAD)
 
 RESULTS:
 
-- K06 deterministic seal root: `fa7707f4bb75a01643bdc375ab74cbcf9f108162bdbf462868b707f12e96a753`.
+- K06 deterministic seal root: `5aa284fb6a2bd352a986e651df503e267e6a2c35e8ea52e0c1d6a6620745751e`.
 - K03 policy and scan roots matched the K06 pins; the scan reported zero
   issues over four protected Python files and zero protected Rust files.
 - D05 regeneration matched the current K06 inventory and topology roots
   `fe407a21588db0932df41b224234a5a5950478aa12cc1c564857b7a5bbc41ac2` and
   `9b2db149fd06876cf9e9fa592d891042320e52dcf0640c952431d913f12402e1`.
 - K01 regeneration matched the current K06 entrypoint inventory root
-  `c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2`.
+  `b8c1ff0c8d8d8fba815cd500909e923aa2cf6b41ebbca92e9056cd9b33f98559`.
 - K04 current topology root matched
-  `6644cae606656411d0da64461d80a13030be65905cfd31916a33f1143bc25ee3`.
+  `4db1203f194a99a144c4b2a0a2613df288ac0f428959f87e9e529b4a35f576dd`.
 - J07 switch, post-context, epoch, and target writer-profile pins matched.
 - Target admission passed; legacy admission rejected with
   `legacy_writer_disabled`.
@@ -72,8 +72,8 @@ RESULTS:
 - Python compilation, Ruff, formatting, strict mypy, JSON parsing, and diff
   whitespace checks passed.
 - The packet lineage gate passed: Git objects, commit/tree pairs,
-  report/evidence identities, and ancestry resolve to expected packet head
-  `91bce42607c2c2365087976bed1bee4a38cc1812`.
+  report/evidence identities, and ancestry resolve to the supplied exact
+  packet head.
 
 UPSTREAM_REFRESH: The K06 packet now records the current D05, K01, and K04
 roots after the entrypoint credential repair. The K04, K06, and K07 dependency

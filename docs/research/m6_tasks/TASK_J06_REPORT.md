@@ -2,9 +2,9 @@
 
 TASK_ID: J06
 BASE_SHA: 868ae8ef0da8a4f7fc52f444d7b459987f76c51e
-SOURCE_HEAD_SHA: 7ff2578780b11d678f4ddddd14d18f4bb85778ff
-SOURCE_HEAD_TREE: afb155441fb485b7b8539bfc62eae17faddf9469
-BRANCH: codex/task-m6-receipt-rebind-20260802
+SOURCE_HEAD_SHA: dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240
+SOURCE_HEAD_TREE: 1bf3896b12f238e693c11d2726a75d2346643b51
+BRANCH: codex/j07-k01-j06-dependency-rebind-20260804
 FILES_CHANGED:
 - config/deploy/fcis_m6_j06_quiescence_v1.json
 - docs/research/FCIS_M6_LUNA_TASK_GRAPH_V1.json
@@ -21,11 +21,11 @@ IMPLEMENTATION_HEAD_SHA: 8cd4e451138e86a3fa1012b1081112644114fa97
 IMPLEMENTATION_TREE: e58d21d10835bfe5dddb314d1cc11bf7bd773dd8
 IMPLEMENTATION_PARENT: 868ae8ef0da8a4f7fc52f444d7b459987f76c51e
 
-DEPENDENCY_REFRESH_HEAD: 7ff2578780b11d678f4ddddd14d18f4bb85778ff
-DEPENDENCY_REFRESH_TREE: afb155441fb485b7b8539bfc62eae17faddf9469
-DEPENDENCY_REFRESH_PARENT: 04f9661d57f58d0b54ddf959067ee13f1551eb7c
+DEPENDENCY_REFRESH_HEAD: dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240
+DEPENDENCY_REFRESH_TREE: 1bf3896b12f238e693c11d2726a75d2346643b51
+DEPENDENCY_REFRESH_PARENT: e45e4c685e70eb0fa54a69e678132cb134ccb920
 
-DEPENDENCY_REBIND: The entrypoint credential repair changed the K01
+DEPENDENCY_REBIND: The zUSD monetary bridge refresh changed the K01
 deployment-source inventory. J06 was regenerated after the K01 rebind and
 now binds the current inventory root and derived quiescence root at the exact
 dependency-refresh head above. J06 implementation code is unchanged.
@@ -62,11 +62,11 @@ COMMANDS_RUN:
 RESULTS:
 - J06 source, Ruff, formatting, strict mypy, and Python compilation gates pass
   for the changed implementation surface.
-- K01 was regenerated after the entrypoint credential repair, producing
+- K01 was regenerated after the zUSD monetary bridge refresh, producing
   inventory root
-  `c8be9fb9b9ef3a997f062752b829c4a2f887e439276d938628da59ae63902df2`.
+  `b8c1ff0c8d8d8fba815cd500909e923aa2cf6b41ebbca92e9056cd9b33f98559`.
   J06 now binds that root and derives quiescence root
-  `0e9d6c2aea9ae0f1fed031427f884c28f4211de337b2998bbe3fe3659083de10`.
+  `8a6813d7359919d801f721731c03c1edc9ae4990a0358192b35ec9bfd89979d2`.
 - The J06 checker passed; focused J06 tests passed: 9 passed. The migration
   regression passed: 20 passed.
 - The source change binds every rejection result to a canonical full attempt
