@@ -98,3 +98,29 @@ The following child updates this packet's report, toolchain identity,
 manifest, integrity ledger, and canonical archive. It changes no functional
 core, runtime transition, datastore, production authority, migration,
 deployment, or value-moving path.
+
+## Lock-bound yanked-dependency repair child (2026-08-04)
+
+The lock-bound dependency implementation target is commit
+`20377b7920d0327b3fc8db501ee61cf28a7da8fe`, tree
+`7267235aeed2b997405a67d954bd3963429234cd`, with prior packet head
+`c09ef94eb63ec2f1ff7e3ff4f6ce26fc0607eb6c` as its parent.
+
+The target preserves the four retained proof-source lockfiles byte-for-byte.
+It binds the known yanked `spin 0.9.8` disposition to the exact package name,
+version, crates.io registry source, and package checksum in each reviewed
+lockfile. The whole-workspace checker derives that disposition from the
+committed lock and canonicalizes hosted or locally omitted yank warnings to
+one source-bound finding. Direct payload-only evaluation cannot authorize the
+yanked disposition.
+
+The target also retains the exact four-lock `spin 0.9.8 -> 0.9.9` patch and an
+A/B comparison performed with the same source and pinned RISC0 toolchain. All
+eight compared guest ELF hashes and all eight image IDs changed. No receipt was
+regenerated, so the retained proof identities cannot be transferred to the
+updated dependency graph.
+
+The following child updates only this packet's report, toolchain identity,
+manifest, integrity ledger, and canonical archive. It changes no functional
+core, runtime transition, datastore, production authority, migration,
+deployment, or value-moving path.

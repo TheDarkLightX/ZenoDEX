@@ -251,3 +251,64 @@ still records five pending obligations and does not authorize production.
 This packet remains `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED`. It adds no runtime
 mount, production datastore, publication authority, migration switch,
 deployment, merge, or value movement.
+
+## Lock-bound yanked-dependency addendum (2026-08-04)
+
+This addendum is the authoritative dependency posture for the current packet:
+
+- Prior packet head: `c09ef94eb63ec2f1ff7e3ff4f6ce26fc0607eb6c`
+- Implementation target commit:
+  `20377b7920d0327b3fc8db501ee61cf28a7da8fe`
+- Implementation target tree:
+  `7267235aeed2b997405a67d954bd3963429234cd`
+- Implementation target parent:
+  `c09ef94eb63ec2f1ff7e3ff4f6ce26fc0607eb6c`
+- RISC0 dependency policy SHA-256:
+  `fd47e366052bcb149bdff1cb0688922e31b52130c1c2723d1b9a42a6ece188f1`
+- Spin-only lock patch SHA-256:
+  `139a13fbfe6dc34d10ef438693eb75d484475503be838aa5a1bcfee304cee7b4`
+- Spin-only proof-identity comparison SHA-256:
+  `aea09b01b4190a8c2d0a5db52b293a1a1e931dfc318964adf6dfcc178426607e`
+- RustSec advisory database revision:
+  `6d7aef354b4144c1ede046034adfd00246d3b0c0`
+
+Hosted `cargo-audit 0.22.1` reported yanked `spin 0.9.8` in all four retained
+proof workspaces. A local `--no-fetch` replay at the same RustSec database
+revision omitted those yank warnings because cargo-audit obtains yank status
+from the local crates.io index. The repaired checker does not treat the absent
+local warning as proof that the package is not yanked. It applies the known
+exception only when the committed lock contains exactly:
+
+```text
+package  = spin
+version  = 0.9.8
+source   = registry+https://github.com/rust-lang/crates.io-index
+checksum = 6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67
+```
+
+The exact whole-workspace checker accepts 16 narrowly scoped dispositions: the
+three prior vulnerability dispositions and one lock-bound yank disposition in
+each of four unmounted proof workspaces. It reports no unused disposition.
+Unknown, changed-version, changed-source, changed-checksum, or additional
+yanked findings still reject. The crates.io index revision remains unpinned,
+so hosted cargo-audit remains required to discover other or future yanks.
+
+The retained A/B experiment changed only `spin 0.9.8` to `0.9.9` in the four
+proof-bound lockfiles and kept `ruint 1.19.0`. Under the pinned RISC0 toolchain,
+all eight ZRPF guest ELF hashes and all eight image IDs changed. The exact lock
+patch, baseline and trial lock hashes, guest hashes, image IDs, and toolchain
+identities are source-bound in the comparison report. Guest binaries were
+deleted after verification and no receipts were regenerated.
+
+Local evidence includes 69 dependency-workflow and active-reproof tests, Ruff,
+strict mypy, Python compilation, the active-reproof source-inventory checker,
+the workflow-permission checker, the exact five-workspace cargo-audit replay,
+and mutation tests for omitted/duplicated hosted yank warnings, direct
+payload-only authorization, package source/checksum drift, and future unknown
+yanks.
+
+This repair does not prove `spin 0.9.8` safe and does not authorize the yanked
+dependency in production. Removal still requires `spin 0.9.9` or later, fresh
+image IDs, fresh receipts, and source-bound replay evidence. The packet remains
+`RESEARCH_ONLY_EXECUTABLE_UNMOUNTED` and adds no runtime mount, datastore,
+publication authority, deployment, merge, or value movement.
