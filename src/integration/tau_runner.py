@@ -21,7 +21,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -190,8 +190,6 @@ def _run_subprocess_with_output_caps(
                 except Exception:
                     _kill_proc_group()
                     return -1, _decode_stdout(), "tau stdin error"
-                if n is None:
-                    n = 0
                 stdin_off += int(n)
                 if stdin_off >= len(stdin_view):
                     stdin_open = False
@@ -437,7 +435,9 @@ def _run_tau_spec_steps_via_python_binding(
 
     opts = tau.interpreter_options()
     in_stream_objs: dict[str, object] = {}
-    out_stream_objs: dict[str, object] = {}
+    # The nanobind module is loaded dynamically, so no static stream class is
+    # available here. Keep Any confined to this external-binding boundary.
+    out_stream_objs: dict[str, Any] = {}
 
     for name in sorted(input_streams.keys(), key=lambda s: int(s[1:])):
         values: list[str] = []

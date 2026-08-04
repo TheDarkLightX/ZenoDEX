@@ -211,12 +211,41 @@
     "passed": 12,
     "failed": 0
   },
+  "tooling_hardening": {
+    "integrated_parent_commit": "f2d005a81a8e0414f79610aee834324a469a657b",
+    "runner": {
+      "fail_closed_on_ansi_error_diagnostic_with_zero_exit": true,
+      "stdout_only_assignment_parsing": true,
+      "duplicate_assignment_rejection": true,
+      "experimental_mode_is_explicit": true
+    },
+    "updater": {
+      "detached_remote_ref_resolution": true,
+      "full_root_and_parser_commit_pins": true,
+      "root_and_parser_origin_pins": true,
+      "path_and_symlink_containment": true,
+      "clean_source_requirement": true,
+      "binary_version_and_hash_receipt": true,
+      "build_jobs_range": "1..16",
+      "default_build_jobs_cap": 4
+    },
+    "integrated_gate": {
+      "tau_placement_and_profile_tests_passed": 15,
+      "runner_and_updater_tests_passed": 31,
+      "recommended_specs_formally_profiled": 234,
+      "semantic_view_regeneration_check_passed": true,
+      "ruff_passed": true,
+      "targeted_mypy_passed": true,
+      "bash_syntax_passed": true
+    }
+  },
   "nonclaims": [
     "No Tau integration profile is mounted.",
     "No Tau or ZenoLedger writer switch is authorized.",
     "No zDEX failover or escape mechanism is established.",
     "No runtime forward simulation is proved.",
     "No production value movement is authorized by these relations.",
+    "The pinned updater was not rerun as a second full build after integration because the host had less than 4 GiB free.",
     "M6 remains incomplete and non-promotable."
   ]
 }

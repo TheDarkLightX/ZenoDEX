@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -12,9 +13,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 def _tau_bin() -> str:
     tau_bin = os.environ.get("TAU_BIN", "").strip() or find_tau_bin(ROOT)
-    if not tau_bin:
+    if not isinstance(tau_bin, str) or tau_bin == "":
         pytest.skip("exact Tau binary not available")
-    return tau_bin
+    return cast(str, tau_bin)
 
 
 def _run(spec_name: str, step: dict[str, int]) -> dict[str, int]:

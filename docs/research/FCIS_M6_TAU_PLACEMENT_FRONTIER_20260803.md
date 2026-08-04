@@ -158,6 +158,33 @@ equivalent dual-solver finite model for bounded adversarial state machines. Use
 ZRPF to scale proof generation and verification after the semantics and
 runtime refinement are closed.
 
+## Runner and updater hardening
+
+The integration shell now rejects Tau's ANSI-colored `(Error)` diagnostic even
+when Tau exits with status zero. Spec-mode parsing accepts assignments from
+stdout only, rejects duplicate assignments, and enables experimental Tau
+features only through an explicit flag. The same diagnostic predicate is used
+by the formal-completeness checker.
+
+The updater now resolves an origin remote-tracking ref or full reachable commit
+into a detached checkout. It verifies full root and parser pins, both origin
+URLs, parser gitlink identity, clean nested worktrees, source/build path
+containment, binary version, and binary SHA-256. Build parallelism defaults to
+four jobs and rejects values outside `1..16`.
+
+The integrated tooling evidence passed:
+
+```text
+31 runner and updater tests
+Ruff
+targeted strict mypy
+Bash syntax
+```
+
+The updater's full real build was not repeated after integration because the
+host had less than 4 GiB free. The independently built exact c43 binary and its
+316-test upstream release result remain the retained binary evidence.
+
 ## Evidence and nonclaims
 
 The focused ZenoDEX suite passed:
