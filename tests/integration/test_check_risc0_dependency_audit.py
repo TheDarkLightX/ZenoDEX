@@ -83,6 +83,13 @@ def _dispositions() -> frozenset[checker.DispositionKey]:
     return checker._disposition_keys(policy)
 
 
+def _copy_registered_locks(destination_root: Path) -> None:
+    for spec in checker.REVIEWED_WORKSPACES:
+        destination = destination_root / spec.lockfile
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(ROOT / spec.lockfile, destination)
+
+
 def test_accepts_clean_well_formed_audit() -> None:
     report = checker.evaluate_audit_payload(
         _payload(),
@@ -183,6 +190,40 @@ def test_denied_warning_categories_fail_closed(category: str) -> None:
     assert any(f"denied {category} warning" in error for error in report["errors"])
 
 
+def test_yanked_spin_disposition_requires_lock_bound_authority() -> None:
+    payload = _payload()
+    payload["warnings"] = {
+        "yanked": [{"package": {"name": "spin", "version": "0.9.8"}}]
+    }
+    unbound = checker.evaluate_audit_payload(
+        payload,
+        workspace_id="zrpf_risc0",
+        dispositions=_dispositions(),
+    )
+    wrong_workspace = checker.evaluate_audit_payload(
+        payload,
+        workspace_id="zrpf_protocol",
+        dispositions=_dispositions(),
+    )
+    wrong_version = _payload()
+    wrong_version["warnings"] = {
+        "yanked": [{"package": {"name": "spin", "version": "0.9.7"}}]
+    }
+    rejected_version = checker.evaluate_audit_payload(
+        wrong_version,
+        workspace_id="zrpf_risc0",
+        dispositions=_dispositions(),
+    )
+
+    assert unbound["ok"] is False
+    assert unbound["applied_dispositions"] == []
+    assert unbound["errors"] == [
+        "denied yanked warning: no-advisory-id spin 0.9.8"
+    ]
+    assert wrong_workspace["ok"] is False
+    assert rejected_version["ok"] is False
+
+
 def test_unmaintained_warning_is_recorded_without_authority() -> None:
     report = checker.evaluate_audit_payload(
         _payload(
@@ -222,9 +263,10 @@ def test_policy_pins_exact_workspaces_and_scoped_advisories() -> None:
 
     assert policy["workspaces"] == checker._workspace_rows()
     assert checker._disposition_keys(policy) == checker.PERMITTED_DISPOSITION_KEYS
-    assert len(policy["dispositions"]) == 12
+    assert len(policy["dispositions"]) == 16
     assert {row["category"] for row in policy["dispositions"]} == {
-        "vulnerability"
+        "vulnerability",
+        "yanked",
     }
     ruint_dispositions = [
         row
@@ -243,8 +285,119 @@ def test_policy_pins_exact_workspaces_and_scoped_advisories() -> None:
         assert "risc0-binfmt 3.0.4" in row["reachability"]
         assert "no calls to the advisory's affected" in row["reachability"]
         assert "fresh image IDs" in row["reachability"]
+    spin_dispositions = [
+        row for row in policy["dispositions"] if row["category"] == "yanked"
+    ]
+    assert {row["workspace_id"] for row in spin_dispositions} == {
+        "state_proof_risc0",
+        "recursive_stark_v2_risc0",
+        "recursive_stark_v2_active_reproof_risc0",
+        "zrpf_risc0",
+    }
+    for row in spin_dispositions:
+        assert row["advisory_id"] == ""
+        assert row["package"] == "spin"
+        assert row["version"] == "0.9.8"
+        assert row["lockfile_source"] == checker.CRATES_IO_REGISTRY_SOURCE
+        assert row["lockfile_checksum"] == checker.SPIN_0_9_8_CHECKSUM
+        assert row["production_authority"] is False
+        assert "8/8 ZRPF guest ELF hashes and image IDs" in row["reachability"]
+        assert "fresh image IDs" in row["reachability"]
     assert policy["production_authority"] is False
     assert len(policy_sha256) == 64
+
+
+def test_policy_rejects_advisory_identity_shape_drift(tmp_path: Path) -> None:
+    policy = json.loads(checker.DEFAULT_POLICY.read_bytes())
+    vulnerability = next(
+        row for row in policy["dispositions"] if row["category"] == "vulnerability"
+    )
+    yanked = next(row for row in policy["dispositions"] if row["category"] == "yanked")
+    vulnerability["advisory_id"] = ""
+    yanked["advisory_id"] = "RUSTSEC-2099-0001"
+    path = tmp_path / "policy.json"
+    path.write_text(json.dumps(policy), encoding="utf-8")
+
+    with pytest.raises(checker.AuditInputError):
+        checker.load_policy(path)
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    [
+        ("lockfile_source", "registry+https://example.invalid/index"),
+        ("lockfile_checksum", "0" * 64),
+    ],
+)
+def test_policy_rejects_yanked_lock_identity_drift(
+    tmp_path: Path,
+    field: str,
+    replacement: str,
+) -> None:
+    policy = json.loads(checker.DEFAULT_POLICY.read_bytes())
+    yanked = next(row for row in policy["dispositions"] if row["category"] == "yanked")
+    yanked[field] = replacement
+    path = tmp_path / "policy.json"
+    path.write_text(json.dumps(policy), encoding="utf-8")
+
+    with pytest.raises(checker.AuditInputError):
+        checker.load_policy(path)
+
+
+def test_spin_only_proof_identity_comparison_is_closed() -> None:
+    path = ROOT / "docs/research/RISC0_SPIN_099_PROOF_IDENTITY_COMPARISON_20260804.json"
+    comparison = json.loads(path.read_bytes())
+
+    assert comparison["schema"] == "zenodex/risc0_spin_proof_identity_comparison/v1"
+    assert comparison["source"] == {
+        "commit": "c09ef94eb63ec2f1ff7e3ff4f6ce26fc0607eb6c",
+        "tree": "6f166af77589efa1855363a14f5acdbfafa05ec4",
+    }
+    assert comparison["baseline"]["version"] == "0.9.8"
+    assert comparison["trial"]["version"] == "0.9.9"
+    assert comparison["lock_delta"]["unchanged_ruint_version"] == "1.19.0"
+    patch_path = ROOT / comparison["lock_delta"]["patch_path"]
+    assert hashlib.sha256(patch_path.read_bytes()).hexdigest() == comparison["lock_delta"][
+        "patch_sha256"
+    ]
+    assert comparison["claims"]["compared_program_count"] == 8
+    assert comparison["claims"]["all_compared_elf_hashes_changed"] is True
+    assert comparison["claims"]["all_compared_image_ids_changed"] is True
+    assert comparison["claims"]["production_authority"] is False
+    assert len(comparison["programs"]) == 8
+    assert {row["role"] for row in comparison["programs"]} == {
+        "ordinary_spot_settlement",
+        "semantic_epoch",
+        "spot_value_leaf_v4",
+        "structural_aggregate_l1",
+        "structural_aggregate_l2",
+        "v1_leaf_adapter",
+        "value_aggregate_l1",
+        "value_aggregate_l2",
+    }
+    assert all(
+        row["baseline_elf_sha256"] != row["spin_0_9_9_elf_sha256"]
+        and row["baseline_image_id"] != row["spin_0_9_9_image_id"]
+        for row in comparison["programs"]
+    )
+    baseline_spin = (
+        b'name = "spin"\n'
+        b'version = "0.9.8"\n'
+        b'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+        b'checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"\n'
+    )
+    trial_spin = (
+        b'name = "spin"\n'
+        b'version = "0.9.9"\n'
+        b'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+        b'checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"\n'
+    )
+    for lock_row in comparison["lock_delta"]["workspace_lockfiles"]:
+        baseline = (ROOT / lock_row["path"]).read_bytes()
+        assert baseline.count(baseline_spin) == 1
+        assert hashlib.sha256(baseline).hexdigest() == lock_row["baseline_sha256"]
+        trial = baseline.replace(baseline_spin, trial_spin, 1)
+        assert hashlib.sha256(trial).hexdigest() == lock_row["trial_sha256"]
 
 
 @pytest.mark.parametrize(
@@ -305,6 +458,22 @@ def test_five_workspace_report_records_lock_hashes_and_database_revision() -> No
         lockfile = ROOT / row["lockfile"]
         assert row["lockfile_sha256"] == hashlib.sha256(lockfile.read_bytes()).hexdigest()
         assert row["lockfile_size_bytes"] == lockfile.stat().st_size
+        yanked = [
+            warning for warning in row["warnings"] if warning["category"] == "yanked"
+        ]
+        if row["workspace_id"] in checker.RISC0_WORKSPACE_IDS:
+            assert yanked == [
+                {
+                    "advisory_id": "",
+                    "category": "yanked",
+                    "disposition_applied": True,
+                    "evidence_source": "policy_and_cargo_lock",
+                    "package": "spin",
+                    "version": "0.9.8",
+                }
+            ]
+        else:
+            assert yanked == []
     boundary_status = {
         row["workspace_id"]: row["retained_unsound_boundary_verified"]
         for row in report["workspaces"]
@@ -321,11 +490,88 @@ def test_five_workspace_report_records_lock_hashes_and_database_revision() -> No
     }
 
 
+def test_hosted_yanked_warning_deduplicates_against_lock_identity() -> None:
+    payloads = _policy_payloads()
+    state_payload = payloads["state_proof_risc0"]
+    assert isinstance(state_payload, dict)
+    warnings = state_payload["warnings"]
+    assert isinstance(warnings, dict)
+    warnings["yanked"] = [{"package": {"name": "spin", "version": "0.9.8"}}]
+
+    report = checker.check_audit_payloads(
+        payloads,
+        advisory_database_revision="4" * 40,
+    )
+
+    assert report["ok"] is True, report
+    state_report = next(
+        row for row in report["workspaces"] if row["workspace_id"] == "state_proof_risc0"
+    )
+    assert [
+        warning
+        for warning in state_report["warnings"]
+        if warning["category"] == "yanked"
+    ] == [
+        {
+            "advisory_id": "",
+            "category": "yanked",
+            "disposition_applied": True,
+            "evidence_source": "policy_and_cargo_lock",
+            "package": "spin",
+            "version": "0.9.8",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("field", "original", "replacement"),
+    [
+        (
+            "source",
+            checker.CRATES_IO_REGISTRY_SOURCE,
+            "registry+https://example.invalid/index",
+        ),
+        ("checksum", checker.SPIN_0_9_8_CHECKSUM, "0" * 64),
+    ],
+)
+def test_lock_bound_yanked_identity_rejects_drift(
+    tmp_path: Path,
+    field: str,
+    original: str,
+    replacement: str,
+) -> None:
+    _copy_registered_locks(tmp_path)
+    lockfile = tmp_path / "zk/state_proof_risc0/Cargo.lock"
+    source = lockfile.read_text(encoding="utf-8")
+    spin_block = (
+        'name = "spin"\n'
+        'version = "0.9.8"\n'
+        f'source = "{checker.CRATES_IO_REGISTRY_SOURCE}"\n'
+        f'checksum = "{checker.SPIN_0_9_8_CHECKSUM}"\n'
+    )
+    assert source.count(spin_block) == 1
+    changed_block = spin_block.replace(original, replacement, 1)
+    lockfile.write_text(source.replace(spin_block, changed_block, 1), encoding="utf-8")
+
+    report = checker.check_audit_payloads(
+        _policy_payloads(),
+        advisory_database_revision="5" * 40,
+        root=tmp_path,
+    )
+
+    assert report["ok"] is False
+    state_report = next(
+        row for row in report["workspaces"] if row["workspace_id"] == "state_proof_risc0"
+    )
+    assert state_report["ok"] is False
+    assert state_report["errors"] == [
+        "lock-bound yanked package identity mismatch: spin 0.9.8"
+    ]
+    assert field in {"source", "checksum"}
+
+
 def test_unregistered_top_level_zk_lockfile_rejects(tmp_path: Path) -> None:
-    for spec in checker.REVIEWED_WORKSPACES:
-        destination = tmp_path / spec.lockfile
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(ROOT / spec.lockfile, destination)
+    _copy_registered_locks(tmp_path)
     unknown = tmp_path / "zk/unreviewed_prover/Cargo.lock"
     unknown.parent.mkdir(parents=True)
     unknown.write_text("version = 4\n", encoding="utf-8")

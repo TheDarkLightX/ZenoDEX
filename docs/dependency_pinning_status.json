@@ -54,6 +54,7 @@
     "Python runtime and dev hash-pinned lockfiles are present and tracked by committed SHA-256 hashes.",
     "This ratchet prevents new unpinned Python source requirements and confirms current proof-toolchain lock artifacts exist with committed SHA-256 hashes.",
     "Production install helpers and docs use pip require-hashes over the committed Python lockfiles; source requirement files remain local convenience and lock-refresh inputs.",
-    "The four unmounted RISC0 proof workspaces retain ruint 1.19.0 because their Cargo lockfiles are part of retained proof-source identity. RUSTSEC-2026-0220 is narrowly dispositioned for the build and image-parsing path until fresh image IDs and receipts are regenerated under ruint 1.20.0 or later."
+    "The four unmounted RISC0 proof workspaces retain ruint 1.19.0 because their Cargo lockfiles are part of retained proof-source identity. RUSTSEC-2026-0220 is narrowly dispositioned for the build and image-parsing path until fresh image IDs and receipts are regenerated under ruint 1.20.0 or later.",
+    "The same four unmounted proof workspaces retain yanked spin 0.9.8. An exact spin-only A/B build changed all eight compared ZRPF guest ELF hashes and image IDs under spin 0.9.9. The yanked-package disposition is bound to the exact committed package name, version, registry source, and checksum so local index drift cannot make the known disposition stale. Hosted cargo-audit remains required to discover other or future yanks because the crates.io index revision is not pinned. The disposition remains non-production until fresh image IDs, receipts, and source-bound replay evidence are regenerated under spin 0.9.9 or later."
   ]
 }
