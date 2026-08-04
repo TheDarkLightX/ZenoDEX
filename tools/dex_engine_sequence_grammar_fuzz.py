@@ -152,18 +152,24 @@ def _payload_fingerprint(payload: object) -> str:
 
 def _trace_outcome(*, runner: RunnerFn, payload: object, trace_files: Sequence[Path]) -> tuple[str, str, int]:
     trace_names = {str(path.resolve()) for path in trace_files}
+    trace_label_by_code: dict[object, str | None] = {}
     lines: list[str] = []
     last_loc: str | None = None
 
     def tracer(frame, event, arg):  # type: ignore[no-untyped-def]
         nonlocal last_loc
+        code = frame.f_code
+        if code not in trace_label_by_code:
+            filename = str(Path(code.co_filename).resolve())
+            trace_label_by_code[code] = Path(filename).name if filename in trace_names else None
+        trace_label = trace_label_by_code[code]
+        if trace_label is None:
+            return None
         if event == "line":
-            filename = str(Path(frame.f_code.co_filename).resolve())
-            if filename in trace_names:
-                loc = f"{Path(filename).name}:{frame.f_lineno}"
-                if loc != last_loc:
-                    lines.append(loc)
-                    last_loc = loc
+            loc = f"{trace_label}:{frame.f_lineno}"
+            if loc != last_loc:
+                lines.append(loc)
+                last_loc = loc
         return tracer
 
     previous = sys.gettrace()
