@@ -11,7 +11,7 @@
   "expected_post_allowed_writer_roots": [
     "f8dd39dd3867eef7bd7364e3d024b0d7240ecaee8d735edde74838bc8f69defa"
   ],
-  "pinned_switch_root": "acdc6ceaa486f697f12d249b5c72af5c8290b0bdf6532059995c75ea54028686",
+  "pinned_switch_root": "962ccd5b225b9d35165748d70ea0412e1a3856e475d5b3349e73533e94cdc1e2",
   "required_switch_fields": [
     "gate_root",
     "migration_token_root",

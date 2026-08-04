@@ -323,15 +323,15 @@ def test_tau_j07_eligibility_has_a_frozen_canonical_identity_vector() -> None:
         "dbf4ce4860bf8c45f64f65708985cd9477a854d97268c617a8d2948570f0e7bc"
     )
     assert eligibility.claim.claim_root == (
-        "bc550e5d4134bc2fe4dde31e84a650769e89efc0ac5a1a0a0b9591caa88c910f"
+        "43db4e7d7a6559647746a2c967ae11c0dea593af7b9eb0a47ea4a79eb6f18c9c"
     )
     assert eligibility.receipt_root == (
-        "f462b80e4557fcc33c15df19ae6149eb9b0a160b4f872335e485500da3ed9191"
+        "60b42337fcd9ee6ffcc7b659052add9574013046c9a5b9eee5c8783cd1163eca"
     )
     assert admission.admission_context_root == (
-        "e3f9c91512911fb81bd2cb4d2efe8a7904b473883230ffc003805a9d16ca0353"
+        "2ad3866cb031993055f49855a1efca7141f7c3ee114c7203cd44c2ef58d59fe1"
     )
-    assert token.token_root == ("e52dcd85a16d3899f57124a1beec8f2c6e263b4b66b435af150676208538ebd0")
+    assert token.token_root == ("04da0c5d4604278e41bddcb750fb0c5a291bc28b6eda46ac5669c4d732b0efa6")
 
 
 def test_tau_eligibility_rejects_quiesced_or_crossed_j07_context() -> None:
