@@ -3,6 +3,10 @@
 
 openai>=1.40.0
 openai-agents>=0.1.0
+# Minimum release fixing PYSEC-2026-3481, PYSEC-2026-3482, and PYSEC-2026-3483.
+mcp>=1.28.1
+# Agent-side MCP authentication also uses cryptography; keep its security floor aligned.
+cryptography>=50.0.0
 python-dotenv>=1.0.0
 # Minimal fixed release for PYSEC-2026-2132; keep the lock refresh deterministic.
 click==8.3.3
