@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import InitVar, dataclass
 from enum import Enum
 from hashlib import sha256
-from typing import Final, TypeAlias, cast
+from typing import Final, NoReturn, TypeAlias, cast
 from weakref import WeakValueDictionary
 
 from src.core import fcis_durable_retraction as dra
@@ -27,17 +27,22 @@ from src.core.fcis_m6_j06_quiescence import (
     J06QuiescenceGateV1,
     is_verified_quiescence_gate_v1,
 )
+from src.core.fcis_m6_writer_profile_eligibility_v1 import (
+    WriterProfileEligibilityReceiptV1,
+    is_verified_writer_profile_eligibility_receipt_v1,
+)
 from src.state.canonical import canonical_json_bytes
 
 FCIS_M6_J07_SCHEMA_V1: Final = "zenodex/fcis/m6/j07/authority-switch/v1"
 FCIS_M6_J07_CONTEXT_SCHEMA_V1: Final = "zenodex/fcis/m6/j07/authority-context/v1"
 FCIS_M6_J07_TOKEN_SCHEMA_V1: Final = "zenodex/fcis/m6/j07/writer-token/v1"
+FCIS_M6_J07_TOKEN_SCHEMA_V2: Final = "zenodex/fcis/m6/j07/writer-token/v2"
 FCIS_M6_J07_SWITCH_SCHEMA_V1: Final = "zenodex/fcis/m6/j07/switch-result/v1"
 MAX_J07_SEQUENCE_V1: Final = (1 << 32) - 1
 MAX_J07_PATH_PARTS_V1: Final = 8
 
 _J07_CONTEXT_CONSTRUCTION_TOKEN_V1 = object()
-_J07_TOKEN_CONSTRUCTION_TOKEN_V1 = object()
+_J07_TOKEN_CONSTRUCTION_TOKEN_V2 = object()
 _J07_DECISION_CONSTRUCTION_TOKEN_V1 = object()
 _J07_SWITCH_CONSTRUCTION_TOKEN_V1 = object()
 _HEX_DIGITS = frozenset("0123456789abcdef")
@@ -68,6 +73,8 @@ class J07RejectCodeV1(str, Enum):
     PROFILE_COLLISION = "profile_collision"
     CONTEXT_REJECTED = "context_rejected"
     TOKEN_REJECTED = "token_rejected"
+    ELIGIBILITY_REJECTED = "eligibility_rejected"
+    ELIGIBILITY_CONTEXT_MISMATCH = "eligibility_context_mismatch"
     STALE_TOKEN = "stale_token"
     WRITER_PROFILE_DISABLED = "writer_profile_disabled"
 
@@ -505,10 +512,13 @@ def _post_context_v1(
 
 
 @dataclass(frozen=True, slots=True, weakref_slot=True)
-class J07WriterTokenV1:
-    """Verifier-issued writer token bound to one exact authority context."""
+class J07WriterTokenV2:
+    """Verifier-owned token bound to eligibility and one exact J07 context."""
 
     context_root: str
+    eligibility_receipt_root: str
+    promotion_subject_root: str
+    eligibility_policy_root: str
     writer_profile_root: str
     authority_epoch_index: int
     authority_state_root: str
@@ -519,29 +529,38 @@ class J07WriterTokenV1:
     _construction_token: InitVar[object | None] = None
 
     def __post_init__(self, _construction_token: object | None) -> None:
-        if _construction_token is not _J07_TOKEN_CONSTRUCTION_TOKEN_V1:
+        if _construction_token is not _J07_TOKEN_CONSTRUCTION_TOKEN_V2:
             raise J07Error("writer-token construction is verifier-owned")
         self._validate_fields()
 
     def _validate_fields(self) -> None:
-        _digest(self.context_root, "context_root")
-        _digest(self.writer_profile_root, "writer_profile_root")
+        for name in (
+            "context_root",
+            "eligibility_receipt_root",
+            "promotion_subject_root",
+            "eligibility_policy_root",
+            "writer_profile_root",
+            "authority_state_root",
+            "expected_head_root",
+            "expected_snapshot_root",
+            "migration_token_root",
+            "token_root",
+        ):
+            _digest(object.__getattribute__(self, name), name)
         _u32(self.authority_epoch_index, "authority_epoch_index")
-        _digest(self.authority_state_root, "authority_state_root")
-        _digest(self.expected_head_root, "expected_head_root")
-        _digest(self.expected_snapshot_root, "expected_snapshot_root")
-        _digest(self.migration_token_root, "migration_token_root")
-        _digest(self.token_root, "token_root")
-        if self.token_root != writer_token_root_v1(self):
+        if self.token_root != writer_token_root_v2(self):
             raise J07Error("token_root does not rederive")
 
 
-def writer_token_body_v1(token: J07WriterTokenV1) -> dict[str, object]:
-    if type(token) is not J07WriterTokenV1:
+def writer_token_body_v2(token: J07WriterTokenV2) -> dict[str, object]:
+    if type(token) is not J07WriterTokenV2:
         raise J07Error("token has the wrong exact type")
     return {
-        "schema": FCIS_M6_J07_TOKEN_SCHEMA_V1,
+        "schema": FCIS_M6_J07_TOKEN_SCHEMA_V2,
         "context_root": token.context_root,
+        "eligibility_receipt_root": token.eligibility_receipt_root,
+        "promotion_subject_root": token.promotion_subject_root,
+        "eligibility_policy_root": token.eligibility_policy_root,
         "writer_profile_root": token.writer_profile_root,
         "authority_epoch_index": token.authority_epoch_index,
         "authority_state_root": token.authority_state_root,
@@ -551,19 +570,20 @@ def writer_token_body_v1(token: J07WriterTokenV1) -> dict[str, object]:
     }
 
 
-def writer_token_root_v1(token: J07WriterTokenV1) -> str:
-    return _derive("zenodex/fcis/m6/j07/writer-token", writer_token_body_v1(token))
+def writer_token_root_v2(token: J07WriterTokenV2) -> str:
+    return _derive("zenodex/fcis/m6/j07/writer-token/v2", writer_token_body_v2(token))
 
 
-_J07_TOKENS_V1: WeakValueDictionary[int, J07WriterTokenV1] = WeakValueDictionary()
-_J07_TOKEN_SNAPSHOTS_V1: dict[int, tuple[object, ...]] = {}
+_J07_TOKENS_V2: WeakValueDictionary[int, J07WriterTokenV2] = WeakValueDictionary()
+_J07_TOKEN_SNAPSHOTS_V2: dict[int, tuple[object, ...]] = {}
 
 
-def _register_token_v1(token: J07WriterTokenV1) -> J07WriterTokenV1:
-    identity = id(token)
-    _J07_TOKENS_V1[identity] = token
-    _J07_TOKEN_SNAPSHOTS_V1[identity] = (
+def _token_snapshot_v2(token: J07WriterTokenV2) -> tuple[object, ...]:
+    return (
         token.context_root,
+        token.eligibility_receipt_root,
+        token.promotion_subject_root,
+        token.eligibility_policy_root,
         token.writer_profile_root,
         token.authority_epoch_index,
         token.authority_state_root,
@@ -572,62 +592,108 @@ def _register_token_v1(token: J07WriterTokenV1) -> J07WriterTokenV1:
         token.migration_token_root,
         token.token_root,
     )
+
+
+def _register_token_v2(token: J07WriterTokenV2) -> J07WriterTokenV2:
+    identity = id(token)
+    _J07_TOKENS_V2[identity] = token
+    _J07_TOKEN_SNAPSHOTS_V2[identity] = _token_snapshot_v2(token)
     return token
 
 
-def is_verified_writer_token_v1(value: object) -> bool:
-    if type(value) is not J07WriterTokenV1:
+def is_verified_writer_token_v2(value: object) -> bool:
+    if type(value) is not J07WriterTokenV2:
         return False
     token = value
-    if _J07_TOKENS_V1.get(id(token)) is not token:
+    if _J07_TOKENS_V2.get(id(token)) is not token:
         return False
     try:
         token._validate_fields()
-        return _J07_TOKEN_SNAPSHOTS_V1.get(id(token)) == (
-            token.context_root,
-            token.writer_profile_root,
-            token.authority_epoch_index,
-            token.authority_state_root,
-            token.expected_head_root,
-            token.expected_snapshot_root,
-            token.migration_token_root,
-            token.token_root,
-        )
+        return _J07_TOKEN_SNAPSHOTS_V2.get(id(token)) == _token_snapshot_v2(token)
     except (AttributeError, J07Error, TypeError, ValueError, ArithmeticError, OverflowError):
         return False
 
 
 def _mint_writer_token_v1(
+    _context: J07AuthorityContextV1,
+    _writer_profile_root: str,
+) -> NoReturn:
+    """Retain the minimized V1 bypass as a fail-closed compatibility tombstone."""
+
+    raise J07Error("writer-profile eligibility receipt is required; V1 minting is closed")
+
+
+def _eligibility_context_mismatch(
     context: J07AuthorityContextV1,
-    writer_profile_root: str,
-) -> J07WriterTokenV1:
+    receipt: WriterProfileEligibilityReceiptV1,
+) -> tuple[str, ...] | None:
+    claim = receipt.claim
+    comparisons = (
+        ("context", claim.authority_context_root, context.context_root),
+        ("state", claim.current_state_root, context.current_state_root),
+        ("deployment", claim.deployment_config_root, context.deployment_config_root),
+        ("epoch", claim.authority_epoch, context.epoch_index),
+        ("authority", claim.authority_state_root, context.authority_state_root),
+        ("head", claim.expected_head_root, context.current_head_root),
+        ("snapshot", claim.expected_snapshot_root, context.current_snapshot_root),
+    )
+    for name, observed, expected in comparisons:
+        if observed != expected:
+            return ("eligibility", name)
+    return None
+
+
+def issue_writer_token_v2(
+    context: object,
+    eligibility_receipt: object,
+) -> J07WriterTokenV2 | J07WriterRejectV1:
+    """Issue a token only from verified eligibility bound to current J07 state."""
+
     if not is_verified_authority_context_v1(context):
-        raise J07Error("cannot issue a token for an unverified context")
-    profile = _digest(writer_profile_root, "writer_profile_root")
-    if profile not in (context.legacy_profile_root, context.target_profile_root):
-        raise J07Error("writer profile is outside the migration pair")
-    token_body = {
-        "schema": FCIS_M6_J07_TOKEN_SCHEMA_V1,
-        "context_root": context.context_root,
-        "writer_profile_root": profile,
-        "authority_epoch_index": context.epoch_index,
-        "authority_state_root": context.authority_state_root,
-        "expected_head_root": context.current_head_root,
-        "expected_snapshot_root": context.current_snapshot_root,
-        "migration_token_root": context.migration_token_root,
+        return J07WriterRejectV1(J07RejectCodeV1.CONTEXT_REJECTED, ("context",))
+    exact_context = cast(J07AuthorityContextV1, context)
+    if not is_verified_writer_profile_eligibility_receipt_v1(eligibility_receipt):
+        return J07WriterRejectV1(
+            J07RejectCodeV1.ELIGIBILITY_REJECTED,
+            ("eligibility",),
+        )
+    exact_receipt = cast(WriterProfileEligibilityReceiptV1, eligibility_receipt)
+    mismatch = _eligibility_context_mismatch(exact_context, exact_receipt)
+    if mismatch is not None:
+        return J07WriterRejectV1(J07RejectCodeV1.ELIGIBILITY_CONTEXT_MISMATCH, mismatch)
+    claim = exact_receipt.claim
+    if claim.writer_profile_root not in exact_context.allowed_writer_roots:
+        return J07WriterRejectV1(
+            J07RejectCodeV1.WRITER_PROFILE_DISABLED,
+            ("eligibility", "writer_profile"),
+        )
+    body = {
+        "schema": FCIS_M6_J07_TOKEN_SCHEMA_V2,
+        "context_root": exact_context.context_root,
+        "eligibility_receipt_root": exact_receipt.receipt_root,
+        "promotion_subject_root": claim.promotion_subject_root,
+        "eligibility_policy_root": claim.eligibility_policy_root,
+        "writer_profile_root": claim.writer_profile_root,
+        "authority_epoch_index": exact_context.epoch_index,
+        "authority_state_root": exact_context.authority_state_root,
+        "expected_head_root": exact_context.current_head_root,
+        "expected_snapshot_root": exact_context.current_snapshot_root,
+        "migration_token_root": exact_context.migration_token_root,
     }
-    token_root = _derive("zenodex/fcis/m6/j07/writer-token", token_body)
-    return _register_token_v1(
-        J07WriterTokenV1(
-            context_root=context.context_root,
-            writer_profile_root=profile,
-            authority_epoch_index=context.epoch_index,
-            authority_state_root=context.authority_state_root,
-            expected_head_root=context.current_head_root,
-            expected_snapshot_root=context.current_snapshot_root,
-            migration_token_root=context.migration_token_root,
-            token_root=token_root,
-            _construction_token=_J07_TOKEN_CONSTRUCTION_TOKEN_V1,
+    return _register_token_v2(
+        J07WriterTokenV2(
+            context_root=exact_context.context_root,
+            eligibility_receipt_root=exact_receipt.receipt_root,
+            promotion_subject_root=claim.promotion_subject_root,
+            eligibility_policy_root=claim.eligibility_policy_root,
+            writer_profile_root=claim.writer_profile_root,
+            authority_epoch_index=exact_context.epoch_index,
+            authority_state_root=exact_context.authority_state_root,
+            expected_head_root=exact_context.current_head_root,
+            expected_snapshot_root=exact_context.current_snapshot_root,
+            migration_token_root=exact_context.migration_token_root,
+            token_root=_derive("zenodex/fcis/m6/j07/writer-token/v2", body),
+            _construction_token=_J07_TOKEN_CONSTRUCTION_TOKEN_V2,
         )
     )
 
@@ -645,12 +711,18 @@ class J07WriterRejectV1:
         _path(self.path, "writer rejection path")
 
 
+J07WriterTokenIssueV2: TypeAlias = J07WriterTokenV2 | J07WriterRejectV1
+
+
 @dataclass(frozen=True, slots=True)
-class J07WriterAcceptedV1:
+class J07WriterAcceptedV2:
     """Verifier-owned accepted writer observation; it carries no authority."""
 
     context_root: str
     token_root: str
+    eligibility_receipt_root: str
+    promotion_subject_root: str
+    eligibility_policy_root: str
     writer_profile_root: str
     authority_epoch_index: int
     authority_state_root: str
@@ -663,6 +735,9 @@ class J07WriterAcceptedV1:
             raise J07Error("accepted writer decision construction is verifier-owned")
         _digest(self.context_root, "context_root")
         _digest(self.token_root, "token_root")
+        _digest(self.eligibility_receipt_root, "eligibility_receipt_root")
+        _digest(self.promotion_subject_root, "promotion_subject_root")
+        _digest(self.eligibility_policy_root, "eligibility_policy_root")
         _digest(self.writer_profile_root, "writer_profile_root")
         _u32(self.authority_epoch_index, "authority_epoch_index")
         _digest(self.authority_state_root, "authority_state_root")
@@ -670,21 +745,41 @@ class J07WriterAcceptedV1:
         _digest(self.snapshot_root, "snapshot_root")
 
 
-J07WriterDecisionV1: TypeAlias = J07WriterAcceptedV1 | J07WriterRejectV1
+J07WriterDecisionV2: TypeAlias = J07WriterAcceptedV2 | J07WriterRejectV1
 
 
-def authorize_writer_v1(
+def authorize_writer_v2(
     context: object,
     token: object,
-) -> J07WriterDecisionV1:
-    """Admit a writer only when every token field matches current context."""
+    eligibility_receipt: object,
+) -> J07WriterDecisionV2:
+    """Admit a writer after fresh token, eligibility, and context validation."""
 
     if not is_verified_authority_context_v1(context):
         return J07WriterRejectV1(J07RejectCodeV1.CONTEXT_REJECTED, ("context",))
     exact_context = cast(J07AuthorityContextV1, context)
-    if not is_verified_writer_token_v1(token):
+    if not is_verified_writer_token_v2(token):
         return J07WriterRejectV1(J07RejectCodeV1.TOKEN_REJECTED, ("token",))
-    exact_token = cast(J07WriterTokenV1, token)
+    exact_token = cast(J07WriterTokenV2, token)
+    if not is_verified_writer_profile_eligibility_receipt_v1(eligibility_receipt):
+        return J07WriterRejectV1(
+            J07RejectCodeV1.ELIGIBILITY_REJECTED,
+            ("eligibility",),
+        )
+    exact_receipt = cast(WriterProfileEligibilityReceiptV1, eligibility_receipt)
+    claim = exact_receipt.claim
+    eligibility_token_fields = (
+        ("receipt", exact_token.eligibility_receipt_root, exact_receipt.receipt_root),
+        ("promotion", exact_token.promotion_subject_root, claim.promotion_subject_root),
+        ("policy", exact_token.eligibility_policy_root, claim.eligibility_policy_root),
+        ("writer_profile", exact_token.writer_profile_root, claim.writer_profile_root),
+    )
+    for name, observed, expected in eligibility_token_fields:
+        if observed != expected:
+            return J07WriterRejectV1(
+                J07RejectCodeV1.ELIGIBILITY_CONTEXT_MISMATCH,
+                ("token", "eligibility", name),
+            )
     if exact_token.context_root != exact_context.context_root:
         return J07WriterRejectV1(J07RejectCodeV1.STALE_TOKEN, ("token", "context"))
     if exact_token.authority_epoch_index != exact_context.epoch_index:
@@ -695,14 +790,22 @@ def authorize_writer_v1(
         return J07WriterRejectV1(J07RejectCodeV1.STALE_TOKEN, ("token", "head"))
     if exact_token.expected_snapshot_root != exact_context.current_snapshot_root:
         return J07WriterRejectV1(J07RejectCodeV1.STALE_TOKEN, ("token", "snapshot"))
+    if exact_token.migration_token_root != exact_context.migration_token_root:
+        return J07WriterRejectV1(J07RejectCodeV1.STALE_TOKEN, ("token", "migration"))
+    mismatch = _eligibility_context_mismatch(exact_context, exact_receipt)
+    if mismatch is not None:
+        return J07WriterRejectV1(J07RejectCodeV1.ELIGIBILITY_CONTEXT_MISMATCH, mismatch)
     if exact_token.writer_profile_root not in exact_context.allowed_writer_roots:
         return J07WriterRejectV1(
             J07RejectCodeV1.WRITER_PROFILE_DISABLED,
             ("token", "writer_profile"),
         )
-    return J07WriterAcceptedV1(
+    return J07WriterAcceptedV2(
         context_root=exact_context.context_root,
         token_root=exact_token.token_root,
+        eligibility_receipt_root=exact_receipt.receipt_root,
+        promotion_subject_root=claim.promotion_subject_root,
+        eligibility_policy_root=claim.eligibility_policy_root,
         writer_profile_root=exact_token.writer_profile_root,
         authority_epoch_index=exact_context.epoch_index,
         authority_state_root=exact_context.authority_state_root,
@@ -951,6 +1054,7 @@ __all__ = (
     "FCIS_M6_J07_SCHEMA_V1",
     "FCIS_M6_J07_SWITCH_SCHEMA_V1",
     "FCIS_M6_J07_TOKEN_SCHEMA_V1",
+    "FCIS_M6_J07_TOKEN_SCHEMA_V2",
     "J07AuthorityContextV1",
     "J07Error",
     "J07RejectCodeV1",
@@ -958,14 +1062,16 @@ __all__ = (
     "J07SwitchRejectV1",
     "J07SwitchResultV1",
     "J07SwitchSuccessV1",
-    "J07WriterAcceptedV1",
-    "J07WriterDecisionV1",
+    "J07WriterAcceptedV2",
+    "J07WriterDecisionV2",
     "J07WriterRejectV1",
-    "J07WriterTokenV1",
-    "authorize_writer_v1",
+    "J07WriterTokenIssueV2",
+    "J07WriterTokenV2",
+    "authorize_writer_v2",
+    "issue_writer_token_v2",
     "is_verified_authority_context_v1",
-    "is_verified_writer_token_v1",
+    "is_verified_writer_token_v2",
     "switch_authority_v1",
-    "writer_token_body_v1",
-    "writer_token_root_v1",
+    "writer_token_body_v2",
+    "writer_token_root_v2",
 )

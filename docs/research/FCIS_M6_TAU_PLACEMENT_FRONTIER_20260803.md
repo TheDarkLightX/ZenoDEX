@@ -96,10 +96,64 @@ root, current-state root, deployment configuration, and authority epoch. It is
 only a target-binding bridge. It is not a J07 writer token, commit capability,
 or mounted writer-selection result.
 
+## Substrate-neutral J07 writer eligibility
+
+J07 writer-token issuance now consumes a substrate-neutral
+`WriterProfileEligibilityReceiptV1`. Its canonical claim binds the exact:
+
+```text
+promotion subject
+source schema, receipt, and binding roots
+writer profile
+J07 authority context
+current state and deployment configuration
+authority epoch and authority-state root
+expected head and snapshot
+eligibility policy
+```
+
+The claim is public canonical data and grants no authority. The module invokes
+a shell-selected verifier with every expected field and requires exact `True`
+before creating a registered receipt. The receipt and its complete claim are
+revalidated at token issue and use.
+
+The J07 writer-token language is now version 2. A token commits the eligibility
+receipt, promotion subject, eligibility policy, writer profile, exact J07
+context, epoch, authority state, head, snapshot, and migration-token root. The
+old context-plus-profile V1 mint function remains only as a fail-closed
+compatibility tombstone. It always rejects with an eligibility-required error.
+No token is produced for a disabled writer, an unregistered receipt, claim data
+without verifier provenance, crossed eligibility, or stale authority context.
+
+`verify_tau_j07_writer_profile_eligibility_v1` refines the existing registered
+Tau profile receipt and Tau writer binding into the neutral eligibility
+language. It requires a usable Tau profile, exact source/binding agreement,
+the active and target J07 writer, and matching state, deployment, and epoch.
+It produces the neutral receipt only after the selected eligibility verifier
+accepts. J07 does not import Tau-specific types.
+
+The retained canonical vector is:
+
+```text
+source schema root: 931312071fb68f1bc102ba264e3a1f281b51ea64a5654c4ff02d04143d7d399a
+Tau profile receipt: 1519c5bf5336cd8f9e6731a76beffedaa6283b810f401fef8094442e85a291a1
+Tau writer binding:  6968f4cf61abe60c4b95426907640a2a69d0f7877f354f34a537c4bf1b7be1ff
+eligibility claim:   2a63c540ec16214e5e2e5c93b892c9a16c2047d5c7764eca518b2e19651e0032
+eligibility receipt: 57e88f7ce9bfbba52f0417e733eda345f7495a2c6f6d4a4732a66b619e881553
+J07 V2 token:        a9cb54f3ac9a370c2ae9fc2592dc422978d8e9bd5b463814faa48ecbfa19ef7e
+```
+
+Verifier selection and authentication remain imperative-shell premises. The
+module registries provide nominal in-process provenance and tamper detection.
+They do not prove cryptographic verifier identity, store currentness, deployed
+inventory completeness, or no-bypass. A mounted design still needs one
+state-bound eligibility-policy/verifier registry in the promotion subject and
+the unique publication capability.
+
 The Python construction boundary provides nominal in-process provenance and
 tamper detection. It is not cryptographic authenticity. Selection and
 authentication of the external verifier, datastore currentness, strict wire
-decoding, J07 point-of-use consumption, and mounted no-bypass remain open.
+decoding, and mounted no-bypass remain open.
 
 ## Correct substrate model
 
@@ -237,6 +291,18 @@ The focused ZenoDEX suite passed:
 26 Tau-profile receipt, disposition, writer-binding, and exact-Tau parity tests passed
 22 related Tau/ZenoLedger runtime-projection tests passed
 234 recommended Tau specifications passed formal-plan and semantic-view checks
+```
+
+The writer-eligibility continuation additionally passed:
+
+```text
+6 substrate-neutral eligibility tests
+19 J07 switch, issuance, use, mutation, and property tests
+7 Tau-to-J07 refinement and canonical-vector tests
+78 related focused tests passed; 14 exact-Tau parity cases skipped because the
+pinned Tau binary was unavailable in this sparse worktree
+Ruff, formatting, targeted strict mypy, Python compilation, and the J07 vector checker
+security red-flag scan: 0 high, 0 medium, 0 low findings
 ```
 
 This packet does not mount the relations, establish the authenticity of any

@@ -36,15 +36,22 @@ from src.core.fcis_m6_j06_quiescence import (
     quiescence_root_from_body_v1,
 )
 from src.core.fcis_m6_j07_authority_switch import (
+    J07AuthorityContextV1,
     J07RejectCodeV1,
     J07StateKindV1,
     J07SwitchRejectV1,
     J07SwitchSuccessV1,
-    J07WriterAcceptedV1,
+    J07WriterAcceptedV2,
     J07WriterRejectV1,
-    _mint_writer_token_v1,
-    authorize_writer_v1,
+    J07WriterTokenV2,
+    authorize_writer_v2,
+    issue_writer_token_v2,
     switch_authority_v1,
+)
+from src.core.fcis_m6_writer_profile_eligibility_v1 import (
+    WriterProfileEligibilityReceiptV1,
+    build_writer_profile_eligibility_claim_v1,
+    verify_writer_profile_eligibility_v1,
 )
 from src.state.canonical import canonical_json_bytes
 
@@ -57,6 +64,54 @@ J07_CONFIG_PATH = ROOT / "config/deploy/fcis_m6_j07_authority_switch_v1.json"
 
 def _root(label: str) -> str:
     return cast(str, dra.tagged_digest(f"j07/{label}"))
+
+
+class AcceptingWriterEligibilityVerifier:
+    """Deterministic experiment adapter; it grants no production authority."""
+
+    def verify_writer_profile_eligibility(
+        self,
+        _claim: object,
+        **_kwargs: object,
+    ) -> object:
+        return True
+
+
+def build_writer_eligibility(
+    context: J07AuthorityContextV1,
+    writer_profile_root: str,
+    *,
+    promotion_subject_root: str | None = None,
+    eligibility_policy_root: str | None = None,
+) -> WriterProfileEligibilityReceiptV1:
+    """Build source-bound test evidence for one exact J07 context and writer."""
+
+    claim = build_writer_profile_eligibility_claim_v1(
+        promotion_subject_root=promotion_subject_root or _root("promotion-subject"),
+        source_schema_root=_root("writer-eligibility/source-schema"),
+        source_receipt_root=_root(f"writer-eligibility/source-receipt/{context.context_root}"),
+        source_binding_root=_root(
+            f"writer-eligibility/source-binding/{context.context_root}/{writer_profile_root}"
+        ),
+        writer_profile_root=writer_profile_root,
+        authority_context_root=context.context_root,
+        current_state_root=context.current_state_root,
+        deployment_config_root=context.deployment_config_root,
+        authority_epoch=context.epoch_index,
+        authority_state_root=context.authority_state_root,
+        expected_head_root=context.current_head_root,
+        expected_snapshot_root=context.current_snapshot_root,
+        eligibility_policy_root=eligibility_policy_root or _root("writer-eligibility/policy"),
+    )
+    result = verify_writer_profile_eligibility_v1(
+        claim=claim,
+        verifier_profile_root=_root("writer-eligibility/verifier-profile"),
+        verification_evidence_root=_root(f"writer-eligibility/evidence/{claim.claim_root}"),
+        verifier_adapter=AcceptingWriterEligibilityVerifier(),
+    )
+    if type(result) is not WriterProfileEligibilityReceiptV1:
+        raise AssertionError("writer-eligibility fixture did not verify")
+    return result
 
 
 def _read_object(path: Path) -> dict[str, Any]:
@@ -288,24 +343,27 @@ def run_checks(*, check_vector: bool = True) -> dict[str, object]:
     if verifier.calls != 2:
         raise AssertionError("J07 did not perform the F06 issue and use checks")
 
-    legacy_token = _mint_writer_token_v1(pre, gate.legacy_profile_root)
-    stale = authorize_writer_v1(post, legacy_token)
+    target_eligibility = build_writer_eligibility(post, gate.target_profile_root)
+    target_token = issue_writer_token_v2(post, target_eligibility)
+    if type(target_token) is not J07WriterTokenV2:
+        raise AssertionError("fresh target eligibility did not issue a writer token")
+    stale = authorize_writer_v2(pre, target_token, target_eligibility)
     if type(stale) is not J07WriterRejectV1:
         raise AssertionError("J07 stale-token result is not typed")
     if stale.code is not J07RejectCodeV1.STALE_TOKEN:
-        raise AssertionError("old legacy token was not rejected after switch")
-    target_token = _mint_writer_token_v1(post, gate.target_profile_root)
-    accepted = authorize_writer_v1(post, target_token)
-    if type(accepted) is not J07WriterAcceptedV1:
+        raise AssertionError("target token was not stale outside its exact context")
+    accepted = authorize_writer_v2(post, target_token, target_eligibility)
+    if type(accepted) is not J07WriterAcceptedV2:
         raise AssertionError("fresh target token was not accepted after switch")
     if accepted.writer_profile_root != gate.target_profile_root:
         raise AssertionError("accepted writer is not the target profile")
 
-    disabled_before = authorize_writer_v1(pre, legacy_token)
-    if type(disabled_before) is not J07WriterRejectV1:
-        raise AssertionError("quiesced writer result is not typed")
-    if disabled_before.code is not J07RejectCodeV1.WRITER_PROFILE_DISABLED:
-        raise AssertionError("quiesced pre-state admitted the legacy writer")
+    legacy_eligibility = build_writer_eligibility(post, gate.legacy_profile_root)
+    disabled = issue_writer_token_v2(post, legacy_eligibility)
+    if type(disabled) is not J07WriterRejectV1:
+        raise AssertionError("disabled writer issue result is not typed")
+    if disabled.code is not J07RejectCodeV1.WRITER_PROFILE_DISABLED:
+        raise AssertionError("post-switch state issued a legacy writer token")
 
     forged_gate = object.__new__(J06QuiescenceGateV1)
     for name in (
@@ -359,7 +417,7 @@ def run_checks(*, check_vector: bool = True) -> dict[str, object]:
 
     mutated_target = target_token
     object.__setattr__(mutated_target, "writer_profile_root", gate.legacy_profile_root)
-    mutated_result = authorize_writer_v1(post, mutated_target)
+    mutated_result = authorize_writer_v2(post, mutated_target, target_eligibility)
     if type(mutated_result) is not J07WriterRejectV1:
         raise AssertionError("mutated writer result is not typed")
     if mutated_result.code is not J07RejectCodeV1.TOKEN_REJECTED:
