@@ -18,13 +18,35 @@ meta:
     - "zusd_monetary_state"
     - "zusd_core_state"
     - "zusd_protocol_fee_scalar_claim"
+  zeno_ledger_spot_committed_components:
+    - "account_balances"
+    - "amm_pools"
+    - "lp_ownership"
+    - "lp_mint_age"
+    - "lp_duration_risk"
+    - "nonces"
+    - "legacy_fee_accumulator"
+  dex_snapshot_field_registry:
+    - { field: "version", classification: "representation_only" }
+    - { field: "balances", component: "account_balances" }
+    - { field: "pools", component: "amm_pools" }
+    - { field: "lp_balances", component: "lp_ownership" }
+    - { field: "lp_mint_timestamps", component: "lp_mint_age" }
+    - { field: "lp_duration_risk", component: "lp_duration_risk" }
+    - { field: "nonces", component: "nonces" }
+    - { field: "fee_accumulator", component: "legacy_fee_accumulator" }
+    - { field: "vault", component: "vault_reward_state" }
+    - { field: "oracle", component: "oracle_freshness_state" }
+    - { field: "perps", component: "perps_state" }
   notes: |
     Finite guard model for non-authoritative content admission and equality.
     Tau inputs require canonical source bytes and a matching claimed app hash.
     ZenoLedger inputs require structural header/body roots and a matching
     post-state commitment. Both derive exact component roots and a closed
-    coverage partition. Parity requires one source of each kind and equal
-    source-neutral content roots.
+    coverage partition. The shared comparison is restricted to the seven
+    logical application components carried by the six byte-framed sections of
+    zeno_ledger_v0.dex_state_root_v0. Parity requires one
+    source of each kind and equal source-neutral shared-spot content roots.
 
     This model does not establish a stable Tau view, a selected ZenoLedger
     head, transition replay, currentness, finality, cross-source handoff,
@@ -45,7 +67,6 @@ observables:
     - "tau_admitted"
     - "ledger_admitted"
     - "parity_issued"
-    - "invalid_accept"
   effects: []
 
 types: []
@@ -63,7 +84,6 @@ state_vars:
   - { id: "tau_admitted", role: "data", type: { kind: "int", min: 0, max: 1 } }
   - { id: "ledger_admitted", role: "data", type: { kind: "int", min: 0, max: 1 } }
   - { id: "parity_issued", role: "data", type: { kind: "int", min: 0, max: 1 } }
-  - { id: "invalid_accept", role: "data", type: { kind: "int", min: 0, max: 12 } }
 
 init:
   - { var: "tau_source_canonical", expr: { const: 1 } }
@@ -78,12 +98,38 @@ init:
   - { var: "tau_admitted", expr: { const: 0 } }
   - { var: "ledger_admitted", expr: { const: 0 } }
   - { var: "parity_issued", expr: { const: 0 } }
-  - { var: "invalid_accept", expr: { const: 0 } }
 
 invariants:
-  - id: "inv_no_invalid_accept"
+  - id: "inv_tau_admission_requires_canonical_source"
     kind: "safety"
-    expr: { op: "=", args: [{ var: "invalid_accept" }, { const: 0 }] }
+    expr: { op: "<=", args: [{ var: "tau_admitted" }, { var: "tau_source_canonical" }] }
+  - id: "inv_tau_admission_requires_matching_commitment"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "tau_admitted" }, { var: "tau_commitment_matches" }] }
+  - id: "inv_tau_admission_requires_component_derivation"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "tau_admitted" }, { var: "component_derivation_valid" }] }
+  - id: "inv_tau_admission_requires_exact_coverage"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "tau_admitted" }, { var: "coverage_partition_exact" }] }
+  - id: "inv_tau_admission_requires_runtime_registry"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "tau_admitted" }, { var: "registry_matches_runtime" }] }
+  - id: "inv_ledger_admission_requires_header_body_binding"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "ledger_admitted" }, { var: "ledger_header_body_valid" }] }
+  - id: "inv_ledger_admission_requires_matching_post_state"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "ledger_admitted" }, { var: "ledger_post_state_matches" }] }
+  - id: "inv_ledger_admission_requires_component_derivation"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "ledger_admitted" }, { var: "component_derivation_valid" }] }
+  - id: "inv_ledger_admission_requires_exact_coverage"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "ledger_admitted" }, { var: "coverage_partition_exact" }] }
+  - id: "inv_ledger_admission_requires_runtime_registry"
+    kind: "safety"
+    expr: { op: "<=", args: [{ var: "ledger_admitted" }, { var: "registry_matches_runtime" }] }
   - id: "inv_parity_requires_tau_admission"
     kind: "safety"
     expr: { op: "<=", args: [{ var: "parity_issued" }, { var: "tau_admitted" }] }
@@ -111,15 +157,6 @@ actions:
         - { op: "=", args: [{ var: "tau_admitted" }, { const: 0 }] }
     updates:
       - { var: "tau_admitted", expr: { const: 1 } }
-      - var: "invalid_accept"
-        expr:
-          op: "+"
-          args:
-            - { op: "-", args: [{ const: 1 }, { var: "tau_source_canonical" }] }
-            - { op: "-", args: [{ const: 1 }, { var: "tau_commitment_matches" }] }
-            - { op: "-", args: [{ const: 1 }, { var: "component_derivation_valid" }] }
-            - { op: "-", args: [{ const: 1 }, { var: "coverage_partition_exact" }] }
-            - { op: "-", args: [{ const: 1 }, { var: "registry_matches_runtime" }] }
     effects: {}
 
   - id: "admit_ledger_content"
@@ -135,15 +172,6 @@ actions:
         - { op: "=", args: [{ var: "ledger_admitted" }, { const: 0 }] }
     updates:
       - { var: "ledger_admitted", expr: { const: 1 } }
-      - var: "invalid_accept"
-        expr:
-          op: "+"
-          args:
-            - { op: "-", args: [{ const: 1 }, { var: "ledger_header_body_valid" }] }
-            - { op: "-", args: [{ const: 1 }, { var: "ledger_post_state_matches" }] }
-            - { op: "-", args: [{ const: 1 }, { var: "component_derivation_valid" }] }
-            - { op: "-", args: [{ const: 1 }, { var: "coverage_partition_exact" }] }
-            - { op: "-", args: [{ const: 1 }, { var: "registry_matches_runtime" }] }
     effects: {}
 
   - id: "issue_content_parity"
@@ -158,12 +186,6 @@ actions:
         - { op: "=", args: [{ var: "parity_issued" }, { const: 0 }] }
     updates:
       - { var: "parity_issued", expr: { const: 1 } }
-      - var: "invalid_accept"
-        expr:
-          op: "+"
-          args:
-            - { op: "-", args: [{ const: 1 }, { var: "source_kinds_distinct" }] }
-            - { op: "-", args: [{ const: 1 }, { var: "content_roots_equal" }] }
     effects: {}
 
   - id: "invalidate_tau_source_canonical"

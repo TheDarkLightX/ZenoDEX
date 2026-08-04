@@ -131,6 +131,70 @@ def test_apply_app_tx_rejects_duplicate_decoded_native_balance_identity(
     assert "duplicate decoded pubkey identity" in str(err)
 
 
+@pytest.mark.parametrize(
+    "external_reward_pool",
+    (
+        "ab" * 48,
+        "0x" + "ab" * 48,
+        "0X" + "AB" * 48,
+    ),
+)
+def test_apply_app_tx_proof_pool_sync_is_invariant_under_pubkey_spelling(
+    monkeypatch,
+    external_reward_pool,
+):
+    from src.core.dex import DexState
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.dex_snapshot import snapshot_from_state
+    from src.state.balances import BalanceTable
+    from src.state.lp import LPTable
+
+    reward_pool = "0x" + "ab" * 48
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", "tau-local")
+    app_state = {
+        "schema": "zenodex/tau_app_state/v1",
+        "version": 1,
+        "dex_state": snapshot_from_state(
+            DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+        ).data,
+        "proof_mining": {
+            "schema": "zenodex/proof_mining_runtime_state/v1",
+            "reward_pool_pubkey": reward_pool,
+            "epoch": 1,
+            "base_reward": 8,
+            "initial_pool": 20,
+            "reward_pool_balance": 20,
+            "total_paid": 0,
+            "claimed_slots": [],
+        },
+        "zusd_monetary": None,
+    }
+    app_state_json = json.dumps(app_state, sort_keys=True, separators=(",", ":"))
+
+    baseline = plugin.apply_app_tx(
+        app_state_json=app_state_json,
+        chain_balances={reward_pool: 20},
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+    variant = plugin.apply_app_tx(
+        app_state_json=app_state_json,
+        chain_balances={external_reward_pool: 20},
+        operations={},
+        tx_sender_pubkey="",
+        block_timestamp=123,
+    )
+
+    assert baseline == variant
+    ok, state_out, _app_hash, patch, err = variant
+    assert ok is True, err
+    assert patch is None
+    parsed = json.loads(state_out)
+    assert parsed["proof_mining"]["reward_pool_balance"] == 20
+    assert parsed["proof_mining"]["initial_pool"] == 20
+
+
 def test_apply_app_tx_rejects_malformed_consensus_boolean_env(monkeypatch):
     from src.integration import tau_testnet_dex_plugin as plugin
 

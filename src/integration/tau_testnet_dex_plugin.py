@@ -312,22 +312,27 @@ def _parse_faucet_mint_entry(entry: Any, *, index: int) -> Tuple[Optional[Tuple[
     return (decoded_pk, decoded_asset, int(amount)), None
 
 
-def _validate_chain_balances(chain_balances: Dict[str, int]) -> None:
-    """Reject ambiguous or non-exact host-native custody inputs."""
+def _canonicalize_chain_balances(
+    chain_balances: Dict[str, int],
+) -> Tuple[Dict[str, int], Dict[str, str]]:
+    """Return one exact custody map plus its unique external key spellings."""
 
-    seen: set[str] = set()
+    canonical: Dict[str, int] = {}
+    external_key_by_canonical: Dict[str, str] = {}
     for external_pubkey, amount in chain_balances.items():
         canonical_pubkey = _canonical_pubkey(
             external_pubkey,
             name="chain_balances pubkey",
         )
-        if canonical_pubkey in seen:
+        if canonical_pubkey in canonical:
             raise ValueError("chain_balances contains duplicate decoded pubkey identity")
-        seen.add(canonical_pubkey)
         if type(amount) is not int:
             raise TypeError("chain_balances amount must be an exact int")
         if amount < 0 or amount > U256_MAX:
             raise ValueError("chain_balances amount must be within U256")
+        canonical[canonical_pubkey] = amount
+        external_key_by_canonical[canonical_pubkey] = external_pubkey
+    return canonical, external_key_by_canonical
 
 
 def _sync_native_balances(state: DexState, *, chain_balances: Dict[str, int]) -> DexState:
@@ -388,26 +393,30 @@ def _apply_faucet(
     return True, next_state, None
 
 
-def _balances_patch_for_native(*, before: Dict[str, int], after_state: DexState) -> Dict[str, int]:
-    _validate_chain_balances(before)
+def _balances_patch_for_native(
+    *,
+    before: Dict[str, int],
+    external_key_by_canonical: Dict[str, str],
+    after_state: DexState,
+) -> Dict[str, int]:
+    canonical_before, canonical_external = _canonicalize_chain_balances(before)
+    if canonical_before != before or canonical_external != {key: key for key in before}:
+        raise ValueError("internal chain_balances map must use canonical public keys")
+    if set(external_key_by_canonical) != set(before):
+        raise ValueError("external chain_balances spelling map does not match custody keys")
     out: Dict[str, int] = {}
-    external_key_by_canonical: Dict[str, str] = {}
-    for pk in sorted(before):
-        canonical_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
-        external_key_by_canonical[canonical_pk] = pk
 
-    keys = set(before.keys())
+    keys = set(before)
     # Include any addresses that appear in the DEX snapshot (native).
     for (pk, asset), _amount in after_state.balances.get_all_balances().items():
         if asset == NATIVE_ASSET:
-            keys.add(external_key_by_canonical.get(pk, pk))
+            keys.add(pk)
 
     for pk in sorted(keys):
         old = before.get(pk, 0)
-        lookup_pk = _canonical_pubkey(pk, name="chain_balances pubkey")
-        new = int(after_state.balances.get(lookup_pk, NATIVE_ASSET))
+        new = int(after_state.balances.get(pk, NATIVE_ASSET))
         if new != old:
-            out[pk] = new
+            out[external_key_by_canonical.get(pk, pk)] = new
     return out
 
 
@@ -945,7 +954,9 @@ def apply_app_tx(
     if not isinstance(chain_balances, dict):
         return False, app_state_json, "", None, "chain_balances must be an object"
     try:
-        _validate_chain_balances(chain_balances)
+        canonical_chain_balances, external_chain_balance_keys = _canonicalize_chain_balances(
+            chain_balances
+        )
     except (TypeError, ValueError) as exc:
         return False, app_state_json, "", None, str(exc)
 
@@ -981,9 +992,11 @@ def apply_app_tx(
         state, proof_mining_state, zusd_monetary_state = _load_state(app_state_json)
     except Exception as exc:
         return False, app_state_json, "", None, str(exc)
-    state = _sync_native_balances(state, chain_balances=chain_balances)
+    state = _sync_native_balances(state, chain_balances=canonical_chain_balances)
     if proof_mining_state is not None:
-        actual_reward_pool_balance = int(chain_balances.get(proof_mining_state.reward_pool_pubkey, 0))
+        actual_reward_pool_balance = int(
+            canonical_chain_balances.get(proof_mining_state.reward_pool_pubkey, 0)
+        )
         if actual_reward_pool_balance < 0:
             return False, app_state_json, "", None, "reward pool chain balance must be non-negative"
         try:
@@ -1086,7 +1099,7 @@ def apply_app_tx(
             proof_mining_op=proof_mining_op,
             proof_mining_context=None if dex_result is None else dex_result.proof_mining_context,
             tx_sender_pubkey=canonical_tx_sender_pubkey,
-            chain_balances=chain_balances,
+            chain_balances=canonical_chain_balances,
         )
         if not ok:
             return False, app_state_json, "", None, proof_err or "proof mining rejected"
@@ -1107,7 +1120,11 @@ def apply_app_tx(
             return False, app_state_json, "", None, perp_res.error or "PERP rejected"
         next_state = perp_res.state
 
-    balances_patch = _balances_patch_for_native(before=chain_balances, after_state=next_state)
+    balances_patch = _balances_patch_for_native(
+        before=canonical_chain_balances,
+        external_key_by_canonical=external_chain_balance_keys,
+        after_state=next_state,
+    )
     canonical, app_hash = _canonical_state_and_hash(
         next_state,
         proof_mining_state=proof_mining_state,

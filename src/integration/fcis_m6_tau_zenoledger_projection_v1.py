@@ -16,6 +16,7 @@ from typing import Final, Mapping
 from ..core.fcis_m6_global_state_projection_v1 import (
     M6_PROJECTION_AUTHORITY_OBLIGATIONS_V1,
     M6_REQUIRED_APPLICATION_STATE_COMPONENTS_V1,
+    M6_ZENO_LEDGER_SPOT_COMMITTED_COMPONENTS_V1,
     M6ApplicationStateComponentV1,
     M6GlobalStateProjectionRejectCodeV1,
     M6GlobalStateProjectionRejectV1,
@@ -42,7 +43,11 @@ from .proof_mining_runtime import (
     proof_mining_runtime_state_from_obj,
     proof_mining_runtime_state_to_obj,
 )
-from .zeno_ledger_v0 import canonical_header_hash_v0, validate_header_body_roots_v0
+from .zeno_ledger_v0 import (
+    canonical_header_hash_v0,
+    dex_state_root_v0,
+    validate_header_body_roots_v0,
+)
 from .zusd_monetary_bridge import (
     zusd_monetary_state_from_obj,
     zusd_monetary_state_to_obj,
@@ -53,6 +58,20 @@ TAU_APP_STATE_VERSION_V1: Final = 1
 DEX_SNAPSHOT_SOURCE_SCHEMA_V1: Final = "zenodex/dex_snapshot"
 
 _LOWER_HEX = frozenset("0123456789abcdef")
+
+M6_DEX_SNAPSHOT_FIELD_COMPONENTS_V1: Final = (
+    ("balances", M6ApplicationStateComponentV1.ACCOUNT_BALANCES),
+    ("pools", M6ApplicationStateComponentV1.AMM_POOLS),
+    ("lp_balances", M6ApplicationStateComponentV1.LP_OWNERSHIP),
+    ("lp_mint_timestamps", M6ApplicationStateComponentV1.LP_MINT_AGE),
+    ("lp_duration_risk", M6ApplicationStateComponentV1.LP_DURATION_RISK),
+    ("nonces", M6ApplicationStateComponentV1.NONCES),
+    ("fee_accumulator", M6ApplicationStateComponentV1.LEGACY_FEE_ACCUMULATOR),
+    ("vault", M6ApplicationStateComponentV1.VAULT_REWARD_STATE),
+    ("oracle", M6ApplicationStateComponentV1.ORACLE_FRESHNESS_STATE),
+    ("perps", M6ApplicationStateComponentV1.PERPS_STATE),
+)
+M6_DEX_SNAPSHOT_REPRESENTATION_ONLY_FIELDS_V1: Final = ("version",)
 
 _TAU_UNMET_OBLIGATIONS_V1: Final = tuple(
     obligation
@@ -92,6 +111,7 @@ class _NormalizedApplicationContentV1:
     canonical_source_bytes: bytes
     source_schema: str
     source_version: int
+    spot_state_root: str
     component_roots: tuple[tuple[M6ApplicationStateComponentV1, str], ...]
 
 
@@ -114,34 +134,32 @@ def _component_root(component: M6ApplicationStateComponentV1, value: object) -> 
 
 def _normalize_dex_snapshot_v1(
     dex_obj: object,
-) -> tuple[dict[str, object], dict[M6ApplicationStateComponentV1, str]]:
+) -> tuple[dict[str, object], dict[M6ApplicationStateComponentV1, str], str]:
     if not isinstance(dex_obj, Mapping):
         raise TypeError("DEX snapshot must be a mapping")
     dex_state = state_from_snapshot(dex_obj)
     normalized = snapshot_from_state(dex_state).data
     if canonical_json_bytes(dex_obj) != canonical_json_bytes(normalized):
         raise _NonCanonicalSourceError("DEX snapshot is not canonical")
+    declared_fields = {field for field, _component in M6_DEX_SNAPSHOT_FIELD_COMPONENTS_V1}.union(
+        M6_DEX_SNAPSHOT_REPRESENTATION_ONLY_FIELDS_V1
+    )
+    if set(normalized) != declared_fields:
+        raise ValueError("DEX snapshot field/component registry mismatch")
     roots: dict[M6ApplicationStateComponentV1, str] = {}
-    field_components = (
-        ("balances", M6ApplicationStateComponentV1.ACCOUNT_BALANCES),
-        ("pools", M6ApplicationStateComponentV1.AMM_POOLS),
-        ("lp_balances", M6ApplicationStateComponentV1.LP_OWNERSHIP),
-        ("lp_mint_timestamps", M6ApplicationStateComponentV1.LP_MINT_AGE),
-        ("lp_duration_risk", M6ApplicationStateComponentV1.LP_DURATION_RISK),
-        ("nonces", M6ApplicationStateComponentV1.NONCES),
-        ("fee_accumulator", M6ApplicationStateComponentV1.LEGACY_FEE_ACCUMULATOR),
+    required_fields = (
+        "balances",
+        "pools",
+        "lp_balances",
+        "lp_mint_timestamps",
+        "lp_duration_risk",
+        "nonces",
+        "fee_accumulator",
     )
-    for field, component in field_components:
-        roots[component] = _component_root(component, normalized[field])
-    optional_field_components = (
-        ("vault", M6ApplicationStateComponentV1.VAULT_REWARD_STATE),
-        ("oracle", M6ApplicationStateComponentV1.ORACLE_FRESHNESS_STATE),
-        ("perps", M6ApplicationStateComponentV1.PERPS_STATE),
-    )
-    for field, component in optional_field_components:
-        if normalized.get(field) is not None:
+    for field, component in M6_DEX_SNAPSHOT_FIELD_COMPONENTS_V1:
+        if field in required_fields or normalized.get(field) is not None:
             roots[component] = _component_root(component, normalized[field])
-    return normalized, roots
+    return normalized, roots, dex_state_root_v0(dex_state)
 
 
 def _normalize_proof_mining_v1(
@@ -205,7 +223,7 @@ def _normalize_application_content_v1(app_state: object) -> _NormalizedApplicati
         "schema" in obj or "dex_state" in obj or "proof_mining" in obj or "zusd_monetary" in obj
     )
     if not is_wrapper:
-        normalized_dex, roots = _normalize_dex_snapshot_v1(obj)
+        normalized_dex, roots, spot_state_root = _normalize_dex_snapshot_v1(obj)
         canonical = canonical_json_bytes(normalized_dex)
         version = normalized_dex.get("version")
         if type(version) is not int or version <= 0:
@@ -214,6 +232,7 @@ def _normalize_application_content_v1(app_state: object) -> _NormalizedApplicati
             canonical_source_bytes=canonical,
             source_schema=DEX_SNAPSHOT_SOURCE_SCHEMA_V1,
             source_version=version,
+            spot_state_root=spot_state_root,
             component_roots=_ordered_component_roots_v1(roots),
         )
     else:
@@ -236,7 +255,7 @@ def _normalize_application_content_v1(app_state: object) -> _NormalizedApplicati
             raise _NonCanonicalSourceError(
                 "Tau serializes a state without optional subsystems as a bare DEX snapshot"
             )
-        normalized_dex, roots = _normalize_dex_snapshot_v1(obj.get("dex_state"))
+        normalized_dex, roots, spot_state_root = _normalize_dex_snapshot_v1(obj.get("dex_state"))
         normalized_proof = _normalize_proof_mining_v1(proof_obj, roots)
         normalized_zusd = _normalize_zusd_v1(zusd_obj, roots)
         normalized_obj = {
@@ -250,6 +269,7 @@ def _normalize_application_content_v1(app_state: object) -> _NormalizedApplicati
             canonical_source_bytes=canonical_json_bytes(normalized_obj),
             source_schema=TAU_APP_STATE_SCHEMA_V1,
             source_version=TAU_APP_STATE_VERSION_V1,
+            spot_state_root=spot_state_root,
             component_roots=_ordered_component_roots_v1(roots),
         )
     if len(normalized.canonical_source_bytes) > MAX_M6_APP_STATE_BYTES_V1:
@@ -257,18 +277,25 @@ def _normalize_application_content_v1(app_state: object) -> _NormalizedApplicati
     return normalized
 
 
-def _content_from_app_state_v1(
+def _shared_spot_content_from_app_state_v1(
     app_state: object,
 ) -> tuple[_NormalizedApplicationContentV1, M6ApplicationContentV1]:
     normalized = _normalize_application_content_v1(app_state)
-    covered = tuple(component for component, _root in normalized.component_roots)
+    shared_roots = tuple(
+        (component, root)
+        for component, root in normalized.component_roots
+        if component in M6_ZENO_LEDGER_SPOT_COMMITTED_COMPONENTS_V1
+    )
+    covered = tuple(component for component, _root in shared_roots)
+    if covered != M6_ZENO_LEDGER_SPOT_COMMITTED_COMPONENTS_V1:
+        raise ValueError("application state lacks a ZenoLedger-committed spot component")
     missing = tuple(
         component
         for component in M6_REQUIRED_APPLICATION_STATE_COMPONENTS_V1
         if component not in covered
     )
     coverage = M6ProjectionCoverageV1(
-        component_roots=normalized.component_roots,
+        component_roots=shared_roots,
         covered_components=covered,
         missing_components=missing,
     )
@@ -286,7 +313,7 @@ def _reject(
     return M6GlobalStateProjectionRejectV1(code, tuple(path))
 
 
-def project_tau_claimed_app_content_v1(
+def project_tau_claimed_shared_spot_content_v1(
     *,
     app_state: object,
     claimed_app_hash: object,
@@ -298,7 +325,7 @@ def project_tau_claimed_app_content_v1(
         app_hash = _sha256_digest(claimed_app_hash, "claimed_app_hash")
         if type(claimed_source_position) is not int or claimed_source_position < 0:
             raise TypeError("claimed_source_position must be exact and nonnegative")
-        normalized, content_obj = _content_from_app_state_v1(app_state)
+        normalized, content_obj = _shared_spot_content_from_app_state_v1(app_state)
     except _NonCanonicalSourceError:
         return _reject(
             M6GlobalStateProjectionRejectCodeV1.NON_CANONICAL_SOURCE,
@@ -331,7 +358,7 @@ def project_tau_claimed_app_content_v1(
     )
 
 
-def project_zeno_ledger_header_state_content_v1(
+def project_zeno_ledger_header_shared_spot_content_v1(
     *,
     app_state: object,
     header: object,
@@ -343,7 +370,7 @@ def project_zeno_ledger_header_state_content_v1(
         return _reject(M6GlobalStateProjectionRejectCodeV1.WRONG_EXACT_TYPE, "zeno_ledger")
     try:
         validate_header_body_roots_v0(header, body)
-        normalized, content_obj = _content_from_app_state_v1(app_state)
+        normalized, content_obj = _shared_spot_content_from_app_state_v1(app_state)
         source_commitment_root = canonical_header_hash_v0(header)
         source_position = header["height"]
         chain_id = header["chain_id"]
@@ -365,8 +392,7 @@ def project_zeno_ledger_header_state_content_v1(
             "zeno_ledger",
             "header_body",
         )
-    source_state_root = "0x" + hashlib.sha256(normalized.canonical_source_bytes).hexdigest()
-    if header["post_state_root"] != source_state_root:
+    if header["post_state_root"] != normalized.spot_state_root:
         return _reject(
             M6GlobalStateProjectionRejectCodeV1.SOURCE_COMMITMENT_MISMATCH,
             "zeno_ledger",
@@ -377,7 +403,7 @@ def project_zeno_ledger_header_state_content_v1(
             source_kind=M6ProjectionSourceKindV1.ZENO_LEDGER_HEADER_STATE_COMMITMENT,
             source_schema=normalized.source_schema,
             source_version=normalized.source_version,
-            source_state_root=source_state_root,
+            source_state_root=normalized.spot_state_root,
             source_commitment_root=source_commitment_root,
             source_chain_id=chain_id,
             claimed_source_position=source_position,
@@ -389,8 +415,10 @@ def project_zeno_ledger_header_state_content_v1(
 
 __all__ = (
     "DEX_SNAPSHOT_SOURCE_SCHEMA_V1",
+    "M6_DEX_SNAPSHOT_FIELD_COMPONENTS_V1",
+    "M6_DEX_SNAPSHOT_REPRESENTATION_ONLY_FIELDS_V1",
     "TAU_APP_STATE_SCHEMA_V1",
     "TAU_APP_STATE_VERSION_V1",
-    "project_tau_claimed_app_content_v1",
-    "project_zeno_ledger_header_state_content_v1",
+    "project_tau_claimed_shared_spot_content_v1",
+    "project_zeno_ledger_header_shared_spot_content_v1",
 )

@@ -25,24 +25,11 @@ def require_authoritative_global_state_projection_v1(
             ("qualification",),
         )
     receipt = cast(M6ProjectionContentParityReceiptV1, parity)
-    if receipt.coverage.missing_components:
-        return M6GlobalStateProjectionRejectV1(
-            M6GlobalStateProjectionRejectCodeV1.INCOMPLETE_APPLICATION_CONTENT,
-            ("qualification", "missing_components"),
-            missing_components=receipt.coverage.missing_components,
-            global_gaps=receipt.global_gaps,
-            unmet_obligations=receipt.unmet_authority_obligations,
-        )
-    if receipt.global_gaps:
-        return M6GlobalStateProjectionRejectV1(
-            M6GlobalStateProjectionRejectCodeV1.INCOMPLETE_GLOBAL_STATE,
-            ("qualification", "global_gaps"),
-            global_gaps=receipt.global_gaps,
-            unmet_obligations=receipt.unmet_authority_obligations,
-        )
     return M6GlobalStateProjectionRejectV1(
-        M6GlobalStateProjectionRejectCodeV1.UNMET_AUTHORITY_OBLIGATIONS,
-        ("qualification", "authority"),
+        M6GlobalStateProjectionRejectCodeV1.INCOMPLETE_GLOBAL_STATE,
+        ("qualification", "content_only_receipt"),
+        missing_components=receipt.coverage.missing_components,
+        global_gaps=receipt.global_gaps,
         unmet_obligations=receipt.unmet_authority_obligations,
     )
 

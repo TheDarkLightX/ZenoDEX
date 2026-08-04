@@ -16,7 +16,7 @@ from src.core.fcis_m6_global_state_projection_v1 import (
     M6GlobalStateProjectionRejectV1,
     M6ProjectionAuthorityObligationV1,
 )
-from src.integration.dex_snapshot import snapshot_from_state
+from src.integration.dex_snapshot import snapshot_from_state, state_from_snapshot
 from src.integration.fcis_m6_global_state_qualification_v1 import (
     require_authoritative_global_state_projection_v1,
 )
@@ -34,8 +34,10 @@ from src.integration.fcis_m6_projection_values_v1 import (
 )
 from src.integration.fcis_m6_tau_zenoledger_projection_v1 import (
     DEX_SNAPSHOT_SOURCE_SCHEMA_V1,
-    project_tau_claimed_app_content_v1,
-    project_zeno_ledger_header_state_content_v1,
+    M6_DEX_SNAPSHOT_FIELD_COMPONENTS_V1,
+    M6_DEX_SNAPSHOT_REPRESENTATION_ONLY_FIELDS_V1,
+    project_tau_claimed_shared_spot_content_v1,
+    project_zeno_ledger_header_shared_spot_content_v1,
 )
 from src.integration.zeno_ledger_v0 import (
     BATCH_CUTOFF_SCHEMA_V0,
@@ -47,6 +49,7 @@ from src.integration.zeno_ledger_v0 import (
     compute_evidence_root_v0,
     compute_ingress_root_v0,
     compute_tx_root_v0,
+    dex_state_root_v0,
     hash_v0,
 )
 from src.integration.zusd_monetary_bridge import (
@@ -58,6 +61,8 @@ from src.state.balances import BalanceTable
 from src.state.canonical import canonical_json_bytes
 from src.state.lp import LPTable
 
+_ALICE = "0x" + "aa" * 48
+
 
 def _root(label: str) -> str:
     return hash_v0("m6_projection_test_root", {"label": label})
@@ -67,7 +72,7 @@ def _dex_state(*, zusd_balance: int = 0) -> DexState:
     balances = BalanceTable()
     if zusd_balance:
         asset = ZUSDMonetaryConfig(chain_id="zenodex/research-chain").zusd_asset
-        balances.set("alice", asset, zusd_balance)
+        balances.set(_ALICE, asset, zusd_balance)
     return DexState(balances=balances, pools={}, lp_balances=LPTable())
 
 
@@ -75,8 +80,51 @@ def _bare_state() -> dict[str, object]:
     return snapshot_from_state(_dex_state()).data
 
 
-def _wrapped_zusd_state(*, zusd_balance: int = 0) -> dict[str, object]:
-    monetary = init_monetary_state(ZUSDMonetaryConfig(chain_id="zenodex/research-chain"))
+def test_every_canonical_dex_snapshot_field_is_mapped_or_representation_only() -> None:
+    declared_fields = {field for field, _component in M6_DEX_SNAPSHOT_FIELD_COMPONENTS_V1}.union(
+        M6_DEX_SNAPSHOT_REPRESENTATION_ONLY_FIELDS_V1
+    )
+    assert declared_fields == set(_bare_state())
+    components = tuple(component for _field, component in M6_DEX_SNAPSHOT_FIELD_COMPONENTS_V1)
+    assert len(components) == len(set(components))
+
+
+def test_lp_mint_age_is_a_logical_component_of_the_spot_commitment() -> None:
+    pool_id = _root("lp-mint-age-pool")
+    first_lp = LPTable()
+    first_lp.set(_ALICE, pool_id, 1)
+    first_lp.set_last_mint_timestamp(_ALICE, pool_id, 7)
+    first_state = DexState(balances=BalanceTable(), pools={}, lp_balances=first_lp)
+    first_snapshot = snapshot_from_state(first_state).data
+    first = project_tau_claimed_shared_spot_content_v1(
+        app_state=first_snapshot,
+        claimed_app_hash=_app_hash(first_snapshot),
+        claimed_source_position=7,
+    )
+    assert type(first) is M6ProjectionContentObservationV1
+    assert M6ApplicationStateComponentV1.LP_MINT_AGE in first.content.coverage.covered_components
+
+    second_lp = LPTable()
+    second_lp.set(_ALICE, pool_id, 1)
+    second_lp.set_last_mint_timestamp(_ALICE, pool_id, 8)
+    second_state = DexState(balances=BalanceTable(), pools={}, lp_balances=second_lp)
+    second_snapshot = snapshot_from_state(second_state).data
+    second = project_tau_claimed_shared_spot_content_v1(
+        app_state=second_snapshot,
+        claimed_app_hash=_app_hash(second_snapshot),
+        claimed_source_position=7,
+    )
+    assert type(second) is M6ProjectionContentObservationV1
+    assert dex_state_root_v0(first_state) != dex_state_root_v0(second_state)
+    assert first.content.content_root != second.content.content_root
+
+
+def _wrapped_zusd_state(
+    *,
+    zusd_balance: int = 0,
+    monetary_chain_id: str = "zenodex/research-chain",
+) -> dict[str, object]:
+    monetary = init_monetary_state(ZUSDMonetaryConfig(chain_id=monetary_chain_id))
     return {
         "schema": "zenodex/tau_app_state/v1",
         "version": 1,
@@ -88,6 +136,15 @@ def _wrapped_zusd_state(*, zusd_balance: int = 0) -> dict[str, object]:
 
 def _app_hash(app_state: dict[str, object]) -> str:
     return hashlib.sha256(canonical_json_bytes(app_state)).hexdigest()
+
+
+def _spot_state_root(app_state: dict[str, object]) -> str:
+    dex_snapshot = (
+        app_state["dex_state"]
+        if app_state.get("schema") == "zenodex/tau_app_state/v1"
+        else app_state
+    )
+    return dex_state_root_v0(state_from_snapshot(dex_snapshot))  # type: ignore[arg-type]
 
 
 def _body() -> dict[str, object]:
@@ -161,7 +218,7 @@ def _header(body: dict[str, object], *, post_state_root: str) -> dict[str, objec
 
 
 def _tau(app_state: dict[str, object], *, position: int = 7) -> M6ProjectionContentObservationV1:
-    result = project_tau_claimed_app_content_v1(
+    result = project_tau_claimed_shared_spot_content_v1(
         app_state=app_state,
         claimed_app_hash=_app_hash(app_state),
         claimed_source_position=position,
@@ -172,16 +229,16 @@ def _tau(app_state: dict[str, object], *, position: int = 7) -> M6ProjectionCont
 
 def _ledger(app_state: dict[str, object]) -> M6ProjectionContentObservationV1:
     body = _body()
-    result = project_zeno_ledger_header_state_content_v1(
+    result = project_zeno_ledger_header_shared_spot_content_v1(
         app_state=app_state,
-        header=_header(body, post_state_root="0x" + _app_hash(app_state)),
+        header=_header(body, post_state_root=_spot_state_root(app_state)),
         body=body,
     )
     assert type(result) is M6ProjectionContentObservationV1
     return result
 
 
-def test_given_same_content_when_two_structural_commitments_compare_then_receipt_is_content_only() -> (
+def test_given_same_spot_content_when_two_structural_commitments_compare_then_receipt_is_content_only() -> (
     None
 ):
     app_state = _wrapped_zusd_state()
@@ -203,7 +260,7 @@ def test_content_parity_cannot_authorize_global_state() -> None:
     parity = verify_tau_zeno_ledger_content_parity_v1(_tau(app_state), _ledger(app_state))
     result = require_authoritative_global_state_projection_v1(parity)
     assert type(result) is M6GlobalStateProjectionRejectV1
-    assert result.code is M6GlobalStateProjectionRejectCodeV1.INCOMPLETE_APPLICATION_CONTENT
+    assert result.code is M6GlobalStateProjectionRejectCodeV1.INCOMPLETE_GLOBAL_STATE
     assert result.global_gaps == M6_KNOWN_GLOBAL_PROJECTION_GAPS_V1
     assert result.unmet_obligations == M6_PROJECTION_AUTHORITY_OBLIGATIONS_V1
 
@@ -230,7 +287,7 @@ def test_wrapped_null_null_state_is_rejected_as_noncanonical_tau_encoding() -> N
         "proof_mining": None,
         "zusd_monetary": None,
     }
-    result = project_tau_claimed_app_content_v1(
+    result = project_tau_claimed_shared_spot_content_v1(
         app_state=app_state,
         claimed_app_hash=_app_hash(app_state),
         claimed_source_position=7,
@@ -249,6 +306,23 @@ def test_economic_contradiction_remains_structural_content_and_blocks_authority(
     parity = verify_tau_zeno_ledger_content_parity_v1(observation, _ledger(app_state))
     qualification = require_authoritative_global_state_projection_v1(parity)
     assert type(qualification) is M6GlobalStateProjectionRejectV1
+
+
+def test_non_spot_zusd_difference_is_outside_parity_and_still_blocks_authority() -> None:
+    tau_state = _wrapped_zusd_state(monetary_chain_id="zenodex/tau-zusd-context")
+    ledger_state = _wrapped_zusd_state(monetary_chain_id="zenodex/ledger-zusd-context")
+    tau = _tau(tau_state)
+    ledger = _ledger(ledger_state)
+    assert tau.source_state_root != ledger.source_state_root
+    assert tau.content.content_root == ledger.content.content_root
+    assert M6ApplicationStateComponentV1.ZUSD_MONETARY_STATE in (
+        tau.content.coverage.missing_components
+    )
+    parity = verify_tau_zeno_ledger_content_parity_v1(tau, ledger)
+    assert type(parity) is M6ProjectionContentParityReceiptV1
+    qualification = require_authoritative_global_state_projection_v1(parity)
+    assert type(qualification) is M6GlobalStateProjectionRejectV1
+    assert qualification.code is M6GlobalStateProjectionRejectCodeV1.INCOMPLETE_GLOBAL_STATE
 
 
 def test_self_consistent_unsigned_header_is_only_a_header_state_observation() -> None:
@@ -282,7 +356,7 @@ def test_observation_root_binds_source_position_while_content_root_does_not() ->
 def test_malformed_wrapped_app_state_fails_closed(mutation: object) -> None:
     app_state = _wrapped_zusd_state()
     mutated = mutation(app_state)  # type: ignore[operator]
-    result = project_tau_claimed_app_content_v1(
+    result = project_tau_claimed_shared_spot_content_v1(
         app_state=mutated,
         claimed_app_hash=hashlib.sha256(canonical_json_bytes(mutated)).hexdigest(),
         claimed_source_position=7,
@@ -291,7 +365,7 @@ def test_malformed_wrapped_app_state_fails_closed(mutation: object) -> None:
 
 
 def test_tau_claimed_hash_substitution_is_rejected() -> None:
-    result = project_tau_claimed_app_content_v1(
+    result = project_tau_claimed_shared_spot_content_v1(
         app_state=_wrapped_zusd_state(),
         claimed_app_hash="00" * 32,
         claimed_source_position=7,
@@ -303,7 +377,7 @@ def test_tau_claimed_hash_substitution_is_rejected() -> None:
 def test_ledger_post_state_substitution_is_rejected() -> None:
     app_state = _wrapped_zusd_state()
     body = _body()
-    result = project_zeno_ledger_header_state_content_v1(
+    result = project_zeno_ledger_header_shared_spot_content_v1(
         app_state=app_state,
         header=_header(body, post_state_root=_root("foreign-state")),
         body=body,
@@ -315,8 +389,8 @@ def test_ledger_post_state_substitution_is_rejected() -> None:
 def test_crossed_ledger_body_is_rejected() -> None:
     app_state = _wrapped_zusd_state()
     body = _body()
-    header = _header(body, post_state_root="0x" + _app_hash(app_state))
-    result = project_zeno_ledger_header_state_content_v1(
+    header = _header(body, post_state_root=_spot_state_root(app_state))
+    result = project_zeno_ledger_header_shared_spot_content_v1(
         app_state=app_state,
         header=header,
         body={**body, "height": 8},
@@ -368,7 +442,7 @@ def test_hostile_post_construction_mutation_is_detected() -> None:
 
 def test_boolean_claimed_position_is_rejected() -> None:
     app_state = _wrapped_zusd_state()
-    result = project_tau_claimed_app_content_v1(
+    result = project_tau_claimed_shared_spot_content_v1(
         app_state=app_state,
         claimed_app_hash=_app_hash(app_state),
         claimed_source_position=True,

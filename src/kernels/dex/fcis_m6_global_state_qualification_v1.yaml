@@ -29,92 +29,71 @@ meta:
     - "sovereign_carrier_refinement"
     - "requirements_registry_completeness"
   notes: |
-    Qualification requires admitted content parity, complete application
-    content, an empty global-gap registry, and every authority/coherence
-    obligation discharged. The current runtime receipt intentionally satisfies
-    only content parity, so it cannot reach authoritative_issued.
+    Exact finite model of the current V1 Python qualification boundary. A valid
+    content-parity receipt is rejected because it remains incomplete. Invalid
+    parity is also rejected. No action closes an obligation or issues authority.
+    Future closure requires a new model whose actions consume typed same-subject
+    discharge receipts.
 
 observables:
   state_vars:
     - "content_parity_admitted"
-    - "application_content_complete"
-    - "global_gaps_empty"
-    - "authority_obligations_closed"
-    - "authoritative_issued"
-    - "invalid_accept"
+    - "rejection_issued"
+    - "authority_issued"
   effects: []
 
 types: []
 
 state_vars:
   - { id: "content_parity_admitted", role: "data", type: { kind: "int", min: 0, max: 1 } }
-  - { id: "application_content_complete", role: "data", type: { kind: "int", min: 0, max: 1 } }
-  - { id: "global_gaps_empty", role: "data", type: { kind: "int", min: 0, max: 1 } }
-  - { id: "authority_obligations_closed", role: "data", type: { kind: "int", min: 0, max: 1 } }
-  - { id: "authoritative_issued", role: "data", type: { kind: "int", min: 0, max: 1 } }
-  - { id: "invalid_accept", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "rejection_issued", role: "data", type: { kind: "int", min: 0, max: 1 } }
+  - { id: "authority_issued", role: "data", type: { kind: "int", min: 0, max: 1 } }
 
 init:
   - { var: "content_parity_admitted", expr: { const: 1 } }
-  - { var: "application_content_complete", expr: { const: 0 } }
-  - { var: "global_gaps_empty", expr: { const: 0 } }
-  - { var: "authority_obligations_closed", expr: { const: 0 } }
-  - { var: "authoritative_issued", expr: { const: 0 } }
-  - { var: "invalid_accept", expr: { const: 0 } }
+  - { var: "rejection_issued", expr: { const: 0 } }
+  - { var: "authority_issued", expr: { const: 0 } }
 
 invariants:
-  - id: "inv_no_invalid_accept"
+  - id: "inv_v1_never_issues_authority"
     kind: "safety"
-    expr: { op: "=", args: [{ var: "invalid_accept" }, { const: 0 }] }
-  - id: "inv_authority_requires_parity"
+    expr: { op: "=", args: [{ var: "authority_issued" }, { const: 0 }] }
+  - id: "inv_rejection_excludes_authority"
     kind: "safety"
-    expr: { op: "<=", args: [{ var: "authoritative_issued" }, { var: "content_parity_admitted" }] }
-  - id: "inv_authority_requires_complete_application_content"
-    kind: "safety"
-    expr: { op: "<=", args: [{ var: "authoritative_issued" }, { var: "application_content_complete" }] }
-  - id: "inv_authority_requires_no_global_gaps"
-    kind: "safety"
-    expr: { op: "<=", args: [{ var: "authoritative_issued" }, { var: "global_gaps_empty" }] }
-  - id: "inv_authority_requires_closed_obligations"
-    kind: "safety"
-    expr: { op: "<=", args: [{ var: "authoritative_issued" }, { var: "authority_obligations_closed" }] }
+    expr:
+      op: "<="
+      args:
+        - { var: "rejection_issued" }
+        - { op: "-", args: [{ const: 1 }, { var: "authority_issued" }] }
 
 actions:
-  - id: "issue_authoritative_projection"
+  - id: "reject_current_content_receipt"
     params: []
     guard:
       op: "and"
       args:
         - { op: "=", args: [{ var: "content_parity_admitted" }, { const: 1 }] }
-        - { op: "=", args: [{ var: "application_content_complete" }, { const: 1 }] }
-        - { op: "=", args: [{ var: "global_gaps_empty" }, { const: 1 }] }
-        - { op: "=", args: [{ var: "authority_obligations_closed" }, { const: 1 }] }
-        - { op: "=", args: [{ var: "authoritative_issued" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "rejection_issued" }, { const: 0 }] }
     updates:
-      - { var: "authoritative_issued", expr: { const: 1 } }
-      - var: "invalid_accept"
-        expr:
-          op: "+"
-          args:
-            - { op: "-", args: [{ const: 1 }, { var: "content_parity_admitted" }] }
-            - { op: "-", args: [{ const: 1 }, { var: "application_content_complete" }] }
-            - { op: "-", args: [{ const: 1 }, { var: "global_gaps_empty" }] }
-            - { op: "-", args: [{ const: 1 }, { var: "authority_obligations_closed" }] }
+      - { var: "rejection_issued", expr: { const: 1 } }
     effects: {}
-  - id: "complete_application_content"
+  - id: "invalidate_content_parity"
     params: []
-    guard: { op: "=", args: [{ var: "application_content_complete" }, { const: 0 }] }
-    updates: [{ var: "application_content_complete", expr: { const: 1 } }]
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "content_parity_admitted" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "rejection_issued" }, { const: 0 }] }
+    updates: [{ var: "content_parity_admitted", expr: { const: 0 } }]
     effects: {}
-  - id: "close_global_gaps"
+  - id: "reject_invalid_content_receipt"
     params: []
-    guard: { op: "=", args: [{ var: "global_gaps_empty" }, { const: 0 }] }
-    updates: [{ var: "global_gaps_empty", expr: { const: 1 } }]
-    effects: {}
-  - id: "close_authority_obligations"
-    params: []
-    guard: { op: "=", args: [{ var: "authority_obligations_closed" }, { const: 0 }] }
-    updates: [{ var: "authority_obligations_closed", expr: { const: 1 } }]
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "content_parity_admitted" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "rejection_issued" }, { const: 0 }] }
+    updates: [{ var: "rejection_issued", expr: { const: 1 } }]
     effects: {}
   - id: "stutter"
     params: []

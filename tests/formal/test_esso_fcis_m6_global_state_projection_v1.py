@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any, Callable
 
 import pytest
 import yaml
@@ -16,6 +17,11 @@ from src.core.fcis_m6_global_state_projection_v1 import (
     M6_KNOWN_GLOBAL_PROJECTION_GAPS_V1,
     M6_PROJECTION_AUTHORITY_OBLIGATIONS_V1,
     M6_REQUIRED_APPLICATION_STATE_COMPONENTS_V1,
+    M6_ZENO_LEDGER_SPOT_COMMITTED_COMPONENTS_V1,
+)
+from src.integration.fcis_m6_tau_zenoledger_projection_v1 import (
+    M6_DEX_SNAPSHOT_FIELD_COMPONENTS_V1,
+    M6_DEX_SNAPSHOT_REPRESENTATION_ONLY_FIELDS_V1,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -61,11 +67,62 @@ def _verify(model: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _action(document: dict[str, Any], action_id: str) -> dict[str, Any]:
+    actions = document["actions"]
+    assert isinstance(actions, list)
+    matches = [action for action in actions if action["id"] == action_id]
+    assert len(matches) == 1
+    return matches[0]
+
+
+def _reachable_states_and_actions(
+    model: Path,
+) -> tuple[list[dict[str, int]], set[str]]:
+    from ESSO.ir.schema import CandidateIR
+    from ESSO.kernel.interpreter import StepOk, prepare_step_context, step_ctx
+    from ESSO.verify.lts_minimize import (
+        LtsMinimizeConfig,
+        _enumerate_commands,
+        _enumerate_reachable_states,
+    )
+
+    ir = CandidateIR.from_json_dict(
+        yaml.safe_load(model.read_text(encoding="utf-8")),
+        path=str(model),
+    ).canonicalized()
+    config = LtsMinimizeConfig(scope="reachable", max_states=2_000)
+    commands = _enumerate_commands(ir, cfg=config)
+    assert isinstance(commands, list)
+    states = _enumerate_reachable_states(ir, cfg=config, cmds=commands)
+    assert isinstance(states, list)
+    context = prepare_step_context(ir)
+    enabled = {
+        command.tag
+        for state in states
+        for command in commands
+        if isinstance(step_ctx(state, command, context), StepOk)
+    }
+    return states, enabled
+
+
 def test_formal_metadata_matches_every_runtime_closed_registry() -> None:
     content = yaml.safe_load(CONTENT_MODEL.read_text(encoding="utf-8"))
     qualification = yaml.safe_load(QUALIFICATION_MODEL.read_text(encoding="utf-8"))
     assert content["meta"]["component_registry"] == [
         component.value for component in M6_REQUIRED_APPLICATION_STATE_COMPONENTS_V1
+    ]
+    assert content["meta"]["zeno_ledger_spot_committed_components"] == [
+        component.value for component in M6_ZENO_LEDGER_SPOT_COMMITTED_COMPONENTS_V1
+    ]
+    assert content["meta"]["dex_snapshot_field_registry"] == [
+        *(
+            {"field": field, "classification": "representation_only"}
+            for field in M6_DEX_SNAPSHOT_REPRESENTATION_ONLY_FIELDS_V1
+        ),
+        *(
+            {"field": field, "component": component.value}
+            for field, component in M6_DEX_SNAPSHOT_FIELD_COMPONENTS_V1
+        ),
     ]
     assert qualification["meta"]["global_gap_registry"] == [
         gap.value for gap in M6_KNOWN_GLOBAL_PROJECTION_GAPS_V1
@@ -81,6 +138,17 @@ def test_registry_omission_mutant_is_killed_by_runtime_model_parity() -> None:
     assert content["meta"]["component_registry"] != [
         component.value for component in M6_REQUIRED_APPLICATION_STATE_COMPONENTS_V1
     ]
+    content = yaml.safe_load(CONTENT_MODEL.read_text(encoding="utf-8"))
+    content["meta"]["zeno_ledger_spot_committed_components"].pop()
+    assert content["meta"]["zeno_ledger_spot_committed_components"] != [
+        component.value for component in M6_ZENO_LEDGER_SPOT_COMMITTED_COMPONENTS_V1
+    ]
+    content = yaml.safe_load(CONTENT_MODEL.read_text(encoding="utf-8"))
+    content["meta"]["dex_snapshot_field_registry"].pop()
+    assert len(content["meta"]["dex_snapshot_field_registry"]) != (
+        len(M6_DEX_SNAPSHOT_FIELD_COMPONENTS_V1)
+        + len(M6_DEX_SNAPSHOT_REPRESENTATION_ONLY_FIELDS_V1)
+    )
 
 
 @pytest.mark.skipif(not ESSO_AVAILABLE, reason="ESSO is not available")
@@ -107,32 +175,32 @@ def test_projection_models_validate_and_dual_solvers_agree(model: Path) -> None:
 
 @pytest.mark.skipif(not ESSO_AVAILABLE, reason="ESSO is not available")
 @pytest.mark.parametrize(
-    ("action_index", "guard_index", "mutant_name"),
+    ("action_id", "guard_index", "mutant_name"),
     (
-        (0, 0, "tau_canonical_guard_removed"),
-        (0, 1, "tau_commitment_guard_removed"),
-        (0, 2, "tau_component_derivation_guard_removed"),
-        (0, 3, "tau_coverage_guard_removed"),
-        (0, 4, "tau_registry_guard_removed"),
-        (1, 0, "ledger_header_body_guard_removed"),
-        (1, 1, "ledger_post_state_guard_removed"),
-        (1, 2, "ledger_component_derivation_guard_removed"),
-        (1, 3, "ledger_coverage_guard_removed"),
-        (1, 4, "ledger_registry_guard_removed"),
-        (2, 0, "parity_tau_admission_guard_removed"),
-        (2, 1, "parity_ledger_admission_guard_removed"),
-        (2, 2, "parity_source_kind_guard_removed"),
-        (2, 3, "parity_content_equality_guard_removed"),
+        ("admit_tau_content", 0, "tau_canonical_guard_removed"),
+        ("admit_tau_content", 1, "tau_commitment_guard_removed"),
+        ("admit_tau_content", 2, "tau_component_derivation_guard_removed"),
+        ("admit_tau_content", 3, "tau_coverage_guard_removed"),
+        ("admit_tau_content", 4, "tau_registry_guard_removed"),
+        ("admit_ledger_content", 0, "ledger_header_body_guard_removed"),
+        ("admit_ledger_content", 1, "ledger_post_state_guard_removed"),
+        ("admit_ledger_content", 2, "ledger_component_derivation_guard_removed"),
+        ("admit_ledger_content", 3, "ledger_coverage_guard_removed"),
+        ("admit_ledger_content", 4, "ledger_registry_guard_removed"),
+        ("issue_content_parity", 0, "parity_tau_admission_guard_removed"),
+        ("issue_content_parity", 1, "parity_ledger_admission_guard_removed"),
+        ("issue_content_parity", 2, "parity_source_kind_guard_removed"),
+        ("issue_content_parity", 3, "parity_content_equality_guard_removed"),
     ),
 )
 def test_content_model_kills_every_admission_guard_mutant(
     tmp_path: Path,
-    action_index: int,
+    action_id: str,
     guard_index: int,
     mutant_name: str,
 ) -> None:
     document = yaml.safe_load(CONTENT_MODEL.read_text(encoding="utf-8"))
-    document["actions"][action_index]["guard"]["args"][guard_index] = {"bool": True}
+    _action(document, action_id)["guard"]["args"][guard_index] = {"bool": True}
     mutant = tmp_path / f"{mutant_name}.yaml"
     mutant.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
     verify = _verify(mutant)
@@ -144,21 +212,143 @@ def test_content_model_kills_every_admission_guard_mutant(
 
 @pytest.mark.skipif(not ESSO_AVAILABLE, reason="ESSO is not available")
 @pytest.mark.parametrize(
-    ("guard_index", "mutant_name"),
+    "action_id",
     (
-        (0, "qualification_parity_guard_removed"),
-        (1, "qualification_application_completeness_guard_removed"),
-        (2, "qualification_global_gap_guard_removed"),
-        (3, "qualification_authority_guard_removed"),
+        "invalidate_tau_source_canonical",
+        "invalidate_tau_commitment",
+        "invalidate_ledger_header_body",
+        "invalidate_ledger_post_state",
+        "invalidate_component_derivation",
+        "invalidate_coverage_partition",
+        "invalidate_registry_binding",
+        "invalidate_source_kinds",
+        "invalidate_content_equality",
     ),
 )
-def test_qualification_model_kills_every_promotion_guard_mutant(
+def test_content_model_freezes_every_admission_premise_after_admission(
     tmp_path: Path,
-    guard_index: int,
+    action_id: str,
+) -> None:
+    document = yaml.safe_load(CONTENT_MODEL.read_text(encoding="utf-8"))
+    _action(document, action_id)["guard"] = {"bool": True}
+    mutant = tmp_path / f"{action_id}_post_admission_mutant.yaml"
+    mutant.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    verify = _verify(mutant)
+    assert verify.returncode != 0, f"semantic mutant survived: {action_id}"
+    report = json.loads(verify.stdout)
+    assert report["ok"] is False
+    assert report["report"]["failed_queries"] > 0
+
+
+@pytest.mark.skipif(not ESSO_AVAILABLE, reason="ESSO is not available")
+def test_intended_projection_and_rejection_actions_are_reachable() -> None:
+    content_states, content_actions = _reachable_states_and_actions(CONTENT_MODEL)
+    assert {
+        "admit_tau_content",
+        "admit_ledger_content",
+        "issue_content_parity",
+    } <= content_actions
+    assert any(state["parity_issued"] == 1 for state in content_states)
+
+    qualification_states, qualification_actions = _reachable_states_and_actions(QUALIFICATION_MODEL)
+    assert {
+        "reject_current_content_receipt",
+        "invalidate_content_parity",
+        "reject_invalid_content_receipt",
+    } <= qualification_actions
+    assert any(
+        state["rejection_issued"] == 1 and state["authority_issued"] == 0
+        for state in qualification_states
+    )
+    assert all(state["authority_issued"] == 0 for state in qualification_states)
+
+
+@pytest.mark.skipif(not ESSO_AVAILABLE, reason="ESSO is not available")
+@pytest.mark.parametrize(
+    ("action_id", "postcondition"),
+    (
+        ("admit_tau_content", lambda state: state["tau_admitted"] == 1),
+        ("admit_ledger_content", lambda state: state["ledger_admitted"] == 1),
+        ("issue_content_parity", lambda state: state["parity_issued"] == 1),
+    ),
+)
+def test_content_progress_update_mutant_is_killed_by_reachability(
+    tmp_path: Path,
+    action_id: str,
+    postcondition: Callable[[dict[str, int]], bool],
+) -> None:
+    document = yaml.safe_load(CONTENT_MODEL.read_text(encoding="utf-8"))
+    update = _action(document, action_id)["updates"][0]
+    update["expr"] = {"const": 0}
+    mutant = tmp_path / f"{action_id}_no_progress.yaml"
+    mutant.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    states, _actions = _reachable_states_and_actions(mutant)
+    assert not any(postcondition(state) for state in states)
+
+
+@pytest.mark.skipif(not ESSO_AVAILABLE, reason="ESSO is not available")
+@pytest.mark.parametrize(
+    "action_id",
+    ("reject_current_content_receipt", "reject_invalid_content_receipt"),
+)
+def test_qualification_rejection_update_mutant_is_killed_by_reachability(
+    tmp_path: Path,
+    action_id: str,
+) -> None:
+    document = yaml.safe_load(QUALIFICATION_MODEL.read_text(encoding="utf-8"))
+    _action(document, action_id)["updates"][0]["expr"] = {"const": 0}
+    mutant = tmp_path / f"{action_id}_no_rejection.yaml"
+    mutant.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    states, _actions = _reachable_states_and_actions(mutant)
+    if action_id == "reject_current_content_receipt":
+        assert not any(
+            state["content_parity_admitted"] == 1 and state["rejection_issued"] == 1
+            for state in states
+        )
+    else:
+        assert not any(
+            state["content_parity_admitted"] == 0 and state["rejection_issued"] == 1
+            for state in states
+        )
+
+
+@pytest.mark.skipif(not ESSO_AVAILABLE, reason="ESSO is not available")
+@pytest.mark.parametrize(
+    "mutant_name",
+    (
+        "authority_enabled_action",
+        "authority_enabled_initially",
+        "current_rejection_replaced_by_authority",
+        "invalid_rejection_replaced_by_authority",
+    ),
+)
+def test_qualification_model_kills_every_authority_issue_mutant(
+    tmp_path: Path,
     mutant_name: str,
 ) -> None:
     document = yaml.safe_load(QUALIFICATION_MODEL.read_text(encoding="utf-8"))
-    document["actions"][0]["guard"]["args"][guard_index] = {"bool": True}
+    if mutant_name == "authority_enabled_action":
+        document["actions"].append(
+            {
+                "id": "issue_authority_mutant",
+                "params": [],
+                "guard": {"bool": True},
+                "updates": [{"var": "authority_issued", "expr": {"const": 1}}],
+                "effects": {},
+            }
+        )
+    elif mutant_name == "authority_enabled_initially":
+        next(item for item in document["init"] if item["var"] == "authority_issued")["expr"] = {
+            "const": 1
+        }
+    else:
+        action_id = (
+            "reject_current_content_receipt"
+            if mutant_name == "current_rejection_replaced_by_authority"
+            else "reject_invalid_content_receipt"
+        )
+        update = _action(document, action_id)["updates"][0]
+        update["var"] = "authority_issued"
     mutant = tmp_path / f"{mutant_name}.yaml"
     mutant.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
     verify = _verify(mutant)

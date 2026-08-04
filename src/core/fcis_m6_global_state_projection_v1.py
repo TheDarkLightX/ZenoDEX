@@ -41,6 +41,19 @@ class M6ApplicationStateComponentV1(str, Enum):
 
 M6_REQUIRED_APPLICATION_STATE_COMPONENTS_V1: Final = tuple(M6ApplicationStateComponentV1)
 
+# Exact subset committed by ``zeno_ledger_v0.dex_state_root_v0``.  A shared
+# Tau/ZenoLedger comparison may cover only these leaves until ZenoLedger gains a
+# sovereign carrier for the remaining application state.
+M6_ZENO_LEDGER_SPOT_COMMITTED_COMPONENTS_V1: Final = (
+    M6ApplicationStateComponentV1.ACCOUNT_BALANCES,
+    M6ApplicationStateComponentV1.AMM_POOLS,
+    M6ApplicationStateComponentV1.LP_OWNERSHIP,
+    M6ApplicationStateComponentV1.LP_MINT_AGE,
+    M6ApplicationStateComponentV1.LP_DURATION_RISK,
+    M6ApplicationStateComponentV1.NONCES,
+    M6ApplicationStateComponentV1.LEGACY_FEE_ACCUMULATOR,
+)
+
 
 class M6GlobalProjectionGapV1(str, Enum):
     """Known state families outside the current application carrier."""
@@ -304,6 +317,7 @@ __all__ = (
     "M6_PROJECTION_AUTHORITY_OBLIGATIONS_V1",
     "M6_REQUIRED_APPLICATION_STATE_COMPONENTS_V1",
     "M6_STRUCTURAL_COVERAGE_WITNESS_SCHEMA_V1",
+    "M6_ZENO_LEDGER_SPOT_COMMITTED_COMPONENTS_V1",
     "M6ApplicationStateComponentV1",
     "M6GlobalProjectionGapV1",
     "M6GlobalStateProjectionRejectCodeV1",

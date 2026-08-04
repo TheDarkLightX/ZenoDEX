@@ -8,6 +8,7 @@ import pytest
 
 from src.core.fcis_m6_global_state_projection_v1 import (
     M6_REQUIRED_APPLICATION_STATE_COMPONENTS_V1,
+    M6_ZENO_LEDGER_SPOT_COMMITTED_COMPONENTS_V1,
     M6ApplicationStateComponentV1,
     M6GlobalStateProjectionRejectCodeV1,
     M6GlobalStateProjectionRejectV1,
@@ -44,6 +45,21 @@ def test_fake_complete_roots_receive_only_non_authoritative_structural_witness()
     result = require_complete_structural_coverage_v1(coverage)
     assert type(result) is M6StructuralCoverageWitnessV1
     assert result.coverage.coverage_root == coverage.coverage_root
+
+
+def test_zeno_ledger_spot_registry_is_an_exact_strict_subset() -> None:
+    assert tuple(component.value for component in M6_ZENO_LEDGER_SPOT_COMMITTED_COMPONENTS_V1) == (
+        "account_balances",
+        "amm_pools",
+        "lp_ownership",
+        "lp_mint_age",
+        "lp_duration_risk",
+        "nonces",
+        "legacy_fee_accumulator",
+    )
+    assert set(M6_ZENO_LEDGER_SPOT_COMMITTED_COMPONENTS_V1) < set(
+        M6_REQUIRED_APPLICATION_STATE_COMPONENTS_V1
+    )
 
 
 def test_missing_component_fails_closed_with_exact_gap_set() -> None:
