@@ -55,3 +55,20 @@ files are the fail-closed task-packet validator and its permanent regression
 test. The following child contains receipt, manifest, report, and public-text
 updates only. It has no functional-core, runtime, datastore, authority,
 migration, deployment, or value-moving changes.
+
+## Dependency-assurance rebind child (2026-08-04)
+
+The dependency-assurance implementation target is commit
+`2c3f21d87d49a31bceb1e74b19077bebcdb3cd2c`, tree
+`16e6a2ee03e9e949431605c493c7ff9bc3aad5c7`, with prior packet head
+`3c2a016e7ae702bddcca47831e15a5d17509010f` as its parent. It raises the
+minimum fixed Python cryptography and MCP versions, refreshes the hash-locked
+Python environments, removes audited UI transitive vulnerabilities, and moves
+the four affected RISC0 locks to patched `ruint` and non-yanked `spin`
+releases. The generated dependency ratchet and FCIS support-root source
+manifest are rebound to the exact implementation tree.
+
+The following child updates only this packet's report, toolchain identity,
+manifest, integrity ledger, and canonical archive. It changes no functional
+core, runtime transition, datastore, authority, migration, deployment, or
+value-moving path.

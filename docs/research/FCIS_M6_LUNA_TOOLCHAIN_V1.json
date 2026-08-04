@@ -2,12 +2,12 @@
   "schema_version": "zenodex.fcis.m6.luna-toolchain.v1",
   "contract": "fcis-m6-durable-retraction-luna-repair-v1",
   "base_commit": "babffa56dcbddc5886487fbb6e62740b15370000",
-  "implementation_target_commit": "ecf26f987c3d6393501fec66ddfc3429fb8634c7",
-  "implementation_target_tree": "fdf154ac143a9f9a9e840fbbf49761190d138920",
+  "implementation_target_commit": "2c3f21d87d49a31bceb1e74b19077bebcdb3cd2c",
+  "implementation_target_tree": "16e6a2ee03e9e949431605c493c7ff9bc3aad5c7",
   "python": {
     "workflow_version": "3.12.3",
     "requirements_lock": "requirements-dev.lock.txt",
-    "requirements_lock_sha256": "8ae2a245984d66a60e7fde6c0504b79b1de8fbcc86027b2a42c4adb7164229d8",
+    "requirements_lock_sha256": "f19d92eb044fdf0b23c50cba4a4d0054d5608579c0c04ab05d93a4a3880cc53e",
     "local_gate_versions": {
       "python": "3.12.3",
       "pytest": "7.4.4",

@@ -171,3 +171,32 @@ receipt archive digest, the branch, and every packet-file digest.
 This repair remains `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED`. It does not add a
 production datastore adapter, runtime mount, authority switch, deployment,
 merge, or value movement.
+
+## Dependency-assurance rebind addendum (2026-08-04)
+
+This addendum binds the current packet to the audited dependency repair:
+
+- Prior packet head: `3c2a016e7ae702bddcca47831e15a5d17509010f`
+- Implementation target commit: `2c3f21d87d49a31bceb1e74b19077bebcdb3cd2c`
+- Implementation target tree: `16e6a2ee03e9e949431605c493c7ff9bc3aad5c7`
+- Implementation target parent: `3c2a016e7ae702bddcca47831e15a5d17509010f`
+- Hash-locked development requirements SHA-256:
+  `f19d92eb044fdf0b23c50cba4a4d0054d5608579c0c04ab05d93a4a3880cc53e`
+
+The implementation target raises the Python cryptography floor to `50.0.0`,
+the MCP floor to `1.28.1`, and resolves the exact locks to cryptography
+`50.0.0` and MCP `1.29.0`. The UI lock removes the retained npm advisories.
+The four affected RISC0 locks use `ruint` `1.20.0` and `spin` `0.9.9`.
+
+Local evidence includes an isolated `--require-hashes` installation with a
+clean `pip check`, clean audits of all three Python locks, a clean UI audit,
+the exact cargo-audit `0.22.1` RISC0 checker, compile checks for all four
+patched RISC0 workspaces under Rust `1.90.0`, 61 focused dependency/profile
+tests, 38 dependency-permission parser tests, and the UI contract, 86-test SDK,
+configuration, lint, and production-build gates. The RISC0 checker continues
+to expose its declared RSA and tracing-subscriber dispositions and
+unmaintained-package warnings; this repair does not broaden those dispositions.
+
+The packet remains `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED`. Dependency repair and
+source rebinding do not establish production durability, mounted no-bypass,
+external destination behavior, or whole-system M6 closure.
