@@ -23,14 +23,23 @@ import json
 import os
 import re
 import shutil
-import tempfile
 import subprocess
-from pathlib import Path
+import sys
+import tempfile
 from dataclasses import dataclass, field
-from typing import List, Dict, Set, Tuple
-
+from pathlib import Path
+from typing import Dict, List, Set, Tuple
 
 ROOT = Path(__file__).resolve().parents[2]
+
+
+def has_tau_error_diagnostic(*texts: str) -> bool:
+    """Use the runner's shared ANSI-safe Tau diagnostic predicate."""
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    from src.integration.tau_runner import has_tau_error_diagnostic as runner_has_error
+
+    return runner_has_error(*texts)
 
 
 @dataclass
@@ -212,8 +221,13 @@ def generate_fix_code(analysis: StateMachineAnalysis) -> str:
     return "\n".join(lines)
 
 
-def generate_truth_table(tau_bin: str, spec_path: Path, inputs: List[Dict], 
-                         timeout: int = 15) -> Tuple[str, List[Dict]]:
+def generate_truth_table(
+    tau_bin: str,
+    spec_path: Path,
+    inputs: List[Dict],
+    timeout: int = 15,
+    experimental: bool = False,
+) -> Tuple[str, List[Dict]]:
     """Generate a truth table by running the spec with given inputs."""
     analysis = analyze_spec_deep(spec_path)
     
@@ -230,8 +244,11 @@ def generate_truth_table(tau_bin: str, spec_path: Path, inputs: List[Dict],
     
     # Run Tau
     try:
+        command = [tau_bin, str(spec_path), "--charvar", "false"]
+        if experimental:
+            command.append("--experimental")
         result = subprocess.run(
-            [tau_bin, str(spec_path), "--charvar", "false", "-x"],
+            command,
             input="\n".join(input_lines),
             capture_output=True,
             text=True,
@@ -241,6 +258,9 @@ def generate_truth_table(tau_bin: str, spec_path: Path, inputs: List[Dict],
         )
     except subprocess.TimeoutExpired:
         return "Error: Tau execution timed out", []
+
+    if result.returncode != 0 or has_tau_error_diagnostic(result.stdout, result.stderr):
+        return "Error: Tau execution reported an error", []
     
     # Parse outputs
     outputs_by_step = {}
@@ -379,7 +399,7 @@ def build_enumeration_inputs(entry: Dict, input_names: List[str], default_max_ca
 
     combos = []
     for combo in itertools.product(*values):
-        combos.append(dict(zip(input_names, combo)))
+        combos.append(dict(zip(input_names, combo, strict=True)))
     return combos, None
 
 
@@ -405,12 +425,20 @@ def build_eval_context(step_idx: int, inputs: List[Dict], outputs_by_step: Dict[
     return context
 
 
-def run_syntax_checks(tau_bin: str, spec_paths: List[Path], timeout: int = 1) -> List[str]:
+def run_syntax_checks(
+    tau_bin: str,
+    spec_paths: List[Path],
+    timeout: int = 1,
+    experimental: bool = False,
+) -> List[str]:
     failures = []
     for path in spec_paths:
         try:
+            command = [tau_bin, str(path), "--severity", "error", "--charvar", "false"]
+            if experimental:
+                command.append("--experimental")
             proc = subprocess.run(
-                [tau_bin, str(path), "--severity", "error", "--charvar", "false", "-x"],
+                command,
                 input="",
                 text=True,
                 errors="replace",
@@ -423,7 +451,7 @@ def run_syntax_checks(tau_bin: str, spec_paths: List[Path], timeout: int = 1) ->
             continue
 
         output = (proc.stdout or "") + (proc.stderr or "")
-        if proc.returncode != 0 or "(Error)" in output:
+        if proc.returncode != 0 or has_tau_error_diagnostic(proc.stdout, proc.stderr):
             first_lines = "\n".join(output.strip().splitlines()[:5]).strip()
             detail = first_lines or "syntax check failed"
             failures.append(f"{path.relative_to(ROOT)}: {detail}")
@@ -644,7 +672,7 @@ def run_trace_tests(tau_bin: str, registry_path: Path):
     return failures
 
 
-def run_tau_repl_trace(tau_bin, spec_path, inputs, expected):
+def run_tau_repl_trace(tau_bin, spec_path, inputs, expected, experimental=False):
     failures = []
     spec_text = spec_path.read_text()
     spec_text = rewrite_ternaries(spec_text)
@@ -682,15 +710,18 @@ def run_tau_repl_trace(tau_bin, spec_path, inputs, expected):
         script_path = tmpdir_path / "trace_repl.tau"
         script_path.write_text(repl_script)
 
+        command = [tau_bin, "--severity", "error", "--charvar", "false"]
+        if experimental:
+            command.append("--experimental")
         proc = subprocess.run(
-            [tau_bin, "--severity", "error", "--charvar", "false"],
+            command,
             input=script_path.read_text(),
             text=True,
             errors="replace",
             capture_output=True,
             cwd=ROOT,
         )
-        if proc.returncode != 0:
+        if proc.returncode != 0 or has_tau_error_diagnostic(proc.stdout, proc.stderr):
             stderr = proc.stderr.strip()
             stdout = proc.stdout.strip()
             detail = stderr or stdout or "unknown error"
@@ -713,7 +744,7 @@ def run_tau_repl_trace(tau_bin, spec_path, inputs, expected):
     return outputs_by_step, failures
 
 
-def run_tau_spec_trace(tau_bin, spec_path, inputs, stream_indices, timeout=2):
+def run_tau_spec_trace(tau_bin, spec_path, inputs, stream_indices, timeout=2, experimental=False):
     failures = []
     input_lines = []
     for step_inputs in inputs:
@@ -724,7 +755,18 @@ def run_tau_spec_trace(tau_bin, spec_path, inputs, stream_indices, timeout=2):
                 return {}, failures
             input_lines.append(str(step_inputs[key]))
 
-    command = ["timeout", str(timeout), tau_bin, str(spec_path), "--severity", "error", "--charvar", "false", "-x"]
+    command = [
+        "timeout",
+        str(timeout),
+        tau_bin,
+        str(spec_path),
+        "--severity",
+        "error",
+        "--charvar",
+        "false",
+    ]
+    if experimental:
+        command.append("--experimental")
     proc = subprocess.run(
         command,
         input="\n".join(input_lines) + "\n",
@@ -734,7 +776,11 @@ def run_tau_spec_trace(tau_bin, spec_path, inputs, stream_indices, timeout=2):
         cwd=ROOT,
     )
 
-    output_text = (proc.stdout or "") + (proc.stderr or "")
+    if proc.returncode != 0 or has_tau_error_diagnostic(proc.stdout, proc.stderr):
+        detail = (proc.stderr or proc.stdout or "unknown error").strip()
+        return {}, [f"tau spec failed: {detail[:400]}"]
+
+    output_text = proc.stdout or ""
     outputs_by_step = {}
     for line in output_text.splitlines():
         for match in re.finditer(r"\bo(\d+)\[(\d+)\]:\w+\s*:=\s*(\d+)", line):

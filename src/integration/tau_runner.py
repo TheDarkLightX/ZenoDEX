@@ -25,6 +25,20 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parents[2]
 
+_ANSI_ESCAPE_RE = re.compile(
+    r"\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07]*(?:\x07|\x1b\\))"
+)
+
+
+def strip_ansi(text: str) -> str:
+    """Remove terminal control sequences before inspecting Tau diagnostics."""
+    return _ANSI_ESCAPE_RE.sub("", str(text))
+
+
+def has_tau_error_diagnostic(*texts: str) -> bool:
+    """Return whether any Tau output contains its canonical ``(Error)`` marker."""
+    return any("(Error)" in strip_ansi(text) for text in texts if text)
+
 
 class TauRunError(RuntimeError):
     def __init__(
@@ -764,6 +778,8 @@ def _extract_outputs_from_text(output_text: str) -> Dict[int, Dict[str, int]]:
         name = match.group(1)
         idx = int(match.group(2))
         value = int(match.group(3))
+        if name in outputs_by_step.get(idx, {}):
+            raise ValueError(f"duplicate Tau output assignment: {name}[{idx}]")
         outputs_by_step.setdefault(idx, {})[name] = value
     return outputs_by_step
 
@@ -949,6 +965,9 @@ def run_tau_spec_steps(
         if rc != 0:
             detail = (err or out or "unknown error").strip()
             raise RuntimeError(f"tau failed (rc={rc}): {detail[:400]}")
+        if has_tau_error_diagnostic(out, err):
+            detail = (err or out or "Tau reported an error diagnostic").strip()
+            raise RuntimeError(f"tau reported an error diagnostic (rc=0): {detail[:400]}")
 
         outputs_by_step: Dict[int, Dict[str, int]] = {}
         missing_outputs: list[str] = []
@@ -1081,6 +1100,15 @@ def run_tau_spec_steps_with_trace(
                 stderr=err,
                 repl_script=repl_script,
             )
+        if has_tau_error_diagnostic(out, err):
+            detail = (err or out or "Tau reported an error diagnostic").strip()
+            raise TauRunError(
+                f"tau reported an error diagnostic (rc=0): {detail[:400]}",
+                rc=rc,
+                stdout=out,
+                stderr=err,
+                repl_script=repl_script,
+            )
 
         outputs_by_step: Dict[int, Dict[str, int]] = {}
         missing_outputs: list[str] = []
@@ -1151,7 +1179,7 @@ def run_tau_spec_steps_spec_mode(
     retry_on_timeout: bool = True,
 ) -> Dict[int, Dict[str, int]]:
     """
-    Run a Tau spec by invoking Tau in "spec mode" (`tau <file> -x`) and parse stdout.
+    Run a Tau spec by invoking Tau in file mode (`tau <file>`) and parse stdout.
 
     This is useful for trace analysis when specs are known to be compatible with
     Tau's file-runner. We normalize the spec text into a temp file to avoid
@@ -1258,7 +1286,7 @@ def run_tau_spec_steps_spec_mode_with_trace(
     if severity not in {"trace", "debug", "info", "error"}:
         raise ValueError(f"invalid severity: {severity!r}")
 
-    # Tau's `-x` runner is interactive: after consuming the requested values for the
+    # Tau's file runner is interactive: after consuming the requested values for the
     # last step, it will prompt again. Sending a final blank line terminates cleanly.
     input_text = "\n".join(lines) + "\n\n"
 
@@ -1270,7 +1298,7 @@ def run_tau_spec_steps_spec_mode_with_trace(
         cmd = [tau_bin, str(tmp_spec_path)]
         if experimental:
             cmd.append("--experimental")
-        cmd += ["--severity", severity, "--charvar", "false", "-x"]
+        cmd += ["--severity", severity, "--charvar", "false"]
 
         out_names = sorted(output_streams.keys())
         est_line_bytes = 96
@@ -1296,8 +1324,18 @@ def run_tau_spec_steps_spec_mode_with_trace(
                 max_stderr_bytes=32_000,
             )
 
-            output_text = out + ("\n" + err if err else "")
-            outputs_by_step = _extract_outputs_from_text(output_text)
+            if rc == 0 and has_tau_error_diagnostic(out, err):
+                last_rc = rc
+                last_out = out
+                last_err = err
+                break
+            try:
+                outputs_by_step = _extract_outputs_from_text(out)
+            except ValueError as exc:
+                last_rc = rc
+                last_out = out
+                last_err = str(exc)
+                break
             if rc == 0 and _outputs_complete(
                 outputs_by_step=outputs_by_step,
                 out_names=out_names,
@@ -1312,6 +1350,8 @@ def run_tau_spec_steps_spec_mode_with_trace(
                 break
 
     detail = (last_err or last_out or "unknown error").strip()
+    if last_rc == 0 and has_tau_error_diagnostic(last_out, last_err):
+        detail = f"Tau reported an error diagnostic: {detail}"
     raise TauRunError(
         f"tau failed (rc={last_rc}): {detail[:400]}",
         rc=last_rc,
