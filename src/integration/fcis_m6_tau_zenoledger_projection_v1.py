@@ -36,7 +36,6 @@ from .fcis_m6_projection_receipts_v1 import (
 )
 from .fcis_m6_projection_values_v1 import (
     MAX_M6_APP_STATE_BYTES_V1,
-    M6ApplicationContentV1,
     _build_content_v1,
 )
 from .proof_mining_runtime import (
@@ -111,6 +110,8 @@ class _NormalizedApplicationContentV1:
     canonical_source_bytes: bytes
     source_schema: str
     source_version: int
+    canonical_spot_source_bytes: bytes
+    spot_source_version: int
     spot_state_root: str
     component_roots: tuple[tuple[M6ApplicationStateComponentV1, str], ...]
 
@@ -232,6 +233,8 @@ def _normalize_application_content_v1(app_state: object) -> _NormalizedApplicati
             canonical_source_bytes=canonical,
             source_schema=DEX_SNAPSHOT_SOURCE_SCHEMA_V1,
             source_version=version,
+            canonical_spot_source_bytes=canonical,
+            spot_source_version=version,
             spot_state_root=spot_state_root,
             component_roots=_ordered_component_roots_v1(roots),
         )
@@ -256,6 +259,9 @@ def _normalize_application_content_v1(app_state: object) -> _NormalizedApplicati
                 "Tau serializes a state without optional subsystems as a bare DEX snapshot"
             )
         normalized_dex, roots, spot_state_root = _normalize_dex_snapshot_v1(obj.get("dex_state"))
+        spot_source_version = normalized_dex.get("version")
+        if type(spot_source_version) is not int or spot_source_version <= 0:
+            raise TypeError("DEX snapshot version must be an exact positive integer")
         normalized_proof = _normalize_proof_mining_v1(proof_obj, roots)
         normalized_zusd = _normalize_zusd_v1(zusd_obj, roots)
         normalized_obj = {
@@ -269,6 +275,8 @@ def _normalize_application_content_v1(app_state: object) -> _NormalizedApplicati
             canonical_source_bytes=canonical_json_bytes(normalized_obj),
             source_schema=TAU_APP_STATE_SCHEMA_V1,
             source_version=TAU_APP_STATE_VERSION_V1,
+            canonical_spot_source_bytes=canonical_json_bytes(normalized_dex),
+            spot_source_version=spot_source_version,
             spot_state_root=spot_state_root,
             component_roots=_ordered_component_roots_v1(roots),
         )
@@ -277,9 +285,9 @@ def _normalize_application_content_v1(app_state: object) -> _NormalizedApplicati
     return normalized
 
 
-def _shared_spot_content_from_app_state_v1(
+def _shared_spot_coverage_from_app_state_v1(
     app_state: object,
-) -> tuple[_NormalizedApplicationContentV1, M6ApplicationContentV1]:
+) -> tuple[_NormalizedApplicationContentV1, M6ProjectionCoverageV1]:
     normalized = _normalize_application_content_v1(app_state)
     shared_roots = tuple(
         (component, root)
@@ -299,11 +307,7 @@ def _shared_spot_content_from_app_state_v1(
         covered_components=covered,
         missing_components=missing,
     )
-    content = _build_content_v1(
-        canonical_source_bytes=normalized.canonical_source_bytes,
-        coverage=coverage,
-    )
-    return normalized, content
+    return normalized, coverage
 
 
 def _reject(
@@ -325,7 +329,11 @@ def project_tau_claimed_shared_spot_content_v1(
         app_hash = _sha256_digest(claimed_app_hash, "claimed_app_hash")
         if type(claimed_source_position) is not int or claimed_source_position < 0:
             raise TypeError("claimed_source_position must be exact and nonnegative")
-        normalized, content_obj = _shared_spot_content_from_app_state_v1(app_state)
+        normalized, coverage = _shared_spot_coverage_from_app_state_v1(app_state)
+        content_obj = _build_content_v1(
+            canonical_source_bytes=normalized.canonical_source_bytes,
+            coverage=coverage,
+        )
     except _NonCanonicalSourceError:
         return _reject(
             M6GlobalStateProjectionRejectCodeV1.NON_CANONICAL_SOURCE,
@@ -370,7 +378,11 @@ def project_zeno_ledger_header_shared_spot_content_v1(
         return _reject(M6GlobalStateProjectionRejectCodeV1.WRONG_EXACT_TYPE, "zeno_ledger")
     try:
         validate_header_body_roots_v0(header, body)
-        normalized, content_obj = _shared_spot_content_from_app_state_v1(app_state)
+        normalized, coverage = _shared_spot_coverage_from_app_state_v1(app_state)
+        content_obj = _build_content_v1(
+            canonical_source_bytes=normalized.canonical_spot_source_bytes,
+            coverage=coverage,
+        )
         source_commitment_root = canonical_header_hash_v0(header)
         source_position = header["height"]
         chain_id = header["chain_id"]
@@ -401,8 +413,8 @@ def project_zeno_ledger_header_shared_spot_content_v1(
     return _build_observation_v1(
         source=M6ProjectionSourceDescriptorV1(
             source_kind=M6ProjectionSourceKindV1.ZENO_LEDGER_HEADER_STATE_COMMITMENT,
-            source_schema=normalized.source_schema,
-            source_version=normalized.source_version,
+            source_schema=DEX_SNAPSHOT_SOURCE_SCHEMA_V1,
+            source_version=normalized.spot_source_version,
             source_state_root=normalized.spot_state_root,
             source_commitment_root=source_commitment_root,
             source_chain_id=chain_id,

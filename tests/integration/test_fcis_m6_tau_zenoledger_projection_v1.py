@@ -36,6 +36,7 @@ from src.integration.fcis_m6_tau_zenoledger_projection_v1 import (
     DEX_SNAPSHOT_SOURCE_SCHEMA_V1,
     M6_DEX_SNAPSHOT_FIELD_COMPONENTS_V1,
     M6_DEX_SNAPSHOT_REPRESENTATION_ONLY_FIELDS_V1,
+    TAU_APP_STATE_SCHEMA_V1,
     project_tau_claimed_shared_spot_content_v1,
     project_zeno_ledger_header_shared_spot_content_v1,
 )
@@ -248,6 +249,11 @@ def test_given_same_spot_content_when_two_structural_commitments_compare_then_re
     assert type(parity) is M6ProjectionContentParityReceiptV1
     assert tau.source_kind is M6ProjectionSourceKindV1.TAU_CLAIMED_VIEW
     assert ledger.source_kind is M6ProjectionSourceKindV1.ZENO_LEDGER_HEADER_STATE_COMMITMENT
+    assert tau.source_schema == TAU_APP_STATE_SCHEMA_V1
+    assert ledger.source_schema == DEX_SNAPSHOT_SOURCE_SCHEMA_V1
+    assert tau.content.canonical_source_bytes == canonical_json_bytes(app_state)
+    assert ledger.content.canonical_source_bytes == canonical_json_bytes(app_state["dex_state"])
+    assert tau.content.canonical_source_bytes != ledger.content.canonical_source_bytes
     assert tau.claimed_source_position == 999_999
     assert ledger.claimed_source_position == 7
     assert parity.global_gaps == M6_KNOWN_GLOBAL_PROJECTION_GAPS_V1
