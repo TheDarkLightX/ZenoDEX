@@ -149,7 +149,8 @@ eligibility receipt: 57e88f7ce9bfbba52f0417e733eda345f7495a2c6f6d4a4732a66b619e8
 J07 V2 token:        a9cb54f3ac9a370c2ae9fc2592dc422978d8e9bd5b463814faa48ecbfa19ef7e
 ```
 
-The current V2/V3 Tau vector is:
+The current V2/V3 Tau vector is generated and checked at
+`docs/research/m6_tasks/TASK_J07_TAU_WRITER_AUTHORITY_V2.json`:
 
 ```text
 source schema root: dbf4ce4860bf8c45f64f65708985cd9477a854d97268c617a8d2948570f0e7bc
@@ -162,12 +163,13 @@ J07 V3 token:        e52dcd85a16d3899f57124a1beec8f2c6e263b4b66b435af15067620853
 ```
 
 Verifier selection, authentication, and policy currentness remain
-imperative-shell premises. The module registries provide nominal in-process
-provenance and tamper detection. They do not prove cryptographic verifier
-identity, store currentness, deployed inventory completeness, or no-bypass. A
-mounted design still needs the admission-context verifier selected from a
-state-bound verifier registry in the promotion subject and the unique
-publication capability.
+imperative-shell premises. The admission and token registries each reject at
+8,192 live values and reclaim their mutation snapshots when values become
+unreachable. They provide nominal in-process provenance and tamper detection.
+They do not prove cryptographic verifier identity, store currentness, deployed
+inventory completeness, or no-bypass. A mounted design still needs the
+admission-context verifier selected from a state-bound verifier registry in the
+promotion subject and the unique publication capability.
 
 The Python construction boundary provides nominal in-process provenance and
 tamper detection. It is not cryptographic authenticity. Selection and
@@ -315,12 +317,12 @@ The focused ZenoDEX suite passed:
 The writer-eligibility continuation additionally passed:
 
 ```text
-6 substrate-neutral eligibility tests
-19 J07 switch, issuance, use, mutation, and property tests
-7 Tau-to-J07 refinement and canonical-vector tests
-78 related focused tests passed; 14 exact-Tau parity cases skipped because the
-pinned Tau binary was unavailable in this sparse worktree
-Ruff, formatting, targeted strict mypy, Python compilation, and the J07 vector checker
+66 J07 switch, admission, issuance, use, mutation, property, eligibility, and
+Tau-to-J07 canonical-vector tests passed
+130 adjacent F05/F06/J05/J07/J08/Tau-profile/projection tests passed; 2
+exact-Tau cases skipped because the pinned Tau binary was unavailable
+both generated J07 vectors and both independent checkers passed
+Ruff, formatting, targeted strict mypy, Python compilation, and JSON parsing
 security red-flag scan: 0 high, 0 medium, 0 low findings
 ```
 
