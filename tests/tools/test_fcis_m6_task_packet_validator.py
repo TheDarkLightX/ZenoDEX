@@ -84,7 +84,7 @@ def test_report_and_evidence_identity_mismatch_is_rejected() -> None:
         validator._validate_report_bindings(report_identities, evidence)
 
     evidence["source_head_sha"] = report_identities["SOURCE_HEAD_SHA"]
-    evidence["results"]["dependency_refresh_commit"] = _git("rev-parse", "HEAD")
+    evidence["results"]["implementation_commit"] = _git("rev-parse", "HEAD")
     with pytest.raises(SystemExit, match="report/evidence identity mismatch"):
         validator._validate_report_bindings(report_identities, evidence)
 
