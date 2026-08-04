@@ -27,10 +27,6 @@ from src.core.fcis_m6_j06_quiescence import (
     J06QuiescenceGateV1,
     is_verified_quiescence_gate_v1,
 )
-from src.core.fcis_m6_writer_profile_eligibility_v1 import (
-    WriterProfileEligibilityReceiptV1,
-    is_verified_writer_profile_eligibility_receipt_v1,
-)
 from src.state.canonical import canonical_json_bytes
 
 FCIS_M6_J07_SCHEMA_V1: Final = "zenodex/fcis/m6/j07/authority-switch/v1"
@@ -75,6 +71,7 @@ class J07RejectCodeV1(str, Enum):
     TOKEN_REJECTED = "token_rejected"
     ELIGIBILITY_REJECTED = "eligibility_rejected"
     ELIGIBILITY_CONTEXT_MISMATCH = "eligibility_context_mismatch"
+    WRITER_ADMISSION_CONTEXT_REQUIRED = "writer_admission_context_required"
     STALE_TOKEN = "stale_token"
     WRITER_PROFILE_DISABLED = "writer_profile_disabled"
 
@@ -623,78 +620,16 @@ def _mint_writer_token_v1(
     raise J07Error("writer-profile eligibility receipt is required; V1 minting is closed")
 
 
-def _eligibility_context_mismatch(
-    context: J07AuthorityContextV1,
-    receipt: WriterProfileEligibilityReceiptV1,
-) -> tuple[str, ...] | None:
-    claim = receipt.claim
-    comparisons = (
-        ("context", claim.authority_context_root, context.context_root),
-        ("state", claim.current_state_root, context.current_state_root),
-        ("deployment", claim.deployment_config_root, context.deployment_config_root),
-        ("epoch", claim.authority_epoch, context.epoch_index),
-        ("authority", claim.authority_state_root, context.authority_state_root),
-        ("head", claim.expected_head_root, context.current_head_root),
-        ("snapshot", claim.expected_snapshot_root, context.current_snapshot_root),
-    )
-    for name, observed, expected in comparisons:
-        if observed != expected:
-            return ("eligibility", name)
-    return None
-
-
 def issue_writer_token_v2(
     context: object,
     eligibility_receipt: object,
 ) -> J07WriterTokenV2 | J07WriterRejectV1:
-    """Issue a token only from verified eligibility bound to current J07 state."""
+    """Fail closed because V2 omitted expected policy and verifier context."""
 
-    if not is_verified_authority_context_v1(context):
-        return J07WriterRejectV1(J07RejectCodeV1.CONTEXT_REJECTED, ("context",))
-    exact_context = cast(J07AuthorityContextV1, context)
-    if not is_verified_writer_profile_eligibility_receipt_v1(eligibility_receipt):
-        return J07WriterRejectV1(
-            J07RejectCodeV1.ELIGIBILITY_REJECTED,
-            ("eligibility",),
-        )
-    exact_receipt = cast(WriterProfileEligibilityReceiptV1, eligibility_receipt)
-    mismatch = _eligibility_context_mismatch(exact_context, exact_receipt)
-    if mismatch is not None:
-        return J07WriterRejectV1(J07RejectCodeV1.ELIGIBILITY_CONTEXT_MISMATCH, mismatch)
-    claim = exact_receipt.claim
-    if claim.writer_profile_root not in exact_context.allowed_writer_roots:
-        return J07WriterRejectV1(
-            J07RejectCodeV1.WRITER_PROFILE_DISABLED,
-            ("eligibility", "writer_profile"),
-        )
-    body = {
-        "schema": FCIS_M6_J07_TOKEN_SCHEMA_V2,
-        "context_root": exact_context.context_root,
-        "eligibility_receipt_root": exact_receipt.receipt_root,
-        "promotion_subject_root": claim.promotion_subject_root,
-        "eligibility_policy_root": claim.eligibility_policy_root,
-        "writer_profile_root": claim.writer_profile_root,
-        "authority_epoch_index": exact_context.epoch_index,
-        "authority_state_root": exact_context.authority_state_root,
-        "expected_head_root": exact_context.current_head_root,
-        "expected_snapshot_root": exact_context.current_snapshot_root,
-        "migration_token_root": exact_context.migration_token_root,
-    }
-    return _register_token_v2(
-        J07WriterTokenV2(
-            context_root=exact_context.context_root,
-            eligibility_receipt_root=exact_receipt.receipt_root,
-            promotion_subject_root=claim.promotion_subject_root,
-            eligibility_policy_root=claim.eligibility_policy_root,
-            writer_profile_root=claim.writer_profile_root,
-            authority_epoch_index=exact_context.epoch_index,
-            authority_state_root=exact_context.authority_state_root,
-            expected_head_root=exact_context.current_head_root,
-            expected_snapshot_root=exact_context.current_snapshot_root,
-            migration_token_root=exact_context.migration_token_root,
-            token_root=_derive("zenodex/fcis/m6/j07/writer-token/v2", body),
-            _construction_token=_J07_TOKEN_CONSTRUCTION_TOKEN_V2,
-        )
+    del context, eligibility_receipt
+    return J07WriterRejectV1(
+        J07RejectCodeV1.WRITER_ADMISSION_CONTEXT_REQUIRED,
+        ("writer_admission_context",),
     )
 
 
@@ -753,65 +688,12 @@ def authorize_writer_v2(
     token: object,
     eligibility_receipt: object,
 ) -> J07WriterDecisionV2:
-    """Admit a writer after fresh token, eligibility, and context validation."""
+    """Fail closed because V2 omitted expected policy and verifier context."""
 
-    if not is_verified_authority_context_v1(context):
-        return J07WriterRejectV1(J07RejectCodeV1.CONTEXT_REJECTED, ("context",))
-    exact_context = cast(J07AuthorityContextV1, context)
-    if not is_verified_writer_token_v2(token):
-        return J07WriterRejectV1(J07RejectCodeV1.TOKEN_REJECTED, ("token",))
-    exact_token = cast(J07WriterTokenV2, token)
-    if not is_verified_writer_profile_eligibility_receipt_v1(eligibility_receipt):
-        return J07WriterRejectV1(
-            J07RejectCodeV1.ELIGIBILITY_REJECTED,
-            ("eligibility",),
-        )
-    exact_receipt = cast(WriterProfileEligibilityReceiptV1, eligibility_receipt)
-    claim = exact_receipt.claim
-    eligibility_token_fields = (
-        ("receipt", exact_token.eligibility_receipt_root, exact_receipt.receipt_root),
-        ("promotion", exact_token.promotion_subject_root, claim.promotion_subject_root),
-        ("policy", exact_token.eligibility_policy_root, claim.eligibility_policy_root),
-        ("writer_profile", exact_token.writer_profile_root, claim.writer_profile_root),
-    )
-    for name, observed, expected in eligibility_token_fields:
-        if observed != expected:
-            return J07WriterRejectV1(
-                J07RejectCodeV1.ELIGIBILITY_CONTEXT_MISMATCH,
-                ("token", "eligibility", name),
-            )
-    if exact_token.context_root != exact_context.context_root:
-        return J07WriterRejectV1(J07RejectCodeV1.STALE_TOKEN, ("token", "context"))
-    if exact_token.authority_epoch_index != exact_context.epoch_index:
-        return J07WriterRejectV1(J07RejectCodeV1.STALE_TOKEN, ("token", "epoch"))
-    if exact_token.authority_state_root != exact_context.authority_state_root:
-        return J07WriterRejectV1(J07RejectCodeV1.STALE_TOKEN, ("token", "authority"))
-    if exact_token.expected_head_root != exact_context.current_head_root:
-        return J07WriterRejectV1(J07RejectCodeV1.STALE_TOKEN, ("token", "head"))
-    if exact_token.expected_snapshot_root != exact_context.current_snapshot_root:
-        return J07WriterRejectV1(J07RejectCodeV1.STALE_TOKEN, ("token", "snapshot"))
-    if exact_token.migration_token_root != exact_context.migration_token_root:
-        return J07WriterRejectV1(J07RejectCodeV1.STALE_TOKEN, ("token", "migration"))
-    mismatch = _eligibility_context_mismatch(exact_context, exact_receipt)
-    if mismatch is not None:
-        return J07WriterRejectV1(J07RejectCodeV1.ELIGIBILITY_CONTEXT_MISMATCH, mismatch)
-    if exact_token.writer_profile_root not in exact_context.allowed_writer_roots:
-        return J07WriterRejectV1(
-            J07RejectCodeV1.WRITER_PROFILE_DISABLED,
-            ("token", "writer_profile"),
-        )
-    return J07WriterAcceptedV2(
-        context_root=exact_context.context_root,
-        token_root=exact_token.token_root,
-        eligibility_receipt_root=exact_receipt.receipt_root,
-        promotion_subject_root=claim.promotion_subject_root,
-        eligibility_policy_root=claim.eligibility_policy_root,
-        writer_profile_root=exact_token.writer_profile_root,
-        authority_epoch_index=exact_context.epoch_index,
-        authority_state_root=exact_context.authority_state_root,
-        head_root=exact_context.current_head_root,
-        snapshot_root=exact_context.current_snapshot_root,
-        _construction_token=_J07_DECISION_CONSTRUCTION_TOKEN_V1,
+    del context, token, eligibility_receipt
+    return J07WriterRejectV1(
+        J07RejectCodeV1.WRITER_ADMISSION_CONTEXT_REQUIRED,
+        ("writer_admission_context",),
     )
 
 

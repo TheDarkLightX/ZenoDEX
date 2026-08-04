@@ -41,12 +41,19 @@ from src.core.fcis_m6_j07_authority_switch import (
     J07StateKindV1,
     J07SwitchRejectV1,
     J07SwitchSuccessV1,
-    J07WriterAcceptedV2,
-    J07WriterRejectV1,
-    J07WriterTokenV2,
-    authorize_writer_v2,
-    issue_writer_token_v2,
     switch_authority_v1,
+)
+from src.core.fcis_m6_j07_writer_admission_v2 import (
+    J07WriterAdmissionContextV2,
+    J07WriterAdmissionRejectCodeV2,
+    J07WriterAdmissionRejectV2,
+    verify_j07_writer_admission_context_v2,
+)
+from src.core.fcis_m6_j07_writer_token_v3 import (
+    J07WriterAcceptedV3,
+    J07WriterTokenV3,
+    authorize_writer_v3,
+    issue_writer_token_v3,
 )
 from src.core.fcis_m6_writer_profile_eligibility_v1 import (
     WriterProfileEligibilityReceiptV1,
@@ -74,6 +81,13 @@ class AcceptingWriterEligibilityVerifier:
         _claim: object,
         **_kwargs: object,
     ) -> object:
+        return True
+
+
+class AcceptingWriterAdmissionVerifier:
+    """Deterministic policy-context adapter with no production authority."""
+
+    def verify_j07_writer_admission_context(self, **_kwargs: object) -> object:
         return True
 
 
@@ -111,6 +125,32 @@ def build_writer_eligibility(
     )
     if type(result) is not WriterProfileEligibilityReceiptV1:
         raise AssertionError("writer-eligibility fixture did not verify")
+    return result
+
+
+def build_writer_admission_context(
+    context: J07AuthorityContextV1,
+    *,
+    promotion_subject_root: str | None = None,
+    source_schema_root: str | None = None,
+    eligibility_policy_root: str | None = None,
+    eligibility_verifier_profile_root: str | None = None,
+) -> J07WriterAdmissionContextV2:
+    """Build one test context from policy facts frozen before eligibility."""
+
+    result = verify_j07_writer_admission_context_v2(
+        authority_context=context,
+        promotion_subject_root=promotion_subject_root or _root("promotion-subject"),
+        source_schema_root=source_schema_root or _root("writer-eligibility/source-schema"),
+        eligibility_policy_root=(eligibility_policy_root or _root("writer-eligibility/policy")),
+        eligibility_verifier_profile_root=(
+            eligibility_verifier_profile_root or _root("writer-eligibility/verifier-profile")
+        ),
+        verification_evidence_root=_root(f"writer-admission/evidence/{context.context_root}"),
+        verifier_adapter=AcceptingWriterAdmissionVerifier(),
+    )
+    if type(result) is not J07WriterAdmissionContextV2:
+        raise AssertionError("writer-admission context fixture did not verify")
     return result
 
 
@@ -343,26 +383,43 @@ def run_checks(*, check_vector: bool = True) -> dict[str, object]:
     if verifier.calls != 2:
         raise AssertionError("J07 did not perform the F06 issue and use checks")
 
+    target_admission = build_writer_admission_context(post)
     target_eligibility = build_writer_eligibility(post, gate.target_profile_root)
-    target_token = issue_writer_token_v2(post, target_eligibility)
-    if type(target_token) is not J07WriterTokenV2:
+    target_token = issue_writer_token_v3(post, target_admission, target_eligibility)
+    if type(target_token) is not J07WriterTokenV3:
         raise AssertionError("fresh target eligibility did not issue a writer token")
-    stale = authorize_writer_v2(pre, target_token, target_eligibility)
-    if type(stale) is not J07WriterRejectV1:
+    stale = authorize_writer_v3(pre, target_admission, target_token, target_eligibility)
+    if type(stale) is not J07WriterAdmissionRejectV2:
         raise AssertionError("J07 stale-token result is not typed")
-    if stale.code is not J07RejectCodeV1.STALE_TOKEN:
+    if stale.code is not J07WriterAdmissionRejectCodeV2.ELIGIBILITY_CONTEXT_MISMATCH:
         raise AssertionError("target token was not stale outside its exact context")
-    accepted = authorize_writer_v2(post, target_token, target_eligibility)
-    if type(accepted) is not J07WriterAcceptedV2:
+    accepted = authorize_writer_v3(
+        post,
+        target_admission,
+        target_token,
+        target_eligibility,
+    )
+    if type(accepted) is not J07WriterAcceptedV3:
         raise AssertionError("fresh target token was not accepted after switch")
     if accepted.writer_profile_root != gate.target_profile_root:
         raise AssertionError("accepted writer is not the target profile")
 
+    crossed_policy = build_writer_eligibility(
+        post,
+        gate.target_profile_root,
+        eligibility_policy_root=_root("writer-eligibility/foreign-policy"),
+    )
+    crossed = issue_writer_token_v3(post, target_admission, crossed_policy)
+    if type(crossed) is not J07WriterAdmissionRejectV2:
+        raise AssertionError("crossed-policy writer issue result is not typed")
+    if crossed.code is not J07WriterAdmissionRejectCodeV2.ELIGIBILITY_CONTEXT_MISMATCH:
+        raise AssertionError("J07 issued a token under a crossed eligibility policy")
+
     legacy_eligibility = build_writer_eligibility(post, gate.legacy_profile_root)
-    disabled = issue_writer_token_v2(post, legacy_eligibility)
-    if type(disabled) is not J07WriterRejectV1:
+    disabled = issue_writer_token_v3(post, target_admission, legacy_eligibility)
+    if type(disabled) is not J07WriterAdmissionRejectV2:
         raise AssertionError("disabled writer issue result is not typed")
-    if disabled.code is not J07RejectCodeV1.WRITER_PROFILE_DISABLED:
+    if disabled.code is not J07WriterAdmissionRejectCodeV2.WRITER_PROFILE_DISABLED:
         raise AssertionError("post-switch state issued a legacy writer token")
 
     forged_gate = object.__new__(J06QuiescenceGateV1)
@@ -417,10 +474,15 @@ def run_checks(*, check_vector: bool = True) -> dict[str, object]:
 
     mutated_target = target_token
     object.__setattr__(mutated_target, "writer_profile_root", gate.legacy_profile_root)
-    mutated_result = authorize_writer_v2(post, mutated_target, target_eligibility)
-    if type(mutated_result) is not J07WriterRejectV1:
+    mutated_result = authorize_writer_v3(
+        post,
+        target_admission,
+        mutated_target,
+        target_eligibility,
+    )
+    if type(mutated_result) is not J07WriterAdmissionRejectV2:
         raise AssertionError("mutated writer result is not typed")
-    if mutated_result.code is not J07RejectCodeV1.TOKEN_REJECTED:
+    if mutated_result.code is not J07WriterAdmissionRejectCodeV2.TOKEN_REJECTED:
         raise AssertionError("J07 accepted a mutated registered writer token")
 
     rejecting_verifier = RejectingVerifier()

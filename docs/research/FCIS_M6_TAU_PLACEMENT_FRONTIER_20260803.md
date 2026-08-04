@@ -117,22 +117,28 @@ a shell-selected verifier with every expected field and requires exact `True`
 before creating a registered receipt. The receipt and its complete claim are
 revalidated at token issue and use.
 
-The J07 writer-token language is now version 2. A token commits the eligibility
-receipt, promotion subject, eligibility policy, writer profile, exact J07
-context, epoch, authority state, head, snapshot, and migration-token root. The
-old context-plus-profile V1 mint function remains only as a fail-closed
-compatibility tombstone. It always rejects with an eligibility-required error.
-No token is produced for a disabled writer, an unregistered receipt, claim data
-without verifier provenance, crossed eligibility, or stale authority context.
+The live research token language is version 3. It consumes a registered
+`J07WriterAdmissionContextV2` that independently fixes the promotion subject,
+eligible source schema, eligibility policy, selected eligibility verifier, and
+the exact J07 authority-context root. A token commits that context plus the
+eligibility receipt, writer profile, epoch, authority state, head, snapshot,
+and migration-token root. Issue and use repeat all pointwise bindings.
 
-`verify_tau_j07_writer_profile_eligibility_v1` refines the existing registered
-Tau profile receipt and Tau writer binding into the neutral eligibility
-language. It requires a usable Tau profile, exact source/binding agreement,
-the active and target J07 writer, and matching state, deployment, and epoch.
-It produces the neutral receipt only after the selected eligibility verifier
-accepts. J07 does not import Tau-specific types.
+The old context-plus-profile V1 mint and policy-open V2 issue/use paths are
+fail-closed compatibility tombstones. The V2 defect was that any registered
+eligibility receipt bound to the same state and writer could introduce its own
+policy and verifier roots. V3 rejects crossed promotion subjects, source
+schemas, policies, verifiers, receipts, or state coordinates before a token is
+created.
 
-The retained canonical vector is:
+`verify_tau_j07_writer_profile_eligibility_v2` consumes the registered Tau
+profile receipt, Tau writer binding, current J07 context, and the independently
+verified admission context. It derives policy and verifier roots from the
+admission context; callers no longer provide them to the live refinement
+function. The V1 Tau refinement is closed because it accepted those roots as
+loose caller arguments. J07 remains substrate-neutral and imports no Tau types.
+
+The historical V1/V2 vector remains useful for byte interpretation:
 
 ```text
 source schema root: 931312071fb68f1bc102ba264e3a1f281b51ea64a5654c4ff02d04143d7d399a
@@ -143,12 +149,25 @@ eligibility receipt: 57e88f7ce9bfbba52f0417e733eda345f7495a2c6f6d4a4732a66b619e8
 J07 V2 token:        a9cb54f3ac9a370c2ae9fc2592dc422978d8e9bd5b463814faa48ecbfa19ef7e
 ```
 
-Verifier selection and authentication remain imperative-shell premises. The
-module registries provide nominal in-process provenance and tamper detection.
-They do not prove cryptographic verifier identity, store currentness, deployed
-inventory completeness, or no-bypass. A mounted design still needs one
-state-bound eligibility-policy/verifier registry in the promotion subject and
-the unique publication capability.
+The current V2/V3 Tau vector is:
+
+```text
+source schema root: dbf4ce4860bf8c45f64f65708985cd9477a854d97268c617a8d2948570f0e7bc
+Tau profile receipt: 1519c5bf5336cd8f9e6731a76beffedaa6283b810f401fef8094442e85a291a1
+Tau writer binding:  6968f4cf61abe60c4b95426907640a2a69d0f7877f354f34a537c4bf1b7be1ff
+admission context:   e3f9c91512911fb81bd2cb4d2efe8a7904b473883230ffc003805a9d16ca0353
+eligibility claim:   bc550e5d4134bc2fe4dde31e84a650769e89efc0ac5a1a0a0b9591caa88c910f
+eligibility receipt: f462b80e4557fcc33c15df19ae6149eb9b0a160b4f872335e485500da3ed9191
+J07 V3 token:        e52dcd85a16d3899f57124a1beec8f2c6e263b4b66b435af150676208538ebd0
+```
+
+Verifier selection, authentication, and policy currentness remain
+imperative-shell premises. The module registries provide nominal in-process
+provenance and tamper detection. They do not prove cryptographic verifier
+identity, store currentness, deployed inventory completeness, or no-bypass. A
+mounted design still needs the admission-context verifier selected from a
+state-bound verifier registry in the promotion subject and the unique
+publication capability.
 
 The Python construction boundary provides nominal in-process provenance and
 tamper detection. It is not cryptographic authenticity. Selection and

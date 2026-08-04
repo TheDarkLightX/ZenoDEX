@@ -1,11 +1,12 @@
 """Tau-to-J07 refinement for substrate-neutral writer eligibility.
 
-The adapter consumes one registered Tau profile receipt, its exact writer
-binding, and the current registered J07 authority context.  It projects those
-sources into the generic writer-profile eligibility claim and delegates the
-final decision to a shell-selected verifier.  The result is research evidence,
-not a writer token, commit capability, deployment mount, or permission to move
-value.
+The live V2 adapter consumes one registered Tau profile receipt, its exact
+writer binding, the current registered J07 authority context, and a separately
+verified writer-admission context fixing policy and verifier identity.  It
+projects those sources into the generic writer-profile eligibility claim and
+delegates the final decision to a shell-selected verifier.  The result is
+research evidence, not a writer token, commit capability, deployment mount, or
+permission to move value.  V1 remains a fail-closed compatibility surface.
 """
 
 from __future__ import annotations
@@ -20,7 +21,13 @@ from ..core.fcis_m6_j07_authority_switch import (
     J07AuthorityContextV1,
     is_verified_authority_context_v1,
 )
+from ..core.fcis_m6_j07_writer_admission_v2 import (
+    FCIS_M6_J07_WRITER_ADMISSION_CONTEXT_SCHEMA_V2,
+    J07WriterAdmissionContextV2,
+    is_verified_j07_writer_admission_context_v2,
+)
 from ..core.fcis_m6_writer_profile_eligibility_v1 import (
+    WriterProfileEligibilityClaimV1,
     WriterProfileEligibilityReceiptV1,
     WriterProfileEligibilityVerifierAdapterV1,
     build_writer_profile_eligibility_claim_v1,
@@ -39,6 +46,9 @@ from .fcis_m6_tau_profile_runtime_v1 import (
 TAU_J07_WRITER_ELIGIBILITY_ADAPTER_SCHEMA_V1: Final = (
     "zenodex/fcis/m6/tau-j07-writer-eligibility-adapter/v1"
 )
+TAU_J07_WRITER_ELIGIBILITY_ADAPTER_SCHEMA_V2: Final = (
+    "zenodex/fcis/m6/tau-j07-writer-eligibility-adapter/v2"
+)
 _HEX_DIGITS = frozenset("0123456789abcdef")
 
 
@@ -55,6 +65,9 @@ class TauJ07WriterEligibilityRejectCodeV1(str, Enum):
     AUTHORITY_CONTEXT_REJECTED = "authority_context_rejected"
     SOURCE_BINDING_MISMATCH = "source_binding_mismatch"
     J07_CONTEXT_MISMATCH = "j07_context_mismatch"
+    WRITER_ADMISSION_CONTEXT_REQUIRED = "writer_admission_context_required"
+    WRITER_ADMISSION_CONTEXT_REJECTED = "writer_admission_context_rejected"
+    WRITER_ADMISSION_CONTEXT_MISMATCH = "writer_admission_context_mismatch"
     INVALID_POLICY = "invalid_policy"
     ELIGIBILITY_REJECTED = "eligibility_rejected"
 
@@ -108,6 +121,17 @@ TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V1: Final = _derive(
     },
 )
 
+TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V2: Final = _derive(
+    "zenodex/fcis/m6/tau-j07-writer-eligibility/source-schema/v2",
+    {
+        "adapter_schema": TAU_J07_WRITER_ELIGIBILITY_ADAPTER_SCHEMA_V2,
+        "tau_profile_receipt_schema": TAU_PROFILE_RECEIPT_SCHEMA_V1,
+        "tau_writer_binding_schema": TAU_WRITER_PROFILE_BINDING_SCHEMA_V1,
+        "j07_context_schema": FCIS_M6_J07_CONTEXT_SCHEMA_V1,
+        "writer_admission_context_schema": (FCIS_M6_J07_WRITER_ADMISSION_CONTEXT_SCHEMA_V2),
+    },
+)
+
 
 def _source_mismatch(
     receipt: TauIntegrationProfileReceiptV1,
@@ -154,6 +178,71 @@ TauJ07WriterEligibilityResultV1: TypeAlias = (
 )
 
 
+def _admission_mismatch(
+    receipt: TauIntegrationProfileReceiptV1,
+    context: J07AuthorityContextV1,
+    admission: J07WriterAdmissionContextV2,
+) -> str | None:
+    comparisons = (
+        ("authority_context", admission.authority_context_root, context.context_root),
+        (
+            "promotion_subject",
+            admission.promotion_subject_root,
+            receipt.context.promotion_subject_root,
+        ),
+        (
+            "source_schema",
+            admission.source_schema_root,
+            TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V2,
+        ),
+    )
+    return next(
+        (name for name, observed, expected in comparisons if observed != expected),
+        None,
+    )
+
+
+def _build_tau_eligibility_v2(
+    receipt: TauIntegrationProfileReceiptV1,
+    binding: TauWriterProfileBindingV1,
+    context: J07AuthorityContextV1,
+    admission: J07WriterAdmissionContextV2,
+) -> tuple[WriterProfileEligibilityClaimV1, str, str]:
+    policy_root = _digest(admission.eligibility_policy_root, "eligibility_policy_root")
+    verifier_root = _digest(
+        admission.eligibility_verifier_profile_root,
+        "verifier_profile_root",
+    )
+    claim = build_writer_profile_eligibility_claim_v1(
+        promotion_subject_root=receipt.context.promotion_subject_root,
+        source_schema_root=TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V2,
+        source_receipt_root=receipt.receipt_root,
+        source_binding_root=binding.binding_root,
+        writer_profile_root=binding.writer_profile_root,
+        authority_context_root=context.context_root,
+        current_state_root=context.current_state_root,
+        deployment_config_root=context.deployment_config_root,
+        authority_epoch=context.epoch_index,
+        authority_state_root=context.authority_state_root,
+        expected_head_root=context.current_head_root,
+        expected_snapshot_root=context.current_snapshot_root,
+        eligibility_policy_root=policy_root,
+    )
+    evidence_root = _derive(
+        "zenodex/fcis/m6/tau-j07-writer-eligibility/evidence/v2",
+        {
+            "claim_root": claim.claim_root,
+            "profile_receipt_root": receipt.receipt_root,
+            "writer_binding_root": binding.binding_root,
+            "authority_context_root": context.context_root,
+            "writer_admission_context_root": admission.admission_context_root,
+            "eligibility_policy_root": policy_root,
+            "verifier_profile_root": verifier_root,
+        },
+    )
+    return claim, verifier_root, evidence_root
+
+
 def verify_tau_j07_writer_profile_eligibility_v1(
     *,
     profile_receipt: object,
@@ -163,7 +252,31 @@ def verify_tau_j07_writer_profile_eligibility_v1(
     verifier_profile_root: object,
     verifier_adapter: WriterProfileEligibilityVerifierAdapterV1 | object,
 ) -> TauJ07WriterEligibilityResultV1:
-    """Refine exact Tau evidence into one generic J07 eligibility receipt."""
+    """Fail closed because V1 accepted caller-selected policy coordinates."""
+
+    del (
+        profile_receipt,
+        writer_binding,
+        authority_context,
+        eligibility_policy_root,
+        verifier_profile_root,
+        verifier_adapter,
+    )
+    return _reject(
+        TauJ07WriterEligibilityRejectCodeV1.WRITER_ADMISSION_CONTEXT_REQUIRED,
+        "writer_admission_context",
+    )
+
+
+def verify_tau_j07_writer_profile_eligibility_v2(
+    *,
+    profile_receipt: object,
+    writer_binding: object,
+    authority_context: object,
+    writer_admission_context: object,
+    verifier_adapter: WriterProfileEligibilityVerifierAdapterV1 | object,
+) -> TauJ07WriterEligibilityResultV1:
+    """Refine Tau evidence under one independently verified admission context."""
 
     if not is_verified_tau_integration_profile_receipt_v1(profile_receipt):
         return _reject(
@@ -188,6 +301,12 @@ def verify_tau_j07_writer_profile_eligibility_v1(
             "authority_context",
         )
     context = cast(J07AuthorityContextV1, authority_context)
+    if not is_verified_j07_writer_admission_context_v2(writer_admission_context):
+        return _reject(
+            TauJ07WriterEligibilityRejectCodeV1.WRITER_ADMISSION_CONTEXT_REJECTED,
+            "writer_admission_context",
+        )
+    admission = cast(J07WriterAdmissionContextV2, writer_admission_context)
     source_mismatch = _source_mismatch(receipt, binding)
     if source_mismatch is not None:
         return _reject(
@@ -200,37 +319,22 @@ def verify_tau_j07_writer_profile_eligibility_v1(
             TauJ07WriterEligibilityRejectCodeV1.J07_CONTEXT_MISMATCH,
             *context_mismatch,
         )
+    admission_field = _admission_mismatch(receipt, context, admission)
+    if admission_field is not None:
+        return _reject(
+            TauJ07WriterEligibilityRejectCodeV1.WRITER_ADMISSION_CONTEXT_MISMATCH,
+            "writer_admission_context",
+            admission_field,
+        )
     try:
-        policy_root = _digest(eligibility_policy_root, "eligibility_policy_root")
-        selected_verifier_root = _digest(verifier_profile_root, "verifier_profile_root")
-        claim = build_writer_profile_eligibility_claim_v1(
-            promotion_subject_root=receipt.context.promotion_subject_root,
-            source_schema_root=TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V1,
-            source_receipt_root=receipt.receipt_root,
-            source_binding_root=binding.binding_root,
-            writer_profile_root=binding.writer_profile_root,
-            authority_context_root=context.context_root,
-            current_state_root=context.current_state_root,
-            deployment_config_root=context.deployment_config_root,
-            authority_epoch=context.epoch_index,
-            authority_state_root=context.authority_state_root,
-            expected_head_root=context.current_head_root,
-            expected_snapshot_root=context.current_snapshot_root,
-            eligibility_policy_root=policy_root,
+        claim, selected_verifier_root, evidence_root = _build_tau_eligibility_v2(
+            receipt,
+            binding,
+            context,
+            admission,
         )
     except (AttributeError, TypeError, ValueError, ArithmeticError, OverflowError):
         return _reject(TauJ07WriterEligibilityRejectCodeV1.INVALID_POLICY, "policy")
-    evidence_root = _derive(
-        "zenodex/fcis/m6/tau-j07-writer-eligibility/evidence/v1",
-        {
-            "claim_root": claim.claim_root,
-            "profile_receipt_root": receipt.receipt_root,
-            "writer_binding_root": binding.binding_root,
-            "authority_context_root": context.context_root,
-            "eligibility_policy_root": policy_root,
-            "verifier_profile_root": selected_verifier_root,
-        },
-    )
     result = verify_writer_profile_eligibility_v1(
         claim=claim,
         verifier_profile_root=selected_verifier_root,
@@ -247,10 +351,13 @@ def verify_tau_j07_writer_profile_eligibility_v1(
 
 __all__ = (
     "TAU_J07_WRITER_ELIGIBILITY_ADAPTER_SCHEMA_V1",
+    "TAU_J07_WRITER_ELIGIBILITY_ADAPTER_SCHEMA_V2",
     "TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V1",
+    "TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V2",
     "TauJ07WriterEligibilityError",
     "TauJ07WriterEligibilityRejectCodeV1",
     "TauJ07WriterEligibilityRejectV1",
     "TauJ07WriterEligibilityResultV1",
     "verify_tau_j07_writer_profile_eligibility_v1",
+    "verify_tau_j07_writer_profile_eligibility_v2",
 )

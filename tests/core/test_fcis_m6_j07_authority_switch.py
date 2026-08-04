@@ -17,13 +17,11 @@ from src.core.fcis_m6_j07_authority_switch import (
     J07RejectCodeV1,
     J07SwitchRejectV1,
     J07SwitchSuccessV1,
-    J07WriterAcceptedV2,
     J07WriterRejectV1,
-    J07WriterTokenV2,
     _context_root,
     _mint_writer_token_v1,
     _register_context_v1,
-    authorize_writer_v2,
+    is_verified_authority_context_v1,
     issue_writer_token_v2,
     switch_authority_v1,
 )
@@ -64,34 +62,20 @@ def test_j07_switch_changes_only_authority_lineage_and_writer_profile() -> None:
     assert result.post_context.allowed_writer_roots == (result.post_context.target_profile_root,)
 
 
-def test_j07_token_is_context_bound_and_target_token_is_accepted() -> None:
+def test_j07_v2_token_path_requires_the_versioned_admission_context() -> None:
     _, _, _, _, result = _switch()
     eligibility = build_writer_eligibility(
         result.post_context, result.post_context.target_profile_root
     )
-    target_token = issue_writer_token_v2(result.post_context, eligibility)
-    assert type(target_token) is J07WriterTokenV2
-    stale_result = authorize_writer_v2(result.pre_context, target_token, eligibility)
-    assert type(stale_result) is J07WriterRejectV1
-    assert stale_result.code is J07RejectCodeV1.STALE_TOKEN
-
-    target_result = authorize_writer_v2(result.post_context, target_token, eligibility)
-    assert type(target_result) is J07WriterAcceptedV2
-    assert target_result.token_root == target_token.token_root
-    assert target_result.eligibility_receipt_root == eligibility.receipt_root
+    rejected = issue_writer_token_v2(result.post_context, eligibility)
+    assert type(rejected) is J07WriterRejectV1
+    assert rejected.code is J07RejectCodeV1.WRITER_ADMISSION_CONTEXT_REQUIRED
 
 
-def test_j07_public_context_and_token_constructors_cannot_mint_authority() -> None:
+def test_j07_public_context_constructor_cannot_mint_authority() -> None:
     _, _, _, _, result = _switch()
     with pytest.raises(J07Error, match="verifier-owned"):
         replace(result.pre_context)
-    eligibility = build_writer_eligibility(
-        result.post_context, result.post_context.target_profile_root
-    )
-    token = issue_writer_token_v2(result.post_context, eligibility)
-    assert type(token) is J07WriterTokenV2
-    with pytest.raises(J07Error, match="verifier-owned"):
-        replace(token)
 
 
 def test_j07_writer_token_cannot_be_minted_without_profile_eligibility() -> None:
@@ -107,17 +91,10 @@ def test_j07_writer_token_cannot_be_minted_without_profile_eligibility() -> None
 
 def test_j07_registered_context_mutation_rejects_at_point_of_use() -> None:
     _, _, _, _, result = _switch()
-    eligibility = build_writer_eligibility(
-        result.post_context, result.post_context.target_profile_root
-    )
-    token = issue_writer_token_v2(result.post_context, eligibility)
-    assert type(token) is J07WriterTokenV2
     object.__setattr__(
         result.post_context, "active_profile_root", result.post_context.legacy_profile_root
     )
-    rejected = authorize_writer_v2(result.post_context, token, eligibility)
-    assert type(rejected) is J07WriterRejectV1
-    assert rejected.code is J07RejectCodeV1.CONTEXT_REJECTED
+    assert not is_verified_authority_context_v1(result.post_context)
 
 
 def test_j07_claim_data_cannot_substitute_for_verified_eligibility() -> None:
@@ -127,26 +104,19 @@ def test_j07_claim_data_cannot_substitute_for_verified_eligibility() -> None:
     assert type(claim) is WriterProfileEligibilityClaimV1
     rejected = issue_writer_token_v2(result.post_context, claim)
     assert type(rejected) is J07WriterRejectV1
-    assert rejected.code is J07RejectCodeV1.ELIGIBILITY_REJECTED
+    assert rejected.code is J07RejectCodeV1.WRITER_ADMISSION_CONTEXT_REQUIRED
 
 
-def test_j07_crossed_eligibility_cannot_authorize_an_existing_token() -> None:
+def test_j07_v2_cannot_issue_from_crossed_eligibility() -> None:
     _, _, _, _, result = _switch()
     first = build_writer_eligibility(
         result.post_context,
         result.post_context.target_profile_root,
         promotion_subject_root="1" * 64,
     )
-    token = issue_writer_token_v2(result.post_context, first)
-    assert type(token) is J07WriterTokenV2
-    crossed = build_writer_eligibility(
-        result.post_context,
-        result.post_context.target_profile_root,
-        promotion_subject_root="2" * 64,
-    )
-    rejected = authorize_writer_v2(result.post_context, token, crossed)
+    rejected = issue_writer_token_v2(result.post_context, first)
     assert type(rejected) is J07WriterRejectV1
-    assert rejected.code is J07RejectCodeV1.ELIGIBILITY_CONTEXT_MISMATCH
+    assert rejected.code is J07RejectCodeV1.WRITER_ADMISSION_CONTEXT_REQUIRED
 
 
 def test_j07_eligibility_bound_to_another_context_cannot_issue() -> None:
@@ -154,7 +124,7 @@ def test_j07_eligibility_bound_to_another_context_cannot_issue() -> None:
     stale = build_writer_eligibility(result.pre_context, result.post_context.target_profile_root)
     rejected = issue_writer_token_v2(result.post_context, stale)
     assert type(rejected) is J07WriterRejectV1
-    assert rejected.code is J07RejectCodeV1.ELIGIBILITY_CONTEXT_MISMATCH
+    assert rejected.code is J07RejectCodeV1.WRITER_ADMISSION_CONTEXT_REQUIRED
 
 
 @pytest.mark.parametrize("field", ("current_state_root", "deployment_config_root"))

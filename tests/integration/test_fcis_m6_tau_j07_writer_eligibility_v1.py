@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from hashlib import sha256
 
-from experiments.fcis_m6_j07_authority_switch_check import build_f06_token, build_gate
+from experiments.fcis_m6_j07_authority_switch_check import (
+    build_f06_token,
+    build_gate,
+)
 from src.core import fcis_durable_retraction as dra
 from src.core.fcis_m6_j06_quiescence import (
     J06QuiescenceGateV1,
@@ -13,11 +16,19 @@ from src.core.fcis_m6_j06_quiescence import (
 )
 from src.core.fcis_m6_j07_authority_switch import (
     J07SwitchSuccessV1,
-    J07WriterAcceptedV2,
-    J07WriterTokenV2,
-    authorize_writer_v2,
-    issue_writer_token_v2,
     switch_authority_v1,
+)
+from src.core.fcis_m6_j07_writer_admission_v2 import (
+    J07WriterAdmissionContextV2,
+    J07WriterAdmissionRejectCodeV2,
+    J07WriterAdmissionRejectV2,
+    verify_j07_writer_admission_context_v2,
+)
+from src.core.fcis_m6_j07_writer_token_v3 import (
+    J07WriterAcceptedV3,
+    J07WriterTokenV3,
+    authorize_writer_v3,
+    issue_writer_token_v3,
 )
 from src.core.fcis_m6_tau_profile_v1 import (
     TauIntegrationObservationV1,
@@ -29,9 +40,11 @@ from src.core.fcis_m6_writer_profile_eligibility_v1 import (
 )
 from src.integration.fcis_m6_tau_j07_writer_eligibility_v1 import (
     TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V1,
+    TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V2,
     TauJ07WriterEligibilityRejectCodeV1,
     TauJ07WriterEligibilityRejectV1,
     verify_tau_j07_writer_profile_eligibility_v1,
+    verify_tau_j07_writer_profile_eligibility_v2,
 )
 from src.integration.fcis_m6_tau_profile_runtime_v1 import (
     TauIntegrationProfileReceiptV1,
@@ -152,6 +165,11 @@ class _EligibilityVerifier:
         return self.decision
 
 
+class _AdmissionVerifier:
+    def verify_j07_writer_admission_context(self, **_kwargs: object) -> object:
+        return True
+
+
 def _profile_receipt(
     profile: TauIntegrationProfileV1,
     switched: J07SwitchSuccessV1,
@@ -219,15 +237,35 @@ def _sources() -> tuple[
     return receipt, _binding(receipt, switched), switched
 
 
+def _admission(
+    receipt: TauIntegrationProfileReceiptV1,
+    switched: J07SwitchSuccessV1,
+    *,
+    promotion_subject_root: str | None = None,
+    source_schema_root: str | None = None,
+) -> J07WriterAdmissionContextV2:
+    result = verify_j07_writer_admission_context_v2(
+        authority_context=switched.post_context,
+        promotion_subject_root=(promotion_subject_root or receipt.context.promotion_subject_root),
+        source_schema_root=(source_schema_root or TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V2),
+        eligibility_policy_root=_digest("eligibility-policy"),
+        eligibility_verifier_profile_root=_digest("eligibility-verifier"),
+        verification_evidence_root=_digest("writer-admission-evidence"),
+        verifier_adapter=_AdmissionVerifier(),
+    )
+    assert type(result) is J07WriterAdmissionContextV2
+    return result
+
+
 def test_tau_receipts_refine_to_eligibility_and_j07_authorization() -> None:
     receipt, binding, switched = _sources()
     verifier = _EligibilityVerifier()
-    eligibility = verify_tau_j07_writer_profile_eligibility_v1(
+    admission = _admission(receipt, switched)
+    eligibility = verify_tau_j07_writer_profile_eligibility_v2(
         profile_receipt=receipt,
         writer_binding=binding,
         authority_context=switched.post_context,
-        eligibility_policy_root=_digest("eligibility-policy"),
-        verifier_profile_root=_digest("eligibility-verifier"),
+        writer_admission_context=admission,
         verifier_adapter=verifier,
     )
     assert type(eligibility) is WriterProfileEligibilityReceiptV1
@@ -239,26 +277,31 @@ def test_tau_receipts_refine_to_eligibility_and_j07_authorization() -> None:
         switched.post_context.context_root
     )
 
-    token = issue_writer_token_v2(switched.post_context, eligibility)
-    assert type(token) is J07WriterTokenV2
-    accepted = authorize_writer_v2(switched.post_context, token, eligibility)
-    assert type(accepted) is J07WriterAcceptedV2
+    token = issue_writer_token_v3(switched.post_context, admission, eligibility)
+    assert type(token) is J07WriterTokenV3
+    accepted = authorize_writer_v3(
+        switched.post_context,
+        admission,
+        token,
+        eligibility,
+    )
+    assert type(accepted) is J07WriterAcceptedV3
     assert accepted.promotion_subject_root == receipt.context.promotion_subject_root
 
 
 def test_tau_j07_eligibility_has_a_frozen_canonical_identity_vector() -> None:
     receipt, binding, switched = _sources()
-    eligibility = verify_tau_j07_writer_profile_eligibility_v1(
+    admission = _admission(receipt, switched)
+    eligibility = verify_tau_j07_writer_profile_eligibility_v2(
         profile_receipt=receipt,
         writer_binding=binding,
         authority_context=switched.post_context,
-        eligibility_policy_root=_digest("eligibility-policy"),
-        verifier_profile_root=_digest("eligibility-verifier"),
+        writer_admission_context=admission,
         verifier_adapter=_EligibilityVerifier(),
     )
     assert type(eligibility) is WriterProfileEligibilityReceiptV1
-    token = issue_writer_token_v2(switched.post_context, eligibility)
-    assert type(token) is J07WriterTokenV2
+    token = issue_writer_token_v3(switched.post_context, admission, eligibility)
+    assert type(token) is J07WriterTokenV3
     assert TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V1 == (
         "931312071fb68f1bc102ba264e3a1f281b51ea64a5654c4ff02d04143d7d399a"
     )
@@ -268,23 +311,28 @@ def test_tau_j07_eligibility_has_a_frozen_canonical_identity_vector() -> None:
     assert binding.binding_root == (
         "6968f4cf61abe60c4b95426907640a2a69d0f7877f354f34a537c4bf1b7be1ff"
     )
+    assert TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V2 == (
+        "dbf4ce4860bf8c45f64f65708985cd9477a854d97268c617a8d2948570f0e7bc"
+    )
     assert eligibility.claim.claim_root == (
-        "2a63c540ec16214e5e2e5c93b892c9a16c2047d5c7764eca518b2e19651e0032"
+        "bc550e5d4134bc2fe4dde31e84a650769e89efc0ac5a1a0a0b9591caa88c910f"
     )
     assert eligibility.receipt_root == (
-        "57e88f7ce9bfbba52f0417e733eda345f7495a2c6f6d4a4732a66b619e881553"
+        "f462b80e4557fcc33c15df19ae6149eb9b0a160b4f872335e485500da3ed9191"
     )
-    assert token.token_root == ("a9cb54f3ac9a370c2ae9fc2592dc422978d8e9bd5b463814faa48ecbfa19ef7e")
+    assert admission.admission_context_root == (
+        "e3f9c91512911fb81bd2cb4d2efe8a7904b473883230ffc003805a9d16ca0353"
+    )
+    assert token.token_root == ("e52dcd85a16d3899f57124a1beec8f2c6e263b4b66b435af150676208538ebd0")
 
 
 def test_tau_eligibility_rejects_quiesced_or_crossed_j07_context() -> None:
     receipt, binding, switched = _sources()
-    result = verify_tau_j07_writer_profile_eligibility_v1(
+    result = verify_tau_j07_writer_profile_eligibility_v2(
         profile_receipt=receipt,
         writer_binding=binding,
         authority_context=switched.pre_context,
-        eligibility_policy_root=_digest("eligibility-policy"),
-        verifier_profile_root=_digest("eligibility-verifier"),
+        writer_admission_context=_admission(receipt, switched),
         verifier_adapter=_EligibilityVerifier(),
     )
     assert type(result) is TauJ07WriterEligibilityRejectV1
@@ -293,12 +341,11 @@ def test_tau_eligibility_rejects_quiesced_or_crossed_j07_context() -> None:
 
 def test_tau_eligibility_rejects_unregistered_writer_binding() -> None:
     receipt, _binding_value, switched = _sources()
-    result = verify_tau_j07_writer_profile_eligibility_v1(
+    result = verify_tau_j07_writer_profile_eligibility_v2(
         profile_receipt=receipt,
         writer_binding=object(),
         authority_context=switched.post_context,
-        eligibility_policy_root=_digest("eligibility-policy"),
-        verifier_profile_root=_digest("eligibility-verifier"),
+        writer_admission_context=_admission(receipt, switched),
         verifier_adapter=_EligibilityVerifier(),
     )
     assert type(result) is TauJ07WriterEligibilityRejectV1
@@ -314,12 +361,11 @@ def test_unusable_tau_profile_never_reaches_eligibility_verifier() -> None:
         observation=TauIntegrationObservationV1.UNAVAILABLE,
     )
     verifier = _EligibilityVerifier()
-    result = verify_tau_j07_writer_profile_eligibility_v1(
+    result = verify_tau_j07_writer_profile_eligibility_v2(
         profile_receipt=receipt,
         writer_binding=object(),
         authority_context=switched.post_context,
-        eligibility_policy_root=_digest("eligibility-policy"),
-        verifier_profile_root=_digest("eligibility-verifier"),
+        writer_admission_context=_admission(receipt, switched),
         verifier_adapter=verifier,
     )
     assert type(result) is TauJ07WriterEligibilityRejectV1
@@ -329,12 +375,11 @@ def test_unusable_tau_profile_never_reaches_eligibility_verifier() -> None:
 
 def test_tau_eligibility_verifier_requires_exact_true() -> None:
     receipt, binding, switched = _sources()
-    result = verify_tau_j07_writer_profile_eligibility_v1(
+    result = verify_tau_j07_writer_profile_eligibility_v2(
         profile_receipt=receipt,
         writer_binding=binding,
         authority_context=switched.post_context,
-        eligibility_policy_root=_digest("eligibility-policy"),
-        verifier_profile_root=_digest("eligibility-verifier"),
+        writer_admission_context=_admission(receipt, switched),
         verifier_adapter=_EligibilityVerifier(1),
     )
     assert type(result) is TauJ07WriterEligibilityRejectV1
@@ -342,14 +387,58 @@ def test_tau_eligibility_verifier_requires_exact_true() -> None:
 
 
 def test_tau_eligibility_rejects_invalid_policy_before_receipt_issue() -> None:
+    receipt, _binding_value, switched = _sources()
+    result = verify_j07_writer_admission_context_v2(
+        authority_context=switched.post_context,
+        eligibility_policy_root=True,
+        promotion_subject_root=receipt.context.promotion_subject_root,
+        source_schema_root=TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V2,
+        eligibility_verifier_profile_root=_digest("eligibility-verifier"),
+        verification_evidence_root=_digest("writer-admission-evidence"),
+        verifier_adapter=_AdmissionVerifier(),
+    )
+    assert type(result) is J07WriterAdmissionRejectV2
+    assert result.code is J07WriterAdmissionRejectCodeV2.INVALID_POLICY_CONTEXT
+
+
+def test_tau_v1_refinement_is_closed_without_admission_context() -> None:
     receipt, binding, switched = _sources()
     result = verify_tau_j07_writer_profile_eligibility_v1(
         profile_receipt=receipt,
         writer_binding=binding,
         authority_context=switched.post_context,
-        eligibility_policy_root=True,
+        eligibility_policy_root=_digest("eligibility-policy"),
         verifier_profile_root=_digest("eligibility-verifier"),
         verifier_adapter=_EligibilityVerifier(),
     )
     assert type(result) is TauJ07WriterEligibilityRejectV1
-    assert result.code is TauJ07WriterEligibilityRejectCodeV1.INVALID_POLICY
+    assert result.code is (TauJ07WriterEligibilityRejectCodeV1.WRITER_ADMISSION_CONTEXT_REQUIRED)
+
+
+def test_tau_v2_rejects_crossed_promotion_or_source_schema_context() -> None:
+    receipt, binding, switched = _sources()
+    for admission in (
+        _admission(
+            receipt,
+            switched,
+            promotion_subject_root=_digest("foreign-promotion-subject"),
+        ),
+        _admission(
+            receipt,
+            switched,
+            source_schema_root=_digest("foreign-source-schema"),
+        ),
+    ):
+        verifier = _EligibilityVerifier()
+        result = verify_tau_j07_writer_profile_eligibility_v2(
+            profile_receipt=receipt,
+            writer_binding=binding,
+            authority_context=switched.post_context,
+            writer_admission_context=admission,
+            verifier_adapter=verifier,
+        )
+        assert type(result) is TauJ07WriterEligibilityRejectV1
+        assert result.code is (
+            TauJ07WriterEligibilityRejectCodeV1.WRITER_ADMISSION_CONTEXT_MISMATCH
+        )
+        assert verifier.kwargs is None
