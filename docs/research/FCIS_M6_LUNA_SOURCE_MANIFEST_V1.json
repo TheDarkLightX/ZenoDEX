@@ -2,8 +2,8 @@
   "schema_version": "zenodex.fcis.m6.luna-source-manifest.v1",
   "contract": "fcis-m6-durable-retraction-luna-repair-v1",
   "base_commit": "babffa56dcbddc5886487fbb6e62740b15370000",
-  "implementation_target_commit": "20377b7920d0327b3fc8db501ee61cf28a7da8fe",
-  "implementation_target_tree": "7267235aeed2b997405a67d954bd3963429234cd",
+  "implementation_target_commit": "92cc27f6315cbaa9c830066c41585a075f07857d",
+  "implementation_target_tree": "4ee19c42470bd13cbe9ec2b2aef5ce0ad5a48c86",
   "canonical_archive": "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz",
   "archive_excludes": [
     "artifacts/fcis-m6-durable-retraction-luna-packet-v1.tar.gz"
@@ -30,7 +30,7 @@
     },
     {
       "path": "config/proof_profiles/risc0_recursive_active_reproof_reference_v3.json",
-      "sha256": "d13c66227574b3e8eccfcf6ede35454289d50d78e151813a715fa6dd5a3b6e39",
+      "sha256": "1a5e65f595e2a70e64ed17f82d4abdb19dcbb426c83ea9bacd0798aaf46e1d8d",
       "role": "source_bound_reproof_reference"
     },
     {
@@ -50,7 +50,7 @@
     },
     {
       "path": "tests/integration/test_check_risc0_dependency_audit.py",
-      "sha256": "1ce4554de98d1a894cf83fd65444f5ad3ae46ddbebd610bdd24e73f9c786bf30",
+      "sha256": "efd290dc8982826bd7c11164905d2257e9eac52613481603bdd057b568da88f0",
       "role": "risc0_advisory_mutation_tests"
     },
     {
@@ -85,7 +85,7 @@
     },
     {
       "path": "tools/check_risc0_dependency_audit.py",
-      "sha256": "368cb53808543af378ec899239a880cd3e86ee0556b7fac5237a1c2c541ddc10",
+      "sha256": "a6a0dda885518e8b5f51b913fdc58bec88e561973dac124011e3f1d63a1dc91d",
       "role": "risc0_dependency_audit_checker"
     },
     {
@@ -220,17 +220,17 @@
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_REPAIR_REPORT_20260731.md",
-      "sha256": "8f0376a4adf7b5605c5fbe2c93ca6c95fd2161ef238b5369a4292b8a22d4919b",
+      "sha256": "13c7ddfbdf5f1e26621d01f5e3493c9bcbc6a6c9ab1b0a065c1e94323a99207d",
       "role": "repair_report"
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_CHANGE_INVENTORY_V1.md",
-      "sha256": "f83c2866541e7b73d9ab6148a95e7aa5419da471c8e65774e0da655b1477fcf9",
+      "sha256": "fce2ab18088770e9b0a62ea887ce6e38d3709d9fd456ea4e52fbd4155b52bec9",
       "role": "change_inventory"
     },
     {
       "path": "docs/research/FCIS_M6_LUNA_TOOLCHAIN_V1.json",
-      "sha256": "3c4b2c9f4539c5c310036ad885a3593a8b2bd2a65575395f3cd4942f9abd14f9",
+      "sha256": "29e2ff6e7311792da00db26a07906ac984a9c4ec25fe8e4a856019cc422f3c66",
       "role": "exact_toolchain_record"
     },
     {

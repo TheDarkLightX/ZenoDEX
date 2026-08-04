@@ -102,9 +102,9 @@ deployment, or value-moving path.
 ## Lock-bound yanked-dependency repair child (2026-08-04)
 
 The lock-bound dependency implementation target is commit
-`20377b7920d0327b3fc8db501ee61cf28a7da8fe`, tree
-`7267235aeed2b997405a67d954bd3963429234cd`, with prior packet head
-`c09ef94eb63ec2f1ff7e3ff4f6ce26fc0607eb6c` as its parent.
+`92cc27f6315cbaa9c830066c41585a075f07857d`, tree
+`4ee19c42470bd13cbe9ec2b2aef5ce0ad5a48c86`, with prior packet head
+`ee3618631c7a4266c05d15d9fdd3c8de6d1d600f` as its parent.
 
 The target preserves the four retained proof-source lockfiles byte-for-byte.
 It binds the known yanked `spin 0.9.8` disposition to the exact package name,
@@ -112,7 +112,8 @@ version, crates.io registry source, and package checksum in each reviewed
 lockfile. The whole-workspace checker derives that disposition from the
 committed lock and canonicalizes hosted or locally omitted yank warnings to
 one source-bound finding. Direct payload-only evaluation cannot authorize the
-yanked disposition.
+yanked disposition, its public API exposes no lock-authority parameter, and
+duplicate cargo vulnerability or warning identities reject.
 
 The target also retains the exact four-lock `spin 0.9.8 -> 0.9.9` patch and an
 A/B comparison performed with the same source and pinned RISC0 toolchain. All

@@ -256,13 +256,13 @@ deployment, merge, or value movement.
 
 This addendum is the authoritative dependency posture for the current packet:
 
-- Prior packet head: `c09ef94eb63ec2f1ff7e3ff4f6ce26fc0607eb6c`
+- Prior packet head: `ee3618631c7a4266c05d15d9fdd3c8de6d1d600f`
 - Implementation target commit:
-  `20377b7920d0327b3fc8db501ee61cf28a7da8fe`
+  `92cc27f6315cbaa9c830066c41585a075f07857d`
 - Implementation target tree:
-  `7267235aeed2b997405a67d954bd3963429234cd`
+  `4ee19c42470bd13cbe9ec2b2aef5ce0ad5a48c86`
 - Implementation target parent:
-  `c09ef94eb63ec2f1ff7e3ff4f6ce26fc0607eb6c`
+  `ee3618631c7a4266c05d15d9fdd3c8de6d1d600f`
 - RISC0 dependency policy SHA-256:
   `fd47e366052bcb149bdff1cb0688922e31b52130c1c2723d1b9a42a6ece188f1`
 - Spin-only lock patch SHA-256:
@@ -292,6 +292,9 @@ each of four unmounted proof workspaces. It reports no unused disposition.
 Unknown, changed-version, changed-source, changed-checksum, or additional
 yanked findings still reject. The crates.io index revision remains unpinned,
 so hosted cargo-audit remains required to discover other or future yanks.
+The public payload evaluator exposes no lock-authority parameter. Duplicate
+cargo vulnerability or warning identities reject instead of being silently
+collapsed.
 
 The retained A/B experiment changed only `spin 0.9.8` to `0.9.9` in the four
 proof-bound lockfiles and kept `ruint 1.19.0`. Under the pinned RISC0 toolchain,
@@ -300,12 +303,12 @@ patch, baseline and trial lock hashes, guest hashes, image IDs, and toolchain
 identities are source-bound in the comparison report. Guest binaries were
 deleted after verification and no receipts were regenerated.
 
-Local evidence includes 69 dependency-workflow and active-reproof tests, Ruff,
+Local evidence includes 71 dependency-workflow and active-reproof tests, Ruff,
 strict mypy, Python compilation, the active-reproof source-inventory checker,
 the workflow-permission checker, the exact five-workspace cargo-audit replay,
 and mutation tests for omitted/duplicated hosted yank warnings, direct
 payload-only authorization, package source/checksum drift, and future unknown
-yanks.
+yanks, plus duplicate warning and vulnerability identities.
 
 This repair does not prove `spin 0.9.8` safe and does not authorize the yanked
 dependency in production. Removal still requires `spin 0.9.9` or later, fresh
