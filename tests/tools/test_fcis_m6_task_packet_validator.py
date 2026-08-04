@@ -78,13 +78,14 @@ def test_report_and_evidence_identity_mismatch_is_rejected() -> None:
     evidence = json.loads(J07_EVIDENCE.read_text(encoding="utf-8"))
     report = (PACKET / "TASK_J07_REPORT.md").read_text(encoding="utf-8")
     report_identities = validator._validate_report(report, "J07")
-    evidence["source_head_sha"] = _git("rev-parse", "HEAD")
+    foreign_identity = report_identities["BASE_SHA"]
+    evidence["source_head_sha"] = foreign_identity
 
     with pytest.raises(SystemExit, match="report/evidence identity mismatch"):
         validator._validate_report_bindings(report_identities, evidence)
 
     evidence["source_head_sha"] = report_identities["SOURCE_HEAD_SHA"]
-    evidence["results"]["implementation_commit"] = _git("rev-parse", "HEAD")
+    evidence["results"]["implementation_commit"] = foreign_identity
     with pytest.raises(SystemExit, match="report/evidence identity mismatch"):
         validator._validate_report_bindings(report_identities, evidence)
 
