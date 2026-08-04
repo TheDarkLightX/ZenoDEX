@@ -17,6 +17,17 @@
       "timeout_budget_s_on_dev_machine": 90
     }
   },
+  "qualification_scope": {
+    "rule": "A per-variant runtime_admission value applies only to the exact Tau source, parser, binary, and resource profile named by its retained evidence.",
+    "cross_version_inheritance": false,
+    "current_research_profile": {
+      "tau_source_commit": "c43c66b84966aac0e2830aa778dfda79b2857608",
+      "parser_commit": "ec62e2b78c342c9265876fc6edbadc82806ee493",
+      "binary_sha256": "588ebf63dfbcf5101b30e02d149678143cbcb89e60e51e0aa8bed0f9d716b157",
+      "status": "research_only_executable_unmounted"
+    },
+    "legacy_profile_note": "Markers naming historical Tau 401d756b remain evidence for that historical profile only and do not qualify the same relation under c43c66b8."
+  },
   "components": {
     "swap_exact_in": {
       "variants": [
@@ -27,7 +38,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_with_host_transition_flag",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b rejects direct stream add/sub; this proof-gate variant now uses host-verified reserve_transition_ok plus Tau structural checks"
+            "reason": "historical Tau 401d756b rejects direct stream add/sub; this proof-gate variant now uses host-verified reserve_transition_ok plus Tau structural checks"
           }
         },
         {
@@ -37,7 +48,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_with_host_transition_flag",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b rejects direct stream add/sub; this composed variant uses host-verified reserve_transition_ok plus the independent safe-range guard"
+            "reason": "historical Tau 401d756b rejects direct stream add/sub; this composed variant uses host-verified reserve_transition_ok plus the independent safe-range guard"
           },
           "supplemental_spec_paths": [
             "src/tau_specs/recommended/swap_bv32_safe_range_guard_v1.tau"
@@ -50,7 +61,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -60,7 +71,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         }
       ]
@@ -74,7 +85,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_with_host_transition_flag",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b rejects direct stream add/sub; this proof-gate variant now uses host-verified reserve_transition_ok plus Tau structural checks"
+            "reason": "historical Tau 401d756b rejects direct stream add/sub; this proof-gate variant now uses host-verified reserve_transition_ok plus Tau structural checks"
           }
         },
         {
@@ -84,7 +95,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_with_host_transition_flag",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b rejects direct stream add/sub; this composed variant uses host-verified reserve_transition_ok plus the independent safe-range guard"
+            "reason": "historical Tau 401d756b rejects direct stream add/sub; this composed variant uses host-verified reserve_transition_ok plus the independent safe-range guard"
           },
           "supplemental_spec_paths": [
             "src/tau_specs/recommended/swap_bv32_safe_range_guard_v1.tau"
@@ -97,7 +108,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -107,7 +118,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         }
       ]
@@ -121,7 +132,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+            "reason": "historical Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
           }
         },
         {
@@ -131,7 +142,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+            "reason": "historical Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
           }
         },
         {
@@ -141,7 +152,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+            "reason": "historical Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
           }
         },
         {
@@ -151,7 +162,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+            "reason": "historical Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
           }
         },
         {
@@ -161,7 +172,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+            "reason": "historical Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
           }
         },
         {
@@ -171,7 +182,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+            "reason": "historical Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
           }
         },
         {
@@ -181,7 +192,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+            "reason": "historical Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
           }
         },
         {
@@ -211,7 +222,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_runtime_tau_profile_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
+            "reason": "historical Tau 401d756b rejects stream add/sub; preserve Tau-level settlement price arithmetic and require the runtime Tau profile or an upstream stream-arithmetic fix before latest-Tau admission"
           }
         }
       ]
@@ -249,7 +260,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -259,7 +270,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         }
       ]
@@ -287,7 +298,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -306,7 +317,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -321,7 +332,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -354,7 +365,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -369,7 +380,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -379,7 +390,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -389,7 +400,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         }
       ]
@@ -418,7 +429,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -428,7 +439,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -443,7 +454,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -453,7 +464,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -463,7 +474,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -473,7 +484,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -483,7 +494,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -493,7 +504,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         },
         {
@@ -503,7 +514,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         }
       ]
@@ -526,7 +537,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
-            "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+            "reason": "historical Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
           }
         }
       ]
@@ -576,7 +587,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_with_host_projection",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b executed the trace-backed disaster envelope quickly when arithmetic, signatures, proofs, and bindings are projected as fail-closed host facts"
+            "reason": "historical Tau 401d756b executed the trace-backed disaster envelope quickly when arithmetic, signatures, proofs, and bindings are projected as fail-closed host facts"
           }
         }
       ]
@@ -590,7 +601,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_with_host_replay_frontier",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b timed out on a temporal self-reference variant; this guard keeps the same replay disaster facts as explicit host-projected claim and tx_id frontier flags"
+            "reason": "historical Tau 401d756b timed out on a temporal self-reference variant; this guard keeps the same replay disaster facts as explicit host-projected claim and tx_id frontier flags"
           }
         }
       ]
@@ -604,7 +615,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_with_bv32_thresholds",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b executed bv32 quorum, fault-budget, price-envelope, and host-projected authority checks under the current trace budget"
+            "reason": "historical Tau 401d756b executed bv32 quorum, fault-budget, price-envelope, and host-projected authority checks under the current trace budget"
           }
         }
       ]
@@ -618,7 +629,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_with_bv32_thresholds",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b executed committee threshold, one-hot action, timelock, and policy-binding checks under the current trace budget"
+            "reason": "historical Tau 401d756b executed committee threshold, one-hot action, timelock, and policy-binding checks under the current trace budget"
           }
         }
       ]
@@ -632,7 +643,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_trace_backed",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b executed digest binding with host-projected reveal-window predicates under the current trace budget"
+            "reason": "historical Tau 401d756b executed digest binding with host-projected reveal-window predicates under the current trace budget"
           }
         },
         {
@@ -642,7 +653,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_trace_backed",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b executed same-key replay checks with a host-projected idempotency-window predicate under the current trace budget"
+            "reason": "historical Tau 401d756b executed same-key replay checks with a host-projected idempotency-window predicate under the current trace budget"
           }
         },
         {
@@ -652,7 +663,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_with_host_projection",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b produced symbolic non-integer output for direct bitvector inequality; this guard checks host-projected account and balance-preservation facts fail-closed"
+            "reason": "historical Tau 401d756b produced symbolic non-integer output for direct bitvector inequality; this guard checks host-projected account and balance-preservation facts fail-closed"
           }
         },
         {
@@ -662,7 +673,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_trace_backed",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b executed canonical route-choice traces under the current trace budget"
+            "reason": "historical Tau 401d756b executed canonical route-choice traces under the current trace budget"
           }
         },
         {
@@ -672,7 +683,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "runtime_executable_trace_backed",
             "runtime_admission": true,
-            "reason": "latest Tau 401d756b executed signed min-out binding and floor-honoring traces under the current trace budget"
+            "reason": "historical Tau 401d756b executed signed min-out binding and floor-honoring traces under the current trace budget"
           }
         }
       ]
@@ -853,6 +864,80 @@
             "status": "runtime_executable_with_manifest_binding",
             "runtime_admission": true,
             "reason": "checks binary/spec/image hash binding, CI evidence, release posture, provenance, public install docs, and proof/binding facts"
+          }
+        }
+      ]
+    },
+    "m6_external_substrate_continuity": {
+      "variants": [
+        {
+          "variant_id": "tau_substrate_profile_gate_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/m6_tau_substrate_profile_gate_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "research_only_executable_unmounted",
+            "runtime_admission": false,
+            "reason": "verified against Tau 0.7.0-alpha c43c66b8 as a small exact-profile conjunction; it does not discover capabilities or mint its verifier-owned inputs"
+          }
+        },
+        {
+          "variant_id": "substrate_disposition_gate_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/m6_substrate_disposition_gate_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "research_only_executable_unmounted",
+            "runtime_admission": false,
+            "reason": "checks one proposed Tau, ZenoLedger, or reject-or-pend disposition against an exact Tau-profile receipt; runtime projection and receipt mounting remain open"
+          }
+        },
+        {
+          "variant_id": "writer_steady_guard_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/m6_writer_steady_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "research_only_executable_unmounted",
+            "runtime_admission": false,
+            "reason": "one member of the split writer-transition family; splitting avoids the branch-dependent timeouts observed in the combined relation"
+          }
+        },
+        {
+          "variant_id": "writer_quiesce_guard_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/m6_writer_quiesce_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "research_only_executable_unmounted",
+            "runtime_admission": false,
+            "reason": "verifies entry into quiescence from one current writer; production quiescence and revocation evidence are external premises"
+          }
+        },
+        {
+          "variant_id": "writer_activate_guard_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/m6_writer_activate_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "research_only_executable_unmounted",
+            "runtime_admission": false,
+            "reason": "verifies one-writer activation from quiescence; publication authority and deployment mounting remain open"
+          }
+        },
+        {
+          "variant_id": "writer_emergency_failover_guard_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/m6_writer_emergency_failover_guard_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "research_only_executable_unmounted",
+            "runtime_admission": false,
+            "reason": "requires permit, observed Tau failure, finalized checkpoint import, parity, epoch advance, and old-writer revocation; it does not establish those facts"
+          }
+        },
+        {
+          "variant_id": "global_value_certificate_closure_v1",
+          "profile": "fast_proof_gated",
+          "spec_path": "src/tau_specs/recommended/m6_global_value_certificate_closure_v1.tau",
+          "latest_tau_stream_arithmetic": {
+            "status": "research_only_executable_unmounted",
+            "runtime_admission": false,
+            "reason": "composes verifier-owned M6 safety facts under one promotion subject; each component fact and mounted forward simulation remain separate obligations"
           }
         }
       ]

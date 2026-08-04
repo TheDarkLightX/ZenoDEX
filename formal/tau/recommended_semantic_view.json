@@ -1,8 +1,212 @@
 {
   "schema": "zenodex/tau/semantic-view/v1",
   "execution_census_ref": "formal/tau/recommended_execution_census_best.json",
-  "spec_count": 218,
+  "spec_count": 234,
   "packets": [
+    {
+      "spec_id": "ab_cow_exact_solver_envelope_v1",
+      "spec_path": "src/tau_specs/recommended/ab_cow_exact_solver_envelope_v1.tau",
+      "profile": "proof_gate_or_certificate",
+      "rule": "frontier_host_certificate_envelopes",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf",
+        "o6": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> mode_ok(i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> proof_surface_ok(i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i10[t]:sbf, i11[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> fallback_boundary_ok(i8[t..."
+        ],
+        "control_helper_names": [
+          "ab_ok",
+          "cow_ok",
+          "fallback_boundary_ok",
+          "is1",
+          "mode_ok",
+          "proof_surface_ok"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": [
+          {
+            "name": "ab_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "ab",
+              "cow",
+              "objective_ok",
+              "state_capacity_ok",
+              "parity_ok",
+              "tie_ok",
+              "fallback_ok",
+              "no_authority",
+              "balance_ok",
+              "budget_ok"
+            ],
+            "body": "is1(active) && is1(ab) && mode_ok(ab, cow) && proof_surface_ok(objective_ok, state_capacity_ok, parity_ok, tie_ok, balance_ok, budget_ok) && fallback_boundary_ok(fallback_ok, no_authority)",
+            "body_short": "is1(active) && is1(ab) && mode_ok(ab, cow) && proof_surface_ok(objective_ok, state_capacity_ok, parity_ok, tie_ok, balance_ok, budget_ok) && fallback_boundary_ok(fallback_ok, no_authority)"
+          },
+          {
+            "name": "cow_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "ab",
+              "cow",
+              "objective_ok",
+              "state_capacity_ok",
+              "parity_ok",
+              "tie_ok",
+              "fallback_ok",
+              "no_authority",
+              "balance_ok",
+              "budget_ok"
+            ],
+            "body": "is1(active) && is1(cow) && mode_ok(ab, cow) && proof_surface_ok(objective_ok, state_capacity_ok, parity_ok, tie_ok, balance_ok, budget_ok) && fallback_boundary_ok(fallback_ok, no_authority)",
+            "body_short": "is1(active) && is1(cow) && mode_ok(ab, cow) && proof_surface_ok(objective_ok, state_capacity_ok, parity_ok, tie_ok, balance_ok, budget_ok) && fallback_boundary_ok(fallback_ok, no_authority)"
+          },
+          {
+            "name": "fallback_boundary_ok",
+            "kind": "control_predicate",
+            "params": [
+              "fallback_ok",
+              "no_authority"
+            ],
+            "body": "is1(fallback_ok) && is1(no_authority)",
+            "body_short": "is1(fallback_ok) && is1(no_authority)"
+          },
+          {
+            "name": "is1",
+            "kind": "control_predicate",
+            "params": [
+              "x"
+            ],
+            "body": "(x = 1:sbf)",
+            "body_short": "(x = 1:sbf)"
+          },
+          {
+            "name": "mode_ok",
+            "kind": "control_predicate",
+            "params": [
+              "ab",
+              "cow"
+            ],
+            "body": "(is1(ab) && !is1(cow)) || (!is1(ab) && is1(cow))",
+            "body_short": "(is1(ab) && !is1(cow)) || (!is1(ab) && is1(cow))"
+          },
+          {
+            "name": "proof_surface_ok",
+            "kind": "control_predicate",
+            "params": [
+              "objective_ok",
+              "state_capacity_ok",
+              "parity_ok",
+              "tie_ok",
+              "balance_ok",
+              "budget_ok"
+            ],
+            "body": "is1(objective_ok) && is1(state_capacity_ok) && is1(parity_ok) && is1(tie_ok) && is1(balance_ok) && is1(budget_ok)",
+            "body_short": "is1(objective_ok) && is1(state_capacity_ok) && is1(parity_ok) && is1(tie_ok) && is1(balance_ok) && is1(budget_ok)"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 6,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5",
+          "o6"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((((((i2[t]:sbf)) = 1:sbf)) && !((((i3[t]:sbf)) = 1:sbf))) || (!((((i2[t]:sbf)) = 1:sbf)) && ((((i3[t]:sbf)) = 1:sbf))))"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i4[t]:sbf)) = 1:sbf)) && ((((i5[t]:sbf)) = 1:sbf)) && ((((i6[t]:sbf)) = 1:sbf)) && ((((i7[t]:sbf)) = 1:sbf)) && ((((i10[t]:sbf)) = 1:sbf)) && ((((i11[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i8[t]:sbf)) = 1:sbf)) && ((((i9[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((((i2[t]:sbf)) = 1:sbf)) && (((((((i2[t]:sbf))) = 1:sbf)) && !(((((i3[t]:sbf))) = 1:sbf))) || (!(((((i2[t]:sbf))) = 1:sbf)) && (((((i3[t]:sbf))) = 1:sbf)))) && ((((((i4[t]:sbf))) = 1:sbf..."
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((((i3[t]:sbf)) = 1:sbf)) && (((((((i2[t]:sbf))) = 1:sbf)) && !(((((i3[t]:sbf))) = 1:sbf))) || (!(((((i2[t]:sbf))) = 1:sbf)) && (((((i3[t]:sbf))) = 1:sbf)))) && ((((((i4[t]:sbf))) = 1:sbf..."
+          },
+          {
+            "name": "o6",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((((((i1[t]:sbf)) = 1:sbf)) && ((((i2[t]:sbf)) = 1:sbf)) && (((((((i2[t]:sbf))) = 1:sbf)) && !(((((i3[t]:sbf))) = 1:sbf))) || (!(((((i2[t]:sbf))) = 1:sbf)) && (((((i3[t]:sbf))) = 1:sbf)))) && ((((((i4[t]:sbf))) = 1:sb..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
     {
       "spec_id": "add_liquidity_apply_v1",
       "spec_path": "src/tau_specs/recommended/add_liquidity_apply_v1.tau",
@@ -4711,6 +4915,207 @@
       }
     },
     {
+      "spec_id": "cpss_bc_research_scope_certificate_v1",
+      "spec_path": "src/tau_specs/recommended/cpss_bc_research_scope_certificate_v1.tau",
+      "profile": "proof_gate_or_certificate",
+      "rule": "proof_gates_and_certificates",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf",
+        "o6": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> formal_evidence_ok(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i7[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> falsification_scope_ok(i6[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf, i11[t]:sbf)) && (o3[t]:sbf = 1:sbf <..."
+        ],
+        "control_helper_names": [
+          "authority_boundary_ok",
+          "certificate_ok",
+          "falsification_scope_ok",
+          "formal_evidence_ok",
+          "is1",
+          "replay_bundle_ok"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": [
+          {
+            "name": "authority_boundary_ok",
+            "kind": "control_predicate",
+            "params": [
+              "no_authority"
+            ],
+            "body": "is1(no_authority)",
+            "body_short": "is1(no_authority)"
+          },
+          {
+            "name": "certificate_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "artifacts",
+              "lean_ok",
+              "clean_tokens",
+              "compressed_scope",
+              "window_empirical",
+              "single_sp",
+              "group_sp_bad",
+              "precommit_bad",
+              "dominance_bad",
+              "nonclaims",
+              "scripts",
+              "no_authority"
+            ],
+            "body": "is1(active) && formal_evidence_ok(lean_ok, clean_tokens, compressed_scope, single_sp) && falsification_scope_ok(window_empirical, group_sp_bad, precommit_bad, dominance_bad, nonclaims) && replay_bundle_ok(artifacts, scripts) && authority_boundary_ok(no_authority)",
+            "body_short": "is1(active) && formal_evidence_ok(lean_ok, clean_tokens, compressed_scope, single_sp) && falsification_scope_ok(window_empirical, group_sp_bad, precommit_bad, dominance_bad, nonclaims) && replay_bundle_ok(artifacts, s..."
+          },
+          {
+            "name": "falsification_scope_ok",
+            "kind": "control_predicate",
+            "params": [
+              "window_empirical",
+              "group_sp_bad",
+              "precommit_bad",
+              "dominance_bad",
+              "nonclaims"
+            ],
+            "body": "is1(window_empirical) && is1(group_sp_bad) && is1(precommit_bad) && is1(dominance_bad) && is1(nonclaims)",
+            "body_short": "is1(window_empirical) && is1(group_sp_bad) && is1(precommit_bad) && is1(dominance_bad) && is1(nonclaims)"
+          },
+          {
+            "name": "formal_evidence_ok",
+            "kind": "control_predicate",
+            "params": [
+              "lean_ok",
+              "clean_tokens",
+              "compressed_scope",
+              "single_sp"
+            ],
+            "body": "is1(lean_ok) && is1(clean_tokens) && is1(compressed_scope) && is1(single_sp)",
+            "body_short": "is1(lean_ok) && is1(clean_tokens) && is1(compressed_scope) && is1(single_sp)"
+          },
+          {
+            "name": "is1",
+            "kind": "control_predicate",
+            "params": [
+              "x"
+            ],
+            "body": "(x = 1:sbf)",
+            "body_short": "(x = 1:sbf)"
+          },
+          {
+            "name": "replay_bundle_ok",
+            "kind": "control_predicate",
+            "params": [
+              "artifacts",
+              "scripts"
+            ],
+            "body": "is1(artifacts) && is1(scripts)",
+            "body_short": "is1(artifacts) && is1(scripts)"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 6,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5",
+          "o6"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i3[t]:sbf)) = 1:sbf)) && ((((i4[t]:sbf)) = 1:sbf)) && ((((i5[t]:sbf)) = 1:sbf)) && ((((i7[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i6[t]:sbf)) = 1:sbf)) && ((((i8[t]:sbf)) = 1:sbf)) && ((((i9[t]:sbf)) = 1:sbf)) && ((((i10[t]:sbf)) = 1:sbf)) && ((((i11[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i2[t]:sbf)) = 1:sbf)) && ((((i12[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i13[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((((((i3[t]:sbf))) = 1:sbf)) && (((((i4[t]:sbf))) = 1:sbf)) && (((((i5[t]:sbf))) = 1:sbf)) && (((((i7[t]:sbf))) = 1:sbf))) && ((((((i6[t]:sbf))) = 1:sbf)) && (((((i8[t]:sbf))) = 1:sbf)) &..."
+          },
+          {
+            "name": "o6",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(!(((i1[t]:sbf) = 1:sbf)) && (((i13[t]:sbf) = 1:sbf)))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
       "spec_id": "create_pool_apply_proof_gate_v1",
       "spec_path": "src/tau_specs/recommended/create_pool_apply_proof_gate_v1.tau",
       "profile": "proof_gate_or_certificate",
@@ -6069,6 +6474,185 @@
         "observed_output_signatures": [
           "0001"
         ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "frontier_certificate_menu_v1",
+      "spec_path": "src/tau_specs/recommended/frontier_certificate_menu_v1.tau",
+      "profile": "proof_gate_or_certificate",
+      "rule": "proof_gates_and_certificates",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> one_hot3(i10[t]:sbf, i11[t]:sbf, i12[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> core_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i9[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> boundary_ok(i7[t]:sbf..."
+        ],
+        "control_helper_names": [
+          "boundary_ok",
+          "core_ok",
+          "frontier_ok",
+          "is1",
+          "one_hot3"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": [
+          {
+            "name": "boundary_ok",
+            "kind": "control_predicate",
+            "params": [
+              "fallback_ok",
+              "no_authority"
+            ],
+            "body": "is1(fallback_ok) && is1(no_authority)",
+            "body_short": "is1(fallback_ok) && is1(no_authority)"
+          },
+          {
+            "name": "core_ok",
+            "kind": "control_predicate",
+            "params": [
+              "host",
+              "canon",
+              "cover",
+              "budget",
+              "replay",
+              "nonvacuous"
+            ],
+            "body": "is1(host) && is1(canon) && is1(cover) && is1(budget) && is1(replay) && is1(nonvacuous)",
+            "body_short": "is1(host) && is1(canon) && is1(cover) && is1(budget) && is1(replay) && is1(nonvacuous)"
+          },
+          {
+            "name": "frontier_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "host",
+              "canon",
+              "cover",
+              "budget",
+              "replay",
+              "fallback_ok",
+              "no_authority",
+              "nonvacuous",
+              "mode_route",
+              "mode_oracle",
+              "mode_ab_or_cow"
+            ],
+            "body": "is1(active) && one_hot3(mode_route, mode_oracle, mode_ab_or_cow) && core_ok(host, canon, cover, budget, replay, nonvacuous) && boundary_ok(fallback_ok, no_authority)",
+            "body_short": "is1(active) && one_hot3(mode_route, mode_oracle, mode_ab_or_cow) && core_ok(host, canon, cover, budget, replay, nonvacuous) && boundary_ok(fallback_ok, no_authority)"
+          },
+          {
+            "name": "is1",
+            "kind": "control_predicate",
+            "params": [
+              "x"
+            ],
+            "body": "(x = 1:sbf)",
+            "body_short": "(x = 1:sbf)"
+          },
+          {
+            "name": "one_hot3",
+            "kind": "control_predicate",
+            "params": [
+              "a",
+              "b",
+              "c"
+            ],
+            "body": "(is1(a) && !is1(b) && !is1(c)) || (!is1(a) && is1(b) && !is1(c)) || (!is1(a) && !is1(b) && is1(c))",
+            "body_short": "(is1(a) && !is1(b) && !is1(c)) || (!is1(a) && is1(b) && !is1(c)) || (!is1(a) && !is1(b) && is1(c))"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 5,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((((((i10[t]:sbf)) = 1:sbf)) && !((((i11[t]:sbf)) = 1:sbf)) && !((((i12[t]:sbf)) = 1:sbf))) || (!((((i10[t]:sbf)) = 1:sbf)) && ((((i11[t]:sbf)) = 1:sbf)) && !((((i12[t]:sbf)) = 1:sbf))) || (!((((i10[t]:sbf)) = 1:sbf))..."
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i2[t]:sbf)) = 1:sbf)) && ((((i3[t]:sbf)) = 1:sbf)) && ((((i4[t]:sbf)) = 1:sbf)) && ((((i5[t]:sbf)) = 1:sbf)) && ((((i6[t]:sbf)) = 1:sbf)) && ((((i9[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i7[t]:sbf)) = 1:sbf)) && ((((i8[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && (((((((i10[t]:sbf))) = 1:sbf)) && !(((((i11[t]:sbf))) = 1:sbf)) && !(((((i12[t]:sbf))) = 1:sbf))) || (!(((((i10[t]:sbf))) = 1:sbf)) && (((((i11[t]:sbf))) = 1:sbf)) && !(((((i12[t]:sbf))) ..."
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(!(((i1[t]:sbf) = 1:sbf)) && (((i8[t]:sbf) = 1:sbf)))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
         "error_messages": []
       }
     },
@@ -7983,6 +8567,708 @@
       }
     },
     {
+      "spec_id": "m6_global_value_certificate_closure_v1",
+      "spec_path": "src/tau_specs/recommended/m6_global_value_certificate_closure_v1.tau",
+      "profile": "proof_gate_or_certificate",
+      "rule": "proof_gates_and_certificates",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf",
+        "i14": "sbf",
+        "i15": "sbf",
+        "i16": "sbf",
+        "i17": "sbf",
+        "i18": "sbf",
+        "i19": "sbf",
+        "i20": "sbf",
+        "i21": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf",
+        "o6": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13",
+          "i14",
+          "i15",
+          "i16",
+          "i17",
+          "i18",
+          "i19",
+          "i20",
+          "i21"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> semantic_value_safety(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> durability_and_effect_safety(i11[t]:sbf, i12[..."
+        ],
+        "control_helper_names": [
+          "durability_and_effect_safety",
+          "is1",
+          "lifecycle_and_mediation_safety",
+          "semantic_value_safety"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": [
+          {
+            "name": "durability_and_effect_safety",
+            "kind": "control_predicate",
+            "params": [
+              "retry_ok",
+              "history_reopen_ok",
+              "proof_context_ok",
+              "publication_ok",
+              "outbox_ok"
+            ],
+            "body": "is1(retry_ok) && is1(history_reopen_ok) && is1(proof_context_ok) && is1(publication_ok) && is1(outbox_ok)",
+            "body_short": "is1(retry_ok) && is1(history_reopen_ok) && is1(proof_context_ok) && is1(publication_ok) && is1(outbox_ok)"
+          },
+          {
+            "name": "is1",
+            "kind": "control_predicate",
+            "params": [
+              "x"
+            ],
+            "body": "x = 1:sbf",
+            "body_short": "x = 1:sbf"
+          },
+          {
+            "name": "lifecycle_and_mediation_safety",
+            "kind": "control_predicate",
+            "params": [
+              "writer_ok",
+              "no_bypass_ok",
+              "subject_ok"
+            ],
+            "body": "is1(writer_ok) && is1(no_bypass_ok) && is1(subject_ok)",
+            "body_short": "is1(writer_ok) && is1(no_bypass_ok) && is1(subject_ok)"
+          },
+          {
+            "name": "semantic_value_safety",
+            "kind": "control_predicate",
+            "params": [
+              "command_ok",
+              "context_ok",
+              "source_ok",
+              "pre_inv",
+              "refinement_ok",
+              "post_inv",
+              "delta_ok",
+              "issuance_ok",
+              "oracle_risk_ok"
+            ],
+            "body": "is1(command_ok) && is1(context_ok) && is1(source_ok) && is1(pre_inv) && is1(refinement_ok) && is1(post_inv) && is1(delta_ok) && is1(issuance_ok) && is1(oracle_risk_ok)",
+            "body_short": "is1(command_ok) && is1(context_ok) && is1(source_ok) && is1(pre_inv) && is1(refinement_ok) && is1(post_inv) && is1(delta_ok) && is1(issuance_ok) && is1(oracle_risk_ok)"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 6,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5",
+          "o6"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((((i2[t]:sbf)) = 1:sbf) && (((i3[t]:sbf)) = 1:sbf) && (((i4[t]:sbf)) = 1:sbf) && (((i5[t]:sbf)) = 1:sbf) && (((i6[t]:sbf)) = 1:sbf) && (((i7[t]:sbf)) = 1:sbf) && (((i8[t]:sbf)) = 1:sbf) && (((i9[t]:sbf)) = 1:sbf) && ..."
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((((i11[t]:sbf)) = 1:sbf) && (((i12[t]:sbf)) = 1:sbf) && (((i13[t]:sbf)) = 1:sbf) && (((i14[t]:sbf)) = 1:sbf) && (((i15[t]:sbf)) = 1:sbf))"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((((i16[t]:sbf)) = 1:sbf) && (((i17[t]:sbf)) = 1:sbf) && (((i18[t]:sbf)) = 1:sbf))"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(i19[t]:sbf = 1:sbf)"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((i1[t]:sbf = 1:sbf) && ((((i2[t]:sbf)) = 1:sbf) && (((i3[t]:sbf)) = 1:sbf) && (((i4[t]:sbf)) = 1:sbf) && (((i5[t]:sbf)) = 1:sbf) && (((i6[t]:sbf)) = 1:sbf) && (((i7[t]:sbf)) = 1:sbf) && (((i8[t]:sbf)) = 1:sbf) && (((..."
+          },
+          {
+            "name": "o6",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((o5[t]:sbf = 1:sbf) && (i20[t]:sbf = 1:sbf) && (i21[t]:sbf = 1:sbf))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "m6_substrate_disposition_gate_v1",
+      "spec_path": "src/tau_specs/recommended/m6_substrate_disposition_gate_v1.tau",
+      "profile": "exact_combinational_guard",
+      "rule": "m6_substrate_profile_and_disposition_gates",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf",
+        "i14": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13",
+          "i14"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> ( (i12[t]:sbf = 1:sbf) && (i13[t]:sbf = 1:sbf) && (i14[t]:sbf = 1:sbf) && (((i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 0:sbf) && (i4[t]:sbf = 0:sbf)) || ((i2[t]:sbf = 0:sbf) && (i3[t]:sbf = 1:sbf) && (..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 2,
+        "covered_outputs": [
+          "o1",
+          "o2"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i12[t]:sbf = 1:sbf) && (i13[t]:sbf = 1:sbf) && (i14[t]:sbf = 1:sbf) && (((i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 0:sbf) && (i4[t]:sbf = 0:sbf)) || ((i2[t]:sbf = 0:sbf) && (i3[t]:sbf = 1:sbf) && (i4[t]:sbf = 0:sbf)) || ..."
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((o1[t]:sbf = 1:sbf) && ((i9[t]:sbf = 1:sbf) || (i10[t]:sbf = 1:sbf)))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "m6_tau_substrate_profile_gate_v1",
+      "spec_path": "src/tau_specs/recommended/m6_tau_substrate_profile_gate_v1.tau",
+      "profile": "exact_combinational_guard",
+      "rule": "m6_substrate_profile_and_disposition_gates",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 0:sbf) && (i3[t]:sbf = 0:sbf) && (i4[t]:sbf = 0:sbf) && (i5[t]:sbf = 0:sbf) && (i6[t]:sbf = 0:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:s..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 0:sbf) && (i3[t]:sbf = 0:sbf) && (i4[t]:sbf = 0:sbf) && (i5[t]:sbf = 0:sbf) && (i6[t]:sbf = 0:sbf) && (i7[t]:sbf = 1:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "m6_writer_activate_guard_v1",
+      "spec_path": "src/tau_specs/recommended/m6_writer_activate_guard_v1.tau",
+      "profile": "stateful_policy_guard",
+      "rule": "m6_writer_transition_guards",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf",
+        "i14": "sbf",
+        "i15": "sbf",
+        "i16": "sbf",
+        "i17": "sbf",
+        "i18": "sbf",
+        "i19": "sbf",
+        "i20": "sbf",
+        "i21": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13",
+          "i14",
+          "i15",
+          "i16",
+          "i17",
+          "i18",
+          "i19",
+          "i20",
+          "i21"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 0:sbf) && (i2[t]:sbf = 0:sbf) && (i3[t]:sbf = 1:sbf) && (i6[t]:sbf = 0:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf) && (i12[t]:sbf = 1:sbf) && (i13[t]:sbf = 1:sbf) && (i14..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 0:sbf) && (i2[t]:sbf = 0:sbf) && (i3[t]:sbf = 1:sbf) && (i6[t]:sbf = 0:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf) && (i12[t]:sbf = 1:sbf) && (i13[t]:sbf = 1:sbf) && (i14[t]:sbf = 1:sbf) && (i1..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "m6_writer_emergency_failover_guard_v1",
+      "spec_path": "src/tau_specs/recommended/m6_writer_emergency_failover_guard_v1.tau",
+      "profile": "stateful_policy_guard",
+      "rule": "m6_writer_transition_guards",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf",
+        "i14": "sbf",
+        "i15": "sbf",
+        "i16": "sbf",
+        "i17": "sbf",
+        "i18": "sbf",
+        "i19": "sbf",
+        "i20": "sbf",
+        "i21": "sbf",
+        "i22": "sbf",
+        "i23": "sbf",
+        "i24": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13",
+          "i14",
+          "i15",
+          "i16",
+          "i17",
+          "i18",
+          "i19",
+          "i20",
+          "i21",
+          "i22",
+          "i23",
+          "i24"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> ( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 0:sbf) && (i3[t]:sbf = 0:sbf) && (i4[t]:sbf = 0:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 0:sbf) && (i7[t]:sbf = 0:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:s..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 0:sbf) && (i3[t]:sbf = 0:sbf) && (i4[t]:sbf = 0:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 0:sbf) && (i7[t]:sbf = 0:sbf) && (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf) && (i10[t]:..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "m6_writer_quiesce_guard_v1",
+      "spec_path": "src/tau_specs/recommended/m6_writer_quiesce_guard_v1.tau",
+      "profile": "stateful_policy_guard",
+      "rule": "m6_writer_transition_guards",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf",
+        "i14": "sbf",
+        "i15": "sbf",
+        "i16": "sbf",
+        "i17": "sbf",
+        "i18": "sbf",
+        "i19": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13",
+          "i14",
+          "i15",
+          "i16",
+          "i17",
+          "i18",
+          "i19"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> ( (i3[t]:sbf = 0:sbf) && (i4[t]:sbf = 0:sbf) && (i5[t]:sbf = 0:sbf) && (i6[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf) && (i12[t]:sbf = 1:sbf) && (i13[t]:sbf = 1:sbf) && (i14..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i3[t]:sbf = 0:sbf) && (i4[t]:sbf = 0:sbf) && (i5[t]:sbf = 0:sbf) && (i6[t]:sbf = 1:sbf) && (i10[t]:sbf = 1:sbf) && (i11[t]:sbf = 1:sbf) && (i12[t]:sbf = 1:sbf) && (i13[t]:sbf = 1:sbf) && (i14[t]:sbf = 1:sbf) && (i1..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "m6_writer_steady_guard_v1",
+      "spec_path": "src/tau_specs/recommended/m6_writer_steady_guard_v1.tau",
+      "profile": "stateful_policy_guard",
+      "rule": "m6_writer_transition_guards",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf",
+        "i14": "sbf",
+        "i15": "sbf",
+        "i16": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13",
+          "i14",
+          "i15",
+          "i16"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> ( (i11[t]:sbf = 1:sbf) && (i12[t]:sbf = 1:sbf) && (i13[t]:sbf = 1:sbf) && (i14[t]:sbf = 1:sbf) && (i15[t]:sbf = 1:sbf) && (i16[t]:sbf = 1:sbf) && (((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 0:sbf) && ..."
+        ],
+        "control_helper_names": []
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": []
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 1,
+        "covered_outputs": [
+          "o1"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "( (i11[t]:sbf = 1:sbf) && (i12[t]:sbf = 1:sbf) && (i13[t]:sbf = 1:sbf) && (i14[t]:sbf = 1:sbf) && (i15[t]:sbf = 1:sbf) && (i16[t]:sbf = 1:sbf) && (((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 0:sbf) && (i3[t]:sbf = 0:sbf) && ..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
       "spec_id": "mev_batch_atomic_replay_guard_v1",
       "spec_path": "src/tau_specs/recommended/mev_batch_atomic_replay_guard_v1.tau",
       "profile": "stateful_policy_guard",
@@ -9001,6 +10287,266 @@
       }
     },
     {
+      "spec_id": "optimizer_quotient_certificate_v1",
+      "spec_path": "src/tau_specs/recommended/optimizer_quotient_certificate_v1.tau",
+      "profile": "proof_gate_or_certificate",
+      "rule": "proof_gates_and_certificates",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf",
+        "i14": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf",
+        "o6": "sbf",
+        "o7": "sbf",
+        "o8": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13",
+          "i14"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> one_hot3(i12[t]:sbf, i13[t]:sbf, i14[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> core_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i11[t]:sbf)) && (o3[t]:sbf = 1:sbf <-..."
+        ],
+        "control_helper_names": [
+          "boundary_ok",
+          "core_ok",
+          "is1",
+          "mode_ab_ok",
+          "mode_cow_ok",
+          "mode_route_ok",
+          "one_hot3"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": [
+          {
+            "name": "boundary_ok",
+            "kind": "control_predicate",
+            "params": [
+              "fallback_ok",
+              "no_authority"
+            ],
+            "body": "is1(fallback_ok) && is1(no_authority)",
+            "body_short": "is1(fallback_ok) && is1(no_authority)"
+          },
+          {
+            "name": "core_ok",
+            "kind": "control_predicate",
+            "params": [
+              "domain",
+              "quotient",
+              "winner",
+              "replay",
+              "cover",
+              "scope",
+              "budget",
+              "nonvacuous"
+            ],
+            "body": "is1(domain) && is1(quotient) && is1(winner) && is1(replay) && is1(cover) && is1(scope) && is1(budget) && is1(nonvacuous)",
+            "body_short": "is1(domain) && is1(quotient) && is1(winner) && is1(replay) && is1(cover) && is1(scope) && is1(budget) && is1(nonvacuous)"
+          },
+          {
+            "name": "is1",
+            "kind": "control_predicate",
+            "params": [
+              "x"
+            ],
+            "body": "(x = 1:sbf)",
+            "body_short": "(x = 1:sbf)"
+          },
+          {
+            "name": "mode_ab_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "route",
+              "ab",
+              "cow",
+              "domain",
+              "quotient",
+              "winner",
+              "replay",
+              "cover",
+              "scope",
+              "budget",
+              "fallback_ok",
+              "no_authority",
+              "nonvacuous"
+            ],
+            "body": "is1(active) && is1(ab) && one_hot3(route, ab, cow) && core_ok(domain, quotient, winner, replay, cover, scope, budget, nonvacuous) && boundary_ok(fallback_ok, no_authority)",
+            "body_short": "is1(active) && is1(ab) && one_hot3(route, ab, cow) && core_ok(domain, quotient, winner, replay, cover, scope, budget, nonvacuous) && boundary_ok(fallback_ok, no_authority)"
+          },
+          {
+            "name": "mode_cow_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "route",
+              "ab",
+              "cow",
+              "domain",
+              "quotient",
+              "winner",
+              "replay",
+              "cover",
+              "scope",
+              "budget",
+              "fallback_ok",
+              "no_authority",
+              "nonvacuous"
+            ],
+            "body": "is1(active) && is1(cow) && one_hot3(route, ab, cow) && core_ok(domain, quotient, winner, replay, cover, scope, budget, nonvacuous) && boundary_ok(fallback_ok, no_authority)",
+            "body_short": "is1(active) && is1(cow) && one_hot3(route, ab, cow) && core_ok(domain, quotient, winner, replay, cover, scope, budget, nonvacuous) && boundary_ok(fallback_ok, no_authority)"
+          },
+          {
+            "name": "mode_route_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "route",
+              "ab",
+              "cow",
+              "domain",
+              "quotient",
+              "winner",
+              "replay",
+              "cover",
+              "scope",
+              "budget",
+              "fallback_ok",
+              "no_authority",
+              "nonvacuous"
+            ],
+            "body": "is1(active) && is1(route) && one_hot3(route, ab, cow) && core_ok(domain, quotient, winner, replay, cover, scope, budget, nonvacuous) && boundary_ok(fallback_ok, no_authority)",
+            "body_short": "is1(active) && is1(route) && one_hot3(route, ab, cow) && core_ok(domain, quotient, winner, replay, cover, scope, budget, nonvacuous) && boundary_ok(fallback_ok, no_authority)"
+          },
+          {
+            "name": "one_hot3",
+            "kind": "control_predicate",
+            "params": [
+              "a",
+              "b",
+              "c"
+            ],
+            "body": "(is1(a) && !is1(b) && !is1(c)) || (!is1(a) && is1(b) && !is1(c)) || (!is1(a) && !is1(b) && is1(c))",
+            "body_short": "(is1(a) && !is1(b) && !is1(c)) || (!is1(a) && is1(b) && !is1(c)) || (!is1(a) && !is1(b) && is1(c))"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 8,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5",
+          "o6",
+          "o7",
+          "o8"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((((((i12[t]:sbf)) = 1:sbf)) && !((((i13[t]:sbf)) = 1:sbf)) && !((((i14[t]:sbf)) = 1:sbf))) || (!((((i12[t]:sbf)) = 1:sbf)) && ((((i13[t]:sbf)) = 1:sbf)) && !((((i14[t]:sbf)) = 1:sbf))) || (!((((i12[t]:sbf)) = 1:sbf))..."
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i2[t]:sbf)) = 1:sbf)) && ((((i3[t]:sbf)) = 1:sbf)) && ((((i4[t]:sbf)) = 1:sbf)) && ((((i5[t]:sbf)) = 1:sbf)) && ((((i6[t]:sbf)) = 1:sbf)) && ((((i7[t]:sbf)) = 1:sbf)) && ((((i8[t]:sbf)) = 1:sbf)) && ((((i11[t]:sb..."
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i9[t]:sbf)) = 1:sbf)) && ((((i10[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((((i12[t]:sbf)) = 1:sbf)) && (((((((i12[t]:sbf))) = 1:sbf)) && !(((((i13[t]:sbf))) = 1:sbf)) && !(((((i14[t]:sbf))) = 1:sbf))) || (!(((((i12[t]:sbf))) = 1:sbf)) && (((((i13[t]:sbf))) = 1..."
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((((i13[t]:sbf)) = 1:sbf)) && (((((((i12[t]:sbf))) = 1:sbf)) && !(((((i13[t]:sbf))) = 1:sbf)) && !(((((i14[t]:sbf))) = 1:sbf))) || (!(((((i12[t]:sbf))) = 1:sbf)) && (((((i13[t]:sbf))) = 1..."
+          },
+          {
+            "name": "o6",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((((i14[t]:sbf)) = 1:sbf)) && (((((((i12[t]:sbf))) = 1:sbf)) && !(((((i13[t]:sbf))) = 1:sbf)) && !(((((i14[t]:sbf))) = 1:sbf))) || (!(((((i12[t]:sbf))) = 1:sbf)) && (((((i13[t]:sbf))) = 1..."
+          },
+          {
+            "name": "o7",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "((((((i1[t]:sbf)) = 1:sbf)) && ((((i12[t]:sbf)) = 1:sbf)) && (((((((i12[t]:sbf))) = 1:sbf)) && !(((((i13[t]:sbf))) = 1:sbf)) && !(((((i14[t]:sbf))) = 1:sbf))) || (!(((((i12[t]:sbf))) = 1:sbf)) && (((((i13[t]:sbf))) = ..."
+          },
+          {
+            "name": "o8",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(!(((i1[t]:sbf) = 1:sbf)) && (((i10[t]:sbf) = 1:sbf)))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
       "spec_id": "oracle_bounded_move_gate_v1",
       "spec_path": "src/tau_specs/recommended/oracle_bounded_move_gate_v1.tau",
       "profile": "exact_combinational_guard",
@@ -9709,6 +11255,190 @@
         "observed_output_signatures": [
           "0000"
         ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "oracle_polytope_frontier_envelope_v1",
+      "spec_path": "src/tau_specs/recommended/oracle_polytope_frontier_envelope_v1.tau",
+      "profile": "proof_gate_or_certificate",
+      "rule": "frontier_host_certificate_envelopes",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> interval_feasible_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> parity_boundary_ok(i6[t]:sbf, i7[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> external_assumptions_ok(i8[t]:sbf,..."
+        ],
+        "control_helper_names": [
+          "authority_ok",
+          "external_assumptions_ok",
+          "interval_feasible_ok",
+          "is1",
+          "oracle_ok",
+          "parity_boundary_ok"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": [
+          {
+            "name": "authority_ok",
+            "kind": "control_predicate",
+            "params": [
+              "no_update_authority",
+              "fail_closed_default"
+            ],
+            "body": "is1(no_update_authority) && is1(fail_closed_default)",
+            "body_short": "is1(no_update_authority) && is1(fail_closed_default)"
+          },
+          {
+            "name": "external_assumptions_ok",
+            "kind": "control_predicate",
+            "params": [
+              "mev_declared",
+              "prob_declared"
+            ],
+            "body": "is1(mev_declared) && is1(prob_declared)",
+            "body_short": "is1(mev_declared) && is1(prob_declared)"
+          },
+          {
+            "name": "interval_feasible_ok",
+            "kind": "control_predicate",
+            "params": [
+              "nonempty",
+              "honest_ok",
+              "frivolous_ok",
+              "slash_ok"
+            ],
+            "body": "is1(nonempty) && is1(honest_ok) && is1(frivolous_ok) && is1(slash_ok)",
+            "body_short": "is1(nonempty) && is1(honest_ok) && is1(frivolous_ok) && is1(slash_ok)"
+          },
+          {
+            "name": "is1",
+            "kind": "control_predicate",
+            "params": [
+              "x"
+            ],
+            "body": "(x = 1:sbf)",
+            "body_short": "(x = 1:sbf)"
+          },
+          {
+            "name": "oracle_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "nonempty",
+              "honest_ok",
+              "frivolous_ok",
+              "slash_ok",
+              "parity_ok",
+              "boundary_checked",
+              "mev_declared",
+              "prob_declared",
+              "no_update_authority",
+              "fail_closed_default"
+            ],
+            "body": "is1(active) && interval_feasible_ok(nonempty, honest_ok, frivolous_ok, slash_ok) && parity_boundary_ok(parity_ok, boundary_checked) && external_assumptions_ok(mev_declared, prob_declared) && authority_ok(no_update_authority, fail_closed_default)",
+            "body_short": "is1(active) && interval_feasible_ok(nonempty, honest_ok, frivolous_ok, slash_ok) && parity_boundary_ok(parity_ok, boundary_checked) && external_assumptions_ok(mev_declared, prob_declared) && authority_ok(no_update_aut..."
+          },
+          {
+            "name": "parity_boundary_ok",
+            "kind": "control_predicate",
+            "params": [
+              "parity_ok",
+              "boundary_ok"
+            ],
+            "body": "is1(parity_ok) && is1(boundary_ok)",
+            "body_short": "is1(parity_ok) && is1(boundary_ok)"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 5,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i2[t]:sbf)) = 1:sbf)) && ((((i3[t]:sbf)) = 1:sbf)) && ((((i4[t]:sbf)) = 1:sbf)) && ((((i5[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i6[t]:sbf)) = 1:sbf)) && ((((i7[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i8[t]:sbf)) = 1:sbf)) && ((((i9[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i10[t]:sbf)) = 1:sbf)) && ((((i11[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((((((i2[t]:sbf))) = 1:sbf)) && (((((i3[t]:sbf))) = 1:sbf)) && (((((i4[t]:sbf))) = 1:sbf)) && (((((i5[t]:sbf))) = 1:sbf))) && ((((((i6[t]:sbf))) = 1:sbf)) && (((((i7[t]:sbf))) = 1:sbf))) ..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
         "error_messages": []
       }
     },
@@ -14764,6 +16494,217 @@
       }
     },
     {
+      "spec_id": "proof_mining_slot_batch_certificate_v1",
+      "spec_path": "src/tau_specs/recommended/proof_mining_slot_batch_certificate_v1.tau",
+      "profile": "proof_gate_or_certificate",
+      "rule": "proof_gates_and_certificates",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf",
+        "i12": "sbf",
+        "i13": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf",
+        "o6": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11",
+          "i12",
+          "i13"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> mode_ok(i1[t]:sbf, i2[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> structural_scope_ok(i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> exact_certificate_ok(i7[t]:sbf, i8[t]:sbf, i9[..."
+        ],
+        "control_helper_names": [
+          "baseline_comparison_ok",
+          "exact_certificate_ok",
+          "is1",
+          "mode_ok",
+          "safety_rail_ok",
+          "slot_batch_certificate_ok",
+          "structural_scope_ok"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": [
+          {
+            "name": "baseline_comparison_ok",
+            "kind": "control_predicate",
+            "params": [
+              "baseline_replayed",
+              "improvement_or_parity"
+            ],
+            "body": "is1(baseline_replayed) && is1(improvement_or_parity)",
+            "body_short": "is1(baseline_replayed) && is1(improvement_or_parity)"
+          },
+          {
+            "name": "exact_certificate_ok",
+            "kind": "control_predicate",
+            "params": [
+              "exact_recomputed",
+              "objective_minimal",
+              "tie_ok"
+            ],
+            "body": "is1(exact_recomputed) && is1(objective_minimal) && is1(tie_ok)",
+            "body_short": "is1(exact_recomputed) && is1(objective_minimal) && is1(tie_ok)"
+          },
+          {
+            "name": "is1",
+            "kind": "control_predicate",
+            "params": [
+              "x"
+            ],
+            "body": "(x = 1:sbf)",
+            "body_short": "(x = 1:sbf)"
+          },
+          {
+            "name": "mode_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "mode_slot_batch"
+            ],
+            "body": "is1(active) && is1(mode_slot_batch)",
+            "body_short": "is1(active) && is1(mode_slot_batch)"
+          },
+          {
+            "name": "safety_rail_ok",
+            "kind": "control_predicate",
+            "params": [
+              "duplicate_rejects",
+              "no_authority"
+            ],
+            "body": "is1(duplicate_rejects) && is1(no_authority)",
+            "body_short": "is1(duplicate_rejects) && is1(no_authority)"
+          },
+          {
+            "name": "slot_batch_certificate_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "mode_slot_batch",
+              "registry_ok",
+              "domain_ok",
+              "budget_ok",
+              "nonvacuous",
+              "exact_recomputed",
+              "objective_minimal",
+              "tie_ok",
+              "baseline_replayed",
+              "improvement_or_parity",
+              "duplicate_rejects",
+              "no_authority"
+            ],
+            "body": "mode_ok(active, mode_slot_batch) && structural_scope_ok(registry_ok, domain_ok, budget_ok, nonvacuous) && exact_certificate_ok(exact_recomputed, objective_minimal, tie_ok) && baseline_comparison_ok(baseline_replayed, improvement_or_parity) && safety_rail_ok(duplicate_rejects, no_authority)",
+            "body_short": "mode_ok(active, mode_slot_batch) && structural_scope_ok(registry_ok, domain_ok, budget_ok, nonvacuous) && exact_certificate_ok(exact_recomputed, objective_minimal, tie_ok) && baseline_comparison_ok(baseline_replayed, ..."
+          },
+          {
+            "name": "structural_scope_ok",
+            "kind": "control_predicate",
+            "params": [
+              "registry_ok",
+              "domain_ok",
+              "budget_ok",
+              "nonvacuous"
+            ],
+            "body": "is1(registry_ok) && is1(domain_ok) && is1(budget_ok) && is1(nonvacuous)",
+            "body_short": "is1(registry_ok) && is1(domain_ok) && is1(budget_ok) && is1(nonvacuous)"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 6,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5",
+          "o6"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((((i2[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i3[t]:sbf)) = 1:sbf)) && ((((i4[t]:sbf)) = 1:sbf)) && ((((i5[t]:sbf)) = 1:sbf)) && ((((i6[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i7[t]:sbf)) = 1:sbf)) && ((((i8[t]:sbf)) = 1:sbf)) && ((((i9[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i10[t]:sbf)) = 1:sbf)) && ((((i11[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i12[t]:sbf)) = 1:sbf)) && ((((i13[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o6",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((((i1[t]:sbf))) = 1:sbf)) && (((((i2[t]:sbf))) = 1:sbf))) && ((((((i3[t]:sbf))) = 1:sbf)) && (((((i4[t]:sbf))) = 1:sbf)) && (((((i5[t]:sbf))) = 1:sbf)) && (((((i6[t]:sbf))) = 1:sbf))) && ((((((i7[t]:sbf))) = 1:sbf..."
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
       "spec_id": "proposal_lifecycle_v1",
       "spec_path": "src/tau_specs/recommended/proposal_lifecycle_v1.tau",
       "profile": "stateful_policy_guard",
@@ -18668,6 +20609,181 @@
       }
     },
     {
+      "spec_id": "route_dominance_frontier_envelope_v1",
+      "spec_path": "src/tau_specs/recommended/route_dominance_frontier_envelope_v1.tau",
+      "profile": "proof_gate_or_certificate",
+      "rule": "frontier_host_certificate_envelopes",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> dominance_cover_ok(i3[t]:sbf, i4[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> certificate_path_ok(i2[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> fallback_boun..."
+        ],
+        "control_helper_names": [
+          "certificate_path_ok",
+          "dominance_cover_ok",
+          "fallback_boundary_ok",
+          "is1",
+          "route_ok"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": [
+          {
+            "name": "certificate_path_ok",
+            "kind": "control_predicate",
+            "params": [
+              "domain_nonempty",
+              "argmin_ok",
+              "projection_cover_ok",
+              "quote_replay_ok",
+              "rounding_ok",
+              "budget_ok"
+            ],
+            "body": "is1(domain_nonempty) && is1(argmin_ok) && is1(projection_cover_ok) && is1(quote_replay_ok) && is1(rounding_ok) && is1(budget_ok)",
+            "body_short": "is1(domain_nonempty) && is1(argmin_ok) && is1(projection_cover_ok) && is1(quote_replay_ok) && is1(rounding_ok) && is1(budget_ok)"
+          },
+          {
+            "name": "dominance_cover_ok",
+            "kind": "control_predicate",
+            "params": [
+              "checked",
+              "dominated"
+            ],
+            "body": "is1(checked) && is1(dominated)",
+            "body_short": "is1(checked) && is1(dominated)"
+          },
+          {
+            "name": "fallback_boundary_ok",
+            "kind": "control_predicate",
+            "params": [
+              "fallback_ok",
+              "no_authority"
+            ],
+            "body": "is1(fallback_ok) && is1(no_authority)",
+            "body_short": "is1(fallback_ok) && is1(no_authority)"
+          },
+          {
+            "name": "is1",
+            "kind": "control_predicate",
+            "params": [
+              "x"
+            ],
+            "body": "(x = 1:sbf)",
+            "body_short": "(x = 1:sbf)"
+          },
+          {
+            "name": "route_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "domain_nonempty",
+              "checked",
+              "dominated",
+              "argmin_ok",
+              "projection_cover_ok",
+              "quote_replay_ok",
+              "rounding_ok",
+              "budget_ok",
+              "fallback_ok",
+              "no_authority"
+            ],
+            "body": "is1(active) && dominance_cover_ok(checked, dominated) && certificate_path_ok(domain_nonempty, argmin_ok, projection_cover_ok, quote_replay_ok, rounding_ok, budget_ok) && fallback_boundary_ok(fallback_ok, no_authority)",
+            "body_short": "is1(active) && dominance_cover_ok(checked, dominated) && certificate_path_ok(domain_nonempty, argmin_ok, projection_cover_ok, quote_replay_ok, rounding_ok, budget_ok) && fallback_boundary_ok(fallback_ok, no_authority)"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 5,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i3[t]:sbf)) = 1:sbf)) && ((((i4[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i2[t]:sbf)) = 1:sbf)) && ((((i5[t]:sbf)) = 1:sbf)) && ((((i6[t]:sbf)) = 1:sbf)) && ((((i7[t]:sbf)) = 1:sbf)) && ((((i8[t]:sbf)) = 1:sbf)) && ((((i9[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i10[t]:sbf)) = 1:sbf)) && ((((i11[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((((((i3[t]:sbf))) = 1:sbf)) && (((((i4[t]:sbf))) = 1:sbf))) && ((((((i2[t]:sbf))) = 1:sbf)) && (((((i5[t]:sbf))) = 1:sbf)) && (((((i6[t]:sbf))) = 1:sbf)) && (((((i7[t]:sbf))) = 1:sbf)) &..."
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(!(((i1[t]:sbf) = 1:sbf)) && (((i11[t]:sbf) = 1:sbf)))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
+      }
+    },
+    {
       "spec_id": "route_path_valid_v1",
       "spec_path": "src/tau_specs/recommended/route_path_valid_v1.tau",
       "profile": "exact_combinational_guard",
@@ -18853,6 +20969,181 @@
         "observed_output_signatures": [
           "0100"
         ],
+        "error_messages": []
+      }
+    },
+    {
+      "spec_id": "route_split_window_certificate_v1",
+      "spec_path": "src/tau_specs/recommended/route_split_window_certificate_v1.tau",
+      "profile": "proof_gate_or_certificate",
+      "rule": "proof_gates_and_certificates",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> window_search_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> proof_surface_ok(i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i11[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> fallback_boundary..."
+        ],
+        "control_helper_names": [
+          "fallback_boundary_ok",
+          "is1",
+          "proof_surface_ok",
+          "route_split_ok",
+          "window_search_ok"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": [
+          {
+            "name": "fallback_boundary_ok",
+            "kind": "control_predicate",
+            "params": [
+              "fallback_ok",
+              "no_authority"
+            ],
+            "body": "is1(fallback_ok) && is1(no_authority)",
+            "body_short": "is1(fallback_ok) && is1(no_authority)"
+          },
+          {
+            "name": "is1",
+            "kind": "control_predicate",
+            "params": [
+              "x"
+            ],
+            "body": "(x = 1:sbf)",
+            "body_short": "(x = 1:sbf)"
+          },
+          {
+            "name": "proof_surface_ok",
+            "kind": "control_predicate",
+            "params": [
+              "parity",
+              "quote_replay",
+              "rounding",
+              "budget",
+              "exact_out_scope"
+            ],
+            "body": "is1(parity) && is1(quote_replay) && is1(rounding) && is1(budget) && is1(exact_out_scope)",
+            "body_short": "is1(parity) && is1(quote_replay) && is1(rounding) && is1(budget) && is1(exact_out_scope)"
+          },
+          {
+            "name": "route_split_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "domain",
+              "replayed",
+              "local_ok",
+              "parity",
+              "quote_replay",
+              "rounding",
+              "budget",
+              "fallback_ok",
+              "no_authority",
+              "exact_out_scope"
+            ],
+            "body": "is1(active) && window_search_ok(domain, replayed, local_ok) && proof_surface_ok(parity, quote_replay, rounding, budget, exact_out_scope) && fallback_boundary_ok(fallback_ok, no_authority)",
+            "body_short": "is1(active) && window_search_ok(domain, replayed, local_ok) && proof_surface_ok(parity, quote_replay, rounding, budget, exact_out_scope) && fallback_boundary_ok(fallback_ok, no_authority)"
+          },
+          {
+            "name": "window_search_ok",
+            "kind": "control_predicate",
+            "params": [
+              "domain",
+              "replayed",
+              "local_ok"
+            ],
+            "body": "is1(domain) && is1(replayed) && is1(local_ok)",
+            "body_short": "is1(domain) && is1(replayed) && is1(local_ok)"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 5,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i2[t]:sbf)) = 1:sbf)) && ((((i3[t]:sbf)) = 1:sbf)) && ((((i4[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i5[t]:sbf)) = 1:sbf)) && ((((i6[t]:sbf)) = 1:sbf)) && ((((i7[t]:sbf)) = 1:sbf)) && ((((i8[t]:sbf)) = 1:sbf)) && ((((i11[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i9[t]:sbf)) = 1:sbf)) && ((((i10[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((((((i2[t]:sbf))) = 1:sbf)) && (((((i3[t]:sbf))) = 1:sbf)) && (((((i4[t]:sbf))) = 1:sbf))) && ((((((i5[t]:sbf))) = 1:sbf)) && (((((i6[t]:sbf))) = 1:sbf)) && (((((i7[t]:sbf))) = 1:sbf)) &..."
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(!(((i1[t]:sbf) = 1:sbf)) && (((i10[t]:sbf) = 1:sbf)))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
         "error_messages": []
       }
     },
@@ -19568,6 +21859,189 @@
           "tau failed (rc=-1): tau timed out",
           "tau failed (rc=-1): tau timed out"
         ]
+      }
+    },
+    {
+      "spec_id": "sealed_bid_marginal_bucket_certificate_v1",
+      "spec_path": "src/tau_specs/recommended/sealed_bid_marginal_bucket_certificate_v1.tau",
+      "profile": "proof_gate_or_certificate",
+      "rule": "proof_gates_and_certificates",
+      "temporal": false,
+      "input_streams": {
+        "i1": "sbf",
+        "i2": "sbf",
+        "i3": "sbf",
+        "i4": "sbf",
+        "i5": "sbf",
+        "i6": "sbf",
+        "i7": "sbf",
+        "i8": "sbf",
+        "i9": "sbf",
+        "i10": "sbf",
+        "i11": "sbf"
+      },
+      "output_streams": {
+        "o1": "sbf",
+        "o2": "sbf",
+        "o3": "sbf",
+        "o4": "sbf",
+        "o5": "sbf"
+      },
+      "control_surface": {
+        "sbf_inputs": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8",
+          "i9",
+          "i10",
+          "i11"
+        ],
+        "bv_inputs": [],
+        "always_count": 1,
+        "always_short": [
+          "(o1[t]:sbf = 1:sbf <-> apportionment_math_ok(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i7[t]:sbf, i10[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> privacy_boundary_ok(i6[t]:sbf, i11[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> research..."
+        ],
+        "control_helper_names": [
+          "apportionment_math_ok",
+          "is1",
+          "privacy_boundary_ok",
+          "production_scope_candidate_ok",
+          "research_certificate_ok"
+        ]
+      },
+      "data_surface": {
+        "data_helper_names": [],
+        "definitions": [
+          {
+            "name": "apportionment_math_ok",
+            "kind": "control_predicate",
+            "params": [
+              "bucket",
+              "parity",
+              "quota",
+              "tie",
+              "occurrence",
+              "budget"
+            ],
+            "body": "is1(bucket) && is1(parity) && is1(quota) && is1(tie) && is1(occurrence) && is1(budget)",
+            "body_short": "is1(bucket) && is1(parity) && is1(quota) && is1(tie) && is1(occurrence) && is1(budget)"
+          },
+          {
+            "name": "is1",
+            "kind": "control_predicate",
+            "params": [
+              "x"
+            ],
+            "body": "(x = 1:sbf)",
+            "body_short": "(x = 1:sbf)"
+          },
+          {
+            "name": "privacy_boundary_ok",
+            "kind": "control_predicate",
+            "params": [
+              "receipts_private",
+              "no_authority"
+            ],
+            "body": "is1(receipts_private) && is1(no_authority)",
+            "body_short": "is1(receipts_private) && is1(no_authority)"
+          },
+          {
+            "name": "production_scope_candidate_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "bucket",
+              "parity",
+              "quota",
+              "tie",
+              "receipts_private",
+              "occurrence",
+              "risk_classified",
+              "single_bidder_scope",
+              "budget",
+              "no_authority"
+            ],
+            "body": "research_certificate_ok(active, bucket, parity, quota, tie, receipts_private, occurrence, risk_classified, budget, no_authority) && is1(single_bidder_scope)",
+            "body_short": "research_certificate_ok(active, bucket, parity, quota, tie, receipts_private, occurrence, risk_classified, budget, no_authority) && is1(single_bidder_scope)"
+          },
+          {
+            "name": "research_certificate_ok",
+            "kind": "control_predicate",
+            "params": [
+              "active",
+              "bucket",
+              "parity",
+              "quota",
+              "tie",
+              "receipts_private",
+              "occurrence",
+              "risk_classified",
+              "budget",
+              "no_authority"
+            ],
+            "body": "is1(active) && apportionment_math_ok(bucket, parity, quota, tie, occurrence, budget) && privacy_boundary_ok(receipts_private, no_authority) && is1(risk_classified)",
+            "body_short": "is1(active) && apportionment_math_ok(bucket, parity, quota, tie, occurrence, budget) && privacy_boundary_ok(receipts_private, no_authority) && is1(risk_classified)"
+          }
+        ]
+      },
+      "equation_surface": {
+        "extractable": true,
+        "equation_count": 5,
+        "covered_outputs": [
+          "o1",
+          "o2",
+          "o3",
+          "o4",
+          "o5"
+        ],
+        "rows": [
+          {
+            "name": "o1",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i2[t]:sbf)) = 1:sbf)) && ((((i3[t]:sbf)) = 1:sbf)) && ((((i4[t]:sbf)) = 1:sbf)) && ((((i5[t]:sbf)) = 1:sbf)) && ((((i7[t]:sbf)) = 1:sbf)) && ((((i10[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o2",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i6[t]:sbf)) = 1:sbf)) && ((((i11[t]:sbf)) = 1:sbf)))"
+          },
+          {
+            "name": "o3",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((i1[t]:sbf)) = 1:sbf)) && ((((((i2[t]:sbf))) = 1:sbf)) && (((((i3[t]:sbf))) = 1:sbf)) && (((((i4[t]:sbf))) = 1:sbf)) && (((((i5[t]:sbf))) = 1:sbf)) && (((((i7[t]:sbf))) = 1:sbf)) && (((((i10[t]:sbf))) = 1:sbf))) &..."
+          },
+          {
+            "name": "o4",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(((((((i1[t]:sbf))) = 1:sbf)) && (((((((i2[t]:sbf)))) = 1:sbf)) && ((((((i3[t]:sbf)))) = 1:sbf)) && ((((((i4[t]:sbf)))) = 1:sbf)) && ((((((i5[t]:sbf)))) = 1:sbf)) && ((((((i7[t]:sbf)))) = 1:sbf)) && ((((((i10[t]:sbf))..."
+          },
+          {
+            "name": "o5",
+            "index": "t",
+            "type": "sbf",
+            "style": "iff_true",
+            "expr_short": "(!(((i1[t]:sbf) = 1:sbf)) && (((i11[t]:sbf) = 1:sbf)))"
+          }
+        ]
+      },
+      "execution": {
+        "status": "missing",
+        "runner": "",
+        "observed_output_signatures": [],
+        "error_messages": []
       }
     },
     {

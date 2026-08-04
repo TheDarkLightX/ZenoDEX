@@ -1,0 +1,222 @@
+{
+  "schema": "zenodex/m6_tau_placement_frontier/v1",
+  "status": "RESEARCH_ONLY_EXECUTABLE_UNMOUNTED",
+  "as_of": "2026-08-03",
+  "zenodex_base_commit": "4aaf35fa33016c0817dce19f46efc979d0b32489",
+  "tau_profile": {
+    "origin": "https://github.com/IDNI/tau-lang",
+    "remote_head_verified": "c43c66b84966aac0e2830aa778dfda79b2857608",
+    "source_commit": "c43c66b84966aac0e2830aa778dfda79b2857608",
+    "source_tree": "01829511c6961cde5b6121bb1cf205f106de9203",
+    "parser_origin": "https://github.com/IDNI/parser.git",
+    "parser_commit": "ec62e2b78c342c9265876fc6edbadc82806ee493",
+    "version_output": "Tau Language Framework version 0.7.0-alpha (c43c66b8)",
+    "binary_sha256": "588ebf63dfbcf5101b30e02d149678143cbcb89e60e51e0aa8bed0f9d716b157"
+  },
+  "upstream_validation": {
+    "command": "TAU_BUILD_JOBS=4 ./dev preset release-tests run",
+    "tests_passed": 316,
+    "tests_failed": 0,
+    "debug_build_executed": false
+  },
+  "upstream_source_evidence": [
+    {
+      "claim": "Functional quantifiers are parsed and normalized but not evaluated.",
+      "path": "README.md",
+      "lines": "555-559"
+    },
+    {
+      "claim": "Recurrence fixpoint enumeration has a 500-step limit that is not a nonexistence proof.",
+      "path": "README.md",
+      "lines": "742-744"
+    },
+    {
+      "claim": "The public API is unstable and requires external serialization for concurrent use.",
+      "path": "src/api.h",
+      "lines": "12-23"
+    },
+    {
+      "claim": "Minterm enumeration has exponential worst case and no deadline or tri-state result.",
+      "path": "src/solver.tmpl.h",
+      "lines": "212-218"
+    },
+    {
+      "claim": "An eventual-flag search can return F after a bounded failure that is not an unsatisfiability proof.",
+      "path": "src/satisfiability.tmpl.h",
+      "lines": "1420-1444"
+    },
+    {
+      "claim": "The parser test build can fetch doctest from an unpinned master branch.",
+      "path": "external/parser/tests/CMakeLists.txt",
+      "lines": "37-43"
+    }
+  ],
+  "observed_capabilities": [
+    {
+      "id": "small_exact_policy_relations",
+      "finding": "Small sbf conjunctions and exclusive state-machine guards execute within the retained 30 second budget.",
+      "placement": "TAU_PREFERRED"
+    },
+    {
+      "id": "direct_bv_stream_arithmetic",
+      "finding": "The pinned binary executed direct bv[8] and bv[256] stream addition; the previous embedded binary failed to create the output for the same bv[8] stream-addition probe.",
+      "placement": "TAU_CONDITIONAL"
+    },
+    {
+      "id": "modular_bv256",
+      "finding": "bv[256] addition wraps modulo 2^256; max plus one produced zero.",
+      "placement": "REQUIRES_EXPLICIT_OVERFLOW_PROOF"
+    },
+    {
+      "id": "pointwise_revision",
+      "finding": "Pointwise revision is implemented, while immediate outputs after an update can remain unspecified when the new rule has lookback.",
+      "placement": "RESEARCH_ONLY"
+    },
+    {
+      "id": "functional_quantifier_syntax",
+      "finding": "fall and fex are parsed and retained as atomic terms; upstream documentation says they are not evaluated.",
+      "placement": "UNAVAILABLE_FOR_AUTHORITY"
+    }
+  ],
+  "practical_limits": [
+    {
+      "id": "guarded_bv256_timeout",
+      "finding": "A two-step bv[256] stream-addition probe with an explicit non-wrap comparison exceeded 30 seconds.",
+      "consequence": "Keep full-width accounting transitions and overflow enforcement in Rust or a separately proved arithmetic layer."
+    },
+    {
+      "id": "perps_arithmetic_timeout",
+      "finding": "The 22-input perp risk envelope exceeded 30 seconds in the 64-step campaign and exceeded 60 seconds in a one-step probe.",
+      "consequence": "Use Tau for compact admission facts or cached proof qualification around the perps kernel."
+    },
+    {
+      "id": "bounded_temporal_procedures",
+      "finding": "Upstream fixpoint and eventual-flag searches have 500-step caps; one path explicitly returns F after a bounded failure that is not a proof of unsatisfiability.",
+      "consequence": "Treat Tau Error, timeout, bounded-failure diagnostics, and unknown outcomes as fail-closed indeterminate results."
+    },
+    {
+      "id": "exponential_minterm_search",
+      "finding": "The solver documents a worst-case 2^vars minterm enumeration with no budget or tri-state result contract.",
+      "consequence": "Every admitted Tau profile needs a resource envelope and exact-version qualification."
+    },
+    {
+      "id": "single_threaded_unstable_api",
+      "finding": "The public API is documented as highly unstable and single-threaded unless the caller serializes access.",
+      "consequence": "Use process isolation or an externally serialized adapter and bind its exact binary identity."
+    },
+    {
+      "id": "supply_chain_not_fully_pinned",
+      "finding": "The build can fetch doctest from master and uses dependency tags for unordered_dense and FTXUI; dependency authenticity remains outside this receipt.",
+      "consequence": "A promotable Tau toolchain requires a closed source manifest or reproducible hermetic build."
+    },
+    {
+      "id": "legacy_profile_registry_drift",
+      "finding": "Existing per-spec profile markers retain historical Tau 401d756b observations and do not qualify those specs under c43c66b8.",
+      "consequence": "Requalify each runtime-admitted relation against one exact Tau profile before changing any admission status."
+    }
+  ],
+  "performance_campaign": {
+    "steps": 64,
+    "timeout_seconds_per_spec": 30,
+    "results": [
+      {
+        "spec": "resource_budget_guard_v1",
+        "elapsed_seconds": 1.0562067031860352,
+        "per_step_milliseconds": 16.5032297372818,
+        "within_budget": true
+      },
+      {
+        "spec": "resource_artifact_binding_guard_v1",
+        "elapsed_seconds": 0.9193556308746338,
+        "per_step_milliseconds": 14.364931732416153,
+        "within_budget": true
+      },
+      {
+        "spec": "resource_load_shedding_regret_guard_v1",
+        "elapsed_seconds": 2.3100061416625977,
+        "per_step_milliseconds": 36.09384596347809,
+        "within_budget": true
+      },
+      {
+        "spec": "swap_execution_regret_guard_v1",
+        "elapsed_seconds": 1.5671608448028564,
+        "per_step_milliseconds": 24.486888200044632,
+        "within_budget": true
+      },
+      {
+        "spec": "perp_risk_envelope_proof_gate_v1",
+        "elapsed_seconds": 30.070292234420776,
+        "within_budget": false,
+        "outcome": "TIMEOUT"
+      }
+    ]
+  },
+  "placement": {
+    "tau_preferred": [
+      "pinned substrate-profile compatibility",
+      "operation-specific substrate disposition",
+      "writer phase and one-writer guards",
+      "small proof-context and promotion-subject conjunctions",
+      "compact governance and capability admission relations"
+    ],
+    "tau_conditional": [
+      "bounded arithmetic relations with measured resource receipts",
+      "temporal recurrence with explicit indeterminate handling",
+      "pointwise revision with a closed post-update initialization rule",
+      "cached qualification of a separately verified transition"
+    ],
+    "rust_required": [
+      "canonical global state carrier",
+      "dynamic maps and exact codecs",
+      "U256 transition arithmetic and overflow enforcement",
+      "hashing, signatures, storage, concurrency, networking, and outbox effects",
+      "high-frequency swap, liquidation, and perpetuals execution"
+    ],
+    "lean_or_esso_required": [
+      "parametric preservation theorems",
+      "finite-state adversarial exploration",
+      "formal composition and runtime refinement obligations"
+    ],
+    "zrpf_role": "Scale already defined proof computations and receipts; it does not supply missing semantics or runtime refinement."
+  },
+  "continuity_contract": {
+    "constitution": "P_ZDEX remains substrate independent.",
+    "preferred_substrate": "TAU_WHEN_EXACT_PROFILE_VERIFIED_COMPATIBLE",
+    "fallback_substrate": "ZENOLEDGER_FOR_OPERATION_CLASSES_WITH_PROVED_CONTINUITY",
+    "unknown_profile_action": "DISABLE_TAU_DEPENDENT_FEATURE",
+    "tau_native_asset_without_safe_exit": "REJECT_OR_PEND",
+    "emergency_failover_requires": [
+      "precommitted permit",
+      "Tau unavailable or censoring observation",
+      "accepted finalized checkpoint import",
+      "ZenoLedger ancestry and currentness",
+      "no in-flight publication",
+      "old writer revocation",
+      "writer epoch advance",
+      "cross-source parity",
+      "proof of no split-brain spending and no dual issuance"
+    ]
+  },
+  "new_tau_specs": [
+    "src/tau_specs/recommended/m6_tau_substrate_profile_gate_v1.tau",
+    "src/tau_specs/recommended/m6_substrate_disposition_gate_v1.tau",
+    "src/tau_specs/recommended/m6_writer_steady_guard_v1.tau",
+    "src/tau_specs/recommended/m6_writer_quiesce_guard_v1.tau",
+    "src/tau_specs/recommended/m6_writer_activate_guard_v1.tau",
+    "src/tau_specs/recommended/m6_writer_emergency_failover_guard_v1.tau",
+    "src/tau_specs/recommended/m6_global_value_certificate_closure_v1.tau"
+  ],
+  "focused_test_result": {
+    "command": "TAU_BIN=<exact-c43c66b8-binary> python3 -m pytest -q tests/tau/test_m6_tau_placement_frontier.py",
+    "passed": 12,
+    "failed": 0
+  },
+  "nonclaims": [
+    "No Tau integration profile is mounted.",
+    "No Tau or ZenoLedger writer switch is authorized.",
+    "No zDEX failover or escape mechanism is established.",
+    "No runtime forward simulation is proved.",
+    "No production value movement is authorized by these relations.",
+    "M6 remains incomplete and non-promotable."
+  ]
+}

@@ -340,6 +340,36 @@
         "tau_policy_shadow_migration_gate_v1.tau",
         "wallet_recovery_envelope_guard_v1.tau"
       ]
+    },
+    {
+      "id": "frontier_host_certificate_envelopes",
+      "priority": "wave6",
+      "profile": "proof_gate_or_certificate",
+      "include": [
+        "ab_cow_exact_solver_envelope_v1.tau",
+        "oracle_polytope_frontier_envelope_v1.tau",
+        "route_dominance_frontier_envelope_v1.tau"
+      ]
+    },
+    {
+      "id": "m6_substrate_profile_and_disposition_gates",
+      "priority": "wave7",
+      "profile": "exact_combinational_guard",
+      "include": [
+        "m6_substrate_disposition_gate_v1.tau",
+        "m6_tau_substrate_profile_gate_v1.tau"
+      ]
+    },
+    {
+      "id": "m6_writer_transition_guards",
+      "priority": "wave7",
+      "profile": "stateful_policy_guard",
+      "include": [
+        "m6_writer_activate_guard_v1.tau",
+        "m6_writer_emergency_failover_guard_v1.tau",
+        "m6_writer_quiesce_guard_v1.tau",
+        "m6_writer_steady_guard_v1.tau"
+      ]
     }
   ]
 }

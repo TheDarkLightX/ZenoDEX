@@ -1,0 +1,29 @@
+# M6 Writer Steady Guard v1
+# Verifies that the same single writer remains authoritative, or that the
+# system remains quiesced. Source-currentness, epoch, context, and no-dual-
+# writer facts are independently verified inputs.
+#
+# i1/i2/i3 = current Tau writer / ZenoLedger writer / quiesced
+# i4/i5/i6 = next Tau writer / ZenoLedger writer / quiesced
+# i7/i8/i9 = Tau current / ZenoLedger current / ZenoLedger ancestry valid
+# i10 = quiescence verified
+# i11/i12/i13/i14/i15 = epoch / context / request / no-dual / proof
+# i16 = binding accepted
+# o1 = steady transition accepted
+
+set charvar off
+
+always
+  (o1[t]:sbf = 1:sbf <-> (
+    (i11[t]:sbf = 1:sbf) && (i12[t]:sbf = 1:sbf) &&
+    (i13[t]:sbf = 1:sbf) && (i14[t]:sbf = 1:sbf) &&
+    (i15[t]:sbf = 1:sbf) && (i16[t]:sbf = 1:sbf) &&
+    (((i1[t]:sbf = 1:sbf) && (i2[t]:sbf = 0:sbf) && (i3[t]:sbf = 0:sbf) &&
+      (i4[t]:sbf = 1:sbf) && (i5[t]:sbf = 0:sbf) && (i6[t]:sbf = 0:sbf) &&
+      (i7[t]:sbf = 1:sbf)) ||
+     ((i1[t]:sbf = 0:sbf) && (i2[t]:sbf = 1:sbf) && (i3[t]:sbf = 0:sbf) &&
+      (i4[t]:sbf = 0:sbf) && (i5[t]:sbf = 1:sbf) && (i6[t]:sbf = 0:sbf) &&
+      (i8[t]:sbf = 1:sbf) && (i9[t]:sbf = 1:sbf)) ||
+     ((i1[t]:sbf = 0:sbf) && (i2[t]:sbf = 0:sbf) && (i3[t]:sbf = 1:sbf) &&
+      (i4[t]:sbf = 0:sbf) && (i5[t]:sbf = 0:sbf) && (i6[t]:sbf = 1:sbf) &&
+      (i10[t]:sbf = 1:sbf))))).

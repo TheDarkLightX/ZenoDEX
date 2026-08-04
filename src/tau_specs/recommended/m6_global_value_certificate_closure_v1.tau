@@ -1,0 +1,61 @@
+# M6 Global Value Certificate Closure v1
+#
+# PURPOSE:
+# Compose independently verified M6 facts into one fail-closed admission bit.
+# Every input is a verifier-owned fact bound to one promotion subject. This
+# relation does not establish any input fact and cannot replace the economic,
+# cryptographic, storage, source-currentness, or no-bypass verifier that mints
+# the corresponding witness.
+#
+# i1  = candidate decision is Accept
+# i2  = authenticated_command
+# i3  = authenticated_current_context
+# i4  = selected_source_authority
+# i5  = pre_global_invariant
+# i6  = kernel_forward_refinement
+# i7  = post_global_invariant
+# i8  = complete_value_delta
+# i9  = managed_issuance_safe
+# i10 = oracle_and_risk_safe
+# i11 = nonce_and_retry_safe
+# i12 = history_and_reopen_fixed_point
+# i13 = proof_context_safe
+# i14 = atomic_publication_complete
+# i15 = outbox_effect_ancestry_safe
+# i16 = migration_writer_unique
+# i17 = mounted_no_bypass_inventory_complete
+# i18 = same_promotion_subject
+# i19 = closed outcome relation and rejection purity verified
+# i20 = proof_ok
+# i21 = binding_ok
+#
+# o1 = semantic_value_safety
+# o2 = durability_and_effect_safety
+# o3 = lifecycle_and_mediation_safety
+# o4 = outcome relation total and rejection pure
+# o5 = accepted candidate certificate complete
+# o6 = proof_gated_candidate_certificate_complete
+
+set charvar off
+
+is1(x : sbf) := x = 1:sbf.
+
+semantic_value_safety(command_ok : sbf, context_ok : sbf, source_ok : sbf, pre_inv : sbf, refinement_ok : sbf, post_inv : sbf, delta_ok : sbf, issuance_ok : sbf, oracle_risk_ok : sbf) :=
+  is1(command_ok) && is1(context_ok) && is1(source_ok) && is1(pre_inv) &&
+  is1(refinement_ok) && is1(post_inv) && is1(delta_ok) &&
+  is1(issuance_ok) && is1(oracle_risk_ok).
+
+durability_and_effect_safety(retry_ok : sbf, history_reopen_ok : sbf, proof_context_ok : sbf, publication_ok : sbf, outbox_ok : sbf) :=
+  is1(retry_ok) && is1(history_reopen_ok) && is1(proof_context_ok) &&
+  is1(publication_ok) && is1(outbox_ok).
+
+lifecycle_and_mediation_safety(writer_ok : sbf, no_bypass_ok : sbf, subject_ok : sbf) :=
+  is1(writer_ok) && is1(no_bypass_ok) && is1(subject_ok).
+
+always
+  (o1[t]:sbf = 1:sbf <-> semantic_value_safety(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf)) &&
+  (o2[t]:sbf = 1:sbf <-> durability_and_effect_safety(i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf)) &&
+  (o3[t]:sbf = 1:sbf <-> lifecycle_and_mediation_safety(i16[t]:sbf, i17[t]:sbf, i18[t]:sbf)) &&
+  (o4[t]:sbf = 1:sbf <-> (i19[t]:sbf = 1:sbf)) &&
+  (o5[t]:sbf = 1:sbf <-> ((i1[t]:sbf = 1:sbf) && semantic_value_safety(i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf, i10[t]:sbf) && durability_and_effect_safety(i11[t]:sbf, i12[t]:sbf, i13[t]:sbf, i14[t]:sbf, i15[t]:sbf) && lifecycle_and_mediation_safety(i16[t]:sbf, i17[t]:sbf, i18[t]:sbf) && (i19[t]:sbf = 1:sbf))) &&
+  (o6[t]:sbf = 1:sbf <-> ((o5[t]:sbf = 1:sbf) && (i20[t]:sbf = 1:sbf) && (i21[t]:sbf = 1:sbf))).

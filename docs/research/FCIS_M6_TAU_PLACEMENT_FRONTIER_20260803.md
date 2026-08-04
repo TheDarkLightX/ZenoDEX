@@ -1,0 +1,175 @@
+# FCIS M6 Tau Placement Frontier
+
+Status: `RESEARCH_ONLY_EXECUTABLE_UNMOUNTED`
+
+## Result
+
+The latest observed Tau source can carry more of ZenoDEX's formal policy layer
+than the repository's older embedded binary. It now executes direct bit-vector
+stream arithmetic, including `bv[256]`. Compact Boolean admission and writer
+state-machine relations also execute reliably.
+
+The practical boundary remains narrow. Full-width arithmetic with the overflow
+guard required by accounting exceeded the 30-second execution budget. The
+existing perps risk relation exceeded both a 30-second campaign budget and a
+60-second one-step budget. Tau is therefore suitable for small exact admission
+relations and cached proof qualification at this checkpoint. Rust remains the
+execution layer for global state, U256 accounting, concurrency, persistence,
+and high-frequency market transitions.
+
+## Exact upstream identity
+
+```text
+origin:          https://github.com/IDNI/tau-lang
+source commit:   c43c66b84966aac0e2830aa778dfda79b2857608
+source tree:     01829511c6961cde5b6121bb1cf205f106de9203
+parser commit:   ec62e2b78c342c9265876fc6edbadc82806ee493
+version:         Tau Language Framework version 0.7.0-alpha (c43c66b8)
+binary SHA-256:  588ebf63dfbcf5101b30e02d149678143cbcb89e60e51e0aa8bed0f9d716b157
+```
+
+The upstream remote head was rechecked at that commit on 2026-08-03. The
+release suite passed 316 of 316 tests. A debug build was excluded because the
+host had less than 4 GiB free.
+
+## What moved into Tau
+
+Seven new relations define the substrate-independent continuity boundary:
+
+1. exact Tau-profile compatibility;
+2. per-operation Tau, ZenoLedger, or reject-or-pend disposition;
+3. steady single-writer operation;
+4. entry into quiescence;
+5. activation of one writer from quiescence;
+6. emergency Tau-to-ZenoLedger failover;
+7. composition of the complete M6 value-safety certificate.
+
+The emergency guard requires a precommitted permit, accepted finalized
+checkpoint, current ZenoLedger ancestry, no in-flight publication, old-writer
+revocation, epoch advance, cross-source parity, and an independently verified
+fact that split-brain spending and dual issuance are impossible.
+
+These inputs are verifier-owned facts. The Tau relations combine them and do
+not establish source authenticity, currentness, cryptographic validity,
+durability, or inventory completeness.
+
+The global closure's first input means that the candidate decision is exactly
+`Accept`. A request alone cannot satisfy the closure. Rejection purity remains
+a separate verified relation, so a rejected outcome cannot be relabeled as an
+accepted candidate.
+
+## Correct substrate model
+
+The governing relation is:
+
+```text
+ZenoDEX behavior
+  = platform-independent ZenoDEX constitution
+  + verified capabilities of the active substrate profile
+```
+
+Tau is preferred when the exact profile is verified compatible. ZenoLedger is
+available for operation classes with a proved continuity relation. A Tau-native
+asset operation without a safe-exit and single-issuer proof must reject or
+remain pending.
+
+This yields operation-specific degradation:
+
+| Operation | Tau unavailable |
+| --- | --- |
+| ZenoDEX-native accounting with current ZenoLedger ancestry | Continue on ZenoLedger |
+| Tau computation with a retained portable certificate | Continue only after local certificate verification |
+| Fresh Tau governance or an unreviewed Tau rule change | Retain the last adopted ZenoDEX semantics and disable dependent features |
+| Tau-native asset movement without a safe-exit proof | Reject or pend |
+| Tau-native asset movement with a closed safe-exit and single-issuer proof | Eligible for the emergency writer guard |
+
+## Measured execution frontier
+
+The 64-step resource campaign under the exact binary produced:
+
+| Relation | Elapsed | Per step | Result |
+| --- | ---: | ---: | --- |
+| resource budget | 1.056 s | 16.50 ms | within budget |
+| artifact binding | 0.919 s | 14.36 ms | within budget |
+| load shedding | 2.310 s | 36.09 ms | within budget |
+| swap execution regret | 1.567 s | 24.49 ms | within budget |
+| perps risk envelope | 30.070 s | n/a | timeout |
+
+Additional probes found:
+
+* `bv[8]` stream addition produced `3` for `1 + 2` under the new binary. The
+  repository's previous embedded binary failed to produce the output.
+* `bv[256]` stream addition produced `3` for `1 + 2` and `0` for
+  `max_u256 + 1`. This confirms modular semantics.
+* Adding an explicit non-wrap check to the `bv[256]` execution relation caused
+  a two-step probe to exceed 30 seconds.
+
+The measured conclusion is narrow: expression support has improved, while
+guarded U256 accounting and branch-heavy risk logic remain outside the
+qualified hot path.
+
+The existing per-spec profile registry still contains historical observations
+from Tau `401d756b`. Those entries are not evidence that the same relations are
+qualified under `c43c66b8`. This checkpoint preserves them as historical
+evidence and requires per-spec requalification before any runtime-admission
+status changes.
+
+## Source-level limits
+
+The exact source declares or exhibits these boundaries:
+
+* functional quantifiers `fall` and `fex` are parsed and preserved but are not
+  evaluated;
+* pointwise revision can leave immediate post-update outputs unspecified when
+  the new rule has lookback;
+* recurrence and satisfiability fixpoint searches have 500-step bounds;
+* one eventual-flag path returns `F` after a bounded failure while explicitly
+  stating that the result is not a proof of unsatisfiability;
+* minterm search can enumerate `2^vars` combinations without a resource budget;
+* the public API is highly unstable and assumes serialized, single-threaded
+  access;
+* efficient tables and data storage remain future work;
+* the build may fetch doctest from `master` and uses dependency tags for
+  unordered_dense and FTXUI.
+
+For ZenoDEX, every Tau error, timeout, bounded-failure diagnostic, unsupported
+operation, or unknown profile must be treated as indeterminate and fail closed.
+
+## Placement decision
+
+Use Tau for:
+
+* pinned profile and governance compatibility;
+* compact capability and proof-context gates;
+* writer phase transitions and one-writer exclusion;
+* small conjunctions composing independently verified facts;
+* bounded policy relations with retained resource receipts.
+
+Use Rust for:
+
+* the immutable canonical global-state carrier;
+* dynamic maps, canonical codecs, roots, signatures, and hashing;
+* U256 transition arithmetic and overflow checks;
+* atomic publication, concurrency, recovery, networking, and outbox effects;
+* high-frequency swaps, liquidations, and perpetuals execution.
+
+Use Lean for parametric preservation and composition theorems. Use ESSO or an
+equivalent dual-solver finite model for bounded adversarial state machines. Use
+ZRPF to scale proof generation and verification after the semantics and
+runtime refinement are closed.
+
+## Evidence and nonclaims
+
+The focused ZenoDEX suite passed:
+
+```text
+12 placement tests passed
+15 combined placement and stream-arithmetic profile tests passed in 60.86s
+```
+
+This packet does not mount the relations, establish the authenticity of any
+Tau observation, authorize a writer switch, create a zDEX escape mechanism,
+prove runtime forward simulation, or complete M6.
+
+The machine-readable companion is
+`formal/tau/m6_tau_placement_frontier_v1.json`.
