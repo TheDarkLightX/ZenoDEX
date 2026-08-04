@@ -2,16 +2,20 @@
 
 from __future__ import annotations
 
+import gc
 from dataclasses import replace
 from hashlib import sha256
 
 import pytest
 
 from experiments.fcis_m6_j07_authority_switch_check import build_f06_token, build_gate
+from src.core import fcis_m6_j07_writer_admission_v2 as admission_v2
+from src.core import fcis_m6_j07_writer_token_v3 as token_v3
 from src.core.fcis_m6_j07_authority_switch import (
     J07RejectCodeV1,
     J07SwitchSuccessV1,
     J07WriterRejectV1,
+    authorize_writer_v2,
     issue_writer_token_v2,
     switch_authority_v1,
 )
@@ -70,6 +74,24 @@ class _AdmissionVerifier:
     ) -> object:
         self.kwargs = dict(kwargs)
         return self.decision
+
+
+class _MutatingAdmissionVerifier:
+    def __init__(self, authority_context: object) -> None:
+        self.authority_context = authority_context
+
+    def verify_j07_writer_admission_context(self, **_kwargs: object) -> object:
+        object.__setattr__(
+            self.authority_context,
+            "context_root",
+            _digest("mutated-during-admission-verification"),
+        )
+        return True
+
+
+class _RaisingAdmissionVerifier:
+    def verify_j07_writer_admission_context(self, **_kwargs: object) -> object:
+        raise RuntimeError("external verifier failed")
 
 
 class _EligibilityVerifier:
@@ -141,6 +163,12 @@ def _eligibility(
 def test_v2_issue_path_is_closed_after_policy_context_is_required() -> None:
     switched = _switch()
     rejected = issue_writer_token_v2(switched.post_context, _eligibility(switched))
+    assert type(rejected) is J07WriterRejectV1
+    assert rejected.code is J07RejectCodeV1.WRITER_ADMISSION_CONTEXT_REQUIRED
+
+
+def test_v2_authorization_path_is_closed_after_policy_context_is_required() -> None:
+    rejected = authorize_writer_v2(object(), object(), object())
     assert type(rejected) is J07WriterRejectV1
     assert rejected.code is J07RejectCodeV1.WRITER_ADMISSION_CONTEXT_REQUIRED
 
@@ -328,3 +356,96 @@ def test_admission_verifier_requires_exact_true() -> None:
     )
     assert type(result) is J07WriterAdmissionRejectV2
     assert result.code is J07WriterAdmissionRejectCodeV2.EXTERNAL_VERIFIER_REJECTED
+
+
+def test_admission_revalidates_authority_context_after_external_verifier() -> None:
+    switched = _switch()
+    result = verify_j07_writer_admission_context_v2(
+        authority_context=switched.post_context,
+        promotion_subject_root=_digest("promotion-subject"),
+        source_schema_root=_digest("source-schema"),
+        eligibility_policy_root=_digest("eligibility-policy"),
+        eligibility_verifier_profile_root=_digest("eligibility-verifier"),
+        verification_evidence_root=_digest("writer-admission-evidence"),
+        verifier_adapter=_MutatingAdmissionVerifier(switched.post_context),
+    )
+    assert type(result) is J07WriterAdmissionRejectV2
+    assert result.code is J07WriterAdmissionRejectCodeV2.AUTHORITY_CONTEXT_REJECTED
+    assert result.path == ("authority_context", "post_verifier")
+
+
+def test_admission_verifier_exception_is_a_typed_authority_empty_reject() -> None:
+    switched = _switch()
+    result = verify_j07_writer_admission_context_v2(
+        authority_context=switched.post_context,
+        promotion_subject_root=_digest("promotion-subject"),
+        source_schema_root=_digest("source-schema"),
+        eligibility_policy_root=_digest("eligibility-policy"),
+        eligibility_verifier_profile_root=_digest("eligibility-verifier"),
+        verification_evidence_root=_digest("writer-admission-evidence"),
+        verifier_adapter=_RaisingAdmissionVerifier(),
+    )
+    assert type(result) is J07WriterAdmissionRejectV2
+    assert result.code is J07WriterAdmissionRejectCodeV2.EXTERNAL_VERIFIER_REJECTED
+
+
+def test_admission_registry_capacity_rejects_without_minting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    switched = _switch()
+    retained = _admission(switched)
+    live_count = len(admission_v2._ADMISSION_CONTEXTS_V2)
+    assert live_count >= 1
+    monkeypatch.setattr(
+        admission_v2,
+        "MAX_J07_WRITER_ADMISSION_CONTEXTS_V2",
+        live_count,
+    )
+    result = verify_j07_writer_admission_context_v2(
+        authority_context=switched.post_context,
+        promotion_subject_root=retained.promotion_subject_root,
+        source_schema_root=retained.source_schema_root,
+        eligibility_policy_root=retained.eligibility_policy_root,
+        eligibility_verifier_profile_root=retained.eligibility_verifier_profile_root,
+        verification_evidence_root=_digest("second-admission-evidence"),
+        verifier_adapter=_AdmissionVerifier(),
+    )
+    assert type(result) is J07WriterAdmissionRejectV2
+    assert result.code is J07WriterAdmissionRejectCodeV2.ADMISSION_CONTEXT_REJECTED
+    assert result.path == ("admission_context", "capacity")
+
+
+def test_writer_token_registry_capacity_rejects_without_minting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    switched = _switch()
+    admission = _admission(switched)
+    eligibility = _eligibility(switched)
+    retained = issue_writer_token_v3(switched.post_context, admission, eligibility)
+    assert type(retained) is J07WriterTokenV3
+    live_count = len(token_v3._WRITER_TOKENS_V3)
+    assert live_count >= 1
+    monkeypatch.setattr(token_v3, "MAX_J07_WRITER_TOKENS_V3", live_count)
+    result = issue_writer_token_v3(switched.post_context, admission, eligibility)
+    assert type(result) is J07WriterAdmissionRejectV2
+    assert result.code is J07WriterAdmissionRejectCodeV2.TOKEN_REJECTED
+    assert result.path == ("token", "capacity")
+
+
+def test_registry_snapshots_are_reclaimed_with_their_values() -> None:
+    switched = _switch()
+    admission = _admission(switched)
+    eligibility = _eligibility(switched)
+    token = issue_writer_token_v3(switched.post_context, admission, eligibility)
+    assert type(token) is J07WriterTokenV3
+    admission_identity = id(admission)
+    token_identity = id(token)
+    assert admission_identity in admission_v2._ADMISSION_CONTEXT_SNAPSHOTS_V2
+    assert token_identity in token_v3._WRITER_TOKEN_SNAPSHOTS_V3
+
+    del admission
+    del token
+    gc.collect()
+
+    assert admission_identity not in admission_v2._ADMISSION_CONTEXT_SNAPSHOTS_V2
+    assert token_identity not in token_v3._WRITER_TOKEN_SNAPSHOTS_V3

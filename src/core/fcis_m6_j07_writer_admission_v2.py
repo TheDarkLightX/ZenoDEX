@@ -17,7 +17,7 @@ from dataclasses import InitVar, dataclass
 from enum import Enum
 from hashlib import sha256
 from typing import Callable, Final, Mapping, Protocol, TypeAlias, cast, final
-from weakref import WeakValueDictionary
+from weakref import WeakValueDictionary, finalize
 
 from src.core import fcis_durable_retraction as dra
 from src.core.fcis_m6_j07_authority_switch import (
@@ -30,6 +30,7 @@ from src.state.canonical import canonical_json_bytes
 FCIS_M6_J07_WRITER_ADMISSION_CONTEXT_SCHEMA_V2: Final = (
     "zenodex/fcis/m6/j07/writer-admission-context/v2"
 )
+MAX_J07_WRITER_ADMISSION_CONTEXTS_V2: Final = 8_192
 _ADMISSION_CONTEXT_CONSTRUCTION_TOKEN_V2 = object()
 _HEX_DIGITS = frozenset("0123456789abcdef")
 
@@ -191,7 +192,10 @@ class J07WriterAdmissionVerifierAdapterV2(Protocol):
 _ADMISSION_CONTEXTS_V2: WeakValueDictionary[int, J07WriterAdmissionContextV2] = (
     WeakValueDictionary()
 )
-_ADMISSION_CONTEXT_SNAPSHOTS_V2: dict[int, tuple[object, ...]] = {}
+_ADMISSION_CONTEXT_SNAPSHOTS_V2: dict[
+    int,
+    tuple[object, tuple[object, ...]],
+] = {}
 
 
 def _admission_context_snapshot(value: J07WriterAdmissionContextV2) -> tuple[object, ...]:
@@ -209,10 +213,23 @@ def _admission_context_snapshot(value: J07WriterAdmissionContextV2) -> tuple[obj
 def _register_admission_context_v2(
     value: J07WriterAdmissionContextV2,
 ) -> J07WriterAdmissionContextV2:
+    if len(_ADMISSION_CONTEXTS_V2) >= MAX_J07_WRITER_ADMISSION_CONTEXTS_V2:
+        raise J07WriterAdmissionError("writer-admission registry capacity exceeded")
     identity = id(value)
+    marker = object()
     _ADMISSION_CONTEXTS_V2[identity] = value
-    _ADMISSION_CONTEXT_SNAPSHOTS_V2[identity] = _admission_context_snapshot(value)
+    _ADMISSION_CONTEXT_SNAPSHOTS_V2[identity] = (
+        marker,
+        _admission_context_snapshot(value),
+    )
+    finalize(value, _drop_admission_context_snapshot_v2, identity, marker)
     return value
+
+
+def _drop_admission_context_snapshot_v2(identity: int, marker: object) -> None:
+    retained = _ADMISSION_CONTEXT_SNAPSHOTS_V2.get(identity)
+    if retained is not None and retained[0] is marker:
+        _ADMISSION_CONTEXT_SNAPSHOTS_V2.pop(identity, None)
 
 
 def is_verified_j07_writer_admission_context_v2(value: object) -> bool:
@@ -225,9 +242,8 @@ def is_verified_j07_writer_admission_context_v2(value: object) -> bool:
         return False
     try:
         context._validate_fields()
-        return _ADMISSION_CONTEXT_SNAPSHOTS_V2.get(id(context)) == (
-            _admission_context_snapshot(context)
-        )
+        retained = _ADMISSION_CONTEXT_SNAPSHOTS_V2.get(id(context))
+        return retained is not None and retained[1] == _admission_context_snapshot(context)
     except (AttributeError, TypeError, ValueError, ArithmeticError, OverflowError):
         return False
 
@@ -242,10 +258,10 @@ def _external_admission_verifier_accepts(
     verification_evidence_root: str,
     verifier_adapter: object,
 ) -> bool:
-    method = getattr(verifier_adapter, "verify_j07_writer_admission_context", None)
-    if not callable(method):
-        return False
     try:
+        method = getattr(verifier_adapter, "verify_j07_writer_admission_context", None)
+        if not callable(method):
+            return False
         decision = cast(Callable[..., object], method)(
             expected_authority_context_root=authority_context.context_root,
             expected_current_state_root=authority_context.current_state_root,
@@ -260,7 +276,18 @@ def _external_admission_verifier_accepts(
             expected_eligibility_verifier_profile_root=(eligibility_verifier_profile_root),
             expected_verification_evidence_root=verification_evidence_root,
         )
-    except (AttributeError, TypeError, ValueError, ArithmeticError, RecursionError):
+    # The adapter is an untrusted imperative-shell boundary.  Expected adapter
+    # and transport failures remain authority-empty rejections; process-control
+    # exceptions and resource exhaustion are deliberately not swallowed.
+    except (
+        AttributeError,
+        TypeError,
+        ValueError,
+        ArithmeticError,
+        RuntimeError,
+        RecursionError,
+        OSError,
+    ):
         return False
     return decision is True
 
@@ -383,11 +410,31 @@ def verify_j07_writer_admission_context_v2(
             J07WriterAdmissionRejectCodeV2.EXTERNAL_VERIFIER_REJECTED,
             "verifier",
         )
-    return _mint_admission_context_v2(exact_context, values)
+    if not is_verified_authority_context_v1(exact_context):
+        return _reject(
+            J07WriterAdmissionRejectCodeV2.AUTHORITY_CONTEXT_REJECTED,
+            "authority_context",
+            "post_verifier",
+        )
+    if len(_ADMISSION_CONTEXTS_V2) >= MAX_J07_WRITER_ADMISSION_CONTEXTS_V2:
+        return _reject(
+            J07WriterAdmissionRejectCodeV2.ADMISSION_CONTEXT_REJECTED,
+            "admission_context",
+            "capacity",
+        )
+    try:
+        return _mint_admission_context_v2(exact_context, values)
+    except (AttributeError, TypeError, ValueError, ArithmeticError, OverflowError):
+        return _reject(
+            J07WriterAdmissionRejectCodeV2.ADMISSION_CONTEXT_REJECTED,
+            "admission_context",
+            "construction",
+        )
 
 
 __all__ = (
     "FCIS_M6_J07_WRITER_ADMISSION_CONTEXT_SCHEMA_V2",
+    "MAX_J07_WRITER_ADMISSION_CONTEXTS_V2",
     "J07WriterAdmissionContextResultV2",
     "J07WriterAdmissionContextV2",
     "J07WriterAdmissionError",

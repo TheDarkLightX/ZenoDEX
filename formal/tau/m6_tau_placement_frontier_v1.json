@@ -217,6 +217,12 @@
     "source_files": [
       "src/core/fcis_m6_tau_profile_v1.py",
       "src/integration/fcis_m6_tau_profile_runtime_v1.py",
+      "src/core/fcis_m6_j07_writer_admission_v2.py",
+      "src/core/fcis_m6_j07_writer_token_v3.py",
+      "src/core/fcis_m6_writer_profile_eligibility_v1.py",
+      "src/integration/fcis_m6_tau_j07_writer_eligibility_v1.py",
+      "tests/core/test_fcis_m6_j07_writer_admission_v2.py",
+      "tests/integration/test_fcis_m6_tau_j07_writer_eligibility_v1.py",
       "tests/integration/test_fcis_m6_tau_profile_runtime_v1.py"
     ],
     "contracts": [
@@ -227,6 +233,9 @@
       "The verifier-owned disposition context binds the expected operation root and rejects crossed operation evidence.",
       "A valid reject-or-pend decision has authorizes_execution false.",
       "TauWriterProfileBindingV1 binds a usable receipt to one exact writer target but is not a J07 writer token or commit capability.",
+      "The V2 Tau eligibility refinement consumes the exact Tau writer-profile binding, one independently verified policy context, and one exact post-switch J07 authority context.",
+      "The V3 J07 token binds the Tau-derived eligibility receipt to the admission context, promotion subject, source schema, policy, verifier profile, writer profile, authority epoch, state, head, snapshot, and migration token.",
+      "The admission and token registries each reject above 8192 live values and reclaim mutation snapshots when registered values become unreachable.",
       "Profile and disposition projections agree with the exact pinned Tau relations for the retained bounded vectors."
     ],
     "canonical_vector": {
@@ -235,6 +244,15 @@
       "verification_context_root": "2969fb1f218340e08aa47e5548f040cd593814568ab580a25371b52bff4e9b21",
       "verification_evidence_root": "37f544fad3cb51afc205d3ea81d3452833a361e816ae8882154b97e720c2b402",
       "profile_receipt_root": "2872450cd3fa0433633b60a77579677c7ae2ff234abc2e66a2d790e3e2457742"
+    },
+    "j07_writer_authority_vector": {
+      "path": "docs/research/m6_tasks/TASK_J07_TAU_WRITER_AUTHORITY_V2.json",
+      "source_schema_root": "dbf4ce4860bf8c45f64f65708985cd9477a854d97268c617a8d2948570f0e7bc",
+      "profile_receipt_root": "1519c5bf5336cd8f9e6731a76beffedaa6283b810f401fef8094442e85a291a1",
+      "writer_binding_root": "6968f4cf61abe60c4b95426907640a2a69d0f7877f354f34a537c4bf1b7be1ff",
+      "admission_context_root": "e3f9c91512911fb81bd2cb4d2efe8a7904b473883230ffc003805a9d16ca0353",
+      "eligibility_receipt_root": "f462b80e4557fcc33c15df19ae6149eb9b0a160b4f872335e485500da3ed9191",
+      "writer_token_root": "e52dcd85a16d3899f57124a1beec8f2c6e263b4b66b435af150676208538ebd0"
     },
     "test_results": [
       {
@@ -252,7 +270,7 @@
       "The external verifier adapter is a shell premise and no authoritative verifier selection is mounted.",
       "Python module construction provenance is not cryptographic authenticity.",
       "No strict untrusted-wire decoder is provided for this profile value.",
-      "No J07 writer-authority consumer uses the writer-profile binding.",
+      "The Tau-to-J07 writer-authority relation is unmounted and carries no publication or datastore capability.",
       "The integration module remains a large bounded trust-boundary surface that should be split before mounting."
     ]
   },
@@ -289,7 +307,7 @@
   "nonclaims": [
     "No Tau integration profile is mounted.",
     "No authoritative Tau-profile verifier selection or strict wire decoder is mounted.",
-    "No J07 writer-authority path consumes the writer-profile binding.",
+    "No mounted J07 writer-authority path consumes the writer-profile binding.",
     "No Tau or ZenoLedger writer switch is authorized.",
     "No zDEX failover or escape mechanism is established.",
     "No runtime forward simulation is proved.",

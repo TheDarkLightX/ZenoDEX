@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import json
 from hashlib import sha256
 
 from experiments.fcis_m6_j07_authority_switch_check import (
     build_f06_token,
     build_gate,
+)
+from experiments.fcis_m6_tau_j07_writer_authority_check import (
+    TAU_WRITER_VECTOR_PATH,
+    build_tau_writer_authority_payload_v2,
 )
 from src.core import fcis_durable_retraction as dra
 from src.core.fcis_m6_j06_quiescence import (
@@ -302,6 +307,9 @@ def test_tau_j07_eligibility_has_a_frozen_canonical_identity_vector() -> None:
     assert type(eligibility) is WriterProfileEligibilityReceiptV1
     token = issue_writer_token_v3(switched.post_context, admission, eligibility)
     assert type(token) is J07WriterTokenV3
+    assert build_tau_writer_authority_payload_v2() == json.loads(
+        TAU_WRITER_VECTOR_PATH.read_text(encoding="utf-8")
+    )
     assert TAU_J07_WRITER_ELIGIBILITY_SOURCE_SCHEMA_ROOT_V1 == (
         "931312071fb68f1bc102ba264e3a1f281b51ea64a5654c4ff02d04143d7d399a"
     )

@@ -11,6 +11,28 @@ from docs.research.m6_tasks import validate_task_packet as validator
 ROOT = Path(__file__).resolve().parents[2]
 PACKET = ROOT / "docs" / "research" / "m6_tasks"
 J07_EVIDENCE = PACKET / "TASK_J07_EVIDENCE.json"
+J07_MANIFEST = PACKET / "TASK_J07_SOURCE_MANIFEST.sha256"
+
+REQUIRED_J07_AUTHORITY_PATHS = frozenset(
+    {
+        "experiments/fcis_m6_j07_authority_switch_check.py",
+        "experiments/fcis_m6_tau_j07_writer_authority_check.py",
+        "formal/tau/m6_tau_placement_frontier_v1.json",
+        "docs/research/FCIS_M6_TAU_PLACEMENT_FRONTIER_20260803.md",
+        "docs/research/m6_tasks/TASK_J07_TAU_WRITER_AUTHORITY_V2.json",
+        "src/core/fcis_m6_j07_authority_switch.py",
+        "src/core/fcis_m6_j07_writer_admission_v2.py",
+        "src/core/fcis_m6_j07_writer_token_v3.py",
+        "src/core/fcis_m6_writer_profile_eligibility_v1.py",
+        "src/integration/fcis_m6_tau_j07_writer_eligibility_v1.py",
+        "tests/core/test_fcis_m6_j07_authority_switch.py",
+        "tests/core/test_fcis_m6_j07_authority_switch_properties.py",
+        "tests/core/test_fcis_m6_j07_writer_admission_v2.py",
+        "tests/integration/test_fcis_m6_tau_j07_writer_eligibility_v1.py",
+        "tests/tools/test_fcis_m6_task_packet_validator.py",
+        "tools/build_fcis_m6_j07_authority_switch.py",
+    }
+)
 
 
 def _git(*arguments: str) -> str:
@@ -19,6 +41,18 @@ def _git(*arguments: str) -> str:
         cwd=ROOT,
         text=True,
     ).strip()
+
+
+def test_j07_packet_covers_the_live_writer_admission_authority_surface() -> None:
+    evidence = json.loads(J07_EVIDENCE.read_text(encoding="utf-8"))
+    manifest_paths = {
+        line.split()[1]
+        for line in J07_MANIFEST.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+    assert REQUIRED_J07_AUTHORITY_PATHS <= set(evidence["evidence_files"])
+    assert REQUIRED_J07_AUTHORITY_PATHS <= set(evidence["source_hashes"])
+    assert REQUIRED_J07_AUTHORITY_PATHS <= manifest_paths
 
 
 def test_zero_commit_and_foreign_tree_mutants_fail_closed() -> None:

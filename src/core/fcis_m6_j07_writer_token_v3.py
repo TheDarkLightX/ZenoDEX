@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import InitVar, dataclass
 from hashlib import sha256
 from typing import Final, Mapping, TypeAlias, cast, final
-from weakref import WeakValueDictionary
+from weakref import WeakValueDictionary, finalize
 
 from src.core.fcis_m6_j07_authority_switch import (
     J07AuthorityContextV1,
@@ -32,6 +32,7 @@ from src.state.canonical import canonical_json_bytes
 
 FCIS_M6_J07_WRITER_TOKEN_SCHEMA_V3: Final = "zenodex/fcis/m6/j07/writer-token/v3"
 MAX_J07_WRITER_TOKEN_EPOCH_V3: Final = (1 << 32) - 1
+MAX_J07_WRITER_TOKENS_V3: Final = 8_192
 
 _WRITER_TOKEN_CONSTRUCTION_TOKEN_V3 = object()
 _WRITER_ACCEPTED_CONSTRUCTION_TOKEN_V3 = object()
@@ -169,7 +170,10 @@ def writer_token_root_v3(token: J07WriterTokenV3) -> str:
 
 
 _WRITER_TOKENS_V3: WeakValueDictionary[int, J07WriterTokenV3] = WeakValueDictionary()
-_WRITER_TOKEN_SNAPSHOTS_V3: dict[int, tuple[object, ...]] = {}
+_WRITER_TOKEN_SNAPSHOTS_V3: dict[
+    int,
+    tuple[object, tuple[object, ...]],
+] = {}
 
 
 def _writer_token_snapshot(value: J07WriterTokenV3) -> tuple[object, ...]:
@@ -195,10 +199,20 @@ def _writer_token_snapshot(value: J07WriterTokenV3) -> tuple[object, ...]:
 
 
 def _register_writer_token_v3(value: J07WriterTokenV3) -> J07WriterTokenV3:
+    if len(_WRITER_TOKENS_V3) >= MAX_J07_WRITER_TOKENS_V3:
+        raise J07WriterAdmissionError("writer-token registry capacity exceeded")
     identity = id(value)
+    marker = object()
     _WRITER_TOKENS_V3[identity] = value
-    _WRITER_TOKEN_SNAPSHOTS_V3[identity] = _writer_token_snapshot(value)
+    _WRITER_TOKEN_SNAPSHOTS_V3[identity] = (marker, _writer_token_snapshot(value))
+    finalize(value, _drop_writer_token_snapshot_v3, identity, marker)
     return value
+
+
+def _drop_writer_token_snapshot_v3(identity: int, marker: object) -> None:
+    retained = _WRITER_TOKEN_SNAPSHOTS_V3.get(identity)
+    if retained is not None and retained[0] is marker:
+        _WRITER_TOKEN_SNAPSHOTS_V3.pop(identity, None)
 
 
 def is_verified_j07_writer_token_v3(value: object) -> bool:
@@ -209,7 +223,8 @@ def is_verified_j07_writer_token_v3(value: object) -> bool:
         return False
     try:
         token._validate_fields()
-        return _WRITER_TOKEN_SNAPSHOTS_V3.get(id(token)) == _writer_token_snapshot(token)
+        retained = _WRITER_TOKEN_SNAPSHOTS_V3.get(id(token))
+        return retained is not None and retained[1] == _writer_token_snapshot(token)
     except (AttributeError, TypeError, ValueError, ArithmeticError, OverflowError):
         return False
 
@@ -338,7 +353,20 @@ def issue_writer_token_v3(
             "eligibility",
             "writer_profile",
         )
-    return _mint_writer_token_v3(exact_authority, exact_admission, exact_receipt)
+    if len(_WRITER_TOKENS_V3) >= MAX_J07_WRITER_TOKENS_V3:
+        return _reject(
+            J07WriterAdmissionRejectCodeV2.TOKEN_REJECTED,
+            "token",
+            "capacity",
+        )
+    try:
+        return _mint_writer_token_v3(exact_authority, exact_admission, exact_receipt)
+    except (AttributeError, TypeError, ValueError, ArithmeticError, OverflowError):
+        return _reject(
+            J07WriterAdmissionRejectCodeV2.TOKEN_REJECTED,
+            "token",
+            "construction",
+        )
 
 
 @final
@@ -513,6 +541,7 @@ def authorize_writer_v3(
 
 __all__ = (
     "FCIS_M6_J07_WRITER_TOKEN_SCHEMA_V3",
+    "MAX_J07_WRITER_TOKENS_V3",
     "J07WriterAcceptedV3",
     "J07WriterDecisionV3",
     "J07WriterTokenIssueV3",

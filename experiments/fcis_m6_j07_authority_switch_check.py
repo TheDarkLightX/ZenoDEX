@@ -229,7 +229,11 @@ def build_f06_token() -> tuple[object, object, F06AuthorizationTokenV1, Acceptin
     return reopened, genesis, issued, verifier
 
 
-def build_gate(token: F06AuthorizationTokenV1) -> J06QuiescenceGateV1:
+def build_gate(
+    token: F06AuthorizationTokenV1,
+    *,
+    target_profile_root: str | None = None,
+) -> J06QuiescenceGateV1:
     manifest = _read_object(J04_MANIFEST_PATH)
     config = _read_object(J06_CONFIG_PATH)
     head = token.head
@@ -244,7 +248,9 @@ def build_gate(token: F06AuthorizationTokenV1) -> J06QuiescenceGateV1:
         "authority_epoch_index": head.authority_epoch,
         "authority_state_root": authority_root,
         "legacy_profile_root": cast(str, config["expected_legacy_profile_root"]),
-        "target_profile_root": cast(str, config["expected_target_profile_root"]),
+        "target_profile_root": (
+            target_profile_root or cast(str, config["expected_target_profile_root"])
+        ),
         "current_head_root": head_root,
         "replay_head_root": head_root,
         "current_snapshot_root": snapshot_root,
@@ -314,7 +320,7 @@ def build_payload() -> dict[str, object]:
 def _assert_reject(value: object, code: J07RejectCodeV1, message: str) -> None:
     if type(value) is not J07SwitchRejectV1:
         raise AssertionError(message)
-    reject = value
+    reject = cast(J07SwitchRejectV1, value)
     if reject.code is not code:
         raise AssertionError(f"{message}: got {reject.code.value}")
 
