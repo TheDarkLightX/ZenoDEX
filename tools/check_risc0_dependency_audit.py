@@ -70,6 +70,7 @@ PERMITTED_DISPOSITION_KEYS: frozenset[DispositionKey] = frozenset(
     for advisory_id, package, version in (
         ("RUSTSEC-2023-0071", "rsa", "0.9.10"),
         ("RUSTSEC-2025-0055", "tracing-subscriber", "0.2.25"),
+        ("RUSTSEC-2026-0220", "ruint", "1.19.0"),
     )
 )
 KNOWN_WARNING_CATEGORIES = frozenset({"unmaintained", "unsound", "yanked"})

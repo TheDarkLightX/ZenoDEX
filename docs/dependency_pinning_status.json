@@ -47,12 +47,13 @@
     "lean-mathlib/lakefile.lean": "2bb569ac28cdc0ab5d69618cb506e47f9103589d4d1c0cea2e977c146aeebaed",
     "tools/confidential_attestation_verifier_rust/Cargo.lock": "61c0f121360aab1ecd80dfbc6efc3cc08955c6d87d5a3fb44bb03186ba7c7443",
     "tools/dex-ui/package-lock.json": "ad48c7a343fc92a3f1ee85c87ac6fdd878883ca2fa68388b0d97d83c64dc79bd",
-    "zk/state_proof_risc0/Cargo.lock": "c48762eeaf3c43588d3353983c8440c1fff2eb9eaa937cec40b5262965510d28"
+    "zk/state_proof_risc0/Cargo.lock": "d30f07417921c475d99826eb10a45c17ec059c88b53c3f835702f27b509442ba"
   },
   "exact_python_pins_required": [],
   "residual_limits": [
     "Python runtime and dev hash-pinned lockfiles are present and tracked by committed SHA-256 hashes.",
     "This ratchet prevents new unpinned Python source requirements and confirms current proof-toolchain lock artifacts exist with committed SHA-256 hashes.",
-    "Production install helpers and docs use pip require-hashes over the committed Python lockfiles; source requirement files remain local convenience and lock-refresh inputs."
+    "Production install helpers and docs use pip require-hashes over the committed Python lockfiles; source requirement files remain local convenience and lock-refresh inputs.",
+    "The four unmounted RISC0 proof workspaces retain ruint 1.19.0 because their Cargo lockfiles are part of retained proof-source identity. RUSTSEC-2026-0220 is narrowly dispositioned for the build and image-parsing path until fresh image IDs and receipts are regenerated under ruint 1.20.0 or later."
   ]
 }

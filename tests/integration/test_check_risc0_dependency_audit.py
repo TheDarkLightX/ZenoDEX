@@ -45,6 +45,7 @@ def _policy_payloads() -> dict[str, object]:
     vulnerabilities = (
         ("RUSTSEC-2023-0071", "rsa", "0.9.10"),
         ("RUSTSEC-2025-0055", "tracing-subscriber", "0.2.25"),
+        ("RUSTSEC-2026-0220", "ruint", "1.19.0"),
     )
     state_payload = _payload(
         vulnerabilities=vulnerabilities,
@@ -62,6 +63,7 @@ def _policy_payloads() -> dict[str, object]:
         vulnerabilities=(
             ("RUSTSEC-2023-0071", "rsa", "0.9.10"),
             ("RUSTSEC-2025-0055", "tracing-subscriber", "0.2.25"),
+            ("RUSTSEC-2026-0220", "ruint", "1.19.0"),
         ),
         warnings={
             "unmaintained": (("RUSTSEC-2025-0141", "bincode", "1.3.3"),),
@@ -220,10 +222,27 @@ def test_policy_pins_exact_workspaces_and_scoped_advisories() -> None:
 
     assert policy["workspaces"] == checker._workspace_rows()
     assert checker._disposition_keys(policy) == checker.PERMITTED_DISPOSITION_KEYS
-    assert len(policy["dispositions"]) == 8
+    assert len(policy["dispositions"]) == 12
     assert {row["category"] for row in policy["dispositions"]} == {
         "vulnerability"
     }
+    ruint_dispositions = [
+        row
+        for row in policy["dispositions"]
+        if row["advisory_id"] == "RUSTSEC-2026-0220"
+    ]
+    assert {row["workspace_id"] for row in ruint_dispositions} == {
+        "state_proof_risc0",
+        "recursive_stark_v2_risc0",
+        "recursive_stark_v2_active_reproof_risc0",
+        "zrpf_risc0",
+    }
+    for row in ruint_dispositions:
+        assert row["scope"] == "experimental_risc0_dependency_audit_only"
+        assert row["production_authority"] is False
+        assert "risc0-binfmt 3.0.4" in row["reachability"]
+        assert "no calls to the advisory's affected" in row["reachability"]
+        assert "fresh image IDs" in row["reachability"]
     assert policy["production_authority"] is False
     assert len(policy_sha256) == 64
 

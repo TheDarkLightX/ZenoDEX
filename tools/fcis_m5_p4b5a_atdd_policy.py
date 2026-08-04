@@ -109,6 +109,31 @@ FORBIDDEN_CHANGED_PATH_PATTERNS = (
     "integration/*fcis*b1b*",
 )
 
+# This is deliberately broader than PATH_OWNERS. It selects the complete B1B
+# subsystem surface from an event diff so that a new, unregistered B1B path is
+# rejected as unowned. Shared dependency and workspace files remain
+# compatibility triggers in the workflow; their ownership belongs to their
+# own assurance lanes.
+ATDD_RELEVANT_CHANGED_PATH_PATTERNS = (
+    ".github/workflows/fcis-b1b-revision34.yml",
+    "docs/research/FCIS_M5_P4B5A_ATDD_*",
+    "docs/research/FCIS_M5_P4B5A_B1B*",
+    "docs/research/prompts/fcis_m5_p4b5a_atdd_subagents_v1/*",
+    "docs/research/prompts/fcis_m5_p4b5a_b1b_revision34_review_v1/*",
+    "docs/research/prompts/fcis_m5_p4b5a_b1b1_implementation_review_v1/*",
+    "integration/*fcis*b1b*",
+    "rust-runtime/*fcis_b1b*",
+    "src/core/fcis_b1b_*",
+    "src/state/*fcis*b1b*",
+    "tests/core/test_fcis_b1b*",
+    "tests/fixtures/fcis_b1b*",
+    "tests/tools/test_*fcis_b1b*",
+    "tests/tools/test_check_fcis_m5_p4b5a_atdd_contract.py",
+    "tools/*fcis_b1b*",
+    "tools/check_fcis_m5_p4b5a_atdd_contract.py",
+    "tools/fcis_m5_p4b5a_atdd_*",
+)
+
 PATH_OWNERS = (
     {
         "acceptance_ids": ["ATDD-B1B1-009"],

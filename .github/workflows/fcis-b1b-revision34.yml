@@ -60,12 +60,14 @@ jobs:
           python -m pip install --disable-pip-version-check \
             pytest==9.0.3 ruff==0.15.13
       - name: Verify approved architecture and ATDD ownership
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
         run: |
           sha256sum \
             docs/research/FCIS_M5_P4B5A_B1B_COMMITTED_CONFIGURATION_AUTHORITY_REVISION_3_4_20260729.md
           python -m tools.check_fcis_m5_p4b5a_atdd_contract \
             --assigned-id ATDD-B1B1-009 \
-            --diff-base 1665e788a4c4daf43982262c307d0c04b914d89b
+            --merge-base-with "$PR_BASE_SHA"
       - name: Check source-current vectors and unmounted scope
         run: |
           python -m tools.build_fcis_b1b_authority_v2_golden --check
@@ -109,19 +111,10 @@ jobs:
             tools/check_fcis_m5_p4b5a_atdd_contract.py \
             tools/fcis_m5_p4b5a_atdd_policy.py \
             tools/fcis_m5_p4b5a_atdd_validation.py
-      - name: Verify exact packet topology and exported delivery
+      - name: Verify sealed packet ancestry and immutable outputs
         run: |
-          python -m tools.build_fcis_b1b1_implementation_review_packet --check
           python -m tools.build_fcis_b1b1_implementation_review_packet \
-            --export-delivery "${RUNNER_TEMP}/fcis-b1b1-delivery"
-          python -m tools.build_fcis_b1b1_implementation_review_packet \
-            --check-delivery "${RUNNER_TEMP}/fcis-b1b1-delivery"
-      - name: Upload verified exact-head delivery
-        uses: actions/upload-artifact@v4
-        with:
-          name: fcis-b1b1-exact-head-delivery
-          path: ${{ runner.temp }}/fcis-b1b1-delivery
-          if-no-files-found: error
+            --check-sealed-history
 
   rust-parity:
     runs-on: ubuntu-latest
