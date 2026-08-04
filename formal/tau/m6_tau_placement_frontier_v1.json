@@ -1,7 +1,7 @@
 {
   "schema": "zenodex/m6_tau_placement_frontier/v1",
   "status": "RESEARCH_ONLY_EXECUTABLE_UNMOUNTED",
-  "as_of": "2026-08-03",
+  "as_of": "2026-08-04",
   "zenodex_base_commit": "4aaf35fa33016c0817dce19f46efc979d0b32489",
   "tau_profile": {
     "origin": "https://github.com/IDNI/tau-lang",
@@ -211,6 +211,51 @@
     "passed": 12,
     "failed": 0
   },
+  "runtime_profile_refinement": {
+    "status": "TESTED_UNMOUNTED",
+    "parent_commit": "a4860229cb517ab9615bc0aa0483d1b53a299398",
+    "source_files": [
+      "src/core/fcis_m6_tau_profile_v1.py",
+      "src/integration/fcis_m6_tau_profile_runtime_v1.py",
+      "tests/integration/test_fcis_m6_tau_profile_runtime_v1.py"
+    ],
+    "contracts": [
+      "A public TauIntegrationProfileV1 is canonical source and semantics data and grants no runtime authority.",
+      "A module-controlled TauIntegrationProfileReceiptV1 binds the exact promotion subject, current state, deployment configuration, authority epoch, profile, governance, rule history, capabilities, refinement root, and verifier profile.",
+      "Negative observations remain valid evidence with profile_usable false; a purported verified-compatible observation with any incomplete or crossed fact rejects.",
+      "Operation disposition derives profile usability exclusively from the verified receipt and contains no caller-authored usability Boolean.",
+      "The verifier-owned disposition context binds the expected operation root and rejects crossed operation evidence.",
+      "A valid reject-or-pend decision has authorizes_execution false.",
+      "TauWriterProfileBindingV1 binds a usable receipt to one exact writer target but is not a J07 writer token or commit capability.",
+      "Profile and disposition projections agree with the exact pinned Tau relations for the retained bounded vectors."
+    ],
+    "canonical_vector": {
+      "capability_manifest_root": "beea585af34115cc325964f1bd6f51cc206818b8099e6f649ded63f655904f53",
+      "profile_root": "d96ca475d20343f5737a11f0f8b9f7edd5d18f38f02c338898f0423ec9f85290",
+      "verification_context_root": "2969fb1f218340e08aa47e5548f040cd593814568ab580a25371b52bff4e9b21",
+      "verification_evidence_root": "37f544fad3cb51afc205d3ea81d3452833a361e816ae8882154b97e720c2b402",
+      "profile_receipt_root": "2872450cd3fa0433633b60a77579677c7ae2ff234abc2e66a2d790e3e2457742"
+    },
+    "test_results": [
+      {
+        "command": "TAU_BIN=<exact-c43c66b8-binary> python3 -m pytest -q tests/integration/test_fcis_m6_tau_profile_runtime_v1.py",
+        "passed": 26,
+        "failed": 0
+      },
+      {
+        "command": "python3 -m pytest -q tests/integration/test_fcis_m6_tau_zenoledger_projection_v1.py",
+        "passed": 22,
+        "failed": 0
+      }
+    ],
+    "authority_limits": [
+      "The external verifier adapter is a shell premise and no authoritative verifier selection is mounted.",
+      "Python module construction provenance is not cryptographic authenticity.",
+      "No strict untrusted-wire decoder is provided for this profile value.",
+      "No J07 writer-authority consumer uses the writer-profile binding.",
+      "The integration module remains a large bounded trust-boundary surface that should be split before mounting."
+    ]
+  },
   "tooling_hardening": {
     "integrated_parent_commit": "f2d005a81a8e0414f79610aee834324a469a657b",
     "runner": {
@@ -230,7 +275,9 @@
       "default_build_jobs_cap": 4
     },
     "integrated_gate": {
-      "tau_placement_and_profile_tests_passed": 15,
+      "tau_placement_tests_passed": 12,
+      "tau_profile_runtime_refinement_tests_passed": 26,
+      "related_tau_zenoledger_projection_tests_passed": 22,
       "runner_and_updater_tests_passed": 31,
       "recommended_specs_formally_profiled": 234,
       "semantic_view_regeneration_check_passed": true,
@@ -241,6 +288,8 @@
   },
   "nonclaims": [
     "No Tau integration profile is mounted.",
+    "No authoritative Tau-profile verifier selection or strict wire decoder is mounted.",
+    "No J07 writer-authority path consumes the writer-profile binding.",
     "No Tau or ZenoLedger writer switch is authorized.",
     "No zDEX failover or escape mechanism is established.",
     "No runtime forward simulation is proved.",

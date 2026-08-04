@@ -58,6 +58,49 @@ The global closure's first input means that the candidate decision is exactly
 a separate verified relation, so a rejected outcome cannot be relabeled as an
 accepted candidate.
 
+## Runtime profile receipt refinement
+
+The compact Tau relations now have an unmounted Python refinement. A public
+`TauIntegrationProfileV1` is a canonical source and semantics description. It
+grants no authority. A verifier-selected adapter may produce a
+`TauIntegrationProfileReceiptV1` only after checking evidence bound to the
+exact:
+
+```text
+promotion subject
+current state
+deployment configuration
+authority epoch
+profile, governance, and rule-history roots
+required capability set
+refinement root
+verifier profile
+```
+
+The receipt is constructed through a module-controlled path, registered at
+creation, and completely revalidated at each use. Negative observations such
+as unavailable, changed, equivocal, or incompatible remain valid observation
+receipts with `profile_usable = false`. A purported `verified_compatible`
+observation rejects when any required profile fact is missing or crossed.
+
+Operation disposition consumes the receipt-derived status. There is no
+caller-supplied `profile_usable` field. The complete typed projection into the
+14-input Tau relation is differentially tested against the exact pinned Tau
+binary for Tau, ZenoLedger, and reject-or-pend branches. A valid reject-or-pend
+decision explicitly carries `authorizes_execution = false`. The verifier-owned
+disposition context also commits the expected operation root; crossed operation
+evidence rejects before a decision is created.
+
+`TauWriterProfileBindingV1` binds one usable receipt to an exact writer-profile
+root, current-state root, deployment configuration, and authority epoch. It is
+only a target-binding bridge. It is not a J07 writer token, commit capability,
+or mounted writer-selection result.
+
+The Python construction boundary provides nominal in-process provenance and
+tamper detection. It is not cryptographic authenticity. Selection and
+authentication of the external verifier, datastore currentness, strict wire
+decoding, J07 point-of-use consumption, and mounted no-bypass remain open.
+
 ## Correct substrate model
 
 The governing relation is:
@@ -191,12 +234,16 @@ The focused ZenoDEX suite passed:
 
 ```text
 12 placement tests passed
-15 combined placement and stream-arithmetic profile tests passed in 60.86s
+26 Tau-profile receipt, disposition, writer-binding, and exact-Tau parity tests passed
+22 related Tau/ZenoLedger runtime-projection tests passed
+234 recommended Tau specifications passed formal-plan and semantic-view checks
 ```
 
 This packet does not mount the relations, establish the authenticity of any
-Tau observation, authorize a writer switch, create a zDEX escape mechanism,
-prove runtime forward simulation, or complete M6.
+Tau observation or verifier, authorize a writer switch, create a zDEX escape
+mechanism, prove runtime forward simulation, or complete M6. The 31 runner and
+updater tests and the upstream 316-test Tau release receipt remain retained
+evidence from the preceding exact-source commits.
 
 The machine-readable companion is
 `formal/tau/m6_tau_placement_frontier_v1.json`.

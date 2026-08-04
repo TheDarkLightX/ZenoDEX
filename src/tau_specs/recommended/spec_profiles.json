@@ -887,7 +887,7 @@
           "latest_tau_stream_arithmetic": {
             "status": "research_only_executable_unmounted",
             "runtime_admission": false,
-            "reason": "checks one proposed Tau, ZenoLedger, or reject-or-pend disposition against an exact Tau-profile receipt; runtime projection and receipt mounting remain open"
+            "reason": "checks one proposed Tau, ZenoLedger, or reject-or-pend disposition against an exact Tau-profile receipt; the unmounted Python projection is differentially tested while authoritative verifier selection, J07 consumption, and receipt mounting remain open"
           }
         },
         {
