@@ -431,6 +431,7 @@ def _evaluate_vulnerabilities(
 ) -> tuple[list[dict[str, Any]], set[DispositionKey], list[str]]:
     findings: list[dict[str, Any]] = []
     applied: set[DispositionKey] = set()
+    seen: set[tuple[str, str, str]] = set()
     errors: list[str] = []
     if not isinstance(vulnerabilities, Mapping):
         return findings, applied, ["cargo-audit vulnerabilities must be an object"]
@@ -466,6 +467,18 @@ def _evaluate_vulnerabilities(
             finding["package"],
             finding["version"],
         )
+        identity = (
+            finding["advisory_id"],
+            finding["package"],
+            finding["version"],
+        )
+        if identity in seen:
+            errors.append(
+                "duplicate cargo-audit vulnerability finding: "
+                f"{finding['advisory_id']} {finding['package']} {finding['version']}"
+            )
+            continue
+        seen.add(identity)
         finding["disposition_applied"] = key in dispositions
         findings.append(finding)
         if key in dispositions:
@@ -487,6 +500,7 @@ def _evaluate_warnings(
 ) -> tuple[list[dict[str, Any]], set[DispositionKey], list[str]]:
     findings: list[dict[str, Any]] = []
     applied: set[DispositionKey] = set()
+    seen: set[tuple[str, str, str, str]] = set()
     errors: list[str] = []
     if not isinstance(warnings, Mapping):
         return findings, applied, ["cargo-audit warnings must be an object"]
@@ -515,6 +529,20 @@ def _evaluate_warnings(
                 finding["package"],
                 finding["version"],
             )
+            warning_identity = (
+                category,
+                finding["advisory_id"],
+                finding["package"],
+                finding["version"],
+            )
+            if warning_identity in seen:
+                errors.append(
+                    "duplicate cargo-audit warning finding: "
+                    f"{category} {finding['advisory_id'] or 'no-advisory-id'} "
+                    f"{finding['package']} {finding['version']}"
+                )
+                continue
+            seen.add(warning_identity)
             disposition_applied = key in dispositions and (
                 category != "yanked" or key in lock_bound_yanked_dispositions
             )
@@ -523,20 +551,20 @@ def _evaluate_warnings(
             if disposition_applied:
                 applied.add(key)
             elif category in DENIED_WARNING_CATEGORIES:
-                identity = finding["advisory_id"] or "no-advisory-id"
+                display_identity = finding["advisory_id"] or "no-advisory-id"
                 errors.append(
                     f"denied {category} warning: "
-                    f"{identity} {finding['package']} {finding['version']}"
+                    f"{display_identity} {finding['package']} {finding['version']}"
                 )
     return findings, applied, errors
 
 
-def evaluate_audit_payload(
+def _evaluate_audit_payload(
     payload: object,
     *,
     workspace_id: str,
     dispositions: frozenset[DispositionKey],
-    lock_bound_yanked_dispositions: frozenset[DispositionKey] = frozenset(),
+    lock_bound_yanked_dispositions: frozenset[DispositionKey],
 ) -> dict[str, Any]:
     if not isinstance(payload, Mapping):
         return {
@@ -580,6 +608,22 @@ def evaluate_audit_payload(
         "vulnerabilities": vulnerabilities,
         "warnings": warnings,
     }
+
+
+def evaluate_audit_payload(
+    payload: object,
+    *,
+    workspace_id: str,
+    dispositions: frozenset[DispositionKey],
+) -> dict[str, Any]:
+    """Evaluate cargo-audit data without granting lock-derived authority."""
+
+    return _evaluate_audit_payload(
+        payload,
+        workspace_id=workspace_id,
+        dispositions=dispositions,
+        lock_bound_yanked_dispositions=frozenset(),
+    )
 
 
 def _discover_workspace_locks(root: Path) -> list[str]:
@@ -748,7 +792,7 @@ def _workspace_report(
         label=spec.lockfile,
     )
     errors.extend(lock_errors)
-    evaluation = evaluate_audit_payload(
+    evaluation = _evaluate_audit_payload(
         payload,
         workspace_id=spec.workspace_id,
         dispositions=dispositions,

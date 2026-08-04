@@ -224,6 +224,53 @@ def test_yanked_spin_disposition_requires_lock_bound_authority() -> None:
     assert rejected_version["ok"] is False
 
 
+def test_public_payload_evaluator_exposes_no_lock_authority_parameter() -> None:
+    with pytest.raises(TypeError):
+        checker.evaluate_audit_payload(
+            _payload(),
+            workspace_id="zrpf_risc0",
+            dispositions=_dispositions(),
+            lock_bound_yanked_dispositions=frozenset(),  # type: ignore[call-arg]
+        )
+
+
+def test_duplicate_cargo_findings_reject() -> None:
+    duplicated_vulnerability = _payload(
+        vulnerabilities=(
+            ("RUSTSEC-2023-0071", "rsa", "0.9.10"),
+            ("RUSTSEC-2023-0071", "rsa", "0.9.10"),
+        )
+    )
+    duplicated_warning = _payload()
+    duplicated_warning["warnings"] = {
+        "yanked": [
+            {"package": {"name": "spin", "version": "0.9.8"}},
+            {"package": {"name": "spin", "version": "0.9.8"}},
+        ]
+    }
+
+    vulnerability_report = checker.evaluate_audit_payload(
+        duplicated_vulnerability,
+        workspace_id="zrpf_risc0",
+        dispositions=_dispositions(),
+    )
+    warning_report = checker.evaluate_audit_payload(
+        duplicated_warning,
+        workspace_id="zrpf_risc0",
+        dispositions=_dispositions(),
+    )
+
+    assert vulnerability_report["ok"] is False
+    assert vulnerability_report["errors"] == [
+        "duplicate cargo-audit vulnerability finding: RUSTSEC-2023-0071 rsa 0.9.10"
+    ]
+    assert warning_report["ok"] is False
+    assert warning_report["errors"] == [
+        "denied yanked warning: no-advisory-id spin 0.9.8",
+        "duplicate cargo-audit warning finding: yanked no-advisory-id spin 0.9.8",
+    ]
+
+
 def test_unmaintained_warning_is_recorded_without_authority() -> None:
     report = checker.evaluate_audit_payload(
         _payload(
