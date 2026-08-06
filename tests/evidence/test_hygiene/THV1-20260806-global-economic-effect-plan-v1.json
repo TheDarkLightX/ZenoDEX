@@ -1,0 +1,248 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-global-economic-effect-plan-v1",
+  "created_date": "2026-08-06",
+  "claim_scope": "GlobalEconomicEffectPlanV1 is a bounded canonical structural contract for eleven effect-row categories, per-asset arithmetic reconciliation, unique unsequenced writes, external-only outbox references, and exact occurrence, authorization, replay, and governed route-mode binding; it grants no proof, settlement, or publication authority.",
+  "change_kind": "behavior_change",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "GEEP-V1-CLOSED-EFFECT-REGISTRY",
+    "GEEP-V1-CANONICAL-BOUNDED-ENCODING",
+    "GEEP-V1-UNIQUE-UNSEQUENCED-WRITES",
+    "GEEP-V1-ASSET-FLOW-CONSERVATION",
+    "GEEP-V1-OWNED-AND-SUPPLY-CONSERVATION",
+    "GEEP-V1-CUSTODY-CLAIM-EQUALITY",
+    "GEEP-V1-FEE-ALLOCATION-EQUALITY",
+    "GEEP-V1-LIABILITY-AND-RESERVE-DELTA-RECONCILIATION",
+    "GEEP-V1-EXTERNAL-ONLY-OUTBOX",
+    "GEEP-V1-OCCURRENCE-AND-AUTHORITY-BINDING",
+    "GEEP-V1-REJECT-PRODUCES-NO-AUTHORITY"
+  ],
+  "failure_modes": [
+    "an unknown, duplicate, non-canonical, zero-value, self-transfer, or nonchanging row is accepted",
+    "two unsequenced pre/post rows write the same typed lane target",
+    "an asset is missing its sole reconciliation or has an extraneous or duplicate reconciliation",
+    "issue, burn, owned, supply, liability, reserve, custody, or fee arithmetic violates its equation",
+    "checked arithmetic overflows at a local row or aggregate boundary",
+    "one external outbox row targets the local domain or lacks one exact value-effect reference",
+    "one value effect funds multiple outbox rows",
+    "a plan changes application, domain, profile, writer epoch, occurrence, route, or pre-state",
+    "action-derived authorization, grant spend, or consumed objects differ from the occurrence",
+    "an issue or burn row violates the governed route mode",
+    "a circular action-derived field enters the semantic action commitment",
+    "a new effect-plan source or test escapes the exact ZRPF source closure"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZRPF_GLOBAL_ECONOMIC_EFFECT_PLAN_V1_SPEC_20260806.md",
+      "sha256": "930c1d86aa68ed012b7326a296582e3ce4a2dbd765179bcbb02fee5d9f367479"
+    },
+    {
+      "path": "tools/zrpf_v3_source_closure.py",
+      "sha256": "c890dc7b78341d4a7c4d7d2708cd0812684705e0312e9c101d30376cc1c9c760"
+    },
+    {
+      "path": "zk/zrpf_protocol/README.md",
+      "sha256": "23ecb0ed81cbf920caac25ae3bac0b3a028e68f61cceb44eb3ea6b66ff7658dd"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+      "sha256": "e6f8f99770e4deae4e4b5f2db40b3cc9e931d098e6e8a44d18410da6854320fe"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+      "sha256": "7b62d40e0a16351c6f6c9f892de0f78300a7ccaffbbdb5aa705a213a9e2d3554"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan.rs",
+      "sha256": "63fd067e4e11694a3c5f1bdaa685b7229ba99a5306c17026367343ec06bd477d"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_bounded.rs",
+      "sha256": "7f327cb115f952d5f804edb082f739cb8f7953f79573ab905233967e12651f01"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_codec.rs",
+      "sha256": "fe0b5d34117bd48a1625af4ed3c88e90a9fbcc6d80c9fe3b6a806488f257c93a"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_error.rs",
+      "sha256": "bc6f422a25154f8c358b19b7202c5a141845e5c6a9d5ff4268fd385eaff2e8de"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_hash.rs",
+      "sha256": "18d1a841b15d7da4b7bdc3c9b5a56cd0fa7460c29366cdb9d2bb8182bb785a43"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_reconcile.rs",
+      "sha256": "ea925ba91f0fa8385f95c22ce299a469b254f58b26f7e0ae81f5dcfcc68886f9"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_row_inputs.rs",
+      "sha256": "e14df0a3778648c22de2ae0149e0a71bbffc029d21f09d418819edd7dd96a8fb"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_rows.rs",
+      "sha256": "913e921cb354bf1f01b09fd4af2062b7703ee7224ab092560a5951c3849bda0f"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_types.rs",
+      "sha256": "25cb489e41d9baca0b1bc1f522d39569ea246da7ae4564e3a307ff283b360bdd"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_validate.rs",
+      "sha256": "1532cd6fe50e5f149a6159c178f6bb31322bd5c6e157cfc4002170b2ed20aeff"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1.rs",
+      "sha256": "876e1bcd6bf4562c732c916e4c0707721e52e47eb13070e18c9bf091cae0135b"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/binding.rs",
+      "sha256": "56ba95865c3ff744fc25de445d3121135d2bc92e16b985357fde91c19a6462f7"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/codec.rs",
+      "sha256": "d0f8dc0a493dd028f6e4e2bd563817994354a9c0f808a93946b5ea832750e36d"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/reconciliation.rs",
+      "sha256": "4eee42cc9959b84026801b4b261c1918b00beb7be05bea6799c4033542a108ed"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/rows.rs",
+      "sha256": "ead2d1b1f9a60c6fa3bdebc3016cfe573dd64ebdcaf9b437940dc5a3e53d7684"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/support.rs",
+      "sha256": "8268784da79db2ae103d61f3ad8749de41db33e844869136d2c51e209629674b"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_global_economic_effect_plan_v1.py",
+      "sha256": "dfaaeacc5d20c36ba725061d06017ed6a673ea21654f66948d36b840ee821008",
+      "node_ids": [
+        "tests/test_global_economic_effect_plan_v1.py::test_global_economic_effect_plan_rust_contract"
+      ]
+    },
+    {
+      "path": "tests/test_zrpf_v3_source_closure.py",
+      "sha256": "a245073a3e1c8e6e693b1cf084a1bf227d0db7cbc9da4c154a9e2113b07a575a",
+      "node_ids": [
+        "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory",
+        "tests/test_zrpf_v3_source_closure.py::test_global_settlement_abi_sources_have_exact_roles",
+        "tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest",
+        "tests/test_zrpf_v3_source_closure.py::test_workspace_inventory_rejects_unlisted_rust_even_with_build_false"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "metamorphic",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The 22 Rust regressions use explicit Arrange, Act, and Assert phases; the Python launcher independently asserts the exact Rust and compile-fail totals."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Rows, bodies, and plans are immutable functional-core values; every rejection occurs before the private occurrence-bound witness is constructed and exposes no state mutation, receipt, replay insertion, outbox delivery, or publication capability."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "amount_atoms",
+      "points": [
+        "zero_reject",
+        "one_accept",
+        "u128_max_accept_when_equations_fit",
+        "aggregate_u128_overflow_reject"
+      ]
+    },
+    {
+      "name": "equation_neighbor",
+      "points": [
+        "exact_custody_and_fee_accept",
+        "one_atom_custody_and_fee_mismatch_reject",
+        "exact_owned_and_supply_accept",
+        "one_atom_owned_and_supply_mismatch_reject",
+        "exact_liability_and_reserve_delta_accept",
+        "one_atom_liability_and_reserve_delta_mismatch_reject"
+      ]
+    },
+    {
+      "name": "asset_reconciliation_cardinality",
+      "points": [
+        "one_per_effect_asset_accept",
+        "missing_reject",
+        "duplicate_reject",
+        "extraneous_reject"
+      ]
+    },
+    {
+      "name": "write_target_cardinality",
+      "points": [
+        "one_transition_per_typed_lane_target_accept",
+        "two_unsequenced_transitions_to_same_target_reject"
+      ]
+    },
+    {
+      "name": "outbox_value_reference",
+      "points": [
+        "one_exact_external_reference_accept",
+        "local_destination_reject",
+        "missing_or_wrong_reference_reject",
+        "one_value_effect_reused_twice_reject"
+      ]
+    },
+    {
+      "name": "occurrence_envelope",
+      "points": [
+        "all_eight_bindings_equal_accept",
+        "each_single_binding_mutation_reject"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept zero-value, self-transfer, nonchanging, duplicate, or overflowing rows",
+      "killed_by": "tests/test_global_economic_effect_plan_v1.py::test_global_economic_effect_plan_rust_contract"
+    },
+    {
+      "description": "allow two pre/post transitions to write one target without an explicit sequence",
+      "killed_by": "tests/test_global_economic_effect_plan_v1.py::test_global_economic_effect_plan_rust_contract"
+    },
+    {
+      "description": "omit one of the per-asset conservation, custody, fee, liability, or reserve equations",
+      "killed_by": "tests/test_global_economic_effect_plan_v1.py::test_global_economic_effect_plan_rust_contract"
+    },
+    {
+      "description": "send a same-ledger movement through the external outbox or reuse one value effect",
+      "killed_by": "tests/test_global_economic_effect_plan_v1.py::test_global_economic_effect_plan_rust_contract"
+    },
+    {
+      "description": "trust a caller-proposed envelope, authorization binding, replay row, or issue-burn mode",
+      "killed_by": "tests/test_global_economic_effect_plan_v1.py::test_global_economic_effect_plan_rust_contract"
+    },
+    {
+      "description": "include action-derived authorization or outbox reference IDs in the circular semantic commitment",
+      "killed_by": "tests/test_global_economic_effect_plan_v1.py::test_global_economic_effect_plan_rust_contract"
+    },
+    {
+      "description": "omit the effect-plan sources or tests from the exact governed source inventory",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    }
+  ],
+  "nonclaims": [
+    "The reconciliation values remain declarations until a guest authenticates exact pre-state and post-state partition openings.",
+    "The structural contract does not execute or prove lane economics, Oracle policy, terminal coverage, external finality, cross-release coexistence, or migration continuity.",
+    "The route-mode check does not interpret the route policy root; the selected module and route-composer guests remain responsible for its exact semantics.",
+    "No Python, Tau, Lean, Kani, or RISC0 refinement or proof is added.",
+    "No receipt, epoch recursion, release-aware verifier, current-head check, ZenoLedger commit, API or UI mount, value movement, RC, production-readiness, formal-verification, or whole-economy settlement claim is promoted."
+  ]
+}

@@ -104,6 +104,12 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
         "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/successor.rs",
         "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/support.rs",
         "zk/zrpf_protocol/protocol/tests/full_blob_da_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/binding.rs",
+        "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/codec.rs",
+        "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/reconciliation.rs",
+        "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/rows.rs",
+        "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/support.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_state_v1.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/binding.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/codec.rs",
@@ -277,6 +283,46 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             (
                 "global_settlement_abi_v1",
                 "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/error.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_bounded.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_codec.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_error.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_hash.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_reconcile.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_row_inputs.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_rows.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_types.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_validate.rs",
             ),
             (
                 "global_settlement_abi_v1",

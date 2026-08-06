@@ -9,6 +9,16 @@ mod economic_profile_snapshot_error;
 mod economic_profile_snapshot_id;
 mod economic_profile_snapshot_types;
 mod error;
+mod global_economic_effect_plan;
+mod global_economic_effect_plan_bounded;
+mod global_economic_effect_plan_codec;
+mod global_economic_effect_plan_error;
+mod global_economic_effect_plan_hash;
+mod global_economic_effect_plan_reconcile;
+mod global_economic_effect_plan_row_inputs;
+mod global_economic_effect_plan_rows;
+mod global_economic_effect_plan_types;
+mod global_economic_effect_plan_validate;
 mod global_economic_state;
 mod global_economic_state_binding;
 mod global_economic_state_codec;
@@ -64,6 +74,24 @@ pub use economic_profile_snapshot_types::{
     EconomicProfileTransitionModeV1,
 };
 pub use error::GlobalSettlementAbiErrorV1;
+pub use global_economic_effect_plan::{
+    bind_global_economic_effect_plan_to_occurrence_v1, GlobalEconomicEffectBodyV1,
+    GlobalEconomicEffectPlanV1, OccurrenceBoundGlobalEconomicEffectPlanV1,
+};
+pub use global_economic_effect_plan_codec::{
+    decode_exact_global_economic_effect_plan_v1, encode_global_economic_effect_plan_v1,
+};
+pub use global_economic_effect_plan_error::GlobalEconomicEffectPlanErrorV1;
+pub use global_economic_effect_plan_row_inputs::{
+    GlobalAccountMovementInputV1, GlobalCustodyEffectInputV1, GlobalExternalOutboxInputV1,
+    GlobalFeeEffectInputV1, GlobalIssueBurnInputV1, GlobalLiabilityEffectInputV1,
+    GlobalReserveEffectInputV1, GlobalRewardSlashInputV1,
+};
+pub use global_economic_effect_plan_types::{
+    GlobalAssetReconciliationInputV1, GlobalAssetReconciliationV1, GlobalEconomicEffectBodyInputV1,
+    GlobalEconomicEffectKindV1, GlobalEconomicEffectPlanInputV1, GlobalEconomicEffectRowV1,
+    GlobalIssueBurnKindV1, GlobalOccurrenceConsumptionKindV1, GlobalRewardSlashKindV1,
+};
 pub use global_economic_state::GlobalEconomicStateV1;
 pub use global_economic_state_binding::{
     bind_global_economic_state_to_profile_v1, bind_profile_bound_occurrence_to_global_state_v1,
@@ -136,3 +164,7 @@ pub const GLOBAL_ECONOMIC_STATE_VERSION_V1: u16 = 1;
 pub const MAX_GLOBAL_ECONOMIC_STATE_BYTES_V1: usize = 2_048;
 pub const ECONOMIC_OBJECT_RELEASE_PIN_VERSION_V1: u16 = 1;
 pub const MAX_ECONOMIC_OBJECT_RELEASE_PIN_PROOF_BYTES_V1: usize = 8_512;
+pub const GLOBAL_ECONOMIC_EFFECT_PLAN_VERSION_V1: u16 = 1;
+pub const MAX_GLOBAL_ECONOMIC_EFFECT_ROWS_V1: usize = 1_024;
+pub const MAX_GLOBAL_ASSET_RECONCILIATIONS_V1: usize = 256;
+pub const MAX_GLOBAL_ECONOMIC_EFFECT_PLAN_BYTES_V1: usize = 1_048_576;
