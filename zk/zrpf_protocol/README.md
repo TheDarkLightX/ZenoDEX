@@ -30,6 +30,10 @@ The crate currently provides:
   ordered unique-lane module releases, closed multi-role sets, exact receipt and
   private-port schemas, explicit Oracle and issue/burn policies, port pairing,
   and nonzero composition ceilings, with exact bounded Postcard decoding;
+- a bounded `RouteReleaseRegistryV1` mapping each command-variant root plus its
+  canonical state-derived module-release set to exactly one route, rejecting
+  ambiguity, fallback, noncanonical order, and mismatched module-registry
+  unions, with a domain-separated registry root and exact bounded decoding;
 - an action-bound `AuthorizationConsumptionNullifierV1` compatibility identity
   for binding a canonical action to a grant;
 - an `AuthorizationGrantSpendNullifierV1` derived only from application,
@@ -112,6 +116,14 @@ content-derived route ID. The route remains caller-constructible data: no
 governed command-to-route registry, authenticated occurrence, actual receipt,
 private-port value, profile verifier, composer proof, or publisher is present.
 
+The route release registry orders routes by command root plus the lane-sorted
+module-release set and rejects duplicate selector keys. Exact lookup has no
+default or nearest match. Module-registry binding checks the exact required
+lane union and referenced release occurrence, while lifecycle interpretation
+remains outside this slice. The selector is caller-constructible data; no
+profile snapshot, authenticated command occurrence, object-pin derivation,
+route receipt, verifier, or publication witness gives it authority here.
+
 The settlement certificate is a canonical proof-neutral journal. Its source
 claim binding and DA, schedule, carry, plan, and state roots remain
 unauthenticated data until a guest verifies their source obligations and a
@@ -154,7 +166,9 @@ The module release and bounded per-lane registry contracts are specified in
 `docs/research/ZRPF_LANE_MODULE_RELEASE_V1_SPEC_20260806.md` and
 `docs/research/ZRPF_LANE_MODULE_RELEASE_REGISTRY_V1_SPEC_20260806.md`.
 The bounded route release contract is specified in
-`docs/research/ZRPF_ROUTE_RELEASE_V1_SPEC_20260806.md`.
+`docs/research/ZRPF_ROUTE_RELEASE_V1_SPEC_20260806.md`. The bounded governed
+lookup candidate is specified in
+`docs/research/ZRPF_ROUTE_RELEASE_REGISTRY_V1_SPEC_20260806.md`.
 
 ## Verification
 

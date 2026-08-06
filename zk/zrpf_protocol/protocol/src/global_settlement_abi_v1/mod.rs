@@ -15,6 +15,10 @@ mod route_release_codec;
 mod route_release_error;
 mod route_release_id;
 mod route_release_policy;
+mod route_release_registry;
+mod route_release_registry_codec;
+mod route_release_registry_error;
+mod route_release_registry_types;
 mod route_release_roles;
 mod route_release_types;
 
@@ -45,6 +49,12 @@ pub use route_release_codec::{decode_exact_route_release_v1, encode_route_releas
 pub use route_release_error::RouteReleaseErrorV1;
 pub use route_release_id::RouteReleaseIdV1;
 pub use route_release_policy::{RouteIssueBurnPolicyV1, RouteOraclePolicyV1};
+pub use route_release_registry::RouteReleaseRegistryV1;
+pub use route_release_registry_codec::{
+    decode_exact_route_release_registry_v1, encode_route_release_registry_v1,
+};
+pub use route_release_registry_error::RouteReleaseRegistryErrorV1;
+pub use route_release_registry_types::{RouteModuleReleaseSelectionV1, RouteSelectionKeyV1};
 pub use route_release_roles::{RouteDependencyRoleV1, RouteDependencyRolesV1};
 pub use route_release_types::{
     RouteModuleDependencyV1, RouteReleaseContentV1, RouteResourceLimitsV1,
@@ -61,3 +71,7 @@ pub const MAX_LANE_MODULE_RELEASE_REGISTRY_BYTES_V1: usize = 131_200;
 pub const ROUTE_RELEASE_VERSION_V1: u16 = 1;
 pub const MAX_ROUTE_DEPENDENCIES_V1: usize = 8;
 pub const MAX_ROUTE_RELEASE_BYTES_V1: usize = 4_096;
+pub const ROUTE_RELEASE_REGISTRY_VERSION_V1: u16 = 1;
+pub const MAX_ROUTE_RELEASES_PER_REGISTRY_V1: usize = 256;
+pub const MAX_ROUTE_RELEASE_REGISTRY_BYTES_V1: usize =
+    MAX_ROUTE_RELEASES_PER_REGISTRY_V1 * MAX_ROUTE_RELEASE_BYTES_V1 + 64;

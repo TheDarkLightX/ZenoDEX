@@ -1,0 +1,243 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-route-release-registry-v1",
+  "created_date": "2026-08-06",
+  "claim_scope": "RouteReleaseRegistryV1 provides one bounded canonical and fail-closed mapping from a command-variant root plus a lane-sorted module-release set to one exact RouteReleaseV1, rejects ambiguity, fallback, noncanonical input, and exact module-registry union mismatches, and grants no profile or route-execution authority.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "RRR-V1-BOUNDED-ROUTE-SET",
+    "RRR-V1-BOUNDED-SELECTION-SET",
+    "RRR-V1-UNIQUE-CANONICAL-SELECTION-LANES",
+    "RRR-V1-UNIQUE-ROUTE-IDENTITY",
+    "RRR-V1-UNAMBIGUOUS-SELECTION",
+    "RRR-V1-CANONICAL-ROUTE-ORDER",
+    "RRR-V1-EXACT-NO-FALLBACK-LOOKUP",
+    "RRR-V1-CONTENT-DERIVED-REGISTRY-ROOT",
+    "RRR-V1-EXACT-MODULE-REGISTRY-UNION",
+    "RRR-V1-CANONICAL-BOUNDED-CODEC",
+    "RRR-V1-REJECT-IS-NOOP"
+  ],
+  "failure_modes": [
+    "a registry accepts zero or more than 256 routes",
+    "a selector accepts zero or more than eight module releases",
+    "a selector admits duplicate or noncanonical lane order",
+    "duplicate route IDs or duplicate command-and-release selection keys are admitted",
+    "route iteration order silently determines a winner",
+    "an unknown command or release set falls back to another route",
+    "a route change does not change the registry root",
+    "a missing, extra, reordered, duplicate-lane, or wrong-release module registry union binds",
+    "empty, oversized, trailing, stale, reordered, unknown-field, over-count, or noncanonical registry input decodes",
+    "a RouteReleaseRegistry source or test is omitted from the governed ZRPF source closure"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZRPF_ROUTE_RELEASE_REGISTRY_V1_SPEC_20260806.md",
+      "sha256": "f0a88753c36a6b6b4ccc059fd3630d0d89487998ade58863432c214ed2a03d7e"
+    },
+    {
+      "path": "tools/zrpf_v3_source_closure.py",
+      "sha256": "280466311ec049b2b24a1f19ca0978d85d610ee1fff001466273058acbf6cec5"
+    },
+    {
+      "path": "zk/zrpf_protocol/README.md",
+      "sha256": "5f6b72699dd9958ec769f7c37ac83726298db07fcb480c930eb7b9e1160ab46a"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+      "sha256": "ed0e89836eaad17b0b2ca5f3c468f1111dee0da2f66ac303d5a2642e679fced5"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+      "sha256": "b4b04c9ac0bea8bf2d66eeaf5002342c86d48032e0b7cc3818547ac79d5318e8"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_registry.rs",
+      "sha256": "aa9e967d0070fda6d585e1768bc523ac6050ba44f025025694fb45350a85e485"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_registry_codec.rs",
+      "sha256": "59116da0b6cf265907457f97b14e3a6d1e4802359144aeeb31e5412973408039"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_registry_error.rs",
+      "sha256": "d7888ad77acaf4e0e640a7c23057901c94196264bb6ffcb1e7684a6ca8ed4687"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_registry_types.rs",
+      "sha256": "082528df8ba0adeee7d7a7e51dda4cd32b45f751b3dfd7e8abdd51077ebc48f3"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_registry_v1.rs",
+      "sha256": "325d381c176b635823472bb2a2143d7dd67dc06459287da4cc773f7ea7527590"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_registry_v1/binding.rs",
+      "sha256": "49968a470692d0eb89a7263919e7ad41ff3bf0e6c558c2112181d46db06bd3ae"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_registry_v1/codec.rs",
+      "sha256": "e0232699061cd58338b3366e6546c5d45357427de6d04ecac591de22307e97e4"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_registry_v1/identity.rs",
+      "sha256": "90f08cf29517da3d706ef61c596c4c2b42b2f44f2cee74d360fbd6b541d495a0"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_registry_v1/support.rs",
+      "sha256": "3bcfd2176135affc591651aeaab3d1444cb40b05bda577128d093e6e0d861116"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_route_release_registry_v1.py",
+      "sha256": "a67d6e03c32300551fb7ca067139d1d24f903b041c5bb0939ed688eb0695c08c",
+      "node_ids": [
+        "tests/test_route_release_registry_v1.py::test_route_release_registry_rust_contract"
+      ]
+    },
+    {
+      "path": "tests/test_zrpf_v3_source_closure.py",
+      "sha256": "b7636d17272fd6d49d0a0d00566a71708c3c8e8c7d94417893009cc7b63de7ea",
+      "node_ids": [
+        "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory",
+        "tests/test_zrpf_v3_source_closure.py::test_global_settlement_abi_sources_have_exact_roles",
+        "tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest",
+        "tests/test_zrpf_v3_source_closure.py::test_workspace_inventory_rejects_unlisted_rust_even_with_build_false"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Rust contract tests use explicit Arrange, Act, and Assert phases for registry and selector cardinality, canonical order, ambiguity, exact lookup, registry binding, identity, and codec behavior; the isolated pytest launcher asserts the exact 12-test Rust result."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Construction, lookup, and module-registry binding operate on immutable caller-owned values; selector-order and unknown-lookup tests preserve the complete input or registry before and after rejection, and no method exposes mutable committed state."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "route_count",
+      "points": [
+        "zero_constructor_reject",
+        "one_accept",
+        "256_accept",
+        "257_constructor_reject",
+        "257_decoder_reject"
+      ]
+    },
+    {
+      "name": "selection_dependency_count",
+      "points": [
+        "zero_constructor_reject",
+        "one_accept",
+        "eight_accept",
+        "nine_constructor_reject"
+      ]
+    },
+    {
+      "name": "selection_lane_order",
+      "points": [
+        "unique_ascending_accept",
+        "duplicate_reject",
+        "reverse_reject",
+        "route_composition_order_remains_independent"
+      ]
+    },
+    {
+      "name": "route_selection",
+      "points": [
+        "exact_command_and_release_set_accept",
+        "unknown_command_reject_without_fallback",
+        "unknown_release_reject_without_fallback",
+        "duplicate_route_id_reject",
+        "duplicate_selection_key_reject"
+      ]
+    },
+    {
+      "name": "canonical_route_order",
+      "points": [
+        "three_routes_all_six_permutations",
+        "exactly_one_permutation_accepts"
+      ]
+    },
+    {
+      "name": "module_registry_union",
+      "points": [
+        "expected_minus_one_reject",
+        "expected_accept",
+        "expected_plus_one_reject",
+        "reordered_lane_reject",
+        "duplicate_lane_reject",
+        "unknown_release_reject"
+      ]
+    },
+    {
+      "name": "registry_identity",
+      "points": [
+        "baseline_route_set",
+        "changed_dependency_release",
+        "fixed_registry_root",
+        "fixed_encoded_digest"
+      ]
+    },
+    {
+      "name": "registry_encoding",
+      "points": [
+        "empty",
+        "canonical",
+        "maximum_plus_one_bytes",
+        "wrong_version",
+        "nonminimal_version_integer",
+        "trailing_byte",
+        "reordered_routes",
+        "257_routes",
+        "unknown_registry_selection_and_entry_fields"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept zero or more than 256 registry routes or zero or more than eight selector dependencies",
+      "killed_by": "tests/test_route_release_registry_v1.py::test_route_release_registry_rust_contract"
+    },
+    {
+      "description": "accept duplicate or reversed selector lanes or silently normalize caller selection input",
+      "killed_by": "tests/test_route_release_registry_v1.py::test_route_release_registry_rust_contract"
+    },
+    {
+      "description": "admit duplicate route IDs, ambiguous selection keys, or more than one canonical registry permutation",
+      "killed_by": "tests/test_route_release_registry_v1.py::test_route_release_registry_rust_contract"
+    },
+    {
+      "description": "fall back from an unknown command or module release set to another registered route",
+      "killed_by": "tests/test_route_release_registry_v1.py::test_route_release_registry_rust_contract"
+    },
+    {
+      "description": "bind a missing, extra, reordered, duplicate-lane, or wrong-release module registry union",
+      "killed_by": "tests/test_route_release_registry_v1.py::test_route_release_registry_rust_contract"
+    },
+    {
+      "description": "omit a route identity from the registry root or accept stale, nonminimal, unknown-field, trailing, empty, oversized, reordered, or over-count input",
+      "killed_by": "tests/test_route_release_registry_v1.py::test_route_release_registry_rust_contract"
+    },
+    {
+      "description": "omit a RouteReleaseRegistry implementation or assurance source from the exact ZRPF inventory",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    }
+  ],
+  "nonclaims": [
+    "RouteSelectionKeyV1 is ordinary caller-constructible data. This packet does not derive it from an authenticated command, committed object pins, or a governed EconomicProfileSnapshotV1 and does not construct an authority witness.",
+    "Exact lookup proves only that one registry contains one route for the supplied command root and lane-sorted module release set. It does not select lifecycle purpose, authenticate profile activation, consume a nonce or object, or establish replay uniqueness.",
+    "Exact module-registry union binding proves record occurrence only. It does not reinterpret release lifecycle status, prove coexistence economics, migration, terminal execution, or resource consumption.",
+    "This packet does not inspect module receipts or private-port values, compose a route proof, verify an epoch, authorize ZenoLedger publication, establish complete M6 route coverage, production readiness, whole-economy authority, or ShapeForge promoted-bundle status."
+  ]
+}
