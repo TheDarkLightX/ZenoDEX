@@ -1,0 +1,4 @@
+interface:
+  display_name: "ZenoDEX Test Hygiene"
+  short_description: "Gate critical changes with executable evidence"
+  default_prompt: "Use $zenodex-test-hygiene to classify this ZenoDEX change, create its evidence packet, and run the required hygiene gate."

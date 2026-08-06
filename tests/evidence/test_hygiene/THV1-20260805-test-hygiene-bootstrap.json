@@ -1,0 +1,245 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260805-test-hygiene-bootstrap",
+  "created_date": "2026-08-05",
+  "claim_scope": "Test Hygiene Contract V1 rejects uncovered or stale evidence for changed critical paths and executes the exact pinned pytest nodes in pull-request CI.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "THV1-DIFF-COVERAGE",
+    "THV1-APPEND-ONLY-EVIDENCE",
+    "THV1-CURRENT-SOURCE-AND-TEST-PINS",
+    "THV1-DECLARED-TEST-EXECUTION",
+    "THV1-REQUIRED-CI-WIRING",
+    "THV1-EXACT-GIT-PATHS"
+  ],
+  "failure_modes": [
+    "a critical change reaches review without a linked evidence packet",
+    "a stale packet is reused after source or test drift",
+    "an existing evidence packet is rewritten",
+    "a packet names an unpinned mutation-killing test",
+    "pull-request CI stops invoking the diff-aware gate",
+    "declared pytest nodes are interpreted through a shell",
+    "Git quote-path rendering causes a critical Unicode path to evade classification",
+    "a source or test pin resolves through a symlink"
+  ],
+  "source_pins": [
+    {
+      "path": ".github/CODEOWNERS",
+      "sha256": "0570e389e2e39387b360f3c9272bd7903df6faa4321222c9c80cabbac15e9900"
+    },
+    {
+      "path": ".github/workflows/test-hygiene.yml",
+      "sha256": "2cb94f4a888ae42f0551153f6aade5b8b8b7daa17af3d5b02af99710c36bf3a4"
+    },
+    {
+      "path": "agent_skills/zenodex-test-hygiene/SKILL.md",
+      "sha256": "50cb096be20d396676e19e7fd743822c5728a60dbc5c4bd7489b427e19e43bc6"
+    },
+    {
+      "path": "agent_skills/zenodex-test-hygiene/agents/openai.yaml",
+      "sha256": "1ea7ec8b345f314ad34752b94e3573b976092fa76d94f7b4642645129962d4d8"
+    },
+    {
+      "path": "docs/testing/TEST_HYGIENE_CONTRACT_V1.md",
+      "sha256": "f0ff25bb31ad7fbca7254d8de9dda33cfd20e4c7f8fd3116ec02194194ce574d"
+    },
+    {
+      "path": "tools/check_test_hygiene_v1.py",
+      "sha256": "9448fb6f580cdcd08c7ee3f59de7140855dcb74863adbccd1d2a151351e7b858"
+    },
+    {
+      "path": "tools/test_hygiene_model_v1.py",
+      "sha256": "8515767ba81ddc62f341e0351d24a6f5a0990631295c64306de91d5b849c7ad5"
+    },
+    {
+      "path": "tools/test_hygiene_evidence_v1.py",
+      "sha256": "96f4f0404ee9bd4d1b61e4e376b4a66a7012d64aba2cc6d22dc21270af46b23b"
+    },
+    {
+      "path": "tools/run_test_hygiene_gate_v1.py",
+      "sha256": "d3dd522c88b29573439a9ba35b1d1e4d970c4e612776a9b9a3317f41f9744f7b"
+    },
+    {
+      "path": "tools/run_critical_quality_gate.sh",
+      "sha256": "8a7cf3800fda35b428e058e0a422ae3da5f14344d906086a226db178c9583676"
+    },
+    {
+      "path": "tools/test_hygiene_contract_v1.json",
+      "sha256": "101307caf2c8f0545fefebe3e8ef92730779fa017a5c70913816fd8e4fba2851"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_check_test_hygiene_v1.py",
+      "sha256": "f8a6243b53077b9b79eabe2786b64880e781d45a07524e7b862d30aa7c8ac10a",
+      "node_ids": [
+        "tests/test_check_test_hygiene_v1.py::test_changed_critical_path_requires_evidence_packet",
+        "tests/test_check_test_hygiene_v1.py::test_current_pins_and_strong_evidence_cover_critical_change",
+        "tests/test_check_test_hygiene_v1.py::test_stale_source_pin_rejects_packet",
+        "tests/test_check_test_hygiene_v1.py::test_required_boundary_family_needs_boundary_inventory",
+        "tests/test_check_test_hygiene_v1.py::test_named_mutation_must_be_killed_by_pinned_node",
+        "tests/test_check_test_hygiene_v1.py::test_existing_evidence_packets_are_append_only",
+        "tests/test_check_test_hygiene_v1.py::test_deleted_test_requires_explicit_replacement",
+        "tests/test_check_test_hygiene_v1.py::test_deleted_test_replacement_must_be_a_pinned_test",
+        "tests/test_check_test_hygiene_v1.py::test_path_traversal_in_packet_rejects",
+        "tests/test_check_test_hygiene_v1.py::test_symlinked_source_pin_rejects",
+        "tests/test_check_test_hygiene_v1.py::test_nul_git_parser_preserves_unicode_and_normalizes_rename",
+        "tests/test_check_test_hygiene_v1.py::test_noncritical_document_change_needs_no_packet",
+        "tests/test_check_test_hygiene_v1.py::test_unknown_contract_field_rejects_fail_closed",
+        "tests/test_check_test_hygiene_v1.py::test_repository_contract_and_bootstrap_packet_are_structurally_valid",
+        "tests/test_check_test_hygiene_v1.py::test_default_contract_retains_mandatory_critical_path_probes",
+        "tests/test_check_test_hygiene_v1.py::test_pull_request_ci_runs_diff_aware_hygiene_gate",
+        "tests/test_check_test_hygiene_v1.py::test_critical_quality_gate_validates_static_hygiene_contract"
+      ]
+    },
+    {
+      "path": "tests/test_run_test_hygiene_gate_v1.py",
+      "sha256": "d45395e5f4188cb14ef5bd133c4edfecdcc0822b388f358f2ddad9bb6292b3df",
+      "node_ids": [
+        "tests/test_run_test_hygiene_gate_v1.py::test_runner_executes_exact_nodes_without_shell",
+        "tests/test_run_test_hygiene_gate_v1.py::test_runner_skips_process_when_diff_has_no_critical_nodes",
+        "tests/test_run_test_hygiene_gate_v1.py::test_runner_propagates_pytest_failure"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Checker and runner regressions use explicit setup, one operation under examination, and exact result or rejection assertions."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "The checker is read-only and the runner only executes pinned tests; this packet introduces no economic state transition."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "path_classification",
+      "points": [
+        "noncritical",
+        "critical_covered",
+        "critical_uncovered"
+      ]
+    },
+    {
+      "name": "git_change_status",
+      "points": [
+        "added",
+        "modified",
+        "deleted"
+      ]
+    },
+    {
+      "name": "pin_integrity",
+      "points": [
+        "exact",
+        "stale",
+        "missing"
+      ]
+    },
+    {
+      "name": "evidence_packet_lifecycle",
+      "points": [
+        "new",
+        "modified_reject",
+        "deleted_reject"
+      ]
+    },
+    {
+      "name": "declared_node_execution",
+      "points": [
+        "none_for_noncritical_diff",
+        "exact_argv_success",
+        "pytest_failure_propagated"
+      ]
+    },
+    {
+      "name": "git_path_representation",
+      "points": [
+        "ordinary_utf8",
+        "unicode_utf8",
+        "rename_old_and_new"
+      ]
+    },
+    {
+      "name": "pin_path_resolution",
+      "points": [
+        "regular_file",
+        "symlink_reject"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "allow a changed critical path without an evidence packet",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_changed_critical_path_requires_evidence_packet"
+    },
+    {
+      "description": "accept a stale source SHA-256 pin",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_stale_source_pin_rejects_packet"
+    },
+    {
+      "description": "declare boundary evidence with an empty boundary inventory",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_required_boundary_family_needs_boundary_inventory"
+    },
+    {
+      "description": "claim a mutant was killed by an unpinned pytest node",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_named_mutation_must_be_killed_by_pinned_node"
+    },
+    {
+      "description": "rewrite an existing evidence packet",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_existing_evidence_packets_are_append_only"
+    },
+    {
+      "description": "remove a critical test without explicit replacement evidence",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_deleted_test_requires_explicit_replacement"
+    },
+    {
+      "description": "replace a deleted test only with a pinned source file",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_deleted_test_replacement_must_be_a_pinned_test"
+    },
+    {
+      "description": "escape the repository with a parent-relative source path",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_path_traversal_in_packet_rejects"
+    },
+    {
+      "description": "accept a source pin that resolves through a symlink",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_symlinked_source_pin_rejects"
+    },
+    {
+      "description": "classify quoted Git paths instead of exact NUL-delimited Unicode paths",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_nul_git_parser_preserves_unicode_and_normalizes_rename"
+    },
+    {
+      "description": "add an undeclared fail-open contract field",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_unknown_contract_field_rejects_fail_closed"
+    },
+    {
+      "description": "remove a mandatory critical path family from the default contract",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_default_contract_retains_mandatory_critical_path_probes"
+    },
+    {
+      "description": "remove the pull-request diff-aware gate from CI",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_pull_request_ci_runs_diff_aware_hygiene_gate"
+    },
+    {
+      "description": "remove the static contract check from the critical gate",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_critical_quality_gate_validates_static_hygiene_contract"
+    },
+    {
+      "description": "execute declared pytest nodes through shell interpolation",
+      "killed_by": "tests/test_run_test_hygiene_gate_v1.py::test_runner_executes_exact_nodes_without_shell"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not prove that a test's assertions fully capture its named invariant.",
+    "This packet does not prevent bypass by an actor who can change the checker, workflow, ownership rules, required checks, and branch settings.",
+    "This packet does not establish whole-economy M6 correctness, ZRPF proof soundness, migration safety, or production readiness."
+  ]
+}

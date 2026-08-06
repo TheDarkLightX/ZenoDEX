@@ -1,0 +1,115 @@
+{
+  "schema": "zenodex/test-hygiene-contract/v1",
+  "evidence_schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_path_prefix": "tests/evidence/test_hygiene/",
+  "allowed_change_kinds": [
+    "behavior_change",
+    "bug_fix",
+    "refactor",
+    "assurance_infrastructure",
+    "evidence_correction"
+  ],
+  "allowed_evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "property",
+    "metamorphic",
+    "differential",
+    "stateful",
+    "fuzz",
+    "mutation",
+    "formal",
+    "replay"
+  ],
+  "strong_evidence_families": [
+    "property",
+    "metamorphic",
+    "differential",
+    "stateful",
+    "fuzz",
+    "mutation",
+    "formal",
+    "replay"
+  ],
+  "critical_path_rules": [
+    {
+      "id": "economic_and_proof_core",
+      "include_globs": [
+        "src/core/**",
+        "src/state/**",
+        "src/kernels/**",
+        "src/fire/**",
+        "zk/**",
+        "formal/**",
+        "lean-mathlib/**"
+      ],
+      "exclude_globs": [],
+      "required_families": [
+        "negative_regression",
+        "boundary"
+      ],
+      "minimum_strong_families": 1
+    },
+    {
+      "id": "authority_and_runtime_adapters",
+      "include_globs": [
+        "src/agents/**",
+        "src/integration/**",
+        "src/tau_specs/**",
+        "config/proof_profiles/**",
+        "config/verifier_contracts/**"
+      ],
+      "exclude_globs": [],
+      "required_families": [
+        "negative_regression",
+        "boundary"
+      ],
+      "minimum_strong_families": 1
+    },
+    {
+      "id": "assurance_and_promotion_tooling",
+      "include_globs": [
+        "tools/check_*.py",
+        "tools/run_*gate*.py",
+        "tools/run_*gate*.sh",
+        "tools/test_hygiene_*_v1.py",
+        "tools/test_hygiene_contract_v1.json",
+        ".github/workflows/**",
+        ".github/CODEOWNERS",
+        "docs/testing/TEST_HYGIENE_CONTRACT_V1.md",
+        "docs/claims_registry.yaml",
+        "docs/RISC0_CIRCUIT_QUALITY_CBC_SPEC.md"
+      ],
+      "exclude_globs": [],
+      "required_families": [
+        "negative_regression",
+        "boundary",
+        "mutation"
+      ],
+      "minimum_strong_families": 1
+    },
+    {
+      "id": "critical_test_evidence",
+      "include_globs": [
+        "tests/core/**",
+        "tests/state/**",
+        "tests/integration/**",
+        "tests/kernels/**",
+        "tests/formal/**",
+        "tests/tau/**",
+        "tests/runtime/**",
+        "tests/test_check_*.py",
+        "tests/test_*gate*.py"
+      ],
+      "exclude_globs": [
+        "tests/evidence/test_hygiene/**"
+      ],
+      "required_families": [
+        "negative_regression"
+      ],
+      "minimum_strong_families": 1
+    }
+  ]
+}

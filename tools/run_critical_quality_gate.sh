@@ -49,6 +49,8 @@ require_file "volatility tier exported ref" "$ROOT_DIR/generated/volatility_tier
 require_file "batch auction exported ref" "$ROOT_DIR/generated/batch_auction_settler_v1/python_ref/batch_auction_settler_v1_ref.py"
 
 CRITICAL_TESTS=(
+  tests/test_check_test_hygiene_v1.py
+  tests/test_run_test_hygiene_gate_v1.py
   tests/core/test_domain_bounds.py
   tests/core/test_functional_core_no_floats.py
   tests/core/test_cpmm.py
@@ -107,6 +109,10 @@ echo "== critical: ruff =="
 "$PY" -m ruff check \
   tools/acceptance_tcb_mutation_harness.py \
   tools/check_acceptance_tcb_coverage.py \
+  tools/check_test_hygiene_v1.py \
+  tools/run_test_hygiene_gate_v1.py \
+  tools/test_hygiene_evidence_v1.py \
+  tools/test_hygiene_model_v1.py \
   src/core/domain_limits.py \
   src/core/cpmm.py \
   src/core/liquidity.py \
@@ -126,6 +132,8 @@ echo "== critical: ruff =="
   src/state/lp.py \
   src/state/volatility.py \
   tests/core/test_domain_bounds.py \
+  tests/test_check_test_hygiene_v1.py \
+  tests/test_run_test_hygiene_gate_v1.py \
   tests/core/test_batch_clearing_properties.py \
   tests/core/test_batch_clearing_coverage_edges.py \
   tests/core/test_batch_auction_settler_v1_ref_parity.py \
@@ -169,6 +177,9 @@ bash -n \
 
 echo "== critical: mypy =="
 "$PY" -m mypy
+
+echo "== critical: test hygiene contract =="
+"$PY" tools/check_test_hygiene_v1.py
 
 echo "== critical: acceptance TCB gate =="
 bash "$ROOT_DIR/tools/run_acceptance_tcb_gate.sh"
