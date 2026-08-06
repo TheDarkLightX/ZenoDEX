@@ -3,6 +3,7 @@ use super::{
     GlobalEconomicLaneRegistryV1, GlobalEconomicStateErrorV1, GlobalEconomicStateV1,
     LaneModuleReleaseRegistryV1, ProfileBoundEconomicCommandOccurrenceV1, RouteReleaseRegistryV1,
 };
+use crate::CommitmentV3;
 
 /// A structurally validated global state bound to one exact profile registry view.
 ///
@@ -192,6 +193,20 @@ fn validate_occurrence_state_binding(
     let expected_registry_root = state_content
         .partition_roots()
         .object_release_registry_root();
+    validate_object_release_pins(
+        profile_state.module_registries(),
+        consumed_objects,
+        object_release_pin_proofs,
+        expected_registry_root,
+    )
+}
+
+fn validate_object_release_pins(
+    module_registries: &[LaneModuleReleaseRegistryV1],
+    consumed_objects: &[CommitmentV3],
+    object_release_pin_proofs: &[EconomicObjectReleasePinProofV1],
+    expected_registry_root: CommitmentV3,
+) -> Result<(), GlobalEconomicStateErrorV1> {
     for (position, (object_id, proof)) in consumed_objects
         .iter()
         .zip(object_release_pin_proofs)
@@ -204,7 +219,7 @@ fn validate_occurrence_state_binding(
         if proof.derive_registry_root()? != expected_registry_root {
             return Err(GlobalEconomicStateErrorV1::ObjectPinRegistryRootMismatch { position });
         }
-        let registry = &profile_state.module_registries()[usize::from(pin.lane_id().code())];
+        let registry = &module_registries[usize::from(pin.lane_id().code())];
         let release = registry
             .releases()
             .binary_search_by_key(

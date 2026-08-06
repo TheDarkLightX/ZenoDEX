@@ -48,6 +48,46 @@ fn exact_profile_registries_state_and_object_pin_construct_an_opaque_witness() {
 }
 
 #[test]
+fn drain_only_creating_release_admits_an_existing_consumed_object() {
+    // Arrange.
+    let fixture = economic_fixture(
+        &[EconomicLaneIdV1::AssetTransfer],
+        EconomicLaneIdV1::AssetTransfer,
+        LaneModuleReleaseStatusV1::DrainOnly,
+    );
+    let object_id = root(800);
+    let release_id = fixture.module_registries[0].releases()[0].release_id();
+    let proof = object_pin_proof(object_id, EconomicLaneIdV1::AssetTransfer, release_id, 700);
+    let state = state_for_fixture(&fixture, proof.derive_registry_root().unwrap());
+    let occurrence = occurrence_for_state(&fixture, &state, vec![object_id]);
+    let profile_occurrence = bind_economic_command_occurrence_to_active_profile_v1(
+        &fixture.profile,
+        &fixture.route_registry,
+        &occurrence,
+    )
+    .unwrap();
+    let profile_state = bind_global_economic_state_to_profile_v1(
+        &state,
+        &fixture.profile,
+        &fixture.lane_registry,
+        &fixture.module_registries,
+        &fixture.route_registry,
+    )
+    .unwrap();
+    let proofs = [proof];
+
+    // Act.
+    let bound = bind_profile_bound_occurrence_to_global_state_v1(
+        profile_occurrence,
+        profile_state,
+        &proofs,
+    );
+
+    // Assert.
+    assert!(bound.is_ok());
+}
+
+#[test]
 fn application_domain_and_pre_state_root_are_exact_binding_inputs() {
     // Arrange.
     let fixture = fixture();
