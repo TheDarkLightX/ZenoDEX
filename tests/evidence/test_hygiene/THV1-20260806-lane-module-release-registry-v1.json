@@ -1,0 +1,229 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-lane-module-release-registry-v1",
+  "created_date": "2026-08-06",
+  "claim_scope": "LaneModuleReleaseRegistryV1 commits one bounded canonical lane release set, rejects mixed lanes, duplicate or reordered IDs, excess ActiveNew records, orphan or cyclic predecessors, and mismatched global lane rows, and resolves only statuses admitted by the underlying immutable release contract.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "LMRR-V1-BOUNDED-NONEMPTY-SET",
+    "LMRR-V1-ONE-LANE",
+    "LMRR-V1-UNIQUE-CANONICAL-RELEASE-ORDER",
+    "LMRR-V1-AT-MOST-ONE-ACTIVE-NEW",
+    "LMRR-V1-REACHABLE-ACYCLIC-PREDECESSORS",
+    "LMRR-V1-EXACT-STATUS-RESOLUTION",
+    "LMRR-V1-GLOBAL-LANE-ROW-ROOT-BINDING",
+    "LMRR-V1-CANONICAL-BOUNDED-CODEC",
+    "LMRR-V1-REJECT-IS-NOOP"
+  ],
+  "failure_modes": [
+    "an empty or 65-record release set is accepted",
+    "one registry mixes releases from different economic lanes",
+    "duplicate release IDs or a noncanonical release permutation are accepted",
+    "two releases simultaneously admit new-object creation",
+    "a migration predecessor is absent from the same registry or the predecessor graph cycles",
+    "a resolver bypasses the underlying release lifecycle status",
+    "a global lane row with the wrong lane or release-registry root binds",
+    "lifecycle status changes without changing the registry root",
+    "counterfeit nested release, stale, trailing, empty, oversized, or reordered registry bytes decode",
+    "a registry source or test is omitted from the governed ZRPF source closure"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZRPF_LANE_MODULE_RELEASE_REGISTRY_V1_SPEC_20260806.md",
+      "sha256": "2685cd5feb65501b4863002db6ee389849d028ceaea322ab7f278e08ccf796c3"
+    },
+    {
+      "path": "tools/zrpf_v3_source_closure.py",
+      "sha256": "d82209e0f9a1c88b276218ce34343d6365763cb0c2c4eb4401353bc8c8547422"
+    },
+    {
+      "path": "zk/zrpf_protocol/README.md",
+      "sha256": "47858d3aafb2e53874cfba2c82ac463f04d3c6183bf8cf07bd93a2e68632bddf"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+      "sha256": "bf0eaf0e1830eeeb7445df94de96bb72a6707e3abb0d3cf2ed7286fd46aaee05"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+      "sha256": "1627cfe30f8c7e23b7ea55c90f0489227ed6bb564f660dcddc8c6be4bb663b23"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release.rs",
+      "sha256": "f9e50cdca8f75a76f1637dc0fc7703ccbcb1e59188f59d2874d65fa00827711b"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release_registry.rs",
+      "sha256": "b938a3356a49ae8b6ece3e6db1a605087688073e6fe0010f0cf58edb4a874a75"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release_registry_codec.rs",
+      "sha256": "80411aa39c14522949c7e873a52c633d46513b8e8cc7d68736fc269026e6984c"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release_registry_error.rs",
+      "sha256": "f7429821ee8c5639624c9be4fbadad11a3a32077f34b2a04aa31543a81083247"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/lane_module_release_registry_v1.rs",
+      "sha256": "3e8bb446a7c38278b93188abb19b95179ae065895dd97193fb401d4b70662f45"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/lane_module_release_registry_v1/binding.rs",
+      "sha256": "674d05237c585e83e469a68d0e8b701b2388332d6df614ec365549a2ef548120"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/lane_module_release_registry_v1/codec.rs",
+      "sha256": "6dc5a1e4ed3e9dc699d8b9c777d6dd0a3bfb964269f9b750a287fc84c2e3d37c"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/lane_module_release_registry_v1/support.rs",
+      "sha256": "4b4e2e71ff5b7b5ca51deb7d126157fbfb7ff42dabe9e4c30b7e71c384f4ec7f"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_lane_module_release_registry_v1.py",
+      "sha256": "95f921c408885b2159cb290d6d1aa644749e124fe7e94c2c62bc46ffe1140088",
+      "node_ids": [
+        "tests/test_lane_module_release_registry_v1.py::test_lane_module_release_registry_rust_contract"
+      ]
+    },
+    {
+      "path": "tests/test_zrpf_v3_source_closure.py",
+      "sha256": "2068d35a8aec85d47f7eeab16c363bb120535da433bf66640550f09ce045c556",
+      "node_ids": [
+        "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory",
+        "tests/test_zrpf_v3_source_closure.py::test_global_settlement_abi_sources_have_exact_roles",
+        "tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest",
+        "tests/test_zrpf_v3_source_closure.py::test_workspace_inventory_rejects_unlisted_rust_even_with_build_false"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Rust scenario tests use explicit Arrange, Act, and Assert phases for cardinality, lane identity, ordering, predecessor reachability, status resolution, row binding, root identity, and codec behavior; the isolated pytest launcher asserts the exact Rust result."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Registry construction consumes cloned immutable records, and resolver rejection compares the complete registry before and after disallowed or unknown release queries. No method exposes mutable release or registry state."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "release_count",
+      "points": [
+        "zero_reject",
+        "one_accept",
+        "sixty_four_accept",
+        "sixty_five_constructor_reject",
+        "sixty_five_decoder_reject"
+      ]
+    },
+    {
+      "name": "release_set_identity",
+      "points": [
+        "one_lane_accept",
+        "mixed_lane_reject",
+        "unique_ids_accept",
+        "duplicate_id_reject",
+        "all_six_three_record_permutations_exactly_one_accept"
+      ]
+    },
+    {
+      "name": "active_new_cardinality",
+      "points": [
+        "zero_accept_and_resolution_reject",
+        "one_accept_and_resolve",
+        "two_reject"
+      ]
+    },
+    {
+      "name": "migration_predecessor_graph",
+      "points": [
+        "genesis_no_edge_accept",
+        "connected_predecessor_accept",
+        "orphan_predecessor_reject"
+      ]
+    },
+    {
+      "name": "status_resolution",
+      "points": [
+        "active_new_new_object_accept",
+        "drain_only_existing_object_accept",
+        "candidate_existing_object_reject",
+        "unknown_release_reject"
+      ]
+    },
+    {
+      "name": "global_lane_row_binding",
+      "points": [
+        "exact_lane_and_root_accept",
+        "wrong_lane_reject",
+        "wrong_root_reject",
+        "status_only_change_changes_registry_root"
+      ]
+    },
+    {
+      "name": "registry_encoding",
+      "points": [
+        "empty",
+        "canonical",
+        "fixed_digest",
+        "maximum_plus_one_bytes",
+        "trailing_byte",
+        "wrong_version",
+        "counterfeit_nested_release",
+        "reordered_release_records"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept zero or more than 64 release records",
+      "killed_by": "tests/test_lane_module_release_registry_v1.py::test_lane_module_release_registry_rust_contract"
+    },
+    {
+      "description": "coerce mixed lanes, deduplicate IDs, or sort caller input during construction",
+      "killed_by": "tests/test_lane_module_release_registry_v1.py::test_lane_module_release_registry_rust_contract"
+    },
+    {
+      "description": "allow two ActiveNew records or resolve new objects without one exact ActiveNew record",
+      "killed_by": "tests/test_lane_module_release_registry_v1.py::test_lane_module_release_registry_rust_contract"
+    },
+    {
+      "description": "accept an absent migration predecessor",
+      "killed_by": "tests/test_lane_module_release_registry_v1.py::test_lane_module_release_registry_rust_contract"
+    },
+    {
+      "description": "resolve an existing object without applying its pinned release status",
+      "killed_by": "tests/test_lane_module_release_registry_v1.py::test_lane_module_release_registry_rust_contract"
+    },
+    {
+      "description": "omit lifecycle status from the registry root or bind a wrong global lane row",
+      "killed_by": "tests/test_lane_module_release_registry_v1.py::test_lane_module_release_registry_rust_contract"
+    },
+    {
+      "description": "accept counterfeit nested release, stale, trailing, oversized, empty, or reordered registry bytes",
+      "killed_by": "tests/test_lane_module_release_registry_v1.py::test_lane_module_release_registry_rust_contract"
+    },
+    {
+      "description": "omit a registry implementation or assurance source from the exact ZRPF inventory",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not establish governance authorization, lifecycle history, release equivalence, coexistence economics, migration correctness, terminal execution, or resource-consumption proof.",
+    "The bounded cycle guard is implemented, but no content-addressed hash-cycle fixture is claimed; direct negative evidence covers orphan and self predecessors.",
+    "This packet does not provide RouteReleaseV1, command-to-route selection, module transition semantics, recursive receipt authority, profile activation, or ZenoLedger publication.",
+    "A registry and matching global lane row are ordinary caller-constructible typed data. This packet does not establish complete M6 workflow coverage, production readiness, or ShapeForge promoted-bundle status."
+  ]
+}

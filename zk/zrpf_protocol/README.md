@@ -92,6 +92,14 @@ These are structural admission predicates. No release set, governance history,
 profile verifier, guest receipt, route, or publisher authenticates a release in
 this slice, so even an `ActiveNew` record carries no settlement authority.
 
+The lane module release registry commits 1-64 exact release records for one
+lane, requires unique release IDs in canonical order, bounds `ActiveNew` to one,
+and rejects orphan or cyclic migration predecessors. Its resolvers reapply the
+release-level lifecycle predicates, and its root can be checked against the
+corresponding global lane row. The registry and row remain ordinary typed data;
+they do not prove governance history, profile activation, migration, receipts,
+routes, or publication authority.
+
 The settlement certificate is a canonical proof-neutral journal. Its source
 claim binding and DA, schedule, carry, plan, and state roots remain
 unauthenticated data until a guest verifies their source obligations and a
@@ -130,6 +138,9 @@ repository root. The action and grant-spend formulas are specified in
 `docs/research/ZRPF_ECONOMIC_ACTION_NULLIFIER_V1_CBC_SPEC_20260712.md`. Assignment
 compatibility is specified in
 `docs/research/ZRPF_PROOF_ASSIGNMENT_COMPATIBILITY_V1_CBC_SPEC_20260712.md`.
+The module release and bounded per-lane registry contracts are specified in
+`docs/research/ZRPF_LANE_MODULE_RELEASE_V1_SPEC_20260806.md` and
+`docs/research/ZRPF_LANE_MODULE_RELEASE_REGISTRY_V1_SPEC_20260806.md`.
 
 ## Verification
 

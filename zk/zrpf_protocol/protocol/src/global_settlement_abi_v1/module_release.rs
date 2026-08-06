@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{de, Deserialize, Deserializer, Serialize};
 use sha2::{Digest, Sha256};
 
 use super::{
@@ -16,6 +16,31 @@ pub struct LaneModuleReleaseV1 {
     release_id: LaneModuleReleaseIdV1,
     content: LaneModuleReleaseContentV1,
     status: LaneModuleReleaseStatusV1,
+}
+
+impl<'de> Deserialize<'de> for LaneModuleReleaseV1 {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(deny_unknown_fields)]
+        struct Wire {
+            release_version: u16,
+            release_id: LaneModuleReleaseIdV1,
+            content: LaneModuleReleaseContentV1,
+            status: LaneModuleReleaseStatusV1,
+        }
+
+        let wire = Wire::deserialize(deserializer)?;
+        Self::from_parts(
+            wire.release_version,
+            wire.release_id,
+            wire.content,
+            wire.status,
+        )
+        .map_err(de::Error::custom)
+    }
 }
 
 impl LaneModuleReleaseV1 {
