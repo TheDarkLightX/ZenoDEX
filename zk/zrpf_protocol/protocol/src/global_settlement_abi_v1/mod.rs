@@ -1,12 +1,19 @@
 mod codec;
 mod economic_command_occurrence;
 mod economic_command_occurrence_error;
+mod economic_object_release_pin;
+mod economic_object_release_pin_codec;
 mod economic_profile_snapshot;
 mod economic_profile_snapshot_codec;
 mod economic_profile_snapshot_error;
 mod economic_profile_snapshot_id;
 mod economic_profile_snapshot_types;
 mod error;
+mod global_economic_state;
+mod global_economic_state_binding;
+mod global_economic_state_codec;
+mod global_economic_state_error;
+mod global_economic_state_types;
 mod lane;
 mod module_release;
 mod module_release_codec;
@@ -39,6 +46,12 @@ pub use economic_command_occurrence::{
     EconomicOccurrencePositionV1, ProfileBoundEconomicCommandOccurrenceV1,
 };
 pub use economic_command_occurrence_error::EconomicCommandOccurrenceErrorV1;
+pub use economic_object_release_pin::{
+    EconomicObjectReleasePinProofV1, EconomicObjectReleasePinV1,
+};
+pub use economic_object_release_pin_codec::{
+    decode_exact_economic_object_release_pin_proof_v1, encode_economic_object_release_pin_proof_v1,
+};
 pub use economic_profile_snapshot::EconomicProfileSnapshotV1;
 pub use economic_profile_snapshot_codec::{
     decode_exact_economic_profile_snapshot_v1, encode_economic_profile_snapshot_v1,
@@ -50,6 +63,20 @@ pub use economic_profile_snapshot_types::{
     EconomicProfileTransitionModeV1,
 };
 pub use error::GlobalSettlementAbiErrorV1;
+pub use global_economic_state::GlobalEconomicStateV1;
+pub use global_economic_state_binding::{
+    bind_global_economic_state_to_profile_v1, bind_profile_bound_occurrence_to_global_state_v1,
+    RegistryBoundGlobalEconomicStateV1, StateBoundEconomicCommandOccurrenceV1,
+};
+pub use global_economic_state_codec::{
+    decode_exact_global_economic_state_v1, encode_global_economic_state_v1,
+};
+pub use global_economic_state_error::GlobalEconomicStateErrorV1;
+pub use global_economic_state_types::{
+    GlobalEconomicLaneStateRootV1, GlobalEconomicPartitionRootsInputV1,
+    GlobalEconomicPartitionRootsV1, GlobalEconomicStateContentInputV1,
+    GlobalEconomicStateContentV1, GlobalEconomicStateRootV1,
+};
 pub use lane::{EconomicLaneCommandStatusV1, EconomicLaneIdV1};
 pub use module_release::LaneModuleReleaseV1;
 pub use module_release_codec::{
@@ -103,3 +130,7 @@ pub const ECONOMIC_PROFILE_SNAPSHOT_VERSION_V1: u16 = 1;
 pub const MAX_ECONOMIC_PROFILE_SNAPSHOT_BYTES_V1: usize = 512;
 pub const ECONOMIC_COMMAND_OCCURRENCE_VERSION_V1: u16 = 1;
 pub const MAX_ECONOMIC_COMMAND_OCCURRENCE_BYTES_V1: usize = 16_384;
+pub const GLOBAL_ECONOMIC_STATE_VERSION_V1: u16 = 1;
+pub const MAX_GLOBAL_ECONOMIC_STATE_BYTES_V1: usize = 2_048;
+pub const ECONOMIC_OBJECT_RELEASE_PIN_VERSION_V1: u16 = 1;
+pub const MAX_ECONOMIC_OBJECT_RELEASE_PIN_PROOF_BYTES_V1: usize = 8_512;
