@@ -1,6 +1,7 @@
 # ZenoDEX Test Hygiene Contract V1
 
-Status: `IMPLEMENTED_GATE`, pending repository-host branch-protection activation.
+Status: `IMPLEMENTED_GATE`. A current release still requires live verification
+of repository-host branch protection.
 
 This contract controls test-evidence promotion for changed critical paths. It
 does not establish correctness, production readiness, proof soundness, or

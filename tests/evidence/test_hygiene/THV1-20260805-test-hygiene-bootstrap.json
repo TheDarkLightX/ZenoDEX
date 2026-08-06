@@ -42,7 +42,7 @@
     },
     {
       "path": "docs/testing/TEST_HYGIENE_CONTRACT_V1.md",
-      "sha256": "cf62fe8a90f33bcbaf69aa6ff34907121cf2abd609849010e1543b68f1cfae79"
+      "sha256": "f0ff25bb31ad7fbca7254d8de9dda33cfd20e4c7f8fd3116ec02194194ce574d"
     },
     {
       "path": "tools/check_test_hygiene_v1.py",
