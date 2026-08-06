@@ -151,8 +151,8 @@ binding, and single-use grant-spend identity.
 Pinned fixture vectors:
 
 ```text
-occurrence_id = 36a442d0bc76f7c565b91fbcfad74a956ee2b3c55b88553ada2978dd7ca97117
-sha256(canonical_postcard_bytes) = 239ae19ec8ee2634e86bb931bc184354b20182a2e751ec3f5150eab83c4326c7
+occurrence_id = f15c1069c230bd6f31e298f581ab805176b4aeed8c3a53b318bcd212dd254f90
+sha256(canonical_postcard_bytes) = 846358480fa068b6b865b5c0abe700f1227b62033865099f269297f7e36d5296
 ```
 
 ## Active-profile binding and rejection precedence
@@ -196,11 +196,13 @@ the smallest witness that distinguishes their rejection class.
 
 ## Negative knowledge and nonclaims
 
-- Membership in a profile-bound route registry does not prove that the route
-  was derived from authenticated creating-release pins of consumed objects.
+- Membership in a profile-bound route registry alone does not prove that the
+  route was derived from authenticated creating-release pins. The later global
+  state binder performs that derivation and rejects a proposed-route mismatch.
 - `ActiveNew` versus `DrainOnly` lifecycle-purpose selection is not established
-  by this occurrence. That requires authenticated global-state object metadata
-  and a governed route resolver.
+  by occurrence construction. It requires authenticated global-state object
+  metadata and the governed resolver described in
+  `ZRPF_LIFECYCLE_ROUTE_RESOLVER_V1_SPEC_20260806.md`.
 - `AuthorizedEconomicActionV1` is canonical authorization data. This slice does
   not verify a signature, grant issuance, or durable nullifier uniqueness.
 - The profile-bound witness is structural contract evidence. It is not a RISC0

@@ -1,9 +1,9 @@
 use std::collections::BTreeSet;
 
 use zenodex_zrpf_protocol_v3::{
-    EconomicLaneIdV1, RouteDependencyRoleV1, RouteIssueBurnPolicyV1, RouteModuleDependencyV1,
-    RouteOraclePolicyV1, RouteReleaseContentV1, RouteReleaseErrorV1, RouteReleaseIdV1,
-    RouteReleaseV1, RouteResourceLimitsV1,
+    EconomicLaneIdV1, RouteDependencyLifecyclePurposeV1, RouteDependencyRoleV1,
+    RouteIssueBurnPolicyV1, RouteModuleDependencyV1, RouteOraclePolicyV1, RouteReleaseContentV1,
+    RouteReleaseErrorV1, RouteReleaseIdV1, RouteReleaseV1, RouteResourceLimitsV1,
 };
 
 use super::support::{dependency, roles, root};
@@ -26,6 +26,7 @@ fn command_dependency_and_schema_fields_are_content_bound() {
     let role_changed = RouteModuleDependencyV1::new(
         base_dependency.lane_id(),
         base_dependency.module_release_id(),
+        base_dependency.lifecycle_purpose(),
         roles(&[RouteDependencyRoleV1::Primary, RouteDependencyRoleV1::State]),
         base_dependency.receipt_journal_schema_root(),
         base_dependency.input_port_schema_root(),
@@ -34,6 +35,15 @@ fn command_dependency_and_schema_fields_are_content_bound() {
     let receipt_changed = with_schema_roots(&base_dependency, root(70), root(22), root(23));
     let input_changed = with_schema_roots(&base_dependency, root(21), root(71), root(23));
     let output_changed = with_schema_roots(&base_dependency, root(21), root(22), root(72));
+    let lifecycle_changed = RouteModuleDependencyV1::new(
+        base_dependency.lane_id(),
+        base_dependency.module_release_id(),
+        RouteDependencyLifecyclePurposeV1::ActiveNewRelease,
+        base_dependency.roles(),
+        base_dependency.receipt_journal_schema_root(),
+        base_dependency.input_port_schema_root(),
+        base_dependency.output_port_schema_root(),
+    );
 
     // Act
     let identities = [
@@ -44,6 +54,7 @@ fn command_dependency_and_schema_fields_are_content_bound() {
         route_id(root(50), receipt_changed, root(51), limits),
         route_id(root(50), input_changed, root(51), limits),
         route_id(root(50), output_changed, root(51), limits),
+        route_id(root(50), lifecycle_changed, root(51), limits),
     ];
 
     // Assert
@@ -286,6 +297,7 @@ fn with_schema_roots(
     RouteModuleDependencyV1::new(
         dependency.lane_id(),
         dependency.module_release_id(),
+        dependency.lifecycle_purpose(),
         dependency.roles(),
         receipt_journal_schema_root,
         input_port_schema_root,

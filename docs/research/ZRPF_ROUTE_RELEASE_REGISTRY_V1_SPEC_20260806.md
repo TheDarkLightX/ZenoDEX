@@ -165,13 +165,13 @@ through their content identities.
 The fixed two-route registry root is:
 
 ```text
-e5747633f19f5c1806dc51106119e6fc8a67a7337dccfd92be24f74ab132c190
+b018ccddc91128a783d023c733065aa9c17a4671b80e3b72cb3f6b92439a357d
 ```
 
 The SHA-256 digest of that registry's canonical Postcard encoding is:
 
 ```text
-1daec76c0cc00c1bd466298e13db61d929f95e69bd5fbc92d4fe75c77c54de79
+01c6e0d24cfda4402cd3b2a145dd09e865633dc956a761f9e0a30f10cc5b68f9
 ```
 
 ## Exact Module Registry Union Binding
@@ -186,9 +186,10 @@ compose lanes in semantic order while the registry-union input remains
 canonical by lane ID.
 
 The binding checks record occurrence only. It does not interpret Candidate,
-Shadow, ActiveNew, DrainOnly, VerifyOnly, Retired, or Revoked status. A future
-profile resolver must enforce route purpose, object pinning, coexistence, and
-release lifecycle admission.
+Shadow, ActiveNew, DrainOnly, VerifyOnly, Retired, or Revoked status. The
+profile and state-bound lifecycle resolver enforce route purpose, object
+pinning, and the currently representable coexistence cases. Guest semantics and
+same-lane multi-release coordination remain separate obligations.
 
 ## Exact Codec
 

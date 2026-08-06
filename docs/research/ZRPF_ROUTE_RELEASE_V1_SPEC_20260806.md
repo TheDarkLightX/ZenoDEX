@@ -7,9 +7,9 @@ no route-selection, settlement, or publication authority.
 
 `RouteReleaseV1` defines the exact bounded composition shape assigned to one
 economic command variant. It binds ordered lane-module dependencies, each
-dependency's roles and public schemas, route-level private-port pairing,
-explicit Oracle and issue/burn policy, and aggregate resource ceilings to a
-content-derived route release ID.
+dependency's lifecycle selection purpose, roles, and public schemas,
+route-level private-port pairing, explicit Oracle and issue/burn policy, and
+aggregate resource ceilings to a content-derived route release ID.
 
 The route release is immutable typed data. A caller may construct candidate
 data, but cannot select the authoritative route. A future governed route
@@ -27,6 +27,7 @@ V = {
   route_release_id,
   command_variant_root,
   ordered_dependencies,
+  dependency_lifecycle_purposes,
   dependency_roles,
   receipt_and_port_schema_roots,
   port_pairing_root,
@@ -106,6 +107,7 @@ Every dependency binds:
 
 - one `EconomicLaneIdV1`;
 - one exact `LaneModuleReleaseIdV1`;
+- one closed `RouteDependencyLifecyclePurposeV1`;
 - a nonempty closed role set;
 - the expected lane-module receipt journal schema root;
 - the dependency input private-port schema root;
@@ -115,6 +117,12 @@ Dependency order is semantic and is never silently sorted. Reordering a valid
 dependency sequence derives a different route release ID. A route contains
 between one and eight dependencies, every lane appears at most once, and
 exactly one dependency carries the `Primary` role.
+
+The lifecycle purpose is either `ActiveNewRelease` or
+`PinnedExistingObjects`. Profile binding checks the former with
+`admit_new_object_creation` and the latter with
+`admit_existing_object_transition`. State binding applies the exact resolver in
+`ZRPF_LIFECYCLE_ROUTE_RESOLVER_V1_SPEC_20260806.md`.
 
 ## Closed Dependency Roles
 
@@ -170,6 +178,7 @@ SHA256(
   concat(
     lane_code ||
     module_release_id ||
+    lifecycle_purpose_code ||
     role_mask ||
     receipt_journal_schema_root ||
     input_port_schema_root ||
@@ -200,7 +209,7 @@ registry is governed by the active economic profile.
 The canonical encoding is bounded Postcard. Decode rejects empty or oversized
 input before allocation, bounds the dependency sequence while decoding, then
 reconstructs the validated content-derived value. It rejects stale versions,
-counterfeit IDs, malformed or unknown role masks and policy variants,
+counterfeit IDs, malformed or unknown lifecycle, role-mask, and policy variants,
 incoherent content, trailing bytes, and any sequence that does not exactly
 re-encode.
 
@@ -211,13 +220,13 @@ bounded exact Postcard decoder.
 The fixed two-dependency route release ID is:
 
 ```text
-dccc2a3e86d4920bdc366580b3ba7aaf7011b8c444f52c07ced732b37195c5fe
+9a25ec0269e0fde35c4d89d4c38648b1ee29feb381f290afa280e9bcd2351207
 ```
 
 The SHA-256 digest of that route's canonical Postcard encoding is:
 
 ```text
-a0656a8be962f49289a168a751ac7982933bbe339581476009c9942cb57b225c
+2e293076bf0822ce7d43c0b2a4762e743e35891c8c390dff4a7eb198eaa362cb
 ```
 
 ## Required Evidence
@@ -225,6 +234,7 @@ a0656a8be962f49289a168a751ac7982933bbe339581476009c9942cb57b225c
 The executable contract must include:
 
 - BVA at 0, 1, 8, and 9 dependencies;
+- both lifecycle purposes plus an unknown lifecycle discriminant;
 - empty, duplicate, multi-role, and unknown role-mask cases;
 - zero, one, and two Primary-role dependencies;
 - duplicate-lane rejection;
@@ -240,7 +250,7 @@ The executable contract must include:
 
 ## Negative Knowledge
 
-This contract does not select a route for a command, authenticate an occurrence,
+This route value alone does not select a route for a command or authenticate an occurrence,
 verify a module receipt, pair actual private-port values, enforce Oracle truth,
 authorize issue or burn, prove resource use, compose proofs, activate a profile,
 perform migration, mount an adapter, or publish state.

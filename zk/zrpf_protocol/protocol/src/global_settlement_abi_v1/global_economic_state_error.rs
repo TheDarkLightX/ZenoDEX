@@ -2,7 +2,7 @@ use core::fmt;
 
 use super::{
     EconomicLaneIdV1, EconomicProfileSnapshotErrorV1, LaneModuleReleaseErrorV1,
-    LaneModuleReleaseIdV1,
+    LaneModuleReleaseIdV1, LaneModuleReleaseRegistryErrorV1, RouteReleaseIdV1,
 };
 use crate::SparseMerkleCellTransitionErrorV1;
 
@@ -47,6 +47,17 @@ pub enum GlobalEconomicStateErrorV1 {
     CreatingReleaseAdmission {
         lane_id: EconomicLaneIdV1,
         source: LaneModuleReleaseErrorV1,
+    },
+    ConflictingPinnedReleases(EconomicLaneIdV1),
+    ActiveNewReleaseResolution {
+        lane_id: EconomicLaneIdV1,
+        source: LaneModuleReleaseRegistryErrorV1,
+    },
+    NoMatchingLifecycleRoute,
+    AmbiguousLifecycleRoute,
+    ProposedRouteMismatch {
+        expected: RouteReleaseIdV1,
+        actual: RouteReleaseIdV1,
     },
     ObjectPinMerkle(SparseMerkleCellTransitionErrorV1),
     ArithmeticOverflow(&'static str),
@@ -131,6 +142,26 @@ impl fmt::Display for GlobalEconomicStateErrorV1 {
             Self::CreatingReleaseAdmission { lane_id, source } => write!(
                 formatter,
                 "object pin creating release for {lane_id:?} is inadmissible: {source}"
+            ),
+            Self::ConflictingPinnedReleases(lane_id) => write!(
+                formatter,
+                "consumed objects in {lane_id:?} pin conflicting creating releases"
+            ),
+            Self::ActiveNewReleaseResolution { lane_id, source } => write!(
+                formatter,
+                "active-new release resolution for {lane_id:?} failed: {source}"
+            ),
+            Self::NoMatchingLifecycleRoute => formatter.write_str(
+                "no governed route matches the command and authenticated release pins",
+            ),
+            Self::AmbiguousLifecycleRoute => formatter.write_str(
+                "multiple governed routes match the command and authenticated release pins",
+            ),
+            Self::ProposedRouteMismatch { expected, actual } => write!(
+                formatter,
+                "proposed route {:02x?} differs from derived route {:02x?}",
+                actual.as_bytes(),
+                expected.as_bytes()
             ),
             Self::ObjectPinMerkle(source) => {
                 write!(formatter, "object release-pin Merkle derivation failed: {source}")

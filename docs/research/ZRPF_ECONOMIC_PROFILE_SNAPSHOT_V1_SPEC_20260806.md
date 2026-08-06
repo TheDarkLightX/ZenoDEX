@@ -55,7 +55,7 @@ G = {
   exactly_twelve_canonical_lane_module_registries,
   exact_lane_module_registry_roots,
   exact_route_dependency_release_occurrence,
-  active_new_or_drain_only_dependency_status,
+  lifecycle_purpose_specific_dependency_status,
   enabled_lane_has_primary_route,
   disabled_lane_has_no_primary_route,
   canonical_bounded_encoding
@@ -80,7 +80,7 @@ E = {
 }
 Gap = {
   authenticated_profile_activation,
-  lifecycle_purpose_new_vs_drain,
+  guest_enforcement_of_lifecycle_purpose,
   proof_shape_registry_implementation_and_binding,
   verifier_registry_implementation_and_binding,
   migration_registry_and_certificate_verification,
@@ -94,7 +94,7 @@ Gap = {
 N = {
   profile_bytes_are_not_an_authority_witness,
   proved_migration_mode_does_not_verify_a_migration_certificate,
-  active_new_or_drain_only_does_not_select_command_lifecycle_purpose,
+  lifecycle_metadata_does_not_prove_guest_semantics,
   committed_unimplemented_registry_roots_are_not_registry_validation,
   route_coverage_is_not_complete_M6_workflow_coverage
 }
@@ -192,15 +192,15 @@ migration proof verification remain external obligations.
 3. Require exactly twelve module registries in `EconomicLaneIdV1::ALL` order.
 4. Bind each module registry to the exact root in its lane-registry entry.
 5. Require every route dependency release to occur in its lane registry.
-6. Require every dependency release status to admit an existing-object
-   transition, which currently means `ActiveNew` or `DrainOnly`.
+6. Require `ActiveNewRelease` dependencies to admit new-object creation and
+   `PinnedExistingObjects` dependencies to admit existing-object transitions.
 7. Require each enabled lane to own at least one primary route and each disabled
    lane to own none.
 
-The snapshot cannot yet distinguish a command that creates a new object from a
-command that drains an existing object. Therefore, a future authenticated
-occurrence and route-purpose contract must narrow `ActiveNew` versus
-`DrainOnly`; the current binding cannot authorize either purpose by itself.
+The lifecycle purpose is content-bound through the route registry root. The
+state-bound lifecycle resolver independently derives a unique route from that
+purpose and authenticated object pins. Module guests must still enforce that
+the command semantics and effects satisfy the declared purpose.
 
 The proof-shape, verifier, migration, policy, and terminal commitments are
 identity-bound roots. Their concrete registry types and exact binding functions
@@ -222,7 +222,7 @@ The SHA-256 digest of the fixed canonical Postcard fixture is:
 
 ## Required Evidence
 
-The executable Rust contract contains fourteen invariant-named tests with
+The executable Rust contract contains fifteen invariant-named tests with
 explicit Arrange, Act, and Assert phases where applicable. The boundary set
 combines specification BVA with deterministic behavioral exploration:
 
@@ -246,8 +246,8 @@ evidence slice; exploratory output has no authority.
 ## Negative Knowledge And Nonclaims
 
 This profile does not authenticate governance, verify any RISC0 receipt, bind a
-proof image to a journal, prove module or route execution, consume an occurrence
-or replay key, classify object lifecycle purpose, verify a migration
+proof image to a journal, prove module or route execution, authenticate an
+occurrence or replay key, prove lifecycle-purpose semantics, verify a migration
 certificate, or construct `VerifiedEconomicEpochV1`.
 
 It does not mount ZenoLedger, publish an atomic transition, establish global

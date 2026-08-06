@@ -5,8 +5,8 @@ use super::{
     EconomicLaneCommandStatusV1, EconomicLaneIdV1, EconomicProfileIdV1,
     EconomicProfileSnapshotContentV1, EconomicProfileSnapshotErrorV1,
     EconomicProfileTransitionModeV1, GlobalEconomicLaneRegistryV1, LaneModuleReleaseRegistryV1,
-    RouteDependencyRoleV1, RouteReleaseRegistryV1, ECONOMIC_LANE_COUNT_V1,
-    ECONOMIC_PROFILE_SNAPSHOT_VERSION_V1,
+    RouteDependencyLifecyclePurposeV1, RouteDependencyRoleV1, RouteReleaseRegistryV1,
+    ECONOMIC_LANE_COUNT_V1, ECONOMIC_PROFILE_SNAPSHOT_VERSION_V1,
 };
 
 const PROFILE_ID_DOMAIN_V1: &[u8] = b"zenodex.global_settlement.economic_profile_snapshot_id.v1";
@@ -185,15 +185,21 @@ fn bind_route_dependencies(
                     lane_id: dependency.lane_id(),
                     release_id: dependency.module_release_id(),
                 })?;
-            release
-                .admit_existing_object_transition()
-                .map_err(
-                    |source| EconomicProfileSnapshotErrorV1::DependencyReleaseAdmission {
-                        route_id: route.route_release_id(),
-                        lane_id: dependency.lane_id(),
-                        source,
-                    },
-                )?;
+            let admission = match dependency.lifecycle_purpose() {
+                RouteDependencyLifecyclePurposeV1::ActiveNewRelease => {
+                    release.admit_new_object_creation()
+                }
+                RouteDependencyLifecyclePurposeV1::PinnedExistingObjects => {
+                    release.admit_existing_object_transition()
+                }
+            };
+            admission.map_err(|source| {
+                EconomicProfileSnapshotErrorV1::DependencyReleaseAdmission {
+                    route_id: route.route_release_id(),
+                    lane_id: dependency.lane_id(),
+                    source,
+                }
+            })?;
         }
     }
     Ok(())

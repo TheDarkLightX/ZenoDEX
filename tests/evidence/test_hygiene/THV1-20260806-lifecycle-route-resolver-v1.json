@@ -1,0 +1,258 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-lifecycle-route-resolver-v1",
+  "created_date": "2026-08-06",
+  "claim_scope": "The lifecycle route resolver removes caller-proposed route authority from state binding by deriving one exact governed route from the command variant, profile-bound route and module registries, lifecycle-purpose metadata, and state-authenticated consumed-object release pins; it grants no proof, economic-transition, settlement, or publication authority.",
+  "change_kind": "behavior_change",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "LRR-V1-LIFECYCLE-PURPOSE-IDENTITY-BOUND",
+    "LRR-V1-PURPOSE-STATUS-ADMISSION",
+    "LRR-V1-EXACT-COMMAND-VARIANT",
+    "LRR-V1-STATE-AUTHENTICATED-RELEASE-PINS",
+    "LRR-V1-ONE-RELEASE-PER-PINNED-LANE",
+    "LRR-V1-ALL-PINNED-LANES-COVERED",
+    "LRR-V1-UNIQUE-ROUTE-OR-REJECT",
+    "LRR-V1-PROPOSED-ROUTE-EQUALITY",
+    "LRR-V1-REJECT-PRODUCES-NO-AUTHORITY"
+  ],
+  "failure_modes": [
+    "a caller selects a drain route without consuming an object created by its exact release",
+    "a caller substitutes an active route for an old pinned object or a drain route for an active command",
+    "two objects in one lane authenticate conflicting creating releases",
+    "a route omits a lane present in authenticated object pins",
+    "zero or multiple routes satisfy the command and lifecycle constraints",
+    "an active-new dependency names a release that cannot create new objects",
+    "a pinned-existing dependency names a release that cannot transition existing objects",
+    "lifecycle-purpose bytes are omitted from route identity or an unknown discriminant decodes",
+    "route, registry, profile, or occurrence fixed vectors retain stale pre-purpose identities",
+    "a new resolver source or test escapes the exact ZRPF source closure"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZRPF_ECONOMIC_COMMAND_OCCURRENCE_V1_SPEC_20260806.md",
+      "sha256": "e9a29242f5fc1fc78689b96f18d76914b9d255537b5fe484e96f89f0997ae7aa"
+    },
+    {
+      "path": "docs/research/ZRPF_ECONOMIC_PROFILE_SNAPSHOT_V1_SPEC_20260806.md",
+      "sha256": "e1a7e42794c8a0bc25934ad95de33095ed57e7c78b5f44aa845603a29395e879"
+    },
+    {
+      "path": "docs/research/ZRPF_GLOBAL_ECONOMIC_STATE_V1_SPEC_20260806.md",
+      "sha256": "5cb8fadeb265b4b8d469ff3beffad94745b0e1bee44da798271e0186cded2dac"
+    },
+    {
+      "path": "docs/research/ZRPF_LIFECYCLE_ROUTE_RESOLVER_V1_SPEC_20260806.md",
+      "sha256": "14e24d20c9b7536455ceabe018644ca7b28424ee0d87ae121c631020dab65fe3"
+    },
+    {
+      "path": "docs/research/ZRPF_ROUTE_RELEASE_REGISTRY_V1_SPEC_20260806.md",
+      "sha256": "62f85aaf59e7b340e656f51b4ab722195718038fbd99e9000e588a2eb95036a5"
+    },
+    {
+      "path": "docs/research/ZRPF_ROUTE_RELEASE_V1_SPEC_20260806.md",
+      "sha256": "06fd69dcb7e01c9a6d4f5fa67a011101f8277ab0257928d16b1a359f54b62f9b"
+    },
+    {
+      "path": "tools/zrpf_v3_source_closure.py",
+      "sha256": "16cb972ce08361accdccc1f57cd4abe50bfec347eaa3d6ade0fe0108b2663e6e"
+    },
+    {
+      "path": "zk/zrpf_protocol/README.md",
+      "sha256": "739a1936c528e3b7c3e7c142733607081b246023e6345f7048b18c484298f083"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot.rs",
+      "sha256": "cdae1664d5fb53f6845c2d75263244fbf19478e068832dd635b9d5c19ea61cec"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_state_binding.rs",
+      "sha256": "f5bfff33b3c7c8dc2c565a0abb083c915b4650b9e97fe01ff258227f050d4714"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_state_error.rs",
+      "sha256": "519d9cecaa7a0675a8b91a03183a3b6d45c4ebd741527521fa1ca9c4a893ee87"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lifecycle_route_resolver.rs",
+      "sha256": "a592dd4d4ce8e42a7ba6eec161104bd6d293cd528c21f2ff990eddc7b037ed86"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+      "sha256": "3b3ed7c14a10df5d97d76ca0faf2834b711312ac98b7758d660f66e0229274b8"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_types.rs",
+      "sha256": "1030d24bfb6031028f20b1e562ec170af13d5fec05c0048073feace9ae3f340d"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1.rs",
+      "sha256": "74aff0164a991b913b820d31f9e4113696ea21c9592de4044c5baa2542a41148"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/codec.rs",
+      "sha256": "4584fba4cc8d6c7bb02cbdb9f19ba88a9983127c225eba0db1c7be6002ee6572"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/support.rs",
+      "sha256": "52e99f41218fce76689065235b6ee64ef232b5bda219578a56404d9ef41869ed"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/binding.rs",
+      "sha256": "d29b1b8a692844ffdaeeaf95f806d4977ed32f27a75b41f697dc44b6ea41e954"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/support.rs",
+      "sha256": "d21e4a6dda2259109d4f3de55982d676e6a1b6d9f2460780c45e37666b592b4a"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_state_v1.rs",
+      "sha256": "db27ae5b00d1d7e1b7e0f613b9b82ba617078294db8a9f238ac75768ef1c4424"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/route_resolution.rs",
+      "sha256": "b00133557e5529300c3efeca78f3c3208cbb8b58543d8ad7b86bf333b0aea933"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/support.rs",
+      "sha256": "0151e702fc57d6275f2f8de32a9e473a547526a3701ff785294ae83d82dccac1"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_registry_v1/codec.rs",
+      "sha256": "415e8b1f02bfe59a2b0470026ca8ea966d23e1f84f2a8459e232f9cd0deef3b9"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_registry_v1/identity.rs",
+      "sha256": "8a3c933458b69aeaabddb4a3d9dda19e959e30e3db66141ab1bac07d8b8e56d2"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_registry_v1/support.rs",
+      "sha256": "fabd53bfbbf3cdf07c057fd7a6691b8253ba0d5e48855321f46bb8c8c2ef8a19"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_v1/codec.rs",
+      "sha256": "f68a406550c205e100fd32ce6b1d24a9a96c15ec041a49f6b05d759bd69d483c"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_v1/identity.rs",
+      "sha256": "cf7d2803f3cd3764d1dc9462c639e22ac4a9df4cee016d2fefa949d7747fb840"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_v1/support.rs",
+      "sha256": "b5ac20e067ae78a5000a6e509142e5048c28d015e7c34287884a90bcf535f30b"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_global_economic_state_v1.py",
+      "sha256": "161b8aca9a6dfb8a5f8c51ca8b0a06e19f4ac081b89e836f1d313334931c380c",
+      "node_ids": [
+        "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+      ]
+    },
+    {
+      "path": "tests/test_zrpf_v3_source_closure.py",
+      "sha256": "916f76a01689b3cc74d6d16fefafdbe431346f4ddf39b67285a0ffb86db6a7b7",
+      "node_ids": [
+        "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory",
+        "tests/test_zrpf_v3_source_closure.py::test_global_settlement_abi_sources_have_exact_roles",
+        "tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest",
+        "tests/test_zrpf_v3_source_closure.py::test_workspace_inventory_rejects_unlisted_rust_even_with_build_false"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The six lifecycle-route regressions use explicit Arrange, Act, and Assert phases; adjacent profile, identity, and codec tests retain isolated setup and exact outcome assertions, and the pytest launcher asserts the exact Rust and compile-fail totals."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The resolver and binders consume immutable values and return typed errors before constructing a state-bound witness; they expose no candidate state, effect plan, receipt, replay update, outbox row, or publication capability."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "consumed_object_release_partition",
+      "points": [
+        "zero_objects_select_active_new",
+        "one_active_release_object_selects_active_new",
+        "one_old_release_object_selects_exact_drain",
+        "two_same_lane_conflicting_release_objects_reject"
+      ]
+    },
+    {
+      "name": "matching_route_count",
+      "points": [
+        "zero_reject",
+        "one_accept",
+        "two_reject_as_ambiguous"
+      ]
+    },
+    {
+      "name": "proposed_route_relation",
+      "points": [
+        "derived_equal_accept",
+        "active_for_old_reject",
+        "drain_for_zero_objects_reject"
+      ]
+    },
+    {
+      "name": "lifecycle_status_purpose",
+      "points": [
+        "active_new_purpose_with_active_new_release_accept",
+        "active_new_purpose_with_drain_only_release_reject",
+        "pinned_existing_purpose_with_drain_only_release_accept_when_pinned",
+        "pinned_existing_purpose_without_pin_reject"
+      ]
+    },
+    {
+      "name": "lifecycle_purpose_encoding",
+      "points": [
+        "active_new_discriminant_accept",
+        "pinned_existing_discriminant_accept",
+        "unknown_discriminant_reject",
+        "purpose_change_changes_route_identity"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "trust the occurrence's proposed route without independently resolving lifecycle constraints",
+      "killed_by": "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+    },
+    {
+      "description": "allow a drain route without an authenticated object pin or allow an active route for an old object",
+      "killed_by": "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+    },
+    {
+      "description": "accept conflicting same-lane creating releases or leave one pinned lane uncovered",
+      "killed_by": "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+    },
+    {
+      "description": "choose the first match when zero or multiple lifecycle routes match",
+      "killed_by": "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+    },
+    {
+      "description": "ignore lifecycle purpose during profile admission, canonical encoding, or route identity",
+      "killed_by": "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+    },
+    {
+      "description": "omit the lifecycle resolver or its tests from the exact governed source inventory",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    }
+  ],
+  "nonclaims": [
+    "Lifecycle purpose is governed metadata; module and composition guests still must prove that command semantics and effects satisfy it.",
+    "V1 rejects a command that consumes objects from two creating releases in the same lane; same-lane cross-release coordination remains unimplemented.",
+    "The resolver does not prove conservation, custody, liabilities, reserves, fee allocation, replay consumption, terminal obligations, migration continuity, or outbox semantics.",
+    "No Python/Tau/Lean/Kani refinement, RISC0 guest, release-aware epoch verifier, current-head check, ZenoLedger commit, API/UI mount, or value-moving path is added.",
+    "No RC, production-readiness, formal-verification, whole-economy proof, or whole-economy settlement claim is promoted."
+  ]
+}

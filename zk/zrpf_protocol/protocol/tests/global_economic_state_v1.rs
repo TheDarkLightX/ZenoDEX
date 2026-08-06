@@ -7,6 +7,8 @@ mod identity;
 #[path = "economic_profile_snapshot_v1/support.rs"]
 #[allow(dead_code)]
 mod profile_support;
+#[path = "global_economic_state_v1/route_resolution.rs"]
+mod route_resolution;
 #[path = "global_economic_state_v1/support.rs"]
 mod support;
 
