@@ -1,0 +1,245 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-global-economic-state-v1",
+  "created_date": "2026-08-06",
+  "claim_scope": "GlobalEconomicStateV1 adds one content-derived canonical commitment over application, domain, height, writer epoch, exact profile, all twelve lane roots, and twelve named whole-economy partition roots; state-authenticated object-release pins and private non-serializable witnesses bind consumed objects to admissible creating releases while granting no proof, conservation, settlement, or publication authority.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GES-V1-CLOSED-TWELVE-LANE-ORDER",
+    "GES-V1-ALL-PARTITION-ROOTS-IDENTITY-BOUND",
+    "GES-V1-CONTENT-DERIVED-STATE-ROOT",
+    "GES-V1-CANONICAL-BOUNDED-CODEC",
+    "GES-V1-EXACT-PROFILE-AND-WRITER-EPOCH",
+    "GES-V1-EXACT-REGISTRY-VIEW",
+    "GES-V1-EXACT-APPLICATION-DOMAIN-PRESTATE",
+    "GES-V1-ONE-PIN-PER-CONSUMED-OBJECT-IN-ORDER",
+    "GES-V1-STATE-AUTHENTICATED-CREATING-RELEASE",
+    "GES-V1-EXISTING-RELEASE-LIFECYCLE-ADMISSION",
+    "GES-V1-PRIVATE-NONSERIALIZABLE-STRUCTURAL-WITNESSES",
+    "GES-V1-REJECT-PRODUCES-NO-AUTHORITY"
+  ],
+  "failure_modes": [
+    "a known lane is omitted, duplicated, reordered, or an unknown thirteenth lane is accepted",
+    "a lane root or named balance, supply, custody, liability, reserve, Oracle, replay, terminal, release, history, outbox, or object registry root is omitted from state identity",
+    "a caller supplies a counterfeit state root or stale state version",
+    "a state binds against a foreign profile, writer epoch, lane registry, module registry, or route registry",
+    "an occurrence for another application, domain, or pre-state binds",
+    "a consumed object has a missing, extra, reordered, substituted, or wrong-root release-pin opening",
+    "an object pin references an unknown or lifecycle-disallowed creating release",
+    "downstream code constructs or serializes a structural witness directly",
+    "empty, malformed, oversized, trailing, nonminimal, wrong-version, counterfeit, or unknown-field bytes decode",
+    "a new state source or test escapes the exact ZRPF source closure"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZRPF_GLOBAL_ECONOMIC_STATE_V1_SPEC_20260806.md",
+      "sha256": "0084e413e9d299b69ecb6aa1b2b0d319636feefcdac8ecc96b64764f08fb1340"
+    },
+    {
+      "path": "tools/zrpf_v3_source_closure.py",
+      "sha256": "5e9e082aa5218f2dea2ada4a94a280872d3f175629aa6a203fd40a489fdbc077"
+    },
+    {
+      "path": "zk/zrpf_protocol/README.md",
+      "sha256": "2167f7d63e7c3629f575c31b42209b986bd76914bdde58da0436661b11a6dd37"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+      "sha256": "665308674131fc0e6ebce2d53fe7285474d952b1470e9522fd19fbcec686b0bb"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+      "sha256": "a9d06ea8ca131fee1ef07f4b44b5c63c7997165ed2e5ed281a6470d7efe30f2f"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_object_release_pin.rs",
+      "sha256": "2e86f338a2cab58d98636618c67df438060a9feb2a902ae5c145a0ce2c029ca7"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_object_release_pin_codec.rs",
+      "sha256": "53eeb2fc83512ba62b8a4bf8b0568e83dcc4321212a8c8c62373e87c79f4fa07"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_state.rs",
+      "sha256": "a3b2a3333eb4965d92871527be7ea0c84e1f3b54eaaf0c0c345acb463123f66c"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_state_binding.rs",
+      "sha256": "4cb1b624094d312e23415ff9ad018fa727a61009d6fcb541b1e84db23cd3ca03"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_state_codec.rs",
+      "sha256": "b7b269494d0b66c2a29393acfb479992054ad95905fa1862979fdf0b7a2011ac"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_state_error.rs",
+      "sha256": "668a1f808ca897af8ec3bfc649747ba86c940984476fe650904d6abb0371f463"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_state_types.rs",
+      "sha256": "116f1619980b099a6c7db569700f48fe400b8ac050a52e9f11b38cb226f49f4b"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_state_v1.rs",
+      "sha256": "b0b98dd6b2b863394ade24d25078fea2517caff615f44a6d4904bf99f133d4ab"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/binding.rs",
+      "sha256": "7c9c8b35edef5ffd36f63b586790d0411db1f00ee4c3582dd656e840b86f4256"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/codec.rs",
+      "sha256": "62ef14b6eef324f899c235619e903df65b8424e5735c2226f2d745ddb6c18ccf"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/identity.rs",
+      "sha256": "832236186641fdb1451d0c82c1dbfb7843fbd820d8dc0cb5d8eb80bc620601f4"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/support.rs",
+      "sha256": "70b53d3c26c7e29c4289c1b17d04fc806a41cf3fc0ac9a8ed12094f79dff7705"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_global_economic_state_v1.py",
+      "sha256": "f85a62092ceda756d490aa0f1bbe6fff122349986bebade549a8b0df72610b16",
+      "node_ids": [
+        "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+      ]
+    },
+    {
+      "path": "tests/test_zrpf_v3_source_closure.py",
+      "sha256": "5a8d778a505e6c0e6e0b87f97325ad57c7e0cd9081bf8e11408fc7b9ab6a8b9f",
+      "node_ids": [
+        "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory",
+        "tests/test_zrpf_v3_source_closure.py::test_global_settlement_abi_sources_have_exact_roles",
+        "tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest",
+        "tests/test_zrpf_v3_source_closure.py::test_workspace_inventory_rejects_unlisted_rust_even_with_build_false"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "All seventeen Rust contract tests use explicit Arrange, Act, and Assert phases across state identity, codec boundaries, profile and context binding, object-pin membership, and creating-release lifecycle outcomes; the isolated pytest launcher asserts the exact Rust and compile-fail totals."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "State and occurrence binders consume immutable references and return typed errors without constructing a witness, selecting another route, applying an effect, changing state, persisting replay data, or exposing publication authority."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "lane_state_root_count",
+      "points": [
+        "eleven_reject",
+        "twelve_accept",
+        "thirteen_reject_before_unbounded_growth"
+      ]
+    },
+    {
+      "name": "height_and_writer_epoch",
+      "points": [
+        "zero_accept",
+        "one_accept",
+        "u64_max_accept"
+      ]
+    },
+    {
+      "name": "state_identity_field_separation",
+      "points": [
+        "application_changed",
+        "domain_changed",
+        "height_changed",
+        "writer_epoch_changed",
+        "profile_changed",
+        "each_of_twelve_lane_roots_changed",
+        "each_of_twelve_partition_roots_changed"
+      ]
+    },
+    {
+      "name": "occurrence_state_binding_outcome_partition",
+      "points": [
+        "exact_accept",
+        "application_mismatch",
+        "domain_mismatch",
+        "pre_state_mismatch",
+        "zero_objects_zero_proofs_accept",
+        "one_object_zero_proofs_reject",
+        "one_object_one_proof_accept",
+        "one_object_two_proofs_reject",
+        "substituted_object_reject",
+        "wrong_registry_root_reject"
+      ]
+    },
+    {
+      "name": "creating_release_lifecycle",
+      "points": [
+        "active_new_accept_existing_object",
+        "drain_only_accept_existing_object",
+        "shadow_reject_existing_object",
+        "unknown_release_reject"
+      ]
+    },
+    {
+      "name": "exact_encoding",
+      "points": [
+        "empty_reject",
+        "one_byte_malformed_reject",
+        "canonical_roundtrip_accept",
+        "maximum_plus_one_reject",
+        "trailing_byte_reject",
+        "nonminimal_integer_reject",
+        "wrong_version_reject",
+        "counterfeit_root_reject",
+        "nested_unknown_field_reject",
+        "fixed_digest"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "omit or reorder one application, domain, epoch, profile, lane-root, or partition-root identity field",
+      "killed_by": "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+    },
+    {
+      "description": "accept a lane count other than twelve or accept duplicate or reordered lanes",
+      "killed_by": "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+    },
+    {
+      "description": "skip exact profile, writer, registry, application, domain, or pre-state equality",
+      "killed_by": "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+    },
+    {
+      "description": "skip object identity, sparse registry root, creating-release membership, or lifecycle admission",
+      "killed_by": "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+    },
+    {
+      "description": "make either structural witness caller-constructible or serializable",
+      "killed_by": "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+    },
+    {
+      "description": "accept stale, counterfeit, trailing, noncanonical, unknown-field, empty, malformed, or oversized input",
+      "killed_by": "tests/test_global_economic_state_v1.py::test_global_economic_state_rust_contract"
+    },
+    {
+      "description": "omit a GlobalEconomicState source or Rust test from the exact governed inventory",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    }
+  ],
+  "nonclaims": [
+    "GlobalEconomicStateV1 commits named roots and checks implemented structural relations. It does not prove conservation, custody, liabilities, reserves, terminal obligations, outbox semantics, or lane transition correctness.",
+    "An EconomicObjectReleasePinV1 membership proof authenticates creating-release metadata against one state root. It does not derive the command's route or distinguish new-object purpose from existing-object drain purpose.",
+    "RegistryBoundGlobalEconomicStateV1 and StateBoundEconomicCommandOccurrenceV1 are in-memory structural witnesses. They are not RISC0 receipts, current-head witnesses, verified epochs, settlement capabilities, or publication authority.",
+    "No Python semantic refinement, Tau, Lean, Kani, SMT, guest, release-aware verifier, migration, ZenoLedger commit, API, UI, or value-moving mount is added.",
+    "No production-readiness, RC, formal-verification, whole-economy proof, or whole-economy settlement claim is promoted."
+  ]
+}

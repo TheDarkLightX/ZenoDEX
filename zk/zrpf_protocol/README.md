@@ -41,6 +41,13 @@ The crate currently provides:
   authorized-action ABI while adding `(height, tx_index, op_index)`, exact
   profile, writer epoch, and route identity, plus a constructor-private
   structural witness for active-profile and command-route binding;
+- a content-derived `GlobalEconomicStateV1` committing application,
+  chain/domain, height, writer epoch, exact profile, all twelve lane-state
+  roots, and named whole-economy balance, supply, custody, liability, reserve,
+  Oracle, replay, terminal, release, history, outbox, and object-release roots;
+- a versioned `EconomicObjectReleasePinV1` with exact sparse-Merkle membership
+  proofs and constructor-private witnesses binding consumed objects to their
+  creating lane releases under the committed state and profile registries;
 - an action-bound `AuthorizationConsumptionNullifierV1` compatibility identity
   for binding a canonical action to a grant;
 - an `AuthorizationGrantSpendNullifierV1` derived only from application,
@@ -141,6 +148,16 @@ data, and the witness is non-serializable. This slice does not authenticate the
 command, derive coexist-and-drain release pins from global state, verify a
 receipt, construct epoch authority, or publish ledger state.
 
+The global economic state is a canonical commitment candidate for future proof
+public inputs. Its twelve lane roots and twelve named cross-lane partition roots
+are all identity-bound, and persistent consumed objects can be opened to their
+creating lane/module release under the committed object registry. State/profile
+and occurrence/state witnesses are private, non-serializable Rust values. They
+establish only the implemented structural equalities and existing-release
+lifecycle admission. They do not prove conservation, custody, liability,
+terminal drain, route-purpose derivation, a guest transition, receipt validity,
+current consensus head, atomic persistence, or publication authority.
+
 The settlement certificate is a canonical proof-neutral journal. Its source
 claim binding and DA, schedule, carry, plan, and state roots remain
 unauthenticated data until a guest verifies their source obligations and a
@@ -192,6 +209,9 @@ authority and writer epochs plus exact lane, route, proof-shape, verifier,
 migration, policy, and terminal registry roots. The snapshot remains ordinary
 data and grants no proof-verification, activation, migration, settlement, or
 publication authority.
+The canonical whole-economy state and persistent-object release-pin contract is
+specified in
+`docs/research/ZRPF_GLOBAL_ECONOMIC_STATE_V1_SPEC_20260806.md`.
 
 ## Verification
 
