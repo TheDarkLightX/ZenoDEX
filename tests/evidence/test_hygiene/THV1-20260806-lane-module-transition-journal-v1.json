@@ -1,0 +1,276 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-lane-module-transition-journal-v1",
+  "created_date": "2026-08-06",
+  "claim_scope": "LaneModuleTransitionJournalV1 is a bounded canonical structural statement for one route-selected lane module; accepted journals bind exact profile and release metadata, effect and terminal roots, and one same-action lane state transition whose authenticated openings equal the declared lane writes; rejected journals carry only a typed nonzero code and grant no proof, settlement, or publication authority.",
+  "change_kind": "behavior_change",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "LMTJ-V1-EXACT-OCCURRENCE-ENVELOPE",
+    "LMTJ-V1-GOVERNED-ROUTE-AND-RELEASE",
+    "LMTJ-V1-EXACT-IMAGE-SCHEMA-AND-PROVENANCE",
+    "LMTJ-V1-BOUNDED-JOURNAL-RESOURCES",
+    "LMTJ-V1-ACCEPTED-ROOT-BINDING",
+    "LMTJ-V1-REJECTED-NOOP-SHAPE",
+    "LMTJ-V1-SAME-ACTION-OPENINGS",
+    "LMTJ-V1-UNIQUE-CANONICAL-CELL-ORDER",
+    "LMTJ-V1-CONTINUOUS-LANE-ROOT-CHAIN",
+    "LMTJ-V1-EXACT-LANE-WRITE-PAIRING",
+    "LMTJ-V1-CANONICAL-BOUNDED-CODEC",
+    "LMTJ-V1-NO-PUBLICATION-AUTHORITY"
+  ],
+  "failure_modes": [
+    "a journal changes application, domain, profile, writer epoch, occurrence, route, action, lane, or pre-state",
+    "a caller substitutes a module release, guest image, source, toolchain, module schema, or route port schema",
+    "an encoded journal exceeds a module ceiling or the necessary per-journal route ceiling",
+    "an accepted journal mutates the global effect plan, global post-root, lane post-root, lane effects, state transition, or terminal obligations",
+    "a zero reject code or accepted payload appears in the rejected shape",
+    "a changed lane transition has zero or more than 64 openings",
+    "openings use multiple action IDs, duplicate keys, reordered keys, or a discontinuous root chain",
+    "a changed transition claims equal lane pre/post roots",
+    "a lane-write key or pre/post value hash differs from its authenticated opening",
+    "an unchanged transition covers nonempty lane writes",
+    "empty, oversized, trailing, malformed, or noncanonical bytes decode",
+    "a constructor-private bound journal becomes caller-constructible or serializable",
+    "a new journal source or test escapes the exact governed source inventory"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZRPF_GLOBAL_ECONOMIC_EFFECT_PLAN_V1_SPEC_20260806.md",
+      "sha256": "5b347ac895688ebf52d7262a818b27800a19fad30c0dcaa4f6cbf1528985fb09"
+    },
+    {
+      "path": "docs/research/ZRPF_LANE_MODULE_TRANSITION_JOURNAL_V1_SPEC_20260806.md",
+      "sha256": "46557cddc352551e0801f6d04e62c205c2d2b6a20d8083e7215384d278e7d079"
+    },
+    {
+      "path": "tools/zrpf_v3_source_closure.py",
+      "sha256": "c5c95f17a67f1facf68f20fc1d889488cef2149dd205515474a731bb735c20c5"
+    },
+    {
+      "path": "zk/zrpf_protocol/README.md",
+      "sha256": "d8c50b9d5077b1a203a88c0265241d44063415046b9cae1265f4a8a2acaa4e6d"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+      "sha256": "be3f0baf4c6e0740526ca940ff5ba86501a4d9f9ed4044605901545c29c6e094"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+      "sha256": "9a20c26d545dc3d8cda3a99bcf25bf86e5e3c3f9be8989a3b9c4f5c1be8d359d"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan.rs",
+      "sha256": "0478769080be1b9009f52bb3dc5df8064b675b8711bf655a42f497886f2dae84"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_hash.rs",
+      "sha256": "74ef66ac91d91606dd8100065d60cd5a189e764cd3cc214fcb12546a1b3a169e"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_types.rs",
+      "sha256": "c88a40fde1e01320fe6dd79fee2d2289f4563dcba1b15e9bd9c465d1d1ac7b2f"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release_types.rs",
+      "sha256": "02ddbfb25cf78d0dcc117a45173d3a54b76a41e846ed5d229e7bb92fe907c1cf"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal.rs",
+      "sha256": "b349a55efde25f915df060b68193e9feca70c07262e6a6522a251002d3732ef9"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_binding.rs",
+      "sha256": "b483fcde64760975a5cb28027b6c99a4b48c4b80b1566dea3fe0d82e3ce3a79b"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_codec.rs",
+      "sha256": "cd655ba07df6a02c9e88e4d4a9c60e1245ea8a03077410524cbd43260884ce99"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_error.rs",
+      "sha256": "7798246a3fd548d350b0f298fbb727bfefdc3a2be5fda6d09162301d139b3f26"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_hash.rs",
+      "sha256": "b5a57f5d33f25f3fd3a845aec57a7e89214315ab86242b1797eac1ba54f82034"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_types.rs",
+      "sha256": "6d1e8400c903a2a952b20f698c91b0caf6a412e96f4b9ff403b487a43d3db58a"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition.rs",
+      "sha256": "f4cd1df46960344ba94fa880850ab5330c41fa4606266752fd63bbcb8502549a"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition_bounded.rs",
+      "sha256": "316100dfc4789604b0597d4f3f127abf4d0c2998f4112d49b28cb5c98980418f"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition_codec.rs",
+      "sha256": "dab6495bd56169196c8af5002d9f8deea00237233acdfe08ac1e7530281c6b07"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition_error.rs",
+      "sha256": "cc558d9fe769536636fa3c215e218d25dbd2bd30de88248dbbc62e3f187f55c9"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition_hash.rs",
+      "sha256": "7e5724ed2975ef30299932935e72c6249951e42073e9e7759b501d70322ca537"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/support.rs",
+      "sha256": "ece0de7c28ec421434c410ad001dd0ad70fe8c50c4d65342db6aeacb337de4ef"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1.rs",
+      "sha256": "91a391efad15fac8bf44834bd9010c9f8fd109be9acc35105f359bfd36215663"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1/binding.rs",
+      "sha256": "274803841a31562d03847de35ef19e4f544749a5d6027bf205ff0e34e4d6cc98"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1/codec.rs",
+      "sha256": "44c955ae5b872b51753c155dca392ed00c142c4c0c9816b76495baf9900bd8b9"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1/state_openings.rs",
+      "sha256": "71fc97282821a0dae58be56ce3aeefb9d2a9b3bffa09e8feece328aaf9df8f25"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1/support.rs",
+      "sha256": "b178a9af0a16164682719b26abd159b6e7dcb0be98bae0c85aad88d2bcb46e56"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_lane_module_transition_journal_v1.py",
+      "sha256": "4cb78ee6c2beefb39712b1fee135cf1061844b467f5a867e35954f93fb55ff8e",
+      "node_ids": [
+        "tests/test_lane_module_transition_journal_v1.py::test_lane_module_transition_journal_rust_contract"
+      ]
+    },
+    {
+      "path": "tests/test_zrpf_v3_source_closure.py",
+      "sha256": "278f35bb8a72a098ee5f774b3ed5dd88f20c129d61e3ed3ed0e3b6898f89b352",
+      "node_ids": [
+        "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory",
+        "tests/test_zrpf_v3_source_closure.py::test_global_settlement_abi_sources_have_exact_roles",
+        "tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest",
+        "tests/test_zrpf_v3_source_closure.py::test_workspace_inventory_rejects_unlisted_rust_even_with_build_false"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "metamorphic",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The 25 Rust regressions use explicit Arrange, Act, and Assert sections; the Python launcher independently asserts exact Rust and compile-fail totals."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Rejected journals have no accepted post-state, effect, port, terminal, or opening fields; constructors and binders are immutable functional-core operations and return no receipt, mutation, replay insertion, outbox delivery, or publication capability."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "opening_count",
+      "points": [
+        "zero_reject",
+        "one_accept",
+        "sixty_four_accept",
+        "sixty_five_reject"
+      ]
+    },
+    {
+      "name": "opening_identity_and_order",
+      "points": [
+        "same_action_strict_increasing_unique_keys_accept",
+        "different_action_reject",
+        "duplicate_key_reject",
+        "reordered_key_reject"
+      ]
+    },
+    {
+      "name": "root_chain",
+      "points": [
+        "continuous_first_to_last_accept",
+        "skipped_neighbor_reject",
+        "equal_changed_pre_post_reject"
+      ]
+    },
+    {
+      "name": "journal_resource_bytes",
+      "points": [
+        "within_module_and_route_ceiling_accept",
+        "one_byte_module_ceiling_reject",
+        "global_ceiling_plus_one_reject_before_decode"
+      ]
+    },
+    {
+      "name": "reject_code",
+      "points": [
+        "zero_reject",
+        "one_or_greater_accept"
+      ]
+    },
+    {
+      "name": "accepted_commitment_fields",
+      "points": [
+        "all_exact_accept",
+        "each_global_effect_lane_transition_or_terminal_root_mutation_reject"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept opening cardinality outside 1 through 64",
+      "killed_by": "tests/test_lane_module_transition_journal_v1.py::test_lane_module_transition_journal_rust_contract"
+    },
+    {
+      "description": "omit same-action, unique-key, canonical-order, or continuous-root enforcement",
+      "killed_by": "tests/test_lane_module_transition_journal_v1.py::test_lane_module_transition_journal_rust_contract"
+    },
+    {
+      "description": "trust caller-supplied route, release, image, provenance, or port schema metadata",
+      "killed_by": "tests/test_lane_module_transition_journal_v1.py::test_lane_module_transition_journal_rust_contract"
+    },
+    {
+      "description": "skip module and route journal resource ceilings",
+      "killed_by": "tests/test_lane_module_transition_journal_v1.py::test_lane_module_transition_journal_rust_contract"
+    },
+    {
+      "description": "accept a mutated global, effect-plan, lane, state-transition, or terminal root",
+      "killed_by": "tests/test_lane_module_transition_journal_v1.py::test_lane_module_transition_journal_rust_contract"
+    },
+    {
+      "description": "allow a lane-write key or pre/post hash to differ from its opening",
+      "killed_by": "tests/test_lane_module_transition_journal_v1.py::test_lane_module_transition_journal_rust_contract"
+    },
+    {
+      "description": "serialize or directly construct the private bound journal witness",
+      "killed_by": "tests/test_lane_module_transition_journal_v1.py::test_lane_module_transition_journal_rust_contract"
+    },
+    {
+      "description": "omit the journal sources or tests from the exact governed source inventory",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    }
+  ],
+  "nonclaims": [
+    "The sparse openings authenticate only declared lane cells and do not establish complete lane or global partition coverage.",
+    "The global post-state and non-lane-write effect rows remain declarations until a deterministic module guest derives them from authenticated inputs.",
+    "Private-port value roots are committed values; cross-lane pairing and economics remain coordinator and route-composer obligations.",
+    "The lane binder applies only a necessary per-journal route byte bound; aggregate route journal bytes remain a route-composer obligation.",
+    "No RISC0 guest, real receipt, image verification, assumption resolution, recursion, release-aware verifier, DA or finality proof, migration proof, or ZenoLedger publisher is added.",
+    "No API, CLI, UI, Tau bridge, recovery path, legacy writer, or value-moving path is mounted.",
+    "No RC, production-readiness, formal-verification, or whole-economy settlement claim is promoted."
+  ]
+}

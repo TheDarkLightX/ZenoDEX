@@ -110,6 +110,11 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
         "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/reconciliation.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/rows.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/support.rs",
+        "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1/binding.rs",
+        "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1/codec.rs",
+        "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1/state_openings.rs",
+        "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1/support.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_state_v1.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/binding.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/codec.rs",
@@ -347,6 +352,50 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             (
                 "global_settlement_abi_v1",
                 "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_binding.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_codec.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_error.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_hash.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_types.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition_bounded.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition_codec.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition_error.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition_hash.rs",
             ),
             (
                 "global_settlement_abi_v1",

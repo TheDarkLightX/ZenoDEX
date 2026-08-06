@@ -66,6 +66,15 @@ pub fn module_release(
     seed: u16,
     status: LaneModuleReleaseStatusV1,
 ) -> LaneModuleReleaseV1 {
+    module_release_with_journal_limit(lane_id, seed, status, 4_096)
+}
+
+pub fn module_release_with_journal_limit(
+    lane_id: EconomicLaneIdV1,
+    seed: u16,
+    status: LaneModuleReleaseStatusV1,
+    max_journal_bytes: u32,
+) -> LaneModuleReleaseV1 {
     let content = LaneModuleReleaseContentV1::new(
         lane_id,
         LaneModuleSchemaRootsV1::new(root(seed), root(seed + 1), root(seed + 2), root(seed + 3)),
@@ -83,7 +92,7 @@ pub fn module_release(
             root(seed + 10),
         )
         .unwrap(),
-        LaneModuleResourceLimitsV1::new(1_024, 65_536, 4_096, 1_000_000).unwrap(),
+        LaneModuleResourceLimitsV1::new(1_024, 65_536, max_journal_bytes, 1_000_000).unwrap(),
     );
     LaneModuleReleaseV1::new(content, status).unwrap()
 }
@@ -131,6 +140,20 @@ pub fn economic_fixture(
     route_lane: EconomicLaneIdV1,
     route_release_status: LaneModuleReleaseStatusV1,
 ) -> EconomicRegistryFixture {
+    economic_fixture_with_module_journal_limit(
+        enabled_lanes,
+        route_lane,
+        route_release_status,
+        4_096,
+    )
+}
+
+pub fn economic_fixture_with_module_journal_limit(
+    enabled_lanes: &[EconomicLaneIdV1],
+    route_lane: EconomicLaneIdV1,
+    route_release_status: LaneModuleReleaseStatusV1,
+    route_module_max_journal_bytes: u32,
+) -> EconomicRegistryFixture {
     let mut module_registries = Vec::with_capacity(EconomicLaneIdV1::ALL.len());
     let mut selected_route_release = None;
     for (index, lane_id) in EconomicLaneIdV1::ALL.iter().copied().enumerate() {
@@ -139,7 +162,17 @@ pub fn economic_fixture(
         } else {
             LaneModuleReleaseStatusV1::Candidate
         };
-        let release = module_release(lane_id, index as u16 * 40 + 100, status);
+        let max_journal_bytes = if lane_id == route_lane {
+            route_module_max_journal_bytes
+        } else {
+            4_096
+        };
+        let release = module_release_with_journal_limit(
+            lane_id,
+            index as u16 * 40 + 100,
+            status,
+            max_journal_bytes,
+        );
         if lane_id == route_lane {
             selected_route_release = Some(release.clone());
         }

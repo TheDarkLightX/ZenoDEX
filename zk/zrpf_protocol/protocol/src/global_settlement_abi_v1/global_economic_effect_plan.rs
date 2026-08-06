@@ -17,7 +17,8 @@ use super::global_economic_effect_plan_bounded::{
 };
 use super::global_economic_effect_plan_hash::{
     commitment, domain_hasher, effect_rows_root_v1, effect_semantics_root_v1,
-    reconciliations_root_v1, EFFECT_BODY_COMMITMENT_DOMAIN_V1, EFFECT_PLAN_COMMITMENT_DOMAIN_V1,
+    lane_effect_rows_root_v1, lane_terminal_obligations_root_v1, reconciliations_root_v1,
+    EFFECT_BODY_COMMITMENT_DOMAIN_V1, EFFECT_PLAN_COMMITMENT_DOMAIN_V1,
 };
 use super::global_economic_effect_plan_validate::{
     authority_rows_match_v1, canonicalize_body_rows_v1, consumption_rows_v1,
@@ -141,6 +142,31 @@ impl GlobalEconomicEffectBodyV1 {
     }
     pub const fn effect_commitment(&self) -> CommitmentV3 {
         self.effect_commitment
+    }
+
+    pub fn lane_effect_rows_root(
+        &self,
+        lane_id: super::EconomicLaneIdV1,
+    ) -> Result<CommitmentV3, GlobalEconomicEffectPlanErrorV1> {
+        lane_effect_rows_root_v1(&self.effects, lane_id)
+    }
+
+    pub fn lane_terminal_obligations_root(
+        &self,
+        lane_id: super::EconomicLaneIdV1,
+    ) -> Result<CommitmentV3, GlobalEconomicEffectPlanErrorV1> {
+        lane_terminal_obligations_root_v1(&self.effects, lane_id)
+    }
+
+    pub fn lane_writes(&self, lane_id: super::EconomicLaneIdV1) -> Vec<super::GlobalLaneWriteV1> {
+        let mut writes = self
+            .effects
+            .iter()
+            .filter_map(GlobalEconomicEffectRowV1::as_lane_write)
+            .filter(|write| write.lane_id() == lane_id)
+            .collect::<Vec<_>>();
+        writes.sort_unstable_by_key(|write| write.object_id());
+        writes
     }
 }
 

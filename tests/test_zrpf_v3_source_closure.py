@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 414
+    assert document["file_count"] == 430
     semantic_v2_roles = {
         "semantic_mapping_v2",
         "semantic_protocol_v2",
@@ -167,6 +167,17 @@ def test_global_settlement_abi_sources_have_exact_roles() -> None:
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_state_error.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_state_types.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_binding.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_codec.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_error.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_hash.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_module_transition_journal_types.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition_bounded.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition_codec.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition_error.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane_state_transition_hash.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lifecycle_route_resolver.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release_codec.rs",
@@ -197,6 +208,11 @@ def test_global_settlement_abi_sources_have_exact_roles() -> None:
         "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/reconciliation.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/rows.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/support.rs",
+        "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1/binding.rs",
+        "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1/codec.rs",
+        "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1/state_openings.rs",
+        "zk/zrpf_protocol/protocol/tests/lane_module_transition_journal_v1/support.rs",
         "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1.rs",
         "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/codec.rs",
         "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/support.rs",

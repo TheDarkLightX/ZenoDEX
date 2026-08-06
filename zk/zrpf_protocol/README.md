@@ -180,6 +180,21 @@ them against state openings and lane transitions. The plan and its private
 structural witness do not verify receipts, current head, atomic persistence, or
 publication authority.
 
+The lane module transition journal binds one route-selected module release to
+one state-bound occurrence. Accepted journals commit the global effect plan,
+lane-local effect rows, terminal obligations, private-port values, and one
+same-action lane state transition. Changed lane transitions carry 1-64
+sequential sparse-Merkle cell openings in strict unique key order; every
+declared lane write must match one opening exactly. Rejected journals carry a
+nonzero typed reject code and no post-state or effect fields. The private
+binding witness re-derives module provenance, module and route port schemas,
+the module journal ceiling, and the necessary per-journal route ceiling from
+the active profile. The route composer must still enforce its aggregate byte
+ceiling across every module journal. This remains a proof-neutral structural
+contract. It does not execute module economics, verify a guest receipt or
+image, compose multiple lanes, authenticate all global partitions, or
+authorize publication.
+
 The settlement certificate is a canonical proof-neutral journal. Its source
 claim binding and DA, schedule, carry, plan, and state roots remain
 unauthenticated data until a guest verifies their source obligations and a
@@ -238,6 +253,9 @@ The lifecycle-purpose route derivation contract is specified in
 `docs/research/ZRPF_LIFECYCLE_ROUTE_RESOLVER_V1_SPEC_20260806.md`.
 The canonical whole-economy effect and reconciliation contract is specified in
 `docs/research/ZRPF_GLOBAL_ECONOMIC_EFFECT_PLAN_V1_SPEC_20260806.md`.
+The proof-neutral lane journal and same-action state-opening contract is
+specified in
+`docs/research/ZRPF_LANE_MODULE_TRANSITION_JOURNAL_V1_SPEC_20260806.md`.
 
 ## Verification
 
