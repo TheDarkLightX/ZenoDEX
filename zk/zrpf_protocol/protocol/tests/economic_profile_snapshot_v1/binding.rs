@@ -1,9 +1,10 @@
 use zenodex_zrpf_protocol_v3::{
     EconomicLaneIdV1, EconomicProfileRegistryRootsV1, EconomicProfileSnapshotErrorV1,
-    LaneModuleReleaseErrorV1, LaneModuleReleaseRegistryV1, LaneModuleReleaseStatusV1,
+    EconomicProfileTransitionModeV1, LaneModuleReleaseErrorV1, LaneModuleReleaseRegistryV1,
+    LaneModuleReleaseStatusV1, RouteDependencyLifecyclePurposeV1, RouteReleaseRegistryV1,
 };
 
-use super::support::{economic_fixture, module_release, profile, root};
+use super::support::{economic_fixture, module_release, profile, root, route_with_purpose};
 
 #[test]
 fn exact_economic_registry_binding_accepts_and_rejects_without_mutation() {
@@ -246,6 +247,54 @@ fn executable_route_dependencies_admit_only_active_new_and_drain_only_releases()
             ));
         }
     }
+}
+
+#[test]
+fn active_new_lifecycle_purpose_rejects_a_drain_only_dependency() {
+    // Arrange.
+    let mut fixture = economic_fixture(
+        &[EconomicLaneIdV1::SpotLiquidity],
+        EconomicLaneIdV1::SpotLiquidity,
+        LaneModuleReleaseStatusV1::DrainOnly,
+    );
+    let drain_release = fixture.module_registries
+        [usize::from(EconomicLaneIdV1::SpotLiquidity.code())]
+    .releases()[0]
+        .clone();
+    let route = route_with_purpose(
+        50,
+        &drain_release,
+        RouteDependencyLifecyclePurposeV1::ActiveNewRelease,
+    );
+    fixture.route_registry = RouteReleaseRegistryV1::new(vec![route]).unwrap();
+    let roots = EconomicProfileRegistryRootsV1::new(
+        fixture.lane_registry.canonical_commitment().unwrap(),
+        fixture.route_registry.canonical_root().unwrap(),
+        root(600),
+        root(601),
+        root(602),
+        root(603),
+        root(604),
+    );
+    fixture.profile = profile(0, 0, EconomicProfileTransitionModeV1::Genesis, None, roots);
+
+    // Act.
+    let result = fixture.profile.bind_economic_registries(
+        &fixture.lane_registry,
+        &fixture.module_registries,
+        &fixture.route_registry,
+    );
+
+    // Assert.
+    assert!(matches!(
+        result,
+        Err(EconomicProfileSnapshotErrorV1::DependencyReleaseAdmission {
+            source: LaneModuleReleaseErrorV1::StatusDisallowsNewObject(
+                LaneModuleReleaseStatusV1::DrainOnly
+            ),
+            ..
+        })
+    ));
 }
 
 #[test]

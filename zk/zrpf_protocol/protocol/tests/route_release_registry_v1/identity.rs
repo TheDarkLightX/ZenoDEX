@@ -61,6 +61,6 @@ fn canonical_root_binds_route_identity_and_has_a_fixed_vector() {
     assert_ne!(baseline_root, changed_root);
     assert_eq!(
         hex32(baseline_root.into_bytes()),
-        "e5747633f19f5c1806dc51106119e6fc8a67a7337dccfd92be24f74ab132c190"
+        "b018ccddc91128a783d023c733065aa9c17a4671b80e3b72cb3f6b92439a357d"
     );
 }

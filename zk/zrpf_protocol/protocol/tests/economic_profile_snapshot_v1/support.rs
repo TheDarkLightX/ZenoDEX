@@ -5,9 +5,10 @@ use zenodex_zrpf_protocol_v3::{
     LaneModuleMigrationCompatibilityV1, LaneModuleMigrationModeV1, LaneModuleProvenanceRootsV1,
     LaneModuleReleaseContentV1, LaneModuleReleaseRegistryV1, LaneModuleReleaseStatusV1,
     LaneModuleReleaseV1, LaneModuleResourceLimitsV1, LaneModuleSchemaRootsV1,
-    LaneModuleTerminalCoverageV1, ProgramIdV3, RouteDependencyRoleV1, RouteDependencyRolesV1,
-    RouteIssueBurnPolicyV1, RouteModuleDependencyV1, RouteOraclePolicyV1, RouteReleaseContentV1,
-    RouteReleaseRegistryV1, RouteReleaseV1, RouteResourceLimitsV1, TerminalCoverageStatusV1,
+    LaneModuleTerminalCoverageV1, ProgramIdV3, RouteDependencyLifecyclePurposeV1,
+    RouteDependencyRoleV1, RouteDependencyRolesV1, RouteIssueBurnPolicyV1, RouteModuleDependencyV1,
+    RouteOraclePolicyV1, RouteReleaseContentV1, RouteReleaseRegistryV1, RouteReleaseV1,
+    RouteResourceLimitsV1, TerminalCoverageStatusV1,
 };
 
 pub struct EconomicRegistryFixture {
@@ -88,10 +89,24 @@ pub fn module_release(
 }
 
 pub fn route(command_seed: u16, release: &LaneModuleReleaseV1) -> RouteReleaseV1 {
+    let lifecycle_purpose = if release.status() == LaneModuleReleaseStatusV1::ActiveNew {
+        RouteDependencyLifecyclePurposeV1::ActiveNewRelease
+    } else {
+        RouteDependencyLifecyclePurposeV1::PinnedExistingObjects
+    };
+    route_with_purpose(command_seed, release, lifecycle_purpose)
+}
+
+pub fn route_with_purpose(
+    command_seed: u16,
+    release: &LaneModuleReleaseV1,
+    lifecycle_purpose: RouteDependencyLifecyclePurposeV1,
+) -> RouteReleaseV1 {
     let roles = RouteDependencyRolesV1::new(&[RouteDependencyRoleV1::Primary]).unwrap();
     let dependency = RouteModuleDependencyV1::new(
         release.content().lane_id(),
         release.release_id(),
+        lifecycle_purpose,
         roles,
         root(command_seed + 20),
         root(command_seed + 21),

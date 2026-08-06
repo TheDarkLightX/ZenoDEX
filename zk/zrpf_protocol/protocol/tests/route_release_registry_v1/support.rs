@@ -3,11 +3,11 @@ use zenodex_zrpf_protocol_v3::{
     CommitmentV3, EconomicLaneIdV1, LaneModuleMigrationCompatibilityV1, LaneModuleMigrationModeV1,
     LaneModuleProvenanceRootsV1, LaneModuleReleaseContentV1, LaneModuleReleaseRegistryV1,
     LaneModuleReleaseStatusV1, LaneModuleReleaseV1, LaneModuleResourceLimitsV1,
-    LaneModuleSchemaRootsV1, LaneModuleTerminalCoverageV1, ProgramIdV3, RouteDependencyRoleV1,
-    RouteDependencyRolesV1, RouteIssueBurnPolicyV1, RouteModuleDependencyV1,
-    RouteModuleReleaseSelectionV1, RouteOraclePolicyV1, RouteReleaseContentV1,
-    RouteReleaseRegistryV1, RouteReleaseV1, RouteResourceLimitsV1, RouteSelectionKeyV1,
-    TerminalCoverageStatusV1,
+    LaneModuleSchemaRootsV1, LaneModuleTerminalCoverageV1, ProgramIdV3,
+    RouteDependencyLifecyclePurposeV1, RouteDependencyRoleV1, RouteDependencyRolesV1,
+    RouteIssueBurnPolicyV1, RouteModuleDependencyV1, RouteModuleReleaseSelectionV1,
+    RouteOraclePolicyV1, RouteReleaseContentV1, RouteReleaseRegistryV1, RouteReleaseV1,
+    RouteResourceLimitsV1, RouteSelectionKeyV1, TerminalCoverageStatusV1,
 };
 
 pub fn root(seed: u16) -> CommitmentV3 {
@@ -63,6 +63,7 @@ pub fn dependency(
     RouteModuleDependencyV1::new(
         lane_id,
         module_release(lane_id, seed).release_id(),
+        RouteDependencyLifecyclePurposeV1::PinnedExistingObjects,
         roles,
         root(seed + 20),
         root(seed + 21),

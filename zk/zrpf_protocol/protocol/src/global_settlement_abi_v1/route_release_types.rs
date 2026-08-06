@@ -13,11 +13,34 @@ use super::{
 };
 use crate::CommitmentV3;
 
+/// Governed reason for selecting one lane module release in a command route.
+///
+/// `ActiveNewRelease` selects the lane registry's sole `ACTIVE_NEW` release
+/// and may also consume objects created by that same release.
+/// `PinnedExistingObjects` requires at least one state-authenticated consumed
+/// object for the lane and selects its unique creating release. Module guests
+/// remain responsible for enforcing the declared command semantics.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RouteDependencyLifecyclePurposeV1 {
+    ActiveNewRelease,
+    PinnedExistingObjects,
+}
+
+impl RouteDependencyLifecyclePurposeV1 {
+    pub const fn code(self) -> u8 {
+        match self {
+            Self::ActiveNewRelease => 0,
+            Self::PinnedExistingObjects => 1,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RouteModuleDependencyV1 {
     lane_id: EconomicLaneIdV1,
     module_release_id: LaneModuleReleaseIdV1,
+    lifecycle_purpose: RouteDependencyLifecyclePurposeV1,
     roles: RouteDependencyRolesV1,
     receipt_journal_schema_root: CommitmentV3,
     input_port_schema_root: CommitmentV3,
@@ -28,6 +51,7 @@ impl RouteModuleDependencyV1 {
     pub const fn new(
         lane_id: EconomicLaneIdV1,
         module_release_id: LaneModuleReleaseIdV1,
+        lifecycle_purpose: RouteDependencyLifecyclePurposeV1,
         roles: RouteDependencyRolesV1,
         receipt_journal_schema_root: CommitmentV3,
         input_port_schema_root: CommitmentV3,
@@ -36,6 +60,7 @@ impl RouteModuleDependencyV1 {
         Self {
             lane_id,
             module_release_id,
+            lifecycle_purpose,
             roles,
             receipt_journal_schema_root,
             input_port_schema_root,
@@ -49,6 +74,10 @@ impl RouteModuleDependencyV1 {
 
     pub const fn module_release_id(&self) -> LaneModuleReleaseIdV1 {
         self.module_release_id
+    }
+
+    pub const fn lifecycle_purpose(&self) -> RouteDependencyLifecyclePurposeV1 {
+        self.lifecycle_purpose
     }
 
     pub const fn roles(&self) -> RouteDependencyRolesV1 {
@@ -70,6 +99,7 @@ impl RouteModuleDependencyV1 {
     pub(super) fn update_hasher(&self, hasher: &mut Sha256) {
         hasher.update([self.lane_id.code()]);
         hasher.update(self.module_release_id.as_bytes());
+        hasher.update([self.lifecycle_purpose.code()]);
         hasher.update([self.roles.bits()]);
         update_commitment(hasher, self.receipt_journal_schema_root);
         update_commitment(hasher, self.input_port_schema_root);

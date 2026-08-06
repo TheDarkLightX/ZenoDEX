@@ -54,6 +54,6 @@ def test_global_economic_state_rust_contract() -> None:
 
     # Assert
     assert completed.returncode == 0, completed.stdout + completed.stderr
-    assert "17 passed; 0 failed" in completed.stdout
+    assert "23 passed; 0 failed" in completed.stdout
     assert architecture.returncode == 0, architecture.stdout + architecture.stderr
     assert "22 passed; 0 failed" in architecture.stdout

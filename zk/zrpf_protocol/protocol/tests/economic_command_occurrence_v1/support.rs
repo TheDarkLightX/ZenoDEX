@@ -9,10 +9,10 @@ pub use zenodex_zrpf_protocol_v3::{
     EconomicCommandOccurrenceErrorV1, EconomicCommandOccurrenceIdV1, EconomicCommandOccurrenceV1,
     EconomicLaneIdV1, EconomicOccurrencePositionV1, EconomicProfileIdV1,
     EconomicProfileRegistryRootsV1, EconomicProfileSnapshotContentV1, EconomicProfileSnapshotV1,
-    EconomicProfileTransitionModeV1, LaneModuleReleaseIdV1, RouteDependencyRoleV1,
-    RouteDependencyRolesV1, RouteIssueBurnPolicyV1, RouteModuleDependencyV1, RouteOraclePolicyV1,
-    RouteReleaseContentV1, RouteReleaseRegistryV1, RouteReleaseV1, RouteResourceLimitsV1,
-    MAX_ECONOMIC_COMMAND_OCCURRENCE_BYTES_V1,
+    EconomicProfileTransitionModeV1, LaneModuleReleaseIdV1, RouteDependencyLifecyclePurposeV1,
+    RouteDependencyRoleV1, RouteDependencyRolesV1, RouteIssueBurnPolicyV1, RouteModuleDependencyV1,
+    RouteOraclePolicyV1, RouteReleaseContentV1, RouteReleaseRegistryV1, RouteReleaseV1,
+    RouteResourceLimitsV1, MAX_ECONOMIC_COMMAND_OCCURRENCE_BYTES_V1,
 };
 
 const OCCURRENCE_ID_DOMAIN_V1: &[u8] =
@@ -27,6 +27,7 @@ pub fn route(command_variant_root: CommitmentV3, release_seed: u8) -> RouteRelea
     let dependency = RouteModuleDependencyV1::new(
         EconomicLaneIdV1::AssetTransfer,
         LaneModuleReleaseIdV1::new([release_seed; 32]).unwrap(),
+        RouteDependencyLifecyclePurposeV1::ActiveNewRelease,
         roles,
         root(31),
         root(32),

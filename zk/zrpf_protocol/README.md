@@ -122,8 +122,10 @@ corresponding global lane row. The registry and row remain ordinary typed data;
 they do not prove governance history, profile activation, migration, receipts,
 routes, or publication authority.
 
-The route release commits an exact dependency sequence and rejects empty or
-oversized sets, duplicate lanes, incoherent Primary, Oracle, or IssueBurn role
+The route release commits an exact dependency sequence, including each
+dependency's `ActiveNewRelease` or `PinnedExistingObjects` lifecycle purpose,
+and rejects empty or oversized sets, duplicate lanes, incoherent Primary,
+Oracle, or IssueBurn role
 cardinality, malformed role masks, zero resource ceilings, and mismatched
 ordered module-release registries. Dependency order is semantic and changes the
 content-derived route ID. The route remains caller-constructible data: no
@@ -152,11 +154,14 @@ The global economic state is a canonical commitment candidate for future proof
 public inputs. Its twelve lane roots and twelve named cross-lane partition roots
 are all identity-bound, and persistent consumed objects can be opened to their
 creating lane/module release under the committed object registry. State/profile
-and occurrence/state witnesses are private, non-serializable Rust values. They
-establish only the implemented structural equalities and existing-release
-lifecycle admission. They do not prove conservation, custody, liability,
-terminal drain, route-purpose derivation, a guest transition, receipt validity,
-current consensus head, atomic persistence, or publication authority.
+and occurrence/state witnesses are private, non-serializable Rust values. The
+state binder independently derives a unique lifecycle route from the command,
+profile registries, and authenticated object pins before accepting the
+occurrence's proposed route. These values establish only the implemented
+structural equalities and release selection. They do not prove conservation,
+custody, liability, terminal drain, guest lifecycle semantics, a guest
+transition, receipt validity, current consensus head, atomic persistence, or
+publication authority.
 
 The settlement certificate is a canonical proof-neutral journal. Its source
 claim binding and DA, schedule, carry, plan, and state roots remain
@@ -212,6 +217,8 @@ publication authority.
 The canonical whole-economy state and persistent-object release-pin contract is
 specified in
 `docs/research/ZRPF_GLOBAL_ECONOMIC_STATE_V1_SPEC_20260806.md`.
+The lifecycle-purpose route derivation contract is specified in
+`docs/research/ZRPF_LIFECYCLE_ROUTE_RESOLVER_V1_SPEC_20260806.md`.
 
 ## Verification
 

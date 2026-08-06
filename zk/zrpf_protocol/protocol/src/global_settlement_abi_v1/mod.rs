@@ -15,6 +15,7 @@ mod global_economic_state_codec;
 mod global_economic_state_error;
 mod global_economic_state_types;
 mod lane;
+mod lifecycle_route_resolver;
 mod module_release;
 mod module_release_codec;
 mod module_release_registry;
@@ -108,7 +109,8 @@ pub use route_release_registry_error::RouteReleaseRegistryErrorV1;
 pub use route_release_registry_types::{RouteModuleReleaseSelectionV1, RouteSelectionKeyV1};
 pub use route_release_roles::{RouteDependencyRoleV1, RouteDependencyRolesV1};
 pub use route_release_types::{
-    RouteModuleDependencyV1, RouteReleaseContentV1, RouteResourceLimitsV1,
+    RouteDependencyLifecyclePurposeV1, RouteModuleDependencyV1, RouteReleaseContentV1,
+    RouteResourceLimitsV1,
 };
 
 pub const GLOBAL_ECONOMIC_LANE_REGISTRY_VERSION_V1: u16 = 1;

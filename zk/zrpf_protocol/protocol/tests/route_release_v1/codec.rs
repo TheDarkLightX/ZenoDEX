@@ -29,11 +29,11 @@ fn exact_codec_roundtrips_with_fixed_identity_and_digest() {
     assert_eq!(decoded, route);
     assert_eq!(
         hex32(route.route_release_id().into_bytes()),
-        "dccc2a3e86d4920bdc366580b3ba7aaf7011b8c444f52c07ced732b37195c5fe"
+        "9a25ec0269e0fde35c4d89d4c38648b1ee29feb381f290afa280e9bcd2351207"
     );
     assert_eq!(
         hex32(digest(&encoded)),
-        "a0656a8be962f49289a168a751ac7982933bbe339581476009c9942cb57b225c"
+        "2e293076bf0822ce7d43c0b2a4762e743e35891c8c390dff4a7eb198eaa362cb"
     );
 }
 
@@ -53,15 +53,18 @@ fn exact_codec_rejects_stale_counterfeit_and_unknown_variants() {
     let mut too_many_dependencies = encoded.clone();
     assert_eq!(too_many_dependencies[65], 1);
     too_many_dependencies[65] = 9;
+    let mut unknown_lifecycle_purpose = encoded.clone();
+    assert_eq!(unknown_lifecycle_purpose[99], 1);
+    unknown_lifecycle_purpose[99] = 2;
     let mut unknown_role = encoded.clone();
-    assert_eq!(unknown_role[99], RouteDependencyRoleV1::Primary.bit());
-    unknown_role[99] = 0x80;
+    assert_eq!(unknown_role[100], RouteDependencyRoleV1::Primary.bit());
+    unknown_role[100] = 0x80;
     let mut unknown_oracle_policy = encoded.clone();
-    assert_eq!(unknown_oracle_policy[228], 0);
-    unknown_oracle_policy[228] = 2;
+    assert_eq!(unknown_oracle_policy[229], 0);
+    unknown_oracle_policy[229] = 2;
     let mut unknown_issue_burn_policy = encoded.clone();
-    assert_eq!(unknown_issue_burn_policy[229], 0);
-    unknown_issue_burn_policy[229] = 4;
+    assert_eq!(unknown_issue_burn_policy[230], 0);
+    unknown_issue_burn_policy[230] = 4;
     // Act / Assert
     assert_eq!(
         decode_exact_route_release_v1(&stale),
@@ -70,6 +73,10 @@ fn exact_codec_rejects_stale_counterfeit_and_unknown_variants() {
     assert_eq!(
         decode_exact_route_release_v1(&counterfeit),
         Err(RouteReleaseErrorV1::CounterfeitRouteReleaseId)
+    );
+    assert_eq!(
+        decode_exact_route_release_v1(&unknown_lifecycle_purpose),
+        Err(RouteReleaseErrorV1::PostcardDecode)
     );
     assert_eq!(
         decode_exact_route_release_v1(&unknown_role),

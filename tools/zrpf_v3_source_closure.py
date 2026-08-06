@@ -108,6 +108,7 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
         "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/binding.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/codec.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/identity.rs",
+        "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/route_resolution.rs",
         "zk/zrpf_protocol/protocol/tests/global_economic_state_v1/support.rs",
         "zk/zrpf_protocol/protocol/tests/global_settlement_abi_v1.rs",
         "zk/zrpf_protocol/protocol/tests/lane_module_release_v1.rs",
@@ -300,6 +301,10 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             (
                 "global_settlement_abi_v1",
                 "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lifecycle_route_resolver.rs",
             ),
             (
                 "global_settlement_abi_v1",

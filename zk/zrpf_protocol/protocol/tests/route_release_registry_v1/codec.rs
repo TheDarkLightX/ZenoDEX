@@ -27,7 +27,7 @@ fn exact_codec_roundtrips_with_fixed_root_and_digest() {
     assert_eq!(decoded, registry);
     assert_eq!(
         hex32(digest(&encoded)),
-        "1daec76c0cc00c1bd466298e13db61d929f95e69bd5fbc92d4fe75c77c54de79"
+        "01c6e0d24cfda4402cd3b2a145dd09e865633dc956a761f9e0a30f10cc5b68f9"
     );
 }
 

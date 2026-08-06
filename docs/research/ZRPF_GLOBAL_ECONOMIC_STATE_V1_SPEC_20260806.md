@@ -46,7 +46,7 @@ Phi := <
   K = (application_id, chain_or_domain_id, height, writer_epoch, profile_id),
   E = fixed_preimages, fixed_codec_vectors, AAA_negative_tests,
       BVA_and_BVE_boundaries, compile_fail_architecture_tests,
-  Gap = lifecycle_purpose_route_derivation, global_effect_plan,
+  Gap = global_effect_plan,
         conservation_checker, module_and_composition_guests,
         release_aware_epoch_verifier, atomic_publisher,
   N = omitted_or_reordered_lane, omitted_partition, stale_profile,
@@ -72,7 +72,8 @@ The implementation uses a functional core:
 ```text
 validated ordinary values -> canonical state or typed reject
 canonical state + exact registries -> private structural witness or typed reject
-profile-bound occurrence + state-bound pins -> private structural witness or typed reject
+profile-bound occurrence + state-bound pins -> derive exact route
+derived route = proposed route -> private structural witness or typed reject
 ```
 
 Construction prevents these invalid states:
@@ -227,11 +228,11 @@ thirteenth lane, or allowing a shadow release.
   invariants. Future transition guests and the common invariant checker must
   establish those relations.
 - A valid object pin authenticates creating-release metadata against this
-  snapshot. It does not prove that the command's governed route depends on that
-  lane/release set or distinguish new-object creation from drain activity.
-- The route already present in `EconomicCommandOccurrenceV1` remains checked
-  only by the active-profile occurrence binder. A state-derived
-  lifecycle-purpose resolver is still required.
+  snapshot. The lifecycle resolver uses it for structural route selection,
+  while module guests remain responsible for proving matching command
+  semantics.
+- The route present in `EconomicCommandOccurrenceV1` is proposed replay data.
+  State binding succeeds only when it equals the independently derived route.
 - Zero consumed objects and zero pin proofs are structurally valid. Command
   semantics must decide whether a specific operation requires objects.
 - The state root is a proof public input candidate. It is not itself a proof.
@@ -244,11 +245,10 @@ thirteenth lane, or allowing a shadow release.
 
 ## Next proof-worthy gap
 
-Define a closed lifecycle-purpose type and a deterministic resolver that takes
-the typed command plus state-authenticated creating-release pins and derives
-exactly one `RouteSelectionKeyV1`. The resolver must reject caller-selected
-coexist-and-drain routes. Its accepted output can then feed the canonical
-global effect plan and conservation kernel.
+Define the canonical global effect plan and conservation kernel. It must bind
+the derived route, exact lane writes, every asset and custody-qualified delta,
+fees, rewards and slashes, replay consumption, terminal obligations, and
+external-only outbox rows.
 
 After that contract stabilizes, an exact integer nullspace experiment can test
 whether conservation rows `A * delta = b` admit a smaller basis
