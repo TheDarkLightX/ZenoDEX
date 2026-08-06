@@ -10,6 +10,13 @@ mod module_release_types;
 mod registry;
 mod release_error;
 mod release_id;
+mod route_release;
+mod route_release_codec;
+mod route_release_error;
+mod route_release_id;
+mod route_release_policy;
+mod route_release_roles;
+mod route_release_types;
 
 pub use codec::{
     decode_exact_global_economic_lane_registry_v1, encode_global_economic_lane_registry_v1,
@@ -33,6 +40,15 @@ pub use module_release_types::{
 pub use registry::{EconomicLaneRegistryEntryV1, GlobalEconomicLaneRegistryV1};
 pub use release_error::LaneModuleReleaseErrorV1;
 pub use release_id::LaneModuleReleaseIdV1;
+pub use route_release::RouteReleaseV1;
+pub use route_release_codec::{decode_exact_route_release_v1, encode_route_release_v1};
+pub use route_release_error::RouteReleaseErrorV1;
+pub use route_release_id::RouteReleaseIdV1;
+pub use route_release_policy::{RouteIssueBurnPolicyV1, RouteOraclePolicyV1};
+pub use route_release_roles::{RouteDependencyRoleV1, RouteDependencyRolesV1};
+pub use route_release_types::{
+    RouteModuleDependencyV1, RouteReleaseContentV1, RouteResourceLimitsV1,
+};
 
 pub const GLOBAL_ECONOMIC_LANE_REGISTRY_VERSION_V1: u16 = 1;
 pub const ECONOMIC_LANE_COUNT_V1: usize = 12;
@@ -42,3 +58,6 @@ pub const MAX_LANE_MODULE_RELEASE_BYTES_V1: usize = 2_048;
 pub const LANE_MODULE_RELEASE_REGISTRY_VERSION_V1: u16 = 1;
 pub const MAX_LANE_MODULE_RELEASES_PER_REGISTRY_V1: usize = 64;
 pub const MAX_LANE_MODULE_RELEASE_REGISTRY_BYTES_V1: usize = 131_200;
+pub const ROUTE_RELEASE_VERSION_V1: u16 = 1;
+pub const MAX_ROUTE_DEPENDENCIES_V1: usize = 8;
+pub const MAX_ROUTE_RELEASE_BYTES_V1: usize = 4_096;

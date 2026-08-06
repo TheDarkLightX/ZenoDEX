@@ -26,6 +26,10 @@ The crate currently provides:
   variants, guest image, provenance, terminal coverage, migration metadata,
   and resource ceilings to a nonzero release ID, with a closed seven-state
   lifecycle and exact bounded Postcard decoding;
+- a content-derived `RouteReleaseV1` binding one command-variant root to 1-8
+  ordered unique-lane module releases, closed multi-role sets, exact receipt and
+  private-port schemas, explicit Oracle and issue/burn policies, port pairing,
+  and nonzero composition ceilings, with exact bounded Postcard decoding;
 - an action-bound `AuthorizationConsumptionNullifierV1` compatibility identity
   for binding a canonical action to a grant;
 - an `AuthorizationGrantSpendNullifierV1` derived only from application,
@@ -100,6 +104,14 @@ corresponding global lane row. The registry and row remain ordinary typed data;
 they do not prove governance history, profile activation, migration, receipts,
 routes, or publication authority.
 
+The route release commits an exact dependency sequence and rejects empty or
+oversized sets, duplicate lanes, incoherent Primary, Oracle, or IssueBurn role
+cardinality, malformed role masks, zero resource ceilings, and mismatched
+ordered module-release registries. Dependency order is semantic and changes the
+content-derived route ID. The route remains caller-constructible data: no
+governed command-to-route registry, authenticated occurrence, actual receipt,
+private-port value, profile verifier, composer proof, or publisher is present.
+
 The settlement certificate is a canonical proof-neutral journal. Its source
 claim binding and DA, schedule, carry, plan, and state roots remain
 unauthenticated data until a guest verifies their source obligations and a
@@ -141,6 +153,8 @@ compatibility is specified in
 The module release and bounded per-lane registry contracts are specified in
 `docs/research/ZRPF_LANE_MODULE_RELEASE_V1_SPEC_20260806.md` and
 `docs/research/ZRPF_LANE_MODULE_RELEASE_REGISTRY_V1_SPEC_20260806.md`.
+The bounded route release contract is specified in
+`docs/research/ZRPF_ROUTE_RELEASE_V1_SPEC_20260806.md`.
 
 ## Verification
 

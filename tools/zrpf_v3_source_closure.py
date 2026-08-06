@@ -102,6 +102,11 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
         "zk/zrpf_protocol/protocol/tests/lane_module_release_registry_v1/binding.rs",
         "zk/zrpf_protocol/protocol/tests/lane_module_release_registry_v1/codec.rs",
         "zk/zrpf_protocol/protocol/tests/lane_module_release_registry_v1/support.rs",
+        "zk/zrpf_protocol/protocol/tests/route_release_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/route_release_v1/binding.rs",
+        "zk/zrpf_protocol/protocol/tests/route_release_v1/codec.rs",
+        "zk/zrpf_protocol/protocol/tests/route_release_v1/identity.rs",
+        "zk/zrpf_protocol/protocol/tests/route_release_v1/support.rs",
         "zk/zrpf_protocol/protocol/tests/node_v3.rs",
         "zk/zrpf_protocol/protocol/tests/semantic_epoch_v1.rs",
         "zk/zrpf_protocol/protocol/tests/settlement_certificate_v1.rs",
@@ -260,6 +265,34 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             (
                 "global_settlement_abi_v1",
                 "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/registry.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_codec.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_error.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_id.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_policy.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_roles.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_types.rs",
             ),
             (
                 "settlement_certificate_protocol_v1",

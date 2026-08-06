@@ -1,0 +1,270 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-route-release-v1",
+  "created_date": "2026-08-06",
+  "claim_scope": "RouteReleaseV1 binds one bounded ordered route shape to a content-derived nonzero ID, rejects incoherent dependency roles, policies, resources, encodings, and exact module-release registry mismatches, and grants no route-selection or proof authority.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "RR-V1-BOUNDED-ORDERED-DEPENDENCIES",
+    "RR-V1-UNIQUE-DEPENDENCY-LANES",
+    "RR-V1-CLOSED-NONEMPTY-ROLE-MASK",
+    "RR-V1-EXACTLY-ONE-PRIMARY",
+    "RR-V1-ORACLE-POLICY-COHERENCE",
+    "RR-V1-ISSUE-BURN-POLICY-COHERENCE",
+    "RR-V1-CONTENT-DERIVED-IDENTITY",
+    "RR-V1-EXACT-REGISTRY-BINDING",
+    "RR-V1-NONZERO-RESOURCE-CEILINGS",
+    "RR-V1-CANONICAL-BOUNDED-CODEC",
+    "RR-V1-REJECT-IS-NOOP"
+  ],
+  "failure_modes": [
+    "a route accepts zero or more than eight ordered dependencies",
+    "one economic lane occurs twice or caller order is silently normalized",
+    "an empty, duplicate, or unknown dependency-role set is admitted",
+    "a route contains zero or two Primary dependencies",
+    "Oracle policy and Oracle dependency-role cardinality disagree",
+    "issue or burn policy and IssueBurn dependency-role cardinality disagree",
+    "a command, release, role, schema, policy, pairing, or resource field changes without changing route identity",
+    "a missing, extra, reordered, wrong-lane, or unknown module release registry binds",
+    "a zero route resource ceiling is accepted",
+    "empty, oversized, trailing, stale, counterfeit, unknown-variant, unknown-field, or noncanonical route input decodes",
+    "a RouteRelease source or test is omitted from the governed ZRPF source closure"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZRPF_ROUTE_RELEASE_V1_SPEC_20260806.md",
+      "sha256": "c9fbf14d6bee6d7d6c6b0fffac0fd9b102beeb68536e57910a9c1d1a2a9e11ba"
+    },
+    {
+      "path": "tools/zrpf_v3_source_closure.py",
+      "sha256": "663fd722bf897a55d2b8f8f52872fe80052ce6297a26f166a8a3086e8f8aa1a6"
+    },
+    {
+      "path": "zk/zrpf_protocol/README.md",
+      "sha256": "c99dce789ac81fe6fe802fe944d9de12061b214e2c4927f65555b204fd92dcd1"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+      "sha256": "e6ab2ae039899decdb9d17347c0c23ab105c2d15e2671585878d7de6c633a5fe"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+      "sha256": "d7458caac6fdb7786d0ad94a7301cba0095b55ccd72a4df50c1f44ec1287d103"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release.rs",
+      "sha256": "3f89290444b3830ee300e2d80e18154ae6842c98a3714b442ec77365cc40b79b"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_codec.rs",
+      "sha256": "1881f922c930c3c21b5b225b94ea5110e92de1a1755e457365531fa1f0c3c0b6"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_error.rs",
+      "sha256": "c7a93155c2f89ebb83a5d3ab33d282ba4e2fe5043a9865e4cc831fd1b1ee2c87"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_id.rs",
+      "sha256": "24447279a89856d8214a44ffa6cbcf0f070b56d4d20e78d9b842bd98a487b078"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_policy.rs",
+      "sha256": "6b5730cd8f27ee827a9ab38e2dea298676c7a4e3c83fc5f78a7bc8da6bf69b77"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_roles.rs",
+      "sha256": "f7a81e591b9de1c85f5189c773498580207e92efd7a4659e116fd9893ccbf45d"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_types.rs",
+      "sha256": "a75e54497cca76491e8a6371a2dfbc9010356f902bf9a967567996dc9dda503a"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_v1.rs",
+      "sha256": "41f9312145a5d5d85cea3e3c62adc8886ccdc40b2803ab222dc94edc4cebd6a5"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_v1/binding.rs",
+      "sha256": "638222ef33194c5704db667345fc9734c8af34f38ee1e0c5a9cde436de99c419"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_v1/codec.rs",
+      "sha256": "15932b17405088091ae97f78bc94c684ca78371dcb7664b20dce7f35120bcf30"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_v1/identity.rs",
+      "sha256": "4c18cda28b614c2be2e5f7e817e765bd32e7d2cf15510b7d2356cb3fc30d18dd"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/route_release_v1/support.rs",
+      "sha256": "4454cf513d967a8dfa46ea363b81e98be3cdcc0637bff3612b5efe5c5d8ad056"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_route_release_v1.py",
+      "sha256": "27a77ec140eedd332dc4d50d47abb6d77f4c1c2c4655d21a6b07fe8a734aa60b",
+      "node_ids": [
+        "tests/test_route_release_v1.py::test_route_release_rust_contract"
+      ]
+    },
+    {
+      "path": "tests/test_zrpf_v3_source_closure.py",
+      "sha256": "11e89e897b6a5beeb86595f670d8de159004b46a5b0e7a411b7c0a3716d13a69",
+      "node_ids": [
+        "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory",
+        "tests/test_zrpf_v3_source_closure.py::test_global_settlement_abi_sources_have_exact_roles",
+        "tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest",
+        "tests/test_zrpf_v3_source_closure.py::test_workspace_inventory_rejects_unlisted_rust_even_with_build_false"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Rust contract tests use explicit Arrange, Act, and Assert phases for dependency cardinality, roles, policies, ordering, registry binding, identity, resources, and codec behavior; the isolated pytest launcher asserts the exact 18-test Rust result."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Construction and exact-registry binding operate on immutable caller-owned values; the duplicate-lane rejection preserves the complete dependency input before and after rejection, and no route or dependency method exposes mutable committed state."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "dependency_count",
+      "points": [
+        "zero_constructor_reject",
+        "one_accept",
+        "eight_accept",
+        "nine_constructor_reject",
+        "nine_decoder_reject"
+      ]
+    },
+    {
+      "name": "dependency_role_set",
+      "points": [
+        "empty_reject",
+        "one_accept",
+        "duplicate_reject",
+        "three_distinct_roles_accept",
+        "unknown_bit_decoder_reject"
+      ]
+    },
+    {
+      "name": "primary_role_cardinality",
+      "points": [
+        "zero_reject",
+        "one_accept",
+        "two_reject"
+      ]
+    },
+    {
+      "name": "oracle_policy_role_cardinality",
+      "points": [
+        "forbidden_zero_accept",
+        "forbidden_one_reject",
+        "required_zero_reject",
+        "required_one_accept",
+        "required_two_reject"
+      ]
+    },
+    {
+      "name": "issue_burn_policy_role_cardinality",
+      "points": [
+        "forbidden_zero_accept",
+        "forbidden_one_reject",
+        "authorized_zero_reject",
+        "authorized_one_accept",
+        "authorized_two_reject"
+      ]
+    },
+    {
+      "name": "resource_ceiling_each_field",
+      "points": [
+        "zero_reject",
+        "one_accept",
+        "integer_maximum_accept"
+      ]
+    },
+    {
+      "name": "ordered_registry_binding_count",
+      "points": [
+        "expected_minus_one_reject",
+        "expected_accept",
+        "expected_plus_one_reject",
+        "reordered_lane_reject",
+        "unknown_release_reject"
+      ]
+    },
+    {
+      "name": "route_identity",
+      "points": [
+        "zero_id_reject",
+        "each_command_dependency_schema_policy_pairing_and_resource_field",
+        "dependency_forward_order",
+        "dependency_reverse_order",
+        "fixed_route_id",
+        "fixed_encoded_digest"
+      ]
+    },
+    {
+      "name": "route_encoding",
+      "points": [
+        "empty",
+        "canonical",
+        "maximum_plus_one_bytes",
+        "trailing_byte",
+        "wrong_version",
+        "counterfeit_id",
+        "nonminimal_version_integer",
+        "unknown_role_mask",
+        "unknown_oracle_policy",
+        "unknown_issue_burn_policy",
+        "unknown_outer_content_dependency_and_resource_fields"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept zero or more than eight dependencies or normalize caller ordering",
+      "killed_by": "tests/test_route_release_v1.py::test_route_release_rust_contract"
+    },
+    {
+      "description": "accept duplicate lanes, empty or duplicate roles, or zero or two Primary roles",
+      "killed_by": "tests/test_route_release_v1.py::test_route_release_rust_contract"
+    },
+    {
+      "description": "admit an Oracle or issue-burn policy with incoherent dependency-role cardinality",
+      "killed_by": "tests/test_route_release_v1.py::test_route_release_rust_contract"
+    },
+    {
+      "description": "omit any command, dependency, schema, policy, pairing, or resource field from content-derived identity or admit the zero route ID",
+      "killed_by": "tests/test_route_release_v1.py::test_route_release_rust_contract"
+    },
+    {
+      "description": "bind a missing, extra, reordered, wrong-lane, or unknown module release registry",
+      "killed_by": "tests/test_route_release_v1.py::test_route_release_rust_contract"
+    },
+    {
+      "description": "accept a zero resource ceiling or counterfeit, stale, unknown-variant, unknown-field, trailing, empty, oversized, or noncanonical input",
+      "killed_by": "tests/test_route_release_v1.py::test_route_release_rust_contract"
+    },
+    {
+      "description": "omit a RouteRelease implementation or assurance source from the exact ZRPF inventory",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not select a route for an authenticated command, bind an EconomicProfileSnapshotV1, or establish caller authorization, occurrence uniqueness, nonce consumption, or replay protection.",
+    "This packet does not inspect actual module receipts or private-port values, prove Oracle truth or issue-burn authorization, compose lane or route proofs, verify a recursive epoch, or authorize ZenoLedger publication.",
+    "Exact registry binding proves only that each ordered dependency references a release record present in the supplied same-lane registry. It does not reinterpret lifecycle status, prove coexistence economics, migration, terminal execution, or resource consumption.",
+    "RouteReleaseV1 is ordinary caller-constructible typed data. This packet does not establish complete M6 workflow coverage, production readiness, whole-economy authority, or ShapeForge promoted-bundle status."
+  ]
+}
