@@ -1,0 +1,229 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-lane-module-release-v1",
+  "created_date": "2026-08-06",
+  "claim_scope": "LaneModuleReleaseV1 derives one exact nonzero release ID from typed lane, schema, command, guest-image, provenance, terminal, migration, and resource content; enforces the closed seven-state lifecycle; and rejects incomplete current authority, invalid migration cardinality, zero resources, counterfeit identity, and noncanonical wire input without mutation.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "LMR-V1-CONTENT-DERIVED-IDENTITY",
+    "LMR-V1-CLOSED-LIFECYCLE",
+    "LMR-V1-TERMINAL-COMPLETE-CURRENT-STATUS",
+    "LMR-V1-EXACT-STATUS-ADMISSION",
+    "LMR-V1-MIGRATION-PREDECESSOR-CARDINALITY",
+    "LMR-V1-NONZERO-RESOURCE-CEILINGS",
+    "LMR-V1-CANONICAL-BOUNDED-CODEC",
+    "LMR-V1-REJECT-IS-NOOP"
+  ],
+  "failure_modes": [
+    "a caller supplies a release ID that does not match release content",
+    "a content field changes without changing the release ID",
+    "lifecycle status changes the implementation identity or fails to change the record commitment",
+    "a release skips a lifecycle edge or leaves Revoked",
+    "terminal-incomplete content reaches ActiveNew, DrainOnly, VerifyOnly, or Retired",
+    "a non-ActiveNew release creates a new object",
+    "a status other than ActiveNew or DrainOnly transitions an existing object",
+    "migration mode accepts a missing or unexpected predecessor",
+    "a zero command, state, journal, or cycle ceiling is accepted",
+    "empty, oversized, trailing, stale, malformed, or noncanonical release bytes decode",
+    "a LaneModuleRelease source or contract test is omitted from the governed ZRPF source closure"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZRPF_LANE_MODULE_RELEASE_V1_SPEC_20260806.md",
+      "sha256": "b2452623b117e4734611bbfb9adf371ebae222ebed6c4f99f1075284b7cc315c"
+    },
+    {
+      "path": "tools/zrpf_v3_source_closure.py",
+      "sha256": "8dca334970b7103ae0a5be125c714d494abc04695133721470321fc64bfd424e"
+    },
+    {
+      "path": "zk/zrpf_protocol/README.md",
+      "sha256": "ab020d2219713dcf99dc2dabcd95224b0748dde2b4c7e5f961bf0874a0531649"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+      "sha256": "17bde5b26c30647add473f01f22e9695bcbdc1491c316273ebc66a45ec673762"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+      "sha256": "809c16226fc4fbd18473501f9b18992427386447b3252716638086cec3014ffe"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release.rs",
+      "sha256": "c3d7dd5e81235419121128c58a5a3a4684851178095af95a5ee78bcbeb6135d9"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release_codec.rs",
+      "sha256": "d9848586e1b7c0bbf854cb562b6532a89c5fb99c8ea47bd166765ca6cf4af12c"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release_types.rs",
+      "sha256": "68e4708637f9e8aa5e18a383ae6212c4fe9a2a0ff6ae0306d9de694ff583559c"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/release_error.rs",
+      "sha256": "eb067652fdb240ece4bc249b4cfdbcf4ded32a610426f26cdd6b4ee33b246cd3"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/release_id.rs",
+      "sha256": "d2e7ce0d30ccee425c1402bf622bfad3362ee09aed81bc8820afe3657de4ab6f"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/lane_module_release_v1.rs",
+      "sha256": "c326c243e5a7b8ea7128cad5e61947cc2221cc87f16978082401d75bcefa21c1"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/lane_module_release_v1/identity.rs",
+      "sha256": "b9f205451616ac2f2672aed2795fa723fda10015e1f50a1942c39a78a3a3bd24"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_lane_module_release_v1.py",
+      "sha256": "4f27d73d175e35778f4a7956a55aac0dbff473268edce3439ac9c76693e6cd60",
+      "node_ids": [
+        "tests/test_lane_module_release_v1.py::test_lane_module_release_rust_contract"
+      ]
+    },
+    {
+      "path": "tests/test_zrpf_v3_source_closure.py",
+      "sha256": "17c1949bf02472e7458db4131b20d38d875ee948ddfeeb4e3e7c6de979c856c8",
+      "node_ids": [
+        "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory",
+        "tests/test_zrpf_v3_source_closure.py::test_global_settlement_abi_sources_have_exact_roles",
+        "tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest",
+        "tests/test_zrpf_v3_source_closure.py::test_workspace_inventory_rejects_unlisted_rust_even_with_build_false"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Rust contract tests use explicit Arrange, Act, and Assert phases for lifecycle, admission, identity, migration, resource, and codec behavior; the isolated pytest launcher asserts the exact Rust result."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Every rejected lifecycle pair preserves the complete immutable release value; incomplete promotion and disallowed admission also compare the source record and canonical record commitment before and after rejection."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "lifecycle_transition_pair",
+      "points": [
+        "all_7_by_7_ordered_pairs",
+        "five_forward_edges",
+        "six_emergency_revoke_edges",
+        "same_state_reject",
+        "revoked_outbound_reject"
+      ]
+    },
+    {
+      "name": "terminal_coverage",
+      "points": [
+        "incomplete_candidate_accept",
+        "incomplete_shadow_accept",
+        "incomplete_active_new_reject",
+        "complete_active_new_accept"
+      ]
+    },
+    {
+      "name": "status_admission",
+      "points": [
+        "active_new_new_object_accept",
+        "six_other_new_object_rejects",
+        "active_new_existing_accept",
+        "drain_only_existing_accept",
+        "five_other_existing_rejects"
+      ]
+    },
+    {
+      "name": "resource_ceiling_each_field",
+      "points": [
+        "zero_reject",
+        "one_accept",
+        "integer_maximum_accept"
+      ]
+    },
+    {
+      "name": "migration_predecessor_cardinality",
+      "points": [
+        "genesis_zero_accept",
+        "genesis_one_reject",
+        "coexist_zero_reject",
+        "coexist_one_accept",
+        "bulk_zero_reject",
+        "bulk_one_accept"
+      ]
+    },
+    {
+      "name": "release_encoding",
+      "points": [
+        "empty",
+        "canonical",
+        "maximum_plus_one",
+        "trailing_byte",
+        "wrong_version",
+        "unknown_status_discriminant",
+        "counterfeit_release_id"
+      ]
+    },
+    {
+      "name": "content_identity",
+      "points": [
+        "each_schema_root",
+        "command_variants_root",
+        "guest_image_id",
+        "spec_root",
+        "source_root",
+        "toolchain_root",
+        "terminal_status_and_root",
+        "migration_mode_predecessor_and_root",
+        "lane_id",
+        "each_resource_ceiling",
+        "lifecycle_status_exclusion"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "trust a caller-supplied release ID without recomputing every content field",
+      "killed_by": "tests/test_lane_module_release_v1.py::test_lane_module_release_rust_contract"
+    },
+    {
+      "description": "include lifecycle status in content identity or omit it from the release-record commitment",
+      "killed_by": "tests/test_lane_module_release_v1.py::test_lane_module_release_rust_contract"
+    },
+    {
+      "description": "accept a skipped, repeated, reverse, or post-revocation lifecycle transition",
+      "killed_by": "tests/test_lane_module_release_v1.py::test_lane_module_release_rust_contract"
+    },
+    {
+      "description": "grant current admission to terminal-incomplete or disallowed release status",
+      "killed_by": "tests/test_lane_module_release_v1.py::test_lane_module_release_rust_contract"
+    },
+    {
+      "description": "accept a missing or unexpected migration predecessor or a zero resource ceiling",
+      "killed_by": "tests/test_lane_module_release_v1.py::test_lane_module_release_rust_contract"
+    },
+    {
+      "description": "accept counterfeit, stale, trailing, oversized, malformed, or noncanonical release bytes",
+      "killed_by": "tests/test_lane_module_release_v1.py::test_lane_module_release_rust_contract"
+    },
+    {
+      "description": "omit a LaneModuleRelease implementation or assurance source from the exact ZRPF inventory",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not establish a canonical lane release registry, release-set root, lifecycle-history proof, governance authorization, equivalence proof, coexistence theorem, or migration certificate.",
+    "This packet does not provide command-to-lane derivation, route selection, module transition semantics, global effects, recursive proof authority, profile activation, ZenoLedger publication, or no-bypass evidence.",
+    "An ActiveNew record is ordinary typed data and carries no settlement authority. This packet does not establish complete M6 workflow coverage, production readiness, or ShapeForge promoted-bundle status."
+  ]
+}
