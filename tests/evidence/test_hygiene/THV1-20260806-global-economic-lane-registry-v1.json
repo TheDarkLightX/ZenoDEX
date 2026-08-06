@@ -19,7 +19,8 @@
     "two implementations commit different bytes for the same lane registry",
     "oversized, trailing, stale-version, or noncanonical registry bytes decode",
     "a rejected lane resolution changes committed registry state",
-    "a GlobalSettlementABI implementation or contract test is omitted from the governed ZRPF source closure"
+    "a GlobalSettlementABI implementation or contract test is omitted from the governed ZRPF source closure",
+    "the Rust contract launcher leaves compiler output in the governed source tree and makes later evidence order-dependent"
   ],
   "source_pins": [
     {
@@ -67,7 +68,7 @@
   "test_pins": [
     {
       "path": "tests/test_global_settlement_abi_v1.py",
-      "sha256": "daa412e70fdc6abe489a6193813d414acdf3084182ae7d9169ed8c9d85c13064",
+      "sha256": "c0da00622ccb12b740a3d3ae1a3cc835517b6a4c8d7f59c12f1c4a5221f76730",
       "node_ids": [
         "tests/test_global_settlement_abi_v1.py::test_global_settlement_lane_registry_rust_contract"
       ]
@@ -182,6 +183,10 @@
     },
     {
       "description": "omit a new GlobalSettlementABI source or assurance test from the governed ZRPF inventory",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    },
+    {
+      "description": "allow the Rust contract launcher to write Cargo output under the governed workspace before source-closure checks",
       "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
     }
   ],
