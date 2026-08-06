@@ -4,6 +4,7 @@ extern crate alloc;
 
 mod economic_action_v1;
 mod full_blob_da_v1;
+mod global_settlement_abi_v1;
 mod semantic_epoch_v1;
 mod semantic_epoch_v2;
 mod settlement_certificate_v1;
@@ -17,6 +18,7 @@ mod value_transfer_v2;
 
 pub use economic_action_v1::*;
 pub use full_blob_da_v1::*;
+pub use global_settlement_abi_v1::*;
 pub use semantic_epoch_v1::*;
 pub use semantic_epoch_v2::*;
 pub use settlement_certificate_v1::*;

@@ -1,0 +1,198 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-global-economic-lane-registry-v1",
+  "created_date": "2026-08-06",
+  "claim_scope": "GlobalSettlementABI V1 exposes exactly twelve stable economic lane IDs in one canonical committed registry and rejects unknown, malformed, omitted, duplicate, reordered, and disabled lane admission without mutation.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GSA-V1-CLOSED-LANE-VOCABULARY",
+    "GSA-V1-TOTAL-CANONICAL-LANE-REGISTRY",
+    "GSA-V1-DISABLED-LANE-REJECT",
+    "GSA-V1-CANONICAL-REGISTRY-COMMITMENT",
+    "GSA-V1-REJECT-IS-NOOP"
+  ],
+  "failure_modes": [
+    "an unknown or malformed lane identifier is accepted",
+    "a disabled lane admits a new command",
+    "a registry omits, duplicates, or reorders a lane",
+    "two implementations commit different bytes for the same lane registry",
+    "oversized, trailing, stale-version, or noncanonical registry bytes decode",
+    "a rejected lane resolution changes committed registry state",
+    "a GlobalSettlementABI implementation or contract test is omitted from the governed ZRPF source closure",
+    "the Rust contract launcher leaves compiler output in the governed source tree and makes later evidence order-dependent"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/zrpf_v3_source_closure.py",
+      "sha256": "db42565d322c9f580c499b87a01639086c876501be6ce6e87c4bc014e5be34d3"
+    },
+    {
+      "path": "zk/zrpf_protocol/README.md",
+      "sha256": "496de263ed31a26489294646f9b5ebc737c68aeb4b604e082022c8b18f1d8800"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+      "sha256": "6b5d5409dd3f07ff3c530dfef35747a5e5da7b2d96c58de6b0bfaf15368760a2"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/lib.rs",
+      "sha256": "794f9b76aa3196eeed4b4aa17c8372a00b10e2982f134cd75884550adb8cbf91"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/codec.rs",
+      "sha256": "fb9d05df3d887660181470fb21c42d2afe5b186203ae47a28878faed032d3e50"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/error.rs",
+      "sha256": "23b6c49de8d8597680b5d38cb4b244a234032838c7e0da668fb193d81c3c1eaa"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane.rs",
+      "sha256": "ac6e66328ef22c39f4ab8ead6fff8040f2d0a56991e0aae05012485f65c93419"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+      "sha256": "d3f5696e6ddff2e140c94b957ae0b22c4c14641cd3422cb335f5a996809b377f"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/registry.rs",
+      "sha256": "9acc868b55bfd503995366852802db00dbfab514ec2c5ba177476e6e5b46c57e"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/global_settlement_abi_v1.rs",
+      "sha256": "c7ef4f5ad137b60d55f0b422a693d7a4390a35e89641ff69ff610618ab597409"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_global_settlement_abi_v1.py",
+      "sha256": "c0da00622ccb12b740a3d3ae1a3cc835517b6a4c8d7f59c12f1c4a5221f76730",
+      "node_ids": [
+        "tests/test_global_settlement_abi_v1.py::test_global_settlement_lane_registry_rust_contract"
+      ]
+    },
+    {
+      "path": "tests/test_zrpf_v3_source_closure.py",
+      "sha256": "56a93be537867d578b00907cfe2678d3bc20f7a01d00dc63e52a10019bfcda9d",
+      "node_ids": [
+        "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory",
+        "tests/test_zrpf_v3_source_closure.py::test_global_settlement_abi_sources_have_exact_roles",
+        "tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest",
+        "tests/test_zrpf_v3_source_closure.py::test_workspace_inventory_rejects_unlisted_rust_even_with_build_false"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Focused Rust regressions and the pytest launcher use explicit arrangement, one operation under examination, and exact accepted value, rejection, commitment, or process assertions."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Unknown, malformed, and disabled lane rejects compare the immutable registry value before and after; identifier rejects also compare the canonical commitment."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "lane_identifier_shape",
+      "points": [
+        "empty",
+        "known_length_minus_one",
+        "known_exact",
+        "known_length_plus_one",
+        "case_mutation",
+        "whitespace",
+        "embedded_nul",
+        "unknown"
+      ]
+    },
+    {
+      "name": "lane_code",
+      "points": [
+        "zero",
+        "maximum_known_eleven",
+        "first_unknown_twelve",
+        "u8_maximum"
+      ]
+    },
+    {
+      "name": "registry_cardinality",
+      "points": [
+        "zero",
+        "one",
+        "minimum_minus_one_eleven",
+        "exact_twelve",
+        "exact_plus_one_thirteen"
+      ]
+    },
+    {
+      "name": "lane_command_status",
+      "points": [
+        "disabled_reject",
+        "enabled_admit"
+      ]
+    },
+    {
+      "name": "registry_encoding",
+      "points": [
+        "empty",
+        "canonical",
+        "trailing_byte",
+        "unknown_lane_discriminant",
+        "unknown_status_discriminant",
+        "wrong_version",
+        "maximum_plus_one"
+      ]
+    },
+    {
+      "name": "registry_set_shape",
+      "points": [
+        "canonical_unique_order",
+        "duplicate_lane",
+        "adjacent_reorder"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "replace exact closed lane matching with permissive case or prefix matching",
+      "killed_by": "tests/test_global_settlement_abi_v1.py::test_global_settlement_lane_registry_rust_contract"
+    },
+    {
+      "description": "admit a new command when its lane status is Disabled",
+      "killed_by": "tests/test_global_settlement_abi_v1.py::test_global_settlement_lane_registry_rust_contract"
+    },
+    {
+      "description": "drop exact twelve-row cardinality or canonical-order validation",
+      "killed_by": "tests/test_global_settlement_abi_v1.py::test_global_settlement_lane_registry_rust_contract"
+    },
+    {
+      "description": "change registry commitment field order, status code, or domain separator",
+      "killed_by": "tests/test_global_settlement_abi_v1.py::test_global_settlement_lane_registry_rust_contract"
+    },
+    {
+      "description": "accept trailing, oversized, stale-version, or noncanonical registry bytes",
+      "killed_by": "tests/test_global_settlement_abi_v1.py::test_global_settlement_lane_registry_rust_contract"
+    },
+    {
+      "description": "omit a new GlobalSettlementABI source or assurance test from the governed ZRPF inventory",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    },
+    {
+      "description": "allow the Rust contract launcher to write Cargo output under the governed workspace before source-closure checks",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not establish module release validity, content-derived release identity, route selection, command-to-lane mapping, or profile governance.",
+    "This packet does not provide a module transition, recursive proof, verifier receipt, migration certificate, ZenoLedger publication path, no-bypass result, or value-moving authority.",
+    "This packet does not establish complete M6 workflow coverage, whole-economy conservation, production readiness, or ShapeForge promoted-bundle status."
+  ]
+}
