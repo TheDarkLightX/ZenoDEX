@@ -1,0 +1,63 @@
+name: test-hygiene
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deterministic development tooling
+        run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+
+      - name: Fetch pull-request base
+        if: github.event_name == 'pull_request'
+        run: git fetch origin "${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}"
+
+      - name: Validate static hygiene contract
+        run: python tools/check_test_hygiene_v1.py --json
+
+      - name: Enforce diff-aware evidence and run declared tests
+        if: github.event_name == 'pull_request'
+        run: python tools/run_test_hygiene_gate_v1.py --base-ref "origin/${{ github.base_ref }}" --json
+
+      - name: Run permanent hygiene regressions
+        if: github.event_name != 'pull_request'
+        run: pytest -q tests/test_check_test_hygiene_v1.py tests/test_run_test_hygiene_gate_v1.py
+
+      - name: Lint hygiene implementation
+        run: >-
+          ruff check
+          tools/check_test_hygiene_v1.py
+          tools/run_test_hygiene_gate_v1.py
+          tools/test_hygiene_evidence_v1.py
+          tools/test_hygiene_model_v1.py
+          tests/test_check_test_hygiene_v1.py
+          tests/test_run_test_hygiene_gate_v1.py
+
+      - name: Type-check hygiene implementation
+        run: >-
+          mypy
+          tools/check_test_hygiene_v1.py
+          tools/run_test_hygiene_gate_v1.py
+          tools/test_hygiene_evidence_v1.py
+          tools/test_hygiene_model_v1.py
+          tests/test_check_test_hygiene_v1.py
+          tests/test_run_test_hygiene_gate_v1.py
