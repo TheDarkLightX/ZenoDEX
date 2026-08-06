@@ -93,6 +93,10 @@ path = "tests/lane_module_release_registry_v1.rs"
 name = "route_release_v1"
 path = "tests/route_release_v1.rs"
 
+[[test]]
+name = "route_release_registry_v1"
+path = "tests/route_release_registry_v1.rs"
+
 [dependencies]
 postcard = { version = "1.1.3", default-features = false, features = ["alloc"] }
 serde = { version = "1.0.219", default-features = false, features = ["alloc", "derive"] }
