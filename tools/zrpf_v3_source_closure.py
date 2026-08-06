@@ -96,6 +96,8 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
         "zk/zrpf_protocol/protocol/tests/economic_action_v1.rs",
         "zk/zrpf_protocol/protocol/tests/full_blob_da_v1.rs",
         "zk/zrpf_protocol/protocol/tests/global_settlement_abi_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/lane_module_release_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/lane_module_release_v1/identity.rs",
         "zk/zrpf_protocol/protocol/tests/node_v3.rs",
         "zk/zrpf_protocol/protocol/tests/semantic_epoch_v1.rs",
         "zk/zrpf_protocol/protocol/tests/settlement_certificate_v1.rs",
@@ -217,7 +219,27 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             ),
             (
                 "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release_codec.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release_types.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
                 "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/release_error.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/release_id.rs",
             ),
             (
                 "global_settlement_abi_v1",

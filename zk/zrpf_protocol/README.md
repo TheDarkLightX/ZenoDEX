@@ -22,6 +22,10 @@ The crate currently provides:
   explicit enabled/disabled command status, module-release-registry roots,
   canonical ordering, exact bounded Postcard decoding, and a domain-separated
   registry commitment;
+- a content-derived `LaneModuleReleaseV1` binding one lane's schemas, command
+  variants, guest image, provenance, terminal coverage, migration metadata,
+  and resource ceilings to a nonzero release ID, with a closed seven-state
+  lifecycle and exact bounded Postcard decoding;
 - an action-bound `AuthorizationConsumptionNullifierV1` compatibility identity
   for binding a canonical action to a grant;
 - an `AuthorizationGrantSpendNullifierV1` derived only from application,
@@ -80,6 +84,13 @@ module-release-registry roots are committed inputs. This slice does not verify
 the releases behind those roots, derive a lane from a typed command variant,
 select a route, prove a transition, or grant publication authority. A resolved
 lane enum is ordinary typed data rather than an authority witness.
+
+The lane module release contract derives implementation identity from exact
+typed content and commits lifecycle status separately. Only `ActiveNew` admits
+new objects; `ActiveNew` and `DrainOnly` admit existing-object transitions.
+These are structural admission predicates. No release set, governance history,
+profile verifier, guest receipt, route, or publisher authenticates a release in
+this slice, so even an `ActiveNew` record carries no settlement authority.
 
 The settlement certificate is a canonical proof-neutral journal. Its source
 claim binding and DA, schedule, carry, plan, and state roots remain
