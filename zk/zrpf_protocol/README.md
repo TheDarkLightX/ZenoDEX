@@ -18,6 +18,10 @@ The crate currently provides:
 - a bounded fanout-8, depth-2 profile covering at most 64 leaves;
 - a bounded canonical `EconomicActionRecordV1` whose action ID excludes proof,
   receipt, salt, and signature representation fields;
+- a closed `GlobalEconomicLaneRegistryV1` with the twelve stable M6 lane IDs,
+  explicit enabled/disabled command status, module-release-registry roots,
+  canonical ordering, exact bounded Postcard decoding, and a domain-separated
+  registry commitment;
 - an action-bound `AuthorizationConsumptionNullifierV1` compatibility identity
   for binding a canonical action to a grant;
 - an `AuthorizationGrantSpendNullifierV1` derived only from application,
@@ -69,6 +73,13 @@ action-bound compatibility identity is not a single-use grant key. The
 grant-spend nullifier supplies that key, while this crate does not verify a
 signature or grant, derive ZenoDEX effect semantics, persist uniqueness state,
 or authorize value movement.
+
+The global economic lane registry closes the lane-name vocabulary and rejects
+unknown, malformed, omitted, duplicated, reordered, and disabled lanes. Its
+module-release-registry roots are committed inputs. This slice does not verify
+the releases behind those roots, derive a lane from a typed command variant,
+select a route, prove a transition, or grant publication authority. A resolved
+lane enum is ordinary typed data rather than an authority witness.
 
 The settlement certificate is a canonical proof-neutral journal. Its source
 claim binding and DA, schedule, carry, plan, and state roots remain
