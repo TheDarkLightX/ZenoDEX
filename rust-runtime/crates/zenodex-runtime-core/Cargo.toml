@@ -12,6 +12,7 @@ sha2.workspace = true
 thiserror.workspace = true
 hex.workspace = true
 num-bigint.workspace = true
+zenodex-asset-transfer-core = { path = "../../../zk/zrpf_protocol/asset_transfer_core" }
 
 [dev-dependencies]
 proptest.workspace = true

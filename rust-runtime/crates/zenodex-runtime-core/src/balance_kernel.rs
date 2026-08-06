@@ -15,13 +15,17 @@
 use std::collections::BTreeMap;
 
 use thiserror::Error;
+use zenodex_asset_transfer_core::{
+    settle_transfer_balances_v1, AssetTransferArithmeticRejectV1,
+    MAX_ASSET_TRANSFER_BALANCE_ATOMS_V1,
+};
 
 use crate::canonical::{
     domain_sep_bytes, encode_bytes, encode_uvarint, hex_to_bytes_fixed, sha256_hex,
 };
 
 /// Bound on any balance / amount (matches the fee-router u128 boundary).
-pub const MAX_BALANCE: u128 = (1u128 << 112) - 1;
+pub const MAX_BALANCE: u128 = MAX_ASSET_TRANSFER_BALANCE_ATOMS_V1;
 const PUBKEY_NBYTES: usize = 48;
 const ASSET_NBYTES: usize = 32;
 const STATE_LABEL: &str = "balance_table";
@@ -239,14 +243,15 @@ fn settle_transfer_amounts(
     recipient_balance: u128,
     amount: u128,
 ) -> Result<(u128, u128), BalanceRejectedReason> {
-    if sender_balance < amount {
-        return Err(BalanceRejectedReason::InsufficientBalance);
+    match settle_transfer_balances_v1(sender_balance, recipient_balance, amount) {
+        Ok(post) => Ok((post.source_atoms(), post.destination_atoms())),
+        Err(AssetTransferArithmeticRejectV1::InsufficientBalance) => {
+            Err(BalanceRejectedReason::InsufficientBalance)
+        }
+        Err(AssetTransferArithmeticRejectV1::BalanceOverflow) => {
+            Err(BalanceRejectedReason::BalanceOverflow)
+        }
     }
-    let new_recipient = recipient_balance
-        .checked_add(amount)
-        .filter(|v| *v <= MAX_BALANCE)
-        .ok_or(BalanceRejectedReason::BalanceOverflow)?;
-    Ok((sender_balance - amount, new_recipient))
 }
 
 /// Pure arithmetic core of [`credit`]: the recipient's post-balance for a

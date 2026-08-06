@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 430
+    assert document["file_count"] == 439
     semantic_v2_roles = {
         "semantic_mapping_v2",
         "semantic_protocol_v2",
@@ -125,6 +125,24 @@ def test_current_clean_checkout_matches_exact_source_inventory() -> None:
         row["path"] for row in document["files"]
     )
     assert not closure.check_source_closure(document, REPO_ROOT)
+
+
+def test_asset_transfer_module_sources_have_exact_roles() -> None:
+    document = closure.build_source_closure(REPO_ROOT)
+
+    assert {
+        row["path"]
+        for row in document["files"]
+        if row["role"] == "asset_transfer_module_v1"
+    } == {
+        "zk/zrpf_protocol/asset_transfer_core/src/lib.rs",
+        "zk/zrpf_protocol/protocol/src/asset_transfer_v1/codec.rs",
+        "zk/zrpf_protocol/protocol/src/asset_transfer_v1/error.rs",
+        "zk/zrpf_protocol/protocol/src/asset_transfer_v1/hash.rs",
+        "zk/zrpf_protocol/protocol/src/asset_transfer_v1/mod.rs",
+        "zk/zrpf_protocol/protocol/src/asset_transfer_v1/transition.rs",
+        "zk/zrpf_protocol/protocol/src/asset_transfer_v1/types.rs",
+    }
 
 
 def test_global_settlement_abi_sources_have_exact_roles() -> None:

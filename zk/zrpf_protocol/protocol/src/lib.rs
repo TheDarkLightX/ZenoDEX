@@ -2,6 +2,7 @@
 
 extern crate alloc;
 
+mod asset_transfer_v1;
 mod economic_action_v1;
 mod full_blob_da_v1;
 mod global_settlement_abi_v1;
@@ -16,6 +17,7 @@ mod value_aggregate_v5;
 mod value_node_v4;
 mod value_transfer_v2;
 
+pub use asset_transfer_v1::*;
 pub use economic_action_v1::*;
 pub use full_blob_da_v1::*;
 pub use global_settlement_abi_v1::*;
