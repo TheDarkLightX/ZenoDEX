@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zeno Mutation Hardener"
+  short_description: "Strengthen tests from surviving mutants"
+  default_prompt: "Use $zeno-mutation-hardener to run a survivor-driven mutation campaign and emit a kill matrix for this authority change."

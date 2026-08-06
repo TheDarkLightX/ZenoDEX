@@ -1,0 +1,28 @@
+schema: zeno.fault-model/v1
+system: REPLACE-ME
+revision: REPLACE-ME
+fault_families:
+  - id: binding_omission
+    description: Authority-relevant data is omitted from an identity or commitment.
+  - id: stale_authority
+    description: A stale policy, release, state revision, domain, or epoch is accepted.
+  - id: incomplete_set
+    description: An exact resource, receipt, child, or effect set is incomplete or aliased.
+  - id: canonicality_confusion
+    description: Multiple representations are accepted for one authority value.
+  - id: reject_precedence
+    description: A later rejection masks a missing earlier guard.
+  - id: rejection_side_effect
+    description: Rejection mutates balances, roots, history, replay, or durable state.
+  - id: arithmetic_semantics
+    description: Conservation, bounds, overflow, sign, or rounding semantics are violated.
+  - id: replay_exact_once
+    description: Retry, duplicate, or response loss creates the wrong number of effects.
+  - id: concurrency
+    description: An interleaving violates the sequential specification.
+  - id: crash_atomicity
+    description: Crash and restart expose partial or duplicate authoritative state.
+  - id: proof_integration
+    description: A proof fails to bind intended guest, journal, child set, or ledger effect.
+  - id: migration_bypass
+    description: Old and new authority paths overlap or permit an ungoverned fallback.
