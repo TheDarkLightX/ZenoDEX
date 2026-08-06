@@ -1,0 +1,205 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-economic-command-occurrence-v1",
+  "created_date": "2026-08-06",
+  "claim_scope": "EconomicCommandOccurrenceV1 adds one content-derived canonical ledger position, exact economic profile, writer epoch, route release, and existing authorized action envelope; active-profile binding constructs a private non-serializable structural witness only after exact profile, writer, registry, route, and command-variant checks, while granting no authentication, proof, settlement, or publication authority.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ECO-V1-STABLE-ACTION-ABI",
+    "ECO-V1-ONE-OWNED-AUTHORIZED-ACTION",
+    "ECO-V1-CANONICAL-OCCURRENCE-POSITION",
+    "ECO-V1-CONTENT-DERIVED-IDENTITY",
+    "ECO-V1-EXACT-ACTIVE-PROFILE",
+    "ECO-V1-EXACT-WRITER-EPOCH",
+    "ECO-V1-EXACT-ROUTE-REGISTRY-ROOT",
+    "ECO-V1-GOVERNED-ROUTE-OCCURRENCE",
+    "ECO-V1-COMMAND-ROUTE-VARIANT-EQUALITY",
+    "ECO-V1-PRIVATE-NONSERIALIZABLE-STRUCTURAL-WITNESS",
+    "ECO-V1-CANONICAL-BOUNDED-CODEC",
+    "ECO-V1-REJECT-IS-NO-AUTHORITY"
+  ],
+  "failure_modes": [
+    "the occurrence duplicates and can disagree with action subject, grant, nonce, pre-state, effects, or consumed objects",
+    "height, transaction index, operation index, profile, writer epoch, route, or authorized action is omitted from occurrence identity",
+    "an occurrence created under an old profile binds after profile activation",
+    "a stale writer epoch binds under the active profile",
+    "a foreign route registry is queried as if the profile governed it",
+    "an unregistered route release binds",
+    "a route for another command variant binds",
+    "downstream code constructs or serializes the profile-bound witness directly",
+    "empty, oversized, wrong-version, counterfeit, trailing, noncanonical, or unknown-field bytes decode",
+    "an occurrence source or test escapes the governed ZRPF source closure"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZRPF_ECONOMIC_COMMAND_OCCURRENCE_V1_SPEC_20260806.md",
+      "sha256": "5c4472a4f0f1bd6ddf939a0780beab19ced29e268c1b8fdc07ef5e5184d8f382"
+    },
+    {
+      "path": "tools/zrpf_v3_source_closure.py",
+      "sha256": "20e490cbad16651280b65d873fd801ae94cd62e236116c64e77ef489eb024c1a"
+    },
+    {
+      "path": "zk/zrpf_protocol/README.md",
+      "sha256": "f9b356fbb69e4f83da10975b9625209dc13d19d1a5fa48c45dbab2e6b2395e4e"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+      "sha256": "64ffe0682982ba8184fc37d459b28b7eda608847ec1e661bb9b2d3864a1f5feb"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+      "sha256": "2498add01778db8b3f596b5f70d01c831857a0252ecc7fe47bfa8e1cb768bd32"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_command_occurrence.rs",
+      "sha256": "44916dc474ddde13eaf15ae7f9edf508c30068eb62fa10c3d27710e483a86f57"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_command_occurrence_error.rs",
+      "sha256": "8c1aa79bf4cc36db21c0319ff99fb9225b760874424ee62d44acc9e57625748b"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1.rs",
+      "sha256": "e70967e707f7ba3005162b4dceef173ce8b473a91a34a46ae9ebc867c00b7ff2"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/codec.rs",
+      "sha256": "b14a89e61e1782cf910484ab7b4d3a1e213919ee4938f508228c2e4e5fe69bb5"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/support.rs",
+      "sha256": "5f4887acb63b982d090412733be20748e7125dff656f79d6de9c2aaf6934d52a"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_economic_command_occurrence_v1.py",
+      "sha256": "5789ed6a98b783caa26d759dd2e6bdf8d30acd6418c7259f4114b270c8c02eed",
+      "node_ids": [
+        "tests/test_economic_command_occurrence_v1.py::test_economic_command_occurrence_rust_contract"
+      ]
+    },
+    {
+      "path": "tests/test_zrpf_v3_source_closure.py",
+      "sha256": "c21a7b83032a35b76e19ac9fb1fc03133c5e31b56aecaff5e12449342c623f61",
+      "node_ids": [
+        "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory",
+        "tests/test_zrpf_v3_source_closure.py::test_global_settlement_abi_sources_have_exact_roles",
+        "tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest",
+        "tests/test_zrpf_v3_source_closure.py::test_workspace_inventory_rejects_unlisted_rust_even_with_build_false"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "All eleven Rust contract tests use explicit Arrange, Act, and Assert phases for occurrence identity, position BVA, active-profile binding, stale and substituted inputs, exact codec behavior, and fixed vectors; the isolated pytest launcher asserts the exact eleven-test result."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Occurrence validation and profile binding consume immutable references and return a typed error without a candidate witness, route substitution, effect plan, replay update, or mutable state; the stale-profile regression confirms the ordinary occurrence remains unchanged after rejection."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "occurrence_position",
+      "points": [
+        "height_tx_op_zero_accept",
+        "op_plus_one_orders_next",
+        "tx_plus_one_orders_after_op",
+        "height_plus_one_orders_after_tx",
+        "u64_u32_u32_max_accept"
+      ]
+    },
+    {
+      "name": "occurrence_identity",
+      "points": [
+        "baseline_fixed_id",
+        "changed_height",
+        "changed_tx_index",
+        "changed_op_index",
+        "changed_profile",
+        "changed_writer_epoch",
+        "changed_route",
+        "changed_authorized_action"
+      ]
+    },
+    {
+      "name": "active_profile_binding_outcome_partition",
+      "points": [
+        "exact_binding_accept",
+        "stale_profile_reject",
+        "wrong_writer_epoch_reject",
+        "foreign_registry_root_reject",
+        "unknown_route_release_reject",
+        "command_variant_mismatch_reject"
+      ]
+    },
+    {
+      "name": "occurrence_encoding",
+      "points": [
+        "empty_reject",
+        "canonical_roundtrip_accept",
+        "maximum_plus_one_bytes_reject",
+        "wrong_version_reject",
+        "counterfeit_id_reject",
+        "trailing_byte_reject",
+        "unknown_field_reject",
+        "fixed_encoded_digest"
+      ]
+    },
+    {
+      "name": "witness_construction_mechanism",
+      "points": [
+        "binder_constructs_accept",
+        "direct_field_construction_compile_fail",
+        "serialization_compile_fail"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "omit or reorder one occurrence identity field",
+      "killed_by": "tests/test_economic_command_occurrence_v1.py::test_economic_command_occurrence_rust_contract"
+    },
+    {
+      "description": "duplicate subject, grant, nonce, pre-state, effects, or consumed objects outside the nested authorized action",
+      "killed_by": "tests/test_economic_command_occurrence_v1.py::test_economic_command_occurrence_rust_contract"
+    },
+    {
+      "description": "skip active profile or writer epoch equality",
+      "killed_by": "tests/test_economic_command_occurrence_v1.py::test_economic_command_occurrence_rust_contract"
+    },
+    {
+      "description": "query an unbound registry or accept an unknown route or mismatched command variant",
+      "killed_by": "tests/test_economic_command_occurrence_v1.py::test_economic_command_occurrence_rust_contract"
+    },
+    {
+      "description": "make profile-bound witness fields public or derive wire serialization",
+      "killed_by": "tests/test_economic_command_occurrence_v1.py::test_economic_command_occurrence_rust_contract"
+    },
+    {
+      "description": "accept wrong-version, counterfeit, trailing, unknown-field, empty, or oversized occurrence input",
+      "killed_by": "tests/test_economic_command_occurrence_v1.py::test_economic_command_occurrence_rust_contract"
+    },
+    {
+      "description": "omit an EconomicCommandOccurrence source or test from the exact ZRPF inventory",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    }
+  ],
+  "nonclaims": [
+    "EconomicCommandOccurrenceV1 and AuthorizedEconomicActionV1 are ordinary canonical data. They do not authenticate a command, signature, grant issuance, state lookup, or durable nullifier uniqueness.",
+    "ProfileBoundEconomicCommandOccurrenceV1 proves only the implemented structural relations. It has no cryptographic receipt, guest-image, route-composition, epoch-verification, settlement, or publication authority.",
+    "The route is checked for exact governed membership and command-variant equality. This slice does not derive module-release selection from authenticated creating-release pins or close ActiveNew versus DrainOnly lifecycle purpose.",
+    "No Python, Tau, Lean, Kani, SMT, RISC0 guest, release-aware verifier, ZenoLedger publisher, migration, API, UI, or runtime refinement is implemented.",
+    "This packet does not establish whole-economy proof coverage, formal verification, production readiness, RC status, or ShapeForge promoted-bundle status."
+  ]
+}

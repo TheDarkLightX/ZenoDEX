@@ -94,6 +94,9 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
     ("assurance_compiler_source", path)
     for path in (
         "zk/zrpf_protocol/protocol/tests/economic_action_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/codec.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/support.rs",
         "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1.rs",
         "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/binding.rs",
         "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/codec.rs",
@@ -228,6 +231,14 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             (
                 "global_settlement_abi_v1",
                 "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/codec.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_command_occurrence.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_command_occurrence_error.rs",
             ),
             (
                 "global_settlement_abi_v1",
