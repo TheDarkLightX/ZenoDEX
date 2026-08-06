@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 327
+    assert document["file_count"] == 333
     semantic_v2_roles = {
         "semantic_mapping_v2",
         "semantic_protocol_v2",
@@ -125,6 +125,28 @@ def test_current_clean_checkout_matches_exact_source_inventory() -> None:
         row["path"] for row in document["files"]
     )
     assert not closure.check_source_closure(document, REPO_ROOT)
+
+
+def test_global_settlement_abi_sources_have_exact_roles() -> None:
+    document = closure.build_source_closure(REPO_ROOT)
+
+    global_abi_paths = {
+        row["path"] for row in document["files"] if row["role"] == "global_settlement_abi_v1"
+    }
+    assurance_paths = {
+        row["path"]
+        for row in document["files"]
+        if row["role"] == "assurance_compiler_source"
+    }
+
+    assert global_abi_paths == {
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/codec.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/error.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/registry.rs",
+    }
+    assert "zk/zrpf_protocol/protocol/tests/global_settlement_abi_v1.rs" in assurance_paths
 
 
 def test_checker_rejects_a_rebound_source_digest() -> None:
