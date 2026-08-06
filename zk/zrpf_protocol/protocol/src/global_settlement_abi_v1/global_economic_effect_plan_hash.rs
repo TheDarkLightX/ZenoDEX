@@ -14,6 +14,10 @@ const EFFECT_ROWS_ROOT_DOMAIN_V1: &[u8] = b"zenodex.global_settlement.effect_row
 const EFFECT_SEMANTIC_ROW_DOMAIN_V1: &[u8] = b"zenodex.global_settlement.effect_semantic_row.v1";
 const EFFECT_SEMANTICS_ROOT_DOMAIN_V1: &[u8] =
     b"zenodex.global_settlement.effect_semantics_root.v1";
+const LANE_EFFECT_ROWS_ROOT_DOMAIN_V1: &[u8] =
+    b"zenodex.global_settlement.lane_effect_rows_root.v1";
+const LANE_TERMINAL_OBLIGATIONS_ROOT_DOMAIN_V1: &[u8] =
+    b"zenodex.global_settlement.lane_terminal_obligations_root.v1";
 const RECONCILIATION_DOMAIN_V1: &[u8] = b"zenodex.global_settlement.asset_reconciliation.v1";
 const RECONCILIATIONS_ROOT_DOMAIN_V1: &[u8] =
     b"zenodex.global_settlement.asset_reconciliations_root.v1";
@@ -229,6 +233,44 @@ pub(super) fn effect_semantics_root_v1(
         EFFECT_SEMANTICS_ROOT_DOMAIN_V1,
         &values,
         "effect_semantics_root",
+    )
+}
+
+pub(super) fn lane_effect_rows_root_v1(
+    rows: &[GlobalEconomicEffectRowV1],
+    lane_id: super::EconomicLaneIdV1,
+) -> Result<CommitmentV3, GlobalEconomicEffectPlanErrorV1> {
+    let values = rows
+        .iter()
+        .filter(|row| row.lane_id() == Some(lane_id))
+        .map(effect_row_id_v1)
+        .collect::<Result<Vec<_>, _>>()?;
+    list_root(
+        LANE_EFFECT_ROWS_ROOT_DOMAIN_V1,
+        &values,
+        "lane_effect_rows_root",
+    )
+}
+
+pub(super) fn lane_terminal_obligations_root_v1(
+    rows: &[GlobalEconomicEffectRowV1],
+    lane_id: super::EconomicLaneIdV1,
+) -> Result<CommitmentV3, GlobalEconomicEffectPlanErrorV1> {
+    let values = rows
+        .iter()
+        .filter(|row| {
+            row.lane_id() == Some(lane_id)
+                && matches!(
+                    row.content(),
+                    GlobalEconomicEffectContentV1::TerminalObligation { .. }
+                )
+        })
+        .map(effect_row_id_v1)
+        .collect::<Result<Vec<_>, _>>()?;
+    list_root(
+        LANE_TERMINAL_OBLIGATIONS_ROOT_DOMAIN_V1,
+        &values,
+        "lane_terminal_obligations_root",
     )
 }
 

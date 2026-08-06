@@ -84,6 +84,22 @@ impl LaneModuleSchemaRootsV1 {
         }
     }
 
+    pub const fn state_schema_root(self) -> CommitmentV3 {
+        self.state_schema_root
+    }
+
+    pub const fn command_schema_root(self) -> CommitmentV3 {
+        self.command_schema_root
+    }
+
+    pub const fn effect_schema_root(self) -> CommitmentV3 {
+        self.effect_schema_root
+    }
+
+    pub const fn private_port_schema_root(self) -> CommitmentV3 {
+        self.private_port_schema_root
+    }
+
     pub(super) fn update_hasher(self, hasher: &mut Sha256) {
         update_commitment(hasher, self.state_schema_root);
         update_commitment(hasher, self.command_schema_root);
@@ -113,6 +129,22 @@ impl LaneModuleProvenanceRootsV1 {
             source_root,
             toolchain_root,
         }
+    }
+
+    pub const fn guest_image_id(self) -> ProgramIdV3 {
+        self.guest_image_id
+    }
+
+    pub const fn spec_root(self) -> CommitmentV3 {
+        self.spec_root
+    }
+
+    pub const fn source_root(self) -> CommitmentV3 {
+        self.source_root
+    }
+
+    pub const fn toolchain_root(self) -> CommitmentV3 {
+        self.toolchain_root
     }
 
     pub(super) fn update_hasher(self, hasher: &mut Sha256) {
@@ -321,6 +353,18 @@ impl LaneModuleReleaseContentV1 {
 
     pub const fn lane_id(&self) -> EconomicLaneIdV1 {
         self.lane_id
+    }
+
+    pub const fn schemas(&self) -> LaneModuleSchemaRootsV1 {
+        self.schemas
+    }
+
+    pub const fn command_variants_root(&self) -> CommitmentV3 {
+        self.command_variants_root
+    }
+
+    pub const fn provenance(&self) -> LaneModuleProvenanceRootsV1 {
+        self.provenance
     }
 
     pub const fn terminal(&self) -> LaneModuleTerminalCoverageV1 {

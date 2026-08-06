@@ -25,6 +25,17 @@ mod global_economic_state_codec;
 mod global_economic_state_error;
 mod global_economic_state_types;
 mod lane;
+mod lane_module_transition_journal;
+mod lane_module_transition_journal_binding;
+mod lane_module_transition_journal_codec;
+mod lane_module_transition_journal_error;
+mod lane_module_transition_journal_hash;
+mod lane_module_transition_journal_types;
+mod lane_state_transition;
+mod lane_state_transition_bounded;
+mod lane_state_transition_codec;
+mod lane_state_transition_error;
+mod lane_state_transition_hash;
 mod lifecycle_route_resolver;
 mod module_release;
 mod module_release_codec;
@@ -90,7 +101,8 @@ pub use global_economic_effect_plan_row_inputs::{
 pub use global_economic_effect_plan_types::{
     GlobalAssetReconciliationInputV1, GlobalAssetReconciliationV1, GlobalEconomicEffectBodyInputV1,
     GlobalEconomicEffectKindV1, GlobalEconomicEffectPlanInputV1, GlobalEconomicEffectRowV1,
-    GlobalIssueBurnKindV1, GlobalOccurrenceConsumptionKindV1, GlobalRewardSlashKindV1,
+    GlobalIssueBurnKindV1, GlobalLaneWriteV1, GlobalOccurrenceConsumptionKindV1,
+    GlobalRewardSlashKindV1,
 };
 pub use global_economic_state::GlobalEconomicStateV1;
 pub use global_economic_state_binding::{
@@ -107,6 +119,26 @@ pub use global_economic_state_types::{
     GlobalEconomicStateContentV1, GlobalEconomicStateRootV1,
 };
 pub use lane::{EconomicLaneCommandStatusV1, EconomicLaneIdV1};
+pub use lane_module_transition_journal::LaneModuleTransitionJournalV1;
+pub use lane_module_transition_journal_binding::{
+    bind_accepted_lane_module_transition_journal_v1,
+    bind_rejected_lane_module_transition_journal_v1, BoundLaneModuleTransitionJournalV1,
+};
+pub use lane_module_transition_journal_codec::{
+    decode_exact_lane_module_transition_journal_v1, encode_lane_module_transition_journal_v1,
+};
+pub use lane_module_transition_journal_error::LaneModuleTransitionJournalErrorV1;
+pub use lane_module_transition_journal_types::{
+    LaneModuleAcceptedTransitionInputV1, LaneModuleAcceptedTransitionV1, LaneModuleRejectCodeV1,
+    LaneModuleTransitionJournalInputV1, LaneModuleTransitionOutcomeV1,
+};
+pub use lane_state_transition::{
+    LaneStateOpeningBatchInputV1, LaneStateOpeningBatchV1, LaneStateTransitionWitnessV1,
+};
+pub use lane_state_transition_codec::{
+    decode_exact_lane_state_transition_witness_v1, encode_lane_state_transition_witness_v1,
+};
+pub use lane_state_transition_error::LaneStateTransitionErrorV1;
 pub use module_release::LaneModuleReleaseV1;
 pub use module_release_codec::{
     decode_exact_lane_module_release_v1, encode_lane_module_release_v1,
@@ -168,3 +200,8 @@ pub const GLOBAL_ECONOMIC_EFFECT_PLAN_VERSION_V1: u16 = 1;
 pub const MAX_GLOBAL_ECONOMIC_EFFECT_ROWS_V1: usize = 1_024;
 pub const MAX_GLOBAL_ASSET_RECONCILIATIONS_V1: usize = 256;
 pub const MAX_GLOBAL_ECONOMIC_EFFECT_PLAN_BYTES_V1: usize = 1_048_576;
+pub const LANE_STATE_OPENING_BATCH_VERSION_V1: u16 = 1;
+pub const MAX_LANE_STATE_OPENING_WITNESSES_V1: usize = 64;
+pub const MAX_LANE_STATE_TRANSITION_WITNESS_BYTES_V1: usize = 540_000;
+pub const LANE_MODULE_TRANSITION_JOURNAL_VERSION_V1: u16 = 1;
+pub const MAX_LANE_MODULE_TRANSITION_JOURNAL_BYTES_V1: usize = 4_096;

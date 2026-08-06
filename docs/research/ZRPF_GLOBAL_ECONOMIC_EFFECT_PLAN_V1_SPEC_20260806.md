@@ -231,8 +231,9 @@ cover:
 
 ## Next proof-worthy gap
 
-Define the first lane-module transition journal and guest-facing state-opening
-contract. It must authenticate the exact rows and per-asset summaries against
-the committed pre/post partitions, enforce route-selected module release and
-resource bounds, and keep the resulting receipt outside settlement authority
-until the release-aware epoch verifier accepts it.
+The additive lane-module transition journal now binds lane-write rows to
+same-action sparse-Merkle openings and binds route-selected release metadata.
+The next gap is a deterministic Asset Transfer module core and leaf guest that
+derives every accepted effect row and rejected no-op from authenticated command
+and state inputs. A release-aware receipt verifier must still authenticate the
+exact image and journal before any coordinator or epoch layer can consume it.

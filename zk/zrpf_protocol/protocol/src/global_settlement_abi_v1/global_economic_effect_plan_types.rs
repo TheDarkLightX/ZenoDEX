@@ -183,6 +183,32 @@ pub struct GlobalEconomicEffectRowV1 {
     content: GlobalEconomicEffectContentV1,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GlobalLaneWriteV1 {
+    lane_id: EconomicLaneIdV1,
+    object_id: CommitmentV3,
+    pre_value_hash: CommitmentV3,
+    post_value_hash: CommitmentV3,
+}
+
+impl GlobalLaneWriteV1 {
+    pub const fn lane_id(self) -> EconomicLaneIdV1 {
+        self.lane_id
+    }
+
+    pub const fn object_id(self) -> CommitmentV3 {
+        self.object_id
+    }
+
+    pub const fn pre_value_hash(self) -> CommitmentV3 {
+        self.pre_value_hash
+    }
+
+    pub const fn post_value_hash(self) -> CommitmentV3 {
+        self.post_value_hash
+    }
+}
+
 impl GlobalEconomicEffectRowV1 {
     pub(super) fn from_content(
         content: GlobalEconomicEffectContentV1,
@@ -224,6 +250,39 @@ impl GlobalEconomicEffectRowV1 {
             GlobalEconomicEffectContentV1::ExternalOutboxEnqueue { .. } => {
                 GlobalEconomicEffectKindV1::ExternalOutboxEnqueue
             }
+        }
+    }
+
+    pub const fn lane_id(&self) -> Option<EconomicLaneIdV1> {
+        match self.content {
+            GlobalEconomicEffectContentV1::AccountMovement { lane_id, .. }
+            | GlobalEconomicEffectContentV1::IssueBurn { lane_id, .. }
+            | GlobalEconomicEffectContentV1::Custody { lane_id, .. }
+            | GlobalEconomicEffectContentV1::Liability { lane_id, .. }
+            | GlobalEconomicEffectContentV1::Reserve { lane_id, .. }
+            | GlobalEconomicEffectContentV1::Fee { lane_id, .. }
+            | GlobalEconomicEffectContentV1::RewardSlash { lane_id, .. }
+            | GlobalEconomicEffectContentV1::LaneWrite { lane_id, .. }
+            | GlobalEconomicEffectContentV1::TerminalObligation { lane_id, .. }
+            | GlobalEconomicEffectContentV1::ExternalOutboxEnqueue { lane_id, .. } => Some(lane_id),
+            GlobalEconomicEffectContentV1::OccurrenceConsumption { .. } => None,
+        }
+    }
+
+    pub const fn as_lane_write(&self) -> Option<GlobalLaneWriteV1> {
+        match self.content {
+            GlobalEconomicEffectContentV1::LaneWrite {
+                lane_id,
+                object_id,
+                pre_value_hash,
+                post_value_hash,
+            } => Some(GlobalLaneWriteV1 {
+                lane_id,
+                object_id,
+                pre_value_hash,
+                post_value_hash,
+            }),
+            _ => None,
         }
     }
 
