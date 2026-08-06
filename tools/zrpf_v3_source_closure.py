@@ -57,6 +57,7 @@ WORKSPACE_AUXILIARY_ROWS: tuple[tuple[str, str], ...] = tuple(
         "zk/state_proof_risc0/methods/zusd_leaf/src/main.rs",
         "zk/zrpf_protocol/Cargo.lock",
         "zk/zrpf_protocol/README.md",
+        "zk/zrpf_protocol/asset_transfer_core/Cargo.toml",
         "zk/zrpf_protocol/perps_source_finality/Cargo.toml",
         "zk/zrpf_protocol/perps_source_finality/src/codec.rs",
         "zk/zrpf_protocol/perps_source_finality/src/derive.rs",
@@ -94,6 +95,7 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
     ("assurance_compiler_source", path)
     for path in (
         "zk/zrpf_protocol/protocol/tests/economic_action_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/asset_transfer_v1.rs",
         "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1.rs",
         "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/codec.rs",
         "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/support.rs",
@@ -197,6 +199,34 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
         (
             *AUXILIARY_RUST_ROWS,
             *WORKSPACE_AUXILIARY_ROWS,
+            (
+                "asset_transfer_module_v1",
+                "zk/zrpf_protocol/asset_transfer_core/src/lib.rs",
+            ),
+            (
+                "asset_transfer_module_v1",
+                "zk/zrpf_protocol/protocol/src/asset_transfer_v1/codec.rs",
+            ),
+            (
+                "asset_transfer_module_v1",
+                "zk/zrpf_protocol/protocol/src/asset_transfer_v1/error.rs",
+            ),
+            (
+                "asset_transfer_module_v1",
+                "zk/zrpf_protocol/protocol/src/asset_transfer_v1/hash.rs",
+            ),
+            (
+                "asset_transfer_module_v1",
+                "zk/zrpf_protocol/protocol/src/asset_transfer_v1/mod.rs",
+            ),
+            (
+                "asset_transfer_module_v1",
+                "zk/zrpf_protocol/protocol/src/asset_transfer_v1/transition.rs",
+            ),
+            (
+                "asset_transfer_module_v1",
+                "zk/zrpf_protocol/protocol/src/asset_transfer_v1/types.rs",
+            ),
             (
                 "economic_action_protocol_v1",
                 "zk/zrpf_protocol/protocol/src/economic_action_v1/batch.rs",

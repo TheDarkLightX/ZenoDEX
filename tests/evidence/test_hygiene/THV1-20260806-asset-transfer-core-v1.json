@@ -1,0 +1,253 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-asset-transfer-core-v1",
+  "created_date": "2026-08-06",
+  "claim_scope": "Asset Transfer Core V1 is a bounded deterministic ordinary-transfer functional core whose shared no_std arithmetic derives exact debit and credit balances, whose typed leaf derives canonical post-state and one global account-movement row, and whose rejected shape carries no candidate post-state or effects; it remains SHADOW, unmounted, and without proof or publication authority.",
+  "change_kind": "behavior_change",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "AT-V1-SHARED-ARITHMETIC",
+    "AT-V1-EXACT-DEBIT-CREDIT",
+    "AT-V1-PER-ASSET-CONSERVATION",
+    "AT-V1-BOUNDED-CANONICAL-STATE",
+    "AT-V1-INSUFFICIENT-PRECEDES-OVERFLOW",
+    "AT-V1-REJECT-HAS-NO-CANDIDATE",
+    "AT-V1-EXACT-STATEMENT-BINDING",
+    "AT-V1-CANONICAL-BOUNDED-CODEC",
+    "AT-V1-STABLE-REJECT-CODES",
+    "AT-V1-NO-PUBLICATION-AUTHORITY"
+  ],
+  "failure_modes": [
+    "the proof boundary and runtime execute different debit or credit arithmetic",
+    "an accepted transfer omits the debit, mints recipient value, or changes aggregate asset atoms",
+    "insufficient source funds or recipient overflow produces a candidate post-state",
+    "insufficient funds loses stable precedence when recipient addition would also overflow",
+    "zero, excess, or self-transfer commands are admitted",
+    "zero, excess, duplicate, reordered, or over-capacity balance cells become canonical state",
+    "a wrong pre-state root, command hash, or authorization subject is accepted",
+    "unrelated accounts or assets change during one transfer",
+    "semantic command, state, movement, or conservation fields are absent from commitments",
+    "empty, oversized, trailing, malformed, or noncanonical bytes decode",
+    "stable reject codes drift or fail nonzero lane-journal conversion",
+    "a new arithmetic, protocol, or test source escapes the exact governed source inventory"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZRPF_ASSET_TRANSFER_CORE_V1_SPEC_20260806.md",
+      "sha256": "e974b7771d52c532ec86a44066036a7ba5c9f2bda9ada0a177bb7a8cc865f03d"
+    },
+    {
+      "path": "rust-runtime/Cargo.lock",
+      "sha256": "e71915e353f601358e293d220f4d2de81af125f18ee1bb0492f6951193a93cf8"
+    },
+    {
+      "path": "rust-runtime/crates/zenodex-runtime-core/Cargo.toml",
+      "sha256": "aa99924c59d8f6a9ca8920312693edafea431eeed81aded1e7042c39fc332efe"
+    },
+    {
+      "path": "rust-runtime/crates/zenodex-runtime-core/src/balance_kernel.rs",
+      "sha256": "6749efcdbf570cf3b5e8d28eab2ca8bb5ae6af4011c2cca1fe56af56ed765007"
+    },
+    {
+      "path": "tools/zrpf_v3_source_closure.py",
+      "sha256": "fab685c5e53f9c1f75b066b47f0654de5ed0cf0fcacf8982183bedeb70a4aad5"
+    },
+    {
+      "path": "zk/zrpf_protocol/Cargo.lock",
+      "sha256": "58635bb44f2d408b46a5c52a89f88129102bf0d737ee8fcafe1ca51ec921a2aa"
+    },
+    {
+      "path": "zk/zrpf_protocol/Cargo.toml",
+      "sha256": "3d206f7f870939c84a6722192e47087c6101cd5d7c19a9af7408cefc3c4c8053"
+    },
+    {
+      "path": "zk/zrpf_protocol/README.md",
+      "sha256": "d2affec1b1d65c00ebf6133d458850f0c8153c82d3cbca50c0fdd648932fb675"
+    },
+    {
+      "path": "zk/zrpf_protocol/asset_transfer_core/Cargo.toml",
+      "sha256": "8069062c5b107c7bd974a51004381bf9d9b66d45234675d4d47b3aeb08a873e8"
+    },
+    {
+      "path": "zk/zrpf_protocol/asset_transfer_core/src/lib.rs",
+      "sha256": "f349b1f1c991049aea9e8c6b2cdce739c4ae2ec23abcfc1878a610616bb96417"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+      "sha256": "74d520e2882e36224038226afb4efe8689d731309b49605521b47d17d8f2a167"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/asset_transfer_v1/codec.rs",
+      "sha256": "3611bd815f17d655ca65944d69d885881f4c9cd97bd9b447d251f27bccdcf6a9"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/asset_transfer_v1/error.rs",
+      "sha256": "f4d3703f5580caf24340971ad86d7fac043d8322c4716e488dd1c26d11174f78"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/asset_transfer_v1/hash.rs",
+      "sha256": "55a9c3ec474d75aa7442656b8d09a1824c7fed6a0f7fd64b547c5ab5caddc270"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/asset_transfer_v1/mod.rs",
+      "sha256": "550dd26490da6401cd2d64a1a1ec1d40663dab5638f2acbb46fbcbd965b6887a"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/asset_transfer_v1/transition.rs",
+      "sha256": "eaddef89a7f91b181d4c2070fa07ccad846c54d3124fe475bcae1698b452bccb"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/asset_transfer_v1/types.rs",
+      "sha256": "1e573efe501b4463ee128332e865c7dfd9ceee67615fdd2dc3acffadfbde4e2d"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/lib.rs",
+      "sha256": "a66dc56a5c81cfa72235600ea3a62376f8dcc5d75ecf5458353bc0111d71c805"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/asset_transfer_v1.rs",
+      "sha256": "462f879f3f302e69d0d84a9b6f4ca97356ced7ed5a6712f5138794023ee87009"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_asset_transfer_core_v1.py",
+      "sha256": "cb17242e671d0524c130303ed9b90d5a97a72fe45de56ae69d5637f88d57b6b1",
+      "node_ids": [
+        "tests/test_asset_transfer_core_v1.py::test_asset_transfer_shared_core_protocol_and_runtime_contract"
+      ]
+    },
+    {
+      "path": "tests/test_zrpf_v3_source_closure.py",
+      "sha256": "60310015a752fb254d045126f8782780f7c09eda1de15f1213158e577bf24851",
+      "node_ids": [
+        "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory",
+        "tests/test_zrpf_v3_source_closure.py::test_asset_transfer_module_sources_have_exact_roles",
+        "tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest",
+        "tests/test_zrpf_v3_source_closure.py::test_workspace_inventory_rejects_unlisted_rust_even_with_build_false"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "metamorphic",
+    "mutation",
+    "formal"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Focused Rust cases arrange typed state and command fixtures, execute one constructor or transition, and assert exact outcomes; the Python launcher marks its Arrange, Act, and Assert phases explicitly."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The pure function borrows immutable input and its rejected enum variant stores only one stable code, so no post-state, movement, effect row, receipt, mutation, or publication capability exists on a rejected path."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "transfer_amount_atoms",
+      "points": [
+        "zero_reject",
+        "one_atom_accept",
+        "2^112_minus_1_accept",
+        "2^112_reject"
+      ]
+    },
+    {
+      "name": "source_balance",
+      "points": [
+        "amount_minus_one_reject",
+        "exact_amount_accept_and_remove_zero_cell",
+        "amount_plus_one_accept"
+      ]
+    },
+    {
+      "name": "recipient_balance",
+      "points": [
+        "zero_accept",
+        "maximum_minus_amount_accept",
+        "maximum_plus_one_result_reject"
+      ]
+    },
+    {
+      "name": "state_cell_count",
+      "points": [
+        "zero_accept",
+        "one_accept",
+        "256_accept",
+        "257_reject",
+        "full_state_new_recipient_reject"
+      ]
+    },
+    {
+      "name": "statement_binding",
+      "points": [
+        "exact_root_command_subject_accept",
+        "wrong_root_reject",
+        "wrong_command_reject",
+        "wrong_subject_reject"
+      ]
+    },
+    {
+      "name": "bounded_oracle_grid",
+      "points": [
+        "source_and_destination_0_through_8",
+        "amount_1_through_9",
+        "all_729_cases_match_independent_oracle"
+      ]
+    },
+    {
+      "name": "exact_codec",
+      "points": [
+        "canonical_round_trip",
+        "empty_reject",
+        "trailing_reject",
+        "maximum_bytes_plus_one_reject",
+        "unknown_field_or_nested_version_reject"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "Actual no-debit mutant returned the original source balance; the focused protocol run failed seven tests with AssetConservationViolation before the source was restored.",
+      "killed_by": "tests/test_asset_transfer_core_v1.py::test_asset_transfer_shared_core_protocol_and_runtime_contract"
+    },
+    {
+      "description": "Reverse insufficient-balance and recipient-overflow precedence.",
+      "killed_by": "tests/test_asset_transfer_core_v1.py::test_asset_transfer_shared_core_protocol_and_runtime_contract"
+    },
+    {
+      "description": "Skip expected pre-root, command-hash, or authorization-subject matching.",
+      "killed_by": "tests/test_asset_transfer_core_v1.py::test_asset_transfer_shared_core_protocol_and_runtime_contract"
+    },
+    {
+      "description": "Allow a 257th canonical balance cell or a transfer-created cell in a full state.",
+      "killed_by": "tests/test_asset_transfer_core_v1.py::test_asset_transfer_shared_core_protocol_and_runtime_contract"
+    },
+    {
+      "description": "Omit a semantic command or pre-state field from command or receipt hashing.",
+      "killed_by": "tests/test_asset_transfer_core_v1.py::test_asset_transfer_shared_core_protocol_and_runtime_contract"
+    },
+    {
+      "description": "Accept trailing, oversized, unknown-field, stale-version, or self-inconsistent encoded input.",
+      "killed_by": "tests/test_asset_transfer_core_v1.py::test_asset_transfer_shared_core_protocol_and_runtime_contract"
+    },
+    {
+      "description": "Omit the shared core, protocol module, or Rust regression from the exact governed source inventory.",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    }
+  ],
+  "nonclaims": [
+    "Expected root, command, and subject fields are ordinary data until a guest binds them to an authenticated occurrence, grant, nonce, profile, route, and release.",
+    "The bounded whole-state hash is not a complete durable sparse-Merkle lane-state proof and does not derive the global post-state root.",
+    "The account-movement row is not a reconciled global effect plan and carries no settlement capability.",
+    "Kani evidence covers only the shared arithmetic function under its explicit admitted-domain assumptions.",
+    "The 48-byte runtime account representation still needs an explicit adapter and migration mapping to the 32-byte global account identifier.",
+    "No RISC0 guest was added while the governed workspaces remain on 3.0.5 and the whole-economy plan requires exact 3.0.6.",
+    "No issue, burn, fee, nonce, migration, terminal lifecycle, release activation, route mount, API, UI, Tau, recovery, legacy writer, or ZenoLedger publication path is added.",
+    "No RC, production-readiness, full-layer formal-verification, or whole-economy settlement claim is promoted."
+  ]
+}

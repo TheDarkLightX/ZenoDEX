@@ -256,6 +256,13 @@ The canonical whole-economy effect and reconciliation contract is specified in
 The proof-neutral lane journal and same-action state-opening contract is
 specified in
 `docs/research/ZRPF_LANE_MODULE_TRANSITION_JOURNAL_V1_SPEC_20260806.md`.
+The shared ordinary account-transfer arithmetic and typed proof-neutral leaf
+boundary are specified in
+`docs/research/ZRPF_ASSET_TRANSFER_CORE_V1_SPEC_20260806.md`. The established
+runtime balance kernel and the future guest boundary now import one `no_std`
+debit/credit function. The leaf remains SHADOW and unmounted; its expected
+root, command, and subject fields are ordinary data until an authenticated
+occurrence and governed RISC0 3.0.6 guest bind them.
 
 ## Verification
 

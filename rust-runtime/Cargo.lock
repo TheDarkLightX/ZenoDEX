@@ -711,6 +711,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenodex-asset-transfer-core"
+version = "0.1.0"
+
+[[package]]
 name = "zenodex-governance-gate"
 version = "0.1.0"
 dependencies = [
@@ -741,6 +745,7 @@ dependencies = [
  "proptest",
  "sha2",
  "thiserror",
+ "zenodex-asset-transfer-core",
 ]
 
 [[package]]
