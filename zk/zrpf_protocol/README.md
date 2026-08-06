@@ -45,6 +45,12 @@ The crate currently provides:
   chain/domain, height, writer epoch, exact profile, all twelve lane-state
   roots, and named whole-economy balance, supply, custody, liability, reserve,
   Oracle, replay, terminal, release, history, outbox, and object-release roots;
+- a bounded canonical `GlobalEconomicEffectPlanV1` with one closed tagged row
+  registry for movement, issue/burn, custody, liabilities, reserves, fees,
+  rewards/slashes, lane writes, replay consumption, terminal obligations, and
+  external outbox enqueue; checked per-asset reconciliation; separate semantic
+  and full-row commitments; and a constructor-private occurrence-binding
+  witness;
 - a versioned `EconomicObjectReleasePinV1` with exact sparse-Merkle membership
   proofs and constructor-private witnesses binding consumed objects to their
   creating lane releases under the committed state and profile registries;
@@ -163,6 +169,17 @@ custody, liability, terminal drain, guest lifecycle semantics, a guest
 transition, receipt validity, current consensus head, atomic persistence, or
 publication authority.
 
+The global economic effect plan is a canonical proof-neutral proposal. Its
+body checks flow, owned-and-custodied, supply, custody/claim, liability delta,
+reserve delta, fee allocation, replay-row, route issue/burn, and external
+outbox relations. The semantic effect commitment deliberately excludes
+action-derived authorization and replay material; the full plan commitment
+includes every row, and the occurrence binder checks those action-derived
+fields exactly. The rows are still declarations until a guest authenticates
+them against state openings and lane transitions. The plan and its private
+structural witness do not verify receipts, current head, atomic persistence, or
+publication authority.
+
 The settlement certificate is a canonical proof-neutral journal. Its source
 claim binding and DA, schedule, carry, plan, and state roots remain
 unauthenticated data until a guest verifies their source obligations and a
@@ -219,6 +236,8 @@ specified in
 `docs/research/ZRPF_GLOBAL_ECONOMIC_STATE_V1_SPEC_20260806.md`.
 The lifecycle-purpose route derivation contract is specified in
 `docs/research/ZRPF_LIFECYCLE_ROUTE_RESOLVER_V1_SPEC_20260806.md`.
+The canonical whole-economy effect and reconciliation contract is specified in
+`docs/research/ZRPF_GLOBAL_ECONOMIC_EFFECT_PLAN_V1_SPEC_20260806.md`.
 
 ## Verification
 

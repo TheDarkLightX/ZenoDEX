@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 398
+    assert document["file_count"] == 414
     semantic_v2_roles = {
         "semantic_mapping_v2",
         "semantic_protocol_v2",
@@ -151,6 +151,16 @@ def test_global_settlement_abi_sources_have_exact_roles() -> None:
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_id.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_types.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/error.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_bounded.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_codec.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_error.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_hash.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_reconcile.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_row_inputs.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_rows.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_types.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_effect_plan_validate.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_state.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_state_binding.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/global_economic_state_codec.rs",
@@ -181,6 +191,12 @@ def test_global_settlement_abi_sources_have_exact_roles() -> None:
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_types.rs",
     }
     assert {
+        "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/binding.rs",
+        "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/codec.rs",
+        "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/reconciliation.rs",
+        "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/rows.rs",
+        "zk/zrpf_protocol/protocol/tests/global_economic_effect_plan_v1/support.rs",
         "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1.rs",
         "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/codec.rs",
         "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/support.rs",
