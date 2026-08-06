@@ -75,9 +75,10 @@ Construction and ownership:
 - Subject, grant, nonce, pre-state, effects, and consumed objects have one owner
   in the nested action. No parallel occurrence fields can drift from them.
 - The ordinary occurrence is cloneable protocol data.
-- The profile-bound witness borrows the exact occurrence and governed route,
-  has private fields, is not `Clone`, `Copy`, `Serialize`, or `Deserialize`, and
-  can only be returned by the binder.
+- The profile-bound witness borrows the exact occurrence, checked active
+  profile, and governed route; has private fields; is not `Clone`, `Copy`,
+  `Serialize`, or `Deserialize`; and can only be returned by the binder. A
+  witness cannot outlive the active-profile borrow used to construct it.
 
 API and consumers:
 
@@ -101,6 +102,8 @@ Encoding and proof binding:
 - Decode requires complete consumption and exact canonical re-encoding.
 - Serde map decoding rejects unknown fields.
 - The profile-bound witness has no wire representation.
+- The active-profile borrow participates in the witness lifetime; consumers
+  cannot retain the witness after a lock-scoped profile borrow expires.
 
 Commit and failure model:
 

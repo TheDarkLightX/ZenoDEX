@@ -2,7 +2,7 @@
   "schema": "zenodex/test-hygiene-evidence/v1",
   "evidence_id": "THV1-20260806-economic-command-occurrence-v1",
   "created_date": "2026-08-06",
-  "claim_scope": "EconomicCommandOccurrenceV1 adds one content-derived canonical ledger position, exact economic profile, writer epoch, route release, and existing authorized action envelope; active-profile binding constructs a private non-serializable structural witness only after exact profile, writer, registry, route, and command-variant checks, while granting no authentication, proof, settlement, or publication authority.",
+  "claim_scope": "EconomicCommandOccurrenceV1 adds one content-derived canonical ledger position, exact economic profile, writer epoch, route release, and existing authorized action envelope; active-profile binding constructs a private non-serializable structural witness only after exact profile, writer, registry, route, and command-variant checks and retains the exact active-profile borrow for the witness lifetime, while granting no authentication, proof, settlement, or publication authority.",
   "change_kind": "behavior_change",
   "risk_class": "critical",
   "invariant_ids": [
@@ -11,6 +11,7 @@
     "ECO-V1-CANONICAL-OCCURRENCE-POSITION",
     "ECO-V1-CONTENT-DERIVED-IDENTITY",
     "ECO-V1-EXACT-ACTIVE-PROFILE",
+    "ECO-V1-ACTIVE-PROFILE-BORROW-RETAINED",
     "ECO-V1-EXACT-WRITER-EPOCH",
     "ECO-V1-EXACT-ROUTE-REGISTRY-ROOT",
     "ECO-V1-GOVERNED-ROUTE-OCCURRENCE",
@@ -23,6 +24,7 @@
     "the occurrence duplicates and can disagree with action subject, grant, nonce, pre-state, effects, or consumed objects",
     "height, transaction index, operation index, profile, writer epoch, route, or authorized action is omitted from occurrence identity",
     "an occurrence created under an old profile binds after profile activation",
+    "a profile-bound witness outlives the checked active-profile borrow",
     "a stale writer epoch binds under the active profile",
     "a foreign route registry is queried as if the profile governed it",
     "an unregistered route release binds",
@@ -34,7 +36,7 @@
   "source_pins": [
     {
       "path": "docs/research/ZRPF_ECONOMIC_COMMAND_OCCURRENCE_V1_SPEC_20260806.md",
-      "sha256": "5c4472a4f0f1bd6ddf939a0780beab19ced29e268c1b8fdc07ef5e5184d8f382"
+      "sha256": "416d9b1304929453b8900ac5f271f2a38305241e481db362be0526879a9275c7"
     },
     {
       "path": "tools/zrpf_v3_source_closure.py",
@@ -54,7 +56,7 @@
     },
     {
       "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_command_occurrence.rs",
-      "sha256": "44916dc474ddde13eaf15ae7f9edf508c30068eb62fa10c3d27710e483a86f57"
+      "sha256": "9ba8f86e15a0849861b3e6d9d57cc415dd1de5c4b38088df943a410fd0c638ec"
     },
     {
       "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_command_occurrence_error.rs",
@@ -62,7 +64,7 @@
     },
     {
       "path": "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1.rs",
-      "sha256": "e70967e707f7ba3005162b4dceef173ce8b473a91a34a46ae9ebc867c00b7ff2"
+      "sha256": "63dc8929a0ca9d3b732a12673b40ee4f81d9f60934459ad2fa64a3e20a54688e"
     },
     {
       "path": "zk/zrpf_protocol/protocol/tests/economic_command_occurrence_v1/codec.rs",
@@ -77,7 +79,7 @@
   "test_pins": [
     {
       "path": "tests/test_economic_command_occurrence_v1.py",
-      "sha256": "5789ed6a98b783caa26d759dd2e6bdf8d30acd6418c7259f4114b270c8c02eed",
+      "sha256": "55be5aab5ca8c72728b4910a2b2d96c2089127371608dcbc3a7b413a03e993eb",
       "node_ids": [
         "tests/test_economic_command_occurrence_v1.py::test_economic_command_occurrence_rust_contract"
       ]
@@ -102,7 +104,7 @@
   ],
   "aaa": {
     "status": "applied",
-    "reason": "All eleven Rust contract tests use explicit Arrange, Act, and Assert phases for occurrence identity, position BVA, active-profile binding, stale and substituted inputs, exact codec behavior, and fixed vectors; the isolated pytest launcher asserts the exact eleven-test result."
+    "reason": "All eleven Rust contract tests use explicit Arrange, Act, and Assert phases for occurrence identity, position BVA, active-profile binding, stale and substituted inputs, exact codec behavior, and fixed vectors; eighteen compile-fail/doc tests include direct construction, serialization, and active-profile lifetime architecture checks; the isolated pytest launcher asserts both exact results."
   },
   "reject_is_noop": {
     "status": "applied",
@@ -161,6 +163,7 @@
       "points": [
         "binder_constructs_accept",
         "direct_field_construction_compile_fail",
+        "active_profile_borrow_extension_compile_fail",
         "serialization_compile_fail"
       ]
     }
@@ -183,7 +186,7 @@
       "killed_by": "tests/test_economic_command_occurrence_v1.py::test_economic_command_occurrence_rust_contract"
     },
     {
-      "description": "make profile-bound witness fields public or derive wire serialization",
+      "description": "make profile-bound witness fields public, omit the checked active-profile borrow, extend that borrow, or derive wire serialization",
       "killed_by": "tests/test_economic_command_occurrence_v1.py::test_economic_command_occurrence_rust_contract"
     },
     {

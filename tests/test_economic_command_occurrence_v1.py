@@ -56,4 +56,4 @@ def test_economic_command_occurrence_rust_contract() -> None:
     assert completed.returncode == 0, completed.stdout + completed.stderr
     assert "11 passed; 0 failed" in completed.stdout
     assert architecture.returncode == 0, architecture.stdout + architecture.stderr
-    assert "17 passed; 0 failed" in architecture.stdout
+    assert "18 passed; 0 failed" in architecture.stdout

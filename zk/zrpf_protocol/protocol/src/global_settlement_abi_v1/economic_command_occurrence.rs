@@ -278,15 +278,41 @@ impl<'de> Deserialize<'de> for EconomicCommandOccurrenceV1 {
 ///
 /// ```compile_fail
 /// use zenodex_zrpf_protocol_v3::{
-///     EconomicCommandOccurrenceV1, ProfileBoundEconomicCommandOccurrenceV1,
-///     RouteReleaseV1,
+///     EconomicCommandOccurrenceV1, EconomicProfileSnapshotV1,
+///     ProfileBoundEconomicCommandOccurrenceV1, RouteReleaseV1,
 /// };
 ///
 /// fn forge<'a>(
 ///     occurrence: &'a EconomicCommandOccurrenceV1,
+///     active_profile: &'a EconomicProfileSnapshotV1,
 ///     route_release: &'a RouteReleaseV1,
 /// ) -> ProfileBoundEconomicCommandOccurrenceV1<'a> {
-///     ProfileBoundEconomicCommandOccurrenceV1 { occurrence, route_release }
+///     ProfileBoundEconomicCommandOccurrenceV1 {
+///         occurrence,
+///         active_profile,
+///         route_release,
+///     }
+/// }
+/// ```
+///
+/// ```compile_fail
+/// use zenodex_zrpf_protocol_v3::{
+///     bind_economic_command_occurrence_to_active_profile_v1,
+///     EconomicCommandOccurrenceV1, EconomicProfileSnapshotV1,
+///     ProfileBoundEconomicCommandOccurrenceV1, RouteReleaseRegistryV1,
+/// };
+///
+/// fn cannot_extend_profile_borrow<'a>(
+///     active_profile: &EconomicProfileSnapshotV1,
+///     route_registry: &'a RouteReleaseRegistryV1,
+///     occurrence: &'a EconomicCommandOccurrenceV1,
+/// ) -> ProfileBoundEconomicCommandOccurrenceV1<'a> {
+///     bind_economic_command_occurrence_to_active_profile_v1(
+///         active_profile,
+///         route_registry,
+///         occurrence,
+///     )
+///     .unwrap()
 /// }
 /// ```
 ///
@@ -302,6 +328,7 @@ impl<'de> Deserialize<'de> for EconomicCommandOccurrenceV1 {
 #[must_use = "the profile-bound occurrence must be consumed by the next verification stage"]
 pub struct ProfileBoundEconomicCommandOccurrenceV1<'a> {
     occurrence: &'a EconomicCommandOccurrenceV1,
+    active_profile: &'a EconomicProfileSnapshotV1,
     route_release: &'a RouteReleaseV1,
 }
 
@@ -310,13 +337,17 @@ impl<'a> ProfileBoundEconomicCommandOccurrenceV1<'a> {
         self.occurrence
     }
 
+    pub const fn active_profile(&self) -> &'a EconomicProfileSnapshotV1 {
+        self.active_profile
+    }
+
     pub const fn route_release(&self) -> &'a RouteReleaseV1 {
         self.route_release
     }
 }
 
 pub fn bind_economic_command_occurrence_to_active_profile_v1<'a>(
-    active_profile: &EconomicProfileSnapshotV1,
+    active_profile: &'a EconomicProfileSnapshotV1,
     route_registry: &'a RouteReleaseRegistryV1,
     occurrence: &'a EconomicCommandOccurrenceV1,
 ) -> Result<ProfileBoundEconomicCommandOccurrenceV1<'a>, EconomicCommandOccurrenceErrorV1> {
@@ -352,6 +383,7 @@ pub fn bind_economic_command_occurrence_to_active_profile_v1<'a>(
     }
     Ok(ProfileBoundEconomicCommandOccurrenceV1 {
         occurrence,
+        active_profile,
         route_release,
     })
 }

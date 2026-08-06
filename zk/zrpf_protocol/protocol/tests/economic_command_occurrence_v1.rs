@@ -168,6 +168,7 @@ fn active_profile_binding_constructs_only_the_exact_structural_witness() {
 
     // Assert.
     assert_eq!(bound.occurrence(), &occurrence);
+    assert_eq!(bound.active_profile(), &active_profile);
     assert_eq!(bound.route_release(), &governed_route);
 }
 
