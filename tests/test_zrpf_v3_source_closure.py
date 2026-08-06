@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 def test_current_clean_checkout_matches_exact_source_inventory() -> None:
     document = closure.build_source_closure(REPO_ROOT)
     assert document["schema"] == closure.SCHEMA
-    assert document["file_count"] == 368
+    assert document["file_count"] == 379
     semantic_v2_roles = {
         "semantic_mapping_v2",
         "semantic_protocol_v2",
@@ -141,6 +141,11 @@ def test_global_settlement_abi_sources_have_exact_roles() -> None:
 
     assert global_abi_paths == {
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/codec.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_codec.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_error.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_id.rs",
+        "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_types.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/error.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/lane.rs",
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release.rs",
@@ -166,6 +171,12 @@ def test_global_settlement_abi_sources_have_exact_roles() -> None:
         "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/route_release_types.rs",
     }
     assert {
+        "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/binding.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/codec.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/identity.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/successor.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/support.rs",
         "zk/zrpf_protocol/protocol/tests/global_settlement_abi_v1.rs",
         "zk/zrpf_protocol/protocol/tests/lane_module_release_v1.rs",
         "zk/zrpf_protocol/protocol/tests/lane_module_release_v1/identity.rs",

@@ -169,6 +169,12 @@ The bounded route release contract is specified in
 `docs/research/ZRPF_ROUTE_RELEASE_V1_SPEC_20260806.md`. The bounded governed
 lookup candidate is specified in
 `docs/research/ZRPF_ROUTE_RELEASE_REGISTRY_V1_SPEC_20260806.md`.
+The bounded economic profile snapshot guard is specified in
+`docs/research/ZRPF_ECONOMIC_PROFILE_SNAPSHOT_V1_SPEC_20260806.md`. It binds
+authority and writer epochs plus exact lane, route, proof-shape, verifier,
+migration, policy, and terminal registry roots. The snapshot remains ordinary
+data and grants no proof-verification, activation, migration, settlement, or
+publication authority.
 
 ## Verification
 

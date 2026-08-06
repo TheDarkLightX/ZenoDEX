@@ -94,6 +94,12 @@ AUXILIARY_RUST_ROWS: tuple[tuple[str, str], ...] = tuple(
     ("assurance_compiler_source", path)
     for path in (
         "zk/zrpf_protocol/protocol/tests/economic_action_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/binding.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/codec.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/identity.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/successor.rs",
+        "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/support.rs",
         "zk/zrpf_protocol/protocol/tests/full_blob_da_v1.rs",
         "zk/zrpf_protocol/protocol/tests/global_settlement_abi_v1.rs",
         "zk/zrpf_protocol/protocol/tests/lane_module_release_v1.rs",
@@ -222,6 +228,26 @@ SOURCE_ROWS: tuple[tuple[str, str], ...] = tuple(
             (
                 "global_settlement_abi_v1",
                 "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/codec.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_codec.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_error.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_id.rs",
+            ),
+            (
+                "global_settlement_abi_v1",
+                "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_types.rs",
             ),
             (
                 "global_settlement_abi_v1",
