@@ -12,6 +12,7 @@
     "LMR-V1-EXACT-STATUS-ADMISSION",
     "LMR-V1-MIGRATION-PREDECESSOR-CARDINALITY",
     "LMR-V1-NONZERO-RESOURCE-CEILINGS",
+    "LMR-V1-READABLE-RESOURCE-CEILINGS",
     "LMR-V1-CANONICAL-BOUNDED-CODEC",
     "LMR-V1-REJECT-IS-NOOP"
   ],
@@ -25,13 +26,14 @@
     "a status other than ActiveNew or DrainOnly transitions an existing object",
     "migration mode accepts a missing or unexpected predecessor",
     "a zero command, state, journal, or cycle ceiling is accepted",
+    "a downstream verifier cannot read a decoded release resource ceiling",
     "empty, oversized, trailing, stale, malformed, or noncanonical release bytes decode",
     "a LaneModuleRelease source or contract test is omitted from the governed ZRPF source closure"
   ],
   "source_pins": [
     {
       "path": "docs/research/ZRPF_LANE_MODULE_RELEASE_V1_SPEC_20260806.md",
-      "sha256": "b2452623b117e4734611bbfb9adf371ebae222ebed6c4f99f1075284b7cc315c"
+      "sha256": "bc39dd4850f0d7fdd4e16eb3b4dd895eb5c57c84858758d9d717dc65271ba211"
     },
     {
       "path": "tools/zrpf_v3_source_closure.py",
@@ -59,7 +61,7 @@
     },
     {
       "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/module_release_types.rs",
-      "sha256": "68e4708637f9e8aa5e18a383ae6212c4fe9a2a0ff6ae0306d9de694ff583559c"
+      "sha256": "670c5bd01eb00dcf5e2879cdc53c68324b2f9283e698af498de4d9c917e2d3d3"
     },
     {
       "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/release_error.rs",
@@ -71,7 +73,7 @@
     },
     {
       "path": "zk/zrpf_protocol/protocol/tests/lane_module_release_v1.rs",
-      "sha256": "c326c243e5a7b8ea7128cad5e61947cc2221cc87f16978082401d75bcefa21c1"
+      "sha256": "6d82a8ea7f807ed5117cd566785f2763f55e8b64d01677aff0d094ea779b147d"
     },
     {
       "path": "zk/zrpf_protocol/protocol/tests/lane_module_release_v1/identity.rs",

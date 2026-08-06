@@ -239,6 +239,22 @@ impl LaneModuleResourceLimitsV1 {
         })
     }
 
+    pub const fn max_command_bytes(self) -> u32 {
+        self.max_command_bytes
+    }
+
+    pub const fn max_state_bytes(self) -> u32 {
+        self.max_state_bytes
+    }
+
+    pub const fn max_journal_bytes(self) -> u32 {
+        self.max_journal_bytes
+    }
+
+    pub const fn max_cycles(self) -> u64 {
+        self.max_cycles
+    }
+
     pub(super) fn update_hasher(self, hasher: &mut Sha256) {
         hasher.update(self.max_command_bytes.to_be_bytes());
         hasher.update(self.max_state_bytes.to_be_bytes());
@@ -309,6 +325,10 @@ impl LaneModuleReleaseContentV1 {
 
     pub const fn terminal(&self) -> LaneModuleTerminalCoverageV1 {
         self.terminal
+    }
+
+    pub const fn resource_limits(&self) -> LaneModuleResourceLimitsV1 {
+        self.resource_limits
     }
 
     pub(super) const fn migration(&self) -> LaneModuleMigrationCompatibilityV1 {

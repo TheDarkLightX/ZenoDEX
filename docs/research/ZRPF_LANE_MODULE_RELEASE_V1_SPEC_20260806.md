@@ -72,7 +72,9 @@ max_cycles
 All roots and the guest image ID use nonzero typed 32-byte values. Every
 resource ceiling is explicit and nonzero. V1 accepts values through the integer
 type maxima; later route and profile contracts must impose release-specific
-operational budgets and verify actual usage against these ceilings.
+operational budgets and verify actual usage against these ceilings. Decoded
+release content exposes the four ceilings through immutable read-only getters
+so those consumers can perform the comparison.
 
 Migration mode and predecessor cardinality are exact:
 

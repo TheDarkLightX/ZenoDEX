@@ -252,7 +252,15 @@ fn migration_mode_and_predecessor_cardinality_are_exact() {
 
 #[test]
 fn resource_limits_cover_zero_one_and_integer_maxima() {
-    // Arrange / Act / Assert
+    // Arrange / Act
+    let one = limits(1, 1, 1, 1).expect("one-unit limits are valid");
+    let maxima =
+        limits(u32::MAX, u32::MAX, u32::MAX, u64::MAX).expect("integer-maximum limits are valid");
+    let release_limits = complete_release(LaneModuleReleaseStatusV1::ActiveNew)
+        .content()
+        .resource_limits();
+
+    // Assert
     assert_eq!(
         limits(0, 1, 1, 1),
         Err(LaneModuleReleaseErrorV1::ZeroResourceLimit(
@@ -275,8 +283,18 @@ fn resource_limits_cover_zero_one_and_integer_maxima() {
         limits(1, 1, 1, 0),
         Err(LaneModuleReleaseErrorV1::ZeroResourceLimit("max_cycles"))
     );
-    assert!(limits(1, 1, 1, 1).is_ok());
-    assert!(limits(u32::MAX, u32::MAX, u32::MAX, u64::MAX).is_ok());
+    assert_eq!(one.max_command_bytes(), 1);
+    assert_eq!(one.max_state_bytes(), 1);
+    assert_eq!(one.max_journal_bytes(), 1);
+    assert_eq!(one.max_cycles(), 1);
+    assert_eq!(maxima.max_command_bytes(), u32::MAX);
+    assert_eq!(maxima.max_state_bytes(), u32::MAX);
+    assert_eq!(maxima.max_journal_bytes(), u32::MAX);
+    assert_eq!(maxima.max_cycles(), u64::MAX);
+    assert_eq!(release_limits.max_command_bytes(), 1_024);
+    assert_eq!(release_limits.max_state_bytes(), 65_536);
+    assert_eq!(release_limits.max_journal_bytes(), 4_096);
+    assert_eq!(release_limits.max_cycles(), 1_000_000);
 }
 
 #[test]
