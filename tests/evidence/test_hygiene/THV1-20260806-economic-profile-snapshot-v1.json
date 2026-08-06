@@ -1,0 +1,258 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260806-economic-profile-snapshot-v1",
+  "created_date": "2026-08-06",
+  "claim_scope": "EconomicProfileSnapshotV1 provides one bounded content-derived candidate profile over authority and writer epochs plus exact lane, route, proof-shape, verifier, migration, policy, and terminal roots; it binds all twelve lane module registries, executable dependency status, and enabled-lane primary route coverage while granting no verifier, migration, settlement, or publication authority.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "EPS-V1-CONTENT-DERIVED-IDENTITY",
+    "EPS-V1-EXACT-PREDECESSOR-CARDINALITY",
+    "EPS-V1-STRICT-AUTHORITY-EPOCH-SUCCESSOR",
+    "EPS-V1-STRICT-WRITER-EPOCH-ROTATION",
+    "EPS-V1-EXACT-LANE-AND-ROUTE-ROOTS",
+    "EPS-V1-TWELVE-CANONICAL-MODULE-REGISTRIES",
+    "EPS-V1-EXACT-DEPENDENCY-RELEASE-OCCURRENCE",
+    "EPS-V1-EXECUTABLE-DEPENDENCY-STATUS",
+    "EPS-V1-ENABLED-DISABLED-PRIMARY-COVERAGE",
+    "EPS-V1-CANONICAL-BOUNDED-CODEC",
+    "EPS-V1-REJECT-IS-NOOP"
+  ],
+  "failure_modes": [
+    "a profile ID omits an epoch, transition, predecessor, or registry root",
+    "genesis carries a predecessor or a non-genesis transition omits one",
+    "a successor accepts the wrong predecessor or non-increasing authority or writer epoch",
+    "the profile binds a different lane or route registry root",
+    "the profile binds eleven, thirteen, reordered, or root-mismatched lane module registries",
+    "a route dependency names a module release absent from the profile-bound lane registry",
+    "Candidate, Shadow, VerifyOnly, Retired, or Revoked dependencies become executable",
+    "an enabled lane has no primary route or a disabled lane has one",
+    "empty, oversized, stale, counterfeit, nonminimal, trailing, or unknown-field profile bytes decode",
+    "an EconomicProfileSnapshot source or test is omitted from the governed ZRPF source closure"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/ZRPF_ECONOMIC_PROFILE_SNAPSHOT_V1_SPEC_20260806.md",
+      "sha256": "f8e014ef7d2a18652f126c7c795e569c206183f1b3a4a654ff7246cd0ebf69ff"
+    },
+    {
+      "path": "tools/zrpf_v3_source_closure.py",
+      "sha256": "429cc925fc70224f3616b78aad5c61831ea62df8e9007148567559f2b42a530b"
+    },
+    {
+      "path": "zk/zrpf_protocol/README.md",
+      "sha256": "a1a6844255751b61fbf5c463789ac0c365e6d90bc9dc301a7d2aba6a2e3eba2f"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/Cargo.toml",
+      "sha256": "88380188ce4acc75e47e4a0c28e19dc1e3edc6e80e092aca3f5ae609080d9455"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/mod.rs",
+      "sha256": "6bda8d019557907522994ffe6be0e64c1e1ea1260ec39bdd66c5b78fa579cc00"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot.rs",
+      "sha256": "e87e186c95aebf8c9431e31de224711127562c3934d85868430e47d124023513"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_codec.rs",
+      "sha256": "e45e08c2378ae2bc45f020c2c26b4970ff399c3c8d220aac842d26551893c993"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_error.rs",
+      "sha256": "84972cad3825e7ba395093202b9300c72d0c0447cee8539e790d98e37351c019"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_id.rs",
+      "sha256": "d79795e6f1217990b13b8c39883e9107d4bf0d370cfda32a5a0d9e357dae14a2"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/src/global_settlement_abi_v1/economic_profile_snapshot_types.rs",
+      "sha256": "92429f0b3cdd89115868e0679dac0ec4bad17263870563b09afea0af7a702587"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1.rs",
+      "sha256": "9d1c92fe533986e30123b84c0ca21f9e04de429aca1c6417133696063d9adb5d"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/binding.rs",
+      "sha256": "99f52fe2c274f6e45f309313b59a8e19bfd5b561c9212e2e4151ce7143a8e456"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/codec.rs",
+      "sha256": "61f1ace8918b4515f46adbd71691a4d48afa7a874b349337dc3461798ab25250"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/identity.rs",
+      "sha256": "5ad9857e7ff83ad8d740aadf58cacb90a1dad5be587723ad11ab7c6f40e7e950"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/successor.rs",
+      "sha256": "7395f866624de0b2dc0c70230ce1f42c29fbf7d94d403470bbf3fc356f3c4c40"
+    },
+    {
+      "path": "zk/zrpf_protocol/protocol/tests/economic_profile_snapshot_v1/support.rs",
+      "sha256": "687de386577632952f513b05964b20465d42ebeacf862fa7370d156162aa5a04"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_economic_profile_snapshot_v1.py",
+      "sha256": "8c529c0bdb3cba0980415ef70ef135448cc3bd5b272ee7648977554ccb90ca25",
+      "node_ids": [
+        "tests/test_economic_profile_snapshot_v1.py::test_economic_profile_snapshot_rust_contract"
+      ]
+    },
+    {
+      "path": "tests/test_zrpf_v3_source_closure.py",
+      "sha256": "5a5949411831e612fb96e7b6f8dc82589b99a23b3990dbbccc0603c0e83da3be",
+      "node_ids": [
+        "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory",
+        "tests/test_zrpf_v3_source_closure.py::test_global_settlement_abi_sources_have_exact_roles",
+        "tests/test_zrpf_v3_source_closure.py::test_checker_rejects_a_rebound_source_digest",
+        "tests/test_zrpf_v3_source_closure.py::test_workspace_inventory_rejects_unlisted_rust_even_with_build_false"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The fourteen Rust contract tests use explicit Arrange, Act, and Assert phases for predecessor cardinality, successor epochs, registry binding, dependency admission, lane coverage, identity, and codec behavior; the isolated pytest launcher asserts the exact fourteen-test result."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Snapshot construction, successor checking, and registry binding consume immutable references and return typed rejection without an effect plan or mutable committed state; the binding acceptance and rejection fixture preserves the complete profile value before and after evaluation."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "transition_predecessor_cardinality",
+      "points": [
+        "genesis_without_predecessor_accept",
+        "genesis_with_predecessor_reject",
+        "governance_without_predecessor_reject",
+        "migration_without_predecessor_reject"
+      ]
+    },
+    {
+      "name": "authority_and_writer_epoch_values",
+      "points": [
+        "zero_accept",
+        "one_accept",
+        "u64_max_accept_as_profile_data"
+      ]
+    },
+    {
+      "name": "successor_epoch_relations",
+      "points": [
+        "previous_minus_one_reject",
+        "previous_equal_reject",
+        "previous_plus_one_accept"
+      ]
+    },
+    {
+      "name": "module_registry_count",
+      "points": [
+        "eleven_reject",
+        "twelve_accept",
+        "thirteen_reject"
+      ]
+    },
+    {
+      "name": "module_registry_binding",
+      "points": [
+        "canonical_lane_order_accept",
+        "reversed_lane_order_reject",
+        "wrong_lane_registry_root_reject",
+        "unknown_route_dependency_release_reject"
+      ]
+    },
+    {
+      "name": "dependency_release_status",
+      "points": [
+        "candidate_reject",
+        "shadow_reject",
+        "active_new_accept",
+        "drain_only_accept",
+        "verify_only_reject",
+        "retired_reject",
+        "revoked_reject"
+      ]
+    },
+    {
+      "name": "primary_route_coverage",
+      "points": [
+        "enabled_lane_with_primary_accept",
+        "enabled_lane_without_primary_reject",
+        "disabled_lane_without_primary_accept",
+        "disabled_lane_with_primary_reject"
+      ]
+    },
+    {
+      "name": "profile_identity",
+      "points": [
+        "baseline",
+        "changed_authority_epoch",
+        "changed_writer_epoch",
+        "changed_transition",
+        "changed_predecessor",
+        "each_of_seven_registry_roots_changed",
+        "fixed_profile_id"
+      ]
+    },
+    {
+      "name": "profile_encoding",
+      "points": [
+        "empty",
+        "canonical",
+        "maximum_plus_one_bytes",
+        "wrong_version",
+        "counterfeit_profile_id",
+        "nonminimal_integer",
+        "trailing_byte",
+        "unknown_profile_content_and_registry_fields",
+        "fixed_encoded_digest"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "omit an authority epoch, writer epoch, transition, predecessor, or one of seven registry roots from profile identity",
+      "killed_by": "tests/test_economic_profile_snapshot_v1.py::test_economic_profile_snapshot_rust_contract"
+    },
+    {
+      "description": "accept invalid transition and predecessor cardinality or a non-increasing successor epoch",
+      "killed_by": "tests/test_economic_profile_snapshot_v1.py::test_economic_profile_snapshot_rust_contract"
+    },
+    {
+      "description": "bind eleven, thirteen, reordered, wrong-root, or unknown-release module registries",
+      "killed_by": "tests/test_economic_profile_snapshot_v1.py::test_economic_profile_snapshot_rust_contract"
+    },
+    {
+      "description": "admit any dependency status except ActiveNew and DrainOnly or invert enabled and disabled primary route coverage",
+      "killed_by": "tests/test_economic_profile_snapshot_v1.py::test_economic_profile_snapshot_rust_contract"
+    },
+    {
+      "description": "accept stale, counterfeit, nonminimal, unknown-field, trailing, empty, or oversized profile input",
+      "killed_by": "tests/test_economic_profile_snapshot_v1.py::test_economic_profile_snapshot_rust_contract"
+    },
+    {
+      "description": "omit an EconomicProfileSnapshot implementation or assurance source from the exact ZRPF inventory",
+      "killed_by": "tests/test_zrpf_v3_source_closure.py::test_current_clean_checkout_matches_exact_source_inventory"
+    }
+  ],
+  "nonclaims": [
+    "EconomicProfileSnapshotV1 is ordinary constructible data. It does not authenticate governance activation, construct VerifiedEconomicEpochV1, verify a proof or journal, or authorize ZenoLedger publication.",
+    "ProvedMigration is an identity-bound transition label with a migration-registry root. This packet does not implement or verify StateMigrationCertificateV1, migration totality, continuity, or atomic profile activation.",
+    "Dependency admission checks existing-object eligibility only. The snapshot does not authenticate command lifecycle purpose and cannot decide ActiveNew new-object creation versus DrainOnly draining.",
+    "Proof-shape, verifier, migration, policy, and terminal roots are committed but their concrete V1 registries are not implemented or bound in this slice.",
+    "This packet does not implement authenticated occurrences, module or route proofs, recursive epoch composition, atomic settlement, complete M6 workflow or terminal coverage, global conservation, production readiness, RC status, or ShapeForge promoted-bundle status."
+  ]
+}

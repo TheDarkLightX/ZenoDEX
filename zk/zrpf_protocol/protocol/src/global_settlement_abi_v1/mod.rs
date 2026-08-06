@@ -1,4 +1,9 @@
 mod codec;
+mod economic_profile_snapshot;
+mod economic_profile_snapshot_codec;
+mod economic_profile_snapshot_error;
+mod economic_profile_snapshot_id;
+mod economic_profile_snapshot_types;
 mod error;
 mod lane;
 mod module_release;
@@ -24,6 +29,16 @@ mod route_release_types;
 
 pub use codec::{
     decode_exact_global_economic_lane_registry_v1, encode_global_economic_lane_registry_v1,
+};
+pub use economic_profile_snapshot::EconomicProfileSnapshotV1;
+pub use economic_profile_snapshot_codec::{
+    decode_exact_economic_profile_snapshot_v1, encode_economic_profile_snapshot_v1,
+};
+pub use economic_profile_snapshot_error::EconomicProfileSnapshotErrorV1;
+pub use economic_profile_snapshot_id::EconomicProfileIdV1;
+pub use economic_profile_snapshot_types::{
+    EconomicProfileRegistryRootsV1, EconomicProfileSnapshotContentV1,
+    EconomicProfileTransitionModeV1,
 };
 pub use error::GlobalSettlementAbiErrorV1;
 pub use lane::{EconomicLaneCommandStatusV1, EconomicLaneIdV1};
@@ -75,3 +90,5 @@ pub const ROUTE_RELEASE_REGISTRY_VERSION_V1: u16 = 1;
 pub const MAX_ROUTE_RELEASES_PER_REGISTRY_V1: usize = 256;
 pub const MAX_ROUTE_RELEASE_REGISTRY_BYTES_V1: usize =
     MAX_ROUTE_RELEASES_PER_REGISTRY_V1 * MAX_ROUTE_RELEASE_BYTES_V1 + 64;
+pub const ECONOMIC_PROFILE_SNAPSHOT_VERSION_V1: u16 = 1;
+pub const MAX_ECONOMIC_PROFILE_SNAPSHOT_BYTES_V1: usize = 512;
