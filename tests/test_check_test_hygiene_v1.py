@@ -97,17 +97,13 @@ def _packet(
         "risk_class": "critical",
         "invariant_ids": ["EXAMPLE-REJECT-IS-NOOP"],
         "failure_modes": ["invalid input mutates authoritative state"],
-        "source_pins": [
-            {"path": source_path, "sha256": _sha256(repo / source_path)}
-        ],
+        "source_pins": [{"path": source_path, "sha256": _sha256(repo / source_path)}],
         "removed_paths": [],
         "test_pins": [
             {
                 "path": test_path,
                 "sha256": _sha256(repo / test_path),
-                "node_ids": [
-                    f"{test_path}::test_invalid_input_rejects_without_mutation"
-                ],
+                "node_ids": [f"{test_path}::test_invalid_input_rejects_without_mutation"],
             }
         ],
         "evidence_families": [
@@ -130,9 +126,7 @@ def _packet(
         "mutations": [
             {
                 "description": "accept invalid authorization",
-                "killed_by": (
-                    f"{test_path}::test_invalid_input_rejects_without_mutation"
-                ),
+                "killed_by": (f"{test_path}::test_invalid_input_rejects_without_mutation"),
             }
         ],
         "nonclaims": ["This packet does not establish production readiness."],
@@ -189,6 +183,7 @@ def test_current_pins_and_strong_evidence_cover_critical_change(
     # Assert
     assert report["ok"] is True
     assert report["covered_critical_paths"] == ["src/core/example.py"]
+    assert report["evidence_by_critical_path"] == {"src/core/example.py": "THV1-20260805-example"}
     assert report["pytest_node_ids"] == [
         "tests/core/test_example.py::test_invalid_input_rejects_without_mutation"
     ]
@@ -312,9 +307,7 @@ def test_deleted_test_replacement_must_be_a_pinned_test(tmp_path: Path) -> None:
     _write_json(evidence_dir / "THV1-20260805-example.json", packet)
 
     # Act / Assert
-    with pytest.raises(
-        TestHygieneError, match="deleted test replacement must be a pinned test"
-    ):
+    with pytest.raises(TestHygieneError, match="deleted test replacement must be a pinned test"):
         check_repository(
             repo_root=repo,
             contract_path=contract,
@@ -361,10 +354,7 @@ def test_symlinked_source_pin_rejects(tmp_path: Path) -> None:
 
 def test_nul_git_parser_preserves_unicode_and_normalizes_rename() -> None:
     # Arrange
-    output = (
-        "A\0src/core/café.py\0"
-        "R100\0src/core/old.py\0src/core/new.py\0"
-    ).encode()
+    output = ("A\0src/core/café.py\0R100\0src/core/old.py\0src/core/new.py\0").encode()
 
     # Act
     changes = _parse_git_name_status(output)
@@ -445,8 +435,13 @@ def test_default_contract_retains_mandatory_critical_path_probes() -> None:
         "tools/check_future_gate.py",
         "tools/run_future_gate.sh",
         "tools/test_hygiene_future_v1.py",
+        "tools/test_quality_future_v2.py",
         ".github/workflows/future.yml",
+        "agent_skills/zeno-future/SKILL.md",
+        "agent_skills/zenodex-future/SKILL.md",
         "docs/testing/TEST_HYGIENE_CONTRACT_V1.md",
+        "docs/testing/TEST_QUALITY_CONTRACT_V2.md",
+        "docs/testing/templates/future.yaml",
         "docs/claims_registry.yaml",
         "tests/core/test_value_transition.py",
         "tests/integration/test_zeno_ledger.py",
@@ -454,32 +449,26 @@ def test_default_contract_retains_mandatory_critical_path_probes() -> None:
     ]
 
     # Act
-    uncovered = [
-        path for path in probes if not any(rule.matches(path) for rule in contract.rules)
-    ]
+    uncovered = [path for path in probes if not any(rule.matches(path) for rule in contract.rules)]
 
     # Assert
     assert uncovered == []
 
 
-def test_pull_request_ci_runs_diff_aware_hygiene_gate() -> None:
+def test_pull_request_ci_runs_diff_aware_quality_overlay() -> None:
     # Arrange
-    workflow = (REPO_ROOT / ".github/workflows/test-hygiene.yml").read_text(
-        encoding="utf-8"
-    )
+    workflow = (REPO_ROOT / ".github/workflows/test-hygiene.yml").read_text(encoding="utf-8")
 
     # Act / Assert
     assert (
-        'python tools/run_test_hygiene_gate_v1.py --base-ref "origin/${{ github.base_ref }}"'
+        'python tools/run_test_quality_gate_v2.py --base-ref "origin/${{ github.base_ref }}"'
         in workflow
     )
 
 
 def test_critical_quality_gate_validates_static_hygiene_contract() -> None:
     # Arrange
-    gate = (REPO_ROOT / "tools/run_critical_quality_gate.sh").read_text(
-        encoding="utf-8"
-    )
+    gate = (REPO_ROOT / "tools/run_critical_quality_gate.sh").read_text(encoding="utf-8")
 
     # Act / Assert
     assert '"$PY" tools/check_test_hygiene_v1.py' in gate

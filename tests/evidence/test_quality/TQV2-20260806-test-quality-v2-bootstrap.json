@@ -1,0 +1,148 @@
+{
+  "schema": "zenodex/test-quality-evidence/v2",
+  "evidence_id": "TQV2-20260806-test-quality-v2-bootstrap",
+  "created_date": "2026-08-06",
+  "hygiene_evidence_id": "THV1-20260806-test-quality-v2-bootstrap",
+  "claim": "Every newly selected critical-path hygiene packet has one unique obligation-quality record with RIPR, an oracle grade meeting its path rule, and an executed mutation tied to a selected pinned test.",
+  "promotion_scope": "The repository may report structural Test Quality V2 compliance and execute the exact V1-pinned pytest nodes for this assurance change.",
+  "authority_tier": "authority",
+  "authority_surface": [
+    ".github/CODEOWNERS",
+    "tools/check_test_quality_v2.py",
+    "tools/run_test_quality_gate_v2.py",
+    ".github/workflows/test-hygiene.yml"
+  ],
+  "failure_model": [
+    {
+      "id": "TQV2-F1-MISSING-OBLIGATION",
+      "description": "A critical change passes V1 technique and hash checks while supplying no falsifiable V2 semantic obligation.",
+      "severity": "high",
+      "coordinate_changed": "Remove the unique V2 packet linked to the V1 packet selected for a critical path."
+    },
+    {
+      "id": "TQV2-F2-WEAK-ORACLE",
+      "description": "A test executes the changed path but reveals only process success or same-implementation self-consistency.",
+      "severity": "high",
+      "coordinate_changed": "Lower the declared oracle independence grade below the minimum for the matched path rule."
+    },
+    {
+      "id": "TQV2-F3-PROSE-MUTANT",
+      "description": "An agent names a hypothetical mutant without linking it to an exact selected and executable pinned test node.",
+      "severity": "high",
+      "coordinate_changed": "Replace the required killed mutation with a prose counterexample or an unpinned killer node."
+    }
+  ],
+  "ripr": {
+    "reach": "The V1 diff classifier selects each changed critical path and records the exact V1 evidence packet chosen for that path.",
+    "infect": "Removing or weakening the linked V2 record leaves a selected V1 packet without the required obligation, oracle grade, or executed falsifier.",
+    "propagate": "The V1 path-to-evidence mapping reaches the V2 linkage and per-rule requirement comparison before any declared tests execute.",
+    "reveal": "A closed decision table rejects the missing link, low oracle grade, missing mutation kind, or killer node outside the selected V1 packet."
+  },
+  "representation_review": {
+    "invalid_state_status": "guarded",
+    "action": "Reuse the V1 path registry and selected test nodes, then enforce one unique V2 packet per selected V1 packet through closed parsers.",
+    "semantic_source_multiplicity": 1,
+    "independent_oracle_exception": false
+  },
+  "technique": {
+    "primary": "mutation",
+    "secondary": [
+      "bva_bve",
+      "decision_table"
+    ],
+    "rejected_alternatives": [
+      {
+        "technique": "example",
+        "reason": "A passing packet example would not demonstrate that missing links, weak grades, and unpinned killers fail closed."
+      },
+      {
+        "technique": "fuzz",
+        "reason": "The initial contract has a small closed decision space where exact one-coordinate mutants provide clearer fault localization."
+      }
+    ]
+  },
+  "oracle": {
+    "description": "The reviewed V2 decision table requires one exact link, oracle grade at least two, required mutation kind, and killer nodes contained in the selected V1 packet.",
+    "independence_grade": 2,
+    "independent_source": "The machine contract, fixed fixture packets, and explicit expected-error decision table are separate from candidate agent reports.",
+    "exact_error_or_precedence": "V1 structural selection succeeds first; V2 then rejects missing linkage, schema defects, rule shortfall, or killer mismatch before pytest execution.",
+    "reject_is_noop": {
+      "status": "applied",
+      "reason": "Both checkers are read-only and negative fixture tests verify rejection without modifying retained repository evidence.",
+      "snapshot_fields": [
+        "V1 evidence packet files",
+        "V2 evidence packet files",
+        "selected pytest node inventory"
+      ]
+    }
+  },
+  "falsifiers": [
+    {
+      "id": "TQV2-MISSING-LINK-M1",
+      "kind": "mutation",
+      "status": "killed",
+      "semantic_change": "Delete the V2 packet after a critical path has selected a valid and current V1 packet.",
+      "killed_by_node_ids": [
+        "tests/test_check_test_quality_v2.py::test_selected_hygiene_packet_requires_v2_quality_obligation"
+      ],
+      "result": "The checker raises the stable selected-hygiene-evidence-lacks-V2-quality-obligation rejection.",
+      "smallest_witness": "One changed critical source, one valid V1 packet, one pinned pytest node, and zero V2 packets."
+    },
+    {
+      "id": "TQV2-ORACLE-GRADE-M2",
+      "kind": "mutation",
+      "status": "killed",
+      "semantic_change": "Change the obligation oracle grade from the required boundary value two to the lower neighbor one.",
+      "killed_by_node_ids": [
+        "tests/test_check_test_quality_v2.py::test_oracle_grade_below_rule_minimum_rejects"
+      ],
+      "result": "The checker rejects the packet because its oracle independence grade is below the matched path minimum.",
+      "smallest_witness": "One valid linked obligation with a single integer grade changed from two to one."
+    },
+    {
+      "id": "TQV2-KILLER-LINK-M3",
+      "kind": "mutation",
+      "status": "killed",
+      "semantic_change": "Replace the exact selected pinned killer node with an unpinned node in the same test file.",
+      "killed_by_node_ids": [
+        "tests/test_check_test_quality_v2.py::test_falsifier_must_be_killed_by_selected_pinned_node"
+      ],
+      "result": "The checker rejects the falsifier because its killer is outside the selected V1 node inventory.",
+      "smallest_witness": "One falsifier record with one test-node identifier changed."
+    }
+  ],
+  "minimal_test_inventory": {
+    "added": [
+      "tests/test_check_test_quality_v2.py",
+      "tests/test_run_test_quality_gate_v2.py"
+    ],
+    "merged_or_deleted": [],
+    "protected": [
+      "tests/test_check_test_hygiene_v1.py",
+      "tests/test_run_test_hygiene_gate_v1.py"
+    ],
+    "rationale": "The V2 tests isolate schema, selection, rule, mutation-linkage, append-only, workflow, and runner faults while retaining V1 hash and argv protections."
+  },
+  "counterexample": {
+    "status": "retained",
+    "rationale": "The missing-link regression is the minimized counterexample for technique-presence evidence without an obligation-quality record.",
+    "retained_path": "tests/test_check_test_quality_v2.py",
+    "replay_command": "pytest -q tests/test_check_test_quality_v2.py::test_selected_hygiene_packet_requires_v2_quality_obligation",
+    "minimized_size": "One critical path, one V1 packet, and no linked V2 packet."
+  },
+  "metrics": {
+    "production_sloc_delta": 0,
+    "test_sloc_delta": 467,
+    "support_sloc_delta": 1684,
+    "runtime_delta": "The focused 35-test V1 and V2 set completed in 0.28 seconds locally."
+  },
+  "review_decision": {
+    "ready": true,
+    "blockers": []
+  },
+  "nonclaims": [
+    "The structural checker cannot prove that natural-language RIPR or oracle descriptions are truthful.",
+    "The initial V2 runner executes V1-pinned pytest nodes and does not yet provide native Rust test selectors or a repository-wide mutation kill matrix.",
+    "No ZenoDEX production, proof-soundness, whole-economy, branch-protection, or release-readiness claim is promoted by this packet."
+  ]
+}

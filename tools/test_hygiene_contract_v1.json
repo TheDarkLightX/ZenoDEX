@@ -76,9 +76,15 @@
         "tools/run_*gate*.sh",
         "tools/test_hygiene_*_v1.py",
         "tools/test_hygiene_contract_v1.json",
+        "tools/test_quality_*_v2.py",
+        "tools/test_quality_contract_v2.json",
         ".github/workflows/**",
         ".github/CODEOWNERS",
+        "agent_skills/zeno-*/**",
+        "agent_skills/zenodex-*/**",
         "docs/testing/TEST_HYGIENE_CONTRACT_V1.md",
+        "docs/testing/TEST_QUALITY_CONTRACT_V2.md",
+        "docs/testing/templates/**",
         "docs/claims_registry.yaml",
         "docs/RISC0_CIRCUIT_QUALITY_CBC_SPEC.md"
       ],
@@ -104,7 +110,8 @@
         "tests/test_*gate*.py"
       ],
       "exclude_globs": [
-        "tests/evidence/test_hygiene/**"
+        "tests/evidence/test_hygiene/**",
+        "tests/evidence/test_quality/**"
       ],
       "required_families": [
         "negative_regression"
