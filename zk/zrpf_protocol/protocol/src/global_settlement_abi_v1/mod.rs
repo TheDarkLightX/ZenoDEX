@@ -1,4 +1,6 @@
 mod codec;
+mod economic_command_occurrence;
+mod economic_command_occurrence_error;
 mod economic_profile_snapshot;
 mod economic_profile_snapshot_codec;
 mod economic_profile_snapshot_error;
@@ -30,6 +32,13 @@ mod route_release_types;
 pub use codec::{
     decode_exact_global_economic_lane_registry_v1, encode_global_economic_lane_registry_v1,
 };
+pub use economic_command_occurrence::{
+    bind_economic_command_occurrence_to_active_profile_v1,
+    decode_exact_economic_command_occurrence_v1, encode_economic_command_occurrence_v1,
+    EconomicCommandOccurrenceContentV1, EconomicCommandOccurrenceIdV1, EconomicCommandOccurrenceV1,
+    EconomicOccurrencePositionV1, ProfileBoundEconomicCommandOccurrenceV1,
+};
+pub use economic_command_occurrence_error::EconomicCommandOccurrenceErrorV1;
 pub use economic_profile_snapshot::EconomicProfileSnapshotV1;
 pub use economic_profile_snapshot_codec::{
     decode_exact_economic_profile_snapshot_v1, encode_economic_profile_snapshot_v1,
@@ -92,3 +101,5 @@ pub const MAX_ROUTE_RELEASE_REGISTRY_BYTES_V1: usize =
     MAX_ROUTE_RELEASES_PER_REGISTRY_V1 * MAX_ROUTE_RELEASE_BYTES_V1 + 64;
 pub const ECONOMIC_PROFILE_SNAPSHOT_VERSION_V1: u16 = 1;
 pub const MAX_ECONOMIC_PROFILE_SNAPSHOT_BYTES_V1: usize = 512;
+pub const ECONOMIC_COMMAND_OCCURRENCE_VERSION_V1: u16 = 1;
+pub const MAX_ECONOMIC_COMMAND_OCCURRENCE_BYTES_V1: usize = 16_384;

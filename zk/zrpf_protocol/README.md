@@ -34,6 +34,13 @@ The crate currently provides:
   canonical state-derived module-release set to exactly one route, rejecting
   ambiguity, fallback, noncanonical order, and mismatched module-registry
   unions, with a domain-separated registry root and exact bounded decoding;
+- a content-derived `EconomicProfileSnapshotV1` committing authority and writer
+  epochs plus the exact lane, route, proof-shape, verifier, migration, policy,
+  and terminal registry roots selected for one governance profile;
+- a canonical `EconomicCommandOccurrenceV1` that preserves the existing
+  authorized-action ABI while adding `(height, tx_index, op_index)`, exact
+  profile, writer epoch, and route identity, plus a constructor-private
+  structural witness for active-profile and command-route binding;
 - an action-bound `AuthorizationConsumptionNullifierV1` compatibility identity
   for binding a canonical action to a grant;
 - an `AuthorizationGrantSpendNullifierV1` derived only from application,
@@ -123,6 +130,16 @@ lane union and referenced release occurrence, while lifecycle interpretation
 remains outside this slice. The selector is caller-constructible data; no
 profile snapshot, authenticated command occurrence, object-pin derivation,
 route receipt, verifier, or publication witness gives it authority here.
+
+The economic profile snapshot and command occurrence close a narrower
+governance-to-statement relation. The occurrence owns one existing authorized
+action rather than duplicating its subject, grant, nonce, pre-state, effects,
+or consumed-object fields. Active-profile binding checks the exact profile ID,
+writer epoch, route-registry root, route ID, and command variant before a
+constructor-private structural witness exists. The occurrence remains ordinary
+data, and the witness is non-serializable. This slice does not authenticate the
+command, derive coexist-and-drain release pins from global state, verify a
+receipt, construct epoch authority, or publish ledger state.
 
 The settlement certificate is a canonical proof-neutral journal. Its source
 claim binding and DA, schedule, carry, plan, and state roots remain
