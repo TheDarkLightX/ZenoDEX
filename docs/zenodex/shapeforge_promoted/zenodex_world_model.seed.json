@@ -194,6 +194,59 @@
         "tests/core/test_pokayoke_swap_suggest.py",
         "docs/zenodex/SHAPEFORGE_POKAYOKE_REASONING.md"
       ]
+    },
+    {
+      "formula": "A global economic epoch is publication-admissible only when an active governed profile selects the root image, every ordered route journal is paired with the exact opaque VerifiedRouteCompositionV1 witness and its root-bound disclosed effect plan, a checked deterministic composer derives the exact certificate-bound epoch plan, the canonical epoch journal and receipt digest are bound, the selected succinct-receipt verifier accepts, and the atomic publisher consumes the resulting opaque verified-epoch witness against the current head.",
+      "id": "global_publication_requires_release_selected_receipt_and_full_binding",
+      "sources": [
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+        "src/core/global_economic_proof_v1.py",
+        "src/core/epoch_effect_composition_v1.py",
+        "src/integration/global_economic_commit_v1.py",
+        "tests/core/test_global_settlement_abi_v1.py",
+        "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs",
+        "tools/check_zrpf_shapeforge_global_epoch_admission_v1.py"
+      ]
+    },
+    {
+      "formula": "A lane-module output is structurally release-route bound only when its complete typed input and accepted statement agree, the active profile derives the command route, the route selects the journal lane and module release, and the occurrence semantics, subject, grant, chain, deployment, profile, writer epoch, and journal occurrence all match exactly.",
+      "id": "lane_module_release_route_binding_requires_exact_input_output_and_occurrence_semantics",
+      "sources": [
+        "src/core/lane_module_release_route_binding_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/lane_module_release_route_binding.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs"
+      ]
+    },
+    {
+      "formula": "A lane-module transition gains verified-module authority only when its structural release-route binding is recomputed from the complete typed input and accepted output, the active lane release selects the expected guest image, the receipt is explicit nonempty SUCCINCT data, and the verifier accepts that image with the exact canonical module journal bytes; the journal's deterministic receipt_root remains distinct from the cryptographic receipt digest.",
+      "id": "verified_lane_module_transition_requires_release_image_exact_journal_and_receipt",
+      "sources": [
+        "src/core/lane_module_receipt_verification_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs"
+      ]
+    },
+    {
+      "formula": "A receipt-backed asset-lane composition candidate exists only when the active profile derives the exact single-lane route, one opaque verified-module witness matches the consumed module journal root and canonical-byte digest, the deterministic coordinator accepts the exact private port and effects, and the output remains explicitly RECEIPT_BACKED_STRUCTURAL_ONLY until a governed coordinator image and receipt are verified.",
+      "id": "receipt_backed_lane_composition_requires_exact_verified_module_journal",
+      "sources": [
+        "src/core/receipt_backed_asset_lane_composition_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/receipt_backed_asset_lane_composition.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs"
+      ]
+    },
+    {
+      "formula": "A route composition gains verified-route authority only when the active profile derives the exact governed route, its content-derived release selects the composer image and manifests, every ordered lane journal is paired with the exact opaque verified-lane witness and coordinator release, the explicit nonempty SUCCINCT receipt is verified against the canonical route journal bytes, and the resulting opaque witness remains ineligible for epoch or publication authority.",
+      "id": "verified_route_composition_requires_governed_image_exact_ordered_lane_witnesses_and_receipt",
+      "sources": [
+        "src/core/route_composition_receipt_verification_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/route_composition_receipt_verification.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs"
+      ]
     }
   ],
   "description": "Formal ShapeForge baseline for routing, batch clearing, settlement validation, kernel composition, perps funding/oracle safety, fee distribution, zUSD safety, cross-module oracle sync, and active Tau semantic parity in ZenoDEX.",
@@ -406,6 +459,40 @@
       "status_if_unproved": "unknown"
     },
     {
+      "axis": "operator",
+      "evidence_required": [
+        "contract",
+        "tested_discovery"
+      ],
+      "expected_effects": [
+        "Canonical byte equality can still hold while the host, rather than the lane module transition, invents the private port.",
+        "A future guest cannot establish that the accepted economic transition emitted the port when the binding exists only in a host fixture.",
+        "Publication authority remains closed because neither module-owned structural output nor fixture rebinding supplies a cryptographic receipt."
+      ],
+      "improvement_target": "contract strengthening",
+      "perturbation": "Hold the accepted asset-transfer transition fixed while replacing module-owned private-port and journal emission with host test-fixture rebinding.",
+      "scenario_id": "scenario_asset_transfer_host_fixture_rebinding",
+      "slice_id": "asset_transfer_lane_module_output",
+      "status_if_unproved": "unknown"
+    },
+    {
+      "axis": "operator",
+      "evidence_required": [
+        "contract",
+        "tested_discovery"
+      ],
+      "expected_effects": [
+        "Issue or burn effects can remain byte-identical while a host fixture invents the lifecycle private port after the economic transition.",
+        "A future guest cannot establish that the authorized supply transition emitted the port when constructor ownership exists only in host test code.",
+        "Publication authority remains closed because module-owned lifecycle structure still lacks a cryptographic guest receipt."
+      ],
+      "improvement_target": "contract strengthening",
+      "perturbation": "Hold authorized managed issue or self-burn economics fixed while replacing module-owned private-port and journal emission with host test-fixture rebinding.",
+      "scenario_id": "scenario_managed_asset_lifecycle_host_fixture_rebinding",
+      "slice_id": "managed_asset_lifecycle_lane_module_output",
+      "status_if_unproved": "unknown"
+    },
+    {
       "axis": "evidence",
       "evidence_required": [
         "proved",
@@ -553,6 +640,93 @@
       "perturbation": "Assume advisory action severity is monotone in amount_in and replace the bounded probe schedule with binary search over amount_in.",
       "scenario_id": "scenario_pokayoke_exact_in_nonmonotone_amount_witness",
       "slice_id": "pokayoke_exact_in_swap_guardrails",
+      "status_if_unproved": "unknown"
+    },
+    {
+      "axis": "evidence",
+      "evidence_required": [
+        "contract",
+        "tested_discovery"
+      ],
+      "expected_effects": [
+        "The structurally valid route journal remains useful as deterministic composition evidence.",
+        "Missing, foreign, duplicated, reordered, or journal-substituted route witnesses reject before root-receipt verification.",
+        "A root-bound route effect plan cannot be replaced by an unrelated epoch plan; disconnected histories, repeated occurrences, overflow, zero, and sixty-five plans reject before root-receipt verification.",
+        "No compliant release-aware verifier can construct VerifiedEconomicEpochV1 without exact opaque route witnesses, exact route-effect aggregation, and acceptance of nonempty receipt bytes against the selected image id and canonical epoch journal.",
+        "The atomic commit boundary remains unreachable to structural journals or standalone route witnesses, so publication authority stays closed."
+      ],
+      "improvement_target": "contract strengthening",
+      "perturbation": "Replace one exact opaque route witness with structural or foreign evidence, or keep every route witness fixed while replacing the epoch effect plan with a different valid plan.",
+      "scenario_id": "scenario_global_epoch_structural_journal_without_receipt_verifier",
+      "slice_id": "global_epoch_receipt_admission",
+      "status_if_unproved": "unknown"
+    },
+    {
+      "axis": "guard",
+      "evidence_required": [
+        "contract",
+        "tested_discovery"
+      ],
+      "expected_effects": [
+        "A managed burn output can carry the occurrence id of an issue command when the transition context is caller-assembled and only the rebound journal is inspected.",
+        "The release-route binder rejects because the complete typed input commits managed_asset_burn while the governed occurrence derives the managed_asset_issue route.",
+        "The accepted output gains an opaque structural binding witness only after all profile, route, release, occurrence, subject, grant, and domain checks pass."
+      ],
+      "improvement_target": "contract strengthening",
+      "perturbation": "Hold one accepted managed self-burn fixed while labeling its context with the occurrence id and governed route of a managed-issue command.",
+      "scenario_id": "scenario_managed_issue_occurrence_relabels_burn_output",
+      "slice_id": "lane_module_release_route_binding",
+      "status_if_unproved": "unknown"
+    },
+    {
+      "axis": "evidence",
+      "evidence_required": [
+        "contract",
+        "tested_discovery"
+      ],
+      "expected_effects": [
+        "The structural release-route witness and deterministic module receipt root remain useful statement commitments without gaining proof authority.",
+        "A substituted valid module statement, empty receipt, non-SUCCINCT receipt, or verifier rejection cannot construct VerifiedLaneModuleTransitionV1.",
+        "Verifier acceptance records a separate cryptographic receipt digest and binds one opaque witness to the active release image and exact canonical module journal bytes."
+      ],
+      "improvement_target": "contract strengthening",
+      "perturbation": "Hold one accepted lane-module transition and governed release fixed while replacing exact release-image and journal receipt verification with its structural binding witness or deterministic module receipt root.",
+      "scenario_id": "scenario_structural_lane_binding_without_module_receipt_verification",
+      "slice_id": "lane_module_receipt_verification",
+      "status_if_unproved": "unknown"
+    },
+    {
+      "axis": "evidence",
+      "evidence_required": [
+        "contract",
+        "tested_discovery"
+      ],
+      "expected_effects": [
+        "A separately valid module receipt cannot back a different module journal even when profile, route, occurrence, lane, and release remain equal.",
+        "The candidate recomputes the module journal digest, pairs the exact opaque verified-module root, and requires deterministic coordinator acceptance of the bound private port and effects.",
+        "The resulting witness remains RECEIPT_BACKED_STRUCTURAL_ONLY and has no route, epoch, publication, or settlement authority."
+      ],
+      "improvement_target": "contract strengthening",
+      "perturbation": "Hold the active profile, route, occurrence, and deterministic coordinator input fixed while substituting a valid receipt-verified module witness from a different accepted journal.",
+      "scenario_id": "scenario_valid_module_receipt_substitutes_different_lane_journal",
+      "slice_id": "receipt_backed_asset_lane_composition",
+      "status_if_unproved": "unknown"
+    },
+    {
+      "axis": "evidence",
+      "evidence_required": [
+        "contract",
+        "tested_discovery"
+      ],
+      "expected_effects": [
+        "A structural lane candidate or separately valid verified-lane witness cannot authorize a different route journal.",
+        "Missing, duplicated, reordered, wrong-journal, wrong-occurrence, or wrong-writer-epoch lane inputs reject before route receipt verification constructs authority.",
+        "Only release-selected verification of an explicit nonempty SUCCINCT receipt over the exact canonical route journal constructs VerifiedRouteCompositionV1, which has no epoch, publication, or settlement authority."
+      ],
+      "improvement_target": "contract strengthening",
+      "perturbation": "Hold the active profile, governed route, occurrence, and route receipt fixed while substituting structural lane composition data or a valid verified-lane witness bound to another lane journal.",
+      "scenario_id": "scenario_verified_lane_witness_substitutes_different_route_journal",
+      "slice_id": "route_composition_receipt_verification",
       "status_if_unproved": "unknown"
     }
   ],
@@ -4538,6 +4712,1189 @@
           "id": "pokayoke_action",
           "meaning": "Advisory action in the explicit order allow < confirm < typed_confirm < block.",
           "type": "Action"
+        }
+      ],
+      "status": "contract"
+    },
+    {
+      "candidate_family": "global_economic_epoch_candidate",
+      "canonical_keys": [
+        {
+          "formula": "(height, tx_index, op_index)",
+          "id": "economic_occurrence_position",
+          "meaning": "Every command occurrence has one total canonical ledger position before route and epoch composition.",
+          "order": "total"
+        }
+      ],
+      "description": "The GlobalSettlementABI V1 reference packages parallel epoch inputs in one immutable EconomicEpochReceiptCandidateV1. Each canonical route journal must pair with its exact opaque VerifiedRouteCompositionV1 witness, public route-assumption root, and disclosed effect plan. A checked deterministic composer derives the exact certificate-bound epoch plan before release-aware succinct root-receipt verification and atomic compare-and-swap publication. The current composer covers only sequential single-lane ASSET_TRANSFER routes with zero terminal obligations and no outbox rows. A pinned RISC0 3.0.6 recursive guest covers direct epochs, canonical fanout-8 command groups, and grouped epochs through 64 commands, with real evidence through the 9-command 8+1 boundary. That guest commits effect roots without proving this composition. Separate pinned module and lane-coordinator guests produced one historical source-scoped ASSET_TRANSFER module-to-lane recursion over the exact stable Rust transition and canonical journals. All workspaces remain research-only and unmounted; the epoch structural children prove no economics, and no economic lane receipt reaches a route, epoch, or publication path.",
+      "evidence": [
+        {
+          "claim": "The existing settlement strong-validation slice has scoped replayable proofs and contracts that can be reused as economic donor evidence without implying global publication authority.",
+          "class": "proved",
+          "source": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#slice_id=settlement_strong_validation"
+        },
+        {
+          "claim": "verify_economic_epoch_v1 consumes one immutable EconomicEpochReceiptCandidateV1 and checks active profile, governed routes, canonical occurrence order, exact opaque route-witness pairing, exact route-effect roots and occurrences, deterministic epoch-plan aggregation, profile/image/journal/body bindings, nonempty succinct receipt bytes, receipt digest, and the selected verifier call before constructing VerifiedEconomicEpochV1.",
+          "class": "contract",
+          "source": "src/core/global_economic_proof_v1.py#verify_economic_epoch_v1"
+        },
+        {
+          "claim": "The reference commit port accepts only VerifiedEconomicEpochV1 and performs profile, head, body, state, DA, finality, height, and command-count binding checks under one in-memory lock.",
+          "class": "contract",
+          "source": "src/integration/global_economic_commit_v1.py#GlobalEconomicCommitPortV1"
+        },
+        {
+          "claim": "The Rust reference implements the parallel bounded epoch admission boundary, exact opaque route witnesses, exact route-effect bindings, checked ASSET_TRANSFER aggregation, and the same commit identifier shape. It exposes no verifier implementation or publication capability.",
+          "class": "implemented",
+          "source": "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs"
+        },
+        {
+          "claim": "Focused Python and Rust regressions accept exact route-witness and route-effect counts at 1, 8, 9, and 64 and reject unrelated epoch effects, wrong roots, disconnected histories, duplicate occurrences, overflow, outbox and terminal scope expansion, zero, sixty-five, missing, foreign, reordered, wrong-kind, empty, and verifier-rejected evidence before epoch-witness construction; publisher regressions retain stale-head and binding no-op behavior.",
+          "class": "tested_discovery",
+          "source": "tests/core/test_global_settlement_abi_v1.py"
+        },
+        {
+          "claim": "The no_std direct, command-aggregation, and aggregated-epoch preflights rederive canonical route-journal roots and digests, explicit little-endian image roots, ordered public route-assumption roots, canonical groups of eight, context bindings, module-leaf totals, and sequential state roots before the guest calls env::verify for each exact child claim.",
+          "class": "implemented",
+          "source": "zk/global_economic_epoch_risc0/shared/src/lib.rs"
+        },
+        {
+          "claim": "One ignored release-evidence test generated a real Succinct structural child receipt, installed it with add_assumption, generated a real Succinct epoch receipt, matched the exact certificate journal, and verified the root receipt against the compiled epoch image. The structural child commits caller-supplied bytes and establishes recursion plumbing only.",
+          "class": "tested_discovery",
+          "source": "zk/global_economic_epoch_risc0/host/tests/real_composition.rs"
+        },
+        {
+          "claim": "The guest-ready asset-transfer wrapper now emits a module-owned private port and rebound structural journal with exact Python/Rust root parity; it exposes no receipt verifier or publication witness.",
+          "class": "tested_discovery",
+          "source": "tests/core/test_asset_transfer_lane_module_v1.py"
+        },
+        {
+          "claim": "The pinned ASSET_TRANSFER module guest imports that same deterministic Rust wrapper, rejects economic denials without a receipt, and generated one real RISC0 3.0.6 Succinct receipt over the exact canonical LaneModuleTransitionJournalV1 in 569.75 seconds; its pinned verifier adapter rejects fake, wrong-image, and wrong-journal evidence.",
+          "class": "tested_discovery",
+          "source": "zk/asset_transfer_module_risc0/host/tests/real_proof.rs"
+        },
+        {
+          "claim": "The managed lifecycle wrapper owns bound issue and burn outputs with exact Python/Rust roots and direct coordinator admission; it exposes no receipt verifier or publication witness.",
+          "class": "tested_discovery",
+          "source": "tests/core/test_managed_asset_lifecycle_lane_module_v1.py"
+        }
+      ],
+      "guards": [
+        {
+          "formula": "profile.status = ACTIVE and route_release.status = ACTIVE_NEW and route_release accepts new objects",
+          "id": "active_governed_profile_route",
+          "meaning": "Callers cannot supply an inactive profile or an unregistered or inactive route as publication authority."
+        },
+        {
+          "formula": "certificate fields = expected chain, deployment, profile, writer epoch, pre-state, body, effect-plan, root image, ordered occurrences, and ordered route journals",
+          "id": "exact_epoch_binding",
+          "meaning": "The verifier binds the candidate epoch to the governed profile and complete canonical public journal."
+        },
+        {
+          "formula": "len(verified_routes) = len(route_journals) = len(occurrences) and verified_routes[i] binds the active profile, governed route release and image, occurrence, writer epoch, exact route journal root and digest, ordered lane journals, and SUCCINCT kind",
+          "id": "exact_verified_route_witnesses",
+          "meaning": "A structural route journal or valid witness for another occurrence or journal cannot gain epoch admission authority."
+        },
+        {
+          "formula": "route_assumption_roots[i] = H(profile, route release, occurrence, writer epoch, route journal root, sha256(exact journal bytes), expected child image)",
+          "id": "exact_route_assumption_roots",
+          "meaning": "The public epoch journal commits the exact image and journal pair that the recursive guest must resolve for every route occurrence."
+        },
+        {
+          "formula": "route_effect_plan[i].root = route_journal[i].effect_plan_root and route_effect_plan[i].occurrence = occurrence[i] and checked_compose(route_effect_plans) = certificate.effect_plan",
+          "id": "exact_route_effect_plan_aggregation",
+          "meaning": "Verified route effects cannot be relabeled as a different epoch plan; composition must preserve connected lane and conservation histories with checked arithmetic."
+        },
+        {
+          "formula": "receipt_kind = SUCCINCT and sha256(receipt_bytes) = receipt_root and selected_verifier.verify(receipt_bytes, root_image_id, canonical_journal_bytes) accepts",
+          "id": "release_selected_succinct_receipt",
+          "meaning": "Structural journal validity alone cannot construct publication authority."
+        },
+        {
+          "formula": "commit input has type VerifiedEconomicEpochV1",
+          "id": "opaque_verified_epoch_only",
+          "meaning": "The publisher consumes verifier-created authority rather than caller-constructible certificate data."
+        },
+        {
+          "formula": "expected_head = current_state_root and expected_profile = active_profile_root and certificate/body/post-state/DA/finality bindings agree",
+          "id": "atomic_head_profile_body_binding",
+          "meaning": "A stale or mismatched publication attempt is a typed no-op under the reference lock."
+        }
+      ],
+      "improvement_targets": [
+        "move exact route-effect aggregation into the recursive epoch guest and support governed multi-lane composition",
+        "full 64-command 73-receipt recursion replay and resource benchmark",
+        "successful release-aware asset-lane replay and a route-composer guest consuming the verified economic lane receipt",
+        "economic module guests for managed asset lifecycle and the remaining enabled lanes",
+        "release-selected mounted cryptographic verifier implementation",
+        "durable atomic publisher",
+        "route mounting",
+        "migration proof"
+      ],
+      "known_gaps": [
+        "The Python and Rust admission references now bind disclosed route effect plans to exact route-journal roots and deterministically compose single-lane ASSET_TRANSFER plans. The recursive epoch guest commits only effect roots and does not yet execute or prove this aggregation.",
+        "The current effect composer rejects terminal obligations, external outbox rows, and every route outside one ASSET_TRANSFER lane. Governed multi-lane and terminal composition laws remain absent.",
+        "The closed RISC0 guest resolves one through eight direct route assumptions and canonical same-image fanout-8 command groups for nine through sixty-four commands. A real 9-command 8+1 replay exists; the full 64-command 73-receipt replay and resource benchmark remain absent.",
+        "The real recursive epoch tests still use quarantined structural route children that commit caller-supplied route-journal bytes and prove no route transition, authorization, conservation, release status, or economics; the historical ASSET_TRANSFER lane receipt is not composed into a route receipt.",
+        "One RISC0 ASSET_TRANSFER module guest and one coordinator guest emitted exact economic module and lane journals in a historical source-scoped replay. The current release-aware active test-profile fixture compiles, but its real replay was interrupted for workstation thermal safety; the other module families and economic route guest remain absent, and no deployment profile registers either proof image.",
+        "Pinned RISC0 verifier adapters exist for the ASSET_TRANSFER module and lane receipts, while deployment-selected lane, route, epoch, and durable publication verifier paths remain unmounted; focused GlobalSettlementABI host tests still use recording doubles.",
+        "The publisher is an in-memory conformance shell without crash recovery, durable transactionality, consensus finality, or production writer capability.",
+        "The base asset-transfer and managed-lifecycle transitions still emit zero private-port roots and legacy coordinator fixtures use synthetic rebinding. Guest-ready wrappers emit module-owned bound outputs, and only ASSET_TRANSFER has historical real module and lane receipts; managed lifecycle and the route composer remain without real proofs.",
+        "The ASSET_TRANSFER guest links the std-based stable ABI for exact host/guest core reuse. Its 504848-byte ELF and 569.75-second local proof are evidence data, not a proved cycle envelope, throughput result, or resource-release qualification.",
+        "No complete M6 profile, proved state migration, writer-epoch rotation, or legacy-writer retirement is mounted."
+      ],
+      "observables": [
+        {
+          "id": "verification_outcome",
+          "meaning": "Typed acceptance as an opaque verified epoch or fail-closed rejection before authority construction.",
+          "type": "Rejected | VerifiedEconomicEpochV1"
+        },
+        {
+          "id": "commit_outcome",
+          "meaning": "Committed, already committed, stale head, profile mismatch, or binding rejection with unchanged state on rejection.",
+          "type": "CommitOutcomeV1"
+        },
+        {
+          "id": "published_epoch_record",
+          "meaning": "Canonical record binding certificate, profile, writer epoch, roots, receipt, effects, DA, finality, and release observation after acceptance.",
+          "type": "Option PublishedEconomicEpochV1"
+        }
+      ],
+      "operators": [
+        {
+          "effects": [
+            "Construct VerifiedEconomicEpochV1 only after all release, exact opaque route-witness, public assumption-root, route-effect aggregation, journal, receipt, and body bindings pass."
+          ],
+          "id": "verify_economic_epoch",
+          "kind": "verifier_boundary",
+          "preconditions": [
+            "profile is ACTIVE",
+            "every ordered route journal has the exact preceding VerifiedRouteCompositionV1 witness",
+            "every ordered route journal has the exact public image-and-journal assumption root",
+            "every ordered route journal has one exact root-bound effect plan and the checked aggregate equals the certificate-bound epoch plan",
+            "receipt bytes are nonempty",
+            "receipt kind is SUCCINCT",
+            "route and occurrence counts are within the bounded epoch shape"
+          ]
+        },
+        {
+          "effects": [
+            "Atomically replace the in-memory state and persist one canonical epoch record, or return a typed no-op."
+          ],
+          "id": "commit_verified_economic_epoch",
+          "kind": "atomic_publisher",
+          "preconditions": [
+            "input is VerifiedEconomicEpochV1",
+            "expected head and active profile are supplied",
+            "full body and post-state are supplied"
+          ]
+        }
+      ],
+      "slice_id": "global_epoch_receipt_admission",
+      "sources": [
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+        "docs/research/ZRPF_SHAPEFORGE_GLOBAL_EPOCH_ADMISSION_V1.md",
+        "src/core/global_economic_proof_v1.py",
+        "src/core/epoch_effect_composition_v1.py",
+        "src/core/route_composition_receipt_verification_v1.py",
+        "src/integration/global_economic_commit_v1.py",
+        "zk/global_settlement_abi_v1/src/proof.rs",
+        "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs",
+        "zk/global_settlement_abi_v1/src/epoch_effect_composition.rs",
+        "zk/global_settlement_abi_v1/README.md",
+        "tests/core/test_global_settlement_abi_v1.py",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "tests/data/global_settlement_abi_v1_golden.json",
+        "zk/global_economic_epoch_risc0/README.md",
+        "zk/global_economic_epoch_risc0/shared/src/lib.rs",
+        "zk/global_economic_epoch_risc0/methods/epoch/src/main.rs",
+        "zk/global_economic_epoch_risc0/host/src/lib.rs",
+        "zk/global_economic_epoch_risc0/shared/tests/epoch_preflight.rs",
+        "zk/global_economic_epoch_risc0/host/tests/receipt_admission.rs",
+        "zk/global_economic_epoch_risc0/host/tests/real_composition.rs",
+        "tests/core/test_asset_lane_coordinator_v1.py",
+        "src/core/asset_transfer_lane_module_v1.py",
+        "tests/core/test_asset_transfer_lane_module_v1.py",
+        "zk/global_settlement_abi_v1/src/asset_transfer_lane_module.rs",
+        "zk/global_settlement_abi_v1/tests/asset_transfer_lane_module.rs",
+        "src/core/managed_asset_lifecycle_lane_module_v1.py",
+        "tests/core/test_managed_asset_lifecycle_lane_module_v1.py",
+        "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_lane_module.rs",
+        "zk/global_settlement_abi_v1/tests/managed_asset_lifecycle_lane_module.rs",
+        "tools/check_zrpf_shapeforge_global_epoch_admission_v1.py",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py"
+      ],
+      "state_vars": [
+        {
+          "id": "economic_profile",
+          "meaning": "Active profile that selects the lane, route, proof shape, verifier, migration, policy, and root-image registries.",
+          "type": "EconomicProfileSnapshotV1"
+        },
+        {
+          "id": "epoch_certificate",
+          "meaning": "Canonical public epoch statement including profile, writer epoch, roots, effects, terminal obligations, DA, finality, manifests, image, and receipt metadata.",
+          "type": "GlobalEconomicEpochCertificateV1"
+        },
+        {
+          "id": "ordered_route_journals",
+          "meaning": "Canonical route-composition journals aligned one-to-one with ordered command occurrences.",
+          "type": "Tuple RouteCompositionJournalV1"
+        },
+        {
+          "id": "ordered_route_assumption_roots",
+          "meaning": "Public commitments aligned one-to-one with route journals, binding each exact child image, journal bytes, route release, occurrence, profile, and writer epoch.",
+          "type": "Tuple RootV1"
+        },
+        {
+          "id": "ordered_verified_routes",
+          "meaning": "Opaque route-receipt witnesses aligned one-to-one with the exact canonical route journals and command occurrences.",
+          "type": "Tuple VerifiedRouteCompositionV1"
+        },
+        {
+          "id": "ordered_route_effect_plans",
+          "meaning": "Disclosed canonical route plans aligned one-to-one with route journals; each plan root and occurrence are checked before deterministic aggregation.",
+          "type": "Tuple GlobalEconomicEffectPlanV1"
+        },
+        {
+          "id": "effect_plan",
+          "meaning": "Canonical whole-epoch economic effect plan bound to the certificate.",
+          "type": "GlobalEconomicEffectPlanV1"
+        },
+        {
+          "id": "receipt_bytes",
+          "meaning": "Nonempty candidate succinct receipt bytes whose digest and journal are checked.",
+          "type": "Bytes"
+        },
+        {
+          "id": "release_selected_receipt_verifier",
+          "meaning": "Verifier implementation selected by the active profile and expected root image.",
+          "type": "SuccinctReceiptVerifierV1"
+        },
+        {
+          "id": "body_and_state",
+          "meaning": "Full command-body commitment, post-state, receipt archive, DA, and finality inputs supplied to publication.",
+          "type": "EconomicEpochBodyAndStateV1"
+        },
+        {
+          "id": "ledger_head",
+          "meaning": "Current global state root and height protected by compare-and-swap publication.",
+          "type": "GlobalEconomicStateV1"
+        }
+      ],
+      "status": "contract"
+    },
+    {
+      "candidate_family": "asset_transfer_lane_module_candidate",
+      "canonical_keys": [
+        {
+          "formula": "(asset, owner, custody_domain)",
+          "id": "asset_holding_identity",
+          "meaning": "Every account or custody holding has one total canonical identity in the common asset projection.",
+          "order": "total"
+        }
+      ],
+      "description": "The research-only asset-transfer lane wrapper owns the deterministic statement, accepted private port, receipt root, and rebound module journal around the existing transfer core. Rejections remain the existing typed exact no-op. A separately versioned RISC0 3.0.6 guest imports this exact transition and has one source-scoped real Succinct receipt; no active release, route, or publisher selects it.",
+      "evidence": [
+        {
+          "claim": "The Python functional core constructs the private port and rebound module journal only after the existing asset-transfer transition accepts.",
+          "class": "contract",
+          "source": "src/core/asset_transfer_lane_module_v1.py#transition_asset_transfer_lane_module_v1"
+        },
+        {
+          "claim": "The Rust ABI reference implements the same owned input, accepted output, reject passthrough, canonical roots, and coordinator-ready bindings.",
+          "class": "implemented",
+          "source": "zk/global_settlement_abi_v1/src/asset_transfer_lane_module.rs"
+        },
+        {
+          "claim": "Python and Rust tests lock six shared roots, direct coordinator admission, policy-root sensitivity, and reject-is-no-op behavior.",
+          "class": "tested_discovery",
+          "source": "tests/core/test_asset_transfer_lane_module_v1.py"
+        },
+        {
+          "claim": "A separately versioned RISC0 guest imports the exact Rust transition, accepts only strict canonical bounded input, commits the exact accepted module journal, and aborts without a receipt on typed economic rejection.",
+          "class": "implemented",
+          "source": "zk/asset_transfer_module_risc0/methods/guest/src/main.rs"
+        },
+        {
+          "claim": "One local release-evidence replay generated and verified a real Succinct module receipt under the exact compiled image and canonical journal; fake, wrong-image, and wrong-journal evidence rejects.",
+          "class": "tested_discovery",
+          "source": "zk/asset_transfer_module_risc0/host/tests/real_proof.rs"
+        }
+      ],
+      "guards": [
+        {
+          "formula": "module input is typed, complete, canonically ordered, and binds asset and fee policy roots",
+          "id": "typed_complete_asset_module_input",
+          "meaning": "The module statement cannot omit the policy roots or common custody projection used by the transition."
+        },
+        {
+          "formula": "Rejected => post_state = pre_state and effects = empty and no private port exists",
+          "id": "asset_module_reject_exact_noop",
+          "meaning": "Typed rejection cannot leak a lane effect or coordinator-admissible port."
+        },
+        {
+          "formula": "private_port binds producer schema, module release, occurrence, complete pre/post projections, effects, and terminal obligations",
+          "id": "asset_module_private_port_exact_binding",
+          "meaning": "Accepted output owns the full structural coordinator boundary rather than relying on host fixture reconstruction."
+        },
+        {
+          "formula": "module journal receipt root and private-port root equal the roots derived by the accepted transition output",
+          "id": "asset_module_receipt_exact_binding",
+          "meaning": "The rebound journal cannot be paired with a different port, occurrence, release, or effect plan."
+        }
+      ],
+      "improvement_targets": [
+        "governed release registration",
+        "release-aware lane and route proof admission",
+        "managed lifecycle module receipt",
+        "multi-module asset-lane sequencing"
+      ],
+      "known_gaps": [
+        "No active module release, governed route, or proof profile selects the proven guest image.",
+        "One historical source-scoped coordinator guest consumes the transfer receipt. The stable release-aware lane verifier and a content-derived active test-profile fixture exist, but the current real replay was interrupted and no deployment-selected profile admits the resulting lane receipt.",
+        "Managed issue and burn use a distinct guest-ready wrapper without a real module receipt; no multi-module asset-lane sequencing exists.",
+        "The deterministic receipt root is a statement commitment and is not a cryptographic proof receipt."
+      ],
+      "observables": [
+        {
+          "id": "asset_module_result",
+          "meaning": "Typed accepted output with owned port and journal, or the unchanged existing rejection type.",
+          "type": "AssetTransferLaneModuleAcceptedV1 | AssetTransferRejectedV1"
+        },
+        {
+          "id": "asset_module_statement_root",
+          "meaning": "Domain-separated root of the complete typed module input.",
+          "type": "RootV1"
+        },
+        {
+          "id": "asset_module_private_port_root",
+          "meaning": "Root of the module-owned private port admitted by the asset-lane coordinator.",
+          "type": "RootV1"
+        },
+        {
+          "id": "asset_module_journal_root",
+          "meaning": "Canonical root of the rebound module transition journal.",
+          "type": "RootV1"
+        }
+      ],
+      "operators": [
+        {
+          "effects": [
+            "Delegate economics to the existing deterministic asset-transfer transition."
+          ],
+          "id": "run_asset_transfer_transition",
+          "kind": "functional_core",
+          "preconditions": [
+            "typed complete module input",
+            "canonical common pre-state projection"
+          ]
+        },
+        {
+          "effects": [
+            "On acceptance, construct one exact private port, deterministic receipt root, and rebound module journal."
+          ],
+          "id": "emit_bound_asset_lane_output",
+          "kind": "functional_core",
+          "preconditions": [
+            "base transition accepted",
+            "pre/post projections and effect plan are available"
+          ]
+        }
+      ],
+      "slice_id": "asset_transfer_lane_module_output",
+      "sources": [
+        "src/core/asset_transfer_lane_module_v1.py",
+        "tests/core/test_asset_transfer_lane_module_v1.py",
+        "zk/global_settlement_abi_v1/src/asset_transfer_lane_module.rs",
+        "zk/global_settlement_abi_v1/tests/asset_transfer_lane_module.rs",
+        "zk/global_settlement_abi_v1/README.md",
+        "zk/asset_transfer_module_risc0/README.md",
+        "zk/asset_transfer_module_risc0/shared/src/lib.rs",
+        "zk/asset_transfer_module_risc0/methods/guest/src/main.rs",
+        "zk/asset_transfer_module_risc0/host/src/lib.rs",
+        "zk/asset_transfer_module_risc0/host/tests/real_proof.rs"
+      ],
+      "state_vars": [
+        {
+          "id": "asset_module_input",
+          "meaning": "Typed context, pre-state, command, policy roots, and named custody committed by the module statement.",
+          "type": "AssetTransferLaneModuleInputV1"
+        },
+        {
+          "id": "asset_base_transition_result",
+          "meaning": "Accepted or rejected output of the existing deterministic asset-transfer core.",
+          "type": "AssetTransferAcceptedV1 | AssetTransferRejectedV1"
+        },
+        {
+          "id": "asset_lane_private_port",
+          "meaning": "Module-owned structural port binding the accepted occurrence to common pre/post projections and effects.",
+          "type": "AssetLanePrivatePortV1"
+        },
+        {
+          "id": "asset_bound_module_journal",
+          "meaning": "Accepted base journal rebound to the exact private-port and deterministic receipt roots.",
+          "type": "LaneModuleTransitionJournalV1"
+        }
+      ],
+      "status": "contract"
+    },
+    {
+      "candidate_family": "managed_asset_lifecycle_lane_module_candidate",
+      "canonical_keys": [
+        {
+          "formula": "(asset, owner, custody_domain)",
+          "id": "managed_asset_holding_identity",
+          "meaning": "Every ordinary-token account or custody holding has one total identity in the common asset projection.",
+          "order": "total"
+        }
+      ],
+      "description": "The research-only managed lifecycle wrapper owns the deterministic statement, accepted private port, receipt root, and rebound module journal around profile-bound ordinary-token issue and self-burn. Rejections remain the existing typed exact no-op. The wrapper has no cryptographic or publication authority.",
+      "evidence": [
+        {
+          "claim": "The Python functional core constructs a private port and rebound journal only after the existing managed lifecycle transition accepts.",
+          "class": "contract",
+          "source": "src/core/managed_asset_lifecycle_lane_module_v1.py#transition_managed_asset_lifecycle_lane_module_v1"
+        },
+        {
+          "claim": "The Rust ABI reference implements the same issue/burn input, accepted output, rejection passthrough, roots, and coordinator-ready bindings.",
+          "class": "implemented",
+          "source": "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_lane_module.rs"
+        },
+        {
+          "claim": "Python and Rust tests lock twelve shared issue/burn roots, direct coordinator admission, policy-root sensitivity, and reject-is-no-op behavior.",
+          "class": "tested_discovery",
+          "source": "tests/core/test_managed_asset_lifecycle_lane_module_v1.py"
+        }
+      ],
+      "guards": [
+        {
+          "formula": "module input is typed, complete, canonically ordered, and binds asset and fee policy roots",
+          "id": "typed_complete_managed_lifecycle_module_input",
+          "meaning": "The lifecycle statement cannot omit the governed roots or common custody projection used by issue or burn."
+        },
+        {
+          "formula": "Rejected => post_state = pre_state and effects = empty and no private port exists",
+          "id": "managed_lifecycle_module_reject_exact_noop",
+          "meaning": "A failed authorization, issue, or burn cannot leak an effect or coordinator-admissible port."
+        },
+        {
+          "formula": "private_port binds lifecycle producer schema, release, occurrence, complete pre/post projections, effects, and terminal obligations",
+          "id": "managed_lifecycle_private_port_exact_binding",
+          "meaning": "Accepted issue and burn outputs own the structural coordinator boundary."
+        },
+        {
+          "formula": "module journal receipt root and private-port root equal the roots derived by the accepted lifecycle output",
+          "id": "managed_lifecycle_receipt_exact_binding",
+          "meaning": "The rebound journal cannot be paired with another policy statement, occurrence, release, or effect plan."
+        }
+      ],
+      "improvement_targets": [
+        "RISC0 guest integration",
+        "release registration",
+        "real receipt generation",
+        "multi-module asset-lane sequencing"
+      ],
+      "known_gaps": [
+        "No RISC0 guest imports the lifecycle wrapper or emits a cryptographic receipt.",
+        "No active module release, governed route, or proof profile selects this wrapper.",
+        "Generic authority remains limited to registered ordinary tokens; native coin, zUSD, LP shares, ZDEX, and sealed-bid assets require named modules.",
+        "The deterministic lifecycle receipt root is a statement commitment and not a cryptographic proof receipt."
+      ],
+      "observables": [
+        {
+          "id": "managed_lifecycle_module_result",
+          "meaning": "Typed issue/burn acceptance with owned port and journal, or the unchanged existing lifecycle rejection.",
+          "type": "ManagedAssetLifecycleLaneModuleAcceptedV1 | ManagedAssetLifecycleRejectedV1"
+        },
+        {
+          "id": "managed_lifecycle_statement_root",
+          "meaning": "Domain-separated root of the complete typed lifecycle module input.",
+          "type": "RootV1"
+        },
+        {
+          "id": "managed_lifecycle_private_port_root",
+          "meaning": "Root of the module-owned lifecycle private port admitted by the asset-lane coordinator.",
+          "type": "RootV1"
+        },
+        {
+          "id": "managed_lifecycle_journal_root",
+          "meaning": "Canonical root of the rebound lifecycle module journal.",
+          "type": "RootV1"
+        }
+      ],
+      "operators": [
+        {
+          "effects": [
+            "Delegate issue and burn economics to the existing deterministic managed lifecycle transition."
+          ],
+          "id": "run_managed_asset_lifecycle_transition",
+          "kind": "functional_core",
+          "preconditions": [
+            "typed complete lifecycle module input",
+            "canonical common pre-state projection"
+          ]
+        },
+        {
+          "effects": [
+            "On lifecycle acceptance, construct one exact private port, deterministic receipt root, and rebound module journal."
+          ],
+          "id": "emit_bound_managed_lifecycle_output",
+          "kind": "functional_core",
+          "preconditions": [
+            "issue or burn transition accepted",
+            "pre/post projections and effect plan are available"
+          ]
+        }
+      ],
+      "slice_id": "managed_asset_lifecycle_lane_module_output",
+      "sources": [
+        "src/core/managed_asset_lifecycle_lane_module_v1.py",
+        "tests/core/test_managed_asset_lifecycle_lane_module_v1.py",
+        "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_lane_module.rs",
+        "zk/global_settlement_abi_v1/tests/managed_asset_lifecycle_lane_module.rs",
+        "zk/global_settlement_abi_v1/README.md"
+      ],
+      "state_vars": [
+        {
+          "id": "managed_lifecycle_module_input",
+          "meaning": "Typed context, lifecycle state, issue/burn command, governed roots, and custody committed by the statement.",
+          "type": "ManagedAssetLifecycleLaneModuleInputV1"
+        },
+        {
+          "id": "managed_lifecycle_base_result",
+          "meaning": "Accepted or rejected output of the existing profile-bound ordinary-token lifecycle core.",
+          "type": "ManagedAssetLifecycleAcceptedV1 | ManagedAssetLifecycleRejectedV1"
+        },
+        {
+          "id": "managed_lifecycle_private_port",
+          "meaning": "Module-owned port binding the accepted issue or burn to common pre/post projections and effects.",
+          "type": "AssetLanePrivatePortV1"
+        },
+        {
+          "id": "managed_lifecycle_bound_journal",
+          "meaning": "Accepted lifecycle journal rebound to exact private-port and deterministic receipt roots.",
+          "type": "LaneModuleTransitionJournalV1"
+        }
+      ],
+      "status": "contract"
+    },
+    {
+      "candidate_family": "lane_module_release_route_binding_candidate",
+      "canonical_keys": [
+        {
+          "formula": "(route_release_id, route_lane_index)",
+          "id": "release_route_lane_position",
+          "meaning": "Every admitted module output occupies one exact lane position in the governed command route.",
+          "order": "total"
+        }
+      ],
+      "description": "The research-only release-route binder consumes a complete typed lane-module input and accepted output, derives the active command route from the profile, checks exact occurrence and domain semantics, and constructs an opaque structural binding witness. It verifies no cryptographic receipt and grants no settlement or publication authority.",
+      "evidence": [
+        {
+          "claim": "The Python functional core binds asset transfer, managed issue, and managed burn outputs to active governed routes and exposes only a binder-constructed immutable witness.",
+          "class": "contract",
+          "source": "src/core/lane_module_release_route_binding_v1.py"
+        },
+        {
+          "claim": "The Rust ABI reference implements the same closed route derivation, profile and registry checks, input/output statement binding, and opaque structural witness.",
+          "class": "implemented",
+          "source": "zk/global_settlement_abi_v1/src/lane_module_release_route_binding.rs"
+        },
+        {
+          "claim": "Python and Rust regressions share the exact binding root and reject caller-selected routes, inactive profiles, wrong releases, cross-domain substitutions, and issue-occurrence to burn-output relabeling.",
+          "class": "tested_discovery",
+          "source": "tests/core/test_lane_module_release_route_binding_v1.py"
+        }
+      ],
+      "guards": [
+        {
+          "formula": "profile.status = ACTIVE and route = profile.route_registry[occurrence.command_kind] and occurrence.route_release_id = route.route_release_id",
+          "id": "release_route_binding_derives_active_governed_route",
+          "meaning": "A caller cannot select a different route or use an inactive profile as structural admission evidence."
+        },
+        {
+          "formula": "accepted.statement_root = hash(complete_typed_module_input) and input.command_kind = occurrence.command_kind",
+          "id": "release_route_binding_preserves_command_semantics",
+          "meaning": "An issue occurrence cannot relabel a burn output, and an accepted output cannot be detached from the input that produced its statement."
+        },
+        {
+          "formula": "input context and module journal match occurrence subject, grant, chain, deployment, profile, writer epoch, and occurrence id",
+          "id": "release_route_binding_exact_occurrence_domain",
+          "meaning": "Cross-subject, cross-grant, cross-chain, cross-deployment, stale-profile, and stale-writer substitutions reject."
+        },
+        {
+          "formula": "journal.module_release_id = route.module_release_ids[route_lane_index] = profile.lane_registry[journal.lane_id].release_id and command_kind is declared by that release",
+          "id": "release_route_binding_exact_lane_release",
+          "meaning": "Unregistered module releases and commands absent from the selected release cannot gain a structural binding witness."
+        }
+      ],
+      "improvement_targets": [
+        "release-selected cryptographic module receipt verification",
+        "lane coordinator proof admission",
+        "route composer proof admission",
+        "mounted M6 profile and writer closure"
+      ],
+      "known_gaps": [
+        "The opaque witness records deterministic structural binding only and does not verify a RISC0 receipt.",
+        "No mounted production profile or route invokes this binder as settlement authority.",
+        "No lane coordinator guest consumes a receipt-verified form of this witness.",
+        "Durable publication, migration, writer rotation, and legacy-writer retirement remain absent."
+      ],
+      "observables": [
+        {
+          "id": "release_route_binding_outcome",
+          "meaning": "Fail-closed typed error or one binder-constructed immutable structural witness.",
+          "type": "Rejected | ReleaseRouteBoundLaneTransitionV1"
+        },
+        {
+          "id": "release_route_binding_root",
+          "meaning": "Cross-language domain-separated root of the selected profile, route, lane, release, occurrence, journal, statement, producer schema, lane position, and port schema.",
+          "type": "RootV1"
+        }
+      ],
+      "operators": [
+        {
+          "effects": [
+            "Construct a structural witness only after transfer input, accepted statement, occurrence, active route, lane release, and domain bindings agree."
+          ],
+          "id": "bind_asset_transfer_output_to_release_route",
+          "kind": "functional_core",
+          "preconditions": [
+            "asset-transfer lane-module transition accepted",
+            "complete typed input and occurrence are supplied"
+          ]
+        },
+        {
+          "effects": [
+            "Construct a structural witness only after managed issue or burn semantics match the governed occurrence and all release-route bindings agree."
+          ],
+          "id": "bind_managed_lifecycle_output_to_release_route",
+          "kind": "functional_core",
+          "preconditions": [
+            "managed lifecycle lane-module transition accepted",
+            "complete typed input and occurrence are supplied"
+          ]
+        }
+      ],
+      "slice_id": "lane_module_release_route_binding",
+      "sources": [
+        "src/core/lane_module_release_route_binding_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/lane_module_release_route_binding.rs",
+        "zk/global_settlement_abi_v1/src/release.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "state_vars": [
+        {
+          "id": "release_route_economic_profile",
+          "meaning": "Active profile containing the complete lane and route registries used for deterministic selection.",
+          "type": "EconomicProfileSnapshotV1"
+        },
+        {
+          "id": "release_route_command_occurrence",
+          "meaning": "Canonical command occurrence carrying the governed command kind, route, subject, grant, profile, domain, nonce, and position.",
+          "type": "EconomicCommandOccurrenceV1"
+        },
+        {
+          "id": "release_route_module_input",
+          "meaning": "Complete typed transfer or managed lifecycle input whose statement commits actual command semantics and context.",
+          "type": "AssetTransferLaneModuleInputV1 | ManagedAssetLifecycleLaneModuleInputV1"
+        },
+        {
+          "id": "release_route_accepted_output",
+          "meaning": "Module-owned accepted statement, private port, effects, post-state, and rebound structural journal.",
+          "type": "AssetTransferLaneModuleAcceptedV1 | ManagedAssetLifecycleLaneModuleAcceptedV1"
+        },
+        {
+          "id": "release_route_bound_witness",
+          "meaning": "Binder-constructed immutable structural record of the exact profile, route, lane, release, occurrence, journal, statement, producer schema, lane position, and port schema.",
+          "type": "ReleaseRouteBoundLaneTransitionV1"
+        }
+      ],
+      "status": "contract"
+    },
+    {
+      "candidate_family": "lane_module_receipt_verification_candidate",
+      "canonical_keys": [
+        {
+          "formula": "(route_release_id, route_lane_index)",
+          "id": "verified_module_route_lane_position",
+          "meaning": "The receipt-verified module occurrence retains the exact governed route lane position committed by its structural binding.",
+          "order": "total"
+        }
+      ],
+      "description": "The research-only module verifier boundary recomputes the structural release-route witness, selects the expected guest image from the active lane release, requires an explicit nonempty SUCCINCT receipt, and supplies the exact canonical module journal bytes to an injected verifier port. Verifier acceptance alone constructs the opaque verified-module witness. No verifier implementation or writer is mounted.",
+      "evidence": [
+        {
+          "claim": "The Python functional core requires exact structural rebinding, active release image selection, canonical journal bytes, explicit SUCCINCT receipt data, and verifier acceptance before constructing an immutable opaque witness.",
+          "class": "contract",
+          "source": "src/core/lane_module_receipt_verification_v1.py"
+        },
+        {
+          "claim": "The Rust ABI reference exposes the parallel verifier port and constructor-private witness with the same verified binding root, journal digest, and receipt digest.",
+          "class": "implemented",
+          "source": "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs"
+        },
+        {
+          "claim": "Python and Rust regressions share the exact verified root and reject empty, non-SUCCINCT, structurally substituted, verifier-rejected, and public-construction paths.",
+          "class": "tested_discovery",
+          "source": "tests/core/test_lane_module_release_route_binding_v1.py"
+        }
+      ],
+      "guards": [
+        {
+          "formula": "rebind(profile, occurrence, complete_input, accepted_output).binding_root = supplied_structural_binding.binding_root",
+          "id": "module_receipt_recomputes_structural_binding",
+          "meaning": "A structural witness from another valid statement cannot authorize the supplied accepted output."
+        },
+        {
+          "formula": "release = profile.lane_registry[rebound.lane_id] and release.status = ACTIVE_NEW and expected_image_id = release.guest_image_id",
+          "id": "module_receipt_selects_active_release_image",
+          "meaning": "The caller cannot supply the guest image or use an inactive release for a new command."
+        },
+        {
+          "formula": "receipt_kind = SUCCINCT and len(receipt_bytes) > 0",
+          "id": "module_receipt_requires_explicit_succinct_data",
+          "meaning": "Empty, Composite, Conditional, Fake, and Development receipts are inadmissible."
+        },
+        {
+          "formula": "journal_bytes = canonical(module_journal) and len(journal_bytes) <= release.max_journal_bytes and verifier(receipt_bytes, release.guest_image_id, journal_bytes) = ACCEPT",
+          "id": "module_receipt_verifies_exact_canonical_journal",
+          "meaning": "Verifier acceptance is bound to the exact release-selected image and accepted public journal bytes."
+        },
+        {
+          "formula": "cryptographic_receipt_digest = sha256(receipt_bytes) and deterministic_statement_receipt_root = module_journal.receipt_root",
+          "id": "module_receipt_keeps_statement_and_proof_commitments_distinct",
+          "meaning": "The module statement commitment is never relabeled as the cryptographic proof artifact digest."
+        }
+      ],
+      "improvement_targets": [
+        "authenticated governed verifier-registry selection",
+        "real RISC0 module guest and Succinct receipt replay",
+        "lane coordinator and route composer proof admission",
+        "mounted M6 profile and atomic writer closure"
+      ],
+      "known_gaps": [
+        "The verifier implementation is injected and is not selected or authenticated from a mounted governed verifier registry.",
+        "No real GlobalSettlementABI V1 module guest or cryptographic receipt is produced by this slice.",
+        "No lane coordinator or route composer consumes VerifiedLaneModuleTransitionV1.",
+        "Durable publication, migration, writer rotation, and legacy-writer retirement remain absent."
+      ],
+      "observables": [
+        {
+          "id": "module_receipt_verification_outcome",
+          "meaning": "Fail-closed typed error or one verifier-constructed immutable module witness.",
+          "type": "Rejected | VerifiedLaneModuleTransitionV1"
+        },
+        {
+          "id": "verified_module_binding_root",
+          "meaning": "Cross-language root of the structural binding, selected image, journal root and digest, statement, occurrence, receipt digest, and receipt kind.",
+          "type": "RootV1"
+        },
+        {
+          "id": "module_receipt_verifier_call",
+          "meaning": "The exact tuple of receipt bytes, active release guest image, and canonical module journal bytes supplied to the verifier port.",
+          "type": "VerifierCallV1"
+        }
+      ],
+      "operators": [
+        {
+          "effects": [
+            "Construct VerifiedLaneModuleTransitionV1 only after the transfer binding is recomputed and the verifier accepts the selected image and exact journal."
+          ],
+          "id": "verify_asset_transfer_lane_module_receipt",
+          "kind": "verifier_boundary",
+          "preconditions": [
+            "asset-transfer lane-module transition accepted",
+            "structural release-route witness and Succinct receipt bytes are supplied"
+          ]
+        },
+        {
+          "effects": [
+            "Construct VerifiedLaneModuleTransitionV1 only after issue or burn semantics rebind and the verifier accepts the selected image and exact journal."
+          ],
+          "id": "verify_managed_lifecycle_lane_module_receipt",
+          "kind": "verifier_boundary",
+          "preconditions": [
+            "managed lifecycle lane-module transition accepted",
+            "structural release-route witness and Succinct receipt bytes are supplied"
+          ]
+        }
+      ],
+      "slice_id": "lane_module_receipt_verification",
+      "sources": [
+        "src/core/lane_module_receipt_verification_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "state_vars": [
+        {
+          "id": "module_receipt_active_profile",
+          "meaning": "Active profile containing the lane release whose guest image is the expected proof program.",
+          "type": "EconomicProfileSnapshotV1"
+        },
+        {
+          "id": "module_receipt_complete_transition",
+          "meaning": "Complete typed input and accepted output used to recompute the structural release-route binding.",
+          "type": "AssetTransferTransitionV1 | ManagedLifecycleTransitionV1"
+        },
+        {
+          "id": "module_receipt_structural_binding",
+          "meaning": "Binder-constructed structural witness that must equal the independently recomputed binding.",
+          "type": "ReleaseRouteBoundLaneTransitionV1"
+        },
+        {
+          "id": "module_receipt_bytes",
+          "meaning": "Nonempty Succinct receipt artifact submitted to the verifier port.",
+          "type": "bytes"
+        },
+        {
+          "id": "module_receipt_verifier",
+          "meaning": "Injected verifier port that accepts or rejects the release-selected image and exact journal bytes.",
+          "type": "LaneModuleSuccinctReceiptVerifierV1"
+        },
+        {
+          "id": "verified_lane_module_transition",
+          "meaning": "Opaque verifier-owned witness binding the structural transition, release image, public journal, and receipt digest.",
+          "type": "VerifiedLaneModuleTransitionV1"
+        }
+      ],
+      "status": "contract"
+    },
+    {
+      "candidate_family": "receipt_backed_asset_lane_composition_candidate",
+      "canonical_keys": [
+        {
+          "formula": "(route_release_id, lane_id, module_journal_root)",
+          "id": "receipt_backed_lane_route_module_position",
+          "meaning": "The structural composition is attached to one governed route, its single asset lane, and the exact receipt-verified module journal.",
+          "order": "total"
+        }
+      ],
+      "description": "The research-only receipt-backed composition boundary consumes one opaque VerifiedLaneModuleTransitionV1, requires the active profile's exact single asset-lane route, rechecks the module journal root and canonical-byte digest, and runs the deterministic lane coordinator over the exact private port and effects. A separate source-scoped RISC0 coordinator guest re-executes the same transition, verifies the exact pinned module image and journal as an assumption, and commits the exact lane journal. The stable ABI commits a typed coordinator-release registry in the profile and exposes a release-aware verifier-controlled constructor for opaque VerifiedLaneCompositionV1. The current content-derived active test-profile fixture compiles, while its real receipt replay is deferred to Runpod and no deployment profile or route admits it.",
+      "evidence": [
+        {
+          "claim": "The Python functional core requires exact active-profile, route, occurrence, module journal, receipt digest, release image, private-port, effects, and deterministic coordinator bindings before constructing the opaque structural candidate.",
+          "class": "contract",
+          "source": "src/core/receipt_backed_asset_lane_composition_v1.py"
+        },
+        {
+          "claim": "The Rust ABI reference implements the parallel borrowed candidate and constructor-private structural output with an identical binding root.",
+          "class": "implemented",
+          "source": "zk/global_settlement_abi_v1/src/receipt_backed_asset_lane_composition.rs"
+        },
+        {
+          "claim": "Python and Rust regressions accept the exact receipt-backed journal, share one binding root, and reject substitution by another valid verified-module witness.",
+          "class": "tested_discovery",
+          "source": "tests/core/test_lane_module_release_route_binding_v1.py"
+        },
+        {
+          "claim": "A deterministic structure-preserving boundary atlas covers both writer-epoch neighbors, eighteen one-defect mutations, sixteen outcomes, seventeen distinct outcome/path cells, four bounded depth-two precedence pairs, and an equal-state rebuild metamorphism.",
+          "class": "tested_discovery",
+          "source": "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py"
+        },
+        {
+          "claim": "The Rust receipt-backed wrapper preserves the exact typed coordinator reject label instead of collapsing every deterministic coordinator failure into one generic binding error.",
+          "class": "implemented",
+          "source": "zk/global_settlement_abi_v1/src/asset_lane_projection.rs"
+        },
+        {
+          "claim": "A separately versioned coordinator guest hard-codes the exact ASSET_TRANSFER module image, re-executes the stable transition and coordinator, calls env::verify over the exact module journal, and commits the exact lane journal.",
+          "class": "implemented",
+          "source": "zk/asset_lane_coordinator_risc0/methods/guest/src/main.rs"
+        },
+        {
+          "claim": "One historical local release-evidence replay generated a real module receipt and recursively consumed it into a real Succinct coordinator receipt over the exact module-owned lane journal in 1,443.67 seconds total under the unchanged guest images.",
+          "class": "tested_discovery",
+          "source": "zk/asset_lane_coordinator_risc0/README.md"
+        },
+        {
+          "claim": "A pinned adapter implements the stable lane-composition receipt verifier port and rejects foreign images, journals, receipt encodings, kinds, and failed cryptographic verification.",
+          "class": "implemented",
+          "source": "zk/asset_lane_coordinator_risc0/host/src/lib.rs"
+        },
+        {
+          "claim": "The stable Rust ABI validates the profile-committed coordinator registry, active coordinator release, exact occurrence, structural lane root, canonical journal ceiling, nonempty SUCCINCT receipt, selected image, and verifier acceptance before constructing opaque VerifiedLaneCompositionV1.",
+          "class": "implemented",
+          "source": "zk/global_settlement_abi_v1/src/lane_composition_receipt_verification.rs"
+        },
+        {
+          "claim": "The current host test constructs content-derived module, coordinator, route, and active test-profile records and invokes the stable lane verifier through the pinned adapter. It compiles and passes fast static gates; its real replay was interrupted with exit code 130 for workstation thermal safety, so no successful release-aware binding root is claimed.",
+          "class": "tested_discovery",
+          "source": "zk/asset_lane_coordinator_risc0/host/tests/real_composition.rs"
+        }
+      ],
+      "guards": [
+        {
+          "formula": "profile.status = ACTIVE and route = profile.route_registry[occurrence.command_kind] and route.ordered_lanes = [ASSET_TRANSFER]",
+          "id": "receipt_backed_lane_selects_active_single_lane_route",
+          "meaning": "The caller cannot select an inactive profile, foreign route, or different lane topology."
+        },
+        {
+          "formula": "verified.module_journal_root = module_journal.journal_root and verified.module_journal_digest = sha256(canonical(module_journal))",
+          "id": "receipt_backed_lane_pairs_exact_verified_journal",
+          "meaning": "A valid receipt for another transition cannot authorize this coordinator input."
+        },
+        {
+          "formula": "verified.expected_image_id = profile.lane_registry[ASSET_TRANSFER].guest_image_id and verified.command_occurrence_id = occurrence.id",
+          "id": "receipt_backed_lane_preserves_image_and_occurrence",
+          "meaning": "Release-image and occurrence authority remain attached across the composition edge."
+        },
+        {
+          "formula": "compose_asset_lane_single(context, journal, private_port, effects) = Accepted and lane_journal.ordered_module_journal_roots = [verified.module_journal_root]",
+          "id": "receipt_backed_lane_requires_deterministic_coordinator_acceptance",
+          "meaning": "Economic and port checks remain owned by the deterministic coordinator."
+        },
+        {
+          "formula": "authority_level = RECEIPT_BACKED_STRUCTURAL_ONLY",
+          "id": "receipt_backed_lane_denies_coordinator_proof_authority",
+          "meaning": "The output cannot be relabeled as a cryptographically verified lane composition."
+        },
+        {
+          "formula": "coordinator guest image hard-codes module image and env::verify(module_image, canonical(module_journal)) succeeds before commit(canonical(lane_journal))",
+          "id": "source_scoped_coordinator_resolves_exact_module_assumption",
+          "meaning": "The local recursive proof binds the exact economic leaf to the exact lane journal without granting active-profile authority."
+        }
+      ],
+      "improvement_targets": [
+        "successful real release-aware VerifiedLaneCompositionV1 replay",
+        "deployment-selected coordinator release and authenticated verifier",
+        "route composer proof admission",
+        "mounted M6 profile and atomic writer closure"
+      ],
+      "known_gaps": [
+        "The stable profile commits a typed coordinator registry and the release-aware lane verifier exists, but the current content-derived active test-profile replay was interrupted and has no recorded VerifiedLaneCompositionV1 binding root.",
+        "Synthetic active evidence labels and the placeholder route image in the test fixture are not authenticated deployment governance.",
+        "No route composer consumes a VerifiedLaneCompositionV1 produced from the real economic lane receipt.",
+        "Durable publication, migration, writer rotation, and legacy-writer retirement remain absent."
+      ],
+      "observables": [
+        {
+          "id": "receipt_backed_lane_composition_outcome",
+          "meaning": "Fail-closed typed error or one composition-constructed immutable structural candidate.",
+          "type": "Rejected | ReceiptBackedAssetLaneCompositionV1"
+        },
+        {
+          "id": "receipt_backed_lane_binding_root",
+          "meaning": "Cross-language root of the profile, route, lane, declared coordinator release, occurrence, verified module, receipt and journal digests, lane journal, effects, and terminal obligations.",
+          "type": "RootV1"
+        },
+        {
+          "id": "receipt_backed_lane_authority_level",
+          "meaning": "Closed status declaring the candidate structural-only and ineligible for route or settlement admission.",
+          "type": "LaneCompositionAuthorityLevelV1"
+        }
+      ],
+      "operators": [
+        {
+          "effects": [
+            "Construct ReceiptBackedAssetLaneCompositionV1 only after the exact verified module journal and deterministic coordinator output reconcile."
+          ],
+          "id": "compose_receipt_backed_asset_lane_single",
+          "kind": "composition_boundary",
+          "preconditions": [
+            "one asset-lane module receipt has produced VerifiedLaneModuleTransitionV1",
+            "the active profile derives a single ASSET_TRANSFER lane route",
+            "the exact module journal, private port, and effects are supplied"
+          ]
+        }
+      ],
+      "slice_id": "receipt_backed_asset_lane_composition",
+      "sources": [
+        "src/core/receipt_backed_asset_lane_composition_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py",
+        "zk/global_settlement_abi_v1/src/asset_lane_projection.rs",
+        "zk/global_settlement_abi_v1/src/receipt_backed_asset_lane_composition.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "zk/asset_lane_coordinator_risc0/README.md",
+        "zk/asset_lane_coordinator_risc0/shared/src/lib.rs",
+        "zk/asset_lane_coordinator_risc0/methods/guest/src/main.rs",
+        "zk/asset_lane_coordinator_risc0/host/src/lib.rs",
+        "zk/asset_lane_coordinator_risc0/host/tests/real_composition.rs",
+        "zk/asset_lane_coordinator_risc0/host/tests/support/mod.rs",
+        "zk/asset_lane_coordinator_risc0/host/tests/support/governed_registries.rs",
+        "zk/asset_lane_coordinator_risc0/host/tests/support/governed_scenario.rs",
+        "zk/global_settlement_abi_v1/src/lane_composition_receipt_verification.rs",
+        "zk/global_settlement_abi_v1/src/release.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "state_vars": [
+        {
+          "id": "receipt_backed_lane_active_profile",
+          "meaning": "Active profile containing the governed module release and exact command route.",
+          "type": "EconomicProfileSnapshotV1"
+        },
+        {
+          "id": "receipt_backed_lane_occurrence",
+          "meaning": "Canonical command occurrence shared by module verification and lane composition.",
+          "type": "EconomicCommandOccurrenceV1"
+        },
+        {
+          "id": "receipt_backed_lane_coordinator_input",
+          "meaning": "Typed coordinator context, module journal, private port, and module effects.",
+          "type": "AssetLaneCoordinatorInputV1"
+        },
+        {
+          "id": "receipt_backed_lane_verified_module",
+          "meaning": "Opaque module witness whose release image, exact journal, occurrence, and receipt were verified at the preceding boundary.",
+          "type": "VerifiedLaneModuleTransitionV1"
+        },
+        {
+          "id": "receipt_backed_lane_structural_output",
+          "meaning": "Opaque structural-only lane composition candidate awaiting governed coordinator-proof verification.",
+          "type": "ReceiptBackedAssetLaneCompositionV1"
+        }
+      ],
+      "status": "contract"
+    },
+    {
+      "candidate_family": "verified_route_composition_candidate",
+      "canonical_keys": [
+        {
+          "formula": "(route_release_id, route_lane_index)",
+          "id": "verified_route_release_lane_position",
+          "meaning": "Each governed route position admits exactly the expected lane journal and opaque verified-lane witness in release-defined order.",
+          "order": "total"
+        }
+      ],
+      "description": "The research-only route receipt boundary derives the active route from the command occurrence, validates the exact ordered lane journals and opaque VerifiedLaneCompositionV1 witnesses against governed coordinator releases, selects the route release guest image, and verifies an explicit nonempty SUCCINCT receipt over canonical RouteCompositionJournalV1 bytes. It emits opaque VerifiedRouteCompositionV1 evidence for later bounded epoch recursion and carries no commit or publication capability.",
+      "evidence": [
+        {
+          "claim": "The Python functional core derives the governed route, enforces exact lane count and order, binds each opaque verified-lane witness to its journal and coordinator image, and constructs route authority only after exact receipt verification.",
+          "class": "contract",
+          "source": "src/core/route_composition_receipt_verification_v1.py"
+        },
+        {
+          "claim": "The Rust ABI reference implements the parallel verifier-owned opaque witness and the same profile, route, lane, journal, image, receipt-kind, and resource bindings.",
+          "class": "implemented",
+          "source": "zk/global_settlement_abi_v1/src/route_composition_receipt_verification.rs"
+        },
+        {
+          "claim": "Python and Rust regressions accept one exact governed route receipt, share the same route journal digest and binding root, and reject structural, missing, duplicated, substituted, epoch-neighbor, empty, wrong-kind, and verifier-rejected inputs.",
+          "class": "tested_discovery",
+          "source": "tests/core/test_lane_module_release_route_binding_v1.py"
+        },
+        {
+          "claim": "Route release identity now commits the composer guest image plus specification, source, and toolchain roots in Python and Rust golden parity.",
+          "class": "tested_discovery",
+          "source": "tests/core/test_global_settlement_abi_v1.py"
+        }
+      ],
+      "guards": [
+        {
+          "formula": "profile.status = ACTIVE and route = profile.route_registry[occurrence.command_kind] and route.release_id = claimed_route_release_id",
+          "id": "verified_route_derives_active_governed_release",
+          "meaning": "The caller cannot select a foreign, inactive, or command-incompatible route."
+        },
+        {
+          "formula": "len(lane_journals) = len(verified_lanes) = len(route.ordered_lanes) and lane_journals[i].lane_id = route.ordered_lanes[i]",
+          "id": "verified_route_requires_exact_lane_cardinality_and_order",
+          "meaning": "Missing, extra, duplicated, and reordered lane inputs cannot change the governed proof shape."
+        },
+        {
+          "formula": "verified_lanes[i] binds profile, route, lane, coordinator_release, occurrence, writer_epoch, journal_root, journal_digest, coordinator_image, and SUCCINCT kind of lane_journals[i]",
+          "id": "verified_route_pairs_exact_opaque_lane_witnesses",
+          "meaning": "Proof authority from one lane journal cannot be transferred to another structural journal."
+        },
+        {
+          "formula": "receipt.kind = SUCCINCT and len(receipt.bytes) > 0 and verifier.verify(route.guest_image_id, canonical(route_journal), receipt.bytes) = accepted",
+          "id": "verified_route_requires_release_image_exact_journal_receipt",
+          "meaning": "The release-selected route statement and the verified public bytes are identical."
+        },
+        {
+          "formula": "authority = VerifiedRouteCompositionV1 and authority has no epoch, commit, migration, settlement, or publication constructor",
+          "id": "verified_route_denies_downstream_publication_authority",
+          "meaning": "The route witness is an input to bounded epoch recursion rather than a writer capability."
+        }
+      ],
+      "improvement_targets": [
+        "real route guest with exact RISC0 assumption resolution",
+        "multi-lane private-port and global-effect pairing",
+        "bounded epoch recursion over one through sixty-four route witnesses",
+        "mounted M6 profile and atomic writer closure"
+      ],
+      "known_gaps": [
+        "No real route guest ELF, image receipt, or authenticated cryptographic verifier is mounted.",
+        "The implemented acceptance corpus exercises a one-lane ASSET_TRANSFER route; general multi-lane effect aggregation remains open.",
+        "No epoch guest consumes VerifiedRouteCompositionV1 and no Succinct root receipt is emitted.",
+        "Durable publication, migration, writer rotation, and legacy-writer retirement remain absent."
+      ],
+      "observables": [
+        {
+          "id": "route_composition_verification_outcome",
+          "meaning": "Fail-closed typed error or one verifier-constructed immutable route witness.",
+          "type": "Rejected | VerifiedRouteCompositionV1"
+        },
+        {
+          "id": "verified_route_binding_root",
+          "meaning": "Cross-language commitment to the profile, route release, occurrence, ordered lane witnesses and journals, route journal, composer image, receipt digest, and succinct kind.",
+          "type": "RootV1"
+        },
+        {
+          "id": "verified_route_journal_digest",
+          "meaning": "SHA-256 digest of the exact canonical route journal bytes passed to the release-selected verifier.",
+          "type": "RootV1"
+        }
+      ],
+      "operators": [
+        {
+          "effects": [
+            "Construct VerifiedRouteCompositionV1 only after every governed lane witness and the release-selected route receipt reconcile with the exact canonical route journal."
+          ],
+          "id": "verify_route_composition_receipt",
+          "kind": "proof_admission_boundary",
+          "preconditions": [
+            "each consumed lane journal has a preceding opaque VerifiedLaneCompositionV1",
+            "the active profile derives the exact route release and ordered lane topology",
+            "the caller supplies explicit nonempty SUCCINCT receipt bytes"
+          ]
+        }
+      ],
+      "slice_id": "route_composition_receipt_verification",
+      "sources": [
+        "src/core/global_settlement_types_v1.py",
+        "src/core/route_composition_receipt_verification_v1.py",
+        "tests/core/test_global_settlement_abi_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/release.rs",
+        "zk/global_settlement_abi_v1/src/route_composition_receipt_verification.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "state_vars": [
+        {
+          "id": "route_composition_active_profile",
+          "meaning": "Active profile whose route registry and coordinator registry define the only admissible composition shape.",
+          "type": "EconomicProfileSnapshotV1"
+        },
+        {
+          "id": "route_composition_occurrence",
+          "meaning": "Canonical command occurrence from which the governed route is derived.",
+          "type": "EconomicCommandOccurrenceV1"
+        },
+        {
+          "id": "route_composition_lane_journals",
+          "meaning": "Lane journals in exact route-release order.",
+          "type": "Tuple[LaneCompositionJournalV1, ...]"
+        },
+        {
+          "id": "route_composition_verified_lanes",
+          "meaning": "Opaque coordinator-receipt witnesses paired positionally with the exact lane journals.",
+          "type": "Tuple[VerifiedLaneCompositionV1, ...]"
+        },
+        {
+          "id": "route_composition_receipt",
+          "meaning": "Explicit route receipt envelope accepted only as nonempty SUCCINCT data.",
+          "type": "RouteCompositionReceiptEnvelopeV1"
+        },
+        {
+          "id": "route_composition_verified_output",
+          "meaning": "Opaque route witness awaiting bounded epoch recursion.",
+          "type": "VerifiedRouteCompositionV1"
         }
       ],
       "status": "contract"

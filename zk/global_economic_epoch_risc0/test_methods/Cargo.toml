@@ -1,0 +1,16 @@
+[package]
+name = "zenodex-epoch-test-methods"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+description = "Quarantined non-economic RISC0 methods for recursion plumbing tests"
+
+[build-dependencies]
+risc0-build = "=3.0.6"
+
+[lib]
+doctest = false
+
+[package.metadata.risc0]
+methods = ["route_structural_test_leaf"]

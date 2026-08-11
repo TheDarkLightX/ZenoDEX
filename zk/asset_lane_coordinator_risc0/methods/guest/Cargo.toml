@@ -1,0 +1,15 @@
+[package]
+name = "zenodex-asset-lane-coordinator-guest"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.6", default-features = false, features = ["std"] }
+zenodex-asset-lane-coordinator-risc0-shared = { path = "../../shared" }
+
+[[bin]]
+name = "zenodex-asset-lane-coordinator-guest"
+path = "src/main.rs"
+test = false
+bench = false

@@ -1,0 +1,254 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260808-global-settlement-route-receipts",
+  "created_date": "2026-08-08",
+  "claim_scope": "GlobalSettlementABI V1 content-derives each governed route composer release and constructs opaque VerifiedRouteCompositionV1 only after exact ordered verified-lane witnesses, route journal, selected image, succinct receipt, and verifier acceptance reconcile at the pure route boundary.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GSABI-V1-CONTENT-DERIVED-ROUTE-COMPOSER",
+    "GSABI-V1-PROFILE-DERIVED-ROUTE",
+    "GSABI-V1-EXACT-ORDERED-LANE-WITNESSES",
+    "GSABI-V1-EXACT-ROUTE-JOURNAL",
+    "GSABI-V1-SUCCINCT-ROUTE-RECEIPT-ONLY",
+    "GSABI-V1-OPAQUE-ROUTE-WITNESS",
+    "GSABI-V1-REJECT-WITHOUT-ROUTE-AUTHORITY"
+  ],
+  "failure_modes": [
+    "a route release id omits the composer image or source, specification, and toolchain manifests",
+    "a caller-selected or command-incompatible route gains proof admission",
+    "missing, extra, duplicated, or reordered lane inputs change the governed route proof shape",
+    "a structural lane candidate or valid witness for another lane journal gains route authority",
+    "a wrong occurrence, profile, coordinator release, image, or writer epoch reaches receipt verification",
+    "an empty, composite, or verifier-rejected receipt produces a route witness",
+    "a caller constructs VerifiedRouteCompositionV1 without the verifier"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "c7ff7f362462502293c017fd986c14ef57c9aaa344e4b1093ea260ec18e84568"
+    },
+    {
+      "path": "src/core/global_settlement_abi_v1.py",
+      "sha256": "185be1562702f32dc4a23b57eaab0f42c6a708b6d6b92ab22c6abdebb4255e70"
+    },
+    {
+      "path": "src/core/route_composition_receipt_verification_v1.py",
+      "sha256": "6196afdc35b4c6bbb61d341cf30836842a89d47f3b1cbbdcf783c641ca61edcf"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/release.rs",
+      "sha256": "0cc42ee1b3c30e8dac0cd593986922165923856af4b40aef4c59787a1cd37f18"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/route_composition_receipt_verification.rs",
+      "sha256": "ec0b17b215822a903c96ee1421936c06cc96cde4e9e6269e8c521aaec1d32be9"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "f9bb40fbeed3a14d72c377b2133ece0f07ebc9a3b5a039e6d6c3eb7491fcd747"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/README.md",
+      "sha256": "3e48ee88e74f7c67e8107588aa883305680b35aebf2b5535424fef753a64b2db"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/golden_vectors.rs",
+      "sha256": "6106c6991e7916d9fe5442e8bf7a3952f2005067623bc3f2e944efe73021d5eb"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+      "sha256": "854024a1ef9c741b99dec06cd0050a931c2ca53d82d1d7e5eacdcc3812c5feb7"
+    },
+    {
+      "path": "tests/data/global_settlement_abi_v1_golden.json",
+      "sha256": "91850808661b6f15f6b5864c98eca5b1fadb379f8208eb66d8c65e35c08cbc1b"
+    },
+    {
+      "path": "tools/render_global_settlement_abi_v1_golden.py",
+      "sha256": "5407d0b8a7f3376bb04ea52f83f07fb773349d379b7b811b386b0c3913fab7d3"
+    },
+    {
+      "path": "tools/zrpf_shapeforge_contract_support_v1.py",
+      "sha256": "df2e520ab666bd25bbd7ec52c985c7a8e41947a3afb7ebea3b3b5c70c10d5abd"
+    },
+    {
+      "path": "tools/check_zrpf_shapeforge_global_epoch_admission_v1.py",
+      "sha256": "8ba2dcfab924b808154e7b24ec28bcf68978972577c2516074c26b0ae897e367"
+    },
+    {
+      "path": "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+      "sha256": "c75cf357e47c58a9668c0b137750576fc9d270f9a9d11a230a4765edd9c0de00"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json",
+      "sha256": "367aea2b17f3c3cf7089b6d5e6c11e1321759ec74141db1e5e9892a74c50a5fd"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/scenario_corpus.seed.json",
+      "sha256": "413dd7291a8d36e775ebee06f8c6ac4d7a925fc444bfae1fd1ba39afc5409dd9"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/development_import_bundle.json",
+      "sha256": "3d9f8d9f7d98117534306fa6fa9aa3555b297a8620fd100cf98a7248be3d742e"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_negative_knowledge.seed.json",
+      "sha256": "0a90c5ccea5ea87533821b785b64f9e5209a41004ebea0218f15a65ffd564cf9"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "6997468f26529d59aa63f35b3b66b6401f092863567eccd9396cb7bb53a8e379",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1.py::test_route_release_ids_bind_composer_image_and_source_manifests",
+        "tests/core/test_global_settlement_abi_v1.py::test_governed_route_rejects_unknown_disabled_and_caller_selected_routes",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_shape_rejects_zero_65_and_route_width_9"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1_parity.py",
+      "sha256": "3fc4b2b75eb077a44bbadf43e834eb2e7304cc2a18bd96a5a64f953cc6cbccb5",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1_parity.py::test_committed_golden_fixture_matches_typed_python_renderer"
+      ]
+    },
+    {
+      "path": "tests/core/test_lane_module_release_route_binding_v1.py",
+      "sha256": "8d67edd6231e0c4828a9276febbe7027b419c8417baf898544afda33f573f508",
+      "node_ids": [
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_receipt_uses_selected_image_and_exact_lane_witness",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_rejects_structural_duplicate_and_journal_substitution",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_valid_lane_witness_cannot_back_a_different_route_lane_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_receipt_rejects_empty_wrong_kind_and_verifier_failure",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_route_composition_rejects_public_construction",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_semantically_identical_route_rebuild_preserves_verified_binding_root"
+      ]
+    },
+    {
+      "path": "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py",
+      "sha256": "b940cfc297dedeba9832d08e3aa1b4454221fc99b6a80927e23983e6d33535a8",
+      "node_ids": [
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_shape_bridge_is_closed_source_bound_and_unmounted",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_missing_route_composition_receipt_slice_rejects",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_valid_lane_witness_wrong_route_journal_negative_knowledge_is_required",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_source_hash_drift_rejects"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "metamorphic",
+    "differential",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange immutable releases, registries, lane witnesses, journals, and verifier spies; act through one route release or receipt-admission call; and assert exact witness fields, selected image and journal bytes, typed rejection, verifier call count, and lack of public construction."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The pure route boundary owns no state, effect application, outbox, or publication port. Every rejection returns no VerifiedRouteCompositionV1, and structural binding defects assert that the route receipt verifier is never called."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "route_width",
+      "points": [
+        "zero_lanes_reject",
+        "one_lane_accepts",
+        "eight_lanes_release_boundary",
+        "nine_lanes_reject"
+      ]
+    },
+    {
+      "name": "lane_input_cardinality",
+      "points": [
+        "zero_lane_journals_reject",
+        "exact_one_lane_accepts",
+        "duplicate_lane_journal_or_witness_rejects"
+      ]
+    },
+    {
+      "name": "writer_epoch",
+      "points": [
+        "lower_neighbor_reject",
+        "exact_accept",
+        "upper_neighbor_reject"
+      ]
+    },
+    {
+      "name": "receipt_bytes",
+      "points": [
+        "zero_bytes_reject",
+        "one_byte_accepts_when_verifier_accepts"
+      ]
+    },
+    {
+      "name": "receipt_kind",
+      "points": [
+        "succinct_accept",
+        "composite_reject"
+      ]
+    },
+    {
+      "name": "evidence_substitution",
+      "points": [
+        "exact_verified_lane_accepts",
+        "structural_candidate_type_rejects",
+        "valid_witness_wrong_journal_rejects",
+        "verifier_rejection_creates_no_witness"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "remove composer image or manifest roots from content-derived route release identity",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_route_release_ids_bind_composer_image_and_source_manifests"
+    },
+    {
+      "description": "accept structural lane composition data in place of opaque VerifiedLaneCompositionV1",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_rejects_structural_duplicate_and_journal_substitution"
+    },
+    {
+      "description": "skip exact lane cardinality or release-defined order",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_rejects_structural_duplicate_and_journal_substitution"
+    },
+    {
+      "description": "allow a verified lane witness to back a different lane or route journal",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_valid_lane_witness_cannot_back_a_different_route_lane_journal"
+    },
+    {
+      "description": "accept either neighboring writer epoch as equivalent to the exact occurrence epoch",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_rejects_structural_duplicate_and_journal_substitution"
+    },
+    {
+      "description": "verify caller-provided image or journal bytes instead of release-selected image and canonical route journal",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_receipt_uses_selected_image_and_exact_lane_witness"
+    },
+    {
+      "description": "permit an empty or non-succinct route receipt or construct authority after verifier rejection",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_receipt_rejects_empty_wrong_kind_and_verifier_failure"
+    },
+    {
+      "description": "expose a public constructor for route-composition proof authority",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_route_composition_rejects_public_construction"
+    },
+    {
+      "description": "silently drop the ShapeForge substitution-world falsifier or route slice",
+      "killed_by": "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_missing_route_composition_receipt_slice_rejects"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not mount a real RISC0 route guest, verifier, image receipt, or assumption-resolution chain.",
+    "The accepted route corpus is one ASSET_TRANSFER lane; general multi-lane private-port and global-effect aggregation is not proved.",
+    "VerifiedRouteCompositionV1 grants no epoch, commit, settlement, migration, outbox, value-moving, or publication authority.",
+    "This packet does not prove whole-economy M6 correctness, terminal completeness, migration safety, or production readiness.",
+    "The current checkout is dirty and unfrozen; these current-file pins are scoped development evidence rather than release-candidate provenance.",
+    "Named mutation killers are reviewed semantic mutants; no automated mutation campaign is claimed.",
+    "ShapeForge rows are contract and tested-discovery evidence; they do not promote the route slice to a cryptographic proof claim."
+  ]
+}

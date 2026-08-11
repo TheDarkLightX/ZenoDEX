@@ -80,6 +80,8 @@ CRITICAL_TESTS=(
   tests/state/test_intents.py
   tests/state/test_lp.py
   tests/state/test_volatility.py
+  tests/test_check_test_hygiene_v1.py
+  tests/test_run_test_hygiene_gate_v1.py
 )
 
 COVERAGE_TARGETS=(
@@ -107,6 +109,10 @@ echo "== critical: ruff =="
 "$PY" -m ruff check \
   tools/acceptance_tcb_mutation_harness.py \
   tools/check_acceptance_tcb_coverage.py \
+  tools/check_test_hygiene_v1.py \
+  tools/run_test_hygiene_gate_v1.py \
+  tools/test_hygiene_evidence_v1.py \
+  tools/test_hygiene_model_v1.py \
   src/core/domain_limits.py \
   src/core/cpmm.py \
   src/core/liquidity.py \
@@ -155,7 +161,9 @@ echo "== critical: ruff =="
   tests/state/test_nonces.py \
   tests/state/test_intents.py \
   tests/state/test_lp.py \
-  tests/state/test_volatility.py
+  tests/state/test_volatility.py \
+  tests/test_check_test_hygiene_v1.py \
+  tests/test_run_test_hygiene_gate_v1.py
 
 echo "== critical: shell syntax =="
 bash -n \
@@ -169,6 +177,12 @@ bash -n \
 
 echo "== critical: mypy =="
 "$PY" -m mypy
+
+echo "== critical: test hygiene contract =="
+"$PY" tools/check_test_hygiene_v1.py
+
+echo "== critical: BVA coverage inventory =="
+"$PY" tools/bva/check_critical_surface_coverage.py
 
 echo "== critical: acceptance TCB gate =="
 bash "$ROOT_DIR/tools/run_acceptance_tcb_gate.sh"

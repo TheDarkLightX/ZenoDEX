@@ -1,0 +1,2141 @@
+{
+  "proof_regressions": [
+    {
+      "ir_hash": "sha256:c9dee8240ae79f0286d0f3f75fee1f7b488a6f7a4dcf6da667deb3e064f5b19e",
+      "model_path": "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
+      "promotion_targets": [
+        "verification_fixture",
+        "proof_regression"
+      ],
+      "source_artifact": "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+    },
+    {
+      "ir_hash": "sha256:45710af086d69fe229ff5e1bb8134a905bdf8a508b0ff7c0d5895849cbc5a792",
+      "model_path": "lean-mathlib/Proofs/BatchOptimality.lean",
+      "promotion_targets": [
+        "verification_fixture",
+        "proof_regression"
+      ],
+      "source_artifact": "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+    },
+    {
+      "ir_hash": "sha256:24e8952ce675feeb07d6d5e7bf91d9203a3dcf47c847fe8de4cad66ce0386968",
+      "model_path": "lean-mathlib/Proofs/BatchCPMMUnification.lean",
+      "promotion_targets": [
+        "verification_fixture",
+        "proof_regression"
+      ],
+      "source_artifact": "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+    },
+    {
+      "ir_hash": "sha256:bfde93ef753e66726f66baf25d74a4a31e4e57c03c9e11db04cfb1ba19cffa88",
+      "model_path": "lean-mathlib/Proofs/CPMMInvariants.lean",
+      "promotion_targets": [
+        "verification_fixture",
+        "proof_regression"
+      ],
+      "source_artifact": "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+    },
+    {
+      "ir_hash": "sha256:20d3b8dfc7a8bd259ac0a4d745728b359015e710f1b1804e49e66c10c0968334",
+      "model_path": "formal/tla/AutoTraderNonceGuardShadow.tla",
+      "promotion_targets": [
+        "verification_fixture",
+        "proof_regression"
+      ],
+      "source_artifact": "formal/tau/atlases/autotrader_nonce_guard_v1.atlas.json"
+    }
+  ],
+  "repo_root": ".",
+  "scenario_seeds": [
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_run_managed_asset_lifecycle_transition",
+        "op_emit_bound_managed_lifecycle_output"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "parity_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/managed_asset_lifecycle_lane_module_v1.py",
+        "tests/core/test_managed_asset_lifecycle_lane_module_v1.py",
+        "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_lane_module.rs",
+        "zk/global_settlement_abi_v1/tests/managed_asset_lifecycle_lane_module.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "scenario_id": "scenario_managed_asset_lifecycle_host_fixture_rebinding",
+      "schema": "managed_asset_lifecycle_lane_module_output",
+      "score": 0.01,
+      "source_candidate_id": "cand_managed_asset_lifecycle_host_fixture_rebinding_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:managed_asset_lifecycle_lane_module_output",
+        "status:TESTED_ONLY",
+        "axis:operator",
+        "authority:module_owned_private_port",
+        "parity:python_rust_issue_burn",
+        "negative:host_fixture_rebinding"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_run_asset_transfer_transition",
+        "op_emit_bound_asset_lane_output"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "parity_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/asset_transfer_lane_module_v1.py",
+        "tests/core/test_asset_transfer_lane_module_v1.py",
+        "zk/global_settlement_abi_v1/src/asset_transfer_lane_module.rs",
+        "zk/global_settlement_abi_v1/tests/asset_transfer_lane_module.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "scenario_id": "scenario_asset_transfer_host_fixture_rebinding",
+      "schema": "asset_transfer_lane_module_output",
+      "score": 0.01,
+      "source_candidate_id": "cand_asset_transfer_host_fixture_rebinding_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:asset_transfer_lane_module_output",
+        "status:TESTED_ONLY",
+        "axis:operator",
+        "authority:module_owned_private_port",
+        "parity:python_rust",
+        "negative:host_fixture_rebinding"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_k_monotonicity_strengthening"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/CPMMInvariants.lean",
+        "src/core/cpmm.py"
+      ],
+      "scenario_id": "scenario_fee_cpmm_k_monotone",
+      "schema": "reserve_safety",
+      "score": 0.02,
+      "source_candidate_id": "cand_fee_k_mono",
+      "source_count": 3,
+      "status": "PROVED",
+      "tags": [
+        "schema:reserve_safety",
+        "status:PROVED",
+        "theorem:k_monotone_with_fee",
+        "source:CPMMInvariants",
+        "inv:k_after_gte_k_before"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_k_monotonicity_strengthening"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "src/tau_specs/recommended/reserve_invariant_guard_v1.tau",
+        "formal/tau/contracts/reserve_invariant_guard_v1.contract.json",
+        "docs/zenodex/SHAPING_FORMULAS_LOGIC_NOTATION.md"
+      ],
+      "scenario_id": "scenario_strict_tau_reserve_guard",
+      "schema": "reserve_guard_tau",
+      "score": 0.06,
+      "source_candidate_id": "cand_tau_reserve_guard",
+      "source_count": 3,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:reserve_guard_tau",
+        "status:TESTED_ONLY",
+        "tau:strict_profile",
+        "drift:zero",
+        "inv:k_after_gte_k_before"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "1-2|med|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_unique_canonical_winner",
+        "op_total_order_canonicalization"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
+        "lean-mathlib/Proofs/BatchOptimality.lean"
+      ],
+      "scenario_id": "scenario_batch_unique_canonical_winner",
+      "schema": "batch_canonicalization",
+      "score": 0.015,
+      "source_candidate_id": "cand_unique_winner",
+      "source_count": 3,
+      "status": "PROVED",
+      "tags": [
+        "schema:batch_canonicalization",
+        "status:PROVED",
+        "theorem:exists_unique_canonical",
+        "theorem:canonical_dominates",
+        "shape:unique_winner"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|sum_type|0-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_surplus_cbc_outcome_typing"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/BatchOptimality.lean"
+      ],
+      "scenario_id": "scenario_surplus_nonnegative_cbc",
+      "schema": "cbc_surplus",
+      "score": 0.014,
+      "source_candidate_id": "cand_surplus_cbc",
+      "source_count": 2,
+      "status": "PROVED",
+      "tags": [
+        "schema:cbc_surplus",
+        "status:PROVED",
+        "theorem:surplus_nonneg",
+        "cbc:valid_outcome",
+        "shape:invalid_state_unrepresentable"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|med|list|1-2",
+      "data_structure_family": "list",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_batch_k_gap_accounting",
+        "op_k_monotonicity_strengthening"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/BatchCPMMUnification.lean",
+        "lean-mathlib/Proofs/CPMMInvariants.lean"
+      ],
+      "scenario_id": "scenario_batch_k_gap_exact_accounting",
+      "schema": "batch_accounting",
+      "score": 0.018,
+      "source_candidate_id": "cand_batch_k_gap",
+      "source_count": 3,
+      "status": "PROVED",
+      "tags": [
+        "schema:batch_accounting",
+        "status:PROVED",
+        "theorem:executeBatchSwaps_K_gap_sum",
+        "theorem:unified_batch_safety",
+        "shape:exact_k_accounting"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_lp_roundtrip_no_profit"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/CPMMInvariants.lean"
+      ],
+      "scenario_id": "scenario_lp_roundtrip_no_profit",
+      "schema": "lp_roundtrip_safety",
+      "score": 0.017,
+      "source_candidate_id": "cand_lp_roundtrip",
+      "source_count": 2,
+      "status": "PROVED",
+      "tags": [
+        "schema:lp_roundtrip_safety",
+        "status:PROVED",
+        "theorem:lp_roundtrip_no_profit",
+        "shape:lp_barrier",
+        "lp:no_immediate_profit"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|med|list|1-2",
+      "data_structure_family": "list",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_batch_settlement_safety"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/BatchCPMMUnification.lean"
+      ],
+      "scenario_id": "scenario_batch_safe_implies_settlement_safe",
+      "schema": "batch_scalar_safety",
+      "score": 0.019,
+      "source_candidate_id": "cand_batch_safe",
+      "source_count": 2,
+      "status": "PROVED",
+      "tags": [
+        "schema:batch_scalar_safety",
+        "status:PROVED",
+        "theorem:batch_safe_implies_settlement_safe",
+        "shape:compositional_safety",
+        "delta:nonnegative_safe_pairs"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "1-2|med|array|3-6",
+      "data_structure_family": "array",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_equal_marginal_dualization"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "experimental/math_discovery_pipeline/src/kpool_split.py",
+        "experimental/math_discovery/galois_split_routing.py",
+        "lean-mathlib/Proofs/GaloisSplitCertificate.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_split_routing_equal_marginal",
+      "schema": "split_routing",
+      "score": 0.07,
+      "source_candidate_id": "cand_equal_marginal",
+      "source_count": 4,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:split_routing",
+        "status:TESTED_ONLY",
+        "law:g_i_prime_equals_lambda",
+        "search:bounded_neighborhood",
+        "shape:continuous_seed"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|med|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_anti_fragmentation_certificate"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "experimental/math_discovery_pipeline/src/anti_fragmentation.py",
+        "src/core/split_routing.py",
+        "lean-mathlib/Proofs/AntiFragmentation.lean",
+        "lean-mathlib/Proofs/FeeAwareAntiFragmentation.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_same_pool_fragmentation_elimination",
+      "schema": "anti_fragmentation",
+      "score": 0.065,
+      "source_candidate_id": "cand_same_pool_frag",
+      "source_count": 5,
+      "status": "PROVED",
+      "tags": [
+        "schema:anti_fragmentation",
+        "status:PROVED",
+        "law:single_out_dominates_split_out",
+        "shape:same_pool_pruning",
+        "routing:best_execution"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_zero_fee_anti_fragmentation_carry"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/AntiFragmentation.lean"
+      ],
+      "scenario_id": "scenario_zero_fee_same_pool_fragmentation_carry",
+      "schema": "anti_fragmentation_zero_fee",
+      "score": 0.024,
+      "source_candidate_id": "cand_zero_fee_same_pool_carry",
+      "source_count": 2,
+      "status": "PROVED",
+      "tags": [
+        "schema:anti_fragmentation_zero_fee",
+        "status:PROVED",
+        "theorem:single_eq_split_plus_gapCarry",
+        "theorem:gap_pos_iff_eq_one",
+        "shape:exact_gap_classification"
+      ]
+    },
+    {
+      "alloc_bin": "high",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "3-5|high|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_routing_tiebreak_totalization"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "3-5",
+      "runs": [
+        "src/core/split_routing_dispatch.py",
+        "experimental/math_discovery/galois_split_routing.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_many_pool_router_tiebreak",
+      "schema": "many_pool_tiebreak",
+      "score": 0.08,
+      "source_candidate_id": "cand_many_pool_tiebreak",
+      "source_count": 3,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:many_pool_tiebreak",
+        "status:TESTED_ONLY",
+        "routing:exact_in",
+        "shape:fewer_legs_then_lex",
+        "determinism:pool_id_key"
+      ]
+    },
+    {
+      "alloc_bin": "high",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "1-2|high|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_max_legs_capacity_guard"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/split_routing_dispatch.py",
+        "tests/core/test_split_routing_dispatch.py",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCapacityGuard.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_exact_out_capacity_guard",
+      "schema": "exact_out_capacity",
+      "score": 0.075,
+      "source_candidate_id": "cand_exact_out_capacity",
+      "source_count": 4,
+      "status": "PROVED",
+      "tags": [
+        "schema:exact_out_capacity",
+        "status:PROVED",
+        "routing:exact_out",
+        "shape:feasibility_guard",
+        "constraint:max_legs"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "1-2|med|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_routing_tiebreak_totalization"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "equal_input_extra_leg",
+          "equal_input_lex_larger_winner",
+          "input_tie_without_total_key"
+        ],
+        "hypothesis": "For any finite nonempty exact-out candidate set represented by the route key `(input_total, leg_count, legs_lex)`, the canonical winner is the unique minimum; in particular, among equal-input candidates it chooses fewer legs and then the lexicographically smallest `(pool_id, amount_out)` sequence.",
+        "improvement_axes": [
+          "scenario_corpus_expansion",
+          "contract_strengthening",
+          "canonicalization"
+        ],
+        "invariant_axes": [
+          "input_total_minimization",
+          "fewer_legs_tiebreak",
+          "legs_lex_tiebreak"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "amount_out_total",
+          "amount_in_total",
+          "legs",
+          "legs_lex",
+          "max_legs"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/split_routing_dispatch.py",
+        "tests/core/test_split_routing_dispatch.py",
+        "lean-mathlib/Proofs/ZenoDEXExactOutCanonicalMinimizer.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_exact_out_canonical_minimizer",
+      "schema": "exact_out_canonical_minimizer",
+      "score": 0.059,
+      "source_candidate_id": "cand_exact_out_canonical_minimizer",
+      "source_count": 4,
+      "status": "PROVED",
+      "tags": [
+        "schema:exact_out_canonical_minimizer",
+        "status:PROVED",
+        "routing:exact_out",
+        "shape:fewer_legs_then_lex",
+        "determinism:route_key_out"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "1-2|med|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_commutativity_quarantine"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "experimental/math_discovery_pipeline/src/settlement_law_miner.py",
+        "experimental/math_discovery_pipeline/src/settlement_algebra.py",
+        "lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_opposite_direction_noncommutativity",
+      "schema": "noncommutative_ordering",
+      "score": 0.072,
+      "source_candidate_id": "cand_noncommutative_order",
+      "source_count": 4,
+      "status": "PROVED",
+      "tags": [
+        "schema:noncommutative_ordering",
+        "status:PROVED",
+        "law:opposite_direction_noncommutative",
+        "shape:no_unsound_reorder",
+        "ordering:quarantine"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_boundary_guard_bundle"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "docs/zenodex/SHAPING_FORMULAS_LOGIC_NOTATION.md",
+        "formal/tla/AutoTraderNonceGuardShadow.tla",
+        "formal/tla/AutoTraderTxEnvelopeShadow.tla",
+        "formal/tau/dex_safety_property_matrix.json"
+      ],
+      "scenario_id": "scenario_autotrader_release_blocking_guards",
+      "schema": "guarded_live_admission",
+      "score": 0.09,
+      "source_candidate_id": "cand_autotrader_guards",
+      "source_count": 4,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:guarded_live_admission",
+        "status:TESTED_ONLY",
+        "release_blocking:true",
+        "shape:strict_nonce_and_envelope_validity",
+        "boundary:autotrader"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|med|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_oracle_uncertainty_freeze"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "pending_price_gap",
+          "oracle_staleness",
+          "recovery_mode_transition"
+        ],
+        "hypothesis": "If pending oracle price diverges from the active price, oracle freshness fails, or recovery mode activates, risky zUSD operations must remain blocked across runtime, Tau, and kernel adapters until the oracle boundary is revalidated.",
+        "improvement_axes": [
+          "scenario_corpus_expansion",
+          "runtime_guard_alignment",
+          "tau_contract_promotion"
+        ],
+        "invariant_axes": [
+          "risky_ops_blocked",
+          "tau_runtime_guard_alignment",
+          "boundary_only_oracle_validation"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "oracle_seen",
+          "price_e8",
+          "price_pending_e8",
+          "oracle_freshness",
+          "recovery_mode"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "0",
+      "runs": [
+        "src/core/zusd.py",
+        "src/integration/zusd_tau_gate.py",
+        "src/kernels/python/zusd_risky_ops_gate_v1_native_adapter.py",
+        "src/tau_specs/recommended/zusd_recovery_mode_gate_v1.tau",
+        "docs/zenodex/SHAPING_FORMULAS_FULL_STACK.md"
+      ],
+      "scenario_id": "scenario_zusd_oracle_boundary_freeze",
+      "schema": "oracle_boundary_freeze",
+      "score": 0.058,
+      "source_candidate_id": "cand_zusd_oracle_freeze",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:oracle_boundary_freeze",
+        "status:TESTED_ONLY",
+        "stablecoin:zusd",
+        "shape:risky_ops_blocked_on_pending_price_gap",
+        "boundary:oracle"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "1-2|med|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_routing_allocation_contract"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "partial_input_allocation",
+          "partial_output_coverage",
+          "zero_leg",
+          "sub_min_valid_leg"
+        ],
+        "hypothesis": "If a split route is returned, exact-in routes must consume the full requested input and every emitted leg must be positive; on the audited selected-domain CPMM exact-out lane, feasible returned allocations satisfy allocation_complete with positive capacity-bounded support legs by the Lean feasibility/presentation bridge, otherwise the route is invalid and must not be certified.",
+        "improvement_axes": [
+          "scenario_corpus_expansion",
+          "contract_strengthening",
+          "certificate_shrinking"
+        ],
+        "invariant_axes": [
+          "full_input_consumption",
+          "full_output_coverage",
+          "positive_leg_amounts",
+          "leg_admissibility"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "amount_in_total",
+          "amount_out_total",
+          "legs",
+          "min_valid",
+          "max_out",
+          "max_legs"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/split_routing_dispatch.py",
+        "src/core/split_routing.py",
+        "lean-mathlib/Proofs/AllocationTotality.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSelectedDomainCompleteness.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSupportPresentation.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_split_routing_allocation_contract",
+      "schema": "routing_allocation_contract",
+      "score": 0.061,
+      "source_candidate_id": "cand_routing_allocation_contract",
+      "source_count": 7,
+      "status": "PROVED",
+      "tags": [
+        "schema:routing_allocation_contract",
+        "status:PROVED",
+        "routing:split",
+        "shape:full_allocation_and_admissible_legs",
+        "boundary:routing"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "0|med|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_exact_out_audited_bounds_contract"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "selected_domain_over_budget",
+          "full_domain_candidate_over_budget",
+          "nested_budget_parameter_drift",
+          "missing_failure_reason",
+          "unreplayable_success_branch"
+        ],
+        "hypothesis": "If a many-pool exact-out quote is exposed on the public audited boundary, selected-domain, repaired-domain, and full-domain budget facts plus cross-packet budget-parameter binding must remain explicit, and the surface must expose either a replayable success branch or an explicit fail-closed rejection branch.",
+        "improvement_axes": [
+          "scenario_corpus_expansion",
+          "contract_strengthening",
+          "public_assurance_alignment"
+        ],
+        "invariant_axes": [
+          "budget_facts_ok",
+          "public_outcome_explicit",
+          "fail_closed_public_boundary"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "selected_domain_budget_respected",
+          "repaired_selection_budget_respected",
+          "full_domain_pool_budget_respected",
+          "full_domain_candidate_budget_respected",
+          "budget_parameters_bound",
+          "failure_path_explicit",
+          "success_path_replayable"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "0",
+      "runs": [
+        "src/integration/exact_out_route_certificate.py",
+        "src/integration/api_server.py",
+        "src/tau_specs/recommended/optimizer_audited_bounds_liveness_v1.tau",
+        "src/kernels/dex/optimizer_audited_bounds_liveness_v1.yaml",
+        "tests/integration/test_exact_out_route_certificate.py",
+        "tests/integration/test_api_server_dex_api.py",
+        "tests/formal/test_esso_optimizer_audited_bounds_liveness.py",
+        "tests/tau/test_exact_out_many_pool_audited_bounds_liveness.py"
+      ],
+      "scenario_id": "scenario_exact_out_audited_bounds_contract",
+      "schema": "exact_out_audited_bounds_contract",
+      "score": 0.064,
+      "source_candidate_id": "cand_exact_out_audited_bounds_contract",
+      "source_count": 8,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:exact_out_audited_bounds_contract",
+        "status:TESTED_ONLY",
+        "routing:exact_out",
+        "boundary:audited_bounds",
+        "shape:explicit_budget_and_outcome_binding"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "0|med|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_repaired_replacement_shadow_alignment"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "shadow_packet_failure",
+          "default_packet_failure",
+          "replacement_unavailable_case",
+          "strict_replacement_case",
+          "default_uses_repaired_advisory_case"
+        ],
+        "hypothesis": "On the claimed supported three-pool audited corpora, if the repaired replacement is available and full-canonical, the current bounded default exact-out policy should already return a replayable quote, avoid shadow/default packet failure, and match the repaired replacement exactly, so the strict replacement gap is zero on that corpus.",
+        "improvement_axes": [
+          "scenario_corpus_expansion",
+          "public_assurance_alignment",
+          "contract_strengthening"
+        ],
+        "invariant_axes": [
+          "no_spurious_failure_on_supported_corpus",
+          "zero_strict_replacement_gap",
+          "default_matches_repaired_replacement"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "replacement_available",
+          "shadow_packet_ok",
+          "default_packet_ok",
+          "effective_quote_matches_replacement_quote",
+          "default_effective_quote_matches_full_domain_canonical",
+          "default_effective_quote_source"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "0",
+      "runs": [
+        "src/integration/exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py",
+        "tests/integration/test_exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py",
+        "src/integration/exact_out_route_certificate.py",
+        "tests/integration/test_exact_out_route_certificate.py",
+        "tests/integration/test_api_server_dex_api.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_exact_out_supported_corpus_shadow_alignment",
+      "schema": "exact_out_supported_corpus_shadow_alignment",
+      "score": 0.067,
+      "source_candidate_id": "cand_exact_out_supported_corpus_shadow_alignment",
+      "source_count": 6,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:exact_out_supported_corpus_shadow_alignment",
+        "status:TESTED_ONLY",
+        "routing:exact_out",
+        "boundary:supported_corpus",
+        "shape:default_matches_repaired_replacement"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "1-2|med|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_repaired_replacement_shadow_alignment"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "shadow_packet_failure",
+          "default_packet_failure",
+          "replacement_unavailable_case",
+          "strict_replacement_case",
+          "pool_count_boundary_regression"
+        ],
+        "hypothesis": "On the deterministic four-pool and five-pool supported-family audited corpora, the public bounded default exact-out policy should remain replayably aligned with the repaired replacement at the next pool-count boundaries, so shadow/default packet failure, replacement unavailability, and strict-replacement gaps all stay absent for max_candidate_pools in {2,3}.",
+        "improvement_axes": [
+          "scenario_corpus_expansion",
+          "public_assurance_alignment",
+          "pool_count_boundary_widening"
+        ],
+        "invariant_axes": [
+          "no_spurious_failure_on_supported_family_frontier",
+          "zero_strict_replacement_gap",
+          "default_matches_repaired_replacement"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "num_pools",
+          "max_candidate_pools",
+          "replacement_available",
+          "shadow_packet_ok",
+          "default_packet_ok",
+          "effective_quote_matches_replacement_quote",
+          "default_effective_quote_matches_full_domain_canonical",
+          "default_effective_quote_source"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/integration/exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py",
+        "tests/integration/test_exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py",
+        "src/integration/exact_out_route_certificate.py",
+        "tests/integration/test_exact_out_route_certificate.py",
+        "tests/integration/test_api_server_dex_api.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_exact_out_supported_family_shadow_alignment_frontier",
+      "schema": "exact_out_supported_family_shadow_alignment_frontier",
+      "score": 0.071,
+      "source_candidate_id": "cand_exact_out_supported_family_shadow_alignment_frontier",
+      "source_count": 6,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:exact_out_supported_family_shadow_alignment_frontier",
+        "status:TESTED_ONLY",
+        "routing:exact_out",
+        "boundary:supported_family_frontier",
+        "shape:pool_count_shadow_alignment"
+      ]
+    },
+    {
+      "alloc_bin": "high",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "2-3|high|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_hierarchical_proof_frontier_refinement"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "missing_emitted_candidate",
+          "audited_domain_not_complete",
+          "local_minimality_overclaimed_as_global_completeness"
+        ],
+        "hypothesis": "If the emitted many-pool audited domain is already replayable and the runtime quote is replayably tied to the emitted canonical winner, then the next honest completeness step is to split generator search into soundness and completeness obligations instead of re-proving canonicality.",
+        "improvement_axes": [
+          "proof_promotion",
+          "scenario_corpus_expansion",
+          "negative_knowledge_preservation"
+        ],
+        "invariant_axes": [
+          "emitted_domain_replayability",
+          "quote_binding",
+          "route_key_out_totality"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "audit_pool_ids",
+          "emitted_candidates",
+          "runtimeChoice",
+          "canonicalWinner",
+          "quote",
+          "packet_ok"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "2-3",
+      "runs": [
+        "formal/exact_out_many_pool_generator_completeness_plan.md",
+        "lean-mathlib/Proofs/ZenoDEXExactOutBruteforceCompleteness.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCandidateDomainContract.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolGuardedQuotePacket.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCertifiedWinnerPacket.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_exact_out_generator_completeness_frontier",
+      "schema": "exact_out_canonical_minimizer",
+      "score": 0.084,
+      "source_candidate_id": "cand_exact_out_generator_completeness_frontier",
+      "source_count": 6,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:exact_out_canonical_minimizer",
+        "status:TESTED_ONLY",
+        "routing:exact_out",
+        "frontier:generator_completeness",
+        "proof:hierarchical_plan"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|vector|0-2",
+      "data_structure_family": "vector",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_pokayoke_amount_probe_schedule"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "docs/zenodex/SHAPEFORGE_POKAYOKE_REASONING.md",
+        "src/core/pokayoke_swap_suggest.py",
+        "src/core/pokayoke_swap_guardrails.py",
+        "tests/core/test_pokayoke_swap_suggest.py"
+      ],
+      "scenario_id": "scenario_pokayoke_exact_in_nonmonotone_amount_witness",
+      "schema": "swap_pokayoke_guardrails",
+      "score": 0.01,
+      "source_candidate_id": "cand_pokayoke_nonmonotone_amount_witness",
+      "source_count": 4,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:swap_pokayoke_guardrails",
+        "status:TESTED_ONLY",
+        "counterexample:adjacent_amount_action_flip",
+        "source:test_pokayoke_swap_suggest",
+        "guard:bounded_probe_schedule"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_verify_global_economic_epoch",
+        "op_commit_verified_global_economic_epoch"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "proof_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+        "src/core/epoch_effect_composition_v1.py",
+        "src/core/global_economic_proof_v1.py",
+        "src/core/route_composition_receipt_verification_v1.py",
+        "src/integration/global_economic_commit_v1.py",
+        "tests/core/test_global_settlement_abi_v1.py",
+        "tests/core/test_asset_lane_coordinator_v1.py",
+        "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs",
+        "zk/global_settlement_abi_v1/src/epoch_effect_composition.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "zk/global_economic_epoch_risc0/shared/src/lib.rs",
+        "zk/global_economic_epoch_risc0/methods/epoch/src/main.rs",
+        "zk/global_economic_epoch_risc0/host/src/lib.rs",
+        "zk/global_economic_epoch_risc0/shared/tests/epoch_preflight.rs",
+        "zk/global_economic_epoch_risc0/host/tests/receipt_admission.rs",
+        "zk/global_economic_epoch_risc0/host/tests/real_composition.rs",
+        "tools/check_zrpf_shapeforge_global_epoch_admission_v1.py",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py"
+      ],
+      "scenario_id": "scenario_global_epoch_structural_journal_without_receipt_verifier",
+      "schema": "global_epoch_receipt_admission",
+      "score": 0.01,
+      "source_candidate_id": "cand_global_epoch_structural_journal_without_receipt_verifier_v1",
+      "source_count": 18,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:global_epoch_receipt_admission",
+        "status:TESTED_ONLY",
+        "axis:evidence",
+        "authority:opaque_verified_route_input",
+        "authority:opaque_verified_epoch",
+        "boundary:1-8-9-64",
+        "guest-boundary:0-1-8-9-64",
+        "proof:real-succinct-recursion",
+        "receipt:release_selected_succinct",
+        "nonclaim:structural-leaf-no-economics",
+        "negative:synthetic_structural_journal",
+        "negative:valid_route_witness_wrong_epoch_journal",
+        "negative:verified_route_effect_relabeling",
+        "guard:exact_route_effect_plan_aggregation"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_bind_asset_transfer_output_to_release_route",
+        "op_bind_managed_lifecycle_output_to_release_route"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "parity_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/lane_module_release_route_binding_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/lane_module_release_route_binding.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "scenario_id": "scenario_managed_issue_occurrence_relabels_burn_output",
+      "schema": "lane_module_release_route_binding",
+      "score": 0.01,
+      "source_candidate_id": "cand_managed_issue_occurrence_relabels_burn_output_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:lane_module_release_route_binding",
+        "status:TESTED_ONLY",
+        "axis:guard",
+        "authority:structural_release_route_binding",
+        "parity:python_rust",
+        "negative:issue_occurrence_burn_output"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_verify_asset_transfer_lane_module_receipt",
+        "op_verify_managed_lifecycle_lane_module_receipt"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "parity_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/lane_module_receipt_verification_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "scenario_id": "scenario_structural_lane_binding_without_module_receipt_verification",
+      "schema": "lane_module_receipt_verification",
+      "score": 0.01,
+      "source_candidate_id": "cand_structural_lane_binding_without_module_receipt_verification_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:lane_module_receipt_verification",
+        "status:TESTED_ONLY",
+        "axis:evidence",
+        "authority:opaque_verified_module",
+        "receipt:release_image_exact_journal",
+        "negative:structural_binding_without_receipt"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_compose_receipt_backed_asset_lane_single"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "parity_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/receipt_backed_asset_lane_composition_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py",
+        "zk/global_settlement_abi_v1/src/asset_lane_projection.rs",
+        "zk/global_settlement_abi_v1/src/receipt_backed_asset_lane_composition.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "scenario_id": "scenario_valid_module_receipt_substitutes_different_lane_journal",
+      "schema": "receipt_backed_asset_lane_composition",
+      "score": 0.01,
+      "source_candidate_id": "cand_valid_module_receipt_substitutes_different_lane_journal_v1",
+      "source_count": 7,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:receipt_backed_asset_lane_composition",
+        "status:TESTED_ONLY",
+        "axis:evidence",
+        "authority:receipt_backed_structural_only",
+        "parity:python_rust",
+        "boundary:writer_epoch_neighbors",
+        "bve:outcome_path_archive",
+        "frontier:depth_2",
+        "negative:valid_receipt_wrong_journal"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_verify_route_composition_receipt"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "parity_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/route_composition_receipt_verification_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/route_composition_receipt_verification.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "scenario_id": "scenario_verified_lane_witness_substitutes_different_route_journal",
+      "schema": "route_composition_receipt_verification",
+      "score": 0.01,
+      "source_candidate_id": "cand_verified_lane_witness_substitutes_different_route_journal_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:route_composition_receipt_verification",
+        "status:TESTED_ONLY",
+        "axis:evidence",
+        "authority:opaque_verified_route",
+        "receipt:release_image_exact_journal",
+        "parity:python_rust",
+        "boundary:writer_epoch_neighbors",
+        "negative:verified_lane_wrong_route_journal"
+      ]
+    }
+  ],
+  "schema": "shapeforge/development-import-bundle/v1",
+  "tactics": [
+    {
+      "examples": [
+        "lean-mathlib/Proofs/CPMMInvariants.lean",
+        "src/tau_specs/recommended/reserve_invariant_guard_v1.tau"
+      ],
+      "failure_modes": [
+        "Fee semantics diverge from the proof model and K can drop.",
+        "Batch accounting keeps only monotonicity and loses the exact K-gap explanation."
+      ],
+      "morph_moves": [
+        "monotonicity_strengthening",
+        "exact_accounting"
+      ],
+      "name": "K monotonicity strengthening",
+      "obligations": [
+        "Check K(new)>=K(old) under the admitted fee and reserve domain.",
+        "Prefer an exact K-gap law when the batch model exposes one."
+      ],
+      "portal_hints": [
+        "lean",
+        "esso"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/CPMMInvariants.lean#k_monotone_with_fee",
+      "summary": "Promote K(new)>=K(old) from a local swap check into a batch-wide safety law and runtime guard.",
+      "tactic_id": "k_monotonicity_strengthening",
+      "tags": [
+        "cpmm",
+        "reserve_safety",
+        "k_monotonicity",
+        "accounting"
+      ],
+      "transform": "Enforce reserve monotonicity and prefer exact K-gap accounting when the model exposes a remainder law.",
+      "trigger": "Use when a pool, batch executor, or settlement transformer changes reserves."
+    },
+    {
+      "examples": [
+        "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
+        "experimental/math_discovery_pipeline/src/settlement_algebra.py"
+      ],
+      "failure_modes": [
+        "Multiple winners remain semantically equivalent but unspecified.",
+        "Enumeration order leaks into consensus-critical winner selection."
+      ],
+      "morph_moves": [
+        "canonicalization",
+        "symmetry_breaking",
+        "deterministic_tiebreak"
+      ],
+      "name": "Total order canonicalization",
+      "obligations": [
+        "Define a total key, not just a stable sort order.",
+        "Prove that equal-objective candidates collapse to a unique canonical representative."
+      ],
+      "portal_hints": [
+        "lean",
+        "zag"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/BatchAuctionCanonical.lean#key_le_iff",
+      "summary": "Replace ambiguous maximizers with a total key over objective and tie-break order.",
+      "tactic_id": "total_order_canonicalization",
+      "tags": [
+        "canonicalization",
+        "unique_winner",
+        "determinism",
+        "batch"
+      ],
+      "transform": "Rank by the primary objective, then a total tie-break, and choose the unique canonical winner.",
+      "trigger": "Use when a finite candidate set contains multiple equal-objective winners."
+    },
+    {
+      "examples": [
+        "experimental/math_discovery_pipeline/src/kpool_split.py",
+        "experimental/math_discovery/galois_split_routing.py",
+        "lean-mathlib/Proofs/GaloisSplitCertificate.lean"
+      ],
+      "failure_modes": [
+        "Continuous seeds are used outside the domain where concavity applies.",
+        "A continuous seed is treated as proof-backed without a discrete certificate bridge.",
+        "Integer rounding moves the optimum outside the searched envelope."
+      ],
+      "morph_moves": [
+        "lagrangian_dualization",
+        "concavity_seed",
+        "candidate_pruning"
+      ],
+      "name": "Equal marginal dualization",
+      "obligations": [
+        "Check strict concavity on the admitted pool domain.",
+        "Connect the seed to a bounded discrete certificate before claiming proof-backed optimality.",
+        "Check that the integer optimum lies in the bounded candidate envelope."
+      ],
+      "portal_hints": [
+        "morph",
+        "lean"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "experimental_math",
+      "source_query": "experimental/math_discovery_pipeline/src/kpool_split.py#continuous optimum",
+      "summary": "Seed split routing with the equal-marginal law and search only a bounded neighborhood.",
+      "tactic_id": "equal_marginal_dualization",
+      "tags": [
+        "routing",
+        "split_routing",
+        "concavity",
+        "kkt"
+      ],
+      "transform": "Relax to the continuous CPMM objective, solve the equal-marginal condition, then prune integer candidates around the seed.",
+      "trigger": "Use when a parallel-pool exact-in route needs structure stronger than brute force."
+    },
+    {
+      "examples": [
+        "lean-mathlib/Proofs/AntiFragmentation.lean",
+        "lean-mathlib/Proofs/FeeAwareAntiFragmentation.lean",
+        "src/core/split_routing.py"
+      ],
+      "failure_modes": [
+        "Cross-pool fragmentation is pruned as if it were the same-pool case.",
+        "The router keeps dominated same-pool fragments in the candidate set."
+      ],
+      "morph_moves": [
+        "anti_fragmentation",
+        "same_pool_split_pruning"
+      ],
+      "name": "Anti fragmentation certificate",
+      "obligations": [
+        "Check that the fragments share the same pool and direction.",
+        "Match the pool fee semantics to the zero-fee or fee-aware proof lane before pruning."
+      ],
+      "portal_hints": [
+        "morph",
+        "lean"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/FeeAwareAntiFragmentation.lean#feeAwareBatchOutput_le_single",
+      "summary": "Reject same-pool same-direction fragmentation when single execution dominates sequential fragments.",
+      "tactic_id": "anti_fragmentation_certificate",
+      "tags": [
+        "routing",
+        "anti_fragmentation",
+        "same_pool",
+        "best_execution"
+      ],
+      "transform": "Compare single execution against fragmented execution and prune the fragmented branch when the certificate holds.",
+      "trigger": "Use when a router considers splitting a same-direction trade across the same pool."
+    },
+    {
+      "examples": [
+        "lean-mathlib/Proofs/AntiFragmentation.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "failure_modes": [
+        "Fee-aware fragmentation is labeled proof-backed even though only the zero-fee slice is proved.",
+        "Multi-fragment same-pool pruning is treated as if the two-way carry theorem applied directly without the batch bound."
+      ],
+      "morph_moves": [
+        "anti_fragmentation",
+        "exact_accounting",
+        "same_pool_split_pruning"
+      ],
+      "name": "Zero fee anti fragmentation carry",
+      "obligations": [
+        "Restrict the slice to zero-fee CPMM semantics and same-pool same-direction two-way splits.",
+        "Do not reuse the carry theorem for fee-retaining pools or cross-pool fragmentation without separate proof support."
+      ],
+      "portal_hints": [
+        "lean"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/AntiFragmentation.lean#single_eq_split_plus_gapCarry",
+      "summary": "For zero-fee same-pool same-direction two-way splits, merged execution equals split execution plus a carry term and the gap is in {0,1}.",
+      "tactic_id": "zero_fee_anti_fragmentation_carry",
+      "tags": [
+        "routing",
+        "anti_fragmentation",
+        "zero_fee",
+        "carry",
+        "same_pool"
+      ],
+      "transform": "Replace ad hoc split comparison with the proof-backed carry law, then prune the split when the carry is nonzero and retain gap<=1 as the exact rounding envelope.",
+      "trigger": "Use when a zero-fee routing or audit path compares a merged exact-in swap against a same-pool same-direction two-fragment split."
+    },
+    {
+      "examples": [
+        "lean-mathlib/Proofs/BatchOptimality.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "failure_modes": [
+        "Runtime layers can represent filled below min_out as an ordinary state.",
+        "Surplus goes negative only because validation was deferred too late."
+      ],
+      "morph_moves": [
+        "cbc_outcome_typing",
+        "invalid_state_elimination"
+      ],
+      "name": "Surplus CBC outcome typing",
+      "obligations": [
+        "Ensure every bridge constructs only valid outcomes.",
+        "Keep surplus derived from validated outcomes, not unchecked arithmetic."
+      ],
+      "portal_hints": [
+        "lean"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/BatchOptimality.lean#ValidOutcome",
+      "summary": "Make filled-below-min_out unrepresentable by using a proof-carrying outcome type.",
+      "tactic_id": "surplus_cbc_outcome_typing",
+      "tags": [
+        "cbc",
+        "surplus",
+        "invalid_state",
+        "types"
+      ],
+      "transform": "Model outcomes as unfilled or filled(output,pf:output>=min_out) before computing surplus.",
+      "trigger": "Use when batch executors or optimizers compare user outcomes against minima."
+    },
+    {
+      "examples": [
+        "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
+        "src/core/split_routing_dispatch.py"
+      ],
+      "failure_modes": [
+        "Code is deterministic but the winning object is not uniquely specified.",
+        "Different implementations pick different equal-objective winners."
+      ],
+      "morph_moves": [
+        "unique_winner_selection",
+        "total_order_selection"
+      ],
+      "name": "Unique canonical winner",
+      "obligations": [
+        "Prove the candidate set is nonempty and the key is total.",
+        "Prove uniqueness, not just repeatability of the implementation."
+      ],
+      "portal_hints": [
+        "lean",
+        "zag"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/BatchAuctionCanonical.lean#exists_unique_canonical",
+      "summary": "Upgrade deterministic winner selection to existence of a unique canonical minimizer or maximizer.",
+      "tactic_id": "unique_canonical_winner",
+      "tags": [
+        "canonicalization",
+        "unique_winner",
+        "routing",
+        "batch"
+      ],
+      "transform": "Select the unique key minimum instead of keeping multiple equal winners or unstable enumeration order.",
+      "trigger": "Use when a finite candidate set is ranked by a total key."
+    },
+    {
+      "examples": [
+        "lean-mathlib/Proofs/BatchCPMMUnification.lean",
+        "lean-mathlib/Proofs/CPMMInvariants.lean"
+      ],
+      "failure_modes": [
+        "Batch audit can say K grew but cannot say by how much or why.",
+        "A mismatch appears between step order and the remainder decomposition."
+      ],
+      "morph_moves": [
+        "exact_accounting",
+        "remainder_ledger"
+      ],
+      "name": "Batch K gap accounting",
+      "obligations": [
+        "Maintain the same state-transition model across proof and runtime.",
+        "Keep per-step state order explicit in the batch ledger."
+      ],
+      "portal_hints": [
+        "lean",
+        "esso"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/BatchCPMMUnification.lean#executeBatchSwaps_K_gap_sum",
+      "summary": "Track exact batch K increase as a sum of per-step remainders instead of a bare monotone flag.",
+      "tactic_id": "batch_k_gap_accounting",
+      "tags": [
+        "batch",
+        "k_gap",
+        "exact_accounting",
+        "cpmm"
+      ],
+      "transform": "Expose K(final)=K(init)+sum remainders and attach the remainder ledger to certificates.",
+      "trigger": "Use when batch execution or audit tooling needs a precise reserve-growth explanation."
+    },
+    {
+      "examples": [
+        "lean-mathlib/Proofs/CPMMInvariants.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "failure_modes": [
+        "LP round-trips leak value due to mint or burn asymmetry.",
+        "A reserve update changes LP accounting but no round-trip barrier is checked."
+      ],
+      "morph_moves": [
+        "lp_no_profit_barrier",
+        "roundtrip_safety"
+      ],
+      "name": "LP roundtrip no profit",
+      "obligations": [
+        "Match runtime mint and burn formulas to the proof model.",
+        "Keep reserve and LP supply preconditions explicit."
+      ],
+      "portal_hints": [
+        "lean"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/CPMMInvariants.lean#lp_roundtrip_no_profit",
+      "summary": "Treat deposit then withdraw no-profit as a first-class LP safety barrier.",
+      "tactic_id": "lp_roundtrip_no_profit",
+      "tags": [
+        "lp_safety",
+        "roundtrip",
+        "no_profit",
+        "cpmm"
+      ],
+      "transform": "Require immediate round-trip withdrawals to stay componentwise below or equal to deposits.",
+      "trigger": "Use when LP mint, burn, or reserve accounting semantics change."
+    },
+    {
+      "examples": [
+        "src/core/split_routing_dispatch.py",
+        "tests/core/test_split_routing_dispatch.py",
+        "lean-mathlib/Proofs/ZenoDEXExactOutCanonicalMinimizer.lean",
+        "experimental/math_discovery/galois_split_routing.py"
+      ],
+      "failure_modes": [
+        "Equal-quality routes oscillate across implementations or refactors.",
+        "A tie-break differs between exact-in and exact-out dispatch layers."
+      ],
+      "morph_moves": [
+        "total_tie_break",
+        "candidate_order_canonicalization"
+      ],
+      "name": "Routing tiebreak totalization",
+      "obligations": [
+        "Prove or test full allocation and deterministic leg ordering.",
+        "Use the same canonical key in every implementation path."
+      ],
+      "portal_hints": [
+        "morph",
+        "zag"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "routing_dispatch_code",
+      "source_query": "src/core/split_routing_dispatch.py#best_split_many_pools_exact_in_for_pools",
+      "summary": "Specify a total tie-break for equal-quality split routes instead of relying on incidental iteration order.",
+      "tactic_id": "routing_tiebreak_totalization",
+      "tags": [
+        "routing",
+        "determinism",
+        "tiebreak",
+        "many_pool"
+      ],
+      "transform": "Canonicalize by objective first, then leg count, then sorted leg tuples keyed by pool_id.",
+      "trigger": "Use when many-pool exact-in or exact-out routing returns equal-quality allocations."
+    },
+    {
+      "examples": [
+        "src/core/split_routing_dispatch.py",
+        "tests/core/test_split_routing_dispatch.py",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCapacityGuard.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "failure_modes": [
+        "Search explores impossible exact-out requests under the leg budget.",
+        "Routing fails without a canonical feasibility explanation."
+      ],
+      "morph_moves": [
+        "capacity_feasibility_pruning",
+        "max_legs_guard"
+      ],
+      "name": "Max legs capacity guard",
+      "obligations": [
+        "Define per-pool output caps precisely.",
+        "Show the coverage test matches solver feasibility under max_legs."
+      ],
+      "portal_hints": [
+        "lean",
+        "esso",
+        "morph"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCapacityGuard.lean#capacity_guard_iff",
+      "summary": "Use max-leg capacity as an explicit feasibility contract before exact-out search.",
+      "tactic_id": "max_legs_capacity_guard",
+      "tags": [
+        "routing",
+        "exact_out",
+        "capacity",
+        "max_legs"
+      ],
+      "transform": "Reject infeasible requests early via top-capacity coverage and keep the failure reason canonical.",
+      "trigger": "Use when exact-out routing must satisfy a target under a max_legs budget."
+    },
+    {
+      "examples": [
+        "lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean",
+        "experimental/math_discovery_pipeline/src/settlement_law_miner.py",
+        "experimental/math_discovery_pipeline/src/settlement_algebra.py"
+      ],
+      "failure_modes": [
+        "A mixed-direction batch is simplified as if it were commutative.",
+        "An optimizer prunes the wrong branch after an unsound reorder."
+      ],
+      "morph_moves": [
+        "noncommutativity_quarantine",
+        "precondition_refinement"
+      ],
+      "name": "Commutativity quarantine",
+      "obligations": [
+        "Check that opposite direction implies a positive commutativity gap on the admitted domain.",
+        "Reject commutative rewrites when the precondition fails."
+      ],
+      "portal_hints": [
+        "morph",
+        "lean"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean#generic_path_noncommutativity",
+      "summary": "Forbid commutative rewrites once settlement directions oppose.",
+      "tactic_id": "commutativity_quarantine",
+      "tags": [
+        "settlement",
+        "noncommutativity",
+        "ordering_safety",
+        "pruning"
+      ],
+      "transform": "Gate reordering behind same-direction preconditions and preserve explicit order otherwise.",
+      "trigger": "Use when an optimizer or canonicalizer wants to reorder mixed-direction settlements."
+    },
+    {
+      "examples": [
+        "src/core/zusd.py",
+        "src/integration/zusd_tau_gate.py",
+        "src/kernels/python/zusd_risky_ops_gate_v1_native_adapter.py",
+        "src/tau_specs/recommended/zusd_recovery_mode_gate_v1.tau"
+      ],
+      "failure_modes": [
+        "Collateral or debt mutates while the pending oracle price disagrees with the active price.",
+        "Runtime and Tau layers disagree on when recovery mode or stale data should block risky operations."
+      ],
+      "morph_moves": [
+        "boundary_freezing",
+        "oracle_alignment_gate",
+        "recovery_mode_block"
+      ],
+      "name": "Oracle uncertainty freeze",
+      "obligations": [
+        "Keep the risky-ops predicate aligned across runtime, Tau integration, and kernel adapters.",
+        "Block oracle-sensitive state transitions whenever pending price diverges from active or freshness fails."
+      ],
+      "portal_hints": [
+        "tau",
+        "esso"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "tau_contract",
+      "source_query": "src/tau_specs/recommended/zusd_recovery_mode_gate_v1.tau#risky_ops_allowed",
+      "summary": "Freeze zUSD risky operations until oracle state is fresh, initialized, and pending price matches the active price.",
+      "tactic_id": "oracle_uncertainty_freeze",
+      "tags": [
+        "stablecoin",
+        "oracle",
+        "boundary_freeze",
+        "recovery_mode"
+      ],
+      "transform": "Gate risky operations behind oracle_seen \u2227 price>0 \u2227 price_pending>0 \u2227 price_pending=price \u2227 OracleFresh \u2227 \u00acRecoveryMode.",
+      "trigger": "Use when a stablecoin path can mutate debt or collateral using oracle-dependent state."
+    },
+    {
+      "examples": [
+        "src/core/split_routing_dispatch.py",
+        "src/core/split_routing.py",
+        "lean-mathlib/Proofs/AllocationTotality.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSelectedDomainCompleteness.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSupportPresentation.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness.lean",
+        "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "failure_modes": [
+        "The exact-out audited selected-domain feasibility bridge is downgraded to contract-only despite existing Lean support.",
+        "A returned route leaves part of the requested volume unallocated.",
+        "A combined routing claim treats non-modeled runtime admissibility details as already unified into one theorem when only the decomposed proof lane has been discharged."
+      ],
+      "morph_moves": [
+        "allocation_totality",
+        "leg_admissibility",
+        "invalid_leg_elimination"
+      ],
+      "name": "Routing allocation contract",
+      "obligations": [
+        "Use the exact-in Lean allocation theorem only for full-input and positive-leg claims.",
+        "Use the exact-out audited selected-domain feasibility and support-presentation chain for \u03a3 leg outputs = Q and positive capacity-bounded support legs.",
+        "Keep runtime min-valid or non-modeled admissibility checks fail-closed where they are not yet bundled into one promoted theorem."
+      ],
+      "portal_hints": [
+        "esso",
+        "lean"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "routing_dispatch_code",
+      "source_query": "src/core/split_routing_dispatch.py#best_split_many_pools_exact_in_for_pools",
+      "summary": "For exact-in, require full input consumption and positive legs; for exact-out, use the audited selected-domain feasibility bridge to require full-output coverage and positive capacity-bounded support legs.",
+      "tactic_id": "routing_allocation_contract",
+      "tags": [
+        "routing",
+        "allocation_totality",
+        "leg_admissibility",
+        "split_routing"
+      ],
+      "transform": "Enforce \u03a3 leg inputs = D for exact-in, use the exact-out feasibility/presentation bridge to require \u03a3 leg outputs = Q on the audited selected-domain lane, and keep emitted legs positive and admissible under the proved capacity or runtime min-valid boundary.",
+      "trigger": "Use when a split router returns many-pool exact-in allocations or exact-out allocations on the audited selected-domain CPMM lane."
+    },
+    {
+      "examples": [
+        "src/integration/exact_out_route_certificate.py",
+        "src/integration/api_server.py",
+        "src/tau_specs/recommended/optimizer_audited_bounds_liveness_v1.tau",
+        "src/kernels/dex/optimizer_audited_bounds_liveness_v1.yaml",
+        "tests/integration/test_exact_out_route_certificate.py",
+        "tests/integration/test_api_server_dex_api.py",
+        "tests/formal/test_esso_optimizer_audited_bounds_liveness.py",
+        "tests/tau/test_exact_out_many_pool_audited_bounds_liveness.py"
+      ],
+      "failure_modes": [
+        "Nested packet layers disagree on max_legs or other audited budget parameters while the public contract still appears valid.",
+        "The public quote surface succeeds without an explicit replayable success branch or an explicit fail-closed rejection branch.",
+        "A bounded audited-bounds contract is overclaimed as an actual liveness or completeness proof."
+      ],
+      "morph_moves": [
+        "budget_binding",
+        "public_outcome_explicit",
+        "fail_closed_contract"
+      ],
+      "name": "Exact-out audited bounds contract",
+      "obligations": [
+        "Keep selected-domain, repaired-domain, and full-domain budget facts explicit rather than implicit in nested packet structure.",
+        "Bind max_legs and the rest of the public budget parameters across the selected-domain, repaired, and public contract layers.",
+        "Do not overclaim this bounded contract shell as a step-count or global generator-completeness theorem."
+      ],
+      "portal_hints": [
+        "tau",
+        "esso"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "tau_contract",
+      "source_query": "src/tau_specs/recommended/optimizer_audited_bounds_liveness_v1.tau#audited_bounds_contract_ok",
+      "summary": "Bind selected-domain, repaired-domain, and full-domain exact-out budgets plus explicit public success/failure outcomes into one fail-closed audited-bounds contract.",
+      "tactic_id": "exact_out_audited_bounds_contract",
+      "tags": [
+        "routing",
+        "exact_out",
+        "audited_bounds",
+        "public_boundary"
+      ],
+      "transform": "Rebuild budget_facts_ok and public_outcome_explicit from the nested packet family, require max_legs and the rest of the public budget parameters to agree across layers, and reject payload drift unless the audited-bounds contract rebuilds canonically.",
+      "trigger": "Use when a many-pool exact-out quote surface spans selected-domain certificates, repaired bounded advisory behavior, and explicit public budget parameters."
+    },
+    {
+      "examples": [
+        "src/integration/exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py",
+        "tests/integration/test_exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py",
+        "src/integration/exact_out_route_certificate.py",
+        "tests/integration/test_exact_out_route_certificate.py",
+        "tests/integration/test_api_server_dex_api.py",
+        "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json"
+      ],
+      "failure_modes": [
+        "The default quote surface returns nothing on the claimed supported corpus even though the repaired replacement is available and full-canonical.",
+        "A strict-replacement case reappears on the claimed supported corpus.",
+        "Supported-corpus shadow alignment is mistaken for a global completeness theorem."
+      ],
+      "morph_moves": [
+        "supported_corpus_receipt",
+        "shadow_alignment",
+        "adoption_gap_tracking"
+      ],
+      "name": "Repaired replacement shadow alignment",
+      "obligations": [
+        "Keep the corpus parameters explicit: supported three-pool ordered products, bounded amount_out values, and declared candidate budgets.",
+        "Require shadow/default packet success and zero strict-replacement cases on the claimed corpus instead of inferring alignment from one witness.",
+        "Do not overclaim supported-corpus shadow alignment as global generator completeness or as a guarantee for wider pool-count domains without separate evidence."
+      ],
+      "portal_hints": [
+        "bench",
+        "replay"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "integration_benchmark",
+      "source_query": "src/integration/exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py#benchmark_exact_out_many_pool_repaired_replacement_shadow_on_curve_templates",
+      "summary": "On claimed supported audited corpora, require the current default many-pool exact-out policy to match the repaired replacement and avoid spurious packet failures.",
+      "tactic_id": "repaired_replacement_shadow_alignment",
+      "tags": [
+        "routing",
+        "exact_out",
+        "benchmark",
+        "adoption_gap"
+      ],
+      "transform": "Replay the default packet and repaired replacement on the same bounded corpus, require replacement availability and full-canonicality, and treat any shadow/default packet failure or strict replacement case as a regression.",
+      "trigger": "Use when auditing whether the bounded default many-pool exact-out policy still lags the repaired replacement on supported non-CPMM curve families."
+    },
+    {
+      "examples": [
+        "formal/exact_out_many_pool_generator_completeness_plan.md",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolGuardedQuotePacket.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCertifiedWinnerPacket.lean"
+      ],
+      "failure_modes": [
+        "Local emitted-domain canonicality is overclaimed as global generator completeness.",
+        "Proof search thrashes because failed plans, counterexamples, and scope boundaries are not preserved."
+      ],
+      "morph_moves": [
+        "hierarchical_outline",
+        "subgoal_partition",
+        "counterexample_first",
+        "declarative_landing"
+      ],
+      "name": "Hierarchical proof frontier refinement",
+      "obligations": [
+        "Write a two-level outline before tactics.",
+        "Record normalized subgoals, candidate lemmas, failure reasons, and the next repair move.",
+        "Keep the informal proof idea and scope boundary adjacent to the formal artifact."
+      ],
+      "portal_hints": [
+        "lean",
+        "shapeforge"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ],
+      "source_kind": "workflow_note",
+      "source_query": "formal/exact_out_many_pool_generator_completeness_plan.md#proof-shape-protocol",
+      "summary": "Stabilize a proof frontier by forcing a two-level outline, explicit subgoal state, counterexample-first preflight, and declarative landing criteria.",
+      "tactic_id": "hierarchical_proof_frontier_refinement",
+      "tags": [
+        "proof_planning",
+        "hierarchical_proof",
+        "frontier_management",
+        "negative_knowledge"
+      ],
+      "transform": "Split the frontier into replayable local theorems plus explicit generator soundness and completeness obligations; explore procedurally, but land only the declarative theorem or contract actually justified.",
+      "trigger": "Use when a Lean theorem or contract frontier is blocked by scope confusion between a local minimizer theorem and a stronger generator or completeness claim."
+    },
+    {
+      "examples": [
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+        "src/core/global_economic_proof_v1.py#VerifiedEconomicEpochV1",
+        "src/integration/global_economic_commit_v1.py#GlobalEconomicCommitPortV1",
+        "tests/core/test_global_settlement_abi_v1.py#test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle"
+      ],
+      "failure_modes": [
+        "A local settlement theorem is relabeled as a global publication theorem.",
+        "A caller-constructible certificate or structural journal receives authority without cryptographic receipt verification.",
+        "The verifier checks a receipt against an image or journal different from the bytes committed by the publisher.",
+        "An in-memory or test-double path is described as durable or production-mounted authority."
+      ],
+      "morph_moves": [
+        "authority_refinement",
+        "opaque_witness",
+        "exact_binding",
+        "negative_knowledge_preservation"
+      ],
+      "name": "Refine economic evidence into publication authority",
+      "obligations": [
+        "Name the exact scoped donor theorem or contract and preserve its original evidence class.",
+        "Require a release-selected verifier to accept the exact image id and canonical public journal before constructing authority.",
+        "Make the publisher consume only the verifier-owned opaque witness and recheck current profile, head, body, state, DA, and finality bindings.",
+        "Preserve a negative regression showing that structural, synthetic, fake, conditional, or development receipts cannot authorize publication.",
+        "Keep guest emission, cryptographic verification, durable publication, migration, route mounting, and writer retirement as explicit gaps until replayable evidence exists."
+      ],
+      "portal_hints": [
+        "risc0",
+        "tau",
+        "lean",
+        "replay"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus",
+        "runtime_contract",
+        "proof_regression"
+      ],
+      "source_kind": "runtime_contract",
+      "source_query": "src/core/global_economic_proof_v1.py#verify_economic_epoch_v1",
+      "sources": [
+        {
+          "title": "GlobalSettlementABI V1 receipt-admission ShapeForge contract",
+          "url": "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+          "type": "local"
+        }
+      ],
+      "summary": "Preserve scoped donor proofs while requiring a release-selected verifier, exact public-journal binding, an opaque authority witness, and atomic publication before any settlement claim gains writer authority.",
+      "tactic_id": "refine_economic_evidence_into_publication_authority",
+      "tags": [
+        "authority_boundary",
+        "recursive_proof",
+        "opaque_witness",
+        "settlement",
+        "negative_knowledge"
+      ],
+      "transform": "Keep the donor claim at its existing evidence class, introduce an explicit verifier-owned opaque witness for the new authority boundary, bind profile, release, image, journal, receipt, effects, body, and state, and classify every missing guest, verifier, publisher, migration, or mount as a gap.",
+      "trigger": "Use when a proved or contract-backed economic packet is being reused inside a new recursive proof or settlement publication path."
+    }
+  ]
+}

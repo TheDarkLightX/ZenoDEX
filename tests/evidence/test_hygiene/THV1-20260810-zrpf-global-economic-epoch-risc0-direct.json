@@ -1,0 +1,500 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260810-zrpf-global-economic-epoch-risc0-direct",
+  "created_date": "2026-08-10",
+  "claim_scope": "GlobalSettlementABI V1 commits one exact public route-assumption root per opaque route witness and one canonical command-aggregation journal per fanout group. A pinned RISC0 3.0.6 closed guest resolves one through eight direct route claims or canonical fanout-8 same-image command groups for nine through sixty-four commands before committing the exact epoch certificate journal.",
+  "change_kind": "behavior_change",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "GSABI-V1-EXACT-PUBLIC-ROUTE-ASSUMPTION-ROOT",
+    "GSABI-V1-ONE-ASSUMPTION-PER-ROUTE-OCCURRENCE",
+    "GSABI-V1-CANONICAL-IMAGE-ID-ENDIANNESS",
+    "ZRPF-V1-DIRECT-EPOCH-ONE-THROUGH-EIGHT",
+    "ZRPF-V1-COMMAND-GROUP-ONE-THROUGH-EIGHT",
+    "ZRPF-V1-GROUPED-EPOCH-NINE-THROUGH-SIXTY-FOUR",
+    "ZRPF-V1-CANONICAL-FANOUT-EIGHT",
+    "ZRPF-V1-SAME-IMAGE-SELF-RECURSION",
+    "ZRPF-V1-EXACT-MODULE-LEAF-TOTAL",
+    "ZRPF-V1-SUCCINCT-CHILD-RECEIPTS-ONLY",
+    "ZRPF-V1-EXACT-CHILD-JOURNAL",
+    "ZRPF-V1-FAKE-RECEIPT-REJECTS",
+    "ZRPF-V1-EXACT-ROOT-JOURNAL",
+    "ZRPF-V1-STRUCTURAL-TEST-LEAF-NO-ECONOMIC-CLAIM"
+  ],
+  "failure_modes": [
+    "the epoch certificate omits or substitutes the exact child image-and-journal assumption root",
+    "RISC0 image words use an implicit or inconsistent byte order across host, guest, and ABI roots",
+    "a missing, extra, reordered, wrong-image, or noncanonical child claim reaches env::verify",
+    "a Fake, Composite, Groth16, empty, wrong-journal, or unverifiable child receipt is installed as a direct assumption",
+    "zero or more than eight direct children or command-group children enter their corresponding guest branch",
+    "eight or fewer, more than sixty-four, reordered, overlapping, gapped, or noncanonical command groups enter the aggregated epoch branch",
+    "a command group verifies under a foreign image or carries a substituted route slice, state boundary, or module-leaf total",
+    "the root receipt is non-Succinct, has a foreign journal, or verifies under another image",
+    "the quarantined structural test leaf is relabeled as an economic route proof",
+    "typed 64-command BVA is relabeled as a completed 73-receipt real replay, throughput benchmark, or production authority"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/GLOBAL_SETTLEMENT_ABI_V1_REFERENCE_20260805.md",
+      "sha256": "153ab38b56fa74e8727681b30bfd1722dd52dea8bf38edffc34de6439a53469a"
+    },
+    {
+      "path": "docs/research/ZRPF_SHAPEFORGE_GLOBAL_EPOCH_ADMISSION_V1.md",
+      "sha256": "364fe5a7212c7a32fb7744b031b5b0b72f7ef361c6428155123c09127aa15742"
+    },
+    {
+      "path": "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+      "sha256": "90f5e25c3ea433e2ecca43c4d1404415c1661eb6b4bd66bb0436e83166cd798e"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json",
+      "sha256": "2c0484ae4d3cc8d3f9f70d0447a66ce7c5b594cb22d0a49426287e36000bf078"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/scenario_corpus.seed.json",
+      "sha256": "5970a027fe8631417902e637903b47971268e578960314a27f031519712064c4"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/development_import_bundle.json",
+      "sha256": "980995c1af1fd4ba08874ca30fed2b3b653e9232b75dad529519f73844cdb527"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_negative_knowledge.seed.json",
+      "sha256": "6e430d23ca2e84b1e9e8b297ce6d9b9a0d7091638cf71778ac6d720feb1e1b4a"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "c7ff7f362462502293c017fd986c14ef57c9aaa344e4b1093ea260ec18e84568"
+    },
+    {
+      "path": "src/core/global_settlement_abi_v1.py",
+      "sha256": "185be1562702f32dc4a23b57eaab0f42c6a708b6d6b92ab22c6abdebb4255e70"
+    },
+    {
+      "path": "src/core/global_economic_proof_v1.py",
+      "sha256": "c096e3b4b4e205fc0a602fa840bb515fbe177da8e0f8de313e10a98df68d3ec2"
+    },
+    {
+      "path": "src/core/route_composition_receipt_verification_v1.py",
+      "sha256": "b8a0dc2a7d269a793bb6687a35ee190d03c66dfb93f2d6acd4a994983ff5534a"
+    },
+    {
+      "path": "src/integration/global_economic_commit_v1.py",
+      "sha256": "f805da38ed5214ed773b8572ad0b3554af4c45cae6d5ab1f95dc115870842825"
+    },
+    {
+      "path": "tests/data/global_settlement_abi_v1_golden.json",
+      "sha256": "a7e8c3a4a69688c31de703af79dfa2c5436b2a3867bda0eb7210f71324b3d155"
+    },
+    {
+      "path": "tools/render_global_settlement_abi_v1_golden.py",
+      "sha256": "86b915716636815fd7589230105cc8f486ca881a11c6776d02c7ddf494a09657"
+    },
+    {
+      "path": "tools/check_zrpf_shapeforge_global_epoch_admission_v1.py",
+      "sha256": "e64bc4aa1b5a01124042313fe8a2af3d7f114fc0f48d506a1f2c95a904876760"
+    },
+    {
+      "path": "tools/zrpf_shapeforge_contract_support_v1.py",
+      "sha256": "4ca25f5f4b3d0c237b050b26c3af36ec9826fd7351ec059a907aefe4862aa7e8"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/Cargo.toml",
+      "sha256": "04ec3f206a99f6ac3754a1b1c9d0b58e0f699b96d21536de2e27e46edb81c052"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/Cargo.lock",
+      "sha256": "9420e887c5c030b19cdc721c339f9460ac1db0227567bcbe018337580589360a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/README.md",
+      "sha256": "1e567ba69e59bd585a6e9bb145eeef4ba0e4b056c6bb3e4776609694190a00a2"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "d488d7ba2584d0c46d858d20521667eac8d55e34432b0302c22c424624d5e567"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_lane_coordinator.rs",
+      "sha256": "f4b8e0a1f79855136072168938df0c2003e830966b2e1e73b45fe3adebb5de5f"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_lane_projection.rs",
+      "sha256": "0d19bc0e9896243d6ce57e79c7a8680f790ddb31c6a5c124c1ba2ffc767c9972"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer.rs",
+      "sha256": "2e5652e3c6c917ad63a84bf20688ade75e2e188b01c772bba9c057ce5143217b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer_lane_module.rs",
+      "sha256": "ec10f93a6e1665a94e7ec8564b6e45794187675247705f08d443264fa760ae41"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer_types.rs",
+      "sha256": "835e0436b40d5bfaa9996f509242386be266a1570beb1b80b95e9bdffe11960a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/canonical.rs",
+      "sha256": "da7a3df9102736bc4a50f469ac525b851dea688b9ea7219be5345347bd49c240"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/effects.rs",
+      "sha256": "fc9c3b3c52966f2e20ff6c8c66fc38bc295d8a25d8a76f347ef94c788a9ea592"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_composition_receipt_verification.rs",
+      "sha256": "5e16cddad88c3241850fca0af0c0d8627ed989ed69ef5e562737f27cdc42bcc0"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs",
+      "sha256": "3f41b98dc39dcf0073095c5ee99b0f348806d006ab8f4758a7d674e4341e1873"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_module_release_route_binding.rs",
+      "sha256": "ec83c479532f6b8eb77b780440374b7a43697a22a322e7896ea2e576762e0abf"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/managed_asset_lifecycle.rs",
+      "sha256": "710a0dcc2584a826f0a7e440de5915aea5b5a2958cfd2bc428a0a13f1b289337"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_lane_module.rs",
+      "sha256": "52140dc2cfb1287cd9e68fa134c16d00180d05dcd6f544db1fcbd76eb3b5a437"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_types.rs",
+      "sha256": "b7e53133a01668de45e723a98456373d9e377c60eeb25c588e2141da9cfbefdd"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/migration.rs",
+      "sha256": "e5fb32536969e7c659759833f789e788e6fbe844239f3071876d3dbb32ac7653"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/receipt_backed_asset_lane_composition.rs",
+      "sha256": "6643c3af3ffb23c2ef9ab801264fcc0cc09c74edb2e017f003f0bf0269432ee3"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/release.rs",
+      "sha256": "0cc42ee1b3c30e8dac0cd593986922165923856af4b40aef4c59787a1cd37f18"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/state.rs",
+      "sha256": "e90b6acf4b6957a5fbfe101cc984924b7cef69fce2bf7e62423a01303f996700"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/proof.rs",
+      "sha256": "dbdbc7cc689bd8201e58e3ad8b96ec5eb86f2cb956ebefc98d8fb6d0ee822156"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/route_composition_receipt_verification.rs",
+      "sha256": "a13f1659acfeed2eb30694dbfde68bc34bdd9f2834541510eb11072880a8a82b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs",
+      "sha256": "9d67e9b5f797faff9d40e5dcb1f74d15dec488be461c2791e94e6cb293b46618"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/golden_vectors.rs",
+      "sha256": "a996a497b3ba0204cb275ff0506a4049914fbb3d8934a534f8f72ca6bc721eef"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+      "sha256": "fde1ad248d1d887151634e837fa15b6868b8858e3ae044c5a5a36c54bae18ef8"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/asset_lane_coordinator.rs",
+      "sha256": "f5a7b7d975526299e64ddb8940d22d403b41911d8a00b8b929153661c305a314"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/asset_transfer.rs",
+      "sha256": "0ac68b7f6bd7f6c8410470611644f36f5fa18ca5ee3a1e6c396bc4fda9e9fb3f"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/asset_transfer_lane_module.rs",
+      "sha256": "2f761e6c1209e9b771eaa1b676657dff24601ab6085d841845f19203bc04eb2e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/managed_asset_lifecycle.rs",
+      "sha256": "8e8753e25a0623594591d9b17b6f31d7adae9c92ab7f2050c3cdc08512dd9b77"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/managed_asset_lifecycle_lane_module.rs",
+      "sha256": "36451a34c08ef80e12aabd17793a31a59d13463f1c990e5f3453c130f98f8940"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/Cargo.toml",
+      "sha256": "bd46dcf8c2ef57643b6424543ee79061c507e95c9d7b767ce2b372844c6dedf0"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/Cargo.lock",
+      "sha256": "2677498dd0a3a34d3f52f90880efa0da085a76859af928a965adc1dd3f049d43"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/rust-toolchain.toml",
+      "sha256": "4ca060feb067a11df898975db032ba37fcb218225c4d445ec6fa9f45b3272a72"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/README.md",
+      "sha256": "53d0c8ad31aa5563ee369c227ec52eb3735571fac9ae2a3bc41fe41382a2ecdf"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/Cargo.toml",
+      "sha256": "31dc09470b1db7fba9ac9f6d77279faa0677a67508bbc4407717e17d81a9b1e8"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/src/lib.rs",
+      "sha256": "0a1789fd05159be30464bb0f9081d37450d1249d03186f35ce42c62dfad9a446"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/src/preflight.rs",
+      "sha256": "2704b1c6d55a5653904aa32d2e2c1446545c274bf009d6eb975ef3bf7f2d50a8"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/src/aggregation.rs",
+      "sha256": "a853f6cc22957aa48583474944dcf905162e5911855588e0d76664131f758bf0"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/tests/epoch_preflight.rs",
+      "sha256": "b0afc03869aa00ff434178ffdd3bdc9095dda8dc6fc5b363b5f94e553700c847"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/tests/aggregation_preflight.rs",
+      "sha256": "ddcb2777bd740e8a39bbb74d1345534cd7222b4fa48ca97f3e616855e69d373b"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/Cargo.toml",
+      "sha256": "90b7027a2fdd2c5c6ca091394c35b95f183fc2cdfc23aed240f6f6eef9287876"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/build.rs",
+      "sha256": "a8e530a721f0daa86a8d9fe13e57d0ac8b6cbea344a9b63b0cf04df835a15189"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/src/lib.rs",
+      "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/epoch/Cargo.toml",
+      "sha256": "55325f6a59cf115a689c498082a0781d76342967cca76b9b52f1786c29b80a38"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/epoch/src/main.rs",
+      "sha256": "a84563dbb91017431b061fc732ac40458826d650f75a3ccb9aba87050a7c8b4a"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/Cargo.toml",
+      "sha256": "e0c1139e4a39d3fe1d53321da8b86043d2ae1a2507e151b822c884513f3fe03f"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/src/lib.rs",
+      "sha256": "7448933c542b8fa9119f3875c53242a57526bdccc52d7dfa48cbc51942e63d95"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/tests/receipt_admission.rs",
+      "sha256": "4cf062d164eedaa9b73b255c626c7ebf6ecbe335bc2765bfc7fc455aa1fc85ec"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/tests/real_composition.rs",
+      "sha256": "b0e938497da9b4603c2b2409455c2a9e76e450de9b5e6a048513c0a5b768652e"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/tests/real_aggregation_nine.rs",
+      "sha256": "ce25ca1e807505547533e7b94d8f287693db64907bf7bae72026b34f278f72d2"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/Cargo.toml",
+      "sha256": "3a459246109f5e6af49e0564cc2418bfb2115f0eb652fe9190fc73f442fd35bf"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/build.rs",
+      "sha256": "d812359bf25599ed8509de87d2837a448ed63eac0d3c5ae42e71604b70b47028"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/src/lib.rs",
+      "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/route_structural_test_leaf/Cargo.toml",
+      "sha256": "884a053ef69e58744340a8488753cf766687e8220d4b8b23c2339ce1cec5472b"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/route_structural_test_leaf/src/main.rs",
+      "sha256": "5c853c2a939d43704d77930dfbfbb94c38a4300c4b3769ca687296d202f834b5"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "6de3423b9f80623a15d57bfc90090a24f49f3f65136fcd515f5c82f6506cd0be",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle",
+        "tests/core/test_global_settlement_abi_v1.py::test_command_aggregation_journal_uses_canonical_fanout_bva",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_shape_rejects_zero_65_and_route_width_9",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_witness_boundary_counts_are_admitted",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_certificate_binds_exact_guest_route_assumption_roots",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_missing_foreign_and_journal_substituted_route_witnesses",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_noncanonical_command_and_route_witness_order",
+        "tests/core/test_global_settlement_abi_v1.py::test_atomic_commit_is_idempotent_and_binding_rejects_are_noops",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_rejects_certificate_chain_and_deployment_drift_as_noop"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1_parity.py",
+      "sha256": "3fc4b2b75eb077a44bbadf43e834eb2e7304cc2a18bd96a5a64f953cc6cbccb5",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1_parity.py::test_committed_golden_fixture_matches_typed_python_renderer"
+      ]
+    },
+    {
+      "path": "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py",
+      "sha256": "f14fb1e87e1861ce58cd07f06b0e38063d6df632fe3c96c48ab2e04da5ae4d61",
+      "node_ids": [
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_shape_bridge_is_closed_source_bound_and_unmounted",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_verified_route_witness_guard_cannot_be_dropped",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_route_assumption_root_guard_cannot_be_dropped",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_source_hash_drift_rejects"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Python and Rust tests arrange typed profiles, occurrences, canonical route journals, assumption roots, command groups, child receipts, and verifier boundaries; act through one journal construction, admission, preflight, host assembly, or proof call; and assert exact roots, group positions, module-leaf totals, receipt kinds, journals, errors, and no authority on rejection."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Pure direct, command-group, and aggregated-root preflight plus host admission return typed errors before assumption installation for cardinality, grouping, sequencing, module-leaf, image, journal, and receipt-kind defects. Python commit regressions separately assert unchanged state for foreign certificate and binding rejection."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "host_epoch_command_count",
+      "points": [
+        "zero_rejects",
+        "one_accepts",
+        "eight_accepts",
+        "nine_accepts",
+        "sixty_four_accepts",
+        "sixty_five_rejects"
+      ]
+    },
+    {
+      "name": "direct_guest_child_count",
+      "points": [
+        "zero_rejects",
+        "one_accepts",
+        "eight_accepts",
+        "nine_rejects",
+        "sixty_four_rejects"
+      ]
+    },
+    {
+      "name": "command_group_route_count",
+      "points": [
+        "zero_rejects",
+        "one_accepts",
+        "eight_accepts",
+        "nine_rejects"
+      ]
+    },
+    {
+      "name": "grouped_epoch_command_count",
+      "points": [
+        "eight_rejects",
+        "nine_accepts_as_eight_plus_one",
+        "sixty_four_accepts_as_eight_groups_of_eight",
+        "sixty_five_rejects"
+      ]
+    },
+    {
+      "name": "grouped_epoch_structure",
+      "points": [
+        "canonical_groups_accept",
+        "reordered_groups_reject",
+        "reordered_routes_reject",
+        "noncanonical_split_rejects",
+        "wrong_group_image_rejects",
+        "module_leaf_drift_rejects"
+      ]
+    },
+    {
+      "name": "route_assumption_binding",
+      "points": [
+        "exact_accepts",
+        "missing_rejects",
+        "wrong_image_rejects",
+        "wrong_journal_rejects",
+        "reordered_rejects"
+      ]
+    },
+    {
+      "name": "receipt_kind",
+      "points": [
+        "succinct_accepts",
+        "fake_rejects",
+        "composite_rejects_by_closed_host_kind",
+        "groth16_rejects_by_closed_host_kind"
+      ]
+    },
+    {
+      "name": "canonical_input",
+      "points": [
+        "exact_json_accepts",
+        "trailing_newline_rejects",
+        "exact_postcard_accepts",
+        "noncanonical_postcard_rejects"
+      ]
+    },
+    {
+      "name": "image_word_encoding",
+      "points": [
+        "explicit_little_endian_vector_accepts",
+        "all_zero_image_rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "remove ordered route-assumption roots from the epoch certificate or skip exact witness comparison",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_certificate_binds_exact_guest_route_assumption_roots"
+    },
+    {
+      "description": "admit zero or sixty-five host epoch occurrences or reject valid nine and sixty-four host statements",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_shape_rejects_zero_65_and_route_width_9"
+    },
+    {
+      "description": "change the stable command fanout from eight, admit an empty or nine-route group, or accept a noncanonical group position",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_command_aggregation_journal_uses_canonical_fanout_bva"
+    },
+    {
+      "description": "permit a valid opaque route witness to authorize a substituted route journal",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_missing_foreign_and_journal_substituted_route_witnesses"
+    },
+    {
+      "description": "drop the ShapeForge exact public route-assumption-root guard",
+      "killed_by": "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_route_assumption_root_guard_cannot_be_dropped"
+    },
+    {
+      "description": "omit the assumption-root-bearing certificate from cross-language canonical parity",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_parity.py::test_committed_golden_fixture_matches_typed_python_renderer"
+    }
+  ],
+  "nonclaims": [
+    "The real recursive proof uses a quarantined structural child that merely commits caller-supplied route-journal bytes; it proves no route transition, authorization, conservation, release status, or economics.",
+    "The closed guest supports direct one-through-eight and canonical grouped nine-through-sixty-four statements. Only the 9-command 8+1 grouped boundary has a real replay; the full 64-command 73-receipt replay and resource benchmark are absent.",
+    "No active EconomicProfileSnapshotV1 registers either test image, and no mounted verifier, ledger writer, migration, outbox, or production authority is added.",
+    "The real receipts were verified in memory during the two ignored release-evidence tests and were not exported as durable release artifacts.",
+    "The Python hygiene runner executes only the pinned pytest nodes. Rust tests, clippy, guest builds, and both ignored real proof commands are separately replayed evidence.",
+    "The Rust shared preflight replays one Python/Rust golden assumption vector; this is bounded differential evidence rather than a universal refinement theorem.",
+    "Named mutation killers are reviewed semantic mutants; no automated mutation campaign is claimed.",
+    "This dirty, unfrozen checkout remains scoped development evidence and cannot establish release-candidate provenance or whole-economy readiness."
+  ]
+}

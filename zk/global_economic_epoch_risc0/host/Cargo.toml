@@ -1,0 +1,23 @@
+[package]
+name = "zenodex-global-economic-epoch-risc0-host"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+description = "Fail-closed host assembly and succinct proving seam for the epoch guest"
+
+[lib]
+doctest = false
+
+[dependencies]
+postcard = { version = "=1.1.3", features = ["alloc"] }
+risc0-zkvm = { version = "=3.0.6", features = ["disable-dev-mode"] }
+zenodex-global-economic-epoch-risc0-methods = { path = "../methods" }
+zenodex-global-economic-epoch-risc0-shared = { path = "../shared" }
+
+[dev-dependencies]
+serde_json = "=1.0.148"
+zenodex-epoch-test-methods = { path = "../test_methods" }
+
+[lints.rust]
+unsafe_code = "forbid"

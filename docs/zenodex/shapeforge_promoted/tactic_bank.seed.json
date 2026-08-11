@@ -1,0 +1,839 @@
+{
+  "schema": "shapeforge/tactic-bank-seed/v1",
+  "repo_root": ".",
+  "tactics": [
+    {
+      "tactic_id": "k_monotonicity_strengthening",
+      "name": "K monotonicity strengthening",
+      "summary": "Promote K(new)>=K(old) from a local swap check into a batch-wide safety law and runtime guard.",
+      "trigger": "Use when a pool, batch executor, or settlement transformer changes reserves.",
+      "transform": "Enforce reserve monotonicity and prefer exact K-gap accounting when the model exposes a remainder law.",
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/CPMMInvariants.lean#k_monotone_with_fee",
+      "morph_moves": [
+        "monotonicity_strengthening",
+        "exact_accounting"
+      ],
+      "obligations": [
+        "Check K(new)>=K(old) under the admitted fee and reserve domain.",
+        "Prefer an exact K-gap law when the batch model exposes one."
+      ],
+      "examples": [
+        "lean-mathlib/Proofs/CPMMInvariants.lean",
+        "src/tau_specs/recommended/reserve_invariant_guard_v1.tau"
+      ],
+      "failure_modes": [
+        "Fee semantics diverge from the proof model and K can drop.",
+        "Batch accounting keeps only monotonicity and loses the exact K-gap explanation."
+      ],
+      "portal_hints": [
+        "lean",
+        "esso"
+      ],
+      "tags": [
+        "cpmm",
+        "reserve_safety",
+        "k_monotonicity",
+        "accounting"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "total_order_canonicalization",
+      "name": "Total order canonicalization",
+      "summary": "Replace ambiguous maximizers with a total key over objective and tie-break order.",
+      "trigger": "Use when a finite candidate set contains multiple equal-objective winners.",
+      "transform": "Rank by the primary objective, then a total tie-break, and choose the unique canonical winner.",
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/BatchAuctionCanonical.lean#key_le_iff",
+      "morph_moves": [
+        "canonicalization",
+        "symmetry_breaking",
+        "deterministic_tiebreak"
+      ],
+      "obligations": [
+        "Define a total key, not just a stable sort order.",
+        "Prove that equal-objective candidates collapse to a unique canonical representative."
+      ],
+      "examples": [
+        "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
+        "experimental/math_discovery_pipeline/src/settlement_algebra.py"
+      ],
+      "failure_modes": [
+        "Multiple winners remain semantically equivalent but unspecified.",
+        "Enumeration order leaks into consensus-critical winner selection."
+      ],
+      "portal_hints": [
+        "lean",
+        "zag"
+      ],
+      "tags": [
+        "canonicalization",
+        "unique_winner",
+        "determinism",
+        "batch"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "equal_marginal_dualization",
+      "name": "Equal marginal dualization",
+      "summary": "Seed split routing with the equal-marginal law and search only a bounded neighborhood.",
+      "trigger": "Use when a parallel-pool exact-in route needs structure stronger than brute force.",
+      "transform": "Relax to the continuous CPMM objective, solve the equal-marginal condition, then prune integer candidates around the seed.",
+      "source_kind": "experimental_math",
+      "source_query": "experimental/math_discovery_pipeline/src/kpool_split.py#continuous optimum",
+      "morph_moves": [
+        "lagrangian_dualization",
+        "concavity_seed",
+        "candidate_pruning"
+      ],
+      "obligations": [
+        "Check strict concavity on the admitted pool domain.",
+        "Connect the seed to a bounded discrete certificate before claiming proof-backed optimality.",
+        "Check that the integer optimum lies in the bounded candidate envelope."
+      ],
+      "examples": [
+        "experimental/math_discovery_pipeline/src/kpool_split.py",
+        "experimental/math_discovery/galois_split_routing.py",
+        "lean-mathlib/Proofs/GaloisSplitCertificate.lean"
+      ],
+      "failure_modes": [
+        "Continuous seeds are used outside the domain where concavity applies.",
+        "A continuous seed is treated as proof-backed without a discrete certificate bridge.",
+        "Integer rounding moves the optimum outside the searched envelope."
+      ],
+      "portal_hints": [
+        "morph",
+        "lean"
+      ],
+      "tags": [
+        "routing",
+        "split_routing",
+        "concavity",
+        "kkt"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "anti_fragmentation_certificate",
+      "name": "Anti fragmentation certificate",
+      "summary": "Reject same-pool same-direction fragmentation when single execution dominates sequential fragments.",
+      "trigger": "Use when a router considers splitting a same-direction trade across the same pool.",
+      "transform": "Compare single execution against fragmented execution and prune the fragmented branch when the certificate holds.",
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/FeeAwareAntiFragmentation.lean#feeAwareBatchOutput_le_single",
+      "morph_moves": [
+        "anti_fragmentation",
+        "same_pool_split_pruning"
+      ],
+      "obligations": [
+        "Check that the fragments share the same pool and direction.",
+        "Match the pool fee semantics to the zero-fee or fee-aware proof lane before pruning."
+      ],
+      "examples": [
+        "lean-mathlib/Proofs/AntiFragmentation.lean",
+        "lean-mathlib/Proofs/FeeAwareAntiFragmentation.lean",
+        "src/core/split_routing.py"
+      ],
+      "failure_modes": [
+        "Cross-pool fragmentation is pruned as if it were the same-pool case.",
+        "The router keeps dominated same-pool fragments in the candidate set."
+      ],
+      "portal_hints": [
+        "morph",
+        "lean"
+      ],
+      "tags": [
+        "routing",
+        "anti_fragmentation",
+        "same_pool",
+        "best_execution"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "zero_fee_anti_fragmentation_carry",
+      "name": "Zero fee anti fragmentation carry",
+      "summary": "For zero-fee same-pool same-direction two-way splits, merged execution equals split execution plus a carry term and the gap is in {0,1}.",
+      "trigger": "Use when a zero-fee routing or audit path compares a merged exact-in swap against a same-pool same-direction two-fragment split.",
+      "transform": "Replace ad hoc split comparison with the proof-backed carry law, then prune the split when the carry is nonzero and retain gap<=1 as the exact rounding envelope.",
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/AntiFragmentation.lean#single_eq_split_plus_gapCarry",
+      "morph_moves": [
+        "anti_fragmentation",
+        "exact_accounting",
+        "same_pool_split_pruning"
+      ],
+      "obligations": [
+        "Restrict the slice to zero-fee CPMM semantics and same-pool same-direction two-way splits.",
+        "Do not reuse the carry theorem for fee-retaining pools or cross-pool fragmentation without separate proof support."
+      ],
+      "examples": [
+        "lean-mathlib/Proofs/AntiFragmentation.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "failure_modes": [
+        "Fee-aware fragmentation is labeled proof-backed even though only the zero-fee slice is proved.",
+        "Multi-fragment same-pool pruning is treated as if the two-way carry theorem applied directly without the batch bound."
+      ],
+      "portal_hints": [
+        "lean"
+      ],
+      "tags": [
+        "routing",
+        "anti_fragmentation",
+        "zero_fee",
+        "carry",
+        "same_pool"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "surplus_cbc_outcome_typing",
+      "name": "Surplus CBC outcome typing",
+      "summary": "Make filled-below-min_out unrepresentable by using a proof-carrying outcome type.",
+      "trigger": "Use when batch executors or optimizers compare user outcomes against minima.",
+      "transform": "Model outcomes as unfilled or filled(output,pf:output>=min_out) before computing surplus.",
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/BatchOptimality.lean#ValidOutcome",
+      "morph_moves": [
+        "cbc_outcome_typing",
+        "invalid_state_elimination"
+      ],
+      "obligations": [
+        "Ensure every bridge constructs only valid outcomes.",
+        "Keep surplus derived from validated outcomes, not unchecked arithmetic."
+      ],
+      "examples": [
+        "lean-mathlib/Proofs/BatchOptimality.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "failure_modes": [
+        "Runtime layers can represent filled below min_out as an ordinary state.",
+        "Surplus goes negative only because validation was deferred too late."
+      ],
+      "portal_hints": [
+        "lean"
+      ],
+      "tags": [
+        "cbc",
+        "surplus",
+        "invalid_state",
+        "types"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "unique_canonical_winner",
+      "name": "Unique canonical winner",
+      "summary": "Upgrade deterministic winner selection to existence of a unique canonical minimizer or maximizer.",
+      "trigger": "Use when a finite candidate set is ranked by a total key.",
+      "transform": "Select the unique key minimum instead of keeping multiple equal winners or unstable enumeration order.",
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/BatchAuctionCanonical.lean#exists_unique_canonical",
+      "morph_moves": [
+        "unique_winner_selection",
+        "total_order_selection"
+      ],
+      "obligations": [
+        "Prove the candidate set is nonempty and the key is total.",
+        "Prove uniqueness, not just repeatability of the implementation."
+      ],
+      "examples": [
+        "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
+        "src/core/split_routing_dispatch.py"
+      ],
+      "failure_modes": [
+        "Code is deterministic but the winning object is not uniquely specified.",
+        "Different implementations pick different equal-objective winners."
+      ],
+      "portal_hints": [
+        "lean",
+        "zag"
+      ],
+      "tags": [
+        "canonicalization",
+        "unique_winner",
+        "routing",
+        "batch"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "batch_k_gap_accounting",
+      "name": "Batch K gap accounting",
+      "summary": "Track exact batch K increase as a sum of per-step remainders instead of a bare monotone flag.",
+      "trigger": "Use when batch execution or audit tooling needs a precise reserve-growth explanation.",
+      "transform": "Expose K(final)=K(init)+sum remainders and attach the remainder ledger to certificates.",
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/BatchCPMMUnification.lean#executeBatchSwaps_K_gap_sum",
+      "morph_moves": [
+        "exact_accounting",
+        "remainder_ledger"
+      ],
+      "obligations": [
+        "Maintain the same state-transition model across proof and runtime.",
+        "Keep per-step state order explicit in the batch ledger."
+      ],
+      "examples": [
+        "lean-mathlib/Proofs/BatchCPMMUnification.lean",
+        "lean-mathlib/Proofs/CPMMInvariants.lean"
+      ],
+      "failure_modes": [
+        "Batch audit can say K grew but cannot say by how much or why.",
+        "A mismatch appears between step order and the remainder decomposition."
+      ],
+      "portal_hints": [
+        "lean",
+        "esso"
+      ],
+      "tags": [
+        "batch",
+        "k_gap",
+        "exact_accounting",
+        "cpmm"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "lp_roundtrip_no_profit",
+      "name": "LP roundtrip no profit",
+      "summary": "Treat deposit then withdraw no-profit as a first-class LP safety barrier.",
+      "trigger": "Use when LP mint, burn, or reserve accounting semantics change.",
+      "transform": "Require immediate round-trip withdrawals to stay componentwise below or equal to deposits.",
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/CPMMInvariants.lean#lp_roundtrip_no_profit",
+      "morph_moves": [
+        "lp_no_profit_barrier",
+        "roundtrip_safety"
+      ],
+      "obligations": [
+        "Match runtime mint and burn formulas to the proof model.",
+        "Keep reserve and LP supply preconditions explicit."
+      ],
+      "examples": [
+        "lean-mathlib/Proofs/CPMMInvariants.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "failure_modes": [
+        "LP round-trips leak value due to mint or burn asymmetry.",
+        "A reserve update changes LP accounting but no round-trip barrier is checked."
+      ],
+      "portal_hints": [
+        "lean"
+      ],
+      "tags": [
+        "lp_safety",
+        "roundtrip",
+        "no_profit",
+        "cpmm"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "routing_tiebreak_totalization",
+      "name": "Routing tiebreak totalization",
+      "summary": "Specify a total tie-break for equal-quality split routes instead of relying on incidental iteration order.",
+      "trigger": "Use when many-pool exact-in or exact-out routing returns equal-quality allocations.",
+      "transform": "Canonicalize by objective first, then leg count, then sorted leg tuples keyed by pool_id.",
+      "source_kind": "routing_dispatch_code",
+      "source_query": "src/core/split_routing_dispatch.py#best_split_many_pools_exact_in_for_pools",
+      "morph_moves": [
+        "total_tie_break",
+        "candidate_order_canonicalization"
+      ],
+      "obligations": [
+        "Prove or test full allocation and deterministic leg ordering.",
+        "Use the same canonical key in every implementation path."
+      ],
+      "examples": [
+        "src/core/split_routing_dispatch.py",
+        "tests/core/test_split_routing_dispatch.py",
+        "lean-mathlib/Proofs/ZenoDEXExactOutCanonicalMinimizer.lean",
+        "experimental/math_discovery/galois_split_routing.py"
+      ],
+      "failure_modes": [
+        "Equal-quality routes oscillate across implementations or refactors.",
+        "A tie-break differs between exact-in and exact-out dispatch layers."
+      ],
+      "portal_hints": [
+        "morph",
+        "zag"
+      ],
+      "tags": [
+        "routing",
+        "determinism",
+        "tiebreak",
+        "many_pool"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "max_legs_capacity_guard",
+      "name": "Max legs capacity guard",
+      "summary": "Use max-leg capacity as an explicit feasibility contract before exact-out search.",
+      "trigger": "Use when exact-out routing must satisfy a target under a max_legs budget.",
+      "transform": "Reject infeasible requests early via top-capacity coverage and keep the failure reason canonical.",
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCapacityGuard.lean#capacity_guard_iff",
+      "morph_moves": [
+        "capacity_feasibility_pruning",
+        "max_legs_guard"
+      ],
+      "obligations": [
+        "Define per-pool output caps precisely.",
+        "Show the coverage test matches solver feasibility under max_legs."
+      ],
+      "examples": [
+        "src/core/split_routing_dispatch.py",
+        "tests/core/test_split_routing_dispatch.py",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCapacityGuard.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "failure_modes": [
+        "Search explores impossible exact-out requests under the leg budget.",
+        "Routing fails without a canonical feasibility explanation."
+      ],
+      "portal_hints": [
+        "lean",
+        "esso",
+        "morph"
+      ],
+      "tags": [
+        "routing",
+        "exact_out",
+        "capacity",
+        "max_legs"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "commutativity_quarantine",
+      "name": "Commutativity quarantine",
+      "summary": "Forbid commutative rewrites once settlement directions oppose.",
+      "trigger": "Use when an optimizer or canonicalizer wants to reorder mixed-direction settlements.",
+      "transform": "Gate reordering behind same-direction preconditions and preserve explicit order otherwise.",
+      "source_kind": "lean_proof",
+      "source_query": "lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean#generic_path_noncommutativity",
+      "morph_moves": [
+        "noncommutativity_quarantine",
+        "precondition_refinement"
+      ],
+      "obligations": [
+        "Check that opposite direction implies a positive commutativity gap on the admitted domain.",
+        "Reject commutative rewrites when the precondition fails."
+      ],
+      "examples": [
+        "lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean",
+        "experimental/math_discovery_pipeline/src/settlement_law_miner.py",
+        "experimental/math_discovery_pipeline/src/settlement_algebra.py"
+      ],
+      "failure_modes": [
+        "A mixed-direction batch is simplified as if it were commutative.",
+        "An optimizer prunes the wrong branch after an unsound reorder."
+      ],
+      "portal_hints": [
+        "morph",
+        "lean"
+      ],
+      "tags": [
+        "settlement",
+        "noncommutativity",
+        "ordering_safety",
+        "pruning"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "oracle_uncertainty_freeze",
+      "name": "Oracle uncertainty freeze",
+      "summary": "Freeze zUSD risky operations until oracle state is fresh, initialized, and pending price matches the active price.",
+      "trigger": "Use when a stablecoin path can mutate debt or collateral using oracle-dependent state.",
+      "transform": "Gate risky operations behind oracle_seen \u2227 price>0 \u2227 price_pending>0 \u2227 price_pending=price \u2227 OracleFresh \u2227 \u00acRecoveryMode.",
+      "source_kind": "tau_contract",
+      "source_query": "src/tau_specs/recommended/zusd_recovery_mode_gate_v1.tau#risky_ops_allowed",
+      "morph_moves": [
+        "boundary_freezing",
+        "oracle_alignment_gate",
+        "recovery_mode_block"
+      ],
+      "obligations": [
+        "Keep the risky-ops predicate aligned across runtime, Tau integration, and kernel adapters.",
+        "Block oracle-sensitive state transitions whenever pending price diverges from active or freshness fails."
+      ],
+      "examples": [
+        "src/core/zusd.py",
+        "src/integration/zusd_tau_gate.py",
+        "src/kernels/python/zusd_risky_ops_gate_v1_native_adapter.py",
+        "src/tau_specs/recommended/zusd_recovery_mode_gate_v1.tau"
+      ],
+      "failure_modes": [
+        "Collateral or debt mutates while the pending oracle price disagrees with the active price.",
+        "Runtime and Tau layers disagree on when recovery mode or stale data should block risky operations."
+      ],
+      "portal_hints": [
+        "tau",
+        "esso"
+      ],
+      "tags": [
+        "stablecoin",
+        "oracle",
+        "boundary_freeze",
+        "recovery_mode"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "routing_allocation_contract",
+      "name": "Routing allocation contract",
+      "summary": "For exact-in, require full input consumption and positive legs; for exact-out, use the audited selected-domain feasibility bridge to require full-output coverage and positive capacity-bounded support legs.",
+      "trigger": "Use when a split router returns many-pool exact-in allocations or exact-out allocations on the audited selected-domain CPMM lane.",
+      "transform": "Enforce \u03a3 leg inputs = D for exact-in, use the exact-out feasibility/presentation bridge to require \u03a3 leg outputs = Q on the audited selected-domain lane, and keep emitted legs positive and admissible under the proved capacity or runtime min-valid boundary.",
+      "source_kind": "routing_dispatch_code",
+      "source_query": "src/core/split_routing_dispatch.py#best_split_many_pools_exact_in_for_pools",
+      "morph_moves": [
+        "allocation_totality",
+        "leg_admissibility",
+        "invalid_leg_elimination"
+      ],
+      "obligations": [
+        "Use the exact-in Lean allocation theorem only for full-input and positive-leg claims.",
+        "Use the exact-out audited selected-domain feasibility and support-presentation chain for \u03a3 leg outputs = Q and positive capacity-bounded support legs.",
+        "Keep runtime min-valid or non-modeled admissibility checks fail-closed where they are not yet bundled into one promoted theorem."
+      ],
+      "examples": [
+        "src/core/split_routing_dispatch.py",
+        "src/core/split_routing.py",
+        "lean-mathlib/Proofs/AllocationTotality.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSelectedDomainCompleteness.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSupportPresentation.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness.lean",
+        "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "failure_modes": [
+        "The exact-out audited selected-domain feasibility bridge is downgraded to contract-only despite existing Lean support.",
+        "A returned route leaves part of the requested volume unallocated.",
+        "A combined routing claim treats non-modeled runtime admissibility details as already unified into one theorem when only the decomposed proof lane has been discharged."
+      ],
+      "portal_hints": [
+        "esso",
+        "lean"
+      ],
+      "tags": [
+        "routing",
+        "allocation_totality",
+        "leg_admissibility",
+        "split_routing"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "exact_out_audited_bounds_contract",
+      "name": "Exact-out audited bounds contract",
+      "summary": "Bind selected-domain, repaired-domain, and full-domain exact-out budgets plus explicit public success/failure outcomes into one fail-closed audited-bounds contract.",
+      "trigger": "Use when a many-pool exact-out quote surface spans selected-domain certificates, repaired bounded advisory behavior, and explicit public budget parameters.",
+      "transform": "Rebuild budget_facts_ok and public_outcome_explicit from the nested packet family, require max_legs and the rest of the public budget parameters to agree across layers, and reject payload drift unless the audited-bounds contract rebuilds canonically.",
+      "source_kind": "tau_contract",
+      "source_query": "src/tau_specs/recommended/optimizer_audited_bounds_liveness_v1.tau#audited_bounds_contract_ok",
+      "morph_moves": [
+        "budget_binding",
+        "public_outcome_explicit",
+        "fail_closed_contract"
+      ],
+      "obligations": [
+        "Keep selected-domain, repaired-domain, and full-domain budget facts explicit rather than implicit in nested packet structure.",
+        "Bind max_legs and the rest of the public budget parameters across the selected-domain, repaired, and public contract layers.",
+        "Do not overclaim this bounded contract shell as a step-count or global generator-completeness theorem."
+      ],
+      "examples": [
+        "src/integration/exact_out_route_certificate.py",
+        "src/integration/api_server.py",
+        "src/tau_specs/recommended/optimizer_audited_bounds_liveness_v1.tau",
+        "src/kernels/dex/optimizer_audited_bounds_liveness_v1.yaml",
+        "tests/integration/test_exact_out_route_certificate.py",
+        "tests/integration/test_api_server_dex_api.py",
+        "tests/formal/test_esso_optimizer_audited_bounds_liveness.py",
+        "tests/tau/test_exact_out_many_pool_audited_bounds_liveness.py"
+      ],
+      "failure_modes": [
+        "Nested packet layers disagree on max_legs or other audited budget parameters while the public contract still appears valid.",
+        "The public quote surface succeeds without an explicit replayable success branch or an explicit fail-closed rejection branch.",
+        "A bounded audited-bounds contract is overclaimed as an actual liveness or completeness proof."
+      ],
+      "portal_hints": [
+        "tau",
+        "esso"
+      ],
+      "tags": [
+        "routing",
+        "exact_out",
+        "audited_bounds",
+        "public_boundary"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "repaired_replacement_shadow_alignment",
+      "name": "Repaired replacement shadow alignment",
+      "summary": "On claimed supported audited corpora, require the current default many-pool exact-out policy to match the repaired replacement and avoid spurious packet failures.",
+      "trigger": "Use when auditing whether the bounded default many-pool exact-out policy still lags the repaired replacement on supported non-CPMM curve families.",
+      "transform": "Replay the default packet and repaired replacement on the same bounded corpus, require replacement availability and full-canonicality, and treat any shadow/default packet failure or strict replacement case as a regression.",
+      "source_kind": "integration_benchmark",
+      "source_query": "src/integration/exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py#benchmark_exact_out_many_pool_repaired_replacement_shadow_on_curve_templates",
+      "morph_moves": [
+        "supported_corpus_receipt",
+        "shadow_alignment",
+        "adoption_gap_tracking"
+      ],
+      "obligations": [
+        "Keep the corpus parameters explicit: supported three-pool ordered products, bounded amount_out values, and declared candidate budgets.",
+        "Require shadow/default packet success and zero strict-replacement cases on the claimed corpus instead of inferring alignment from one witness.",
+        "Do not overclaim supported-corpus shadow alignment as global generator completeness or as a guarantee for wider pool-count domains without separate evidence."
+      ],
+      "examples": [
+        "src/integration/exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py",
+        "tests/integration/test_exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py",
+        "src/integration/exact_out_route_certificate.py",
+        "tests/integration/test_exact_out_route_certificate.py",
+        "tests/integration/test_api_server_dex_api.py",
+        "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json"
+      ],
+      "failure_modes": [
+        "The default quote surface returns nothing on the claimed supported corpus even though the repaired replacement is available and full-canonical.",
+        "A strict-replacement case reappears on the claimed supported corpus.",
+        "Supported-corpus shadow alignment is mistaken for a global completeness theorem."
+      ],
+      "portal_hints": [
+        "bench",
+        "replay"
+      ],
+      "tags": [
+        "routing",
+        "exact_out",
+        "benchmark",
+        "adoption_gap"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "hierarchical_proof_frontier_refinement",
+      "name": "Hierarchical proof frontier refinement",
+      "summary": "Stabilize a proof frontier by forcing a two-level outline, explicit subgoal state, counterexample-first preflight, and declarative landing criteria.",
+      "trigger": "Use when a Lean theorem or contract frontier is blocked by scope confusion between a local minimizer theorem and a stronger generator or completeness claim.",
+      "transform": "Split the frontier into replayable local theorems plus explicit generator soundness and completeness obligations; explore procedurally, but land only the declarative theorem or contract actually justified.",
+      "source_kind": "workflow_note",
+      "source_query": "formal/exact_out_many_pool_generator_completeness_plan.md#proof-shape-protocol",
+      "morph_moves": [
+        "hierarchical_outline",
+        "subgoal_partition",
+        "counterexample_first",
+        "declarative_landing"
+      ],
+      "obligations": [
+        "Write a two-level outline before tactics.",
+        "Record normalized subgoals, candidate lemmas, failure reasons, and the next repair move.",
+        "Keep the informal proof idea and scope boundary adjacent to the formal artifact."
+      ],
+      "examples": [
+        "formal/exact_out_many_pool_generator_completeness_plan.md",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolGuardedQuotePacket.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCertifiedWinnerPacket.lean"
+      ],
+      "failure_modes": [
+        "Local emitted-domain canonicality is overclaimed as global generator completeness.",
+        "Proof search thrashes because failed plans, counterexamples, and scope boundaries are not preserved."
+      ],
+      "portal_hints": [
+        "lean",
+        "shapeforge"
+      ],
+      "tags": [
+        "proof_planning",
+        "hierarchical_proof",
+        "frontier_management",
+        "negative_knowledge"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus"
+      ]
+    },
+    {
+      "tactic_id": "decompose_and_symmetrize",
+      "name": "Decompose and symmetrize",
+      "summary": "Decompose the object until the pieces are understandable, then exploit whatever transformations leave the problem unchanged.",
+      "trigger": "Use when a proof repeats equivalent cases under asset swaps, route reorderings, participant renamings, mirror states, transition kinds, or other symmetry actions.",
+      "transform": "Define the quotient or canonicalization map, prove coverage and no-loss/transfer lemmas, then prove the property for canonical representatives or transition kinds instead of every concrete case.",
+      "source_kind": "local_math_tactic",
+      "source_query": "codex-skill:math-tactics/references/decompose-and-symmetrize.md",
+      "morph_moves": [
+        "decomposition",
+        "symmetry_breaking",
+        "canonicalization",
+        "invariant_preservation",
+        "transfer_lemma"
+      ],
+      "obligations": [
+        "Define an explicit abstraction or quotient map from concrete states to canonical representatives.",
+        "Prove coverage: every concrete state maps to a canonical representative.",
+        "Prove no-loss or transfer: the target property is invariant under the symmetry or recoverable from the canonical case.",
+        "Prove invariant preservation once per canonical transition kind.",
+        "Show symmetry-breaking constraints are sound and do not strengthen the original theorem."
+      ],
+      "examples": [
+        "lean-mathlib/Proofs/AMMGlobalCounterexamples.lean#quartic_first_perturbation_tradeoff_pos",
+        "lean-mathlib/Proofs/AMMGlobalCounterexamples.lean#quartic_first_perturbation_tradeoff_neg",
+        "lean-mathlib/Proofs/AMMPowerFamilyGlobal.lean#power_family_global_no_free_lunch_vs_cpmm",
+        "docs/zenodex/shapeforge_promoted/tactic_bank.seed.json#total_order_canonicalization"
+      ],
+      "sources": [
+        {
+          "title": "Codex local math tactic card - Decompose And Symmetrize",
+          "url": "codex-skill:math-tactics/references/decompose-and-symmetrize.md",
+          "type": "local"
+        },
+        {
+          "title": "Quanta Magazine - The Symmetry That Makes Solving Math Equations Easy",
+          "url": "https://www.quantamagazine.org/the-symmetry-that-makes-solving-math-equations-easy-20230324/",
+          "type": "secondary"
+        }
+      ],
+      "failure_modes": [
+        "The target property is not invariant under the proposed symmetry.",
+        "Canonicalization drops data needed by the concrete theorem.",
+        "The proof adds symmetry-breaking assumptions but never transfers back to the original statement.",
+        "Repeated cases are hidden behind automation instead of replaced by a named quotient and transfer lemma."
+      ],
+      "portal_hints": [
+        "lean",
+        "morph",
+        "esso",
+        "tau"
+      ],
+      "tags": [
+        "proof_planning",
+        "symmetry",
+        "canonicalization",
+        "quotient",
+        "invariant_preservation",
+        "state_machine",
+        "local_obligations"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus",
+        "proof_quality_rubric"
+      ]
+    },
+    {
+      "tactic_id": "refine_economic_evidence_into_publication_authority",
+      "name": "Refine economic evidence into publication authority",
+      "summary": "Preserve scoped donor proofs while requiring a release-selected verifier, exact public-journal binding, an opaque authority witness, and atomic publication before any settlement claim gains writer authority.",
+      "trigger": "Use when a proved or contract-backed economic packet is being reused inside a new recursive proof or settlement publication path.",
+      "transform": "Keep the donor claim at its existing evidence class, introduce an explicit verifier-owned opaque witness for the new authority boundary, bind profile, release, image, journal, receipt, effects, body, and state, and classify every missing guest, verifier, publisher, migration, or mount as a gap.",
+      "source_kind": "runtime_contract",
+      "source_query": "src/core/global_economic_proof_v1.py#verify_economic_epoch_v1",
+      "morph_moves": [
+        "authority_refinement",
+        "opaque_witness",
+        "exact_binding",
+        "negative_knowledge_preservation"
+      ],
+      "obligations": [
+        "Name the exact scoped donor theorem or contract and preserve its original evidence class.",
+        "Require a release-selected verifier to accept the exact image id and canonical public journal before constructing authority.",
+        "Make the publisher consume only the verifier-owned opaque witness and recheck current profile, head, body, state, DA, and finality bindings.",
+        "Preserve a negative regression showing that structural, synthetic, fake, conditional, or development receipts cannot authorize publication.",
+        "Keep guest emission, cryptographic verification, durable publication, migration, route mounting, and writer retirement as explicit gaps until replayable evidence exists."
+      ],
+      "examples": [
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+        "src/core/global_economic_proof_v1.py#VerifiedEconomicEpochV1",
+        "src/integration/global_economic_commit_v1.py#GlobalEconomicCommitPortV1",
+        "tests/core/test_global_settlement_abi_v1.py#test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle"
+      ],
+      "sources": [
+        {
+          "title": "GlobalSettlementABI V1 receipt-admission ShapeForge contract",
+          "url": "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+          "type": "local"
+        }
+      ],
+      "failure_modes": [
+        "A local settlement theorem is relabeled as a global publication theorem.",
+        "A caller-constructible certificate or structural journal receives authority without cryptographic receipt verification.",
+        "The verifier checks a receipt against an image or journal different from the bytes committed by the publisher.",
+        "An in-memory or test-double path is described as durable or production-mounted authority."
+      ],
+      "portal_hints": [
+        "risc0",
+        "tau",
+        "lean",
+        "replay"
+      ],
+      "tags": [
+        "authority_boundary",
+        "recursive_proof",
+        "opaque_witness",
+        "settlement",
+        "negative_knowledge"
+      ],
+      "promotion_targets": [
+        "tactic_bank",
+        "scenario_corpus",
+        "runtime_contract",
+        "proof_regression"
+      ]
+    }
+  ]
+}

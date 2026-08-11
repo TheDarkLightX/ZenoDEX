@@ -1,0 +1,107 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260811-zrpf-manifest-eof-normalization",
+  "created_date": "2026-08-11",
+  "claim_scope": "Five new Rust manifest files use one canonical trailing newline, and the source-pinned ShapeForge contract was refreshed to the resulting exact bytes before preservation.",
+  "change_kind": "evidence_correction",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "THV1-CANONICAL-TEXT-EOF",
+    "ZRPF-SOURCE-PINS-MATCH-CURRENT-BYTES"
+  ],
+  "failure_modes": [
+    "a staged Rust manifest retains an extra blank line and fails the Git whitespace gate",
+    "a cosmetic source correction silently leaves the ShapeForge source manifest stale",
+    "the Python and Rust golden-vector boundary drifts while evidence metadata is refreshed"
+  ],
+  "source_pins": [
+    {
+      "path": "zk/global_settlement_abi_v1/Cargo.toml",
+      "sha256": "ecc25a42a338c6704ea32086e5c7e79eec2358405905a47747b313d56358ee89"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/epoch/Cargo.toml",
+      "sha256": "ed53afab07c4fb5ab0172d5534e6af589cd545dfbdd5531e27d0fff2f868b69f"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/rust-toolchain.toml",
+      "sha256": "b542e162da076f0e9417ed5cdfd33c0328bbd8a60a5d21cf3d2a626fc271daa6"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/Cargo.toml",
+      "sha256": "3b5d1834d45ac79886f93588d23e348b7cbe0085d4ebbc215c9b159f0ecedc5f"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/route_structural_test_leaf/Cargo.toml",
+      "sha256": "de04101a60339085b004fadc81639fa150cc9b95bf8d75aa84a725bc6995d9af"
+    },
+    {
+      "path": "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+      "sha256": "81f92fbe7c7f000ee4d6916b1e126e52c882e438491a885e70d1c8889c7f93ec"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_settlement_abi_v1_parity.py",
+      "sha256": "3fc4b2b75eb077a44bbadf43e834eb2e7304cc2a18bd96a5a64f953cc6cbccb5",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1_parity.py::test_committed_golden_fixture_matches_typed_python_renderer"
+      ]
+    },
+    {
+      "path": "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py",
+      "sha256": "3499e77a7fb73cf464c94a016458e554a6d86c36a396ddf27a9e488b9a2eb57f",
+      "node_ids": [
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_shape_bridge_is_closed_source_bound_and_unmounted",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_source_hash_drift_rejects"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "negative_regression",
+    "boundary",
+    "differential",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The source-pin tests arrange exact current manifests, act through the fail-closed checker or parity renderer, and assert acceptance for exact bytes plus rejection after one-byte drift."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "The correction changes source and evidence text only; both checkers are read-only and grant no runtime or settlement authority."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "source_pin_freshness",
+      "points": [
+        "exact_current_bytes_accept",
+        "one_byte_drift_rejects"
+      ]
+    },
+    {
+      "name": "cross_language_fixture",
+      "points": [
+        "exact_python_rust_fixture_accepts",
+        "canonical_fixture_drift_rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "disable exact source-hash validation in the ShapeForge checker",
+      "killed_by": "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_source_hash_drift_rejects"
+    },
+    {
+      "description": "accept a stale Python/Rust canonical golden fixture",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_parity.py::test_committed_golden_fixture_matches_typed_python_renderer"
+    }
+  ],
+  "nonclaims": [
+    "Canonical EOF formatting and refreshed hashes do not establish economic correctness or cryptographic proof validity.",
+    "This packet grants no production, settlement, migration, publication, or writer authority.",
+    "Real RISC0 proof regeneration remains deferred to Runpod."
+  ]
+}

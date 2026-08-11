@@ -1,0 +1,289 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260811-global-settlement-epoch-effect-composition",
+  "created_date": "2026-08-11",
+  "claim_scope": "GlobalSettlementABI V1 host admission binds each disclosed route effect plan to the exact verified route journal and occurrence, then uses one deterministic checked Python/Rust ASSET_TRANSFER composer to derive the exact certificate-bound epoch plan before a release-selected root verifier can construct opaque VerifiedEconomicEpochV1.",
+  "change_kind": "bug_fix",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "GSABI-V1-ROUTE-EFFECT-ROOT-BINDS-EXACT-JOURNAL",
+    "GSABI-V1-ROUTE-EFFECT-CONSUMES-EXACT-OCCURRENCE",
+    "GSABI-V1-EPOCH-EFFECTS-EQUAL-CHECKED-ROUTE-AGGREGATE",
+    "GSABI-V1-ASSET-LANE-HISTORY-IS-CONNECTED",
+    "GSABI-V1-EPOCH-EFFECT-ARITHMETIC-IS-CHECKED",
+    "GSABI-V1-EPOCH-EFFECT-CONSUMPTIONS-ARE-UNIQUE",
+    "GSABI-V1-CURRENT-COMPOSER-SCOPE-IS-CLOSED",
+    "GSABI-V1-REJECT-BEFORE-ROOT-VERIFIER"
+  ],
+  "failure_modes": [
+    "a caller pairs valid verified route evidence with an unrelated empty or otherwise valid epoch effect plan",
+    "a disclosed route effect plan differs from the root committed by its exact route journal",
+    "a route effect plan consumes an occurrence other than the journal's governed command occurrence",
+    "adjacent route plans contain disconnected asset-lane roots or conservation snapshots",
+    "signed effect-row aggregation or unsigned fee aggregation overflows silently",
+    "one occurrence is consumed by more than one route plan",
+    "zero or sixty-five route plans enter the bounded composer",
+    "terminal obligations, external outbox effects, or unsupported route shapes gain authority through an unproved composition law",
+    "Python and Rust canonical ordering or root derivation drift"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/epoch_effect_composition_v1.py",
+      "sha256": "a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045"
+    },
+    {
+      "path": "src/core/global_economic_proof_v1.py",
+      "sha256": "2e588a9935e7e399e05d4551f67f8d7dfa285912a5f5d1b24588af841125d5df"
+    },
+    {
+      "path": "src/core/global_settlement_abi_v1.py",
+      "sha256": "743e55d526a21ea444c016400c5d154647fa2c258ffed02ece2ad26b335f4e34"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "c7ff7f362462502293c017fd986c14ef57c9aaa344e4b1093ea260ec18e84568"
+    },
+    {
+      "path": "src/core/route_composition_receipt_verification_v1.py",
+      "sha256": "b8a0dc2a7d269a793bb6687a35ee190d03c66dfb93f2d6acd4a994983ff5534a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/Cargo.toml",
+      "sha256": "04ec3f206a99f6ac3754a1b1c9d0b58e0f699b96d21536de2e27e46edb81c052"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/Cargo.lock",
+      "sha256": "9420e887c5c030b19cdc721c339f9460ac1db0227567bcbe018337580589360a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/canonical.rs",
+      "sha256": "da7a3df9102736bc4a50f469ac525b851dea688b9ea7219be5345347bd49c240"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/effects.rs",
+      "sha256": "fc9c3b3c52966f2e20ff6c8c66fc38bc295d8a25d8a76f347ef94c788a9ea592"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/proof.rs",
+      "sha256": "dbdbc7cc689bd8201e58e3ad8b96ec5eb86f2cb956ebefc98d8fb6d0ee822156"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/release.rs",
+      "sha256": "0cc42ee1b3c30e8dac0cd593986922165923856af4b40aef4c59787a1cd37f18"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/route_composition_receipt_verification.rs",
+      "sha256": "a13f1659acfeed2eb30694dbfde68bc34bdd9f2834541510eb11072880a8a82b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/epoch_effect_composition.rs",
+      "sha256": "8c66878bc29e4910537595a34edb5c81f707ae092e2a50345d43a082b48bbed6"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs",
+      "sha256": "1b96a4a62bfc41ba9f8f437b1292facf90fdf16cf9a472fc6778bce2c420782a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "c40d8e8db4b0ee8a0cc092055a98eab2bff5d5b232af27a70b824fc313d2b3d1"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+      "sha256": "39a2839cf5f37e1a70cbaba99fd8f72247d80cb14893fbb4302a2ef126434cf2"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/golden_vectors.rs",
+      "sha256": "3bf59a75900c189daa6f5fe719d04588a6357618ea60e4966bfb99c64eefa022"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/README.md",
+      "sha256": "21e90f4550abb93b9a8b44cc8959d60b2ef4583677e4961aad8611a87aca8202"
+    },
+    {
+      "path": "tests/data/global_settlement_abi_v1_golden.json",
+      "sha256": "eb5c0678c835692f8c490b7ef36b60ea2d2ba729a3ad6d4541bd8aa03ee71ff6"
+    },
+    {
+      "path": "tools/render_global_settlement_abi_v1_golden.py",
+      "sha256": "0890ebdbd7b9df0ffcb3e84a32b5d20f027ad6eb23023e545256032f0b179c14"
+    },
+    {
+      "path": "tools/check_zrpf_shapeforge_global_epoch_admission_v1.py",
+      "sha256": "238c85cf91a8b9ab0d9e45769addf1bb4082b6e27f2bc653e2cb72b0073e6b46"
+    },
+    {
+      "path": "tools/zrpf_shapeforge_contract_support_v1.py",
+      "sha256": "f1040df489fa37cffde6a9d006a2e2fc64cbb6e3efee770aec506a7b7cac53d8"
+    },
+    {
+      "path": "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+      "sha256": "786616644fa6b9bb7af973195226cee1457fde86b1415599dac6cdcfcd8ec52b"
+    },
+    {
+      "path": "docs/research/ZRPF_SHAPEFORGE_GLOBAL_EPOCH_ADMISSION_V1.md",
+      "sha256": "997d2f4e3ea64b4cc1bff7c8ba81f1d22d68d6027f2f4e5c9c43927309e4e4ae"
+    },
+    {
+      "path": "docs/research/GLOBAL_SETTLEMENT_ABI_V1_REFERENCE_20260805.md",
+      "sha256": "7ea218299a795684d9478bf1b014dce4adf662586a9a1d5ad5655db7ec3d64f9"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json",
+      "sha256": "d382544a431a200f7b0ef2303a5ab5595ef067387d34466cb2a8f82fac966789"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/scenario_corpus.seed.json",
+      "sha256": "e2543385a34c923ae8b37f17605ec1a543705a11ed1695ea135e8de67aca7730"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/development_import_bundle.json",
+      "sha256": "34aa849f41070eac0746beb3fef70842e1420ff4097e59f7ddd75060de4c433a"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_negative_knowledge.seed.json",
+      "sha256": "45f27ea6311762c9b7c766b11709ecc9c0f06d450ec40e28f046dd897c2ded55"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "39b06072534d8f2733d7c7a92ec42677842f2e7b9376fd83db864483f7ef9717",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_global_effect_plan_unrelated_to_verified_route_effects",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_route_effect_plan_with_wrong_committed_root",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_applies_count_bva",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_disconnected_histories",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_duplicate_and_overflowed_totals",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_outbox_and_terminal_scope_expansion",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_witness_boundary_counts_are_admitted",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_missing_foreign_and_journal_substituted_route_witnesses",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_noncanonical_command_and_route_witness_order"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1_parity.py",
+      "sha256": "3fc4b2b75eb077a44bbadf43e834eb2e7304cc2a18bd96a5a64f953cc6cbccb5",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1_parity.py::test_committed_golden_fixture_matches_typed_python_renderer"
+      ]
+    },
+    {
+      "path": "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py",
+      "sha256": "3499e77a7fb73cf464c94a016458e554a6d86c36a396ddf27a9e488b9a2eb57f",
+      "node_ids": [
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_shape_bridge_is_closed_source_bound_and_unmounted",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_route_effect_plan_aggregation_guard_cannot_be_dropped",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_source_hash_drift_rejects"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "stateful",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each authority test arranges immutable route journals, opaque route witnesses, disclosed route plans, a certificate, and a verifier spy; acts through one pure composer or epoch-admission call; and asserts exact typed acceptance or rejection plus whether the root verifier remained untouched."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Composition and epoch admission are pure functional-core operations. Every binding, history, arithmetic, scope, and count defect returns no opaque epoch witness and the verifier-spy assertions prove rejection occurs before any cryptographic verifier side effect."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "route_effect_plan_count",
+      "points": [
+        "zero_rejects",
+        "one_accepts",
+        "eight_accepts",
+        "nine_accepts",
+        "sixty_four_accepts",
+        "sixty_five_rejects"
+      ]
+    },
+    {
+      "name": "route_effect_binding",
+      "points": [
+        "exact_root_and_occurrence_accept",
+        "wrong_committed_root_rejects",
+        "unrelated_epoch_aggregate_rejects"
+      ]
+    },
+    {
+      "name": "sequential_history",
+      "points": [
+        "connected_lane_and_conservation_accept",
+        "disconnected_lane_rejects",
+        "disconnected_conservation_rejects",
+        "duplicate_occurrence_rejects"
+      ]
+    },
+    {
+      "name": "checked_integer_aggregation",
+      "points": [
+        "ordinary_signed_and_unsigned_totals_accept",
+        "i128_max_plus_one_rejects",
+        "third_distinct_i128_max_fee_overflows_u128_and_rejects"
+      ]
+    },
+    {
+      "name": "current_composition_scope",
+      "points": [
+        "zero_terminal_and_empty_outbox_accept",
+        "nonzero_terminal_root_rejects",
+        "external_outbox_row_rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "remove the equality between the checked route-plan aggregate and the certificate-bound epoch plan",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_global_effect_plan_unrelated_to_verified_route_effects"
+    },
+    {
+      "description": "skip the disclosed plan root comparison against the exact route journal",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_route_effect_plan_with_wrong_committed_root"
+    },
+    {
+      "description": "accept disconnected lane or asset-conservation histories",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_disconnected_histories"
+    },
+    {
+      "description": "use wrapping signed or unsigned arithmetic for aggregate effect and fee totals",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_duplicate_and_overflowed_totals"
+    },
+    {
+      "description": "permit repeated occurrence consumption after canonical sorting",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_duplicate_and_overflowed_totals"
+    },
+    {
+      "description": "expand the current composer to terminal or external-outbox semantics without a composition law",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_outbox_and_terminal_scope_expansion"
+    },
+    {
+      "description": "drift Python and Rust canonical aggregate ordering or root derivation",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_parity.py::test_committed_golden_fixture_matches_typed_python_renderer"
+    },
+    {
+      "description": "drop the closed ShapeForge exact route-effect aggregation guard",
+      "killed_by": "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_route_effect_plan_aggregation_guard_cannot_be_dropped"
+    }
+  ],
+  "nonclaims": [
+    "This packet proves deterministic host-admission behavior only. The recursive epoch guest commits effect roots and does not execute or prove route-effect aggregation.",
+    "The implemented composer accepts only sequential single-lane ASSET_TRANSFER plans with zero terminal obligations and no external outbox rows; multi-lane, terminal, and delivery composition remain open.",
+    "Recording verifier doubles establish exact pre-verifier binding behavior and do not establish cryptographic soundness, verifier governance, or real receipt validity.",
+    "The Rust crate tests use the deterministic ABI crate and do not invoke RISC0 proving. The interrupted release-aware lane replay remains deferred to Runpod for thermal safety.",
+    "No durable publisher, crash recovery, mounted writer, complete M6 route profile, migration, outbox delivery, or writer-epoch cutover is supplied.",
+    "This dirty, unfrozen checkout supplies scoped development evidence and no release-candidate provenance, production authority, or whole-economy readiness claim.",
+    "Named mutation killers are reviewed semantic mutants; no automated mutation campaign is claimed.",
+    "ShapeForge rows remain contract and tested-discovery evidence. They do not promote this slice to formal proof or production authority."
+  ]
+}

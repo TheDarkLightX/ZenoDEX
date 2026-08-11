@@ -1,0 +1,266 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260810-global-settlement-epoch-receipts",
+  "created_date": "2026-08-10",
+  "claim_scope": "GlobalSettlementABI V1 consumes one immutable EconomicEpochReceiptCandidateV1 and constructs an opaque VerifiedEconomicEpochV1 only after each canonical route journal has one exact opaque VerifiedRouteCompositionV1, the bounded route sequence is canonical, and the release-selected root verifier accepts a nonempty SUCCINCT receipt over the exact epoch journal.",
+  "change_kind": "behavior_change",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "GSABI-V1-EXACT-OPAQUE-ROUTE-WITNESS-PER-JOURNAL",
+    "GSABI-V1-IMMUTABLE-EPOCH-CANDIDATE",
+    "GSABI-V1-CANONICAL-EPOCH-ORDER",
+    "GSABI-V1-BOUNDED-EPOCH-ONE-THROUGH-SIXTY-FOUR",
+    "GSABI-V1-SUCCINCT-ROOT-RECEIPT-ONLY",
+    "GSABI-V1-OPAQUE-EPOCH-WITNESS",
+    "GSABI-V1-ROUTE-BOUND-COMMIT-ID",
+    "GSABI-V1-REJECT-BEFORE-ROOT-VERIFIER"
+  ],
+  "failure_modes": [
+    "structural route journals reach epoch authority without preceding opaque route witnesses",
+    "parallel caller-managed epoch inputs drift before verification",
+    "a valid route witness for another occurrence or journal is substituted into the epoch",
+    "missing, duplicated, or reordered route witnesses change the canonical command sequence",
+    "zero or more than sixty-four commands enter the bounded root statement",
+    "an empty, non-succinct, wrong-image, wrong-journal, or verifier-rejected receipt constructs epoch authority",
+    "the commit identity omits the ordered route-witness binding roots",
+    "a caller constructs or mutates VerifiedEconomicEpochV1 without verifier acceptance"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_economic_proof_v1.py",
+      "sha256": "47e23f3a1da01649871031360b51d5838b8b37bc67359a025fddc414f41137ba"
+    },
+    {
+      "path": "src/core/route_composition_receipt_verification_v1.py",
+      "sha256": "6196afdc35b4c6bbb61d341cf30836842a89d47f3b1cbbdcf783c641ca61edcf"
+    },
+    {
+      "path": "src/core/global_settlement_abi_v1.py",
+      "sha256": "185be1562702f32dc4a23b57eaab0f42c6a708b6d6b92ab22c6abdebb4255e70"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "c7ff7f362462502293c017fd986c14ef57c9aaa344e4b1093ea260ec18e84568"
+    },
+    {
+      "path": "src/integration/global_economic_commit_v1.py",
+      "sha256": "f805da38ed5214ed773b8572ad0b3554af4c45cae6d5ab1f95dc115870842825"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs",
+      "sha256": "2828a75f491377b2432193585e577f42fde27982408c18843eddf65511f18088"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "d488d7ba2584d0c46d858d20521667eac8d55e34432b0302c22c424624d5e567"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+      "sha256": "86c779e1c432ffc60b61b6b1d2880479962cd2f37d65bb40d1590b47478469cb"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/golden_vectors.rs",
+      "sha256": "5a30e2f1f32c81b95839e25bf96808690e40f2266b4be6db95edfd3743d80d57"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/README.md",
+      "sha256": "d65791bf9087c2f9daffe87e558495e4e3309a6f9ca6f55979e27f44c4be87ea"
+    },
+    {
+      "path": "tests/data/global_settlement_abi_v1_golden.json",
+      "sha256": "27fb8b34e222d44bdcaf407e8f7b39bced72091ff003fdff49c3d80c4055ab30"
+    },
+    {
+      "path": "tools/render_global_settlement_abi_v1_golden.py",
+      "sha256": "a956d1f83529e85f0c2b49ca44f0f8e930df199ecd957309eef655514c851c4b"
+    },
+    {
+      "path": "tools/check_zrpf_shapeforge_global_epoch_admission_v1.py",
+      "sha256": "460d9edaf60acf7e067fa85345e358c3d857704762afd52ef043621062e19340"
+    },
+    {
+      "path": "tools/zrpf_shapeforge_contract_support_v1.py",
+      "sha256": "921056b4ba140c66122301c2ef6587c4cf718d84613a2fa311ebeac27c78d2e7"
+    },
+    {
+      "path": "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+      "sha256": "96848314c14ba6d1d4238d2f3ae520084b6dd1bd1b399c0b87652e0d16b3752b"
+    },
+    {
+      "path": "docs/research/ZRPF_SHAPEFORGE_GLOBAL_EPOCH_ADMISSION_V1.md",
+      "sha256": "69ea8589b366b214d29e648d117809cd6a9680b16ebd2e418c8bc9f906f0f625"
+    },
+    {
+      "path": "docs/research/GLOBAL_SETTLEMENT_ABI_V1_REFERENCE_20260805.md",
+      "sha256": "4e40f2d0991ce02d5c74dbe9fc90d943d9d5c49e3af21dc51f8a99f08df6dcc5"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json",
+      "sha256": "4ea57a13c905295d2b8fc1b4924138fe2f05527b1f98b81be87d5a16b0565aa5"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/scenario_corpus.seed.json",
+      "sha256": "3177b1830a7ecb68e884b691c1a3a95feb11d90d03592b4f7731b2d924dbcbf4"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/development_import_bundle.json",
+      "sha256": "263c35cb4e5ad2a73b92cc1d60fb16fec7235c330445e4e7ea01d4e9590fbbcb"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_negative_knowledge.seed.json",
+      "sha256": "60518029aef0be9dc725d3b50628424e00430696dbe791f58cbadadc01256faf"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "f1514f52ff84f97ac7d933000f0f56b07762b80b29aeda99a6abcc4e68082763",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_shape_rejects_zero_65_and_route_width_9",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_witness_boundary_counts_are_admitted",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_missing_foreign_and_journal_substituted_route_witnesses",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_noncanonical_command_and_route_witness_order",
+        "tests/core/test_global_settlement_abi_v1.py::test_atomic_commit_is_idempotent_and_binding_rejects_are_noops",
+        "tests/core/test_global_settlement_abi_v1.py::test_committed_replay_requires_exact_context_and_binding_tuple"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1_parity.py",
+      "sha256": "3fc4b2b75eb077a44bbadf43e834eb2e7304cc2a18bd96a5a64f953cc6cbccb5",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1_parity.py::test_committed_golden_fixture_matches_typed_python_renderer"
+      ]
+    },
+    {
+      "path": "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py",
+      "sha256": "ffd598e54f419a374cf464c18a4e7b38a5c2a77f35ebdbac5b833fed2efa05d6",
+      "node_ids": [
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_shape_bridge_is_closed_source_bound_and_unmounted",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_verified_route_witness_guard_cannot_be_dropped",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_valid_lane_witness_wrong_route_journal_negative_knowledge_is_required",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_source_hash_drift_rejects"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "stateful",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Epoch tests arrange immutable profiles, canonical occurrences, route journals, opaque route witnesses, certificates, and verifier spies; act through one admission or commit call; and assert exact witness roots, verifier calls, typed rejection, immutable state, and retry outcomes."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The pure admission boundary returns no VerifiedEconomicEpochV1 and never calls the root verifier for route-binding defects. Commit rejection and stale replay tests assert that state and published records remain byte-for-byte unchanged."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "epoch_route_count",
+      "points": [
+        "zero_rejects",
+        "one_accepts",
+        "eight_accepts",
+        "nine_accepts",
+        "sixty_four_accepts",
+        "sixty_five_rejects"
+      ]
+    },
+    {
+      "name": "route_witness_evidence",
+      "points": [
+        "missing_rejects",
+        "exact_accepts",
+        "foreign_occurrence_rejects",
+        "substituted_journal_rejects",
+        "reordered_sequence_rejects"
+      ]
+    },
+    {
+      "name": "receipt_bytes",
+      "points": [
+        "zero_bytes_reject",
+        "nonempty_matching_digest_accepts",
+        "nonempty_wrong_digest_rejects"
+      ]
+    },
+    {
+      "name": "receipt_kind",
+      "points": [
+        "succinct_accepts",
+        "composite_rejects"
+      ]
+    },
+    {
+      "name": "canonical_occurrence_order",
+      "points": [
+        "strictly_increasing_accepts",
+        "reverse_order_rejects"
+      ]
+    },
+    {
+      "name": "commit_replay",
+      "points": [
+        "first_exact_commit_accepts",
+        "exact_retry_is_idempotent",
+        "binding_substitution_rejects_without_mutation",
+        "stale_head_rejects_without_mutation"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "replace the immutable epoch candidate with a parallel caller-managed authority argument list",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle"
+    },
+    {
+      "description": "permit epoch construction from structural route journals without one exact opaque route witness per journal",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_missing_foreign_and_journal_substituted_route_witnesses"
+    },
+    {
+      "description": "skip the route-journal root or canonical-digest comparison on an otherwise valid foreign witness",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_missing_foreign_and_journal_substituted_route_witnesses"
+    },
+    {
+      "description": "normalize a reordered occurrence and witness sequence instead of rejecting noncanonical authority input",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_noncanonical_command_and_route_witness_order"
+    },
+    {
+      "description": "admit zero or sixty-five epoch occurrences at the bounded root boundary",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_shape_rejects_zero_65_and_route_width_9"
+    },
+    {
+      "description": "omit ordered route binding roots from the cross-language verified-epoch commit identity",
+      "killed_by": "tests/core/test_global_settlement_abi_v1_parity.py::test_committed_golden_fixture_matches_typed_python_renderer"
+    },
+    {
+      "description": "expose mutable or caller-constructible epoch authority",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle"
+    },
+    {
+      "description": "drop the ShapeForge exact-route-witness guard while retaining a superficially valid contract",
+      "killed_by": "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_verified_route_witness_guard_cannot_be_dropped"
+    },
+    {
+      "description": "allow a rejected or substituted retry to mutate committed state or records",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_committed_replay_requires_exact_context_and_binding_tuple"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not produce or verify a real RISC0 module, lane, route, or epoch receipt and does not resolve recursive assumptions in a guest.",
+    "Recording verifier doubles establish host-port call and binding behavior only; they do not establish cryptographic soundness or verifier governance.",
+    "The Rust cargo tests are source-pinned and were run separately; the Python test-hygiene gate executes only the declared pytest nodes.",
+    "The accepted route corpus remains a one-lane ASSET_TRANSFER route and does not prove general multi-lane private-port or global-effect pairing.",
+    "No durable atomic publisher, crash recovery, mounted writer, migration, outbox, or complete M6 profile is supplied.",
+    "This dirty, unfrozen checkout supplies scoped development evidence and no release-candidate provenance, production authority, or whole-economy readiness claim.",
+    "Named mutation killers are reviewed semantic mutants; no automated mutation campaign is claimed.",
+    "ShapeForge rows remain contract and tested-discovery evidence and do not promote this slice to a formal or cryptographic proof."
+  ]
+}

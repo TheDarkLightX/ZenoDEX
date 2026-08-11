@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+  "shared",
+  "methods",
+  "methods/epoch",
+  "host",
+  "test_methods",
+  "test_methods/route_structural_test_leaf",
+]
+
+[profile.release]
+lto = true
+opt-level = 3

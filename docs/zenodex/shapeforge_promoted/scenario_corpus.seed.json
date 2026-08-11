@@ -1,0 +1,1622 @@
+{
+  "repo_root": ".",
+  "scenario_seeds": [
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_run_managed_asset_lifecycle_transition",
+        "op_emit_bound_managed_lifecycle_output"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "parity_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/managed_asset_lifecycle_lane_module_v1.py",
+        "tests/core/test_managed_asset_lifecycle_lane_module_v1.py",
+        "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_lane_module.rs",
+        "zk/global_settlement_abi_v1/tests/managed_asset_lifecycle_lane_module.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "scenario_id": "scenario_managed_asset_lifecycle_host_fixture_rebinding",
+      "schema": "managed_asset_lifecycle_lane_module_output",
+      "score": 0.01,
+      "source_candidate_id": "cand_managed_asset_lifecycle_host_fixture_rebinding_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:managed_asset_lifecycle_lane_module_output",
+        "status:TESTED_ONLY",
+        "axis:operator",
+        "authority:module_owned_private_port",
+        "parity:python_rust_issue_burn",
+        "negative:host_fixture_rebinding"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_run_asset_transfer_transition",
+        "op_emit_bound_asset_lane_output"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "parity_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/asset_transfer_lane_module_v1.py",
+        "tests/core/test_asset_transfer_lane_module_v1.py",
+        "zk/global_settlement_abi_v1/src/asset_transfer_lane_module.rs",
+        "zk/global_settlement_abi_v1/tests/asset_transfer_lane_module.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "scenario_id": "scenario_asset_transfer_host_fixture_rebinding",
+      "schema": "asset_transfer_lane_module_output",
+      "score": 0.01,
+      "source_candidate_id": "cand_asset_transfer_host_fixture_rebinding_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:asset_transfer_lane_module_output",
+        "status:TESTED_ONLY",
+        "axis:operator",
+        "authority:module_owned_private_port",
+        "parity:python_rust",
+        "negative:host_fixture_rebinding"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_k_monotonicity_strengthening"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/CPMMInvariants.lean",
+        "src/core/cpmm.py"
+      ],
+      "scenario_id": "scenario_fee_cpmm_k_monotone",
+      "schema": "reserve_safety",
+      "score": 0.02,
+      "source_candidate_id": "cand_fee_k_mono",
+      "source_count": 3,
+      "status": "PROVED",
+      "tags": [
+        "schema:reserve_safety",
+        "status:PROVED",
+        "theorem:k_monotone_with_fee",
+        "source:CPMMInvariants",
+        "inv:k_after_gte_k_before"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_k_monotonicity_strengthening"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "src/tau_specs/recommended/reserve_invariant_guard_v1.tau",
+        "formal/tau/contracts/reserve_invariant_guard_v1.contract.json",
+        "docs/zenodex/SHAPING_FORMULAS_LOGIC_NOTATION.md"
+      ],
+      "scenario_id": "scenario_strict_tau_reserve_guard",
+      "schema": "reserve_guard_tau",
+      "score": 0.06,
+      "source_candidate_id": "cand_tau_reserve_guard",
+      "source_count": 3,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:reserve_guard_tau",
+        "status:TESTED_ONLY",
+        "tau:strict_profile",
+        "drift:zero",
+        "inv:k_after_gte_k_before"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "1-2|med|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_unique_canonical_winner",
+        "op_total_order_canonicalization"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/BatchAuctionCanonical.lean",
+        "lean-mathlib/Proofs/BatchOptimality.lean"
+      ],
+      "scenario_id": "scenario_batch_unique_canonical_winner",
+      "schema": "batch_canonicalization",
+      "score": 0.015,
+      "source_candidate_id": "cand_unique_winner",
+      "source_count": 3,
+      "status": "PROVED",
+      "tags": [
+        "schema:batch_canonicalization",
+        "status:PROVED",
+        "theorem:exists_unique_canonical",
+        "theorem:canonical_dominates",
+        "shape:unique_winner"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|sum_type|0-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_surplus_cbc_outcome_typing"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/BatchOptimality.lean"
+      ],
+      "scenario_id": "scenario_surplus_nonnegative_cbc",
+      "schema": "cbc_surplus",
+      "score": 0.014,
+      "source_candidate_id": "cand_surplus_cbc",
+      "source_count": 2,
+      "status": "PROVED",
+      "tags": [
+        "schema:cbc_surplus",
+        "status:PROVED",
+        "theorem:surplus_nonneg",
+        "cbc:valid_outcome",
+        "shape:invalid_state_unrepresentable"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|med|list|1-2",
+      "data_structure_family": "list",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_batch_k_gap_accounting",
+        "op_k_monotonicity_strengthening"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/BatchCPMMUnification.lean",
+        "lean-mathlib/Proofs/CPMMInvariants.lean"
+      ],
+      "scenario_id": "scenario_batch_k_gap_exact_accounting",
+      "schema": "batch_accounting",
+      "score": 0.018,
+      "source_candidate_id": "cand_batch_k_gap",
+      "source_count": 3,
+      "status": "PROVED",
+      "tags": [
+        "schema:batch_accounting",
+        "status:PROVED",
+        "theorem:executeBatchSwaps_K_gap_sum",
+        "theorem:unified_batch_safety",
+        "shape:exact_k_accounting"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_lp_roundtrip_no_profit"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/CPMMInvariants.lean"
+      ],
+      "scenario_id": "scenario_lp_roundtrip_no_profit",
+      "schema": "lp_roundtrip_safety",
+      "score": 0.017,
+      "source_candidate_id": "cand_lp_roundtrip",
+      "source_count": 2,
+      "status": "PROVED",
+      "tags": [
+        "schema:lp_roundtrip_safety",
+        "status:PROVED",
+        "theorem:lp_roundtrip_no_profit",
+        "shape:lp_barrier",
+        "lp:no_immediate_profit"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|med|list|1-2",
+      "data_structure_family": "list",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_batch_settlement_safety"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/BatchCPMMUnification.lean"
+      ],
+      "scenario_id": "scenario_batch_safe_implies_settlement_safe",
+      "schema": "batch_scalar_safety",
+      "score": 0.019,
+      "source_candidate_id": "cand_batch_safe",
+      "source_count": 2,
+      "status": "PROVED",
+      "tags": [
+        "schema:batch_scalar_safety",
+        "status:PROVED",
+        "theorem:batch_safe_implies_settlement_safe",
+        "shape:compositional_safety",
+        "delta:nonnegative_safe_pairs"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "1-2|med|array|3-6",
+      "data_structure_family": "array",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_equal_marginal_dualization"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "experimental/math_discovery_pipeline/src/kpool_split.py",
+        "experimental/math_discovery/galois_split_routing.py",
+        "lean-mathlib/Proofs/GaloisSplitCertificate.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_split_routing_equal_marginal",
+      "schema": "split_routing",
+      "score": 0.07,
+      "source_candidate_id": "cand_equal_marginal",
+      "source_count": 4,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:split_routing",
+        "status:TESTED_ONLY",
+        "law:g_i_prime_equals_lambda",
+        "search:bounded_neighborhood",
+        "shape:continuous_seed"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|med|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_anti_fragmentation_certificate"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "experimental/math_discovery_pipeline/src/anti_fragmentation.py",
+        "src/core/split_routing.py",
+        "lean-mathlib/Proofs/AntiFragmentation.lean",
+        "lean-mathlib/Proofs/FeeAwareAntiFragmentation.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_same_pool_fragmentation_elimination",
+      "schema": "anti_fragmentation",
+      "score": 0.065,
+      "source_candidate_id": "cand_same_pool_frag",
+      "source_count": 5,
+      "status": "PROVED",
+      "tags": [
+        "schema:anti_fragmentation",
+        "status:PROVED",
+        "law:single_out_dominates_split_out",
+        "shape:same_pool_pruning",
+        "routing:best_execution"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_zero_fee_anti_fragmentation_carry"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md",
+        "lean-mathlib/Proofs/AntiFragmentation.lean"
+      ],
+      "scenario_id": "scenario_zero_fee_same_pool_fragmentation_carry",
+      "schema": "anti_fragmentation_zero_fee",
+      "score": 0.024,
+      "source_candidate_id": "cand_zero_fee_same_pool_carry",
+      "source_count": 2,
+      "status": "PROVED",
+      "tags": [
+        "schema:anti_fragmentation_zero_fee",
+        "status:PROVED",
+        "theorem:single_eq_split_plus_gapCarry",
+        "theorem:gap_pos_iff_eq_one",
+        "shape:exact_gap_classification"
+      ]
+    },
+    {
+      "alloc_bin": "high",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "3-5|high|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_routing_tiebreak_totalization"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "3-5",
+      "runs": [
+        "src/core/split_routing_dispatch.py",
+        "experimental/math_discovery/galois_split_routing.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_many_pool_router_tiebreak",
+      "schema": "many_pool_tiebreak",
+      "score": 0.08,
+      "source_candidate_id": "cand_many_pool_tiebreak",
+      "source_count": 3,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:many_pool_tiebreak",
+        "status:TESTED_ONLY",
+        "routing:exact_in",
+        "shape:fewer_legs_then_lex",
+        "determinism:pool_id_key"
+      ]
+    },
+    {
+      "alloc_bin": "high",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "1-2|high|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_max_legs_capacity_guard"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/split_routing_dispatch.py",
+        "tests/core/test_split_routing_dispatch.py",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCapacityGuard.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_exact_out_capacity_guard",
+      "schema": "exact_out_capacity",
+      "score": 0.075,
+      "source_candidate_id": "cand_exact_out_capacity",
+      "source_count": 4,
+      "status": "PROVED",
+      "tags": [
+        "schema:exact_out_capacity",
+        "status:PROVED",
+        "routing:exact_out",
+        "shape:feasibility_guard",
+        "constraint:max_legs"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "1-2|med|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_routing_tiebreak_totalization"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "equal_input_extra_leg",
+          "equal_input_lex_larger_winner",
+          "input_tie_without_total_key"
+        ],
+        "hypothesis": "For any finite nonempty exact-out candidate set represented by the route key `(input_total, leg_count, legs_lex)`, the canonical winner is the unique minimum; in particular, among equal-input candidates it chooses fewer legs and then the lexicographically smallest `(pool_id, amount_out)` sequence.",
+        "improvement_axes": [
+          "scenario_corpus_expansion",
+          "contract_strengthening",
+          "canonicalization"
+        ],
+        "invariant_axes": [
+          "input_total_minimization",
+          "fewer_legs_tiebreak",
+          "legs_lex_tiebreak"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "amount_out_total",
+          "amount_in_total",
+          "legs",
+          "legs_lex",
+          "max_legs"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/split_routing_dispatch.py",
+        "tests/core/test_split_routing_dispatch.py",
+        "lean-mathlib/Proofs/ZenoDEXExactOutCanonicalMinimizer.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_exact_out_canonical_minimizer",
+      "schema": "exact_out_canonical_minimizer",
+      "score": 0.059,
+      "source_candidate_id": "cand_exact_out_canonical_minimizer",
+      "source_count": 4,
+      "status": "PROVED",
+      "tags": [
+        "schema:exact_out_canonical_minimizer",
+        "status:PROVED",
+        "routing:exact_out",
+        "shape:fewer_legs_then_lex",
+        "determinism:route_key_out"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "1-2|med|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_commutativity_quarantine"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "experimental/math_discovery_pipeline/src/settlement_law_miner.py",
+        "experimental/math_discovery_pipeline/src/settlement_algebra.py",
+        "lean-mathlib/Proofs/OppositeDirectionNoncommutativity.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_opposite_direction_noncommutativity",
+      "schema": "noncommutative_ordering",
+      "score": 0.072,
+      "source_candidate_id": "cand_noncommutative_order",
+      "source_count": 4,
+      "status": "PROVED",
+      "tags": [
+        "schema:noncommutative_ordering",
+        "status:PROVED",
+        "law:opposite_direction_noncommutative",
+        "shape:no_unsound_reorder",
+        "ordering:quarantine"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_boundary_guard_bundle"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "docs/zenodex/SHAPING_FORMULAS_LOGIC_NOTATION.md",
+        "formal/tla/AutoTraderNonceGuardShadow.tla",
+        "formal/tla/AutoTraderTxEnvelopeShadow.tla",
+        "formal/tau/dex_safety_property_matrix.json"
+      ],
+      "scenario_id": "scenario_autotrader_release_blocking_guards",
+      "schema": "guarded_live_admission",
+      "score": 0.09,
+      "source_candidate_id": "cand_autotrader_guards",
+      "source_count": 4,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:guarded_live_admission",
+        "status:TESTED_ONLY",
+        "release_blocking:true",
+        "shape:strict_nonce_and_envelope_validity",
+        "boundary:autotrader"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|med|graph|0-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_oracle_uncertainty_freeze"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "pending_price_gap",
+          "oracle_staleness",
+          "recovery_mode_transition"
+        ],
+        "hypothesis": "If pending oracle price diverges from the active price, oracle freshness fails, or recovery mode activates, risky zUSD operations must remain blocked across runtime, Tau, and kernel adapters until the oracle boundary is revalidated.",
+        "improvement_axes": [
+          "scenario_corpus_expansion",
+          "runtime_guard_alignment",
+          "tau_contract_promotion"
+        ],
+        "invariant_axes": [
+          "risky_ops_blocked",
+          "tau_runtime_guard_alignment",
+          "boundary_only_oracle_validation"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "oracle_seen",
+          "price_e8",
+          "price_pending_e8",
+          "oracle_freshness",
+          "recovery_mode"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "0",
+      "runs": [
+        "src/core/zusd.py",
+        "src/integration/zusd_tau_gate.py",
+        "src/kernels/python/zusd_risky_ops_gate_v1_native_adapter.py",
+        "src/tau_specs/recommended/zusd_recovery_mode_gate_v1.tau",
+        "docs/zenodex/SHAPING_FORMULAS_FULL_STACK.md"
+      ],
+      "scenario_id": "scenario_zusd_oracle_boundary_freeze",
+      "schema": "oracle_boundary_freeze",
+      "score": 0.058,
+      "source_candidate_id": "cand_zusd_oracle_freeze",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:oracle_boundary_freeze",
+        "status:TESTED_ONLY",
+        "stablecoin:zusd",
+        "shape:risky_ops_blocked_on_pending_price_gap",
+        "boundary:oracle"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "1-2|med|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_routing_allocation_contract"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "partial_input_allocation",
+          "partial_output_coverage",
+          "zero_leg",
+          "sub_min_valid_leg"
+        ],
+        "hypothesis": "If a split route is returned, exact-in routes must consume the full requested input and every emitted leg must be positive; on the audited selected-domain CPMM exact-out lane, feasible returned allocations satisfy allocation_complete with positive capacity-bounded support legs by the Lean feasibility/presentation bridge, otherwise the route is invalid and must not be certified.",
+        "improvement_axes": [
+          "scenario_corpus_expansion",
+          "contract_strengthening",
+          "certificate_shrinking"
+        ],
+        "invariant_axes": [
+          "full_input_consumption",
+          "full_output_coverage",
+          "positive_leg_amounts",
+          "leg_admissibility"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "amount_in_total",
+          "amount_out_total",
+          "legs",
+          "min_valid",
+          "max_out",
+          "max_legs"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/split_routing_dispatch.py",
+        "src/core/split_routing.py",
+        "lean-mathlib/Proofs/AllocationTotality.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSelectedDomainCompleteness.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolSupportPresentation.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCpmmQuotedPathQuoteStreamCompleteness.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_split_routing_allocation_contract",
+      "schema": "routing_allocation_contract",
+      "score": 0.061,
+      "source_candidate_id": "cand_routing_allocation_contract",
+      "source_count": 7,
+      "status": "PROVED",
+      "tags": [
+        "schema:routing_allocation_contract",
+        "status:PROVED",
+        "routing:split",
+        "shape:full_allocation_and_admissible_legs",
+        "boundary:routing"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "0|med|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_exact_out_audited_bounds_contract"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "selected_domain_over_budget",
+          "full_domain_candidate_over_budget",
+          "nested_budget_parameter_drift",
+          "missing_failure_reason",
+          "unreplayable_success_branch"
+        ],
+        "hypothesis": "If a many-pool exact-out quote is exposed on the public audited boundary, selected-domain, repaired-domain, and full-domain budget facts plus cross-packet budget-parameter binding must remain explicit, and the surface must expose either a replayable success branch or an explicit fail-closed rejection branch.",
+        "improvement_axes": [
+          "scenario_corpus_expansion",
+          "contract_strengthening",
+          "public_assurance_alignment"
+        ],
+        "invariant_axes": [
+          "budget_facts_ok",
+          "public_outcome_explicit",
+          "fail_closed_public_boundary"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "selected_domain_budget_respected",
+          "repaired_selection_budget_respected",
+          "full_domain_pool_budget_respected",
+          "full_domain_candidate_budget_respected",
+          "budget_parameters_bound",
+          "failure_path_explicit",
+          "success_path_replayable"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "0",
+      "runs": [
+        "src/integration/exact_out_route_certificate.py",
+        "src/integration/api_server.py",
+        "src/tau_specs/recommended/optimizer_audited_bounds_liveness_v1.tau",
+        "src/kernels/dex/optimizer_audited_bounds_liveness_v1.yaml",
+        "tests/integration/test_exact_out_route_certificate.py",
+        "tests/integration/test_api_server_dex_api.py",
+        "tests/formal/test_esso_optimizer_audited_bounds_liveness.py",
+        "tests/tau/test_exact_out_many_pool_audited_bounds_liveness.py"
+      ],
+      "scenario_id": "scenario_exact_out_audited_bounds_contract",
+      "schema": "exact_out_audited_bounds_contract",
+      "score": 0.064,
+      "source_candidate_id": "cand_exact_out_audited_bounds_contract",
+      "source_count": 8,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:exact_out_audited_bounds_contract",
+        "status:TESTED_ONLY",
+        "routing:exact_out",
+        "boundary:audited_bounds",
+        "shape:explicit_budget_and_outcome_binding"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "0|med|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_repaired_replacement_shadow_alignment"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "shadow_packet_failure",
+          "default_packet_failure",
+          "replacement_unavailable_case",
+          "strict_replacement_case",
+          "default_uses_repaired_advisory_case"
+        ],
+        "hypothesis": "On the claimed supported three-pool audited corpora, if the repaired replacement is available and full-canonical, the current bounded default exact-out policy should already return a replayable quote, avoid shadow/default packet failure, and match the repaired replacement exactly, so the strict replacement gap is zero on that corpus.",
+        "improvement_axes": [
+          "scenario_corpus_expansion",
+          "public_assurance_alignment",
+          "contract_strengthening"
+        ],
+        "invariant_axes": [
+          "no_spurious_failure_on_supported_corpus",
+          "zero_strict_replacement_gap",
+          "default_matches_repaired_replacement"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "replacement_available",
+          "shadow_packet_ok",
+          "default_packet_ok",
+          "effective_quote_matches_replacement_quote",
+          "default_effective_quote_matches_full_domain_canonical",
+          "default_effective_quote_source"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "0",
+      "runs": [
+        "src/integration/exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py",
+        "tests/integration/test_exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py",
+        "src/integration/exact_out_route_certificate.py",
+        "tests/integration/test_exact_out_route_certificate.py",
+        "tests/integration/test_api_server_dex_api.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_exact_out_supported_corpus_shadow_alignment",
+      "schema": "exact_out_supported_corpus_shadow_alignment",
+      "score": 0.067,
+      "source_candidate_id": "cand_exact_out_supported_corpus_shadow_alignment",
+      "source_count": 6,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:exact_out_supported_corpus_shadow_alignment",
+        "status:TESTED_ONLY",
+        "routing:exact_out",
+        "boundary:supported_corpus",
+        "shape:default_matches_repaired_replacement"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "1-2|med|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_repaired_replacement_shadow_alignment"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "shadow_packet_failure",
+          "default_packet_failure",
+          "replacement_unavailable_case",
+          "strict_replacement_case",
+          "pool_count_boundary_regression"
+        ],
+        "hypothesis": "On the deterministic four-pool and five-pool supported-family audited corpora, the public bounded default exact-out policy should remain replayably aligned with the repaired replacement at the next pool-count boundaries, so shadow/default packet failure, replacement unavailability, and strict-replacement gaps all stay absent for max_candidate_pools in {2,3}.",
+        "improvement_axes": [
+          "scenario_corpus_expansion",
+          "public_assurance_alignment",
+          "pool_count_boundary_widening"
+        ],
+        "invariant_axes": [
+          "no_spurious_failure_on_supported_family_frontier",
+          "zero_strict_replacement_gap",
+          "default_matches_repaired_replacement"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "num_pools",
+          "max_candidate_pools",
+          "replacement_available",
+          "shadow_packet_ok",
+          "default_packet_ok",
+          "effective_quote_matches_replacement_quote",
+          "default_effective_quote_matches_full_domain_canonical",
+          "default_effective_quote_source"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/integration/exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py",
+        "tests/integration/test_exact_out_many_pool_repaired_replacement_shadow_benchmark_v1.py",
+        "src/integration/exact_out_route_certificate.py",
+        "tests/integration/test_exact_out_route_certificate.py",
+        "tests/integration/test_api_server_dex_api.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_exact_out_supported_family_shadow_alignment_frontier",
+      "schema": "exact_out_supported_family_shadow_alignment_frontier",
+      "score": 0.071,
+      "source_candidate_id": "cand_exact_out_supported_family_shadow_alignment_frontier",
+      "source_count": 6,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:exact_out_supported_family_shadow_alignment_frontier",
+        "status:TESTED_ONLY",
+        "routing:exact_out",
+        "boundary:supported_family_frontier",
+        "shape:pool_count_shadow_alignment"
+      ]
+    },
+    {
+      "alloc_bin": "high",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "3-6",
+      "bucket": "2-3|high|map|3-6",
+      "data_structure_family": "map",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_hierarchical_proof_frontier_refinement"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "reasoning_profile": {
+        "counterfactual_axes": [
+          "missing_emitted_candidate",
+          "audited_domain_not_complete",
+          "local_minimality_overclaimed_as_global_completeness"
+        ],
+        "hypothesis": "If the emitted many-pool audited domain is already replayable and the runtime quote is replayably tied to the emitted canonical winner, then the next honest completeness step is to split generator search into soundness and completeness obligations instead of re-proving canonicality.",
+        "improvement_axes": [
+          "proof_promotion",
+          "scenario_corpus_expansion",
+          "negative_knowledge_preservation"
+        ],
+        "invariant_axes": [
+          "emitted_domain_replayability",
+          "quote_binding",
+          "route_key_out_totality"
+        ],
+        "reasoning_mode": "scenario_driven_world_model_reasoning",
+        "state_axes": [
+          "audit_pool_ids",
+          "emitted_candidates",
+          "runtimeChoice",
+          "canonicalWinner",
+          "quote",
+          "packet_ok"
+        ],
+        "workflow": {
+          "workflow_command": "/shape-world-model-mode",
+          "workflow_id": "shape_world_model_mode",
+          "workflow_path": ".windsurf/workflows/shape-world-model-mode.md"
+        },
+        "world_model_id": "zenodex"
+      },
+      "recursion_depth_bin": "2-3",
+      "runs": [
+        "formal/exact_out_many_pool_generator_completeness_plan.md",
+        "lean-mathlib/Proofs/ZenoDEXExactOutBruteforceCompleteness.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCandidateDomainContract.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolGuardedQuotePacket.lean",
+        "lean-mathlib/Proofs/ZenoDEXExactOutManyPoolCertifiedWinnerPacket.lean",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_exact_out_generator_completeness_frontier",
+      "schema": "exact_out_canonical_minimizer",
+      "score": 0.084,
+      "source_candidate_id": "cand_exact_out_generator_completeness_frontier",
+      "source_count": 6,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:exact_out_canonical_minimizer",
+        "status:TESTED_ONLY",
+        "routing:exact_out",
+        "frontier:generator_completeness",
+        "proof:hierarchical_plan"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|vector|0-2",
+      "data_structure_family": "vector",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_pokayoke_amount_probe_schedule"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "docs/zenodex/SHAPEFORGE_POKAYOKE_REASONING.md",
+        "src/core/pokayoke_swap_suggest.py",
+        "src/core/pokayoke_swap_guardrails.py",
+        "tests/core/test_pokayoke_swap_suggest.py"
+      ],
+      "scenario_id": "scenario_pokayoke_exact_in_nonmonotone_amount_witness",
+      "schema": "swap_pokayoke_guardrails",
+      "score": 0.01,
+      "source_candidate_id": "cand_pokayoke_nonmonotone_amount_witness",
+      "source_count": 4,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:swap_pokayoke_guardrails",
+        "status:TESTED_ONLY",
+        "counterexample:adjacent_amount_action_flip",
+        "source:test_pokayoke_swap_suggest",
+        "guard:bounded_probe_schedule"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|med|vector|0-2",
+      "data_structure_family": "vector",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_canonical_plateau_pack"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "tools/check_canonical_plateau_pack_v1.py",
+        "tests/tools/test_check_canonical_plateau_pack_v1.py",
+        "src/core/split_routing_dispatch.py",
+        "src/integration/exact_out_route_certificate.py",
+        "src/integration/api_server.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_canonical_plateau_pack_v1",
+      "schema": "canonical_plateau_pack",
+      "score": 0.038,
+      "source_candidate_id": "cand_canonical_plateau_pack_v1",
+      "source_count": 6,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:canonical_plateau_pack",
+        "status:TESTED_ONLY",
+        "routing:exact_out",
+        "shape:fewer_legs_then_lex",
+        "stress:plateau_minimizers",
+        "boundary:public_and_local_replay"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "0-2",
+      "bucket": "0|low|vector|0-2",
+      "data_structure_family": "vector",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_dust_and_carry_pack"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "0",
+      "runs": [
+        "tools/check_dust_and_carry_pack_v1.py",
+        "tests/tools/test_check_dust_and_carry_pack_v1.py",
+        "src/core/fees.py",
+        "src/core/cpmm.py",
+        "src/core/liquidity.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_dust_and_carry_pack_v1",
+      "schema": "dust_and_carry_pack",
+      "score": 0.034,
+      "source_candidate_id": "cand_dust_and_carry_pack_v1",
+      "source_count": 6,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:dust_and_carry_pack",
+        "status:TESTED_ONLY",
+        "accounting:tiny_edges",
+        "shape:rounding_and_carry",
+        "stress:small_scale_accounting"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|med|graph|1-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_oracle_divergence_pack"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "tools/check_oracle_divergence_pack_v1.py",
+        "tests/tools/test_check_oracle_divergence_pack_v1.py",
+        "src/integration/zusd_api.py",
+        "src/integration/zusd_oracle_contracts.py",
+        "src/integration/zusd_oracle_recovery_lifecycle.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_oracle_divergence_pack_v1",
+      "schema": "oracle_divergence_pack",
+      "score": 0.036,
+      "source_candidate_id": "cand_oracle_divergence_pack_v1",
+      "source_count": 6,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:oracle_divergence_pack",
+        "status:TESTED_ONLY",
+        "oracle:cross_module_divergence",
+        "oracle:pending_vs_active",
+        "oracle:recovery_lifecycle",
+        "stress:oracle_divergence"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|med|graph|1-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_perp_risk_envelope_containment"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "tools/check_perp_risk_envelope_containment_v1.py",
+        "tests/tools/test_check_perp_risk_envelope_containment_v1.py",
+        "src/integration/perps_api.py",
+        "src/tau_specs/recommended/perp_risk_envelope_proof_gate_v1.tau",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_perp_risk_envelope_containment_v1",
+      "schema": "perp_risk_envelope_containment",
+      "score": 0.037,
+      "source_candidate_id": "cand_perp_risk_envelope_containment_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:perp_risk_envelope_containment",
+        "status:TESTED_ONLY",
+        "perps:systemic_containment",
+        "stress:risk_envelope",
+        "stress:liquidation_boundary"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|med|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_settlement_compact_bundle_scope_gap"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "tools/check_settlement_compact_bundle_scope_gap_v1.py",
+        "tests/tools/test_check_settlement_compact_bundle_scope_gap_v1.py",
+        "src/integration/settlement_strong_certificate.py",
+        "src/integration/settlement_end_to_end_certificate_packet.py",
+        "src/integration/api_server.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_settlement_compact_bundle_scope_gap_v1",
+      "schema": "settlement_compact_bundle_scope_gap",
+      "score": 0.036,
+      "source_candidate_id": "cand_settlement_compact_bundle_scope_gap_v1",
+      "source_count": 6,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:settlement_compact_bundle_scope_gap",
+        "status:TESTED_ONLY",
+        "settlement:compact_bundle",
+        "settlement:full_price_rails",
+        "stress:settlement_scope_gap"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|med|graph|1-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_cross_module_oracle_split_brain"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "tools/check_cross_module_oracle_split_brain_v1.py",
+        "tests/tools/test_check_cross_module_oracle_split_brain_v1.py",
+        "src/integration/zusd_api.py",
+        "src/integration/zusd_oracle_contracts.py",
+        "src/integration/zusd_oracle_recovery_lifecycle.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_cross_module_oracle_split_brain_v1",
+      "schema": "cross_module_oracle_split_brain",
+      "score": 0.036,
+      "source_candidate_id": "cand_cross_module_oracle_split_brain_v1",
+      "source_count": 6,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:cross_module_oracle_split_brain",
+        "status:TESTED_ONLY",
+        "oracle:cross_module_divergence",
+        "oracle:shared_world_sync",
+        "oracle:split_brain",
+        "stress:oracle_split_brain"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|med|graph|1-2",
+      "data_structure_family": "graph",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_exact_out_many_pool_generator_gap"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "tools/check_exact_out_many_pool_generator_gap_v1.py",
+        "tests/tools/test_check_exact_out_many_pool_generator_gap_v1.py",
+        "src/kernels/python/exact_out_many_pool_prefilter_subset_search_v1.py",
+        "src/integration/exact_out_route_certificate.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_exact_out_many_pool_generator_gap_v1",
+      "schema": "exact_out_many_pool_generator_gap",
+      "score": 0.037,
+      "source_candidate_id": "cand_exact_out_many_pool_generator_gap_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:exact_out_many_pool_generator_gap",
+        "status:TESTED_ONLY",
+        "exact_out:generator_completeness",
+        "exact_out:repaired_shadow_alignment",
+        "stress:exact_out_generator_gap"
+      ]
+    },
+    {
+      "alloc_bin": "med",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|med|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_curve_registry_fail_closed"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "benchmark_seed"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "tools/check_curve_registry_fail_closed_v1.py",
+        "tests/tools/test_check_curve_registry_fail_closed_v1.py",
+        "src/state/pools.py",
+        "src/integration/api_server.py",
+        "docs/zenodex/SHAPE_OPTIMIZATION_NOTES.md"
+      ],
+      "scenario_id": "scenario_curve_registry_fail_closed_v1",
+      "schema": "curve_registry_fail_closed",
+      "score": 0.036,
+      "source_candidate_id": "cand_curve_registry_fail_closed_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:curve_registry_fail_closed",
+        "status:TESTED_ONLY",
+        "curve:admission",
+        "curve:fail_closed",
+        "stress:curve_registry"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_verify_global_economic_epoch",
+        "op_commit_verified_global_economic_epoch"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "proof_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json",
+        "src/core/epoch_effect_composition_v1.py",
+        "src/core/global_economic_proof_v1.py",
+        "src/core/route_composition_receipt_verification_v1.py",
+        "src/integration/global_economic_commit_v1.py",
+        "tests/core/test_global_settlement_abi_v1.py",
+        "tests/core/test_asset_lane_coordinator_v1.py",
+        "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs",
+        "zk/global_settlement_abi_v1/src/epoch_effect_composition.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "zk/global_economic_epoch_risc0/shared/src/lib.rs",
+        "zk/global_economic_epoch_risc0/methods/epoch/src/main.rs",
+        "zk/global_economic_epoch_risc0/host/src/lib.rs",
+        "zk/global_economic_epoch_risc0/shared/tests/epoch_preflight.rs",
+        "zk/global_economic_epoch_risc0/host/tests/receipt_admission.rs",
+        "zk/global_economic_epoch_risc0/host/tests/real_composition.rs",
+        "tools/check_zrpf_shapeforge_global_epoch_admission_v1.py",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py"
+      ],
+      "scenario_id": "scenario_global_epoch_structural_journal_without_receipt_verifier",
+      "schema": "global_epoch_receipt_admission",
+      "score": 0.01,
+      "source_candidate_id": "cand_global_epoch_structural_journal_without_receipt_verifier_v1",
+      "source_count": 18,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:global_epoch_receipt_admission",
+        "status:TESTED_ONLY",
+        "axis:evidence",
+        "authority:opaque_verified_route_input",
+        "authority:opaque_verified_epoch",
+        "boundary:1-8-9-64",
+        "guest-boundary:0-1-8-9-64",
+        "proof:real-succinct-recursion",
+        "receipt:release_selected_succinct",
+        "nonclaim:structural-leaf-no-economics",
+        "negative:synthetic_structural_journal",
+        "negative:valid_route_witness_wrong_epoch_journal",
+        "negative:verified_route_effect_relabeling",
+        "guard:exact_route_effect_plan_aggregation"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_bind_asset_transfer_output_to_release_route",
+        "op_bind_managed_lifecycle_output_to_release_route"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "parity_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/lane_module_release_route_binding_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/lane_module_release_route_binding.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "scenario_id": "scenario_managed_issue_occurrence_relabels_burn_output",
+      "schema": "lane_module_release_route_binding",
+      "score": 0.01,
+      "source_candidate_id": "cand_managed_issue_occurrence_relabels_burn_output_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:lane_module_release_route_binding",
+        "status:TESTED_ONLY",
+        "axis:guard",
+        "authority:structural_release_route_binding",
+        "parity:python_rust",
+        "negative:issue_occurrence_burn_output"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_verify_asset_transfer_lane_module_receipt",
+        "op_verify_managed_lifecycle_lane_module_receipt"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "parity_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/lane_module_receipt_verification_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "scenario_id": "scenario_structural_lane_binding_without_module_receipt_verification",
+      "schema": "lane_module_receipt_verification",
+      "score": 0.01,
+      "source_candidate_id": "cand_structural_lane_binding_without_module_receipt_verification_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:lane_module_receipt_verification",
+        "status:TESTED_ONLY",
+        "axis:evidence",
+        "authority:opaque_verified_module",
+        "receipt:release_image_exact_journal",
+        "negative:structural_binding_without_receipt"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_compose_receipt_backed_asset_lane_single"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "parity_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/receipt_backed_asset_lane_composition_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py",
+        "zk/global_settlement_abi_v1/src/asset_lane_projection.rs",
+        "zk/global_settlement_abi_v1/src/receipt_backed_asset_lane_composition.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "scenario_id": "scenario_valid_module_receipt_substitutes_different_lane_journal",
+      "schema": "receipt_backed_asset_lane_composition",
+      "score": 0.01,
+      "source_candidate_id": "cand_valid_module_receipt_substitutes_different_lane_journal_v1",
+      "source_count": 7,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:receipt_backed_asset_lane_composition",
+        "status:TESTED_ONLY",
+        "axis:evidence",
+        "authority:receipt_backed_structural_only",
+        "parity:python_rust",
+        "boundary:writer_epoch_neighbors",
+        "bve:outcome_path_archive",
+        "frontier:depth_2",
+        "negative:valid_receipt_wrong_journal"
+      ]
+    },
+    {
+      "alloc_bin": "low",
+      "baseline_id": "zenodex_shape_reference",
+      "branching_bin": "1-2",
+      "bucket": "1-2|low|sum_type|1-2",
+      "data_structure_family": "sum_type",
+      "leader_state": "active_leader",
+      "operator_ids": [
+        "op_verify_route_composition_receipt"
+      ],
+      "promotion_targets": [
+        "scenario_corpus",
+        "negative_knowledge",
+        "runtime_contract",
+        "parity_regression"
+      ],
+      "recursion_depth_bin": "1-2",
+      "runs": [
+        "src/core/route_composition_receipt_verification_v1.py",
+        "tests/core/test_lane_module_release_route_binding_v1.py",
+        "zk/global_settlement_abi_v1/src/route_composition_receipt_verification.rs",
+        "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+        "docs/research/zrpf_shapeforge_global_epoch_admission_v1.json"
+      ],
+      "scenario_id": "scenario_verified_lane_witness_substitutes_different_route_journal",
+      "schema": "route_composition_receipt_verification",
+      "score": 0.01,
+      "source_candidate_id": "cand_verified_lane_witness_substitutes_different_route_journal_v1",
+      "source_count": 5,
+      "status": "TESTED_ONLY",
+      "tags": [
+        "schema:route_composition_receipt_verification",
+        "status:TESTED_ONLY",
+        "axis:evidence",
+        "authority:opaque_verified_route",
+        "receipt:release_image_exact_journal",
+        "parity:python_rust",
+        "boundary:writer_epoch_neighbors",
+        "negative:verified_lane_wrong_route_journal"
+      ]
+    }
+  ],
+  "schema": "shapeforge/scenario-corpus-seed/v1"
+}

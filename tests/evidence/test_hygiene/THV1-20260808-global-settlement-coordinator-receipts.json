@@ -1,0 +1,203 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260808-global-settlement-coordinator-receipts",
+  "created_date": "2026-08-08",
+  "claim_scope": "GlobalSettlementABI V1 selects a content-derived lane-coordinator release per lane and issues an opaque lane-composition witness only after exact governed-image, succinct-receipt, and canonical-journal verification at the pure verifier boundary.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GSABI-V1-CLOSED-COORDINATOR-REGISTRY",
+    "GSABI-V1-PROFILE-SELECTED-COORDINATOR",
+    "GSABI-V1-EXACT-LANE-JOURNAL",
+    "GSABI-V1-SUCCINCT-RECEIPT-ONLY",
+    "GSABI-V1-OPAQUE-LANE-WITNESS",
+    "GSABI-V1-REJECT-WITHOUT-AUTHORITY"
+  ],
+  "failure_modes": [
+    "an active route omits or substitutes its governed lane-coordinator release",
+    "a disabled lane is treated as active without DISABLED_PROVED_NO_WRITER evidence",
+    "a caller-selected coordinator image gains verification authority",
+    "an empty, conditional, composite, or verifier-rejected receipt produces a witness",
+    "a receipt verified for one canonical lane journal backs a different composition",
+    "a caller constructs the opaque verified-lane witness without the verifier"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "63d64b984905e1936b451171b0aba26460bb4399a451b4c5664841d0254e72ae"
+    },
+    {
+      "path": "src/core/global_settlement_abi_v1.py",
+      "sha256": "9bceb84c2e764bfddff30f534cf532cceb52cb87c556d148f33cf86420ec6083"
+    },
+    {
+      "path": "src/core/receipt_backed_asset_lane_composition_v1.py",
+      "sha256": "e83bf33ba8c79b20ac83d149e7ed2136f5b0f796b2d516ecf7b6f461e23f5d76"
+    },
+    {
+      "path": "src/core/lane_composition_receipt_verification_v1.py",
+      "sha256": "9d470cbad39e7bff47996dd73dbdf5b11552bc14cacbda559f1e41b99734bf46"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/release.rs",
+      "sha256": "c9ce27d3eefd7ef29cc338ec033b7d420a985e4ec778122052b7e92436db4dfe"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_module_release_route_binding.rs",
+      "sha256": "ec83c479532f6b8eb77b780440374b7a43697a22a322e7896ea2e576762e0abf"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs",
+      "sha256": "3f41b98dc39dcf0073095c5ee99b0f348806d006ab8f4758a7d674e4341e1873"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/receipt_backed_asset_lane_composition.rs",
+      "sha256": "6643c3af3ffb23c2ef9ab801264fcc0cc09c74edb2e017f003f0bf0269432ee3"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_composition_receipt_verification.rs",
+      "sha256": "5e16cddad88c3241850fca0af0c0d8627ed989ed69ef5e562737f27cdc42bcc0"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "4aecf27802470364a0f48d39128da95adfae86972659f1b0a7966aa8b4c5e84c"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/golden_vectors.rs",
+      "sha256": "c10a7b084b2224b7a2d4025f531dbf8a67e9320412ce038970ddd968379957f1"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+      "sha256": "3e56d0d360fec35987bfc92ee0d7bfc021728a4c6a8cfba088d8788994da7a22"
+    },
+    {
+      "path": "tests/data/global_settlement_abi_v1_golden.json",
+      "sha256": "8037411c0c8ea88b049949b8cc3776c6f1722fc5b64e02d59145a7d0a4430d36"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "a865473527906a53608cc02b940e76771781b555d52ee6078ad461e43bd5b5bd",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1.py::test_coordinator_release_ids_bind_profile_selected_images",
+        "tests/core/test_global_settlement_abi_v1.py::test_active_profile_requires_release_backing_or_proved_no_writer"
+      ]
+    },
+    {
+      "path": "tests/core/test_lane_module_release_route_binding_v1.py",
+      "sha256": "6149a471c16011d11d79645c3c29c1b9f699930314df66cdf28410fa1c85c781",
+      "node_ids": [
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_module_receipt_backs_only_exact_structural_lane_composition",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_structural_composition_rejects_caller_selected_coordinator_release",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_lane_composition_receipt_uses_selected_image_and_exact_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_lane_composition_receipt_rejects_empty_nonsuccinct_and_verifier_failure",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_lane_composition_receipt_rejects_wrong_journal_without_verifier_bypass",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_lane_composition_rejects_public_construction",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_valid_module_receipt_cannot_back_a_different_lane_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_receipt_backed_lane_composition_rejects_public_construction"
+      ]
+    },
+    {
+      "path": "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py",
+      "sha256": "6b9abbd7eb2e0d073b3156bbb78c5784d6fe84f42516fdff1452b7ae7c19452a",
+      "node_ids": [
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py::test_one_defect_boundary_pair_rejects_at_its_named_binding",
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py::test_writer_epoch_exact_and_both_neighbors_form_a_closed_boundary",
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py::test_boundary_exploration_preserves_diverse_outcome_path_archive",
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py::test_bounded_depth_two_frontier_has_stable_reject_precedence",
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py::test_semantically_identical_rebuild_preserves_composition_root"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "metamorphic",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange immutable releases, registries, journals, and verifier spies; act through one binding or verification call; and assert the exact witness, verifier arguments, reject code, and absence of verifier bypass."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "This pure boundary has no state, effects, or outbox. Rejection returns no VerifiedLaneCompositionV1, and structural rejects assert that the receipt verifier is never called."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "receipt_bytes",
+      "points": [
+        "zero_bytes_reject",
+        "one_byte_accepts_when_verifier_accepts"
+      ]
+    },
+    {
+      "name": "receipt_kind",
+      "points": [
+        "succinct_accept",
+        "composite_reject"
+      ]
+    },
+    {
+      "name": "writer_epoch",
+      "points": [
+        "lower_neighbor_reject",
+        "exact_accept",
+        "upper_neighbor_reject"
+      ]
+    },
+    {
+      "name": "binding_coordinate",
+      "points": [
+        "exact_accept",
+        "single_substitution_reject",
+        "two_substitutions_preserve_first-reject_precedence"
+      ]
+    },
+    {
+      "name": "coordinator_status",
+      "points": [
+        "active_for_active_route",
+        "disabled_proved_no_writer_for_disabled_lane",
+        "inconsistent_status_reject"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept a caller-selected coordinator release instead of the profile-selected release",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_structural_composition_rejects_caller_selected_coordinator_release"
+    },
+    {
+      "description": "permit an empty or non-succinct lane-composition receipt",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_lane_composition_receipt_rejects_empty_nonsuccinct_and_verifier_failure"
+    },
+    {
+      "description": "verify caller-provided journal bytes instead of the canonical lane journal",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_lane_composition_receipt_rejects_wrong_journal_without_verifier_bypass"
+    },
+    {
+      "description": "allow a verified module receipt to back a semantically different lane journal",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_valid_module_receipt_cannot_back_a_different_lane_journal"
+    },
+    {
+      "description": "expose a public constructor for the verified lane-composition authority witness",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_lane_composition_rejects_public_construction"
+    },
+    {
+      "description": "accept either neighboring writer epoch as equivalent to the exact governed epoch",
+      "killed_by": "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py::test_writer_epoch_exact_and_both_neighbors_form_a_closed_boundary"
+    }
+  ],
+  "nonclaims": [
+    "This packet does not mount a real RISC0 verifier, guest image, or cryptographic receipt.",
+    "VerifiedLaneCompositionV1 grants no route, epoch, commit, settlement, migration, or value-moving publication authority.",
+    "This packet does not prove whole-economy M6 correctness, terminal completeness, migration safety, or production readiness.",
+    "The current checkout is dirty and unfrozen; these current-file pins are scoped development evidence rather than release-candidate provenance.",
+    "Named mutation killers are reviewed semantic mutants; no automated mutation campaign is claimed.",
+    "Crash, CAS, outbox, and external-delivery histories belong to the later atomic publisher boundary and are outside this pure verifier slice."
+  ]
+}

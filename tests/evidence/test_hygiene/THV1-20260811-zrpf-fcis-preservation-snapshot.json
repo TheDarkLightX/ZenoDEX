@@ -1,0 +1,775 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260811-zrpf-fcis-preservation-snapshot",
+  "created_date": "2026-08-11",
+  "claim_scope": "The bounded staged ZRPF/FCIS preservation snapshot has exact current source and test hashes, executable Python nodes, Rust parity gates, and fail-closed evidence metadata without granting production authority.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "ZRPF-PRESERVATION-SNAPSHOT-IS-CLOSED",
+    "ZRPF-PRESERVATION-PINS-MATCH-CURRENT-BYTES",
+    "ZRPF-PRESERVATION-RETAINS-NEGATIVE-EVIDENCE",
+    "ZRPF-PRESERVATION-GRANTS-NO-PRODUCTION-AUTHORITY"
+  ],
+  "failure_modes": [
+    "a critical staged path is omitted from current evidence",
+    "a source or test changes after the preservation packet is rendered",
+    "the epoch effect plan is relabeled independently of verified route effects",
+    "a historical evidence packet is treated as current after source evolution"
+  ],
+  "source_pins": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "sha256": "64e4b7769dd438f7a80f5335e52f18d4e7eb54188474a40b0b0cd4f7edd3e454"
+    },
+    {
+      "path": "docs/testing/TEST_HYGIENE_CONTRACT_V1.md",
+      "sha256": "8b95be37229b504d863964a571328570ff69c741a54979b93b638fc95397abbc"
+    },
+    {
+      "path": "src/core/asset_lane_coordinator_v1.py",
+      "sha256": "6047468214d835ff9d6d9823d845df4ef0c4a1cd6d94f098911377daaf4996ae"
+    },
+    {
+      "path": "src/core/asset_lane_projection_v1.py",
+      "sha256": "3d0bc96044af0820d450690ea65f08fec485a1a22ec5668efa97dedd89c998fc"
+    },
+    {
+      "path": "src/core/asset_transfer_lane_module_v1.py",
+      "sha256": "8747c4fd78a3af7004fdf0f55bb3ec1a28ae33b95a769ac1f140db543c7f57f8"
+    },
+    {
+      "path": "src/core/asset_transfer_module_v1.py",
+      "sha256": "d8ac43bf64f08ea1a8318c21c4f0f6d1c5ef4baf7bb6e91820e29a2762695aef"
+    },
+    {
+      "path": "src/core/asset_transfer_types_v1.py",
+      "sha256": "53994bf808bcc6f2f83affd2daa448cbcd2515cf180a1aed8b3eceb3acb28ee5"
+    },
+    {
+      "path": "src/core/epoch_effect_composition_v1.py",
+      "sha256": "a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045"
+    },
+    {
+      "path": "src/core/global_economic_proof_v1.py",
+      "sha256": "2e588a9935e7e399e05d4551f67f8d7dfa285912a5f5d1b24588af841125d5df"
+    },
+    {
+      "path": "src/core/global_settlement_abi_v1.py",
+      "sha256": "743e55d526a21ea444c016400c5d154647fa2c258ffed02ece2ad26b335f4e34"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "c7ff7f362462502293c017fd986c14ef57c9aaa344e4b1093ea260ec18e84568"
+    },
+    {
+      "path": "src/core/lane_composition_receipt_verification_v1.py",
+      "sha256": "9d470cbad39e7bff47996dd73dbdf5b11552bc14cacbda559f1e41b99734bf46"
+    },
+    {
+      "path": "src/core/lane_module_receipt_verification_v1.py",
+      "sha256": "890a4c7b4dd19a3b7ffe6550d90f6e61ba207a785d27770de72b07eead34f958"
+    },
+    {
+      "path": "src/core/lane_module_release_route_binding_v1.py",
+      "sha256": "d9a9b1f7098c47a444d3906e7c5a9321c66906f60f530f7cc89cab0c9576f954"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_lane_module_v1.py",
+      "sha256": "fe03a6d2f62e53b1f711ad64e013c0fb85ee14621112f0ade3b317ed99b5b103"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_module_v1.py",
+      "sha256": "4e116ee9b875834dfae96f0c526a1043453c1d262c2e96a610d498d01cc5dc15"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_types_v1.py",
+      "sha256": "775c3536b0b2846b0139b31a95080a87660a62c852e09b521b18c5414b3ef9ce"
+    },
+    {
+      "path": "src/core/receipt_backed_asset_lane_composition_v1.py",
+      "sha256": "e83bf33ba8c79b20ac83d149e7ed2136f5b0f796b2d516ecf7b6f461e23f5d76"
+    },
+    {
+      "path": "src/core/route_composition_receipt_verification_v1.py",
+      "sha256": "b8a0dc2a7d269a793bb6687a35ee190d03c66dfb93f2d6acd4a994983ff5534a"
+    },
+    {
+      "path": "src/integration/global_economic_commit_v1.py",
+      "sha256": "f805da38ed5214ed773b8572ad0b3554af4c45cae6d5ab1f95dc115870842825"
+    },
+    {
+      "path": "tools/check_test_hygiene_v1.py",
+      "sha256": "3b958699f5d96591cf174e910fd6f8000be73a879f6cc369da333bfdac1a55cd"
+    },
+    {
+      "path": "tools/check_zrpf_shapeforge_global_epoch_admission_v1.py",
+      "sha256": "238c85cf91a8b9ab0d9e45769addf1bb4082b6e27f2bc653e2cb72b0073e6b46"
+    },
+    {
+      "path": "tools/run_critical_quality_gate.sh",
+      "sha256": "8e26961bff27ac0b82893cc1cb6d1689b9a3078e8c60d18fb628cf27a9d68285"
+    },
+    {
+      "path": "tools/run_test_hygiene_gate_v1.py",
+      "sha256": "591997c382d0d7d6badd2dc24cd4e5c9cd49255c009773a6274340fa4dc73cd7"
+    },
+    {
+      "path": "tools/test_hygiene_contract_v1.json",
+      "sha256": "101307caf2c8f0545fefebe3e8ef92730779fa017a5c70913816fd8e4fba2851"
+    },
+    {
+      "path": "tools/test_hygiene_evidence_v1.py",
+      "sha256": "14366eda2529e9404ec6bdb8fef9fe846cf89f232fabd4527e726646db5497e6"
+    },
+    {
+      "path": "tools/test_hygiene_model_v1.py",
+      "sha256": "8515767ba81ddc62f341e0351d24a6f5a0990631295c64306de91d5b849c7ad5"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/Cargo.lock",
+      "sha256": "277037adc2915a23512444931d0d56f861eb4b423799566f1851d6f0c7d002a3"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/Cargo.toml",
+      "sha256": "5de5fc8366f8a47c737e5a5ff3dc9055acd49de8fd663e1f3fdc3bf91c87f2b9"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/README.md",
+      "sha256": "2843156d886b9642aaf05e6c3454d44d9e1909ae36cca981759eb6fc8672d651"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/Cargo.toml",
+      "sha256": "4a22921ab493f2b849e5d041db0ef2fdc3bd7b8a8fa84d07a9c8a7b5ecb2c9e6"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/src/lib.rs",
+      "sha256": "b104f413131e5bc761d18ee0c0a93c10b6433edd02a88790da8521cb2004f1fa"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/tests/real_composition.rs",
+      "sha256": "b38235f881fbe442d708fee1ad31d35dc191097dd5600d9fd48d0c0c77d8b063"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/tests/receipt_admission.rs",
+      "sha256": "c7f54ae2b2f63dc70a8f0fdef94a9dd35af7864b64dd566bf586d03d341b62b6"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/tests/support/governed_registries.rs",
+      "sha256": "5c1ac3a59637148bf0dd3f7c96c691a3359b13439937d5073b9d121c6aae9143"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/tests/support/governed_scenario.rs",
+      "sha256": "2b3dbef11356dd0ab45fac53db056b4982daebec5fbe629c8578a64dc925b3b3"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/tests/support/mod.rs",
+      "sha256": "446053de7960758054b8fd2b14444c1745217fe5830e89ed196174ccfa4c31e9"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/methods/Cargo.toml",
+      "sha256": "82efdb21751f10dc32044e10cd46518e9417f0e87e6feb9581289caef7238723"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/methods/build.rs",
+      "sha256": "c56fcb44eb014af0293d07dcbf228337f862ed0243ec0e7fe3c5d337e134f9ea"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/methods/guest/Cargo.toml",
+      "sha256": "329d8fb34599d272bb9f54e78d19a94e63b7daa94176fffc6351244a361d959b"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/methods/guest/src/main.rs",
+      "sha256": "daf6e39d6e68017596ea4f651f9be1fa150a197a37e353b89b67dd8f33e2083c"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/methods/src/lib.rs",
+      "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/rust-toolchain.toml",
+      "sha256": "b542e162da076f0e9417ed5cdfd33c0328bbd8a60a5d21cf3d2a626fc271daa6"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/shared/Cargo.toml",
+      "sha256": "cd4f67e7e8d94f60563e297c536db2cd98dbdadd8ed56b5687d8183cad7eb087"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/shared/src/lib.rs",
+      "sha256": "809eafc966992669f2663fad4909638aa9779f5160f67153ccea8caa4a2dcb85"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/shared/tests/coordinator_preflight.rs",
+      "sha256": "bdf2bc6439c6a3c4fe716b5d5fb3e80f42acf184ff1dad750a86e462b285f932"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/Cargo.lock",
+      "sha256": "7613dc47c810e7f802023ab1bc1d450747b224c4d1c6cf2c73c82dcda064f39e"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/Cargo.toml",
+      "sha256": "5de5fc8366f8a47c737e5a5ff3dc9055acd49de8fd663e1f3fdc3bf91c87f2b9"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/README.md",
+      "sha256": "0d692badee45ef4ad53f25840fb7acf5809a06367951151f5d8dbf7f95382a1c"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/host/Cargo.toml",
+      "sha256": "8741f47d1e31a9f1912f94f12838280923daebaaecef4533b153024230a8e90a"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/host/src/lib.rs",
+      "sha256": "7c364a964de0ebf6b2176cbd3b1172afc2e95774dc0d593d30dc94906addd581"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/host/tests/real_proof.rs",
+      "sha256": "aeae8db8faa6ddaff49fc9025566a6c7ee43167ebcfd902802de113be429acbe"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/host/tests/receipt_admission.rs",
+      "sha256": "0c6a0f78b74ef36bb9ecc2b13ec0be9d31c3741b17319122ddbf1f1a3a49a7d0"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/methods/Cargo.toml",
+      "sha256": "1e60c12237460022d86c228e99204f2df0a3a911413e8c3be8678debb401a446"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/methods/build.rs",
+      "sha256": "a61096c9152a3254dd01b08d7ce5832d70cc46119841f62327a1634658630275"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/methods/guest/Cargo.toml",
+      "sha256": "ae5da30b263d6539414bc0b49971e82909abd387d71d20d582f1b57b0ae20679"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/methods/guest/src/main.rs",
+      "sha256": "4d6173d5fdf1ff1631f3563be5ca3c83b6a028243dece68ee77f7f72b855c727"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/methods/src/lib.rs",
+      "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/rust-toolchain.toml",
+      "sha256": "b542e162da076f0e9417ed5cdfd33c0328bbd8a60a5d21cf3d2a626fc271daa6"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/shared/Cargo.toml",
+      "sha256": "1a9082bbf3173f199a1d475978d4918e497b01ddfb342d2481e3a1167412856b"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/shared/src/lib.rs",
+      "sha256": "4c479de3d5f9f24b21364579ce359ba7654e0e5d7c6477c60814db18172923b5"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/shared/tests/transition_preflight.rs",
+      "sha256": "bf2542a0acd243379f0ff7eef6a70a97dba0a2477fa88bd66b2f3c113f042d6e"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/Cargo.lock",
+      "sha256": "2677498dd0a3a34d3f52f90880efa0da085a76859af928a965adc1dd3f049d43"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/Cargo.toml",
+      "sha256": "bd46dcf8c2ef57643b6424543ee79061c507e95c9d7b767ce2b372844c6dedf0"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/README.md",
+      "sha256": "53d0c8ad31aa5563ee369c227ec52eb3735571fac9ae2a3bc41fe41382a2ecdf"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/Cargo.toml",
+      "sha256": "e0c1139e4a39d3fe1d53321da8b86043d2ae1a2507e151b822c884513f3fe03f"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/src/lib.rs",
+      "sha256": "7448933c542b8fa9119f3875c53242a57526bdccc52d7dfa48cbc51942e63d95"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/tests/real_aggregation_nine.rs",
+      "sha256": "ce25ca1e807505547533e7b94d8f287693db64907bf7bae72026b34f278f72d2"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/tests/real_composition.rs",
+      "sha256": "b0e938497da9b4603c2b2409455c2a9e76e450de9b5e6a048513c0a5b768652e"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/tests/receipt_admission.rs",
+      "sha256": "4cf062d164eedaa9b73b255c626c7ebf6ecbe335bc2765bfc7fc455aa1fc85ec"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/Cargo.toml",
+      "sha256": "90b7027a2fdd2c5c6ca091394c35b95f183fc2cdfc23aed240f6f6eef9287876"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/build.rs",
+      "sha256": "a8e530a721f0daa86a8d9fe13e57d0ac8b6cbea344a9b63b0cf04df835a15189"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/epoch/Cargo.toml",
+      "sha256": "ed53afab07c4fb5ab0172d5534e6af589cd545dfbdd5531e27d0fff2f868b69f"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/epoch/src/main.rs",
+      "sha256": "a84563dbb91017431b061fc732ac40458826d650f75a3ccb9aba87050a7c8b4a"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/src/lib.rs",
+      "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/rust-toolchain.toml",
+      "sha256": "b542e162da076f0e9417ed5cdfd33c0328bbd8a60a5d21cf3d2a626fc271daa6"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/Cargo.toml",
+      "sha256": "31dc09470b1db7fba9ac9f6d77279faa0677a67508bbc4407717e17d81a9b1e8"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/src/aggregation.rs",
+      "sha256": "a853f6cc22957aa48583474944dcf905162e5911855588e0d76664131f758bf0"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/src/lib.rs",
+      "sha256": "0a1789fd05159be30464bb0f9081d37450d1249d03186f35ce42c62dfad9a446"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/src/preflight.rs",
+      "sha256": "2704b1c6d55a5653904aa32d2e2c1446545c274bf009d6eb975ef3bf7f2d50a8"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/tests/aggregation_preflight.rs",
+      "sha256": "ddcb2777bd740e8a39bbb74d1345534cd7222b4fa48ca97f3e616855e69d373b"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/tests/epoch_preflight.rs",
+      "sha256": "b0afc03869aa00ff434178ffdd3bdc9095dda8dc6fc5b363b5f94e553700c847"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/Cargo.toml",
+      "sha256": "3b5d1834d45ac79886f93588d23e348b7cbe0085d4ebbc215c9b159f0ecedc5f"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/build.rs",
+      "sha256": "d812359bf25599ed8509de87d2837a448ed63eac0d3c5ae42e71604b70b47028"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/route_structural_test_leaf/Cargo.toml",
+      "sha256": "de04101a60339085b004fadc81639fa150cc9b95bf8d75aa84a725bc6995d9af"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/route_structural_test_leaf/src/main.rs",
+      "sha256": "5c853c2a939d43704d77930dfbfbb94c38a4300c4b3769ca687296d202f834b5"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/src/lib.rs",
+      "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/Cargo.lock",
+      "sha256": "9420e887c5c030b19cdc721c339f9460ac1db0227567bcbe018337580589360a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/Cargo.toml",
+      "sha256": "ecc25a42a338c6704ea32086e5c7e79eec2358405905a47747b313d56358ee89"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/README.md",
+      "sha256": "21e90f4550abb93b9a8b44cc8959d60b2ef4583677e4961aad8611a87aca8202"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_lane_coordinator.rs",
+      "sha256": "f4b8e0a1f79855136072168938df0c2003e830966b2e1e73b45fe3adebb5de5f"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_lane_projection.rs",
+      "sha256": "0d19bc0e9896243d6ce57e79c7a8680f790ddb31c6a5c124c1ba2ffc767c9972"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer.rs",
+      "sha256": "2e5652e3c6c917ad63a84bf20688ade75e2e188b01c772bba9c057ce5143217b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer_lane_module.rs",
+      "sha256": "ec10f93a6e1665a94e7ec8564b6e45794187675247705f08d443264fa760ae41"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer_types.rs",
+      "sha256": "835e0436b40d5bfaa9996f509242386be266a1570beb1b80b95e9bdffe11960a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/canonical.rs",
+      "sha256": "da7a3df9102736bc4a50f469ac525b851dea688b9ea7219be5345347bd49c240"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs",
+      "sha256": "1b96a4a62bfc41ba9f8f437b1292facf90fdf16cf9a472fc6778bce2c420782a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/effects.rs",
+      "sha256": "fc9c3b3c52966f2e20ff6c8c66fc38bc295d8a25d8a76f347ef94c788a9ea592"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/epoch_effect_composition.rs",
+      "sha256": "8c66878bc29e4910537595a34edb5c81f707ae092e2a50345d43a082b48bbed6"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_composition_receipt_verification.rs",
+      "sha256": "5e16cddad88c3241850fca0af0c0d8627ed989ed69ef5e562737f27cdc42bcc0"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs",
+      "sha256": "3f41b98dc39dcf0073095c5ee99b0f348806d006ab8f4758a7d674e4341e1873"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_module_release_route_binding.rs",
+      "sha256": "ec83c479532f6b8eb77b780440374b7a43697a22a322e7896ea2e576762e0abf"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "c40d8e8db4b0ee8a0cc092055a98eab2bff5d5b232af27a70b824fc313d2b3d1"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/managed_asset_lifecycle.rs",
+      "sha256": "710a0dcc2584a826f0a7e440de5915aea5b5a2958cfd2bc428a0a13f1b289337"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_lane_module.rs",
+      "sha256": "52140dc2cfb1287cd9e68fa134c16d00180d05dcd6f544db1fcbd76eb3b5a437"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_types.rs",
+      "sha256": "b7e53133a01668de45e723a98456373d9e377c60eeb25c588e2141da9cfbefdd"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/migration.rs",
+      "sha256": "e5fb32536969e7c659759833f789e788e6fbe844239f3071876d3dbb32ac7653"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/proof.rs",
+      "sha256": "dbdbc7cc689bd8201e58e3ad8b96ec5eb86f2cb956ebefc98d8fb6d0ee822156"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/receipt_backed_asset_lane_composition.rs",
+      "sha256": "6643c3af3ffb23c2ef9ab801264fcc0cc09c74edb2e017f003f0bf0269432ee3"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/release.rs",
+      "sha256": "0cc42ee1b3c30e8dac0cd593986922165923856af4b40aef4c59787a1cd37f18"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/route_composition_receipt_verification.rs",
+      "sha256": "a13f1659acfeed2eb30694dbfde68bc34bdd9f2834541510eb11072880a8a82b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/state.rs",
+      "sha256": "e90b6acf4b6957a5fbfe101cc984924b7cef69fce2bf7e62423a01303f996700"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/asset_lane_coordinator.rs",
+      "sha256": "f5a7b7d975526299e64ddb8940d22d403b41911d8a00b8b929153661c305a314"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/asset_transfer.rs",
+      "sha256": "0ac68b7f6bd7f6c8410470611644f36f5fa18ca5ee3a1e6c396bc4fda9e9fb3f"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/asset_transfer_lane_module.rs",
+      "sha256": "2f761e6c1209e9b771eaa1b676657dff24601ab6085d841845f19203bc04eb2e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/golden_vectors.rs",
+      "sha256": "3bf59a75900c189daa6f5fe719d04588a6357618ea60e4966bfb99c64eefa022"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+      "sha256": "39a2839cf5f37e1a70cbaba99fd8f72247d80cb14893fbb4302a2ef126434cf2"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/managed_asset_lifecycle.rs",
+      "sha256": "8e8753e25a0623594591d9b17b6f31d7adae9c92ab7f2050c3cdc08512dd9b77"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/managed_asset_lifecycle_lane_module.rs",
+      "sha256": "36451a34c08ef80e12aabd17793a31a59d13463f1c990e5f3453c130f98f8940"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_asset_lane_coordinator_rejections_v1.py",
+      "sha256": "78485de8fe05195df626252ecb3d3b604e6e3d6b5335dcb380ec453c871ecc0e",
+      "node_ids": [
+        "tests/core/test_asset_lane_coordinator_rejections_v1.py::test_every_binding_mutation_rejects_without_effects",
+        "tests/core/test_asset_lane_coordinator_rejections_v1.py::test_state_effect_mutation_rejects_after_valid_bindings",
+        "tests/core/test_asset_lane_coordinator_rejections_v1.py::test_remaining_binding_and_economic_mutations_are_exact_noops"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_lane_coordinator_v1.py",
+      "sha256": "57c677d25e5056d30529e7cfa42847554448782edefa2da007a3ce83d2978748",
+      "node_ids": [
+        "tests/core/test_asset_lane_coordinator_v1.py::test_module_specific_states_share_one_complete_lane_projection",
+        "tests/core/test_asset_lane_coordinator_v1.py::test_current_zero_private_port_receipt_is_a_composition_noop",
+        "tests/core/test_asset_lane_coordinator_v1.py::test_bound_transfer_port_normalizes_the_common_lane_write",
+        "tests/core/test_asset_lane_coordinator_v1.py::test_bound_transfer_python_rust_canonical_vector_is_frozen",
+        "tests/core/test_asset_lane_coordinator_v1.py::test_bound_issue_port_preserves_authorized_supply_change",
+        "tests/core/test_asset_lane_coordinator_v1.py::test_projection_rejects_unnamed_supply_and_account_domain_aliases"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_transfer_lane_module_v1.py",
+      "sha256": "742aa2982e92a89d6ccff1fffbb3514ed3c2f8d8f80db13ef3167d3592eb918a",
+      "node_ids": [
+        "tests/core/test_asset_transfer_lane_module_v1.py::test_accepted_module_output_owns_the_bound_private_port",
+        "tests/core/test_asset_transfer_lane_module_v1.py::test_rejected_module_output_has_no_private_port_or_effects",
+        "tests/core/test_asset_transfer_lane_module_v1.py::test_statement_and_bound_output_roots_are_canonical_and_policy_bound"
+      ]
+    },
+    {
+      "path": "tests/core/test_asset_transfer_module_v1.py",
+      "sha256": "7aa7fbb899e3a1958cfb81c0bf311b4f81d8a44eb34a957d715f7c9ccc11e0c6",
+      "node_ids": [
+        "tests/core/test_asset_transfer_module_v1.py::test_transfer_accepts_with_canonical_fee_and_conservation_effects",
+        "tests/core/test_asset_transfer_module_v1.py::test_every_transfer_rejection_is_an_exact_no_op",
+        "tests/core/test_asset_transfer_module_v1.py::test_transfer_rejects_effect_width_before_balance_mutation",
+        "tests/core/test_asset_transfer_module_v1.py::test_zero_fee_split_and_merged_transfers_reach_the_same_state_root",
+        "tests/core/test_asset_transfer_module_v1.py::test_fee_owner_alias_is_aggregated_before_effect_projection",
+        "tests/core/test_asset_transfer_module_v1.py::test_accepted_result_rejects_a_parallel_journal_binding_mutation",
+        "tests/core/test_asset_transfer_module_v1.py::test_state_rejects_account_total_above_supply_and_u128_overflow"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "39b06072534d8f2733d7c7a92ec42677842f2e7b9376fd83db864483f7ef9717",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1.py::test_closed_lane_registry_and_global_state_require_every_lane",
+        "tests/core/test_global_settlement_abi_v1.py::test_release_ids_bind_content_while_semver_remains_descriptive",
+        "tests/core/test_global_settlement_abi_v1.py::test_coordinator_release_ids_bind_profile_selected_images",
+        "tests/core/test_global_settlement_abi_v1.py::test_route_release_ids_bind_composer_image_and_source_manifests",
+        "tests/core/test_global_settlement_abi_v1.py::test_governed_route_rejects_unknown_disabled_and_caller_selected_routes",
+        "tests/core/test_global_settlement_abi_v1.py::test_active_profile_requires_release_backing_or_proved_no_writer",
+        "tests/core/test_global_settlement_abi_v1.py::test_effect_plan_enforces_conservation_fee_projection_and_external_only_outbox",
+        "tests/core/test_global_settlement_abi_v1.py::test_rejected_transition_is_exact_noop_with_empty_effects",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_global_effect_plan_unrelated_to_verified_route_effects",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_route_effect_plan_with_wrong_committed_root",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_applies_count_bva",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_disconnected_histories",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_duplicate_and_overflowed_totals",
+        "tests/core/test_global_settlement_abi_v1.py::test_asset_lane_epoch_effect_composer_rejects_outbox_and_terminal_scope_expansion",
+        "tests/core/test_global_settlement_abi_v1.py::test_command_aggregation_journal_uses_canonical_fanout_bva",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_shape_rejects_zero_65_and_route_width_9",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_witness_boundary_counts_are_admitted",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_certificate_binds_exact_guest_route_assumption_roots",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_missing_foreign_and_journal_substituted_route_witnesses",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_noncanonical_command_and_route_witness_order",
+        "tests/core/test_global_settlement_abi_v1.py::test_migration_certificate_rejects_skipped_predecessor_and_epoch_jump",
+        "tests/core/test_global_settlement_abi_v1.py::test_atomic_commit_is_idempotent_and_binding_rejects_are_noops",
+        "tests/core/test_global_settlement_abi_v1.py::test_commit_rejects_certificate_chain_and_deployment_drift_as_noop",
+        "tests/core/test_global_settlement_abi_v1.py::test_committed_replay_requires_exact_context_and_binding_tuple",
+        "tests/core/test_global_settlement_abi_v1.py::test_concurrent_roots_have_one_atomic_winner_and_one_stale_noop"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1_parity.py",
+      "sha256": "3fc4b2b75eb077a44bbadf43e834eb2e7304cc2a18bd96a5a64f953cc6cbccb5",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1_parity.py::test_consensus_integer_widths_reject_cross_language_overflow",
+        "tests/core/test_global_settlement_abi_v1_parity.py::test_u128_amount_above_u64_remains_canonical",
+        "tests/core/test_global_settlement_abi_v1_parity.py::test_committed_golden_fixture_matches_typed_python_renderer"
+      ]
+    },
+    {
+      "path": "tests/core/test_lane_module_release_route_binding_v1.py",
+      "sha256": "8d67edd6231e0c4828a9276febbe7027b419c8417baf898544afda33f573f508",
+      "node_ids": [
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_asset_output_gets_opaque_active_profile_release_route_binding",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_issue_and_burn_bind_to_their_exact_governed_routes",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_caller_selected_route_and_inactive_profile_fail_closed",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_command_substitution_and_unregistered_module_release_fail_closed",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_occurrence_subject_and_cross_domain_substitution_fail_closed",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_release_route_bound_witness_rejects_public_construction",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_module_receipt_verification_uses_release_image_and_exact_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_module_receipts_gain_only_release_image_bound_authority",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_module_receipt_rejects_empty_nonsuccinct_and_verifier_failure",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_structural_binding_cannot_authorize_a_mutated_module_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_module_witness_rejects_public_construction",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_module_receipt_backs_only_exact_structural_lane_composition",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_structural_composition_rejects_caller_selected_coordinator_release",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_lane_composition_receipt_uses_selected_image_and_exact_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_lane_composition_receipt_rejects_empty_nonsuccinct_and_verifier_failure",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_lane_composition_receipt_rejects_wrong_journal_without_verifier_bypass",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_lane_composition_rejects_public_construction",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_valid_module_receipt_cannot_back_a_different_lane_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_receipt_backed_lane_composition_rejects_public_construction",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_receipt_uses_selected_image_and_exact_lane_witness",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_rejects_structural_duplicate_and_journal_substitution",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_valid_lane_witness_cannot_back_a_different_route_lane_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_receipt_rejects_empty_wrong_kind_and_verifier_failure",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_verified_route_composition_rejects_public_construction",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_semantically_identical_route_rebuild_preserves_verified_binding_root"
+      ]
+    },
+    {
+      "path": "tests/core/test_managed_asset_lifecycle_lane_module_v1.py",
+      "sha256": "caccc47c0faab5cd7d384e007e43caca63c6647ea0c5b19f9d7de76054fe83be",
+      "node_ids": [
+        "tests/core/test_managed_asset_lifecycle_lane_module_v1.py::test_issue_and_burn_outputs_own_ports_and_compose_without_fixture_rebinding",
+        "tests/core/test_managed_asset_lifecycle_lane_module_v1.py::test_zero_issue_rejects_without_port_effects_or_state_change",
+        "tests/core/test_managed_asset_lifecycle_lane_module_v1.py::test_python_rust_issue_and_burn_bound_output_roots_match"
+      ]
+    },
+    {
+      "path": "tests/core/test_managed_asset_lifecycle_module_v1.py",
+      "sha256": "af0d8a746ebd013ca6986c5bd462089373d7003edc6d869b63ca5d7a875f5085",
+      "node_ids": [
+        "tests/core/test_managed_asset_lifecycle_module_v1.py::test_named_issue_profile_increases_account_and_supply_exactly",
+        "tests/core/test_managed_asset_lifecycle_module_v1.py::test_profile_bound_self_burn_decreases_account_and_supply_exactly",
+        "tests/core/test_managed_asset_lifecycle_module_v1.py::test_python_rust_issue_and_burn_canonical_vectors_are_pinned",
+        "tests/core/test_managed_asset_lifecycle_module_v1.py::test_every_protocol_managed_asset_rejects_generic_issue_and_burn",
+        "tests/core/test_managed_asset_lifecycle_module_v1.py::test_every_lifecycle_rejection_is_an_exact_noop",
+        "tests/core/test_managed_asset_lifecycle_module_v1.py::test_effect_width_and_supply_overflow_reject_before_mutation",
+        "tests/core/test_managed_asset_lifecycle_module_v1.py::test_state_forbids_generic_authority_on_protocol_managed_assets",
+        "tests/core/test_managed_asset_lifecycle_module_v1.py::test_accepted_result_rejects_parallel_journal_mutation"
+      ]
+    },
+    {
+      "path": "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py",
+      "sha256": "6b9abbd7eb2e0d073b3156bbb78c5784d6fe84f42516fdff1452b7ae7c19452a",
+      "node_ids": [
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py::test_one_defect_boundary_pair_rejects_at_its_named_binding",
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py::test_writer_epoch_exact_and_both_neighbors_form_a_closed_boundary",
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py::test_boundary_exploration_preserves_diverse_outcome_path_archive",
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py::test_bounded_depth_two_frontier_has_stable_reject_precedence",
+        "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py::test_semantically_identical_rebuild_preserves_composition_root"
+      ]
+    },
+    {
+      "path": "tests/test_check_test_hygiene_v1.py",
+      "sha256": "dcd12ec33ecf6b49251acde6c8b4aef8b5e6ba7defddfe94f734997bb44cdc56",
+      "node_ids": [
+        "tests/test_check_test_hygiene_v1.py::test_changed_critical_path_requires_evidence_packet",
+        "tests/test_check_test_hygiene_v1.py::test_current_pins_and_strong_evidence_cover_critical_change",
+        "tests/test_check_test_hygiene_v1.py::test_stale_source_pin_rejects_packet",
+        "tests/test_check_test_hygiene_v1.py::test_required_boundary_family_needs_boundary_inventory",
+        "tests/test_check_test_hygiene_v1.py::test_named_mutation_must_be_killed_by_pinned_node",
+        "tests/test_check_test_hygiene_v1.py::test_existing_evidence_packets_are_append_only",
+        "tests/test_check_test_hygiene_v1.py::test_deleted_test_requires_explicit_replacement",
+        "tests/test_check_test_hygiene_v1.py::test_deleted_test_replacement_must_be_a_pinned_test",
+        "tests/test_check_test_hygiene_v1.py::test_path_traversal_in_packet_rejects",
+        "tests/test_check_test_hygiene_v1.py::test_noncritical_document_change_needs_no_packet",
+        "tests/test_check_test_hygiene_v1.py::test_unknown_contract_field_rejects_fail_closed",
+        "tests/test_check_test_hygiene_v1.py::test_repository_contract_and_bootstrap_packet_are_structurally_valid",
+        "tests/test_check_test_hygiene_v1.py::test_default_contract_retains_mandatory_critical_path_probes",
+        "tests/test_check_test_hygiene_v1.py::test_pull_request_ci_runs_diff_aware_hygiene_gate",
+        "tests/test_check_test_hygiene_v1.py::test_critical_quality_gate_validates_static_hygiene_contract"
+      ]
+    },
+    {
+      "path": "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py",
+      "sha256": "3499e77a7fb73cf464c94a016458e554a6d86c36a396ddf27a9e488b9a2eb57f",
+      "node_ids": [
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_shape_bridge_is_closed_source_bound_and_unmounted",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_production_authority_cannot_be_enabled_by_metadata_edit",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_missing_world_model_slice_rejects",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_scenario_cannot_mix_or_change_the_single_evidence_axis",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_verified_route_witness_guard_cannot_be_dropped",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_route_assumption_root_guard_cannot_be_dropped",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_exact_route_effect_plan_aggregation_guard_cannot_be_dropped",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_missing_asset_module_output_slice_rejects",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_missing_managed_lifecycle_output_slice_rejects",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_missing_release_route_binding_slice_rejects",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_missing_module_receipt_verification_slice_rejects",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_missing_receipt_backed_lane_composition_slice_rejects",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_missing_route_composition_receipt_slice_rejects",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_synthetic_structural_journal_negative_knowledge_is_required",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_host_fixture_rebinding_negative_knowledge_is_required",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_managed_lifecycle_rebinding_negative_knowledge_is_required",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_occurrence_only_release_route_negative_knowledge_is_required",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_structural_binding_module_receipt_negative_knowledge_is_required",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_valid_receipt_wrong_lane_journal_negative_knowledge_is_required",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_valid_lane_witness_wrong_route_journal_negative_knowledge_is_required",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_development_import_must_mirror_tactic_and_scenario",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_source_hash_drift_rejects",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_duplicate_contract_key_rejects_before_validation",
+        "tests/test_check_zrpf_shapeforge_global_epoch_admission_v1.py::test_cli_report_is_stable_json"
+      ]
+    },
+    {
+      "path": "tests/test_run_test_hygiene_gate_v1.py",
+      "sha256": "d45395e5f4188cb14ef5bd133c4edfecdcc0822b388f358f2ddad9bb6292b3df",
+      "node_ids": [
+        "tests/test_run_test_hygiene_gate_v1.py::test_runner_executes_exact_nodes_without_shell",
+        "tests/test_run_test_hygiene_gate_v1.py::test_runner_skips_process_when_diff_has_no_critical_nodes",
+        "tests/test_run_test_hygiene_gate_v1.py::test_runner_propagates_pytest_failure"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "stateful",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Pinned tests arrange typed state and adversarial mutations, act through deterministic cores or fail-closed checkers, and assert exact acceptance, rejection, roots, effects, and no-op behavior."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Receipt, composition, replay, migration, and hygiene regressions assert rejection before witness creation or durable mutation."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "epoch_route_count",
+      "points": [
+        "zero_rejects",
+        "one_accepts",
+        "eight_accepts",
+        "nine_accepts",
+        "sixty_four_accepts",
+        "sixty_five_rejects"
+      ]
+    },
+    {
+      "name": "source_pin_freshness",
+      "points": [
+        "exact_current_bytes_accept",
+        "one_byte_drift_rejects"
+      ]
+    },
+    {
+      "name": "receipt_binding",
+      "points": [
+        "exact_journal_accepts",
+        "foreign_or_relabelled_journal_rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "allow a changed critical path without current evidence",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_changed_critical_path_requires_evidence_packet"
+    },
+    {
+      "description": "accept a stale source hash in the selected evidence packet",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_stale_source_pin_rejects_packet"
+    },
+    {
+      "description": "allow an unrelated epoch effect plan beside valid route evidence",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_rejects_global_effect_plan_unrelated_to_verified_route_effects"
+    }
+  ],
+  "nonclaims": [
+    "This is a research-only preservation snapshot and grants no settlement, publication, migration, or writer capability.",
+    "Host and static guest tests do not establish complete recursive-proof soundness or production verifier governance.",
+    "Real RISC0 proof regeneration and high-load recursion remain deferred to Runpod.",
+    "The current effect composer remains restricted to sequential ASSET_TRANSFER routes without terminal or external-outbox composition.",
+    "The broader M6 safe-mount and whole-economy candidate is outside this replayable snapshot."
+  ]
+}

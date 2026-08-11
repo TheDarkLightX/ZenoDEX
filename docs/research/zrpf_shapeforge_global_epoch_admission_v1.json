@@ -1,0 +1,628 @@
+{
+  "schema": "zenodex/zrpf-shapeforge-global-epoch-admission/v1",
+  "status": "RESEARCH_ONLY_UNMOUNTED",
+  "production_authority": false,
+  "world_model_id": "zenodex_shape_reference_v3",
+  "phi": {
+    "slice_id": "global_epoch_receipt_admission",
+    "axis": "evidence",
+    "improvement_target": "contract strengthening",
+    "claim": "Scoped RC3 settlement evidence may be reused as donor evidence. The first real ASSET_TRANSFER economic leaf proves the exact stable Rust transition and canonical module journal, and one historical source-scoped recursive coordinator proof consumes that exact module receipt into the exact canonical lane journal. The stable profile-committed coordinator registry and release-aware lane verifier exist, while the current content-derived active test-profile replay was interrupted and remains deferred to Runpod. Global epoch publication requires every canonical route journal to pair with its exact opaque VerifiedRouteCompositionV1, public image-and-journal assumption root, and root-bound disclosed route effect plan. A deterministic checked composer must derive the exact certificate-bound epoch plan before resolved Succinct child assumptions and release-selected root-receipt verification can construct VerifiedEconomicEpochV1 for atomic commit admission.",
+    "target_evidence_class": "contract",
+    "state_variables": [
+      "economic_profile",
+      "epoch_certificate",
+      "ordered_route_journals",
+      "ordered_route_assumption_roots",
+      "ordered_verified_routes",
+      "ordered_route_effect_plans",
+      "effect_plan",
+      "receipt_bytes",
+      "release_selected_receipt_verifier",
+      "body_and_state",
+      "ledger_head"
+    ],
+    "operators": [
+      "verify_economic_epoch",
+      "commit_verified_economic_epoch"
+    ],
+    "guards": [
+      "active_governed_profile_route",
+      "exact_epoch_binding",
+      "exact_verified_route_witnesses",
+      "exact_route_assumption_roots",
+      "exact_route_effect_plan_aggregation",
+      "release_selected_succinct_receipt",
+      "opaque_verified_epoch_only",
+      "atomic_head_profile_body_binding"
+    ],
+    "observables": [
+      "verification_outcome",
+      "commit_outcome",
+      "published_epoch_record"
+    ],
+    "canonical_keys": [
+      "economic_occurrence_position"
+    ],
+    "evidence": [
+      {
+        "claim": "The existing settlement strong-validation ShapeForge slice supplies scoped economic donor evidence.",
+        "class": "proved",
+        "source": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json#slice_id=settlement_strong_validation"
+      },
+      {
+        "claim": "The Python reference consumes one immutable EconomicEpochReceiptCandidateV1 and exposes a verifier-owned opaque epoch witness only after exact opaque route witnesses and disclosed route effect plans pair with ordered route journals, and the checked ASSET_TRANSFER composer derives the exact certificate-bound epoch plan.",
+        "class": "contract",
+        "source": "src/core/global_economic_proof_v1.py#verify_economic_epoch_v1"
+      },
+      {
+        "claim": "The Rust ABI reference implements the parallel 1-through-64 route-witness boundary, exact route-effect root and occurrence binding, checked ASSET_TRANSFER epoch composition, and the same route-bound commit identifier shape without mounting a verifier or writer.",
+        "class": "implemented",
+        "source": "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs"
+      },
+      {
+        "claim": "The in-memory publisher accepts only the opaque witness and rechecks head, profile, body, post-state, DA, finality, height, and command cardinality under one lock.",
+        "class": "contract",
+        "source": "src/integration/global_economic_commit_v1.py#GlobalEconomicCommitPortV1"
+      },
+      {
+        "claim": "Focused Python and Rust tests accept exact route-witness and route-effect boundaries at 1, 8, 9, and 64 and reject unrelated epoch effects, wrong route-effect roots, disconnected histories, repeated occurrences, arithmetic overflow, outbox and terminal scope expansion, zero, sixty-five, missing, foreign, reordered, wrong-kind, empty, and verifier-rejected evidence before witness construction.",
+        "class": "tested_discovery",
+        "source": "tests/core/test_global_settlement_abi_v1.py"
+      },
+      {
+        "claim": "The pinned no_std RISC0 guest implements a closed direct-epoch, command-aggregation, or aggregated-epoch statement and rederives exact route journals, assumption roots, canonical groups of eight, state sequencing, and module-leaf totals before env::verify.",
+        "class": "implemented",
+        "source": "zk/global_economic_epoch_risc0/methods/epoch/src/main.rs"
+      },
+      {
+        "claim": "A release-evidence test generated one real structural child, one real command-aggregation receipt, and one real direct epoch receipt under exact images and journals; the child proves only recursion plumbing and no route economics.",
+        "class": "tested_discovery",
+        "source": "zk/global_economic_epoch_risc0/host/tests/real_composition.rs"
+      },
+      {
+        "claim": "A second release-evidence test generated nine distinct structural route receipts, canonical 8+1 command aggregations, and one exact aggregated epoch root as 12 real Succinct receipts in 985.82 seconds.",
+        "class": "tested_discovery",
+        "source": "zk/global_economic_epoch_risc0/host/tests/real_aggregation_nine.rs"
+      },
+      {
+        "claim": "An independently versioned ASSET_TRANSFER module guest imports the exact stable Rust transition, emits no receipt on typed economic rejection, and generated one real RISC0 3.0.6 Succinct receipt over the exact canonical LaneModuleTransitionJournalV1 in 569.75 seconds; fake, wrong-image, and wrong-journal evidence rejects.",
+        "class": "tested_discovery",
+        "source": "zk/asset_transfer_module_risc0/host/tests/real_proof.rs"
+      },
+      {
+        "claim": "An independently versioned asset-lane coordinator guest hard-codes the exact module image, re-executes the module and deterministic coordinator, resolves the exact module receipt with env::verify, and generated one historical real Succinct lane receipt over the canonical LaneCompositionJournalV1 in 1,443.67 seconds including the child proof; the pinned adapter rejects wrong-image and wrong-journal evidence.",
+        "class": "tested_discovery",
+        "source": "zk/asset_lane_coordinator_risc0/README.md"
+      },
+      {
+        "claim": "The stable Rust ABI commits a typed lane-coordinator registry in the profile and constructs opaque VerifiedLaneCompositionV1 only after exact active release, occurrence, structural root, canonical journal, SUCCINCT receipt, image, and injected-verifier checks pass.",
+        "class": "implemented",
+        "source": "zk/global_settlement_abi_v1/src/lane_composition_receipt_verification.rs"
+      },
+      {
+        "claim": "The current host fixture constructs content-derived module, coordinator, route, and active test-profile records and invokes the stable verifier through the pinned RISC0 adapter. It compiles and passes fast gates; the real replay was interrupted with exit code 130 for thermal safety, so no release-aware binding root or successful receipt result is claimed.",
+        "class": "tested_discovery",
+        "source": "zk/asset_lane_coordinator_risc0/host/tests/real_composition.rs"
+      }
+    ],
+    "gaps": [
+      "the recursive epoch guest commits effect roots but does not yet execute or prove route-effect aggregation; the current deterministic admission composer is host-side contract evidence",
+      "route-effect aggregation is implemented only for single-lane ASSET_TRANSFER routes with zero terminal obligations and no external outbox rows",
+      "successful real release-aware VerifiedLaneCompositionV1 replay on Runpod and a RISC0 route-composer receipt consuming that verified economic lane receipt",
+      "real module receipts for managed asset lifecycle and every other enabled economic family",
+      "full 64-command 73-receipt real replay and resource benchmark",
+      "release-selected mounted cryptographic receipt verifier implementation",
+      "durable crash-recoverable atomic publisher",
+      "complete M6 route mounting and no-bypass writer closure",
+      "proved state migration and writer-epoch cutover"
+    ],
+    "negative_knowledge": [
+      "synthetic_structural_journal_authorizes_global_epoch_v1"
+    ],
+    "shape_delta": [
+      "preserve scoped RC3 settlement proofs at their existing evidence class",
+      "package parallel epoch-verification inputs in one immutable typed candidate",
+      "make exact opaque route-witness pairing a prerequisite for epoch admission",
+      "commit each exact child image and route-journal pair in a public route-assumption root",
+      "bind each disclosed route effect plan to its exact route-journal root and derive the only admissible epoch plan through a checked deterministic composer",
+      "lock the epoch effect composer to one Python/Rust golden aggregate root and retain unrelated-plan, disconnected-history, duplicate, overflow, zero, and sixty-five counterexamples",
+      "resolve direct and canonical fanout-8 Succinct child assumptions in one pinned RISC0 guest with real proof evidence through nine commands",
+      "prove one actual ASSET_TRANSFER transition in a separately pinned module image using the exact host Rust core and canonical module journal",
+      "recursively consume the exact ASSET_TRANSFER module receipt in a separately pinned coordinator image and commit the exact module-owned lane journal",
+      "make the profile-committed coordinator registry and verifier-controlled opaque lane witness explicit while retaining the interrupted replay as an open evidence gap",
+      "make publication authority an explicit opaque root-verifier witness",
+      "make structural, synthetic, foreign, and reordered route evidence inadmissible as authority",
+      "record the remaining guest, verifier, publisher, migration, and mount gaps"
+    ]
+  },
+  "implemented_deltas": [
+    {
+      "slice_id": "asset_transfer_lane_module_output",
+      "axis": "operator",
+      "improvement_target": "contract strengthening",
+      "status": "contract",
+      "claim": "Accepted asset transfers now return a module-owned private port and rebound structural journal with exact Python/Rust roots, while rejection preserves the existing typed exact no-op and no cryptographic or publication authority is introduced."
+    },
+    {
+      "slice_id": "managed_asset_lifecycle_lane_module_output",
+      "axis": "operator",
+      "improvement_target": "contract strengthening",
+      "status": "contract",
+      "claim": "Accepted ordinary-token issue and self-burn transitions now return module-owned private ports and rebound structural journals with twelve exact Python/Rust roots, while every existing typed rejection remains an exact no-op and named protocol-asset authority stays excluded."
+    },
+    {
+      "slice_id": "lane_module_release_route_binding",
+      "axis": "guard",
+      "improvement_target": "contract strengthening",
+      "status": "contract",
+      "claim": "Accepted transfer, ordinary-token issue, and self-burn outputs now gain an opaque structural witness only after the complete typed input matches the active profile-derived route, lane release, command occurrence, subject, grant, domain, writer epoch, and rebound journal, with one exact Python/Rust binding root and no cryptographic or publication authority."
+    },
+    {
+      "slice_id": "lane_module_receipt_verification",
+      "axis": "evidence",
+      "improvement_target": "contract strengthening",
+      "status": "contract",
+      "claim": "Accepted asset-transfer, ordinary-token issue, and self-burn outputs gain an opaque verified-module witness only after exact structural rebinding, active-release guest-image selection, explicit nonempty SUCCINCT receipt data, and verifier acceptance of the exact canonical module journal bytes, with matching Python/Rust witness, journal-digest, and receipt-digest roots. One separate unmounted RISC0 guest and pinned adapter establish this boundary for an exact ASSET_TRANSFER receipt; managed lifecycle, governed profile selection, route proof, and publication authority remain absent."
+    },
+    {
+      "slice_id": "receipt_backed_asset_lane_composition",
+      "axis": "evidence",
+      "improvement_target": "contract strengthening",
+      "status": "contract",
+      "claim": "One opaque verified asset-lane module witness backs a structural lane-composition candidate only when its exact journal root and canonical-byte digest match the coordinator input and the active profile-derived single-lane route and deterministic coordinator acceptance reconcile, with one matching Python/Rust root and explicit RECEIPT_BACKED_STRUCTURAL_ONLY authority. A separate unmounted RISC0 coordinator guest and pinned adapter historically consumed the exact module receipt and verified one exact lane receipt. The stable profile-committed coordinator registry and release-aware opaque lane constructor exist; the current content-derived active test-profile replay was interrupted, and no deployment-selected verifier, route, epoch, or publication authority exists."
+    },
+    {
+      "slice_id": "route_composition_receipt_verification",
+      "axis": "evidence",
+      "improvement_target": "contract strengthening",
+      "status": "contract",
+      "claim": "The active profile now governs content-derived route composer image and manifest roots, and one opaque VerifiedRouteCompositionV1 is constructible only after the exact ordered lane journals pair with exact opaque verified-lane witnesses and a release-selected verifier accepts explicit nonempty SUCCINCT receipt bytes over the canonical route journal, with matching Python/Rust journal digest and binding root and no real guest, epoch, commit, settlement, migration, or publication authority."
+    }
+  ],
+  "required_artifacts": [
+    {
+      "name": "world_model",
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json"
+    },
+    {
+      "name": "tactic_bank",
+      "path": "docs/zenodex/shapeforge_promoted/tactic_bank.seed.json"
+    },
+    {
+      "name": "scenario_corpus",
+      "path": "docs/zenodex/shapeforge_promoted/scenario_corpus.seed.json"
+    },
+    {
+      "name": "development_import",
+      "path": "docs/zenodex/shapeforge_promoted/development_import_bundle.json"
+    },
+    {
+      "name": "negative_knowledge",
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_negative_knowledge.seed.json"
+    }
+  ],
+  "source_pins": [
+    {
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json",
+      "sha256": "d382544a431a200f7b0ef2303a5ab5595ef067387d34466cb2a8f82fac966789"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/tactic_bank.seed.json",
+      "sha256": "170929d0ffcdf52191f14d18560160747b1838cd6cfc6f90acf54168744d633f"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/scenario_corpus.seed.json",
+      "sha256": "e2543385a34c923ae8b37f17605ec1a543705a11ed1695ea135e8de67aca7730"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/development_import_bundle.json",
+      "sha256": "34aa849f41070eac0746beb3fef70842e1420ff4097e59f7ddd75060de4c433a"
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_negative_knowledge.seed.json",
+      "sha256": "45f27ea6311762c9b7c766b11709ecc9c0f06d450ec40e28f046dd897c2ded55"
+    },
+    {
+      "path": "src/core/epoch_effect_composition_v1.py",
+      "sha256": "a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045"
+    },
+    {
+      "path": "src/core/global_economic_proof_v1.py",
+      "sha256": "2e588a9935e7e399e05d4551f67f8d7dfa285912a5f5d1b24588af841125d5df"
+    },
+    {
+      "path": "src/integration/global_economic_commit_v1.py",
+      "sha256": "f805da38ed5214ed773b8572ad0b3554af4c45cae6d5ab1f95dc115870842825"
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "39b06072534d8f2733d7c7a92ec42677842f2e7b9376fd83db864483f7ef9717"
+    },
+    {
+      "path": "tests/core/test_asset_lane_coordinator_v1.py",
+      "sha256": "57c677d25e5056d30529e7cfa42847554448782edefa2da007a3ce83d2978748"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/README.md",
+      "sha256": "21e90f4550abb93b9a8b44cc8959d60b2ef4583677e4961aad8611a87aca8202"
+    },
+    {
+      "path": "src/core/asset_transfer_lane_module_v1.py",
+      "sha256": "8747c4fd78a3af7004fdf0f55bb3ec1a28ae33b95a769ac1f140db543c7f57f8"
+    },
+    {
+      "path": "tests/core/test_asset_transfer_lane_module_v1.py",
+      "sha256": "742aa2982e92a89d6ccff1fffbb3514ed3c2f8d8f80db13ef3167d3592eb918a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_transfer_lane_module.rs",
+      "sha256": "ec10f93a6e1665a94e7ec8564b6e45794187675247705f08d443264fa760ae41"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/asset_transfer_lane_module.rs",
+      "sha256": "2f761e6c1209e9b771eaa1b676657dff24601ab6085d841845f19203bc04eb2e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "c40d8e8db4b0ee8a0cc092055a98eab2bff5d5b232af27a70b824fc313d2b3d1"
+    },
+    {
+      "path": "src/core/managed_asset_lifecycle_lane_module_v1.py",
+      "sha256": "fe03a6d2f62e53b1f711ad64e013c0fb85ee14621112f0ade3b317ed99b5b103"
+    },
+    {
+      "path": "tests/core/test_managed_asset_lifecycle_lane_module_v1.py",
+      "sha256": "caccc47c0faab5cd7d384e007e43caca63c6647ea0c5b19f9d7de76054fe83be"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_lane_module.rs",
+      "sha256": "52140dc2cfb1287cd9e68fa134c16d00180d05dcd6f544db1fcbd76eb3b5a437"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/managed_asset_lifecycle_lane_module.rs",
+      "sha256": "36451a34c08ef80e12aabd17793a31a59d13463f1c990e5f3453c130f98f8940"
+    },
+    {
+      "path": "src/core/lane_module_release_route_binding_v1.py",
+      "sha256": "d9a9b1f7098c47a444d3906e7c5a9321c66906f60f530f7cc89cab0c9576f954"
+    },
+    {
+      "path": "tests/core/test_lane_module_release_route_binding_v1.py",
+      "sha256": "8d67edd6231e0c4828a9276febbe7027b419c8417baf898544afda33f573f508"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/release.rs",
+      "sha256": "0cc42ee1b3c30e8dac0cd593986922165923856af4b40aef4c59787a1cd37f18"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_module_release_route_binding.rs",
+      "sha256": "ec83c479532f6b8eb77b780440374b7a43697a22a322e7896ea2e576762e0abf"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+      "sha256": "39a2839cf5f37e1a70cbaba99fd8f72247d80cb14893fbb4302a2ef126434cf2"
+    },
+    {
+      "path": "src/core/lane_module_receipt_verification_v1.py",
+      "sha256": "890a4c7b4dd19a3b7ffe6550d90f6e61ba207a785d27770de72b07eead34f958"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs",
+      "sha256": "3f41b98dc39dcf0073095c5ee99b0f348806d006ab8f4758a7d674e4341e1873"
+    },
+    {
+      "path": "src/core/receipt_backed_asset_lane_composition_v1.py",
+      "sha256": "e83bf33ba8c79b20ac83d149e7ed2136f5b0f796b2d516ecf7b6f461e23f5d76"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/receipt_backed_asset_lane_composition.rs",
+      "sha256": "6643c3af3ffb23c2ef9ab801264fcc0cc09c74edb2e017f003f0bf0269432ee3"
+    },
+    {
+      "path": "tests/core/test_receipt_backed_asset_lane_composition_boundaries_v1.py",
+      "sha256": "6b9abbd7eb2e0d073b3156bbb78c5784d6fe84f42516fdff1452b7ae7c19452a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/asset_lane_projection.rs",
+      "sha256": "0d19bc0e9896243d6ce57e79c7a8680f790ddb31c6a5c124c1ba2ffc767c9972"
+    },
+    {
+      "path": "src/core/global_settlement_types_v1.py",
+      "sha256": "c7ff7f362462502293c017fd986c14ef57c9aaa344e4b1093ea260ec18e84568"
+    },
+    {
+      "path": "src/core/global_settlement_abi_v1.py",
+      "sha256": "743e55d526a21ea444c016400c5d154647fa2c258ffed02ece2ad26b335f4e34"
+    },
+    {
+      "path": "src/core/route_composition_receipt_verification_v1.py",
+      "sha256": "b8a0dc2a7d269a793bb6687a35ee190d03c66dfb93f2d6acd4a994983ff5534a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/route_composition_receipt_verification.rs",
+      "sha256": "a13f1659acfeed2eb30694dbfde68bc34bdd9f2834541510eb11072880a8a82b"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/epoch_effect_composition.rs",
+      "sha256": "8c66878bc29e4910537595a34edb5c81f707ae092e2a50345d43a082b48bbed6"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs",
+      "sha256": "1b96a4a62bfc41ba9f8f437b1292facf90fdf16cf9a472fc6778bce2c420782a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/golden_vectors.rs",
+      "sha256": "3bf59a75900c189daa6f5fe719d04588a6357618ea60e4966bfb99c64eefa022"
+    },
+    {
+      "path": "tests/data/global_settlement_abi_v1_golden.json",
+      "sha256": "eb5c0678c835692f8c490b7ef36b60ea2d2ba729a3ad6d4541bd8aa03ee71ff6"
+    },
+    {
+      "path": "tools/render_global_settlement_abi_v1_golden.py",
+      "sha256": "0890ebdbd7b9df0ffcb3e84a32b5d20f027ad6eb23023e545256032f0b179c14"
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1_parity.py",
+      "sha256": "3fc4b2b75eb077a44bbadf43e834eb2e7304cc2a18bd96a5a64f953cc6cbccb5"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/Cargo.toml",
+      "sha256": "bd46dcf8c2ef57643b6424543ee79061c507e95c9d7b767ce2b372844c6dedf0"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/Cargo.lock",
+      "sha256": "2677498dd0a3a34d3f52f90880efa0da085a76859af928a965adc1dd3f049d43"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/rust-toolchain.toml",
+      "sha256": "b542e162da076f0e9417ed5cdfd33c0328bbd8a60a5d21cf3d2a626fc271daa6"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/README.md",
+      "sha256": "53d0c8ad31aa5563ee369c227ec52eb3735571fac9ae2a3bc41fe41382a2ecdf"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/Cargo.toml",
+      "sha256": "31dc09470b1db7fba9ac9f6d77279faa0677a67508bbc4407717e17d81a9b1e8"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/src/lib.rs",
+      "sha256": "0a1789fd05159be30464bb0f9081d37450d1249d03186f35ce42c62dfad9a446"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/src/preflight.rs",
+      "sha256": "2704b1c6d55a5653904aa32d2e2c1446545c274bf009d6eb975ef3bf7f2d50a8"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/src/aggregation.rs",
+      "sha256": "a853f6cc22957aa48583474944dcf905162e5911855588e0d76664131f758bf0"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/tests/epoch_preflight.rs",
+      "sha256": "b0afc03869aa00ff434178ffdd3bdc9095dda8dc6fc5b363b5f94e553700c847"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/shared/tests/aggregation_preflight.rs",
+      "sha256": "ddcb2777bd740e8a39bbb74d1345534cd7222b4fa48ca97f3e616855e69d373b"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/Cargo.toml",
+      "sha256": "90b7027a2fdd2c5c6ca091394c35b95f183fc2cdfc23aed240f6f6eef9287876"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/build.rs",
+      "sha256": "a8e530a721f0daa86a8d9fe13e57d0ac8b6cbea344a9b63b0cf04df835a15189"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/src/lib.rs",
+      "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/epoch/Cargo.toml",
+      "sha256": "ed53afab07c4fb5ab0172d5534e6af589cd545dfbdd5531e27d0fff2f868b69f"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/methods/epoch/src/main.rs",
+      "sha256": "a84563dbb91017431b061fc732ac40458826d650f75a3ccb9aba87050a7c8b4a"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/Cargo.toml",
+      "sha256": "e0c1139e4a39d3fe1d53321da8b86043d2ae1a2507e151b822c884513f3fe03f"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/src/lib.rs",
+      "sha256": "7448933c542b8fa9119f3875c53242a57526bdccc52d7dfa48cbc51942e63d95"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/tests/receipt_admission.rs",
+      "sha256": "4cf062d164eedaa9b73b255c626c7ebf6ecbe335bc2765bfc7fc455aa1fc85ec"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/tests/real_composition.rs",
+      "sha256": "b0e938497da9b4603c2b2409455c2a9e76e450de9b5e6a048513c0a5b768652e"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/host/tests/real_aggregation_nine.rs",
+      "sha256": "ce25ca1e807505547533e7b94d8f287693db64907bf7bae72026b34f278f72d2"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/Cargo.toml",
+      "sha256": "3b5d1834d45ac79886f93588d23e348b7cbe0085d4ebbc215c9b159f0ecedc5f"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/build.rs",
+      "sha256": "d812359bf25599ed8509de87d2837a448ed63eac0d3c5ae42e71604b70b47028"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/src/lib.rs",
+      "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/route_structural_test_leaf/Cargo.toml",
+      "sha256": "de04101a60339085b004fadc81639fa150cc9b95bf8d75aa84a725bc6995d9af"
+    },
+    {
+      "path": "zk/global_economic_epoch_risc0/test_methods/route_structural_test_leaf/src/main.rs",
+      "sha256": "5c853c2a939d43704d77930dfbfbb94c38a4300c4b3769ca687296d202f834b5"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/Cargo.toml",
+      "sha256": "5de5fc8366f8a47c737e5a5ff3dc9055acd49de8fd663e1f3fdc3bf91c87f2b9"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/Cargo.lock",
+      "sha256": "7613dc47c810e7f802023ab1bc1d450747b224c4d1c6cf2c73c82dcda064f39e"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/rust-toolchain.toml",
+      "sha256": "b542e162da076f0e9417ed5cdfd33c0328bbd8a60a5d21cf3d2a626fc271daa6"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/README.md",
+      "sha256": "0d692badee45ef4ad53f25840fb7acf5809a06367951151f5d8dbf7f95382a1c"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/shared/Cargo.toml",
+      "sha256": "1a9082bbf3173f199a1d475978d4918e497b01ddfb342d2481e3a1167412856b"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/shared/src/lib.rs",
+      "sha256": "4c479de3d5f9f24b21364579ce359ba7654e0e5d7c6477c60814db18172923b5"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/shared/tests/transition_preflight.rs",
+      "sha256": "bf2542a0acd243379f0ff7eef6a70a97dba0a2477fa88bd66b2f3c113f042d6e"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/methods/Cargo.toml",
+      "sha256": "1e60c12237460022d86c228e99204f2df0a3a911413e8c3be8678debb401a446"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/methods/build.rs",
+      "sha256": "a61096c9152a3254dd01b08d7ce5832d70cc46119841f62327a1634658630275"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/methods/src/lib.rs",
+      "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/methods/guest/Cargo.toml",
+      "sha256": "ae5da30b263d6539414bc0b49971e82909abd387d71d20d582f1b57b0ae20679"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/methods/guest/src/main.rs",
+      "sha256": "4d6173d5fdf1ff1631f3563be5ca3c83b6a028243dece68ee77f7f72b855c727"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/host/Cargo.toml",
+      "sha256": "8741f47d1e31a9f1912f94f12838280923daebaaecef4533b153024230a8e90a"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/host/src/lib.rs",
+      "sha256": "7c364a964de0ebf6b2176cbd3b1172afc2e95774dc0d593d30dc94906addd581"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/host/tests/receipt_admission.rs",
+      "sha256": "0c6a0f78b74ef36bb9ecc2b13ec0be9d31c3741b17319122ddbf1f1a3a49a7d0"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/host/tests/real_proof.rs",
+      "sha256": "aeae8db8faa6ddaff49fc9025566a6c7ee43167ebcfd902802de113be429acbe"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/Cargo.toml",
+      "sha256": "5de5fc8366f8a47c737e5a5ff3dc9055acd49de8fd663e1f3fdc3bf91c87f2b9"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/Cargo.lock",
+      "sha256": "277037adc2915a23512444931d0d56f861eb4b423799566f1851d6f0c7d002a3"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/rust-toolchain.toml",
+      "sha256": "b542e162da076f0e9417ed5cdfd33c0328bbd8a60a5d21cf3d2a626fc271daa6"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/README.md",
+      "sha256": "2843156d886b9642aaf05e6c3454d44d9e1909ae36cca981759eb6fc8672d651"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/shared/Cargo.toml",
+      "sha256": "cd4f67e7e8d94f60563e297c536db2cd98dbdadd8ed56b5687d8183cad7eb087"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/shared/src/lib.rs",
+      "sha256": "809eafc966992669f2663fad4909638aa9779f5160f67153ccea8caa4a2dcb85"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/shared/tests/coordinator_preflight.rs",
+      "sha256": "bdf2bc6439c6a3c4fe716b5d5fb3e80f42acf184ff1dad750a86e462b285f932"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/methods/Cargo.toml",
+      "sha256": "82efdb21751f10dc32044e10cd46518e9417f0e87e6feb9581289caef7238723"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/methods/build.rs",
+      "sha256": "c56fcb44eb014af0293d07dcbf228337f862ed0243ec0e7fe3c5d337e134f9ea"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/methods/src/lib.rs",
+      "sha256": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/methods/guest/Cargo.toml",
+      "sha256": "329d8fb34599d272bb9f54e78d19a94e63b7daa94176fffc6351244a361d959b"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/methods/guest/src/main.rs",
+      "sha256": "daf6e39d6e68017596ea4f651f9be1fa150a197a37e353b89b67dd8f33e2083c"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/Cargo.toml",
+      "sha256": "4a22921ab493f2b849e5d041db0ef2fdc3bd7b8a8fa84d07a9c8a7b5ecb2c9e6"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/src/lib.rs",
+      "sha256": "b104f413131e5bc761d18ee0c0a93c10b6433edd02a88790da8521cb2004f1fa"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/tests/receipt_admission.rs",
+      "sha256": "c7f54ae2b2f63dc70a8f0fdef94a9dd35af7864b64dd566bf586d03d341b62b6"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/tests/real_composition.rs",
+      "sha256": "b38235f881fbe442d708fee1ad31d35dc191097dd5600d9fd48d0c0c77d8b063"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/tests/support/mod.rs",
+      "sha256": "446053de7960758054b8fd2b14444c1745217fe5830e89ed196174ccfa4c31e9"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/tests/support/governed_registries.rs",
+      "sha256": "5c1ac3a59637148bf0dd3f7c96c691a3359b13439937d5073b9d121c6aae9143"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/host/tests/support/governed_scenario.rs",
+      "sha256": "2b3dbef11356dd0ab45fac53db056b4982daebec5fbe629c8578a64dc925b3b3"
+    }
+  ],
+  "nonclaims": [
+    "No cryptographic receipt verifier implementation is authenticated or selected by a mounted economic release; the GlobalSettlementABI reference exposes an injected verifier port and the sibling RISC0 crate remains unmounted.",
+    "The RISC0 guest has real direct, command-aggregation, and 9-command nested recursion evidence; the full 64-command real replay remains absent.",
+    "The module_journal.receipt_root fields are deterministic statement commitments and are distinct from cryptographic receipt bytes and their artifact digests; one separate ASSET_TRANSFER receipt has been generated and verified.",
+    "ReceiptBackedAssetLaneCompositionV1 remains structural-only; the historical source-scoped coordinator receipt cannot substitute for a successful current release-aware replay or deployment-selected VerifiedLaneCompositionV1 authority.",
+    "VerifiedRouteCompositionV1 is an input to bounded host-side epoch admission and carries no standalone epoch, commit, settlement, migration, outbox, or publication authority.",
+    "The quarantined structural child guest commits caller-supplied journal bytes and proves no route transition, authorization, conservation, release status, or economics; its image must never enter an economic profile.",
+    "The real ASSET_TRANSFER module receipt and its historical source-scoped recursive coordinator receipt are unmounted. The current active test-profile fixture uses synthetic evidence labels and a placeholder route image, and no governed route composer, recursive economic epoch, or publisher consumes the lane receipt.",
+    "The current release-aware real replay was interrupted with exit code 130 for workstation thermal safety; it produced no recorded VerifiedLaneCompositionV1 binding root and must be rerun on Runpod before any stronger evidence claim.",
+    "No real economic route guest ELF or authenticated mounted route verifier is supplied by this slice.",
+    "The 64-command path has typed BVA and fail-closed partition evidence but no full 73-receipt real replay, cycle benchmark, or throughput claim.",
+    "The accepted route-composition corpus currently exercises a one-lane ASSET_TRANSFER route; general multi-lane port and effect pairing remains open.",
+    "The route-to-epoch effect composer is deterministic host-side admission logic for single-lane ASSET_TRANSFER routes with zero terminal obligations and no outbox rows. The recursive epoch guest does not yet prove this aggregation, and the composer carries no publication authority by itself.",
+    "The in-memory commit shell does not establish durable transactionality or crash recovery.",
+    "No complete M6 route profile, migration, writer rotation, or legacy-writer retirement is mounted.",
+    "This ShapeForge contract does not grant production authority or whole-economy production readiness."
+  ]
+}
