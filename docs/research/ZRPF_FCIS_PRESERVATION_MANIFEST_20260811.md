@@ -4,6 +4,8 @@ Status: `RESEARCH_ONLY_UNMOUNTED`
 
 This manifest records the bounded source snapshot preserved on branch
 `codex/zrpf-global-settlement-fcis-20260811` from base commit
+`b135030f3b960609f2d6cca805a5a38433d63bf4`. That parent adds the M6 RISC0
+semantic-surface checker and is itself based directly on
 `12bde5263b8855e0ac76bd49b3de402e3e6f9b76`.
 
 ## Included scope
