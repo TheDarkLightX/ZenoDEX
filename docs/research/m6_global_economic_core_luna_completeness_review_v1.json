@@ -1,0 +1,280 @@
+{
+  "schema": "zenodex/m6-global-economic-core-luna-completeness-review/v1",
+  "status": "RESEARCH_ONLY_REVIEWED_WITH_BLOCKERS",
+  "production_promotion": false,
+  "review_subject": {
+    "base_commit": "12bde5263b8855e0ac76bd49b3de402e3e6f9b76",
+    "contract_sha256": "4a05e1e9d82c9b4a806d71b3ed33673e338777c4503bc4489d08fbb81514c6c8",
+    "esso_model_sha256": "3f0b63ec02bec43ddfe8eecb93de4741c2e9c56558b3fd7b9e8c2fc8b24bb4fc",
+    "fleet_manifest_ref": "sha256:f238049b4866e168ba64804377a79f368494de2a389c47f426ad8875cbb97675",
+    "reviewer_model": "gpt-5.6-luna",
+    "review_task_ids": [
+      "m6-completeness-users",
+      "m6-completeness-accounting",
+      "m6-completeness-authority",
+      "m6-completeness-durability",
+      "m6-completeness-formal"
+    ]
+  },
+  "current_revision": {
+    "contract_path": "docs/research/m6_global_economic_core_atdd_bdd_v1.json",
+    "contract_sha256": "4a05e1e9d82c9b4a806d71b3ed33673e338777c4503bc4489d08fbb81514c6c8",
+    "esso_model_path": "src/kernels/dex/m6_global_economic_commit_v1.yaml",
+    "esso_model_sha256": "5d059bc63d00033aa99461b40812bee2d9d4466f11585228b9a1fa79fdfe90cb",
+    "revision_scope": "retain bounded-model repairs; freeze shutdown exclusion, ZenoLedger-native classification, Tau-optional ZenoLedger continuity, named managed-asset issue and burn policy, and sealed-bid day-one workflow requirements pending a fresh fleet review"
+  },
+  "source_pins": [
+    {"path": "src/integration/tau_testnet_dex_plugin.py", "sha256": "d585ad8820680430cc9fc3408c9864ac4638f1b4716ffe3939e310e475e12095"},
+    {"path": "tools/zeno_ledger_run_local.py", "sha256": "dad175f9dc2549978d272fb0274ea7711035916309eb291872b5182389c1dbdf"},
+    {"path": "src/integration/zusd_monetary_bridge.py", "sha256": "8a0c49e3a78b31c92910c08c33dec5ff4a3b8fca2196249c8be5275c4ae7f9d5"},
+    {"path": "src/core/zusd.py", "sha256": "f6e15cc1663069f214f7e1495c38ce63f74bb81913060e0964db411db2be6b29"},
+    {"path": "src/integration/perp_engine.py", "sha256": "43cb862d21e6840cbb53dc511cb202d7cf820b55f7fb3fee5c99785a1790702d"},
+    {"path": "src/state/intents.py", "sha256": "a18962cf010f421b83e0ed10364c07087ec0282b5ebb7a56f6d3568f374aa901"},
+    {"path": "src/integration/confidential_sealed_bid_api.py", "sha256": "3c38cfc9f1b6e3b70625adee9f6b6c4ab46f21576e40359334aafc98ab93ecd2"}
+  ],
+  "confirmed_findings": [
+    {
+      "id": "CE-001",
+      "classification": "EXPLOIT_OR_COUNTEREXAMPLE",
+      "severity": "BLOCKER",
+      "title": "stale host snapshot resurrects spent native value",
+      "affected_requirements": ["INV-003", "INV-008", "INV-009", "INV-012"],
+      "witness": "CREATE_POOL debits 1000 native from 10000 and returns patch 9000; a second app call with the unchanged 10000 host snapshot restores the account to 10000.",
+      "evidence": [
+        "src/integration/tau_testnet_dex_plugin.py:332-349",
+        "src/integration/tau_testnet_dex_plugin.py:1176-1180",
+        "tools/zeno_ledger_run_local.py:1631-1715",
+        "tools/zeno_ledger_run_local.py:1739-1748",
+        "local reproduction: first_native_after=9000, second_native_after=10000, resurrected_units=1000"
+      ],
+      "status": "OPEN_BLOCKER",
+      "required_disposition": "Bind one authenticated current native-custody snapshot to the head and atomically consume the returned patch, or include native custody directly in the authoritative ZenoLedger state transition."
+    },
+    {
+      "id": "CE-002",
+      "classification": "SEMANTIC_GAP",
+      "severity": "BLOCKER",
+      "title": "caller-constructible native snapshot acts as a direct writer",
+      "affected_requirements": ["INV-003", "INV-008", "INV-012"],
+      "witness": "apply_app_tx on empty state with chain_balances={attacker:1000000000} and no operations accepts a state containing that native balance.",
+      "evidence": [
+        "src/integration/tau_testnet_dex_plugin.py:332-349",
+        "src/integration/tau_testnet_dex_plugin.py:1145-1180",
+        "local reproduction: caller_injected_native_units=1000000000"
+      ],
+      "status": "OPEN_BLOCKER",
+      "required_disposition": "Replace the mapping authority with an opaque host-authenticated snapshot or current-head custody witness and kill stale, altered, foreign-deployment, and noncanonical-account mutations."
+    },
+    {
+      "id": "CE-003",
+      "classification": "SEMANTIC_GAP",
+      "severity": "BLOCKER",
+      "title": "unknown operation stream is accepted as a successful no-op",
+      "affected_requirements": ["INV-005", "INV-006", "INV-012"],
+      "witness": "operations stream 99 containing a mint-shaped payload returns ok=true, a nonempty state, and a nonempty state hash.",
+      "evidence": [
+        "src/integration/tau_testnet_dex_plugin.py:1159-1166",
+        "local reproduction: operations={99:{action:mint,amount:10}} returned ok=true"
+      ],
+      "status": "OPEN_BLOCKER",
+      "required_disposition": "Admit a closed top-level operation language and reject unknown, duplicate, or conflicting current and legacy streams before evaluation."
+    },
+    {
+      "id": "CE-004",
+      "classification": "EXPLOIT_OR_COUNTEREXAMPLE",
+      "severity": "BLOCKER",
+      "title": "cardinality-only outbox model admitted a phantom deliverable effect",
+      "affected_requirements": ["INV-009", "INV-010"],
+      "witness": "initial -> advance_head_with_independent_safe_commit -> deliver_next_effect delivered one effect although no candidate or effect record existed.",
+      "evidence": [
+        "reviewed src/kernels/dex/m6_global_economic_commit_v1.yaml sha256:3f0b63ec02bec43ddfe8eecb93de4741c2e9c56558b3fd7b9e8c2fc8b24bb4fc"
+      ],
+      "status": "REPAIRED_IN_BOUNDED_MODEL",
+      "required_disposition": "The current model no longer creates outbox capacity on an unrelated head advance; full EffectId, payload, destination, acknowledgment, and destination-idempotency refinement remain open."
+    },
+    {
+      "id": "CE-005",
+      "classification": "SEMANTIC_GAP",
+      "severity": "HIGH",
+      "title": "stale-candidate rejection mutated the complete modeled state",
+      "affected_requirements": ["INV-005"],
+      "witness": "stage mint -> independent head advance -> reject_stale_candidate cleared candidate fields while reporting rejection no-op.",
+      "evidence": [
+        "reviewed src/kernels/dex/m6_global_economic_commit_v1.yaml sha256:3f0b63ec02bec43ddfe8eecb93de4741c2e9c56558b3fd7b9e8c2fc8b24bb4fc"
+      ],
+      "status": "REPAIRED_IN_BOUNDED_MODEL",
+      "required_disposition": "The current stale rejection performs no update. Transient candidate cleanup and durable rejection remain separate lifecycle relations."
+    },
+    {
+      "id": "CE-006",
+      "classification": "SEMANTIC_GAP",
+      "severity": "HIGH",
+      "title": "fee-staking apportionment lacks a productive dust policy",
+      "affected_requirements": ["INV-003", "INV-004", "INV-014"],
+      "witness": "one whole-zUSD fee over three equal fee shares produces 99999999 E8 claimable units and one E8 residue; the current bridge fails closed because pool and claimants are unequal.",
+      "evidence": [
+        "src/integration/zusd_monetary_bridge.py:2958-2974",
+        "src/integration/zusd_monetary_bridge.py:3084-3102",
+        "src/integration/zusd_monetary_bridge.py:3017-3029",
+        "local arithmetic reproduction: fee_e8=100000000, claimable_e8=99999999, unassigned_dust_e8=1"
+      ],
+      "status": "OPEN_PRODUCT_AND_THEOREM_DECISION",
+      "required_disposition": "Choose a deterministic residue owner or residual allocator and prove exact claimability and terminal drain, or explicitly restrict accepted stake configurations and document the availability boundary."
+    },
+    {
+      "id": "CE-007",
+      "classification": "ASSURANCE_DEBT",
+      "severity": "HIGH",
+      "title": "desired multi-vault redemption scenario exceeds mounted implementation",
+      "affected_requirements": ["INV-003", "INV-014"],
+      "witness": "BDD-028 promises a committing redemption across multiple vaults while the baseline core rejects unimplemented prefix traversal and full-close surplus routing.",
+      "evidence": [
+        "docs/research/m6_global_economic_core_atdd_bdd_v1.json:146-150",
+        "src/core/zusd.py:1576-1584"
+      ],
+      "status": "OPEN_BLOCKER",
+      "required_disposition": "Mount and prove prefix traversal and surplus routing, or mark the scenario unsupported and require deterministic rejection."
+    },
+    {
+      "id": "CE-008",
+      "classification": "ASSURANCE_DEBT",
+      "severity": "HIGH",
+      "title": "desired exact debt close lacks a mounted command path",
+      "affected_requirements": ["INV-005", "INV-014"],
+      "witness": "BDD-025 promises exact close while baseline repayment rejects exact repayment and the main command union has no owner-close tag.",
+      "evidence": [
+        "docs/research/m6_global_economic_core_atdd_bdd_v1.json:127-136",
+        "src/core/zusd.py:56-69",
+        "src/core/zusd.py:666-676"
+      ],
+      "status": "OPEN_BLOCKER",
+      "required_disposition": "Mount the separate owner-close transition through the same authority and publication path, or declare exact close unsupported."
+    }
+  ],
+  "required_spec_expansions": [
+    {
+      "id": "RSE-001",
+      "title": "native custody snapshot and patch mediation",
+      "required_scenario_classes": ["authentication", "conservation", "concurrency", "recovery", "mutation"],
+      "minimum_acceptance": [
+        "A native custody snapshot binds chain, deployment, head, height, canonical accounts, and source receipt.",
+        "Sequential transitions consume the committed post-snapshot rather than reusing the block pre-snapshot.",
+        "The native patch and internal native delta publish at one linearization point.",
+        "Altered, stale, foreign, duplicate-account, and noncanonical snapshots reject without mutation."
+      ]
+    },
+    {
+      "id": "RSE-002",
+      "title": "closed operation language and profile isolation",
+      "required_scenario_classes": ["unknown_variant", "alias_conflict", "test_profile", "production_profile", "rejection"],
+      "minimum_acceptance": [
+        "Unknown streams and duplicate semantic variants reject.",
+        "Current and legacy aliases cannot coexist unless exact equivalence is proved.",
+        "Faucet, unsigned-intent, permissive-settlement, and isolated-perps flags belong to a root-bound test-only profile that production rejects."
+      ]
+    },
+    {
+      "id": "RSE-003",
+      "title": "complete economic state and delta certificate",
+      "required_scenario_classes": ["per_asset", "custody", "liability", "rounding", "overflow", "cross_workflow"],
+      "minimum_acceptance": [
+        "Every asset source, sink, custody bucket, claim, reserve, reward, fee, margin, PnL, and residue appears in one typed delta certificate.",
+        "Native collateral, Stability Pool collateral, protocol collateral, reward custody, DEX pools, LP supply, and perps liabilities are reconciled alongside zUSD.",
+        "Zero, one, max-minus-one, max, overflow, rounding, and dust boundaries are executable."
+      ]
+    },
+    {
+      "id": "RSE-004",
+      "title": "fee staking and fee-owner lifecycle",
+      "required_scenario_classes": ["stake", "activation", "accrual", "dust", "claim", "unstake", "authorization", "replay", "terminal"],
+      "minimum_acceptance": [
+        "stake_fee_shares, activate_fee_stake, unstake_fee_shares, claim_protocol_fees, claim_host_fees, claim_staking_fees, and claim_fee_rewards are explicit workflows.",
+        "Every current fee owner, reserve, reward debt, residue, and terminal drain reconciles exactly."
+      ]
+    },
+    {
+      "id": "RSE-005",
+      "title": "zUSD exact close and multi-vault redemption",
+      "required_scenario_classes": ["owner_close", "prefix_traversal", "surplus_route", "rejection", "replay", "terminal"],
+      "minimum_acceptance": [
+        "The mounted command language explicitly supports or excludes owner close and multi-vault redemption.",
+        "Full-close surplus, ordering, fees, collateral, debt, and terminal state are atomically bound."
+      ]
+    },
+    {
+      "id": "RSE-006",
+      "title": "perps operator and funding-closeout recovery",
+      "required_scenario_classes": ["operator_authority", "partial_liquidation", "insurance", "funding", "carry", "recovery", "shared_oracle", "terminal"],
+      "minimum_acceptance": [
+        "Market parameter changes, partial liquidation, insurance deposits, funding application, carried liabilities, and recovery settlements have explicit value and authority contracts.",
+        "zUSD and perps share one authenticated world-price context or reject divergence."
+      ]
+    },
+    {
+      "id": "RSE-007",
+      "title": "pool creation and generic non-managed token lifecycle",
+      "required_scenario_classes": ["create_pool", "generic_mint", "generic_burn", "authorization", "supply", "replay", "overflow", "terminal"],
+      "minimum_acceptance": [
+        "CREATE_POOL binds both debits, reserves, locked LP shares, creator shares, fee profile, curve, nonce, and duplicate-pool rejection.",
+        "Generic mint and burn apply only to an explicitly allowed non-managed asset profile with exact supply conservation."
+      ]
+    },
+    {
+      "id": "RSE-008",
+      "title": "cancellation expiry and abandonment",
+      "required_scenario_classes": ["cancel", "expire", "replace", "refund", "slash", "abandon", "replay"],
+      "minimum_acceptance": [
+        "Every pending asset-bearing intent, perps request, and sealed-bid bond has an explicit cancellation, expiry, abandonment, refund, slash, or permanent-rejection owner.",
+        "Expiry cannot strand custody or recreate value on retry."
+      ]
+    },
+    {
+      "id": "RSE-009",
+      "title": "effect identity delivery and acknowledgment",
+      "required_scenario_classes": ["membership", "delivery", "lost_ack", "redelivery", "collision", "wrong_destination", "lease", "recovery"],
+      "minimum_acceptance": [
+        "Each external effect binds commit, ordinal, destination, payload, adapter profile, and writer epoch.",
+        "Delivery requires committed membership and destination idempotency; acknowledgment retains the same lineage.",
+        "Internal ZenoLedger balance changes never create outbox work."
+      ]
+    },
+    {
+      "id": "RSE-010",
+      "title": "competing publication and reopen authority",
+      "required_scenario_classes": ["two_writer", "same_nonce", "lost_response", "crash_pre", "crash_post", "partial_layout", "reauthorize"],
+      "minimum_acceptance": [
+        "At least two immutable candidates can race on one head and exactly one can commit.",
+        "Canonical reopen accepts exact PRE or POST or rejects and never restores writer authority without a fresh head-bound latch."
+      ]
+    },
+    {
+      "id": "RSE-011",
+      "title": "workflow to model and evidence coverage registry",
+      "required_scenario_classes": ["modeled", "implemented", "mounted", "tested", "excluded", "gap"],
+      "minimum_acceptance": [
+        "Every workflow and invariant maps to exact model actions, implementation entrypoints, publication paths, and executable evidence, or carries an explicit GAP or EXCLUDED status.",
+        "No prose-only workflow contributes to completeness or promotion."
+      ]
+    }
+  ],
+  "scope_decisions": [
+    {"feature": "zUSD emergency shutdown", "status": "EXCLUDED_UNMOUNTED_DAY_ONE", "rule": "The production command registry, UI submit paths, recovery paths, and publisher must make shutdown activation unreachable; the research extension carries no authority."},
+    {"feature": "confidential sealed-bid settlement", "status": "IN_SCOPE_DAY_ONE_REQUIRED_WITH_GAP", "rule": "Commitment, bond custody, reveal, deterministic clearing, asset settlement, refund, slash, cancellation, expiry, replay, crash recovery, and no-bypass must join the same M6 subject before the UI can move value."},
+    {"feature": "test faucet and unsigned intents", "status": "TEST_ONLY_EXCLUDED_FROM_PRODUCTION", "rule": "A root-bound test deployment profile may enable them; every production or unknown profile rejects."},
+    {"feature": "generic non-zUSD token mint and burn", "status": "TRANSFER_ONLY_DEFAULT_NAMED_AUTHORITY_REQUIRED", "rule": "Production ordinary assets default to transfer-only; each allowed issue or burn path requires a named versioned asset profile, while zUSD, LP shares, native coin, and ZDEX use their protocol-specific authorities."},
+    {"feature": "autotrader and autonomous governance", "status": "IN_SCOPE_AS_CALLERS", "rule": "They may propose commands and must pass the same authentication, core, publication, and no-bypass path."},
+    {"feature": "cross-shard and remote destination effects", "status": "INTERNAL_LEDGER_ATOMIC_EXTERNAL_ONLY_OUTBOX", "rule": "Native balances and all same-ledger custody changes publish atomically in ZenoLedger; only genuinely external destinations use committed effect identity, retry-safe delivery, and acknowledgment lineage."}
+  ],
+  "discarded_review_artifacts": [
+    "Reviewer claims that ESSO was unavailable arose from the deliberately minimal disposable snapshot; ESSO validation and Z3/CVC5 verification were rerun in the authoritative workspace.",
+    "Reviewer claims that focused tests were absent arose from snapshot layout and do not apply to the authoritative workspace.",
+    "Reviewer claims that Git metadata was unavailable arose from intentionally excluding .git from disposable snapshots; the review subject remains source-hash bound."
+  ],
+  "nonclaims": [
+    "Five Luna packets are adversarial review evidence and are not proofs.",
+    "The repaired bounded ESSO model establishes only its declared finite invariants.",
+    "The workflow catalogue is still incomplete until every required expansion and scope decision is closed.",
+    "The native-custody counterexamples remain open runtime blockers.",
+    "No M6 requirement is promoted to PROVED, IMPLEMENTED, MOUNTED, or TESTED by this review."
+  ]
+}

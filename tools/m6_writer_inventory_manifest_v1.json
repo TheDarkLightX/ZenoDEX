@@ -1,0 +1,722 @@
+{
+  "coverage_contract": {
+    "required_assurance_statuses": [
+      "SPECIFIED",
+      "IMPLEMENTED",
+      "PROVED",
+      "MOUNTED",
+      "TESTED",
+      "TERMINAL_COMPLETE",
+      "MIGRATABLE",
+      "NO_BYPASS",
+      "RELEASE_BACKED"
+    ],
+    "required_bindings": [
+      "module_release",
+      "transition",
+      "canonical_effect_projection",
+      "proof_profile",
+      "route",
+      "terminal_path",
+      "adapter",
+      "evidence"
+    ],
+    "rows": [
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/core/batch_clearing.py::apply_settlement", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/spot-liquidity-settlement/v0",
+        "coverage_id": "coverage_legacy_core_apply_settlement",
+        "entrypoint_id": "legacy_core_apply_settlement",
+        "lane_ids": ["SPOT_LIQUIDITY"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-02", "WF-03", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/core/batch_clearing.py::apply_settlement_pure", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/spot-liquidity-settlement/v0",
+        "coverage_id": "coverage_legacy_core_apply_settlement_pure",
+        "entrypoint_id": "legacy_core_apply_settlement_pure",
+        "lane_ids": ["SPOT_LIQUIDITY"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-02", "WF-03", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/core/batch_clearing_apply_settlement.py::apply_settlement_with_factories", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/spot-liquidity-settlement/v0",
+        "coverage_id": "coverage_legacy_core_apply_settlement_with_factories",
+        "entrypoint_id": "legacy_core_apply_settlement_with_factories",
+        "lane_ids": ["SPOT_LIQUIDITY"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-02", "WF-03", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/validation.py::apply_operations", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/spot-liquidity-settlement/v0",
+        "coverage_id": "coverage_legacy_validation_apply_operations",
+        "entrypoint_id": "legacy_validation_apply_operations",
+        "lane_ids": ["SPOT_LIQUIDITY"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-02", "WF-03", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/dex_engine.py::apply_ops", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/dex-operations/v1",
+        "coverage_id": "coverage_legacy_dex_apply_ops",
+        "entrypoint_id": "legacy_dex_apply_ops",
+        "lane_ids": ["SPOT_LIQUIDITY"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-02", "WF-03", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/tau_testnet_dex_plugin.py::apply_app_tx", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/tau-application-multiplex/v1",
+        "coverage_id": "coverage_legacy_tau_apply_app_tx",
+        "entrypoint_id": "legacy_tau_apply_app_tx",
+        "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "PROOF_REWARDS"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/tau_testnet_dex_plugin.py::propose_app_tx_v1", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/tau-application-multiplex/v1",
+        "coverage_id": "coverage_legacy_tau_typed_proposal",
+        "entrypoint_id": "legacy_tau_typed_proposal",
+        "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "PROOF_REWARDS"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/tau_testnet_dex_plugin.py::_compute_app_tx_proposal_legacy_v1", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/tau-application-multiplex/v1",
+        "coverage_id": "coverage_legacy_tau_proposal_engine",
+        "entrypoint_id": "legacy_tau_proposal_engine",
+        "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "PROOF_REWARDS"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/zeno_ledger_v0.py::apply_body_transactions_v0", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/zenoledger-dex-body/v0",
+        "coverage_id": "coverage_legacy_zeno_ledger_apply_body_transactions",
+        "entrypoint_id": "legacy_zeno_ledger_apply_body_transactions",
+        "lane_ids": ["SPOT_LIQUIDITY"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-02", "WF-03", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/zusd_monetary_bridge.py::apply_zusd_monetary_ops", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/zusd-monetary-stream-11/v1",
+        "coverage_id": "coverage_legacy_zusd_apply_ops",
+        "entrypoint_id": "legacy_zusd_apply_ops",
+        "lane_ids": ["ZUSD_MONETARY", "ORACLE_MARKET"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-12", "WF-16", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/perp_engine.py::apply_perp_ops", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/perps-stream-8/v1",
+        "coverage_id": "coverage_legacy_perp_apply_ops",
+        "entrypoint_id": "legacy_perp_apply_ops",
+        "lane_ids": ["PERPS_MARKET"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-09", "WF-10", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/proof_mining_runtime.py::apply_proof_mining_claim", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/proof-reward-stream-10/v1",
+        "coverage_id": "coverage_legacy_proof_mining_apply_claim",
+        "entrypoint_id": "legacy_proof_mining_apply_claim",
+        "lane_ids": ["PROOF_REWARDS"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-11", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/zeno_ledger_cross_shard_effect_application.py::apply_terminal_cross_shard_ledger_effects_to_state_v0", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/external-custody-terminal-effects/v0",
+        "coverage_id": "coverage_legacy_cross_shard_terminal_state",
+        "entrypoint_id": "legacy_cross_shard_terminal_state",
+        "lane_ids": ["EXTERNAL_CUSTODY"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-14", "WF-15", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/zeno_ledger_cross_shard_effect_application.py::apply_terminal_cross_shard_ledger_effects_to_balances_v0", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/external-custody-terminal-effects/v0",
+        "coverage_id": "coverage_legacy_cross_shard_terminal_balances",
+        "entrypoint_id": "legacy_cross_shard_terminal_balances",
+        "lane_ids": ["EXTERNAL_CUSTODY"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-14", "WF-15", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/zeno_ledger_cross_shard_effect_application.py::apply_cross_shard_ledger_effects_to_state_v0", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/external-custody-effects/v0",
+        "coverage_id": "coverage_legacy_cross_shard_state",
+        "entrypoint_id": "legacy_cross_shard_state",
+        "lane_ids": ["EXTERNAL_CUSTODY"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-14", "WF-15", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/zeno_ledger_cross_shard_effect_application.py::apply_cross_shard_ledger_effects_to_balances_v0", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/external-custody-effects/v0",
+        "coverage_id": "coverage_legacy_cross_shard_balances",
+        "entrypoint_id": "legacy_cross_shard_balances",
+        "lane_ids": ["EXTERNAL_CUSTODY"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-14", "WF-15", "WF-17"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/confidential_sealed_bid_api.py::ConfidentialSealedBidTable.commit", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/sealed-auction-commit/v1",
+        "coverage_id": "coverage_legacy_sealed_bid_commit",
+        "entrypoint_id": "legacy_sealed_bid_commit",
+        "lane_ids": ["SEALED_AUCTION"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-17", "WF-18"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/confidential_sealed_bid_api.py::ConfidentialSealedBidTable.settle", "status": "LEGACY_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "legacy/sealed-auction-settle/v1",
+        "coverage_id": "coverage_legacy_sealed_bid_settle",
+        "entrypoint_id": "legacy_sealed_bid_settle",
+        "lane_ids": ["SEALED_AUCTION"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-17", "WF-18"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/m6_commit_port_v1.py::M6CommitPortV1.publish", "status": "RESEARCH_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "research/m6-direct-candidate/v1",
+        "coverage_id": "coverage_m6_research_commit_direct",
+        "entrypoint_id": "m6_research_commit_direct",
+        "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "FARM_INCENTIVES", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "SEALED_AUCTION", "STRATEGY_ESCROW", "PROOF_REWARDS", "EXTERNAL_CUSTODY", "GOVERNANCE_MIGRATION"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-13", "WF-14", "WF-15", "WF-16", "WF-17", "WF-18"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/m6_commit_port_v1.py::M6CommitPortV1.publish_zrpf", "status": "RESEARCH_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "research/m6-zrpf-root/v1",
+        "coverage_id": "coverage_m6_research_commit_zrpf",
+        "entrypoint_id": "m6_research_commit_zrpf",
+        "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "FARM_INCENTIVES", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "SEALED_AUCTION", "STRATEGY_ESCROW", "PROOF_REWARDS", "EXTERNAL_CUSTODY", "GOVERNANCE_MIGRATION"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-13", "WF-14", "WF-15", "WF-16", "WF-17", "WF-18"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/m6_durable_store_v1.py::M6DurableLedgerStoreV1.publish", "status": "RESEARCH_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "research/m6-direct-candidate/v1",
+        "coverage_id": "coverage_m6_research_durable_direct",
+        "entrypoint_id": "m6_research_durable_direct",
+        "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "FARM_INCENTIVES", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "SEALED_AUCTION", "STRATEGY_ESCROW", "PROOF_REWARDS", "EXTERNAL_CUSTODY", "GOVERNANCE_MIGRATION"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-13", "WF-14", "WF-15", "WF-16", "WF-17", "WF-18"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/m6_durable_store_v1.py::M6DurableLedgerStoreV1.publish_zrpf", "status": "RESEARCH_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "research/m6-zrpf-root/v1",
+        "coverage_id": "coverage_m6_research_durable_zrpf",
+        "entrypoint_id": "m6_research_durable_zrpf",
+        "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "FARM_INCENTIVES", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "SEALED_AUCTION", "STRATEGY_ESCROW", "PROOF_REWARDS", "EXTERNAL_CUSTODY", "GOVERNANCE_MIGRATION"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-13", "WF-14", "WF-15", "WF-16", "WF-17", "WF-18"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/global_economic_commit_v1.py::commit_verified_economic_epoch_v1", "status": "RESEARCH_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "research/global-economic-epoch/v1",
+        "coverage_id": "coverage_separate_global_economic_commit_port",
+        "entrypoint_id": "separate_global_economic_commit_port",
+        "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "FARM_INCENTIVES", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "SEALED_AUCTION", "STRATEGY_ESCROW", "PROOF_REWARDS", "EXTERNAL_CUSTODY", "GOVERNANCE_MIGRATION"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-13", "WF-14", "WF-15", "WF-16", "WF-17", "WF-18"]
+      }
+    ],
+    "schema": "zenodex/m6-writer-coverage/v1"
+  },
+  "entries": [
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_core_apply_settlement",
+      "evidence_markers": ["apply_settlement_with_factories"],
+      "kind": "legacy_direct_mutator",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/core/batch_clearing.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_settlement"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_core_apply_settlement_pure",
+      "evidence_markers": ["_copy_balance_table"],
+      "kind": "legacy_candidate_producer",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/core/batch_clearing.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_settlement_pure"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_core_apply_settlement_with_factories",
+      "evidence_markers": ["_SettlementApplyFactories"],
+      "kind": "legacy_direct_mutator",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/core/batch_clearing_apply_settlement.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_settlement_with_factories"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_validation_apply_operations",
+      "evidence_markers": ["apply_settlement"],
+      "kind": "legacy_direct_mutator",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/validation.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_operations"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_dex_apply_ops",
+      "evidence_markers": ["DexTxResult"],
+      "kind": "legacy_candidate_producer",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/dex_engine.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_ops"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_tau_apply_app_tx",
+      "evidence_markers": ["propose_app_tx_v1", "to_legacy_result_v1"],
+      "kind": "legacy_proposal_with_external_patch",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/tau_testnet_dex_plugin.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_app_tx"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_tau_typed_proposal",
+      "evidence_markers": ["TauAppTxProposalV1", "_compute_app_tx_proposal_legacy_v1"],
+      "kind": "legacy_typed_proposal_adapter",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/tau_testnet_dex_plugin.py",
+      "requires_unique_commit_port": true,
+      "symbol": "propose_app_tx_v1"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_tau_proposal_engine",
+      "evidence_markers": ["balances_patch", "apply_ops"],
+      "kind": "legacy_proposal_engine",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/tau_testnet_dex_plugin.py",
+      "requires_unique_commit_port": true,
+      "symbol": "_compute_app_tx_proposal_legacy_v1"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_zeno_ledger_apply_body_transactions",
+      "evidence_markers": ["apply_ops"],
+      "kind": "legacy_batch_applier",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/zeno_ledger_v0.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_body_transactions_v0"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_zusd_apply_ops",
+      "evidence_markers": ["_apply_zusd_monetary_ops_with_clock"],
+      "kind": "legacy_candidate_producer",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/zusd_monetary_bridge.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_zusd_monetary_ops"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_perp_apply_ops",
+      "evidence_markers": ["PerpTxResult"],
+      "kind": "legacy_candidate_producer",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/perp_engine.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_perp_ops"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_proof_mining_apply_claim",
+      "evidence_markers": ["apply_proof_mining_claim"],
+      "kind": "legacy_candidate_producer",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/proof_mining_runtime.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_proof_mining_claim"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_cross_shard_terminal_state",
+      "evidence_markers": ["apply_cross_shard_ledger_effects_to_state_v0"],
+      "kind": "legacy_direct_mutator",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/zeno_ledger_cross_shard_effect_application.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_terminal_cross_shard_ledger_effects_to_state_v0"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_cross_shard_terminal_balances",
+      "evidence_markers": ["apply_terminal_cross_shard_ledger_effects_to_state_v0"],
+      "kind": "legacy_direct_mutator",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/zeno_ledger_cross_shard_effect_application.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_terminal_cross_shard_ledger_effects_to_balances_v0"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_cross_shard_state",
+      "evidence_markers": ["_precheck_balances"],
+      "kind": "legacy_direct_mutator",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/zeno_ledger_cross_shard_effect_application.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_cross_shard_ledger_effects_to_state_v0"
+    },
+    {
+      "class": null,
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_cross_shard_balances",
+      "evidence_markers": ["apply_cross_shard_ledger_effects_to_state_v0"],
+      "kind": "legacy_direct_mutator",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/zeno_ledger_cross_shard_effect_application.py",
+      "requires_unique_commit_port": true,
+      "symbol": "apply_cross_shard_ledger_effects_to_balances_v0"
+    },
+    {
+      "class": "ConfidentialSealedBidTable",
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_sealed_bid_commit",
+      "evidence_markers": ["_persist"],
+      "kind": "legacy_storage_writer",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/confidential_sealed_bid_api.py",
+      "requires_unique_commit_port": true,
+      "symbol": "commit"
+    },
+    {
+      "class": "ConfidentialSealedBidTable",
+      "commit_port_route": "none",
+      "entrypoint_id": "legacy_sealed_bid_settle",
+      "evidence_markers": ["settlement_preview"],
+      "kind": "legacy_storage_writer",
+      "m6_mount_status": "UNMOUNTED_LEGACY",
+      "path": "src/integration/confidential_sealed_bid_api.py",
+      "requires_unique_commit_port": true,
+      "symbol": "settle"
+    },
+    {
+      "class": "M6CommitPortV1",
+      "commit_port_route": "M6CommitPortV1._publish_locked",
+      "entrypoint_id": "m6_research_commit_direct",
+      "evidence_markers": ["_publish_locked"],
+      "kind": "m6_unique_commit_port",
+      "m6_mount_status": "M6_RESEARCH_ONLY",
+      "path": "src/integration/m6_commit_port_v1.py",
+      "requires_unique_commit_port": true,
+      "symbol": "publish"
+    },
+    {
+      "class": "M6CommitPortV1",
+      "commit_port_route": "M6CommitPortV1._publish_locked",
+      "entrypoint_id": "m6_research_commit_zrpf",
+      "evidence_markers": ["_publish_locked"],
+      "kind": "m6_unique_commit_port",
+      "m6_mount_status": "M6_RESEARCH_ONLY",
+      "path": "src/integration/m6_commit_port_v1.py",
+      "requires_unique_commit_port": true,
+      "symbol": "publish_zrpf"
+    },
+    {
+      "class": "M6DurableLedgerStoreV1",
+      "commit_port_route": "M6CommitPortV1.publish",
+      "entrypoint_id": "m6_research_durable_direct",
+      "evidence_markers": ["M6CommitPortV1", "_install_commit_unlocked", "_write_head_unlocked"],
+      "kind": "m6_durable_shell",
+      "m6_mount_status": "M6_RESEARCH_ONLY",
+      "path": "src/integration/m6_durable_store_v1.py",
+      "requires_unique_commit_port": true,
+      "symbol": "publish"
+    },
+    {
+      "class": "M6DurableLedgerStoreV1",
+      "commit_port_route": "M6CommitPortV1.publish_zrpf",
+      "entrypoint_id": "m6_research_durable_zrpf",
+      "evidence_markers": ["M6CommitPortV1", "_install_commit_unlocked", "_write_head_unlocked"],
+      "kind": "m6_durable_shell",
+      "m6_mount_status": "M6_RESEARCH_ONLY",
+      "path": "src/integration/m6_durable_store_v1.py",
+      "requires_unique_commit_port": true,
+      "symbol": "publish_zrpf"
+    },
+    {
+      "class": null,
+      "commit_port_route": "GlobalEconomicCommitPortV1",
+      "entrypoint_id": "separate_global_economic_commit_port",
+      "evidence_markers": ["GlobalEconomicCommitPortV1"],
+      "kind": "separate_research_commit_port",
+      "m6_mount_status": "SEPARATE_RESEARCH_NOT_M6",
+      "path": "src/integration/global_economic_commit_v1.py",
+      "requires_unique_commit_port": true,
+      "symbol": "commit_verified_economic_epoch_v1"
+    }
+  ],
+  "schema": "zenodex/m6-writer-inventory/v1",
+  "scope": "Source-level census and research-only command coverage for integration and mutable-effect entrypoints relevant to an M6 mount. Every inventoried writer has a closed lane/workflow row and explicit gaps for module release, transition, canonical effect projection, proof profile, route, terminal path, adapter promotion, and release evidence. Pure economic kernels, arbitrary-name writer discovery, dynamic reachability, and generated or deployed artifacts require separate inventory lanes."
+}

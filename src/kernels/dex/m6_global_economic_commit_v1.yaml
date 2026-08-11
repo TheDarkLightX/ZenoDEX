@@ -1,0 +1,561 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "m6_global_economic_commit_v1"
+  created_by: "zenodex"
+  notes: |
+    Research-only bounded composition model for the M6 economic-truth boundary.
+
+    The model treats domain kernels as candidate producers and one expected-head
+    publication transition as the only durable authority.  It instantiates the
+    current zUSD accounting profile:
+
+      free_debt = external_supply + protocol_fee_liability
+
+    A protocol mint creates principal as external supply and records the fee as
+    an internal liability.  A fee claim converts that liability into external
+    supply without changing free debt.  Generic canonical-zUSD minting has an
+    explicit rejecting identity transition.
+
+    The bounds are deliberately small.  This model checks transition structure,
+    stale-head rejection, nonce use, accounting preservation, bounded outbox
+    ancestry, crash-before-commit behavior, and idempotent redelivery only inside
+    the declared finite domain.  Only commits declared by this slice to require
+    an external effect create outbox capacity; an unrelated head advance cannot
+    manufacture a deliverable effect.  Authentication and current-context
+    booleans are abstractions of verifier-produced facts; callers must never
+    provide them as runtime authority.
+
+    Nonclaims: runtime refinement, production integer widths, canonical bytes,
+    cryptographic authentication, complete economic coverage, datastore or
+    ZenoLedger atomicity, external destination idempotency, liveness, migration,
+    no-bypass, and M6 promotion.
+
+observables:
+  state_vars:
+    - "head_generation"
+    - "last_nonce"
+    - "free_debt_units"
+    - "external_supply_units"
+    - "protocol_fee_liability_units"
+    - "committed_outbox_count"
+    - "delivered_effect_count"
+    - "candidate_kind"
+    - "candidate_expected_head"
+    - "candidate_nonce"
+    - "candidate_principal_units"
+    - "candidate_fee_units"
+    - "candidate_amount_units"
+  effects:
+    - "event"
+    - "decision"
+    - "accepted"
+    - "post_head_generation"
+    - "post_last_nonce"
+    - "post_free_debt_units"
+    - "post_external_supply_units"
+    - "post_protocol_fee_liability_units"
+    - "post_committed_outbox_count"
+    - "post_delivered_effect_count"
+    - "reject_noop"
+
+types:
+  - id: "CandidateKind"
+    type:
+      kind: "enum"
+      symbols: ["CAND_None", "CAND_Mint", "CAND_Repay", "CAND_FeeClaim"]
+  - id: "Event"
+    type:
+      kind: "enum"
+      symbols:
+        - "EV_MintStaged"
+        - "EV_RepayStaged"
+        - "EV_FeeClaimStaged"
+        - "EV_CandidateCommitted"
+        - "EV_GenericZUSDMintRejected"
+        - "EV_StaleCandidateRejected"
+        - "EV_CrashBeforeCommit"
+        - "EV_IndependentCommit"
+        - "EV_EffectDelivered"
+        - "EV_EffectRedelivered"
+        - "EV_Reopened"
+  - id: "Decision"
+    type:
+      kind: "enum"
+      symbols:
+        - "DEC_Staged"
+        - "DEC_Committed"
+        - "DEC_RejectedManagedAssetAuthority"
+        - "DEC_RejectedStaleHead"
+        - "DEC_PreCommitLost"
+        - "DEC_IndependentCommit"
+        - "DEC_Delivered"
+        - "DEC_AlreadyDelivered"
+        - "DEC_Reopened"
+
+state_vars:
+  - id: "head_generation"
+    role: "control"
+    type: { kind: "int", min: 0, max: 3 }
+  - id: "last_nonce"
+    role: "control"
+    type: { kind: "int", min: 0, max: 3 }
+  - id: "free_debt_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "external_supply_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "protocol_fee_liability_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3 }
+  - id: "committed_outbox_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3 }
+  - id: "delivered_effect_count"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3 }
+  - id: "candidate_kind"
+    role: "control"
+    type: { ref: "CandidateKind" }
+  - id: "candidate_expected_head"
+    role: "control"
+    type: { kind: "int", min: 0, max: 3 }
+  - id: "candidate_nonce"
+    role: "control"
+    type: { kind: "int", min: 0, max: 3 }
+  - id: "candidate_principal_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "candidate_fee_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "candidate_amount_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+
+init:
+  - { var: "head_generation", expr: { const: 0 } }
+  - { var: "last_nonce", expr: { const: 0 } }
+  - { var: "free_debt_units", expr: { const: 0 } }
+  - { var: "external_supply_units", expr: { const: 0 } }
+  - { var: "protocol_fee_liability_units", expr: { const: 0 } }
+  - { var: "committed_outbox_count", expr: { const: 0 } }
+  - { var: "delivered_effect_count", expr: { const: 0 } }
+  - { var: "candidate_kind", expr: { enum: "CAND_None" } }
+  - { var: "candidate_expected_head", expr: { const: 0 } }
+  - { var: "candidate_nonce", expr: { const: 0 } }
+  - { var: "candidate_principal_units", expr: { const: 0 } }
+  - { var: "candidate_fee_units", expr: { const: 0 } }
+  - { var: "candidate_amount_units", expr: { const: 0 } }
+
+invariants:
+  - id: "inv_zusd_fee_liability_cover"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "free_debt_units" }
+        - op: "+"
+          args:
+            - { var: "external_supply_units" }
+            - { var: "protocol_fee_liability_units" }
+  - id: "inv_delivery_descends_from_committed_outbox"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - { var: "delivered_effect_count" }
+        - { var: "committed_outbox_count" }
+  - id: "inv_nonce_never_exceeds_head_generation"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - { var: "last_nonce" }
+        - { var: "head_generation" }
+  - id: "inv_empty_candidate_is_canonical"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args:
+            - op: "="
+              args: [{ var: "candidate_kind" }, { enum: "CAND_None" }]
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "candidate_expected_head" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "candidate_nonce" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "candidate_principal_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "candidate_fee_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "candidate_amount_units" }, { const: 0 }] }
+  - id: "inv_candidate_payload_matches_kind"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_None" }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_Mint" }] }
+            - { op: ">", args: [{ var: "candidate_principal_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "candidate_amount_units" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_Repay" }] }
+            - { op: ">", args: [{ var: "candidate_amount_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "candidate_principal_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "candidate_fee_units" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_FeeClaim" }] }
+            - { op: ">", args: [{ var: "candidate_amount_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "candidate_principal_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "candidate_fee_units" }, { const: 0 }] }
+
+actions:
+  - id: "stage_protocol_mint"
+    params: &stage_mint_params
+      - { id: "authenticated", type: { kind: "bool" } }
+      - { id: "context_current", type: { kind: "bool" } }
+      - { id: "expected_head", type: { kind: "int", min: 0, max: 3 } }
+      - { id: "nonce", type: { kind: "int", min: 1, max: 3 } }
+      - { id: "principal_units", type: { kind: "int", min: 1, max: 2 } }
+      - { id: "fee_units", type: { kind: "int", min: 0, max: 1 } }
+    guard:
+      op: "and"
+      args:
+        - { param: "authenticated" }
+        - { param: "context_current" }
+        - { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_None" }] }
+        - { op: "=", args: [{ param: "expected_head" }, { var: "head_generation" }] }
+        - { op: "=", args: [{ param: "nonce" }, { op: "+", args: [{ var: "last_nonce" }, { const: 1 }] }] }
+        - { op: "<", args: [{ var: "head_generation" }, { const: 3 }] }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "free_debt_units" }
+                - { op: "+", args: [{ param: "principal_units" }, { param: "fee_units" }] }
+            - { const: 6 }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "external_supply_units" }, { param: "principal_units" }] }, { const: 6 }] }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "protocol_fee_liability_units" }, { param: "fee_units" }] }, { const: 3 }] }
+    updates:
+      - { var: "candidate_kind", expr: { enum: "CAND_Mint" } }
+      - { var: "candidate_expected_head", expr: { param: "expected_head" } }
+      - { var: "candidate_nonce", expr: { param: "nonce" } }
+      - { var: "candidate_principal_units", expr: { param: "principal_units" } }
+      - { var: "candidate_fee_units", expr: { param: "fee_units" } }
+      - { var: "candidate_amount_units", expr: { const: 0 } }
+    effects: &staged_mint_effects
+      event: { enum: "EV_MintStaged" }
+      decision: { enum: "DEC_Staged" }
+      accepted: { bool: true }
+      post_head_generation: { var: "head_generation" }
+      post_last_nonce: { var: "last_nonce" }
+      post_free_debt_units: { var: "free_debt_units" }
+      post_external_supply_units: { var: "external_supply_units" }
+      post_protocol_fee_liability_units: { var: "protocol_fee_liability_units" }
+      post_committed_outbox_count: { var: "committed_outbox_count" }
+      post_delivered_effect_count: { var: "delivered_effect_count" }
+      reject_noop: { bool: true }
+
+  - id: "stage_repay"
+    params: &stage_amount_params
+      - { id: "authenticated", type: { kind: "bool" } }
+      - { id: "context_current", type: { kind: "bool" } }
+      - { id: "expected_head", type: { kind: "int", min: 0, max: 3 } }
+      - { id: "nonce", type: { kind: "int", min: 1, max: 3 } }
+      - { id: "amount_units", type: { kind: "int", min: 1, max: 2 } }
+    guard:
+      op: "and"
+      args:
+        - { param: "authenticated" }
+        - { param: "context_current" }
+        - { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_None" }] }
+        - { op: "=", args: [{ param: "expected_head" }, { var: "head_generation" }] }
+        - { op: "=", args: [{ param: "nonce" }, { op: "+", args: [{ var: "last_nonce" }, { const: 1 }] }] }
+        - { op: "<=", args: [{ param: "amount_units" }, { var: "external_supply_units" }] }
+        - { op: "<=", args: [{ param: "amount_units" }, { var: "free_debt_units" }] }
+    updates:
+      - { var: "candidate_kind", expr: { enum: "CAND_Repay" } }
+      - { var: "candidate_expected_head", expr: { param: "expected_head" } }
+      - { var: "candidate_nonce", expr: { param: "nonce" } }
+      - { var: "candidate_principal_units", expr: { const: 0 } }
+      - { var: "candidate_fee_units", expr: { const: 0 } }
+      - { var: "candidate_amount_units", expr: { param: "amount_units" } }
+    effects:
+      event: { enum: "EV_RepayStaged" }
+      decision: { enum: "DEC_Staged" }
+      accepted: { bool: true }
+      post_head_generation: { var: "head_generation" }
+      post_last_nonce: { var: "last_nonce" }
+      post_free_debt_units: { var: "free_debt_units" }
+      post_external_supply_units: { var: "external_supply_units" }
+      post_protocol_fee_liability_units: { var: "protocol_fee_liability_units" }
+      post_committed_outbox_count: { var: "committed_outbox_count" }
+      post_delivered_effect_count: { var: "delivered_effect_count" }
+      reject_noop: { bool: true }
+
+  - id: "stage_protocol_fee_claim"
+    params: *stage_amount_params
+    guard:
+      op: "and"
+      args:
+        - { param: "authenticated" }
+        - { param: "context_current" }
+        - { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_None" }] }
+        - { op: "=", args: [{ param: "expected_head" }, { var: "head_generation" }] }
+        - { op: "=", args: [{ param: "nonce" }, { op: "+", args: [{ var: "last_nonce" }, { const: 1 }] }] }
+        - { op: "<=", args: [{ param: "amount_units" }, { var: "protocol_fee_liability_units" }] }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "external_supply_units" }, { param: "amount_units" }] }, { const: 6 }] }
+    updates:
+      - { var: "candidate_kind", expr: { enum: "CAND_FeeClaim" } }
+      - { var: "candidate_expected_head", expr: { param: "expected_head" } }
+      - { var: "candidate_nonce", expr: { param: "nonce" } }
+      - { var: "candidate_principal_units", expr: { const: 0 } }
+      - { var: "candidate_fee_units", expr: { const: 0 } }
+      - { var: "candidate_amount_units", expr: { param: "amount_units" } }
+    effects:
+      event: { enum: "EV_FeeClaimStaged" }
+      decision: { enum: "DEC_Staged" }
+      accepted: { bool: true }
+      post_head_generation: { var: "head_generation" }
+      post_last_nonce: { var: "last_nonce" }
+      post_free_debt_units: { var: "free_debt_units" }
+      post_external_supply_units: { var: "external_supply_units" }
+      post_protocol_fee_liability_units: { var: "protocol_fee_liability_units" }
+      post_committed_outbox_count: { var: "committed_outbox_count" }
+      post_delivered_effect_count: { var: "delivered_effect_count" }
+      reject_noop: { bool: true }
+
+  - id: "commit_candidate"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "!=", args: [{ var: "candidate_kind" }, { enum: "CAND_None" }] }
+        - { op: "=", args: [{ var: "candidate_expected_head" }, { var: "head_generation" }] }
+        - { op: "=", args: [{ var: "candidate_nonce" }, { op: "+", args: [{ var: "last_nonce" }, { const: 1 }] }] }
+        - { op: "<", args: [{ var: "head_generation" }, { const: 3 }] }
+        - { op: "<", args: [{ var: "committed_outbox_count" }, { const: 3 }] }
+        - op: "or"
+          args:
+            - op: "and"
+              args:
+                - { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_Mint" }] }
+                - op: "<="
+                  args:
+                    - op: "+"
+                      args:
+                        - { var: "free_debt_units" }
+                        - { op: "+", args: [{ var: "candidate_principal_units" }, { var: "candidate_fee_units" }] }
+                    - { const: 6 }
+                - { op: "<=", args: [{ op: "+", args: [{ var: "external_supply_units" }, { var: "candidate_principal_units" }] }, { const: 6 }] }
+                - { op: "<=", args: [{ op: "+", args: [{ var: "protocol_fee_liability_units" }, { var: "candidate_fee_units" }] }, { const: 3 }] }
+            - op: "and"
+              args:
+                - { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_Repay" }] }
+                - { op: "<=", args: [{ var: "candidate_amount_units" }, { var: "free_debt_units" }] }
+                - { op: "<=", args: [{ var: "candidate_amount_units" }, { var: "external_supply_units" }] }
+            - op: "and"
+              args:
+                - { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_FeeClaim" }] }
+                - { op: "<=", args: [{ var: "candidate_amount_units" }, { var: "protocol_fee_liability_units" }] }
+                - { op: "<=", args: [{ op: "+", args: [{ var: "external_supply_units" }, { var: "candidate_amount_units" }] }, { const: 6 }] }
+    updates:
+      - var: "head_generation"
+        expr: { op: "+", args: [{ var: "head_generation" }, { const: 1 }] }
+      - var: "last_nonce"
+        expr: { var: "candidate_nonce" }
+      - var: "free_debt_units"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_Mint" }] }
+          then:
+            op: "+"
+            args:
+              - { var: "free_debt_units" }
+              - { op: "+", args: [{ var: "candidate_principal_units" }, { var: "candidate_fee_units" }] }
+          else:
+            op: "ite"
+            cond: { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_Repay" }] }
+            then: { op: "-", args: [{ var: "free_debt_units" }, { var: "candidate_amount_units" }] }
+            else: { var: "free_debt_units" }
+      - var: "external_supply_units"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_Mint" }] }
+          then: { op: "+", args: [{ var: "external_supply_units" }, { var: "candidate_principal_units" }] }
+          else:
+            op: "ite"
+            cond: { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_Repay" }] }
+            then: { op: "-", args: [{ var: "external_supply_units" }, { var: "candidate_amount_units" }] }
+            else: { op: "+", args: [{ var: "external_supply_units" }, { var: "candidate_amount_units" }] }
+      - var: "protocol_fee_liability_units"
+        expr:
+          op: "ite"
+          cond: { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_Mint" }] }
+          then: { op: "+", args: [{ var: "protocol_fee_liability_units" }, { var: "candidate_fee_units" }] }
+          else:
+            op: "ite"
+            cond: { op: "=", args: [{ var: "candidate_kind" }, { enum: "CAND_FeeClaim" }] }
+            then: { op: "-", args: [{ var: "protocol_fee_liability_units" }, { var: "candidate_amount_units" }] }
+            else: { var: "protocol_fee_liability_units" }
+      - { var: "committed_outbox_count", expr: { op: "+", args: [{ var: "committed_outbox_count" }, { const: 1 }] } }
+      - { var: "candidate_kind", expr: { enum: "CAND_None" } }
+      - { var: "candidate_expected_head", expr: { const: 0 } }
+      - { var: "candidate_nonce", expr: { const: 0 } }
+      - { var: "candidate_principal_units", expr: { const: 0 } }
+      - { var: "candidate_fee_units", expr: { const: 0 } }
+      - { var: "candidate_amount_units", expr: { const: 0 } }
+    effects:
+      event: { enum: "EV_CandidateCommitted" }
+      decision: { enum: "DEC_Committed" }
+      accepted: { bool: true }
+      post_head_generation: { var: "head_generation" }
+      post_last_nonce: { var: "last_nonce" }
+      post_free_debt_units: { var: "free_debt_units" }
+      post_external_supply_units: { var: "external_supply_units" }
+      post_protocol_fee_liability_units: { var: "protocol_fee_liability_units" }
+      post_committed_outbox_count: { var: "committed_outbox_count" }
+      post_delivered_effect_count: { var: "delivered_effect_count" }
+      reject_noop: { bool: true }
+
+  - id: "reject_generic_canonical_zusd_mint"
+    params:
+      - { id: "amount_units", type: { kind: "int", min: 1, max: 2 } }
+    guard: { bool: true }
+    updates: []
+    effects:
+      event: { enum: "EV_GenericZUSDMintRejected" }
+      decision: { enum: "DEC_RejectedManagedAssetAuthority" }
+      accepted: { bool: false }
+      post_head_generation: { var: "head_generation" }
+      post_last_nonce: { var: "last_nonce" }
+      post_free_debt_units: { var: "free_debt_units" }
+      post_external_supply_units: { var: "external_supply_units" }
+      post_protocol_fee_liability_units: { var: "protocol_fee_liability_units" }
+      post_committed_outbox_count: { var: "committed_outbox_count" }
+      post_delivered_effect_count: { var: "delivered_effect_count" }
+      reject_noop: { bool: true }
+
+  - id: "advance_head_with_independent_safe_commit"
+    params: []
+    guard: { op: "<", args: [{ var: "head_generation" }, { const: 3 }] }
+    updates:
+      - { var: "head_generation", expr: { op: "+", args: [{ var: "head_generation" }, { const: 1 }] } }
+    effects:
+      event: { enum: "EV_IndependentCommit" }
+      decision: { enum: "DEC_IndependentCommit" }
+      accepted: { bool: true }
+      post_head_generation: { var: "head_generation" }
+      post_last_nonce: { var: "last_nonce" }
+      post_free_debt_units: { var: "free_debt_units" }
+      post_external_supply_units: { var: "external_supply_units" }
+      post_protocol_fee_liability_units: { var: "protocol_fee_liability_units" }
+      post_committed_outbox_count: { var: "committed_outbox_count" }
+      post_delivered_effect_count: { var: "delivered_effect_count" }
+      reject_noop: { bool: true }
+
+  - id: "reject_stale_candidate"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "!=", args: [{ var: "candidate_kind" }, { enum: "CAND_None" }] }
+        - { op: "!=", args: [{ var: "candidate_expected_head" }, { var: "head_generation" }] }
+    updates: []
+    effects:
+      event: { enum: "EV_StaleCandidateRejected" }
+      decision: { enum: "DEC_RejectedStaleHead" }
+      accepted: { bool: false }
+      post_head_generation: { var: "head_generation" }
+      post_last_nonce: { var: "last_nonce" }
+      post_free_debt_units: { var: "free_debt_units" }
+      post_external_supply_units: { var: "external_supply_units" }
+      post_protocol_fee_liability_units: { var: "protocol_fee_liability_units" }
+      post_committed_outbox_count: { var: "committed_outbox_count" }
+      post_delivered_effect_count: { var: "delivered_effect_count" }
+      reject_noop: { bool: true }
+
+  - id: "crash_before_commit"
+    params: []
+    guard:
+      op: "!="
+      args: [{ var: "candidate_kind" }, { enum: "CAND_None" }]
+    updates:
+      - { var: "candidate_kind", expr: { enum: "CAND_None" } }
+      - { var: "candidate_expected_head", expr: { const: 0 } }
+      - { var: "candidate_nonce", expr: { const: 0 } }
+      - { var: "candidate_principal_units", expr: { const: 0 } }
+      - { var: "candidate_fee_units", expr: { const: 0 } }
+      - { var: "candidate_amount_units", expr: { const: 0 } }
+    effects:
+      event: { enum: "EV_CrashBeforeCommit" }
+      decision: { enum: "DEC_PreCommitLost" }
+      accepted: { bool: false }
+      post_head_generation: { var: "head_generation" }
+      post_last_nonce: { var: "last_nonce" }
+      post_free_debt_units: { var: "free_debt_units" }
+      post_external_supply_units: { var: "external_supply_units" }
+      post_protocol_fee_liability_units: { var: "protocol_fee_liability_units" }
+      post_committed_outbox_count: { var: "committed_outbox_count" }
+      post_delivered_effect_count: { var: "delivered_effect_count" }
+      reject_noop: { bool: true }
+
+  - id: "deliver_next_effect"
+    params: []
+    guard:
+      op: "<"
+      args: [{ var: "delivered_effect_count" }, { var: "committed_outbox_count" }]
+    updates:
+      - { var: "delivered_effect_count", expr: { op: "+", args: [{ var: "delivered_effect_count" }, { const: 1 }] } }
+    effects:
+      event: { enum: "EV_EffectDelivered" }
+      decision: { enum: "DEC_Delivered" }
+      accepted: { bool: true }
+      post_head_generation: { var: "head_generation" }
+      post_last_nonce: { var: "last_nonce" }
+      post_free_debt_units: { var: "free_debt_units" }
+      post_external_supply_units: { var: "external_supply_units" }
+      post_protocol_fee_liability_units: { var: "protocol_fee_liability_units" }
+      post_committed_outbox_count: { var: "committed_outbox_count" }
+      post_delivered_effect_count: { var: "delivered_effect_count" }
+      reject_noop: { bool: true }
+
+  - id: "redeliver_last_effect"
+    params: []
+    guard:
+      op: ">"
+      args: [{ var: "delivered_effect_count" }, { const: 0 }]
+    updates: []
+    effects:
+      event: { enum: "EV_EffectRedelivered" }
+      decision: { enum: "DEC_AlreadyDelivered" }
+      accepted: { bool: true }
+      post_head_generation: { var: "head_generation" }
+      post_last_nonce: { var: "last_nonce" }
+      post_free_debt_units: { var: "free_debt_units" }
+      post_external_supply_units: { var: "external_supply_units" }
+      post_protocol_fee_liability_units: { var: "protocol_fee_liability_units" }
+      post_committed_outbox_count: { var: "committed_outbox_count" }
+      post_delivered_effect_count: { var: "delivered_effect_count" }
+      reject_noop: { bool: true }
+
+  - id: "reopen_canonical_state"
+    params: []
+    guard: { bool: true }
+    updates: []
+    effects:
+      event: { enum: "EV_Reopened" }
+      decision: { enum: "DEC_Reopened" }
+      accepted: { bool: true }
+      post_head_generation: { var: "head_generation" }
+      post_last_nonce: { var: "last_nonce" }
+      post_free_debt_units: { var: "free_debt_units" }
+      post_external_supply_units: { var: "external_supply_units" }
+      post_protocol_fee_liability_units: { var: "protocol_fee_liability_units" }
+      post_committed_outbox_count: { var: "committed_outbox_count" }
+      post_delivered_effect_count: { var: "delivered_effect_count" }
+      reject_noop: { bool: true }

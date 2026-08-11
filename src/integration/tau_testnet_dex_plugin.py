@@ -19,16 +19,35 @@ Legacy key aliases are also accepted when invoking the plugin directly:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
-import hashlib
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any, Dict, Mapping, Optional, Tuple
 
+from ..core.consensus_time import VerifiedExecutionClockV1
 from ..core.dex import DexState
 from ..core.perp_tau_ingress_stream import evaluate_perp_tau_ingress_stream
+from ..core.proof_mining_claimability_gate import (
+    REJECT_CODE_TO_ERROR as PROOF_MINING_REJECT_CODE_TO_ERROR,
+)
+from ..core.proof_mining_claimability_gate import (
+    evaluate_proof_mining_claimability_gate,
+    evaluate_proof_mining_recipient_gate,
+)
+from ..core.zusd_generic_token_admission import (
+    CanonicalZUSDCustodyClass,
+    CanonicalZUSDCustodyRegistry,
+    GenericTokenAction,
+    GenericTokenAdmissionCode,
+    GenericTokenAdmissionCommand,
+    TokenAssetClass,
+    TokenWriterRole,
+    evaluate_generic_token_admission,
+)
+from ..core.zusd_oracle_ingress_admission import ZUSDOracleEvidenceProfile
+from ..state.balances import NATIVE_ASSET, BalanceTable
 from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
-from ..state.balances import BalanceTable, NATIVE_ASSET
 from ..state.lp import LPTable
 from ..state.nonces import NonceTable
 from .dex_engine import DexEngineConfig, apply_ops
@@ -46,14 +65,16 @@ from .proof_mining_runtime import (
     sync_proof_mining_runtime_balance,
 )
 from .proof_verifier import ProofVerifierConfig
+from .zusd_custody_registry import build_live_canonical_zusd_custody_registry
 from .zusd_monetary_bridge import (
     ZUSDMonetaryConfig,
     ZUSDMonetaryState,
     apply_zusd_monetary_ops,
+    assert_zusd_global_liability_cover,
     zusd_monetary_state_from_obj,
     zusd_monetary_state_to_obj,
 )
-
+from .zusd_tau_token import derive_zusd_tau_asset_id
 
 _DEX_INTENTS_KEY = "5"
 _DEX_SETTLEMENT_KEY = "6"
@@ -73,13 +94,74 @@ _APP_STATE_VERSION = 1
 _MAX_APP_STATE_JSON_BYTES = 6_000_000
 
 
+@dataclass(frozen=True, slots=True)
+class TauAppTxProposalV1:
+    """Immutable proposal returned by the legacy Tau application adapter.
+
+    The native balance patch stores absolute post-state balances, not deltas.
+    This value is a proposal only: it does not persist application state,
+    mutate ``chain_balances``, or authorize an M6 commit-port publication.
+    """
+
+    accepted: bool
+    app_state_json: str
+    app_hash: str
+    native_balance_patch: tuple[tuple[str, int], ...] | None
+    error: str | None
+
+    @classmethod
+    def from_legacy_result(cls, result: object) -> "TauAppTxProposalV1":
+        if type(result) is not tuple or len(result) != 5:
+            raise TypeError("legacy app-tx result must be a five-tuple")
+        accepted, app_state_json, app_hash, patch, error = result
+        if type(accepted) is not bool:
+            raise TypeError("legacy app-tx accepted flag must be bool")
+        if not isinstance(app_state_json, str) or not isinstance(app_hash, str):
+            raise TypeError("legacy app-tx state and hash must be strings")
+        if error is not None and not isinstance(error, str):
+            raise TypeError("legacy app-tx error must be a string or None")
+        if accepted and error is not None:
+            raise ValueError("accepted app-tx proposal cannot carry an error")
+        if not accepted and error is None:
+            raise ValueError("rejected app-tx proposal requires an error")
+        if not accepted and patch is not None:
+            raise ValueError("rejected app-tx proposal cannot carry a balance patch")
+
+        normalized_patch: tuple[tuple[str, int], ...] | None = None
+        if patch is not None:
+            if not isinstance(patch, Mapping):
+                raise TypeError("legacy app-tx balance patch must be a mapping or None")
+            rows: list[tuple[str, int]] = []
+            for pubkey, amount in patch.items():
+                if not isinstance(pubkey, str):
+                    raise TypeError("legacy app-tx balance patch keys must be strings")
+                if type(amount) is not int or amount < 0:
+                    raise TypeError("legacy app-tx balance patch amounts must be non-negative ints")
+                rows.append((pubkey, amount))
+            normalized_patch = tuple(sorted(rows))
+
+        return cls(
+            accepted=accepted,
+            app_state_json=app_state_json,
+            app_hash=app_hash,
+            native_balance_patch=normalized_patch,
+            error=error,
+        )
+
+    def to_legacy_result_v1(self) -> Tuple[bool, str, str, Optional[Dict[str, int]], Optional[str]]:
+        """Return a compatibility tuple with a fresh patch mapping."""
+
+        patch = None if self.native_balance_patch is None else dict(self.native_balance_patch)
+        return self.accepted, self.app_state_json, self.app_hash, patch, self.error
+
+
 def _canonical_state_and_hash(
     state: DexState,
     *,
     proof_mining_state: Optional[ProofMiningRuntimeState] = None,
     zusd_monetary_state: Optional[ZUSDMonetaryState] = None,
 ) -> Tuple[str, str]:
-    snap = snapshot_from_state(state)
+    snap = snapshot_from_state(state, require_lp_supply_conservation=True)
     if proof_mining_state is None and zusd_monetary_state is None:
         canonical = snap.canonical_bytes()
         return canonical.decode("utf-8"), hashlib.sha256(canonical).hexdigest()
@@ -137,6 +219,23 @@ def _int_env_alias(primary: str, fallback: str, *, default: int, minimum: int = 
     return _int_env(fallback, default=default, minimum=minimum, maximum=maximum)
 
 
+def _require_neutral_legacy_ce067_env(name: str, *, expected: int) -> None:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(
+            f"CE067 legacy config {name} must be an integer"
+        ) from exc
+    if value != expected:
+        raise ValueError(
+            "CE067 explicit profile migration required for non-neutral "
+            f"legacy config: {name}"
+        )
+
+
 def _maybe_decode_custom_stream_value(value: Any) -> Any:
     """
     Upstream tau-testnet restricts custom operation streams (keys beyond 0/1) to
@@ -171,6 +270,14 @@ def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
     for pubkey, last_nonce in nonces.get_all().items():
         copied.set_last(pubkey, int(last_nonce))
     return copied
+
+
+def _asset_identity(value: str, *, name: str) -> str:
+    stripped = value.strip()
+    body = stripped[2:] if stripped.lower().startswith("0x") else stripped
+    if len(body) != 64 or any(character not in "0123456789abcdefABCDEF" for character in body):
+        return value
+    return canonical_hex_fixed_allow_0x(stripped, nbytes=32, name=name)
 
 
 def _require_mapping(value: Any, *, name: str) -> Mapping[str, Any]:
@@ -229,7 +336,10 @@ def _load_state(app_state_json: str) -> Tuple[DexState, Optional[ProofMiningRunt
                 raise ValueError("app_state.version must be a positive int")
             if version != _APP_STATE_VERSION:
                 raise ValueError(f"unsupported app_state version: {version}")
-            dex_state = state_from_snapshot(_require_mapping(obj.get("dex_state"), name="app_state.dex_state"))
+            dex_state = state_from_snapshot(
+                _require_mapping(obj.get("dex_state"), name="app_state.dex_state"),
+                require_lp_supply_conservation=True,
+            )
             proof_obj = obj.get("proof_mining")
             proof_state = (
                 None
@@ -243,7 +353,11 @@ def _load_state(app_state_json: str) -> Tuple[DexState, Optional[ProofMiningRunt
                 else zusd_monetary_state_from_obj(_require_mapping(zusd_obj, name="app_state.zusd_monetary"))
             )
             return dex_state, proof_state, zusd_state
-        return state_from_snapshot(obj), None, None
+        return (
+            state_from_snapshot(obj, require_lp_supply_conservation=True),
+            None,
+            None,
+        )
     except Exception as exc:
         raise ValueError(f"invalid app_state snapshot: {exc}") from exc
 
@@ -301,6 +415,7 @@ def _apply_faucet(
     faucet_op: Any,
     *,
     allow: bool,
+    reserved_zusd_asset_id: str,
 ) -> Tuple[bool, DexState, Optional[str]]:
     if faucet_op is None:
         return True, state, None
@@ -320,9 +435,18 @@ def _apply_faucet(
         if parsed is None:
             return False, state, f"internal faucet parse error at index {i}"
         pk, asset, amount = parsed
+        canonical_asset = _asset_identity(
+            asset,
+            name=f"faucet.mint[{i}].asset",
+        )
+        if canonical_asset == _asset_identity(
+            reserved_zusd_asset_id,
+            name="reserved_zusd_asset_id",
+        ):
+            return False, state, "faucet cannot mint canonical zUSD"
 
-        current = balances_copy.get(pk, asset)
-        balances_copy.set(pk, asset, int(current) + int(amount))
+        current = balances_copy.get(pk, canonical_asset)
+        balances_copy.set(pk, canonical_asset, int(current) + int(amount))
 
     next_state = replace(state, balances=balances_copy)
     return True, next_state, None
@@ -367,10 +491,86 @@ def _require_u32_positive(value: Any, *, name: str) -> int:
     return int(value)
 
 
+def _token_asset_supply_in_u32_domain(
+    balances: BalanceTable,
+    *,
+    asset: str,
+    op_index: int,
+) -> int:
+    supply = 0
+    for (pubkey, balance_asset), amount in sorted(
+        balances.get_all_balances().items(),
+        key=lambda item: (item[0][1], item[0][0]),
+    ):
+        if balance_asset != asset:
+            continue
+        if not isinstance(amount, int) or isinstance(amount, bool) or amount < 0:
+            raise ValueError(f"token op[{op_index}] invalid balance for {pubkey}")
+        if amount > 0xFFFFFFFF:
+            raise ValueError(
+                f"token op[{op_index}] pre-state balance exceeds u32 max 4294967295"
+            )
+        supply += amount
+        if supply > 0xFFFFFFFF:
+            raise ValueError(
+                f"token op[{op_index}] pre-state supply exceeds u32 max 4294967295"
+            )
+    return supply
+
+
 def _token_sender_nonce_key(sender_pubkey: str) -> str:
     # Domain-separated pseudopubkey avoids nonce coupling with DEX/perps streams.
     payload = b"zenodex:tau_token_nonce:v1\x00" + sender_pubkey.encode("ascii")
     return "0x" + hashlib.sha384(payload).hexdigest()
+
+
+def _generic_token_admission_error(
+    *,
+    op_index: int,
+    action: str,
+    asset: str,
+    canonical_zusd_asset: str,
+    recipient_pubkey: str | None,
+    custody_registry: CanonicalZUSDCustodyRegistry,
+) -> str | None:
+    recipient_class = (
+        CanonicalZUSDCustodyClass.ORDINARY_ACCOUNT
+        if recipient_pubkey is None
+        else custody_registry.classify(recipient_pubkey)
+    )
+    decision = evaluate_generic_token_admission(
+        GenericTokenAdmissionCommand(
+            action=GenericTokenAction(action),
+            asset_class=(
+                TokenAssetClass.CANONICAL_ZUSD
+                if asset == canonical_zusd_asset
+                else TokenAssetClass.OTHER
+            ),
+            writer_role=TokenWriterRole.GENERIC_TOKEN_WRITER,
+            recipient_custody_class=recipient_class,
+        )
+    )
+    if decision.admitted:
+        return None
+    if (
+        decision.code
+        is GenericTokenAdmissionCode.CANONICAL_ZUSD_MINT_REQUIRES_MONETARY_AUTHORITY
+    ):
+        return f"token op[{op_index}] canonical zUSD mint requires the monetary authority"
+    if (
+        decision.code
+        is GenericTokenAdmissionCode.CANONICAL_ZUSD_BURN_REQUIRES_MONETARY_AUTHORITY
+    ):
+        return f"token op[{op_index}] canonical zUSD burn requires the monetary authority"
+    if recipient_class is CanonicalZUSDCustodyClass.STABILITY_POOL_ESCROW:
+        return (
+            f"token op[{op_index}] canonical zUSD transfer to reserved Stability Pool "
+            "custody requires the monetary authority"
+        )
+    return (
+        f"token op[{op_index}] canonical zUSD transfer to reserved internal custody "
+        "requires the monetary authority"
+    )
 
 
 def _resolve_token_operator_pubkey() -> Optional[str]:
@@ -406,6 +606,7 @@ def _apply_token_ops(
     state: DexState,
     token_ops: Any,
     *,
+    chain_id: str,
     tx_sender_pubkey: str,
     block_timestamp: int,
 ) -> Tuple[bool, DexState, Optional[str]]:
@@ -418,6 +619,10 @@ def _apply_token_ops(
 
     try:
         sender = _canonical_pubkey(tx_sender_pubkey, name="tx_sender_pubkey")
+        canonical_zusd_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
+        custody_registry = build_live_canonical_zusd_custody_registry(
+            chain_id=chain_id
+        )
     except Exception as exc:
         return False, state, str(exc)
 
@@ -475,8 +680,21 @@ def _apply_token_ops(
                 asset = _canonical_token_asset(op.get("asset"), name=f"token op[{i}].asset")
                 to_pubkey = _canonical_pubkey(op.get("to_pubkey"), name=f"token op[{i}].to_pubkey")
                 amount = _require_u32_positive(op.get("amount"), name=f"token op[{i}].amount")
+                _token_asset_supply_in_u32_domain(balances, asset=asset, op_index=i)
             except Exception as exc:
                 return False, state, str(exc)
+            admission_error = _generic_token_admission_error(
+                op_index=i,
+                action=action,
+                asset=asset,
+                canonical_zusd_asset=canonical_zusd_asset,
+                recipient_pubkey=to_pubkey,
+                custody_registry=custody_registry,
+            )
+            if admission_error is not None:
+                return False, state, admission_error
+            if to_pubkey == sender:
+                return False, state, f"token op[{i}] requires distinct sender and recipient"
             sender_balance = int(balances.get(sender, asset))
             if sender_balance < amount:
                 return False, state, f"token op[{i}] insufficient balance"
@@ -516,9 +734,28 @@ def _apply_token_ops(
                 asset = _canonical_token_asset(op.get("asset"), name=f"token op[{i}].asset")
                 to_pubkey = _canonical_pubkey(op.get("to_pubkey"), name=f"token op[{i}].to_pubkey")
                 amount = _require_u32_positive(op.get("amount"), name=f"token op[{i}].amount")
+                asset_supply = _token_asset_supply_in_u32_domain(
+                    balances,
+                    asset=asset,
+                    op_index=i,
+                )
             except Exception as exc:
                 return False, state, str(exc)
+            admission_error = _generic_token_admission_error(
+                op_index=i,
+                action=action,
+                asset=asset,
+                canonical_zusd_asset=canonical_zusd_asset,
+                recipient_pubkey=to_pubkey,
+                custody_registry=custody_registry,
+            )
+            if admission_error is not None:
+                return False, state, admission_error
             recipient_balance = int(balances.get(to_pubkey, asset))
+            if asset_supply + amount > 0xFFFFFFFF:
+                return False, state, f"token op[{i}] supply exceeds u32 max 4294967295"
+            if recipient_balance + amount > 0xFFFFFFFF:
+                return False, state, f"token op[{i}] recipient balance exceeds u32 max 4294967295"
             balances.set(to_pubkey, asset, recipient_balance + amount)
 
         else:
@@ -546,8 +783,19 @@ def _apply_token_ops(
             try:
                 asset = _canonical_token_asset(op.get("asset"), name=f"token op[{i}].asset")
                 amount = _require_u32_positive(op.get("amount"), name=f"token op[{i}].amount")
+                _token_asset_supply_in_u32_domain(balances, asset=asset, op_index=i)
             except Exception as exc:
                 return False, state, str(exc)
+            admission_error = _generic_token_admission_error(
+                op_index=i,
+                action=action,
+                asset=asset,
+                canonical_zusd_asset=canonical_zusd_asset,
+                recipient_pubkey=None,
+                custody_registry=custody_registry,
+            )
+            if admission_error is not None:
+                return False, state, admission_error
             sender_balance = int(balances.get(sender, asset))
             if sender_balance < amount:
                 return False, state, f"token op[{i}] insufficient balance"
@@ -684,6 +932,16 @@ def _apply_proof_mining_op(
         sender = _canonical_pubkey(tx_sender_pubkey, name="tx_sender_pubkey")
     except Exception as exc:
         return False, state, proof_mining_state, str(exc)
+    recipient_gate = evaluate_proof_mining_recipient_gate(
+        recipient_distinct_from_reward_pool=sender != reward_pool_pubkey,
+    )
+    if not recipient_gate.admitted:
+        return (
+            False,
+            state,
+            proof_mining_state,
+            PROOF_MINING_REJECT_CODE_TO_ERROR[recipient_gate.reject_code],
+        )
     recipient_raw = op.get("recipient_pubkey")
     if recipient_raw is not None:
         try:
@@ -709,7 +967,16 @@ def _apply_proof_mining_op(
     actual_pool_balance = int(chain_balances.get(reward_pool_pubkey, 0))
     if actual_pool_balance < 0:
         return False, state, proof_mining_state, "reward pool chain balance must be non-negative"
+    runtime_state_was_present = proof_mining_state is not None
     runtime_state = proof_mining_state
+    runtime_pubkey_matches = False
+    runtime_balance_matches = False
+    if runtime_state is not None:
+        runtime_pubkey_matches = runtime_state.reward_pool_pubkey == reward_pool_pubkey
+        runtime_balance_matches = bool(
+            runtime_pubkey_matches
+            and int(runtime_state.snapshot.reward_pool_balance) == actual_pool_balance
+        )
     if runtime_state is None:
         try:
             runtime_state = initialize_proof_mining_runtime_state(
@@ -742,6 +1009,33 @@ def _apply_proof_mining_op(
     reward_amount = int(result.effects.get("reward_amount", 0))
     if reward_amount <= 0:
         return False, state, proof_mining_state, "proof mining reward_amount invalid"
+    gate = evaluate_proof_mining_claimability_gate(
+        reward_pool_configured=True,
+        winner_matches_sender=winner_pubkey == sender,
+        recipient_distinct_from_reward_pool=sender != reward_pool_pubkey,
+        proposal_hash_matches_context=(
+            claim_proposal_hash
+            == str(getattr(proof_mining_context, "proposal_hash", ""))
+        ),
+        reward_pool_balance_non_negative=actual_pool_balance >= 0,
+        runtime_state_present=runtime_state_was_present,
+        reward_pool_pubkey_matches_state=runtime_pubkey_matches,
+        reward_pool_balance_matches_state=runtime_balance_matches,
+        manager_ok=True,
+        reward_amount=reward_amount,
+        reward_pool_before=actual_pool_balance,
+        reward_pool_after=int(next_runtime_state.snapshot.reward_pool_balance),
+    )
+    if not gate.claimable:
+        return (
+            False,
+            state,
+            proof_mining_state,
+            PROOF_MINING_REJECT_CODE_TO_ERROR.get(
+                gate.reject_code,
+                "proof mining claimability gate rejected",
+            ),
+        )
     balances = _copy_balance_table(state.balances)
     pool_balance = int(balances.get(reward_pool_pubkey, NATIVE_ASSET))
     if pool_balance != actual_pool_balance:
@@ -790,11 +1084,11 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
         oracle_adapter_bridge_verifier=_oracle_adapter_bridge_verifier,
         require_oracle_adapter_for_clearinghouse_settle_epoch=_bool_env(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
-            default=False,
+            default=True,
         ),
         require_oracle_adapter_for_isolated_partial_liquidate=_bool_env(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
-            default=False,
+            default=True,
         ),
         require_tau_source_binding_for_isolated_partial_liquidate=_bool_env(
             "TAU_DEX_REQUIRE_TAU_SOURCE_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
@@ -827,12 +1121,56 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
 
 
 def _build_zusd_monetary_config(*, chain_id: str) -> ZUSDMonetaryConfig:
+    _require_neutral_legacy_ce067_env(
+        "TAU_DEX_ZUSD_REDEMPTION_SHUTDOWN_TCR_BPS",
+        expected=11_000,
+    )
+    _require_neutral_legacy_ce067_env(
+        "TAU_DEX_ZUSD_REDEMPTION_MIN_POST_TCR_BPS",
+        expected=0,
+    )
+    _require_neutral_legacy_ce067_env(
+        "TAU_DEX_ZUSD_MAX_EPOCH_REDEMPTION_FRACTION_BPS",
+        expected=10_000,
+    )
     oracle_pubkey = os.environ.get("TAU_DEX_ZUSD_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
+    epoch_operator_pubkey = os.environ.get(
+        "TAU_DEX_ZUSD_EPOCH_OPERATOR_PUBKEY"
+    ) or os.environ.get("TAU_DEX_OPERATOR_PUBKEY")
+    protocol_fee_recipient_pubkey = os.environ.get(
+        "TAU_DEX_ZUSD_PROTOCOL_FEE_RECIPIENT_PUBKEY"
+    )
     asset_id = os.environ.get("TAU_DEX_ZUSD_ASSET_ID", "").strip() or None
     fee_stake_asset_id = os.environ.get("TAU_DEX_ZUSD_FEE_STAKE_ASSET_ID", "").strip() or None
+    oracle_evidence_profile_raw = os.environ.get(
+        "TAU_DEX_ZUSD_ORACLE_EVIDENCE_PROFILE",
+        ZUSDOracleEvidenceProfile.FINALIZED_O3_V1.value,
+    ).strip()
+    try:
+        oracle_evidence_profile = ZUSDOracleEvidenceProfile(
+            oracle_evidence_profile_raw
+        )
+    except ValueError as exc:
+        raise ValueError(
+            "TAU_DEX_ZUSD_ORACLE_EVIDENCE_PROFILE must be an exact "
+            "allowlisted profile value"
+        ) from exc
+    oracle_authorization_root = (
+        os.environ.get(
+            "TAU_DEX_ZUSD_ORACLE_AUTHORIZATION_RECEIPT_GRAPH_ROOT",
+            "",
+        ).strip()
+        or None
+    )
     return ZUSDMonetaryConfig(
         chain_id=chain_id,
         oracle_pubkey=(oracle_pubkey or "").strip() or None,
+        epoch_operator_pubkey=(
+            (epoch_operator_pubkey or "").strip() or None
+        ),
+        protocol_fee_recipient_pubkey=(
+            (protocol_fee_recipient_pubkey or "").strip() or None
+        ),
         asset_id=asset_id,
         liquidation_gas_comp_fixed_collateral_e8=_int_env_alias(
             "TAU_DEX_ZUSD_LIQUIDATION_FEE_COMP_FIXED_COLLATERAL_E8",
@@ -859,17 +1197,33 @@ def _build_zusd_monetary_config(*, chain_id: str) -> ZUSDMonetaryConfig:
             "",
             default=1,
         ),
+        oracle_evidence_profile=oracle_evidence_profile,
+        oracle_authorization_receipt_graph_root=oracle_authorization_root,
+        shutdown_extension_profile=None,
     )
 
 
-def apply_app_tx(
+def _compute_app_tx_proposal_legacy_v1(
     *,
     app_state_json: str,
     chain_balances: Any,
     operations: Any,
     tx_sender_pubkey: str,
     block_timestamp: int,
+    execution_clock: VerifiedExecutionClockV1 | None = None,
 ) -> Tuple[bool, str, str, Optional[Dict[str, int]], Optional[str]]:
+    """Compute the legacy Tau application proposal representation.
+
+    The returned native-balance mapping contains absolute post-state balances
+    for the imperative shell to validate and commit.  This function does not
+    persist application state or apply that returned patch itself.  Existing
+    configured verifier adapters may still run as part of legacy validation;
+    neither their evidence nor this proposal grants M6 commit-port or finality
+    authority.  ``propose_app_tx_v1`` owns the typed boundary around this
+    internal representation.  This function does not constitute an M6 commit
+    port.
+    """
+
     if not isinstance(operations, dict):
         return False, app_state_json, "", None, "operations must be an object"
     if not isinstance(chain_balances, dict):
@@ -890,12 +1244,21 @@ def apply_app_tx(
     allow_external_tools = _bool_env("TAU_DEX_ALLOW_EXTERNAL_TOOLS", default=False)
     consensus_mode = _bool_env("TAU_DEX_CONSENSUS_MODE", default=True)
     chain_id = os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or os.environ.get("TAU_NETWORK_ID", "").strip() or "tau-local"
+    canonical_zusd_asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
 
     try:
         state, proof_mining_state, zusd_monetary_state = _load_state(app_state_json)
     except Exception as exc:
         return False, app_state_json, "", None, str(exc)
     state = _sync_native_balances(state, chain_balances=chain_balances)
+    try:
+        assert_zusd_global_liability_cover(
+            state=state,
+            zusd_state=zusd_monetary_state,
+            expected_zusd_asset_id=canonical_zusd_asset_id,
+        )
+    except Exception as exc:
+        return False, app_state_json, "", None, str(exc)
     if proof_mining_state is not None:
         actual_reward_pool_balance = int(chain_balances.get(proof_mining_state.reward_pool_pubkey, 0))
         if actual_reward_pool_balance < 0:
@@ -909,7 +1272,12 @@ def apply_app_tx(
             return False, app_state_json, "", None, str(exc)
 
     faucet_op = operations.get(_DEX_FAUCET_KEY, operations.get(_LEGACY_DEX_FAUCET_KEY))
-    ok, state, err = _apply_faucet(state, faucet_op, allow=allow_faucet)
+    ok, state, err = _apply_faucet(
+        state,
+        faucet_op,
+        allow=allow_faucet,
+        reserved_zusd_asset_id=canonical_zusd_asset_id,
+    )
     if not ok:
         return False, app_state_json, "", None, err
 
@@ -919,8 +1287,24 @@ def apply_app_tx(
     proof_mining_ops = _select_proof_mining_ops(operations)
     zusd_monetary_ops = _select_zusd_monetary_ops(operations)
 
-    # Sync-only call: no ops, but we still update the snapshot/hash so native balances stay consistent.
-    if not dex_ops and not perp_ops and not token_ops and not proof_mining_ops and not zusd_monetary_ops:
+    # A state carrying zUSD must pass through consensus epoch admission even
+    # when this block has no user zUSD operation.
+    if (
+        not dex_ops
+        and not perp_ops
+        and not token_ops
+        and not proof_mining_ops
+        and not zusd_monetary_ops
+        and zusd_monetary_state is None
+    ):
+        try:
+            assert_zusd_global_liability_cover(
+                state=state,
+                zusd_state=zusd_monetary_state,
+                expected_zusd_asset_id=canonical_zusd_asset_id,
+            )
+        except Exception as exc:
+            return False, app_state_json, "", None, str(exc)
         canonical, app_hash = _canonical_state_and_hash(
             state,
             proof_mining_state=proof_mining_state,
@@ -933,21 +1317,28 @@ def apply_app_tx(
         ok, next_state, token_err = _apply_token_ops(
             next_state,
             token_ops.get(_TOKEN_OPS_KEY),
+            chain_id=chain_id,
             tx_sender_pubkey=tx_sender_pubkey,
             block_timestamp=int(block_timestamp),
         )
         if not ok:
             return False, app_state_json, "", None, token_err or "token op rejected"
 
-    if zusd_monetary_ops:
+    if zusd_monetary_ops or zusd_monetary_state is not None:
         zusd_cfg = _build_zusd_monetary_config(chain_id=chain_id)
+        mounted_zusd_ops = (
+            zusd_monetary_ops.get(_ZUSD_MONETARY_OPS_KEY)
+            if zusd_monetary_ops
+            else []
+        )
         zusd_res = apply_zusd_monetary_ops(
             config=zusd_cfg,
             state=next_state,
             zusd_state=zusd_monetary_state,
-            operations=zusd_monetary_ops.get(_ZUSD_MONETARY_OPS_KEY),
+            operations=mounted_zusd_ops,
             tx_sender_pubkey=tx_sender_pubkey,
             block_timestamp=int(block_timestamp),
+            execution_clock=execution_clock,
         )
         if not zusd_res.ok or zusd_res.state is None or zusd_res.zusd_state is None:
             return False, app_state_json, "", None, zusd_res.error or "zUSD monetary op rejected"
@@ -1008,6 +1399,15 @@ def apply_app_tx(
             return False, app_state_json, "", None, perp_res.error or "PERP rejected"
         next_state = perp_res.state
 
+    try:
+        assert_zusd_global_liability_cover(
+            state=next_state,
+            zusd_state=zusd_monetary_state,
+            expected_zusd_asset_id=canonical_zusd_asset_id,
+        )
+    except Exception as exc:
+        return False, app_state_json, "", None, str(exc)
+
     balances_patch = _balances_patch_for_native(before=chain_balances, after_state=next_state)
     canonical, app_hash = _canonical_state_and_hash(
         next_state,
@@ -1015,3 +1415,52 @@ def apply_app_tx(
         zusd_monetary_state=zusd_monetary_state,
     )
     return True, canonical, app_hash, balances_patch, None
+
+
+def propose_app_tx_v1(
+    *,
+    app_state_json: str,
+    chain_balances: Any,
+    operations: Any,
+    tx_sender_pubkey: str,
+    block_timestamp: int,
+    execution_clock: VerifiedExecutionClockV1 | None = None,
+) -> TauAppTxProposalV1:
+    """Return the typed, proposal-only form of the legacy Tau adapter result."""
+
+    return TauAppTxProposalV1.from_legacy_result(
+        _compute_app_tx_proposal_legacy_v1(
+            app_state_json=app_state_json,
+            chain_balances=chain_balances,
+            operations=operations,
+            tx_sender_pubkey=tx_sender_pubkey,
+            block_timestamp=block_timestamp,
+            execution_clock=execution_clock,
+        )
+    )
+
+
+def apply_app_tx(
+    *,
+    app_state_json: str,
+    chain_balances: Any,
+    operations: Any,
+    tx_sender_pubkey: str,
+    block_timestamp: int,
+    execution_clock: VerifiedExecutionClockV1 | None = None,
+) -> Tuple[bool, str, str, Optional[Dict[str, int]], Optional[str]]:
+    """Return the legacy tuple compatibility view of a typed proposal.
+
+    The typed proposal boundary is the implementation path.  This adapter
+    preserves the historical caller contract and never commits a proposal or
+    grants M6 finality authority.
+    """
+
+    return propose_app_tx_v1(
+        app_state_json=app_state_json,
+        chain_balances=chain_balances,
+        operations=operations,
+        tx_sender_pubkey=tx_sender_pubkey,
+        block_timestamp=block_timestamp,
+        execution_clock=execution_clock,
+    ).to_legacy_result_v1()

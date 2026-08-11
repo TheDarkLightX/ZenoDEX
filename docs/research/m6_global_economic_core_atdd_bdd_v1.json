@@ -1,0 +1,385 @@
+{
+  "schema": "zenodex/m6-global-economic-core-atdd-bdd/v1",
+  "status": "RESEARCH_ONLY_DRAFT",
+  "production_promotion": false,
+  "base_commit": "12bde5263b8855e0ac76bd49b3de402e3e6f9b76",
+  "source_pins": [
+    {"path": "docs/research/M6_RESEARCH_PROGRAM_20260730.md", "sha256": "59718d052004eb00cace23d0feaa6bb078c8a61d455b9fce8e78b87fd8efd619"},
+    {"path": "src/integration/tau_testnet_dex_plugin.py", "sha256": "d585ad8820680430cc9fc3408c9864ac4638f1b4716ffe3939e310e475e12095"},
+    {"path": "src/core/zusd.py", "sha256": "f6e15cc1663069f214f7e1495c38ce63f74bb81913060e0964db411db2be6b29"},
+    {"path": "src/core/zusd_generic_token_admission.py", "sha256": "40ae289bf0bfb95a4827b2959f92025ae1da3afaf98c7f6b2923871e00123b6d"},
+    {"path": "src/integration/zusd_monetary_bridge.py", "sha256": "8a0c49e3a78b31c92910c08c33dec5ff4a3b8fca2196249c8be5275c4ae7f9d5"},
+    {"path": "src/kernels/dex/zusd_generic_token_admission_v1.yaml", "sha256": "4f542927d11c48a44d29904715b3c6140889a49bb1602b0308746298700639fd"},
+    {"path": "src/kernels/dex/zusd_fee_liability_binding_coverage_v1.yaml", "sha256": "5ceacdc6917d59a9de89252ac60b84d823e6327da96fbba7cb8ba5cb64a26d03"},
+    {"path": "src/kernels/dex/m6_global_economic_commit_v1.yaml", "sha256": "5d059bc63d00033aa99461b40812bee2d9d4466f11585228b9a1fa79fdfe90cb"},
+    {"path": "src/integration/confidential_sealed_bid_api.py", "sha256": "3c38cfc9f1b6e3b70625adee9f6b6c4ab46f21576e40359334aafc98ab93ecd2"},
+    {"path": "src/core/sealed_bid_auction.py", "sha256": "afb8c8d18b1316add1101593d2130334a444e1955e327fe8965f37761b5650e9"},
+    {"path": "src/core/sealed_bid_bonds.py", "sha256": "ded2dfbfe6fadc6cc57c6e0f4ae1e8c36c981aa4c326a1b17cd568a6a61c354d"},
+    {"path": "src/core/m6_safe_mount_types_v1.py", "sha256": "6bf3cef08ba7be320eb5acf734a37cb3d9ed7f1636b009efd4babcdff2a43db2"},
+    {"path": "src/core/m6_safe_mount_transition_v1.py", "sha256": "8039b40c714b616ae449e0d1efeb62149e07374f180d8527c830577248d12a41"},
+    {"path": "src/core/m6_authority_evidence_v1.py", "sha256": "16232a01bfc9f26862e693e31a04e3c3ef7280cecdcdc7f0aa3634c23ddbb21d"},
+    {"path": "src/core/m6_zrpf_v1.py", "sha256": "392c1fb5cfca33935ca26fb117568369470f56b1dd5f5144e2f7c40488b39193"},
+    {"path": "src/integration/m6_commit_port_v1.py", "sha256": "8fe4118d73a60dc55ea42e71de28708121e9e120df605dd6c70db19efbb88d73"},
+    {"path": "src/integration/global_economic_commit_v1.py", "sha256": "f805da38ed5214ed773b8572ad0b3554af4c45cae6d5ab1f95dc115870842825"},
+    {"path": "src/integration/m6_durable_store_v1.py", "sha256": "3a7ef5d6d36bf40d10c694726ce4a07680808d31b3fc0ae4e4f93f8ad3dc03cb"},
+    {"path": "tests/core/test_m6_safe_mount_v1.py", "sha256": "ec079ea0cba18a9e32522c1cf85dc32e6de696f03b760dc6efbd460f59da11d2"},
+    {"path": "tests/core/test_global_settlement_abi_v1.py", "sha256": "8eac50a26842365cb21c3c922760a04762256b72740b45425149295aacc0e41c"},
+    {"path": "tests/integration/test_m6_durable_store_v1.py", "sha256": "4b87ee6c6de34e1f7f63d0347dc3bd60fc3b416af1bc90c8dd1aa11bfc19f8b0"},
+    {"path": "tools/check_m6_global_economic_core_atdd_v1.py", "sha256": "165c322b0e994dc3bbabdc1434d12a7c596f6692e870e7a2d17c4abe1b08f9c6"},
+    {"path": "tools/check_m6_writer_inventory.py", "sha256": "a9d0810b7f0f2b63115ef537424257519426cdef33dc522f98de1b0500a96517"},
+    {"path": "tools/m6_writer_inventory_manifest_v1.json", "sha256": "c672b87cbe764b4fc00e8e0fffe19efecb5119b80e97927cd398f43bdcb9dbca"},
+    {"path": "tools/check_m6_global_economic_core_luna_review_v1.py", "sha256": "25ae2a0591b958aae6dc69a6437327630fe9747e8c4952dda21a8a0ac0c23161"},
+    {"path": "src/core/m6_migration_lifecycle_v1.py", "sha256": "319098ab431f80e80277cec813787b95c73324f0577a8a6e7062150a3a38cb55"},
+    {"path": "src/core/m6_safe_mount_v1.py", "sha256": "137269526454295172bfe7cc97bd6159913be90cc0b482716051aa658f34c7c0"},
+    {"path": "src/integration/m6_authority_verifier_v1.py", "sha256": "30229df7bb67f10314295fff1a7a6c071a1ff3910482711368e5ed93d94e9667"},
+    {"path": "src/integration/m6_external_proof_backend_v1.py", "sha256": "d441fdb7d1b6a7081f8a32a19fd48afcc76fcfc19146f25e302b74e7713e6649"},
+    {"path": "src/integration/m6_migration_admission_v1.py", "sha256": "a407c50977927c36b4c5af5734be94d98dec3a810f082bdca21f613c3c159232"},
+    {"path": "src/integration/m6_migration_authority_v1.py", "sha256": "c7e54e1cc53a84720b9767db3b2412a83d27069e3f08062cf3da11c420fe110a"},
+    {"path": "src/integration/m6_outbox_delivery_v1.py", "sha256": "fc55db9bf0c641f23d0c14085a96c904c55cc5a745e2be8beb08dca1c18dcf24"},
+    {"path": "tests/core/test_m6_migration_lifecycle_v1.py", "sha256": "75279f74af817845301e98c85cc99754ddbc1ef4ff6fd9a055fa3e0e95a22ad2"},
+    {"path": "tests/integration/test_m6_authority_verifier_v1.py", "sha256": "b44a5d70e35042f03b8e55452d60945ca2f85577f67e4839fe87802e58634313"},
+    {"path": "tests/integration/test_m6_migration_admission_v1.py", "sha256": "988eceb42500ece502590b207d676c69a5b165fe033eaa3c086669ee31cd1133"},
+    {"path": "tests/integration/test_m6_outbox_delivery_v1.py", "sha256": "c20cda70a78a66812fb7c6f2b096bd652feae2c1f94a85b8ff08c0c5e5363036"},
+    {"path": "tests/kernels/test_m6_global_economic_commit_v1.py", "sha256": "931399f38089f0f2ce1fc374d550032c6f3f2f510fd7c71a6963b1234c3edf4d"},
+    {"path": "zk/recursive_stark_v2_risc0/shared/src/m6_core_v1.rs", "sha256": "1f9f2edd2745e5964a741a91c9ba7ae72cd1d23da429921d30ebb4408076e7c1"}
+  ],
+  "authority_topology": {
+    "semantic_authority": "versioned deterministic ZenoDEX formal core",
+    "durable_authority": "one deployment-selected ZenoLedger publication capability",
+    "specification_and_verification": "Tau when reachable, locally pinned deterministic formal-core and verifier profiles, ESSO, Lean, deterministic checkers, and refinement receipts",
+    "sqlite_role": "unmounted reference persistence and conformance adapter",
+    "required_relation": "only an exact locally evaluated formal-core candidate bound to the current ZenoLedger head may become durable economic state; Tau Net reachability is not a transaction dependency and Tau cannot replace committed ZenoLedger history"
+  },
+  "managed_asset_policy": [
+    {"asset_class": "tau_native_coin", "issue_authority": "outside the ZenoDEX formal core", "burn_authority": "outside the ZenoDEX formal core", "production_rule": "The all-zero native asset is authenticated current ZenoLedger state and every DEX custody delta publishes in the same atomic ledger transition; callers cannot supply balance authority."},
+    {"asset_class": "canonical_zusd", "issue_authority": "collateralized zUSD debt transition", "burn_authority": "repayment, exact owner close, redemption, or Stability Pool debt offset", "production_rule": "The shared token stream is transfer-only for zUSD; faucet and generic mint or burn reject."},
+    {"asset_class": "lp_share", "issue_authority": "pool add-liquidity transition", "burn_authority": "pool remove-liquidity transition", "production_rule": "LP supply changes only with the matching reserve and custody transition."},
+    {"asset_class": "zdex_protocol_token", "issue_authority": "versioned genesis or explicitly approved issuance profile", "burn_authority": "fee-funded protocol buy-and-burn transition", "production_rule": "Only ZDEX acquired from committed buyback custody may burn, subject to the protected supply floor."},
+    {"asset_class": "sealed_bid_payment_or_inventory", "issue_authority": "none within sealed-bid settlement", "burn_authority": "none within sealed-bid settlement", "production_rule": "The auction may only escrow, transfer, refund, or slash existing amounts through the exact asset's declared policy."},
+    {"asset_class": "registered_ordinary_token", "issue_authority": "named versioned asset issuer profile", "burn_authority": "named versioned asset burn profile", "production_rule": "Production defaults to transfer-only; arbitrary generic mint or burn is test-profile-only and otherwise rejects."}
+  ],
+  "actors": [
+    "trader",
+    "liquidity_provider",
+    "borrower",
+    "stability_provider",
+    "liquidator",
+    "perp_trader",
+    "proof_miner",
+    "oracle_reporter",
+    "sealed_bidder",
+    "governance_operator",
+    "recovery_operator",
+    "outbox_worker",
+    "adversary"
+  ],
+  "invariants": [
+    {"id": "INV-001", "name": "managed_asset_single_issuer", "law": "Every managed asset has one versioned issue policy and one versioned burn policy; protocol-specific burns remain legal only through their named transition, while generic production mint, burn, and faucet paths reject."},
+    {"id": "INV-002", "name": "zusd_liability_cover", "law": "zUSD debt equals external supply plus every current internal zUSD liability, including fee and Stability Pool ownership projections."},
+    {"id": "INV-003", "name": "per_asset_conservation", "law": "Every accepted transition has an exact per-asset, per-custody delta certificate with no unnamed remainder."},
+    {"id": "INV-004", "name": "custody_and_claim_reconciliation", "law": "Every custody balance equals the complete set of current claims or an explicitly owned reserve bucket."},
+    {"id": "INV-005", "name": "rejection_partition", "law": "Admission or publication rejection publishes no successor, nonce, receipt, balance patch, effect, or outbox row. An authenticated, well-formed command admitted to a canonical batch whose business transition rejects publishes a committed failure candidate that advances only ingress nonce, history, nullifier, receipt, publication identity, and head; it leaves all economic atoms, escrow, withdrawal, acknowledgment, external balance patches, effects, and outbox rows unchanged."},
+    {"id": "INV-006", "name": "deterministic_canonical_transition", "law": "Equal canonical state, command, authenticated context, and active pinned profile produce byte-identical decision, state, effects, and receipt; Tau Net reachability is not an input to the transition."},
+    {"id": "INV-007", "name": "replay_uniqueness", "law": "One authenticated sender nonce or nullifier can authorize at most one committed transition."},
+    {"id": "INV-008", "name": "current_context_binding", "law": "Every authorization and proof binds the exact current state, deployment, authority epoch, verifier profile, and freshness context."},
+    {"id": "INV-009", "name": "atomic_publication", "law": "State, history, nullifier, decision, receipt, economic certificate, authority epoch, and required outbox rows publish at one linearization point."},
+    {"id": "INV-010", "name": "external_effect_ancestry", "law": "Every external semantic effect descends from one committed effect identity; redelivery cannot change its meaning."},
+    {"id": "INV-011", "name": "reopen_pre_or_post_and_reauthorize", "law": "Recovery reconstructs exact PRE or exact POST or rejects, and reopen alone grants no writer authority."},
+    {"id": "INV-012", "name": "mounted_no_bypass", "law": "Every reachable value-moving entrypoint reaches the unique publication capability or rejects."},
+    {"id": "INV-013", "name": "oracle_conditional_risk_safety", "law": "Risk-increasing commands require current authenticated prices; stale or deficit states admit only the declared recovery subset."},
+    {"id": "INV-014", "name": "terminal_state_drains_exactly", "law": "Every enabled terminal lifecycle has a complete, deterministic claim and custody drain with no stranded liability."}
+  ],
+  "workflows": [
+    {
+      "id": "WF-01",
+      "name": "transfer_supported_asset",
+      "actor": "trader",
+      "owner": "accounting_ledger_core",
+      "entrypoints": ["TauToken.transfer", "apply_app_tx stream 9"],
+      "required_scenario_classes": ["happy", "authorization", "rejection", "replay"],
+      "scenarios": [
+        {"id": "BDD-001", "class": "happy", "given": "Alice owns sufficient transferable balance", "when": "Alice submits one authenticated transfer with the next nonce", "then": "the exact debit and credit commit once and total supply is unchanged", "requirements": ["INV-003", "INV-006", "INV-009"]},
+        {"id": "BDD-002", "class": "authorization", "given": "Mallory cannot authenticate as Alice", "when": "Mallory submits Alice's transfer payload", "then": "the command rejects with no state, nonce, receipt, or effect", "requirements": ["INV-005", "INV-008"]},
+        {"id": "BDD-003", "class": "rejection", "given": "Alice has less than the requested amount", "when": "Alice submits the well-formed transfer in a canonical batch", "then": "the business failure consumes Alice's ingress nonce and records one rejection history atom while balances and effects remain unchanged", "requirements": ["INV-005"]},
+        {"id": "BDD-004", "class": "replay", "given": "the transfer is already committed", "when": "the same command is retried", "then": "the runtime returns the same committed identity without a second debit", "requirements": ["INV-007", "INV-009"]}
+      ]
+    },
+    {
+      "id": "WF-02",
+      "name": "settle_spot_trade",
+      "actor": "trader",
+      "owner": "spot_settlement_composition",
+      "entrypoints": ["apply_app_tx streams 5 and 6", "dex_engine.apply_ops"],
+      "required_scenario_classes": ["happy", "rejection", "atomicity", "replay"],
+      "scenarios": [
+        {"id": "BDD-005", "class": "happy", "given": "an authenticated intent and matching current pool witness", "when": "the settlement is evaluated", "then": "trader, pool, fee, and receipt deltas commit as one candidate", "requirements": ["INV-003", "INV-006", "INV-009"]},
+        {"id": "BDD-006", "class": "rejection", "given": "the pool witness is stale or output is below the user's minimum", "when": "the well-formed settlement reaches the canonical batch", "then": "the business failure records its ingress identity while no partial pool, trader, or external effect mutation occurs", "requirements": ["INV-005", "INV-008"]},
+        {"id": "BDD-007", "class": "atomicity", "given": "a batch contains several fills", "when": "one required fill or fee relation fails", "then": "none of the batch state, history, or effects publish", "requirements": ["INV-005", "INV-009"]},
+        {"id": "BDD-008", "class": "replay", "given": "a settlement command already consumed its nonce", "when": "a relayer resubmits it", "then": "no fill or fee is applied twice", "requirements": ["INV-007"]}
+      ]
+    },
+    {
+      "id": "WF-03",
+      "name": "manage_liquidity_position",
+      "actor": "liquidity_provider",
+      "owner": "liquidity_accounting_core",
+      "entrypoints": ["DEX add/remove liquidity intents", "dex_engine.apply_ops"],
+      "required_scenario_classes": ["happy", "rejection", "accounting", "terminal"],
+      "scenarios": [
+        {"id": "BDD-009", "class": "happy", "given": "Bob owns both assets and the pool is current", "when": "Bob adds liquidity", "then": "custody reserves and LP supply change according to the declared integer rounding rule", "requirements": ["INV-003", "INV-004"]},
+        {"id": "BDD-010", "class": "rejection", "given": "one asset balance or ratio constraint is insufficient", "when": "Bob submits the well-formed add-liquidity command in a canonical batch", "then": "the business failure records the ingress identity while no reserve or LP share changes", "requirements": ["INV-005"]},
+        {"id": "BDD-011", "class": "accounting", "given": "fees and rounding residues have accrued", "when": "Bob removes liquidity", "then": "principal, fees, custody, LP burn, and every residue owner reconcile", "requirements": ["INV-003", "INV-004"]},
+        {"id": "BDD-012", "class": "terminal", "given": "Bob burns the final LP share", "when": "the pool closes", "then": "all remaining reserves, fees, and dust have an exact terminal owner", "requirements": ["INV-014"]}
+      ]
+    },
+    {
+      "id": "WF-04",
+      "name": "manage_zusd_collateral",
+      "actor": "borrower",
+      "owner": "zusd_monetary_core",
+      "entrypoints": ["ZUSDFinance.deposit_collateral", "ZUSDFinance.withdraw_collateral"],
+      "required_scenario_classes": ["happy", "rejection", "freshness", "accounting"],
+      "scenarios": [
+        {"id": "BDD-013", "class": "happy", "given": "the borrower owns native collateral", "when": "collateral is deposited", "then": "the custody increase and native balance patch are exact parts of one transition", "requirements": ["INV-003", "INV-009"]},
+        {"id": "BDD-014", "class": "rejection", "given": "withdrawal would violate the collateral rule", "when": "the borrower requests withdrawal", "then": "the request rejects without releasing collateral", "requirements": ["INV-005", "INV-013"]},
+        {"id": "BDD-015", "class": "freshness", "given": "the authenticated price is stale", "when": "the borrower requests a risk-increasing withdrawal", "then": "the transition rejects or enters only the declared recovery subset", "requirements": ["INV-008", "INV-013"]},
+        {"id": "BDD-016", "class": "accounting", "given": "collateral moves between chain custody and the vault", "when": "the transition commits", "then": "the internal delta equals the committed native balance patch", "requirements": ["INV-003", "INV-009"]}
+      ]
+    },
+    {
+      "id": "WF-05",
+      "name": "mint_zusd",
+      "actor": "borrower",
+      "owner": "zusd_monetary_core",
+      "entrypoints": ["ZUSDFinance.mint_zusd", "apply_app_tx stream 11"],
+      "required_scenario_classes": ["happy", "authorization", "rejection", "accounting", "replay"],
+      "scenarios": [
+        {"id": "BDD-017", "class": "happy", "given": "current authenticated collateral and price satisfy policy", "when": "the borrower mints principal with a fee", "then": "principal becomes external supply and the fee becomes the exact current internal liability", "requirements": ["INV-002", "INV-013"]},
+        {"id": "BDD-018", "class": "authorization", "given": "a generic token writer targets canonical zUSD", "when": "it requests mint or faucet issuance", "then": "the operation rejects before any balance or supply change", "requirements": ["INV-001", "INV-005"]},
+        {"id": "BDD-019", "class": "rejection", "given": "the well-formed mint would exceed collateral or debt limits", "when": "the monetary core evaluates it in a canonical batch", "then": "the business failure records the ingress identity while collateral, debt, supply, and effects remain unchanged", "requirements": ["INV-005", "INV-013"]},
+        {"id": "BDD-020", "class": "accounting", "given": "a positive borrowing fee", "when": "the mint commits", "then": "free debt equals external supply plus all current fee liabilities", "requirements": ["INV-002", "INV-003"]},
+        {"id": "BDD-021", "class": "replay", "given": "the mint is committed", "when": "the same sender nonce is replayed", "then": "no second debt or supply is created", "requirements": ["INV-007"]}
+      ]
+    },
+    {
+      "id": "WF-06",
+      "name": "repay_or_close_zusd_debt",
+      "actor": "borrower",
+      "owner": "zusd_monetary_core",
+      "entrypoints": ["ZUSDFinance.repay_zusd", "zUSD owner-close transition"],
+      "required_scenario_classes": ["happy", "rejection", "accounting", "terminal"],
+      "scenarios": [
+        {"id": "BDD-022", "class": "happy", "given": "the borrower owns transferable zUSD and has debt", "when": "repayment is submitted", "then": "the same amount is burned from external supply and removed from debt", "requirements": ["INV-002", "INV-003"]},
+        {"id": "BDD-023", "class": "rejection", "given": "the borrower lacks balance or requests more than current debt", "when": "the well-formed repayment is evaluated in a canonical batch", "then": "the business failure consumes the ingress nonce and records one rejection identity while balances and debt remain unchanged", "requirements": ["INV-005"]},
+        {"id": "BDD-024", "class": "accounting", "given": "fee liabilities remain after principal repayment", "when": "the transaction commits", "then": "the current liability identity remains exact and historical counters do not substitute for current claims", "requirements": ["INV-002", "INV-004"]},
+        {"id": "BDD-025", "class": "terminal", "given": "all borrower debt is repayable and every liability owner is defined", "when": "the vault closes", "then": "collateral releases exactly and no debt or custody claim is stranded", "requirements": ["INV-014"]}
+      ]
+    },
+    {
+      "id": "WF-07",
+      "name": "redeem_zusd",
+      "actor": "trader",
+      "owner": "zusd_redemption_core",
+      "entrypoints": ["ZUSDFinance.redeem_zusd"],
+      "required_scenario_classes": ["happy", "rejection", "accounting", "freshness"],
+      "scenarios": [
+        {"id": "BDD-026", "class": "happy", "given": "the redeemer owns zUSD and eligible vault ordering is canonical", "when": "redemption executes", "then": "zUSD burns and collateral transfers with the exact fee and rounding owner", "requirements": ["INV-002", "INV-003"]},
+        {"id": "BDD-027", "class": "rejection", "given": "the request is below the minimum, exceeds supply, or has ambiguous ordering", "when": "redemption is evaluated", "then": "no vault, balance, or fee state changes", "requirements": ["INV-005"]},
+        {"id": "BDD-028", "class": "accounting", "given": "redemption spans multiple vaults", "when": "it commits", "then": "the complete burn, collateral, fee, and residual vector reconciles", "requirements": ["INV-003", "INV-004"]},
+        {"id": "BDD-029", "class": "freshness", "given": "the price or ordering evidence is stale", "when": "redemption is submitted", "then": "the request rejects under the authenticated current context", "requirements": ["INV-008", "INV-013"]}
+      ]
+    },
+    {
+      "id": "WF-08",
+      "name": "use_stability_pool",
+      "actor": "stability_provider",
+      "owner": "zusd_stability_pool_core",
+      "entrypoints": ["ZUSDFinance.deposit_sp", "withdraw_sp", "claim_sp_collateral"],
+      "required_scenario_classes": ["happy", "rejection", "accounting", "recovery"],
+      "scenarios": [
+        {"id": "BDD-030", "class": "happy", "given": "the provider owns zUSD", "when": "zUSD is deposited into the Stability Pool", "then": "external balance moves into exact escrow and the provider claim is recorded", "requirements": ["INV-002", "INV-004"]},
+        {"id": "BDD-031", "class": "rejection", "given": "the amount exceeds the provider balance or claim", "when": "deposit or withdrawal is evaluated", "then": "escrow and claimant state remain unchanged", "requirements": ["INV-005"]},
+        {"id": "BDD-032", "class": "accounting", "given": "a liquidation allocates debt and collateral across providers", "when": "pool accounting commits", "then": "escrow, debt absorption, claims, gains, and rounding buckets reconcile exactly", "requirements": ["INV-002", "INV-003", "INV-004"]},
+        {"id": "BDD-033", "class": "recovery", "given": "the process crashes around a pool update", "when": "the state reopens", "then": "the complete pre-pool or post-pool state is reconstructed and writer authority is reacquired", "requirements": ["INV-009", "INV-011"]}
+      ]
+    },
+    {
+      "id": "WF-09",
+      "name": "liquidate_unsafe_position",
+      "actor": "liquidator",
+      "owner": "risk_and_liquidation_core",
+      "entrypoints": ["ZUSDFinance.liquidate", "perps liquidation actions"],
+      "required_scenario_classes": ["happy", "authorization", "rejection", "accounting", "freshness"],
+      "scenarios": [
+        {"id": "BDD-034", "class": "happy", "given": "an authenticated current price proves a position unsafe", "when": "a liquidator submits the eligible action", "then": "debt, collateral, compensation, insurance or pool absorption commit exactly once", "requirements": ["INV-003", "INV-013"]},
+        {"id": "BDD-035", "class": "authorization", "given": "the price or source receipt belongs to another deployment", "when": "liquidation is attempted", "then": "the proof-context substitution rejects", "requirements": ["INV-008"]},
+        {"id": "BDD-036", "class": "rejection", "given": "the authenticated position remains safe", "when": "the well-formed liquidation command reaches a canonical batch", "then": "the business failure records the ingress identity while position, collateral, reward, and external effects remain unchanged", "requirements": ["INV-005", "INV-013"]},
+        {"id": "BDD-037", "class": "accounting", "given": "liquidation has several destination buckets", "when": "it commits", "then": "seized collateral equals compensation plus all assigned claims and reserves", "requirements": ["INV-003", "INV-004"]},
+        {"id": "BDD-038", "class": "freshness", "given": "the latest authenticated price is stale or pending", "when": "liquidation is evaluated", "then": "the declared stale-price policy determines one deterministic reject or recovery action", "requirements": ["INV-006", "INV-013"]}
+      ]
+    },
+    {
+      "id": "WF-10",
+      "name": "manage_perpetual_position",
+      "actor": "perp_trader",
+      "owner": "perps_risk_and_settlement_core",
+      "entrypoints": ["apply_app_tx stream 8", "perp_engine.apply_perp_ops"],
+      "required_scenario_classes": ["happy", "rejection", "accounting", "terminal", "freshness"],
+      "scenarios": [
+        {"id": "BDD-039", "class": "happy", "given": "the trader has margin and a current authorized market context", "when": "the trader opens or adjusts a position", "then": "position, margin, counterparty, fee, and insurance deltas form one accepted candidate", "requirements": ["INV-003", "INV-013"]},
+        {"id": "BDD-040", "class": "rejection", "given": "margin, market phase, or position bounds fail for a well-formed action", "when": "the action is evaluated in a canonical batch", "then": "the business failure records the ingress identity while no partial position or collateral mutation occurs", "requirements": ["INV-005"]},
+        {"id": "BDD-041", "class": "accounting", "given": "funding, realized PnL, fees, and insurance change", "when": "an epoch settles", "then": "all perps liabilities and custody transfers reconcile by asset and owner", "requirements": ["INV-003", "INV-004"]},
+        {"id": "BDD-042", "class": "terminal", "given": "the position is fully closed", "when": "the close commits", "then": "remaining margin and liabilities settle exactly and the position cannot move value again", "requirements": ["INV-014"]},
+        {"id": "BDD-043", "class": "freshness", "given": "the oracle or epoch source is stale", "when": "risk-increasing perps action is submitted", "then": "the action rejects under the authenticated current context", "requirements": ["INV-008", "INV-013"]}
+      ]
+    },
+    {
+      "id": "WF-11",
+      "name": "claim_proof_reward",
+      "actor": "proof_miner",
+      "owner": "proof_reward_claim_core",
+      "entrypoints": ["apply_app_tx stream 10", "proof_mining_runtime.apply_proof_mining_claim"],
+      "required_scenario_classes": ["happy", "authorization", "accounting", "replay"],
+      "scenarios": [
+        {"id": "BDD-044", "class": "happy", "given": "a verified claim binds the current proof, claimant, and reward reserve", "when": "the miner claims", "then": "the reserve debit and claimant credit commit once", "requirements": ["INV-003", "INV-008"]},
+        {"id": "BDD-045", "class": "authorization", "given": "proof bytes bind a different claimant or context", "when": "the claim is submitted", "then": "the verifier rejects without consuming the claim", "requirements": ["INV-005", "INV-008"]},
+        {"id": "BDD-046", "class": "accounting", "given": "a finite reward reserve", "when": "the claim commits", "then": "the exact reserve liability decreases by the exact recipient credit", "requirements": ["INV-003", "INV-004"]},
+        {"id": "BDD-047", "class": "replay", "given": "the proof claim nullifier is committed", "when": "the claim is replayed", "then": "no second reward is created", "requirements": ["INV-007"]}
+      ]
+    },
+    {
+      "id": "WF-12",
+      "name": "publish_oracle_observation",
+      "actor": "oracle_reporter",
+      "owner": "oracle_admission_and_commit_core",
+      "entrypoints": ["ZUSDFinance.oracle_report", "oracle_commit", "oracle authorization adapters"],
+      "required_scenario_classes": ["happy", "authorization", "rejection", "freshness"],
+      "scenarios": [
+        {"id": "BDD-048", "class": "happy", "given": "the reporter, observation epoch, and policy are authenticated", "when": "a valid observation is committed", "then": "the canonical price context advances deterministically", "requirements": ["INV-006", "INV-008"]},
+        {"id": "BDD-049", "class": "authorization", "given": "the signer, quorum, deployment, or policy root is foreign", "when": "an observation is submitted", "then": "it rejects without changing the active or pending price", "requirements": ["INV-005", "INV-008"]},
+        {"id": "BDD-050", "class": "rejection", "given": "the observation is malformed, future-dated, regressive, or out of range", "when": "admission runs", "then": "one stable rejection class is returned", "requirements": ["INV-005", "INV-006"]},
+        {"id": "BDD-051", "class": "freshness", "given": "the last committed observation exceeds the freshness window", "when": "a risk-increasing command is evaluated", "then": "that command cannot use the stale value", "requirements": ["INV-013"]}
+      ]
+    },
+    {
+      "id": "WF-13",
+      "name": "migrate_authority_or_schema",
+      "actor": "governance_operator",
+      "owner": "migration_authority_machine",
+      "entrypoints": ["migration and authority-switch port"],
+      "required_scenario_classes": ["happy", "authorization", "rejection", "recovery", "terminal"],
+      "scenarios": [
+        {"id": "BDD-052", "class": "happy", "given": "shadow and dual-check evidence bind the same current state", "when": "the authorized switch commits", "then": "the new writer epoch and complete migrated state become current atomically", "requirements": ["INV-008", "INV-009"]},
+        {"id": "BDD-053", "class": "authorization", "given": "the governance permit or promotion subject is stale", "when": "a switch is attempted", "then": "the phase and writer set remain unchanged", "requirements": ["INV-005", "INV-008"]},
+        {"id": "BDD-054", "class": "rejection", "given": "source and target semantics, roots, or evidence disagree", "when": "migration is evaluated", "then": "mixed representation cannot publish", "requirements": ["INV-005", "INV-006"]},
+        {"id": "BDD-055", "class": "recovery", "given": "a crash occurs in any migration phase", "when": "the system reopens", "then": "one complete authorized phase and writer set is reconstructed", "requirements": ["INV-011"]},
+        {"id": "BDD-056", "class": "terminal", "given": "post-switch validation succeeds", "when": "legacy authority is disabled", "then": "every old writer rejects permanently under the new epoch", "requirements": ["INV-012", "INV-014"]}
+      ]
+    },
+    {
+      "id": "WF-14",
+      "name": "resolve_retry_crash_or_concurrent_commit",
+      "actor": "recovery_operator",
+      "owner": "publication_and_reopen_shell",
+      "entrypoints": ["ZenoLedger publication capability", "reopen and retry classifier"],
+      "required_scenario_classes": ["concurrency", "replay", "recovery", "rejection"],
+      "scenarios": [
+        {"id": "BDD-057", "class": "concurrency", "given": "two candidates bind the same head and sender nonce", "when": "both race to publish", "then": "exactly one commits and the loser receives stale-state rejection", "requirements": ["INV-007", "INV-009"]},
+        {"id": "BDD-058", "class": "replay", "given": "the client lost the commit response", "when": "it retries the identical commit identity", "then": "the durable classifier returns already committed without duplicating state or effects", "requirements": ["INV-007", "INV-010"]},
+        {"id": "BDD-059", "class": "recovery", "given": "a crash occurs before, during, or after the publication point", "when": "canonical reopen runs", "then": "only exact PRE or exact POST is accepted and fresh writer authorization is required", "requirements": ["INV-009", "INV-011"]},
+        {"id": "BDD-060", "class": "rejection", "given": "a staged candidate's expected head has changed", "when": "commit is attempted", "then": "the candidate is rejected with no partial publication", "requirements": ["INV-005", "INV-009"]}
+      ]
+    },
+    {
+      "id": "WF-15",
+      "name": "deliver_committed_external_effect",
+      "actor": "outbox_worker",
+      "owner": "external_effect_delivery_shell",
+      "entrypoints": ["committed outbox worker", "destination adapter"],
+      "required_scenario_classes": ["delivery", "authorization", "replay", "recovery"],
+      "scenarios": [
+        {"id": "BDD-061", "class": "delivery", "given": "a committed outbox row names an external destination effect", "when": "the worker delivers it", "then": "the destination observes the exact committed effect identity", "requirements": ["INV-010"]},
+        {"id": "BDD-062", "class": "authorization", "given": "no committed outbox row exists", "when": "a worker or caller requests delivery", "then": "the adapter refuses to create an effect", "requirements": ["INV-005", "INV-010"]},
+        {"id": "BDD-063", "class": "replay", "given": "delivery succeeded but acknowledgment was lost", "when": "the same effect is redelivered", "then": "the destination applies at most one semantic effect", "requirements": ["INV-010"]},
+        {"id": "BDD-064", "class": "recovery", "given": "the worker crashes at any delivery phase", "when": "it restarts", "then": "the committed effect remains deliverable under the same immutable identity", "requirements": ["INV-010", "INV-011"]}
+      ]
+    },
+    {
+      "id": "WF-16",
+      "name": "exclude_zusd_emergency_shutdown",
+      "actor": "governance_operator",
+      "owner": "unmounted_zusd_shutdown_extension",
+      "entrypoints": ["src/core/zusd_shutdown.py research extension"],
+      "required_scenario_classes": ["exclusion", "rejection", "recovery", "terminal"],
+      "scenarios": [
+        {"id": "BDD-065", "class": "exclusion", "given": "the day-one production command registry", "when": "supported variants are enumerated", "then": "no shutdown activation, terminal-price command, or shutdown-claim authority is reachable", "requirements": ["INV-012"]},
+        {"id": "BDD-066", "class": "rejection", "given": "a research shutdown payload or UI action", "when": "it reaches a production decoder or publisher", "then": "the operation rejects and ordinary state remains byte-identical", "requirements": ["INV-005", "INV-012"]},
+        {"id": "BDD-067", "class": "recovery", "given": "a process restarts with the shutdown research module present on disk", "when": "production authority is reconstructed", "then": "the module gains no command, writer, or recovery capability", "requirements": ["INV-011", "INV-012"]},
+        {"id": "BDD-068", "class": "terminal", "given": "a user closes debt or exits the Stability Pool without shutdown", "when": "the supported terminal path completes", "then": "every debt, collateral, fee, reserve, and claimant atom drains through the ordinary formal core", "requirements": ["INV-014"]}
+      ]
+    },
+    {
+      "id": "WF-17",
+      "name": "enforce_complete_value_movement_mediation",
+      "actor": "adversary",
+      "owner": "mounted_no_bypass_checker",
+      "entrypoints": ["API", "CLI", "Tau app bridge", "ZenoLedger host", "recovery", "migration", "workers", "direct adapters"],
+      "required_scenario_classes": ["architecture", "mutation", "rejection", "recovery"],
+      "scenarios": [
+        {"id": "BDD-069", "class": "architecture", "given": "the production build and deployment graph", "when": "every reachable value-moving path is enumerated", "then": "each path reaches the unique publication capability or rejects", "requirements": ["INV-012"]},
+        {"id": "BDD-070", "class": "mutation", "given": "a hostile build adds a direct balance writer or omits one entrypoint from the inventory", "when": "the no-bypass gate runs", "then": "the build fails promotion", "requirements": ["INV-012"]},
+        {"id": "BDD-071", "class": "rejection", "given": "a caller has a locally valid core result without a bound commit capability", "when": "it attempts publication", "then": "no economic state becomes durable", "requirements": ["INV-005", "INV-009"]},
+        {"id": "BDD-072", "class": "recovery", "given": "a reopened process has canonical state but no fresh authority latch", "when": "it attempts value movement", "then": "the operation rejects until current authorization is reacquired", "requirements": ["INV-011", "INV-012"]}
+      ]
+    },
+    {
+      "id": "WF-18",
+      "name": "settle_confidential_sealed_bid",
+      "actor": "sealed_bidder",
+      "owner": "sealed_bid_commit_reveal_and_asset_settlement_core",
+      "entrypoints": ["confidential sealed-bid API", "Confidential UI", "future M6 sealed-bid command"],
+      "required_scenario_classes": ["commit", "authorization", "reveal", "invalid_reveal", "settlement", "non_reveal", "cancel_expire", "replay_concurrency", "recovery"],
+      "scenarios": [
+        {"id": "BDD-073", "class": "commit", "given": "Alice owns the required bond and the commit phase is open", "when": "Alice submits one authenticated commitment", "then": "commitment metadata, bidder identity, bond custody, batch, phase, and expiry bind one immutable occurrence while bid quantity and price remain unrevealed", "requirements": ["INV-003", "INV-004", "INV-008"]},
+        {"id": "BDD-074", "class": "authorization", "given": "Mallory cannot authenticate as Alice or fund Alice's bond", "when": "Mallory submits Alice's commitment", "then": "the command rejects before commitment or bond custody exists", "requirements": ["INV-005", "INV-008"]},
+        {"id": "BDD-075", "class": "reveal", "given": "Alice committed and the reveal phase is open", "when": "Alice reveals quantity, limit price, and nonce", "then": "the reveal recomputes Alice's exact commitment and becomes one canonical eligible bid", "requirements": ["INV-006", "INV-007"]},
+        {"id": "BDD-076", "class": "invalid_reveal", "given": "the reveal changes bidder, quantity, price, nonce, batch, or commitment", "when": "the reveal is admitted", "then": "it rejects without creating a fill, refund, slash, or alternate bond state", "requirements": ["INV-005", "INV-008"]},
+        {"id": "BDD-077", "class": "settlement", "given": "the reveal phase is closed with canonical valid bids", "when": "the batch settles", "then": "clearing price, tie order, fills, inventory, payment, fees, refunds, slashes, residues, receipt, and batch terminal state publish atomically", "requirements": ["INV-003", "INV-004", "INV-006", "INV-009"]},
+        {"id": "BDD-078", "class": "non_reveal", "given": "Bob committed but did not reveal before expiry", "when": "the batch finalizes", "then": "Bob receives no fill and his bond follows the exact declared slash or refund policy once", "requirements": ["INV-004", "INV-007", "INV-014"]},
+        {"id": "BDD-079", "class": "cancel_expire", "given": "a batch cannot proceed or an allowed cancellation condition holds", "when": "the batch cancels or expires", "then": "every commitment, bond, inventory reservation, payment reservation, and fee has one deterministic terminal disposition", "requirements": ["INV-004", "INV-014"]},
+        {"id": "BDD-080", "class": "replay_concurrency", "given": "duplicate reveals or two settlement candidates race on one batch head", "when": "publication resolves", "then": "at most one terminal settlement commits and no bond, fill, payment, inventory, refund, or slash occurs twice", "requirements": ["INV-007", "INV-009"]},
+        {"id": "BDD-081", "class": "recovery", "given": "a crash occurs during phase advance or asset settlement", "when": "the batch reopens", "then": "the complete PRE or complete POST batch and economic state reopens, or recovery rejects without revealing hidden bids or restoring writer authority", "requirements": ["INV-010", "INV-011", "INV-014"]}
+      ]
+    }
+  ],
+  "m6_coverage": {
+    "M6-R01": ["WF-02", "WF-03"],
+    "M6-R02": ["WF-02"],
+    "M6-R03": ["WF-02", "WF-13"],
+    "M6-R04": ["WF-01", "WF-02", "WF-17", "WF-18"],
+    "M6-R05": ["WF-14"],
+    "M6-R06": ["WF-11", "WF-17"],
+    "M6-R07": ["WF-14"],
+    "M6-R08": ["WF-09", "WF-11", "WF-12"],
+    "M6-R09": ["WF-02", "WF-14", "WF-18"],
+    "M6-R10": ["WF-15"],
+    "M6-R11": ["WF-13"],
+    "M6-R12": ["WF-17"],
+    "M6-R13": ["WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-16", "WF-18"]
+  },
+  "open_decisions": [
+    "Approve the complete current fee-liability owners, claim paths, routing shares, fallback, and terminal-drain policy.",
+    "Freeze the production publication profile in which Tau evaluates the versioned formal core and ZenoLedger owns the unique durable commit capability.",
+    "Freeze the sealed-bid inventory and payment assets, bond amount, phase deadlines, cancellation policy, non-reveal disposition, tie order, and mounted asset-settlement port.",
+    "Close the day-one capability gaps listed by the source-bound product ATDD contract or keep their UI actions disabled.",
+    "Obtain a fresh five-lens source-bound completeness review for the rejection-partition revision before treating the older review receipt as current evidence."
+  ],
+  "nonclaims": [
+    "The earlier workflow catalogue received an independent adversarial review; this sealed-bid revision still requires a fresh source-bound completeness review.",
+    "The bounded ESSO model covers one composition slice and does not prove the complete economic core.",
+    "No Python, Rust, Tau, ZenoLedger, datastore, proof guest, or destination adapter refinement is established here.",
+    "No item is mounted or production-ready because this contract validates.",
+    "BDD scenarios are executable requirements witnesses and are not mathematical proofs.",
+    "The prior Luna completeness review is source-bound to the pre-partition contract and is stale for this revision."
+  ]
+}

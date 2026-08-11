@@ -58,53 +58,27 @@ from ..core.perp_clearinghouse_market_params_guard import (
     evaluate_perp_clearinghouse_market_params_guard,
     perp_clearinghouse_market_params_guard_error,
 )
-from ..core.perp_liquidation_envelope import require_perp_liquidation_envelope_bps
-from ..core.perp_liquidation_tau_source_binding import (
-    PARTIAL_LIQUIDATE_ACTION as TAU_PARTIAL_LIQUIDATE_ACTION,
-    PerpLiquidationTauSourceBinding,
-    PerpLiquidationTauSourceFacts,
-    derive_perp_liquidation_flags_from_source_binding,
-    expected_perp_liquidation_o4,
-    perp_liquidation_tau_source_binding_from_payload,
-    perp_liquidation_tau_source_facts_hash,
-    source_admission_envelope_reject_reason,
-    source_membership_proof_reject_reason,
-    source_root_authority_reject_reason,
-    source_state_root_binding_reject_reason,
-    source_binding_reject_reasons,
+from ..core.perp_clearinghouse_phase import clearinghouse_position_update_allowed
+from ..core.perp_depth_source_quorum_economics import (
+    verify_depth_source_quorum_economics_payload,
 )
 from ..core.perp_epoch import (
     perp_epoch_isolated_default_apply,
     perp_epoch_isolated_default_fee_pool_max_quote,
     perp_epoch_isolated_default_initial_state,
 )
-from ..core.perp_market_version_prefix_guard import (
-    REJECT_CH2P_PREFIX_MISMATCH,
-    REJECT_CH3P_PREFIX_MISMATCH,
-    REJECT_INVALID_VERSION,
-    REJECT_ISOLATED_PREFIX_CONFLICT,
-    evaluate_perp_market_version_prefix_guard,
-)
-from ..core.perp_oi_depth_certificate import (
-    verify_oi_depth_certificate_payload,
-    verify_oi_depth_source_authority_binding_payload,
-    verify_oi_depth_source_authority_payload,
-)
-from ..core.perp_depth_source_quorum_economics import (
-    verify_depth_source_quorum_economics_payload,
-)
 from ..core.perp_funding_closeout_liability_certificate import (
-    ClosedFundingSourceRow,
-    PositionAccount,
     RATIONED_ALLOCATION_RECEIPT_SCHEMA,
     SOURCE_BOUND_RATIONED_ALLOCATION_RECEIPT_SCHEMA,
     SOURCE_PORTFOLIO_BOUND_RATIONED_ALLOCATION_RECEIPT_SCHEMA,
+    ClosedFundingSourceRow,
+    PositionAccount,
     carried_funding_closeout_liability_hash,
+    funding_closeout_allocation_receipt_from_payload,
     funding_closeout_carry_forward_receipt_from_payload,
     funding_closeout_carry_forward_receipt_to_payload,
-    funding_closeout_source_availability_hash,
-    funding_closeout_allocation_receipt_from_payload,
     funding_closeout_rationed_allocation_receipt_from_payload,
+    funding_closeout_source_availability_hash,
     funding_closeout_source_bound_rationed_allocation_receipt_from_payload,
     funding_closeout_source_portfolio_bound_rationed_allocation_receipt_from_payload,
     post_open_receiver_claim_rows,
@@ -147,7 +121,36 @@ from ..core.perp_funding_closeout_priority import (
     verify_funding_closeout_recovery_source_authority_binding_payload,
     verify_funding_closeout_recovery_source_authority_payload,
 )
+from ..core.perp_liquidation_envelope import require_perp_liquidation_envelope_bps
+from ..core.perp_liquidation_tau_source_binding import (
+    PARTIAL_LIQUIDATE_ACTION as TAU_PARTIAL_LIQUIDATE_ACTION,
+)
+from ..core.perp_liquidation_tau_source_binding import (
+    PerpLiquidationTauSourceBinding,
+    PerpLiquidationTauSourceFacts,
+    derive_perp_liquidation_flags_from_source_binding,
+    expected_perp_liquidation_o4,
+    perp_liquidation_tau_source_binding_from_payload,
+    perp_liquidation_tau_source_facts_hash,
+    source_admission_envelope_reject_reason,
+    source_binding_reject_reasons,
+    source_membership_proof_reject_reason,
+    source_root_authority_reject_reason,
+    source_state_root_binding_reject_reason,
+)
+from ..core.perp_market_version_prefix_guard import (
+    REJECT_CH2P_PREFIX_MISMATCH,
+    REJECT_CH3P_PREFIX_MISMATCH,
+    REJECT_INVALID_VERSION,
+    REJECT_ISOLATED_PREFIX_CONFLICT,
+    evaluate_perp_market_version_prefix_guard,
+)
 from ..core.perp_np_matching import Intent as _NpIntent
+from ..core.perp_oi_depth_certificate import (
+    verify_oi_depth_certificate_payload,
+    verify_oi_depth_source_authority_binding_payload,
+    verify_oi_depth_source_authority_payload,
+)
 from ..core.perp_runtime_risk_gate import (
     ACTION_ADVANCE_EPOCH as RUNTIME_ACTION_ADVANCE_EPOCH,
 )
@@ -155,16 +158,10 @@ from ..core.perp_runtime_risk_gate import (
     ACTION_APPLY_FUNDING_AUTO as RUNTIME_ACTION_APPLY_FUNDING_AUTO,
 )
 from ..core.perp_runtime_risk_gate import (
-    ACTION_CLEAR_BREAKER as RUNTIME_ACTION_CLEAR_BREAKER,
-)
-from ..core.perp_runtime_risk_gate import (
     ACTION_CARRY_FUNDING_CLOSEOUT_LIABILITY as RUNTIME_ACTION_CARRY_FUNDING_CLOSEOUT_LIABILITY,
 )
 from ..core.perp_runtime_risk_gate import (
-    ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY as RUNTIME_ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY,
-)
-from ..core.perp_runtime_risk_gate import (
-    ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY as RUNTIME_ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY,
+    ACTION_CLEAR_BREAKER as RUNTIME_ACTION_CLEAR_BREAKER,
 )
 from ..core.perp_runtime_risk_gate import (
     ACTION_DEPOSIT_COLLATERAL as RUNTIME_ACTION_DEPOSIT_COLLATERAL,
@@ -183,6 +180,12 @@ from ..core.perp_runtime_risk_gate import (
 )
 from ..core.perp_runtime_risk_gate import (
     ACTION_SETTLE_EPOCH as RUNTIME_ACTION_SETTLE_EPOCH,
+)
+from ..core.perp_runtime_risk_gate import (
+    ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY as RUNTIME_ACTION_SETTLE_FUNDING_CLOSEOUT_CARRIED_LIABILITY,
+)
+from ..core.perp_runtime_risk_gate import (
+    ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY as RUNTIME_ACTION_SETTLE_FUNDING_CLOSEOUT_RECOVERY,
 )
 from ..core.perp_runtime_risk_gate import (
     ACTION_WITHDRAW_COLLATERAL as RUNTIME_ACTION_WITHDRAW_COLLATERAL,
@@ -209,12 +212,11 @@ from ..core.perp_submission_auth_message import (
     build_perp_op_auth_signing_dict_v1,
     hash_perp_op_auth_message_v1,
 )
-from ..core.perp_v2.oi_liquidity_bound import evaluate_oi_liquidity_bound
-from ..core.perp_v2.math import MAX_COLLATERAL
-from ..core.perp_v2.math import MAX_FUNDING_CUMULATIVE
+from ..core.perp_v2.math import MAX_COLLATERAL, MAX_FUNDING_CUMULATIVE
 from ..core.perp_v2.math import funding_payment as _perp_v2_funding_payment
 from ..core.perp_v2.math import liq_penalty as _perp_v2_liq_penalty
 from ..core.perp_v2.math import maint_margin_req as _perp_v2_maint_margin_req
+from ..core.perp_v2.oi_liquidity_bound import evaluate_oi_liquidity_bound
 from ..core.perps import (
     FUNDING_CLOSEOUT_RECEIVER_CLAIM_NO_EXPIRY_EPOCH,
     PERP_CLEARINGHOUSE_2P_STATE_KEYS,
@@ -961,6 +963,7 @@ class PerpEngineConfig:
     # isolated perps settlement can consume the current oracle/index snapshot.
     require_oracle_authorization_for_isolated_settle: bool = False
     require_oracle_authorization_for_clearinghouse_settle_epoch: bool = False
+    oracle_authorization_receipt_graph_root: Optional[str] = None
     # Optional isolated-perps scaling policy. When both fields are set, each
     # set_position must keep aggregate open interest within the depth-supported
     # TWAP-funding manipulation budget.
@@ -1517,6 +1520,7 @@ def _check_isolated_settle_oracle_authorization(
             query_id=str(runtime["query_id"]),
             runtime_value_e8=runtime_value_e8,
             now_epoch=now_epoch,
+            expected_receipt_graph_root=ctx.config.oracle_authorization_receipt_graph_root,
         )
     except Exception as exc:
         return f"oracle_authorization_rejected: {_safe_error_str(exc)}"
@@ -1787,6 +1791,8 @@ class _OracleAdapterBridgeRequirement:
     expected_query_id: Optional[str] = None
     expected_profile_id: Optional[str] = None
     expected_action_id: Optional[str] = None
+    expected_runtime_value_e8: Optional[int] = None
+    expected_runtime_epoch: Optional[int] = None
     required: bool = False
 
 
@@ -1797,6 +1803,17 @@ class _LiquidateAccountOracleRuntimeRequest:
     market: PerpMarketState
     account_pubkey: str
     fraction_bps: int
+
+
+@dataclass(frozen=True)
+class _ClearinghouseOracleRuntimeRequest:
+    config: PerpEngineConfig
+    market_id: str
+    action_kind: str
+    market_kind: str
+    quote_asset: str
+    state: Mapping[str, Any]
+    participant_pubkeys: tuple[str, ...]
 
 
 def _check_oracle_adapter_bridge(
@@ -1838,6 +1855,24 @@ def _check_oracle_adapter_bridge(
     result_action_id = _oracle_adapter_result_get(result, "action_id")
     if requirement.expected_action_id is not None and result_action_id != requirement.expected_action_id:
         return "oracle_adapter_bridge action_id mismatch", None
+    if requirement.expected_runtime_value_e8 is not None:
+        expected_value_e8 = requirement.expected_runtime_value_e8
+        if not isinstance(expected_value_e8, int) or isinstance(expected_value_e8, bool):
+            return "oracle_adapter_bridge runtime value_e8 must be a non-bool int", None
+        result_value_e8 = _oracle_adapter_result_get(result, "value_e8")
+        if not isinstance(result_value_e8, int) or isinstance(result_value_e8, bool):
+            return "oracle_adapter_bridge value_e8 must be a non-bool int", None
+        if result_value_e8 != expected_value_e8:
+            return "oracle_adapter_bridge value_e8 mismatch", None
+    if requirement.expected_runtime_epoch is not None:
+        expected_epoch = requirement.expected_runtime_epoch
+        if not isinstance(expected_epoch, int) or isinstance(expected_epoch, bool):
+            return "oracle_adapter_bridge runtime epoch must be a non-bool int", None
+        result_action_epoch = _oracle_adapter_result_get(result, "action_epoch")
+        if not isinstance(result_action_epoch, int) or isinstance(result_action_epoch, bool):
+            return "oracle_adapter_bridge action_epoch must be a non-bool int", None
+        if result_action_epoch != expected_epoch:
+            return "oracle_adapter_bridge action_epoch mismatch", None
     return None, result
 
 
@@ -1873,33 +1908,19 @@ def _perps_runtime_oracle_action_id(
 
 
 def _perps_liquidate_account_runtime_oracle_action_id(
-    config: PerpEngineConfig | _LiquidateAccountOracleRuntimeRequest,
-    *,
-    market_id: Optional[str] = None,
-    market: Optional[PerpMarketState] = None,
-    account_pubkey: Optional[str] = None,
-    fraction_bps: Optional[int] = None,
+    request: _LiquidateAccountOracleRuntimeRequest,
 ) -> str:
-    if isinstance(config, _LiquidateAccountOracleRuntimeRequest):
-        request = config
-        config = request.config
-        market_id = request.market_id
-        market = request.market
-        account_pubkey = request.account_pubkey
-        fraction_bps = request.fraction_bps
-    if market_id is None or market is None or account_pubkey is None or fraction_bps is None:
-        raise TypeError("missing liquidate-account runtime oracle action fields")
-    global_state = market.global_state
-    acct = market.accounts.get(account_pubkey) or _kernel_initial_account_state()
+    global_state = request.market.global_state
+    acct = request.market.accounts.get(request.account_pubkey) or _kernel_initial_account_state()
     payload = {
         "schema": "zenodex.oracle.perps_runtime_action_id.v1",
-        "chain_id": config.chain_id,
+        "chain_id": request.config.chain_id,
         "consumer_module": "zenodex.perps",
         "action_kind": "liquidate_account",
-        "market_id": market_id,
-        "quote_asset": market.quote_asset,
-        "account_pubkey": str(account_pubkey),
-        "fraction_bps": int(fraction_bps),
+        "market_id": request.market_id,
+        "quote_asset": request.market.quote_asset,
+        "account_pubkey": str(request.account_pubkey),
+        "fraction_bps": int(request.fraction_bps),
         "now_epoch": int(global_state.get("now_epoch", 0)),
         "index_price_e8": int(global_state.get("index_price_e8", 0)),
         "oracle_last_update_epoch": int(global_state.get("oracle_last_update_epoch", 0)),
@@ -1912,29 +1933,22 @@ def _perps_liquidate_account_runtime_oracle_action_id(
 
 
 def _perps_clearinghouse_runtime_oracle_action_id(
-    config: PerpEngineConfig,
-    *,
-    market_id: str,
-    action_kind: str,
-    market_kind: str,
-    quote_asset: str,
-    state: Mapping[str, Any],
-    participant_pubkeys: tuple[str, ...],
+    request: _ClearinghouseOracleRuntimeRequest,
 ) -> str:
     payload = {
         "schema": "zenodex.oracle.perps_clearinghouse_runtime_action_id.v1",
-        "chain_id": config.chain_id,
+        "chain_id": request.config.chain_id,
         "consumer_module": "zenodex.perps",
-        "action_kind": action_kind,
-        "market_kind": market_kind,
-        "market_id": market_id,
-        "quote_asset": quote_asset,
-        "participant_pubkeys": list(participant_pubkeys),
-        "now_epoch": int(state.get("now_epoch", 0)),
-        "clearing_price_epoch": int(state.get("clearing_price_epoch", 0)),
-        "clearing_price_e8": int(state.get("clearing_price_e8", 0)),
-        "index_price_e8": int(state.get("index_price_e8", 0)),
-        "oracle_last_update_epoch": int(state.get("oracle_last_update_epoch", 0)),
+        "action_kind": request.action_kind,
+        "market_kind": request.market_kind,
+        "market_id": request.market_id,
+        "quote_asset": request.quote_asset,
+        "participant_pubkeys": list(request.participant_pubkeys),
+        "now_epoch": int(request.state.get("now_epoch", 0)),
+        "clearing_price_epoch": int(request.state.get("clearing_price_epoch", 0)),
+        "clearing_price_e8": int(request.state.get("clearing_price_e8", 0)),
+        "index_price_e8": int(request.state.get("index_price_e8", 0)),
+        "oracle_last_update_epoch": int(request.state.get("oracle_last_update_epoch", 0)),
     }
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
@@ -1968,13 +1982,15 @@ def _perps_clearinghouse_settle_oracle_runtime_facts(
     participant_pubkeys: tuple[str, ...],
 ) -> dict[str, object]:
     action_id = _perps_clearinghouse_runtime_oracle_action_id(
-        config,
-        market_id=market_id,
-        action_kind="settle_epoch",
-        market_kind=market_kind,
-        quote_asset=quote_asset,
-        state=state,
-        participant_pubkeys=participant_pubkeys,
+        _ClearinghouseOracleRuntimeRequest(
+            config=config,
+            market_id=market_id,
+            action_kind="settle_epoch",
+            market_kind=market_kind,
+            quote_asset=quote_asset,
+            state=state,
+            participant_pubkeys=participant_pubkeys,
+        )
     )
     pre_state_hash = _perps_clearinghouse_oracle_pre_state_hash(
         market_id=market_id,
@@ -2025,6 +2041,7 @@ def _clearinghouse_settle_runtime_numbers(
 def _check_clearinghouse_typed_oracle_authorization(
     authorization: Mapping[str, Any],
     *,
+    config: PerpEngineConfig,
     runtime: Mapping[str, Any],
     runtime_value_e8: int,
     now_epoch: int,
@@ -2042,6 +2059,7 @@ def _check_clearinghouse_typed_oracle_authorization(
             now_epoch=now_epoch,
             profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             max_freshness_window_epochs=2,
+            expected_receipt_graph_root=config.oracle_authorization_receipt_graph_root,
         )
     except Exception as exc:
         return f"clearinghouse_settle_oracle_authorization_rejected: {_safe_error_str(exc)}"
@@ -2094,6 +2112,7 @@ def _check_clearinghouse_settle_oracle_authorization(
 
     return _check_clearinghouse_typed_oracle_authorization(
         authorization,
+        config=request.config,
         runtime=runtime,
         runtime_value_e8=runtime_value_e8,
         now_epoch=now_epoch,
@@ -2846,14 +2865,21 @@ def _apply_ch2p_settle_epoch(
             expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
             expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
-                ctx.config,
-                market_id=op.market_id,
-                action_kind="settle_epoch",
-                market_kind="clearinghouse_2p_v1",
-                quote_asset=ch2p_market.quote_asset,
-                state=ch2p_market.state,
-                participant_pubkeys=(ch2p_market.account_a_pubkey, ch2p_market.account_b_pubkey),
+                _ClearinghouseOracleRuntimeRequest(
+                    config=ctx.config,
+                    market_id=op.market_id,
+                    action_kind="settle_epoch",
+                    market_kind="clearinghouse_2p_v1",
+                    quote_asset=ch2p_market.quote_asset,
+                    state=ch2p_market.state,
+                    participant_pubkeys=(
+                        ch2p_market.account_a_pubkey,
+                        ch2p_market.account_b_pubkey,
+                    ),
+                )
             ),
+            expected_runtime_value_e8=ch2p_market.state.get("clearing_price_e8"),
+            expected_runtime_epoch=ch2p_market.state.get("now_epoch"),
             required=ctx.config.require_oracle_adapter_for_clearinghouse_settle_epoch,
         )
     )
@@ -2918,18 +2944,22 @@ def _apply_ch3p_settle_epoch(
             expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
             expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
-                ctx.config,
-                market_id=op.market_id,
-                action_kind="settle_epoch",
-                market_kind="clearinghouse_3p_transfer_v1",
-                quote_asset=ch3p_market.quote_asset,
-                state=ch3p_market.state,
-                participant_pubkeys=(
-                    ch3p_market.account_a_pubkey,
-                    ch3p_market.account_b_pubkey,
-                    ch3p_market.account_c_pubkey,
-                ),
+                _ClearinghouseOracleRuntimeRequest(
+                    config=ctx.config,
+                    market_id=op.market_id,
+                    action_kind="settle_epoch",
+                    market_kind="clearinghouse_3p_transfer_v1",
+                    quote_asset=ch3p_market.quote_asset,
+                    state=ch3p_market.state,
+                    participant_pubkeys=(
+                        ch3p_market.account_a_pubkey,
+                        ch3p_market.account_b_pubkey,
+                        ch3p_market.account_c_pubkey,
+                    ),
+                )
             ),
+            expected_runtime_value_e8=ch3p_market.state.get("clearing_price_e8"),
+            expected_runtime_epoch=ch3p_market.state.get("now_epoch"),
             required=ctx.config.require_oracle_adapter_for_clearinghouse_settle_epoch,
         )
     )
@@ -3228,6 +3258,9 @@ def _apply_ch2p_set_position_pair(
     if surface_err is not None:
         return surface_err
 
+    if not clearinghouse_position_update_allowed(ch2p_market.state):
+        return "set_position_pair requires settlement of the published clearing price"
+
     sig_err = _verify_ch2p_position_signatures(ctx, data=data, accounts=accounts, auth=auth)
     if sig_err is not None:
         return sig_err
@@ -3445,6 +3478,9 @@ def _apply_ch3p_set_position_triplet(
     )
     if surface_err is not None:
         return surface_err
+
+    if not clearinghouse_position_update_allowed(ch3p_market.state):
+        return "set_position_triplet requires settlement of the published clearing price"
 
     sig_err = _verify_ch3p_position_signatures(ctx, data=data, accounts=accounts, auth=auth)
     if sig_err is not None:
@@ -5906,11 +5942,13 @@ def _partial_liquidate_oracle_bridge_result(
             expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
             expected_profile_id=_ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
             expected_action_id=_perps_liquidate_account_runtime_oracle_action_id(
-                ctx.config,
-                market_id=op.market_id,
-                market=market,
-                account_pubkey=account_pubkey,
-                fraction_bps=fraction_bps,
+                _LiquidateAccountOracleRuntimeRequest(
+                    config=ctx.config,
+                    market_id=op.market_id,
+                    market=market,
+                    account_pubkey=account_pubkey,
+                    fraction_bps=fraction_bps,
+                )
             ),
             required=ctx.config.require_oracle_adapter_for_isolated_partial_liquidate,
         )
@@ -5930,11 +5968,13 @@ def _partial_liquidate_tau_source_facts(
     global_state = market.global_state
     return PerpLiquidationTauSourceFacts(
         request_id=_perps_liquidate_account_runtime_oracle_action_id(
-            ctx.config,
-            market_id=op.market_id,
-            market=market,
-            account_pubkey=account_pubkey,
-            fraction_bps=fraction_bps,
+            _LiquidateAccountOracleRuntimeRequest(
+                config=ctx.config,
+                market_id=op.market_id,
+                market=market,
+                account_pubkey=account_pubkey,
+                fraction_bps=fraction_bps,
+            )
         ),
         market_id=op.market_id,
         account_id=account_pubkey,
@@ -6489,13 +6529,15 @@ def _chnp_settle_oracle_bridge_error(
 ) -> str | None:
     participant_pubkeys = _chnp_participant_pubkeys(market)
     expected_action_id = _perps_clearinghouse_runtime_oracle_action_id(
-        config,
-        market_id=market_id,
-        action_kind="settle_epoch",
-        market_kind=PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
-        quote_asset=market.quote_asset,
-        state=state_for_oracle,
-        participant_pubkeys=participant_pubkeys,
+        _ClearinghouseOracleRuntimeRequest(
+            config=config,
+            market_id=market_id,
+            action_kind="settle_epoch",
+            market_kind=PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
+            quote_asset=market.quote_asset,
+            state=state_for_oracle,
+            participant_pubkeys=participant_pubkeys,
+        )
     )
     err = _require_oracle_adapter_bridge(
         _OracleAdapterBridgeRequirement(
@@ -7298,11 +7340,49 @@ def _apply_existing_perp_market_op(ctx: _PerpApplyCtx, *, i: int, op: PerpOp) ->
     return _apply_isolated_op(ctx, i=i, op=op, market=market_any)
 
 
+def _fixed_position_precedes_publish_error(ops: List[PerpOp]) -> str | None:
+    future_ch2p_publishes: set[str] = set()
+    future_ch3p_publishes: set[str] = set()
+    earliest_error: str | None = None
+    for op in reversed(ops):
+        is_ch2p = op.version in (PERP_OP_VERSION_CH2P_V0_2, PERP_OP_VERSION_CH2P_V1_0)
+        is_ch3p = op.version == PERP_OP_VERSION_CH3P_V1_1
+        if op.action == "publish_clearing_price":
+            if is_ch2p:
+                future_ch2p_publishes.add(op.market_id)
+            elif is_ch3p:
+                future_ch3p_publishes.add(op.market_id)
+            continue
+        if (
+            op.action == "set_position_pair"
+            and is_ch2p
+            and op.market_id in future_ch2p_publishes
+        ):
+            earliest_error = (
+                "set_position_pair cannot precede publish_clearing_price for the same market "
+                "in one transaction"
+            )
+        elif (
+            op.action == "set_position_triplet"
+            and is_ch3p
+            and op.market_id in future_ch3p_publishes
+        ):
+            earliest_error = (
+                "set_position_triplet cannot precede publish_clearing_price for the same market "
+                "in one transaction"
+            )
+    return earliest_error
+
+
 def _perp_ops_batch_posture_error(config: PerpEngineConfig, ops: List[PerpOp]) -> str | None:
     if any(op.action == "publish_clearing_price" for op in ops):
         posture_err = _oracle_reward_posture_error(config)
         if posture_err is not None:
             return posture_err
+
+    chronology_err = _fixed_position_precedes_publish_error(ops)
+    if chronology_err is not None:
+        return chronology_err
 
     has_isolated = any(op.version == PERP_OP_VERSION_V0_1 for op in ops)
     has_clearinghouse = any(_is_clearinghouse_version(op.version) for op in ops)

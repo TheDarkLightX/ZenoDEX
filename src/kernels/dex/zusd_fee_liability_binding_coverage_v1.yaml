@@ -1,0 +1,799 @@
+# [FORGE] zUSD Fee Liability And Binding Coverage v1
+# Scope correction: `staking_claim_sum_units` below is an abstract aggregate scalar.
+# The IR does not contain a per-staker claim vector or prove that scalar is the sum of
+# individual entitlements; per-staker no-dust coverage remains an open sidecar obligation.
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zusd_fee_liability_binding_coverage_v1"
+  created_by: "zenodex"
+  notes: |
+    Bounded assurance model for the live zUSD fee-liability boundary.
+
+    Unit convention:
+      - One `*_units` value is one whole zUSD unit at the v0.1 balance transport.
+      - Fractional transport is abstracted as the caller-supplied
+        `transport_remainder`; routing rejects unless that flag is zero.
+
+    Effect convention:
+      - Every accepted action emits the same total observable effect ABI.
+      - Fields irrelevant to an action use typed sentinels: integer zero,
+        AUTH_None, REQ_None, or EVID_Unknown.
+
+    Guarantees inside this finite model:
+      - Fee routes conserve the aggregate caller-supplied host/staking/protocol
+        partition by construction.
+      - Free debt equals external supply plus internal fee liabilities.
+      - The staking fee pool equals the abstract `staking_claim_sum_units` mirror.
+      - Each modeled live route or claim binds an explicit observed protocol
+        authority directly to the immutable committed authority.
+      - Claims move liability to external supply without changing free debt.
+      - Promotion is unavailable until every named evidence atom is Pass.
+      - Committing the protocol authority invalidates every evidence atom so
+        pre-configuration evidence cannot authorize a post-configuration claim.
+      - Guard rejection is state-preserving under ESSO kernel semantics.
+
+    Explicit non-claims:
+      - This model does not prove that the Python runtime refines these transitions.
+      - This model does not derive `transport_remainder` from E8 arithmetic.
+      - This model assumes the protocol claimant enum already identifies an
+        authenticated principal.
+      - Host and staking claims are aggregate transitions without claimant identity.
+      - No per-host entitlement map or equality between the aggregate host pool and
+        individual host claims is represented.
+      - Host allocation/authorization and staking sender authorization remain open
+        promotion obligations.
+      - This model has no per-staker entitlement vector, allocation, or no-dust theorem.
+      - This model proves no temporal liveness or from-init claim reachability property.
+      - This model does not commit or authenticate the live fee and staking policy
+        configuration; policy binding is represented only as a promotion atom.
+      - This model does not derive tokenomics v2 source-specific destination
+        shares; host and staking route amounts remain caller-supplied abstractions.
+      - The standalone six-lane residue router, its policy table, source/asset
+        bindings, event IDs, disposition roots, carry chain, and migration are
+        represented only as explicit promotion obligations.
+      - The model does not prove router-to-bridge-to-Rust observational refinement.
+      - No terminal-residue drain, approved fallback, reserve/buyback custody, or
+        fee-liability temporal-liveness property is represented.
+      - Evidence recording is an external authenticated-input assumption.
+      - Bounds are deliberately small and do not establish arithmetic overflow safety
+        for production-width integers.
+      - Authority rotation governance and migration are outside this v1 model.
+      - Shutdown snapshots, Stability Pool and perps liabilities, wallet payout
+        inventory, shutdown payout coverage, and post-shutdown repay are outside
+        this model.
+      - No operation nonce, receipt identifier, or replay-protection state is
+        represented; runtime replay safety is outside this model.
+      - Command semantics are sequential; concurrency, batch reordering,
+        interleavings, and mempool visibility are not modeled.
+
+observables:
+  state_vars:
+    - "free_debt_units"
+    - "external_supply_units"
+    - "protocol_pool_units"
+    - "host_pool_units"
+    - "staking_pool_units"
+    - "staking_claim_sum_units"
+    - "committed_protocol_authority"
+    - "fee_partition_evidence"
+    - "transport_exactness_evidence"
+    - "protocol_claimability_evidence"
+    - "host_claimant_allocation_evidence"
+    - "staking_claimant_authorization_evidence"
+    - "staking_claim_sum_evidence"
+    - "cover_preservation_evidence"
+    - "authority_binding_evidence"
+    - "policy_config_binding_evidence"
+    - "normative_split_evidence"
+    - "cumulative_split_evidence"
+    - "policy_content_evidence"
+    - "source_asset_unit_evidence"
+    - "event_origin_replay_evidence"
+    - "carry_continuity_evidence"
+    - "stake_disposition_evidence"
+    - "host_disposition_evidence"
+    - "fallback_semantics_evidence"
+    - "reserve_buyback_custody_evidence"
+    - "router_stack_refinement_evidence"
+    - "carry_migration_evidence"
+    - "temporal_liveness_evidence"
+    - "reject_noop_evidence"
+    - "runtime_refinement_evidence"
+    - "claim_status"
+  effects:
+    - "claimed_units"
+    - "claimant"
+    - "event"
+    - "fee_units"
+    - "host_route_units"
+    - "liability_cover_preserved"
+    - "observed_protocol_authority"
+    - "principal_units"
+    - "protocol_authority_bound"
+    - "protocol_route_units"
+    - "recorded_atom"
+    - "recorded_status"
+    - "staking_claim_sum_exact"
+    - "staking_route_units"
+
+types:
+  - id: "Authority"
+    type: { kind: "enum", symbols: ["AUTH_None", "AUTH_A", "AUTH_B"] }
+  - id: "EvidenceStatus"
+    type: { kind: "enum", symbols: ["EVID_Unknown", "EVID_Pass", "EVID_Fail"] }
+  - id: "RequirementAtom"
+    type:
+      kind: "enum"
+      symbols:
+        - "REQ_None"
+        - "REQ_FeePartition"
+        - "REQ_TransportExactness"
+        - "REQ_ProtocolClaimability"
+        - "REQ_HostClaimantAllocation"
+        - "REQ_StakingClaimantAuthorization"
+        - "REQ_StakingClaimSum"
+        - "REQ_CoverPreservation"
+        - "REQ_AuthorityBinding"
+        - "REQ_PolicyConfigBinding"
+        - "REQ_NormativeSplit"
+        - "REQ_CumulativeSplit"
+        - "REQ_PolicyContent"
+        - "REQ_SourceAssetUnit"
+        - "REQ_EventOriginReplay"
+        - "REQ_CarryContinuity"
+        - "REQ_StakeDisposition"
+        - "REQ_HostDisposition"
+        - "REQ_FallbackSemantics"
+        - "REQ_ReserveBuybackCustody"
+        - "REQ_RouterStackRefinement"
+        - "REQ_CarryMigration"
+        - "REQ_TemporalLiveness"
+        - "REQ_RejectNoop"
+        - "REQ_RuntimeRefinement"
+  - id: "ClaimStatus"
+    type: { kind: "enum", symbols: ["CLAIM_Blocked", "CLAIM_Promoted"] }
+  - id: "Event"
+    type:
+      kind: "enum"
+      symbols:
+        - "EV_AuthorityConfigured"
+        - "EV_FeeRouted"
+        - "EV_ProtocolClaimed"
+        - "EV_HostClaimed"
+        - "EV_StakingClaimed"
+        - "EV_EvidenceRecorded"
+        - "EV_ClaimPromoted"
+
+state_vars:
+  - id: "free_debt_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 12 }
+  - id: "external_supply_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 12 }
+  - id: "protocol_pool_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "host_pool_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "staking_pool_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "staking_claim_sum_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "committed_protocol_authority"
+    role: "control"
+    type: { ref: "Authority" }
+  - id: "fee_partition_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "transport_exactness_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "protocol_claimability_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "host_claimant_allocation_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "staking_claimant_authorization_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "staking_claim_sum_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "cover_preservation_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "authority_binding_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "policy_config_binding_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "normative_split_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "cumulative_split_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "policy_content_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "source_asset_unit_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "event_origin_replay_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "carry_continuity_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "stake_disposition_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "host_disposition_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "fallback_semantics_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "reserve_buyback_custody_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "router_stack_refinement_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "carry_migration_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "temporal_liveness_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "reject_noop_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "runtime_refinement_evidence"
+    role: "data"
+    type: { ref: "EvidenceStatus" }
+  - id: "claim_status"
+    role: "control"
+    type: { ref: "ClaimStatus" }
+
+init:
+  - { var: "free_debt_units", expr: { const: 0 } }
+  - { var: "external_supply_units", expr: { const: 0 } }
+  - { var: "protocol_pool_units", expr: { const: 0 } }
+  - { var: "host_pool_units", expr: { const: 0 } }
+  - { var: "staking_pool_units", expr: { const: 0 } }
+  - { var: "staking_claim_sum_units", expr: { const: 0 } }
+  - { var: "committed_protocol_authority", expr: { enum: "AUTH_None" } }
+  - { var: "fee_partition_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "transport_exactness_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "protocol_claimability_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "host_claimant_allocation_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "staking_claimant_authorization_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "staking_claim_sum_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "cover_preservation_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "authority_binding_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "policy_config_binding_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "normative_split_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "cumulative_split_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "policy_content_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "source_asset_unit_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "event_origin_replay_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "carry_continuity_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "stake_disposition_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "host_disposition_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "fallback_semantics_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "reserve_buyback_custody_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "router_stack_refinement_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "carry_migration_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "temporal_liveness_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "reject_noop_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "runtime_refinement_evidence", expr: { enum: "EVID_Unknown" } }
+  - { var: "claim_status", expr: { enum: "CLAIM_Blocked" } }
+
+invariants:
+  - id: "inv_free_debt_liability_cover"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "free_debt_units" }
+        - op: "+"
+          args:
+            - { var: "external_supply_units" }
+            - { var: "protocol_pool_units" }
+            - { var: "host_pool_units" }
+            - { var: "staking_pool_units" }
+
+  - id: "inv_staking_pool_is_exact_claim_sum"
+    kind: "safety"
+    expr:
+      op: "="
+      args: [{ var: "staking_pool_units" }, { var: "staking_claim_sum_units" }]
+
+  - id: "inv_protocol_liability_requires_bound_authority"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: ">", args: [{ var: "protocol_pool_units" }, { const: 0 }] }
+        - { op: "!=", args: [{ var: "committed_protocol_authority" }, { enum: "AUTH_None" }] }
+
+  - id: "inv_promoted_claim_requires_all_evidence"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "=", args: [{ var: "claim_status" }, { enum: "CLAIM_Promoted" }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "fee_partition_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "transport_exactness_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "protocol_claimability_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "host_claimant_allocation_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "staking_claimant_authorization_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "staking_claim_sum_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "cover_preservation_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "authority_binding_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "policy_config_binding_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "normative_split_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "cumulative_split_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "policy_content_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "source_asset_unit_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "event_origin_replay_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "carry_continuity_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "stake_disposition_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "host_disposition_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "fallback_semantics_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "reserve_buyback_custody_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "router_stack_refinement_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "carry_migration_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "temporal_liveness_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "reject_noop_evidence" }, { enum: "EVID_Pass" }] }
+            - { op: "=", args: [{ var: "runtime_refinement_evidence" }, { enum: "EVID_Pass" }] }
+
+  - id: "inv_promoted_claim_locks_bound_authority"
+    kind: "safety"
+    expr:
+      op: "=>"
+      args:
+        - { op: "=", args: [{ var: "claim_status" }, { enum: "CLAIM_Promoted" }] }
+        - { op: "!=", args: [{ var: "committed_protocol_authority" }, { enum: "AUTH_None" }] }
+
+actions:
+  - id: "configure_protocol_authority"
+    params:
+      - id: "authority"
+        type: { ref: "Authority" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "claim_status" }, { enum: "CLAIM_Blocked" }] }
+        - { op: "=", args: [{ var: "free_debt_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "committed_protocol_authority" }, { enum: "AUTH_None" }] }
+        - { op: "!=", args: [{ param: "authority" }, { enum: "AUTH_None" }] }
+    updates:
+      - { var: "committed_protocol_authority", expr: { param: "authority" } }
+      - { var: "protocol_claimability_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "host_claimant_allocation_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "staking_claimant_authorization_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "fee_partition_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "transport_exactness_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "staking_claim_sum_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "cover_preservation_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "authority_binding_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "policy_config_binding_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "normative_split_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "cumulative_split_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "policy_content_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "source_asset_unit_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "event_origin_replay_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "carry_continuity_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "stake_disposition_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "host_disposition_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "fallback_semantics_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "reserve_buyback_custody_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "router_stack_refinement_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "carry_migration_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "temporal_liveness_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "reject_noop_evidence", expr: { enum: "EVID_Unknown" } }
+      - { var: "runtime_refinement_evidence", expr: { enum: "EVID_Unknown" } }
+    effects:
+      claimed_units: { const: 0 }
+      claimant: { enum: "AUTH_None" }
+      event: { enum: "EV_AuthorityConfigured" }
+      fee_units: { const: 0 }
+      host_route_units: { const: 0 }
+      liability_cover_preserved:
+        op: "="
+        args:
+          - { var: "free_debt_units" }
+          - { op: "+", args: [{ var: "external_supply_units" }, { var: "protocol_pool_units" }, { var: "host_pool_units" }, { var: "staking_pool_units" }] }
+      observed_protocol_authority: { param: "authority" }
+      principal_units: { const: 0 }
+      protocol_authority_bound:
+        op: "="
+        args: [{ var: "committed_protocol_authority" }, { param: "authority" }]
+      protocol_route_units: { const: 0 }
+      recorded_atom: { enum: "REQ_None" }
+      recorded_status: { enum: "EVID_Unknown" }
+      staking_claim_sum_exact:
+        op: "="
+        args: [{ var: "staking_pool_units" }, { var: "staking_claim_sum_units" }]
+      staking_route_units: { const: 0 }
+
+  - id: "route_fee_liability"
+    params:
+      - id: "principal_units"
+        type: { kind: "int", min: 0, max: 4 }
+      - id: "fee_units"
+        type: { kind: "int", min: 1, max: 4 }
+      - id: "host_route_units"
+        type: { kind: "int", min: 0, max: 4 }
+      - id: "staking_route_units"
+        type: { kind: "int", min: 0, max: 4 }
+      - id: "transport_remainder"
+        type: { kind: "int", min: 0, max: 1 }
+      - id: "observed_protocol_authority"
+        type: { ref: "Authority" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ param: "transport_remainder" }, { const: 0 }] }
+        - { op: "=", args: [{ param: "observed_protocol_authority" }, { var: "committed_protocol_authority" }] }
+        - op: "<="
+          args:
+            - { op: "+", args: [{ param: "host_route_units" }, { param: "staking_route_units" }] }
+            - { param: "fee_units" }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "protocol_pool_units" }
+                - op: "-"
+                  args:
+                    - { param: "fee_units" }
+                    - { op: "+", args: [{ param: "host_route_units" }, { param: "staking_route_units" }] }
+            - { const: 4 }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "host_pool_units" }, { param: "host_route_units" }] }, { const: 4 }] }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "staking_pool_units" }, { param: "staking_route_units" }] }, { const: 4 }] }
+        - op: "<="
+          args:
+            - op: "+"
+              args:
+                - { var: "free_debt_units" }
+                - { param: "principal_units" }
+                - { param: "fee_units" }
+            - { const: 12 }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "external_supply_units" }, { param: "principal_units" }] }, { const: 12 }] }
+        - op: "or"
+          args:
+            - op: "="
+              args:
+                - { param: "fee_units" }
+                - { op: "+", args: [{ param: "host_route_units" }, { param: "staking_route_units" }] }
+            - { op: "!=", args: [{ var: "committed_protocol_authority" }, { enum: "AUTH_None" }] }
+    updates:
+      - var: "free_debt_units"
+        expr: { op: "+", args: [{ var: "free_debt_units" }, { param: "principal_units" }, { param: "fee_units" }] }
+      - var: "external_supply_units"
+        expr: { op: "+", args: [{ var: "external_supply_units" }, { param: "principal_units" }] }
+      - var: "protocol_pool_units"
+        expr:
+          op: "+"
+          args:
+            - { var: "protocol_pool_units" }
+            - op: "-"
+              args:
+                - { param: "fee_units" }
+                - { op: "+", args: [{ param: "host_route_units" }, { param: "staking_route_units" }] }
+      - var: "host_pool_units"
+        expr: { op: "+", args: [{ var: "host_pool_units" }, { param: "host_route_units" }] }
+      - var: "staking_pool_units"
+        expr: { op: "+", args: [{ var: "staking_pool_units" }, { param: "staking_route_units" }] }
+      - var: "staking_claim_sum_units"
+        expr: { op: "+", args: [{ var: "staking_claim_sum_units" }, { param: "staking_route_units" }] }
+    effects:
+      claimed_units: { const: 0 }
+      claimant: { enum: "AUTH_None" }
+      event: { enum: "EV_FeeRouted" }
+      principal_units: { param: "principal_units" }
+      fee_units: { param: "fee_units" }
+      host_route_units: { param: "host_route_units" }
+      staking_route_units: { param: "staking_route_units" }
+      protocol_route_units:
+        op: "-"
+        args:
+          - { param: "fee_units" }
+          - { op: "+", args: [{ param: "host_route_units" }, { param: "staking_route_units" }] }
+      observed_protocol_authority: { param: "observed_protocol_authority" }
+      liability_cover_preserved:
+        op: "="
+        args:
+          - { var: "free_debt_units" }
+          - op: "+"
+            args:
+              - { var: "external_supply_units" }
+              - { var: "protocol_pool_units" }
+              - { var: "host_pool_units" }
+              - { var: "staking_pool_units" }
+      staking_claim_sum_exact:
+        op: "="
+        args: [{ var: "staking_pool_units" }, { var: "staking_claim_sum_units" }]
+      protocol_authority_bound:
+        op: "="
+        args: [{ param: "observed_protocol_authority" }, { var: "committed_protocol_authority" }]
+      recorded_atom: { enum: "REQ_None" }
+      recorded_status: { enum: "EVID_Unknown" }
+
+  - id: "claim_protocol_fee"
+    params:
+      - id: "claimant"
+        type: { ref: "Authority" }
+      - id: "amount_units"
+        type: { kind: "int", min: 1, max: 4 }
+      - id: "observed_protocol_authority"
+        type: { ref: "Authority" }
+    guard:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ param: "amount_units" }, { var: "protocol_pool_units" }] }
+        - { op: "=", args: [{ param: "claimant" }, { var: "committed_protocol_authority" }] }
+        - { op: "=", args: [{ param: "observed_protocol_authority" }, { var: "committed_protocol_authority" }] }
+        - { op: "!=", args: [{ var: "committed_protocol_authority" }, { enum: "AUTH_None" }] }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "external_supply_units" }, { param: "amount_units" }] }, { const: 12 }] }
+    updates:
+      - { var: "protocol_pool_units", expr: { op: "-", args: [{ var: "protocol_pool_units" }, { param: "amount_units" }] } }
+      - { var: "external_supply_units", expr: { op: "+", args: [{ var: "external_supply_units" }, { param: "amount_units" }] } }
+    effects:
+      claimed_units: { param: "amount_units" }
+      claimant: { param: "claimant" }
+      event: { enum: "EV_ProtocolClaimed" }
+      fee_units: { const: 0 }
+      host_route_units: { const: 0 }
+      observed_protocol_authority: { param: "observed_protocol_authority" }
+      principal_units: { const: 0 }
+      liability_cover_preserved:
+        op: "="
+        args:
+          - { var: "free_debt_units" }
+          - { op: "+", args: [{ var: "external_supply_units" }, { var: "protocol_pool_units" }, { var: "host_pool_units" }, { var: "staking_pool_units" }] }
+      protocol_authority_bound:
+        op: "and"
+        args:
+          - { op: "!=", args: [{ var: "committed_protocol_authority" }, { enum: "AUTH_None" }] }
+          - { op: "=", args: [{ param: "observed_protocol_authority" }, { var: "committed_protocol_authority" }] }
+      protocol_route_units: { const: 0 }
+      recorded_atom: { enum: "REQ_None" }
+      recorded_status: { enum: "EVID_Unknown" }
+      staking_claim_sum_exact:
+        op: "="
+        args: [{ var: "staking_pool_units" }, { var: "staking_claim_sum_units" }]
+      staking_route_units: { const: 0 }
+
+  - id: "claim_host_fee"
+    params:
+      - id: "amount_units"
+        type: { kind: "int", min: 1, max: 4 }
+      - id: "observed_protocol_authority"
+        type: { ref: "Authority" }
+    guard:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ param: "amount_units" }, { var: "host_pool_units" }] }
+        - { op: "=", args: [{ param: "observed_protocol_authority" }, { var: "committed_protocol_authority" }] }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "external_supply_units" }, { param: "amount_units" }] }, { const: 12 }] }
+    updates:
+      - { var: "host_pool_units", expr: { op: "-", args: [{ var: "host_pool_units" }, { param: "amount_units" }] } }
+      - { var: "external_supply_units", expr: { op: "+", args: [{ var: "external_supply_units" }, { param: "amount_units" }] } }
+    effects:
+      claimed_units: { param: "amount_units" }
+      claimant: { enum: "AUTH_None" }
+      event: { enum: "EV_HostClaimed" }
+      fee_units: { const: 0 }
+      host_route_units: { const: 0 }
+      observed_protocol_authority: { param: "observed_protocol_authority" }
+      principal_units: { const: 0 }
+      protocol_authority_bound:
+        op: "="
+        args: [{ param: "observed_protocol_authority" }, { var: "committed_protocol_authority" }]
+      protocol_route_units: { const: 0 }
+      recorded_atom: { enum: "REQ_None" }
+      recorded_status: { enum: "EVID_Unknown" }
+      staking_claim_sum_exact:
+        op: "="
+        args: [{ var: "staking_pool_units" }, { var: "staking_claim_sum_units" }]
+      staking_route_units: { const: 0 }
+      liability_cover_preserved:
+        op: "="
+        args:
+          - { var: "free_debt_units" }
+          - { op: "+", args: [{ var: "external_supply_units" }, { var: "protocol_pool_units" }, { var: "host_pool_units" }, { var: "staking_pool_units" }] }
+
+  - id: "claim_staking_fee"
+    params:
+      - id: "amount_units"
+        type: { kind: "int", min: 1, max: 4 }
+      - id: "observed_protocol_authority"
+        type: { ref: "Authority" }
+    guard:
+      op: "and"
+      args:
+        - { op: "<=", args: [{ param: "amount_units" }, { var: "staking_pool_units" }] }
+        - { op: "<=", args: [{ param: "amount_units" }, { var: "staking_claim_sum_units" }] }
+        - { op: "=", args: [{ param: "observed_protocol_authority" }, { var: "committed_protocol_authority" }] }
+        - { op: "<=", args: [{ op: "+", args: [{ var: "external_supply_units" }, { param: "amount_units" }] }, { const: 12 }] }
+    updates:
+      - { var: "staking_pool_units", expr: { op: "-", args: [{ var: "staking_pool_units" }, { param: "amount_units" }] } }
+      - { var: "staking_claim_sum_units", expr: { op: "-", args: [{ var: "staking_claim_sum_units" }, { param: "amount_units" }] } }
+      - { var: "external_supply_units", expr: { op: "+", args: [{ var: "external_supply_units" }, { param: "amount_units" }] } }
+    effects:
+      claimed_units: { param: "amount_units" }
+      claimant: { enum: "AUTH_None" }
+      event: { enum: "EV_StakingClaimed" }
+      fee_units: { const: 0 }
+      host_route_units: { const: 0 }
+      observed_protocol_authority: { param: "observed_protocol_authority" }
+      principal_units: { const: 0 }
+      protocol_authority_bound:
+        op: "="
+        args: [{ param: "observed_protocol_authority" }, { var: "committed_protocol_authority" }]
+      protocol_route_units: { const: 0 }
+      recorded_atom: { enum: "REQ_None" }
+      recorded_status: { enum: "EVID_Unknown" }
+      liability_cover_preserved:
+        op: "="
+        args:
+          - { var: "free_debt_units" }
+          - { op: "+", args: [{ var: "external_supply_units" }, { var: "protocol_pool_units" }, { var: "host_pool_units" }, { var: "staking_pool_units" }] }
+      staking_claim_sum_exact:
+        op: "="
+        args: [{ var: "staking_pool_units" }, { var: "staking_claim_sum_units" }]
+      staking_route_units: { const: 0 }
+
+  - id: "record_evidence"
+    params:
+      - id: "atom"
+        type: { ref: "RequirementAtom" }
+      - id: "status"
+        type: { ref: "EvidenceStatus" }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "claim_status" }, { enum: "CLAIM_Blocked" }] }
+        - { op: "!=", args: [{ param: "atom" }, { enum: "REQ_None" }] }
+        - { op: "!=", args: [{ param: "status" }, { enum: "EVID_Unknown" }] }
+    updates:
+      - var: "fee_partition_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_FeePartition" }] }, then: { param: "status" }, else: { var: "fee_partition_evidence" } }
+      - var: "transport_exactness_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_TransportExactness" }] }, then: { param: "status" }, else: { var: "transport_exactness_evidence" } }
+      - var: "protocol_claimability_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_ProtocolClaimability" }] }, then: { param: "status" }, else: { var: "protocol_claimability_evidence" } }
+      - var: "host_claimant_allocation_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_HostClaimantAllocation" }] }, then: { param: "status" }, else: { var: "host_claimant_allocation_evidence" } }
+      - var: "staking_claimant_authorization_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_StakingClaimantAuthorization" }] }, then: { param: "status" }, else: { var: "staking_claimant_authorization_evidence" } }
+      - var: "staking_claim_sum_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_StakingClaimSum" }] }, then: { param: "status" }, else: { var: "staking_claim_sum_evidence" } }
+      - var: "cover_preservation_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_CoverPreservation" }] }, then: { param: "status" }, else: { var: "cover_preservation_evidence" } }
+      - var: "authority_binding_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_AuthorityBinding" }] }, then: { param: "status" }, else: { var: "authority_binding_evidence" } }
+      - var: "policy_config_binding_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_PolicyConfigBinding" }] }, then: { param: "status" }, else: { var: "policy_config_binding_evidence" } }
+      - var: "normative_split_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_NormativeSplit" }] }, then: { param: "status" }, else: { var: "normative_split_evidence" } }
+      - var: "cumulative_split_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_CumulativeSplit" }] }, then: { param: "status" }, else: { var: "cumulative_split_evidence" } }
+      - var: "policy_content_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_PolicyContent" }] }, then: { param: "status" }, else: { var: "policy_content_evidence" } }
+      - var: "source_asset_unit_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_SourceAssetUnit" }] }, then: { param: "status" }, else: { var: "source_asset_unit_evidence" } }
+      - var: "event_origin_replay_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_EventOriginReplay" }] }, then: { param: "status" }, else: { var: "event_origin_replay_evidence" } }
+      - var: "carry_continuity_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_CarryContinuity" }] }, then: { param: "status" }, else: { var: "carry_continuity_evidence" } }
+      - var: "stake_disposition_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_StakeDisposition" }] }, then: { param: "status" }, else: { var: "stake_disposition_evidence" } }
+      - var: "host_disposition_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_HostDisposition" }] }, then: { param: "status" }, else: { var: "host_disposition_evidence" } }
+      - var: "fallback_semantics_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_FallbackSemantics" }] }, then: { param: "status" }, else: { var: "fallback_semantics_evidence" } }
+      - var: "reserve_buyback_custody_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_ReserveBuybackCustody" }] }, then: { param: "status" }, else: { var: "reserve_buyback_custody_evidence" } }
+      - var: "router_stack_refinement_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_RouterStackRefinement" }] }, then: { param: "status" }, else: { var: "router_stack_refinement_evidence" } }
+      - var: "carry_migration_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_CarryMigration" }] }, then: { param: "status" }, else: { var: "carry_migration_evidence" } }
+      - var: "temporal_liveness_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_TemporalLiveness" }] }, then: { param: "status" }, else: { var: "temporal_liveness_evidence" } }
+      - var: "reject_noop_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_RejectNoop" }] }, then: { param: "status" }, else: { var: "reject_noop_evidence" } }
+      - var: "runtime_refinement_evidence"
+        expr: { op: "ite", cond: { op: "=", args: [{ param: "atom" }, { enum: "REQ_RuntimeRefinement" }] }, then: { param: "status" }, else: { var: "runtime_refinement_evidence" } }
+    effects:
+      claimed_units: { const: 0 }
+      claimant: { enum: "AUTH_None" }
+      event: { enum: "EV_EvidenceRecorded" }
+      fee_units: { const: 0 }
+      host_route_units: { const: 0 }
+      liability_cover_preserved:
+        op: "="
+        args:
+          - { var: "free_debt_units" }
+          - { op: "+", args: [{ var: "external_supply_units" }, { var: "protocol_pool_units" }, { var: "host_pool_units" }, { var: "staking_pool_units" }] }
+      observed_protocol_authority: { enum: "AUTH_None" }
+      principal_units: { const: 0 }
+      protocol_authority_bound:
+        op: "="
+        args: [{ var: "committed_protocol_authority" }, { var: "committed_protocol_authority" }]
+      protocol_route_units: { const: 0 }
+      recorded_atom: { param: "atom" }
+      recorded_status: { param: "status" }
+      staking_claim_sum_exact:
+        op: "="
+        args: [{ var: "staking_pool_units" }, { var: "staking_claim_sum_units" }]
+      staking_route_units: { const: 0 }
+
+  - id: "promote_claim"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "claim_status" }, { enum: "CLAIM_Blocked" }] }
+        - { op: "!=", args: [{ var: "committed_protocol_authority" }, { enum: "AUTH_None" }] }
+        - { op: "=", args: [{ var: "fee_partition_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "transport_exactness_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "protocol_claimability_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "host_claimant_allocation_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "staking_claimant_authorization_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "staking_claim_sum_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "cover_preservation_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "authority_binding_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "policy_config_binding_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "normative_split_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "cumulative_split_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "policy_content_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "source_asset_unit_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "event_origin_replay_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "carry_continuity_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "stake_disposition_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "host_disposition_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "fallback_semantics_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "reserve_buyback_custody_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "router_stack_refinement_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "carry_migration_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "temporal_liveness_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "reject_noop_evidence" }, { enum: "EVID_Pass" }] }
+        - { op: "=", args: [{ var: "runtime_refinement_evidence" }, { enum: "EVID_Pass" }] }
+    updates:
+      - { var: "claim_status", expr: { enum: "CLAIM_Promoted" } }
+    effects:
+      claimed_units: { const: 0 }
+      claimant: { enum: "AUTH_None" }
+      event: { enum: "EV_ClaimPromoted" }
+      fee_units: { const: 0 }
+      host_route_units: { const: 0 }
+      liability_cover_preserved:
+        op: "="
+        args:
+          - { var: "free_debt_units" }
+          - { op: "+", args: [{ var: "external_supply_units" }, { var: "protocol_pool_units" }, { var: "host_pool_units" }, { var: "staking_pool_units" }] }
+      observed_protocol_authority: { var: "committed_protocol_authority" }
+      principal_units: { const: 0 }
+      protocol_authority_bound:
+        op: "!="
+        args: [{ var: "committed_protocol_authority" }, { enum: "AUTH_None" }]
+      protocol_route_units: { const: 0 }
+      recorded_atom: { enum: "REQ_None" }
+      recorded_status: { enum: "EVID_Unknown" }
+      staking_claim_sum_exact:
+        op: "="
+        args: [{ var: "staking_pool_units" }, { var: "staking_claim_sum_units" }]
+      staking_route_units: { const: 0 }
