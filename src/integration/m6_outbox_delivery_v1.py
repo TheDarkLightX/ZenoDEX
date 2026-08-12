@@ -156,11 +156,11 @@ class M6OutboxDeliveryPortV1:
         with self._lock:
             try:
                 reopened = self._store.reopen()
-            except M6DurableCorruptionError as exc:
+            except M6DurableCorruptionError:
                 return M6OutboxDeliveryResultV1(
                     M6OutboxDeliveryStatusV1.REJECTED,
                     effect_id,
-                    reason=f"durable ledger reopen failed: {exc}",
+                    reason="durable ledger reopen failed",
                 )
             if reopened.subject != self._subject:
                 return M6OutboxDeliveryResultV1(
@@ -210,11 +210,20 @@ class M6OutboxDeliveryPortV1:
                 )
             try:
                 receipt = deliver(effect)
-            except M6TauTransportError as exc:
+            except M6TauTransportError:
                 return M6OutboxDeliveryResultV1(
                     M6OutboxDeliveryStatusV1.RETRYABLE_FAILURE,
                     effect_id,
-                    reason=str(exc),
+                    reason="Tau transport unavailable",
+                )
+            except Exception:
+                # External adapters can fail with untyped exceptions.  Keep
+                # the delivery worker live, do not cache success, and avoid
+                # exposing provider details through the public result.
+                return M6OutboxDeliveryResultV1(
+                    M6OutboxDeliveryStatusV1.RETRYABLE_FAILURE,
+                    effect_id,
+                    reason="Tau transport failed unexpectedly",
                 )
             if not isinstance(receipt, TauWithdrawalDeliveryReceiptV1):
                 return M6OutboxDeliveryResultV1(

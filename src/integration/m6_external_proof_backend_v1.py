@@ -59,12 +59,25 @@ def _require_exact_mapping(
     keys: frozenset[str],
     name: str,
 ) -> dict[str, object]:
-    if not isinstance(value, Mapping):
-        _reject(f"{name} must be an object")
-    actual = dict(value)
+    actual = _snapshot_mapping(value, name=name)
     if set(actual) != keys:
         _reject(f"{name} has an unexpected field set")
     return actual
+
+
+def _snapshot_mapping(value: object, *, name: str) -> dict[str, object]:
+    """Own one stable observation of an untrusted mapping boundary."""
+
+    if not isinstance(value, Mapping):
+        _reject(f"{name} must be an object")
+    snapshot: dict[str, object] | None = None
+    try:
+        snapshot = dict(value)
+    except Exception:
+        pass
+    if snapshot is None:
+        raise M6AuthorityProofRejectedV1(f"{name} could not be read")
+    return snapshot
 
 
 def _require_text_field(value: object, *, name: str) -> str:
@@ -87,11 +100,17 @@ def _validated_root(value: object, *, name: str, allow_zero: bool = False) -> st
 
 
 def _canonical_mapping(value: Mapping[str, object], *, name: str) -> dict[str, object]:
+    decoded: object = None
+    encoding_failed = False
     try:
         encoded = canonical_bytes_v1(value)
         decoded = json.loads(encoded.decode("utf-8"))
-    except Exception as exc:
-        _reject(f"{name} is not canonically encodable: {exc}")
+    except Exception:
+        encoding_failed = True
+    if encoding_failed:
+        raise M6AuthorityProofRejectedV1(
+            f"{name} is not canonically encodable"
+        )
     if not isinstance(decoded, dict):
         _reject(f"{name} must encode as an object")
     return dict(decoded)
@@ -258,14 +277,10 @@ def _validate_migration_request(
 def _validate_m6_authority_request(request: object) -> dict[str, object]:
     """Validate the closed request sent to an external authority verifier."""
 
-    if not isinstance(request, Mapping):
-        _reject("M6 authority request must be an object")
-    kind = _require_text_field(dict(request).get("kind"), name="M6 authority kind")
-    request_obj = _require_exact_mapping(
-        request,
-        keys=_authority_request_keys(kind),
-        name="M6 authority request",
-    )
+    request_obj = _snapshot_mapping(request, name="M6 authority request")
+    kind = _require_text_field(request_obj.get("kind"), name="M6 authority kind")
+    if set(request_obj) != _authority_request_keys(kind):
+        _reject("M6 authority request has an unexpected field set")
     if request_obj["schema"] != M6_AUTHORITY_REQUEST_SCHEMA_V1:
         _reject("M6 authority request schema mismatch")
     for field_name in ("subject_root", "pre_state_root", "command_hash", "evidence_root"):
@@ -281,6 +296,7 @@ def _validate_m6_authority_request(request: object) -> dict[str, object]:
         _validate_ack_request(request_obj, proof)
     else:
         _validate_migration_request(request_obj, proof)
+    request_obj["proof"] = proof
     return request_obj
 
 
@@ -303,8 +319,12 @@ def _validate_tau_state_proof_request(request: object) -> dict[str, object]:
     if proof["present"] is not True or proof["state_hash"] != state_hash:
         _reject("Tau M6 authority proof envelope binding mismatch")
     authority = _validate_m6_authority_request(request_obj["m6_authority_request"])
-    if proof["m6_authority_request"] != authority:
+    envelope_authority = _validate_m6_authority_request(proof["m6_authority_request"])
+    if envelope_authority != authority:
         _reject("Tau M6 authority nested request mismatch")
+    proof["m6_authority_request"] = envelope_authority
+    request_obj["proof"] = proof
+    request_obj["m6_authority_request"] = authority
     return request_obj
 
 
@@ -313,25 +333,21 @@ def _external_output_or_reject(
     *,
     request_hash: str,
 ) -> dict[str, object]:
-    if not isinstance(output, Mapping):
-        _reject("M6 external verifier output must be an object")
-    if "verifier_request_hash" not in output:
+    envelope = _snapshot_mapping(output, name="M6 external verifier output")
+    if "verifier_request_hash" not in envelope:
         _reject("M6 external verifier request hash is missing")
-    envelope = _require_exact_mapping(
-        output,
-        keys=frozenset({"schema", "ok", "verifier_request_hash", "receipt"}),
-        name="M6 external verifier output",
-    )
+    if set(envelope) != frozenset({"schema", "ok", "verifier_request_hash", "receipt"}):
+        _reject("M6 external verifier output has an unexpected field set")
     if envelope["schema"] != M6_EXTERNAL_VERIFIER_OUTPUT_SCHEMA_V1:
         _reject("M6 external verifier output schema mismatch")
     if envelope["ok"] is not True:
         _reject("M6 external verifier output is not accepted")
     if envelope["verifier_request_hash"] != request_hash:
         _reject("M6 external verifier request hash mismatch")
-    receipt = envelope["receipt"]
-    if not isinstance(receipt, Mapping):
-        _reject("M6 external verifier receipt must be an object")
-    return dict(receipt)
+    return _snapshot_mapping(
+        envelope["receipt"],
+        name="M6 external verifier receipt",
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -363,16 +379,20 @@ class M6ProofVerifierBackendV1:
             "verifier_request_hash": request_hash,
             "request": canonical_request,
         }
+        ok: object = False
+        output: object = None
+        provider_failed = False
         try:
-            ok, error, output = verifier.verify_with_output(payload)
-        except Exception as exc:
+            ok, _error, output = verifier.verify_with_output(payload)
+        except Exception:
+            provider_failed = True
+        if provider_failed:
             raise M6AuthorityProofRejectedV1(
-                f"M6 external proof verifier failed: {exc}"
-            ) from exc
+                "M6 external proof verifier failed"
+            )
         if ok is not True:
-            detail = error if isinstance(error, str) and error else "proof rejected"
             raise M6AuthorityProofRejectedV1(
-                f"M6 external proof verifier rejected the request: {detail}"
+                "M6 external proof verifier rejected the request"
             )
         return _external_output_or_reject(output, request_hash=request_hash)
 

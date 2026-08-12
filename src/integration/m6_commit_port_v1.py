@@ -1037,13 +1037,14 @@ class M6CommitPortV1:
                 tau_certificate=caller_finality.tau_certificate,
                 verification_receipt=receipt,
             )
-        except (TypeError, ValueError) as exc:
-            return None, f"external finality verification rejected: {exc}"
-        except Exception as exc:
+        except (TypeError, ValueError):
+            return None, "external finality verification rejected"
+        except Exception:
             # The verifier is an imperative adapter boundary.  Backend
             # outages, timeouts, and adapter failures must become a typed
-            # no-commit result instead of escaping the publication API.
-            return None, f"external finality verification failed: {type(exc).__name__}: {exc}"
+            # no-commit result.  Backend details stay on the trusted side of
+            # the publication API because they may contain provider secrets.
+            return None, "external finality verification failed"
         return verified, None
 
     def _validation_reason(

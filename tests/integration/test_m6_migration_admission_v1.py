@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Mapping, cast
@@ -192,6 +193,99 @@ class _SignedPayloadMutationMembershipBackend(_StructuralMigrationBackend):
         proof = dict(cast(Mapping[str, object], receipt["authority_proof"]))
         proof["payload_hash"] = _root(98)
         receipt["authority_proof"] = proof
+        return receipt
+
+
+class _ChangingMapping(Mapping[str, object]):
+    """Expose one value on the first observation and another thereafter."""
+
+    def __init__(
+        self,
+        first: Mapping[str, object],
+        second: Mapping[str, object],
+    ) -> None:
+        self.first = dict(first)
+        self.second = dict(second)
+        self.iterations = 0
+        self._current = self.first
+
+    def __getitem__(self, key: str) -> object:
+        return self._current[key]
+
+    def __iter__(self) -> Iterator[str]:
+        self.iterations += 1
+        self._current = self.first if self.iterations == 1 else self.second
+        return iter(self._current)
+
+    def __len__(self) -> int:
+        return len(self._current)
+
+    def __eq__(self, other: object) -> bool:
+        return self._current == other
+
+
+def _changing_nested_authority_proof(
+    receipt: Mapping[str, object],
+) -> tuple[dict[str, object], _ChangingMapping]:
+    first_proof = dict(cast(Mapping[str, object], receipt["authority_proof"]))
+    forged_proof = {**first_proof, "quorum_report": {"forged": True}}
+    changing_proof = _ChangingMapping(first_proof, forged_proof)
+    body = {
+        key: value
+        for key, value in receipt.items()
+        if key not in {"authority_proof", "receipt_hash"}
+    }
+    forged_body = {**body, "authority_proof": forged_proof}
+    return (
+        {
+            **body,
+            "authority_proof": changing_proof,
+            "receipt_hash": hash_v1(
+                "m6-migration-authority-receipt-v1",
+                forged_body,
+            ),
+        },
+        changing_proof,
+    )
+
+
+@dataclass
+class _ChangingReceiptBackend(_StructuralMigrationBackend):
+    nested: bool = False
+    migration_mapping: _ChangingMapping | None = None
+    membership_mapping: _ChangingMapping | None = None
+
+    def _changing_receipt(
+        self,
+        receipt: Mapping[str, object],
+    ) -> tuple[Mapping[str, object], _ChangingMapping]:
+        first = dict(receipt)
+        if self.nested:
+            return _changing_nested_authority_proof(first)
+        changing = _ChangingMapping(
+            first,
+            {**first, "receipt_hash": _root(99)},
+        )
+        return changing, changing
+
+    def verify_m6_migration_step(
+        self,
+        request: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        receipt, observed = self._changing_receipt(
+            super().verify_m6_migration_step(request)
+        )
+        self.migration_mapping = observed
+        return receipt
+
+    def verify_m6_migration_writer_membership(
+        self,
+        request: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        receipt, observed = self._changing_receipt(
+            super().verify_m6_migration_writer_membership(request)
+        )
+        self.membership_mapping = observed
         return receipt
 
 
@@ -841,6 +935,121 @@ def test_given_noncanonical_quorum_envelope_order_when_authenticated_then_verifi
             pre_state_root=M6MigrationStateV1.initial(plan).state_root,
             pre_phase=M6MigrationStateV1.initial(plan).phase,
         )
+
+
+def test_given_migration_backend_exception_when_verifying_then_private_detail_is_not_disclosed(
+) -> None:
+    class RaisingMigrationBackend:
+        def verify_m6_migration_step(
+            self,
+            _request: Mapping[str, object],
+        ) -> Mapping[str, object]:
+            raise RuntimeError("private migration-provider token")
+
+    plan = _plan()
+    state = M6MigrationStateV1.initial(plan)
+    verifier = M6MigrationAuthorityVerifierV1(
+        RaisingMigrationBackend(),
+        signer_registry=_m6_test_registry(),
+    )
+
+    with pytest.raises(M6MigrationAuthorityProofRejectedV1) as caught:
+        verifier.verify_step_with_receipt(
+            plan,
+            _step(plan, M6MigrationStepKindV1.SHADOW_REPLAY, 11),
+            state.branch_root,
+            pre_state_root=state.state_root,
+            pre_phase=state.phase,
+        )
+
+    assert str(caught.value) == "migration authority backend failed"
+    assert "token" not in str(caught.value)
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
+def test_given_typed_migration_backend_error_when_verifying_then_private_detail_is_not_disclosed(
+) -> None:
+    class RejectingMigrationBackend:
+        def verify_m6_migration_step(
+            self,
+            _request: Mapping[str, object],
+        ) -> Mapping[str, object]:
+            raise M6MigrationAuthorityProofRejectedV1(
+                "private migration-provider credential"
+            )
+
+    plan = _plan()
+    state = M6MigrationStateV1.initial(plan)
+    verifier = M6MigrationAuthorityVerifierV1(
+        RejectingMigrationBackend(),
+        signer_registry=_m6_test_registry(),
+    )
+
+    with pytest.raises(M6MigrationAuthorityProofRejectedV1) as caught:
+        verifier.verify_step_with_receipt(
+            plan,
+            _step(plan, M6MigrationStepKindV1.SHADOW_REPLAY, 11),
+            state.branch_root,
+            pre_state_root=state.state_root,
+            pre_phase=state.phase,
+        )
+
+    assert str(caught.value) == "migration authority backend rejected the request"
+    assert "credential" not in str(caught.value)
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
+def test_given_changing_migration_receipt_when_verified_then_one_owned_observation_is_retained(
+) -> None:
+    backend = _ChangingReceiptBackend()
+    plan = _plan()
+    state = M6MigrationStateV1.initial(plan)
+    verifier = M6MigrationAuthorityVerifierV1(
+        backend,
+        signer_registry=_m6_test_registry(),
+    )
+
+    admission = verifier.verify_step_with_receipt(
+        plan,
+        _step(plan, M6MigrationStepKindV1.SHADOW_REPLAY, 11),
+        state.branch_root,
+        pre_state_root=state.state_root,
+        pre_phase=state.phase,
+    )
+
+    observed = backend.migration_mapping
+    assert observed is not None
+    assert observed.iterations == 1
+    assert admission.receipt.receipt_root == observed.first["receipt_hash"]
+
+
+def test_given_changing_nested_migration_proof_when_verified_then_receipt_rejects(
+) -> None:
+    backend = _ChangingReceiptBackend(nested=True)
+    plan = _plan()
+    state = M6MigrationStateV1.initial(plan)
+    verifier = M6MigrationAuthorityVerifierV1(
+        backend,
+        signer_registry=_m6_test_registry(),
+    )
+
+    with pytest.raises(
+        M6MigrationAuthorityProofRejectedV1,
+        match="receipt binding mismatch",
+    ):
+        verifier.verify_step_with_receipt(
+            plan,
+            _step(plan, M6MigrationStepKindV1.SHADOW_REPLAY, 11),
+            state.branch_root,
+            pre_state_root=state.state_root,
+            pre_phase=state.phase,
+        )
+
+    observed = backend.migration_mapping
+    assert observed is not None
+    assert observed.iterations == 1
 
 
 def test_given_authentic_receipt_from_foreign_registry_when_plan_registry_is_pinned_then_verification_rejects() -> None:
@@ -1736,6 +1945,120 @@ def test_given_membership_receipt_with_mutated_signed_payload_then_verifier_reje
             writer_epoch=plan.source_writer_epoch,
             membership_proof={"member": True},
         )
+
+
+def test_given_membership_backend_exception_when_verifying_then_private_detail_is_not_disclosed(
+) -> None:
+    class RaisingMembershipBackend:
+        def verify_m6_migration_writer_membership(
+            self,
+            _request: Mapping[str, object],
+        ) -> Mapping[str, object]:
+            raise RuntimeError("private writer-provider credential")
+
+    plan = _plan()
+    state = M6MigrationStateV1.initial(plan)
+    verifier = M6MigrationWriterMembershipVerifierV1(
+        RaisingMembershipBackend(),
+        signer_registry=_m6_test_registry(),
+    )
+
+    with pytest.raises(M6MigrationAuthorityProofRejectedV1) as caught:
+        verifier.verify_writer_membership(
+            state,
+            writer_subject_root=plan.source_subject_root,
+            writer_epoch=plan.source_writer_epoch,
+            membership_proof={"member": True},
+        )
+
+    assert str(caught.value) == "migration writer membership backend failed"
+    assert "credential" not in str(caught.value)
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
+def test_given_typed_membership_backend_error_when_verifying_then_private_detail_is_not_disclosed(
+) -> None:
+    class RejectingMembershipBackend:
+        def verify_m6_migration_writer_membership(
+            self,
+            _request: Mapping[str, object],
+        ) -> Mapping[str, object]:
+            raise M6MigrationAuthorityProofRejectedV1(
+                "private writer-provider credential"
+            )
+
+    plan = _plan()
+    state = M6MigrationStateV1.initial(plan)
+    verifier = M6MigrationWriterMembershipVerifierV1(
+        RejectingMembershipBackend(),
+        signer_registry=_m6_test_registry(),
+    )
+
+    with pytest.raises(M6MigrationAuthorityProofRejectedV1) as caught:
+        verifier.verify_writer_membership(
+            state,
+            writer_subject_root=plan.source_subject_root,
+            writer_epoch=plan.source_writer_epoch,
+            membership_proof={"member": True},
+        )
+
+    assert (
+        str(caught.value)
+        == "migration writer membership backend rejected the request"
+    )
+    assert "credential" not in str(caught.value)
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
+def test_given_changing_membership_receipt_when_verified_then_one_owned_observation_is_retained(
+) -> None:
+    backend = _ChangingReceiptBackend()
+    plan = _plan()
+    state = M6MigrationStateV1.initial(plan)
+    verifier = M6MigrationWriterMembershipVerifierV1(
+        backend,
+        signer_registry=_m6_test_registry(),
+    )
+
+    receipt = verifier.verify_writer_membership(
+        state,
+        writer_subject_root=plan.source_subject_root,
+        writer_epoch=plan.source_writer_epoch,
+        membership_proof={"member": True},
+    )
+
+    observed = backend.membership_mapping
+    assert observed is not None
+    assert observed.iterations == 1
+    assert receipt.receipt_root == observed.first["receipt_hash"]
+
+
+def test_given_changing_nested_membership_proof_when_verified_then_receipt_rejects(
+) -> None:
+    backend = _ChangingReceiptBackend(nested=True)
+    plan = _plan()
+    state = M6MigrationStateV1.initial(plan)
+    verifier = M6MigrationWriterMembershipVerifierV1(
+        backend,
+        signer_registry=_m6_test_registry(),
+    )
+
+    with pytest.raises(
+        M6MigrationAuthorityProofRejectedV1,
+        match="receipt binding mismatch",
+    ):
+        verifier.verify_writer_membership(
+            state,
+            writer_subject_root=plan.source_subject_root,
+            writer_epoch=plan.source_writer_epoch,
+            membership_proof={"member": True},
+        )
+
+    observed = backend.membership_mapping
+    assert observed is not None
+    assert observed.iterations == 1
 
 
 def test_given_duck_typed_membership_verifier_when_writer_is_authorized_then_it_is_rejected() -> None:

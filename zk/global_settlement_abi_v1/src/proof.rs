@@ -275,14 +275,22 @@ impl CommandAggregationJournalV1 {
             .first_command_index
             .checked_add(command_count)
             .ok_or(AbiErrorV1::InvalidBounds("command aggregation command end"))?;
+        let maximum_leaf_occurrences =
+            command_count
+                .checked_mul(8)
+                .ok_or(AbiErrorV1::InvalidBounds(
+                    "command aggregation maximum leaf occurrences",
+                ))?;
+        let maximum_epoch_commands = u64::try_from(MAX_EPOCH_COMMANDS_V1)
+            .map_err(|_| AbiErrorV1::InvalidBounds("epoch command count width"))?;
         if self.group_index >= 8 || self.first_command_index != expected_start {
             return Err(AbiErrorV1::InvalidOrder(
                 "command aggregation group position",
             ));
         }
-        if command_end > MAX_EPOCH_COMMANDS_V1 as u64
+        if command_end > maximum_epoch_commands
             || self.module_leaf_occurrences < command_count
-            || self.module_leaf_occurrences > command_count * 8
+            || self.module_leaf_occurrences > maximum_leaf_occurrences
         {
             return Err(AbiErrorV1::InvalidBounds(
                 "command aggregation occurrence bounds",

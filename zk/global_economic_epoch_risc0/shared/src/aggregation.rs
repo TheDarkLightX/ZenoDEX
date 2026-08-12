@@ -110,9 +110,17 @@ impl CommandAggregationJournalV1 {
             .ok_or(EconomicEpochGuestErrorV1::Arithmetic(
                 "command aggregation command end",
             ))?;
-        if command_end > MAX_EPOCH_COMMANDS_V1 as u64
+        let maximum_leaf_occurrences =
+            command_count_u64
+                .checked_mul(8)
+                .ok_or(EconomicEpochGuestErrorV1::Arithmetic(
+                    "command aggregation maximum leaf occurrences",
+                ))?;
+        let maximum_epoch_commands = u64::try_from(MAX_EPOCH_COMMANDS_V1)
+            .map_err(|_| EconomicEpochGuestErrorV1::InvalidBounds("epoch command count width"))?;
+        if command_end > maximum_epoch_commands
             || self.module_leaf_occurrences < command_count_u64
-            || self.module_leaf_occurrences > command_count_u64 * 8
+            || self.module_leaf_occurrences > maximum_leaf_occurrences
         {
             return Err(EconomicEpochGuestErrorV1::InvalidBounds(
                 "command aggregation occurrence bounds",

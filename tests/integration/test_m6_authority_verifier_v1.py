@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Mapping
 
@@ -276,6 +277,52 @@ class _ExternalProofVerifier:
             assert isinstance(mutated, Mapping)
             return True, None, dict(mutated)
         return True, None, envelope
+
+
+class _SingleSnapshotMapping(Mapping[str, object]):
+    """Adversarial mapping whose key stream is valid exactly once."""
+
+    def __init__(self, values: Mapping[str, object]) -> None:
+        self._values = dict(values)
+        self.iterations = 0
+
+    def __getitem__(self, key: str) -> object:
+        return self._values[key]
+
+    def __iter__(self) -> Iterator[str]:
+        self.iterations += 1
+        if self.iterations > 1:
+            raise RuntimeError("mapping was observed more than once")
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+
+class _ChangingSnapshotMapping(Mapping[str, object]):
+    """Adversarial mapping that changes after its first key observation."""
+
+    def __init__(
+        self,
+        first: Mapping[str, object],
+        second: Mapping[str, object],
+    ) -> None:
+        self._versions = (dict(first), dict(second))
+        self.iterations = 0
+
+    @property
+    def _current(self) -> Mapping[str, object]:
+        return self._versions[min(max(self.iterations - 1, 0), 1)]
+
+    def __getitem__(self, key: str) -> object:
+        return self._current[key]
+
+    def __iter__(self) -> Iterator[str]:
+        self.iterations += 1
+        return iter(self._current)
+
+    def __len__(self) -> int:
+        return len(self._current)
 
 
 def _deposit_command() -> GlobalCommandV1:
@@ -562,13 +609,15 @@ def test_given_external_backend_without_request_binding_when_called_then_it_reje
     adapter = M6AuthorityVerifierAdapterV1(tau_state_proof_verifier=backend)
 
     # Act / Assert: no M6 witness crosses the missing-binding boundary.
-    with pytest.raises(M6AuthorityProofRejectedV1, match="request hash"):
+    with pytest.raises(M6AuthorityProofRejectedV1) as caught:
         adapter.verify_tau_escrow_deposit(
             _deposit(),
             expected_subject_root=_root(31),
             expected_pre_state_root=_root(32),
             expected_command_hash=_root(33),
         )
+
+    assert str(caught.value) == "M6 Tau authority verifier rejected the request"
 
 
 def test_given_external_backend_with_an_unknown_output_field_when_called_then_it_rejects() -> None:
@@ -582,13 +631,15 @@ def test_given_external_backend_with_an_unknown_output_field_when_called_then_it
     adapter = M6AuthorityVerifierAdapterV1(tau_state_proof_verifier=backend)
 
     # Act / Assert: unknown output fields cannot smuggle new authority data.
-    with pytest.raises(M6AuthorityProofRejectedV1, match="field set"):
+    with pytest.raises(M6AuthorityProofRejectedV1) as caught:
         adapter.verify_tau_escrow_deposit(
             _deposit(),
             expected_subject_root=_root(31),
             expected_pre_state_root=_root(32),
             expected_command_hash=_root(33),
         )
+
+    assert str(caught.value) == "M6 Tau authority verifier rejected the request"
 
 
 def test_given_boolean_schema_version_neighbor_when_backend_is_called_then_it_rejects() -> None:
@@ -629,13 +680,152 @@ def test_given_external_backend_rejecting_the_proof_when_called_then_it_fails_cl
 
     # Act / Assert: the adapter never turns a failed external result into
     # authority evidence.
-    with pytest.raises(M6AuthorityProofRejectedV1, match="external proof rejected"):
+    with pytest.raises(M6AuthorityProofRejectedV1) as caught:
         adapter.verify_tau_escrow_deposit(
             _deposit(),
             expected_subject_root=_root(31),
             expected_pre_state_root=_root(32),
             expected_command_hash=_root(33),
         )
+
+    assert str(caught.value) == "M6 Tau authority verifier rejected the request"
+    assert "external proof rejected" not in str(caught.value)
+
+
+def test_given_external_backend_exception_when_called_then_private_detail_is_not_disclosed() -> None:
+    class RaisingExternalVerifier:
+        def verify_with_output(
+            self,
+            _payload: object,
+        ) -> tuple[bool, str | None, Mapping[str, object] | None]:
+            raise RuntimeError("private proof-provider token")
+
+    backend = M6ProofVerifierBackendV1(proof_verifier=RaisingExternalVerifier())
+    adapter = M6AuthorityVerifierAdapterV1(tau_state_proof_verifier=backend)
+
+    with pytest.raises(M6AuthorityProofRejectedV1) as caught:
+        adapter.verify_tau_escrow_deposit(
+            _deposit(),
+            expected_subject_root=_root(31),
+            expected_pre_state_root=_root(32),
+            expected_command_hash=_root(33),
+        )
+
+    assert str(caught.value) == "M6 Tau authority verifier rejected the request"
+    assert "token" not in str(caught.value)
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
+
+
+def test_given_stateful_mapping_when_validated_then_authority_request_is_snapshotted_once() -> None:
+    proof = MigrationAuthorityProofV1(
+        kind=MigrationEvidenceKindV1.FALLBACK_LIVENESS,
+        checkpoint_root=_root(42),
+        compatible_profile_root=_root(0),
+        condition_root=_root(43),
+        source_authority_epoch=2,
+    ).to_canonical()
+    request = _SingleSnapshotMapping(
+        {
+            "schema": M6_AUTHORITY_REQUEST_SCHEMA_V1,
+            "kind": GlobalCommandKindV1.FALLBACK_ACTIVATE.value,
+            "subject_root": _root(31),
+            "pre_state_root": _root(32),
+            "command_hash": _root(41),
+            "evidence_root": hash_v1("m6-migration-authority-proof-v1", proof),
+            "proof": proof,
+            "expected_source_authority_epoch": 2,
+            "expected_compatible_profile_root": _root(0),
+        }
+    )
+    external = _ExternalProofVerifier()
+    backend = M6ProofVerifierBackendV1(proof_verifier=external)
+
+    receipt = backend.verify_m6_migration(request)
+
+    assert receipt["kind"] == GlobalCommandKindV1.FALLBACK_ACTIVATE.value
+    assert request.iterations == 1
+    assert len(external.payloads) == 1
+
+
+def test_given_stateful_nested_proof_when_validated_then_forwarded_proof_is_the_owned_snapshot(
+) -> None:
+    first = MigrationAuthorityProofV1(
+        kind=MigrationEvidenceKindV1.FALLBACK_LIVENESS,
+        checkpoint_root=_root(42),
+        compatible_profile_root=_root(0),
+        condition_root=_root(43),
+        source_authority_epoch=2,
+    ).to_canonical()
+    second = {**first, "checkpoint_root": _root(99)}
+    proof = _ChangingSnapshotMapping(first, second)
+    request = {
+        "schema": M6_AUTHORITY_REQUEST_SCHEMA_V1,
+        "kind": GlobalCommandKindV1.FALLBACK_ACTIVATE.value,
+        "subject_root": _root(31),
+        "pre_state_root": _root(32),
+        "command_hash": _root(41),
+        "evidence_root": hash_v1("m6-migration-authority-proof-v1", first),
+        "proof": proof,
+        "expected_source_authority_epoch": 2,
+        "expected_compatible_profile_root": _root(0),
+    }
+    external = _ExternalProofVerifier(accept=False)
+    backend = M6ProofVerifierBackendV1(proof_verifier=external)
+
+    with pytest.raises(M6AuthorityProofRejectedV1):
+        backend.verify_m6_migration(request)
+
+    forwarded = external.payloads[0]["request"]
+    assert isinstance(forwarded, Mapping)
+    assert proof.iterations == 1
+    assert forwarded["proof"] == first
+    assert forwarded["evidence_root"] == hash_v1(
+        "m6-migration-authority-proof-v1",
+        forwarded["proof"],
+    )
+
+
+def test_given_stateful_tau_authority_aliases_when_validated_then_both_forwarded_views_are_owned(
+) -> None:
+    deposit = _deposit()
+    first: dict[str, object] = {
+        "schema": M6_AUTHORITY_REQUEST_SCHEMA_V1,
+        "kind": GlobalCommandKindV1.TAU_ESCROW_DEPOSIT.value,
+        "subject_root": _root(31),
+        "pre_state_root": _root(32),
+        "command_hash": _root(33),
+        "evidence_root": deposit.proof_root,
+        "proof": deposit.to_canonical(),
+    }
+    second = {**first, "command_hash": _root(99)}
+    top_authority = _ChangingSnapshotMapping(first, second)
+    envelope_authority = _ChangingSnapshotMapping(first, second)
+    request = {
+        "schema": "tau_state_proof_verify",
+        "schema_version": 1,
+        "state_hash": deposit.tau_finality_root,
+        "proof": {
+            "present": True,
+            "state_hash": deposit.tau_finality_root,
+            "m6_authority_request": envelope_authority,
+        },
+        "m6_authority_request": top_authority,
+    }
+    external = _ExternalProofVerifier(accept=False)
+    backend = M6ProofVerifierBackendV1(proof_verifier=external)
+
+    with pytest.raises(M6AuthorityProofRejectedV1):
+        backend.verify_tau_state_proof(request)
+
+    forwarded = external.payloads[0]["request"]
+    assert isinstance(forwarded, Mapping)
+    forwarded_proof = forwarded["proof"]
+    assert isinstance(forwarded_proof, Mapping)
+    assert top_authority.iterations == 1
+    assert envelope_authority.iterations == 1
+    assert forwarded["m6_authority_request"] == first
+    assert forwarded_proof["m6_authority_request"] == first
 
 
 def test_given_request_hashed_migration_backend_when_epoch_and_profile_match_then_it_issues_evidence() -> None:

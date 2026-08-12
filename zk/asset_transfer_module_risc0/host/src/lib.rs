@@ -13,6 +13,8 @@ use zenodex_global_settlement_abi_v1::{
     RootV1,
 };
 
+pub const MAX_ASSET_TRANSFER_MODULE_RECEIPT_BYTES_V1: usize = 16 * 1024 * 1024;
+
 #[derive(Debug)]
 pub enum AssetTransferModuleHostErrorV1 {
     Guest(AssetTransferGuestErrorV1),
@@ -25,6 +27,7 @@ pub enum AssetTransferModuleHostErrorV1 {
     ReceiptVerification,
     ReceiptEncoding,
     ReceiptDecoding,
+    ReceiptSize,
     MethodBinding,
 }
 
@@ -113,6 +116,15 @@ pub fn encode_asset_transfer_module_receipt_v1(
     serde_json::to_vec(receipt).map_err(|_| AssetTransferModuleHostErrorV1::ReceiptEncoding)
 }
 
+pub fn require_asset_transfer_module_receipt_bytes_len_v1(
+    receipt_len: usize,
+) -> Result<(), AssetTransferModuleHostErrorV1> {
+    if receipt_len == 0 || receipt_len > MAX_ASSET_TRANSFER_MODULE_RECEIPT_BYTES_V1 {
+        return Err(AssetTransferModuleHostErrorV1::ReceiptSize);
+    }
+    Ok(())
+}
+
 pub struct PinnedAssetTransferModuleReceiptVerifierV1;
 
 impl LaneModuleSuccinctReceiptVerifierV1 for PinnedAssetTransferModuleReceiptVerifierV1 {
@@ -122,6 +134,8 @@ impl LaneModuleSuccinctReceiptVerifierV1 for PinnedAssetTransferModuleReceiptVer
         expected_image_id: &RootV1,
         expected_journal_bytes: &[u8],
     ) -> AbiResultV1<()> {
+        require_asset_transfer_module_receipt_bytes_len_v1(receipt_bytes.len())
+            .map_err(|_| AbiErrorV1::InvalidBounds("asset transfer RISC0 receipt bytes"))?;
         let actual_image = asset_transfer_module_image_root_v1()
             .map_err(|_| AbiErrorV1::InvalidBinding("asset transfer RISC0 method"))?;
         if expected_image_id != &actual_image {

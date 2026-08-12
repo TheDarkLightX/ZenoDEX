@@ -1,18 +1,20 @@
 use risc0_zkvm::{FakeReceipt, Receipt, ReceiptClaim};
 use zenodex_asset_lane_coordinator_risc0_host::{
     build_asset_lane_coordinator_executor_env_v1, prove_asset_lane_coordinator_succinct_v1,
-    AssetLaneCoordinatorHostErrorV1,
+    require_asset_lane_coordinator_receipt_bytes_len_v1, AssetLaneCoordinatorHostErrorV1,
+    PinnedAssetLaneCoordinatorReceiptVerifierV1, MAX_ASSET_LANE_COORDINATOR_RECEIPT_BYTES_V1,
 };
 use zenodex_asset_lane_coordinator_risc0_shared::{
     prepare_asset_lane_coordinator_v1, AssetLaneCoordinatorGuestInputV1,
     ASSET_LANE_COORDINATOR_GUEST_INPUT_SCHEMA_V1, ASSET_TRANSFER_MODULE_IMAGE_ID_V1,
 };
 use zenodex_global_settlement_abi_v1::{
-    AssetLaneCoordinatorContextV1, AssetLaneModuleCompatibilityV1, AssetSupplyV1,
+    AbiErrorV1, AssetLaneCoordinatorContextV1, AssetLaneModuleCompatibilityV1, AssetSupplyV1,
     AssetTransferCommandV1, AssetTransferContextV1, AssetTransferLaneModuleInputV1,
-    AssetTransferPolicyV1, AssetTransferStateV1, EconomicAmountV1, RootV1,
-    ASSET_LANE_COORDINATOR_SCHEMA_V1, ASSET_TRANSFER_COMMAND_KIND_V1,
-    ASSET_TRANSFER_LANE_MODULE_INPUT_SCHEMA_V1, ASSET_TRANSFER_MODULE_SCHEMA_V1,
+    AssetTransferPolicyV1, AssetTransferStateV1, EconomicAmountV1,
+    LaneCompositionSuccinctReceiptVerifierV1, RootV1, ASSET_LANE_COORDINATOR_SCHEMA_V1,
+    ASSET_TRANSFER_COMMAND_KIND_V1, ASSET_TRANSFER_LANE_MODULE_INPUT_SCHEMA_V1,
+    ASSET_TRANSFER_MODULE_SCHEMA_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -125,5 +127,35 @@ fn placeholder_lane_method_and_fake_module_receipt_reject_before_authority() {
     assert!(matches!(
         prove_asset_lane_coordinator_succinct_v1(&input, fake),
         Err(AssetLaneCoordinatorHostErrorV1::PlaceholderMethod)
+    ));
+}
+
+#[test]
+fn receipt_byte_ceiling_rejects_zero_and_maximum_plus_one_before_decoding() {
+    // Arrange / Act / Assert: BVA around the resource-admission ceiling.
+    assert!(matches!(
+        require_asset_lane_coordinator_receipt_bytes_len_v1(0),
+        Err(AssetLaneCoordinatorHostErrorV1::ReceiptSize)
+    ));
+    assert!(require_asset_lane_coordinator_receipt_bytes_len_v1(
+        MAX_ASSET_LANE_COORDINATOR_RECEIPT_BYTES_V1
+    )
+    .is_ok());
+    assert!(matches!(
+        require_asset_lane_coordinator_receipt_bytes_len_v1(
+            MAX_ASSET_LANE_COORDINATOR_RECEIPT_BYTES_V1 + 1
+        ),
+        Err(AssetLaneCoordinatorHostErrorV1::ReceiptSize)
+    ));
+
+    let verifier = PinnedAssetLaneCoordinatorReceiptVerifierV1;
+    assert!(matches!(
+        verifier.verify_succinct_receipt(&[], &root(91), &[]),
+        Err(AbiErrorV1::InvalidBounds(_))
+    ));
+    let oversized = vec![0_u8; MAX_ASSET_LANE_COORDINATOR_RECEIPT_BYTES_V1 + 1];
+    assert!(matches!(
+        verifier.verify_succinct_receipt(&oversized, &root(91), &[]),
+        Err(AbiErrorV1::InvalidBounds(_))
     ));
 }

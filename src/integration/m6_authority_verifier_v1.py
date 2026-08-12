@@ -253,14 +253,22 @@ class M6AuthorityVerifierAdapterV1:
                 "M6 Tau authority verifier is not configured"
             )
         request = _tau_state_proof_request(authority_request, state_hash=state_hash)
+        receipt: object = None
+        verifier_error: str | None = None
+        verifier_unavailable = False
         try:
             receipt = verifier.verify_tau_state_proof(request)
+        except M6AuthorityVerifierUnavailableV1:
+            verifier_error = "M6 Tau authority verifier is unavailable"
+            verifier_unavailable = True
         except M6AuthorityVerificationError:
-            raise
-        except Exception as exc:
-            raise M6AuthorityProofRejectedV1(
-                f"M6 Tau authority verifier failed: {exc}"
-            ) from exc
+            verifier_error = "M6 Tau authority verifier rejected the request"
+        except Exception:
+            verifier_error = "M6 Tau authority verifier failed"
+        if verifier_unavailable:
+            raise M6AuthorityVerifierUnavailableV1(verifier_error)
+        if verifier_error is not None:
+            raise M6AuthorityProofRejectedV1(verifier_error)
         receipt_hash = _require_receipt(receipt, expected=expected_receipt)
         try:
             kind = GlobalCommandKindV1(str(expected_receipt["kind"]))
@@ -414,14 +422,22 @@ class M6AuthorityVerifierAdapterV1:
         )
         request["expected_source_authority_epoch"] = expected_source_authority_epoch
         request["expected_compatible_profile_root"] = profile_root
+        receipt: object = None
+        verifier_error: str | None = None
+        verifier_unavailable = False
         try:
             receipt = verifier.verify_m6_migration(request)
+        except M6AuthorityVerifierUnavailableV1:
+            verifier_error = "M6 migration authority verifier is unavailable"
+            verifier_unavailable = True
         except M6AuthorityVerificationError:
-            raise
-        except Exception as exc:
-            raise M6AuthorityProofRejectedV1(
-                f"M6 migration authority verifier failed: {exc}"
-            ) from exc
+            verifier_error = "M6 migration authority verifier rejected the request"
+        except Exception:
+            verifier_error = "M6 migration authority verifier failed"
+        if verifier_unavailable:
+            raise M6AuthorityVerifierUnavailableV1(verifier_error)
+        if verifier_error is not None:
+            raise M6AuthorityProofRejectedV1(verifier_error)
         receipt_hash = _require_receipt(receipt, expected=expected)
         return _issue_m6_authority_verification_receipt_v1(
             kind=command_kind,

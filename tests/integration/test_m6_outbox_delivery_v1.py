@@ -29,6 +29,7 @@ from src.integration.m6_outbox_delivery_v1 import (
     TauWithdrawalDeliveryReceiptV1,
 )
 from tests.integration.test_m6_durable_store_v1 import (
+    _TEST_FINALITY_VERIFIER,
     _context,
     _finality_and_tau,
     _root,
@@ -42,11 +43,14 @@ class _StableReceiptTransport:
     fail: bool = False
     malformed: bool = False
     tamper: bool = False
+    unexpected: bool = False
 
     def deliver(self, effect: Any) -> Any:
         self.calls.append(getattr(effect, "effect_id", "invalid"))
         if self.fail:
             raise M6TauTransportError("Tau unavailable")
+        if self.unexpected:
+            raise RuntimeError("private transport credential")
         if self.malformed:
             return object()
         return TauWithdrawalDeliveryReceiptV1(
@@ -65,7 +69,12 @@ def _withdrawal_store(tmp_path: Path) -> tuple[M6PromotionSubjectV1, M6DurableLe
         initial_application_state_v1(subject),
         economic_atoms=(EconomicAtomV1(EconomicAtomKindV1.BALANCE, "alice", "A", "ledger", 10),),
     )
-    store = M6DurableLedgerStoreV1.create(tmp_path / "ledger", subject, initial)
+    store = M6DurableLedgerStoreV1.create(
+        tmp_path / "ledger",
+        subject,
+        initial,
+        finality_verifier=_TEST_FINALITY_VERIFIER,
+    )
     command = GlobalCommandV1(
         kind=GlobalCommandKindV1.TAU_WITHDRAWAL,
         command_id=_root(1_900),
@@ -240,3 +249,24 @@ def test_given_delivery_failure_when_retried_then_no_false_success_is_cached(
     assert failed.status is expected_failure
     assert retried.status is M6OutboxDeliveryStatusV1.DELIVERED
     assert len(transport.calls) == 2
+
+
+def test_given_unexpected_transport_failure_when_retried_then_worker_survives_without_leaking_detail(
+    tmp_path: Path,
+) -> None:
+    # Arrange: an untyped adapter exception may contain operational secrets.
+    subject, store, effect_id = _withdrawal_store(tmp_path)
+    transport = _StableReceiptTransport([], unexpected=True)
+    port = M6OutboxDeliveryPortV1(subject, store)
+
+    # Act: the first call fails unexpectedly, then the same effect is retried.
+    failed = port.deliver(effect_id, transport)
+    transport.unexpected = False
+    retried = port.deliver(effect_id, transport)
+
+    # Assert: the worker remains live, no success is cached, and detail stays private.
+    assert failed.status is M6OutboxDeliveryStatusV1.RETRYABLE_FAILURE
+    assert failed.reason == "Tau transport failed unexpectedly"
+    assert "credential" not in failed.reason
+    assert retried.status is M6OutboxDeliveryStatusV1.DELIVERED
+    assert transport.calls == [effect_id, effect_id]

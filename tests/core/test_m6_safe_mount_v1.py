@@ -3553,14 +3553,23 @@ def test_commit_port_rejects_caller_only_finality_without_external_verifier(
     assert result.state == state
 
 
+@pytest.mark.parametrize(
+    ("backend_error", "expected_reason"),
+    (
+        (RuntimeError("private verifier credential"), "external finality verification failed"),
+        (ValueError("private verifier credential"), "external finality verification rejected"),
+    ),
+)
 def test_commit_port_converts_finality_backend_failure_to_no_commit(
     subject: M6PromotionSubjectV1,
+    backend_error: Exception,
+    expected_reason: str,
 ) -> None:
     """RIPR: an adapter outage cannot escape or partially publish."""
 
     class RaisingFinalityVerifier:
         def verify_finality(self, _subject: M6PromotionSubjectV1, **_kwargs: object) -> object:
-            raise RuntimeError("verifier unavailable")
+            raise backend_error
 
     state = _state(subject, alice_atoms=10)
     command = _command(
@@ -3585,7 +3594,8 @@ def test_commit_port_converts_finality_backend_failure_to_no_commit(
     result = M6CommitPortV1(subject, state, RaisingFinalityVerifier()).publish(candidate, finality, tau)
 
     assert result.status is CommitStatusV1.FINALITY_REJECTED
-    assert result.reason == "external finality verification failed: RuntimeError: verifier unavailable"
+    assert result.reason == expected_reason
+    assert "credential" not in result.reason
     assert result.state == state
 
 

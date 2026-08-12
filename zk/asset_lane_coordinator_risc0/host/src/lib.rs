@@ -13,6 +13,8 @@ use zenodex_global_settlement_abi_v1::{
     AbiErrorV1, AbiResultV1, LaneCompositionSuccinctReceiptVerifierV1, RootV1,
 };
 
+pub const MAX_ASSET_LANE_COORDINATOR_RECEIPT_BYTES_V1: usize = 16 * 1024 * 1024;
+
 #[derive(Debug)]
 pub enum AssetLaneCoordinatorHostErrorV1 {
     Guest(AssetLaneCoordinatorGuestErrorV1),
@@ -29,6 +31,7 @@ pub enum AssetLaneCoordinatorHostErrorV1 {
     LaneReceiptVerification,
     ReceiptEncoding,
     ReceiptDecoding,
+    ReceiptSize,
     MethodBinding,
 }
 
@@ -138,6 +141,15 @@ pub fn encode_asset_lane_coordinator_receipt_v1(
     serde_json::to_vec(receipt).map_err(|_| AssetLaneCoordinatorHostErrorV1::ReceiptEncoding)
 }
 
+pub fn require_asset_lane_coordinator_receipt_bytes_len_v1(
+    receipt_len: usize,
+) -> Result<(), AssetLaneCoordinatorHostErrorV1> {
+    if receipt_len == 0 || receipt_len > MAX_ASSET_LANE_COORDINATOR_RECEIPT_BYTES_V1 {
+        return Err(AssetLaneCoordinatorHostErrorV1::ReceiptSize);
+    }
+    Ok(())
+}
+
 pub struct PinnedAssetLaneCoordinatorReceiptVerifierV1;
 
 impl LaneCompositionSuccinctReceiptVerifierV1 for PinnedAssetLaneCoordinatorReceiptVerifierV1 {
@@ -147,6 +159,8 @@ impl LaneCompositionSuccinctReceiptVerifierV1 for PinnedAssetLaneCoordinatorRece
         expected_image_id: &RootV1,
         expected_journal_bytes: &[u8],
     ) -> AbiResultV1<()> {
+        require_asset_lane_coordinator_receipt_bytes_len_v1(receipt_bytes.len())
+            .map_err(|_| AbiErrorV1::InvalidBounds("asset lane coordinator RISC0 receipt bytes"))?;
         let actual_image = asset_lane_coordinator_image_root_v1()
             .map_err(|_| AbiErrorV1::InvalidBinding("asset lane coordinator RISC0 method"))?;
         if expected_image_id != &actual_image {

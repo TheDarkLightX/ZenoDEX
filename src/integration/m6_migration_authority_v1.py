@@ -412,12 +412,39 @@ class M6MigrationVerifiedAdmissionV1:
         }
 
 
-def _validated_receipt_root(
-    receipt: Mapping[str, object],
+def _owned_receipt_mapping(receipt: object) -> dict[str, object]:
+    """Take one recursively owned, canonical observation of a backend receipt."""
+
+    if not isinstance(receipt, Mapping):
+        raise M6MigrationAuthorityProofRejectedV1(
+            "migration authority backend returned a non-object receipt"
+        )
+    owned: dict[str, object] | None = None
+    try:
+        normalized = _normalize_membership_proof_value(receipt, path="receipt")
+        if not isinstance(normalized, dict):
+            raise TypeError("migration authority receipt is not an object")
+        canonical = canonical_bytes_v1(normalized)
+        if len(canonical) > M6_MIGRATION_WRITER_MEMBERSHIP_PROOF_MAX_BYTES_V1:
+            raise ValueError("migration authority receipt exceeds the size limit")
+        owned = _decode_canonical_receipt_json(canonical.decode("utf-8"))
+    except Exception:
+        # The untrusted mapping can fail while being observed.  Raise the
+        # stable boundary error after leaving the handler so provider details
+        # and exception context do not cross the authority port.
+        pass
+    if owned is None:
+        raise M6MigrationAuthorityProofRejectedV1(
+            "migration authority backend returned an invalid receipt"
+        )
+    return owned
+
+
+def _validated_owned_receipt_root(
+    actual: dict[str, object],
     expected_body: Mapping[str, object],
     signer_registry: Mapping[str, object] | None,
 ) -> str:
-    actual = dict(receipt)
     if signer_registry is None:
         receipt_body = dict(expected_body)
     else:
@@ -475,6 +502,33 @@ def _validated_receipt_root(
             "migration authority receipt binding mismatch"
         )
     return receipt_hash
+
+
+def _validated_receipt_snapshot(
+    receipt: object,
+    expected_body: Mapping[str, object],
+    signer_registry: Mapping[str, object] | None,
+) -> tuple[str, dict[str, object]]:
+    actual = _owned_receipt_mapping(receipt)
+    receipt_root = _validated_owned_receipt_root(
+        actual,
+        expected_body,
+        signer_registry,
+    )
+    return receipt_root, actual
+
+
+def _validated_receipt_root(
+    receipt: object,
+    expected_body: Mapping[str, object],
+    signer_registry: Mapping[str, object] | None,
+) -> str:
+    receipt_root, _actual = _validated_receipt_snapshot(
+        receipt,
+        expected_body,
+        signer_registry,
+    )
+    return receipt_root
 
 
 @dataclass(frozen=True, slots=True)
@@ -558,20 +612,30 @@ class M6MigrationAuthorityVerifierV1:
             pre_state_root=pre_state_root,
             pre_phase=pre_phase,
         )
+        receipt: object = None
+        backend_error: str | None = None
+        backend_unavailable = False
         try:
             receipt = self.backend.verify_m6_migration_step(request)
+        except M6MigrationAuthorityVerifierUnavailableV1:
+            backend_error = "migration authority backend is unavailable"
+            backend_unavailable = True
         except M6MigrationAuthorityVerificationError:
-            raise
-        except Exception as exc:
+            backend_error = "migration authority backend rejected the request"
+        except Exception:
+            backend_error = "migration authority backend failed"
+        if backend_unavailable:
+            raise M6MigrationAuthorityVerifierUnavailableV1(backend_error)
+        if backend_error is not None:
             raise M6MigrationAuthorityProofRejectedV1(
-                f"migration authority backend failed: {exc}"
-            ) from exc
-        if not isinstance(receipt, Mapping):
-            raise M6MigrationAuthorityProofRejectedV1(
-                "migration authority backend returned a non-object receipt"
+                backend_error
             )
-        _validated_receipt_root(receipt, expected, self.signer_registry)
-        return M6MigrationAuthorityReceiptV1.from_mapping(receipt)
+        _receipt_root, snapshot = _validated_receipt_snapshot(
+            receipt,
+            expected,
+            self.signer_registry,
+        )
+        return M6MigrationAuthorityReceiptV1.from_mapping(snapshot)
 
     def verify_step(
         self,
@@ -727,20 +791,30 @@ class M6MigrationWriterMembershipVerifierV1:
             **{key: value for key, value in expected.items() if key != "schema"},
             "proof": proof.to_mapping(),
         }
+        receipt: object = None
+        backend_error: str | None = None
+        backend_unavailable = False
         try:
             receipt = self.backend.verify_m6_migration_writer_membership(request)
+        except M6MigrationAuthorityVerifierUnavailableV1:
+            backend_error = "migration writer membership backend is unavailable"
+            backend_unavailable = True
         except M6MigrationAuthorityVerificationError:
-            raise
-        except Exception as exc:
+            backend_error = "migration writer membership backend rejected the request"
+        except Exception:
+            backend_error = "migration writer membership backend failed"
+        if backend_unavailable:
+            raise M6MigrationAuthorityVerifierUnavailableV1(backend_error)
+        if backend_error is not None:
             raise M6MigrationAuthorityProofRejectedV1(
-                f"migration writer membership backend failed: {exc}"
-            ) from exc
-        if not isinstance(receipt, Mapping):
-            raise M6MigrationAuthorityProofRejectedV1(
-                "migration writer membership backend returned a non-object receipt"
+                backend_error
             )
-        _validated_receipt_root(receipt, expected, self.signer_registry)
-        return M6MigrationAuthorityReceiptV1.from_mapping(receipt)
+        _receipt_root, snapshot = _validated_receipt_snapshot(
+            receipt,
+            expected,
+            self.signer_registry,
+        )
+        return M6MigrationAuthorityReceiptV1.from_mapping(snapshot)
 
 
 __all__ = [
