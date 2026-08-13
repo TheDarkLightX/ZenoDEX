@@ -2,11 +2,11 @@
 
 - Status: `BLOCKED_SEMANTIC_SURFACE`
 - Activation eligible: `False`
-- Git HEAD: `4fcf906b416731d899d063f0dcf93f13aa1f6b8c`
+- Git HEAD: `e1532937babb28ff79b812497086d042f43ba8b1`
 - Scoped worktree clean: `True`
 - Python source SHA-256: `4ad669c5fb5e713d3ae73dd183a1afb8f67a7dd4f292b4e7a535d0ccda5d699e`
 - Rust source SHA-256: `1f9f2edd2745e5964a741a91c9ba7ae72cd1d23da429921d30ebb4408076e7c1`
-- Checker source SHA-256: `8ccf165915e0241b9c2517d9c4ec58e7fd8af490d3e78eef2fa760832004a7e2`
+- Checker source SHA-256: `a2de8730292fe8ee64ff87197647e90e0acdfac120fd98eb610dae7cf422babd`
 
 ## Blockers
 

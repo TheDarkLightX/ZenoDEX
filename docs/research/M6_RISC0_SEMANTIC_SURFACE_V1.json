@@ -1,7 +1,7 @@
 {
   "activation_eligible": false,
   "canonical_state_codec_match": false,
-  "checker_source_sha256": "8ccf165915e0241b9c2517d9c4ec58e7fd8af490d3e78eef2fa760832004a7e2",
+  "checker_source_sha256": "a2de8730292fe8ee64ff87197647e90e0acdfac120fd98eb610dae7cf422babd",
   "errors": [
     "Rust M6 state omits Python state-root fields: acknowledgments, economic_atoms, escrows, ingress_nonces, migration, outbox, private_swap_participants, seller_auction_bids, withdrawals",
     "Rust M6 state omits Python execution fields: acknowledgments, economic_atoms, escrows, finality_certificates, history, ingress_nonces, migration, nullifiers, outbox, private_swap_participants, seller_auction_bids, withdrawals",
@@ -26,7 +26,7 @@
     "nullifier_root",
     "outbox_root"
   ],
-  "git_head": "4fcf906b416731d899d063f0dcf93f13aa1f6b8c",
+  "git_head": "e1532937babb28ff79b812497086d042f43ba8b1",
   "independent_execution_parity_evidence": false,
   "missing_command_fields": [
     "created_height",
