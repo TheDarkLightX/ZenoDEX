@@ -24,6 +24,7 @@ from .m6_authority_verifier_v1 import (
     M6_AUTHORITY_REQUEST_SCHEMA_V1,
     TAU_STATE_PROOF_REQUEST_SCHEMA_V0,
     M6AuthorityProofRejectedV1,
+    M6AuthorityVerifierInternalFailureV1,
     M6AuthorityVerifierUnavailableV1,
     _require_root,
 )
@@ -381,14 +382,20 @@ class M6ProofVerifierBackendV1:
         }
         ok: object = False
         output: object = None
-        provider_failed = False
+        provider_failure: str | None = None
         try:
             ok, _error, output = verifier.verify_with_output(payload)
+        except (TimeoutError, ConnectionError, OSError):
+            provider_failure = "unavailable"
         except Exception:
-            provider_failed = True
-        if provider_failed:
-            raise M6AuthorityProofRejectedV1(
-                "M6 external proof verifier failed"
+            provider_failure = "internal"
+        if provider_failure == "unavailable":
+            raise M6AuthorityVerifierUnavailableV1(
+                "M6 external proof verifier is unavailable"
+            )
+        if provider_failure == "internal":
+            raise M6AuthorityVerifierInternalFailureV1(
+                "M6 external proof verifier failed internally"
             )
         if ok is not True:
             raise M6AuthorityProofRejectedV1(

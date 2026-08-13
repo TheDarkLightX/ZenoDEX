@@ -1,0 +1,156 @@
+{
+  "activation_eligible": false,
+  "canonical_state_codec_match": false,
+  "checker_source_sha256": "8ccf165915e0241b9c2517d9c4ec58e7fd8af490d3e78eef2fa760832004a7e2",
+  "errors": [
+    "Rust M6 state omits Python state-root fields: acknowledgments, economic_atoms, escrows, ingress_nonces, migration, outbox, private_swap_participants, seller_auction_bids, withdrawals",
+    "Rust M6 state omits Python execution fields: acknowledgments, economic_atoms, escrows, finality_certificates, history, ingress_nonces, migration, nullifiers, outbox, private_swap_participants, seller_auction_bids, withdrawals",
+    "Rust M6 command omits Python fields: created_height, payload",
+    "Rust M6 state declares foreign fields: economic_digest, history_root, ingress_nonce, nullifier_root, outbox_root",
+    "Rust M6 command declares foreign fields: amount_in_atoms, amount_out_atoms, asset_in, asset_out, auxiliary_root, fee_atoms",
+    "Python/Rust canonical state-root codec parity is not statically visible or Rust state_root still uses postcard",
+    "independent direct/RISC0 execution parity evidence is absent"
+  ],
+  "extra_rust_command_fields": [
+    "amount_in_atoms",
+    "amount_out_atoms",
+    "asset_in",
+    "asset_out",
+    "auxiliary_root",
+    "fee_atoms"
+  ],
+  "extra_rust_state_fields": [
+    "economic_digest",
+    "history_root",
+    "ingress_nonce",
+    "nullifier_root",
+    "outbox_root"
+  ],
+  "git_head": "4fcf906b416731d899d063f0dcf93f13aa1f6b8c",
+  "independent_execution_parity_evidence": false,
+  "missing_command_fields": [
+    "created_height",
+    "payload"
+  ],
+  "missing_execution_state_fields": [
+    "acknowledgments",
+    "economic_atoms",
+    "escrows",
+    "finality_certificates",
+    "history",
+    "ingress_nonces",
+    "migration",
+    "nullifiers",
+    "outbox",
+    "private_swap_participants",
+    "seller_auction_bids",
+    "withdrawals"
+  ],
+  "missing_state_root_fields": [
+    "acknowledgments",
+    "economic_atoms",
+    "escrows",
+    "ingress_nonces",
+    "migration",
+    "outbox",
+    "private_swap_participants",
+    "seller_auction_bids",
+    "withdrawals"
+  ],
+  "nonclaims": [
+    "this is a static source-surface inspection, not a Rust or Python transition proof",
+    "matching field names or codec markers do not establish byte-level canonical encoding parity",
+    "no RISC0 receipt, image binding, recursive proof, validator finality, data availability, or publication authority is verified",
+    "a source inspection cannot provide independent direct/RISC0 execution parity evidence",
+    "M6 remains research-only and unmounted regardless of this report"
+  ],
+  "ok": false,
+  "python_canonical_codec_visible": true,
+  "python_command_fields": [
+    "kind",
+    "command_id",
+    "sender",
+    "nonce",
+    "payload",
+    "created_height"
+  ],
+  "python_execution_state_fields": [
+    "deployment",
+    "head",
+    "writer_epoch",
+    "ingress_nonces",
+    "economic_atoms",
+    "history",
+    "nullifiers",
+    "finality_certificates",
+    "migration",
+    "escrows",
+    "withdrawals",
+    "outbox",
+    "acknowledgments",
+    "seller_auction_bids",
+    "private_swap_participants"
+  ],
+  "python_source_sha256": "4ad669c5fb5e713d3ae73dd183a1afb8f67a7dd4f292b4e7a535d0ccda5d699e",
+  "python_state_root_fields": [
+    "deployment",
+    "writer_epoch",
+    "ingress_nonces",
+    "economic_atoms",
+    "migration",
+    "escrows",
+    "withdrawals",
+    "outbox",
+    "acknowledgments",
+    "seller_auction_bids",
+    "private_swap_participants"
+  ],
+  "python_to_rust_command_surface_match": false,
+  "python_to_rust_execution_state_surface_match": false,
+  "python_to_rust_state_surface_match": false,
+  "required_next_evidence": [
+    "a versioned full-state Python-to-Rust projection with exact canonical byte vectors",
+    "per-command direct Python/Rust outcome, state, delta, history, nullifier, and outbox differential traces",
+    "real pinned-image RISC0 receipts whose journals bind those full transition outputs",
+    "a verifier-owned activation gate that rejects missing, stale, foreign-image, foreign-profile, and crossed-journal receipts before publication"
+  ],
+  "rust_canonical_codec_visible": false,
+  "rust_command_fields": [
+    "kind",
+    "command_id",
+    "sender",
+    "nonce",
+    "asset_in",
+    "asset_out",
+    "amount_in_atoms",
+    "amount_out_atoms",
+    "fee_atoms",
+    "auxiliary_root"
+  ],
+  "rust_postcard_state_codec_visible": true,
+  "rust_source_sha256": "1f9f2edd2745e5964a741a91c9ba7ae72cd1d23da429921d30ebb4408076e7c1",
+  "rust_state_fields": [
+    "deployment",
+    "head",
+    "writer_epoch",
+    "ingress_nonce",
+    "economic_digest",
+    "history_root",
+    "nullifier_root",
+    "outbox_root"
+  ],
+  "rust_transition_function_visible": true,
+  "schema": "zenodex/m6-risc0-semantic-surface/v1",
+  "scoped_worktree_clean": true,
+  "source_paths": {
+    "checker": "tools/check_m6_risc0_semantic_surface_v1.py",
+    "python": "src/core/m6_safe_mount_types_v1.py",
+    "rust": "zk/recursive_stark_v2_risc0/shared/src/m6_core_v1.rs"
+  },
+  "source_tracked": {
+    "checker": true,
+    "python": true,
+    "rust": true
+  },
+  "status": "BLOCKED_SEMANTIC_SURFACE"
+}

@@ -68,6 +68,12 @@ class M6MigrationAuthorityProofRejectedV1(
     """The external verifier did not return the exact expected receipt."""
 
 
+class M6MigrationAuthorityVerifierInternalFailureV1(
+    M6MigrationAuthorityVerificationError
+):
+    """The verifier boundary failed before returning an authority decision."""
+
+
 class M6MigrationAuthorityBackendV1(Protocol):
     def verify_m6_migration_step(
         self,
@@ -440,6 +446,54 @@ def _owned_receipt_mapping(receipt: object) -> dict[str, object]:
     return owned
 
 
+def _canonical_signer_registry_snapshot(
+    signer_registry: Mapping[str, object] | None,
+) -> bytes | None:
+    """Own and validate one untrusted registry observation at construction."""
+
+    if signer_registry is None:
+        return None
+    canonical: bytes | None = None
+    try:
+        normalized = _normalize_membership_proof_value(
+            signer_registry,
+            path="signer_registry",
+        )
+        if not isinstance(normalized, dict):
+            raise TypeError("migration signer registry is not an object")
+        candidate = canonical_bytes_v1(normalized)
+        if len(candidate) > M6_MIGRATION_WRITER_MEMBERSHIP_PROOF_MAX_BYTES_V1:
+            raise ValueError("migration signer registry exceeds the size limit")
+        decoded = json.loads(candidate.decode("utf-8"))
+        if not isinstance(decoded, dict):
+            raise TypeError("migration signer registry is not an object")
+        validate_signer_registry_v0(decoded)
+        if canonical_bytes_v1(decoded) != candidate:
+            raise ValueError("migration signer registry is not canonical")
+        canonical = candidate
+    except Exception:
+        pass
+    if canonical is None:
+        raise M6MigrationAuthorityProofRejectedV1(
+            "migration authority signer registry is invalid"
+        )
+    return canonical
+
+
+def _decode_signer_registry_snapshot(canonical: bytes | None) -> dict[str, object] | None:
+    """Decode a fresh plain mapping from constructor-owned canonical bytes."""
+
+    if canonical is None:
+        return None
+    try:
+        decoded = json.loads(canonical.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:  # pragma: no cover - owned bytes
+        raise RuntimeError("owned migration signer registry bytes are invalid") from exc
+    if not isinstance(decoded, dict):  # pragma: no cover - construction invariant
+        raise RuntimeError("owned migration signer registry is not an object")
+    return decoded
+
+
 def _validated_owned_receipt_root(
     actual: dict[str, object],
     expected_body: Mapping[str, object],
@@ -531,33 +585,49 @@ def _validated_receipt_root(
     return receipt_root
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class M6MigrationAuthorityVerifierV1:
     backend: M6MigrationAuthorityBackendV1 | None
-    signer_registry: Mapping[str, object] | None = None
+    _signer_registry_json: bytes | None
+
+    def __init__(
+        self,
+        backend: M6MigrationAuthorityBackendV1 | None,
+        signer_registry: Mapping[str, object] | None = None,
+    ) -> None:
+        object.__setattr__(self, "backend", backend)
+        object.__setattr__(
+            self,
+            "_signer_registry_json",
+            _canonical_signer_registry_snapshot(signer_registry),
+        )
+
+    @property
+    def signer_registry(self) -> Mapping[str, object] | None:
+        """Return a fresh data-only view; authority uses the owned bytes."""
+
+        return _decode_signer_registry_snapshot(self._signer_registry_json)
+
+    def _owned_signer_registry(self) -> dict[str, object] | None:
+        return _decode_signer_registry_snapshot(self._signer_registry_json)
 
     @property
     def authenticated(self) -> bool:
         """Whether this verifier performs the local signature-quorum check."""
 
-        return self.signer_registry is not None
+        return self._signer_registry_json is not None
 
     def validate_plan_binding(self, plan: M6MigrationPlanV1) -> None:
         """Require an authenticated verifier registry committed by the plan."""
 
         if not isinstance(plan, M6MigrationPlanV1):
             raise TypeError("migration verification plan is invalid")
-        if self.signer_registry is None:
+        signer_registry = self._owned_signer_registry()
+        if signer_registry is None:
             raise M6MigrationAuthorityVerifierUnavailableV1(
                 "authenticated migration verifier registry is not configured"
             )
-        try:
-            validate_signer_registry_v0(self.signer_registry)
-        except (TypeError, ValueError) as exc:
-            raise M6MigrationAuthorityProofRejectedV1(
-                f"migration authority signer registry is invalid: {exc}"
-            ) from exc
-        if self.signer_registry.get("registry_hash") != plan.authority_registry_root:
+        if signer_registry.get("registry_hash") != plan.authority_registry_root:
             raise M6MigrationAuthorityProofRejectedV1(
                 "migration authority signer registry is not bound to the migration plan"
             )
@@ -613,27 +683,36 @@ class M6MigrationAuthorityVerifierV1:
             pre_phase=pre_phase,
         )
         receipt: object = None
-        backend_error: str | None = None
-        backend_unavailable = False
+        backend_failure: str | None = None
         try:
             receipt = self.backend.verify_m6_migration_step(request)
         except M6MigrationAuthorityVerifierUnavailableV1:
-            backend_error = "migration authority backend is unavailable"
-            backend_unavailable = True
-        except M6MigrationAuthorityVerificationError:
-            backend_error = "migration authority backend rejected the request"
+            backend_failure = "unavailable"
+        except M6MigrationAuthorityVerifierInternalFailureV1:
+            backend_failure = "internal"
+        except M6MigrationAuthorityProofRejectedV1:
+            backend_failure = "rejected"
+        except (TimeoutError, ConnectionError, OSError):
+            backend_failure = "unavailable"
         except Exception:
-            backend_error = "migration authority backend failed"
-        if backend_unavailable:
-            raise M6MigrationAuthorityVerifierUnavailableV1(backend_error)
-        if backend_error is not None:
-            raise M6MigrationAuthorityProofRejectedV1(
-                backend_error
+            backend_failure = "internal"
+        if backend_failure == "unavailable":
+            raise M6MigrationAuthorityVerifierUnavailableV1(
+                "migration authority backend is unavailable"
             )
+        if backend_failure == "internal":
+            raise M6MigrationAuthorityVerifierInternalFailureV1(
+                "migration authority backend failed internally"
+            )
+        if backend_failure == "rejected":
+            raise M6MigrationAuthorityProofRejectedV1(
+                "migration authority backend rejected the request"
+            )
+        signer_registry = self._owned_signer_registry()
         _receipt_root, snapshot = _validated_receipt_snapshot(
             receipt,
             expected,
-            self.signer_registry,
+            signer_registry,
         )
         return M6MigrationAuthorityReceiptV1.from_mapping(snapshot)
 
@@ -732,10 +811,11 @@ class M6MigrationAuthorityVerifierV1:
             pre_state_root=pre_state_root,
             pre_phase=pre_phase,
         )
+        signer_registry = self._owned_signer_registry()
         receipt_root = _validated_receipt_root(
             receipt.to_mapping(),
             expected,
-            self.signer_registry,
+            signer_registry,
         )
         if receipt_root != receipt.receipt_root:
             raise M6MigrationAuthorityProofRejectedV1(
@@ -751,16 +831,35 @@ class M6MigrationAuthorityVerifierV1:
         )
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, init=False)
 class M6MigrationWriterMembershipVerifierV1:
     """Authenticated port for writer-set membership evidence."""
 
     backend: M6MigrationWriterMembershipBackendV1 | None
-    signer_registry: Mapping[str, object] | None = None
+    _signer_registry_json: bytes | None
+
+    def __init__(
+        self,
+        backend: M6MigrationWriterMembershipBackendV1 | None,
+        signer_registry: Mapping[str, object] | None = None,
+    ) -> None:
+        object.__setattr__(self, "backend", backend)
+        object.__setattr__(
+            self,
+            "_signer_registry_json",
+            _canonical_signer_registry_snapshot(signer_registry),
+        )
+
+    @property
+    def signer_registry(self) -> Mapping[str, object] | None:
+        return _decode_signer_registry_snapshot(self._signer_registry_json)
+
+    def _owned_signer_registry(self) -> dict[str, object] | None:
+        return _decode_signer_registry_snapshot(self._signer_registry_json)
 
     @property
     def authenticated(self) -> bool:
-        return self.signer_registry is not None
+        return self._signer_registry_json is not None
 
     def verify_writer_membership(
         self,
@@ -792,27 +891,36 @@ class M6MigrationWriterMembershipVerifierV1:
             "proof": proof.to_mapping(),
         }
         receipt: object = None
-        backend_error: str | None = None
-        backend_unavailable = False
+        backend_failure: str | None = None
         try:
             receipt = self.backend.verify_m6_migration_writer_membership(request)
         except M6MigrationAuthorityVerifierUnavailableV1:
-            backend_error = "migration writer membership backend is unavailable"
-            backend_unavailable = True
-        except M6MigrationAuthorityVerificationError:
-            backend_error = "migration writer membership backend rejected the request"
+            backend_failure = "unavailable"
+        except M6MigrationAuthorityVerifierInternalFailureV1:
+            backend_failure = "internal"
+        except M6MigrationAuthorityProofRejectedV1:
+            backend_failure = "rejected"
+        except (TimeoutError, ConnectionError, OSError):
+            backend_failure = "unavailable"
         except Exception:
-            backend_error = "migration writer membership backend failed"
-        if backend_unavailable:
-            raise M6MigrationAuthorityVerifierUnavailableV1(backend_error)
-        if backend_error is not None:
-            raise M6MigrationAuthorityProofRejectedV1(
-                backend_error
+            backend_failure = "internal"
+        if backend_failure == "unavailable":
+            raise M6MigrationAuthorityVerifierUnavailableV1(
+                "migration writer membership backend is unavailable"
             )
+        if backend_failure == "internal":
+            raise M6MigrationAuthorityVerifierInternalFailureV1(
+                "migration writer membership backend failed internally"
+            )
+        if backend_failure == "rejected":
+            raise M6MigrationAuthorityProofRejectedV1(
+                "migration writer membership backend rejected the request"
+            )
+        signer_registry = self._owned_signer_registry()
         _receipt_root, snapshot = _validated_receipt_snapshot(
             receipt,
             expected,
-            self.signer_registry,
+            signer_registry,
         )
         return M6MigrationAuthorityReceiptV1.from_mapping(snapshot)
 
@@ -832,6 +940,7 @@ __all__ = [
     "M6MigrationAuthorityVerificationError",
     "M6MigrationAuthorityVerifierUnavailableV1",
     "M6MigrationAuthorityProofRejectedV1",
+    "M6MigrationAuthorityVerifierInternalFailureV1",
     "M6MigrationAuthorityBackendV1",
     "M6MigrationWriterMembershipBackendV1",
     "M6MigrationWriterMembershipProofV1",

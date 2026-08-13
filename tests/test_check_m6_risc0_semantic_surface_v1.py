@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from tools.check_m6_risc0_semantic_surface_v1 import (
@@ -31,10 +32,26 @@ _FULL_EXECUTION_FIELDS = (
 _FULL_COMMAND_FIELDS = ("kind", "command_id", "sender", "nonce", "payload", "created_height")
 
 
-def _python_state_surface_source() -> str:
+def _python_state_surface_source(*, connected_codec: bool = True) -> str:
+    state_root = (
+        '''
+    @property
+    def state_root(self):
+        return hash_v1("m6-state-root-v1", self._state_root_canonical())
+'''
+        if connected_codec
+        else '''
+    @property
+    def state_root(self):
+        return repr(self._state_root_canonical())
+'''
+    )
     return '''
 def canonical_bytes_v1(value):
     return b"canonical-json"
+
+def hash_v1(domain, value):
+    return canonical_bytes_v1(value)
 
 class M6ApplicationStateV1:
     deployment: str
@@ -69,6 +86,7 @@ class M6ApplicationStateV1:
             "seller_auction_bids": self.seller_auction_bids,
             "private_swap_participants": self.private_swap_participants,
         }
+__STATE_ROOT__
 
 class GlobalCommandV1:
     kind: str
@@ -77,7 +95,7 @@ class GlobalCommandV1:
     nonce: int
     payload: tuple[str, ...]
     created_height: int
-'''
+'''.replace("__STATE_ROOT__", state_root)
 
 
 def _rust_state_surface_source(
@@ -137,6 +155,9 @@ def test_given_current_reduced_rust_envelope_when_inspected_then_zrpf_activation
     assert report["python_to_rust_state_surface_match"] is False
     assert report["canonical_state_codec_match"] is False
     assert report["independent_execution_parity_evidence"] is False
+    assert isinstance(report["git_head"], str)
+    assert len(report["python_source_sha256"]) == 64
+    assert len(report["rust_source_sha256"]) == 64
     assert {
         "ingress_nonces",
         "economic_atoms",
@@ -156,6 +177,33 @@ def test_given_current_reduced_rust_envelope_when_inspected_then_zrpf_activation
     assert report["python_to_rust_command_surface_match"] is False
     assert {"payload", "created_height"} <= missing_command_fields
     assert main(["--root", str(ROOT)]) == 1
+
+
+def test_given_output_paths_when_checked_then_durable_reports_bind_exact_sources(
+    tmp_path: Path,
+) -> None:
+    json_out = tmp_path / "surface.json"
+    markdown_out = tmp_path / "surface.md"
+
+    exit_code = main(
+        [
+            "--root",
+            str(ROOT),
+            "--json-out",
+            str(json_out),
+            "--markdown-out",
+            str(markdown_out),
+        ]
+    )
+
+    report = json.loads(json_out.read_text(encoding="utf-8"))
+    markdown = markdown_out.read_text(encoding="utf-8")
+    assert exit_code == 1
+    assert report["activation_eligible"] is False
+    assert report["git_head"] in markdown
+    assert report["python_source_sha256"] in markdown
+    assert report["rust_source_sha256"] in markdown
+    assert "M6 remains research-only and unmounted" in markdown
 
 
 def test_mutant_full_field_declaration_without_codec_or_execution_evidence_remains_blocked(
@@ -210,9 +258,252 @@ def test_given_matching_static_surface_when_no_independent_trace_exists_then_act
     assert report["python_to_rust_execution_state_surface_match"] is True
     assert report["python_to_rust_command_surface_match"] is True
     assert report["canonical_state_codec_match"] is True
+    assert report["extra_rust_state_fields"] == []
     assert report["independent_execution_parity_evidence"] is False
     assert report["activation_eligible"] is False
     assert report["status"] == "BLOCKED_EXECUTABLE_PARITY_EVIDENCE"
+
+
+def test_mutant_commented_rust_surface_cannot_forge_static_parity(tmp_path: Path) -> None:
+    """Commented declarations and calls carry no Rust semantic surface."""
+
+    # Arrange: the comment contains a complete look-alike before the reduced
+    # live declarations. A text-only scanner incorrectly selects the comment.
+    python_source = tmp_path / "m6_safe_mount_types_v1.py"
+    rust_source = tmp_path / "m6_core_v1.rs"
+    python_source.write_text(_python_state_surface_source(), encoding="utf-8")
+    forged_surface = _rust_state_surface_source(
+        fields=_FULL_EXECUTION_FIELDS,
+        uses_postcard=False,
+    )
+    rust_source.write_text(
+        f'''/*
+{forged_surface}
+*/
+pub struct M6ApplicationStateV1 {{
+    pub deployment: RootV1,
+}}
+
+pub struct GlobalCommandV1 {{
+    pub kind: RootV1,
+}}
+
+impl M6ApplicationStateV1 {{
+    pub fn state_root(&self) -> RootV1 {{
+        hash_postcard_v1(self)
+    }}
+}}
+''',
+        encoding="utf-8",
+    )
+
+    # Act
+    report = inspect_m6_risc0_semantic_surface(python_source, rust_source)
+
+    # Assert: only live Rust code may satisfy a semantic-surface prerequisite.
+    assert report["python_to_rust_state_surface_match"] is False
+    assert report["python_to_rust_execution_state_surface_match"] is False
+    assert report["python_to_rust_command_surface_match"] is False
+    assert report["canonical_state_codec_match"] is False
+    assert report["rust_postcard_state_codec_visible"] is True
+    assert report["rust_transition_function_visible"] is False
+    assert report["status"] == "BLOCKED_SEMANTIC_SURFACE"
+
+
+def test_mutant_unrelated_python_codec_declaration_cannot_forge_codec_parity(
+    tmp_path: Path,
+) -> None:
+    """A canonical-codec symbol must be connected to the Python state root."""
+
+    # Arrange: the fixture declares canonical_bytes_v1 but its state-root path
+    # never calls it, directly or through hash_v1.
+    python_source = tmp_path / "m6_safe_mount_types_v1.py"
+    rust_source = tmp_path / "m6_core_v1.rs"
+    python_source.write_text(
+        _python_state_surface_source(connected_codec=False),
+        encoding="utf-8",
+    )
+    rust_source.write_text(
+        _rust_state_surface_source(fields=_FULL_EXECUTION_FIELDS, uses_postcard=False),
+        encoding="utf-8",
+    )
+
+    # Act
+    report = inspect_m6_risc0_semantic_surface(python_source, rust_source)
+
+    # Assert: declaration visibility alone is not codec-path evidence.
+    assert report["python_canonical_codec_visible"] is False
+    assert report["canonical_state_codec_match"] is False
+    assert report["status"] == "BLOCKED_SEMANTIC_SURFACE"
+
+
+def test_mutant_swapped_python_root_bindings_cannot_forge_state_parity(tmp_path: Path) -> None:
+    """Root keys must bind the same-named state attributes."""
+
+    # Arrange: every required key remains present, but two value bindings are
+    # crossed. A key-only extractor reports this malformed root as complete.
+    python_source = tmp_path / "m6_safe_mount_types_v1.py"
+    rust_source = tmp_path / "m6_core_v1.rs"
+    python_source.write_text(
+        _python_state_surface_source()
+        .replace('"deployment": self.deployment', '"deployment": self.outbox')
+        .replace('"outbox": self.outbox', '"outbox": self.deployment'),
+        encoding="utf-8",
+    )
+    rust_source.write_text(
+        _rust_state_surface_source(fields=_FULL_EXECUTION_FIELDS, uses_postcard=False),
+        encoding="utf-8",
+    )
+
+    # Act
+    report = inspect_m6_risc0_semantic_surface(python_source, rust_source)
+
+    # Assert: crossed key/value identity is a malformed semantic surface.
+    assert report["python_to_rust_state_surface_match"] is False
+    assert report["status"] == "BLOCKED_SEMANTIC_SURFACE"
+    assert any("must bind self.deployment" in error for error in report["errors"])
+
+
+def test_mutant_dead_python_codec_call_cannot_forge_codec_parity(tmp_path: Path) -> None:
+    """A codec call in an unreachable branch is not state-root evidence."""
+
+    # Arrange: state_root calls hash_v1, but hash_v1 reaches the canonical
+    # codec only under an always-false branch and returns noncanonical bytes.
+    python_source = tmp_path / "m6_safe_mount_types_v1.py"
+    rust_source = tmp_path / "m6_core_v1.rs"
+    python_source.write_text(
+        _python_state_surface_source().replace(
+            "def hash_v1(domain, value):\n    return canonical_bytes_v1(value)",
+            "def hash_v1(domain, value):\n"
+            "    if False:\n"
+            "        canonical_bytes_v1(value)\n"
+            "    return repr(value)",
+        ),
+        encoding="utf-8",
+    )
+    rust_source.write_text(
+        _rust_state_surface_source(fields=_FULL_EXECUTION_FIELDS, uses_postcard=False),
+        encoding="utf-8",
+    )
+
+    # Act
+    report = inspect_m6_risc0_semantic_surface(python_source, rust_source)
+
+    # Assert
+    assert report["python_canonical_codec_visible"] is False
+    assert report["canonical_state_codec_match"] is False
+    assert report["status"] == "BLOCKED_SEMANTIC_SURFACE"
+
+
+def test_mutant_rust_identifier_prefixes_cannot_forge_live_functions(tmp_path: Path) -> None:
+    """V1 function checks require exact Rust identifiers."""
+
+    # Arrange: all fields remain, while the two required function names are
+    # replaced by longer prefix-sharing identifiers.
+    python_source = tmp_path / "m6_safe_mount_types_v1.py"
+    rust_source = tmp_path / "m6_core_v1.rs"
+    python_source.write_text(_python_state_surface_source(), encoding="utf-8")
+    rust_source.write_text(
+        _rust_state_surface_source(fields=_FULL_EXECUTION_FIELDS, uses_postcard=False)
+        .replace("state_root", "state_root_helper")
+        .replace("run_m6_transition_v1", "run_m6_transition_v10"),
+        encoding="utf-8",
+    )
+
+    # Act
+    report = inspect_m6_risc0_semantic_surface(python_source, rust_source)
+
+    # Assert
+    assert report["rust_transition_function_visible"] is False
+    assert report["canonical_state_codec_match"] is False
+    assert report["status"] == "BLOCKED_SEMANTIC_SURFACE"
+
+
+def test_mutant_extra_rust_authority_field_remains_semantically_blocked(tmp_path: Path) -> None:
+    """An undeclared Rust authority coordinate cannot be silently accepted."""
+
+    python_source = tmp_path / "m6_safe_mount_types_v1.py"
+    rust_source = tmp_path / "m6_core_v1.rs"
+    python_source.write_text(_python_state_surface_source(), encoding="utf-8")
+    rust_source.write_text(
+        _rust_state_surface_source(
+            fields=(*_FULL_EXECUTION_FIELDS, "authority_override"),
+            uses_postcard=False,
+        ),
+        encoding="utf-8",
+    )
+
+    report = inspect_m6_risc0_semantic_surface(python_source, rust_source)
+
+    assert report["extra_rust_state_fields"] == ["authority_override"]
+    assert report["python_to_rust_execution_state_surface_match"] is False
+    assert report["status"] == "BLOCKED_SEMANTIC_SURFACE"
+
+
+def test_mutant_unknown_python_cache_field_is_not_assumed_derived(tmp_path: Path) -> None:
+    """Only explicitly owned derived caches may leave the execution surface."""
+
+    python_source = tmp_path / "m6_safe_mount_types_v1.py"
+    rust_source = tmp_path / "m6_core_v1.rs"
+    python_source.write_text(
+        _python_state_surface_source().replace(
+            "    history_root_cache: str | None",
+            "    history_root_cache: str | None\n    authority_cache: str | None",
+        ),
+        encoding="utf-8",
+    )
+    rust_source.write_text(
+        _rust_state_surface_source(fields=_FULL_EXECUTION_FIELDS, uses_postcard=False),
+        encoding="utf-8",
+    )
+
+    report = inspect_m6_risc0_semantic_surface(python_source, rust_source)
+
+    assert report["missing_execution_state_fields"] == ["authority_cache"]
+    assert report["status"] == "BLOCKED_SEMANTIC_SURFACE"
+
+
+def test_mutant_rust_state_field_reordering_remains_semantically_blocked(tmp_path: Path) -> None:
+    """Canonical state declaration order is part of this static prerequisite."""
+
+    python_source = tmp_path / "m6_safe_mount_types_v1.py"
+    rust_source = tmp_path / "m6_core_v1.rs"
+    python_source.write_text(_python_state_surface_source(), encoding="utf-8")
+    reordered = list(_FULL_EXECUTION_FIELDS)
+    reordered[0], reordered[1] = reordered[1], reordered[0]
+    rust_source.write_text(
+        _rust_state_surface_source(fields=tuple(reordered), uses_postcard=False),
+        encoding="utf-8",
+    )
+
+    report = inspect_m6_risc0_semantic_surface(python_source, rust_source)
+
+    assert report["missing_execution_state_fields"] == []
+    assert report["extra_rust_state_fields"] == []
+    assert report["python_to_rust_execution_state_surface_match"] is False
+    assert report["status"] == "BLOCKED_SEMANTIC_SURFACE"
+    assert any("field order differs" in error for error in report["errors"])
+
+
+def test_source_hash_binding_changes_for_one_byte_without_promoting_status(tmp_path: Path) -> None:
+    """A one-byte source drift produces a distinct, non-activating report subject."""
+
+    python_source = tmp_path / "m6_safe_mount_types_v1.py"
+    rust_source = tmp_path / "m6_core_v1.rs"
+    python_source.write_text(_python_state_surface_source(), encoding="utf-8")
+    rust_source.write_text(
+        _rust_state_surface_source(fields=_FULL_EXECUTION_FIELDS, uses_postcard=False),
+        encoding="utf-8",
+    )
+    before = inspect_m6_risc0_semantic_surface(python_source, rust_source)
+
+    rust_source.write_text(rust_source.read_text(encoding="utf-8") + " ", encoding="utf-8")
+    after = inspect_m6_risc0_semantic_surface(python_source, rust_source)
+
+    assert before["rust_source_sha256"] != after["rust_source_sha256"]
+    assert before["python_source_sha256"] == after["python_source_sha256"]
+    assert before["status"] == after["status"] == "BLOCKED_EXECUTABLE_PARITY_EVIDENCE"
+    assert before["activation_eligible"] is after["activation_eligible"] is False
 
 
 def test_mutant_command_projection_without_payload_remains_semantically_blocked(
