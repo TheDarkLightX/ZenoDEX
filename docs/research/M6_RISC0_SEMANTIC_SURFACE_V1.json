@@ -1,7 +1,8 @@
 {
   "activation_eligible": false,
   "canonical_state_codec_match": false,
-  "checker_source_sha256": "a2de8730292fe8ee64ff87197647e90e0acdfac120fd98eb610dae7cf422babd",
+  "checker_source_sha256": "656968f9cd8e5ce766aa8ba62cf1903a06c379eb2bc773616b6f4e2ba492af9e",
+  "checker_subject_matches_executing": true,
   "errors": [
     "Rust M6 state omits Python state-root fields: acknowledgments, economic_atoms, escrows, ingress_nonces, migration, outbox, private_swap_participants, seller_auction_bids, withdrawals",
     "Rust M6 state omits Python execution fields: acknowledgments, economic_atoms, escrows, finality_certificates, history, ingress_nonces, migration, nullifiers, outbox, private_swap_participants, seller_auction_bids, withdrawals",
@@ -9,8 +10,10 @@
     "Rust M6 state declares foreign fields: economic_digest, history_root, ingress_nonce, nullifier_root, outbox_root",
     "Rust M6 command declares foreign fields: amount_in_atoms, amount_out_atoms, asset_in, asset_out, auxiliary_root, fee_atoms",
     "Python/Rust canonical state-root codec parity is not statically visible or Rust state_root still uses postcard",
-    "independent direct/RISC0 execution parity evidence is absent"
+    "independent direct/RISC0 execution parity evidence is absent",
+    "selected RISC0 guest does not call the shared M6 transition"
   ],
+  "executing_checker_source_sha256": "656968f9cd8e5ce766aa8ba62cf1903a06c379eb2bc773616b6f4e2ba492af9e",
   "extra_rust_command_fields": [
     "amount_in_atoms",
     "amount_out_atoms",
@@ -26,7 +29,7 @@
     "nullifier_root",
     "outbox_root"
   ],
-  "git_head": "e1532937babb28ff79b812497086d042f43ba8b1",
+  "git_head": "e75827eee690f082aeaf94ead86ee89255495e5b",
   "independent_execution_parity_evidence": false,
   "missing_command_fields": [
     "created_height",
@@ -65,7 +68,7 @@
     "M6 remains research-only and unmounted regardless of this report"
   ],
   "ok": false,
-  "python_canonical_codec_visible": true,
+  "python_canonical_codec_visible": false,
   "python_command_fields": [
     "kind",
     "command_id",
@@ -91,7 +94,7 @@
     "seller_auction_bids",
     "private_swap_participants"
   ],
-  "python_source_sha256": "4ad669c5fb5e713d3ae73dd183a1afb8f67a7dd4f292b4e7a535d0ccda5d699e",
+  "python_source_sha256": "e9dfe00abd72f20f6c49986dd5af5a7f37042ee100b9f6d26f6b719b8e5623f8",
   "python_state_root_fields": [
     "deployment",
     "writer_epoch",
@@ -114,6 +117,7 @@
     "real pinned-image RISC0 receipts whose journals bind those full transition outputs",
     "a verifier-owned activation gate that rejects missing, stale, foreign-image, foreign-profile, and crossed-journal receipts before publication"
   ],
+  "risc0_guest_transition_reachable": false,
   "rust_canonical_codec_visible": false,
   "rust_command_fields": [
     "kind",
@@ -141,16 +145,26 @@
   ],
   "rust_transition_function_visible": true,
   "schema": "zenodex/m6-risc0-semantic-surface/v1",
-  "scoped_worktree_clean": true,
+  "scoped_worktree_clean": false,
   "source_paths": {
     "checker": "tools/check_m6_risc0_semantic_surface_v1.py",
     "python": "src/core/m6_safe_mount_types_v1.py",
-    "rust": "zk/recursive_stark_v2_risc0/shared/src/m6_core_v1.rs"
+    "python_transition": "src/core/m6_safe_mount_transition_v1.py",
+    "rust": "zk/recursive_stark_v2_risc0/shared/src/m6_core_v1.rs",
+    "rust_guest": "zk/recursive_stark_v2_risc0/methods/aggregate_v2/src/main.rs",
+    "rust_methods_cargo": "zk/recursive_stark_v2_risc0/methods/aggregate_v2/Cargo.toml",
+    "rust_shared_cargo": "zk/recursive_stark_v2_risc0/shared/Cargo.toml",
+    "rust_shared_lib": "zk/recursive_stark_v2_risc0/shared/src/lib.rs"
   },
   "source_tracked": {
     "checker": true,
     "python": true,
-    "rust": true
+    "python_transition": true,
+    "rust": true,
+    "rust_guest": false,
+    "rust_methods_cargo": false,
+    "rust_shared_cargo": false,
+    "rust_shared_lib": false
   },
   "status": "BLOCKED_SEMANTIC_SURFACE"
 }

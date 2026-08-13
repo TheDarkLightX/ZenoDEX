@@ -2,11 +2,13 @@
 
 - Status: `BLOCKED_SEMANTIC_SURFACE`
 - Activation eligible: `False`
-- Git HEAD: `e1532937babb28ff79b812497086d042f43ba8b1`
-- Scoped worktree clean: `True`
-- Python source SHA-256: `4ad669c5fb5e713d3ae73dd183a1afb8f67a7dd4f292b4e7a535d0ccda5d699e`
+- Git HEAD: `e75827eee690f082aeaf94ead86ee89255495e5b`
+- Scoped worktree clean: `False`
+- Python source SHA-256: `e9dfe00abd72f20f6c49986dd5af5a7f37042ee100b9f6d26f6b719b8e5623f8`
 - Rust source SHA-256: `1f9f2edd2745e5964a741a91c9ba7ae72cd1d23da429921d30ebb4408076e7c1`
-- Checker source SHA-256: `a2de8730292fe8ee64ff87197647e90e0acdfac120fd98eb610dae7cf422babd`
+- Checker source SHA-256: `656968f9cd8e5ce766aa8ba62cf1903a06c379eb2bc773616b6f4e2ba492af9e`
+- Executing checker SHA-256: `656968f9cd8e5ce766aa8ba62cf1903a06c379eb2bc773616b6f4e2ba492af9e`
+- RISC0 guest transition reachable: `False`
 
 ## Blockers
 
@@ -17,6 +19,7 @@
 - Rust M6 command declares foreign fields: amount_in_atoms, amount_out_atoms, asset_in, asset_out, auxiliary_root, fee_atoms
 - Python/Rust canonical state-root codec parity is not statically visible or Rust state_root still uses postcard
 - independent direct/RISC0 execution parity evidence is absent
+- selected RISC0 guest does not call the shared M6 transition
 
 ## Required next evidence
 
