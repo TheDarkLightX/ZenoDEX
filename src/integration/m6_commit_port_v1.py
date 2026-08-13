@@ -9,6 +9,7 @@ SQLite and legacy adapters are intentionally not imported here.
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
 from threading import Lock
@@ -59,6 +60,8 @@ from ..core.m6_zrpf_v1 import (
 )
 from ..state.canonical import canonical_hex_fixed_allow_0x
 
+M6_CANONICAL_JSON_MAX_DEPTH_V1 = 64
+
 
 class CommitStatusV1(str, Enum):
     COMMITTED = "committed"
@@ -79,18 +82,35 @@ class M6FinalityVerifierV1(Protocol):
 
     def verify_finality(
         self,
-        subject: M6PromotionSubjectV1,
-        *,
-        candidate_parent_head: str,
-        candidate_head: str,
-        publication_root: str,
-        expected_writer_epoch: int,
-        expected_command_root: str,
-        expected_nonce_root: str,
-        expected_execution_receipt_root: str | None,
-        certificate: ZenoLedgerFinalityCertificateV1,
-        tau_certificate: TauBatchCertificateV1 | None,
+        request: "M6FinalityVerificationRequestV1",
     ) -> M6FinalityVerificationReceiptV1: ...
+
+
+@dataclass(frozen=True, slots=True)
+class M6FinalityVerificationRequestV1:
+    """Detached data-only request passed across the finality adapter port."""
+
+    subject: M6PromotionSubjectV1
+    candidate_parent_head: str
+    candidate_head: str
+    publication_root: str
+    expected_writer_epoch: int
+    expected_command_root: str
+    expected_nonce_root: str
+    expected_execution_receipt_root: str | None
+    certificate: ZenoLedgerFinalityCertificateV1
+    tau_certificate: TauBatchCertificateV1 | None
+
+    def __post_init__(self) -> None:
+        if type(self.subject) is not M6PromotionSubjectV1:
+            raise TypeError("finality request subject is not the exact owned type")
+        if type(self.certificate) is not ZenoLedgerFinalityCertificateV1:
+            raise TypeError("finality request certificate is not the exact owned type")
+        if self.tau_certificate is not None and type(self.tau_certificate) is not TauBatchCertificateV1:
+            raise TypeError("finality request Tau certificate is not the exact owned type")
+
+    def detached_copy(self) -> "M6FinalityVerificationRequestV1":
+        return deepcopy(self)
 
 
 def _reject_duplicate_replay_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -102,8 +122,24 @@ def _reject_duplicate_replay_keys(pairs: list[tuple[str, object]]) -> dict[str, 
     return result
 
 
+def _require_bounded_json_depth_v1(value: object, *, name: str) -> None:
+    """Reject decoded JSON beyond the versioned nesting boundary."""
+
+    pending = [(value, 0)]
+    while pending:
+        current, depth = pending.pop()
+        if depth > M6_CANONICAL_JSON_MAX_DEPTH_V1:
+            raise ValueError(
+                f"{name} exceeds maximum depth {M6_CANONICAL_JSON_MAX_DEPTH_V1}"
+            )
+        if type(current) is dict:
+            pending.extend((item, depth + 1) for item in current.values())
+        elif type(current) is list:
+            pending.extend((item, depth + 1) for item in current)
+
+
 def _decode_replay_body(value: str, *, name: str) -> tuple[bytes, dict[str, object]]:
-    if not isinstance(value, str) or value == "" or value != value.lower():
+    if type(value) is not str or value == "" or value != value.lower():
         raise ValueError(f"{name} must be lowercase hexadecimal JSON")
     try:
         data = bytes.fromhex(value)
@@ -117,6 +153,7 @@ def _decode_replay_body(value: str, *, name: str) -> tuple[bytes, dict[str, obje
                 ValueError(f"{name} contains a forbidden float")
             ),
         )
+        _require_bounded_json_depth_v1(raw, name=name)
         if not isinstance(raw, dict) or canonical_bytes_v1(raw) != data:
             raise ValueError(f"{name} is not canonical JSON bytes")
     except (RecursionError, ValueError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -659,6 +696,14 @@ class CommitResultV1:
     reason: str | None = None
     record: M6PublishedRecordV1 | None = None
 
+    def __post_init__(self) -> None:
+        if type(self.state) is not M6ApplicationStateV1:
+            raise TypeError("commit result state is not the exact owned type")
+        if self.record is not None and type(self.record) is not M6PublishedRecordV1:
+            raise TypeError("commit result record is not the exact owned type")
+        object.__setattr__(self, "state", deepcopy(self.state))
+        object.__setattr__(self, "record", deepcopy(self.record))
+
 
 class M6CommitPortV1:
     """Reference unique commit capability.
@@ -674,13 +719,17 @@ class M6CommitPortV1:
         initial_state: M6ApplicationStateV1,
         finality_verifier: M6FinalityVerifierV1 | None = None,
     ) -> None:
+        if type(subject) is not M6PromotionSubjectV1:
+            raise TypeError("commit subject is not the exact owned type")
+        if type(initial_state) is not M6ApplicationStateV1:
+            raise TypeError("commit initial state is not the exact owned type")
         if initial_state.deployment != subject.deployment:
             raise ValueError("initial state deployment does not match subject")
         if initial_state.writer_epoch < subject.writer_epoch:
             raise ValueError("initial state writer epoch predates subject")
         validate_economic_state_v1(initial_state)
-        self._subject = subject
-        self._state = initial_state
+        self._subject = deepcopy(subject)
+        self._state = deepcopy(initial_state)
         self._finality_verifier = finality_verifier
         self._committed_ids: dict[str, str] = {}
         self._records: dict[str, M6PublishedRecordV1] = {}
@@ -689,11 +738,11 @@ class M6CommitPortV1:
     @property
     def state(self) -> M6ApplicationStateV1:
         with self._lock:
-            return self._state
+            return deepcopy(self._state)
 
     @property
     def subject(self) -> M6PromotionSubjectV1:
-        return self._subject
+        return deepcopy(self._subject)
 
     def publish(
         self,
@@ -702,6 +751,8 @@ class M6CommitPortV1:
         tau_certificate: TauBatchCertificateV1 | None,
     ) -> CommitResultV1:
         """Publish one direct candidate after finality and expected-head checks."""
+        if type(candidate) is not AcceptCandidateV1:
+            raise TypeError("commit candidate is not the exact owned type")
         with self._lock:
             finality_reason = _finality_evidence_reason(self._subject, finality, tau_certificate)
             if finality_reason is not None:
@@ -711,73 +762,75 @@ class M6CommitPortV1:
                     candidate_id=candidate.candidate_id,
                     reason=finality_reason,
                 )
-            # A committed replay is decided by its stable identity before the
-            # current head changes.  The first publication still derives and
-            # checks the receipt projection against the locked parent state.
-            if candidate.candidate_id in self._committed_ids:
-                proposal = _direct_proposal(candidate, candidate.outbox_atoms)
-                return self._publish_locked(proposal, finality)
-            if self._state.state_root != candidate.pre_state_root:
+            current_state = self._state
+            already_committed = candidate.candidate_id in self._committed_ids
+            if not already_committed and current_state.state_root != candidate.pre_state_root:
                 return CommitResultV1(
                     status=CommitStatusV1.STALE_HEAD,
-                    state=self._state,
+                    state=current_state,
                     candidate_id=candidate.candidate_id,
                     reason="expected pre-state root differs from current state",
                 )
-            try:
-                replayed = run_m6_transition_v1(
-                    self._subject,
-                    self._state,
-                    candidate.context,
-                    candidate.command,
-                )
-            except (TypeError, ValueError) as exc:
-                return CommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=self._state,
-                    candidate_id=candidate.candidate_id,
-                    reason=f"direct candidate replay rejected: {exc}",
-                )
-            if isinstance(replayed, RejectNoCommitV1):
-                return CommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=self._state,
-                    candidate_id=candidate.candidate_id,
-                    reason=f"direct candidate replay rejected: {replayed.reason.value}",
-                )
-            if replayed != candidate:
-                return CommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=self._state,
-                    candidate_id=candidate.candidate_id,
-                    reason="direct candidate replay does not match execution witness",
-                )
-            try:
-                outbox_atoms = _new_outbox_atoms(self._state, candidate.post_state)
-            except ValueError as exc:
-                return CommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=self._state,
-                    candidate_id=candidate.candidate_id,
-                    reason=str(exc),
-                )
-            if candidate.outbox_atoms != outbox_atoms:
-                return CommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=self._state,
-                    candidate_id=candidate.candidate_id,
-                    reason="candidate outbox projection does not match post-state suffix",
-                )
-            reason = _candidate_binding_reason(self._state, candidate)
-            if reason is not None:
-                return CommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=self._state,
-                    candidate_id=candidate.candidate_id,
-                    reason=reason,
-                )
-            proposal = _direct_proposal(candidate, outbox_atoms)
-            return self._publish_locked(proposal, finality)
+        if already_committed:
+            return self._publish_proposal(
+                _direct_proposal(candidate, candidate.outbox_atoms),
+                finality,
+            )
+        # Pure transition replay is intentionally outside the publication lock.
+        # The proposal is checked again against the exact snapshot before commit.
+        try:
+            replayed = run_m6_transition_v1(
+                self._subject,
+                current_state,
+                candidate.context,
+                candidate.command,
+            )
+        except (TypeError, ValueError) as exc:
+            return CommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=current_state,
+                candidate_id=candidate.candidate_id,
+                reason=f"direct candidate replay rejected: {exc}",
+            )
+        if isinstance(replayed, RejectNoCommitV1):
+            return CommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=current_state,
+                candidate_id=candidate.candidate_id,
+                reason=f"direct candidate replay rejected: {replayed.reason.value}",
+            )
+        if replayed != candidate:
+            return CommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=current_state,
+                candidate_id=candidate.candidate_id,
+                reason="direct candidate replay does not match execution witness",
+            )
+        try:
+            outbox_atoms = _new_outbox_atoms(current_state, candidate.post_state)
+        except ValueError as exc:
+            return CommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=current_state,
+                candidate_id=candidate.candidate_id,
+                reason=str(exc),
+            )
+        if candidate.outbox_atoms != outbox_atoms:
+            return CommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=current_state,
+                candidate_id=candidate.candidate_id,
+                reason="candidate outbox projection does not match post-state suffix",
+            )
+        reason = _candidate_binding_reason(current_state, candidate)
+        if reason is not None:
+            return CommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=current_state,
+                candidate_id=candidate.candidate_id,
+                reason=reason,
+            )
+        return self._publish_proposal(_direct_proposal(candidate, outbox_atoms), finality)
 
     def publish_zrpf(
         self,
@@ -786,6 +839,18 @@ class M6CommitPortV1:
         tau_certificate: TauBatchCertificateV1 | None,
     ) -> CommitResultV1:
         """Publish verified ZRPF evidence through the same commit capability."""
+        if type(verified_root) is not VerifiedZRPFRootV1:
+            raise TypeError("ZRPF publication handle is not the exact verified type")
+        try:
+            checked_root = reverify_zrpf_handle_v1(self._subject, verified_root)
+        except ValueError as exc:
+            with self._lock:
+                return CommitResultV1(
+                    status=CommitStatusV1.FINALITY_REJECTED,
+                    state=self._state,
+                    candidate_id=verified_root.candidate_id,
+                    reason=str(exc),
+                )
         with self._lock:
             finality_reason = _finality_evidence_reason(self._subject, finality, tau_certificate)
             if finality_reason is not None:
@@ -795,45 +860,24 @@ class M6CommitPortV1:
                     candidate_id=verified_root.candidate_id,
                     reason=finality_reason,
                 )
+            current_state = self._state
+            existing = self._records.get(checked_root.candidate_id)
+        if existing is not None:
+            outbox_atoms = existing.outbox_atoms
+        else:
             try:
-                verified_root = reverify_zrpf_handle_v1(self._subject, verified_root)
+                outbox_atoms = _new_outbox_atoms(current_state, checked_root.post_state)
             except ValueError as exc:
                 return CommitResultV1(
                     status=CommitStatusV1.FINALITY_REJECTED,
-                    state=self._state,
-                    candidate_id=verified_root.candidate_id,
+                    state=current_state,
+                    candidate_id=checked_root.candidate_id,
                     reason=str(exc),
                 )
-            try:
-                outbox_atoms = _new_outbox_atoms(self._state, verified_root.post_state)
-            except ValueError as exc:
-                return CommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=self._state,
-                    candidate_id=verified_root.candidate_id,
-                    reason=str(exc),
-                )
-            proposal = _CommitProposalV1(
-                candidate_id=verified_root.candidate_id,
-                pre_state_root=verified_root.journal.pre_state_root,
-                post_state=verified_root.post_state,
-                publication_root=verified_root.journal.journal_root,
-                command_root=verified_root.journal.command_root,
-                nonce_root=verified_root.journal.nonce_root,
-                value_delta_root=verified_root.journal.value_delta_root,
-                history_root=verified_root.journal.history_root,
-                nullifier_root=verified_root.journal.nullifier_root,
-                outbox_root=verified_root.journal.outbox_root,
-                outbox_atoms=outbox_atoms,
-                business_status=None,
-                business_reject_reason=None,
-                zrpf_journal=verified_root.journal,
-                zrpf_receipt=M6ZRPFVerificationReceiptRecordV1.from_verified(
-                    verified_root.proof_receipt
-                ),
-                direct_replay=None,
-            )
-            return self._publish_locked(proposal, finality)
+        return self._publish_proposal(
+            _zrpf_proposal(checked_root, outbox_atoms),
+            finality,
+        )
 
     def publish_direct_batch(
         self,
@@ -843,8 +887,8 @@ class M6CommitPortV1:
     ) -> CommitResultV1:
         """Publish a multi-command direct candidate during proof degradation."""
 
-        if not isinstance(direct, DirectBatchCandidateV1):
-            raise TypeError("direct batch candidate is not typed")
+        if type(direct) is not DirectBatchCandidateV1:
+            raise TypeError("direct batch candidate is not the exact owned type")
         if len(direct.commands) < 2:
             raise ValueError("direct batch publication requires at least two commands")
         with self._lock:
@@ -856,159 +900,205 @@ class M6CommitPortV1:
                     candidate_id=direct.candidate_id,
                     reason=finality_reason,
                 )
-            if direct.pre_state_root != self._state.state_root and direct.candidate_id not in self._committed_ids:
+            current_state = self._state
+            already_committed = direct.candidate_id in self._committed_ids
+            if direct.pre_state_root != current_state.state_root and not already_committed:
                 return CommitResultV1(
                     status=CommitStatusV1.STALE_HEAD,
-                    state=self._state,
+                    state=current_state,
                     candidate_id=direct.candidate_id,
                     reason="expected pre-state root differs from current state",
                 )
-            if direct.candidate_id not in self._committed_ids:
-                try:
-                    replayed = execute_direct_batch_v1(
-                        self._subject,
-                        self._state,
-                        direct.contexts,
-                        direct.commands,
-                    )
-                except (TypeError, ValueError) as exc:
-                    return CommitResultV1(
-                        status=CommitStatusV1.FINALITY_REJECTED,
-                        state=self._state,
-                        candidate_id=direct.candidate_id,
-                        reason=f"direct batch replay rejected: {exc}",
-                    )
-                if replayed != direct:
-                    return CommitResultV1(
-                        status=CommitStatusV1.FINALITY_REJECTED,
-                        state=self._state,
-                        candidate_id=direct.candidate_id,
-                        reason="direct batch replay does not match execution witness",
-                    )
+        if not already_committed:
             try:
-                outbox_atoms = _new_outbox_atoms(direct.pre_state, direct.post_state)
-            except ValueError as exc:
+                replayed = execute_direct_batch_v1(
+                    self._subject,
+                    current_state,
+                    direct.contexts,
+                    direct.commands,
+                )
+            except (TypeError, ValueError) as exc:
                 return CommitResultV1(
                     status=CommitStatusV1.FINALITY_REJECTED,
-                    state=self._state,
+                    state=current_state,
                     candidate_id=direct.candidate_id,
-                    reason=str(exc),
+                    reason=f"direct batch replay rejected: {exc}",
                 )
-            proposal = _direct_batch_proposal(direct, outbox_atoms)
-            return self._publish_locked(proposal, finality)
+            if replayed != direct:
+                return CommitResultV1(
+                    status=CommitStatusV1.FINALITY_REJECTED,
+                    state=current_state,
+                    candidate_id=direct.candidate_id,
+                    reason="direct batch replay does not match execution witness",
+                )
+        try:
+            outbox_atoms = _new_outbox_atoms(direct.pre_state, direct.post_state)
+        except ValueError as exc:
+            return CommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=current_state,
+                candidate_id=direct.candidate_id,
+                reason=str(exc),
+            )
+        return self._publish_proposal(_direct_batch_proposal(direct, outbox_atoms), finality)
 
-    def _publish_locked(
+    def _publish_proposal(
         self,
         proposal: _CommitProposalV1,
         finality: VerifiedZenoLedgerFinalityV1,
     ) -> CommitResultV1:
-        committed_post_root = self._committed_ids.get(proposal.candidate_id)
-        if committed_post_root is not None:
-            record = self._records[proposal.candidate_id]
-            replay_reason = _committed_replay_binding_reason(
-                record,
-                proposal,
-                committed_post_root,
-            )
-            if replay_reason is not None:
-                return CommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=self._state,
-                    candidate_id=proposal.candidate_id,
-                    reason=replay_reason,
+        proposal = deepcopy(proposal)
+        with self._lock:
+            committed_post_root = self._committed_ids.get(proposal.candidate_id)
+            if committed_post_root is not None:
+                return self._committed_replay_result_locked(
+                    proposal,
+                    finality,
+                    committed_post_root,
                 )
-            finality_binding_reason = _finality_record_binding_reason(
-                self._subject,
-                record,
-                finality,
-            )
-            if finality_binding_reason is not None:
-                return CommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=self._state,
-                    candidate_id=proposal.candidate_id,
-                    reason=finality_binding_reason,
-                )
-            if (
-                record.finality != finality.certificate
-                or record.tau_certificate != finality.tau_certificate
-            ):
-                return CommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=self._state,
-                    candidate_id=proposal.candidate_id,
-                    reason="replay finality evidence conflicts with committed record",
-                )
-            return CommitResultV1(
-                status=CommitStatusV1.ALREADY_COMMITTED,
-                state=self._state,
-                candidate_id=proposal.candidate_id,
-                record=record,
-            )
-        externally_verified, finality_reason = self._verify_finality_at_commit_boundary(
+            expected_state = self._state
+        externally_verified, finality_reason = self._verify_finality_outside_lock(
             proposal,
             finality,
+            expected_state=expected_state,
         )
         if externally_verified is None:
             return CommitResultV1(
                 status=CommitStatusV1.FINALITY_REJECTED,
-                state=self._state,
+                state=expected_state,
                 candidate_id=proposal.candidate_id,
                 reason=finality_reason,
             )
-        finality = externally_verified
-        if self._state.state_root != proposal.pre_state_root:
-            return CommitResultV1(
-                status=CommitStatusV1.STALE_HEAD,
-                state=self._state,
-                candidate_id=proposal.candidate_id,
-                reason="expected pre-state root differs from current state",
+        with self._lock:
+            committed_post_root = self._committed_ids.get(proposal.candidate_id)
+            if committed_post_root is not None:
+                return self._committed_replay_result_locked(
+                    proposal,
+                    externally_verified,
+                    committed_post_root,
+                )
+            if self._state != expected_state or self._state.state_root != proposal.pre_state_root:
+                return CommitResultV1(
+                    status=CommitStatusV1.STALE_HEAD,
+                    state=self._state,
+                    candidate_id=proposal.candidate_id,
+                    reason="expected pre-state root differs from current state",
+                )
+            reason = self._validation_reason(proposal, externally_verified)
+            if reason is not None:
+                return CommitResultV1(
+                    status=CommitStatusV1.FINALITY_REJECTED,
+                    state=self._state,
+                    candidate_id=proposal.candidate_id,
+                    reason=reason,
+                )
+            committed_state = _with_finality(
+                proposal.post_state,
+                externally_verified.certificate,
             )
-        reason = self._validation_reason(proposal, finality)
-        if reason is not None:
+            record = _make_published_record(
+                proposal,
+                externally_verified,
+                self._state.head,
+            )
+            self._state = committed_state
+            self._committed_ids[proposal.candidate_id] = proposal.post_state.state_root
+            self._records[proposal.candidate_id] = record
+            return CommitResultV1(
+                status=CommitStatusV1.COMMITTED,
+                state=committed_state,
+                candidate_id=proposal.candidate_id,
+                record=record,
+            )
+
+    def _committed_replay_result_locked(
+        self,
+        proposal: _CommitProposalV1,
+        finality: VerifiedZenoLedgerFinalityV1,
+        committed_post_root: str,
+    ) -> CommitResultV1:
+        record = self._records[proposal.candidate_id]
+        replay_reason = _committed_replay_binding_reason(
+            record,
+            proposal,
+            committed_post_root,
+        )
+        if replay_reason is not None:
             return CommitResultV1(
                 status=CommitStatusV1.FINALITY_REJECTED,
                 state=self._state,
                 candidate_id=proposal.candidate_id,
-                reason=reason,
+                reason=replay_reason,
             )
-        committed_state = _with_finality(proposal.post_state, finality.certificate)
-        record = _make_published_record(proposal, finality, self._state.head)
-        self._state = committed_state
-        self._committed_ids[proposal.candidate_id] = proposal.post_state.state_root
-        self._records[proposal.candidate_id] = record
+        finality_binding_reason = _finality_record_binding_reason(
+            self._subject,
+            record,
+            finality,
+        )
+        if finality_binding_reason is not None:
+            return CommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=self._state,
+                candidate_id=proposal.candidate_id,
+                reason=finality_binding_reason,
+            )
+        if (
+            record.finality != finality.certificate
+            or record.tau_certificate != finality.tau_certificate
+        ):
+            return CommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=self._state,
+                candidate_id=proposal.candidate_id,
+                reason="replay finality evidence conflicts with committed record",
+            )
         return CommitResultV1(
-            status=CommitStatusV1.COMMITTED,
-            state=committed_state,
+            status=CommitStatusV1.ALREADY_COMMITTED,
+            state=self._state,
             candidate_id=proposal.candidate_id,
             record=record,
         )
 
-    def _verify_finality_at_commit_boundary(
+    def _verify_finality_outside_lock(
         self,
         proposal: _CommitProposalV1,
         caller_finality: VerifiedZenoLedgerFinalityV1,
+        *,
+        expected_state: M6ApplicationStateV1,
     ) -> tuple[VerifiedZenoLedgerFinalityV1 | None, str | None]:
-        """Reauthorize finality through the configured external verifier port."""
+        """Reauthorize finality without holding publication locks."""
 
         if self._finality_verifier is None:
             return None, "external finality verifier is unavailable"
-        if not isinstance(caller_finality, VerifiedZenoLedgerFinalityV1):
+        if type(caller_finality) is not VerifiedZenoLedgerFinalityV1:
             return None, "finality evidence must be verifier-created"
-        if caller_finality.candidate_parent_head != self._state.head:
+        if (
+            type(caller_finality.certificate) is not ZenoLedgerFinalityCertificateV1
+            or type(caller_finality.verification_receipt)
+            is not M6FinalityVerificationReceiptV1
+            or (
+                caller_finality.tau_certificate is not None
+                and type(caller_finality.tau_certificate) is not TauBatchCertificateV1
+            )
+        ):
+            return None, "finality evidence contains an unowned nested value"
+        caller_snapshot = deepcopy(caller_finality)
+        if type(caller_snapshot) is not VerifiedZenoLedgerFinalityV1:
+            return None, "finality evidence could not be owned"
+        if caller_snapshot.candidate_parent_head != expected_state.head:
             return None, "finality evidence parent head mismatch"
-        if caller_finality.candidate_head != proposal.post_state.state_root:
+        if caller_snapshot.candidate_head != proposal.post_state.state_root:
             return None, "finality evidence candidate head mismatch"
-        if caller_finality.publication_root != proposal.publication_root:
+        if caller_snapshot.publication_root != proposal.publication_root:
             return None, "finality evidence publication root mismatch"
-        if caller_finality.expected_command_root != proposal.command_root:
+        if caller_snapshot.expected_command_root != proposal.command_root:
             return None, "finality evidence command root mismatch"
-        if caller_finality.expected_nonce_root != proposal.nonce_root:
+        if caller_snapshot.expected_nonce_root != proposal.nonce_root:
             return None, "finality evidence nonce root mismatch"
         try:
-            receipt = self._finality_verifier.verify_finality(
-                self._subject,
-                candidate_parent_head=self._state.head,
+            request = M6FinalityVerificationRequestV1(
+                subject=deepcopy(self._subject),
+                candidate_parent_head=expected_state.head,
                 candidate_head=proposal.post_state.state_root,
                 publication_root=proposal.publication_root,
                 expected_writer_epoch=proposal.post_state.writer_epoch,
@@ -1017,24 +1107,28 @@ class M6CommitPortV1:
                 expected_execution_receipt_root=(
                     None if proposal.zrpf_receipt is None else proposal.zrpf_receipt.receipt_root
                 ),
-                certificate=caller_finality.certificate,
-                tau_certificate=caller_finality.tau_certificate,
+                certificate=deepcopy(caller_snapshot.certificate),
+                tau_certificate=deepcopy(caller_snapshot.tau_certificate),
             )
-            if not isinstance(receipt, M6FinalityVerificationReceiptV1):
+            receipt = self._finality_verifier.verify_finality(request.detached_copy())
+            if type(receipt) is not M6FinalityVerificationReceiptV1:
                 return None, "external finality verifier returned an untyped receipt"
+            receipt = deepcopy(receipt)
+            if type(receipt) is not M6FinalityVerificationReceiptV1:
+                return None, "external finality verifier returned an unowned receipt"
             verified = verify_zeno_ledger_finality_v1(
                 self._subject,
                 candidate_head=proposal.post_state.state_root,
                 publication_root=proposal.publication_root,
-                candidate_parent_head=self._state.head,
+                candidate_parent_head=expected_state.head,
                 expected_writer_epoch=proposal.post_state.writer_epoch,
                 expected_command_root=proposal.command_root,
                 expected_nonce_root=proposal.nonce_root,
                 expected_execution_receipt_root=(
                     None if proposal.zrpf_receipt is None else proposal.zrpf_receipt.receipt_root
                 ),
-                certificate=caller_finality.certificate,
-                tau_certificate=caller_finality.tau_certificate,
+                certificate=caller_snapshot.certificate,
+                tau_certificate=caller_snapshot.tau_certificate,
                 verification_receipt=receipt,
             )
         except (TypeError, ValueError):
@@ -1174,7 +1268,7 @@ def _finality_evidence_reason(
     finality: object,
     tau_certificate: TauBatchCertificateV1 | None,
 ) -> str | None:
-    if not isinstance(finality, VerifiedZenoLedgerFinalityV1):
+    if type(finality) is not VerifiedZenoLedgerFinalityV1:
         return "finality evidence must be verifier-created"
     if finality.subject_root != subject.subject_root:
         return "finality evidence promotion subject mismatch"
@@ -1255,7 +1349,7 @@ def finality_evidence_matches_published_record_v1(
 ) -> bool:
     """Share the exact replay-authority predicate with durable storage."""
 
-    if not isinstance(finality, VerifiedZenoLedgerFinalityV1):
+    if type(finality) is not VerifiedZenoLedgerFinalityV1:
         return False
     if _finality_record_binding_reason(subject, record, finality) is not None:
         return False
@@ -1275,14 +1369,14 @@ def reverify_zrpf_handle_v1(
     """Recheck the exact batch owned by a ZRPF handle before any publication."""
 
     execution_batch = verified_root.execution_batch
-    if not isinstance(execution_batch, ZRPFBatchCandidateV1):
+    if type(execution_batch) is not ZRPFBatchCandidateV1:
         raise ValueError("ZRPF handle is missing its checked execution batch")
     try:
         replayed_batch = verify_zrpf_structure_v1(subject, execution_batch)
         proof_receipt = verified_root.proof_receipt
     except (TypeError, ValueError) as exc:
         raise ValueError(f"ZRPF execution replay rejected: {exc}") from exc
-    if not isinstance(proof_receipt, M6ZRPFVerificationReceiptV1):
+    if type(proof_receipt) is not M6ZRPFVerificationReceiptV1:
         raise ValueError("ZRPF handle is missing a typed proof receipt")
     if (
         proof_receipt.promotion_subject_root != verified_root.journal.promotion_subject_root
@@ -1426,6 +1520,32 @@ def _direct_batch_proposal(
     )
 
 
+def _zrpf_proposal(
+    verified_root: VerifiedZRPFRootV1,
+    outbox_atoms: tuple[OutboxAtomV1, ...],
+) -> _CommitProposalV1:
+    return _CommitProposalV1(
+        candidate_id=verified_root.candidate_id,
+        pre_state_root=verified_root.journal.pre_state_root,
+        post_state=verified_root.post_state,
+        publication_root=verified_root.journal.journal_root,
+        command_root=verified_root.journal.command_root,
+        nonce_root=verified_root.journal.nonce_root,
+        value_delta_root=verified_root.journal.value_delta_root,
+        history_root=verified_root.journal.history_root,
+        nullifier_root=verified_root.journal.nullifier_root,
+        outbox_root=verified_root.journal.outbox_root,
+        outbox_atoms=outbox_atoms,
+        business_status=None,
+        business_reject_reason=None,
+        zrpf_journal=verified_root.journal,
+        zrpf_receipt=M6ZRPFVerificationReceiptRecordV1.from_verified(
+            verified_root.proof_receipt
+        ),
+        direct_replay=None,
+    )
+
+
 def _candidate_binding_reason(
     current_state: M6ApplicationStateV1,
     candidate: AcceptCandidateV1,
@@ -1522,6 +1642,7 @@ def _make_published_record(
 __all__ = [
     "CommitStatusV1",
     "M6FinalityVerifierV1",
+    "M6FinalityVerificationRequestV1",
     "DirectExecutionReplayV1",
     "direct_batch_data_availability_root_v1",
     "M6PublishedRecordV1",

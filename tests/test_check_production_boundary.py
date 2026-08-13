@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from copy import deepcopy
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
@@ -28,11 +28,11 @@ from tools.check_production_boundary import (
     scan_unsafe_config_literals,
     theoremsearch_retrieval_promotion_checks,
     validate_claim_promotion_research_boundary,
+    validate_research_promotion_boundary,
     validate_research_promotion_obligation_manifest,
     validate_research_promotion_obligation_manifest_file,
     validate_research_promotion_registry_manifest,
     validate_research_promotion_registry_manifest_file,
-    validate_research_promotion_boundary,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -57,6 +57,7 @@ def test_current_production_boundary_audit_passes() -> None:
         "supported_runtime_doc_scopes_public_boundary",
         "public_operator_node_preflight_blocks_unsigned_testnet_mutation",
         "research_promotion_schema_registry_research_only",
+        "m6_writer_inventory_research_only",
     } <= check_ids
     requirement_ids = {item["requirement_id"] for item in payload["requirements"]}
     assert {
@@ -66,6 +67,7 @@ def test_current_production_boundary_audit_passes() -> None:
         "no_require_settlement_match_false_in_production",
         "no_direct_pure_core_ingress_exposed",
         "research_promotion_has_no_production_authority",
+        "m6_writer_inventory_is_explicit",
     } == requirement_ids
     assert all(item["ok"] is True for item in payload["requirements"])
     safe_profile = next(
@@ -98,6 +100,20 @@ def test_current_production_boundary_audit_passes() -> None:
     ]
     assert promotion_evidence["reports"]["tight_argmax_claim_promotion"]["positive_count"] == 12
     assert promotion_evidence["reports"]["theoremsearch_retrieval_promotion"]["positive_count"] == 3
+    writer_check = next(
+        check for check in payload["checks"]
+        if check["check_id"] == "m6_writer_inventory_research_only"
+    )
+    writer_evidence = json.loads(writer_check["evidence"])
+    assert writer_evidence["coverage_row_count"] == writer_evidence["entrypoint_count"]
+    assert writer_evidence["coverage_row_count"] >= 25
+    assert writer_evidence["findings"] == []
+    assert writer_evidence["m6_production_mounted"] is False
+    assert writer_evidence["production_authority"] is False
+    assert writer_evidence["release_gate_status"] == "BLOCKED_OPEN_COVERAGE"
+    assert writer_evidence["release_ready"] is False
+    assert writer_evidence["unmounted_entrypoint_count"] > 0
+    assert writer_evidence["writers_without_coverage"] == []
 
 
 def test_unsafe_config_literal_scanner_rejects_production_overrides(tmp_path: Path) -> None:

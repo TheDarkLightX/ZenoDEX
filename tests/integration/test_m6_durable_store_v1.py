@@ -3,12 +3,14 @@ from __future__ import annotations
 import json
 import os
 import selectors
+import stat
 import subprocess
 import sys
 import time
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
+from threading import Barrier, Event, Thread
 from typing import Any, BinaryIO, cast
 
 import pytest
@@ -60,7 +62,13 @@ from src.core.m6_zrpf_v1 import (
     execute_zrpf_batch_v1,
     verify_zrpf_root_v1,
 )
-from src.integration.m6_commit_port_v1 import CommitStatusV1, _decode_replay_body
+from src.integration.m6_commit_port_v1 import (
+    M6_CANONICAL_JSON_MAX_DEPTH_V1,
+    CommitStatusV1,
+    M6CommitPortV1,
+    M6FinalityVerificationRequestV1,
+    _decode_replay_body,
+)
 from src.integration.m6_durable_store_v1 import (
     M6DurableCorruptionError,
     _decode_subject,
@@ -582,20 +590,405 @@ def _finality_and_tau_for_direct_batch(
 class _TestFinalityVerifier:
     """Research fixture for the external finality-verifier port."""
 
-    def verify_finality(self, subject: M6PromotionSubjectV1, **kwargs: object):
-        certificate = cast(ZenoLedgerFinalityCertificateV1, kwargs["certificate"])
+    def verify_finality(self, request: M6FinalityVerificationRequestV1):
         return _issue_m6_finality_verification_receipt_v1(
-            subject_root=subject.subject_root,
-            candidate_parent_head=cast(str, kwargs["candidate_parent_head"]),
-            candidate_head=cast(str, kwargs["candidate_head"]),
-            publication_root=cast(str, kwargs["publication_root"]),
-            expected_writer_epoch=cast(int, kwargs["expected_writer_epoch"]),
-            certificate_root=certificate.certificate_root,
-            attestation_root=certificate.signature_root,
+            subject_root=request.subject.subject_root,
+            candidate_parent_head=request.candidate_parent_head,
+            candidate_head=request.candidate_head,
+            publication_root=request.publication_root,
+            expected_writer_epoch=request.expected_writer_epoch,
+            certificate_root=request.certificate.certificate_root,
+            attestation_root=request.certificate.signature_root,
         )
 
 
 _TEST_FINALITY_VERIFIER = _TestFinalityVerifier()
+
+
+def test_given_finality_verifier_reenters_commit_port_when_publishing_then_no_deadlock() -> None:
+    """FCIS/RIPR: an external verifier runs outside the commit-port lock."""
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    candidate = _candidate(subject, initial, 1, "reentrant-port-finality")
+    finality, tau = _finality_and_tau(subject, candidate, "reentrant-port-finality")
+    observed_roots: list[str] = []
+    results: list[object] = []
+    errors: list[BaseException] = []
+    port: M6CommitPortV1
+
+    class ReentrantVerifier(_TestFinalityVerifier):
+        def verify_finality(self, request: M6FinalityVerificationRequestV1):
+            observed_roots.append(port.state.state_root)
+            return super().verify_finality(request)
+
+    port = M6CommitPortV1(subject, initial, ReentrantVerifier())
+
+    def publish() -> None:
+        try:
+            results.append(port.publish(candidate, finality, tau))
+        except BaseException as exc:  # pragma: no cover - failure capture
+            errors.append(exc)
+
+    worker = Thread(target=publish, daemon=True)
+    worker.start()
+    worker.join(2)
+
+    assert not worker.is_alive(), "external finality verifier ran under the commit-port lock"
+    assert errors == []
+    assert observed_roots == [initial.state_root]
+    assert len(results) == 1
+    assert results[0].status is CommitStatusV1.COMMITTED  # type: ignore[union-attr]
+
+
+def test_given_finality_verifier_reopens_durable_ledger_when_publishing_then_no_deadlock(
+    tmp_path: Path,
+) -> None:
+    """FCIS/RIPR: durable publication releases its global lock for verification."""
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    candidate = _candidate(subject, initial, 1, "reentrant-durable-finality")
+    finality, tau = _finality_and_tau(subject, candidate, "reentrant-durable-finality")
+    observed_heads: list[str] = []
+    results: list[object] = []
+    errors: list[BaseException] = []
+    store: _M6DurableLedgerStoreV1
+
+    class ReentrantVerifier(_TestFinalityVerifier):
+        def verify_finality(self, request: M6FinalityVerificationRequestV1):
+            observed_heads.append(store.reopen().head_block_id)
+            return super().verify_finality(request)
+
+    store = _M6DurableLedgerStoreV1.create(
+        tmp_path / "reentrant-finality-ledger",
+        subject,
+        initial,
+        finality_verifier=ReentrantVerifier(),
+    )
+
+    def publish() -> None:
+        try:
+            results.append(store.publish(candidate, finality, tau))
+        except BaseException as exc:  # pragma: no cover - failure capture
+            errors.append(exc)
+
+    worker = Thread(target=publish, daemon=True)
+    worker.start()
+    worker.join(2)
+
+    assert not worker.is_alive(), "external finality verifier ran under the durable lock"
+    assert errors == []
+    assert observed_heads == ["genesis"]
+    assert len(results) == 1
+    assert results[0].status is CommitStatusV1.COMMITTED  # type: ignore[union-attr]
+
+
+def test_given_finality_verifier_reopens_durable_ledger_for_direct_batch_then_no_deadlock(
+    tmp_path: Path,
+) -> None:
+    """FCIS/RIPR: batch publication uses the same unlocked verifier phase."""
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    contexts: list[AuthenticatedExecutionContextV1] = []
+    commands: list[GlobalCommandV1] = []
+    current = initial
+    for nonce in (1, 2):
+        command = _command(nonce, auction_id=f"reentrant-batch-{nonce}")
+        context = _context(subject, current, nonce)
+        preview = run_m6_transition_v1(subject, current, context, command)
+        assert isinstance(preview, AcceptCandidateV1)
+        contexts.append(context)
+        commands.append(command)
+        current = preview.post_state
+    direct = execute_direct_batch_v1(subject, initial, tuple(contexts), tuple(commands))
+    finality, tau = _finality_and_tau_for_direct_batch(subject, initial, direct)
+    observed_heads: list[str] = []
+    store: _M6DurableLedgerStoreV1
+
+    class ReentrantVerifier(_TestFinalityVerifier):
+        def verify_finality(self, request: M6FinalityVerificationRequestV1):
+            observed_heads.append(store.reopen().head_block_id)
+            return super().verify_finality(request)
+
+    store = _M6DurableLedgerStoreV1.create(
+        tmp_path / "reentrant-batch-finality-ledger",
+        subject,
+        initial,
+        finality_verifier=ReentrantVerifier(),
+    )
+    results: list[object] = []
+    worker = Thread(
+        target=lambda: results.append(store.publish_direct_batch(direct, finality, tau)),
+        daemon=True,
+    )
+    worker.start()
+    worker.join(5)
+
+    assert not worker.is_alive(), "batch finality verifier ran under the durable lock"
+    assert observed_heads == ["genesis"]
+    assert len(results) == 1
+    assert results[0].status is CommitStatusV1.COMMITTED  # type: ignore[union-attr]
+
+
+def test_given_finality_verifier_reopens_durable_ledger_for_zrpf_then_no_deadlock(
+    tmp_path: Path,
+) -> None:
+    """FCIS/RIPR: ZRPF publication also verifies outside the durable lock."""
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    contexts, commands = _zrpf_inputs(subject, initial)
+    batch = execute_zrpf_batch_v1(subject, initial, contexts, commands)
+    verified = verify_zrpf_root_v1(
+        subject,
+        batch,
+        receipt_verifier=_TEST_ZRPF_RECEIPT_VERIFIER,
+    )
+    finality, tau = _zrpf_finality_and_tau(subject, initial, verified)
+    observed_heads: list[str] = []
+    store: _M6DurableLedgerStoreV1
+
+    class ReentrantVerifier(_TestFinalityVerifier):
+        def verify_finality(self, request: M6FinalityVerificationRequestV1):
+            observed_heads.append(store.reopen().head_block_id)
+            return super().verify_finality(request)
+
+    store = _M6DurableLedgerStoreV1.create(
+        tmp_path / "reentrant-zrpf-finality-ledger",
+        subject,
+        initial,
+        finality_verifier=ReentrantVerifier(),
+    )
+    results: list[object] = []
+    worker = Thread(
+        target=lambda: results.append(store.publish_zrpf(verified, finality, tau)),
+        daemon=True,
+    )
+    worker.start()
+    worker.join(60)
+
+    assert not worker.is_alive(), "ZRPF finality verifier ran under the durable lock"
+    assert observed_heads == ["genesis"]
+    assert len(results) == 1
+    assert results[0].status is CommitStatusV1.COMMITTED  # type: ignore[union-attr]
+
+
+def test_given_durable_head_advances_during_finality_verification_then_original_is_stale(
+    tmp_path: Path,
+) -> None:
+    """Stateful CAS: unlocked verification cannot publish over a new head."""
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    candidate_a = _candidate(subject, initial, 1, "cas-a")
+    finality_a, tau_a = _finality_and_tau(subject, candidate_a, "cas-a")
+    candidate_b = _candidate(subject, initial, 1, "cas-b")
+    finality_b, tau_b = _finality_and_tau(subject, candidate_b, "cas-b")
+    entered = Event()
+    release = Event()
+    verifier_calls = 0
+
+    class PausingVerifier(_TestFinalityVerifier):
+        def verify_finality(self, request: M6FinalityVerificationRequestV1):
+            nonlocal verifier_calls
+            verifier_calls += 1
+            if verifier_calls == 1:
+                entered.set()
+                if not release.wait(5):
+                    raise RuntimeError("CAS verifier release was not signaled")
+            return super().verify_finality(request)
+
+    root = tmp_path / "durable-finality-cas"
+    primary = _M6DurableLedgerStoreV1.create(
+        root,
+        subject,
+        initial,
+        finality_verifier=PausingVerifier(),
+    )
+    competing = _M6DurableLedgerStoreV1(
+        root,
+        subject,
+        finality_verifier=_TEST_FINALITY_VERIFIER,
+    )
+    results: list[object] = []
+
+    worker = Thread(
+        target=lambda: results.append(primary.publish(candidate_a, finality_a, tau_a)),
+        daemon=True,
+    )
+    worker.start()
+    assert entered.wait(2)
+    committed_b = competing.publish(candidate_b, finality_b, tau_b)
+    release.set()
+    worker.join(5)
+
+    assert not worker.is_alive()
+    assert committed_b.status is CommitStatusV1.COMMITTED
+    assert len(results) == 1
+    assert results[0].status is CommitStatusV1.STALE_HEAD  # type: ignore[union-attr]
+    reopened = primary.reopen()
+    assert len(reopened.records) == 1
+    assert reopened.records[0].candidate_id == candidate_b.candidate_id
+    assert reopened.state == committed_b.state
+
+
+def test_given_concurrent_identical_candidate_then_one_commit_and_one_idempotent_replay(
+    tmp_path: Path,
+) -> None:
+    """Stateful RIPR: unlocked verification preserves duplicate idempotence."""
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    candidate = _candidate(subject, initial, 1, "concurrent-identical")
+    finality, tau = _finality_and_tau(subject, candidate, "concurrent-identical")
+    both_verifying = Barrier(2)
+
+    class BarrierVerifier(_TestFinalityVerifier):
+        def verify_finality(self, request: M6FinalityVerificationRequestV1):
+            both_verifying.wait()
+            return super().verify_finality(request)
+
+    store = _M6DurableLedgerStoreV1.create(
+        tmp_path / "concurrent-identical-ledger",
+        subject,
+        initial,
+        finality_verifier=BarrierVerifier(),
+    )
+    results: list[object] = []
+    errors: list[BaseException] = []
+
+    def publish() -> None:
+        try:
+            results.append(store.publish(candidate, finality, tau))
+        except BaseException as exc:  # pragma: no cover - failure capture
+            errors.append(exc)
+
+    workers = [Thread(target=publish, daemon=True) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(10)
+
+    assert not any(worker.is_alive() for worker in workers)
+    assert errors == []
+    assert sorted(result.status.value for result in results) == [  # type: ignore[union-attr]
+        "already_committed",
+        "committed",
+    ]
+    reopened = store.reopen()
+    assert len(reopened.records) == 1
+    assert reopened.records[0].candidate_id == candidate.candidate_id
+
+
+def test_given_concurrent_identical_direct_batch_then_one_commit_and_one_idempotent_replay(
+    tmp_path: Path,
+) -> None:
+    """The direct fallback route shares the duplicate-CAS replay contract."""
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    contexts: list[AuthenticatedExecutionContextV1] = []
+    commands: list[GlobalCommandV1] = []
+    current = initial
+    for nonce in (1, 2):
+        command = _command(nonce, auction_id=f"concurrent-batch-{nonce}")
+        context = _context(subject, current, nonce)
+        preview = run_m6_transition_v1(subject, current, context, command)
+        assert isinstance(preview, AcceptCandidateV1)
+        contexts.append(context)
+        commands.append(command)
+        current = preview.post_state
+    direct = execute_direct_batch_v1(subject, initial, tuple(contexts), tuple(commands))
+    finality, tau = _finality_and_tau_for_direct_batch(subject, initial, direct)
+    both_verifying = Barrier(2)
+
+    class BarrierVerifier(_TestFinalityVerifier):
+        def verify_finality(self, request: M6FinalityVerificationRequestV1):
+            both_verifying.wait()
+            return super().verify_finality(request)
+
+    store = _M6DurableLedgerStoreV1.create(
+        tmp_path / "concurrent-identical-batch-ledger",
+        subject,
+        initial,
+        finality_verifier=BarrierVerifier(),
+    )
+    results: list[object] = []
+    errors: list[BaseException] = []
+
+    def publish() -> None:
+        try:
+            results.append(store.publish_direct_batch(direct, finality, tau))
+        except BaseException as exc:  # pragma: no cover - failure capture
+            errors.append(exc)
+
+    workers = [Thread(target=publish, daemon=True) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(10)
+
+    assert not any(worker.is_alive() for worker in workers)
+    assert errors == []
+    assert sorted(result.status.value for result in results) == [  # type: ignore[union-attr]
+        "already_committed",
+        "committed",
+    ]
+    assert len(store.reopen().records) == 1
+
+
+def test_given_concurrent_identical_zrpf_then_one_commit_and_one_idempotent_replay(
+    tmp_path: Path,
+) -> None:
+    """The proof route shares the duplicate-CAS replay contract."""
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    contexts, commands = _zrpf_inputs(subject, initial)
+    batch = execute_zrpf_batch_v1(subject, initial, contexts, commands)
+    verified = verify_zrpf_root_v1(
+        subject,
+        batch,
+        receipt_verifier=_TEST_ZRPF_RECEIPT_VERIFIER,
+    )
+    finality, tau = _zrpf_finality_and_tau(subject, initial, verified)
+    both_verifying = Barrier(2)
+
+    class BarrierVerifier(_TestFinalityVerifier):
+        def verify_finality(self, request: M6FinalityVerificationRequestV1):
+            both_verifying.wait()
+            return super().verify_finality(request)
+
+    store = _M6DurableLedgerStoreV1.create(
+        tmp_path / "concurrent-identical-zrpf-ledger",
+        subject,
+        initial,
+        finality_verifier=BarrierVerifier(),
+    )
+    results: list[object] = []
+    errors: list[BaseException] = []
+
+    def publish() -> None:
+        try:
+            results.append(store.publish_zrpf(verified, finality, tau))
+        except BaseException as exc:  # pragma: no cover - failure capture
+            errors.append(exc)
+
+    workers = [Thread(target=publish, daemon=True) for _ in range(2)]
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(180)
+
+    assert not any(worker.is_alive() for worker in workers)
+    assert errors == []
+    assert sorted(result.status.value for result in results) == [  # type: ignore[union-attr]
+        "already_committed",
+        "committed",
+    ]
+    assert len(store.reopen().records) == 1
 
 
 class M6DurableLedgerStoreV1(_M6DurableLedgerStoreV1):
@@ -749,6 +1142,57 @@ def test_reopen_reconstructs_canonical_chain_and_retry_is_idempotent(tmp_path: P
     assert store.reopen().head_block_id == committed.block_id
 
 
+def test_durable_publication_rejects_hostile_candidate_subclasses_before_hooks(
+    tmp_path: Path,
+) -> None:
+    """Caller-defined candidate hooks cannot run before the authority boundary."""
+
+    hooks: list[str] = []
+
+    class HostileCandidate(AcceptCandidateV1):
+        def __getattribute__(self, name: str) -> object:
+            if name == "command":
+                hooks.append(name)
+                raise RuntimeError("private candidate token")
+            return super().__getattribute__(name)
+
+    class HostileDirectBatch(DirectBatchCandidateV1):
+        def __getattribute__(self, name: str) -> object:
+            if name == "commands":
+                hooks.append(name)
+                raise RuntimeError("private direct-batch token")
+            return super().__getattribute__(name)
+
+    class HostileVerifiedRoot(VerifiedZRPFRootV1):
+        def __getattribute__(self, name: str) -> object:
+            if name == "execution_batch":
+                hooks.append(name)
+                raise RuntimeError("private ZRPF token")
+            return super().__getattribute__(name)
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    store = M6DurableLedgerStoreV1.create(tmp_path / "ledger", subject, initial)
+
+    with pytest.raises(TypeError, match="exact owned type"):
+        store.publish(object.__new__(HostileCandidate), object(), None)  # type: ignore[arg-type]
+    with pytest.raises(TypeError, match="exact owned type"):
+        store.publish_direct_batch(
+            object.__new__(HostileDirectBatch),
+            object(),  # type: ignore[arg-type]
+            None,
+        )
+    with pytest.raises(TypeError, match="exact verified type"):
+        store.publish_zrpf(
+            object.__new__(HostileVerifiedRoot),
+            object(),  # type: ignore[arg-type]
+            None,
+        )
+
+    assert hooks == []
+    assert store.reopen().state == initial
+
+
 def test_reopen_of_absent_root_is_read_only_and_create_retry_succeeds(tmp_path: Path) -> None:
     """BDD/RIPR: a failed read cannot create a partial root that blocks genesis."""
 
@@ -764,6 +1208,156 @@ def test_reopen_of_absent_root_is_read_only_and_create_retry_succeeds(tmp_path: 
     assert not root.exists()
     store = M6DurableLedgerStoreV1.create(root, subject, initial_application_state_v1(subject))
     assert store.reopen().head_block_id == "genesis"
+
+
+@pytest.mark.parametrize("invalid_coordinate", ("subject", "state"))
+def test_given_non_exact_genesis_inputs_then_typed_reject_and_no_artifact(
+    tmp_path: Path,
+    invalid_coordinate: str,
+) -> None:
+    """RIPR: decode-edge ownership precedes filesystem authority creation."""
+
+    subject = _subject()
+    state = initial_application_state_v1(subject)
+    root = tmp_path / f"invalid-genesis-{invalid_coordinate}"
+    invalid_subject = object() if invalid_coordinate == "subject" else subject
+    invalid_state = object() if invalid_coordinate == "state" else state
+
+    with pytest.raises(TypeError, match="exact owned type"):
+        _M6DurableLedgerStoreV1.create(
+            root,
+            invalid_subject,  # type: ignore[arg-type]
+            invalid_state,  # type: ignore[arg-type]
+            finality_verifier=_TEST_FINALITY_VERIFIER,
+        )
+
+    assert not root.exists()
+    retried = _M6DurableLedgerStoreV1.create(
+        root,
+        subject,
+        state,
+        finality_verifier=_TEST_FINALITY_VERIFIER,
+    )
+    assert retried.reopen().state == state
+
+
+def test_given_durable_lock_unlock_fails_then_error_is_typed_and_descriptor_is_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RIPR: root-lock cleanup remains in the durable error algebra."""
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    store = M6DurableLedgerStoreV1.create(tmp_path / "unlock-ledger", subject, initial)
+    real_flock = durable_store.fcntl.flock
+    real_close = durable_store.os.close
+    failed_descriptor: int | None = None
+    closed_descriptors: list[int] = []
+
+    def fail_named_lock_unlock(descriptor: int, operation: int) -> None:
+        nonlocal failed_descriptor
+        if operation == durable_store.fcntl.LOCK_UN:
+            target = os.readlink(f"/proc/self/fd/{descriptor}")
+            if target.endswith("/.m6-durable.lock") and failed_descriptor is None:
+                failed_descriptor = descriptor
+                raise OSError("private unlock detail")
+        real_flock(descriptor, operation)
+
+    def record_close(descriptor: int) -> None:
+        closed_descriptors.append(descriptor)
+        real_close(descriptor)
+
+    monkeypatch.setattr(durable_store.fcntl, "flock", fail_named_lock_unlock)
+    monkeypatch.setattr(durable_store.os, "close", record_close)
+
+    with pytest.raises(M6DurableCorruptionError, match="durable lock cleanup failed"):
+        store.reopen()
+
+    assert failed_descriptor is not None
+    assert failed_descriptor in closed_descriptors
+    monkeypatch.setattr(durable_store.fcntl, "flock", real_flock)
+    monkeypatch.setattr(durable_store.os, "close", real_close)
+    assert store.reopen().state == initial
+
+
+def test_directory_fsync_close_failure_is_typed_and_reopen_decides_durable_truth(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RIPR: descriptor cleanup stays typed on both sides of HEAD install."""
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    root = tmp_path / "directory-close-ledger"
+    store = _M6DurableLedgerStoreV1.create(
+        root,
+        subject,
+        initial,
+        finality_verifier=_TEST_FINALITY_VERIFIER,
+    )
+    candidate = _candidate(subject, initial, 1, "directory-close")
+    finality, tau = _finality_and_tau(subject, candidate, "directory-close")
+    real_close = durable_store.os.close
+    real_fsync = durable_store.os.fsync
+    fsynced_descriptors: set[int] = set()
+    fail_after_head = False
+    failed = False
+
+    def record_directory_fsync(descriptor: int) -> None:
+        if stat.S_ISDIR(os.fstat(descriptor).st_mode):
+            fsynced_descriptors.add(descriptor)
+        real_fsync(descriptor)
+
+    def fail_one_directory_close(descriptor: int) -> None:
+        nonlocal failed
+        target = os.readlink(f"/proc/self/fd/{descriptor}")
+        head_has_candidate = (
+            (root / durable_store.HEAD_FILE_V1).exists()
+            and candidate.post_state.state_root
+            in (root / durable_store.HEAD_FILE_V1).read_text(encoding="utf-8")
+        )
+        should_fail = (
+            not failed
+            and descriptor in fsynced_descriptors
+            and (
+                (not fail_after_head and ".m6-block-" in target)
+                or (
+                    fail_after_head
+                    and target.endswith("/directory-close-ledger")
+                    and head_has_candidate
+                )
+            )
+        )
+        real_close(descriptor)
+        fsynced_descriptors.discard(descriptor)
+        if should_fail:
+            failed = True
+            raise OSError("PRIVATE_CLOSE_DETAIL")
+
+    monkeypatch.setattr(durable_store.os, "fsync", record_directory_fsync)
+    monkeypatch.setattr(durable_store.os, "close", fail_one_directory_close)
+    with pytest.raises(M6DurableCorruptionError, match="close durable directory descriptor") as before:
+        store.publish(candidate, finality, tau)
+    assert "PRIVATE_CLOSE_DETAIL" not in str(before.value)
+    monkeypatch.setattr(durable_store.os, "close", real_close)
+    monkeypatch.setattr(durable_store.os, "fsync", real_fsync)
+    assert store.reopen().head_block_id == "genesis"
+
+    failed = False
+    fail_after_head = True
+    fsynced_descriptors.clear()
+    monkeypatch.setattr(durable_store.os, "fsync", record_directory_fsync)
+    monkeypatch.setattr(durable_store.os, "close", fail_one_directory_close)
+    recovered = store.publish(candidate, finality, tau)
+    monkeypatch.setattr(durable_store.os, "close", real_close)
+    monkeypatch.setattr(durable_store.os, "fsync", real_fsync)
+
+    assert recovered.status is CommitStatusV1.ALREADY_COMMITTED
+    reopened = store.reopen()
+    assert reopened.state.state_root == candidate.post_state.state_root
+    retry = store.publish(candidate, finality, tau)
+    assert retry.status is CommitStatusV1.ALREADY_COMMITTED
 
 
 def test_handle_created_before_root_binds_first_inode_and_rejects_replacement(
@@ -1129,6 +1723,37 @@ def test_durable_publish_rejects_caller_authored_finality_before_install(tmp_pat
     assert store.reopen().head_block_id == "genesis"
 
 
+def test_durable_publish_rejects_finality_subclass_before_provider_hooks(tmp_path: Path) -> None:
+    """RIPR: opaque finality ownership excludes executable subclasses."""
+
+    hooks: list[str] = []
+
+    class HostileFinality(VerifiedZenoLedgerFinalityV1):
+        def __getattribute__(self, name: str) -> object:
+            if name == "subject_root":
+                hooks.append(name)
+                raise RuntimeError("PRIVATE_FINALITY_HOOK")
+            return super().__getattribute__(name)
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    root = tmp_path / "ledger"
+    store = M6DurableLedgerStoreV1.create(root, subject, initial)
+    candidate = _candidate(subject, initial, 1, "hostile-finality")
+    verified_finality, tau = _finality_and_tau(subject, candidate, "hostile-finality-batch")
+    hostile = object.__new__(HostileFinality)
+    for slot in VerifiedZenoLedgerFinalityV1.__slots__:
+        object.__setattr__(hostile, slot, object.__getattribute__(verified_finality, slot))
+
+    result = store.publish(candidate, hostile, tau)
+
+    assert result.status is CommitStatusV1.FINALITY_REJECTED
+    assert result.reason == "finality evidence must be verifier-created"
+    assert result.state == initial
+    assert hooks == []
+    assert tuple((root / "blocks").iterdir()) == ()
+
+
 def test_durable_replay_rejects_forged_outbox_projection(tmp_path: Path) -> None:
     subject = _subject()
     initial = replace(
@@ -1176,21 +1801,68 @@ def test_canonical_json_decoder_rejects_oversized_before_decode(tmp_path: Path) 
         )
 
 
-def test_canonical_json_decoder_wraps_excessive_nesting_as_corruption(
+@pytest.mark.parametrize("container_shape", ("objects", "arrays"))
+def test_canonical_json_decoder_accepts_depth_limit_and_rejects_upper_neighbor(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    container_shape: str,
 ) -> None:
-    """RIPR/BVA: nesting depth cannot escape the durable error algebra."""
+    """RIPR/BVA: the explicit depth limit owns both decoder error algebras."""
 
     path = tmp_path / "nested.json"
-    payload = (b'{"x":' * 993) + b"0" + (b"}" * 993)
-    monkeypatch.setattr(durable_store, "_read_nofollow", lambda *_args, **_kwargs: payload)
+    if container_shape == "objects":
+        opening = b'{"x":'
+        closing = b"}"
+        nested_at_limit = M6_CANONICAL_JSON_MAX_DEPTH_V1
+        at_limit = opening * nested_at_limit + b"0" + closing * nested_at_limit
+        above_limit = opening + at_limit + closing
+    else:
+        nested_at_limit = M6_CANONICAL_JSON_MAX_DEPTH_V1 - 1
+        at_limit = (
+            b'{"x":'
+            + b"[" * nested_at_limit
+            + b"0"
+            + b"]" * nested_at_limit
+            + b"}"
+        )
+        above_limit = b'{"x":[' + at_limit[5:-1] + b"]}"
 
-    with pytest.raises(M6DurableCorruptionError, match="invalid canonical JSON"):
-        durable_store._read_canonical_json(path, max_bytes=len(payload) + 1)
+    monkeypatch.setattr(durable_store, "_read_nofollow", lambda *_args, **_kwargs: at_limit)
+    decoded, decoded_bytes = durable_store._read_canonical_json(
+        path,
+        max_bytes=len(at_limit),
+    )
+    assert decoded_bytes == at_limit
+    assert isinstance(decoded, dict)
+    assert _decode_replay_body(at_limit.hex(), name="nested replay body")[0] == at_limit
+
+    monkeypatch.setattr(
+        durable_store,
+        "_read_nofollow",
+        lambda *_args, **_kwargs: above_limit,
+    )
+
+    with pytest.raises(M6DurableCorruptionError, match="exceeds maximum depth 64"):
+        durable_store._read_canonical_json(path, max_bytes=len(above_limit))
 
     with pytest.raises(ValueError, match="canonical JSON bytes"):
-        _decode_replay_body(payload.hex(), name="nested replay body")
+        _decode_replay_body(above_limit.hex(), name="nested replay body")
+
+
+def test_replay_decoder_rejects_string_subclass_before_provider_hook() -> None:
+    """RIPR: replay hex ownership rejects executable string subtypes."""
+
+    hooks: list[str] = []
+
+    class HostileReplayHex(str):
+        def lower(self) -> str:
+            hooks.append("lower")
+            raise RuntimeError("PRIVATE_HEX_HOOK")
+
+    with pytest.raises(ValueError, match="lowercase hexadecimal JSON"):
+        _decode_replay_body(HostileReplayHex("7b7d"), name="hostile replay body")
+
+    assert hooks == []
 
 
 def test_durable_reopen_wraps_stale_state_commitment_cache_as_corruption(
@@ -2031,8 +2703,8 @@ def test_head_parent_fsync_failure_reopens_and_retry_is_idempotent(
         original_fsync(path)
 
     monkeypatch.setattr(durable_store, "_fsync_directory", fail_head_parent)
-    with pytest.raises(M6DurableCorruptionError, match="HEAD-parent fsync"):
-        store.publish(candidate, finality, tau)
+    recovered = store.publish(candidate, finality, tau)
+    assert recovered.status is CommitStatusV1.ALREADY_COMMITTED
 
     monkeypatch.setattr(durable_store, "_fsync_directory", original_fsync)
     fresh = _fresh_reopen(root, subject, tmp_path / "head-fsync-subject.json")

@@ -8,6 +8,7 @@ from typing import Mapping
 
 import pytest
 
+import src.integration.m6_authority_verifier_v1 as authority_verifier_module
 from src.core.m6_authority_evidence_v1 import (
     verify_migration_evidence_v1,
     verify_tau_escrow_deposit_evidence_v1,
@@ -1008,6 +1009,36 @@ class _HostileLenMapping(Mapping[str, object]):
 
     def __len__(self) -> int:
         raise RuntimeError("SENSITIVE_BACKEND_DETAIL_LEN")
+
+
+def test_given_unbounded_receipt_mapping_when_snapshotted_then_observation_stops_at_upper_neighbor() -> None:
+    """BVA/RIPR: receipt ownership performs bounded untrusted iteration."""
+
+    observed = 0
+
+    class UnboundedReceiptMapping(Mapping[str, object]):
+        def __getitem__(self, key: str) -> object:
+            return key
+
+        def __iter__(self) -> Iterator[str]:
+            nonlocal observed
+            index = 0
+            while True:
+                observed += 1
+                yield f"field-{index}"
+                index += 1
+
+        def __len__(self) -> int:
+            return 1
+
+    with pytest.raises(M6AuthorityProofRejectedV1, match="binding mismatch"):
+        authority_verifier_module._snapshot_receipt_mapping(
+            UnboundedReceiptMapping(),
+            name="receipt",
+            max_items=3,
+        )
+
+    assert observed == 4
 
 
 class _AlwaysEqualReceiptValue:

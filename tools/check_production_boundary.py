@@ -103,6 +103,13 @@ PRODUCTION_BOUNDARY_REQUIREMENTS: tuple[dict[str, Any], ...] = (
             "research_promotion_schema_registry_research_only",
         ),
     },
+    {
+        "requirement_id": "m6_writer_inventory_is_explicit",
+        "objective": "M6 writer status remains explicit and unmounted until every value-moving path is routed through its commit port.",
+        "check_ids": (
+            "m6_writer_inventory_research_only",
+        ),
+    },
 )
 
 CLAIM_PROMOTION_SCHEMA = "zenodex.tight_argmax.claim_promotion_bundle.v1"
@@ -535,7 +542,7 @@ def scan_legacy_settlement_profile_literals(
                             }
                         )
             if isinstance(node, ast.Dict):
-                for key, value in zip(node.keys, node.values):
+                for key, value in zip(node.keys, node.values, strict=True):
                     if _literal_str(key) == "settlement_validation" and _literal_str(value) == "legacy":
                         findings.append(
                             {
@@ -1142,6 +1149,53 @@ def _check_research_promotion_schema_registry_research_only() -> BoundaryCheck:
     )
 
 
+def _check_m6_writer_inventory_research_only(root: Path) -> BoundaryCheck:
+    try:
+        from tools.check_m6_writer_inventory import check_m6_writer_inventory
+    except ImportError as exc:
+        return BoundaryCheck(
+            check_id="m6_writer_inventory_research_only",
+            ok=False,
+            evidence=json.dumps({"import_error": str(exc)}, sort_keys=True),
+        )
+    report = check_m6_writer_inventory(root)
+    entries = report.get("entrypoints")
+    entries = entries if isinstance(entries, list) else []
+    legacy_entries = [
+        entry
+        for entry in entries
+        if isinstance(entry, dict) and str(entry.get("m6_mount_status", "")).startswith("UNMOUNTED")
+    ]
+    ok = (
+        report.get("ok") is True
+        and report.get("m6_production_mounted") is False
+        and report.get("production_authority") is False
+        and report.get("release_ready") is False
+        and report.get("release_gate_status") == "BLOCKED_OPEN_COVERAGE"
+        and report.get("writers_without_coverage") == []
+        and report.get("coverage_row_count") == report.get("entrypoint_count")
+        and bool(legacy_entries)
+    )
+    return BoundaryCheck(
+        check_id="m6_writer_inventory_research_only",
+        ok=ok,
+        evidence=json.dumps(
+            {
+                "coverage_row_count": report.get("coverage_row_count"),
+                "entrypoint_count": report.get("entrypoint_count"),
+                "findings": report.get("findings"),
+                "m6_production_mounted": report.get("m6_production_mounted"),
+                "production_authority": report.get("production_authority"),
+                "release_gate_status": report.get("release_gate_status"),
+                "release_ready": report.get("release_ready"),
+                "unmounted_entrypoint_count": report.get("unmounted_entrypoint_count"),
+                "writers_without_coverage": report.get("writers_without_coverage"),
+            },
+            sort_keys=True,
+        ),
+    )
+
+
 def _requirement_reports(checks: Iterable[BoundaryCheck]) -> list[dict[str, Any]]:
     by_id = {check.check_id: check for check in checks}
     reports: list[dict[str, Any]] = []
@@ -1177,6 +1231,7 @@ def audit_production_boundary(root: Path = REPO_ROOT) -> dict[str, Any]:
         _check_supported_runtime_doc_scope(root),
         _check_public_operator_node_preflight_blocks_unsigned_testnet_mutation(),
         _check_research_promotion_schema_registry_research_only(),
+        _check_m6_writer_inventory_research_only(root),
     ]
     requirements = _requirement_reports(checks)
     return {

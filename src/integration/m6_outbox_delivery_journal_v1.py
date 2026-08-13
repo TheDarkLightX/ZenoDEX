@@ -1,9 +1,12 @@
 """Durable attempt journal for the research-only M6 Tau delivery shell.
 
 The journal carries no economic or acknowledgment authority. It records a
-PENDING reservation before an external call, a RETRYABLE state only after a
-typed pre-effect refusal, or a canonical delivery receipt. PENDING survives
-restart and blocks automatic redelivery until explicit reconciliation.
+PENDING reservation before an external call or a canonical delivery receipt.
+PENDING survives
+restart and blocks automatic redelivery until explicit reconciliation. A
+manifest detects isolated attempt loss and stale-record rollback. Coordinated
+rollback of both records and manifest requires an external monotonic anchor and
+remains outside this research adapter's safety claim.
 """
 
 from __future__ import annotations
@@ -17,7 +20,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Iterator, Mapping
+from typing import TYPE_CHECKING, Iterator, Mapping
 
 from ..core.m6_safe_mount_types_v1 import (
     M6PromotionSubjectV1,
@@ -27,12 +30,21 @@ from ..core.m6_safe_mount_types_v1 import (
     hash_v1,
 )
 
+if TYPE_CHECKING:
+    from .m6_durable_store_v1 import M6DurableLedgerStoreV1
+
 _DELIVERY_JOURNAL_SCHEMA_V1 = "zenodex/m6-outbox-delivery-journal/v1"
 _DELIVERY_ATTEMPT_SCHEMA_V1 = "zenodex/m6-outbox-delivery-attempt/v1"
 _DELIVERY_JOURNAL_META_FILE_V1 = "journal.json"
 _DELIVERY_JOURNAL_LOCK_FILE_V1 = ".m6-outbox-delivery.lock"
 _DELIVERY_JOURNAL_ATTEMPTS_DIR_V1 = "attempts"
+_DELIVERY_JOURNAL_SUBMISSION_LEASES_DIR_V1 = "submission-leases"
+_DELIVERY_JOURNAL_ATTEMPT_MANIFEST_FILE_V1 = "attempt-manifest.json"
+_DELIVERY_JOURNAL_ATTEMPT_MANIFEST_SCHEMA_V1 = (
+    "zenodex/m6-outbox-delivery-attempt-manifest/v1"
+)
 _DELIVERY_JOURNAL_MAX_BYTES_V1 = 1 << 20
+_DELIVERY_JOURNAL_MAX_ATTEMPTS_V1 = 7_000
 
 
 class M6OutboxDeliveryJournalError(RuntimeError):
@@ -41,7 +53,6 @@ class M6OutboxDeliveryJournalError(RuntimeError):
 
 class M6OutboxDeliveryAttemptStatusV1(str, Enum):
     PENDING = "pending"
-    RETRYABLE = "retryable"
     DELIVERED = "delivered"
 
 
@@ -68,13 +79,25 @@ class M6OutboxDeliveryAttemptV1:
             return None
         try:
             decoded = json.loads(self.receipt_canonical.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        except (
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            RecursionError,
+            TypeError,
+            ValueError,
+        ) as exc:
             raise M6OutboxDeliveryJournalError(
                 "delivery journal receipt is not canonical JSON"
             ) from exc
         if not isinstance(decoded, dict):
             raise M6OutboxDeliveryJournalError("delivery journal receipt is not an object")
-        if canonical_bytes_v1(decoded) != self.receipt_canonical:
+        try:
+            canonical = canonical_bytes_v1(decoded)
+        except (RecursionError, TypeError, ValueError) as exc:
+            raise M6OutboxDeliveryJournalError(
+                "delivery journal receipt is not canonical"
+            ) from exc
+        if canonical != self.receipt_canonical:
             raise M6OutboxDeliveryJournalError("delivery journal receipt is not canonical")
         return decoded
 
@@ -83,7 +106,7 @@ class M6OutboxDeliveryJournalV1:
     """Durable pre-effect reservation and outcome-quarantine journal."""
 
     def __init__(self, root: str | Path, subject: M6PromotionSubjectV1) -> None:
-        if not isinstance(subject, M6PromotionSubjectV1):
+        if type(subject) is not M6PromotionSubjectV1:
             raise TypeError("delivery journal subject is not typed")
         self._root = Path(root)
         self._subject = subject
@@ -95,40 +118,71 @@ class M6OutboxDeliveryJournalV1:
             raise M6OutboxDeliveryJournalError("delivery journal root is not a directory")
         self._root_identity = (metadata.st_dev, metadata.st_ino)
         with self._locked():
-            self._validate_layout_unlocked()
+            self._ledger_genesis_state_root = self._validate_layout_unlocked()
 
     @classmethod
-    def create(
+    def create_for_store(
         cls,
-        root: str | Path,
-        subject: M6PromotionSubjectV1,
+        store: "M6DurableLedgerStoreV1",
     ) -> "M6OutboxDeliveryJournalV1":
-        if not isinstance(subject, M6PromotionSubjectV1):
-            raise TypeError("delivery journal subject is not typed")
-        root_path = Path(root)
-        if root_path.is_symlink():
-            raise M6OutboxDeliveryJournalError("delivery journal root cannot be a symlink")
-        if root_path.exists():
-            if not root_path.is_dir():
-                raise M6OutboxDeliveryJournalError("delivery journal root is not a directory")
-            if any(root_path.iterdir()):
-                raise FileExistsError("delivery journal root is not empty")
-        else:
-            root_path.mkdir(parents=True, mode=0o700)
-        attempts = root_path / _DELIVERY_JOURNAL_ATTEMPTS_DIR_V1
-        attempts.mkdir(mode=0o700)
-        meta = canonical_bytes_v1(
-            {
-                "schema": _DELIVERY_JOURNAL_SCHEMA_V1,
-                "subject_root": subject.subject_root,
-            }
-        )
-        _write_new_durable_file(root_path / _DELIVERY_JOURNAL_META_FILE_V1, meta)
-        _write_new_durable_file(root_path / _DELIVERY_JOURNAL_LOCK_FILE_V1, b"")
-        _fsync_directory(attempts)
-        _fsync_directory(root_path)
-        _fsync_directory(root_path.parent)
-        return cls(root_path, subject)
+        """Initialize the journal only while the bound ledger is at genesis."""
+
+        from .m6_durable_store_v1 import M6DurableCorruptionError, M6DurableLedgerStoreV1
+
+        if type(store) is not M6DurableLedgerStoreV1:
+            raise TypeError("delivery journal creation requires an M6 durable ledger")
+        try:
+            with store.external_effect_submission_guard() as reopened:
+                if reopened.records or reopened.chain_block_ids != ("genesis",):
+                    raise M6OutboxDeliveryJournalError(
+                        "delivery journal must be initialized before the first committed block"
+                    )
+                root_path = store.root.parent / f"{store.root.name}.outbox-delivery-v1"
+                if root_path.is_symlink():
+                    raise M6OutboxDeliveryJournalError(
+                        "delivery journal root cannot be a symlink"
+                    )
+                if root_path.exists():
+                    if not root_path.is_dir():
+                        raise M6OutboxDeliveryJournalError(
+                            "delivery journal root is not a directory"
+                        )
+                    if any(root_path.iterdir()):
+                        raise FileExistsError("delivery journal root is not empty")
+                else:
+                    root_path.mkdir(parents=True, mode=0o700)
+                attempts = root_path / _DELIVERY_JOURNAL_ATTEMPTS_DIR_V1
+                attempts.mkdir(mode=0o700)
+                leases = root_path / _DELIVERY_JOURNAL_SUBMISSION_LEASES_DIR_V1
+                leases.mkdir(mode=0o700)
+                meta = canonical_bytes_v1(
+                    {
+                        "schema": _DELIVERY_JOURNAL_SCHEMA_V1,
+                        "subject_root": store.subject.subject_root,
+                        "ledger_genesis_state_root": reopened.state.state_root,
+                    }
+                )
+                _write_new_durable_file(root_path / _DELIVERY_JOURNAL_META_FILE_V1, meta)
+                _write_new_durable_file(root_path / _DELIVERY_JOURNAL_LOCK_FILE_V1, b"")
+                _write_new_durable_file(
+                    root_path / _DELIVERY_JOURNAL_ATTEMPT_MANIFEST_FILE_V1,
+                    canonical_bytes_v1(
+                        {
+                            "schema": _DELIVERY_JOURNAL_ATTEMPT_MANIFEST_SCHEMA_V1,
+                            "subject_root": store.subject.subject_root,
+                            "attempts": {},
+                        }
+                    ),
+                )
+                _fsync_directory(attempts)
+                _fsync_directory(leases)
+                _fsync_directory(root_path)
+                _fsync_directory(root_path.parent)
+        except M6DurableCorruptionError as exc:
+            raise M6OutboxDeliveryJournalError(
+                "delivery journal cannot reopen its durable ledger"
+            ) from exc
+        return cls(root_path, store.subject)
 
     @property
     def subject(self) -> M6PromotionSubjectV1:
@@ -137,6 +191,10 @@ class M6OutboxDeliveryJournalV1:
     @property
     def root(self) -> Path:
         return self._root
+
+    @property
+    def ledger_genesis_state_root(self) -> str:
+        return self._ledger_genesis_state_root
 
     def reserve(
         self,
@@ -154,16 +212,15 @@ class M6OutboxDeliveryJournalV1:
             if os.path.lexists(path):
                 attempt = self._read_attempt_unlocked(path)
                 self._require_attempt_binding(attempt, effect_id, effect_root)
-                if attempt.status is not M6OutboxDeliveryAttemptStatusV1.RETRYABLE:
-                    return attempt, False
-                pending = M6OutboxDeliveryAttemptV1(
-                    M6OutboxDeliveryAttemptStatusV1.PENDING,
-                    effect_id,
-                    effect_root,
-                    None,
-                )
-                self._replace_attempt_unlocked(path, pending)
-                return pending, True
+                return attempt, False
+            manifest = _read_canonical_json_object(
+                self._root / _DELIVERY_JOURNAL_ATTEMPT_MANIFEST_FILE_V1
+            )
+            recorded = manifest.get("attempts")
+            if not isinstance(recorded, dict):
+                raise M6OutboxDeliveryJournalError("delivery attempt manifest is invalid")
+            if len(recorded) >= _DELIVERY_JOURNAL_MAX_ATTEMPTS_V1:
+                raise M6OutboxDeliveryJournalError("delivery attempt capacity is exhausted")
             pending = M6OutboxDeliveryAttemptV1(
                 M6OutboxDeliveryAttemptStatusV1.PENDING,
                 effect_id,
@@ -172,17 +229,8 @@ class M6OutboxDeliveryJournalV1:
             )
             _write_new_durable_file(path, self._attempt_bytes(pending))
             _fsync_directory(path.parent)
+            self._update_attempt_manifest_unlocked(path, pending)
             return pending, True
-
-    def mark_retryable(self, *, effect_id: str, effect_root: str) -> None:
-        self._replace_pending_status(
-            M6OutboxDeliveryAttemptV1(
-                M6OutboxDeliveryAttemptStatusV1.RETRYABLE,
-                effect_id,
-                effect_root,
-                None,
-            )
-        )
 
     def mark_delivered(
         self,
@@ -224,8 +272,15 @@ class M6OutboxDeliveryJournalV1:
             descriptor = os.open(lock_path, flags)
         except OSError as exc:
             raise M6OutboxDeliveryJournalError("delivery journal lock is unavailable") from exc
+        locked = False
         try:
-            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX)
+                locked = True
+            except OSError as exc:
+                raise M6OutboxDeliveryJournalError(
+                    "delivery journal lock cannot be acquired"
+                ) from exc
             try:
                 root_metadata = os.stat(self._root, follow_symlinks=False)
             except OSError as exc:
@@ -239,14 +294,29 @@ class M6OutboxDeliveryJournalV1:
                 raise M6OutboxDeliveryJournalError("delivery journal root identity changed")
             yield
         finally:
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
-            os.close(descriptor)
+            release_error: OSError | None = None
+            if locked:
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_UN)
+                except OSError as exc:
+                    release_error = exc
+            try:
+                os.close(descriptor)
+            except OSError as exc:
+                if release_error is None:
+                    release_error = exc
+            if release_error is not None:
+                raise M6OutboxDeliveryJournalError(
+                    "delivery journal lock cannot be released"
+                ) from release_error
 
-    def _validate_layout_unlocked(self) -> None:
+    def _validate_layout_unlocked(self) -> str:
         expected = {
             _DELIVERY_JOURNAL_META_FILE_V1,
             _DELIVERY_JOURNAL_LOCK_FILE_V1,
             _DELIVERY_JOURNAL_ATTEMPTS_DIR_V1,
+            _DELIVERY_JOURNAL_SUBMISSION_LEASES_DIR_V1,
+            _DELIVERY_JOURNAL_ATTEMPT_MANIFEST_FILE_V1,
         }
         try:
             entries = {entry.name: entry for entry in self._root.iterdir()}
@@ -254,22 +324,106 @@ class M6OutboxDeliveryJournalV1:
             raise M6OutboxDeliveryJournalError("cannot enumerate delivery journal") from exc
         if set(entries) != expected:
             raise M6OutboxDeliveryJournalError("delivery journal root entries mismatch")
-        for filename in (_DELIVERY_JOURNAL_META_FILE_V1, _DELIVERY_JOURNAL_LOCK_FILE_V1):
+        for filename in (
+            _DELIVERY_JOURNAL_META_FILE_V1,
+            _DELIVERY_JOURNAL_LOCK_FILE_V1,
+            _DELIVERY_JOURNAL_ATTEMPT_MANIFEST_FILE_V1,
+        ):
             entry = entries[filename]
             if entry.is_symlink() or not entry.is_file():
                 raise M6OutboxDeliveryJournalError("delivery journal file type mismatch")
         attempts = entries[_DELIVERY_JOURNAL_ATTEMPTS_DIR_V1]
         if attempts.is_symlink() or not attempts.is_dir():
             raise M6OutboxDeliveryJournalError("delivery attempts path is not a directory")
+        leases = entries[_DELIVERY_JOURNAL_SUBMISSION_LEASES_DIR_V1]
+        if leases.is_symlink() or not leases.is_dir():
+            raise M6OutboxDeliveryJournalError("delivery leases path is not a directory")
+        try:
+            lease_entries = tuple(leases.iterdir())
+        except OSError as exc:
+            raise M6OutboxDeliveryJournalError("cannot enumerate delivery leases") from exc
+        if any(
+            entry.is_symlink()
+            or not entry.is_file()
+            or len(entry.name) != 69
+            or not entry.name.endswith(".lock")
+            or any(character not in "0123456789abcdef" for character in entry.name[:-5])
+            for entry in lease_entries
+        ):
+            raise M6OutboxDeliveryJournalError("delivery lease inventory is invalid")
         meta = _read_canonical_json_object(
             self._root / _DELIVERY_JOURNAL_META_FILE_V1
         )
-        if set(meta) != {"schema", "subject_root"}:
+        if set(meta) != {"schema", "subject_root", "ledger_genesis_state_root"}:
             raise M6OutboxDeliveryJournalError("delivery journal metadata fields are not closed")
         if meta["schema"] != _DELIVERY_JOURNAL_SCHEMA_V1:
             raise M6OutboxDeliveryJournalError("delivery journal schema mismatch")
         if meta["subject_root"] != self._subject.subject_root:
             raise M6OutboxDeliveryJournalError("delivery journal subject mismatch")
+        try:
+            genesis_state_root = _require_root(
+                meta["ledger_genesis_state_root"],
+                name="delivery journal ledger genesis state root",
+            )
+        except (TypeError, ValueError) as exc:
+            raise M6OutboxDeliveryJournalError(
+                "delivery journal ledger genesis state root is invalid"
+            ) from exc
+        initialized_root = getattr(self, "_ledger_genesis_state_root", None)
+        if initialized_root is not None and genesis_state_root != initialized_root:
+            raise M6OutboxDeliveryJournalError(
+                "delivery journal ledger genesis binding changed"
+            )
+        self._validate_attempt_manifest_unlocked()
+        return genesis_state_root
+
+    def _validate_attempt_manifest_unlocked(self) -> None:
+        manifest = _read_canonical_json_object(
+            self._root / _DELIVERY_JOURNAL_ATTEMPT_MANIFEST_FILE_V1
+        )
+        if set(manifest) != {"schema", "subject_root", "attempts"}:
+            raise M6OutboxDeliveryJournalError(
+                "delivery attempt manifest fields are not closed"
+            )
+        if manifest["schema"] != _DELIVERY_JOURNAL_ATTEMPT_MANIFEST_SCHEMA_V1:
+            raise M6OutboxDeliveryJournalError("delivery attempt manifest schema mismatch")
+        if manifest["subject_root"] != self._subject.subject_root:
+            raise M6OutboxDeliveryJournalError("delivery attempt manifest subject mismatch")
+        recorded = manifest["attempts"]
+        if not isinstance(recorded, dict) or any(
+            type(filename) is not str or type(attempt_root) is not str
+            for filename, attempt_root in recorded.items()
+        ):
+            raise M6OutboxDeliveryJournalError("delivery attempt manifest is malformed")
+        if len(recorded) > _DELIVERY_JOURNAL_MAX_ATTEMPTS_V1:
+            raise M6OutboxDeliveryJournalError("delivery attempt capacity is exceeded")
+        attempts_root = self._root / _DELIVERY_JOURNAL_ATTEMPTS_DIR_V1
+        try:
+            entries = {entry.name: entry for entry in attempts_root.iterdir()}
+        except OSError as exc:
+            raise M6OutboxDeliveryJournalError(
+                "cannot enumerate delivery attempts"
+            ) from exc
+        if set(entries) != set(recorded):
+            raise M6OutboxDeliveryJournalError("delivery attempt inventory mismatch")
+        for filename, entry in entries.items():
+            if entry.is_symlink() or not entry.is_file():
+                raise M6OutboxDeliveryJournalError("delivery attempt file type mismatch")
+            attempt = self._read_attempt_unlocked(entry)
+            if self._attempt_path(attempt.effect_id).name != filename:
+                raise M6OutboxDeliveryJournalError("delivery attempt filename mismatch")
+            actual_root = self._attempt_manifest_root(attempt)
+            try:
+                expected_root = _require_root(
+                    recorded[filename],
+                    name="delivery attempt manifest root",
+                )
+            except (TypeError, ValueError) as exc:
+                raise M6OutboxDeliveryJournalError(
+                    "delivery attempt manifest root is invalid"
+                ) from exc
+            if actual_root != expected_root:
+                raise M6OutboxDeliveryJournalError("delivery attempt manifest root mismatch")
 
     def _attempt_path(self, effect_id: str) -> Path:
         filename_root = hash_v1(
@@ -320,25 +474,39 @@ class M6OutboxDeliveryJournalV1:
         path: Path,
         attempt: M6OutboxDeliveryAttemptV1,
     ) -> None:
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=".attempt-",
-            dir=path.parent,
-        )
+        try:
+            descriptor, temporary_name = tempfile.mkstemp(
+                prefix=".attempt-",
+                dir=path.parent,
+            )
+        except OSError as exc:
+            raise M6OutboxDeliveryJournalError("cannot stage delivery attempt") from exc
         temporary_path = Path(temporary_name)
         try:
             data = self._attempt_bytes(attempt)
             _write_all(descriptor, data)
             os.fsync(descriptor)
-        finally:
             os.close(descriptor)
-        try:
+            descriptor = -1
             os.replace(temporary_path, path)
             _fsync_directory(path.parent)
+            self._update_attempt_manifest_unlocked(path, attempt)
         except OSError as exc:
             raise M6OutboxDeliveryJournalError("cannot replace delivery attempt") from exc
         finally:
-            if temporary_path.exists():
-                temporary_path.unlink()
+            if descriptor >= 0:
+                try:
+                    os.close(descriptor)
+                except OSError as exc:
+                    raise M6OutboxDeliveryJournalError(
+                        "cannot close staged delivery attempt"
+                    ) from exc
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError as exc:
+                raise M6OutboxDeliveryJournalError(
+                    "cannot remove staged delivery attempt"
+                ) from exc
 
     def _attempt_bytes(self, attempt: M6OutboxDeliveryAttemptV1) -> bytes:
         return canonical_bytes_v1(
@@ -351,6 +519,80 @@ class M6OutboxDeliveryJournalV1:
                 "receipt": attempt.receipt_mapping(),
             }
         )
+
+    def _attempt_manifest_root(self, attempt: M6OutboxDeliveryAttemptV1) -> str:
+        return hash_v1(
+            "m6-outbox-delivery-attempt-manifest-entry-v1",
+            {
+                "subject_root": self._subject.subject_root,
+                "attempt": json.loads(self._attempt_bytes(attempt).decode("utf-8")),
+            },
+        )
+
+    def _update_attempt_manifest_unlocked(
+        self,
+        path: Path,
+        attempt: M6OutboxDeliveryAttemptV1,
+    ) -> None:
+        manifest_path = self._root / _DELIVERY_JOURNAL_ATTEMPT_MANIFEST_FILE_V1
+        manifest = _read_canonical_json_object(manifest_path)
+        if set(manifest) != {"schema", "subject_root", "attempts"}:
+            raise M6OutboxDeliveryJournalError(
+                "delivery attempt manifest fields are not closed"
+            )
+        recorded = manifest.get("attempts")
+        if (
+            manifest.get("schema") != _DELIVERY_JOURNAL_ATTEMPT_MANIFEST_SCHEMA_V1
+            or manifest.get("subject_root") != self._subject.subject_root
+            or not isinstance(recorded, dict)
+        ):
+            raise M6OutboxDeliveryJournalError("delivery attempt manifest is invalid")
+        updated = dict(recorded)
+        updated[path.name] = self._attempt_manifest_root(attempt)
+        replacement = canonical_bytes_v1(
+            {
+                "schema": _DELIVERY_JOURNAL_ATTEMPT_MANIFEST_SCHEMA_V1,
+                "subject_root": self._subject.subject_root,
+                "attempts": updated,
+            }
+        )
+        if len(updated) > _DELIVERY_JOURNAL_MAX_ATTEMPTS_V1:
+            raise M6OutboxDeliveryJournalError("delivery attempt capacity is exceeded")
+        if len(replacement) > _DELIVERY_JOURNAL_MAX_BYTES_V1:
+            raise M6OutboxDeliveryJournalError("delivery attempt manifest exceeds size limit")
+        try:
+            descriptor, temporary_name = tempfile.mkstemp(
+                prefix=".attempt-manifest-",
+                dir=self._root,
+            )
+        except OSError as exc:
+            raise M6OutboxDeliveryJournalError("cannot stage delivery attempt manifest") from exc
+        temporary_path = Path(temporary_name)
+        try:
+            _write_all(descriptor, replacement)
+            os.fsync(descriptor)
+            os.close(descriptor)
+            descriptor = -1
+            os.replace(temporary_path, manifest_path)
+            _fsync_directory(self._root)
+        except OSError as exc:
+            raise M6OutboxDeliveryJournalError(
+                "cannot replace delivery attempt manifest"
+            ) from exc
+        finally:
+            if descriptor >= 0:
+                try:
+                    os.close(descriptor)
+                except OSError as exc:
+                    raise M6OutboxDeliveryJournalError(
+                        "cannot close staged delivery attempt manifest"
+                    ) from exc
+            try:
+                temporary_path.unlink(missing_ok=True)
+            except OSError as exc:
+                raise M6OutboxDeliveryJournalError(
+                    "cannot remove staged delivery attempt manifest"
+                ) from exc
 
     @staticmethod
     def _require_attempt_binding(
@@ -367,7 +609,10 @@ class M6OutboxDeliveryJournalV1:
 def _write_all(descriptor: int, data: bytes) -> None:
     offset = 0
     while offset < len(data):
-        written = os.write(descriptor, data[offset:])
+        try:
+            written = os.write(descriptor, data[offset:])
+        except OSError as exc:
+            raise M6OutboxDeliveryJournalError("cannot write delivery journal bytes") from exc
         if written <= 0:
             raise M6OutboxDeliveryJournalError("cannot write delivery journal bytes")
         offset += written
@@ -382,8 +627,13 @@ def _write_new_durable_file(path: Path, data: bytes) -> None:
     try:
         _write_all(descriptor, data)
         os.fsync(descriptor)
+    except OSError as exc:
+        raise M6OutboxDeliveryJournalError("cannot persist delivery journal file") from exc
     finally:
-        os.close(descriptor)
+        try:
+            os.close(descriptor)
+        except OSError as exc:
+            raise M6OutboxDeliveryJournalError("cannot close delivery journal file") from exc
 
 
 def _fsync_directory(path: Path) -> None:
@@ -394,8 +644,13 @@ def _fsync_directory(path: Path) -> None:
         raise M6OutboxDeliveryJournalError("cannot open delivery journal directory") from exc
     try:
         os.fsync(descriptor)
+    except OSError as exc:
+        raise M6OutboxDeliveryJournalError("cannot persist delivery journal directory") from exc
     finally:
-        os.close(descriptor)
+        try:
+            os.close(descriptor)
+        except OSError as exc:
+            raise M6OutboxDeliveryJournalError("cannot close delivery journal directory") from exc
 
 
 def _read_canonical_json_object(path: Path) -> dict[str, object]:
@@ -405,7 +660,10 @@ def _read_canonical_json_object(path: Path) -> dict[str, object]:
     except OSError as exc:
         raise M6OutboxDeliveryJournalError("cannot open delivery journal file") from exc
     try:
-        metadata = os.fstat(descriptor)
+        try:
+            metadata = os.fstat(descriptor)
+        except OSError as exc:
+            raise M6OutboxDeliveryJournalError("cannot inspect delivery journal file") from exc
         if (
             not stat.S_ISREG(metadata.st_mode)
             or metadata.st_size > _DELIVERY_JOURNAL_MAX_BYTES_V1
@@ -414,7 +672,10 @@ def _read_canonical_json_object(path: Path) -> dict[str, object]:
         chunks: list[bytes] = []
         remaining = _DELIVERY_JOURNAL_MAX_BYTES_V1 + 1
         while remaining > 0:
-            chunk = os.read(descriptor, min(65536, remaining))
+            try:
+                chunk = os.read(descriptor, min(65536, remaining))
+            except OSError as exc:
+                raise M6OutboxDeliveryJournalError("cannot read delivery journal file") from exc
             if not chunk:
                 break
             chunks.append(chunk)
@@ -423,14 +684,37 @@ def _read_canonical_json_object(path: Path) -> dict[str, object]:
         if len(raw) > _DELIVERY_JOURNAL_MAX_BYTES_V1:
             raise M6OutboxDeliveryJournalError("delivery journal file exceeds size limit")
     finally:
-        os.close(descriptor)
+        try:
+            os.close(descriptor)
+        except OSError as exc:
+            raise M6OutboxDeliveryJournalError("cannot close delivery journal file") from exc
     try:
-        decoded = json.loads(raw.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        decoded = json.loads(
+            raw.decode("utf-8"),
+            parse_constant=lambda _value: (_ for _ in ()).throw(
+                ValueError("forbidden JSON constant")
+            ),
+            parse_float=lambda _value: (_ for _ in ()).throw(
+                ValueError("floats are forbidden")
+            ),
+        )
+    except (
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        RecursionError,
+        TypeError,
+        ValueError,
+    ) as exc:
         raise M6OutboxDeliveryJournalError("cannot decode delivery journal file") from exc
     if not isinstance(decoded, dict):
         raise M6OutboxDeliveryJournalError("delivery journal file is not an object")
-    if canonical_bytes_v1(decoded) != raw:
+    try:
+        canonical = canonical_bytes_v1(decoded)
+    except (RecursionError, TypeError, ValueError) as exc:
+        raise M6OutboxDeliveryJournalError(
+            "delivery journal file is not canonical"
+        ) from exc
+    if canonical != raw:
         raise M6OutboxDeliveryJournalError("delivery journal file is not canonical")
     return decoded
 

@@ -27,12 +27,13 @@ import os
 import shutil
 import stat
 import tempfile
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Iterator, Mapping, TypeVar, cast
+from typing import Callable, Iterator, Mapping, TypeVar, cast
 
 from src.core.m6_safe_mount_types_v1 import (
     DURABILITY_PROFILE_SCHEMA_V1,
@@ -43,11 +44,14 @@ from src.core.m6_safe_mount_types_v1 import (
     AcceptCandidateV1,
     BusinessRejectReasonV1,
     BusinessStatusV1,
+    CommandArgumentV1,
     DestinationAdapterRootV1,
     EconomicAtomKindV1,
     EconomicAtomV1,
     EscrowAtomV1,
     FinalityModeV1,
+    GlobalCommandKindV1,
+    GlobalCommandV1,
     HistoryAtomV1,
     M6ApplicationStateV1,
     M6DurabilityProfileV1,
@@ -78,14 +82,20 @@ from src.core.m6_safe_mount_types_v1 import (
     validate_state_commitments_v1,
     verify_finality_certificate_v1,
 )
-from src.core.m6_zrpf_v1 import DirectBatchCandidateV1, direct_batch_publication_root_v1
+from src.core.m6_zrpf_v1 import (
+    DirectBatchCandidateV1,
+    ZRPFBatchCandidateV1,
+    direct_batch_publication_root_v1,
+)
 from src.integration.m6_commit_port_v1 import (
+    CommitResultV1,
     CommitStatusV1,
     DirectExecutionReplayV1,
     M6CommitPortV1,
     M6FinalityVerifierV1,
     M6PublishedRecordV1,
     _record_nonce_root,
+    _require_bounded_json_depth_v1,
     candidate_matches_published_record_v1,
     direct_batch_data_availability_root_v1,
     direct_batch_matches_published_record_v1,
@@ -104,6 +114,9 @@ SUBJECT_FILE_V1 = "subject.json"
 STATE_FILE_V1 = "state.json"
 RECORD_FILE_V1 = "record.json"
 MANIFEST_FILE_V1 = "manifest.json"
+_OUTBOX_DELIVERY_ROOT_SUFFIX_V1 = ".outbox-delivery-v1"
+_OUTBOX_SUBMISSION_LEASES_DIR_V1 = "submission-leases"
+_OUTBOX_SUBMISSION_LEASE_DOMAIN_V1 = "m6-outbox-submission-lease-filename-v1"
 
 _ACTIVE_DURABLE_ROOT: ContextVar[Path | None] = ContextVar(
     "m6_active_durable_root",
@@ -113,10 +126,12 @@ _ACTIVE_DURABLE_ROOT_FD: ContextVar[int | None] = ContextVar(
     "m6_active_durable_root_fd",
     default=None,
 )
-
-
 class M6DurableCorruptionError(RuntimeError):
     """The on-disk M6 layout cannot be reconstructed without ambiguity."""
+
+
+class _M6ExternalEffectLeaseBusy(M6DurableCorruptionError):
+    """Another process or callback currently owns this effect lease."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -144,6 +159,13 @@ class _LoadedBlockV1:
     manifest: Mapping[str, object]
     state: M6ApplicationStateV1
     record: M6PublishedRecordV1
+
+
+@dataclass(slots=True)
+class _PublicationObservationV1:
+    """Capture publication progress across shell-cleanup failure boundaries."""
+
+    result: M6DurableCommitResultV1 | None = None
 
 
 def _reject_json_constant(value: str) -> object:
@@ -348,6 +370,7 @@ def _read_canonical_json(path: Path, *, max_bytes: int) -> tuple[dict[str, objec
             parse_constant=_reject_json_constant,
             parse_float=lambda _value: (_ for _ in ()).throw(ValueError("floats are forbidden")),
         )
+        _require_bounded_json_depth_v1(raw, name=f"canonical JSON in {path}")
     except (
         UnicodeDecodeError,
         json.JSONDecodeError,
@@ -382,10 +405,21 @@ def _fsync_directory(path: Path) -> None:
         fd = _open_bound_directory(path)
     except OSError as exc:
         raise M6DurableCorruptionError(f"cannot open directory for fsync: {path}: {exc}") from exc
+    primary: M6DurableCorruptionError | None = None
     try:
         os.fsync(fd)
-    finally:
+    except OSError as exc:
+        primary = M6DurableCorruptionError(f"cannot fsync durable directory {path}: {exc}")
+    try:
         os.close(fd)
+    except OSError as exc:
+        close_error = M6DurableCorruptionError(
+            f"cannot close durable directory descriptor for {path}"
+        )
+        if primary is None:
+            raise close_error from exc
+    if primary is not None:
+        raise primary
 
 
 def _ensure_durable_file_bound(path: Path, data: bytes, *, max_bytes: int) -> None:
@@ -1438,8 +1472,10 @@ class M6DurableLedgerStoreV1:
         subject: M6PromotionSubjectV1,
         finality_verifier: M6FinalityVerifierV1 | None = None,
     ) -> None:
+        if type(subject) is not M6PromotionSubjectV1:
+            raise TypeError("durable ledger subject must be the exact owned type")
         self._root = Path(root)
-        self._subject = subject
+        self._subject = deepcopy(subject)
         self._finality_verifier = finality_verifier
         self._parent_lock_name = f".{self._root.name}.m6-root.lock"
         try:
@@ -1464,6 +1500,10 @@ class M6DurableLedgerStoreV1:
         *,
         finality_verifier: M6FinalityVerifierV1 | None = None,
     ) -> M6DurableLedgerStoreV1:
+        if type(subject) is not M6PromotionSubjectV1:
+            raise TypeError("durable ledger subject must be the exact owned type")
+        if type(initial_state) is not M6ApplicationStateV1:
+            raise TypeError("durable genesis state must be the exact owned type")
         root_path = Path(root)
         if root_path.is_symlink():
             raise M6DurableCorruptionError(f"durable M6 root must not be a symlink: {root_path}")
@@ -1501,7 +1541,7 @@ class M6DurableLedgerStoreV1:
 
     @property
     def subject(self) -> M6PromotionSubjectV1:
-        return self._subject
+        return deepcopy(self._subject)
 
     def _io_root(self) -> Path:
         """Return the root directory identity held by the active lock."""
@@ -1536,53 +1576,200 @@ class M6DurableLedgerStoreV1:
         with self._file_lock():
             return self._load_reopened_unlocked()
 
-    def publish(
-        self,
-        candidate: AcceptCandidateV1,
-        finality: VerifiedZenoLedgerFinalityV1,
-        tau_certificate: TauBatchCertificateV1 | None,
-    ) -> M6DurableCommitResultV1:
+    @contextmanager
+    def external_effect_submission_guard(self) -> Iterator[M6DurableReopenV1]:
+        """Linearize short local setup against ledger publication.
+
+        The caller receives one canonical snapshot while the same lock used by
+        ``publish`` remains held. External callbacks must not run under this
+        guard because they would block unrelated ledger work.
+        """
+
         with self._file_lock():
-            reopened = self._load_reopened_unlocked()
-            existing = self._existing_record(reopened, candidate.candidate_id)
-            if existing is not None:
-                if _candidate_matches_record(candidate, existing) and finality_evidence_matches_published_record_v1(
-                    self._subject, existing, finality, tau_certificate
-                ):
-                    return M6DurableCommitResultV1(
-                        status=CommitStatusV1.ALREADY_COMMITTED,
-                        state=reopened.state,
-                        candidate_id=candidate.candidate_id,
-                        block_id=self._block_for_record(reopened, existing),
-                        record=existing,
-                    )
-                return M6DurableCommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=reopened.state,
-                    candidate_id=candidate.candidate_id,
-                    reason="candidate or finality replay identity conflicts with durable record",
-                )
-            if len(reopened.chain_block_ids[1:]) >= self._subject.durability_profile.max_chain_blocks:
-                return M6DurableCommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=reopened.state,
-                    candidate_id=candidate.candidate_id,
-                    reason="durable chain limit reached for promotion profile",
-                )
-            port = M6CommitPortV1(
-                self._subject,
-                reopened.state,
-                self._finality_verifier,
+            yield self._load_reopened_unlocked()
+
+    @contextmanager
+    def external_effect_submission_lease(self, effect_id: str) -> Iterator[None]:
+        """Serialize one effect submission with its acknowledgment commit."""
+
+        if type(effect_id) is not str or not effect_id or len(effect_id.encode("utf-8")) > 256:
+            raise M6DurableCorruptionError("external effect lease id is invalid")
+        if any(ord(character) < 0x21 or ord(character) > 0x7E for character in effect_id):
+            raise M6DurableCorruptionError("external effect lease id is invalid")
+        journal_root = self._root.parent / f"{self._root.name}{_OUTBOX_DELIVERY_ROOT_SUFFIX_V1}"
+        lease_name = (
+            hash_v1(_OUTBOX_SUBMISSION_LEASE_DOMAIN_V1, {"effect_id": effect_id})[2:]
+            + ".lock"
+        )
+        directory_flags = (
+            os.O_RDONLY
+            | getattr(os, "O_DIRECTORY", 0)
+            | getattr(os, "O_NOFOLLOW", 0)
+        )
+        file_flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
+        journal_fd: int | None = None
+        lease_directory_fd: int | None = None
+        lease_fd: int | None = None
+        try:
+            journal_fd = os.open(journal_root, directory_flags)
+            lease_directory_fd = os.open(
+                _OUTBOX_SUBMISSION_LEASES_DIR_V1,
+                directory_flags,
+                dir_fd=journal_fd,
             )
-            result = port.publish(candidate, finality, tau_certificate)
-            if result.status is not CommitStatusV1.COMMITTED or result.record is None:
-                return M6DurableCommitResultV1(
-                    status=result.status,
-                    state=reopened.state,
-                    candidate_id=candidate.candidate_id,
-                    record=result.record,
-                    reason=result.reason,
+            lease_fd = os.open(lease_name, file_flags, 0o600, dir_fd=lease_directory_fd)
+        except OSError as exc:
+            cleanup_failed = False
+            for descriptor in (lease_fd, lease_directory_fd, journal_fd):
+                if descriptor is not None:
+                    try:
+                        os.close(descriptor)
+                    except OSError:
+                        cleanup_failed = True
+            if cleanup_failed:
+                raise M6DurableCorruptionError(
+                    "external effect lease setup cleanup failed"
+                ) from exc
+            raise M6DurableCorruptionError("external effect lease is unavailable") from exc
+        locked = False
+        try:
+            os.fsync(lease_directory_fd)
+            try:
+                fcntl.flock(lease_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as exc:
+                raise _M6ExternalEffectLeaseBusy(
+                    "external effect submission is already in progress"
+                ) from exc
+            locked = True
+            configured = os.stat(journal_root, follow_symlinks=False)
+            if not os.path.samestat(os.fstat(journal_fd), configured):
+                raise M6DurableCorruptionError("external effect journal root changed")
+            current_lease = os.stat(
+                lease_name,
+                dir_fd=lease_directory_fd,
+                follow_symlinks=False,
+            )
+            if not stat.S_ISREG(current_lease.st_mode) or not os.path.samestat(
+                os.fstat(lease_fd), current_lease
+            ):
+                raise M6DurableCorruptionError("external effect lease changed")
+            yield
+        except OSError as exc:
+            raise M6DurableCorruptionError("external effect lease failed") from exc
+        finally:
+            cleanup_failed = False
+            if locked:
+                try:
+                    fcntl.flock(lease_fd, fcntl.LOCK_UN)
+                except OSError:
+                    cleanup_failed = True
+            for descriptor in (lease_fd, lease_directory_fd, journal_fd):
+                try:
+                    os.close(descriptor)
+                except OSError:
+                    cleanup_failed = True
+            if cleanup_failed:
+                raise M6DurableCorruptionError(
+                    "external effect lease cleanup failed"
                 )
+
+    @contextmanager
+    def _acknowledgment_submission_leases(
+        self,
+        commands: tuple[GlobalCommandV1, ...],
+    ) -> Iterator[bool]:
+        if type(commands) is not tuple or any(
+            type(command) is not GlobalCommandV1
+            or type(command.payload) is not tuple
+            or any(
+                type(argument) is not CommandArgumentV1
+                or type(argument.key) is not str
+                or type(argument.value) not in (str, int)
+                for argument in command.payload
+            )
+            for command in commands
+        ):
+            raise TypeError(
+                "acknowledgment lease extraction requires exact owned commands"
+            )
+        effect_ids = sorted(
+            {
+                value
+                for command in commands
+                if command.kind is GlobalCommandKindV1.TAU_WITHDRAWAL_ACK
+                for value in (command.payload_value("withdrawal_id"),)
+                if isinstance(value, str)
+            }
+        )
+        with ExitStack() as stack:
+            try:
+                for effect_id in effect_ids:
+                    stack.enter_context(self.external_effect_submission_lease(effect_id))
+            except _M6ExternalEffectLeaseBusy:
+                stack.close()
+                yield False
+                return
+            yield True
+
+    def _verify_publication_outside_durable_lock(
+        self,
+        *,
+        expected: M6DurableReopenV1,
+        candidate_id: str,
+        publish: Callable[[M6CommitPortV1], CommitResultV1],
+    ) -> CommitResultV1:
+        """Run external finality verification against one immutable snapshot."""
+
+        port = M6CommitPortV1(
+            self._subject,
+            expected.state,
+            self._finality_verifier,
+        )
+        result = publish(port)
+        if result.candidate_id != candidate_id:
+            raise M6DurableCorruptionError("commit port returned a foreign candidate id")
+        return result
+
+    def _persist_verified_publication_locked(
+        self,
+        *,
+        expected: M6DurableReopenV1,
+        candidate_id: str,
+        result: CommitResultV1,
+        head_error: str,
+        changed_head_replay: Callable[
+            [M6DurableReopenV1],
+            M6DurableCommitResultV1 | None,
+        ],
+    ) -> M6DurableCommitResultV1:
+        """CAS-install an already verified proposal after reacquiring the lock."""
+
+        reopened = self._load_reopened_unlocked()
+        if (
+            reopened.head_block_id != expected.head_block_id
+            or reopened.state != expected.state
+            or reopened.records != expected.records
+            or reopened.chain_block_ids != expected.chain_block_ids
+        ):
+            if self._existing_record(reopened, candidate_id) is not None:
+                replay = changed_head_replay(reopened)
+                if replay is not None:
+                    return replay
+            return M6DurableCommitResultV1(
+                status=CommitStatusV1.STALE_HEAD,
+                state=reopened.state,
+                candidate_id=candidate_id,
+                reason="durable head changed during external finality verification",
+            )
+        if result.status is not CommitStatusV1.COMMITTED or result.record is None:
+            return M6DurableCommitResultV1(
+                status=result.status,
+                state=reopened.state,
+                candidate_id=candidate_id,
+                record=result.record,
+                reason=result.reason,
+            )
+        try:
             block_id = self._install_commit_unlocked(reopened, result.record, result.state)
             self._write_head_unlocked(
                 block_id,
@@ -1590,16 +1777,262 @@ class M6DurableLedgerStoreV1:
                 expected_block_id=reopened.head_block_id,
                 expected_state_root=reopened.state.state_root,
             )
-            verified = self._load_reopened_unlocked()
-            if verified.head_block_id != block_id:
-                raise M6DurableCorruptionError("HEAD did not advance to installed block")
+        except M6DurableCorruptionError as cause:
+            try:
+                recovered = self._load_reopened_unlocked()
+            except M6DurableCorruptionError as recovery_error:
+                raise cause from recovery_error
+            if self._existing_record(recovered, candidate_id) is not None:
+                replay = changed_head_replay(recovered)
+                if replay is not None:
+                    return replay
+            raise cause
+        verified = self._load_reopened_unlocked()
+        if verified.head_block_id != block_id:
+            raise M6DurableCorruptionError(head_error)
+        return M6DurableCommitResultV1(
+            status=CommitStatusV1.COMMITTED,
+            state=verified.state,
+            candidate_id=candidate_id,
+            block_id=block_id,
+            record=result.record,
+        )
+
+    @staticmethod
+    def _lease_busy_commit_result(
+        reopened: M6DurableReopenV1,
+        candidate_id: str,
+    ) -> M6DurableCommitResultV1:
+        return M6DurableCommitResultV1(
+            status=CommitStatusV1.FINALITY_REJECTED,
+            state=reopened.state,
+            candidate_id=candidate_id,
+            reason="external effect submission is already in progress",
+        )
+
+    def _durable_direct_replay_or_limit(
+        self,
+        *,
+        reopened: M6DurableReopenV1,
+        candidate: AcceptCandidateV1,
+        finality: VerifiedZenoLedgerFinalityV1,
+        tau_certificate: TauBatchCertificateV1 | None,
+        leases_available: bool,
+    ) -> M6DurableCommitResultV1 | None:
+        if not leases_available:
+            return self._lease_busy_commit_result(reopened, candidate.candidate_id)
+        existing = self._existing_record(reopened, candidate.candidate_id)
+        if existing is not None:
+            if _candidate_matches_record(
+                candidate,
+                existing,
+            ) and finality_evidence_matches_published_record_v1(
+                self._subject,
+                existing,
+                finality,
+                tau_certificate,
+            ):
+                return M6DurableCommitResultV1(
+                    status=CommitStatusV1.ALREADY_COMMITTED,
+                    state=reopened.state,
+                    candidate_id=candidate.candidate_id,
+                    block_id=self._block_for_record(reopened, existing),
+                    record=existing,
+                )
             return M6DurableCommitResultV1(
-                status=CommitStatusV1.COMMITTED,
-                state=verified.state,
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=reopened.state,
                 candidate_id=candidate.candidate_id,
-                block_id=block_id,
-                record=result.record,
+                reason="candidate or finality replay identity conflicts with durable record",
             )
+        if len(reopened.chain_block_ids[1:]) >= self._subject.durability_profile.max_chain_blocks:
+            return M6DurableCommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=reopened.state,
+                candidate_id=candidate.candidate_id,
+                reason="durable chain limit reached for promotion profile",
+            )
+        return None
+
+    def _recover_commit_after_lease_cleanup_failure(
+        self,
+        *,
+        candidate_id: str,
+        observed: _PublicationObservationV1,
+        cause: M6DurableCorruptionError,
+        replay: Callable[
+            [M6DurableReopenV1],
+            M6DurableCommitResultV1 | None,
+        ],
+    ) -> M6DurableCommitResultV1:
+        """Return durable truth when shell cleanup fails after publication."""
+
+        try:
+            reopened = self.reopen()
+        except M6DurableCorruptionError as recovery_error:
+            raise cause from recovery_error
+        if self._existing_record(reopened, candidate_id) is not None:
+            recovered = replay(reopened)
+            if recovered is not None:
+                return recovered
+        if observed.result is not None and observed.result.status is not CommitStatusV1.COMMITTED:
+            return observed.result
+        raise cause
+
+    def _durable_zrpf_replay_or_limit(
+        self,
+        *,
+        reopened: M6DurableReopenV1,
+        verified_root: VerifiedZRPFRootV1,
+        finality: VerifiedZenoLedgerFinalityV1,
+        tau_certificate: TauBatchCertificateV1 | None,
+        leases_available: bool,
+    ) -> M6DurableCommitResultV1 | None:
+        if not leases_available:
+            return self._lease_busy_commit_result(reopened, verified_root.candidate_id)
+        existing = self._existing_record(reopened, verified_root.candidate_id)
+        if existing is not None:
+            if _zrpf_matches_record(
+                verified_root,
+                existing,
+            ) and finality_evidence_matches_published_record_v1(
+                self._subject,
+                existing,
+                finality,
+                tau_certificate,
+            ):
+                return M6DurableCommitResultV1(
+                    status=CommitStatusV1.ALREADY_COMMITTED,
+                    state=reopened.state,
+                    candidate_id=verified_root.candidate_id,
+                    block_id=self._block_for_record(reopened, existing),
+                    record=existing,
+                )
+            return M6DurableCommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=reopened.state,
+                candidate_id=verified_root.candidate_id,
+                reason="ZRPF or finality replay identity conflicts with durable record",
+            )
+        if len(reopened.chain_block_ids[1:]) >= self._subject.durability_profile.max_chain_blocks:
+            return M6DurableCommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=reopened.state,
+                candidate_id=verified_root.candidate_id,
+                reason="durable chain limit reached for promotion profile",
+            )
+        return None
+
+    def _durable_batch_replay_or_limit(
+        self,
+        *,
+        reopened: M6DurableReopenV1,
+        direct: DirectBatchCandidateV1,
+        finality: VerifiedZenoLedgerFinalityV1,
+        tau_certificate: TauBatchCertificateV1 | None,
+        leases_available: bool,
+    ) -> M6DurableCommitResultV1 | None:
+        if not leases_available:
+            return self._lease_busy_commit_result(reopened, direct.candidate_id)
+        existing = self._existing_record(reopened, direct.candidate_id)
+        if existing is not None:
+            if direct_batch_matches_published_record_v1(
+                direct,
+                existing,
+            ) and finality_evidence_matches_published_record_v1(
+                self._subject,
+                existing,
+                finality,
+                tau_certificate,
+            ):
+                return M6DurableCommitResultV1(
+                    status=CommitStatusV1.ALREADY_COMMITTED,
+                    state=reopened.state,
+                    candidate_id=direct.candidate_id,
+                    block_id=self._block_for_record(reopened, existing),
+                    record=existing,
+                )
+            return M6DurableCommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=reopened.state,
+                candidate_id=direct.candidate_id,
+                reason="direct batch or finality replay identity conflicts with durable record",
+            )
+        if len(reopened.chain_block_ids[1:]) >= self._subject.durability_profile.max_chain_blocks:
+            return M6DurableCommitResultV1(
+                status=CommitStatusV1.FINALITY_REJECTED,
+                state=reopened.state,
+                candidate_id=direct.candidate_id,
+                reason="durable chain limit reached for promotion profile",
+            )
+        return None
+
+    def publish(
+        self,
+        candidate: AcceptCandidateV1,
+        finality: VerifiedZenoLedgerFinalityV1,
+        tau_certificate: TauBatchCertificateV1 | None,
+    ) -> M6DurableCommitResultV1:
+        if type(candidate) is not AcceptCandidateV1:
+            raise TypeError("durable publication candidate is not the exact owned type")
+        commands = (candidate.command,)
+        with self._acknowledgment_submission_leases(commands) as leases_available:
+            with self._file_lock():
+                reopened = self._load_reopened_unlocked()
+                early = self._durable_direct_replay_or_limit(
+                    reopened=reopened,
+                    candidate=candidate,
+                    finality=finality,
+                    tau_certificate=tau_certificate,
+                    leases_available=leases_available,
+                )
+                if early is not None:
+                    return early
+                expected = reopened
+        result = self._verify_publication_outside_durable_lock(
+            expected=expected,
+            candidate_id=candidate.candidate_id,
+            publish=lambda port: port.publish(candidate, finality, tau_certificate),
+        )
+        observed = _PublicationObservationV1()
+
+        def replay(reopened: M6DurableReopenV1) -> M6DurableCommitResultV1 | None:
+            return self._durable_direct_replay_or_limit(
+                reopened=reopened,
+                candidate=candidate,
+                finality=finality,
+                tau_certificate=tau_certificate,
+                leases_available=True,
+            )
+        try:
+            with self._acknowledgment_submission_leases(commands) as leases_available:
+                with self._file_lock():
+                    if not leases_available:
+                        reopened = self._load_reopened_unlocked()
+                        observed.result = self._lease_busy_commit_result(
+                            reopened,
+                            candidate.candidate_id,
+                        )
+                    else:
+                        observed.result = self._persist_verified_publication_locked(
+                            expected=expected,
+                            candidate_id=candidate.candidate_id,
+                            result=result,
+                            head_error="HEAD did not advance to installed block",
+                            changed_head_replay=replay,
+                        )
+        except M6DurableCorruptionError as exc:
+            if observed.result is None:
+                raise
+            return self._recover_commit_after_lease_cleanup_failure(
+                candidate_id=candidate.candidate_id,
+                observed=observed,
+                cause=exc,
+                replay=replay,
+            )
+        if observed.result is None:
+            raise M6DurableCorruptionError("durable publication produced no result")
+        return observed.result
 
     def publish_zrpf(
         self,
@@ -1607,73 +2040,84 @@ class M6DurableLedgerStoreV1:
         finality: VerifiedZenoLedgerFinalityV1,
         tau_certificate: TauBatchCertificateV1 | None,
     ) -> M6DurableCommitResultV1:
-        with self._file_lock():
-            reopened = self._load_reopened_unlocked()
-            existing = self._existing_record(reopened, verified_root.candidate_id)
-            if existing is not None:
-                try:
-                    checked_root = reverify_zrpf_handle_v1(self._subject, verified_root)
-                except ValueError as exc:
-                    return M6DurableCommitResultV1(
-                        status=CommitStatusV1.FINALITY_REJECTED,
-                        state=reopened.state,
-                        candidate_id=verified_root.candidate_id,
-                        reason=str(exc),
-                    )
-                if _zrpf_matches_record(checked_root, existing) and finality_evidence_matches_published_record_v1(
-                    self._subject, existing, finality, tau_certificate
-                ):
-                    return M6DurableCommitResultV1(
-                        status=CommitStatusV1.ALREADY_COMMITTED,
-                        state=reopened.state,
-                        candidate_id=verified_root.candidate_id,
-                        block_id=self._block_for_record(reopened, existing),
-                        record=existing,
-                    )
+        if type(verified_root) is not VerifiedZRPFRootV1:
+            raise TypeError("ZRPF publication handle is not the exact verified type")
+        try:
+            checked_root = reverify_zrpf_handle_v1(self._subject, verified_root)
+        except ValueError as exc:
+            with self._file_lock():
+                reopened = self._load_reopened_unlocked()
                 return M6DurableCommitResultV1(
                     status=CommitStatusV1.FINALITY_REJECTED,
                     state=reopened.state,
                     candidate_id=verified_root.candidate_id,
-                    reason="ZRPF or finality replay identity conflicts with durable record",
+                    reason=str(exc),
                 )
-            if len(reopened.chain_block_ids[1:]) >= self._subject.durability_profile.max_chain_blocks:
-                return M6DurableCommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=reopened.state,
-                    candidate_id=verified_root.candidate_id,
-                    reason="durable chain limit reached for promotion profile",
+        batch = checked_root.execution_batch
+        if type(batch) is not ZRPFBatchCandidateV1:
+            raise M6DurableCorruptionError("ZRPF publication batch is invalid")
+        commands = batch.direct.commands
+        with self._acknowledgment_submission_leases(commands) as leases_available:
+            with self._file_lock():
+                reopened = self._load_reopened_unlocked()
+                early = self._durable_zrpf_replay_or_limit(
+                    reopened=reopened,
+                    verified_root=checked_root,
+                    finality=finality,
+                    tau_certificate=tau_certificate,
+                    leases_available=leases_available,
                 )
-            port = M6CommitPortV1(
-                self._subject,
-                reopened.state,
-                self._finality_verifier,
+                if early is not None:
+                    return early
+                expected = reopened
+        result = self._verify_publication_outside_durable_lock(
+            expected=expected,
+            candidate_id=checked_root.candidate_id,
+            publish=lambda port: port.publish_zrpf(
+                checked_root,
+                finality,
+                tau_certificate,
+            ),
+        )
+        observed = _PublicationObservationV1()
+
+        def replay(reopened: M6DurableReopenV1) -> M6DurableCommitResultV1 | None:
+            return self._durable_zrpf_replay_or_limit(
+                reopened=reopened,
+                verified_root=checked_root,
+                finality=finality,
+                tau_certificate=tau_certificate,
+                leases_available=True,
             )
-            result = port.publish_zrpf(verified_root, finality, tau_certificate)
-            if result.status is not CommitStatusV1.COMMITTED or result.record is None:
-                return M6DurableCommitResultV1(
-                    status=result.status,
-                    state=reopened.state,
-                    candidate_id=verified_root.candidate_id,
-                    record=result.record,
-                    reason=result.reason,
-                )
-            block_id = self._install_commit_unlocked(reopened, result.record, result.state)
-            self._write_head_unlocked(
-                block_id,
-                result.state,
-                expected_block_id=reopened.head_block_id,
-                expected_state_root=reopened.state.state_root,
+        try:
+            with self._acknowledgment_submission_leases(commands) as leases_available:
+                with self._file_lock():
+                    if not leases_available:
+                        reopened = self._load_reopened_unlocked()
+                        observed.result = self._lease_busy_commit_result(
+                            reopened,
+                            checked_root.candidate_id,
+                        )
+                    else:
+                        observed.result = self._persist_verified_publication_locked(
+                            expected=expected,
+                            candidate_id=checked_root.candidate_id,
+                            result=result,
+                            head_error="HEAD did not advance to installed ZRPF block",
+                            changed_head_replay=replay,
+                        )
+        except M6DurableCorruptionError as exc:
+            if observed.result is None:
+                raise
+            return self._recover_commit_after_lease_cleanup_failure(
+                candidate_id=checked_root.candidate_id,
+                observed=observed,
+                cause=exc,
+                replay=replay,
             )
-            verified = self._load_reopened_unlocked()
-            if verified.head_block_id != block_id:
-                raise M6DurableCorruptionError("HEAD did not advance to installed ZRPF block")
-            return M6DurableCommitResultV1(
-                status=CommitStatusV1.COMMITTED,
-                state=verified.state,
-                candidate_id=verified_root.candidate_id,
-                block_id=block_id,
-                record=result.record,
-            )
+        if observed.result is None:
+            raise M6DurableCorruptionError("durable ZRPF publication produced no result")
+        return observed.result
 
     def publish_direct_batch(
         self,
@@ -1683,64 +2127,70 @@ class M6DurableLedgerStoreV1:
     ) -> M6DurableCommitResultV1:
         """Persist a direct multi-command candidate during proof degradation."""
 
-        with self._file_lock():
-            reopened = self._load_reopened_unlocked()
-            existing = self._existing_record(reopened, direct.candidate_id)
-            if existing is not None:
-                if direct_batch_matches_published_record_v1(direct, existing) and finality_evidence_matches_published_record_v1(
-                    self._subject, existing, finality, tau_certificate
-                ):
-                    return M6DurableCommitResultV1(
-                        status=CommitStatusV1.ALREADY_COMMITTED,
-                        state=reopened.state,
-                        candidate_id=direct.candidate_id,
-                        block_id=self._block_for_record(reopened, existing),
-                        record=existing,
-                    )
-                return M6DurableCommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=reopened.state,
-                    candidate_id=direct.candidate_id,
-                    reason="direct batch or finality replay identity conflicts with durable record",
+        if type(direct) is not DirectBatchCandidateV1:
+            raise TypeError("durable direct batch is not the exact owned type")
+        commands = direct.commands
+        with self._acknowledgment_submission_leases(commands) as leases_available:
+            with self._file_lock():
+                reopened = self._load_reopened_unlocked()
+                early = self._durable_batch_replay_or_limit(
+                    reopened=reopened,
+                    direct=direct,
+                    finality=finality,
+                    tau_certificate=tau_certificate,
+                    leases_available=leases_available,
                 )
-            if len(reopened.chain_block_ids[1:]) >= self._subject.durability_profile.max_chain_blocks:
-                return M6DurableCommitResultV1(
-                    status=CommitStatusV1.FINALITY_REJECTED,
-                    state=reopened.state,
-                    candidate_id=direct.candidate_id,
-                    reason="durable chain limit reached for promotion profile",
-                )
-            port = M6CommitPortV1(
-                self._subject,
-                reopened.state,
-                self._finality_verifier,
+                if early is not None:
+                    return early
+                expected = reopened
+        result = self._verify_publication_outside_durable_lock(
+            expected=expected,
+            candidate_id=direct.candidate_id,
+            publish=lambda port: port.publish_direct_batch(
+                direct,
+                finality,
+                tau_certificate,
+            ),
+        )
+        observed = _PublicationObservationV1()
+
+        def replay(reopened: M6DurableReopenV1) -> M6DurableCommitResultV1 | None:
+            return self._durable_batch_replay_or_limit(
+                reopened=reopened,
+                direct=direct,
+                finality=finality,
+                tau_certificate=tau_certificate,
+                leases_available=True,
             )
-            result = port.publish_direct_batch(direct, finality, tau_certificate)
-            if result.status is not CommitStatusV1.COMMITTED or result.record is None:
-                return M6DurableCommitResultV1(
-                    status=result.status,
-                    state=reopened.state,
-                    candidate_id=direct.candidate_id,
-                    record=result.record,
-                    reason=result.reason,
-                )
-            block_id = self._install_commit_unlocked(reopened, result.record, result.state)
-            self._write_head_unlocked(
-                block_id,
-                result.state,
-                expected_block_id=reopened.head_block_id,
-                expected_state_root=reopened.state.state_root,
-            )
-            verified = self._load_reopened_unlocked()
-            if verified.head_block_id != block_id:
-                raise M6DurableCorruptionError("HEAD did not advance to installed direct batch block")
-            return M6DurableCommitResultV1(
-                status=CommitStatusV1.COMMITTED,
-                state=verified.state,
+        try:
+            with self._acknowledgment_submission_leases(commands) as leases_available:
+                with self._file_lock():
+                    if not leases_available:
+                        reopened = self._load_reopened_unlocked()
+                        observed.result = self._lease_busy_commit_result(
+                            reopened,
+                            direct.candidate_id,
+                        )
+                    else:
+                        observed.result = self._persist_verified_publication_locked(
+                            expected=expected,
+                            candidate_id=direct.candidate_id,
+                            result=result,
+                            head_error="HEAD did not advance to installed direct batch block",
+                            changed_head_replay=replay,
+                        )
+        except M6DurableCorruptionError as exc:
+            if observed.result is None:
+                raise
+            return self._recover_commit_after_lease_cleanup_failure(
                 candidate_id=direct.candidate_id,
-                block_id=block_id,
-                record=result.record,
+                observed=observed,
+                cause=exc,
+                replay=replay,
             )
+        if observed.result is None:
+            raise M6DurableCorruptionError("durable direct batch publication produced no result")
+        return observed.result
 
     def _install_genesis_unlocked(self, state: M6ApplicationStateV1) -> None:
         subject_data = _canonical_data(self._subject)
@@ -1964,18 +2414,54 @@ class M6DurableLedgerStoreV1:
                         _ACTIVE_DURABLE_ROOT_FD.reset(root_fd_token)
                         _ACTIVE_DURABLE_ROOT.reset(root_token)
             finally:
-                fcntl.flock(fd, fcntl.LOCK_UN)
-                os.close(fd)
+                lock_cleanup_error: OSError | None = None
+                try:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+                except OSError as exc:
+                    lock_cleanup_error = exc
+                try:
+                    os.close(fd)
+                except OSError as exc:
+                    if lock_cleanup_error is None:
+                        lock_cleanup_error = exc
+                if lock_cleanup_error is not None:
+                    raise M6DurableCorruptionError(
+                        "durable lock cleanup failed"
+                    ) from lock_cleanup_error
         finally:
+            root_cleanup_error: OSError | None = None
             if root_locked and root_fd is not None:
-                fcntl.flock(root_fd, fcntl.LOCK_UN)
+                try:
+                    fcntl.flock(root_fd, fcntl.LOCK_UN)
+                except OSError as exc:
+                    root_cleanup_error = exc
             if root_fd is not None:
-                os.close(root_fd)
+                try:
+                    os.close(root_fd)
+                except OSError as exc:
+                    if root_cleanup_error is None:
+                        root_cleanup_error = exc
             if parent_locked and parent_lock_fd is not None:
-                fcntl.flock(parent_lock_fd, fcntl.LOCK_UN)
+                try:
+                    fcntl.flock(parent_lock_fd, fcntl.LOCK_UN)
+                except OSError as exc:
+                    if root_cleanup_error is None:
+                        root_cleanup_error = exc
             if parent_lock_fd is not None:
-                os.close(parent_lock_fd)
-            os.close(parent_fd)
+                try:
+                    os.close(parent_lock_fd)
+                except OSError as exc:
+                    if root_cleanup_error is None:
+                        root_cleanup_error = exc
+            try:
+                os.close(parent_fd)
+            except OSError as exc:
+                if root_cleanup_error is None:
+                    root_cleanup_error = exc
+            if root_cleanup_error is not None:
+                raise M6DurableCorruptionError(
+                    "durable root lock cleanup failed"
+                ) from root_cleanup_error
 
     def _load_reopened_unlocked(self) -> M6DurableReopenV1:
         _require_directory_layout(

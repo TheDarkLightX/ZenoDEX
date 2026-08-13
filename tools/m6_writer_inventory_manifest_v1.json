@@ -386,6 +386,25 @@
       {
         "assurance_statuses": [],
         "bindings": {
+          "adapter": {"reference": "src/integration/m6_commit_port_v1.py::M6CommitPortV1.publish_direct_batch", "status": "RESEARCH_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "research/m6-direct-batch/v1",
+        "coverage_id": "coverage_m6_research_commit_direct_batch",
+        "entrypoint_id": "m6_research_commit_direct_batch",
+        "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "FARM_INCENTIVES", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "SEALED_AUCTION", "STRATEGY_ESCROW", "PROOF_REWARDS", "EXTERNAL_CUSTODY", "GOVERNANCE_MIGRATION"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-13", "WF-14", "WF-15", "WF-16", "WF-17", "WF-18"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
           "adapter": {"reference": "src/integration/m6_commit_port_v1.py::M6CommitPortV1.publish_zrpf", "status": "RESEARCH_ONLY"},
           "canonical_effect_projection": {"reference": null, "status": "GAP"},
           "evidence": {"reference": null, "status": "GAP"},
@@ -398,6 +417,25 @@
         "command_kind": "research/m6-zrpf-root/v1",
         "coverage_id": "coverage_m6_research_commit_zrpf",
         "entrypoint_id": "m6_research_commit_zrpf",
+        "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "FARM_INCENTIVES", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "SEALED_AUCTION", "STRATEGY_ESCROW", "PROOF_REWARDS", "EXTERNAL_CUSTODY", "GOVERNANCE_MIGRATION"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-13", "WF-14", "WF-15", "WF-16", "WF-17", "WF-18"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/m6_durable_store_v1.py::M6DurableLedgerStoreV1.publish_direct_batch", "status": "RESEARCH_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "research/m6-direct-batch/v1",
+        "coverage_id": "coverage_m6_research_durable_direct_batch",
+        "entrypoint_id": "m6_research_durable_direct_batch",
         "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "FARM_INCENTIVES", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "SEALED_AUCTION", "STRATEGY_ESCROW", "PROOF_REWARDS", "EXTERNAL_CUSTODY", "GOVERNANCE_MIGRATION"],
         "release_status": "OPEN",
         "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-13", "WF-14", "WF-15", "WF-16", "WF-17", "WF-18"]
@@ -663,9 +701,9 @@
     },
     {
       "class": "M6CommitPortV1",
-      "commit_port_route": "M6CommitPortV1._publish_locked",
+      "commit_port_route": "M6CommitPortV1._publish_proposal",
       "entrypoint_id": "m6_research_commit_direct",
-      "evidence_markers": ["_publish_locked"],
+      "evidence_markers": ["_publish_proposal"],
       "kind": "m6_unique_commit_port",
       "m6_mount_status": "M6_RESEARCH_ONLY",
       "path": "src/integration/m6_commit_port_v1.py",
@@ -674,9 +712,9 @@
     },
     {
       "class": "M6CommitPortV1",
-      "commit_port_route": "M6CommitPortV1._publish_locked",
+      "commit_port_route": "M6CommitPortV1._publish_proposal",
       "entrypoint_id": "m6_research_commit_zrpf",
-      "evidence_markers": ["_publish_locked"],
+      "evidence_markers": ["_publish_proposal"],
       "kind": "m6_unique_commit_port",
       "m6_mount_status": "M6_RESEARCH_ONLY",
       "path": "src/integration/m6_commit_port_v1.py",
@@ -684,10 +722,21 @@
       "symbol": "publish_zrpf"
     },
     {
+      "class": "M6CommitPortV1",
+      "commit_port_route": "M6CommitPortV1._publish_proposal",
+      "entrypoint_id": "m6_research_commit_direct_batch",
+      "evidence_markers": ["_publish_proposal"],
+      "kind": "m6_unique_commit_port",
+      "m6_mount_status": "M6_RESEARCH_ONLY",
+      "path": "src/integration/m6_commit_port_v1.py",
+      "requires_unique_commit_port": true,
+      "symbol": "publish_direct_batch"
+    },
+    {
       "class": "M6DurableLedgerStoreV1",
       "commit_port_route": "M6CommitPortV1.publish",
       "entrypoint_id": "m6_research_durable_direct",
-      "evidence_markers": ["M6CommitPortV1", "_install_commit_unlocked", "_write_head_unlocked"],
+      "evidence_markers": ["_verify_publication_outside_durable_lock", "_persist_verified_publication_locked"],
       "kind": "m6_durable_shell",
       "m6_mount_status": "M6_RESEARCH_ONLY",
       "path": "src/integration/m6_durable_store_v1.py",
@@ -698,12 +747,23 @@
       "class": "M6DurableLedgerStoreV1",
       "commit_port_route": "M6CommitPortV1.publish_zrpf",
       "entrypoint_id": "m6_research_durable_zrpf",
-      "evidence_markers": ["M6CommitPortV1", "_install_commit_unlocked", "_write_head_unlocked"],
+      "evidence_markers": ["_verify_publication_outside_durable_lock", "_persist_verified_publication_locked"],
       "kind": "m6_durable_shell",
       "m6_mount_status": "M6_RESEARCH_ONLY",
       "path": "src/integration/m6_durable_store_v1.py",
       "requires_unique_commit_port": true,
       "symbol": "publish_zrpf"
+    },
+    {
+      "class": "M6DurableLedgerStoreV1",
+      "commit_port_route": "M6CommitPortV1.publish_direct_batch",
+      "entrypoint_id": "m6_research_durable_direct_batch",
+      "evidence_markers": ["_verify_publication_outside_durable_lock", "_persist_verified_publication_locked"],
+      "kind": "m6_durable_shell",
+      "m6_mount_status": "M6_RESEARCH_ONLY",
+      "path": "src/integration/m6_durable_store_v1.py",
+      "requires_unique_commit_port": true,
+      "symbol": "publish_direct_batch"
     },
     {
       "class": null,

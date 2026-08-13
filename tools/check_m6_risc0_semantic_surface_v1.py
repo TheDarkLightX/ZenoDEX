@@ -21,6 +21,7 @@ import hashlib
 import json
 import re
 import subprocess
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Mapping
@@ -80,31 +81,180 @@ class _SurfaceComparisonV1:
     canonical_state_codec_match: bool
 
 
-def _read_source_or_error(path: Path, *, label: str) -> tuple[str, str | None]:
+def _read_source_or_error(
+    path: Path,
+    *,
+    label: str,
+) -> tuple[str, bytes | None, str | None]:
     try:
-        return path.read_text(encoding="utf-8"), None
+        raw = path.read_bytes()
+        return raw.decode("utf-8"), raw, None
     except (OSError, UnicodeError):
-        return "", f"cannot read {label}"
+        return "", None, f"cannot read {label}"
 
 
 def _class_named(tree: ast.Module, *, name: str) -> ast.ClassDef:
-    for node in tree.body:
-        if isinstance(node, ast.ClassDef) and node.name == name:
-            return node
+    matches = [
+        node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == name
+    ]
+    binding_count = sum(_statement_binds_name(node, name=name) for node in tree.body)
+    if len(matches) == 1 and binding_count == 1:
+        return matches[0]
+    if binding_count:
+        raise ValueError(f"Python {name} has duplicate bindings")
     raise ValueError(f"Python {name} is missing")
 
 
+def _python_module_uses_dynamic_bindings(tree: ast.Module) -> bool:
+    """Reject source shapes whose selected names cannot be resolved statically."""
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and any(alias.name == "*" for alias in node.names):
+            return True
+        if isinstance(node, ast.Call):
+            if isinstance(node.func, ast.Name) and node.func.id in {
+                "eval",
+                "exec",
+                "globals",
+                "locals",
+                "setattr",
+            }:
+                return True
+    return False
+
+
+def _python_definition_has_unsupported_decorators(
+    node: ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef,
+    *,
+    allowed_names: frozenset[str],
+) -> bool:
+    for decorator in node.decorator_list:
+        name = decorator.func if isinstance(decorator, ast.Call) else decorator
+        if not isinstance(name, ast.Name) or name.id not in allowed_names:
+            return True
+    return False
+
+
+def _target_binds_name(target: ast.AST, *, name: str) -> bool:
+    if isinstance(target, ast.Name):
+        return target.id == name
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return any(_target_binds_name(item, name=name) for item in target.elts)
+    if isinstance(target, ast.Starred):
+        return _target_binds_name(target.value, name=name)
+    return False
+
+
+class _ScopeBindingCollector(ast.NodeVisitor):
+    """Collect bindings in one Python scope without entering child scopes."""
+
+    def __init__(self) -> None:
+        self.names: set[str] = set()
+
+    def visit_Name(self, node: ast.Name) -> None:  # noqa: N802 - ast visitor API
+        if isinstance(node.ctx, (ast.Store, ast.Del)):
+            self.names.add(node.id)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
+        self.names.add(node.name)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:  # noqa: N802
+        self.names.add(node.name)
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:  # noqa: N802
+        self.names.add(node.name)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:  # noqa: N802
+        return
+
+    def visit_Import(self, node: ast.Import) -> None:  # noqa: N802
+        self.names.update(alias.asname or alias.name.split(".", 1)[0] for alias in node.names)
+
+    def visit_ImportFrom(self, node: ast.ImportFrom) -> None:  # noqa: N802
+        self.names.update(alias.asname or alias.name for alias in node.names)
+
+    def visit_ExceptHandler(self, node: ast.ExceptHandler) -> None:  # noqa: N802
+        if node.name is not None:
+            self.names.add(node.name)
+        if node.type is not None:
+            self.visit(node.type)
+        for statement in node.body:
+            self.visit(statement)
+
+    def visit_MatchAs(self, node: ast.MatchAs) -> None:  # noqa: N802
+        if node.name is not None:
+            self.names.add(node.name)
+        if node.pattern is not None:
+            self.visit(node.pattern)
+
+    def visit_MatchStar(self, node: ast.MatchStar) -> None:  # noqa: N802
+        if node.name is not None:
+            self.names.add(node.name)
+
+    def visit_MatchMapping(self, node: ast.MatchMapping) -> None:  # noqa: N802
+        if node.rest is not None:
+            self.names.add(node.rest)
+        self.generic_visit(node)
+
+    def _visit_comprehension_parts(
+        self,
+        generators: list[ast.comprehension],
+        *values: ast.AST,
+    ) -> None:
+        for generator in generators:
+            self.visit(generator.iter)
+            for condition in generator.ifs:
+                self.visit(condition)
+        for value in values:
+            self.visit(value)
+
+    def visit_ListComp(self, node: ast.ListComp) -> None:  # noqa: N802
+        self._visit_comprehension_parts(node.generators, node.elt)
+
+    def visit_SetComp(self, node: ast.SetComp) -> None:  # noqa: N802
+        self._visit_comprehension_parts(node.generators, node.elt)
+
+    def visit_GeneratorExp(self, node: ast.GeneratorExp) -> None:  # noqa: N802
+        self._visit_comprehension_parts(node.generators, node.elt)
+
+    def visit_DictComp(self, node: ast.DictComp) -> None:  # noqa: N802
+        self._visit_comprehension_parts(node.generators, node.key, node.value)
+
+
+def _statement_binds_name(statement: ast.stmt, *, name: str) -> bool:
+    collector = _ScopeBindingCollector()
+    collector.visit(statement)
+    return name in collector.names
+
+
 def _method_named(class_node: ast.ClassDef, *, name: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
-    for member in class_node.body:
-        if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef)) and member.name == name:
-            return member
+    matches = [
+        member
+        for member in class_node.body
+        if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and member.name == name
+    ]
+    binding_count = sum(
+        _statement_binds_name(member, name=name) for member in class_node.body
+    )
+    if len(matches) == 1 and binding_count == 1:
+        return matches[0]
+    if binding_count:
+        raise ValueError(f"Python {class_node.name}.{name} has duplicate bindings")
     raise ValueError(f"Python {class_node.name}.{name} is missing")
 
 
 def _function_named(tree: ast.Module, *, name: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
-    for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
-            return node
+    matches = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name
+    ]
+    binding_count = sum(_statement_binds_name(node, name=name) for node in tree.body)
+    if len(matches) == 1 and binding_count == 1:
+        return matches[0]
+    if binding_count:
+        raise ValueError(f"Python {name} has duplicate bindings")
     raise ValueError(f"Python {name} is missing")
 
 
@@ -194,6 +344,11 @@ def _python_canonical_codec_connected(
         state_root = _method_named(state_class, name="state_root")
     except ValueError:
         return False
+    if _python_definition_has_unsupported_decorators(
+        state_root,
+        allowed_names=frozenset({"property"}),
+    ):
+        return False
     state_root_calls = _direct_call_names(state_root)
     if _named_call_value_reaches_return(state_root, call_name="canonical_bytes_v1"):
         return True
@@ -205,6 +360,11 @@ def _python_canonical_codec_connected(
     try:
         hash_function = _function_named(tree, name="hash_v1")
     except ValueError:
+        return False
+    if _python_definition_has_unsupported_decorators(
+        hash_function,
+        allowed_names=frozenset(),
+    ):
         return False
     return _named_call_value_reaches_return(
         hash_function,
@@ -220,19 +380,11 @@ def _is_exact_named_call(node: ast.AST, *, call_name: str) -> bool:
     )
 
 
-def _provenance_receiver_name(node: ast.AST) -> str | None:
-    current = node
-    while isinstance(current, ast.Attribute):
-        current = current.value
-    return current.id if isinstance(current, ast.Name) else None
-
-
 def _expression_has_provenance(
     node: ast.AST,
     *,
     call_name: str,
     value_names: set[str],
-    accumulator_names: set[str],
 ) -> bool:
     """Accept only expression shapes whose selected result carries provenance."""
 
@@ -240,36 +392,6 @@ def _expression_has_provenance(
         return True
     if isinstance(node, ast.Name):
         return node.id in value_names
-    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
-        return _provenance_receiver_name(node.func.value) in accumulator_names
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left_has_provenance = _expression_has_provenance(
-            node.left,
-            call_name=call_name,
-            value_names=value_names,
-            accumulator_names=accumulator_names,
-        )
-        right_has_provenance = _expression_has_provenance(
-            node.right,
-            call_name=call_name,
-            value_names=value_names,
-            accumulator_names=accumulator_names,
-        )
-        return (
-            left_has_provenance and isinstance(node.right, ast.Constant)
-        ) or (
-            right_has_provenance and isinstance(node.left, ast.Constant)
-        )
-    if isinstance(node, ast.JoinedStr):
-        formatted_values = [
-            value.value for value in node.values if isinstance(value, ast.FormattedValue)
-        ]
-        return len(formatted_values) == 1 and _expression_has_provenance(
-            formatted_values[0],
-            call_name=call_name,
-            value_names=value_names,
-            accumulator_names=accumulator_names,
-        )
     return False
 
 
@@ -293,38 +415,6 @@ _UNCONDITIONAL_PATH_TERMINATORS = (
 )
 
 
-def _update_accumulator_provenance(
-    expression: ast.AST,
-    *,
-    call_name: str,
-    value_names: set[str],
-    accumulator_names: set[str],
-) -> None:
-    if not (
-        isinstance(expression, ast.Call)
-        and isinstance(expression.func, ast.Attribute)
-        and isinstance(expression.func.value, ast.Name)
-    ):
-        return
-    receiver_name = expression.func.value.id
-    update_has_provenance = (
-        expression.func.attr == "update"
-        and any(
-            _expression_has_provenance(
-                argument,
-                call_name=call_name,
-                value_names=value_names,
-                accumulator_names=accumulator_names,
-            )
-            for argument in expression.args
-        )
-    )
-    if update_has_provenance:
-        accumulator_names.add(receiver_name)
-    else:
-        accumulator_names.discard(receiver_name)
-
-
 def _named_call_value_reaches_return(
     method: ast.FunctionDef | ast.AsyncFunctionDef,
     *,
@@ -332,8 +422,24 @@ def _named_call_value_reaches_return(
 ) -> bool:
     """Trace one direct call result through a restricted unconditional path."""
 
+    argument_names = {
+        argument.arg
+        for argument in (
+            *method.args.posonlyargs,
+            *method.args.args,
+            *method.args.kwonlyargs,
+        )
+    }
+    if method.args.vararg is not None:
+        argument_names.add(method.args.vararg.arg)
+    if method.args.kwarg is not None:
+        argument_names.add(method.args.kwarg.arg)
+    if call_name in argument_names or any(
+        _statement_binds_name(statement, name=call_name) for statement in method.body
+    ):
+        return False
+
     value_names: set[str] = set()
-    accumulator_names: set[str] = set()
     for statement in method.body:
         if isinstance(statement, _UNCONDITIONAL_PATH_TERMINATORS):
             break
@@ -341,25 +447,17 @@ def _named_call_value_reaches_return(
             value = statement.value
             assigned_names = _assigned_name_targets(statement)
             value_names.difference_update(assigned_names)
-            accumulator_names.difference_update(assigned_names)
             if value is not None and _expression_has_provenance(
                 value,
                 call_name=call_name,
                 value_names=value_names,
-                accumulator_names=accumulator_names,
             ):
                 value_names.update(assigned_names)
         elif isinstance(statement, ast.AugAssign):
             if isinstance(statement.target, ast.Name):
                 value_names.discard(statement.target.id)
-                accumulator_names.discard(statement.target.id)
         elif isinstance(statement, ast.Expr):
-            _update_accumulator_provenance(
-                statement.value,
-                call_name=call_name,
-                value_names=value_names,
-                accumulator_names=accumulator_names,
-            )
+            continue
         elif isinstance(statement, ast.Return):
             value = statement.value
             if value is None:
@@ -368,7 +466,6 @@ def _named_call_value_reaches_return(
                 value,
                 call_name=call_name,
                 value_names=value_names,
-                accumulator_names=accumulator_names,
             )
         else:
             break
@@ -458,8 +555,18 @@ def _python_state_surface(
         tree = ast.parse(source, filename="m6_safe_mount_types_v1.py")
     except SyntaxError as exc:
         raise ValueError(f"cannot parse Python M6 types: {exc.msg}") from exc
+    if _python_module_uses_dynamic_bindings(tree):
+        raise ValueError("Python M6 types use unsupported dynamic bindings")
     state_class = _class_named(tree, name="M6ApplicationStateV1")
     command_class = _class_named(tree, name="GlobalCommandV1")
+    if _python_definition_has_unsupported_decorators(
+        state_class,
+        allowed_names=frozenset({"dataclass"}),
+    ) or _python_definition_has_unsupported_decorators(
+        command_class,
+        allowed_names=frozenset({"dataclass"}),
+    ):
+        raise ValueError("Python M6 types use unsupported class decorators")
     state_root_method = _method_named(state_class, name="_state_root_canonical")
     return (
         _non_derived_state_fields(state_class),
@@ -575,7 +682,7 @@ def _balanced_block(source: str, marker: str, *, label: str) -> str:
     if match is None:
         raise ValueError(f"{label} is missing")
     start = match.start()
-    if source[:start].count("{") != source[:start].count("}"):
+    if not _rust_top_level_at(source, start):
         raise ValueError(f"{label} is not a top-level Rust item")
     item_boundary = max(source.rfind("}", 0, start), source.rfind(";", 0, start))
     item_prefix = source[item_boundary + 1 : start]
@@ -600,6 +707,8 @@ def _rust_struct_fields(source: str, *, name: str) -> tuple[str, ...]:
     state_struct = _balanced_block(source, f"pub struct {name}", label=f"Rust {name} declaration")
     if re.search(r"#\s*\[[^\]]*\bcfg(?:_attr)?\b", state_struct):
         raise ValueError(f"Rust {name} fields are conditionally compiled")
+    if re.search(r"#\s*\[[^\]]*\bserde\b", state_struct):
+        raise ValueError(f"Rust {name} fields use unsupported serialization attributes")
     fields = tuple(_RUST_FIELD_RE.findall(state_struct))
     if not fields:
         raise ValueError(f"Rust {name} has no named fields")
@@ -608,7 +717,30 @@ def _rust_struct_fields(source: str, *, name: str) -> tuple[str, ...]:
     return fields
 
 
-def _rust_call_visible(source: str, *, function_name: str) -> bool:
+def _rust_expression_is_exact_call(expression: str, *, function_name: str) -> bool:
+    stripped = expression.strip()
+    prefix = re.match(rf"{re.escape(function_name)}\s*\(", stripped)
+    if prefix is None:
+        return False
+    opening = stripped.find("(", prefix.start())
+    depth = 0
+    for index in range(opening, len(stripped)):
+        if stripped[index] == "(":
+            depth += 1
+        elif stripped[index] == ")":
+            depth -= 1
+            if depth == 0:
+                return not stripped[index + 1 :].strip()
+    return False
+
+
+def _rust_call_visible(
+    source: str,
+    *,
+    function_name: str,
+    signature: str = "",
+    ambient_source: str = "",
+) -> bool:
     top_level: list[str] = []
     brace_depth = 0
     for character in source:
@@ -621,11 +753,40 @@ def _rust_call_visible(source: str, *, function_name: str) -> bool:
         else:
             top_level.append(character if brace_depth == 0 else ("\n" if character == "\n" else " "))
     direct_source = "".join(top_level)
-    exact_call = rf"(?<![A-Za-z0-9_]){re.escape(function_name)}\s*\("
-    if re.search(rf"\breturn\s+{exact_call}", direct_source):
-        return True
+    escaped_name = re.escape(function_name)
+    if ambient_source and re.search(
+        rf"(?<![A-Za-z0-9_])(?:fn|const|static)\s+{escaped_name}\b|"
+        rf"\buse\s+[^;]*\b{escaped_name}\b",
+        ambient_source,
+    ):
+        return False
+    if re.search(
+        rf"(?:\blet\s+(?:mut\s+)?|\bfn\s+|\bconst\s+|\bstatic\s+)"
+        rf"{escaped_name}\b|\buse\s+[^;]*\b{escaped_name}\b|"
+        rf"\b(?:fn|const|static)\s+{escaped_name}\b",
+        direct_source,
+    ):
+        return False
+    parameter_list = re.search(r"\((.*)\)", signature, flags=re.DOTALL)
+    if parameter_list is not None and re.search(
+        rf"\b{escaped_name}\b",
+        parameter_list.group(1),
+    ):
+        return False
+    for returned in re.finditer(r"\breturn\s+([^;]+);", direct_source):
+        if _rust_expression_is_exact_call(
+            returned.group(1),
+            function_name=function_name,
+        ):
+            return True
     tail_expression = direct_source.rsplit(";", 1)[-1].strip()
-    return bool(tail_expression and re.match(exact_call, tail_expression))
+    return bool(
+        tail_expression
+        and _rust_expression_is_exact_call(
+            tail_expression,
+            function_name=function_name,
+        )
+    )
 
 
 def _rust_public_function_visible(source: str, *, function_name: str) -> bool:
@@ -635,11 +796,26 @@ def _rust_public_function_visible(source: str, *, function_name: str) -> bool:
     )
     if match is None:
         return False
-    if source[: match.start()].count("{") != source[: match.start()].count("}"):
+    if not _rust_top_level_at(source, match.start()):
         return False
     item_boundary = max(source.rfind("}", 0, match.start()), source.rfind(";", 0, match.start()))
     item_prefix = source[item_boundary + 1 : match.start()]
     return re.search(r"#\s*\[[^\]]*\bcfg(?:_attr)?\b", item_prefix) is None
+
+
+def _rust_top_level_at(source: str, index: int) -> bool:
+    """Reject declarations nested in blocks or macro-token delimiters."""
+
+    pairs = {"}": "{", ")": "(", "]": "["}
+    openings = set(pairs.values())
+    stack: list[str] = []
+    for character in source[:index]:
+        if character in openings:
+            stack.append(character)
+        elif character in pairs:
+            if not stack or stack.pop() != pairs[character]:
+                return False
+    return not stack
 
 
 def _rust_state_surface(source: str) -> tuple[tuple[str, ...], tuple[str, ...], bool, bool, bool]:
@@ -658,12 +834,20 @@ def _rust_state_surface(source: str) -> tuple[tuple[str, ...], tuple[str, ...], 
         "pub fn state_root",
         label="Rust M6ApplicationStateV1.state_root",
     )
+    state_root_marker = implementation.find("pub fn state_root")
+    state_root_body = implementation.find("{", state_root_marker)
+    state_root_signature = implementation[state_root_marker:state_root_body]
     if re.search(r"#\s*\[[^\]]*\bcfg(?:_attr)?\b", state_root):
         raise ValueError("Rust M6ApplicationStateV1.state_root is conditionally compiled")
     return (
         fields,
         command_fields,
-        _rust_call_visible(state_root, function_name=_RUST_CANONICAL_CODEC_FUNCTION),
+        _rust_call_visible(
+            state_root,
+            function_name=_RUST_CANONICAL_CODEC_FUNCTION,
+            signature=state_root_signature,
+            ambient_source=code_only_source[: code_only_source.find("impl M6ApplicationStateV1")],
+        ),
         _rust_call_visible(state_root, function_name=_RUST_POSTCARD_CODEC_FUNCTION),
         _rust_public_function_visible(
             code_only_source,
@@ -869,11 +1053,11 @@ def inspect_m6_risc0_semantic_surface(
 ) -> dict[str, object]:
     """Inspect explicit source paths without assigning any execution authority."""
 
-    python_source, python_error = _read_source_or_error(
+    python_source, python_bytes, python_error = _read_source_or_error(
         python_types_path,
         label="Python M6 types",
     )
-    rust_source, rust_error = _read_source_or_error(
+    rust_source, rust_bytes, rust_error = _read_source_or_error(
         rust_core_path,
         label="Rust M6 core",
     )
@@ -885,10 +1069,10 @@ def inspect_m6_risc0_semantic_surface(
     )
     report = _report_from_inspection(inspection)
     report["python_source_sha256"] = (
-        None if python_error is not None else hashlib.sha256(python_source.encode("utf-8")).hexdigest()
+        None if python_bytes is None else hashlib.sha256(python_bytes).hexdigest()
     )
     report["rust_source_sha256"] = (
-        None if rust_error is not None else hashlib.sha256(rust_source.encode("utf-8")).hexdigest()
+        None if rust_bytes is None else hashlib.sha256(rust_bytes).hexdigest()
     )
     return report
 
@@ -898,12 +1082,38 @@ def check_m6_risc0_semantic_surface(root: Path = REPO_ROOT) -> dict[str, object]
 
     root = root.resolve()
     python_relative = Path("src/core/m6_safe_mount_types_v1.py")
+    python_transition_relative = Path("src/core/m6_safe_mount_transition_v1.py")
     rust_relative = Path("zk/recursive_stark_v2_risc0/shared/src/m6_core_v1.rs")
+    rust_shared_lib_relative = Path("zk/recursive_stark_v2_risc0/shared/src/lib.rs")
+    rust_shared_cargo_relative = Path("zk/recursive_stark_v2_risc0/shared/Cargo.toml")
+    rust_guest_relative = Path("zk/recursive_stark_v2_risc0/methods/aggregate_v2/src/main.rs")
+    rust_methods_cargo_relative = Path(
+        "zk/recursive_stark_v2_risc0/methods/aggregate_v2/Cargo.toml"
+    )
     checker_relative = Path("tools/check_m6_risc0_semantic_surface_v1.py")
+    source_paths = {
+        "python": python_relative,
+        "python_transition": python_transition_relative,
+        "rust": rust_relative,
+        "rust_shared_lib": rust_shared_lib_relative,
+        "rust_shared_cargo": rust_shared_cargo_relative,
+        "rust_guest": rust_guest_relative,
+        "rust_methods_cargo": rust_methods_cargo_relative,
+        "checker": checker_relative,
+    }
     report = inspect_m6_risc0_semantic_surface(
         root / python_relative,
         root / rust_relative,
     )
+    report["risc0_guest_transition_reachable"] = _risc0_guest_calls_m6_transition(
+        root / rust_guest_relative,
+        root / rust_methods_cargo_relative,
+    )
+    if not report["risc0_guest_transition_reachable"]:
+        errors = report.get("errors")
+        if isinstance(errors, list):
+            errors.append("selected RISC0 guest does not call the shared M6 transition")
+        report["status"] = "BLOCKED_SEMANTIC_SURFACE"
     report["git_head"] = _git_output(root, "rev-parse", "HEAD")
     scoped_status = _git_output(
         root,
@@ -911,34 +1121,19 @@ def check_m6_risc0_semantic_surface(root: Path = REPO_ROOT) -> dict[str, object]
         "--porcelain=v1",
         "--untracked-files=all",
         "--",
-        python_relative.as_posix(),
-        rust_relative.as_posix(),
-        checker_relative.as_posix(),
+        *(path.as_posix() for path in source_paths.values()),
     )
     source_tracked = {
-        "python": _git_success(
+        name: _git_success(
             root,
             "ls-files",
             "--error-unmatch",
-            python_relative.as_posix(),
-        ),
-        "rust": _git_success(
-            root,
-            "ls-files",
-            "--error-unmatch",
-            rust_relative.as_posix(),
-        ),
-        "checker": _git_success(
-            root,
-            "ls-files",
-            "--error-unmatch",
-            checker_relative.as_posix(),
-        ),
+            path.as_posix(),
+        )
+        for name, path in source_paths.items()
     }
     report["source_paths"] = {
-        "python": python_relative.as_posix(),
-        "rust": rust_relative.as_posix(),
-        "checker": checker_relative.as_posix(),
+        name: path.as_posix() for name, path in source_paths.items()
     }
     try:
         checker_bytes = (root / checker_relative).read_bytes()
@@ -946,11 +1141,98 @@ def check_m6_risc0_semantic_surface(root: Path = REPO_ROOT) -> dict[str, object]
         report["checker_source_sha256"] = None
     else:
         report["checker_source_sha256"] = hashlib.sha256(checker_bytes).hexdigest()
+    try:
+        executing_checker_bytes = Path(__file__).resolve().read_bytes()
+    except OSError:
+        report["executing_checker_source_sha256"] = None
+    else:
+        report["executing_checker_source_sha256"] = hashlib.sha256(
+            executing_checker_bytes
+        ).hexdigest()
+    report["checker_subject_matches_executing"] = (
+        report["checker_source_sha256"] is not None
+        and report["checker_source_sha256"]
+        == report["executing_checker_source_sha256"]
+    )
+    if not report["checker_subject_matches_executing"]:
+        errors = report.get("errors")
+        if isinstance(errors, list):
+            errors.append("subject checker source differs from executing checker")
+        report["status"] = "BLOCKED_SEMANTIC_SURFACE"
     report["source_tracked"] = source_tracked
     report["scoped_worktree_clean"] = (
         scoped_status == "" and all(source_tracked.values())
     )
     return report
+
+
+def _risc0_guest_calls_m6_transition(guest_path: Path, cargo_path: Path) -> bool:
+    """Require an exact dependency and a direct call in selected ``main``."""
+
+    guest_source, _guest_bytes, guest_error = _read_source_or_error(
+        guest_path,
+        label="RISC0 guest",
+    )
+    cargo_source, _cargo_bytes, cargo_error = _read_source_or_error(
+        cargo_path,
+        label="RISC0 methods Cargo manifest",
+    )
+    if guest_error is not None or cargo_error is not None:
+        return False
+    try:
+        code = _rust_code_only(guest_source)
+        cargo = tomllib.loads(cargo_source)
+    except (ValueError, tomllib.TOMLDecodeError):
+        return False
+    dependencies = cargo.get("dependencies")
+    if not isinstance(dependencies, dict):
+        return False
+    dependency = dependencies.get("tau-state-proof-risc0-shared-v2")
+    if not isinstance(dependency, (str, dict)):
+        return False
+    try:
+        main_body = _balanced_block(code, "pub fn main()", label="selected RISC0 guest main")
+    except ValueError:
+        return False
+    if re.search(r"#\s*\[[^\]]*\bcfg(?:_attr)?\b", main_body):
+        return False
+    return _rust_direct_call_in_executable_main(
+        main_body,
+        function_name="run_m6_transition_v1",
+    )
+
+
+def _rust_direct_call_in_executable_main(source: str, *, function_name: str) -> bool:
+    """Accept only a direct top-statement call in the selected entrypoint."""
+
+    escaped = re.escape(function_name)
+    if re.search(r"\b(?:macro_rules|fn|const|static)\s+" + escaped + r"\b", source):
+        return False
+    for match in re.finditer(r"(?<![A-Za-z0-9_])" + escaped + r"\s*\(", source):
+        prefix = source[: match.start()]
+        if _rust_delimiter_depths(prefix) != (0, 0, 0):
+            continue
+        statement = prefix.rsplit(";", 1)[-1]
+        if re.search(r"(?:\bmove\s*)?\|[^|]*\|", statement):
+            continue
+        if re.search(r"\b(?:if|while|for|loop|match)\b", statement):
+            continue
+        return True
+    return False
+
+
+def _rust_delimiter_depths(source: str) -> tuple[int, int, int]:
+    """Return nonnegative curly, parenthesis, and bracket depths."""
+
+    depths = [0, 0, 0]
+    indices = {"{": (0, 1), "}": (0, -1), "(": (1, 1), ")": (1, -1), "[": (2, 1), "]": (2, -1)}
+    for character in source:
+        update = indices.get(character)
+        if update is None:
+            continue
+        index, delta = update
+        depths[index] = max(0, depths[index] + delta)
+    return depths[0], depths[1], depths[2]
 
 
 def _git_output(root: Path, *arguments: str) -> str | None:
@@ -1001,6 +1283,8 @@ def _markdown_report(report: Mapping[str, object]) -> str:
         f"- Python source SHA-256: `{report.get('python_source_sha256')}`",
         f"- Rust source SHA-256: `{report.get('rust_source_sha256')}`",
         f"- Checker source SHA-256: `{report.get('checker_source_sha256')}`",
+        f"- Executing checker SHA-256: `{report.get('executing_checker_source_sha256')}`",
+        f"- RISC0 guest transition reachable: `{report.get('risc0_guest_transition_reachable')}`",
         "",
         "## Blockers",
         "",

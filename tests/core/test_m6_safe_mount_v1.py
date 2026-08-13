@@ -85,7 +85,11 @@ from src.core.m6_zrpf_v1 import (
     _issue_m6_zrpf_verification_receipt_v1,
     verify_zrpf_structure_v1,
 )
-from src.integration.m6_commit_port_v1 import CommitStatusV1, M6CommitPortV1
+from src.integration.m6_commit_port_v1 import (
+    CommitStatusV1,
+    M6CommitPortV1,
+    M6FinalityVerificationRequestV1,
+)
 
 
 def _root(value: int) -> str:
@@ -1129,6 +1133,90 @@ def test_untyped_context_reaches_only_a_no_commit_reject(
     assert state.get_nonce("alice") == 0
 
 
+def test_mutated_authenticated_context_witness_is_typed_no_commit(
+    subject: M6PromotionSubjectV1,
+) -> None:
+    """RIPR: a stale authentication witness cannot authorize changed claims."""
+
+    state = _state(subject, alice_atoms=3)
+    command = _command(
+        GlobalCommandKindV1.TAU_WITHDRAWAL,
+        1,
+        withdrawal_id="stale-context",
+        asset="A",
+        amount_atoms=2,
+        destination="tau-alice",
+    )
+    context = _context(subject, state, 1)
+    before = (
+        state.state_root,
+        state.ingress_nonces,
+        state.history,
+        state.nullifiers,
+        state.outbox,
+    )
+    object.__setattr__(context, "ledger_height", context.ledger_height + 1)
+
+    result = run_m6_transition_v1(subject, state, context, command)
+
+    assert result == RejectNoCommitV1(
+        reason=AdmissionRejectReasonV1.UNAUTHENTICATED_CONTEXT,
+        pre_state_root=before[0],
+    )
+    assert result.command_hash is None
+    assert (
+        state.state_root,
+        state.ingress_nonces,
+        state.history,
+        state.nullifiers,
+        state.outbox,
+    ) == before
+
+
+def test_command_subclass_reaches_typed_no_commit_without_executing_provider_hook(
+    subject: M6PromotionSubjectV1,
+) -> None:
+    """RIPR: the functional core consumes only exact data-owned commands."""
+
+    state = _state(subject, alice_atoms=10)
+    base = _command(
+        GlobalCommandKindV1.TAU_WITHDRAWAL,
+        1,
+        withdrawal_id="hostile-command",
+        asset="A",
+        amount_atoms=1,
+        destination="tau-alice",
+    )
+    hooks: list[str] = []
+
+    class HostileCommand(GlobalCommandV1):
+        def payload_value(self, key: str, default=None):
+            hooks.append(key)
+            raise RuntimeError("PRIVATE_COMMAND_HOOK")
+
+    hostile = HostileCommand(
+        kind=base.kind,
+        command_id=base.command_id,
+        sender=base.sender,
+        nonce=base.nonce,
+        payload=base.payload,
+        created_height=base.created_height,
+    )
+
+    rejected = run_m6_transition_v1(
+        subject,
+        state,
+        _context(subject, state, 1),
+        hostile,
+    )
+
+    assert isinstance(rejected, RejectNoCommitV1)
+    assert rejected.reason is AdmissionRejectReasonV1.MALFORMED_COMMAND
+    assert rejected.pre_state_root == state.state_root
+    assert rejected.command_hash is None
+    assert hooks == []
+
+
 def test_zero_economic_atoms_are_not_representable() -> None:
     with pytest.raises(ValueError, match="economic atom amount must be positive"):
         EconomicAtomV1(EconomicAtomKindV1.BALANCE, "alice", "A", "ledger", 0)
@@ -1631,7 +1719,7 @@ def test_zusd_repay_remains_available_for_stale_oracle_recovery(
     assert repaid.post_state.get_atom(EconomicAtomKindV1.DEBT, "alice", "debt:recovery-vault", "liability") == 0
 
 
-@pytest.mark.parametrize("age", (0, 2, 3))
+@pytest.mark.parametrize("age", (0, 1, 2, 3))
 def test_command_freshness_boundary_is_closed_and_no_commit_is_pure(
     subject: M6PromotionSubjectV1,
     age: int,
@@ -1670,7 +1758,7 @@ def test_command_freshness_boundary_is_closed_and_no_commit_is_pure(
         assert state.get_nonce("alice") == 0
 
 
-@pytest.mark.parametrize("age", (0, 2, 3))
+@pytest.mark.parametrize("age", (0, 1, 2, 3))
 def test_tau_evidence_freshness_boundary_is_closed_and_no_commit_is_pure(
     subject: M6PromotionSubjectV1,
     age: int,
@@ -2278,51 +2366,396 @@ def test_sealed_bid_commit_rejects_when_deadline_is_not_bound_to_context_height(
     assert result.post_state.seller_auction_bids == ()
 
 
-def test_sealed_bid_cancel_refunds_commit_escrow_before_reveal_deadline(
+@pytest.mark.parametrize(
+    ("kind", "identity_field", "identity"),
+    (
+        (GlobalCommandKindV1.SELLER_AUCTION_COMMIT, "auction_id", "auction-shared-cutoff"),
+        (GlobalCommandKindV1.PRIVATE_SWAP_COMMIT, "batch_id", "batch-shared-cutoff"),
+    ),
+)
+def test_commit_reveal_lifecycle_rejects_a_late_participant_without_effect(
     subject: M6PromotionSubjectV1,
+    kind: GlobalCommandKindV1,
+    identity_field: str,
+    identity: str,
 ) -> None:
+    # Arrange: Alice establishes the lifecycle profile at height 10.
+    state = replace(
+        initial_application_state_v1(subject),
+        economic_atoms=tuple(
+            sorted(
+                (
+                    EconomicAtomV1(EconomicAtomKindV1.BALANCE, "alice", "USD", "ledger", 10),
+                    EconomicAtomV1(EconomicAtomKindV1.BALANCE, "bob", "USD", "ledger", 10),
+                ),
+                key=lambda atom: atom.key,
+            )
+        ),
+    )
+    first_command = _command_for(
+        kind,
+        "alice",
+        1,
+        2_121,
+        **{
+            identity_field: identity,
+            "bond_asset": "USD",
+            "bond_atoms": 5,
+            "commitment": _root(2_122),
+            "created_height": 10,
+            "commit_height": 10,
+            "reveal_deadline_height": 20,
+            "settle_deadline_height": 30,
+        },
+    )
+    first = run_m6_transition_v1(
+        subject,
+        state,
+        _context_for(subject, state, "alice", 1, 10),
+        first_command,
+    )
+    assert isinstance(first, AcceptCandidateV1)
+    assert first.business_status is BusinessStatusV1.ACCEPTED
+
+    # Act: Bob attempts to join the same lifecycle with a later commit height.
+    late_command = _command_for(
+        kind,
+        "bob",
+        1,
+        2_123,
+        **{
+            identity_field: identity,
+            "bond_asset": "USD",
+            "bond_atoms": 5,
+            "commitment": _root(2_124),
+            "created_height": 11,
+            "commit_height": 11,
+            "reveal_deadline_height": 20,
+            "settle_deadline_height": 30,
+        },
+    )
+    late_context = _context_for(subject, first.post_state, "bob", 1, 11)
+    late = run_m6_transition_v1(subject, first.post_state, late_context, late_command)
+
+    # Assert: the ingress occurrence is consumed, while custody and lifecycle
+    # state remain exactly unchanged.
+    _assert_committed_rejection_contract_v1(
+        first.post_state,
+        late_context,
+        late_command,
+        late,
+        BusinessRejectReasonV1.INVALID_DEADLINE,
+    )
+
+
+@pytest.mark.parametrize(
+    ("kind", "identity_field", "identity", "reveal_height", "accepted"),
+    tuple(
+        (kind, identity_field, identity, reveal_height, accepted)
+        for kind, identity_field, identity in (
+            (GlobalCommandKindV1.SELLER_AUCTION_COMMIT, "auction_id", "auction-reveal-bva"),
+            (GlobalCommandKindV1.PRIVATE_SWAP_COMMIT, "batch_id", "batch-reveal-bva"),
+        )
+        for reveal_height, accepted in ((10, False), (11, True), (20, True), (21, False))
+    ),
+)
+def test_commit_reveal_lifecycle_enforces_open_closed_reveal_boundaries(
+    subject: M6PromotionSubjectV1,
+    kind: GlobalCommandKindV1,
+    identity_field: str,
+    identity: str,
+    reveal_height: int,
+    accepted: bool,
+) -> None:
+    # Arrange: one bonded commitment has the lifecycle 10 < reveal <= 20.
     state = replace(
         initial_application_state_v1(subject),
         economic_atoms=(
             EconomicAtomV1(EconomicAtomKindV1.BALANCE, "alice", "USD", "ledger", 10),
         ),
     )
+    if kind is GlobalCommandKindV1.SELLER_AUCTION_COMMIT:
+        commitment = _seller_reveal_commitment(identity, "alice", "ITEM", 2, 125_000_000, 7)
+        reveal_kind = GlobalCommandKindV1.SELLER_AUCTION_REVEAL
+        reveal_payload: dict[str, str | int] = {
+            identity_field: identity,
+            "inventory_asset": "ITEM",
+            "quantity_atoms": 2,
+            "price_e8": 125_000_000,
+            "nonce": 7,
+        }
+    else:
+        commitment = _private_reveal_commitment(identity, "alice", "A", 2, "B", 3, 7)
+        reveal_kind = GlobalCommandKindV1.PRIVATE_SWAP_REVEAL
+        reveal_payload = {
+            identity_field: identity,
+            "asset_in": "A",
+            "amount_in_atoms": 2,
+            "asset_out": "B",
+            "amount_out_atoms": 3,
+            "nonce": 7,
+        }
     commit = _command_for(
-        GlobalCommandKindV1.SELLER_AUCTION_COMMIT,
+        kind,
         "alice",
         1,
-        2_121,
-        auction_id="auction-cancel",
-        bond_asset="USD",
-        bond_atoms=5,
-        commitment=_root(2_122),
-        created_height=10,
-        commit_height=10,
-        reveal_deadline_height=20,
-        settle_deadline_height=30,
+        2_125,
+        **{
+            identity_field: identity,
+            "bond_asset": "USD",
+            "bond_atoms": 5,
+            "commitment": commitment,
+            "created_height": 10,
+            "commit_height": 10,
+            "reveal_deadline_height": 20,
+            "settle_deadline_height": 30,
+        },
     )
     committed = run_m6_transition_v1(subject, state, _context_for(subject, state, "alice", 1, 10), commit)
     assert isinstance(committed, AcceptCandidateV1)
-    cancel = _command_for(
-        GlobalCommandKindV1.SELLER_AUCTION_CANCEL,
+    assert committed.business_status is BusinessStatusV1.ACCEPTED
+
+    # Act: reveal at the lower neighbor, first valid height, deadline, or upper neighbor.
+    reveal = _command_for(
+        reveal_kind,
         "alice",
         2,
-        2_123,
-        auction_id="auction-cancel",
-        commitment=_root(2_122),
-        created_height=15,
+        2_126,
+        **reveal_payload,
+        created_height=reveal_height,
     )
-    cancelled = run_m6_transition_v1(
+    reveal_context = _context_for(subject, committed.post_state, "alice", 2, reveal_height)
+    result = run_m6_transition_v1(
         subject,
         committed.post_state,
-        _context_for(subject, committed.post_state, "alice", 2, 15),
-        cancel,
+        reveal_context,
+        reveal,
     )
-    assert isinstance(cancelled, AcceptCandidateV1)
-    assert cancelled.post_state.get_atom(EconomicAtomKindV1.BALANCE, "alice", "USD", "ledger") == 10
-    assert cancelled.post_state.get_atom(EconomicAtomKindV1.PROTOCOL_RESERVE, "protocol", "USD", "reserve") == 0
-    assert cancelled.post_state.seller_auction_bids[0].phase.value == "cancelled"
-    assert cancelled.post_state.escrows[0].amount_atoms == 0
+
+    # Assert: the valid interval is open at commit height and closed at the reveal deadline.
+    if accepted:
+        assert isinstance(result, AcceptCandidateV1)
+        assert result.business_status is BusinessStatusV1.ACCEPTED
+        rows = (
+            result.post_state.seller_auction_bids
+            if kind is GlobalCommandKindV1.SELLER_AUCTION_COMMIT
+            else result.post_state.private_swap_participants
+        )
+        assert rows[0].phase.value == "reveal"
+    else:
+        _assert_committed_rejection_contract_v1(
+            committed.post_state,
+            reveal_context,
+            reveal,
+            result,
+            BusinessRejectReasonV1.INVALID_DEADLINE,
+        )
+
+
+@pytest.mark.parametrize(
+    ("commit_kind", "cancel_kind", "identity_field", "identity", "cancel_height", "accepted"),
+    tuple(
+        (*case, cancel_height, accepted)
+        for case in (
+            (
+                GlobalCommandKindV1.SELLER_AUCTION_COMMIT,
+                GlobalCommandKindV1.SELLER_AUCTION_CANCEL,
+                "auction_id",
+                "auction-cancel-cutoff",
+            ),
+            (
+                GlobalCommandKindV1.PRIVATE_SWAP_COMMIT,
+                GlobalCommandKindV1.PRIVATE_SWAP_CANCEL,
+                "batch_id",
+                "batch-cancel-cutoff",
+            ),
+        )
+        for cancel_height, accepted in ((9, False), (10, True), (11, False))
+    ),
+)
+def test_commit_reveal_cancel_is_refundable_only_at_the_commit_cutoff(
+    subject: M6PromotionSubjectV1,
+    commit_kind: GlobalCommandKindV1,
+    cancel_kind: GlobalCommandKindV1,
+    identity_field: str,
+    identity: str,
+    cancel_height: int,
+    accepted: bool,
+) -> None:
+    # Arrange: Alice escrows a five-atom bond at the shared commit cutoff.
+    state = replace(
+        initial_application_state_v1(subject),
+        economic_atoms=(
+            EconomicAtomV1(EconomicAtomKindV1.BALANCE, "alice", "USD", "ledger", 10),
+        ),
+    )
+    commitment = _root(2_127)
+    commit = _command_for(
+        commit_kind,
+        "alice",
+        1,
+        2_128,
+        **{
+            identity_field: identity,
+            "bond_asset": "USD",
+            "bond_atoms": 5,
+            "commitment": commitment,
+            "created_height": 10,
+            "commit_height": 10,
+            "reveal_deadline_height": 20,
+            "settle_deadline_height": 30,
+        },
+    )
+    committed = run_m6_transition_v1(
+        subject,
+        state,
+        _context_for(subject, state, "alice", 1, 10),
+        commit,
+    )
+    assert isinstance(committed, AcceptCandidateV1)
+    assert committed.business_status is BusinessStatusV1.ACCEPTED
+
+    # Act: cancel at the cutoff or either immediate neighbor.
+    cancel = _command_for(
+        cancel_kind,
+        "alice",
+        2,
+        2_129,
+        **{
+            identity_field: identity,
+            "commitment": commitment,
+            "created_height": cancel_height,
+        },
+    )
+    cancel_context = _context_for(subject, committed.post_state, "alice", 2, cancel_height)
+    result = run_m6_transition_v1(subject, committed.post_state, cancel_context, cancel)
+
+    # Assert: cancellation at the cutoff refunds; an off-cutoff context cannot
+    # remove the non-reveal bond obligation.
+    if accepted:
+        assert isinstance(result, AcceptCandidateV1)
+        assert result.business_status is BusinessStatusV1.ACCEPTED
+        assert result.post_state.get_atom(EconomicAtomKindV1.BALANCE, "alice", "USD", "ledger") == 10
+        assert result.post_state.get_atom(
+            EconomicAtomKindV1.PROTOCOL_RESERVE,
+            "protocol",
+            "USD",
+            "reserve",
+        ) == 0
+        rows = (
+            result.post_state.seller_auction_bids
+            if commit_kind is GlobalCommandKindV1.SELLER_AUCTION_COMMIT
+            else result.post_state.private_swap_participants
+        )
+        assert rows[0].phase.value == "cancelled"
+        assert result.post_state.escrows[0].amount_atoms == 0
+    else:
+        _assert_committed_rejection_contract_v1(
+            committed.post_state,
+            cancel_context,
+            cancel,
+            result,
+            BusinessRejectReasonV1.INVALID_DEADLINE,
+        )
+
+
+@pytest.mark.parametrize(
+    ("kind", "identity_field", "registry_field", "first_identity", "second_identity"),
+    (
+        (
+            GlobalCommandKindV1.SELLER_AUCTION_COMMIT,
+            "auction_id",
+            "seller_auction_bids",
+            "auction-profile-a",
+            "auction-profile-b",
+        ),
+        (
+            GlobalCommandKindV1.PRIVATE_SWAP_COMMIT,
+            "batch_id",
+            "private_swap_participants",
+            "batch-profile-a",
+            "batch-profile-b",
+        ),
+    ),
+)
+def test_commit_reveal_state_rejects_mixed_commit_heights_in_one_lifecycle(
+    subject: M6PromotionSubjectV1,
+    kind: GlobalCommandKindV1,
+    identity_field: str,
+    registry_field: str,
+    first_identity: str,
+    second_identity: str,
+) -> None:
+    # Arrange: create two individually valid commitments in separate lifecycles.
+    state = replace(
+        initial_application_state_v1(subject),
+        economic_atoms=tuple(
+            sorted(
+                (
+                    EconomicAtomV1(EconomicAtomKindV1.BALANCE, "alice", "USD", "ledger", 10),
+                    EconomicAtomV1(EconomicAtomKindV1.BALANCE, "bob", "USD", "ledger", 10),
+                ),
+                key=lambda atom: atom.key,
+            )
+        ),
+    )
+    first_command = _command_for(
+        kind,
+        "alice",
+        1,
+        2_130,
+        **{
+            identity_field: first_identity,
+            "bond_asset": "USD",
+            "bond_atoms": 5,
+            "commitment": _root(2_131),
+            "created_height": 10,
+            "commit_height": 10,
+            "reveal_deadline_height": 20,
+            "settle_deadline_height": 30,
+        },
+    )
+    first = run_m6_transition_v1(
+        subject,
+        state,
+        _context_for(subject, state, "alice", 1, 10),
+        first_command,
+    )
+    assert isinstance(first, AcceptCandidateV1)
+    second_command = _command_for(
+        kind,
+        "bob",
+        1,
+        2_132,
+        **{
+            identity_field: second_identity,
+            "bond_asset": "USD",
+            "bond_atoms": 5,
+            "commitment": _root(2_133),
+            "created_height": 11,
+            "commit_height": 11,
+            "reveal_deadline_height": 20,
+            "settle_deadline_height": 30,
+        },
+    )
+    second = run_m6_transition_v1(
+        subject,
+        first.post_state,
+        _context_for(subject, first.post_state, "bob", 1, 11),
+        second_command,
+    )
+    assert isinstance(second, AcceptCandidateV1)
+    rows = list(getattr(second.post_state, registry_field))
+    second_index = next(index for index, row in enumerate(rows) if row.commit_height == 11)
+    rows[second_index] = replace(rows[second_index], **{identity_field: first_identity})
+
+    # Act/Assert: the typed state constructor rejects a lifecycle assembled
+    # from two different commit cutoffs.
+    with pytest.raises(ValueError, match="inconsistent settlement profile"):
+        replace(
+            second.post_state,
+            **{registry_field: tuple(sorted(rows, key=lambda row: row.key))},
+        )
 
 
 def test_sealed_bid_state_rejects_missing_lifecycle_escrow_binding(
@@ -2593,6 +3026,67 @@ def test_context_reject_is_exact_no_op(subject: M6PromotionSubjectV1) -> None:
     result = run_m6_transition_v1(subject, state, stale_context, command)
     assert isinstance(result, RejectNoCommitV1)
     assert result.reason is AdmissionRejectReasonV1.CONTEXT_PARENT_HEAD_MISMATCH
+    assert result.pre_state_root == state.state_root
+    assert state.get_nonce("alice") == 0
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_reason"),
+    (
+        ("parent_and_epoch", AdmissionRejectReasonV1.CONTEXT_PARENT_HEAD_MISMATCH),
+        ("sender_and_nonce", AdmissionRejectReasonV1.SENDER_MISMATCH),
+        ("command_and_oracle_stale", AdmissionRejectReasonV1.STALE_COMMAND_CONTEXT),
+    ),
+)
+def test_admission_rejection_precedence_is_closed_for_pairwise_invalid_inputs(
+    subject: M6PromotionSubjectV1,
+    mutation: str,
+    expected_reason: AdmissionRejectReasonV1,
+) -> None:
+    """RIPR decision table: earlier invalid coordinates own reject identity."""
+
+    state = _state(subject, alice_atoms=5)
+    command = replace(
+        _command(
+            GlobalCommandKindV1.ZUSD_BORROW,
+            1,
+            collateral_asset="A",
+            collateral_atoms=1,
+            amount_atoms=1,
+            vault_id="precedence-vault",
+        ),
+        created_height=7,
+    )
+    if mutation == "parent_and_epoch":
+        context = verify_authenticated_execution_context_v1(
+            deployment=subject.deployment,
+            chain_id=subject.chain_id,
+            parent_head=_root(991),
+            epoch=state.writer_epoch + 1,
+            sender="alice",
+            nonce=1,
+            oracle_context=OracleContextV1(_root(100), observed_height=0, oracle_height=0),
+            tau_profile=subject.tau_profile,
+            verifier_registry=subject.verifier,
+            freshness_bounds=FreshnessBoundsV1(2, 2, 2),
+            verifier=_TEST_EXECUTION_CONTEXT_VERIFIER,
+        )
+    elif mutation == "sender_and_nonce":
+        context = _context(subject, state, 2, sender="mallory")
+    else:
+        context = _context(
+            subject,
+            state,
+            1,
+            ledger_height=10,
+            oracle_age=3,
+            freshness_bounds=FreshnessBoundsV1(2, 2, 2),
+        )
+
+    result = run_m6_transition_v1(subject, state, context, command)
+
+    assert isinstance(result, RejectNoCommitV1)
+    assert result.reason is expected_reason
     assert result.pre_state_root == state.state_root
     assert state.get_nonce("alice") == 0
 
@@ -3375,13 +3869,12 @@ def _finality_receipt(
 class _TestFinalityVerifier:
     """Research fixture for the external finality-verifier port."""
 
-    def verify_finality(self, subject: M6PromotionSubjectV1, **kwargs: object):
-        certificate = cast(ZenoLedgerFinalityCertificateV1, kwargs["certificate"])
+    def verify_finality(self, request: M6FinalityVerificationRequestV1):
         return _finality_receipt(
-            subject,
-            certificate,
-            cast(str, kwargs["candidate_parent_head"]),
-            expected_writer_epoch=cast(int, kwargs["expected_writer_epoch"]),
+            request.subject,
+            request.certificate,
+            request.candidate_parent_head,
+            expected_writer_epoch=request.expected_writer_epoch,
         )
 
 
@@ -3568,7 +4061,7 @@ def test_commit_port_converts_finality_backend_failure_to_no_commit(
     """RIPR: an adapter outage cannot escape or partially publish."""
 
     class RaisingFinalityVerifier:
-        def verify_finality(self, _subject: M6PromotionSubjectV1, **_kwargs: object) -> object:
+        def verify_finality(self, _request: M6FinalityVerificationRequestV1) -> object:
             raise backend_error
 
     state = _state(subject, alice_atoms=10)
@@ -3597,6 +4090,109 @@ def test_commit_port_converts_finality_backend_failure_to_no_commit(
     assert result.reason == expected_reason
     assert "credential" not in result.reason
     assert result.state == state
+
+
+def test_commit_port_rejects_subject_and_state_subclasses_before_hooks(
+    subject: M6PromotionSubjectV1,
+) -> None:
+    """RIPR: shell authority begins with exact owned construction inputs."""
+
+    class SubjectSubclass(M6PromotionSubjectV1):
+        pass
+
+    class StateSubclass(M6ApplicationStateV1):
+        pass
+
+    state = _state(subject)
+    subject_subclass = SubjectSubclass(**{field.name: getattr(subject, field.name) for field in fields(subject)})
+    state_subclass = StateSubclass(**{field.name: getattr(state, field.name) for field in fields(state)})
+
+    with pytest.raises(TypeError, match="subject is not the exact owned type"):
+        M6CommitPortV1(subject_subclass, state, _TEST_FINALITY_VERIFIER)
+    with pytest.raises(TypeError, match="initial state is not the exact owned type"):
+        M6CommitPortV1(subject, state_subclass, _TEST_FINALITY_VERIFIER)
+
+
+def test_finality_verifier_cannot_mutate_internal_subject_or_certificate_aliases(
+    subject: M6PromotionSubjectV1,
+) -> None:
+    """RIPR: the imperative callback receives detached authority coordinates."""
+
+    class MutatingVerifier(_TestFinalityVerifier):
+        observed_request: M6FinalityVerificationRequestV1 | None = None
+
+        def verify_finality(self, request: M6FinalityVerificationRequestV1):
+            self.observed_request = request
+            object.__setattr__(request.subject, "source", _root(1200))
+            object.__setattr__(request.certificate, "signature_root", _root(1201))
+            return super().verify_finality(request)
+
+    state = _state(subject, alice_atoms=3)
+    command = _command(
+        GlobalCommandKindV1.TAU_WITHDRAWAL,
+        1,
+        withdrawal_id="detached-finality",
+        asset="A",
+        amount_atoms=1,
+        destination="tau-alice",
+    )
+    candidate = run_m6_transition_v1(subject, state, _context(subject, state, 1), command)
+    assert isinstance(candidate, AcceptCandidateV1)
+    tau = _tau_certificate(subject, candidate, state.head)
+    finality = _finality(
+        subject,
+        candidate.post_state.state_root,
+        candidate.publication_atom.publication_root,
+        0,
+        tau,
+    )
+    verifier = MutatingVerifier()
+    port = M6CommitPortV1(subject, state, verifier)
+    subject_root = subject.subject_root
+    certificate_root = finality.certificate.certificate_root
+
+    result = port.publish(candidate, finality, tau)
+
+    assert result.status is CommitStatusV1.FINALITY_REJECTED
+    assert result.state == state
+    assert verifier.observed_request is not None
+    assert port.subject.subject_root == subject_root
+    assert finality.certificate.certificate_root == certificate_root
+    assert result.record is None
+
+
+def test_commit_result_state_is_detached_from_commit_port_authority(
+    subject: M6PromotionSubjectV1,
+) -> None:
+    """FCIS: caller mutation of a returned projection cannot change the port."""
+
+    state = _state(subject, alice_atoms=3)
+    command = _command(
+        GlobalCommandKindV1.TAU_WITHDRAWAL,
+        1,
+        withdrawal_id="detached-result",
+        asset="A",
+        amount_atoms=1,
+        destination="tau-alice",
+    )
+    candidate = run_m6_transition_v1(subject, state, _context(subject, state, 1), command)
+    assert isinstance(candidate, AcceptCandidateV1)
+    tau = _tau_certificate(subject, candidate, state.head)
+    finality = _finality(
+        subject,
+        candidate.post_state.state_root,
+        candidate.publication_atom.publication_root,
+        0,
+        tau,
+    )
+    port = M6CommitPortV1(subject, state, _TEST_FINALITY_VERIFIER)
+    result = port.publish(candidate, finality, tau)
+    committed_root = port.state.state_root
+
+    object.__setattr__(result.state, "head", ZERO_ROOT_V1)
+
+    assert port.state.state_root == committed_root
+    assert port.state.head == committed_root
 
 
 def test_finality_verifier_rejects_foreign_chain_identity_before_publication(

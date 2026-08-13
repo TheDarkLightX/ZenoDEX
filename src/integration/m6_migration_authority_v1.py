@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from itertools import islice
 from typing import Mapping, Protocol
 
 from ..core.m6_migration_lifecycle_v1 import (
@@ -88,6 +89,10 @@ class M6MigrationWriterMembershipBackendV1(Protocol):
     ) -> Mapping[str, object]: ...
 
 
+class _MembershipProofObservationError(Exception):
+    """An untrusted container hook failed while its value was being copied."""
+
+
 def expected_m6_migration_receipt_body_v1(
     step: M6MigrationStepV1,
     plan: M6MigrationPlanV1,
@@ -155,7 +160,14 @@ def _normalize_membership_proof_value(
     active.add(container_id)
     try:
         if isinstance(value, Mapping):
-            pairs = list(value.items())
+            try:
+                remaining = (
+                    M6_MIGRATION_WRITER_MEMBERSHIP_PROOF_MAX_ITEMS_V1 - counts[1]
+                )
+                keys = list(islice(iter(value), remaining + 1))
+                pairs = [(key, value[key]) for key in keys]
+            except Exception as exc:
+                raise _MembershipProofObservationError from exc
             counts[1] += len(pairs)
             if counts[1] > M6_MIGRATION_WRITER_MEMBERSHIP_PROOF_MAX_ITEMS_V1:
                 raise ValueError("migration writer membership proof exceeds the item limit")
@@ -173,7 +185,7 @@ def _normalize_membership_proof_value(
                     counters=counts,
                 )
             return normalized
-        if isinstance(value, (list, tuple)):
+        if type(value) in (list, tuple):
             counts[1] += len(value)
             if counts[1] > M6_MIGRATION_WRITER_MEMBERSHIP_PROOF_MAX_ITEMS_V1:
                 raise ValueError("migration writer membership proof exceeds the item limit")
@@ -215,17 +227,28 @@ class M6MigrationWriterMembershipProofV1:
 
     @classmethod
     def from_mapping(cls, value: object) -> "M6MigrationWriterMembershipProofV1":
-        if not isinstance(value, Mapping) or not value:
+        if cls is not M6MigrationWriterMembershipProofV1:
+            raise TypeError("membership proof construction requires the exact owned type")
+        if not isinstance(value, Mapping):
             raise TypeError("migration writer membership proof must be a non-empty object")
-        normalized = _normalize_membership_proof_value(value, path="proof")
-        if not isinstance(normalized, dict):
-            raise TypeError("migration writer membership proof must be an object")
-        return cls(canonical_bytes_v1(normalized))
+        try:
+            normalized = _normalize_membership_proof_value(value, path="proof")
+        except _MembershipProofObservationError as exc:
+            raise TypeError(
+                "migration writer membership proof could not be observed"
+            ) from exc
+        if not isinstance(normalized, dict) or not normalized:
+            raise TypeError("migration writer membership proof must be a non-empty object")
+        return M6MigrationWriterMembershipProofV1(canonical_bytes_v1(normalized))
 
     @classmethod
     def from_value(cls, value: object) -> "M6MigrationWriterMembershipProofV1":
-        if isinstance(value, cls):
+        if cls is not M6MigrationWriterMembershipProofV1:
+            raise TypeError("membership proof construction requires the exact owned type")
+        if type(value) is M6MigrationWriterMembershipProofV1:
             return value
+        if isinstance(value, M6MigrationWriterMembershipProofV1):
+            raise TypeError("membership proof must be an exact owned membership proof")
         return cls.from_mapping(value)
 
     def to_mapping(self) -> dict[str, object]:
@@ -534,6 +557,8 @@ def _validated_owned_receipt_root(
         if proof["registry_hash"] != signer_registry.get("registry_hash"):
             raise M6MigrationAuthorityProofRejectedV1("migration authority signer registry mismatch")
         _require_canonical_envelope_order(proof["envelopes"])
+        quorum_report: object = None
+        quorum_rejected = False
         try:
             quorum_report = verify_signature_quorum_v0(
                 registry=signer_registry,
@@ -541,10 +566,12 @@ def _validated_owned_receipt_root(
                 payload_hash=expected_payload_hash,
                 envelopes=proof["envelopes"],
             )
-        except (TypeError, ValueError, RuntimeError) as exc:
+        except (TypeError, ValueError, RuntimeError):
+            quorum_rejected = True
+        if quorum_rejected:
             raise M6MigrationAuthorityProofRejectedV1(
-                f"migration authority signature quorum rejected: {exc}"
-            ) from exc
+                "migration authority signature quorum rejected"
+            )
         if proof["quorum_report"] != quorum_report:
             raise M6MigrationAuthorityProofRejectedV1(
                 "migration authority quorum report binding mismatch"

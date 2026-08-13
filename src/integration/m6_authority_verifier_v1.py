@@ -15,6 +15,7 @@ receipt, a rejected receipt, or any binding mismatch fails closed.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import islice
 from typing import Mapping, Protocol
 
 from src.core.m6_authority_evidence_v1 import (
@@ -81,7 +82,12 @@ def _require_root(value: object, *, name: str, allow_zero: bool = False) -> str:
     return canonical
 
 
-def _snapshot_receipt_mapping(value: object, *, name: str) -> dict[str, object]:
+def _snapshot_receipt_mapping(
+    value: object,
+    *,
+    name: str,
+    max_items: int,
+) -> dict[str, object]:
     """Own one stable observation of an untrusted verifier receipt.
 
     Hostile ``__iter__``, ``keys``, ``__len__``, ``__getitem__``, or
@@ -91,12 +97,19 @@ def _snapshot_receipt_mapping(value: object, *, name: str) -> dict[str, object]:
 
     if not isinstance(value, Mapping):
         raise M6AuthorityProofRejectedV1(f"{name} must be an object")
-    snapshot: dict[str, object] | None = None
     try:
-        snapshot = dict(value)
+        keys = list(islice(iter(value), max_items + 1))
     except Exception:
-        pass
-    if snapshot is None:
+        raise M6AuthorityProofRejectedV1(f"{name} could not be read") from None
+    if len(keys) > max_items:
+        raise M6AuthorityProofRejectedV1("M6 authority receipt binding mismatch")
+    if any(type(key) is not str for key in keys):
+        raise M6AuthorityProofRejectedV1(f"{name} could not be read")
+    try:
+        snapshot = {key: value[key] for key in keys}
+    except Exception:
+        raise M6AuthorityProofRejectedV1(f"{name} could not be read") from None
+    if len(snapshot) != len(keys):
         raise M6AuthorityProofRejectedV1(f"{name} could not be read")
     return snapshot
 
@@ -106,7 +119,11 @@ def _require_receipt(
     *,
     expected: Mapping[str, object],
 ) -> str:
-    actual = _snapshot_receipt_mapping(receipt, name="M6 authority verifier receipt")
+    actual = _snapshot_receipt_mapping(
+        receipt,
+        name="M6 authority verifier receipt",
+        max_items=len(expected) + 1,
+    )
     expected_body = dict(expected)
     expected_hash = hash_v1(M6_AUTHORITY_RECEIPT_HASH_DOMAIN_V1, expected_body)
     bound = {**expected_body, "receipt_hash": expected_hash}

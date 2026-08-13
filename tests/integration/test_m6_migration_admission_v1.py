@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import json
 from collections.abc import Iterator
+from collections.abc import Mapping as MappingABC
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Mapping, cast
@@ -1060,7 +1061,7 @@ def test_given_stateful_signer_registry_when_attacker_view_changes_then_authorit
     with pytest.raises(
         M6MigrationAuthorityProofRejectedV1,
         match="signature quorum rejected",
-    ):
+    ) as caught:
         verifier.verify_step_with_receipt(
             plan,
             _step(plan, M6MigrationStepKindV1.SHADOW_REPLAY, 11),
@@ -1068,6 +1069,9 @@ def test_given_stateful_signer_registry_when_attacker_view_changes_then_authorit
             pre_state_root=state.state_root,
             pre_phase=state.phase,
         )
+    assert str(caught.value) == "migration authority signature quorum rejected"
+    assert caught.value.__cause__ is None
+    assert caught.value.__context__ is None
 
 
 def test_given_migration_backend_exception_when_verifying_then_private_detail_is_not_disclosed(
@@ -1978,6 +1982,99 @@ def test_given_membership_proof_when_caller_mutates_input_then_owned_snapshot_is
     raw_proof["path"]["leaf"] = "tampered"
 
     assert proof.to_mapping() == {"path": {"leaf": "member"}}
+
+
+@pytest.mark.parametrize("failure_type", (RuntimeError, TypeError, ValueError))
+def test_given_membership_mapping_hook_raises_when_authorized_then_stable_reject_hides_detail(
+    failure_type: type[Exception],
+) -> None:
+    """Caller-controlled mapping hooks cannot escape the typed admission boundary."""
+
+    class HostileMembershipMapping(MappingABC[str, object]):
+        def __getitem__(self, _key: str) -> object:
+            raise failure_type("private membership-provider token")
+
+        def __iter__(self) -> Iterator[str]:
+            return iter(("member",))
+
+        def __len__(self) -> int:
+            return 1
+
+    plan = _plan()
+    state = M6MigrationStateV1.initial(plan)
+
+    denied = authorize_m6_migration_writer_v1(
+        state,
+        writer_subject_root=plan.source_subject_root,
+        writer_epoch=plan.source_writer_epoch,
+        allowed_writer_set_root=plan.allowed_writer_set_root,
+        membership_verifier=_writer_membership_verifier(),
+        membership_proof=HostileMembershipMapping(),
+    )
+
+    assert denied.status is M6MigrationWriterAdmissionStatusV1.REJECTED
+    assert denied.reason == "migration writer membership proof could not be observed"
+    assert "private" not in denied.reason
+    assert state == M6MigrationStateV1.initial(plan)
+
+
+def test_given_unbounded_membership_mapping_when_snapshotted_then_observation_stops_at_upper_neighbor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """BVA/RIPR: an untrusted items iterator cannot outrun the item bound."""
+
+    observed = 0
+    monkeypatch.setattr(
+        "src.integration.m6_migration_authority_v1.M6_MIGRATION_WRITER_MEMBERSHIP_PROOF_MAX_ITEMS_V1",
+        3,
+    )
+
+    class UnboundedItemsMapping(MappingABC[str, object]):
+        def __getitem__(self, key: str) -> object:
+            return int(key.removeprefix("key-"))
+
+        def __iter__(self) -> Iterator[str]:
+            nonlocal observed
+            index = 0
+            while True:
+                observed += 1
+                yield f"key-{index}"
+                index += 1
+
+        def __len__(self) -> int:
+            return 1
+
+        def items(self) -> Iterator[tuple[str, object]]:
+            raise AssertionError("custom items hook must not own bounded observation")
+
+    with pytest.raises(ValueError, match="item limit"):
+        M6MigrationWriterMembershipProofV1.from_mapping(UnboundedItemsMapping())
+
+    assert observed == 4
+
+
+def test_given_membership_proof_subclass_when_authorized_then_one_exact_owned_snapshot_is_used() -> None:
+    """An attacker-controlled subtype cannot override proof root or payload."""
+
+    hooks: list[str] = []
+
+    class HostileMembershipProof(M6MigrationWriterMembershipProofV1):
+        @property
+        def proof_root(self) -> str:
+            hooks.append("proof_root")
+            return _root(9_901)
+
+        def to_mapping(self) -> dict[str, object]:
+            hooks.append("to_mapping")
+            return {"forged": True}
+
+    base = M6MigrationWriterMembershipProofV1.from_mapping({"member": True})
+    hostile = HostileMembershipProof(base.canonical_json)
+
+    with pytest.raises(TypeError, match="exact owned membership proof"):
+        M6MigrationWriterMembershipProofV1.from_value(hostile)
+
+    assert hooks == []
 
 
 def test_given_cyclic_membership_proof_when_snapshot_is_created_then_it_is_rejected() -> None:
