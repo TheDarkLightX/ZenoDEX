@@ -29,7 +29,6 @@ from src.core.m6_safe_mount_types_v1 import (
     WithdrawalAcknowledgmentV1,
     hash_v1,
 )
-from src.integration.tau_export_acceptance_retrieval import TauStateProofVerifierV0
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
 M6_AUTHORITY_REQUEST_SCHEMA_V1 = "zenodex/m6/authority-verification-request/v1"
@@ -59,6 +58,16 @@ class M6MigrationVerifierV1(Protocol):
 
     def verify_m6_migration(self, request: Mapping[str, object]) -> Mapping[str, object]:
         """Return one exact M6 authority receipt or a rejection."""
+
+
+class M6TauStateProofVerifierV1(Protocol):
+    """Minimal structural port required by the M6 Tau authority adapter."""
+
+    def verify_tau_state_proof(
+        self,
+        request: Mapping[str, object],
+    ) -> Mapping[str, object]:
+        """Return one exact M6-aware Tau authority receipt or a rejection."""
 
 
 def _require_root(value: object, *, name: str, allow_zero: bool = False) -> str:
@@ -271,7 +280,7 @@ class M6AuthorityVerifierAdapterV1:
     verifier receipts intentionally fail this contract.
     """
 
-    tau_state_proof_verifier: TauStateProofVerifierV0 | None = None
+    tau_state_proof_verifier: M6TauStateProofVerifierV1 | None = None
     migration_verifier: M6MigrationVerifierV1 | None = None
 
     def _verify_tau_receipt(

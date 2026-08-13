@@ -195,83 +195,183 @@ def _python_canonical_codec_connected(
     except ValueError:
         return False
     state_root_calls = _direct_call_names(state_root)
-    if _codec_value_reaches_return(state_root):
+    if _named_call_value_reaches_return(state_root, call_name="canonical_bytes_v1"):
         return True
-    if "hash_v1" not in state_root_calls:
+    if (
+        "hash_v1" not in state_root_calls
+        or not _named_call_value_reaches_return(state_root, call_name="hash_v1")
+    ):
         return False
     try:
         hash_function = _function_named(tree, name="hash_v1")
     except ValueError:
         return False
-    return _codec_value_reaches_return(hash_function)
-
-
-def _contains_named_call(node: ast.AST, name: str) -> bool:
-    return any(
-        isinstance(candidate, ast.Call)
-        and isinstance(candidate.func, ast.Name)
-        and candidate.func.id == name
-        for candidate in ast.walk(node)
+    return _named_call_value_reaches_return(
+        hash_function,
+        call_name="canonical_bytes_v1",
     )
 
 
-def _expression_reads_name(node: ast.AST, name: str) -> bool:
-    return any(
-        isinstance(candidate, ast.Name)
-        and isinstance(candidate.ctx, ast.Load)
-        and candidate.id == name
-        for candidate in ast.walk(node)
+def _is_exact_named_call(node: ast.AST, *, call_name: str) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == call_name
     )
 
 
-def _codec_value_reaches_return(method: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
-    """Conservatively trace canonical bytes into one unconditional return."""
+def _provenance_receiver_name(node: ast.AST) -> str | None:
+    current = node
+    while isinstance(current, ast.Attribute):
+        current = current.value
+    return current.id if isinstance(current, ast.Name) else None
 
-    codec_values: set[str] = set()
-    codec_accumulators: set[str] = set()
+
+def _expression_has_provenance(
+    node: ast.AST,
+    *,
+    call_name: str,
+    value_names: set[str],
+    accumulator_names: set[str],
+) -> bool:
+    """Accept only expression shapes whose selected result carries provenance."""
+
+    if _is_exact_named_call(node, call_name=call_name):
+        return True
+    if isinstance(node, ast.Name):
+        return node.id in value_names
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+        return _provenance_receiver_name(node.func.value) in accumulator_names
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left_has_provenance = _expression_has_provenance(
+            node.left,
+            call_name=call_name,
+            value_names=value_names,
+            accumulator_names=accumulator_names,
+        )
+        right_has_provenance = _expression_has_provenance(
+            node.right,
+            call_name=call_name,
+            value_names=value_names,
+            accumulator_names=accumulator_names,
+        )
+        return (
+            left_has_provenance and isinstance(node.right, ast.Constant)
+        ) or (
+            right_has_provenance and isinstance(node.left, ast.Constant)
+        )
+    if isinstance(node, ast.JoinedStr):
+        formatted_values = [
+            value.value for value in node.values if isinstance(value, ast.FormattedValue)
+        ]
+        return len(formatted_values) == 1 and _expression_has_provenance(
+            formatted_values[0],
+            call_name=call_name,
+            value_names=value_names,
+            accumulator_names=accumulator_names,
+        )
+    return False
+
+
+def _assigned_name_targets(statement: ast.Assign | ast.AnnAssign) -> tuple[str, ...]:
+    targets = statement.targets if isinstance(statement, ast.Assign) else [statement.target]
+    return tuple(target.id for target in targets if isinstance(target, ast.Name))
+
+
+_UNCONDITIONAL_PATH_TERMINATORS = (
+    ast.If,
+    ast.For,
+    ast.AsyncFor,
+    ast.While,
+    ast.Try,
+    ast.With,
+    ast.AsyncWith,
+    ast.Match,
+    ast.Raise,
+    ast.Break,
+    ast.Continue,
+)
+
+
+def _update_accumulator_provenance(
+    expression: ast.AST,
+    *,
+    call_name: str,
+    value_names: set[str],
+    accumulator_names: set[str],
+) -> None:
+    if not (
+        isinstance(expression, ast.Call)
+        and isinstance(expression.func, ast.Attribute)
+        and isinstance(expression.func.value, ast.Name)
+    ):
+        return
+    receiver_name = expression.func.value.id
+    update_has_provenance = (
+        expression.func.attr == "update"
+        and any(
+            _expression_has_provenance(
+                argument,
+                call_name=call_name,
+                value_names=value_names,
+                accumulator_names=accumulator_names,
+            )
+            for argument in expression.args
+        )
+    )
+    if update_has_provenance:
+        accumulator_names.add(receiver_name)
+    else:
+        accumulator_names.discard(receiver_name)
+
+
+def _named_call_value_reaches_return(
+    method: ast.FunctionDef | ast.AsyncFunctionDef,
+    *,
+    call_name: str,
+) -> bool:
+    """Trace one direct call result through a restricted unconditional path."""
+
+    value_names: set[str] = set()
+    accumulator_names: set[str] = set()
     for statement in method.body:
-        if isinstance(
-            statement,
-            (
-                ast.If,
-                ast.For,
-                ast.AsyncFor,
-                ast.While,
-                ast.Try,
-                ast.With,
-                ast.AsyncWith,
-                ast.Match,
-                ast.Raise,
-                ast.Break,
-                ast.Continue,
-            ),
-        ):
+        if isinstance(statement, _UNCONDITIONAL_PATH_TERMINATORS):
             break
         if isinstance(statement, (ast.Assign, ast.AnnAssign)):
             value = statement.value
-            if value is not None and _contains_named_call(value, "canonical_bytes_v1"):
-                targets = statement.targets if isinstance(statement, ast.Assign) else [statement.target]
-                codec_values.update(
-                    target.id for target in targets if isinstance(target, ast.Name)
-                )
-        elif isinstance(statement, ast.Expr):
-            expression = statement.value
-            if (
-                isinstance(expression, ast.Call)
-                and isinstance(expression.func, ast.Attribute)
-                and isinstance(expression.func.value, ast.Name)
-                and _contains_named_call(expression, "canonical_bytes_v1")
+            assigned_names = _assigned_name_targets(statement)
+            value_names.difference_update(assigned_names)
+            accumulator_names.difference_update(assigned_names)
+            if value is not None and _expression_has_provenance(
+                value,
+                call_name=call_name,
+                value_names=value_names,
+                accumulator_names=accumulator_names,
             ):
-                codec_accumulators.add(expression.func.value.id)
+                value_names.update(assigned_names)
+        elif isinstance(statement, ast.AugAssign):
+            if isinstance(statement.target, ast.Name):
+                value_names.discard(statement.target.id)
+                accumulator_names.discard(statement.target.id)
+        elif isinstance(statement, ast.Expr):
+            _update_accumulator_provenance(
+                statement.value,
+                call_name=call_name,
+                value_names=value_names,
+                accumulator_names=accumulator_names,
+            )
         elif isinstance(statement, ast.Return):
             value = statement.value
             if value is None:
                 return False
-            return (
-                _contains_named_call(value, "canonical_bytes_v1")
-                or any(_expression_reads_name(value, name) for name in codec_values)
-                or any(_expression_reads_name(value, name) for name in codec_accumulators)
+            return _expression_has_provenance(
+                value,
+                call_name=call_name,
+                value_names=value_names,
+                accumulator_names=accumulator_names,
             )
+        else:
+            break
     return False
 
 
@@ -522,10 +622,10 @@ def _rust_call_visible(source: str, *, function_name: str) -> bool:
             top_level.append(character if brace_depth == 0 else ("\n" if character == "\n" else " "))
     direct_source = "".join(top_level)
     exact_call = rf"(?<![A-Za-z0-9_]){re.escape(function_name)}\s*\("
-    if re.search(rf"\breturn\s+[^;]*{exact_call}", direct_source):
+    if re.search(rf"\breturn\s+{exact_call}", direct_source):
         return True
     tail_expression = direct_source.rsplit(";", 1)[-1].strip()
-    return bool(tail_expression and re.search(exact_call, tail_expression))
+    return bool(tail_expression and re.match(exact_call, tail_expression))
 
 
 def _rust_public_function_visible(source: str, *, function_name: str) -> bool:

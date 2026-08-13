@@ -335,15 +335,23 @@ def _external_output_or_reject(
     request_hash: str,
 ) -> dict[str, object]:
     envelope = _snapshot_mapping(output, name="M6 external verifier output")
+    if any(type(key) is not str for key in envelope):
+        _reject("M6 external verifier output has an unexpected field set")
     if "verifier_request_hash" not in envelope:
         _reject("M6 external verifier request hash is missing")
     if set(envelope) != frozenset({"schema", "ok", "verifier_request_hash", "receipt"}):
         _reject("M6 external verifier output has an unexpected field set")
-    if envelope["schema"] != M6_EXTERNAL_VERIFIER_OUTPUT_SCHEMA_V1:
+    if (
+        type(envelope["schema"]) is not str
+        or envelope["schema"] != M6_EXTERNAL_VERIFIER_OUTPUT_SCHEMA_V1
+    ):
         _reject("M6 external verifier output schema mismatch")
     if envelope["ok"] is not True:
         _reject("M6 external verifier output is not accepted")
-    if envelope["verifier_request_hash"] != request_hash:
+    if (
+        type(envelope["verifier_request_hash"]) is not str
+        or envelope["verifier_request_hash"] != request_hash
+    ):
         _reject("M6 external verifier request hash mismatch")
     return _snapshot_mapping(
         envelope["receipt"],
