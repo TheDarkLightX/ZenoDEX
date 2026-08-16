@@ -26,7 +26,7 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = REPO_ROOT / "docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json"
 BASE_SOURCE_SUBJECT = "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
-SOURCE_SUBJECT = "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2"
+SOURCE_SUBJECT = "5361df3ad977a53a7a773cc53730fc57405e25fc"
 SCHEMA = "zenodex/production-readiness-g1-entrypoints/v1"
 
 sys.path.insert(0, str(REPO_ROOT))

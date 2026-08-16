@@ -6,7 +6,7 @@ production writer, settlement authority, or deployment readiness.
 Subjects:
 
 - Base source subject: `e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c`
-- Verified repair descendant: `ea25e6ec70ef0aca4881d671a34d00d5dcef06b2`
+- Verified repair descendant: `5361df3ad977a53a7a773cc53730fc57405e25fc`
 
 The repair closes three scoped boundary families identified during the exact
 subject audit.
