@@ -242,6 +242,12 @@ The profile-decision gate
 decision questions, allowed option shapes, required outputs, and rejection
 conditions exact and source-bound. It intentionally selects no option shape,
 profile, or authority; its closure status remains `BLOCKED_DECISIONS_OPEN`.
+The state/delta obligation gate
+`docs/research/PRODUCTION_READINESS_G1_STATE_DELTA_GATE_V1.json` inventories
+the 14 declared global-state fields, eight delta classes, and six closure
+obligations. Field types, root codec, event equations, ownership,
+reconciliation, terminal drains, and parity remain `OPEN_GAP`; this artifact
+does not claim a complete algebra or production authority.
 
 Replay the slice with:
 
@@ -251,6 +257,7 @@ python3 tools/check_production_readiness_g1_bdd.py --check --json
 python3 tools/check_production_readiness_g1_entrypoints.py --check --json
 python3 tools/check_production_readiness_g1_safe_hold.py --check --json
 python3 tools/check_production_readiness_g1_profile_gate.py --check --json
+python3 tools/check_production_readiness_g1_state_delta_gate.py --check --json
 ```
 
 ### G2: Complete the deterministic functional core
