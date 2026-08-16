@@ -195,9 +195,38 @@ UserStory -> NormativeSpec -> CoreTransition -> TerminalPath
 5. Rebuild the BDD contract from the closed registry. Every command receives
    happy, rejection, authorization, cancellation where applicable, recovery,
    and terminal scenarios.
+6. Pass the research architecture-closure tournament before freezing the G2
+   ABI. Candidate architectures must declare unique semantic state ownership,
+   one ZenoLedger durable writer, closed typed ports, an acyclic dependency
+   graph, canonical execution order, atomic global reconciliation, exact
+   verifier substitution behavior, release coexistence and drain, replay scope,
+   direct/ZRPF core identity, and the only mounted writer capability. Advisory
+   scores may nominate a prototype; they cannot select or freeze an architecture
+   without independent evidence for every hard gate and adversarial scenario.
+
+```text
+ComposableV2(P)
+  = unique state ownership
+  + complete governed routing for all 33 commands
+  + acyclic typed ports
+  + producer guarantees imply consumer assumptions
+  + deterministic staged fold
+  + atomic reject-no-commit
+  + version coexistence and terminal drain
+  + authenticated verifier and evidence binding
+  + direct/guest parity
+  + mounted no-bypass
+```
+
+The research tournament is recorded in
+`docs/research/PRODUCTION_READINESS_ARCHITECTURE_TOURNAMENT_V1.json` and checked
+by `python3 tools/check_production_readiness_architecture_tournament_v1.py`.
+Its initial typed-settlement-microkernel leader is advisory, unselected, and
+unfrozen. The predicate above remains open.
 
 Exit gate: no enabled command has `GAP`, `UNKNOWN`, or an unnamed economic
-owner.
+owner, and the architecture-closure tournament has an evidence-eligible
+selected candidate.
 
 The helper G1 slice on the exact subject
 `e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c` records the source-authoritative

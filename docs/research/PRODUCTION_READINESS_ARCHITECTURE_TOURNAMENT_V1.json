@@ -1,0 +1,477 @@
+{
+  "schema": "zenodex/production-readiness-architecture-tournament/v1",
+  "status": "RESEARCH_ONLY_UNSELECTED",
+  "production_promotion": false,
+  "architecture_frozen": false,
+  "reviewed_subject": "a2f5fd44333de7d79050534ee8c6c348bf82a423",
+  "source_pins": [
+    {"id": "docs/PRODUCTION_READINESS_PLAN.md", "sha256": "b36ec0a5057c342abf15a24def5ac9c2a83fbbb531b1841ec104c33b75c563d0"},
+    {"id": "docs/research/PRODUCTION_READINESS_TASK_GRAPH_V1.json", "sha256": "2041206dfb01b050534cff8582200eca6a5f663a1aa8c4b83e201e029cd58c58"},
+    {"id": "src/core/global_settlement_types_v1.py", "sha256": "c7ff7f362462502293c017fd986c14ef57c9aaa344e4b1093ea260ec18e84568"},
+    {"id": "src/integration/m6_commit_port_v1.py", "sha256": "333bfee65bcb7917c09deee3fbb5ba50268f7b06afd5b652fc0bcd9bfe9ad482"},
+    {"id": "zk/global_settlement_abi_v1/src/release.rs", "sha256": "0cc42ee1b3c30e8dac0cd593986922165923856af4b40aef4c59787a1cd37f18"}
+  ],
+  "problem_state": {
+    "representation": "A versioned architecture candidate is a component DAG, complete state-domain ownership map, four typed port roles, one composition contract, evidence rows, scenario rows, and counterexamples.",
+    "abstraction": "Hard structural gates are derived by the checker; advisory integer metrics rank only designs with no structural violation or open blocker.",
+    "constraints": [
+      "ZenoLedger is the sole durable economic writer",
+      "Tau and native policy verifiers return opaque admissions and carry no settlement authority",
+      "direct execution and ZRPF use one deterministic Rust transition core",
+      "cross-module value is reconciled and published by one expected-head compare-and-swap",
+      "rejected commands preserve state, effects, history, nullifiers, and outbox",
+      "old objects remain pinned to their creating release through drain and verification"
+    ],
+    "goal": "Select the smallest auditable architecture that permits economic modules and verifier backends to evolve without weakening global conservation, atomicity, replay safety, or no-bypass authority.",
+    "obligations": [
+      "derive every hard design gate from candidate structure",
+      "separate advisory research ranking from evidence-backed selection",
+      "retain minimized disaster histories for refuted alternatives",
+      "require independent evidence for every gate and scenario before selection"
+    ],
+    "portals": ["deterministic checker", "stateful replay", "ESSO with Z3 and CVC5", "Lean", "Rust parity tests", "RISC0 substitution tests"],
+    "metadata": ["maximum candidate width is bounded by review budget", "integer metrics use scale 0..1000", "metric weights sum to 10000 basis points", "ties use canonical candidate ID"]
+  },
+  "hard_gates": [
+    {"id": "SOLE_DURABLE_WRITER", "description": "Every authoritative state domain persists only through ZenoLedger.", "minimum_evidence_grade": 3},
+    {"id": "UNIQUE_STATE_OWNERSHIP", "description": "Every state domain has exactly one declared semantic owner.", "minimum_evidence_grade": 3},
+    {"id": "TYPED_CLOSED_PORTS", "description": "All four required port roles use named closed request and response types without caller-created authority.", "minimum_evidence_grade": 3},
+    {"id": "ACYCLIC_DEPENDENCIES", "description": "The component dependency graph is acyclic.", "minimum_evidence_grade": 3},
+    {"id": "DETERMINISTIC_COMPOSITION_ORDER", "description": "Module and command order have one canonical rule and tie break.", "minimum_evidence_grade": 4},
+    {"id": "ATOMIC_GLOBAL_RECONCILIATION", "description": "A centrally derived value delta and all effects publish with one expected-head compare-and-swap.", "minimum_evidence_grade": 4},
+    {"id": "REJECT_NO_COMMIT", "description": "Every rejection leaves authoritative state and effects unchanged.", "minimum_evidence_grade": 4},
+    {"id": "OPAQUE_VERIFIER_WITNESS", "description": "Only the selected verifier constructs a VerifiedAdmissionV2 authority witness.", "minimum_evidence_grade": 3},
+    {"id": "VERIFIER_BACKEND_SUBSTITUTION", "description": "Tau and native verifiers implement one contract and disagreement rejects.", "minimum_evidence_grade": 3},
+    {"id": "VERSION_COEXISTENCE_AND_DRAIN", "description": "Creating releases remain available for old objects through drain and verification lifecycles.", "minimum_evidence_grade": 3},
+    {"id": "REPLAY_IDEMPOTENCY", "description": "Replay scope binds command, sender, nonce, writer epoch, and creating release.", "minimum_evidence_grade": 3},
+    {"id": "NO_BYPASS_MOUNT", "description": "The only mounted writer capability is ZenoLedger submission.", "minimum_evidence_grade": 3},
+    {"id": "DIRECT_ZRPF_CORE_PARITY", "description": "Direct and proof execution identify the same transition core.", "minimum_evidence_grade": 3}
+  ],
+  "soft_metrics": [
+    {"id": "AUDITABILITY", "description": "Higher values indicate smaller and clearer authority and invariant surfaces.", "weight_bps": 2000},
+    {"id": "CHANGE_ISOLATION", "description": "Higher values indicate fewer unrelated modules touched by one semantic upgrade.", "weight_bps": 1600},
+    {"id": "GLOBAL_INVARIANT_LOCALITY", "description": "Higher values indicate direct global conservation and liability checking.", "weight_bps": 1800},
+    {"id": "VERIFIER_REPLACEABILITY", "description": "Higher values indicate a narrow backend-neutral verifier contract.", "weight_bps": 1200},
+    {"id": "MIGRATION_SAFETY", "description": "Higher values indicate explicit coexistence, pinning, drain, and retirement.", "weight_bps": 1200},
+    {"id": "PROOF_REUSE", "description": "Higher values indicate one core and canonical observation across direct and ZRPF lanes.", "weight_bps": 1200},
+    {"id": "OPERATIONAL_SIMPLICITY", "description": "Higher values indicate fewer distributed failure and recovery modes.", "weight_bps": 1000}
+  ],
+  "scenario_pack": [
+    {"id": "TAU_UNAVAILABLE", "history": "Tau verifier becomes unavailable before admission while direct internal operation continues.", "expected_observation": "The selected fallback policy either obtains a native verified admission or rejects; Tau withdrawal stays pending and no settlement bypass occurs.", "minimum_evidence_grade": 3},
+    {"id": "TAU_NATIVE_VERIFIER_MISMATCH", "history": "Tau and native verifier backends return different answers for the same canonical query.", "expected_observation": "Admission rejects with no state or effect change.", "minimum_evidence_grade": 3},
+    {"id": "CROSS_MODULE_DOUBLE_ALLOCATION", "history": "A spot fee and proof reward both attempt to allocate the same protocol-owned source lot.", "expected_observation": "Central reconciliation detects duplicate lineage and rejects the entire candidate.", "minimum_evidence_grade": 4},
+    {"id": "MIGRATION_DRAIN_WITH_OLD_OBJECTS", "history": "A new release activates while an auction and withdrawal created by the old release remain open.", "expected_observation": "New objects use the new release; old objects finish only through their pinned old release and terminal paths.", "minimum_evidence_grade": 3},
+    {"id": "REJECTED_COMMAND_EXACT_NO_OP", "history": "One module proposes a valid delta and a later module rejects the command.", "expected_observation": "No proposed delta, history row, nullifier, proof record, or outbox effect commits.", "minimum_evidence_grade": 4},
+    {"id": "REPLAY_ACROSS_RELEASE_EPOCH", "history": "A previously accepted command is resubmitted after writer-epoch and module-release rotation.", "expected_observation": "The replay scope rejects it without creating a second value movement.", "minimum_evidence_grade": 3},
+    {"id": "ZRPF_RECEIPT_SUBSTITUTION", "history": "A valid proof receipt is paired with a different module registry or policy profile.", "expected_observation": "Exact journal and promotion-subject binding rejects before publication.", "minimum_evidence_grade": 3},
+    {"id": "STALE_HEAD_CONCURRENT_PUBLICATION", "history": "Two valid composed candidates target one parent head.", "expected_observation": "At most one compare-and-swap commits; the loser receives a typed stale-head result.", "minimum_evidence_grade": 3},
+    {"id": "OUTBOX_RETRY_AFTER_RESPONSE_LOSS", "history": "An external effect succeeds and the acknowledgment response is lost before retry.", "expected_observation": "The same committed outbox identity is redelivered idempotently and acknowledgment is a later core transition.", "minimum_evidence_grade": 3},
+    {"id": "SHARED_ASSET_FEE_AND_REWARD_COLLISION", "history": "LP fees, oracle payment, validator reserve, and buyback each claim one revenue atom.", "expected_observation": "The obligations-first waterfall assigns the atom once or rejects an underfunded optional lane.", "minimum_evidence_grade": 4}
+  ],
+  "candidates": [
+    {
+      "id": "GLOBAL_MONOLITH_V2",
+      "family": "GLOBAL_MONOLITH",
+      "parents": [],
+      "operator": "SEED",
+      "summary": "One global transition owns all economic semantics behind typed verifier and publication ports.",
+      "components": [
+        {"id": "GLOBAL_CORE", "depends_on": ["SETTLEMENT_ABI"]},
+        {"id": "OUTBOX_SHELL", "depends_on": ["SETTLEMENT_ABI"]},
+        {"id": "POLICY_VERIFIER_ADAPTER", "depends_on": ["SETTLEMENT_ABI"]},
+        {"id": "RISC0_GUEST", "depends_on": ["GLOBAL_CORE"]},
+        {"id": "SETTLEMENT_ABI", "depends_on": []},
+        {"id": "ZENO_LEDGER", "depends_on": ["GLOBAL_CORE", "OUTBOX_SHELL", "POLICY_VERIFIER_ADAPTER"]}
+      ],
+      "state_domains": [
+        {"id": "BALANCES_CUSTODY_SUPPLY", "semantic_owners": ["GLOBAL_CORE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "SPOT_AND_LP", "semantic_owners": ["GLOBAL_CORE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "ZUSD_MONETARY", "semantic_owners": ["GLOBAL_CORE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "PERPS", "semantic_owners": ["GLOBAL_CORE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "ORACLE", "semantic_owners": ["GLOBAL_CORE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "SEALED_AUCTION", "semantic_owners": ["GLOBAL_CORE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "TAU_ESCROW", "semantic_owners": ["GLOBAL_CORE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "SERVICE_REWARDS", "semantic_owners": ["GLOBAL_CORE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "OUTBOX_HISTORY_NULLIFIERS", "semantic_owners": ["GLOBAL_CORE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "RELEASE_AND_MIGRATION", "semantic_owners": ["GLOBAL_CORE"], "durable_writers": ["ZENO_LEDGER"]}
+      ],
+      "ports": [
+        {"id": "command_ingress", "role": "COMMAND_INGRESS", "producer": "ZENO_LEDGER", "consumer": "GLOBAL_CORE", "request_type": "GlobalCommandV2", "response_type": "GlobalOutcomeV2", "closed_variants": true, "caller_constructible_authority": false},
+        {"id": "ledger_intent", "role": "LEDGER_INTENT", "producer": "GLOBAL_CORE", "consumer": "ZENO_LEDGER", "request_type": "LedgerIntentBatchV2", "response_type": "CandidateDeltaV2", "closed_variants": true, "caller_constructible_authority": false},
+        {"id": "policy_verifier", "role": "POLICY_VERIFIER", "producer": "GLOBAL_CORE", "consumer": "POLICY_VERIFIER_ADAPTER", "request_type": "PolicyQueryV2", "response_type": "VerifiedAdmissionV2", "closed_variants": true, "caller_constructible_authority": false},
+        {"id": "external_outbox", "role": "EXTERNAL_OUTBOX", "producer": "ZENO_LEDGER", "consumer": "OUTBOX_SHELL", "request_type": "ExternalEffectIntentV2", "response_type": "OutboxAckCommandV2", "closed_variants": true, "caller_constructible_authority": false}
+      ],
+      "composition": {
+        "order_rule": "CANONICAL_TOPOLOGICAL_THEN_COMMAND_INDEX",
+        "tie_break": "MODULE_ID_ASCENDING",
+        "commit_protocol": "ONE_EXPECTED_HEAD_CAS",
+        "partial_commit_possible": false,
+        "reject_mutates_state": false,
+        "reject_emits_effects": false,
+        "verifier_witness_constructor": "VERIFIER_ONLY",
+        "policy_verifier_backends": ["NATIVE", "TAU"],
+        "verifier_mismatch_policy": "REJECT",
+        "release_lifecycle": ["CANDIDATE", "SHADOW", "ACTIVE_NEW", "DRAIN_ONLY", "VERIFY_ONLY", "RETIRED", "REVOKED"],
+        "objects_pin_creator_release": true,
+        "replay_key_fields": ["COMMAND_ID", "CREATOR_RELEASE", "NONCE", "SENDER", "WRITER_EPOCH"],
+        "mounted_writer_capabilities": ["ZENO_LEDGER_SUBMIT_V2"],
+        "direct_core_id": "ZENODEX_GLOBAL_TRANSITION_CORE_V2",
+        "zrpf_core_id": "ZENODEX_GLOBAL_TRANSITION_CORE_V2",
+        "value_delta_source": "CENTRAL_DERIVATION"
+      },
+      "gate_claims": [
+        {"id": "SOLE_DURABLE_WRITER", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "UNIQUE_STATE_OWNERSHIP", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "TYPED_CLOSED_PORTS", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "ACYCLIC_DEPENDENCIES", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "DETERMINISTIC_COMPOSITION_ORDER", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "ATOMIC_GLOBAL_RECONCILIATION", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REJECT_NO_COMMIT", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "OPAQUE_VERIFIER_WITNESS", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "VERIFIER_BACKEND_SUBSTITUTION", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "VERSION_COEXISTENCE_AND_DRAIN", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REPLAY_IDEMPOTENCY", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "NO_BYPASS_MOUNT", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "DIRECT_ZRPF_CORE_PARITY", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []}
+      ],
+      "metrics": [
+        {"id": "AUDITABILITY", "value_milli": 800, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "CHANGE_ISOLATION", "value_milli": 350, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "GLOBAL_INVARIANT_LOCALITY", "value_milli": 900, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "VERIFIER_REPLACEABILITY", "value_milli": 600, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "MIGRATION_SAFETY", "value_milli": 450, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "PROOF_REUSE", "value_milli": 750, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "OPERATIONAL_SIMPLICITY", "value_milli": 850, "status": "ADVISORY", "evidence_refs": []}
+      ],
+      "scenario_claims": [
+        {"id": "TAU_UNAVAILABLE", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "TAU_NATIVE_VERIFIER_MISMATCH", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "CROSS_MODULE_DOUBLE_ALLOCATION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "MIGRATION_DRAIN_WITH_OLD_OBJECTS", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REJECTED_COMMAND_EXACT_NO_OP", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REPLAY_ACROSS_RELEASE_EPOCH", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "ZRPF_RECEIPT_SUBSTITUTION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "STALE_HEAD_CONCURRENT_PUBLICATION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "OUTBOX_RETRY_AFTER_RESPONSE_LOSS", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "SHARED_ASSET_FEE_AND_REWARD_COLLISION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []}
+      ],
+      "counterexamples": [
+        {"id": "MONOLITH_CHANGE_BLAST_RADIUS", "severity": "WARNING", "status": "OPEN", "history": "A change to one oracle lifecycle variant changes the global command, state, proof image, and migration surface.", "closure": "Measure touched contracts and proof rebuilds against the microkernel candidate before any freeze."}
+      ]
+    },
+    {
+      "id": "EVENT_MICROSERVICES_V2",
+      "family": "EVENT_MICROSERVICES",
+      "parents": [],
+      "operator": "SEED",
+      "summary": "Independent economic services publish asynchronous events and persist their own state.",
+      "components": [
+        {"id": "EVENT_BROKER", "depends_on": []},
+        {"id": "ORACLE_SERVICE", "depends_on": ["EVENT_BROKER"]},
+        {"id": "OUTBOX_SERVICE", "depends_on": ["EVENT_BROKER"]},
+        {"id": "PERPS_SERVICE", "depends_on": ["EVENT_BROKER", "ORACLE_SERVICE"]},
+        {"id": "POLICY_VERIFIER_SERVICE", "depends_on": ["EVENT_BROKER"]},
+        {"id": "SPOT_SERVICE", "depends_on": ["EVENT_BROKER"]},
+        {"id": "ZENO_LEDGER", "depends_on": ["EVENT_BROKER"]},
+        {"id": "ZUSD_SERVICE", "depends_on": ["EVENT_BROKER", "ORACLE_SERVICE"]}
+      ],
+      "state_domains": [
+        {"id": "BALANCES_CUSTODY_SUPPLY", "semantic_owners": ["ZENO_LEDGER"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "SPOT_AND_LP", "semantic_owners": ["SPOT_SERVICE"], "durable_writers": ["SPOT_SERVICE"]},
+        {"id": "ZUSD_MONETARY", "semantic_owners": ["ZUSD_SERVICE"], "durable_writers": ["ZUSD_SERVICE"]},
+        {"id": "PERPS", "semantic_owners": ["PERPS_SERVICE"], "durable_writers": ["PERPS_SERVICE"]},
+        {"id": "ORACLE", "semantic_owners": ["ORACLE_SERVICE"], "durable_writers": ["ORACLE_SERVICE"]},
+        {"id": "SEALED_AUCTION", "semantic_owners": ["SPOT_SERVICE"], "durable_writers": ["SPOT_SERVICE"]},
+        {"id": "TAU_ESCROW", "semantic_owners": ["ZENO_LEDGER"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "SERVICE_REWARDS", "semantic_owners": ["ZENO_LEDGER"], "durable_writers": ["ZENO_LEDGER", "PERPS_SERVICE"]},
+        {"id": "OUTBOX_HISTORY_NULLIFIERS", "semantic_owners": ["OUTBOX_SERVICE"], "durable_writers": ["OUTBOX_SERVICE"]},
+        {"id": "RELEASE_AND_MIGRATION", "semantic_owners": ["ZENO_LEDGER"], "durable_writers": ["ZENO_LEDGER"]}
+      ],
+      "ports": [
+        {"id": "command_ingress", "role": "COMMAND_INGRESS", "producer": "ZENO_LEDGER", "consumer": "EVENT_BROKER", "request_type": "GlobalCommandV2", "response_type": "AcceptedEventV2", "closed_variants": true, "caller_constructible_authority": false},
+        {"id": "ledger_intent", "role": "LEDGER_INTENT", "producer": "SPOT_SERVICE", "consumer": "EVENT_BROKER", "request_type": "UNTYPED_EVENT", "response_type": "ANY", "closed_variants": false, "caller_constructible_authority": false},
+        {"id": "policy_verifier", "role": "POLICY_VERIFIER", "producer": "EVENT_BROKER", "consumer": "POLICY_VERIFIER_SERVICE", "request_type": "PolicyQueryV2", "response_type": "VerifiedAdmissionV2", "closed_variants": true, "caller_constructible_authority": false},
+        {"id": "external_outbox", "role": "EXTERNAL_OUTBOX", "producer": "EVENT_BROKER", "consumer": "OUTBOX_SERVICE", "request_type": "ExternalEffectIntentV2", "response_type": "OutboxAckCommandV2", "closed_variants": true, "caller_constructible_authority": false}
+      ],
+      "composition": {
+        "order_rule": "BROKER_ARRIVAL_ORDER",
+        "tie_break": "NONE",
+        "commit_protocol": "PER_SERVICE_COMMIT",
+        "partial_commit_possible": true,
+        "reject_mutates_state": false,
+        "reject_emits_effects": true,
+        "verifier_witness_constructor": "VERIFIER_ONLY",
+        "policy_verifier_backends": ["NATIVE", "TAU"],
+        "verifier_mismatch_policy": "REJECT",
+        "release_lifecycle": ["CANDIDATE", "SHADOW", "ACTIVE_NEW", "DRAIN_ONLY", "VERIFY_ONLY", "RETIRED", "REVOKED"],
+        "objects_pin_creator_release": true,
+        "replay_key_fields": ["COMMAND_ID", "CREATOR_RELEASE", "NONCE", "SENDER", "WRITER_EPOCH"],
+        "mounted_writer_capabilities": ["OUTBOX_SERVICE_WRITE", "PERPS_SERVICE_WRITE", "SPOT_SERVICE_WRITE", "ZENO_LEDGER_SUBMIT_V2", "ZUSD_SERVICE_WRITE"],
+        "direct_core_id": "SERVICE_NATIVE_CORES_V2",
+        "zrpf_core_id": "SERVICE_GUEST_CORES_V2",
+        "value_delta_source": "MODULE_DECLARATION"
+      },
+      "gate_claims": [
+        {"id": "SOLE_DURABLE_WRITER", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "UNIQUE_STATE_OWNERSHIP", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "TYPED_CLOSED_PORTS", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "ACYCLIC_DEPENDENCIES", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "DETERMINISTIC_COMPOSITION_ORDER", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "ATOMIC_GLOBAL_RECONCILIATION", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REJECT_NO_COMMIT", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "OPAQUE_VERIFIER_WITNESS", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "VERIFIER_BACKEND_SUBSTITUTION", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "VERSION_COEXISTENCE_AND_DRAIN", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REPLAY_IDEMPOTENCY", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "NO_BYPASS_MOUNT", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "DIRECT_ZRPF_CORE_PARITY", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []}
+      ],
+      "metrics": [
+        {"id": "AUDITABILITY", "value_milli": 650, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "CHANGE_ISOLATION", "value_milli": 900, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "GLOBAL_INVARIANT_LOCALITY", "value_milli": 300, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "VERIFIER_REPLACEABILITY", "value_milli": 850, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "MIGRATION_SAFETY", "value_milli": 700, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "PROOF_REUSE", "value_milli": 500, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "OPERATIONAL_SIMPLICITY", "value_milli": 400, "status": "ADVISORY", "evidence_refs": []}
+      ],
+      "scenario_claims": [
+        {"id": "TAU_UNAVAILABLE", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "TAU_NATIVE_VERIFIER_MISMATCH", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "CROSS_MODULE_DOUBLE_ALLOCATION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "MIGRATION_DRAIN_WITH_OLD_OBJECTS", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REJECTED_COMMAND_EXACT_NO_OP", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REPLAY_ACROSS_RELEASE_EPOCH", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "ZRPF_RECEIPT_SUBSTITUTION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "STALE_HEAD_CONCURRENT_PUBLICATION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "OUTBOX_RETRY_AFTER_RESPONSE_LOSS", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "SHARED_ASSET_FEE_AND_REWARD_COLLISION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []}
+      ],
+      "counterexamples": [
+        {"id": "CROSS_MODULE_PARTIAL_COMMIT", "severity": "BLOCKER", "status": "OPEN", "history": "Spot persists a fee event, proof rewards consumes the same lot, and zUSD rejects after both local commits.", "closure": "Requires a single atomic settlement kernel, which changes this candidate family."}
+      ]
+    },
+    {
+      "id": "ACTOR_SAGA_V2",
+      "family": "ACTOR_SAGA",
+      "parents": [],
+      "operator": "SEED",
+      "summary": "Economic actors exchange ordered messages and compensate failed multi-step workflows.",
+      "components": [
+        {"id": "ORDERER", "depends_on": ["PERPS_ACTOR"]},
+        {"id": "ORACLE_ACTOR", "depends_on": []},
+        {"id": "OUTBOX_ACTOR", "depends_on": ["ORDERER"]},
+        {"id": "PERPS_ACTOR", "depends_on": ["ORDERER", "ORACLE_ACTOR"]},
+        {"id": "POLICY_VERIFIER_ACTOR", "depends_on": ["ORDERER"]},
+        {"id": "SPOT_ACTOR", "depends_on": ["ORDERER"]},
+        {"id": "ZENO_LEDGER", "depends_on": ["ORDERER"]},
+        {"id": "ZUSD_ACTOR", "depends_on": ["ORDERER", "ORACLE_ACTOR"]}
+      ],
+      "state_domains": [
+        {"id": "BALANCES_CUSTODY_SUPPLY", "semantic_owners": ["ZENO_LEDGER"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "SPOT_AND_LP", "semantic_owners": ["SPOT_ACTOR"], "durable_writers": ["SPOT_ACTOR"]},
+        {"id": "ZUSD_MONETARY", "semantic_owners": ["ZUSD_ACTOR"], "durable_writers": ["ZUSD_ACTOR"]},
+        {"id": "PERPS", "semantic_owners": ["PERPS_ACTOR"], "durable_writers": ["PERPS_ACTOR"]},
+        {"id": "ORACLE", "semantic_owners": ["ORACLE_ACTOR"], "durable_writers": ["ORACLE_ACTOR"]},
+        {"id": "SEALED_AUCTION", "semantic_owners": ["SPOT_ACTOR"], "durable_writers": ["SPOT_ACTOR"]},
+        {"id": "TAU_ESCROW", "semantic_owners": ["ZENO_LEDGER"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "SERVICE_REWARDS", "semantic_owners": ["ZENO_LEDGER"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "OUTBOX_HISTORY_NULLIFIERS", "semantic_owners": ["OUTBOX_ACTOR"], "durable_writers": ["OUTBOX_ACTOR"]},
+        {"id": "RELEASE_AND_MIGRATION", "semantic_owners": ["ORDERER"], "durable_writers": ["ORDERER"]}
+      ],
+      "ports": [
+        {"id": "command_ingress", "role": "COMMAND_INGRESS", "producer": "ZENO_LEDGER", "consumer": "ORDERER", "request_type": "GlobalCommandV2", "response_type": "SagaHandleV2", "closed_variants": true, "caller_constructible_authority": false},
+        {"id": "ledger_intent", "role": "LEDGER_INTENT", "producer": "SPOT_ACTOR", "consumer": "ORDERER", "request_type": "ActorMessageV2", "response_type": "CompensationMessageV2", "closed_variants": true, "caller_constructible_authority": false},
+        {"id": "policy_verifier", "role": "POLICY_VERIFIER", "producer": "ORDERER", "consumer": "POLICY_VERIFIER_ACTOR", "request_type": "PolicyQueryV2", "response_type": "VerifiedAdmissionV2", "closed_variants": true, "caller_constructible_authority": false},
+        {"id": "external_outbox", "role": "EXTERNAL_OUTBOX", "producer": "ORDERER", "consumer": "OUTBOX_ACTOR", "request_type": "ExternalEffectIntentV2", "response_type": "OutboxAckCommandV2", "closed_variants": true, "caller_constructible_authority": false}
+      ],
+      "composition": {
+        "order_rule": "MAILBOX_ARRIVAL_ORDER",
+        "tie_break": "ACTOR_RUNTIME",
+        "commit_protocol": "SAGA_WITH_COMPENSATION",
+        "partial_commit_possible": true,
+        "reject_mutates_state": true,
+        "reject_emits_effects": true,
+        "verifier_witness_constructor": "VERIFIER_ONLY",
+        "policy_verifier_backends": ["NATIVE", "TAU"],
+        "verifier_mismatch_policy": "REJECT",
+        "release_lifecycle": ["CANDIDATE", "SHADOW", "ACTIVE_NEW", "DRAIN_ONLY", "VERIFY_ONLY", "RETIRED", "REVOKED"],
+        "objects_pin_creator_release": true,
+        "replay_key_fields": ["COMMAND_ID", "CREATOR_RELEASE", "NONCE", "SENDER", "WRITER_EPOCH"],
+        "mounted_writer_capabilities": ["ACTOR_PERSIST", "ZENO_LEDGER_SUBMIT_V2"],
+        "direct_core_id": "ACTOR_NATIVE_CORE_V2",
+        "zrpf_core_id": "ACTOR_GUEST_CORE_V2",
+        "value_delta_source": "MODULE_DECLARATION"
+      },
+      "gate_claims": [
+        {"id": "SOLE_DURABLE_WRITER", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "UNIQUE_STATE_OWNERSHIP", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "TYPED_CLOSED_PORTS", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "ACYCLIC_DEPENDENCIES", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "DETERMINISTIC_COMPOSITION_ORDER", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "ATOMIC_GLOBAL_RECONCILIATION", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REJECT_NO_COMMIT", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "OPAQUE_VERIFIER_WITNESS", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "VERIFIER_BACKEND_SUBSTITUTION", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "VERSION_COEXISTENCE_AND_DRAIN", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REPLAY_IDEMPOTENCY", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "NO_BYPASS_MOUNT", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "DIRECT_ZRPF_CORE_PARITY", "design_status": "DESIGN_VIOLATED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []}
+      ],
+      "metrics": [
+        {"id": "AUDITABILITY", "value_milli": 600, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "CHANGE_ISOLATION", "value_milli": 800, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "GLOBAL_INVARIANT_LOCALITY", "value_milli": 250, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "VERIFIER_REPLACEABILITY", "value_milli": 800, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "MIGRATION_SAFETY", "value_milli": 650, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "PROOF_REUSE", "value_milli": 450, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "OPERATIONAL_SIMPLICITY", "value_milli": 350, "status": "ADVISORY", "evidence_refs": []}
+      ],
+      "scenario_claims": [
+        {"id": "TAU_UNAVAILABLE", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "TAU_NATIVE_VERIFIER_MISMATCH", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "CROSS_MODULE_DOUBLE_ALLOCATION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "MIGRATION_DRAIN_WITH_OLD_OBJECTS", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REJECTED_COMMAND_EXACT_NO_OP", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REPLAY_ACROSS_RELEASE_EPOCH", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "ZRPF_RECEIPT_SUBSTITUTION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "STALE_HEAD_CONCURRENT_PUBLICATION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "OUTBOX_RETRY_AFTER_RESPONSE_LOSS", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "SHARED_ASSET_FEE_AND_REWARD_COLLISION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []}
+      ],
+      "counterexamples": [
+        {"id": "IRREVERSIBLE_LIQUIDATION_COMPENSATION", "severity": "BLOCKER", "status": "OPEN", "history": "A liquidation actor transfers collateral before a later insurance actor rejects; a compensating message cannot restore the original market state.", "closure": "Require atomic staging before publication, replacing saga settlement semantics."}
+      ]
+    },
+    {
+      "id": "TYPED_SETTLEMENT_MICROKERNEL_V2",
+      "family": "SETTLEMENT_MICROKERNEL",
+      "parents": ["EVENT_MICROSERVICES_V2", "GLOBAL_MONOLITH_V2"],
+      "operator": "COMPOSE",
+      "summary": "Versioned pure economic modules propose typed intents to one settlement microkernel, which derives the global delta and publishes atomically through ZenoLedger.",
+      "components": [
+        {"id": "AUCTION_MODULE", "depends_on": ["ORACLE_MODULE", "SETTLEMENT_ABI"]},
+        {"id": "COMMAND_ROUTER", "depends_on": ["AUCTION_MODULE", "ORACLE_MODULE", "PERPS_MODULE", "REWARD_MODULE", "SPOT_LP_MODULE", "TAU_ESCROW_MODULE", "ZUSD_MODULE"]},
+        {"id": "ORACLE_MODULE", "depends_on": ["SETTLEMENT_ABI"]},
+        {"id": "OUTBOX_SHELL", "depends_on": ["SETTLEMENT_ABI"]},
+        {"id": "PERPS_MODULE", "depends_on": ["ORACLE_MODULE", "SETTLEMENT_ABI"]},
+        {"id": "POLICY_VERIFIER_ADAPTER", "depends_on": ["SETTLEMENT_ABI"]},
+        {"id": "RELEASE_MODULE", "depends_on": ["SETTLEMENT_ABI"]},
+        {"id": "REWARD_MODULE", "depends_on": ["SETTLEMENT_ABI"]},
+        {"id": "RISC0_GUEST", "depends_on": ["SETTLEMENT_KERNEL"]},
+        {"id": "SETTLEMENT_ABI", "depends_on": []},
+        {"id": "SETTLEMENT_KERNEL", "depends_on": ["COMMAND_ROUTER", "POLICY_VERIFIER_ADAPTER", "RELEASE_MODULE", "SETTLEMENT_ABI"]},
+        {"id": "SPOT_LP_MODULE", "depends_on": ["SETTLEMENT_ABI"]},
+        {"id": "TAU_ESCROW_MODULE", "depends_on": ["SETTLEMENT_ABI"]},
+        {"id": "ZENO_LEDGER", "depends_on": ["OUTBOX_SHELL", "SETTLEMENT_KERNEL"]},
+        {"id": "ZUSD_MODULE", "depends_on": ["ORACLE_MODULE", "SETTLEMENT_ABI"]}
+      ],
+      "state_domains": [
+        {"id": "BALANCES_CUSTODY_SUPPLY", "semantic_owners": ["SETTLEMENT_KERNEL"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "SPOT_AND_LP", "semantic_owners": ["SPOT_LP_MODULE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "ZUSD_MONETARY", "semantic_owners": ["ZUSD_MODULE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "PERPS", "semantic_owners": ["PERPS_MODULE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "ORACLE", "semantic_owners": ["ORACLE_MODULE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "SEALED_AUCTION", "semantic_owners": ["AUCTION_MODULE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "TAU_ESCROW", "semantic_owners": ["TAU_ESCROW_MODULE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "SERVICE_REWARDS", "semantic_owners": ["REWARD_MODULE"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "OUTBOX_HISTORY_NULLIFIERS", "semantic_owners": ["SETTLEMENT_KERNEL"], "durable_writers": ["ZENO_LEDGER"]},
+        {"id": "RELEASE_AND_MIGRATION", "semantic_owners": ["RELEASE_MODULE"], "durable_writers": ["ZENO_LEDGER"]}
+      ],
+      "ports": [
+        {"id": "command_ingress", "role": "COMMAND_INGRESS", "producer": "ZENO_LEDGER", "consumer": "COMMAND_ROUTER", "request_type": "GlobalCommandV2", "response_type": "GlobalOutcomeV2", "closed_variants": true, "caller_constructible_authority": false},
+        {"id": "ledger_intent", "role": "LEDGER_INTENT", "producer": "COMMAND_ROUTER", "consumer": "SETTLEMENT_KERNEL", "request_type": "LedgerIntentBatchV2", "response_type": "CandidateDeltaV2", "closed_variants": true, "caller_constructible_authority": false},
+        {"id": "policy_verifier", "role": "POLICY_VERIFIER", "producer": "SETTLEMENT_KERNEL", "consumer": "POLICY_VERIFIER_ADAPTER", "request_type": "PolicyQueryV2", "response_type": "VerifiedAdmissionV2", "closed_variants": true, "caller_constructible_authority": false},
+        {"id": "external_outbox", "role": "EXTERNAL_OUTBOX", "producer": "ZENO_LEDGER", "consumer": "OUTBOX_SHELL", "request_type": "ExternalEffectIntentV2", "response_type": "OutboxAckCommandV2", "closed_variants": true, "caller_constructible_authority": false}
+      ],
+      "composition": {
+        "order_rule": "CANONICAL_TOPOLOGICAL_THEN_COMMAND_INDEX",
+        "tie_break": "MODULE_ID_ASCENDING",
+        "commit_protocol": "ONE_EXPECTED_HEAD_CAS",
+        "partial_commit_possible": false,
+        "reject_mutates_state": false,
+        "reject_emits_effects": false,
+        "verifier_witness_constructor": "VERIFIER_ONLY",
+        "policy_verifier_backends": ["NATIVE", "TAU"],
+        "verifier_mismatch_policy": "REJECT",
+        "release_lifecycle": ["CANDIDATE", "SHADOW", "ACTIVE_NEW", "DRAIN_ONLY", "VERIFY_ONLY", "RETIRED", "REVOKED"],
+        "objects_pin_creator_release": true,
+        "replay_key_fields": ["COMMAND_ID", "CREATOR_RELEASE", "NONCE", "SENDER", "WRITER_EPOCH"],
+        "mounted_writer_capabilities": ["ZENO_LEDGER_SUBMIT_V2"],
+        "direct_core_id": "ZENODEX_TRANSITION_CORE_V2",
+        "zrpf_core_id": "ZENODEX_TRANSITION_CORE_V2",
+        "value_delta_source": "CENTRAL_DERIVATION"
+      },
+      "gate_claims": [
+        {"id": "SOLE_DURABLE_WRITER", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "UNIQUE_STATE_OWNERSHIP", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "TYPED_CLOSED_PORTS", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "ACYCLIC_DEPENDENCIES", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "DETERMINISTIC_COMPOSITION_ORDER", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "ATOMIC_GLOBAL_RECONCILIATION", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REJECT_NO_COMMIT", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "OPAQUE_VERIFIER_WITNESS", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "VERIFIER_BACKEND_SUBSTITUTION", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "VERSION_COEXISTENCE_AND_DRAIN", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REPLAY_IDEMPOTENCY", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "NO_BYPASS_MOUNT", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "DIRECT_ZRPF_CORE_PARITY", "design_status": "DESIGN_SATISFIED", "evidence_status": "UNVERIFIED", "evidence_grade": 0, "evidence_refs": []}
+      ],
+      "metrics": [
+        {"id": "AUDITABILITY", "value_milli": 900, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "CHANGE_ISOLATION", "value_milli": 850, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "GLOBAL_INVARIANT_LOCALITY", "value_milli": 900, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "VERIFIER_REPLACEABILITY", "value_milli": 950, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "MIGRATION_SAFETY", "value_milli": 850, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "PROOF_REUSE", "value_milli": 900, "status": "ADVISORY", "evidence_refs": []},
+        {"id": "OPERATIONAL_SIMPLICITY", "value_milli": 700, "status": "ADVISORY", "evidence_refs": []}
+      ],
+      "scenario_claims": [
+        {"id": "TAU_UNAVAILABLE", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "TAU_NATIVE_VERIFIER_MISMATCH", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "CROSS_MODULE_DOUBLE_ALLOCATION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "MIGRATION_DRAIN_WITH_OLD_OBJECTS", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REJECTED_COMMAND_EXACT_NO_OP", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "REPLAY_ACROSS_RELEASE_EPOCH", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "ZRPF_RECEIPT_SUBSTITUTION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "STALE_HEAD_CONCURRENT_PUBLICATION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "OUTBOX_RETRY_AFTER_RESPONSE_LOSS", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []},
+        {"id": "SHARED_ASSET_FEE_AND_REWARD_COLLISION", "status": "UNTESTED", "evidence_grade": 0, "evidence_refs": []}
+      ],
+      "counterexamples": [
+        {"id": "SHARED_INTENT_CONFLICT_UNPROVED", "severity": "WARNING", "status": "OPEN", "history": "Two pure modules emit individually valid intents that spend one source lot in the same command.", "closure": "The settlement kernel must derive lineage and global deltas, reject the complete command, and receive grade-4 differential or formal evidence."}
+      ]
+    }
+  ],
+  "selection": {
+    "algorithm": "HARD_GATE_FILTER_THEN_MAXIMIN_WEIGHTED_V1",
+    "research_leader_id": "TYPED_SETTLEMENT_MICROKERNEL_V2",
+    "research_leader_rank": {"minimum_metric_milli": 700, "weighted_metric_milli": 872},
+    "promotable_candidate_ids": [],
+    "selected_candidate_id": null,
+    "rationale": "The microkernel candidate has no derived design violation or open blocker and wins the noncompensable minimum metric before weighted score. All scores remain advisory, every evidence gate is unverified, and every scenario is untested, so no architecture is selected or frozen."
+  },
+  "named_mutants": [
+    {"id": "MULTIPLE_DURABLE_WRITERS", "description": "Give one state domain a second durable writer.", "expected_detection": "SOLE_DURABLE_WRITER becomes DESIGN_VIOLATED."},
+    {"id": "MODULE_WRITES_FOREIGN_STATE", "description": "Give one state domain two semantic owners.", "expected_detection": "UNIQUE_STATE_OWNERSHIP becomes DESIGN_VIOLATED."},
+    {"id": "UNTYPED_OPEN_EVENT_PORT", "description": "Replace a closed request type with UNTYPED_EVENT.", "expected_detection": "TYPED_CLOSED_PORTS becomes DESIGN_VIOLATED."},
+    {"id": "CYCLIC_MODULE_DEPENDENCY", "description": "Add a dependency edge from the ABI back to a module.", "expected_detection": "ACYCLIC_DEPENDENCIES becomes DESIGN_VIOLATED."},
+    {"id": "NONDETERMINISTIC_MODULE_ORDER", "description": "Use arrival order instead of canonical topological order.", "expected_detection": "DETERMINISTIC_COMPOSITION_ORDER becomes DESIGN_VIOLATED."},
+    {"id": "PARTIAL_CROSS_MODULE_COMMIT", "description": "Allow one module delta to persist before global reconciliation.", "expected_detection": "ATOMIC_GLOBAL_RECONCILIATION becomes DESIGN_VIOLATED."},
+    {"id": "REJECT_EMITS_EFFECT", "description": "Permit a rejected command to emit an outbox effect.", "expected_detection": "REJECT_NO_COMMIT becomes DESIGN_VIOLATED."},
+    {"id": "CALLER_CONSTRUCTED_VERIFIED_WITNESS", "description": "Allow a caller to construct verifier authority.", "expected_detection": "OPAQUE_VERIFIER_WITNESS or TYPED_CLOSED_PORTS becomes DESIGN_VIOLATED."},
+    {"id": "VERIFIER_MISMATCH_FAILS_OPEN", "description": "Prefer one verifier answer when Tau and native disagree.", "expected_detection": "VERIFIER_BACKEND_SUBSTITUTION becomes DESIGN_VIOLATED."},
+    {"id": "MIGRATION_WITHOUT_DRAIN", "description": "Remove DRAIN_ONLY from the release lifecycle.", "expected_detection": "VERSION_COEXISTENCE_AND_DRAIN becomes DESIGN_VIOLATED."},
+    {"id": "REPLAY_SCOPE_OMITS_RELEASE", "description": "Remove CREATOR_RELEASE from the replay key.", "expected_detection": "REPLAY_IDEMPOTENCY becomes DESIGN_VIOLATED."},
+    {"id": "DELTA_TRUSTED_FROM_MODULE", "description": "Accept a module-declared value delta without central derivation.", "expected_detection": "ATOMIC_GLOBAL_RECONCILIATION becomes DESIGN_VIOLATED."},
+    {"id": "SECOND_MOUNTED_WRITER_CAPABILITY", "description": "Mount a direct module-write capability.", "expected_detection": "NO_BYPASS_MOUNT becomes DESIGN_VIOLATED."},
+    {"id": "ZRPF_USES_DIFFERENT_CORE", "description": "Give the RISC0 guest a different transition-core identity.", "expected_detection": "DIRECT_ZRPF_CORE_PARITY becomes DESIGN_VIOLATED."}
+  ],
+  "nonclaims": [
+    "The deterministic checker validates declared structural facts and arithmetic; it does not prove runtime behavior.",
+    "Subagent proposals and advisory metric values carry no architecture, settlement, release, or promotion authority.",
+    "The research leader is a hypothesis for implementation and refutation, not a selected production architecture.",
+    "No hard gate or adversarial scenario currently carries promotion-grade evidence.",
+    "This artifact does not close G1, G2, FormalGate, RuntimeRefinementGate, MountedAuthorityGate, M6DirectReady, ZRPFReady, or ProductionReady."
+  ]
+}
