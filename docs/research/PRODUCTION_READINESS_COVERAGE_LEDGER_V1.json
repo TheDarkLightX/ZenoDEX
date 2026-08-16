@@ -1,0 +1,211 @@
+{
+  "schema": "zenodex/production-readiness-coverage-ledger/v1",
+  "version": 1,
+  "status": "OPEN_0_OF_13",
+  "production_promotion": false,
+  "base_commit": "b6842cd26aadf32b7ee774f58665570479cacfe6",
+  "coverage_subject": {
+    "name": "M6PromotionSubjectV2",
+    "status": "GAP",
+    "reason": "The versioned V2 promotion subject and shared production Rust transition do not exist."
+  },
+  "source_observations": {
+    "v1_command_registry_path": "src/core/m6_safe_mount_types_v1.py",
+    "v1_command_count": 33,
+    "v1_disabled_command_count": 8,
+    "received_plan_disabled_command_count": 10,
+    "disabled_count_reconciliation": "GAP",
+    "received_plan_value_oracle_coverage": "8/33",
+    "exact_subject_value_oracle_coverage": "UNKNOWN",
+    "received_plan_writer_inventory": "18/25 unmounted",
+    "exact_production_build_writer_inventory": "UNKNOWN",
+    "emergency_zusd_shutdown_launch_status": "EXCLUDED_UNSELECTED"
+  },
+  "readiness_predicates": {
+    "M6DirectReady": false,
+    "ZRPFReady": false,
+    "OperationalReady": false,
+    "ProductionReady": false
+  },
+  "promotion_counts": {
+    "m6_requirements_complete": 0,
+    "m6_requirements_total": 13,
+    "commands_v2_complete": 0,
+    "commands_total": 33
+  },
+  "m6_requirements": [
+    {
+      "id": "M6-R01",
+      "title": "Canonical fee-occurrence semantics",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    },
+    {
+      "id": "M6-R02",
+      "title": "Complete SRGD/AGQE adaptive-policy theorem",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    },
+    {
+      "id": "M6-R03",
+      "title": "Entitlement identity, policy rotation, and migration",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    },
+    {
+      "id": "M6-R04",
+      "title": "Concrete LineageCube composition theorem",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    },
+    {
+      "id": "M6-R05",
+      "title": "Authenticated nonce and replay concurrency",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    },
+    {
+      "id": "M6-R06",
+      "title": "Complete evidence recomputation",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    },
+    {
+      "id": "M6-R07",
+      "title": "Authorized history, nullifiers, and reopen",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    },
+    {
+      "id": "M6-R08",
+      "title": "Authenticated proof-context binding",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    },
+    {
+      "id": "M6-R09",
+      "title": "Atomic publication and crash refinement",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    },
+    {
+      "id": "M6-R10",
+      "title": "Outbox delivery and acknowledgment semantics",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    },
+    {
+      "id": "M6-R11",
+      "title": "Migration and authority-switch state machine",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    },
+    {
+      "id": "M6-R12",
+      "title": "Mounted no-bypass theorem",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    },
+    {
+      "id": "M6-R13",
+      "title": "ZUSD-P0 whole-system invariant",
+      "formal_status": "UNKNOWN",
+      "implementation_status": "UNKNOWN",
+      "mount_status": "UNMOUNTED",
+      "test_status": "UNKNOWN",
+      "promotion_complete": false
+    }
+  ],
+  "commands": [
+    {"id": "spot_swap", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "lp_add", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "lp_remove", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "zusd_borrow", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "zusd_repay", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "zusd_redeem", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "zusd_liquidate", "v1_profile": "RESEARCH_DISABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "stability_pool_deposit", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "stability_pool_withdraw", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "zusd_redistribute", "v1_profile": "RESEARCH_DISABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "perp_open", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "perp_close", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "perp_funding", "v1_profile": "RESEARCH_DISABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "perp_liquidate", "v1_profile": "RESEARCH_DISABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "oracle_submit", "v1_profile": "RESEARCH_DISABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "oracle_dispute", "v1_profile": "RESEARCH_DISABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "protocol_buy_and_burn", "v1_profile": "RESEARCH_DISABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "zrpf_prover_reward", "v1_profile": "RESEARCH_DISABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "seller_auction_commit", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "seller_auction_reveal", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "seller_auction_settle", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "seller_auction_cancel", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "seller_auction_expire", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "private_swap_commit", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "private_swap_reveal", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "private_swap_settle", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "private_swap_cancel", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "private_swap_expire", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "tau_escrow_deposit", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "tau_withdrawal", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "tau_withdrawal_ack", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "fallback_activate", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false},
+    {"id": "tau_rejoin", "v1_profile": "RESEARCH_ENABLED", "v2_specification": "GAP", "v2_implementation": "GAP", "v2_formal": "UNKNOWN", "v2_mounted": "UNMOUNTED", "v2_tested": "UNKNOWN", "terminal_complete": "UNKNOWN", "production_complete": false}
+  ],
+  "global_invariant": [
+    "nonnegative_bounded_integer_quantities",
+    "one_declared_issue_and_burn_authority_per_managed_asset",
+    "zusd_issue_and_burn_only_through_collateralized_monetary_kernel",
+    "per_asset_balance_custody_reserve_escrow_claim_reconciliation",
+    "zusd_debt_supply_protocol_liability_reconciliation",
+    "lp_reserve_share_fee_dust_reconciliation",
+    "perps_margin_pnl_funding_insurance_reconciliation",
+    "oracle_gated_risk_increase",
+    "nonce_and_nullifier_uniqueness",
+    "complete_terminal_drains",
+    "no_unnamed_rounding_remainder",
+    "no_external_effect_without_committed_outbox_ancestor",
+    "reject_no_commit_preserves_state_and_effects"
+  ],
+  "nonclaims": [
+    "UNKNOWN preserves missing same-subject evidence and does not deny historical partial work.",
+    "The V1 command registry is a research source observation and is not the V2 production language.",
+    "No row is promoted by this ledger.",
+    "The received 8/33 oracle and 18/25 writer counts were not reproduced on the frozen subject during G0."
+  ]
+}

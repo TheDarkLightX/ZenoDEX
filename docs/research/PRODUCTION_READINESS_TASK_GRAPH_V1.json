@@ -1,0 +1,211 @@
+{
+  "schema": "zenodex/production-readiness-task-graph/v1",
+  "version": 1,
+  "status": "G0_COMPLETE_RESEARCH_ONLY",
+  "production_promotion": false,
+  "base_commit": "b6842cd26aadf32b7ee774f58665570479cacfe6",
+  "base_tree": "d166dc8dff0baa00c7eea9cd04935e468b1fde3d",
+  "subject_selection": {
+    "selection": "EXACT_VERIFIED_HEAD",
+    "latest_verified_descendant": "b6842cd26aadf32b7ee774f58665570479cacfe6",
+    "strict_descendants_found_in_pinned_refs": 0,
+    "reason": "No strict descendant in the captured ref set had same-subject verification. Diverged and historical M6/ZRPF tips remain unreviewed donor candidates."
+  },
+  "readiness_predicates": {
+    "M6DirectReady": "OPEN",
+    "ZRPFReady": "OPEN",
+    "OperationalReady": "OPEN",
+    "ProductionReady": "OPEN"
+  },
+  "tasks": [
+    {
+      "id": "G0",
+      "title": "Preserve and freeze the implementation subject",
+      "dependencies": [],
+      "activation_dependencies": [],
+      "status": "COMPLETE",
+      "writable_paths": [
+        "README.md",
+        "docs/PRODUCTION_READINESS_PLAN.md",
+        "docs/research/PRODUCTION_READINESS_TASK_GRAPH_V1.json",
+        "docs/research/PRODUCTION_READINESS_COVERAGE_LEDGER_V1.json",
+        "docs/research/PRODUCTION_READINESS_DONOR_INVENTORY_V1.json",
+        "tools/build_production_readiness_donor_inventory.py",
+        "tools/check_production_readiness_plan.py",
+        "tests/test_build_production_readiness_donor_inventory.py",
+        "tests/test_check_production_readiness_plan.py"
+      ],
+      "invariant": "User work remains recoverable and every later claim names one frozen implementation subject.",
+      "authority_boundary": "The preservation receipt and structural checker describe evidence. They confer no settlement, merge, mount, deployment, or promotion authority.",
+      "failing_evidence": [
+        "The documented scripts/formal/check_low_disk_safety.sh command is absent at the frozen base.",
+        "The current warning-only disk guard reports WARNING rather than OK.",
+        "The received plan reports ten disabled commands while the exact source enumerates eight."
+      ],
+      "required_commands": [
+        "python3 tools/check_production_readiness_plan.py --json",
+        "python3 -m pytest -q tests/test_build_production_readiness_donor_inventory.py tests/test_check_production_readiness_plan.py",
+        "python3 -m ruff check tools/build_production_readiness_donor_inventory.py tools/check_production_readiness_plan.py tests/test_build_production_readiness_donor_inventory.py tests/test_check_production_readiness_plan.py",
+        "git diff --check"
+      ],
+      "artifact_hashes": [
+        {
+          "artifact": "private_dirty_payload",
+          "algorithm": "sha256",
+          "digest": "ba574de48b3a97cdb693088b967df8f3a45564ae4fd927acfabdde023073ecd0"
+        },
+        {
+          "artifact": "private_dirty_manifest",
+          "algorithm": "sha256",
+          "digest": "f3da0982431be07adbfd79d06d35682e4df528033ad9c610bed8289a57e0ec06"
+        }
+      ],
+      "nonclaims": [
+        "The private preservation archive is local recovery evidence and is not release evidence.",
+        "No donor candidate was imported.",
+        "G0 completion does not advance M6, ZRPF, or production readiness."
+      ],
+      "completion_receipt": {
+        "status": "VERIFIED",
+        "base_commit": "b6842cd26aadf32b7ee774f58665570479cacfe6",
+        "base_tree": "d166dc8dff0baa00c7eea9cd04935e468b1fde3d",
+        "preserved_entry_count": 22051,
+        "preserved_scope": [
+          "tracked_dirty",
+          "untracked_non_ignored"
+        ],
+        "ignored_paths_archived": false,
+        "disk_status_at_freeze": "WARNING",
+        "disk_available_bytes_after_archive": 15879983104,
+        "disk_critical_free_gib": 12,
+        "donor_imports": []
+      }
+    },
+    {
+      "id": "G1",
+      "title": "Close product semantics and the global state model",
+      "dependencies": ["G0"],
+      "activation_dependencies": [],
+      "status": "PENDING",
+      "writable_paths": ["docs", "docs/research", "src/core", "tests"],
+      "invariant": "Every enabled command has one selected economic owner and a complete user-to-terminal contract.",
+      "authority_boundary": "Specifications select semantics. Research tools may propose choices and cannot select production policy.",
+      "failing_evidence": ["The command-disable count conflicts between the received plan and exact V1 source.", "Economic policy choices and terminal paths remain open."],
+      "required_commands": ["python3 tools/check_production_readiness_plan.py --json", "python3 tools/check_m6_global_economic_core_atdd_v1.py"],
+      "artifact_hashes": [],
+      "nonclaims": ["A closed registry alone does not implement, prove, mount, or test a command."],
+      "completion_receipt": null
+    },
+    {
+      "id": "G2",
+      "title": "Complete the deterministic functional core",
+      "dependencies": ["G1"],
+      "activation_dependencies": [],
+      "status": "PENDING",
+      "writable_paths": ["crates", "src/core", "tests/core", "tools"],
+      "invariant": "All 33 commands are total, deterministic, checked-integer transitions with exact reject-no-commit behavior.",
+      "authority_boundary": "The Rust core proposes candidates. Verification and ZenoLedger publication own acceptance and durability.",
+      "failing_evidence": ["GlobalCommandV2 and the shared production Rust transition crate do not exist.", "No exact-subject 33/33 independent value oracle exists."],
+      "required_commands": ["cargo test", "cargo clippy --all -- -D warnings", "python3 tools/check_m6_value_oracle_v2.py --json"],
+      "artifact_hashes": [],
+      "nonclaims": ["Unit or differential tests alone do not establish mounting or production readiness."],
+      "completion_receipt": null
+    },
+    {
+      "id": "G3",
+      "title": "Complete FormalGate",
+      "dependencies": ["G1"],
+      "activation_dependencies": [],
+      "status": "PENDING",
+      "writable_paths": ["formal", "lean-mathlib", "src/tau_specs", "docs/research", "tools"],
+      "invariant": "One source-pinned formal trace covers command, context, state, candidate, publication, and effect obligations.",
+      "authority_boundary": "Pinned Lean, ESSO, Tau, SMT, and replay checkers decide only their declared claims and premises.",
+      "failing_evidence": ["The global composition/refinement theorem is open.", "Current ESSO source bindings and dual-solver agreement are incomplete."],
+      "required_commands": ["cd lean-mathlib && lake build", "python3 tools/run_tla_models.py --json", "python3 tools/check_tau_supported_runtime_subset.py"],
+      "artifact_hashes": [],
+      "nonclaims": ["Bounded solver results do not prove unbounded arithmetic, cryptographic soundness, or filesystem durability."],
+      "completion_receipt": null
+    },
+    {
+      "id": "G4",
+      "title": "Implement the production ZenoLedger imperative shell",
+      "dependencies": ["G1"],
+      "activation_dependencies": [],
+      "status": "PENDING",
+      "writable_paths": ["crates", "src/integration", "tests/integration", "tools"],
+      "invariant": "Publication exposes exact PRE or POST and binds state, history, nullifiers, finality, proof, writer epoch, and external outbox atomically.",
+      "authority_boundary": "Only the production ZenoLedger commit capability may advance durable economic truth.",
+      "failing_evidence": ["No qualified Rust daemon or seven-validator finality implementation exists.", "Research filesystem and SQLite stores remain unmounted prototypes."],
+      "required_commands": ["cargo test", "cargo clippy --all -- -D warnings", "python3 -m pytest -q tests/integration"],
+      "artifact_hashes": [],
+      "nonclaims": ["SQLite conformance and local crash tests do not establish production filesystem or consensus behavior."],
+      "completion_receipt": null
+    },
+    {
+      "id": "G5",
+      "title": "Complete runtime refinement",
+      "dependencies": ["G2", "G3", "G4"],
+      "activation_dependencies": [],
+      "status": "PENDING",
+      "writable_paths": ["crates", "src", "formal", "zk", "tests", "tools"],
+      "invariant": "Every accepted runtime value has one total formal projection and complete outcome parity.",
+      "authority_boundary": "Runtime adapters are proposal clients. The shared core, formal gates, and commit capability retain authority.",
+      "failing_evidence": ["RuntimeRefinementGate is false for the frozen subject.", "Python/Rust and direct/guest surfaces do not have complete parity."],
+      "required_commands": ["python3 tools/check_runtime_refinement_v2.py --json", "python3 -m pytest -q tests/integration"],
+      "artifact_hashes": [],
+      "nonclaims": ["Projection inventory or smoke tests do not establish total runtime refinement."],
+      "completion_receipt": null
+    },
+    {
+      "id": "G6",
+      "title": "Complete mounted direct M6",
+      "dependencies": ["G5"],
+      "activation_dependencies": [],
+      "status": "PENDING",
+      "writable_paths": ["src/integration", "tools", "tests", "docs/research"],
+      "invariant": "Every enabled value-moving entrypoint reaches one publication capability and every disabled feature has no writer.",
+      "authority_boundary": "Direct execution is the safety fallback and still commits only through ZenoLedger.",
+      "failing_evidence": ["The writer inventory has not been regenerated from a production build.", "Legacy bypass writers remain open."],
+      "required_commands": ["python3 tools/check_production_boundary.py --json", "python3 tools/check_deployment_no_bypass_v2.py --json"],
+      "artifact_hashes": [],
+      "nonclaims": ["Static inventory and unit tests do not establish mounted no-bypass behavior."],
+      "completion_receipt": null
+    },
+    {
+      "id": "G7",
+      "title": "Complete and integrate ZRPF",
+      "dependencies": ["G2", "G3"],
+      "activation_dependencies": ["G6"],
+      "status": "PENDING",
+      "writable_paths": ["crates", "zk", "src/integration", "tests", "tools", "docs/research"],
+      "invariant": "ZRPF proves the same transition as direct execution and admits roots through the same commit capability.",
+      "authority_boundary": "ZRPF proves batch execution and has no finality, issuer, governance, or publication authority.",
+      "failing_evidence": ["The selected guest does not execute the complete shared transition.", "Full 73-receipt replay, complete parity, and the 60-second p95 target are absent."],
+      "required_commands": ["cd zk/state_proof_risc0 && cargo test --all", "python3 tools/check_m6_risc0_semantic_surface_v2.py --json", "python3 tools/replay_zrpf_73_receipts_v2.py --json"],
+      "artifact_hashes": [],
+      "nonclaims": ["Fixture receipts, partial recursion, or local smoke proofs do not establish ZRPF readiness."],
+      "completion_receipt": null
+    },
+    {
+      "id": "G8",
+      "title": "Production security, operations, and release",
+      "dependencies": ["G6", "G7"],
+      "activation_dependencies": [],
+      "status": "PENDING",
+      "writable_paths": ["config", "docs", "tools", "tests", "deploy"],
+      "invariant": "Every release receipt binds one M6PromotionSubjectV2 and survives the declared operational threat model.",
+      "authority_boundary": "Signed release, validator, deployment, and incident ceremonies cannot override invalid transition rejection.",
+      "failing_evidence": ["No qualified validator deployment, disaster recovery ceremony, independent audit, or exact release subject exists."],
+      "required_commands": ["bash tools/run_critical_quality_gate.sh", "python3 tools/check_production_boundary.py --json", "python3 tools/permissionless_assurance.py status"],
+      "artifact_hashes": [],
+      "nonclaims": ["A testnet or bounded-value canary does not itself establish unrestricted production readiness."],
+      "completion_receipt": null
+    }
+  ],
+  "nonclaims": [
+    "This graph is an implementation schedule and structural control artifact.",
+    "Only G0 is complete.",
+    "No readiness predicate is true.",
+    "No donor candidate is authorized for import by appearing in the inventory."
+  ]
+}

@@ -1,0 +1,5576 @@
+{
+  "base_commit": "b6842cd26aadf32b7ee774f58665570479cacfe6",
+  "candidates": [
+    {
+      "commit": "007020c0a6cbf2d0bd28045216b0a9097e675d19",
+      "committed_at": "2026-07-12T23:59:15-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "464f0a3dc04ea4b9519eec740a3453e331fbd330"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: align ZRPF CBC specs with V6 lane",
+      "tree": "211d5e99055c3d5e36df1f4123e19a31205e9600"
+    },
+    {
+      "commit": "0071e414e0c415b8930649799fdd1be8f74f47af",
+      "committed_at": "2026-08-01T20:34:18-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "8cf31c666babeca23b50c67b4fd3438669a08997"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix: classify invalid M6 I04 state",
+      "tree": "5aace573ecfbc78ce20433439e4b21eef6ed1716"
+    },
+    {
+      "commit": "0149cf6a267702f957c227b30ca836388e2cf364",
+      "committed_at": "2026-08-06T11:14:28-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "b67cf0b13f46770ee54a30af2d55a85b13642881"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): bind economic command occurrences",
+      "tree": "435d4fbaef0c35a8e81c493bc8b45470faa9982e"
+    },
+    {
+      "commit": "0431e8e1b3861454668e7448d5c340909b914074",
+      "committed_at": "2026-07-13T10:25:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "c38919692548e0780e3ba341e85d9feeda2a0872"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "tools: enforce exact ZRPF rebuild source state",
+      "tree": "b1966c5ba22ff9e4ec925f4175acc8ff82036c5b"
+    },
+    {
+      "commit": "0460c9be4dba9c3a2d7a1a3c6430bfeb17d08ed7",
+      "committed_at": "2026-08-01T19:22:56-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "c3f4578562b73c9b2e054dbebb2759a21ed5c520"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "research: add M6 static no-bypass checker",
+      "tree": "5223e558c5f6119ee6dd99e3777e06ee805c885c"
+    },
+    {
+      "commit": "054197afb62740aab9a3d7994320482691ba517e",
+      "committed_at": "2026-07-12T16:41:30-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-p0-boundary-fixes-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "bb2d6b232a689e41581387060916811b82258dc8"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: gate every ZRPF package and guest target",
+      "tree": "62f0442ab9ad9a5d656f9429f4538a7917e7c602"
+    },
+    {
+      "commit": "0570a90db26b9ab768dd6a9c9d64ae45217078ce",
+      "committed_at": "2026-07-14T01:51:56-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "4095dad2705f89b85bf9cc95f660b2c700dfea8c"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(zrpf): bind canonical ZenoLedger finality inputs",
+      "tree": "4da6d4e1c41568af69f9120553f5ee700b82a680"
+    },
+    {
+      "commit": "06797ffa37ca48b146e4adf40607db5f4913068e",
+      "committed_at": "2026-07-11T02:11:56-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "1dd112739fa3b1fb60eec64b3c2ded9fe89c28e5"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: execute ZRPF build artifacts in assurance lane",
+      "tree": "c7ebd8832b855d341216d9397842ded188eb7d02"
+    },
+    {
+      "commit": "0787644a7ad2066c5a91064e9002c1e171f5f3a6",
+      "committed_at": "2026-07-13T23:21:09-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-completion-integration-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "68e4ca3910108dd23d8ca2e56caa1f3fc90ec3c3"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "test: remove CodeQL-sensitive fixtures",
+      "tree": "6edb066e3e285f4859c6dd6414a135a86a93f231"
+    },
+    {
+      "commit": "0854a4ae41493ab4c19ef30243022a0138a53d79",
+      "committed_at": "2026-07-13T04:49:55-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "e4f20ee893025b5986b6a58626e55e4345059510",
+        "22eb837bda5d074991d3903c6e74a235e15739d3"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge updated ZRPF integration base into issue 414",
+      "tree": "57ece56ec1d36d09d411c61d8124524a12533ad6"
+    },
+    {
+      "commit": "0a17435af974a79481994c11981b6ae73d519393",
+      "committed_at": "2026-07-12T18:21:14-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-post417-completion-integration-20260712",
+        "refs/remotes/origin/agent/zrpf-post417-completion-integration-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "9cc127a68a96471746256e37567bda68c68d7d9e",
+        "bb2d6b232a689e41581387060916811b82258dc8"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: merge zUSD value-flow and close ZRPF review gaps",
+      "tree": "a82384fae36b737a5a5f2b645e18d3622b14889e"
+    },
+    {
+      "commit": "0a51b2dc8729af34d86d717dff214576f7ae58c8",
+      "committed_at": "2026-07-30T15:54:48-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/codex/fcis-m6-r01-segmented-lineage-20260730"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "13a73610432360146c76e0861c1cd29bb35e415c"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Remove redundant closed-goal tactics",
+      "tree": "f9d93c6dbaba549a447af2e8931a1740b8edfc2e"
+    },
+    {
+      "commit": "0a84e7baa6ac58ffcbdd771a63b9de7e9d3e4e4f",
+      "committed_at": "2026-07-14T01:44:29-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "b9b9d560730beb083b9e752877b7b2a404d0f3ee"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: run ZRPF assurance repair on PR synchronization",
+      "tree": "81db3e9f5ddd1e20ffdfd5bf4a33aa6216b295fa"
+    },
+    {
+      "commit": "0abce055c0fc239018acd382fb4fcdd973e82e26",
+      "committed_at": "2026-07-11T17:31:59-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "b61080a0af068d125cc8aef0eac1aaa2acb5c757"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "tools: bind state workspace in ZRPF source closure",
+      "tree": "9a32581e93490bb4489b87ce27243283cbacc763"
+    },
+    {
+      "commit": "0b4de59541d84e9a8fffc01cdcefcc24f1c9c4ae",
+      "committed_at": "2026-07-10T19:17:35-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "dc99a7f96c816ff7f86b0f184d25817bea338166"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: pin exact ZRPF receipt security profile",
+      "tree": "205f9ea9fdfc3f4fb7486327a115a8bd362ae0ce"
+    },
+    {
+      "commit": "0b88a7ff2eb2ecf76b617a8eb2123fc1cb5ad0a4",
+      "committed_at": "2026-07-13T05:21:10-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "3bff1a5611ee22024ef1d9f30eb3ef339f74b0f0",
+        "3ee20671b0fd4868d3105b973da9cb38e655af26"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge remote-tracking branch 'origin/agent/zrpf-completion-integration-20260712' into agent/issue-414-bls-pubkey-dedupe-20260713",
+      "tree": "cc6a4e4eb4408dc21f699e1305c291a8a0826cd4"
+    },
+    {
+      "commit": "0dc563ff58a704392b2061ec1a764df94cde7911",
+      "committed_at": "2026-07-12T02:09:33-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-value-node-v4-cbc-20260711",
+        "refs/remotes/origin/agent/zrpf-value-node-v4-cbc-20260711"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "074e4a4327b4387606955a1ece868889ba50e502"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "evidence: retain source-built V4 Spot leaf replay",
+      "tree": "06ae7557a993cd14b425b817fd691b589c33e941"
+    },
+    {
+      "commit": "0ed13cfbe536cb156f5de285d47c09cbfb37d437",
+      "committed_at": "2026-07-12T14:25:32-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-t15b-state-projection-type-hardening-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "a50d3666c033577d5be04c8cef5c357b2042cabf"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: harden Spot state projection typestate",
+      "tree": "aa433583139e6f6c4d6a548d682d981dc256b32e"
+    },
+    {
+      "commit": "0ed330e15830545ec75b1606c23e9b0ad7699b60",
+      "committed_at": "2026-07-14T19:17:45-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "2539ed9fd5c13f0bb75d970f247e18c0c82b5017"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add config/proof_profiles/zrpf_risc0_3_0_5_soundness_v1.example.json",
+      "tree": "53b47f103fcec3c991ad6d369be4d3e8921af6ea"
+    },
+    {
+      "commit": "10916a91c99d273402055d7d86b2373869e73042",
+      "committed_at": "2026-07-12T13:54:02-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-t11-value-aggregate-l1-guest-20260712",
+        "refs/remotes/origin/agent/zrpf-t11-value-aggregate-l1-guest-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "7eaf5d60c624a48d34aea68c0adcbc90ee26ecc6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: propagate V5 operational commitments",
+      "tree": "efb5fbc523a0153309c2cdf247aba5e7ef5c9729"
+    },
+    {
+      "commit": "11c6cc923865e5a186138e48786706f9297f15b7",
+      "committed_at": "2026-08-03T13:44:50-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "14eaa2d8626bbdff8546f1dc88d84dd04bdfbc8e"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(m6): compose zUSD fee claim realization",
+      "tree": "f5bea259a4a4305dd974e30e544e31bd50ada65c"
+    },
+    {
+      "commit": "12f30ab22408a2d342dcf1f6b384eda7ab575e91",
+      "committed_at": "2026-07-29T18:18:26Z",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "52a2f1231d5d60e7648e45463044146a1b4046e8"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(fcis): add M5-to-M6 refinement matrix",
+      "tree": "e6ddb350f2bb98bdc8bbe0c3e591f4a7c6ac64c0"
+    },
+    {
+      "commit": "130a77a96d3f23a5ebe60fa6a4ab92aeb2e4b2bd",
+      "committed_at": "2026-07-14T19:15:11-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "e4405472b89218c70ba08f8183665df425913e6d"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "research: add docs/research/ZRPF_FRONTIER_KNOWLEDGE_GRAPH_20260714.json",
+      "tree": "b5e02692811507feae20071e9d78ff418e9cb914"
+    },
+    {
+      "commit": "1365b43ffd609c5bd67d0f0dadfbdf8e80322018",
+      "committed_at": "2026-07-14T00:00:23-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-v7-da-adapter-20260713"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "0787644a7ad2066c5a91064e9002c1e171f5f3a6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: bind exact full-blob DA checker",
+      "tree": "3fd063586fae41cbd844587ae23a8a16fc67c55b"
+    },
+    {
+      "commit": "1456d5d7689002bff195dc1d052a361faca93064",
+      "committed_at": "2026-07-13T12:46:01-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "7c282681fe158aae23fb52f06251ed954ebfb797"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "tools: harden final ZRPF identity materialization",
+      "tree": "85ec75cd23f5504d6697c483ab5e2ee33deb7f91"
+    },
+    {
+      "commit": "14eaa2d8626bbdff8546f1dc88d84dd04bdfbc8e",
+      "committed_at": "2026-08-03T09:35:43-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "f17fa72cfec0c4b9a2b65603c401caaf337747e5"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): bind zUSD fee claim evidence",
+      "tree": "8cf675bd8eabf18417752d758233c1d945c73a8c"
+    },
+    {
+      "commit": "161cc89291e4e3956585316d5155562ef2c70b5e",
+      "committed_at": "2026-07-14T00:54:31-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0787644a7ad2066c5a91064e9002c1e171f5f3a6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: expose exact ZRPF Python assurance failure",
+      "tree": "a809af7aa88417c4b397f35edb69721417953b0c"
+    },
+    {
+      "commit": "16db3da7e3a6ee2716fac260f3de21b47bfd4827",
+      "committed_at": "2026-07-31T02:33:37-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "53beba00217274ec9357c3cf42fd11fa2501d306"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(fcis): close M6 R01 authority graph",
+      "tree": "8c7a830e9c5e3cacf3431c6b06d432ffbe195302"
+    },
+    {
+      "commit": "17dc8a94defc5ec1b7490a1b81eef3328373b4d2",
+      "committed_at": "2026-07-13T23:42:46-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0787644a7ad2066c5a91064e9002c1e171f5f3a6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "test: repair ZRPF assurance gate",
+      "tree": "9f4c6f1bb7b156bd76df0f62bd19cf72c905e4e9"
+    },
+    {
+      "commit": "1977bfb0e4ca520b096c60b1091628fff7777277",
+      "committed_at": "2026-07-14T05:07:30-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "c507946bac4cc50cf69fe1f596ce9bead41de3eb"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: retain and enforce policy provenance",
+      "tree": "028f39efe0a270f247ced3b15df970ea723ae988"
+    },
+    {
+      "commit": "1b3e7d773438705f7b61b34f4f234676e18d3f0d",
+      "committed_at": "2026-07-31T03:47:05-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "d6cd7e02e04b4721d993056bb95d68ab0dac1db9"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(fcis): close M6-R01 replay lineage gaps",
+      "tree": "f8dbe8db82df97ab1e4baded63fa45a0fabba0af"
+    },
+    {
+      "commit": "1ba6abb9413c88cc31ae42ef7f323078b5a04b16",
+      "committed_at": "2026-07-12T06:44:43-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "6667d32704db697279b29686d3fdfd9779818188",
+        "0dc563ff58a704392b2061ec1a764df94cde7911"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "merge: integrate historical ZRPF V4 value evidence",
+      "tree": "d82c5c4b481541f386961ec8d746964a2d40d20c"
+    },
+    {
+      "commit": "1bacd84aaac32fa539a2d994962c5cebd13a8cd0",
+      "committed_at": "2026-08-06T20:18:26-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "af6e6b274578ffa408623f226da3ec2cac9f5c31"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): close asset transfer action type binding",
+      "tree": "d81319687756949ad8452fad70c044bd68a7305c"
+    },
+    {
+      "commit": "1ce445409c0e783e3b927e0bd389693cdefb7f59",
+      "committed_at": "2026-07-31T16:05:06-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "cd88bc4b528feb3b03ebbd0e0aaff006eebe72dd"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Record FCIS M6 B06 postcondition evidence",
+      "tree": "ce18a48b387de06c99aba5cc9f2bc8845b1bffe4"
+    },
+    {
+      "commit": "1d5008b5cf5df79bff40159e5b7e141f69b9d9f8",
+      "committed_at": "2026-07-11T02:32:46-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/pr389-zrpf-push-clean",
+        "refs/remotes/origin/agent/zrpf-v3-structural-cbc"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "46c068487e44a1276c424ae3243c31a28ba8d976"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: replay from a clean tracked checkout",
+      "tree": "b592560fdd4601c64c1b08d24fdad157e4dcec90"
+    },
+    {
+      "commit": "1dd112739fa3b1fb60eec64b3c2ded9fe89c28e5",
+      "committed_at": "2026-07-11T02:11:56-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "11d59d6adde2a40c4823697861b2c409ca052add"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: require isolated ZRPF assurance",
+      "tree": "f3df12cd18bd17392af85c7887155e0efda729d4"
+    },
+    {
+      "commit": "1e0fa2cb3998fcd3f64b6fe4da9fe22855b762c2",
+      "committed_at": "2026-07-14T05:50:41-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-v7-governed-config-binding-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "894091cb565ced68838827cbe81cd5771d80faea"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "security: bind Spot V7 Firecracker runtime identities",
+      "tree": "99488a7fd3586f4f0bbdc183630d700aa83a232f"
+    },
+    {
+      "commit": "1e8f09324a62332a8e300fa53e2829e97fc11bb0",
+      "committed_at": "2026-07-31T15:27:13-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "b182bdbdc842ef54f46194a31b3a76e3d6efc906"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Record M6 B04 adaptive trace evidence",
+      "tree": "58ef8a6b018b3689f87d79a21ba3dba7338f5637"
+    },
+    {
+      "commit": "1ec77e35c3a8e504cbff6cbc09c6906eacaefc7f",
+      "committed_at": "2026-08-06T07:59:38-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "56ff8ed5d7692a0698730314c957f9c3d9b53b68"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(zrpf): expose release resource ceilings",
+      "tree": "7b9b2f16f186a1d2809799dd76e04fef2905dad7"
+    },
+    {
+      "commit": "1f3fb43e23ecffd42b60256bc4ed41fc31ecd1d6",
+      "committed_at": "2026-07-14T19:17:48-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "2436e697655867526f4b479e67415f48dab228b7"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add tests/test_validate_zrpf_soundness_profile.py",
+      "tree": "520236cbbf6d2be8ff556d552d5019a938cc5449"
+    },
+    {
+      "commit": "1f58718d9c65bbcaf3928339eb87db4c982f586e",
+      "committed_at": "2026-07-10T20:32:18-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-v3-structural-cbc"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "a76882ee6ce3f73fcbe7816bc1c755166d8ccf27"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "evidence: publish scoped ZRPF structural replay",
+      "tree": "86e348ee0c937b6a9a26020351651052ecf7a1fa"
+    },
+    {
+      "commit": "20bd4313460eaf85f552729e3d58130edf3d70d2",
+      "committed_at": "2026-07-14T19:13:55-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "44d7f0d2a36b2141b553af1df734926c9d559bca"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add docs/research/ZRPF_LEVEL_SPECIFIC_IMAGE_LADDER_V1_20260714.md",
+      "tree": "9f4c89c6c92a247752b91b55f3d4c1e71e0708f2"
+    },
+    {
+      "commit": "2436e697655867526f4b479e67415f48dab228b7",
+      "committed_at": "2026-07-14T19:17:47-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0ed330e15830545ec75b1606c23e9b0ad7699b60"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add tools/validate_zrpf_soundness_profile.py",
+      "tree": "c21e8bdfb6752e24c50d53b6ef64c0a95d175a61"
+    },
+    {
+      "commit": "24f4c9917722250faefc38315e1677d7a98a7ce6",
+      "committed_at": "2026-08-12T23:09:23-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "e1532937babb28ff79b812497086d042f43ba8b1"
+      ],
+      "relation_to_base": "ANCESTOR_INCLUDED",
+      "review_status": "BASELINE_INCLUDED",
+      "subject": "docs: refresh M6 semantic blocker evidence",
+      "tree": "12715987d9e42eb9cd2ebe8740cb9990a35622cc"
+    },
+    {
+      "commit": "2539ed9fd5c13f0bb75d970f247e18c0c82b5017",
+      "committed_at": "2026-07-14T19:17:43-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "3d17f832b76f1f7d55962ebed5bc6f2dcf16b34d"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add config/proof_profiles/zrpf_soundness_profile_v1.schema.json",
+      "tree": "143d94dca460db7ebd5a0599fc9a06af2fa77dc4"
+    },
+    {
+      "commit": "25c245dca2626fd04fdff0d6983af94139d272e3",
+      "committed_at": "2026-08-06T06:28:36-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "2028d62e12e0c0e7cf2666c7ca412a9f770a016d"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add closed economic lane registry v1",
+      "tree": "f6c3d14d5026a17a4d1d11d7b98d0e573356960f"
+    },
+    {
+      "commit": "26104cbd163b65c012cb4ed6ef408e496ad1db32",
+      "committed_at": "2026-07-10T21:52:52-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "d46f3e5614e39c41ebebd80b819bb2f1f6a5e522"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add source-built ZRPF replay evidence",
+      "tree": "4cb6b3f7a6f3a3b0f219d8ff1b326d79a43c707f"
+    },
+    {
+      "commit": "2653e86c7cec6f701d6a0e1fbe5b89ab3f3e7401",
+      "committed_at": "2026-07-10T19:17:05-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "617b68379a8122668c2fc10866b7959e0b060dcf"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: pin exact ZRPF receipt security profile",
+      "tree": "b2ad7348ec79a38131fa61f3a7b0ca229fd5ee45"
+    },
+    {
+      "commit": "26e6054861876d64f9a383555b5cc8b85c53f6e8",
+      "committed_at": "2026-08-01T19:48:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "a39f28e6c2fbabf2d42859dd3b8cc1d34f569951"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat: add M6 J06 quiescence gate model",
+      "tree": "990ab02d6ab89e96919cb6b3be938422c34d2753"
+    },
+    {
+      "commit": "2955a64bd90ae1af68ba405af2907210b54da69e",
+      "committed_at": "2026-07-13T06:28:44-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-completion-integration-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "96f16e4f789b52252212dd5152a87ca31bb0a6de",
+        "9a596fcd0bb25ef4eb190c934173e882452bb932"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "state: enforce canonical pool identity at authority boundaries (#423)",
+      "tree": "ae63f3b452ae33bbebeb3991ca78cd09adfc2eea"
+    },
+    {
+      "commit": "295a2dc5279b0b80ea7842dfe0190499725d94c7",
+      "committed_at": "2026-08-01T19:50:15-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "26e6054861876d64f9a383555b5cc8b85c53f6e8"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: receipt M6 J06 quiescence evidence",
+      "tree": "1cc8798fb50b39756ca3381c80948ef5a68d220d"
+    },
+    {
+      "commit": "2a275c3c882729fa2960749923b925ab3c6c2a90",
+      "committed_at": "2026-08-03T18:03:57-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "7d905908c1448c468102f2144528f4d2ae34918d"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(m6): bind authenticated zUSD fee allocation to exact state",
+      "tree": "1fc20bb410c26fe130bcbac6ade830df51425e3e"
+    },
+    {
+      "commit": "2d0727f90dcfc973e73675214c52fed67405d615",
+      "committed_at": "2026-07-14T02:06:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "7e7020738cf24e2ca41a9dd5451fa66d6da83098"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: retain ZRPF repair transformation diagnostics",
+      "tree": "6df76ffcf9bcf509f24cd8cf0a2fb7ac9558c450"
+    },
+    {
+      "commit": "2d21db5f7bafe013df1c2532a7b3bbd1e141d7af",
+      "committed_at": "2026-07-30T16:17:59-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "7dac1be14eb2c63906b64f7d4b79ebfa902d687d"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Document Tree-Chord-Gate mathematics and M6 map",
+      "tree": "72e1c24a52acef8f39843b33227846f655daaa8a"
+    },
+    {
+      "commit": "30160cec1b2b470bef88928b835ec5b9a395b155",
+      "committed_at": "2026-06-12T04:20:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "a10e1753a29c469a1f05e4e96440234526f4543b",
+        "94c5ce233c16af19038c501495b5a73d96e3b9a7"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge remote-tracking branch 'refs/remotes/ssh/tender-cerf-m6j10z' into pr369",
+      "tree": "7089d11c9ac508e8e37085d66f308b9665743f07"
+    },
+    {
+      "commit": "30be10902bca208fa9436a3e4f6b9c7b21f68819",
+      "committed_at": "2026-08-03T04:08:18-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "91bce42607c2c2365087976bed1bee4a38cc1812"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): rebind exact receipt lineage",
+      "tree": "3a0cb9dc06b20685b40f93e2d0ed81f0cfaa7d0c"
+    },
+    {
+      "commit": "30cec83d31f99a6618e47eda636693de1ec9f271",
+      "committed_at": "2026-07-13T10:35:04-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0431e8e1b3861454668e7448d5c340909b914074"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "tools: harden ZRPF identity build runner",
+      "tree": "da41ea1c327e538ee8658ed69a87dd448fdbda45"
+    },
+    {
+      "commit": "30f143df22dd26f1557a0f647f92eca5a378fd91",
+      "committed_at": "2026-07-12T04:48:23-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-semantic-self-image-cbc-20260712",
+        "refs/remotes/origin/agent/zrpf-semantic-self-image-cbc-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "ebe080abe97abf17d247c4ba879d79ad30729fe2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: remove semantic self-image from V2 statement",
+      "tree": "c0a3fb0e5c315c7d73d97499d1293a9ad3f64832"
+    },
+    {
+      "commit": "31d2fe661bf9759d451e17921aab2831ef6f6912",
+      "committed_at": "2026-07-12T17:06:43-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-state-bound-admission-authority-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "bb2d6b232a689e41581387060916811b82258dc8"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): bind authenticated settlement admission",
+      "tree": "b8a399914520708ee91ad589ca2a57fdd523dffe"
+    },
+    {
+      "commit": "32adbd298cd5c6a4d8826373cf189024d18a1e72",
+      "committed_at": "2026-07-13T21:17:19-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-v6-v7-identity-c0-20260713"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "d5f0b8b216fa73802fe047ab2ff35543d21023d2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: require V6 to V7 completion tooling",
+      "tree": "beff3183984ddd3da72ec3796df3b515ec31066c"
+    },
+    {
+      "commit": "33ed0772840b4dc09992e028daf1bb9072789e2d",
+      "committed_at": "2026-08-13T10:06:59-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "54f3653d38b686ebee570ca84fe2adc7a670acf3"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: bind exact M6 durable subject",
+      "tree": "2deabb3ad3c5a43a160b0c833f6f0d1842bd359c"
+    },
+    {
+      "commit": "36db45aa80539a35b03cef7aeacb36f3312d4e68",
+      "committed_at": "2026-07-12T12:04:32-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0ec976aa0c936e305ac7962ea21b619f4f353b77"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add deterministic settlement effect plan",
+      "tree": "9381cb16280f73bd6f53b4c53142a08ca5f147d7"
+    },
+    {
+      "commit": "36e1787c5b780a0f7ac6ed738956ae14b262ff6e",
+      "committed_at": "2026-08-13T02:45:33-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "71de5902497aabcb903e6740502da9460348c58a"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix: bind M6 assurance to candidate commit",
+      "tree": "550652faecfb1c0aeaaf37c43613f956c8a95eae"
+    },
+    {
+      "commit": "380eafb216c4288526d68af1c7489432be36d8be",
+      "committed_at": "2026-07-12T16:42:03-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "bb2d6b232a689e41581387060916811b82258dc8"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: gate every ZRPF package and guest target",
+      "tree": "62f0442ab9ad9a5d656f9429f4538a7917e7c602"
+    },
+    {
+      "commit": "38a81d481f5adb52bb562a439eeb4488e0bc7210",
+      "committed_at": "2026-07-13T05:22:17-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "3ee20671b0fd4868d3105b973da9cb38e655af26"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: require accepted ZRPF live replay report",
+      "tree": "fb8c71e3c179856a9378905c625387cb5deb44f6"
+    },
+    {
+      "commit": "3a848ea66b9b519cda7e7a6fa10affd6932beeaa",
+      "committed_at": "2026-07-12T14:48:12-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-t16b-l2-policy-cycle-break-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "58387badb72a8ff26fa87fc882551f656caacd1e"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: isolate V5 L1 identity from L1 closure",
+      "tree": "2e009b0adcade9a233bbf523d7cb006370cadff9"
+    },
+    {
+      "commit": "3bf7661091b727575dd03a020afe67b6c7f9a282",
+      "committed_at": "2026-08-11T16:16:10-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/codex/m6-drifted-wip-preservation-20260811",
+        "refs/remotes/origin/codex/m6-drifted-wip-preservation-20260811"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "827f5cfcacfc3f26fe6bd5fcf4f82f0dd326b6bd"
+      ],
+      "relation_to_base": "ANCESTOR_INCLUDED",
+      "review_status": "BASELINE_INCLUDED",
+      "subject": "wip(m6): preserve drifted global-economic candidate",
+      "tree": "0b2524a64c2c156cfc40bda4d09f0dd3719d9702"
+    },
+    {
+      "commit": "3bff1a5611ee22024ef1d9f30eb3ef339f74b0f0",
+      "committed_at": "2026-07-13T05:19:18-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0854a4ae41493ab4c19ef30243022a0138a53d79",
+        "5f3f1095cef4f7093f69965f37e4897945961d08"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge remote-tracking branch 'origin/agent/zrpf-completion-integration-20260712' into agent/issue-414-bls-pubkey-dedupe-20260713",
+      "tree": "15f67ad228f1a6683097471c3ec13fb5d5766cd7"
+    },
+    {
+      "commit": "3c2a016e7ae702bddcca47831e15a5d17509010f",
+      "committed_at": "2026-08-04T07:54:16-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "7770e0bb26cf8a6f84f7fcc23fac182f4fda9b1f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): remove machine-local ESSO paths",
+      "tree": "08448af67c830954d1c4c3471af20b46157991d5"
+    },
+    {
+      "commit": "3ca7aca6d789bfd2db7cc8d04e3a68131b3a1f21",
+      "committed_at": "2026-07-15T01:53:36-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "ded794be63e3621afd99c16956498876b430b984"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: type-check ZRPF adversarial boundaries",
+      "tree": "919ab7ec0b8b031678ac039e66272e776e540fe4"
+    },
+    {
+      "commit": "3d17f832b76f1f7d55962ebed5bc6f2dcf16b34d",
+      "committed_at": "2026-07-14T19:17:42-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "44d7f0d2a36b2141b553af1df734926c9d559bca"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add docs/research/ZRPF_SOUNDNESS_PROFILE_V1_20260714.md",
+      "tree": "43a9a254c4fa71f5b1f420ec6e0def5171b93ef8"
+    },
+    {
+      "commit": "3ee20671b0fd4868d3105b973da9cb38e655af26",
+      "committed_at": "2026-07-13T05:21:03-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "5f3f1095cef4f7093f69965f37e4897945961d08"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: replace ZRPF report only after valid replay output",
+      "tree": "cf755a7621352d0bbba9cacc5e7653ff943e0d9f"
+    },
+    {
+      "commit": "4195c68909a0a7f4dafe3b5403a48ede8ab1f664",
+      "committed_at": "2026-07-11T01:34:48-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-v3-byte-authority-cbc"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "2e06c14c3c657e19878a6b13c4a094b09621cfa1"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: harden recursive dependency audit boundary",
+      "tree": "61940054ebfe3afa59dd3d87a3c459c526b35156"
+    },
+    {
+      "commit": "41dcf303aaaac63dc5cbbbfa2f5617e13b3b9296",
+      "committed_at": "2026-07-14T02:31:39-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-assurance-repair-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "2d0727f90dcfc973e73675214c52fed67405d615"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: make ZRPF repair inventory patch unambiguous",
+      "tree": "abbe89f2ba823e651e60bdd3606796a1b7c99dac"
+    },
+    {
+      "commit": "42e763586cdfd8a3182ea8839e2d337985af1b7a",
+      "committed_at": "2026-07-12T17:42:40-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "8e1336983a111976ce70e68bdec62a419f064780"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Harden durable ZRPF certificate admission",
+      "tree": "3fccb808a9dc4f1dba04688230fb0cc049ea6e1a"
+    },
+    {
+      "commit": "43c423913cc4b1a30c2dd05f4194344bf707c0f9",
+      "committed_at": "2026-07-11T22:07:11-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-perps-source-finality-v1-20260711",
+        "refs/remotes/origin/agent/zrpf-perps-source-finality-v1-20260711"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "a3e9303318ad4a4a3930ba61b3c903c9ab4ccb1f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: block unpaired perps value rows",
+      "tree": "6caed2a0f49ed218bc3ec96e95e3c36af7707f26"
+    },
+    {
+      "commit": "43f302a454500e05fea98b499ece4a93971f45f9",
+      "committed_at": "2026-08-03T08:56:43-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "f0b35143e7a8d6271c956340fdaad42042dfea3f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): bind zUSD supply delta evidence",
+      "tree": "255512810909fb40d60a5644b02cfe686187f2e4"
+    },
+    {
+      "commit": "44bc0435621588659e44a2819e4e8ef03ce6fd51",
+      "committed_at": "2026-07-11T00:14:16-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "f22e1f075b042a47c151e51d50075c64db7634ea"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: seal source-built ZRPF verifier execution",
+      "tree": "0410e820afcbb1715ecccd6d691059a67424376e"
+    },
+    {
+      "commit": "44d7f0d2a36b2141b553af1df734926c9d559bca",
+      "committed_at": "2026-07-13T07:02:20-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "d1153703515aef64254d1d463790a3aed3415075",
+        "2955a64bd90ae1af68ba405af2907210b54da69e"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: integrate bounded ZRPF completion line (#421)",
+      "tree": "ae63f3b452ae33bbebeb3991ca78cd09adfc2eea"
+    },
+    {
+      "commit": "461de21929e867bc459265a75c144e81d72143d7",
+      "committed_at": "2026-08-03T18:08:08-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "2a275c3c882729fa2960749923b925ab3c6c2a90"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): record authenticated zUSD fee binding evidence",
+      "tree": "eebc4b24a69dbdae32f844c463d120872106ef48"
+    },
+    {
+      "commit": "46c068487e44a1276c424ae3243c31a28ba8d976",
+      "committed_at": "2026-07-11T02:17:41-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "b1c24ddef6d44008c8f122dfb377d7a6c65e4045"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "test: keep ZRPF fixtures public-path clean",
+      "tree": "631df196bc8b6e071b7a04a6bcad6646d4c0fb10"
+    },
+    {
+      "commit": "46e3f285c6309b90d26d6ca91737362c419c1f12",
+      "committed_at": "2026-08-15T18:41:24-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "1f7a89620d87fb7c5f7c64d3fe36c932a166fd1f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix: restore M6 checker and perps phase closure",
+      "tree": "6cab8d6ac19e16f580e4cb81c98835993616f6ce"
+    },
+    {
+      "commit": "46faa5ee486800671eba4ddc7d6763a836417d44",
+      "committed_at": "2026-08-06T06:38:03-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "25c245dca2626fd04fdff0d6983af94139d272e3"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(zrpf): bind global ABI sources into closure",
+      "tree": "db151fe23ea352e1b69517bd88b8fc54f8567547"
+    },
+    {
+      "commit": "476ec022e755ff049c39bf9f08c6606ac87532ca",
+      "committed_at": "2026-07-31T12:46:14-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/fcis-m6-r05-r11-durable-retraction-20260731"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "ecf26f987c3d6393501fec66ddfc3429fb8634c7"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Regenerate durable retraction review packet",
+      "tree": "a1d495eae0b26a369487ceb48cad5472abec74db"
+    },
+    {
+      "commit": "497d8ff49c303cd0ecce40f9710a820914a358ee",
+      "committed_at": "2026-07-13T06:19:28-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "9142056d00db8469daf9994180553fd0e7f0a29c"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(zrpf): enforce global certificate grant spends",
+      "tree": "d2158d5b54d17bedd550837295fe6be604819e19"
+    },
+    {
+      "commit": "49df2a07a98ea7f25bd37c9dbca32ca3aa3147e0",
+      "committed_at": "2026-07-10T19:27:50-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "e657f06ae29ab6c425e5cbfe33d6799a9c34eebb"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: seal persisted ZRPF receipt envelopes",
+      "tree": "cab37d30a7ba8e579ad3458d71a2ab4b000c92a1"
+    },
+    {
+      "commit": "4aaf35fa33016c0817dce19f46efc979d0b32489",
+      "committed_at": "2026-08-03T20:23:56-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "b8b5f1990902dbd8f27d684c466bfb24cc7d293f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): rebind repaired projection evidence",
+      "tree": "1f261210205e0b9b65239139c4ee79f5a5ed950a"
+    },
+    {
+      "commit": "4b1807f8b15bfbfd5b83c34c5f17c2a3a3d83248",
+      "committed_at": "2026-07-31T16:21:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "dedba1713e23e00b07d9bc953a503864f6c5afb3"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Record FCIS M6 B07 Rust evidence",
+      "tree": "367d8bf7ba18cb4c6a75b88bf87b90bed5030320"
+    },
+    {
+      "commit": "4b3536a858c2263c789aab306b679ef4e7231c41",
+      "committed_at": "2026-07-12T13:58:52-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-multi-cell-smt-batch-cbc-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "73be0090ed334248d5a137e309b0a68907397b9f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add bounded sparse Merkle batch transitions",
+      "tree": "95d15a7017e2958af5f246525405621120e1aa01"
+    },
+    {
+      "commit": "4b5c59dc2f8c132bdd059c7f9b7af3286eb80f30",
+      "committed_at": "2026-08-04T11:09:06-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "92cc27f6315cbaa9c830066c41585a075f07857d"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): close dependency audit authority packet",
+      "tree": "17c032c4a54374a6263c66e038c5a129768af41d"
+    },
+    {
+      "commit": "4ea8611852f2fe1aad0177bf4f7ea0e1c921c9b5",
+      "committed_at": "2026-07-31T15:16:21-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "81adfa8d47a142e77a3cb31d7e5f2dbb815e8ea4"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Record M6 B03 Lean theorem evidence",
+      "tree": "b67db8c85a1dd78ab9eefe434f1d60e961e5a967"
+    },
+    {
+      "commit": "4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6",
+      "committed_at": "2026-08-03T02:50:54-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "6b3110f3d392d9fa23727e6b1e63be7edce6f8c2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "chore(m6): rebind authority switch and rollback vectors",
+      "tree": "95ae78274eb6695be508283bd34eac2e3118b093"
+    },
+    {
+      "commit": "4ff2122ebcc5ea848361dad23d7d587c304cac10",
+      "committed_at": "2026-08-04T09:19:17-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "2c3f21d87d49a31bceb1e74b19077bebcdb3cd2c"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): rebind durable-retraction dependency packet",
+      "tree": "8d7ae418eabc7457fe7d32a1ddfa9c0265f13b3b"
+    },
+    {
+      "commit": "5049098f25e77e97839c001651f29733c5ec63e4",
+      "committed_at": "2026-07-12T02:57:21-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-single-verification-cbc-20260712",
+        "refs/remotes/origin/agent/zrpf-single-verification-cbc-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "b703a9308d8ee7d6e9b9dd1f84c37136f29d6622"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: authenticate recursive receipts once",
+      "tree": "d34140fcabec207b85299d5b65655cc054f93097"
+    },
+    {
+      "commit": "5060b515c63e81bcb1e2630b3da86b21c3389437",
+      "committed_at": "2026-08-13T02:46:46-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "36e1787c5b780a0f7ac6ed738956ae14b262ff6e"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "tools: emit committed M6 source pins",
+      "tree": "36b928e3bf72599593c1eb69053b5ee51b096c19"
+    },
+    {
+      "commit": "51386d8b23c43cb277782ed9208794b70139f982",
+      "committed_at": "2026-08-06T12:09:58-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "da80316cb1e945580d71091603122e5b15a7557b"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "test(zrpf): seal global state assurance",
+      "tree": "d6d493d1269a96a3e8d8656e4b645671b9309baa"
+    },
+    {
+      "commit": "52e8fb0b58125cce5526481dc1611cfbd1e242c7",
+      "committed_at": "2026-07-10T19:27:44-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "2653e86c7cec6f701d6a0e1fbe5b89ab3f3e7401"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: seal persisted ZRPF receipt envelopes",
+      "tree": "c82d7ca583c31219f31543b17fcb833f39875c94"
+    },
+    {
+      "commit": "539cbdbe39618ef625d17105e7444d0ac87bd008",
+      "committed_at": "2026-08-11T15:58:56-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "b135030f3b960609f2d6cca805a5a38433d63bf4"
+      ],
+      "relation_to_base": "ANCESTOR_INCLUDED",
+      "review_status": "BASELINE_INCLUDED",
+      "subject": "feat(fcis): preserve source-pinned ZRPF proof fabric",
+      "tree": "61219ff18a53fd918600aa074db52bb6b62e09e7"
+    },
+    {
+      "commit": "53beba00217274ec9357c3cf42fd11fa2501d306",
+      "committed_at": "2026-07-31T01:00:57-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "dd4175ba5649e0c66d9c4af0594e747de8c3eea8"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(fcis): add M6 R01 witness review packet",
+      "tree": "cedc7c9c5bcf5c296281ea8b550118c26db7bc69"
+    },
+    {
+      "commit": "54f3653d38b686ebee570ca84fe2adc7a670acf3",
+      "committed_at": "2026-08-13T10:06:11-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "7a1fe613c1b33e3ef058bc2a7817db6061b3d18a"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix: own exact M6 durable subject",
+      "tree": "e4bcf8c483cdc6a7bd7697721e076d82c39fa052"
+    },
+    {
+      "commit": "559376225209471366012119228a4d64da430521",
+      "committed_at": "2026-07-14T19:13:56-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "20bd4313460eaf85f552729e3d58130edf3d70d2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add tools/zrpf_level_ladder.py",
+      "tree": "9c357848ee6f9ce71a26a658f1c76a4052f367e1"
+    },
+    {
+      "commit": "5668374321fd4f7d7046c1cb0b934e096040f634",
+      "committed_at": "2026-07-14T19:14:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-aggregate-ladder-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "ce82b50d2c925aa041bd12d172bc3fbe9e5ba7d4"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add tests/test_zrpf_level_ladder.py",
+      "tree": "ba0d3e975af0279f0d8cc892510a3fc45536e7d9"
+    },
+    {
+      "commit": "56ff8ed5d7692a0698730314c957f9c3d9b53b68",
+      "committed_at": "2026-08-06T07:44:29-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "ee9f81a3164b63d63cdafef6e0ca409c9b38a265"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add lane module release v1",
+      "tree": "a24dcc9ad1b562db5f561263640bdd0416b00917"
+    },
+    {
+      "commit": "584cca5515dddcc68eb834a9e4629bf65105d7c1",
+      "committed_at": "2026-07-12T15:43:16-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-t19-v5-l2-root-policy-harness-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "4ef41cdf2f30d02615f0df9b34882c98accb3c61"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: pin V5 L2 root policy and add proving harness",
+      "tree": "d3a80829320c3798a8fc21c3f94865d8897f167f"
+    },
+    {
+      "commit": "59899cd2c210fb917df2c6b8e57816b40a8251aa",
+      "committed_at": "2026-07-14T00:59:30-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-python-assurance-diagnostics-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "161cc89291e4e3956585316d5155562ef2c70b5e"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: fix diagnostic trap quoting",
+      "tree": "72b806621da60fc0ae219e7b3f76fa128415e075"
+    },
+    {
+      "commit": "59bef224256ad712b2b0ffc599e00b7b836d2cc2",
+      "committed_at": "2026-07-14T02:44:46-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-v7-root-owned-runner-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "a13cf5f415e8207386d38ac590f094592f14a072"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "security: stage root-owned Firecracker jails",
+      "tree": "6c2bfe7338824317a36c87b167014835135121db"
+    },
+    {
+      "commit": "5a20a601eee353ea39a7702ed30db7182662a741",
+      "committed_at": "2026-07-31T12:59:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "476ec022e755ff049c39bf9f08c6606ac87532ca"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Record exact M6 research heads and workflow evidence",
+      "tree": "d59fa6cea12db6141e0b85b50f64098f534f6a4a"
+    },
+    {
+      "commit": "5a87eea47314f66088691d8711e07b4f2d92bb19",
+      "committed_at": "2026-07-13T03:58:43-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "7b495df837e1a877d8c49da0f06ebce85661e39e",
+        "8dc1d29bec4952202b57bd59c899681a1fcd6c6a"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge pull request #420 from TheDarkLightX/agent/zrpf-rscbc014-reproof-20260712",
+      "tree": "7c75e6892c1c8c4e2652b81d4d367f25f6239588"
+    },
+    {
+      "commit": "5b5a6000250b4009e1ddafebd383927348a8cd75",
+      "committed_at": "2026-07-31T13:38:41-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "5a20a601eee353ea39a7702ed30db7182662a741"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Record M6 semantic conflict map",
+      "tree": "9a1ecdd7fc503f4562225eb2fd63598bb9337f99"
+    },
+    {
+      "commit": "5ba4e919d212ea79cd2a3d7ce8ff2b80682d62cb",
+      "committed_at": "2026-07-10T16:04:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "1d1559fd402cdb906d52e6d572d39aec99a5ebda"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add bounded ZRPF structural proof tree",
+      "tree": "efe2948c891e845fc4097e2271a2aba3fc103520"
+    },
+    {
+      "commit": "5be23facf00cf98735c8779b51d5c9eebd5a3702",
+      "committed_at": "2026-08-04T13:02:50-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/codex/m6-global-shadow-projection-20260804"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "c2e80678415543df43dba0f4678fae9931a1bb91"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(m6): inventory sovereign value writers",
+      "tree": "fe282667cef6f3ea6fb30564a3b1ccbcbec9e988"
+    },
+    {
+      "commit": "5e427824568f466de22fc1b85843d3ffcaf7bb92",
+      "committed_at": "2026-08-13T02:59:45-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "f2c02ddb95a399f7eff59886cc8ee5e2c1cd1b64"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix: reject unpinned M6 outbox authority",
+      "tree": "d0518d43ebf2b06b58cd01af9fa403d11048d14c"
+    },
+    {
+      "commit": "5e7c0824e06bfbafb8af6ba28e10dfa5cf1c48fb",
+      "committed_at": "2026-08-01T20:24:04-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "f2cfbeef28f64a570e20aea97fb30a6af17ef75e"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix: close M6 I04 destination capacity",
+      "tree": "1c9414653acd65cce22b6f89c90befc88ce80013"
+    },
+    {
+      "commit": "5f24fae3587bb5a2262a9655ba8258b1b4272cde",
+      "committed_at": "2026-07-31T15:47:28-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "079856f24833f2fe5ebc7ab066c57a63b5367a36"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Record M6 B05 discrepancy evidence",
+      "tree": "23b5c184e0146957edf5e480d07a28e847dc8b33"
+    },
+    {
+      "commit": "5f2c0431a438c5f944a46aea8e363f02a80ebc0e",
+      "committed_at": "2026-08-02T07:13:17-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "fcfb22772b044c82131639d740a1fe2f60a65bbb"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: record M6 provenance and no-op repairs",
+      "tree": "78f2fa4b72ccc89facd0be0daf91070b9c3a9d76"
+    },
+    {
+      "commit": "5f3f1095cef4f7093f69965f37e4897945961d08",
+      "committed_at": "2026-07-13T05:18:51-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "22eb837bda5d074991d3903c6e74a235e15739d3"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: retain fail-closed ZRPF report on early failure",
+      "tree": "427b4a4a592f18542d93de70945703c5cbec7f4c"
+    },
+    {
+      "commit": "617b68379a8122668c2fc10866b7959e0b060dcf",
+      "committed_at": "2026-07-10T16:27:21-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "aff0be4d34a388a60687faf0074a5e82ac618083"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "tools: freeze ZRPF proof source closure",
+      "tree": "b4740e325bf88d1e66ae6c9e70a5dd064c72365e"
+    },
+    {
+      "commit": "64b5562e2fbf056b6f37f4de973a5ece5b639c09",
+      "committed_at": "2026-07-14T00:20:18-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-v7-firecracker-adapter-20260713"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "aec37ae03412c41f77ebd8293ff095aa15cff597"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix: harden Spot V7 Firecracker lifecycle binding",
+      "tree": "e9a04189f636190a4905215b9dfb99415cd989fd"
+    },
+    {
+      "commit": "6667d32704db697279b29686d3fdfd9779818188",
+      "committed_at": "2026-07-12T06:20:14-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-durable-admission-cbc-20260712",
+        "refs/remotes/origin/agent/zrpf-durable-admission-cbc-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "30f143df22dd26f1557a0f647f92eca5a378fd91"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add durable ZRPF replay admission",
+      "tree": "1ea4d00f9d4c427d084a4967d3b07aad2794205b"
+    },
+    {
+      "commit": "667ca2e0c59545e48f083fe8a91f0485f3aec982",
+      "committed_at": "2026-08-01T19:07:30-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "25c2d2181cad4455384f57ade54d971fcb68e275"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "research: inventory M6 value-moving entrypoints",
+      "tree": "68bb792f63bdd947cc1621d0710be8db35172824"
+    },
+    {
+      "commit": "6994861dfd7dc68c8ee92bd8e69e7aa20f4b730b",
+      "committed_at": "2026-08-03T06:20:26-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "30be10902bca208fa9436a3e4f6b9c7b21f68819"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(m6): reserve zUSD supply changes for monetary kernel",
+      "tree": "e046bb7ee0a5ee8de8741186b99fd67d79c07b15"
+    },
+    {
+      "commit": "6b3110f3d392d9fa23727e6b1e63be7edce6f8c2",
+      "committed_at": "2026-08-03T02:46:10-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "7ff2578780b11d678f4ddddd14d18f4bb85778ff"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): refresh downstream dependency receipts",
+      "tree": "643c8aadfea309dd94142a2409a494bc8e74c0f0"
+    },
+    {
+      "commit": "6cc7a920d551f51ce4fb4b81305c9af818ff4f9b",
+      "committed_at": "2026-07-13T08:24:43-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "511b52e4ada25a3e9eaaf1933deb14f05071d7cb"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "assurance: close current ZRPF source inventory",
+      "tree": "7583f373606181e6831f0120f400d223c7ee6e58"
+    },
+    {
+      "commit": "6d5fe1ad49b2d6f97f1f7cd732f9d6442b45abad",
+      "committed_at": "2026-08-12T22:59:09-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "ecb46405ee791b6eaaa6a63211b9d68972ade52c"
+      ],
+      "relation_to_base": "ANCESTOR_INCLUDED",
+      "review_status": "BASELINE_INCLUDED",
+      "subject": "security: harden M6 verifier and semantic evidence",
+      "tree": "5276d9a214814019502abfc413fbc33bc9c581e6"
+    },
+    {
+      "commit": "6eb06147d6d371d3a09f6f88f15c85d6ec296ae0",
+      "committed_at": "2026-07-14T03:08:36-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "fbed27e0c6b3ec5981ea25c4ff950a2fd7d6c34b"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(zrpf): close exact-head assurance regressions",
+      "tree": "d97e23be09ba88de7367c1bfe40f802d06e2a2d3"
+    },
+    {
+      "commit": "6ef9e934dcdddf76d8fdde9df49d2dc90287980d",
+      "committed_at": "2026-07-14T03:51:08-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-v7-jailer-child-lifecycle-fix-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "59bef224256ad712b2b0ffc599e00b7b836d2cc2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "security: wait for Firecracker child completion",
+      "tree": "e7ae66bbc15e94ee3f778935cc814e36dfa2a22a"
+    },
+    {
+      "commit": "71de5902497aabcb903e6740502da9460348c58a",
+      "committed_at": "2026-08-13T02:35:32-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "aad3e5cd32a9d6af9320335a4d834b69a1244ec5"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "m6: verify outbox delivery reconciliation",
+      "tree": "4e6ed1788b79493ded2db5a9e4d4603ce916445b"
+    },
+    {
+      "commit": "72f974080229135c5f3414e5e838f6783d74ece1",
+      "committed_at": "2026-07-12T15:50:25-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-t21-spot-settlement-host-20260712",
+        "refs/heads/agent/zrpf-t22-source-opened-spot-v6-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "0208a8a9a41c8adfa78ccb8e7355166b3cea7c6a"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add state-bound Spot settlement guest",
+      "tree": "499588185d03d5ae000ac4f551855803896196c4"
+    },
+    {
+      "commit": "760a65eee950421148be615bb7c837b1ad737a83",
+      "committed_at": "2026-07-31T14:00:07-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "5b5a6000250b4009e1ddafebd383927348a8cd75"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Create M6 task evidence directory",
+      "tree": "5e7aa7733eebf2fda1f02f5ed067f4d7442fb453"
+    },
+    {
+      "commit": "7610a001233294b73bc0e7cb6869ef22c9d701a4",
+      "committed_at": "2026-07-11T01:57:16-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "d846b2c6c451475a27683ada15f828a5a1b43289"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: execute ZRPF build artifacts in assurance lane",
+      "tree": "d194ce1203b6bc93ae2c5c95370b7eaa13fd2f11"
+    },
+    {
+      "commit": "7770e0bb26cf8a6f84f7fcc23fac182f4fda9b1f",
+      "committed_at": "2026-08-04T07:45:55-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): bind migration receipts to K01 refresh",
+      "tree": "541af2809ad37fcd91c2dcbc6124d49b2db3ad12"
+    },
+    {
+      "commit": "77dade759af36f3fd9673f186c09981c8901e8f3",
+      "committed_at": "2026-07-15T00:04:37-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "c0e6ecbf5b48078504c7de3bf497305fe20624c2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add exact ZRPF execution profiling",
+      "tree": "a74a018a4a80309df4cc6649a1821c6f0dd743a1"
+    },
+    {
+      "commit": "785b6892f5ac392346d02f631c60815117e373b8",
+      "committed_at": "2026-07-12T14:26:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-t14-full-blob-replay-da-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "81756b9d31688ad068872ffb663eca27ae5add44"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: bind Spot certificates to full-blob replay data",
+      "tree": "eb0ac5eddc34708944472f8ee46988aaf242a03a"
+    },
+    {
+      "commit": "78c620916288220abf81235d61da723670257725",
+      "committed_at": "2026-07-14T13:45:34-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "27712f7c14d143b46d90868308131048e1820b5f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: close exact ZRPF typing gate",
+      "tree": "3a85555fb4ff4f31a08df07e4354ac88b996ab7d"
+    },
+    {
+      "commit": "7934da8563af52786964adcea88f90d812ce304e",
+      "committed_at": "2026-07-14T19:17:49-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "1f3fb43e23ecffd42b60256bc4ed41fc31ecd1d6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add lean-mathlib/Proofs/ZRPFSoundnessEnvelope.lean",
+      "tree": "a56072a4c4e70e75845d6bf3405e5112a6e1653d"
+    },
+    {
+      "commit": "79dda6a6ffb17c6f677c5f38ae3fcc3a2fc4ed0c",
+      "committed_at": "2026-07-11T09:25:25-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "1d5008b5cf5df79bff40159e5b7e141f69b9d9f8"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "config: define fail-closed ZRPF Firecracker candidate",
+      "tree": "37b65564c980ea2ded743202e76f26349892a836"
+    },
+    {
+      "commit": "7a1fe613c1b33e3ef058bc2a7817db6061b3d18a",
+      "committed_at": "2026-08-13T10:01:28-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "3384126e67f0b097a3a5ef081a599e6390ed49e3"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: bind M6 outbox subtype closure",
+      "tree": "4ea675835162553d81b9f8112284bc75728c1431"
+    },
+    {
+      "commit": "7a66d410b4da38402c385baf354ad620138836be",
+      "committed_at": "2026-08-03T13:50:26-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "a97db8f76c791e11a376cc2dfa9acf9ac47cfe81"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): bind zUSD fee realization evidence",
+      "tree": "b42f1aa1fc0ac19de9136be82cd100c527f1b9c6"
+    },
+    {
+      "commit": "7afcbf7f46b936494c453f395c737bfdbfc332b8",
+      "committed_at": "2026-07-14T10:02:58-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0c92f09deb403dd25f76b7cb500252a8274d57c4"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: refresh exact ZRPF authority ratchets",
+      "tree": "2cc8726f765a94f6376a739c574adbc9161eae1b"
+    },
+    {
+      "commit": "7b495df837e1a877d8c49da0f06ebce85661e39e",
+      "committed_at": "2026-07-12T18:53:14-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "bb2d6b232a689e41581387060916811b82258dc8",
+        "0a17435af974a79481994c11981b6ae73d519393"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: integrate retained V1 replay with ZRPF completion (#419)",
+      "tree": "a82384fae36b737a5a5f2b645e18d3622b14889e"
+    },
+    {
+      "commit": "7bf60b39daee54fb730c8dc7268cd6dee50e5cb5",
+      "committed_at": "2026-08-15T22:53:58-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/codex/m6-outbox-reconciliation-20260813"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "82e3fc6474e5f1cad9c44e1f24945826bc4f89a1"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix: bind proof rewards occurrence and capacity",
+      "tree": "c3cbc1098978b77956ea887c6bd21c92d6fca859"
+    },
+    {
+      "commit": "7dac1be14eb2c63906b64f7d4b79ebfa902d687d",
+      "committed_at": "2026-07-30T16:15:01-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "861815391f4af0464d42aba5707c3668f365a3a7"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Add M6 mathematical explorer catalog",
+      "tree": "1066667c58f067092a8ef01a7a54bdba0d4f7b71"
+    },
+    {
+      "commit": "7deeb3403c933402393d15553cc87563aa71b752",
+      "committed_at": "2026-07-31T09:32:24-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/fcis-m6-r05-r11-durable-retraction-20260731"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "c5954655616629b657bb546207f11af518f897a8"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Publish exact-head durable-retraction packet",
+      "tree": "3c8a013fecd7ad12e932ab6c6883b0466986e7af"
+    },
+    {
+      "commit": "7e1a6ab84ae1d56077631e0af9bba8999194e3d2",
+      "committed_at": "2026-07-14T06:37:41Z",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-full-blob-da-verifier-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "2a980082f7daa8d2213f068716a232a84fe7bd19"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "style: format exact full-blob DA verifier",
+      "tree": "47365b8591e204a80c06751583a52b132572059d"
+    },
+    {
+      "commit": "7e7020738cf24e2ca41a9dd5451fa66d6da83098",
+      "committed_at": "2026-07-14T01:54:30-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "b0f399f501afe047b82c2e202f3a8bf2791971a4"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: invoke checked ZRPF assurance repair script",
+      "tree": "c508257c31a9c10d8ef01704d9fd8b9b087e0061"
+    },
+    {
+      "commit": "7f70c0133ecd0873147ac4903215473f95f93dc6",
+      "committed_at": "2026-07-31T14:25:49-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "f3eeddd9e5a58f72d290f13c2d40129aef8f10cc"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Record M6 reviewed integration base",
+      "tree": "e1cefbbaf65dca3f8f8d8c1bfa2ca4ce45fd8798"
+    },
+    {
+      "commit": "7ff2578780b11d678f4ddddd14d18f4bb85778ff",
+      "committed_at": "2026-08-03T02:41:07-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "04f9661d57f58d0b54ddf959067ee13f1551eb7c"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "chore(m6): rebind downstream vectors after source refresh",
+      "tree": "afb155441fb485b7b8539bfc62eae17faddf9469"
+    },
+    {
+      "commit": "80b0779138d44b9161a604767480db99f5659704",
+      "committed_at": "2026-08-03T06:40:44-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "a398c35f3f1c6c0741536bf6431f16d4e3dd630a"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(m6): make zUSD token wallet transfer-only",
+      "tree": "195a69d6303562d4b63955b9dde3ebb5788eaab4"
+    },
+    {
+      "commit": "824221976c6f552ba527ee071f897d49131de0dc",
+      "committed_at": "2026-07-10T15:39:45-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "dd35894b1c937834ce6cff38620d3992b3401e31"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add bounded ZRPF structural proof tree",
+      "tree": "ba18374834ef84ad39ae6756c4cde8673d02b948"
+    },
+    {
+      "commit": "827f5cfcacfc3f26fe6bd5fcf4f82f0dd326b6bd",
+      "committed_at": "2026-08-11T16:00:41-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/codex/zrpf-global-settlement-fcis-20260811",
+        "refs/remotes/origin/codex/zrpf-global-settlement-fcis-20260811"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "539cbdbe39618ef625d17105e7444d0ac87bd008"
+      ],
+      "relation_to_base": "ANCESTOR_INCLUDED",
+      "review_status": "BASELINE_INCLUDED",
+      "subject": "docs(fcis): correct preservation base provenance",
+      "tree": "32bbc0fdb0ce0aa4ee3a2f9535ead7f4b05ec086"
+    },
+    {
+      "commit": "8538389cd5e776696adfdc7e64d0608977746a97",
+      "committed_at": "2026-07-14T01:48:24-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "e837307ab6880f2f38cb3a95bb8c7d21a52a3dda"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: bind exact full-blob DA checker",
+      "tree": "62ee5210e7fdfd5c21d42e1678fed861f6bff398"
+    },
+    {
+      "commit": "88314b5c43d4a781ae1d7a6b04c335c4512b6d24",
+      "committed_at": "2026-07-11T21:10:37-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-semantic-value-v1-ultra-20260711",
+        "refs/remotes/origin/agent/zrpf-semantic-value-v1-ultra-20260711"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "b703a9308d8ee7d6e9b9dd1f84c37136f29d6622"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add composable Spot value reference algebra",
+      "tree": "68a0c6ac0ea4f5166105263132496fd6e5da72c4"
+    },
+    {
+      "commit": "8a399d39c329459a6412cb895e35ae80502bad5a",
+      "committed_at": "2026-06-12T04:25:53-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/claude/tender-cerf-m6j10z"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "c12b069513b8cb8ed5551204adc0f5f01b6ce3b9"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "lean: refine split-routing proof presentation",
+      "tree": "10b36e7a862ae391f7f630f7766cee06d227ddba"
+    },
+    {
+      "commit": "8cf31c666babeca23b50c67b4fd3438669a08997",
+      "committed_at": "2026-08-01T20:31:14-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "b84ec349725b3af8bd5bb2f3951a7e3fca1c7482"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: record exact M6 repair receipts",
+      "tree": "8814610559514bb3c416e41b3bc57f5fdb034e09"
+    },
+    {
+      "commit": "8d298598879f57f8239d0d8ca9ede0351836bec5",
+      "committed_at": "2026-08-06T10:10:11-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "bcf62e5b9c4c2c91d61e274f240a664d26ddcfe4"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add route release registry v1",
+      "tree": "a7e9e7b4658596c1d725466d7e094a52f1ec4dcf"
+    },
+    {
+      "commit": "8dc1d29bec4952202b57bd59c899681a1fcd6c6a",
+      "committed_at": "2026-07-13T01:58:51-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-rscbc014-reproof-20260712",
+        "refs/remotes/origin/agent/zrpf-rscbc014-reproof-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "89c8dcf32563d625fffc82b5c2cb17642358b142"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: bind V2 inner roots to retained leaves",
+      "tree": "7c75e6892c1c8c4e2652b81d4d367f25f6239588"
+    },
+    {
+      "commit": "8e1336983a111976ce70e68bdec62a419f064780",
+      "committed_at": "2026-07-12T17:07:25-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "380eafb216c4288526d68af1c7489432be36d8be"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): bind authenticated settlement admission",
+      "tree": "344bbae7e63749863133aceec602db88e3208195"
+    },
+    {
+      "commit": "8e9900c103936ebbe389014b4a59b57af4252e57",
+      "committed_at": "2026-07-14T03:35:38-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-governed-operational-policy-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "e5ef318c7086c332ebfeb37ac9fbf989155660fc"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: retain operational policy test diagnostics",
+      "tree": "1ddda8bafc8cec8e36293b34b7d8b976c840d294"
+    },
+    {
+      "commit": "8ee686e145823d9286b7dad61ada8b4d765278d3",
+      "committed_at": "2026-07-12T02:19:43-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "33f02035cb127fd15b3c5b208e447acfba2253e1"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: gate combined ZRPF semantic evidence",
+      "tree": "1df85d95b3c3ad5fbbf3daa6dba30e2ea29ae4ea"
+    },
+    {
+      "commit": "91bce42607c2c2365087976bed1bee4a38cc1812",
+      "committed_at": "2026-08-03T04:01:01-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "f36e1e301135b69a39f040e34c7de79a40054ff8"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(m6): enforce packet Git lineage",
+      "tree": "d79465f3abc421838d6864368a57ac2ef48dc3ca"
+    },
+    {
+      "commit": "91ee869af44f51be0671b6a4bf8ea5ac4d5cc98c",
+      "committed_at": "2026-07-13T09:10:59-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "8117845f2409767eaba59dbb64a826c472e5bec7"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "test: cover ZRPF full-bound resource limits",
+      "tree": "39c326f82c5d65432e5e8c456927ce87daeb52f7"
+    },
+    {
+      "commit": "92040e214c4dcd36c4e5172e7098f19e26f0300f",
+      "committed_at": "2026-08-03T02:52:26-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "4ecbc7b6992ea66dfd0f15d1f1ead6d4b84227e6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "chore(m6): rebind legacy seal and deployment audit",
+      "tree": "89b4704ef62940fcfd24f568f8f74152420a0e5a"
+    },
+    {
+      "commit": "925ed7303fdeb7f4ef4e289fb46f4fcf3354a0f4",
+      "committed_at": "2026-07-11T02:07:40-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/pr389-zrpf-assurance-hardening",
+        "refs/heads/agent/zrpf-firecracker-profile-cbc"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "52e64f78dd8487c059e38ca556995900d0ba562f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: link bounded ZRPF assurance profile",
+      "tree": "8f78a12a99a2329f4f401e683b6c4420ff53170a"
+    },
+    {
+      "commit": "934ed609e7952d75f1929eee47c6f322be3451f0",
+      "committed_at": "2026-07-15T22:38:31-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "246368416852b56dab6c18bfc1e2d3929b22207c"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "assurance: repair ZRPF type and CodeQL gates",
+      "tree": "e512ec7a9cff8868de252ca7b434e45a591c484b"
+    },
+    {
+      "commit": "941b785aa3636dfe78e6583e52991c55a5f67749",
+      "committed_at": "2026-08-03T19:49:31-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "e95f44061e2d4cd9fb3460cb50ee93460e702a76"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): bind global content projection evidence",
+      "tree": "0ecb58f203c13ba904d9462394eb9a90debf053a"
+    },
+    {
+      "commit": "942130c01ad02140962810a728a71848d102a175",
+      "committed_at": "2026-07-11T23:10:14-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-perps-source-finality-current-images-20260711"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "43c423913cc4b1a30c2dd05f4194344bf707c0f9"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: refresh recursive v2 leaf image policy",
+      "tree": "18f8c0d74cf2172d70defc4bde7753e4d1ca575c"
+    },
+    {
+      "commit": "965ee5e664b5816fbefbfb900d5994209d5d0a7b",
+      "committed_at": "2026-07-13T11:22:10-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "ff9967d2328e2e8f366789f1df63c34a0e964c1f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "tools: harden ZRPF identity runner mounts",
+      "tree": "4fba6761711ffc7eb06a95cb9d2fb6a8f14d2e5f"
+    },
+    {
+      "commit": "988a0ab784baa294d3aaed7106e42b28ffd0f90d",
+      "committed_at": "2026-07-13T07:56:33-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "dbf1781cabf857f0281901e6405935299a545758",
+        "44d7f0d2a36b2141b553af1df734926c9d559bca"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge remote-tracking branch 'origin/main' into agent/zrpf-completion-integration-20260712",
+      "tree": "44abbba70e357df0e4c4d18c3cd2d74fb808877f"
+    },
+    {
+      "commit": "9928087f3ae5987dabe80e635cc2c8860846ec7d",
+      "committed_at": "2026-07-13T05:38:01-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "b896a3378617e9e5ff13d92ddfcd06fc1ad66883",
+        "793a98f73a52ac3722d4c453495fed16a1a14c41"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge ZRPF assurance inventory base",
+      "tree": "5cc29492822f4c4fd2602227973ca7e17e306f40"
+    },
+    {
+      "commit": "99b4d635e1fb72f24c213d034f4bfb1ab7d35686",
+      "committed_at": "2026-07-31T14:05:11-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "760a65eee950421148be615bb7c837b1ad737a83"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Freeze shared M6 profile identifiers",
+      "tree": "611f8b41a741d73be6e28c78dac0e10e71499944"
+    },
+    {
+      "commit": "9b290540e96b840ee07795f35dac938e7d524cf2",
+      "committed_at": "2026-07-31T14:37:21-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "7f70c0133ecd0873147ac4903215473f95f93dc6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Implement overflow-safe M6 quota primitive",
+      "tree": "5e3108bb88b1f619beb9cb84a1d68cef0933913a"
+    },
+    {
+      "commit": "9cc127a68a96471746256e37567bda68c68d7d9e",
+      "committed_at": "2026-07-12T16:27:23-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "72f974080229135c5f3414e5e838f6783d74ece1",
+        "cf1edca41eae7ae7c233750046c5b9b014a793c1"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "merge: integrate retained V1 replay with ZRPF completion",
+      "tree": "05a451b37e996c5f48c7c10f882999935f462b6a"
+    },
+    {
+      "commit": "a10ecb41bac8e948495d365a22676d3ce135312e",
+      "committed_at": "2026-07-13T05:38:35-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "d0ffcb570319be58c165cba58fdaace172008b0b",
+        "793a98f73a52ac3722d4c453495fed16a1a14c41"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge ZRPF assurance inventory base",
+      "tree": "20e4c4b47fe3136f39f83bac96347fab25d3867b"
+    },
+    {
+      "commit": "a13cf5f415e8207386d38ac590f094592f14a072",
+      "committed_at": "2026-07-14T01:55:42-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-integrated-staging-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "0570a90db26b9ab768dd6a9c9d64ae45217078ce"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "test: admit finality adapter authority dependency",
+      "tree": "5f26b5a5c8aca3d93412f54c170c0618d7beaa74"
+    },
+    {
+      "commit": "a2399ef21e36eacc4ba1aa3d51a4651bb1f05365",
+      "committed_at": "2026-08-01T19:29:03-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "83d033e4c914c89638b33620b1977abf3a4db9d7"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "research: pin M6 topology anchor",
+      "tree": "86a2ca351419ecef3b96053888b8618342924d19"
+    },
+    {
+      "commit": "a398c35f3f1c6c0741536bf6431f16d4e3dd630a",
+      "committed_at": "2026-08-03T06:21:49-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "6994861dfd7dc68c8ee92bd8e69e7aa20f4b730b"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): bind managed zUSD closure evidence",
+      "tree": "05e913bf21cc2582e7938c9d1f0f93ff1802bca4"
+    },
+    {
+      "commit": "a3d2bef02c4a34f1fa49591a1d6cddfd5e16873d",
+      "committed_at": "2026-08-06T12:57:34-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "51386d8b23c43cb277782ed9208794b70139f982"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): derive lifecycle routes from state",
+      "tree": "28bfca7b7429f65fee20d4c10389193977b64689"
+    },
+    {
+      "commit": "a3e9303318ad4a4a3930ba61b3c903c9ab4ccb1f",
+      "committed_at": "2026-07-11T21:35:18-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-spot-expected-statement-v1-20260711",
+        "refs/remotes/origin/agent/zrpf-spot-expected-statement-v1-20260711"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "88314b5c43d4a781ae1d7a6b04c335c4512b6d24"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: bind Spot value projections to expected statements",
+      "tree": "d43e3336e5a217b15d49a53bff3e47ce2ef76ab0"
+    },
+    {
+      "commit": "a5bd91b31bb3c655409b5facad47d9ff32aae061",
+      "committed_at": "2026-08-06T17:16:48-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "c31c53456d413e579652db822e8fb7b340aa71e2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add lane module transition journal v1",
+      "tree": "8f50ab1db371435a3ee78376cae1e5f3d8bdbaee"
+    },
+    {
+      "commit": "a686b77b2a89ddf6c70b5a8c7ba772e495885b01",
+      "committed_at": "2026-07-12T14:59:08-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-t18-v5-aggregate-verifier-harness-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "6ad85a336fd81ddfa5c9db3f7045933111691fa2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: seal V5 aggregate receipts and add L1 harness",
+      "tree": "9985d07a3e5540a65a3ed24f2ac286e29e4b0f83"
+    },
+    {
+      "commit": "a76882ee6ce3f73fcbe7816bc1c755166d8ccf27",
+      "committed_at": "2026-07-10T19:44:03-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "52e8fb0b58125cce5526481dc1611cfbd1e242c7"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: require byte-only ZRPF verifier construction",
+      "tree": "5354f8f807540d0eb47fcbcbd7149e82840ecebc"
+    },
+    {
+      "commit": "a94a1fa0586107a0a48aebbe4cd18c0d1029d481",
+      "committed_at": "2026-07-30T17:33:43-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/codex/fcis-m6-r04-lineage-closure-20260730"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "af3e81e9064c75a4daec5fa0af0353ff1dc09c8e"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Restore final read-only R01/R04 assurance",
+      "tree": "0504abdf4c4b493a97baf06cfd73d4a3922d4cfb"
+    },
+    {
+      "commit": "aad3e5cd32a9d6af9320335a4d834b69a1244ec5",
+      "committed_at": "2026-08-13T02:11:55-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "24f4c9917722250faefc38315e1677d7a98a7ce6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "harden M6 outbox reconciliation",
+      "tree": "e6a176ff40853e2bee94472df5ec8abc7bb4f0c2"
+    },
+    {
+      "commit": "aae4912d3f0df953c14cfda7f6a83e73c0b8252b",
+      "committed_at": "2026-07-31T17:04:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "4b1807f8b15bfbfd5b83c34c5f17c2a3a3d83248"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Add FCIS M6 B08 arithmetic refinement evidence",
+      "tree": "91824ae7d157b1dd8aeb6691086079db590ff3b2"
+    },
+    {
+      "commit": "aca0a0be28c126a1ab2e8a99ff10982f5c728b89",
+      "committed_at": "2026-07-12T14:10:15-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-t13-value-aggregate-l1-guest-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "81756b9d31688ad068872ffb663eca27ae5add44"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add V5 value aggregate level-one guest",
+      "tree": "100ca6b8c3f4438ad9eba35cfa44c7ee4ed61d08"
+    },
+    {
+      "commit": "aca4c441aef978ee74d145202c55c556700cbfa3",
+      "committed_at": "2026-07-31T17:04:51-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "aae4912d3f0df953c14cfda7f6a83e73c0b8252b"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Record exact FCIS M6 B08 implementation receipt",
+      "tree": "3f7a9d9fc8a6c8090ed22293b2213b1421a425e6"
+    },
+    {
+      "commit": "af6e6b274578ffa408623f226da3ec2cac9f5c31",
+      "committed_at": "2026-08-06T20:10:03-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "c4e3c27f9f3063150ea8d1c911c515c57b28b70e"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): bind asset transfer leaves to occurrences",
+      "tree": "a5801e300328ad055d465d819fc5d68694843344"
+    },
+    {
+      "commit": "aff0be4d34a388a60687faf0074a5e82ac618083",
+      "committed_at": "2026-07-10T16:24:27-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "5ba4e919d212ea79cd2a3d7ce8ff2b80682d62cb"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add typed ZRPF seal mutation control",
+      "tree": "adfafd18b6df16dce94a42206cc57f85045aa584"
+    },
+    {
+      "commit": "b0f399f501afe047b82c2e202f3a8bf2791971a4",
+      "committed_at": "2026-07-14T01:53:06-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0a84e7baa6ac58ffcbdd771a63b9de7e9d3e4e4f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: extract exact ZRPF assurance repair script",
+      "tree": "1befcfb289f58334ba6bf21e5e0fc449bbb7134d"
+    },
+    {
+      "commit": "b135030f3b960609f2d6cca805a5a38433d63bf4",
+      "committed_at": "2026-08-11T15:23:23-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "12bde5263b8855e0ac76bd49b3de402e3e6f9b76"
+      ],
+      "relation_to_base": "ANCESTOR_INCLUDED",
+      "review_status": "BASELINE_INCLUDED",
+      "subject": "Add M6 RISC0 semantic surface gate",
+      "tree": "06652f57ecefb81a0cbc15bc3c99cd176f1f89cf"
+    },
+    {
+      "commit": "b1a62c2ccdcbfb0e345716c94dfbf499dde4e247",
+      "committed_at": "2026-07-11T09:45:38-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-firecracker-cbc-final-20260711",
+        "refs/remotes/origin/agent/zrpf-firecracker-cbc-final-20260711"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "2f47573276df337cf024db1a20685fa66bba2210"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "security: bind Firecracker host probe across CPUs",
+      "tree": "db4c527137edbbb063eff96b4293c497d3e5f235"
+    },
+    {
+      "commit": "b1c24ddef6d44008c8f122dfb377d7a6c65e4045",
+      "committed_at": "2026-07-11T02:12:04-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "9a7a723322384ea0e4186df3c28902c822080913"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: link bounded ZRPF assurance profile",
+      "tree": "edc918582683705c47584237cf566e343cdb0d16"
+    },
+    {
+      "commit": "b64630993fd8271d0e565efb684da110fcc6b741",
+      "committed_at": "2026-07-13T22:04:02-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "70be5ef00c27372c0bb5c1e2f3866fdb234ef374"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: require operational ZRPF authority gates",
+      "tree": "ca21b671e7b1cc661177c15a6be85083269633bd"
+    },
+    {
+      "commit": "b67cf0b13f46770ee54a30af2d55a85b13642881",
+      "committed_at": "2026-08-06T10:36:50-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "8d298598879f57f8239d0d8ca9ede0351836bec5"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add economic profile snapshot v1",
+      "tree": "00fbde7c26a558d91aa146eb1d2baaeb61b12a0a"
+    },
+    {
+      "commit": "b6842cd26aadf32b7ee774f58665570479cacfe6",
+      "committed_at": "2026-08-13T11:41:08-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/codex/zrpf-m6-cybersecurity-audit-20260811"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "e75827eee690f082aeaf94ead86ee89255495e5b"
+      ],
+      "relation_to_base": "BASELINE",
+      "review_status": "BASELINE_INCLUDED",
+      "subject": "docs: bind M6 semantic blocker to hardened head",
+      "tree": "d166dc8dff0baa00c7eea9cd04935e468b1fde3d"
+    },
+    {
+      "commit": "b6a8a05414420b93ffece406cd666e18d1a4af6b",
+      "committed_at": "2026-07-14T05:08:14-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "1977bfb0e4ca520b096c60b1091628fff7777277"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: define Spot V7 Firecracker runtime protocol",
+      "tree": "b623f73125bfd2f5a642493b79da17b97b6def9a"
+    },
+    {
+      "commit": "b84ec349725b3af8bd5bb2f3951a7e3fca1c7482",
+      "committed_at": "2026-08-01T20:24:24-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "d620535366cbfad4047786eb1a4284e7ee006093"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: synchronize M6 I02 and I03 status text",
+      "tree": "f894b12451d3074bc531ee4f28575f58e0c91950"
+    },
+    {
+      "commit": "b896a3378617e9e5ff13d92ddfcd06fc1ad66883",
+      "committed_at": "2026-07-13T05:22:25-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0b88a7ff2eb2ecf76b617a8eb2123fc1cb5ad0a4",
+        "38a81d481f5adb52bb562a439eeb4488e0bc7210"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge remote-tracking branch 'origin/agent/zrpf-completion-integration-20260712' into agent/issue-414-bls-pubkey-dedupe-20260713",
+      "tree": "fe6c8abe7d928451a648224d288c9d875307ef78"
+    },
+    {
+      "commit": "b8b5f1990902dbd8f27d684c466bfb24cc7d293f",
+      "committed_at": "2026-08-03T20:20:11-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "e5e745605cddee6ac08fa56b9a2aa74142a886c2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(m6): separate ledger spot provenance bytes",
+      "tree": "87f80e2bdf75eb5b442dc7db9b92cea8c255c042"
+    },
+    {
+      "commit": "b95e59efee6dcfc3f0c77a7c004f6ebc168c8ef6",
+      "committed_at": "2026-08-02T04:04:24-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0ff89fb723da5e0ef5a2b1887c00eb28bef16cc6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: synchronize F16 M6 repair evidence",
+      "tree": "907e4db71aa3df21dc8cfef1b5c1106e86529dd6"
+    },
+    {
+      "commit": "b9b9d560730beb083b9e752877b7b2a404d0f3ee",
+      "committed_at": "2026-07-14T01:34:23-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0787644a7ad2066c5a91064e9002c1e171f5f3a6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: stage exact ZRPF assurance repair",
+      "tree": "118b587814ffb91580d2b130092f886c32786cdf"
+    },
+    {
+      "commit": "babffa56dcbddc5886487fbb6e62740b15370000",
+      "committed_at": "2026-07-30T16:45:39-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/fcis-m6-r04-tree-chord-gate-authority-20260730"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "3e7c97c21d49804292bc74f75b2d51fb29aa525b"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Fix TCG parent-edge typing and normalize checker",
+      "tree": "eb6771943bc490d1f9664d26ec14622a8849b010"
+    },
+    {
+      "commit": "bc3544214949b371f7b87afcde01f3a75d168f84",
+      "committed_at": "2026-07-14T02:03:59-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-full-blob-da-adapter-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "ee79a533da01b8e2a0669af70dea9199cbb519cd"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: gate governed full-blob DA adapter",
+      "tree": "f9319816a345c09f7ba277e2bf7364e26ebb40ac"
+    },
+    {
+      "commit": "bccc3118ffa8f229067c0b8386b6c83444899a15",
+      "committed_at": "2026-07-12T02:34:19-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-semantic-epoch-v1-20260711",
+        "refs/remotes/origin/agent/zrpf-semantic-epoch-v1-20260711"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "8ee686e145823d9286b7dad61ada8b4d765278d3",
+        "f7c35577d23321c96ff3e8cca515eb49af97d2d3"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "merge: retire superseded Firecracker replay claim",
+      "tree": "0a85bffee619b72be422c00c999a6802faefe063"
+    },
+    {
+      "commit": "bcf62e5b9c4c2c91d61e274f240a664d26ddcfe4",
+      "committed_at": "2026-08-06T10:07:57-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "ea289b0e8173e2051ce5790391a015fea243c925"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add route release v1",
+      "tree": "68de918adc5184ce39c00050ec4f6124955abc30"
+    },
+    {
+      "commit": "be24f4e71737818de70f1c5593796150486620a3",
+      "committed_at": "2026-07-14T19:15:13-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "eb1f25b5bef829fc1d2926e0bd3ab09debbc5bde"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "research: add tests/test_validate_zrpf_frontier_graph.py",
+      "tree": "20979d60cc8e54467134b87eb5eb37aa781b01b1"
+    },
+    {
+      "commit": "bf752d05b0388b6c1a3c252508cdecb8badebdd1",
+      "committed_at": "2026-07-12T13:18:35-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "ee3011cde33e49385fc955b957a15b743851b040"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add authority-false atomic settlement store",
+      "tree": "e7bcc4177f153c59bc2b14139b2c4dc4e0c370ba"
+    },
+    {
+      "commit": "c09ef94eb63ec2f1ff7e3ff4f6ce26fc0607eb6c",
+      "committed_at": "2026-08-04T10:11:56-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "9bc1a0f2bc271021432f690f3628e8cf58aa6996"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): rebind sealed-evidence compatibility packet",
+      "tree": "6f166af77589efa1855363a14f5acdbfafa05ec4"
+    },
+    {
+      "commit": "c0a94e3641ef7cb77a3c4b02b3d6bf6b522fc49c",
+      "committed_at": "2026-08-06T11:52:25-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0149cf6a267702f957c227b30ca836388e2cf364"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(zrpf): retain active profile witness borrow",
+      "tree": "e2a80c22fe8586db99f8ca75dda2a1f9aa4b8d50"
+    },
+    {
+      "commit": "c0e6ecbf5b48078504c7de3bf497305fe20624c2",
+      "committed_at": "2026-07-14T22:53:52-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "9c4534ca9683a6e4b8b1c92595afcabe2cac7be6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix: close ZRPF assurance typing regressions",
+      "tree": "f50fff735f867110daff020b4c7a2f09457ebb12"
+    },
+    {
+      "commit": "c12b069513b8cb8ed5551204adc0f5f01b6ce3b9",
+      "committed_at": "2026-06-12T04:20:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "e39066560bcdfc26bdae10dc9620b1bd416b2ef2",
+        "a661e778d1bc3b5c85e2a1b173448f180477b825"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge remote-tracking branch 'refs/remotes/ssh/tender-cerf-m6j10z' into pr369",
+      "tree": "a0cf4554a32d4f04912da0c131eaa197437ee539"
+    },
+    {
+      "commit": "c14c107fb55d17b4282c52a80de7c73337cdc078",
+      "committed_at": "2026-07-30T04:10:10-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/fcis-m5-to-m6-refinement-matrix-20260729",
+        "refs/remotes/origin/agent/fcis-m5-to-m6-refinement-matrix-20260729"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "12f30ab22408a2d342dcf1f6b384eda7ab575e91",
+        "554758aa1536b01b911ba40b21afa4aec55c1b60"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "merge: advance M6 matrix onto repaired B1B head",
+      "tree": "fe7f5390efc13d767f55887dc6231b32cc2ad43b"
+    },
+    {
+      "commit": "c187d4529846450292b1a01155a6e6ce64f9efcb",
+      "committed_at": "2026-07-14T19:13:57-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "559376225209471366012119228a4d64da430521"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add config/proof_profiles/zrpf_finite_image_ladder_v1.example.json",
+      "tree": "8e05dfb22995f4440a3426cd569a727fab644720"
+    },
+    {
+      "commit": "c194b63b5d078a8dcba5270586478e0154863dfa",
+      "committed_at": "2026-07-12T14:31:04-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-t16-value-aggregate-l2-guest-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "a50d3666c033577d5be04c8cef5c357b2042cabf"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add V5 value aggregate level-two guest",
+      "tree": "efe890b055f29840b0c29920908fd3367a66b0f1"
+    },
+    {
+      "commit": "c2e80678415543df43dba0f4678fae9931a1bb91",
+      "committed_at": "2026-08-04T12:29:13-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "bfc3b10fe84f5807a226e4b564127c1ffb5ff0d6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "rebind M6 packet to disaster receipt repair",
+      "tree": "3e1b02031d68e299be826e913b549c015ca34e3e"
+    },
+    {
+      "commit": "c31c53456d413e579652db822e8fb7b340aa71e2",
+      "committed_at": "2026-08-06T16:29:33-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "a3d2bef02c4a34f1fa49591a1d6cddfd5e16873d"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add global economic effect plan v1",
+      "tree": "d58a10a1a69a102bcf514aa597b7325b6cc0d11a"
+    },
+    {
+      "commit": "c3213000060d3224e1291d2bbf9992e41f8fd74b",
+      "committed_at": "2026-08-02T03:23:15-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "f16e5054e0decb32faf22d93812765b2c7cd4f08"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Repair M6 witness provenance and attempt binding",
+      "tree": "90b7c28c8dcde318370ff52b001ccabda5964f17"
+    },
+    {
+      "commit": "c4e3c27f9f3063150ea8d1c911c515c57b28b70e",
+      "committed_at": "2026-08-06T18:54:21-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "a5bd91b31bb3c655409b5facad47d9ff32aae061"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add shared asset transfer core v1",
+      "tree": "26f8ee4de1ebdb0cdb36c9767c06eb79db3961df"
+    },
+    {
+      "commit": "c507946bac4cc50cf69fe1f596ce9bead41de3eb",
+      "committed_at": "2026-07-14T03:27:10-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "6eb06147d6d371d3a09f6f88f15c85d6ec296ae0"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: gate Spot V7 policy provenance",
+      "tree": "8b719da86a7ffaeac83c7bbbe15727ff0f898ffe"
+    },
+    {
+      "commit": "c6deeb20080534c8a5f125fdcf30ca7bd0a95ca2",
+      "committed_at": "2026-07-14T19:13:58-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "c187d4529846450292b1a01155a6e6ce64f9efcb"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add docs/research/models/ZRPF_FINITE_LADDER_DEPTH3_ESSO_V1.json",
+      "tree": "460176c1680c4a64f22ad0295f3a2eadf7722ff3"
+    },
+    {
+      "commit": "ccb324a5811257439aecdbaf387b54262994a5f7",
+      "committed_at": "2026-07-14T19:17:58-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-soundness-ledger-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "7934da8563af52786964adcea88f90d812ce304e"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "lean: import ZRPF soundness envelope",
+      "tree": "45b6ac2e08bc38d0a23dea4b6ac3d062cac5a8ea"
+    },
+    {
+      "commit": "cd88bc4b528feb3b03ebbd0e0aaff006eebe72dd",
+      "committed_at": "2026-07-31T16:00:43-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "5f24fae3587bb5a2262a9655ba8258b1b4272cde"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Implement FCIS M6 Python postcondition revalidation",
+      "tree": "11833bef96ae185d4cced814b67387d5c877247c"
+    },
+    {
+      "commit": "ce3fb2f7f29f6d6ffb85b85002b4c1107f9ae91b",
+      "committed_at": "2026-07-11T11:27:10-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-firecracker-replay-cbc-v1"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "e56fe2a32f9bc2a7c8303a18ac943abb2a082ac2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: govern Firecracker guest replay inputs",
+      "tree": "6c566a2b14fc9495b3aa7fddbd5864dd4a1b17f0"
+    },
+    {
+      "commit": "ce71c24cecae8396a8d7ac7879b2d35f827f4f5d",
+      "committed_at": "2026-08-02T07:34:24-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "5f2c0431a438c5f944a46aea8e363f02a80ebc0e"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Repair M6 rejection authority surfaces",
+      "tree": "332dcadbd0bc7e09f2e6d5eb700f4c13033fee97"
+    },
+    {
+      "commit": "ce82b50d2c925aa041bd12d172bc3fbe9e5ba7d4",
+      "committed_at": "2026-07-14T19:13:59-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "c6deeb20080534c8a5f125fdcf30ca7bd0a95ca2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add docs/research/models/ZRPF_FINITE_LADDER_DEPTH3_ESSO_CAMPAIGN_V1.json",
+      "tree": "40c66daa404ceae24058a23000a455700db144d8"
+    },
+    {
+      "commit": "cf1edca41eae7ae7c233750046c5b9b014a793c1",
+      "committed_at": "2026-07-12T16:02:29-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-ledger-effect-admission-cbc-20260712",
+        "refs/remotes/origin/agent/zrpf-ledger-effect-admission-cbc-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "b2226aef989595737cc8a6dff4183b9d109332e6",
+        "e78f4890ea57234e4634e408a0fc1f623565eb35"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge pull request #417 from TheDarkLightX/agent/zrpf-post416-adversarial-hardening-20260712",
+      "tree": "94158cb15bfe796a271370f8b1cb65ccf3b82aa7"
+    },
+    {
+      "commit": "d00cbaf35aea6d86c49ff4d2f58c906330df0198",
+      "committed_at": "2026-07-31T14:43:12-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "9b290540e96b840ee07795f35dac938e7d524cf2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Record M6 B01 quota evidence",
+      "tree": "94dd11ad994dc7196edd0f75019532b5396cea36"
+    },
+    {
+      "commit": "d0ffcb570319be58c165cba58fdaace172008b0b",
+      "committed_at": "2026-07-13T05:26:05-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "47cc4c7b258c5ba5bac0b40534f25045d8f24219",
+        "38a81d481f5adb52bb562a439eeb4488e0bc7210"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge remote-tracking branch 'origin/agent/zrpf-completion-integration-20260712' into agent/issue-410-replay-bound-range-20260713",
+      "tree": "52f6a808e09f43ebe7a827be2866f056b61486f2"
+    },
+    {
+      "commit": "d2029a87443dc66ae63676fdc155ff0a9a7f4c01",
+      "committed_at": "2026-07-14T19:15:09-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "44d7f0d2a36b2141b553af1df734926c9d559bca"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "research: add docs/research/ZRPF_FRONTIER_STATE_OF_ART_20260714.md",
+      "tree": "3abe2f717fbda0f53f21fd86f13a3abba78485c6"
+    },
+    {
+      "commit": "d20de199849a5fd1fe09a118e94853fa9f63d769",
+      "committed_at": "2026-07-30T15:23:30-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "3e65dccc15e864d8be8cc51f367914523ddfe778"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Freeze M6-R01 segmented lineage semantics",
+      "tree": "be7ee4838855945d4758a04e065a24e5d12ff1ff"
+    },
+    {
+      "commit": "d46f3e5614e39c41ebebd80b819bb2f1f6a5e522",
+      "committed_at": "2026-07-10T20:35:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "e748cce9af0a18e5d8b98f701cc29c63c64a43f8"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add source-only ZRPF receipt replay verifier",
+      "tree": "3f1eb445d53e5c643e0ac70cf6648111a840cc86"
+    },
+    {
+      "commit": "d5198b89480eeb36dd56ad55e8b77c4e38c98f45",
+      "committed_at": "2026-07-16T01:05:05-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-production-integration-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "05e59d0343898d3c7f3e70ce107b9defd2f24f79"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: repair ZRPF exact-head assurance",
+      "tree": "f6d00acf42177d2bd76d917e1cf78588b1615be5"
+    },
+    {
+      "commit": "d53bf622db846c033b9719091aa5191a3798cfae",
+      "committed_at": "2026-07-14T02:23:17-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-canonical-finality-authority-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "a13cf5f415e8207386d38ac590f094592f14a072"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ledger: authenticate Spot V7 scheduled proposer",
+      "tree": "dc756539cee7fe9208b19593936f2e2f3a084862"
+    },
+    {
+      "commit": "d620535366cbfad4047786eb1a4284e7ee006093",
+      "committed_at": "2026-08-01T20:24:19-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "5e7c0824e06bfbafb8af6ba28e10dfa5cf1c48fb"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat: add M6 E01 authenticated request identity",
+      "tree": "e2cb860faf14685c99f52b08959dd0207229d5fe"
+    },
+    {
+      "commit": "d6cd7e02e04b4721d993056bb95d68ab0dac1db9",
+      "committed_at": "2026-07-31T02:39:21-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "16db3da7e3a6ee2716fac260f3de21b47bfd4827"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(fcis): add M6 R01 Revision 2 review packet",
+      "tree": "9ff51b2ac7d3d75e691b7a933181e8b9f8c0e131"
+    },
+    {
+      "commit": "d7d23b792007e7137958b7945dfb30abecd41ff3",
+      "committed_at": "2026-08-13T09:51:07-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "5e427824568f466de22fc1b85843d3ffcaf7bb92"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: rotate M6 assurance candidate",
+      "tree": "e5d6097ff6371bd9b1f9a433a5b79989bd6ffac3"
+    },
+    {
+      "commit": "d846b2c6c451475a27683ada15f828a5a1b43289",
+      "committed_at": "2026-07-11T01:52:31-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "30672edfcd0a3b5a06916bf22f42d68defca2d34"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: require isolated ZRPF assurance",
+      "tree": "3fdf3847cf4d64440817df9834cdcc023928bfc0"
+    },
+    {
+      "commit": "da7535b696bdea775d119ddcbe8c5e13b9ea2cd3",
+      "committed_at": "2026-07-14T00:33:23-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-v7-guest-input-builder-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "0787644a7ad2066c5a91064e9002c1e171f5f3a6"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add deterministic Spot V7 guest input builder",
+      "tree": "8c7070e83a7cf894c2c18ac76a0716f0e77b1994"
+    },
+    {
+      "commit": "da80316cb1e945580d71091603122e5b15a7557b",
+      "committed_at": "2026-08-06T12:04:06-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "c0a94e3641ef7cb77a3c4b02b3d6bf6b522fc49c"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add canonical global economic state",
+      "tree": "2dafb635004907e751a9ca0b07e95c90b9106bb1"
+    },
+    {
+      "commit": "dc99a7f96c816ff7f86b0f184d25817bea338166",
+      "committed_at": "2026-07-10T16:24:34-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "824221976c6f552ba527ee071f897d49131de0dc"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add typed ZRPF seal mutation control",
+      "tree": "8d3e86e2ccd1c546db9aa46e80d144798eb87045"
+    },
+    {
+      "commit": "dca9015f4976519d4b7dc99ac8cbd0c2ec8fee35",
+      "committed_at": "2026-07-31T14:55:31-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "ff1da03a4be13a87390466f5f60c2dbb7254d2d4"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Record M6 B02 selector evidence",
+      "tree": "128322374978a594157c0627eb9788a0a50d564b"
+    },
+    {
+      "commit": "dcca70a8fcf02cb00d4b5dd22ca0b9d55bff0240",
+      "committed_at": "2026-08-04T07:39:27-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "e45e4c685e70eb0fa54a69e678132cb134ccb920"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "chore(m6): rebind migration authority roots",
+      "tree": "1bf3896b12f238e693c11d2726a75d2346643b51"
+    },
+    {
+      "commit": "de42f12d144c998615309c278c55b44e3a90334d",
+      "committed_at": "2026-07-14T19:01:27-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "8c223ff0c684d9811ca633b042d0c3edc5220488"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ci: repair exact-head ZRPF mypy gate",
+      "tree": "46081e101c39a35eee8ba97e070e005c9249905b"
+    },
+    {
+      "commit": "ded794be63e3621afd99c16956498876b430b984",
+      "committed_at": "2026-07-15T01:46:48-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "d7cf8604ca9e5e8657102edb81c90ebfe4fe75ad"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "test: ratchet ZRPF compiler source inventory",
+      "tree": "11bbd92e55050d49caba28c58a69b97887ee902b"
+    },
+    {
+      "commit": "dedba1713e23e00b07d9bc953a503864f6c5afb3",
+      "committed_at": "2026-07-31T16:18:26-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "1ce445409c0e783e3b927e0bd389693cdefb7f59"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Harden FCIS M6 Rust SRGD transition",
+      "tree": "830b9cf8285ddb00e66e35ed5cb1841760c89673"
+    },
+    {
+      "commit": "e0e7ca467960cc23b04911887a0bc773263187e9",
+      "committed_at": "2026-07-12T13:53:53-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "affbbac8b4c3c2134147ac518adfe6fa349fe5ac"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): compose ordinary Spot certificates",
+      "tree": "e81ff79f45f53a5a663416a40b515c96d742946f"
+    },
+    {
+      "commit": "e1532937babb28ff79b812497086d042f43ba8b1",
+      "committed_at": "2026-08-12T23:08:11-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "ee8418989d9553b15cee24d0c8733e0041d4aa8b"
+      ],
+      "relation_to_base": "ANCESTOR_INCLUDED",
+      "review_status": "BASELINE_INCLUDED",
+      "subject": "test: remove untracked M6 doc dependency",
+      "tree": "a3f8f3614317cc7bbb5aa2f27a45c4595b1fbf28"
+    },
+    {
+      "commit": "e1838293c839d4f830f1f1501205b55bc88c8975",
+      "committed_at": "2026-08-11T20:34:28-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/codex/zrpf-m6-cybersecurity-audit-20260811"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "3bf7661091b727575dd03a020afe67b6c7f9a282"
+      ],
+      "relation_to_base": "ANCESTOR_INCLUDED",
+      "review_status": "BASELINE_INCLUDED",
+      "subject": "security: harden M6 verifier and receipt boundaries",
+      "tree": "e93e651e27943fee33ab4a355ff58d6c8295033e"
+    },
+    {
+      "commit": "e2ad26399c5b1743dacf3dda22970353d864f1f6",
+      "committed_at": "2026-07-31T03:50:38-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/codex/m6-r01-v2-provisional-replay",
+        "refs/remotes/origin/codex/m6-r01-v2-provisional-replay"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "1b3e7d773438705f7b61b34f4f234676e18d3f0d"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(fcis): add M6 R01 Revision 3 review packet",
+      "tree": "b662ccb7d3b834a74f5735cd0073ed08c94a61b9"
+    },
+    {
+      "commit": "e2b16bb33c5fe20bd83580eaf48d7b5678e5fde0",
+      "committed_at": "2026-07-15T22:38:50-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "934ed609e7952d75f1929eee47c6f322be3451f0"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: add pinned proof observation and finalized DA inclusion",
+      "tree": "094f443264b6afa7cf429430989f6b633dd8efaa"
+    },
+    {
+      "commit": "e353933e479076f6de72b1350f1252ccf62e5194",
+      "committed_at": "2026-07-12T15:07:00-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-v1-governed-live-replay-20260712",
+        "refs/remotes/origin/agent/zrpf-v1-governed-live-replay-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "f24d38d5751dd89ff3a402feea227ef9ff3f5436"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: preserve V1 replay primary failures",
+      "tree": "94158cb15bfe796a271370f8b1cb65ccf3b82aa7"
+    },
+    {
+      "commit": "e42358ba03cab3ff4d501faec6662b31ea967ce2",
+      "committed_at": "2026-07-14T19:15:50-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-frontier-knowledge-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "be24f4e71737818de70f1c5593796150486620a3"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "research: preserve knowledge graph content digest",
+      "tree": "20979d60cc8e54467134b87eb5eb37aa781b01b1"
+    },
+    {
+      "commit": "e4405472b89218c70ba08f8183665df425913e6d",
+      "committed_at": "2026-07-14T19:15:10-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "d2029a87443dc66ae63676fdc155ff0a9a7f4c01"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "research: add docs/research/ZRPF_FRONTIER_DECISION_GRAPH_20260714.json",
+      "tree": "e3894b22e0ffe81a8ab22b222e9e1ccb5ad59726"
+    },
+    {
+      "commit": "e47fe388b823b56a21763fce83c9a926e52b0e9d",
+      "committed_at": "2026-08-01T19:15:28-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "b41d7954586c4cf0e309a625f40a9aff2e2a8999"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "research: define M6 unique commit port",
+      "tree": "f865f61ad5b7626f6fe9aebf40438a85fa5a8e2f"
+    },
+    {
+      "commit": "e5e745605cddee6ac08fa56b9a2aa74142a886c2",
+      "committed_at": "2026-08-03T20:12:41-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "941b785aa3636dfe78e6583e52991c55a5f67749"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(m6): bind parity to committed spot carrier",
+      "tree": "7e74a15a444fe0f3fa430d84e94df2451c9d7c3d"
+    },
+    {
+      "commit": "e657f06ae29ab6c425e5cbfe33d6799a9c34eebb",
+      "committed_at": "2026-07-10T19:18:03-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "0b4de59541d84e9a8fffc01cdcefcc24f1c9c4ae"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "tools: freeze ZRPF proof source closure",
+      "tree": "b72c1e372012a0e5de4ca2d9ce1b0a53cee6fec3"
+    },
+    {
+      "commit": "e720a471fc1fb2d2961c5b527acddd3c80068d02",
+      "committed_at": "2026-07-12T11:56:50-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-post416-adversarial-hardening-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "b9809fa3b1cf83f326bbd3bf0e6da2a1446200db"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: refresh governed V1 verifier evidence",
+      "tree": "dc52c30292dd9fc9952583a61e9ccabc867f3446"
+    },
+    {
+      "commit": "e748cce9af0a18e5d8b98f701cc29c63c64a43f8",
+      "committed_at": "2026-07-10T19:55:12-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "a76882ee6ce3f73fcbe7816bc1c755166d8ccf27"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: revoke stale ZRPF verifier evidence",
+      "tree": "fa44cd750e36fa3f7b573ffc8c3f083b3e9aa6fb"
+    },
+    {
+      "commit": "e75827eee690f082aeaf94ead86ee89255495e5b",
+      "committed_at": "2026-08-13T11:39:54-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "24f4c9917722250faefc38315e1677d7a98a7ce6"
+      ],
+      "relation_to_base": "ANCESTOR_INCLUDED",
+      "review_status": "BASELINE_INCLUDED",
+      "subject": "security: harden M6 commit and outbox boundaries",
+      "tree": "fde958b244b793e841a897ee0c45485649df90b0"
+    },
+    {
+      "commit": "e78f4890ea57234e4634e408a0fc1f623565eb35",
+      "committed_at": "2026-07-12T15:46:34-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "e720a471fc1fb2d2961c5b527acddd3c80068d02",
+        "e353933e479076f6de72b1350f1252ccf62e5194"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge pull request #418 from TheDarkLightX/agent/zrpf-v1-governed-live-replay-20260712",
+      "tree": "94158cb15bfe796a271370f8b1cb65ccf3b82aa7"
+    },
+    {
+      "commit": "e7c827d2a206f6bed6fc59fe9e6bbdfe679e34d2",
+      "committed_at": "2026-08-02T07:49:54-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "ea8373ad406770e1060acfcdda8581ad51e02719",
+        "5e4677c30210cdbaa1adb0c5775f112eb25f140e"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge reviewed D04 authority repair into M6 continuation",
+      "tree": "fcae7f28ae277c1e62402269a253f80531972bf0"
+    },
+    {
+      "commit": "e95f44061e2d4cd9fb3460cb50ee93460e702a76",
+      "committed_at": "2026-08-03T19:45:22-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "461de21929e867bc459265a75c144e81d72143d7"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(m6): define fail-closed global content projection",
+      "tree": "61f213fc7f5cab327b99093467ce5a0b876bce97"
+    },
+    {
+      "commit": "ea289b0e8173e2051ce5790391a015fea243c925",
+      "committed_at": "2026-08-06T08:24:43-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "1ec77e35c3a8e504cbff6cbc09c6906eacaefc7f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add lane module release registry v1",
+      "tree": "79e9edf62a7f5363de9bfbd8d2420a2427acffad"
+    },
+    {
+      "commit": "ea8373ad406770e1060acfcdda8581ad51e02719",
+      "committed_at": "2026-08-02T07:41:37-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "ce71c24cecae8396a8d7ac7879b2d35f827f4f5d"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Record M6 rejection authority repair evidence",
+      "tree": "e2c88d889883ce6e65a2057fb5181ba09bf1c368"
+    },
+    {
+      "commit": "eac060c3f9267c653efd39760111efe8e9a85bf3",
+      "committed_at": "2026-07-14T02:50:43-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-v7-operational-policy-provenance-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "a13cf5f415e8207386d38ac590f094592f14a072"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: gate Spot V7 policy provenance",
+      "tree": "23767299529d05f3d93e3a47c558fc79c2a02bd0"
+    },
+    {
+      "commit": "eb1f25b5bef829fc1d2926e0bd3ab09debbc5bde",
+      "committed_at": "2026-07-14T19:15:12-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "130a77a96d3f23a5ebe60fa6a4ab92aeb2e4b2bd"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "research: add tools/validate_zrpf_frontier_graph.py",
+      "tree": "fa7c2a719041f5578b8e58258963bcbb64c95195"
+    },
+    {
+      "commit": "ebe080abe97abf17d247c4ba879d79ad30729fe2",
+      "committed_at": "2026-07-12T03:36:05-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-authenticated-admission-cbc-20260712",
+        "refs/remotes/origin/agent/zrpf-authenticated-admission-cbc-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "bccc3118ffa8f229067c0b8386b6c83444899a15"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: seal recursive admission authority boundary",
+      "tree": "9759cde9a946d9ce825fdb50880cec4f12fe1e81"
+    },
+    {
+      "commit": "ecb46405ee791b6eaaa6a63211b9d68972ade52c",
+      "committed_at": "2026-08-12T21:41:01-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "e1838293c839d4f830f1f1501205b55bc88c8975"
+      ],
+      "relation_to_base": "ANCESTOR_INCLUDED",
+      "review_status": "BASELINE_INCLUDED",
+      "subject": "security: protect M6 authority receipt boundary from hostile mappings",
+      "tree": "4182b88e8ac9505a0d09487c135061003a1aa623"
+    },
+    {
+      "commit": "edca73303b2f8201483c35dfee55ed84752e650c",
+      "committed_at": "2026-08-01T19:33:41-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "a0d651d6bddf0b6f4e59c07a1085ccd489ed072e"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "research: model M6 bypass mutants",
+      "tree": "69ee9ed990a95a69727809870972cb78219a3351"
+    },
+    {
+      "commit": "ee3618631c7a4266c05d15d9fdd3c8de6d1d600f",
+      "committed_at": "2026-08-04T11:01:47-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "20377b7920d0327b3fc8db501ee61cf28a7da8fe"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): rebind lock-bound dependency packet",
+      "tree": "18e3a0d1e076c09fa2ead27614ada44e413a8e3d"
+    },
+    {
+      "commit": "ee4f14995e479fee87c318684fd8ebf919cac825",
+      "committed_at": "2026-07-12T15:16:11-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-t17-state-bound-spot-cert-v2-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "6ad85a336fd81ddfa5c9db3f7045933111691fa2"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add state-bound Spot certificate compatibility",
+      "tree": "ad8623d93b384bed5267a9dae823f55de26af3d9"
+    },
+    {
+      "commit": "ee8418989d9553b15cee24d0c8733e0041d4aa8b",
+      "committed_at": "2026-08-12T23:01:07-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "6d5fe1ad49b2d6f97f1f7cd732f9d6442b45abad"
+      ],
+      "relation_to_base": "ANCESTOR_INCLUDED",
+      "review_status": "BASELINE_INCLUDED",
+      "subject": "fix: close M6 candidate dependencies",
+      "tree": "0ca9727548587709106b9319495599ae48b16c2d"
+    },
+    {
+      "commit": "ee9f81a3164b63d63cdafef6e0ca409c9b38a265",
+      "committed_at": "2026-08-06T07:18:11-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "2028d62e12e0c0e7cf2666c7ca412a9f770a016d"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(zrpf): add closed economic lane registry v1 (#512)",
+      "tree": "67d81c8d576602d97c7816ca31a0ced64554d172"
+    },
+    {
+      "commit": "f0b35143e7a8d6271c956340fdaad42042dfea3f",
+      "committed_at": "2026-08-03T08:54:41-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "f5c3d0e66852c8ec49112a7ed3a8119bab71bf47"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix(m6): certify zUSD monetary supply deltas",
+      "tree": "38363dbe0fe92978058de33dab5f2681f3c37328"
+    },
+    {
+      "commit": "f17fa72cfec0c4b9a2b65603c401caaf337747e5",
+      "committed_at": "2026-08-03T09:33:12-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "43f302a454500e05fea98b499ece4a93971f45f9"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "feat(m6): add zUSD protocol fee claim state",
+      "tree": "f0a30529e97288f718a598578f44c948288e6a8b"
+    },
+    {
+      "commit": "f2c02ddb95a399f7eff59886cc8ee5e2c1cd1b64",
+      "committed_at": "2026-08-13T02:55:09-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "5060b515c63e81bcb1e2630b3da86b21c3389437"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs: snapshot M6 outbox assurance candidate",
+      "tree": "f62c69deeab8e23bd10005161cf2e171bbad782d"
+    },
+    {
+      "commit": "f2cfbeef28f64a570e20aea97fb30a6af17ef75e",
+      "committed_at": "2026-08-01T20:23:35-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "295a2dc5279b0b80ea7842dfe0190499725d94c7"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "fix: harden M6 J06 quiescence witness",
+      "tree": "7de2618204267c314b7d34b5901b2c207c6d5984"
+    },
+    {
+      "commit": "f36e1e301135b69a39f040e34c7de79a40054ff8",
+      "committed_at": "2026-08-03T03:04:31-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "92040e214c4dcd36c4e5172e7098f19e26f0300f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): rebind migration dependency receipts",
+      "tree": "64eabf85cfe893d01a2fea2d2eb5a7874a5776d1"
+    },
+    {
+      "commit": "f5c3d0e66852c8ec49112a7ed3a8119bab71bf47",
+      "committed_at": "2026-08-03T06:42:19-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "80b0779138d44b9161a604767480db99f5659704"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "docs(m6): bind zUSD transfer surface evidence",
+      "tree": "7cb8fff670ad21d91fd8301a7e12e3fe99270ea9"
+    },
+    {
+      "commit": "f5caf798b1b13a939ab1656b2935caa3ce927f91",
+      "committed_at": "2026-07-14T05:53:39-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-v7-validator-schema-hardening-20260714"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "02af58ebc9e6873a69a4a62dbbd7b99203da4754"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "ledger: bind Spot V7 finality to deterministic replay",
+      "tree": "2e1fcf4cac179f8a0a8ffee49b3bea19697d1446"
+    },
+    {
+      "commit": "f73622ec31724e68fc01afc1ad092bbdef4e4154",
+      "committed_at": "2026-07-12T11:16:49-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "b9809fa3b1cf83f326bbd3bf0e6da2a1446200db",
+        "d1153703515aef64254d1d463790a3aed3415075"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge remote-tracking branch 'origin/main' into agent/zrpf-completion-integration-20260712",
+      "tree": "0ba6a1d1c0a2392dd63fc6dc7b70718a5c79d394"
+    },
+    {
+      "commit": "f7c35577d23321c96ff3e8cca515eb49af97d2d3",
+      "committed_at": "2026-07-12T02:11:56-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-firecracker-runner-contract-20260711",
+        "refs/remotes/origin/agent/zrpf-firecracker-runner-contract-20260711"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "1188025f4cbf6717b55a1ab02c9c09c8c633859f"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "evidence: retire superseded Firecracker replay claim",
+      "tree": "f8bf2bd8ec8477eb8d901256ceb3600b4a8ddec2"
+    },
+    {
+      "commit": "f948f57f17f0995e7f145aaf9a11ddb48b80fb22",
+      "committed_at": "2026-07-10T19:44:09-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-bounded-8x8-cbc"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "49df2a07a98ea7f25bd37c9dbca32ca3aa3147e0"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: require byte-only ZRPF verifier construction",
+      "tree": "a7771dd8477f09e5ce3b97c838a5ba2e951ce1c7"
+    },
+    {
+      "commit": "f9769de113e76241277c357463547d41b9792045",
+      "committed_at": "2026-07-13T05:38:22-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "01d22371973a91324cbb4aa3cb457525f5496f4d",
+        "793a98f73a52ac3722d4c453495fed16a1a14c41"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Merge ZRPF assurance inventory base",
+      "tree": "3b6d293aefe48216d0e7f71a082d1455af9adedb"
+    },
+    {
+      "commit": "fa3718fa525fc6344b455cf170dc9ef00d634396",
+      "committed_at": "2026-07-14T05:07:22-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "6ef9e934dcdddf76d8fdde9df49d2dc90287980d"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zrpf: define Spot V7 Firecracker runtime protocol",
+      "tree": "310549d8da2ea03b97d3f40283bc6a213967b55b"
+    },
+    {
+      "commit": "fb7a730c243cfc10968023ab77b403e9d4512f46",
+      "committed_at": "2026-07-12T15:50:04-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/remotes/origin/agent/zrpf-t20-state-bound-spot-guest-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "48d7f6396d3903330e7f2ea5012311093fc99f3d"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "zk: add state-bound Spot settlement guest",
+      "tree": "e1b80cf7aca4a3832de314d19bfdbd51bb09987a"
+    },
+    {
+      "commit": "fcf1f85233d9e82a7a4baa59b9de1769cab3c5c8",
+      "committed_at": "2026-07-12T10:15:41-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT",
+        "REF_TIP"
+      ],
+      "matching_refs": [
+        "refs/heads/agent/zrpf-active-p0-integration-20260712",
+        "refs/remotes/origin/agent/zrpf-active-p0-integration-20260712"
+      ],
+      "obligation_ids": [],
+      "parents": [
+        "b78af993a145b55c5aefaa4fe80f8e2389a7ec6c",
+        "5049098f25e77e97839c001651f29733c5ec63e4"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "merge: integrate single-verification ZRPF P0",
+      "tree": "15a9056ba34597c5f76cc8d6288da0b0780c5225"
+    },
+    {
+      "commit": "fcfb22772b044c82131639d740a1fe2f60a65bbb",
+      "committed_at": "2026-08-02T07:08:04-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "1e707a5fd7effd9b242862954685403dc113b586"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Harden M6 I04 no-op and J06 gate provenance",
+      "tree": "f7c48018f53b9c7154b9251e77c734928efd6296"
+    },
+    {
+      "commit": "fe6ef7508da37d92c3d5353b9cf7f584dae20308",
+      "committed_at": "2026-08-06T06:42:23-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "46faa5ee486800671eba4ddc7d6763a836417d44"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "test(zrpf): isolate ABI cargo outputs",
+      "tree": "67d81c8d576602d97c7816ca31a0ced64554d172"
+    },
+    {
+      "commit": "ff1da03a4be13a87390466f5f60c2dbb7254d2d4",
+      "committed_at": "2026-07-31T14:50:42-04:00",
+      "imported_into_g0": false,
+      "matched_by": [
+        "SUBJECT"
+      ],
+      "matching_refs": [],
+      "obligation_ids": [],
+      "parents": [
+        "d00cbaf35aea6d86c49ff4d2f58c906330df0198"
+      ],
+      "relation_to_base": "DIVERGED_UNREVIEWED",
+      "review_status": "UNREVIEWED",
+      "subject": "Freeze exact M6 three-role selector",
+      "tree": "b97456cf8abb25a579699535706f52d8d8c9936f"
+    }
+  ],
+  "counts": {
+    "ANCESTOR_INCLUDED": 11,
+    "BASELINE": 1,
+    "DESCENDANT_UNVERIFIED": 0,
+    "DIVERGED_UNREVIEWED": 278,
+    "imports": 0,
+    "matched_refs": 98,
+    "unique_candidates": 290
+  },
+  "discovery_rule": {
+    "candidate_union": [
+      "matching ref tips",
+      "matching commit subjects reachable from --all"
+    ],
+    "commit_subject_regex": "(?i)(m6|zrpf)",
+    "ref_name_regex": "(?i)(m6|zrpf)",
+    "scope": "available refs/heads and refs/remotes at G0 freeze"
+  },
+  "matched_ref_snapshot_sha256": "4dee8d386947fa1a7ce96550a325fa9fa84ff3163282492b05e6c0be5bbae668",
+  "matched_ref_tips": [
+    {
+      "ref": "refs/heads/agent/fcis-m5-to-m6-refinement-matrix-20260729",
+      "tip": "c14c107fb55d17b4282c52a80de7c73337cdc078"
+    },
+    {
+      "ref": "refs/heads/agent/fcis-m6-r05-r11-durable-retraction-20260731",
+      "tip": "7deeb3403c933402393d15553cc87563aa71b752"
+    },
+    {
+      "ref": "refs/heads/agent/pr389-zrpf-assurance-hardening",
+      "tip": "925ed7303fdeb7f4ef4e289fb46f4fcf3354a0f4"
+    },
+    {
+      "ref": "refs/heads/agent/pr389-zrpf-push-clean",
+      "tip": "1d5008b5cf5df79bff40159e5b7e141f69b9d9f8"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-active-p0-integration-20260712",
+      "tip": "fcf1f85233d9e82a7a4baa59b9de1769cab3c5c8"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-authenticated-admission-cbc-20260712",
+      "tip": "ebe080abe97abf17d247c4ba879d79ad30729fe2"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-bounded-8x8-cbc",
+      "tip": "f948f57f17f0995e7f145aaf9a11ddb48b80fb22"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-canonical-finality-authority-20260714",
+      "tip": "d53bf622db846c033b9719091aa5191a3798cfae"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-completion-integration-20260712",
+      "tip": "2955a64bd90ae1af68ba405af2907210b54da69e"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-durable-admission-cbc-20260712",
+      "tip": "6667d32704db697279b29686d3fdfd9779818188"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-firecracker-cbc-final-20260711",
+      "tip": "b1a62c2ccdcbfb0e345716c94dfbf499dde4e247"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-firecracker-profile-cbc",
+      "tip": "925ed7303fdeb7f4ef4e289fb46f4fcf3354a0f4"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-firecracker-replay-cbc-v1",
+      "tip": "ce3fb2f7f29f6d6ffb85b85002b4c1107f9ae91b"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-firecracker-runner-contract-20260711",
+      "tip": "f7c35577d23321c96ff3e8cca515eb49af97d2d3"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-integrated-staging-20260714",
+      "tip": "a13cf5f415e8207386d38ac590f094592f14a072"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-ledger-effect-admission-cbc-20260712",
+      "tip": "cf1edca41eae7ae7c233750046c5b9b014a793c1"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-perps-source-finality-current-images-20260711",
+      "tip": "942130c01ad02140962810a728a71848d102a175"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-perps-source-finality-v1-20260711",
+      "tip": "43c423913cc4b1a30c2dd05f4194344bf707c0f9"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-post416-adversarial-hardening-20260712",
+      "tip": "e720a471fc1fb2d2961c5b527acddd3c80068d02"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-post417-completion-integration-20260712",
+      "tip": "0a17435af974a79481994c11981b6ae73d519393"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-rscbc014-reproof-20260712",
+      "tip": "8dc1d29bec4952202b57bd59c899681a1fcd6c6a"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-semantic-epoch-v1-20260711",
+      "tip": "bccc3118ffa8f229067c0b8386b6c83444899a15"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-semantic-self-image-cbc-20260712",
+      "tip": "30f143df22dd26f1557a0f647f92eca5a378fd91"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-semantic-value-v1-ultra-20260711",
+      "tip": "88314b5c43d4a781ae1d7a6b04c335c4512b6d24"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-single-verification-cbc-20260712",
+      "tip": "5049098f25e77e97839c001651f29733c5ec63e4"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-spot-expected-statement-v1-20260711",
+      "tip": "a3e9303318ad4a4a3930ba61b3c903c9ab4ccb1f"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-t11-value-aggregate-l1-guest-20260712",
+      "tip": "10916a91c99d273402055d7d86b2373869e73042"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-t21-spot-settlement-host-20260712",
+      "tip": "72f974080229135c5f3414e5e838f6783d74ece1"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-t22-source-opened-spot-v6-20260712",
+      "tip": "72f974080229135c5f3414e5e838f6783d74ece1"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-v1-governed-live-replay-20260712",
+      "tip": "e353933e479076f6de72b1350f1252ccf62e5194"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-v3-byte-authority-cbc",
+      "tip": "4195c68909a0a7f4dafe3b5403a48ede8ab1f664"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-v3-structural-cbc",
+      "tip": "1f58718d9c65bbcaf3928339eb87db4c982f586e"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-v7-da-adapter-20260713",
+      "tip": "1365b43ffd609c5bd67d0f0dadfbdf8e80322018"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-v7-firecracker-adapter-20260713",
+      "tip": "64b5562e2fbf056b6f37f4de973a5ece5b639c09"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-v7-governed-config-binding-20260714",
+      "tip": "1e0fa2cb3998fcd3f64b6fe4da9fe22855b762c2"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-v7-guest-input-builder-20260714",
+      "tip": "da7535b696bdea775d119ddcbe8c5e13b9ea2cd3"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-v7-jailer-child-lifecycle-fix-20260714",
+      "tip": "6ef9e934dcdddf76d8fdde9df49d2dc90287980d"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-v7-operational-policy-provenance-20260714",
+      "tip": "eac060c3f9267c653efd39760111efe8e9a85bf3"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-v7-root-owned-runner-20260714",
+      "tip": "59bef224256ad712b2b0ffc599e00b7b836d2cc2"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-v7-validator-schema-hardening-20260714",
+      "tip": "f5caf798b1b13a939ab1656b2935caa3ce927f91"
+    },
+    {
+      "ref": "refs/heads/agent/zrpf-value-node-v4-cbc-20260711",
+      "tip": "0dc563ff58a704392b2061ec1a764df94cde7911"
+    },
+    {
+      "ref": "refs/heads/codex/m6-drifted-wip-preservation-20260811",
+      "tip": "3bf7661091b727575dd03a020afe67b6c7f9a282"
+    },
+    {
+      "ref": "refs/heads/codex/m6-global-shadow-projection-20260804",
+      "tip": "5be23facf00cf98735c8779b51d5c9eebd5a3702"
+    },
+    {
+      "ref": "refs/heads/codex/m6-outbox-reconciliation-20260813",
+      "tip": "7bf60b39daee54fb730c8dc7268cd6dee50e5cb5"
+    },
+    {
+      "ref": "refs/heads/codex/m6-r01-v2-provisional-replay",
+      "tip": "e2ad26399c5b1743dacf3dda22970353d864f1f6"
+    },
+    {
+      "ref": "refs/heads/codex/zrpf-global-settlement-fcis-20260811",
+      "tip": "827f5cfcacfc3f26fe6bd5fcf4f82f0dd326b6bd"
+    },
+    {
+      "ref": "refs/heads/codex/zrpf-m6-cybersecurity-audit-20260811",
+      "tip": "b6842cd26aadf32b7ee774f58665570479cacfe6"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/fcis-m5-to-m6-refinement-matrix-20260729",
+      "tip": "c14c107fb55d17b4282c52a80de7c73337cdc078"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/fcis-m6-r04-tree-chord-gate-authority-20260730",
+      "tip": "babffa56dcbddc5886487fbb6e62740b15370000"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/fcis-m6-r05-r11-durable-retraction-20260731",
+      "tip": "476ec022e755ff049c39bf9f08c6606ac87532ca"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-active-p0-integration-20260712",
+      "tip": "fcf1f85233d9e82a7a4baa59b9de1769cab3c5c8"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-aggregate-ladder-20260714",
+      "tip": "5668374321fd4f7d7046c1cb0b934e096040f634"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-assurance-repair-20260714",
+      "tip": "41dcf303aaaac63dc5cbbbfa2f5617e13b3b9296"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-authenticated-admission-cbc-20260712",
+      "tip": "ebe080abe97abf17d247c4ba879d79ad30729fe2"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-completion-integration-20260712",
+      "tip": "0787644a7ad2066c5a91064e9002c1e171f5f3a6"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-durable-admission-cbc-20260712",
+      "tip": "6667d32704db697279b29686d3fdfd9779818188"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-firecracker-cbc-final-20260711",
+      "tip": "b1a62c2ccdcbfb0e345716c94dfbf499dde4e247"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-firecracker-runner-contract-20260711",
+      "tip": "f7c35577d23321c96ff3e8cca515eb49af97d2d3"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-frontier-knowledge-20260714",
+      "tip": "e42358ba03cab3ff4d501faec6662b31ea967ce2"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-full-blob-da-adapter-20260714",
+      "tip": "bc3544214949b371f7b87afcde01f3a75d168f84"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-full-blob-da-verifier-20260714",
+      "tip": "7e1a6ab84ae1d56077631e0af9bba8999194e3d2"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-governed-operational-policy-20260714",
+      "tip": "8e9900c103936ebbe389014b4a59b57af4252e57"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-ledger-effect-admission-cbc-20260712",
+      "tip": "cf1edca41eae7ae7c233750046c5b9b014a793c1"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-multi-cell-smt-batch-cbc-20260712",
+      "tip": "4b3536a858c2263c789aab306b679ef4e7231c41"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-p0-boundary-fixes-20260712",
+      "tip": "054197afb62740aab9a3d7994320482691ba517e"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-perps-source-finality-v1-20260711",
+      "tip": "43c423913cc4b1a30c2dd05f4194344bf707c0f9"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-post417-completion-integration-20260712",
+      "tip": "0a17435af974a79481994c11981b6ae73d519393"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-production-integration-20260714",
+      "tip": "d5198b89480eeb36dd56ad55e8b77c4e38c98f45"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-python-assurance-diagnostics-20260714",
+      "tip": "59899cd2c210fb917df2c6b8e57816b40a8251aa"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-rscbc014-reproof-20260712",
+      "tip": "8dc1d29bec4952202b57bd59c899681a1fcd6c6a"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-semantic-epoch-v1-20260711",
+      "tip": "bccc3118ffa8f229067c0b8386b6c83444899a15"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-semantic-self-image-cbc-20260712",
+      "tip": "30f143df22dd26f1557a0f647f92eca5a378fd91"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-semantic-value-v1-ultra-20260711",
+      "tip": "88314b5c43d4a781ae1d7a6b04c335c4512b6d24"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-single-verification-cbc-20260712",
+      "tip": "5049098f25e77e97839c001651f29733c5ec63e4"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-soundness-ledger-20260714",
+      "tip": "ccb324a5811257439aecdbaf387b54262994a5f7"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-spot-expected-statement-v1-20260711",
+      "tip": "a3e9303318ad4a4a3930ba61b3c903c9ab4ccb1f"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-state-bound-admission-authority-20260712",
+      "tip": "31d2fe661bf9759d451e17921aab2831ef6f6912"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-t11-value-aggregate-l1-guest-20260712",
+      "tip": "10916a91c99d273402055d7d86b2373869e73042"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-t13-value-aggregate-l1-guest-20260712",
+      "tip": "aca0a0be28c126a1ab2e8a99ff10982f5c728b89"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-t14-full-blob-replay-da-20260712",
+      "tip": "785b6892f5ac392346d02f631c60815117e373b8"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-t15b-state-projection-type-hardening-20260712",
+      "tip": "0ed13cfbe536cb156f5de285d47c09cbfb37d437"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-t16-value-aggregate-l2-guest-20260712",
+      "tip": "c194b63b5d078a8dcba5270586478e0154863dfa"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-t16b-l2-policy-cycle-break-20260712",
+      "tip": "3a848ea66b9b519cda7e7a6fa10affd6932beeaa"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-t17-state-bound-spot-cert-v2-20260712",
+      "tip": "ee4f14995e479fee87c318684fd8ebf919cac825"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-t18-v5-aggregate-verifier-harness-20260712",
+      "tip": "a686b77b2a89ddf6c70b5a8c7ba772e495885b01"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-t19-v5-l2-root-policy-harness-20260712",
+      "tip": "584cca5515dddcc68eb834a9e4629bf65105d7c1"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-t20-state-bound-spot-guest-20260712",
+      "tip": "fb7a730c243cfc10968023ab77b403e9d4512f46"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-v1-governed-live-replay-20260712",
+      "tip": "e353933e479076f6de72b1350f1252ccf62e5194"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-v3-structural-cbc",
+      "tip": "1d5008b5cf5df79bff40159e5b7e141f69b9d9f8"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-v6-v7-identity-c0-20260713",
+      "tip": "32adbd298cd5c6a4d8826373cf189024d18a1e72"
+    },
+    {
+      "ref": "refs/remotes/origin/agent/zrpf-value-node-v4-cbc-20260711",
+      "tip": "0dc563ff58a704392b2061ec1a764df94cde7911"
+    },
+    {
+      "ref": "refs/remotes/origin/claude/tender-cerf-m6j10z",
+      "tip": "8a399d39c329459a6412cb895e35ae80502bad5a"
+    },
+    {
+      "ref": "refs/remotes/origin/codex/fcis-m6-r01-segmented-lineage-20260730",
+      "tip": "0a51b2dc8729af34d86d717dff214576f7ae58c8"
+    },
+    {
+      "ref": "refs/remotes/origin/codex/fcis-m6-r04-lineage-closure-20260730",
+      "tip": "a94a1fa0586107a0a48aebbe4cd18c0d1029d481"
+    },
+    {
+      "ref": "refs/remotes/origin/codex/m6-drifted-wip-preservation-20260811",
+      "tip": "3bf7661091b727575dd03a020afe67b6c7f9a282"
+    },
+    {
+      "ref": "refs/remotes/origin/codex/m6-r01-v2-provisional-replay",
+      "tip": "e2ad26399c5b1743dacf3dda22970353d864f1f6"
+    },
+    {
+      "ref": "refs/remotes/origin/codex/zrpf-global-settlement-fcis-20260811",
+      "tip": "827f5cfcacfc3f26fe6bd5fcf4f82f0dd326b6bd"
+    },
+    {
+      "ref": "refs/remotes/origin/codex/zrpf-m6-cybersecurity-audit-20260811",
+      "tip": "e1838293c839d4f830f1f1501205b55bc88c8975"
+    }
+  ],
+  "nonclaims": [
+    "A candidate is an untrusted patch source until an obligation-sized review accepts exact hunks.",
+    "Historical or diverged receipts do not establish same-subject evidence for the G0 base.",
+    "This local ref snapshot may name commits that a shallow or differently fetched clone does not contain.",
+    "No candidate was imported into G0."
+  ],
+  "production_promotion": false,
+  "schema": "zenodex/production-readiness-donor-inventory/v1",
+  "status": "FROZEN_UNREVIEWED",
+  "version": 1
+}

@@ -634,6 +634,7 @@ The rehearsal succeeds when the second machine emits `ok=true`, an
 
 ## Documentation
 
+- `docs/PRODUCTION_READINESS_PLAN.md` (research-only completion plan; current production promotion remains closed)
 - `docs/SPECIFICATION.md`
 - `docs/ALGORITHMS.md`
 - `docs/FIRE_MANIFESTO.md`
