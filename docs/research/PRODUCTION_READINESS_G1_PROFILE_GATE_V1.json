@@ -1,0 +1,326 @@
+{
+  "decision_gates": [
+    {
+      "affected_workflow_families": [
+        "spot_and_liquidity",
+        "zusd_monetary",
+        "protocol_token",
+        "proof_reward",
+        "sealed_bid",
+        "tau_escrow"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_DECISION_CLOSED",
+      "id": "asset_issue_burn_policy",
+      "owner": "G1_product_semantics_decision",
+      "production_authority": "NONE",
+      "question": "Which managed assets, units, issue authorities, burn authorities, and supply floors are in scope?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
+      "required_outputs": [
+        "managed asset classes and integer base-unit scales",
+        "one issue authority and one burn authority per managed asset",
+        "supply bounds, genesis bindings, and terminal supply disposition"
+      ],
+      "selected_option_shape": null,
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "affected_workflow_families": [
+        "spot_and_liquidity"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_DECISION_CLOSED",
+      "id": "spot_lp_fee_dust_withdrawal_policy",
+      "owner": "G1_product_semantics_decision",
+      "production_authority": "NONE",
+      "question": "Which spot and LP fee, rounding, dust, withdrawal, and final-pool rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
+      "required_outputs": [
+        "spot and LP fee rates, rounding direction, and fee beneficiaries",
+        "LP share mint and burn arithmetic with reserve reconciliation",
+        "dust ownership, withdrawal rules, and final-pool terminal drain"
+      ],
+      "selected_option_shape": null,
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "affected_workflow_families": [
+        "zusd_monetary"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_DECISION_CLOSED",
+      "id": "zusd_monetary_lifecycle_policy",
+      "owner": "G1_product_semantics_decision",
+      "production_authority": "NONE",
+      "question": "Which zUSD collateral, fee, redemption, liquidation, redistribution, and Stability Pool rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
+      "required_outputs": [
+        "borrowing and redemption fees with current liability owners",
+        "collateral, redemption, liquidation, and redistribution parameters",
+        "Stability Pool gain, loss, rounding, recovery, and terminal rules"
+      ],
+      "selected_option_shape": null,
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "affected_workflow_families": [
+        "oracle",
+        "zusd_monetary",
+        "perps_risk"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_DECISION_CLOSED",
+      "id": "oracle_lifecycle_policy",
+      "owner": "G1_product_semantics_decision",
+      "production_authority": "NONE",
+      "question": "Which reporter, dispute, aggregation, freshness, outage, and recovery rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
+      "required_outputs": [
+        "reporter and dispute authority plus bond disposition",
+        "aggregation, occurrence, freshness, and finality semantics",
+        "stale, disputed, outage, and recovery behavior by command class"
+      ],
+      "selected_option_shape": null,
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "affected_workflow_families": [
+        "perps_risk"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_DECISION_CLOSED",
+      "id": "perps_risk_and_terminal_policy",
+      "owner": "G1_product_semantics_decision",
+      "production_authority": "NONE",
+      "question": "Which perps funding, liquidation, insurance, bad-debt, oracle, and terminal-close rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
+      "required_outputs": [
+        "market, collateral, margin, fee, and funding definitions",
+        "liquidation, insurance, and bad-debt allocation",
+        "oracle gating, recovery subset, and terminal close semantics"
+      ],
+      "selected_option_shape": null,
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "affected_workflow_families": [
+        "protocol_token"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_DECISION_CLOSED",
+      "id": "protocol_buy_burn_policy",
+      "owner": "G1_product_semantics_decision",
+      "production_authority": "NONE",
+      "question": "Which buyback funding, route, price guard, supply floor, burn, and reserve rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
+      "required_outputs": [
+        "buyback funding source, route, price guard, budget, and cadence",
+        "acquired-token custody, protected supply floor, and burn authority",
+        "rounding, failure, recovery, and terminal reserve disposition"
+      ],
+      "selected_option_shape": null,
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "affected_workflow_families": [
+        "proof_reward"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_DECISION_CLOSED",
+      "id": "proof_reward_reserve_policy",
+      "owner": "G1_product_semantics_decision",
+      "production_authority": "NONE",
+      "question": "Which proof-reward reserve, eligibility, schedule, claim, nullifier, and exhaustion rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
+      "required_outputs": [
+        "reward reserve funding and beneficial owner",
+        "eligibility, schedule, cap, claim identity, and nullifier scope",
+        "rounding, exhaustion, recovery, and terminal reserve drain"
+      ],
+      "selected_option_shape": null,
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "affected_workflow_families": [
+        "sealed_bid"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_DECISION_CLOSED",
+      "id": "sealed_bid_inventory_and_lifecycle_policy",
+      "owner": "G1_product_semantics_decision",
+      "production_authority": "NONE",
+      "question": "Which seller-auction and private-swap inventory, phase, fee, cancellation, and terminal rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
+      "required_outputs": [
+        "inventory, payment, bond assets, amounts, and custody owners",
+        "phase deadlines, cancellation, expiry, and non-reveal disposition",
+        "tie order, fees, dust, settlement port, and terminal refunds or slashes"
+      ],
+      "selected_option_shape": null,
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "affected_workflow_families": [
+        "tau_escrow"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_DECISION_CLOSED",
+      "id": "tau_escrow_outage_rejoin_policy",
+      "owner": "G1_product_semantics_decision",
+      "production_authority": "NONE",
+      "question": "Which Tau escrow deposit, withdrawal, outage, acknowledgment, retry, and rejoin rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
+      "required_outputs": [
+        "deposit evidence, finality, asset mapping, and replay scope",
+        "withdrawal queue, acknowledgment, retry, and destination idempotency",
+        "outage continuation, pending effects, rejoin proof, and profile rotation"
+      ],
+      "selected_option_shape": null,
+      "selected_profile": null,
+      "status": "OPEN"
+    }
+  ],
+  "exit_gate": {
+    "closed_decision_count": 0,
+    "complete": false,
+    "decision_count": 9,
+    "production_authority_count": 0,
+    "selected_profile_count": 0,
+    "status": "BLOCKED_DECISIONS_OPEN"
+  },
+  "nonclaims": [
+    "The gate records required policy decisions and closure conditions only.",
+    "No option shape or economic profile is selected by this artifact.",
+    "The gate does not implement, prove, mount, or authorize any command.",
+    "A decision cannot close until its required outputs and rejection conditions are reviewed."
+  ],
+  "production_promotion": false,
+  "schema": "zenodex/production-readiness-g1-profile-gate/v1",
+  "selection_policy": {
+    "exactly_one_option_shape_per_decision": true,
+    "option_shapes": {
+      "EXCLUDE_UNTIL_CLOSED": {
+        "meaning": "Keep affected commands unreachable and without a production writer until the decision is closed.",
+        "status": "UNSELECTED_OPTION_SHAPE"
+      },
+      "EXPLICIT_NAMED_PROFILE": {
+        "meaning": "Select one exact policy with integer units, authority, bounds, effects, and terminal disposition.",
+        "status": "UNSELECTED_OPTION_SHAPE"
+      },
+      "VERSIONED_PROFILE_ALTERNATIVE": {
+        "meaning": "Select a versioned alternative with explicit activation, migration, compatibility, and rollback rules.",
+        "status": "UNSELECTED_OPTION_SHAPE"
+      }
+    },
+    "selected_profile_must_define_all_required_outputs": true,
+    "unclosed_decisions_have_no_production_authority": true
+  },
+  "source_pins": [
+    {
+      "path": "src/core/m6_safe_mount_types_v1.py",
+      "sha256": "e9dfe00abd72f20f6c49986dd5af5a7f37042ee100b9f6d26f6b719b8e5623f8",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "src/core/m6_safe_mount_transition_v1.py",
+      "sha256": "9355b083064439b2756ee1d9454710229eaa3fe31fd529587ea3ece66cba8ee2",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    }
+  ],
+  "source_subject": {
+    "base_commit": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+    "current_head_must_descend_from_base": true,
+    "source_authority": "frozen source bytes at the exact base commit"
+  },
+  "status": "G1_PROFILE_GATE_RESEARCH_ONLY",
+  "version": "v1"
+}

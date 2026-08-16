@@ -237,6 +237,11 @@ no-launch decision while profile choices remain open: zero selected profiles,
 zero production writers, and all 33 commands explicitly unmounted. Its
 checker is replayable evidence for the stop condition and does not advance
 G1 or production readiness.
+The profile-decision gate
+`docs/research/PRODUCTION_READINESS_G1_PROFILE_GATE_V1.json` makes the nine
+decision questions, allowed option shapes, required outputs, and rejection
+conditions exact and source-bound. It intentionally selects no option shape,
+profile, or authority; its closure status remains `BLOCKED_DECISIONS_OPEN`.
 
 Replay the slice with:
 
@@ -245,6 +250,7 @@ python3 tools/check_production_readiness_g1_semantics.py --check --json
 python3 tools/check_production_readiness_g1_bdd.py --check --json
 python3 tools/check_production_readiness_g1_entrypoints.py --check --json
 python3 tools/check_production_readiness_g1_safe_hold.py --check --json
+python3 tools/check_production_readiness_g1_profile_gate.py --check --json
 ```
 
 ### G2: Complete the deterministic functional core
