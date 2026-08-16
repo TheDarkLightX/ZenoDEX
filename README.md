@@ -635,6 +635,8 @@ The rehearsal succeeds when the second machine emits `ok=true`, an
 ## Documentation
 
 - `docs/PRODUCTION_READINESS_PLAN.md` (research-only completion plan; current production promotion remains closed)
+- `docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json` (exact-subject research mapping; G1 remains blocked on open profile decisions)
+- `tools/check_production_readiness_g1_semantics.py --check` (fail-closed structural check; a pass is not production evidence)
 - `docs/SPECIFICATION.md`
 - `docs/ALGORITHMS.md`
 - `docs/FIRE_MANIFESTO.md`

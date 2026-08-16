@@ -87,13 +87,32 @@
       "dependencies": ["G0"],
       "activation_dependencies": [],
       "status": "PENDING",
-      "writable_paths": ["docs", "docs/research", "src/core", "tests"],
+      "writable_paths": [
+        "docs",
+        "docs/research",
+        "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json",
+        "src/core",
+        "tests",
+        "tests/test_check_production_readiness_g1_semantics.py",
+        "tools/check_production_readiness_g1_semantics.py"
+      ],
       "invariant": "Every enabled command has one selected economic owner and a complete user-to-terminal contract.",
       "authority_boundary": "Specifications select semantics. Research tools may propose choices and cannot select production policy.",
-      "failing_evidence": ["The command-disable count conflicts between the received plan and exact V1 source.", "Economic policy choices and terminal paths remain open."],
-      "required_commands": ["python3 tools/check_production_readiness_plan.py --json", "python3 tools/check_m6_global_economic_core_atdd_v1.py"],
+      "failing_evidence": [
+        "The exact V1 source has 33 commands and 8 research-disabled commands; the received plan's 10-disabled count is retained as a non-authoritative observation.",
+        "Economic policy choices and terminal paths remain open; the nine profile decisions are explicitly OPEN.",
+        "The legacy ATDD contract is source-pinned to an older subject and is not a valid exact-subject G1 completion receipt."
+      ],
+      "required_commands": [
+        "python3 tools/check_production_readiness_plan.py --json",
+        "python3 tools/check_production_readiness_g1_semantics.py --check --json",
+        "python3 tools/check_m6_global_economic_core_atdd_v1.py"
+      ],
       "artifact_hashes": [],
-      "nonclaims": ["A closed registry alone does not implement, prove, mount, or test a command."],
+      "nonclaims": [
+        "A closed registry alone does not implement, prove, mount, or test a command.",
+        "The G1 semantic mapping is research-only and cannot authorize settlement or production promotion."
+      ],
       "completion_receipt": null
     },
     {

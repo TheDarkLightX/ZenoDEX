@@ -199,6 +199,21 @@ UserStory -> NormativeSpec -> CoreTransition -> TerminalPath
 Exit gate: no enabled command has `GAP`, `UNKNOWN`, or an unnamed economic
 owner.
 
+The helper G1 slice on the exact subject
+`e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c` records the source-authoritative
+33-command and 8-disabled-command partition in
+`docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json`. The received
+10-disabled count remains recorded as non-authoritative. The slice also
+declares the global economic state projection and value-delta algebra and
+leaves all nine profile decisions `OPEN`; the G1 exit gate therefore remains
+blocked and this artifact does not change any production claim.
+
+Replay the slice with:
+
+```bash
+python3 tools/check_production_readiness_g1_semantics.py --check --json
+```
+
 ### G2: Complete the deterministic functional core
 
 Dependencies: G1.
