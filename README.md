@@ -646,6 +646,8 @@ The rehearsal succeeds when the second machine emits `ok=true`, an
 - `docs/research/ZDEX_VOLUME_HOLDING_HYPERDEFLATION_MECHANISM_REPORT_V1.md` (advisory CLBF mechanism study; all incentive parameters and activations remain unselected)
 - `docs/research/PRODUCTION_READINESS_G1_CLBF_MODEL_V1.json` (executable source-lot, funding-waterfall, and future-fee-credit research model; activation remains blocked)
 - `tools/check_production_readiness_g1_clbf_model_v1.py --check --json` (fail-closed finite-model check; it grants no payment, burn, campaign, or release authority)
+- `docs/research/PRODUCTION_READINESS_G1_BUYBURN_AUCTION_V1.json` (source-bound competitive burn-to-claim candidate with strict floor, escrow-disposition, conservation, and carry evidence; route and activation remain unselected)
+- `tools/check_production_readiness_g1_buyburn_auction_v1.py --check --json` (fail-closed bounded-model check; it grants no burn, lot-transfer, floor-change, settlement, or release authority)
 - `docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json` (exact 22-participant funding boundaries and typed service-budget runway model; all role budgets remain unselected)
 - `tools/check_production_readiness_g1_service_funding_v1.py --check --json` (fail-closed budget, payment, replay, top-up, and exhaustion check; no payment authority)
 - `docs/research/PRODUCTION_READINESS_G1_CRITICAL_SERVICE_COSTS_V1.json` (dated infrastructure component benchmarks plus exact five-role cost, runway, and affordability envelopes; every cost and revenue input remains unselected)

@@ -1,0 +1,312 @@
+{
+  "activation_gate": {
+    "activation_allowed": false,
+    "complete_lifecycle_implemented": false,
+    "complete_reveal_inclusion_proved": false,
+    "floor_change_allowed": false,
+    "formal_proofs_complete": false,
+    "mounted": false,
+    "numeric_policy_selected": false,
+    "opaque_witnesses_implemented": false,
+    "production_ready": false,
+    "rust_transition_implemented": false,
+    "selected_route_count": 0,
+    "settlement_allowed": false,
+    "valuation_authority_selected": false
+  },
+  "attack_query": {
+    "disaster_states": [
+      "RESTRICTED_LOT_AUCTIONED",
+      "ZDEX_LOT_OFFSETS_BURN",
+      "WINNER_NOT_FULLY_ESCROWED",
+      "LOSER_ESCROW_STRANDED",
+      "BETTER_ADMITTED_REVEAL_OMITTED",
+      "STALE_OR_SELF_REFERENTIAL_VALUATION",
+      "POST_COMMIT_LOT_OR_VALUATION_SUBSTITUTION",
+      "BELOW_RESERVE_SETTLEMENT",
+      "ACTIVE_FLOOR_REACHED_OR_CROSSED",
+      "SUPPLY_AND_CUMULATIVE_BURN_DIVERGE",
+      "LOT_OR_AUCTION_REPLAY",
+      "MID_COMMAND_FLOOR_CHANGE"
+    ],
+    "query": "Can a bidder or operator receive an eligible surplus lot while burning too little, omitting a better admitted reveal, using stale valuation, defaulting after selection, or crossing the active floor?"
+  },
+  "bounded_buyburn_evidence": {
+    "claim_ceiling": "Exact only for the declared bounded integer domains and direct typed settlement-candidate arithmetic. It is not an auction-equilibrium, oracle-independence, inclusion-completeness, or production proof.",
+    "maximal_recurrence_search": {
+      "cases": 256,
+      "counterexample": null,
+      "domain": "excess supply=1..256 atoms",
+      "predicate": "after a maximal Zeno burn, successor excess=ceil(excess/2)"
+    },
+    "named_mutant_witnesses": [
+      {
+        "id": "CEIL_HALF_REACHES_ACTIVE_FLOOR",
+        "witness": "excess=1 and ceil(excess/2)=1 reaches the active floor"
+      },
+      {
+        "id": "NO_ZENO_CAP_CROSSES_FLOOR",
+        "witness": "supply=202, floor=200, burn=2 crosses strict nonarrival"
+      },
+      {
+        "id": "PARTIAL_ESCROW_WINNER_DEFAULT",
+        "witness": "burn bid=100 and escrow=99 cannot settle atomically"
+      },
+      {
+        "id": "MISSING_LOSER_ESCROW_RETURN",
+        "witness": "every nonwinning admitted escrow needs one exact return disposition"
+      },
+      {
+        "id": "OMITTED_REVEAL_BEATS_CANONICAL_WINNER",
+        "witness": "complete reveal count differs from supplied bid tuple"
+      },
+      {
+        "id": "STALE_OR_SELF_REFERENTIAL_PRICE",
+        "witness": "same-epoch or over-age valuation occurrence"
+      },
+      {
+        "id": "POST_COMMIT_LOT_OR_VALUATION",
+        "witness": "a source lot or reference fixed after commit close changes bidder terms"
+      },
+      {
+        "id": "UNRECONCILED_SUPPLY_STATE",
+        "witness": "supply=1000 and cumulative burn=1 cannot share ceiling=1000"
+      },
+      {
+        "id": "SERVICE_PREFUND_SWEPT_TO_AUCTION",
+        "witness": "lot type outside unrestricted revenue or buyback carry"
+      },
+      {
+        "id": "ZDEX_AS_ITS_OWN_SURPLUS_LOT",
+        "witness": "burning ZDEX to receive a ZDEX lot defeats the stated value flow"
+      },
+      {
+        "id": "TREASURY_MARKET_ORDER_FRONT_RUN",
+        "witness": "direct buyback exposes treasury route, timing, and custody"
+      },
+      {
+        "id": "DECIMALS_CREATE_MORE_ATOMS",
+        "witness": "changing display scale cannot create integer supply atoms"
+      }
+    ],
+    "reserve_cross_product_search": {
+      "cases": 16384,
+      "counterexample": null,
+      "domain": "burn, reference quote, lot value, reference ZDEX=1..8 atoms; reserve bps in {0,2500,5000,10000}",
+      "predicate": "burn*reference_quote*10000 >= lot_value*reference_zdex*reserve_bps"
+    },
+    "supply_reconciliation_search": {
+      "cases": 24496,
+      "counterexample": null,
+      "domain": "ceiling=1..64 atoms; supply=0..ceiling; burn=0..strict Zeno cap",
+      "predicate": "successor_supply + successor_cumulative_burn = supply_ceiling"
+    },
+    "zeno_nonarrival_search": {
+      "cases": 1617,
+      "counterexample": null,
+      "domain": "active floor=0..32 atoms; supply=floor..64 atoms",
+      "predicate": "cap=floor((supply-floor)/2); positive accepted burn leaves successor supply strictly above active floor"
+    }
+  },
+  "bounded_model": {
+    "atomic_candidate": "winner escrow burn + every loser escrow return + exact lot transfer + lot/auction nullifiers + supply successor in one candidate publication",
+    "auction_rule": "among the complete canonical reveal set, choose maximum burn atoms; break ties by smallest commitment id; require escrow=burn bid; burn the winner and return every loser escrow exactly",
+    "burn_cap": "min(floor((supply-active_floor)/2), floor(supply*epoch_burn_bps/10000), epoch_burn_atoms)",
+    "conservation_rule": "supply + cumulative_burn = supply_ceiling before and after settlement",
+    "integer_domain": "all accounting amounts are atoms in [0, 2^256 - 1]",
+    "reserve_rule": "burn_bid*reference_quote*10000 >= certified_lot_value*reference_zdex*reserve_value_bps",
+    "selected_route": null,
+    "selected_supply_specification": {
+      "absolute_floor_atoms": 1,
+      "decimals_rule": "E18 is fixed display metadata over integer atoms; redenomination requires a separately versioned migration",
+      "genesis_supply_atoms": 2000000000000000000000000000,
+      "launch_active_floor_atoms": 200000000000000000000000000,
+      "unit_scale": 1000000000000000000,
+      "whole_token_supply": 2000000000
+    }
+  },
+  "decision": {
+    "direct_buyback_fallback_status": "UNSELECTED",
+    "reason": "Bidders bring and fully escrow ZDEX, then compete to burn the most for an eligible surplus lot. This removes a predictable protocol market order, protocol slippage, and acquired-ZDEX custody.",
+    "recommended_research_candidate": "SEALED_COMPETITIVE_BURN_TO_CLAIM_AUCTION",
+    "selection_status": "UNSELECTED_REQUIRES_USER_AND_RELEASE_APPROVAL"
+  },
+  "evidence_lane": {
+    "current": [
+      "typed first-price burn-bid selection and reserve cross products",
+      "exact full-escrow, commitment, pre-commit timing, cap, and replay rejection",
+      "candidate supply, burn, escrow-return, lot transfer, and nullifier plan",
+      "bounded strict-floor, recurrence, reserve, and reconciliation searches",
+      "delayed successor-floor profile candidate",
+      "named market-order, custody, stale-price, escrow, and sweep mutants"
+    ],
+    "required_before_production": [
+      "complete sealed-auction lifecycle and terminal carry paths",
+      "opaque verifier-created lot, reveal-set, valuation, escrow, and burn witnesses",
+      "shared Rust transition and canonical codec",
+      "Lean conservation and strict-floor proofs plus ESSO lifecycle checks",
+      "mounted atomic ZenoLedger settlement with reject-no-commit and no-bypass tests"
+    ],
+    "required_before_selection": [
+      "choose auction versus direct-buyback route",
+      "select reserve bps, epoch caps, cadence, source lag, and valuation profile",
+      "select commit/reveal windows, non-reveal bond, admission, and censorship rules",
+      "independent economic simulations under bidder concentration and low competition",
+      "legal, tax, treasury, disclosure, and market-structure review"
+    ]
+  },
+  "external_context": [
+    {
+      "checked_on": "2026-08-16",
+      "observation": "decimals defines user representation by a power-of-ten divisor; it does not add consensus atoms",
+      "selection_effect": "NONE",
+      "source": "ERC-20 token standard",
+      "url": "https://eips.ethereum.org/EIPS/eip-20"
+    },
+    {
+      "checked_on": "2026-08-16",
+      "observation": "token arithmetic remains integer arithmetic and decimals is a display convention",
+      "selection_effect": "NONE",
+      "source": "OpenZeppelin ERC-20 documentation",
+      "url": "https://docs.openzeppelin.com/contracts/5.x/erc20"
+    },
+    {
+      "checked_on": "2026-08-16",
+      "observation": "fee sources are collected into typed custody and a releaser can give collected assets to a participant that burns UNI",
+      "selection_effect": "ADVISORY_ANALOGY_ONLY",
+      "source": "Uniswap protocol-fee overview",
+      "url": "https://developers.uniswap.org/docs/protocols/protocol-fee/overview"
+    },
+    {
+      "checked_on": "2026-08-16",
+      "observation": "nonce, exact approval, and pre/post balance checks address front-running and unexpected burn-amount changes",
+      "selection_effect": "ADVISORY_ANALOGY_ONLY",
+      "source": "Uniswap protocol-fee integration best practices",
+      "url": "https://developers.uniswap.org/docs/protocols/protocol-fee/guides/best-practices"
+    }
+  ],
+  "funding_and_value_flow": {
+    "eligible_lot_types": [
+      "UNRESTRICTED_PROTOCOL_REVENUE",
+      "BUYBACK_CARRY"
+    ],
+    "excluded": [
+      "third-party or LP property",
+      "service, operations, safety, credit, genesis, or refundable-bond prefund",
+      "forecast revenue and unadmitted slash proceeds"
+    ],
+    "loser_flow": "every nonwinning admitted escrow is returned exactly once",
+    "no_reserve_bid": "auction is nullified, every bid escrow returns, and the unconsumed lot remains same-purpose carry",
+    "protocol_acquired_zdex_atoms": 0,
+    "source": "only finalized CLBF eligible surplus already assigned to buyback execution or same-purpose buyback carry",
+    "winner_flow": "fully escrowed winner ZDEX is burned; the exact surplus lot moves to the authenticated winner recipient"
+  },
+  "game_surface": {
+    "actions": [
+      "create or carry an eligible surplus lot",
+      "commit, reveal, escrow, omit, censor, or duplicate a burn bid",
+      "manipulate lot valuation or ZDEX reference price",
+      "select the highest bid, burn escrow, and transfer the lot atomically",
+      "lower an active floor only through a delayed successor profile"
+    ],
+    "information_sets": [
+      "hidden bids before reveal and public reveals after close",
+      "private bidder valuation, inventory, hedges, and coalition membership",
+      "source-lot lineage, reference occurrences, supply, floor, and caps"
+    ],
+    "payoff": "received surplus-lot value minus burned ZDEX value, escrow cost, fees, censorship risk, and any admitted non-reveal penalty",
+    "players": [
+      "protocol surplus-lot custodian",
+      "ZDEX burn bidders and coalitions",
+      "commit, reveal, admission, valuation, and settlement verifiers",
+      "validators, ordering actors, and censors",
+      "oracle and reference-source operators",
+      "ZDEX holders and fee-lot asset holders"
+    ]
+  },
+  "implementation_source_pins": [
+    {
+      "path": "tools/production_readiness_g1_buyburn_auction_contract_v1.py",
+      "sha256": "525dce9711b6023d25690df5fc82f2dacf2ce1564a2344e6d43ffad27cc80446"
+    },
+    {
+      "path": "tools/check_production_readiness_g1_buyburn_auction_v1.py",
+      "sha256": "e3437368979c8d3add9b2acfa0739835c95e0cb3eb720eb9f45d417d81253ea9"
+    }
+  ],
+  "manipulation_analysis": {
+    "closures": [
+      "complete reveal-set root and exact admitted count",
+      "fully escrowed bids before winner selection",
+      "source lot and valuation fixed no later than commit close",
+      "lagged, bounded-age, multi-source valuation profile",
+      "reserve-value floor; otherwise carry",
+      "canonical winner and tie rule",
+      "exact escrow disposition for every admitted reveal",
+      "supply and cumulative-burn reconciliation",
+      "source-lot and auction nullifiers",
+      "strict Zeno cap plus separately delayed floor-profile releases"
+    ],
+    "removed_relative_to_direct_market_buyback": [
+      "predictable protocol market order",
+      "protocol price impact and slippage",
+      "protocol custody of purchased ZDEX before burn",
+      "route adapter choosing a market counterparty"
+    ],
+    "retained": [
+      "valuation and reference-price manipulation",
+      "bid omission, censorship, and coalition underbidding",
+      "commit-reveal liveness and non-reveal handling",
+      "oracle-source beneficial ownership and external hedges"
+    ]
+  },
+  "production_promotion": false,
+  "promotion_boundary": {
+    "claim": "Inside the declared typed model, the candidate selects the largest fully escrowed reserve-clearing burn bid and preserves the strict active-floor invariant without a protocol market purchase.",
+    "nonclaims": [
+      "No buyburn route or numeric auction policy is selected.",
+      "The model does not prove truthful bidding, competition, censorship resistance, or complete reveal inclusion.",
+      "Reference-source independence and lot valuation are explicit external premises.",
+      "Caller-constructible Python records are not opaque authority witnesses.",
+      "The model omits complete commit, cancellation, non-reveal, replacement, and migration lifecycles.",
+      "A display-decimal change cannot create more atoms or remove the need for an atom floor.",
+      "This artifact cannot burn ZDEX, transfer a lot, change a floor, mount a command, or promote production."
+    ]
+  },
+  "research_source_pins": [
+    {
+      "path": "docs/research/PRODUCTION_READINESS_G1_PARTIAL_POLICY_V2.json",
+      "sha256": "bd5f0221bd744250c4f6d23509dd932e2a1d2ac7c2598ad5dfeb9fb1bb87be27",
+      "subject": "73a68acc88cb243ed25e5075ca5e75e3a143e5ca"
+    },
+    {
+      "path": "docs/research/PRODUCTION_READINESS_G1_CLBF_MODEL_V1.json",
+      "sha256": "5638564b0f915b3cebfc4600ffa3947529db47815b9934d041a21836d33e9e92",
+      "subject": "73a68acc88cb243ed25e5075ca5e75e3a143e5ca"
+    },
+    {
+      "path": "tools/production_readiness_g1_clbf_contract_v1.py",
+      "sha256": "a152f303bc417ef8275fc8515ca6ff6894233090c4d9788657027e1d756acaae",
+      "subject": "73a68acc88cb243ed25e5075ca5e75e3a143e5ca"
+    },
+    {
+      "path": "docs/research/PRODUCTION_READINESS_G1_PROFILE_INPUTS_V1.json",
+      "sha256": "fcce8137cf926630e883b95156a9213340d451ad4f7bb8acd6b3fa67753698dd",
+      "subject": "73a68acc88cb243ed25e5075ca5e75e3a143e5ca"
+    },
+    {
+      "path": "src/core/m6_safe_mount_transition_v1.py",
+      "sha256": "9355b083064439b2756ee1d9454710229eaa3fe31fd529587ea3ece66cba8ee2",
+      "subject": "73a68acc88cb243ed25e5075ca5e75e3a143e5ca"
+    }
+  ],
+  "reviewed_subject": "73a68acc88cb243ed25e5075ca5e75e3a143e5ca",
+  "schema": "zenodex/production-readiness-g1-buyburn-auction/v1",
+  "staged_floor_candidate": {
+    "nonarrival": "at a fixed floor F, maximal accepted burn changes excess E to ceil(E/2), so positive execution never reaches F",
+    "research_default_for_tests_only": "maximum 5000 bps floor reduction per successor profile",
+    "rule": "a successor floor requires a new profile and release root, exact predecessor binding, delay, unchanged E18 scale and absolute floor, and a selected maximum reduction per step",
+    "status": "UNSELECTED"
+  },
+  "status": "RESEARCH_ONLY_UNSELECTED"
+}

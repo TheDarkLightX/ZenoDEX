@@ -331,6 +331,49 @@ typed source-lot and credit transitions, finite integer searches, and named
 mutants are research evidence only. They are unmounted and provide no payment,
 burn, distribution, settlement, or release authority.
 
+The buy-and-burn execution companion
+`docs/research/PRODUCTION_READINESS_G1_BUYBURN_AUCTION_V1.json` recommends a
+sealed competitive burn-to-claim auction for later profile selection. An
+eligible CLBF surplus lot is fixed before bidding. Each admitted bidder commits,
+then reveals a fully escrowed ZDEX amount. The highest reserve-clearing burn bid
+wins, with the smallest commitment ID as the deterministic tie break. In one
+candidate publication, winner escrow burns, every loser escrow returns, the
+winner receives the exact lot, and the auction and consumed lot are nullified.
+A below-reserve or empty auction returns every revealed escrow, nullifies only
+the auction, and leaves the unconsumed lot in same-purpose carry.
+
+The model uses exact integer atoms and enforces:
+
+```text
+supply + cumulative_burn = supply_ceiling
+reserve_left  = burn_bid * reference_quote * 10000
+reserve_right = certified_lot_value * reference_zdex * reserve_bps
+require reserve_left >= reserve_right
+burn_cap = min(floor((supply - active_floor) / 2),
+               floor(supply * epoch_burn_bps / 10000),
+               epoch_burn_atoms)
+```
+
+The source lot and valuation must exist no later than commit close. The lot
+cannot be ZDEX itself, and only unrestricted protocol revenue or same-purpose
+buyback carry is eligible. This avoids a predictable protocol market order,
+protocol slippage, and custody of purchased ZDEX. Remaining external premises
+include valuation-source independence, complete reveal inclusion, censorship,
+coalition behavior, bidder competition, and real escrow custody.
+
+At a fixed active floor `F`, a maximal permitted burn transforms excess
+`E = supply - F` into `ceil(E / 2)`. Every positive accepted burn therefore
+leaves supply strictly above `F`. E18 is a display scale over integer atoms and
+does not create additional supply. A later floor reduction would require a new
+predecessor-bound profile, positive activation delay, unchanged E18 scale,
+unchanged one-atom absolute floor, a sub-100% step cap, and a release root.
+
+The auction route, reserve, cadence, caps, timing, admission, valuation,
+non-reveal rule, and floor-descent policy all remain unselected. The Python
+records are caller-constructible research values. The packet cannot burn ZDEX,
+transfer a lot, change a floor, mount a command, settle value, or authorize a
+release.
+
 The service-funding companion
 `docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json` classifies all
 22 participant rows by ownership boundary. Twelve rows may require a service,
