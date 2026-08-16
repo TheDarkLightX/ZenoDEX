@@ -5,6 +5,7 @@ from pathlib import Path
 
 from tools.check_production_readiness_g1_bundle import (
     DEFAULT_OUTPUT,
+    _encoded,
     build_document,
     check_artifact,
 )
@@ -17,10 +18,12 @@ def test_cross_artifact_bundle_is_exact_and_research_only() -> None:
     assert report["g1_complete"] is False
     assert report["production_ready"] is False
     assert report["artifact_count"] == 7
-    assert report["consistency_check_count"] == 7
+    assert report["consistency_check_count"] == 8
     assert report["command_count"] == 33
     assert report["profile_decision_count"] == 9
     assert report["open_state_obligation_count"] == 6
+    assert report["runtime_mapping_unmapped_field_count"] == 2
+    assert report["runtime_mapping_unmapped_effect_kind_count"] == 3
 
 
 def test_bundle_binds_the_registry_and_repair_overlay() -> None:
@@ -39,25 +42,27 @@ def test_bundle_tampering_fails_closed(tmp_path: Path) -> None:
     artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
     artifact["registry_binding"]["command_count"] = 32
     candidate = tmp_path / "candidate.json"
-    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+    candidate.write_bytes(_encoded(artifact))
 
     report = check_artifact(candidate)
 
     assert report["ok"] is False
     assert report["g1_complete"] is False
     assert report["production_ready"] is False
+    assert "bundle artifact differs from the exact-subject cross-artifact G1 bundle" in report["errors"]
 
 
 def test_bundle_cannot_promote_through_a_tampered_check_record(tmp_path: Path) -> None:
     artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
     artifact["consistency_checks"][0]["status"] = "FAIL"
     candidate = tmp_path / "candidate.json"
-    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+    candidate.write_bytes(_encoded(artifact))
 
     report = check_artifact(candidate)
 
     assert report["ok"] is False
     assert report["production_ready"] is False
+    assert "bundle artifact differs from the exact-subject cross-artifact G1 bundle" in report["errors"]
 
 
 def test_bundle_rejects_noncanonical_artifact_bytes(tmp_path: Path) -> None:

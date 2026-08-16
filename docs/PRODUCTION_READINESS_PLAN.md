@@ -261,6 +261,13 @@ effect-kind enum has 9 values, and the canonical encoder/helper sources are
 both pinned. The source-shape evidence does not establish wire-order semantics
 or the mapping from the abstract 14-field/8-delta G1 model to runtime
 semantics.
+The same artifact carries a structural mapping-gap ledger: candidate names for
+the 14 abstract fields and eight delta classes are recorded without selecting
+any mapping. `lp_state` and `auctions` have no named runtime field candidate,
+while runtime effect kinds `RESERVE`, `FEE_ALLOCATION`, and `REWARD` have no
+abstract delta-class candidate. These are source-shape gaps, not semantic
+proofs; all mappings remain `UNPROVED_CANDIDATE` or
+`UNPROVED_EFFECT_KIND_CANDIDATE` and production authority remains `NONE`.
 The preserved legacy ATDD contract is explicitly quarantined by
 `docs/research/PRODUCTION_READINESS_G1_LEGACY_ATDD_QUARANTINE_V1.json`: its
 18 workflows and 81 scenarios remain historical research context, while the

@@ -76,6 +76,198 @@
     "A passing checker result confirms exact source binding only."
   ],
   "production_promotion": false,
+  "runtime_mapping_gap_ledger": {
+    "abstract_delta_class_count": 8,
+    "abstract_field_count": 14,
+    "delta_mappings": [
+      {
+        "abstract_delta_class": "internal_transfer",
+        "candidate_runtime_effect_kinds": [
+          "ACCOUNT_MOVEMENT"
+        ],
+        "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+      },
+      {
+        "abstract_delta_class": "mint",
+        "candidate_runtime_effect_kinds": [
+          "ISSUE"
+        ],
+        "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+      },
+      {
+        "abstract_delta_class": "burn",
+        "candidate_runtime_effect_kinds": [
+          "BURN"
+        ],
+        "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+      },
+      {
+        "abstract_delta_class": "liability",
+        "candidate_runtime_effect_kinds": [
+          "LIABILITY"
+        ],
+        "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+      },
+      {
+        "abstract_delta_class": "external_in",
+        "candidate_runtime_effect_kinds": [
+          "CUSTODY",
+          "ACCOUNT_MOVEMENT"
+        ],
+        "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+      },
+      {
+        "abstract_delta_class": "external_out",
+        "candidate_runtime_effect_kinds": [
+          "CUSTODY",
+          "ACCOUNT_MOVEMENT"
+        ],
+        "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+      },
+      {
+        "abstract_delta_class": "refund",
+        "candidate_runtime_effect_kinds": [
+          "ACCOUNT_MOVEMENT",
+          "CUSTODY"
+        ],
+        "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+      },
+      {
+        "abstract_delta_class": "slash",
+        "candidate_runtime_effect_kinds": [
+          "SLASH"
+        ],
+        "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+      }
+    ],
+    "field_mappings": [
+      {
+        "abstract_field": "balances",
+        "candidate_runtime_fields": [
+          "balances"
+        ],
+        "status": "UNPROVED_CANDIDATE"
+      },
+      {
+        "abstract_field": "custody",
+        "candidate_runtime_fields": [
+          "custody"
+        ],
+        "status": "UNPROVED_CANDIDATE"
+      },
+      {
+        "abstract_field": "supply",
+        "candidate_runtime_fields": [
+          "supplies"
+        ],
+        "status": "UNPROVED_CANDIDATE"
+      },
+      {
+        "abstract_field": "debt",
+        "candidate_runtime_fields": [
+          "liabilities"
+        ],
+        "status": "UNPROVED_CANDIDATE"
+      },
+      {
+        "abstract_field": "lp_state",
+        "candidate_runtime_fields": [],
+        "status": "NO_DEDICATED_RUNTIME_FIELD_CANDIDATE"
+      },
+      {
+        "abstract_field": "perps_liabilities",
+        "candidate_runtime_fields": [
+          "liabilities"
+        ],
+        "status": "UNPROVED_CANDIDATE"
+      },
+      {
+        "abstract_field": "escrows",
+        "candidate_runtime_fields": [
+          "custody",
+          "outbox",
+          "terminal_obligations"
+        ],
+        "status": "UNPROVED_CANDIDATE"
+      },
+      {
+        "abstract_field": "reserves",
+        "candidate_runtime_fields": [
+          "reserves"
+        ],
+        "status": "UNPROVED_CANDIDATE"
+      },
+      {
+        "abstract_field": "auctions",
+        "candidate_runtime_fields": [],
+        "status": "NO_DEDICATED_RUNTIME_FIELD_CANDIDATE"
+      },
+      {
+        "abstract_field": "withdrawals",
+        "candidate_runtime_fields": [
+          "outbox",
+          "custody",
+          "terminal_obligations"
+        ],
+        "status": "UNPROVED_CANDIDATE"
+      },
+      {
+        "abstract_field": "outbox",
+        "candidate_runtime_fields": [
+          "outbox"
+        ],
+        "status": "UNPROVED_CANDIDATE"
+      },
+      {
+        "abstract_field": "history",
+        "candidate_runtime_fields": [
+          "history_root"
+        ],
+        "status": "UNPROVED_CANDIDATE"
+      },
+      {
+        "abstract_field": "nullifiers",
+        "candidate_runtime_fields": [
+          "replay_state"
+        ],
+        "status": "UNPROVED_CANDIDATE"
+      },
+      {
+        "abstract_field": "release_state",
+        "candidate_runtime_fields": [
+          "writer_epoch",
+          "profile_root",
+          "lane_roots"
+        ],
+        "status": "UNPROVED_CANDIDATE"
+      }
+    ],
+    "nonclaims": [
+      "A candidate name or effect-kind correspondence does not prove semantic ownership or event coverage.",
+      "A missing dedicated runtime field does not prove that a value cannot be carried indirectly.",
+      "Unmapped runtime effect kinds do not authorize their use or establish unsupported behavior safety."
+    ],
+    "production_authority": "NONE",
+    "runtime_effect_kinds_without_abstract_delta_candidate": [
+      "RESERVE",
+      "FEE_ALLOCATION",
+      "REWARD"
+    ],
+    "runtime_fields_without_value_candidate": [
+      "chain_id",
+      "deployment_root",
+      "height",
+      "oracle_occurrences"
+    ],
+    "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED",
+    "source_subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+    "status": "GAP_STRUCTURAL_CANDIDATES_ONLY",
+    "unmapped_abstract_delta_classes": [],
+    "unmapped_abstract_fields": [
+      "lp_state",
+      "auctions"
+    ]
+  },
   "runtime_projection": {
     "canonical_codec": {
       "delegate": "canonical_json_bytes",

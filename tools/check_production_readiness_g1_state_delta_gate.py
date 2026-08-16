@@ -29,6 +29,33 @@ RUNTIME_STATE_CLASS = "GlobalEconomicStateV1"
 RUNTIME_EFFECT_KIND_CLASS = "EconomicEffectKindV1"
 RUNTIME_CANONICAL_HELPER = "canonical_json_bytes"
 
+RUNTIME_STATE_FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
+    "balances": ("balances",),
+    "custody": ("custody",),
+    "supply": ("supplies",),
+    "debt": ("liabilities",),
+    "lp_state": (),
+    "perps_liabilities": ("liabilities",),
+    "escrows": ("custody", "outbox", "terminal_obligations"),
+    "reserves": ("reserves",),
+    "auctions": (),
+    "withdrawals": ("outbox", "custody", "terminal_obligations"),
+    "outbox": ("outbox",),
+    "history": ("history_root",),
+    "nullifiers": ("replay_state",),
+    "release_state": ("writer_epoch", "profile_root", "lane_roots"),
+}
+RUNTIME_DELTA_KIND_CANDIDATES: dict[str, tuple[str, ...]] = {
+    "internal_transfer": ("ACCOUNT_MOVEMENT",),
+    "mint": ("ISSUE",),
+    "burn": ("BURN",),
+    "liability": ("LIABILITY",),
+    "external_in": ("CUSTODY", "ACCOUNT_MOVEMENT"),
+    "external_out": ("CUSTODY", "ACCOUNT_MOVEMENT"),
+    "refund": ("ACCOUNT_MOVEMENT", "CUSTODY"),
+    "slash": ("SLASH",),
+}
+
 sys.path.insert(0, str(REPO_ROOT))
 from tools import check_production_readiness_g1_semantics as semantics  # noqa: E402
 
@@ -325,6 +352,83 @@ def _runtime_projection(
     }
 
 
+def _runtime_mapping_gap_ledger(
+    state: Mapping[str, Any],
+    algebra: Mapping[str, Any],
+    runtime: Mapping[str, Any],
+) -> dict[str, Any]:
+    runtime_fields = tuple(runtime["state_type"]["declared_fields"])
+    runtime_effect_kinds = tuple(runtime["effect_kind_type"]["kinds"])
+    field_mappings: list[dict[str, Any]] = []
+    candidate_fields: set[str] = set()
+    for field in state["fields"]:
+        abstract_name = field["name"]
+        candidate_names = RUNTIME_STATE_FIELD_CANDIDATES[abstract_name]
+        present_candidates = tuple(name for name in candidate_names if name in runtime_fields)
+        candidate_fields.update(present_candidates)
+        field_mappings.append(
+            {
+                "abstract_field": abstract_name,
+                "candidate_runtime_fields": list(present_candidates),
+                "status": (
+                    "UNPROVED_CANDIDATE"
+                    if present_candidates
+                    else "NO_DEDICATED_RUNTIME_FIELD_CANDIDATE"
+                ),
+            }
+        )
+
+    delta_mappings: list[dict[str, Any]] = []
+    candidate_effect_kinds: set[str] = set()
+    for delta_class in algebra["delta_classes"]:
+        candidate_names = RUNTIME_DELTA_KIND_CANDIDATES[delta_class]
+        present_candidates = tuple(name for name in candidate_names if name in runtime_effect_kinds)
+        candidate_effect_kinds.update(present_candidates)
+        delta_mappings.append(
+            {
+                "abstract_delta_class": delta_class,
+                "candidate_runtime_effect_kinds": list(present_candidates),
+                "status": (
+                    "UNPROVED_EFFECT_KIND_CANDIDATE"
+                    if present_candidates
+                    else "NO_RUNTIME_EFFECT_KIND_CANDIDATE"
+                ),
+            }
+        )
+
+    return {
+        "status": "GAP_STRUCTURAL_CANDIDATES_ONLY",
+        "source_subject": runtime["source_subject"],
+        "abstract_field_count": len(field_mappings),
+        "abstract_delta_class_count": len(delta_mappings),
+        "field_mappings": field_mappings,
+        "delta_mappings": delta_mappings,
+        "unmapped_abstract_fields": [
+            mapping["abstract_field"]
+            for mapping in field_mappings
+            if mapping["status"] == "NO_DEDICATED_RUNTIME_FIELD_CANDIDATE"
+        ],
+        "runtime_fields_without_value_candidate": [
+            field for field in runtime_fields if field not in candidate_fields
+        ],
+        "unmapped_abstract_delta_classes": [
+            mapping["abstract_delta_class"]
+            for mapping in delta_mappings
+            if mapping["status"] == "NO_RUNTIME_EFFECT_KIND_CANDIDATE"
+        ],
+        "runtime_effect_kinds_without_abstract_delta_candidate": [
+            kind for kind in runtime_effect_kinds if kind not in candidate_effect_kinds
+        ],
+        "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED",
+        "production_authority": "NONE",
+        "nonclaims": [
+            "A candidate name or effect-kind correspondence does not prove semantic ownership or event coverage.",
+            "A missing dedicated runtime field does not prove that a value cannot be carried indirectly.",
+            "Unmapped runtime effect kinds do not authorize their use or establish unsupported behavior safety.",
+        ],
+    }
+
+
 def build_document(
     repo_root: Path = REPO_ROOT,
     *,
@@ -336,6 +440,9 @@ def build_document(
     state_projection = _state_projection(state)
     value_delta_algebra = _value_delta_algebra(algebra)
     runtime_projection = _runtime_projection(repo_root, read_current=read_current)
+    runtime_mapping_gap_ledger = _runtime_mapping_gap_ledger(
+        state, algebra, runtime_projection
+    )
     return {
         "schema": SCHEMA,
         "version": "v1",
@@ -344,6 +451,7 @@ def build_document(
         "source_subject": semantic["source_subject"],
         "source_pins": semantic["source_pins"],
         "runtime_projection": runtime_projection,
+        "runtime_mapping_gap_ledger": runtime_mapping_gap_ledger,
         "state_projection": state_projection,
         "value_delta_algebra": value_delta_algebra,
         "closure_obligations": [
@@ -404,6 +512,7 @@ def check_artifact(
     state = observed.get("state_projection")
     algebra = observed.get("value_delta_algebra")
     runtime = observed.get("runtime_projection")
+    mapping = observed.get("runtime_mapping_gap_ledger")
     obligations = observed.get("closure_obligations")
     field_count = state.get("field_count", 0) if isinstance(state, Mapping) else 0
     delta_class_count = algebra.get("delta_class_count", 0) if isinstance(algebra, Mapping) else 0
@@ -421,6 +530,22 @@ def check_artifact(
         else 0,
         "runtime_effect_kind_count": runtime.get("effect_kind_type", {}).get("kind_count", 0)
         if isinstance(runtime, Mapping)
+        else 0,
+        "runtime_mapping_field_count": mapping.get("abstract_field_count", 0)
+        if isinstance(mapping, Mapping)
+        else 0,
+        "runtime_mapping_delta_class_count": mapping.get("abstract_delta_class_count", 0)
+        if isinstance(mapping, Mapping)
+        else 0,
+        "unmapped_abstract_field_count": len(mapping.get("unmapped_abstract_fields", []))
+        if isinstance(mapping, Mapping)
+        and isinstance(mapping.get("unmapped_abstract_fields"), list)
+        else 0,
+        "unmapped_runtime_effect_kind_count": len(
+            mapping.get("runtime_effect_kinds_without_abstract_delta_candidate", [])
+        )
+        if isinstance(mapping, Mapping)
+        and isinstance(mapping.get("runtime_effect_kinds_without_abstract_delta_candidate"), list)
         else 0,
         "production_authority": "NONE",
         "errors": errors,

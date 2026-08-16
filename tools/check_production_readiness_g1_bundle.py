@@ -230,6 +230,21 @@ def _check_decision_and_state_bindings(documents: Mapping[str, Mapping[str, Any]
         errors.append("state field names drift between semantics and state-delta artifacts")
     if set(semantic_delta.get("delta_classes", [])) != set(state_algebra.get("delta_classes", [])) or len(semantic_delta.get("delta_classes", [])) != 8:
         errors.append("value-delta classes drift between semantics and state-delta artifacts")
+    mapping = documents["state_delta"].get("runtime_mapping_gap_ledger", {})
+    if (
+        not isinstance(mapping, Mapping)
+        or mapping.get("source_subject") != BASE_SOURCE_SUBJECT
+        or mapping.get("status") != "GAP_STRUCTURAL_CANDIDATES_ONLY"
+        or mapping.get("semantic_mapping_status")
+        != "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED"
+        or mapping.get("production_authority") != "NONE"
+        or mapping.get("abstract_field_count") != 14
+        or mapping.get("abstract_delta_class_count") != 8
+        or set(mapping.get("unmapped_abstract_fields", [])) != {"lp_state", "auctions"}
+        or set(mapping.get("runtime_effect_kinds_without_abstract_delta_candidate", []))
+        != {"RESERVE", "FEE_ALLOCATION", "REWARD"}
+    ):
+        errors.append("runtime state/delta mapping gap ledger drifted or overclaims authority")
     return errors
 
 
@@ -300,6 +315,7 @@ def _consistency_checks(documents: Mapping[str, Mapping[str, Any]], repo_root: P
             ("COMMAND_REGISTRY_BINDING", "33 commands and exact 8-command disabled partition"),
             ("PROFILE_DECISION_BINDING", "9 open decisions with no selected authority"),
             ("STATE_DELTA_BINDING", "14 state fields and 8 value-delta classes"),
+            ("RUNTIME_MAPPING_GAP_BINDING", "source-shape candidates and explicit unmapped runtime kinds"),
             ("SAFE_HOLD_AND_QUARANTINE", "33 unmounted commands and stale ATDD fail-closed status"),
             ("RESEARCH_ONLY_POSTURE", "no production promotion, writer, or executable BDD evidence"),
             ("CURRENT_HEAD_ANCESTRY", "base and repair subjects are ancestors of current HEAD"),
@@ -349,6 +365,14 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             "state_field_count": len(semantic["global_state_projection"]["fields"]),
             "delta_class_count": len(semantic["value_delta_algebra"]["delta_classes"]),
             "open_state_obligation_count": len(documents["state_delta"]["closure_obligations"]),
+            "runtime_mapping_unmapped_field_count": len(
+                documents["state_delta"]["runtime_mapping_gap_ledger"]["unmapped_abstract_fields"]
+            ),
+            "runtime_mapping_unmapped_effect_kind_count": len(
+                documents["state_delta"]["runtime_mapping_gap_ledger"][
+                    "runtime_effect_kinds_without_abstract_delta_candidate"
+                ]
+            ),
             "bdd_scenario_count": sum(len(workflow["scenarios"]) for workflow in bdd_workflows),
         },
         "consistency_checks": checks,
@@ -393,6 +417,14 @@ def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         "command_count": registry.get("command_count", 0) if isinstance(registry, Mapping) else 0,
         "profile_decision_count": obligations.get("profile_decision_count", 0) if isinstance(obligations, Mapping) else 0,
         "open_state_obligation_count": obligations.get("open_state_obligation_count", 0) if isinstance(obligations, Mapping) else 0,
+        "runtime_mapping_unmapped_field_count": obligations.get("runtime_mapping_unmapped_field_count", 0)
+        if isinstance(obligations, Mapping)
+        else 0,
+        "runtime_mapping_unmapped_effect_kind_count": obligations.get(
+            "runtime_mapping_unmapped_effect_kind_count", 0
+        )
+        if isinstance(obligations, Mapping)
+        else 0,
         "errors": errors,
         "nonclaim": "PASS means only that the G1 research artifacts are mutually consistent and source-bound; it does not promote G1 or production readiness.",
     }

@@ -65,6 +65,11 @@
       "status": "PASS"
     },
     {
+      "id": "RUNTIME_MAPPING_GAP_BINDING",
+      "scope": "source-shape candidates and explicit unmapped runtime kinds",
+      "status": "PASS"
+    },
+    {
       "id": "SAFE_HOLD_AND_QUARANTINE",
       "scope": "33 unmounted commands and stale ATDD fail-closed status",
       "status": "PASS"
@@ -100,6 +105,8 @@
     "open_profile_decision_count": 9,
     "open_state_obligation_count": 6,
     "profile_decision_count": 9,
+    "runtime_mapping_unmapped_effect_kind_count": 3,
+    "runtime_mapping_unmapped_field_count": 2,
     "state_field_count": 14
   },
   "production_promotion": false,
