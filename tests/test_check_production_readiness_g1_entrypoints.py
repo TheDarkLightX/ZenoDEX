@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 
 from tools.check_production_readiness_g1_entrypoints import (
+    BASE_SOURCE_SUBJECT,
     DEFAULT_OUTPUT,
+    SOURCE_SUBJECT,
     build_document,
     check_artifact,
 )
@@ -65,9 +67,55 @@ def test_research_publication_and_effect_surfaces_are_classified() -> None:
     )
 
 
+def test_source_subject_and_pins_remain_bound_to_the_repair_descendant() -> None:
+    document = build_document()
+
+    assert document["source_subject"]["base_commit"] == BASE_SOURCE_SUBJECT
+    assert document["source_subject"]["repair_commit"] == SOURCE_SUBJECT
+    assert document["source_subject"]["current_source_pins_subject"] == SOURCE_SUBJECT
+    assert all(pin["subject"] == SOURCE_SUBJECT for pin in document["source_pins"])
+
+
 def test_falsely_declaring_a_production_writer_fails_closed(tmp_path: Path) -> None:
     artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
     artifact["production_publication_capability"]["declared_production_entrypoint_count"] = 1
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["production_ready"] is False
+
+
+def test_source_pin_tampering_fails_closed(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    artifact["source_pins"][0]["sha256"] = "0" * 64
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["production_ready"] is False
+
+
+def test_source_subject_tampering_fails_closed(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    artifact["source_subject"]["current_source_pins_subject"] = BASE_SOURCE_SUBJECT
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["production_ready"] is False
+
+
+def test_source_marker_tampering_fails_closed(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    marker_path = next(iter(artifact["source_markers"]))
+    artifact["source_markers"][marker_path][0] = "__missing_source_marker__"
     candidate = tmp_path / "candidate.json"
     candidate.write_text(json.dumps(artifact), encoding="utf-8")
 

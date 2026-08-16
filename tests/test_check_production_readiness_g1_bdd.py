@@ -87,3 +87,27 @@ def test_research_scenario_cannot_be_relabelled_as_evidence(tmp_path: Path) -> N
     report = check_artifact(candidate)
 
     assert report["ok"] is False
+
+
+def test_production_mount_claim_fails_closed(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    artifact["workflows"][0]["production_mount"] = "MOUNTED_PRODUCTION"
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["production_ready"] is False
+
+
+def test_gate_completion_claim_fails_closed(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    artifact["g1_exit_gate"]["complete"] = True
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["production_ready"] is False
