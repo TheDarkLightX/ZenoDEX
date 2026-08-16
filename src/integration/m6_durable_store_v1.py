@@ -670,7 +670,7 @@ def _write_bundle_directory(
                 f"cannot install durable bundle {final_dir}: {exc}"
             )
             primary_error.__cause__ = exc
-        except Exception as exc:
+        except (M6DurableCorruptionError, TypeError, ValueError) as exc:
             primary_error = exc
         finally:
             if temp_dir is not None:
