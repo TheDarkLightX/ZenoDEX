@@ -369,6 +369,47 @@ selected oracle service cannot operate; proof rewards stop while direct
 execution remains available; optional growth and distribution programs remain
 disabled by default.
 
+The critical-service cost companion
+`docs/research/PRODUCTION_READINESS_G1_CRITICAL_SERVICE_COSTS_V1.json` narrows
+the next approval surface to validators, oracle roles, liquidators and keepers,
+Tau relayers, and proof providers. It records dated public infrastructure and
+compute list prices as component evidence only. Operator labor, monitoring,
+key custody, data licenses, Tau fees, capital costs, taxes, incident response,
+and qualified proof performance remain separate required inputs.
+
+For one role and payment asset, the exact research sizing contract is:
+
+```text
+fixed_low = role_count * (infrastructure_low + operator_low)
+fixed_high = role_count * (infrastructure_high + operator_high)
+variable_low = maximum_jobs * per_job_low
+variable_high = maximum_jobs * per_job_high
+loaded_high = ceil((fixed_high + variable_high)
+                   * (10000 + contingency_bps) / 10000)
+period_cap = loaded_high
+target_prefund = period_cap * target_prefund_periods
+```
+
+Only realized purpose-bound reserve counts toward `target_prefund`. Forecast
+revenue is used for recurring break-even sensitivity and never increases the
+custodied reserve. Portfolios sum only identical payment assets; any conversion
+requires a separately selected, bounded, and receipted lane.
+
+Using the retained seven-validator assumption and the dated Hetzner CCX13 to
+CCX33 USA list-price observations, the infrastructure component alone spans
+`356.93` to `1,161.93 USD` per month. Its illustrative 18-month range is
+`6,424.74` to `20,914.74 USD`, and its 36-month range is `12,849.48` to
+`41,829.48 USD`. These values exclude every operator and availability cost and
+cannot size an activation budget. A DigitalOcean dedicated general-purpose
+starting price supplies a separate component cross-check. Historical local
+proof durations and current GPU hourly prices remain unrelated observations;
+the checker refuses to derive a proof-unit price from them.
+
+All five cost envelopes and all five revenue inputs remain `null`. The packet
+therefore provides approval questions and exact arithmetic without approving a
+role count, service price, fee lane, payment asset, runway, proof market, or
+release.
+
 The companion entrypoint audit
 `docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json` binds the same
 33-command registry to 12 exact source surfaces. It records the six M6

@@ -648,6 +648,8 @@ The rehearsal succeeds when the second machine emits `ok=true`, an
 - `tools/check_production_readiness_g1_clbf_model_v1.py --check --json` (fail-closed finite-model check; it grants no payment, burn, campaign, or release authority)
 - `docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json` (exact 22-participant funding boundaries and typed service-budget runway model; all role budgets remain unselected)
 - `tools/check_production_readiness_g1_service_funding_v1.py --check --json` (fail-closed budget, payment, replay, top-up, and exhaustion check; no payment authority)
+- `docs/research/PRODUCTION_READINESS_G1_CRITICAL_SERVICE_COSTS_V1.json` (dated infrastructure component benchmarks plus exact five-role cost, runway, and affordability envelopes; every cost and revenue input remains unselected)
+- `tools/check_production_readiness_g1_critical_service_costs_v1.py --check --json` (fail-closed high-case sizing, forecast separation, and same-asset aggregation check; no role activation or payment authority)
 - `docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json` (base-subject plus verified-repair-descendant static route and writer audit; no production writer is declared)
 - `tools/check_production_readiness_g1_entrypoints.py --check` (fail-closed entrypoint audit; dynamic reachability remains unknown)
 - `docs/SPECIFICATION.md`

@@ -1,0 +1,563 @@
+{
+  "activation_gate": {
+    "activation_allowed": false,
+    "critical_role_count": 5,
+    "full_cost_quotes_complete": false,
+    "legal_activation_complete": false,
+    "mounted": false,
+    "production_ready": false,
+    "purpose_bound_runway_custodied": false,
+    "qualified_benchmarks_complete": false,
+    "runtime_implemented": false,
+    "selected_cost_envelope_count": 0,
+    "selected_revenue_input_count": 0,
+    "work_verifiers_selected": false
+  },
+  "approval_packet": {
+    "blanket_approval_supported": false,
+    "recommended_order": [
+      "reconfirm enabled roles and counts",
+      "obtain full low/high cost quotes and qualified performance measurements",
+      "select payment assets, fee lanes, maximum jobs, and exhaustion behavior",
+      "size high-case caps plus contingency and custody the target runway",
+      "approve each role separately with work, bond, legal, and release roots",
+      "compute buyback-eligible surplus only after role reserves are funded"
+    ],
+    "role_specific_approval_required": true,
+    "status": "NOT_READY_FOR_NUMERIC_APPROVAL"
+  },
+  "attack_query": {
+    "disaster_states": [
+      "COMPONENT_QUOTE_MISREPRESENTED_AS_FULL_COMPENSATION",
+      "FUTURE_REVENUE_COUNTED_AS_CUSTODIED_PREFUND",
+      "LOW_CASE_CAP_UNDERFUNDS_HIGH_CASE_SERVICE",
+      "ROLE_MULTIPLICITY_OMITTED",
+      "CROSS_ASSET_COSTS_SUMMED_WITHOUT_CONVERSION",
+      "PROOF_MARKET_CREATES_AN_UNFUNDED_REWARD",
+      "UNFUNDED_CRITICAL_ROLE_ACTIVATES"
+    ],
+    "query": "Can a service activate from a component-only estimate, low-case cap, cross-asset sum, future-revenue forecast, or market-selected claim without realized purpose-bound funding?"
+  },
+  "bounded_cost_evidence": {
+    "ceiling_rounding_search": {
+      "cases": 3333,
+      "counterexample": null,
+      "domain": "raw atoms=0..32; contingency bps=0..100",
+      "predicate": "loaded*10000 >= numerator and, when loaded>0, (loaded-1)*10000 < numerator"
+    },
+    "claim_ceiling": "Exact only for the declared bounded integer searches and direct cost, contingency, prefund, and same-asset aggregation arithmetic.",
+    "named_mutant_witnesses": [
+      {
+        "contingency_bps": 1,
+        "correct_loaded_atoms": 2,
+        "id": "FLOOR_CONTINGENCY_UNDERFUNDS",
+        "loss_atoms": 1,
+        "mutant_loaded_atoms": 1,
+        "raw_atoms": 1
+      },
+      {
+        "correct_target_met": false,
+        "forecast_atoms": 10,
+        "id": "FORECAST_COUNTED_AS_PREFUND",
+        "mutant_target_met": true,
+        "realized_prefund_atoms": 0,
+        "target_atoms": 10
+      },
+      {
+        "high_case_atoms": 20,
+        "id": "LOW_CASE_PERIOD_CAP",
+        "low_case_atoms": 10,
+        "underfunded_atoms": 10
+      },
+      {
+        "id": "OMITTED_ROLE_MULTIPLICITY",
+        "omitted_atoms": 600,
+        "per_role_atoms": 100,
+        "role_count": 7
+      },
+      {
+        "accepted_bid_atoms": 1,
+        "id": "PROOF_MARKET_CREATES_REWARD",
+        "prefunded_reserve_atoms": 0,
+        "unfunded_atoms": 1
+      },
+      {
+        "id": "CROSS_ASSET_PORTFOLIO",
+        "left_asset": "USD_E6",
+        "mutant_action": "SUM_WITHOUT_SELECTED_CONVERSION",
+        "right_asset": "USDC"
+      }
+    ],
+    "prefund_separation_search": {
+      "cases": 4624,
+      "counterexample": null,
+      "domain": "realized prefund=0..16; forecast=0..16; target=1..16",
+      "predicate": "prefund target met iff realized purpose-bound prefund >= target; forecast is observational only"
+    }
+  },
+  "bounded_model": {
+    "affordability_formula": {
+      "asset_rule": "sum only identical payment assets; conversion requires a selected lane",
+      "forecast_rule": "forecast revenue never increases realized purpose-bound prefund",
+      "prefund_shortfall": "max(0, target_prefund - realized_purpose_bound_prefund)",
+      "prefund_target_met": "prefund_shortfall == 0",
+      "recurring_break_even_low": "revenue_low >= period_cap"
+    },
+    "candidate_runway_months": {
+      "maximum": 36,
+      "minimum": 18,
+      "status": "ADVISORY_UNSELECTED"
+    },
+    "cost_formula": {
+      "fixed_high": "role_count * (infrastructure_high + operator_high)",
+      "fixed_low": "role_count * (infrastructure_low + operator_low)",
+      "loaded_high": "ceil(raw_high * (10000 + contingency_bps) / 10000)",
+      "loaded_low": "ceil(raw_low * (10000 + contingency_bps) / 10000)",
+      "period_cap": "loaded_high",
+      "raw_high": "fixed_high + variable_high",
+      "raw_low": "fixed_low + variable_low",
+      "target_prefund": "period_cap * target_prefund_periods",
+      "variable_high": "maximum_jobs * per_job_high",
+      "variable_low": "maximum_jobs * per_job_low"
+    },
+    "integer_domain": "all amounts are integer atoms in [0, 2^256 - 1]",
+    "selected_cost_envelopes": {
+      "liquidator_and_keeper": null,
+      "oracle_reporter_aggregator_disputer_and_watcher": null,
+      "proof_prover_and_proof_miner": null,
+      "tau_relayer_and_destination_operator": null,
+      "validator_finality_operator": null
+    },
+    "selected_revenue_inputs": {
+      "liquidator_and_keeper": null,
+      "oracle_reporter_aggregator_disputer_and_watcher": null,
+      "proof_prover_and_proof_miner": null,
+      "tau_relayer_and_destination_operator": null,
+      "validator_finality_operator": null
+    },
+    "skin_in_the_game_condition": {
+      "deterministic_precommit_detection": "DefectGain <= SlashAmount + FutureValueLost",
+      "economic_detection": "DefectGain <= DetectionProbability * SlashAmount + FutureValueLost",
+      "status": "REQUIRED_UNSELECTED"
+    }
+  },
+  "critical_role_packets": {
+    "liquidator_and_keeper": {
+      "allowed_funding_sources": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_ACTION_FEE",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "compensation_shape": "SUCCESSFUL_ACTION_FEE_OR_PENALTY_SHARE_PLUS_OPTIONAL_LIVENESS_BUDGET",
+      "open_inputs": [
+        "payment asset and conversion policy",
+        "complete fixed and variable cost ranges",
+        "role count, maximum jobs, contingency, and target periods",
+        "purpose-bound opening reserve",
+        "claimant credential, work verifier, bond, and slash rule",
+        "period-to-block conversion and authority epoch",
+        "legal, tax, procurement, and release roots",
+        "Tau execution fee and capital-opportunity cost",
+        "minimal liquidation fraction and bad-debt non-worsening rule",
+        "eligibility, deterministic selection, and failed-attempt treatment"
+      ],
+      "pricing_rule": "PAYMENT<=MIN(VERIFIED_BID,SELECTED_ACTION_SURPLUS,JOB_CAP,RESERVE)",
+      "selected_cost_envelope": null,
+      "selected_revenue_input": null,
+      "service_criticality": "RISK_CRITICAL",
+      "specific_open_inputs": [
+        "Tau execution fee and capital-opportunity cost",
+        "minimal liquidation fraction and bad-debt non-worsening rule",
+        "eligibility, deterministic selection, and failed-attempt treatment"
+      ],
+      "status": "OPEN_UNSELECTED",
+      "unfunded_behavior": "AFFECTED_AUTOMATION_OR_RISK_INCREASE_DISABLES"
+    },
+    "oracle_reporter_aggregator_disputer_and_watcher": {
+      "allowed_funding_sources": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "compensation_shape": "FIXED_AVAILABILITY_PLUS_ACCEPTED_REPORT_DISPUTE_OR_WATCHER_JOB",
+      "open_inputs": [
+        "payment asset and conversion policy",
+        "complete fixed and variable cost ranges",
+        "role count, maximum jobs, contingency, and target periods",
+        "purpose-bound opening reserve",
+        "claimant credential, work verifier, bond, and slash rule",
+        "period-to-block conversion and authority epoch",
+        "legal, tax, procurement, and release roots",
+        "reporter, aggregator, disputer, and watcher counts",
+        "data-license, report, dispute, monitoring, and availability costs",
+        "DefectGain <= DetectionProbability*Slash + FutureValueLost"
+      ],
+      "pricing_rule": "VERIFIED_WORK_CAPPED_BY_PREFUNDED_BUDGET",
+      "selected_cost_envelope": null,
+      "selected_revenue_input": null,
+      "service_criticality": "RISK_CRITICAL",
+      "specific_open_inputs": [
+        "reporter, aggregator, disputer, and watcher counts",
+        "data-license, report, dispute, monitoring, and availability costs",
+        "DefectGain <= DetectionProbability*Slash + FutureValueLost"
+      ],
+      "status": "OPEN_UNSELECTED",
+      "unfunded_behavior": "ORACLE_DEPENDENT_RISK_INCREASE_DISABLES"
+    },
+    "proof_prover_and_proof_miner": {
+      "allowed_funding_sources": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "compensation_shape": "VERIFIED_PROOF_MARKET_JOB_WITH_DIRECT_EXECUTION_FALLBACK",
+      "open_inputs": [
+        "payment asset and conversion policy",
+        "complete fixed and variable cost ranges",
+        "role count, maximum jobs, contingency, and target periods",
+        "purpose-bound opening reserve",
+        "claimant credential, work verifier, bond, and slash rule",
+        "period-to-block conversion and authority epoch",
+        "legal, tax, procurement, and release roots",
+        "qualified hardware and exact guest cycle/latency benchmark",
+        "auction, mining, procurement, or first-valid selection rule",
+        "deadline, failed-proof cost, bond, substitution, and fallback rule"
+      ],
+      "pricing_rule": "VERIFIED_BID_CAPPED_BY_PREFUNDED_BUDGET",
+      "proof_unit_price_atoms": null,
+      "selected_cost_envelope": null,
+      "selected_revenue_input": null,
+      "service_criticality": "OPTIONAL_SCALING",
+      "specific_open_inputs": [
+        "qualified hardware and exact guest cycle/latency benchmark",
+        "auction, mining, procurement, or first-valid selection rule",
+        "deadline, failed-proof cost, bond, substitution, and fallback rule"
+      ],
+      "status": "OPEN_UNSELECTED",
+      "unfunded_behavior": "PROOF_REWARD_STOPS_AND_DIRECT_EXECUTION_CONTINUES"
+    },
+    "tau_relayer_and_destination_operator": {
+      "allowed_funding_sources": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "EXPLICIT_EXTERNAL_IO_FEE",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "compensation_shape": "FIXED_AVAILABILITY_PLUS_ACKNOWLEDGED_EXTERNAL_IO_REIMBURSEMENT",
+      "open_inputs": [
+        "payment asset and conversion policy",
+        "complete fixed and variable cost ranges",
+        "role count, maximum jobs, contingency, and target periods",
+        "purpose-bound opening reserve",
+        "claimant credential, work verifier, bond, and slash rule",
+        "period-to-block conversion and authority epoch",
+        "legal, tax, procurement, and release roots",
+        "Tau fee schedule and destination operator count",
+        "retry, duplicate, outage, and rejoin cost assumptions",
+        "authenticated acknowledgment and destination idempotency verifier"
+      ],
+      "pricing_rule": "ACKNOWLEDGED_COST_CAPPED_BY_PREFUNDED_BUDGET",
+      "selected_cost_envelope": null,
+      "selected_revenue_input": null,
+      "service_criticality": "EXTERNAL_IO_CRITICAL",
+      "specific_open_inputs": [
+        "Tau fee schedule and destination operator count",
+        "retry, duplicate, outage, and rejoin cost assumptions",
+        "authenticated acknowledgment and destination idempotency verifier"
+      ],
+      "status": "OPEN_UNSELECTED",
+      "unfunded_behavior": "TAU_EXTERNAL_IO_REMAINS_PENDING"
+    },
+    "validator_finality_operator": {
+      "allowed_funding_sources": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "compensation_shape": "FIXED_AVAILABILITY_PLUS_VERIFIED_INCIDENT_AND_REPLACEMENT_COST",
+      "open_inputs": [
+        "payment asset and conversion policy",
+        "complete fixed and variable cost ranges",
+        "role count, maximum jobs, contingency, and target periods",
+        "purpose-bound opening reserve",
+        "claimant credential, work verifier, bond, and slash rule",
+        "period-to-block conversion and authority epoch",
+        "legal, tax, procurement, and release roots",
+        "seven-validator retained profile reconfirmation",
+        "qualified node shape, geography, backup, monitoring, and key custody",
+        "operator labor, on-call, incident, and replacement cost"
+      ],
+      "pricing_rule": "NO_TRANSACTION_OR_VOLUME_WEIGHT",
+      "selected_cost_envelope": null,
+      "selected_revenue_input": null,
+      "service_criticality": "CONSENSUS_CRITICAL",
+      "specific_open_inputs": [
+        "seven-validator retained profile reconfirmation",
+        "qualified node shape, geography, backup, monitoring, and key custody",
+        "operator labor, on-call, incident, and replacement cost"
+      ],
+      "status": "OPEN_UNSELECTED",
+      "unfunded_behavior": "UNFUNDED_VALIDATOR_PERIOD_CANNOT_ACTIVATE"
+    }
+  },
+  "evidence_lane": {
+    "current": [
+      "exact integer cost-range, contingency, runway, and affordability evaluator",
+      "same-asset portfolio aggregation with cross-asset rejection",
+      "direct refinement into the existing service-budget sizing fields",
+      "dated primary-source infrastructure and compute component prices",
+      "finite ceiling-rounding and prefund-separation searches",
+      "named mutants for underfunding and source creation"
+    ],
+    "required_before_production": [
+      "Rust transition and canonical cost/payment codec",
+      "formal per-asset budget, exhaustion, and no-source-creation proofs",
+      "mounted ZenoLedger payment capability with opaque work witnesses",
+      "restart, replay, migration, authority-epoch, and release tests"
+    ],
+    "required_before_selection": [
+      "competitive role-specific quotes with complete cost components",
+      "qualified node, oracle, Tau, keeper, and prover benchmarks",
+      "selected fee lanes and conservative usage/revenue scenarios",
+      "bond, slash, work verifier, claimant, and replacement rules",
+      "legal, tax, labor, procurement, custody, and treasury review"
+    ]
+  },
+  "external_benchmark_snapshot": {
+    "checked_on": "2026-08-16",
+    "payment_asset_id": "USD_E6",
+    "quotes": [
+      {
+        "amount_atoms": 3090000,
+        "billing_unit": "COMPUTE_HOUR",
+        "checked_on": "2026-08-16",
+        "evidence_scope": "COMPONENT_ONLY",
+        "exclusions": [
+          "proof compatibility",
+          "proof cycles",
+          "proof latency",
+          "queueing",
+          "operator margin",
+          "verification failure risk"
+        ],
+        "payment_asset_id": "USD_E6",
+        "product": "Dedicated NVIDIA A100 GPU hourly price",
+        "provider": "DigitalOcean",
+        "quote_id": "DIGITALOCEAN_A100_HOUR_2026_08_16",
+        "source_url": "https://www.digitalocean.com/pricing/additional-gpus"
+      },
+      {
+        "amount_atoms": 760000,
+        "billing_unit": "COMPUTE_HOUR",
+        "checked_on": "2026-08-16",
+        "evidence_scope": "COMPONENT_ONLY",
+        "exclusions": [
+          "proof compatibility",
+          "proof cycles",
+          "proof latency",
+          "queueing",
+          "operator margin",
+          "verification failure risk"
+        ],
+        "payment_asset_id": "USD_E6",
+        "product": "Dedicated NVIDIA A4000 GPU hourly price",
+        "provider": "DigitalOcean",
+        "quote_id": "DIGITALOCEAN_A4000_HOUR_2026_08_16",
+        "source_url": "https://www.digitalocean.com/pricing/additional-gpus"
+      },
+      {
+        "amount_atoms": 63000000,
+        "billing_unit": "CALENDAR_MONTH",
+        "checked_on": "2026-08-16",
+        "evidence_scope": "COMPONENT_ONLY",
+        "exclusions": [
+          "tax",
+          "backups",
+          "monitoring",
+          "operator labor",
+          "key management",
+          "incident response"
+        ],
+        "payment_asset_id": "USD_E6",
+        "product": "General Purpose dedicated-CPU Droplet starting price",
+        "provider": "DigitalOcean",
+        "quote_id": "DIGITALOCEAN_GENERAL_PURPOSE_START_MONTH_2026_08_16",
+        "source_url": "https://www.digitalocean.com/solutions/vps-hosting"
+      },
+      {
+        "amount_atoms": 50990000,
+        "billing_unit": "CALENDAR_MONTH",
+        "checked_on": "2026-08-16",
+        "evidence_scope": "COMPONENT_ONLY",
+        "exclusions": [
+          "IPv4",
+          "tax",
+          "backups",
+          "monitoring",
+          "operator labor",
+          "key management",
+          "incident response"
+        ],
+        "payment_asset_id": "USD_E6",
+        "product": "CCX13 USA new monthly price excluding IPv4 and tax",
+        "provider": "Hetzner",
+        "quote_id": "HETZNER_CCX13_US_MONTH_2026_06_15",
+        "source_url": "https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/"
+      },
+      {
+        "amount_atoms": 165990000,
+        "billing_unit": "CALENDAR_MONTH",
+        "checked_on": "2026-08-16",
+        "evidence_scope": "COMPONENT_ONLY",
+        "exclusions": [
+          "IPv4",
+          "tax",
+          "backups",
+          "monitoring",
+          "operator labor",
+          "key management",
+          "incident response"
+        ],
+        "payment_asset_id": "USD_E6",
+        "product": "CCX33 USA new monthly price excluding IPv4 and tax",
+        "provider": "Hetzner",
+        "quote_id": "HETZNER_CCX33_US_MONTH_2026_06_15",
+        "source_url": "https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/"
+      }
+    ],
+    "refresh_required_before_selection": true,
+    "scope": "Public list-price observations are component inputs only. They are not vendor quotes, qualified hardware, or complete compensation."
+  },
+  "game_surface": {
+    "actions": [
+      "quote, bid, procure, prefund, top up, pay, exhaust, or replace",
+      "submit or verify a report, liquidation, relay acknowledgment, proof, or precommit",
+      "forecast future revenue or bind already realized revenue to a purpose budget"
+    ],
+    "external_information": [
+      "future usage and protocol revenue",
+      "operator reservation wages and beneficial ownership",
+      "Tau fees, data licenses, proof hardware performance, and taxes"
+    ],
+    "payoff": "admitted payment minus infrastructure, labor, capital, data, execution, failure, and bonded-risk costs",
+    "players": [
+      "liquidator_and_keeper",
+      "oracle_reporter_aggregator_disputer_and_watcher",
+      "proof_prover_and_proof_miner",
+      "tau_relayer_and_destination_operator",
+      "validator_finality_operator",
+      "protocol treasury and deployment-capital providers",
+      "fee-paying users and interface customers",
+      "governance and release operators",
+      "cloud, data, and external-I/O vendors"
+    ]
+  },
+  "implementation_source_pins": [
+    {
+      "path": "tools/production_readiness_g1_critical_service_cost_contract_v1.py",
+      "sha256": "dc60c08834c93fbd4817d8b3a3a8b2605e32916800af0376cb6044522fa91464"
+    },
+    {
+      "path": "tools/check_production_readiness_g1_critical_service_costs_v1.py",
+      "sha256": "e4fbb586a0fcc541e722240c862546d22ca9ac9f080b272fffa318ba4dafad89"
+    }
+  ],
+  "production_promotion": false,
+  "promotion_boundary": {
+    "claim": "The research model computes conservative high-case integer caps, keeps forecasts outside prefund, and rejects cross-asset aggregation inside its declared typed model.",
+    "nonclaims": [
+      "No complete service cost, payment asset, revenue range, fee lane, or runway is selected.",
+      "Public list prices do not establish qualified hardware or adequate compensation.",
+      "No proof-unit price is derived from unrelated hardware and historical proof observations.",
+      "The model does not prove service quality, participation, oracle truth, Tau fees, or future revenue.",
+      "The model is unmounted and cannot admit work, pay a participant, or activate a role.",
+      "Finite enumeration is not an unbounded proof or a production readiness receipt."
+    ]
+  },
+  "proof_cost_boundary": {
+    "conversion_allowed": false,
+    "local_historical_observations": [
+      {
+        "elapsed_seconds": "569.750161942",
+        "path": "zk/asset_transfer_module_risc0/README.md",
+        "scope": "one historical real asset-transfer module proof"
+      },
+      {
+        "elapsed_seconds": "1443.666295007",
+        "path": "zk/asset_lane_coordinator_risc0/README.md",
+        "scope": "one historical child-plus-recursive lane proof"
+      }
+    ],
+    "proof_unit_price_atoms": null,
+    "public_compute_quotes": [
+      "DIGITALOCEAN_A4000_HOUR_2026_08_16",
+      "DIGITALOCEAN_A100_HOUR_2026_08_16"
+    ],
+    "reason": "The historical proofs do not bind the quoted GPU types, and the quoted hourly rates do not establish RISC0 compatibility, cycles, queueing, failure cost, or current ZRPF throughput."
+  },
+  "research_source_pins": [
+    {
+      "path": "docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json",
+      "sha256": "4eaec4bd3be1c33973916d63ae02a6484550804208d2d6c32505697dfbc24359",
+      "subject": "ae0c351e46aa969cb74d502e6948aef1167a99cd"
+    },
+    {
+      "path": "tools/production_readiness_g1_service_funding_contract_v1.py",
+      "sha256": "52e2c8cfec8e919a0661db41237e5e0fc95938ded3629cb168f9c3373abc3cf9",
+      "subject": "ae0c351e46aa969cb74d502e6948aef1167a99cd"
+    },
+    {
+      "path": "docs/FIRE_REVENUE_SURFACE_ATLAS.md",
+      "sha256": "ba9ac7ca950562eae24ceefee2c9468449780b1cfacf4779a410463edb403837",
+      "subject": "ae0c351e46aa969cb74d502e6948aef1167a99cd"
+    },
+    {
+      "path": "zk/asset_transfer_module_risc0/README.md",
+      "sha256": "0d692badee45ef4ad53f25840fb7acf5809a06367951151f5d8dbf7f95382a1c",
+      "subject": "ae0c351e46aa969cb74d502e6948aef1167a99cd"
+    },
+    {
+      "path": "zk/asset_lane_coordinator_risc0/README.md",
+      "sha256": "2843156d886b9642aaf05e6c3454d44d9e1909ae36cca981759eb6fc8672d651",
+      "subject": "ae0c351e46aa969cb74d502e6948aef1167a99cd"
+    }
+  ],
+  "revenue_source_boundary": {
+    "bootstrap": [
+      "purpose-bound deployment capital in the payment asset",
+      "selected genesis service lot after admitted conversion and legal activation"
+    ],
+    "excluded": [
+      "LP-owned fees, user property, refundable bonds, insurance principal",
+      "unconverted genesis ZDEX inventory",
+      "forecast volume, forecast fee revenue, and expected token appreciation",
+      "buyback carry already assigned after the service waterfall"
+    ],
+    "recurring": [
+      "finalized protocol-owned fee revenue routed to the role budget",
+      "selected liquidation or keeper action fee",
+      "explicit Tau external-I/O fee",
+      "signed opt-in interface fee",
+      "verified user-granted execution improvement"
+    ],
+    "revenue_range_status": "NO_NUMERIC_REVENUE_RANGE_SELECTED"
+  },
+  "reviewed_subject": "ae0c351e46aa969cb74d502e6948aef1167a99cd",
+  "schema": "zenodex/production-readiness-g1-critical-service-costs/v1",
+  "status": "RESEARCH_ONLY_UNSELECTED",
+  "validator_infrastructure_scenario": {
+    "digitalocean_cross_check_atoms_per_month": 63000000,
+    "monthly_high_atoms": 1161930000,
+    "monthly_low_atoms": 356930000,
+    "payment_asset_id": "USD_E6",
+    "profile_status": "RETAINED_SEVEN_VALIDATOR_ASSUMPTION_RECONFIRM_REQUIRED",
+    "role_count": 7,
+    "runway_18_month_high_atoms": 20914740000,
+    "runway_18_month_low_atoms": 6424740000,
+    "runway_36_month_high_atoms": 41829480000,
+    "runway_36_month_low_atoms": 12849480000,
+    "scope": "Infrastructure-only arithmetic using Hetzner CCX13-to-CCX33 USA monthly list prices; excludes every operator and availability cost.",
+    "selection_eligible": false
+  }
+}
