@@ -69,10 +69,18 @@ def test_research_publication_and_effect_surfaces_are_classified() -> None:
 
 def test_source_subject_and_pins_remain_bound_to_the_repair_descendant() -> None:
     document = build_document()
+    subject = document["source_subject"]
 
-    assert document["source_subject"]["base_commit"] == BASE_SOURCE_SUBJECT
-    assert document["source_subject"]["repair_commit"] == SOURCE_SUBJECT
-    assert document["source_subject"]["current_source_pins_subject"] == SOURCE_SUBJECT
+    assert subject["base_commit"] == BASE_SOURCE_SUBJECT
+    assert subject["repair_commit"] == SOURCE_SUBJECT
+    assert subject["subject_role"] == "RESEARCH_REPAIR_DESCENDANT_OVERLAY"
+    assert subject["base_semantics_artifacts_remain_authoritative"] is True
+    assert subject["base_to_repair_relation"] == {
+        "base_is_ancestor_of_repair": True,
+        "relation_scope": "ANCESTRY_ONLY_RESEARCH_OVERLAY",
+        "semantic_equivalence": "NOT_PROVED",
+    }
+    assert subject["current_source_pins_subject"] == SOURCE_SUBJECT
     assert all(pin["subject"] == SOURCE_SUBJECT for pin in document["source_pins"])
 
 
@@ -103,6 +111,18 @@ def test_source_pin_tampering_fails_closed(tmp_path: Path) -> None:
 def test_source_subject_tampering_fails_closed(tmp_path: Path) -> None:
     artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
     artifact["source_subject"]["current_source_pins_subject"] = BASE_SOURCE_SUBJECT
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["production_ready"] is False
+
+
+def test_repair_overlay_provenance_tampering_fails_closed(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    artifact["source_subject"]["base_to_repair_relation"]["semantic_equivalence"] = "PROVED"
     candidate = tmp_path / "candidate.json"
     candidate.write_text(json.dumps(artifact), encoding="utf-8")
 

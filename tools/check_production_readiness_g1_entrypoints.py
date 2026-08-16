@@ -28,6 +28,8 @@ DEFAULT_OUTPUT = REPO_ROOT / "docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_
 BASE_SOURCE_SUBJECT = "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
 SOURCE_SUBJECT = "5361df3ad977a53a7a773cc53730fc57405e25fc"
 SCHEMA = "zenodex/production-readiness-g1-entrypoints/v1"
+SOURCE_SUBJECT_ROLE = "RESEARCH_REPAIR_DESCENDANT_OVERLAY"
+SOURCE_RELATION_SCOPE = "ANCESTRY_ONLY_RESEARCH_OVERLAY"
 
 sys.path.insert(0, str(REPO_ROOT))
 
@@ -67,6 +69,16 @@ def _source_pins(repo_root: Path) -> list[dict[str, str]]:
             raise ValueError(f"source drift from frozen subject: {path}")
         pins.append({"path": path, "sha256": _sha256_bytes(frozen), "subject": SOURCE_SUBJECT})
     return pins
+
+
+def _verify_repair_descends_from_base(repo_root: Path) -> None:
+    relation = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", BASE_SOURCE_SUBJECT, SOURCE_SUBJECT],
+        cwd=repo_root,
+        check=False,
+    )
+    if relation.returncode != 0:
+        raise ValueError("frozen repair source subject does not descend from the frozen base subject")
 
 
 def _record_definition(definitions: dict[str, list[ast.AST]], name: str, node: ast.AST) -> None:
@@ -227,6 +239,7 @@ def _command_routes(semantic_document: Mapping[str, Any]) -> list[dict[str, Any]
 
 
 def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+    _verify_repair_descends_from_base(repo_root)
     source_pins = _source_pins(repo_root)
     semantic_document = semantics.build_document(repo_root)
     source_markers = _validate_source_markers(repo_root)
@@ -245,6 +258,13 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         "source_subject": {
             "base_commit": BASE_SOURCE_SUBJECT,
             "repair_commit": SOURCE_SUBJECT,
+            "subject_role": SOURCE_SUBJECT_ROLE,
+            "base_to_repair_relation": {
+                "base_is_ancestor_of_repair": True,
+                "relation_scope": SOURCE_RELATION_SCOPE,
+                "semantic_equivalence": "NOT_PROVED",
+            },
+            "base_semantics_artifacts_remain_authoritative": True,
             "current_head_must_descend_from_base": True,
             "current_source_pins_subject": SOURCE_SUBJECT,
             "source_authority": "frozen source bytes at the exact verified repair descendant",
@@ -330,6 +350,13 @@ def _write_atomic(path: Path, value: Mapping[str, Any]) -> None:
 def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     errors: list[str] = []
     observed: dict[str, Any] = {}
+    repair_relation = subprocess.run(
+        ["git", "merge-base", "--is-ancestor", BASE_SOURCE_SUBJECT, SOURCE_SUBJECT],
+        cwd=repo_root,
+        check=False,
+    )
+    if repair_relation.returncode != 0:
+        errors.append("frozen repair source subject does not descend from the frozen base subject")
     for label, subject in (("base", BASE_SOURCE_SUBJECT), ("repair", SOURCE_SUBJECT)):
         ancestry = subprocess.run(
             ["git", "merge-base", "--is-ancestor", subject, "HEAD"],

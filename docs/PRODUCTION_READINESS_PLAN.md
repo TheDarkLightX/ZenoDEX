@@ -222,7 +222,14 @@ finality-verifier port. The source-level writer inventory remains 25 entries,
 with 18 unmounted legacy entries, six M6 research entries, and one separate
 research entry; all 25 coverage rows remain open and no production writer is
 declared. Dynamic reachability, generated code, credentials, and deployment
-wiring remain `UNKNOWN`.
+wiring remain `UNKNOWN`. This entrypoint artifact is explicitly a
+`RESEARCH_REPAIR_DESCENDANT_OVERLAY`: its frozen source pins target repair
+descendant `5361df3ad977a53a7a773cc53730fc57405e25fc`, whose ancestry from the
+base `e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c` is verified. The relation is
+ancestry-only, semantic equivalence is `NOT_PROVED`, and the base-subject
+semantics, BDD, safe-hold, profile, and state/delta artifacts remain
+authoritative for their frozen subject. The overlay inventories repaired M6
+source surfaces and carries no production authority.
 The M6 research shell hardening descendant
 `5361df3ad977a53a7a773cc53730fc57405e25fc` closes three scoped boundary
 defects from the exact base: post-install descriptor cleanup recovery, deep
@@ -265,7 +272,16 @@ python3 tools/check_production_readiness_g1_safe_hold.py --check --json
 python3 tools/check_production_readiness_g1_profile_gate.py --check --json
 python3 tools/check_production_readiness_g1_state_delta_gate.py --check --json
 python3 tools/check_production_readiness_g1_legacy_atdd_quarantine.py --check --json
+# Expected PASS: scoped M6 safe-mount and durable-store evidence.
+python3 -m pytest -q tests/core/test_m6_safe_mount_v1.py tests/integration/test_m6_durable_store_v1.py
+# Expected nonzero: the historical ATDD contract remains stale and fails closed.
+python3 tools/check_m6_global_economic_core_atdd_v1.py
 ```
+
+The focused M6 test command is positive, scoped research evidence. The legacy
+ATDD command is intentionally expected to return nonzero until a separately
+reviewed exact-subject contract exists; the G1 legacy-quarantine checker is the
+current exact-subject replay for that status.
 
 ### G2: Complete the deterministic functional core
 

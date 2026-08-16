@@ -634,10 +634,17 @@
   ],
   "source_subject": {
     "base_commit": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+    "base_semantics_artifacts_remain_authoritative": true,
+    "base_to_repair_relation": {
+      "base_is_ancestor_of_repair": true,
+      "relation_scope": "ANCESTRY_ONLY_RESEARCH_OVERLAY",
+      "semantic_equivalence": "NOT_PROVED"
+    },
     "current_head_must_descend_from_base": true,
     "current_source_pins_subject": "5361df3ad977a53a7a773cc53730fc57405e25fc",
     "repair_commit": "5361df3ad977a53a7a773cc53730fc57405e25fc",
-    "source_authority": "frozen source bytes at the exact verified repair descendant"
+    "source_authority": "frozen source bytes at the exact verified repair descendant",
+    "subject_role": "RESEARCH_REPAIR_DESCENDANT_OVERLAY"
   },
   "status": "G1_ENTRYPOINT_AUDIT_RESEARCH_ONLY",
   "surface_inventory": [
