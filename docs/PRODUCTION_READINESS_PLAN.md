@@ -410,6 +410,45 @@ therefore provides approval questions and exact arithmetic without approving a
 role count, service price, fee lane, payment asset, runway, proof market, or
 release.
 
+The procurement and qualification companion
+`docs/research/PRODUCTION_READINESS_G1_CRITICAL_SERVICE_PROCUREMENT_V1.json`
+defines the next fail-closed evidence boundary. A complete quote names
+infrastructure, operator and on-call labor, security and monitoring, data and
+external-I/O costs, risk capital and insurance, per-job compute and labor, and
+one-time onboarding. Zero is an explicit component value; the recurring cap
+must remain positive. Each quote must refine exactly to the existing
+`FULL_ROLE_COST_CANDIDATE` period cap and target prefund.
+
+Qualification binds the quote, service specification, execution subject,
+hardware profile, benchmark profile, and evidence root. Invalid-work accepts,
+replay or duplicate accepts, role-specific safety events, and recovery failures
+must all be zero. Trial count, failure count, p95 latency, availability, and
+peak-memory thresholds are exact integer policy inputs. A cloud-provider SLA or
+historical proof duration remains context and cannot substitute for an
+end-to-end exact-subject qualification.
+
+The research skin-in-the-game predicate is checked without floating point:
+
+```text
+detection_probability_bps * slash_atoms
+  + 10000 * future_value_lost_atoms
+  >= 10000 * maximum_defect_gain_atoms
+slash_atoms <= bond_atoms
+```
+
+For no more than 16 prequalified candidates, the research selector enumerates
+every required-winner combination. It enforces payment-asset, epoch, subject,
+beneficial-owner, named failure-domain, recurring-budget, and onboarding-budget
+constraints. It minimizes total high-case recurring cap, then onboarding cap,
+then sorted quote IDs. A retained seven-validator assumption remains subject to
+reconfirmation and supplies no selected role count.
+
+The packet leaves every complete quote, qualification policy, and procurement
+policy `null`. Its output is candidate selection data. Future production work
+still requires an opaque verifier-created work witness, a current-head and
+purpose-budget recheck, and an atomic ZenoLedger commit. Selection and
+qualification cannot admit work or authorize payment.
+
 The companion entrypoint audit
 `docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json` binds the same
 33-command registry to 12 exact source surfaces. It records the six M6

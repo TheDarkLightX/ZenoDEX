@@ -1,0 +1,385 @@
+{
+  "activation_gate": {
+    "activation_allowed": false,
+    "beneficial_ownership_verified": false,
+    "critical_role_count": 5,
+    "failure_domain_independence_verified": false,
+    "legal_activation_complete": false,
+    "mounted": false,
+    "opaque_work_verifiers_implemented": false,
+    "payment_allowed": false,
+    "production_ready": false,
+    "purpose_bound_reserves_custodied": false,
+    "qualified_production_quote_count": 0,
+    "runtime_implemented": false,
+    "selected_procurement_policy_count": 0,
+    "selected_qualification_policy_count": 0,
+    "work_admission_allowed": false
+  },
+  "attack_query": {
+    "disaster_states": [
+      "LOWBALL_THEN_DEFAULT",
+      "SHILL_OR_COMMON_OWNER_MULTIWIN",
+      "CORRELATED_FAILURE_DOMAIN_MULTIWIN",
+      "BENCHMARK_OR_IMAGE_SUBSTITUTION",
+      "EXPIRED_QUOTE_REPLAY",
+      "GREEDY_SELECTOR_MISSES_FEASIBLE_PORTFOLIO",
+      "UNBONDED_OR_INADEQUATE_SLASH",
+      "FUTURE_REVENUE_OR_MARKET_CREATES_PAYMENT"
+    ],
+    "query": "Can an unqualified, underpriced, affiliated, correlated, stale, or underbonded bidder win or cause an unfunded payment?"
+  },
+  "bounded_model": {
+    "integer_domain": "all amounts are integer atoms in [0, 2^256 - 1]",
+    "qualification_rule": "exact roots match; all invalid, replay, safety, and recovery counters equal zero; every selected integer threshold is met",
+    "quote_cost_formula": {
+      "fixed": "infrastructure + operator_on_call + security_monitoring + data_license_external_io + risk_capital_insurance",
+      "onboarding": "separate one-time cap with a separate budget",
+      "period_cap": "ceil((fixed + variable) * (10000 + contingency_bps) / 10000)",
+      "variable": "maximum_jobs * (compute_execution_per_job + labor_external_per_job)"
+    },
+    "selected_complete_quotes": {
+      "liquidator_and_keeper": null,
+      "oracle_reporter_aggregator_disputer_and_watcher": null,
+      "proof_prover_and_proof_miner": null,
+      "tau_relayer_and_destination_operator": null,
+      "validator_finality_operator": null
+    },
+    "selected_procurement_policies": {
+      "liquidator_and_keeper": null,
+      "oracle_reporter_aggregator_disputer_and_watcher": null,
+      "proof_prover_and_proof_miner": null,
+      "tau_relayer_and_destination_operator": null,
+      "validator_finality_operator": null
+    },
+    "selected_qualification_policies": {
+      "liquidator_and_keeper": null,
+      "oracle_reporter_aggregator_disputer_and_watcher": null,
+      "proof_prover_and_proof_miner": null,
+      "tau_relayer_and_destination_operator": null,
+      "validator_finality_operator": null
+    },
+    "selection_rule": "enumerate every required-winner combination for at most 16 candidates; enforce owner, failure-domain, recurring-budget, onboarding-budget, subject, asset, and epoch constraints; minimize recurring high-case cap, then onboarding cap, then sorted quote IDs",
+    "skin_in_the_game_rule": "detection_probability_bps * slash_atoms + 10000 * future_value_lost_atoms >= 10000 * maximum_defect_gain_atoms; slash_atoms <= bond_atoms"
+  },
+  "bounded_procurement_evidence": {
+    "bond_boundary_search": {
+      "cases": 3645,
+      "counterexample": null,
+      "domain": "defect gain, slash, future value lost=0..8 atoms; detection probability in {0,2500,5000,7500,10000} bps",
+      "predicate": "p_bps*slash + 10000*future_value_lost >= 10000*maximum_defect_gain"
+    },
+    "claim_ceiling": "Exact only for the declared finite integer and three-candidate domains; this is not unbounded optimality or a production procurement receipt.",
+    "named_mutant_witnesses": [
+      {
+        "id": "GREEDY_CHEAPEST_FIRST",
+        "witness": "A is cheapest but blocks B by cloud and C by owner; B+C is feasible"
+      },
+      {
+        "id": "LOW_CASE_PRICE_SELECTION",
+        "witness": "selection objective uses the loaded high-case quote cap"
+      },
+      {
+        "id": "COMMON_OWNER_SYBIL",
+        "witness": "provider IDs differ while beneficial owner ID is equal"
+      },
+      {
+        "id": "COMMON_FAILURE_DOMAIN",
+        "witness": "providers share one capped cloud or jurisdiction value"
+      },
+      {
+        "id": "BENCHMARK_PROFILE_SUBSTITUTION",
+        "witness": "observation root tuple differs from quote and policy"
+      },
+      {
+        "id": "QUOTE_REPLAY_AFTER_EXPIRY",
+        "witness": "selection epoch exceeds valid_through_epoch"
+      },
+      {
+        "id": "UNBONDED_SLASH",
+        "witness": "slash atoms exceed bond atoms"
+      },
+      {
+        "id": "PROOF_MARKET_CREATES_REWARD",
+        "witness": "selection output cannot admit work or authorize payment"
+      }
+    ],
+    "selector_permutation_search": {
+      "cases": 6,
+      "counterexample": null,
+      "domain": "all 6 permutations of the three-bid greedy-trap fixture",
+      "expected_selection": [
+        "b",
+        "c"
+      ],
+      "predicate": "canonical exhaustive selection is invariant to candidate order"
+    }
+  },
+  "evidence_lane": {
+    "current": [
+      "typed complete-quote and qualification schema",
+      "exact quote-to-cost-envelope refinement",
+      "exact integer bond inequality with bonded-slash check",
+      "bounded exhaustive multiwinner selector with canonical tie break",
+      "beneficial-owner and named failure-domain concentration caps",
+      "finite bond-boundary and candidate-permutation searches",
+      "named mutants for greedy selection, substitution, replay, and Sybil bids"
+    ],
+    "required_before_production": [
+      "opaque verifier-created qualification and work witnesses",
+      "Rust canonical quote, policy, qualification, selection, and payment codecs",
+      "formal selector, concentration, budget, bond, and no-source-creation proofs",
+      "mounted ZenoLedger admission and payment capability",
+      "restart, replay, replacement, migration, and authority-epoch tests"
+    ],
+    "required_before_selection": [
+      "real competitive quotes with verified beneficial ownership",
+      "selected role counts, service specs, benchmark profiles, and thresholds",
+      "exact hardware, binary, guest-image, data-source, and destination evidence",
+      "selected payment assets and purpose-bound recurring and onboarding reserves",
+      "legal, tax, labor, procurement, sanctions, custody, and treasury review"
+    ]
+  },
+  "external_qualification_context": [
+    {
+      "checked_on": "2026-08-16",
+      "observation": "A signer tracks its last signed height, round, and type to prevent double signing; conflicting votes are evidence.",
+      "selection_effect": "NONE",
+      "source": "CometBFT validator signing specification",
+      "url": "https://docs.cometbft.com/v0.38/spec/consensus/signing"
+    },
+    {
+      "checked_on": "2026-08-16",
+      "observation": "Validator key and last-sign-state custody are operator concerns; the default filesystem key path is not a qualified ZenoDEX profile.",
+      "selection_effect": "NONE",
+      "source": "CometBFT configuration reference",
+      "url": "https://docs.cometbft.com/main/references/config/"
+    },
+    {
+      "checked_on": "2026-08-16",
+      "observation": "The vendor publishes a per-Droplet monthly uptime SLA with exclusions; it does not establish end-to-end validator service qualification.",
+      "selection_effect": "NONE",
+      "source": "DigitalOcean CPU Droplet SLA",
+      "url": "https://www.digitalocean.com/sla/cpu-droplets"
+    },
+    {
+      "checked_on": "2026-08-16",
+      "observation": "The published results are version- and hardware-specific and describe cycle rounding; current ZRPF pricing needs an exact current replay.",
+      "selection_effect": "NONE",
+      "source": "RISC Zero datasheet",
+      "url": "https://dev.risczero.com/datasheet.pdf"
+    },
+    {
+      "checked_on": "2026-08-16",
+      "observation": "A receipt verifies execution of a specific program, so prover qualification must bind the exact image and journal profile.",
+      "selection_effect": "NONE",
+      "source": "RISC Zero developer documentation",
+      "url": "https://dev.risczero.com/"
+    }
+  ],
+  "game_surface": {
+    "actions": [
+      "submit, withdraw, expire, replay, or understate a quote",
+      "qualify or substitute a service, binary, image, hardware, or benchmark",
+      "split identities, conceal common ownership, or share a failure domain",
+      "bond, slash, select, onboard, admit work, invoice, or replace"
+    ],
+    "information_sets": [
+      "private reservation cost, affiliation, and defect gain",
+      "public quote caps, evidence roots, qualification results, and budgets",
+      "external future revenue and correlated infrastructure failures"
+    ],
+    "payoff": "verified capped payment minus complete operating, capital, failure, onboarding, and expected slash costs",
+    "players": [
+      "liquidator_and_keeper",
+      "oracle_reporter_aggregator_disputer_and_watcher",
+      "proof_prover_and_proof_miner",
+      "tau_relayer_and_destination_operator",
+      "validator_finality_operator",
+      "protocol treasury and procurement operator",
+      "beneficial owners and affiliated bidders",
+      "cloud, data, hardware, and destination vendors",
+      "qualification and work verifiers",
+      "governance, legal, and release operators"
+    ]
+  },
+  "implementation_source_pins": [
+    {
+      "path": "tools/production_readiness_g1_critical_service_procurement_contract_v1.py",
+      "sha256": "f0947c53761e49efcc0706a9071fb16a61bd93ee9c56b674651ecd2c5c079519"
+    },
+    {
+      "path": "tools/check_production_readiness_g1_critical_service_procurement_v1.py",
+      "sha256": "b092f041121e57c6dbe374746ff6e9ae6c8931d35697d3da856e7107320ac536"
+    }
+  ],
+  "payment_boundary": {
+    "candidate_selection_creates_payment": false,
+    "future_revenue_counts_as_prefund": false,
+    "proof_market_creates_reward": false,
+    "qualification_creates_payment": false,
+    "required_future_production_path": "release-selected verifier -> opaque work witness -> current-head and purpose-budget recheck -> atomic ZenoLedger commit"
+  },
+  "procurement_flow": [
+    "collect signed complete quote and beneficial-owner evidence",
+    "run exact-subject role-specific qualification",
+    "check bond and finite defect-gain inequality",
+    "exhaustively select the lowest feasible high-case portfolio",
+    "prefund selected recurring and onboarding caps in the payment asset",
+    "external verifier may later construct an opaque work witness",
+    "ZenoLedger must recheck current head, epoch, quote, job, period, and reserve caps",
+    "atomic commit may pay no more than verified liability and remaining reserve"
+  ],
+  "production_promotion": false,
+  "promotion_boundary": {
+    "claim": "The research contract compares complete exact-subject quotes and returns a deterministic minimum-cost feasible set inside a bounded domain.",
+    "nonclaims": [
+      "No real quote, qualification threshold, role count, or provider is selected.",
+      "Beneficial-owner and failure-domain evidence remains externally supplied.",
+      "The bond inequality depends on unselected defect-gain, detection, slash, and future-value inputs.",
+      "The finite selector does not establish unbounded optimality or Byzantine procurement security.",
+      "Vendor SLA and historical proof data do not qualify ZenoDEX end-to-end service.",
+      "Caller-constructible Python values are not opaque authority witnesses.",
+      "This artifact cannot admit work, move value, activate a role, or promote production."
+    ]
+  },
+  "quote_component_contract": {
+    "refinement": "each complete quote must reproduce the existing FULL_ROLE_COST_CANDIDATE period cap and target prefund exactly",
+    "required_one_time_components": [
+      "onboarding and replacement setup"
+    ],
+    "required_recurring_components": [
+      "fixed infrastructure",
+      "fixed operator and on-call labor",
+      "fixed security, monitoring, and key custody",
+      "fixed data-license and external-I/O costs",
+      "fixed risk-capital and insurance costs",
+      "variable compute and execution cost per job",
+      "variable labor and external cost per job"
+    ],
+    "zero_rule": "zero is allowed only as an explicit value in a named component; the recurring cap must remain positive"
+  },
+  "research_source_pins": [
+    {
+      "path": "docs/research/PRODUCTION_READINESS_G1_CRITICAL_SERVICE_COSTS_V1.json",
+      "sha256": "db6c8a62636aeab8bc48eb6982c4a3600e00cd3b2014a3bf7268fb07f5445f64",
+      "subject": "0a385c782506bace99f890b5271200c0b3d68ab1"
+    },
+    {
+      "path": "tools/production_readiness_g1_critical_service_cost_contract_v1.py",
+      "sha256": "dc60c08834c93fbd4817d8b3a3a8b2605e32916800af0376cb6044522fa91464",
+      "subject": "0a385c782506bace99f890b5271200c0b3d68ab1"
+    },
+    {
+      "path": "docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json",
+      "sha256": "4eaec4bd3be1c33973916d63ae02a6484550804208d2d6c32505697dfbc24359",
+      "subject": "0a385c782506bace99f890b5271200c0b3d68ab1"
+    }
+  ],
+  "reviewed_subject": "0a385c782506bace99f890b5271200c0b3d68ab1",
+  "role_qualification_packets": {
+    "liquidator_and_keeper": {
+      "common_required_observations": [
+        "zero invalid-work accepts",
+        "zero replay-or-duplicate accepts",
+        "zero role-specific safety events",
+        "zero recovery failures",
+        "minimum successful trials and maximum failed trials",
+        "bounded p95 latency, availability, and peak memory",
+        "exact service, execution, hardware, and benchmark-profile roots"
+      ],
+      "role_specific_required_observations": [
+        "zero bad-debt-worsening accepted actions",
+        "eligible-action latency and deterministic failed-attempt treatment",
+        "capital, external execution, and minimal-liquidation measurements"
+      ],
+      "selected_complete_quote": null,
+      "selected_procurement_policy": null,
+      "selected_qualification_policy": null,
+      "status": "OPEN_UNSELECTED"
+    },
+    "oracle_reporter_aggregator_disputer_and_watcher": {
+      "common_required_observations": [
+        "zero invalid-work accepts",
+        "zero replay-or-duplicate accepts",
+        "zero role-specific safety events",
+        "zero recovery failures",
+        "minimum successful trials and maximum failed trials",
+        "bounded p95 latency, availability, and peak memory",
+        "exact service, execution, hardware, and benchmark-profile roots"
+      ],
+      "role_specific_required_observations": [
+        "zero invalid or stale accepted reports",
+        "occurrence-to-finality, freshness, and outage-recovery observations",
+        "reporter owner, data-source, aggregator, and watcher diversity"
+      ],
+      "selected_complete_quote": null,
+      "selected_procurement_policy": null,
+      "selected_qualification_policy": null,
+      "status": "OPEN_UNSELECTED"
+    },
+    "proof_prover_and_proof_miner": {
+      "common_required_observations": [
+        "zero invalid-work accepts",
+        "zero replay-or-duplicate accepts",
+        "zero role-specific safety events",
+        "zero recovery failures",
+        "minimum successful trials and maximum failed trials",
+        "bounded p95 latency, availability, and peak memory",
+        "exact service, execution, hardware, and benchmark-profile roots"
+      ],
+      "role_specific_required_observations": [
+        "zero invalid-receipt accepts",
+        "exact guest image, journal, verifier profile, cycles, latency, and memory",
+        "failed-proof and deadline behavior with direct-execution fallback"
+      ],
+      "selected_complete_quote": null,
+      "selected_procurement_policy": null,
+      "selected_qualification_policy": null,
+      "status": "OPEN_UNSELECTED"
+    },
+    "tau_relayer_and_destination_operator": {
+      "common_required_observations": [
+        "zero invalid-work accepts",
+        "zero replay-or-duplicate accepts",
+        "zero role-specific safety events",
+        "zero recovery failures",
+        "minimum successful trials and maximum failed trials",
+        "bounded p95 latency, availability, and peak memory",
+        "exact service, execution, hardware, and benchmark-profile roots"
+      ],
+      "role_specific_required_observations": [
+        "zero duplicate external-effect accepts",
+        "authenticated acknowledgment, retry, idempotency, outage, and rejoin",
+        "destination and relayer beneficial-owner and failure-domain diversity"
+      ],
+      "selected_complete_quote": null,
+      "selected_procurement_policy": null,
+      "selected_qualification_policy": null,
+      "status": "OPEN_UNSELECTED"
+    },
+    "validator_finality_operator": {
+      "common_required_observations": [
+        "zero invalid-work accepts",
+        "zero replay-or-duplicate accepts",
+        "zero role-specific safety events",
+        "zero recovery failures",
+        "minimum successful trials and maximum failed trials",
+        "bounded p95 latency, availability, and peak memory",
+        "exact service, execution, hardware, and benchmark-profile roots"
+      ],
+      "role_specific_required_observations": [
+        "zero invalid-transition signs and double-sign events",
+        "persistent last-sign-state recovery",
+        "end-to-end finality and availability, independent of vendor SLA",
+        "beneficial-owner, key-custody, geography, and failure-domain evidence"
+      ],
+      "selected_complete_quote": null,
+      "selected_procurement_policy": null,
+      "selected_qualification_policy": null,
+      "status": "OPEN_UNSELECTED"
+    }
+  },
+  "schema": "zenodex/production-readiness-g1-critical-service-procurement/v1",
+  "status": "RESEARCH_ONLY_UNSELECTED"
+}

@@ -101,6 +101,7 @@
         "docs/research/PRODUCTION_READINESS_G1_CLBF_MODEL_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_CRITICAL_SERVICE_COSTS_V1.json",
+        "docs/research/PRODUCTION_READINESS_G1_CRITICAL_SERVICE_PROCUREMENT_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_SAFE_HOLD_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_STATE_DELTA_GATE_V1.json",
@@ -119,6 +120,7 @@
         "tests/test_check_production_readiness_g1_clbf_model_v1.py",
         "tests/test_check_production_readiness_g1_service_funding_v1.py",
         "tests/test_check_production_readiness_g1_critical_service_costs_v1.py",
+        "tests/test_check_production_readiness_g1_critical_service_procurement_v1.py",
         "tests/test_check_production_readiness_g1_safe_hold.py",
         "tests/test_check_production_readiness_g1_semantics.py",
         "tests/test_check_production_readiness_g1_state_delta_gate.py",
@@ -133,6 +135,7 @@
         "tools/check_production_readiness_g1_clbf_model_v1.py",
         "tools/check_production_readiness_g1_service_funding_v1.py",
         "tools/check_production_readiness_g1_critical_service_costs_v1.py",
+        "tools/check_production_readiness_g1_critical_service_procurement_v1.py",
         "tools/production_readiness_g1_entrypoint_contract.py",
         "tools/production_readiness_g1_entrypoint_ast.py",
         "tools/production_readiness_g1_profile_input_contract.py",
@@ -140,6 +143,7 @@
         "tools/production_readiness_g1_clbf_contract_v1.py",
         "tools/production_readiness_g1_service_funding_contract_v1.py",
         "tools/production_readiness_g1_critical_service_cost_contract_v1.py",
+        "tools/production_readiness_g1_critical_service_procurement_contract_v1.py",
         "tools/check_production_readiness_g1_entrypoints.py",
         "tools/check_production_readiness_g1_semantics.py"
       ],
@@ -159,6 +163,7 @@
         "The executable CLBF research model defines eligible surplus after safety, participant-service, and operations funding; all mechanism parameters and every raw-volume campaign remain unselected, unmounted, and activation-blocked.",
         "The service-funding runway model classifies all 22 participant rows and exercises capped, replay-protected service budgets; all 12 budget-eligible role policies, payment assets, amounts, work verifiers, legal activation, and release roots remain unselected.",
         "The critical-service cost model supplies dated component benchmarks and exact high-case sizing for validators, oracle roles, liquidators and keepers, Tau relayers, and proof providers; all five complete cost envelopes, revenue inputs, qualified benchmarks, and purpose-bound reserves remain unselected.",
+        "The critical-service procurement model defines complete named quote components, exact-subject qualification, a bonded defect-gain inequality, beneficial-owner and failure-domain caps, and bounded exhaustive multiwinner selection; every real quote and policy remains unselected and no work or payment authority exists.",
         "Dynamic reachability, generated code, credentials, and deployment wiring remain UNKNOWN and require a production-build audit.",
         "The legacy ATDD contract is source-pinned to an older subject and is not a valid exact-subject G1 completion receipt.",
         "The broader claims-registry gate fails on the exact base because claims[123] references missing tools/check_derivatives_authorization_matrix.py."
@@ -172,6 +177,7 @@
         "python3 tools/check_production_readiness_g1_clbf_model_v1.py --check --json",
         "python3 tools/check_production_readiness_g1_service_funding_v1.py --check --json",
         "python3 tools/check_production_readiness_g1_critical_service_costs_v1.py --check --json",
+        "python3 tools/check_production_readiness_g1_critical_service_procurement_v1.py --check --json",
         "python3 tools/check_production_readiness_g1_entrypoints.py --check --json",
         "python3 tools/check_production_readiness_g1_safe_hold.py --check --json",
         "python3 tools/check_production_readiness_g1_profile_gate.py --check --json",
@@ -192,6 +198,7 @@
         "The executable CLBF model supplies finite source-lot and direct-profit evidence; it does not select compensation, prove external-position safety, or authorize a payment, volume campaign, buyback, or release.",
         "The service-funding model supplies finite budget arithmetic and lifecycle evidence; it does not admit work, select a claimant, forecast revenue, satisfy counsel, or authorize payment.",
         "The critical-service cost model supplies component-price observations and finite sizing arithmetic; it does not establish complete compensation, future revenue, qualified hardware, a proof-unit price, role activation, or payment authority.",
+        "The critical-service procurement model supplies typed quote, qualification, bond, and finite selector evidence; it does not verify beneficial ownership, select a provider, establish unbounded optimality, admit work, authorize payment, or activate a role.",
         "The G1 entrypoint audit is a static source inventory; it cannot establish dynamic reachability, generated-code coverage, no-bypass behavior, or a production writer."
       ],
       "completion_receipt": null
