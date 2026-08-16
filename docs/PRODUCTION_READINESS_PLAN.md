@@ -204,7 +204,9 @@ The helper G1 slice on the exact subject
 33-command and 8-disabled-command partition in
 `docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json`. The received
 10-disabled count remains recorded as non-authoritative. The slice also
-declares the global economic state projection and value-delta algebra and
+keeps emergency zUSD shutdown explicitly absent from the launch registry and
+declares field-level global state and value-delta contracts; their closure
+status remains `GAP`.
 leaves all nine profile decisions `OPEN`. The exact-subject BDD companion
 `docs/research/PRODUCTION_READINESS_G1_BDD_V1.json` gives every command one
 research-only workflow and 267 scenario obligations; all scenarios remain

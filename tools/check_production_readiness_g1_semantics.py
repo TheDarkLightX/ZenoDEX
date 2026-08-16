@@ -64,6 +64,145 @@ EXPECTED_DELTA_CLASSES = (
     "refund",
     "slash",
 )
+EXPECTED_EXCLUDED_COMMANDS = ("zusd_emergency_shutdown",)
+
+_STATE_FIELD_CONTRACTS: dict[str, dict[str, Any]] = {
+    "balances": {
+        "owner": "asset_accounting_core",
+        "meaning": "owned asset amounts indexed by owner and custody",
+        "delta_classes": ["internal_transfer", "external_in", "external_out", "refund", "slash"],
+        "terminal_obligation": "every claim is drained or assigned to an explicit reserve owner",
+    },
+    "custody": {
+        "owner": "custody_reconciliation_core",
+        "meaning": "external custody and claim buckets for managed assets",
+        "delta_classes": ["internal_transfer", "external_in", "external_out", "refund"],
+        "terminal_obligation": "no external effect exists without an ancestor custody claim",
+    },
+    "supply": {
+        "owner": "asset_issue_burn_policy",
+        "meaning": "per-asset supply and protected-floor quantities",
+        "delta_classes": ["mint", "burn", "internal_transfer"],
+        "terminal_obligation": "issue, burn, and terminal supply disposition are explicit",
+    },
+    "debt": {
+        "owner": "zusd_monetary_core",
+        "meaning": "owner- and asset-indexed liability amounts",
+        "delta_classes": ["liability", "mint", "burn", "refund", "slash"],
+        "terminal_obligation": "every liability has an exact close, redemption, or recovery owner",
+    },
+    "lp_state": {
+        "owner": "spot_and_liquidity_core",
+        "meaning": "pool reserves, LP shares, fees, and rounding residues",
+        "delta_classes": ["internal_transfer", "mint", "burn", "refund"],
+        "terminal_obligation": "final LP removal drains reserves, fees, and dust exactly",
+    },
+    "perps_liabilities": {
+        "owner": "perps_risk_and_settlement_core",
+        "meaning": "margin, PnL, funding, insurance, and bad-debt liabilities",
+        "delta_classes": ["liability", "internal_transfer", "external_out", "refund", "slash"],
+        "terminal_obligation": "closed positions leave no unowned margin or liability",
+    },
+    "escrows": {
+        "owner": "escrow_and_auction_custody_core",
+        "meaning": "phase-bound deposits, bonds, inventory, and claims",
+        "delta_classes": ["internal_transfer", "refund", "slash", "external_out"],
+        "terminal_obligation": "cancel, expire, settle, or recover every escrow exactly once",
+    },
+    "reserves": {
+        "owner": "reserve_policy_core",
+        "meaning": "fee, insurance, reward, and protected reserve buckets",
+        "delta_classes": ["internal_transfer", "mint", "burn", "refund", "slash"],
+        "terminal_obligation": "each reserve has a named beneficiary and terminal disposition",
+    },
+    "auctions": {
+        "owner": "sealed_bid_commit_reveal_settlement_core",
+        "meaning": "auction phase, commitment, winner, and settlement records",
+        "delta_classes": ["internal_transfer", "refund", "slash", "external_out"],
+        "terminal_obligation": "all bids and inventory reach a deterministic final phase",
+    },
+    "withdrawals": {
+        "owner": "withdrawal_and_outbox_core",
+        "meaning": "requested, acknowledged, retried, and completed withdrawals",
+        "delta_classes": ["external_out", "refund", "slash"],
+        "terminal_obligation": "each withdrawal has one idempotent completion or refund",
+    },
+    "outbox": {
+        "owner": "committed_effect_outbox_core",
+        "meaning": "committed external effect identities and delivery state",
+        "delta_classes": ["external_out", "refund", "slash"],
+        "terminal_obligation": "every effect descends from one committed outbox ancestor",
+    },
+    "history": {
+        "owner": "durable_publication_core",
+        "meaning": "canonical command decisions, receipts, and publication lineage",
+        "delta_classes": ["internal_transfer"],
+        "terminal_obligation": "replay and recovery classify one immutable publication identity",
+    },
+    "nullifiers": {
+        "owner": "authenticated_replay_core",
+        "meaning": "consumed sender nonces, proof identities, and replay keys",
+        "delta_classes": ["internal_transfer"],
+        "terminal_obligation": "one nonce or nullifier authorizes at most one transition",
+    },
+    "release_state": {
+        "owner": "promotion_and_authority_core",
+        "meaning": "deployment, authority epoch, profile, and release bindings",
+        "delta_classes": ["internal_transfer"],
+        "terminal_obligation": "authority changes require an exact governed migration",
+    },
+}
+
+_DELTA_CLASS_CONTRACTS: dict[str, dict[str, Any]] = {
+    "internal_transfer": {
+        "required_fields": [
+            "asset",
+            "amount_atoms",
+            "source_owner",
+            "destination_owner",
+            "source_custody",
+            "destination_custody",
+            "economic_event",
+        ],
+        "supply_effect": "zero",
+        "law": "source debit equals destination credit in the same asset and event",
+    },
+    "mint": {
+        "required_fields": ["asset", "amount_atoms", "issuer_authority", "recipient_owner", "economic_event"],
+        "supply_effect": "positive_exact_amount",
+        "law": "issue authority and supply increase are bound in one accepted transition",
+    },
+    "burn": {
+        "required_fields": ["asset", "amount_atoms", "burn_authority", "source_owner", "economic_event"],
+        "supply_effect": "negative_exact_amount",
+        "law": "burn authority, source custody, and supply decrease are bound in one accepted transition",
+    },
+    "liability": {
+        "required_fields": ["asset", "amount_atoms", "liability_owner", "liability_kind", "economic_event"],
+        "supply_effect": "profile_defined_relation",
+        "law": "the liability owner, asset, and before/after relation are explicit",
+    },
+    "external_in": {
+        "required_fields": ["asset", "amount_atoms", "source_effect", "destination_custody", "economic_event"],
+        "supply_effect": "outside_core_or_profile_defined",
+        "law": "ingress is authenticated and creates one custody claim before internal credit",
+    },
+    "external_out": {
+        "required_fields": ["asset", "amount_atoms", "source_custody", "destination_effect", "economic_event"],
+        "supply_effect": "outside_core_or_profile_defined",
+        "law": "outflow requires an ancestor custody claim and one committed outbox identity",
+    },
+    "refund": {
+        "required_fields": ["asset", "amount_atoms", "refund_owner", "source_event", "economic_event"],
+        "supply_effect": "zero_or_profile_defined",
+        "law": "refund target and source event are explicit and idempotent",
+    },
+    "slash": {
+        "required_fields": ["asset", "amount_atoms", "slashed_owner", "beneficiary_owner", "economic_event"],
+        "supply_effect": "zero_or_profile_defined",
+        "law": "slashing authority, beneficiary, and residue disposition are explicit",
+    },
+}
 
 _FAMILY_DEFINITIONS: dict[str, dict[str, Any]] = {
     "spot_and_liquidity": {
@@ -543,6 +682,13 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     source_pins = _source_pins(repo_root)
     runtime_bindings = _validate_frozen_runtime_bindings(repo_root)
     commands = _command_entries()
+    command_ids = {entry["id"] for entry in commands}
+    if set(_STATE_FIELD_CONTRACTS) != set(EXPECTED_STATE_FIELDS):
+        raise ValueError("state field contracts do not cover the declared projection")
+    if set(_DELTA_CLASS_CONTRACTS) != set(EXPECTED_DELTA_CLASSES):
+        raise ValueError("delta class contracts do not cover the declared algebra")
+    if command_ids.intersection(EXPECTED_EXCLUDED_COMMANDS):
+        raise ValueError("excluded launch command is present in the closed registry")
     blocking_decisions = list(_PROFILE_DECISIONS)
     return {
         "schema": SCHEMA,
@@ -559,9 +705,17 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             "command_count": len(EXPECTED_COMMANDS),
             "disabled_command_count": len(EXPECTED_DISABLED),
             "received_plan_disabled_command_count": 10,
+            "excluded_command_ids": list(EXPECTED_EXCLUDED_COMMANDS),
             "reconciliation": "EXACT_SOURCE_PARTITION_RECORDED_RECEIVED_COUNT_RETAINED_AS_NONAUTHORITATIVE",
             "source_authority": "GlobalCommandKindV1 and M6_RESEARCH_DISABLED_COMMANDS_V1 at the frozen subject",
             **runtime_bindings,
+        },
+        "launch_profile_exclusions": {
+            "status": "EXPLICITLY_UNSELECTED_RESEARCH_EXCLUSION",
+            "command_ids": list(EXPECTED_EXCLUDED_COMMANDS),
+            "registry_absent": True,
+            "production_authority": "NONE",
+            "reentry_requires_new_profile_decision": True,
         },
         "command_registry": commands,
         "global_state_projection": {
@@ -570,6 +724,13 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             "closure_status": "GAP_FIELD_TYPES_ROOT_CODEC_AND_RECONCILIATION_UNSPECIFIED",
             "authority": "ZenoLedger_candidate_state_before_publication",
             "canonical_order": list(EXPECTED_STATE_FIELDS),
+            "field_contracts": [
+                {
+                    "name": field,
+                    **_STATE_FIELD_CONTRACTS[field],
+                }
+                for field in EXPECTED_STATE_FIELDS
+            ],
             "fields": [
                 {
                     "name": field,
@@ -587,6 +748,13 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             "entry_key": ["asset", "owner", "custody", "economic_event"],
             "amount_representation": "nonnegative_integer_base_units",
             "delta_classes": list(EXPECTED_DELTA_CLASSES),
+            "class_contracts": [
+                {
+                    "class": delta_class,
+                    **_DELTA_CLASS_CONTRACTS[delta_class],
+                }
+                for delta_class in EXPECTED_DELTA_CLASSES
+            ],
             "laws": [
                 "internal_transfer_preserves_asset_supply",
                 "issue_and_burn_require_explicit_authority_and_supply_delta",

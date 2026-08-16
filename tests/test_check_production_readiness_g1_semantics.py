@@ -7,6 +7,7 @@ from tools.check_production_readiness_g1_semantics import (
     DEFAULT_OUTPUT,
     EXPECTED_COMMANDS,
     EXPECTED_DISABLED,
+    EXPECTED_EXCLUDED_COMMANDS,
     build_document,
     check_artifact,
 )
@@ -35,6 +36,28 @@ def test_source_partition_is_exact() -> None:
         for entry in entries
         if entry["v1_profile"] == "M6_RESEARCH_DISABLED_COMMANDS_V1"
     } == {command.value for command in EXPECTED_DISABLED}
+
+
+def test_emergency_shutdown_is_explicitly_excluded() -> None:
+    document = build_document()
+    exclusions = document["launch_profile_exclusions"]
+    command_ids = {entry["id"] for entry in document["command_registry"]}
+
+    assert exclusions["command_ids"] == list(EXPECTED_EXCLUDED_COMMANDS)
+    assert exclusions["registry_absent"] is True
+    assert command_ids.isdisjoint(EXPECTED_EXCLUDED_COMMANDS)
+    assert exclusions["reentry_requires_new_profile_decision"] is True
+
+
+def test_projection_and_delta_contracts_cover_declared_keys() -> None:
+    document = build_document()
+    projection = document["global_state_projection"]
+    algebra = document["value_delta_algebra"]
+
+    assert [field["name"] for field in projection["field_contracts"]] == projection["canonical_order"]
+    assert [entry["class"] for entry in algebra["class_contracts"]] == algebra["delta_classes"]
+    assert projection["closure_status"].startswith("GAP_")
+    assert algebra["closure_status"].startswith("GAP_")
 
 
 def test_frozen_dispatch_and_reject_guard_match_the_source_registry() -> None:

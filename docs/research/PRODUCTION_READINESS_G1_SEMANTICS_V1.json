@@ -1886,6 +1886,168 @@
       "release_state"
     ],
     "closure_status": "GAP_FIELD_TYPES_ROOT_CODEC_AND_RECONCILIATION_UNSPECIFIED",
+    "field_contracts": [
+      {
+        "delta_classes": [
+          "internal_transfer",
+          "external_in",
+          "external_out",
+          "refund",
+          "slash"
+        ],
+        "meaning": "owned asset amounts indexed by owner and custody",
+        "name": "balances",
+        "owner": "asset_accounting_core",
+        "terminal_obligation": "every claim is drained or assigned to an explicit reserve owner"
+      },
+      {
+        "delta_classes": [
+          "internal_transfer",
+          "external_in",
+          "external_out",
+          "refund"
+        ],
+        "meaning": "external custody and claim buckets for managed assets",
+        "name": "custody",
+        "owner": "custody_reconciliation_core",
+        "terminal_obligation": "no external effect exists without an ancestor custody claim"
+      },
+      {
+        "delta_classes": [
+          "mint",
+          "burn",
+          "internal_transfer"
+        ],
+        "meaning": "per-asset supply and protected-floor quantities",
+        "name": "supply",
+        "owner": "asset_issue_burn_policy",
+        "terminal_obligation": "issue, burn, and terminal supply disposition are explicit"
+      },
+      {
+        "delta_classes": [
+          "liability",
+          "mint",
+          "burn",
+          "refund",
+          "slash"
+        ],
+        "meaning": "owner- and asset-indexed liability amounts",
+        "name": "debt",
+        "owner": "zusd_monetary_core",
+        "terminal_obligation": "every liability has an exact close, redemption, or recovery owner"
+      },
+      {
+        "delta_classes": [
+          "internal_transfer",
+          "mint",
+          "burn",
+          "refund"
+        ],
+        "meaning": "pool reserves, LP shares, fees, and rounding residues",
+        "name": "lp_state",
+        "owner": "spot_and_liquidity_core",
+        "terminal_obligation": "final LP removal drains reserves, fees, and dust exactly"
+      },
+      {
+        "delta_classes": [
+          "liability",
+          "internal_transfer",
+          "external_out",
+          "refund",
+          "slash"
+        ],
+        "meaning": "margin, PnL, funding, insurance, and bad-debt liabilities",
+        "name": "perps_liabilities",
+        "owner": "perps_risk_and_settlement_core",
+        "terminal_obligation": "closed positions leave no unowned margin or liability"
+      },
+      {
+        "delta_classes": [
+          "internal_transfer",
+          "refund",
+          "slash",
+          "external_out"
+        ],
+        "meaning": "phase-bound deposits, bonds, inventory, and claims",
+        "name": "escrows",
+        "owner": "escrow_and_auction_custody_core",
+        "terminal_obligation": "cancel, expire, settle, or recover every escrow exactly once"
+      },
+      {
+        "delta_classes": [
+          "internal_transfer",
+          "mint",
+          "burn",
+          "refund",
+          "slash"
+        ],
+        "meaning": "fee, insurance, reward, and protected reserve buckets",
+        "name": "reserves",
+        "owner": "reserve_policy_core",
+        "terminal_obligation": "each reserve has a named beneficiary and terminal disposition"
+      },
+      {
+        "delta_classes": [
+          "internal_transfer",
+          "refund",
+          "slash",
+          "external_out"
+        ],
+        "meaning": "auction phase, commitment, winner, and settlement records",
+        "name": "auctions",
+        "owner": "sealed_bid_commit_reveal_settlement_core",
+        "terminal_obligation": "all bids and inventory reach a deterministic final phase"
+      },
+      {
+        "delta_classes": [
+          "external_out",
+          "refund",
+          "slash"
+        ],
+        "meaning": "requested, acknowledged, retried, and completed withdrawals",
+        "name": "withdrawals",
+        "owner": "withdrawal_and_outbox_core",
+        "terminal_obligation": "each withdrawal has one idempotent completion or refund"
+      },
+      {
+        "delta_classes": [
+          "external_out",
+          "refund",
+          "slash"
+        ],
+        "meaning": "committed external effect identities and delivery state",
+        "name": "outbox",
+        "owner": "committed_effect_outbox_core",
+        "terminal_obligation": "every effect descends from one committed outbox ancestor"
+      },
+      {
+        "delta_classes": [
+          "internal_transfer"
+        ],
+        "meaning": "canonical command decisions, receipts, and publication lineage",
+        "name": "history",
+        "owner": "durable_publication_core",
+        "terminal_obligation": "replay and recovery classify one immutable publication identity"
+      },
+      {
+        "delta_classes": [
+          "internal_transfer"
+        ],
+        "meaning": "consumed sender nonces, proof identities, and replay keys",
+        "name": "nullifiers",
+        "owner": "authenticated_replay_core",
+        "terminal_obligation": "one nonce or nullifier authorizes at most one transition"
+      },
+      {
+        "delta_classes": [
+          "internal_transfer"
+        ],
+        "meaning": "deployment, authority epoch, profile, and release bindings",
+        "name": "release_state",
+        "owner": "promotion_and_authority_core",
+        "terminal_obligation": "authority changes require an exact governed migration"
+      }
+    ],
     "fields": [
       {
         "name": "balances",
@@ -1975,6 +2137,15 @@
     "no_production_authority": true,
     "schema": "M6GlobalEconomicStateProjectionV1",
     "status": "DECLARED_RESEARCH_PROJECTION"
+  },
+  "launch_profile_exclusions": {
+    "command_ids": [
+      "zusd_emergency_shutdown"
+    ],
+    "production_authority": "NONE",
+    "reentry_requires_new_profile_decision": true,
+    "registry_absent": true,
+    "status": "EXPLICITLY_UNSELECTED_RESEARCH_EXCLUSION"
   },
   "nonclaims": [
     "This registry does not prove an economic invariant.",
@@ -2110,6 +2281,9 @@
     "disabled_command_count": 8,
     "disabled_guard_count": 8,
     "disabled_guard_matches_source_registry": true,
+    "excluded_command_ids": [
+      "zusd_emergency_shutdown"
+    ],
     "handler_binding_count": 33,
     "handler_bindings_match_frozen_dispatch": true,
     "received_plan_disabled_command_count": 10,
@@ -2136,6 +2310,106 @@
   "status": "G1_SEMANTIC_MAPPING_RESEARCH_ONLY",
   "value_delta_algebra": {
     "amount_representation": "nonnegative_integer_base_units",
+    "class_contracts": [
+      {
+        "class": "internal_transfer",
+        "law": "source debit equals destination credit in the same asset and event",
+        "required_fields": [
+          "asset",
+          "amount_atoms",
+          "source_owner",
+          "destination_owner",
+          "source_custody",
+          "destination_custody",
+          "economic_event"
+        ],
+        "supply_effect": "zero"
+      },
+      {
+        "class": "mint",
+        "law": "issue authority and supply increase are bound in one accepted transition",
+        "required_fields": [
+          "asset",
+          "amount_atoms",
+          "issuer_authority",
+          "recipient_owner",
+          "economic_event"
+        ],
+        "supply_effect": "positive_exact_amount"
+      },
+      {
+        "class": "burn",
+        "law": "burn authority, source custody, and supply decrease are bound in one accepted transition",
+        "required_fields": [
+          "asset",
+          "amount_atoms",
+          "burn_authority",
+          "source_owner",
+          "economic_event"
+        ],
+        "supply_effect": "negative_exact_amount"
+      },
+      {
+        "class": "liability",
+        "law": "the liability owner, asset, and before/after relation are explicit",
+        "required_fields": [
+          "asset",
+          "amount_atoms",
+          "liability_owner",
+          "liability_kind",
+          "economic_event"
+        ],
+        "supply_effect": "profile_defined_relation"
+      },
+      {
+        "class": "external_in",
+        "law": "ingress is authenticated and creates one custody claim before internal credit",
+        "required_fields": [
+          "asset",
+          "amount_atoms",
+          "source_effect",
+          "destination_custody",
+          "economic_event"
+        ],
+        "supply_effect": "outside_core_or_profile_defined"
+      },
+      {
+        "class": "external_out",
+        "law": "outflow requires an ancestor custody claim and one committed outbox identity",
+        "required_fields": [
+          "asset",
+          "amount_atoms",
+          "source_custody",
+          "destination_effect",
+          "economic_event"
+        ],
+        "supply_effect": "outside_core_or_profile_defined"
+      },
+      {
+        "class": "refund",
+        "law": "refund target and source event are explicit and idempotent",
+        "required_fields": [
+          "asset",
+          "amount_atoms",
+          "refund_owner",
+          "source_event",
+          "economic_event"
+        ],
+        "supply_effect": "zero_or_profile_defined"
+      },
+      {
+        "class": "slash",
+        "law": "slashing authority, beneficiary, and residue disposition are explicit",
+        "required_fields": [
+          "asset",
+          "amount_atoms",
+          "slashed_owner",
+          "beneficiary_owner",
+          "economic_event"
+        ],
+        "supply_effect": "zero_or_profile_defined"
+      }
+    ],
     "closure_status": "GAP_EVENT_EQUATIONS_OWNERS_AND_RECONCILIATION_UNSPECIFIED",
     "delta_classes": [
       "internal_transfer",

@@ -104,6 +104,8 @@
       "failing_evidence": [
         "The exact V1 source has 33 commands and 8 research-disabled commands; the received plan's 10-disabled count is retained as a non-authoritative observation.",
         "Economic policy choices and terminal paths remain open; the nine profile decisions are explicitly OPEN.",
+        "The global state field contracts and value-delta class contracts are declared but remain GAP until types, equations, ownership, and reconciliation are independently checked.",
+        "Emergency zUSD shutdown is explicitly absent from the launch registry and requires a new profile decision before any re-entry.",
         "The exact-subject BDD catalogue has 33 research-only workflows and 267 unimplemented scenario obligations; it has no executable evidence.",
         "The legacy ATDD contract is source-pinned to an older subject and is not a valid exact-subject G1 completion receipt.",
         "The broader claims-registry gate fails on the exact base because claims[123] references missing tools/check_derivatives_authorization_matrix.py."
