@@ -1,0 +1,423 @@
+{
+  "activation_gate": {
+    "activation_allowed": false,
+    "formal_composition_complete": false,
+    "genesis_distribution_complete": false,
+    "mounted": false,
+    "participant_compensation_complete": false,
+    "production_ready": false,
+    "runtime_implemented": false,
+    "selected_parameter_count": 0,
+    "tested_exact_release": false
+  },
+  "attack_query": {
+    "direct_program_profit": "protocol_funded_benefit - irreversible_external_protocol_fee - nonrecaptured_costs - forfeiture - expected_slash",
+    "excluded_from_bounded_result": [
+      "external market positions",
+      "unobserved related-party fee recapture",
+      "oracle and derivative manipulation gains",
+      "behavioral adoption or retention claims"
+    ],
+    "query": "exists admitted coalition action with total economic profit_atoms > 0"
+  },
+  "bounded_attack_evidence": {
+    "claim_ceiling": "Exact for the finite declared domains and direct protocol-funded benefit terms only; it is not an unbounded theorem or a model of external positions, recaptured fees, legal status, or behavior.",
+    "credit_direct_profit_search": {
+      "cases": 330000,
+      "counterexample": null,
+      "domain": "fee_atoms=0..32; earn_bps=0..9999",
+      "predicate": "floor(fee_atoms * earn_bps / 10000) - fee_atoms > 0"
+    },
+    "event_cap_profit_search": {
+      "cases": 330000,
+      "counterexample": null,
+      "domain": "fee_atoms=0..32; total_event_benefit_bps=0..9999",
+      "predicate": "floor(fee_atoms * total_event_benefit_bps / 10000) - fee_atoms > 0"
+    },
+    "named_mutant_witnesses": [
+      {
+        "benefit_atoms": 5,
+        "fee_atoms": 4,
+        "id": "CREDIT_RATE_AT_OR_ABOVE_FULL_FEE",
+        "mutant_bps": 12500,
+        "profit_atoms": 1
+      },
+      {
+        "benefit_atoms": 5,
+        "fee_atoms": 4,
+        "id": "STACKED_EVENT_BENEFIT_ABOVE_FULL_FEE",
+        "mutant_bps": 12500,
+        "profit_atoms": 1
+      },
+      {
+        "benefit_atoms": 2,
+        "fee_atoms": 1,
+        "id": "RAW_VOLUME_SUBSIDY_ABOVE_IRREVERSIBLE_FEE",
+        "profit_atoms": 1
+      },
+      {
+        "benefit_atoms": 2,
+        "fee_atoms": 1,
+        "id": "PER_WALLET_BASE_AWARD",
+        "profit_atoms": 1,
+        "wallet_count": 2
+      }
+    ],
+    "sybil_split_search": {
+      "cases": 2890000,
+      "counterexample": null,
+      "domain": "two fee lots each 0..16 atoms; earn_bps=0..9999",
+      "predicate": "sum(floor(split_fee * bps / 10000)) > floor(sum(fee) * bps / 10000)"
+    }
+  },
+  "bounded_model": {
+    "candidate_parameter_ranges": {
+      "aggregate_liability_bps": {
+        "maximum": 500,
+        "minimum": 100
+      },
+      "earn_bps": {
+        "hard_maximum_exclusive": 10000,
+        "maximum": 1500,
+        "minimum": 500
+      },
+      "event_benefit_bps": {
+        "hard_maximum_exclusive": 10000,
+        "maximum": 2500,
+        "minimum": 500
+      },
+      "expiry_epochs": {
+        "maximum": 365,
+        "minimum": 180
+      },
+      "growth_reserve_bps": {
+        "hard_maximum": 2500,
+        "maximum": 2000,
+        "minimum": 500
+      },
+      "lock_epochs": {
+        "candidates": [
+          90,
+          180,
+          365
+        ]
+      },
+      "lock_value_multiple_bps": {
+        "maximum": 100000,
+        "minimum": 20000
+      },
+      "maturity_epochs": {
+        "maximum": 90,
+        "minimum": 30
+      },
+      "redemption_bps": {
+        "hard_maximum_exclusive": 10000,
+        "maximum": 2500,
+        "minimum": 1000
+      }
+    },
+    "credit_lifecycle": {
+      "early_unlock": "cancel all pending credit into buyback carry",
+      "earn": "credit <= floor(earn_bps * irreversible cash fee / 10000) and named reserve",
+      "expiry": "close remaining liability into buyback carry",
+      "mature": "requires a later epoch and continuous-lock witness",
+      "prohibitions": [
+        "no transfer, cash redemption, ZDEX redemption, or same-event earn-and-redeem",
+        "reserve release cannot generate another credit or count as external revenue"
+      ],
+      "redeem": "credit <= floor(redemption_bps * later gross fee / 10000)",
+      "settlement_identity": "external cash fee + reserve release = gross fee"
+    },
+    "flywheel_sequence": [
+      "genuine finalized use pays an external protocol fee",
+      "the per-asset waterfall closes safety, service, and operations shortfalls",
+      "a selected small share of the remainder reserves delayed future-fee credits",
+      "the eligible remainder buys ZDEX and atomically burns the acquired amount",
+      "credit redemption requires a later fee-paying use and continued ZDEX lock",
+      "early unlock cancels credit and expired reserves return to buyback carry"
+    ],
+    "funding_sources": {
+      "bootstrap": {
+        "candidate": "Separately selected genesis or treasury lots may prefund qualified launch service budgets.",
+        "current_authority": "NONE_DISTRIBUTION_AND_ROLE_AMOUNTS_UNSELECTED"
+      },
+      "compensation_asset_rule": "A later profile must choose each role's payment asset. A genesis ZDEX service reserve releases existing supply; fee-asset payment consumes protocol revenue. Neither is implied here.",
+      "insufficiency_rule": "No service may earn an uncapped unfunded claim. The affected optional lane disables or carries pending work; release-critical services require bootstrap runway before activation.",
+      "recurring": [
+        "selected protocol share of finalized swap or auction fees",
+        "selected protocol-owned perps, borrowing, redemption, or liquidation fees",
+        "explicit opt-in interface or API fees kept distinct from LP and protocol fees",
+        "verified user-granted execution improvement for the solver that produced it"
+      ],
+      "restricted_nonrevenue": [
+        "LP and user property pays only its owner or authenticated settlement",
+        "Stability Pool and backstop principal absorbs only selected contractual risk",
+        "bonds return to owners or become admitted slash proceeds with restricted destinations"
+      ],
+      "role_routes": {
+        "hosting_security_legal_operations": "P3 capped budgets or separately quoted opt-in interface fee",
+        "keepers_liquidators_solvers_relayers": "P2 service budgets or exact user-granted improvement where applicable",
+        "oracles": "P2 role-specific reporter, aggregator, disputer, and watcher budgets plus separate bonds",
+        "proof_market": "P2 role-specific proof-reward prefund; direct execution survives exhaustion",
+        "stability_pool": "P0 principal and liquidation entitlement; optional separately prefunded P2 reward",
+        "validators": "P2 or P3 validator-operations prefund required before validator profile activation"
+      }
+    },
+    "integer_domain": "all accounting quantities are integer atoms in [0, 2^256 - 1]",
+    "priority_waterfall": [
+      {
+        "id": "P0_PROPERTY_AND_ACCRUED_ENTITLEMENTS",
+        "priority": 0,
+        "rule": "Reconcile user balances, LP principal and LP-owned fees, Stability Pool principal, bonds, backstop principal, and already accrued claims in separate custody."
+      },
+      {
+        "id": "P1_SAFETY_AND_SOLVENCY",
+        "priority": 1,
+        "rule": "Fund release-selected insurance, solvency, and safety minima."
+      },
+      {
+        "id": "P2_PARTICIPANT_AND_SERVICE_COMPENSATION",
+        "priority": 2,
+        "rule": "Prefund and pay proof, validator, oracle, keeper, liquidator, solver, relayer, Stability Pool reward, and other selected service contracts."
+      },
+      {
+        "id": "P3_OPERATIONS",
+        "priority": 3,
+        "rule": "Fund capped hosting, infrastructure, security, legal, audit, maintenance, and contributor obligations."
+      },
+      {
+        "id": "G_GROWTH_RESERVE",
+        "priority": 4,
+        "rule": "Optionally reserve a selected capped share for delayed future-fee credits; zero while unselected."
+      },
+      {
+        "id": "X_BUYBACK_OR_TYPED_CARRY",
+        "priority": 5,
+        "rule": "Route the remaining eligible surplus to guarded buyback or preserve it as same-purpose carry."
+      }
+    ],
+    "selected_parameters": {
+      "aggregate_liability_bps": null,
+      "earn_bps": null,
+      "event_benefit_bps": null,
+      "expiry_epochs": null,
+      "growth_reserve_bps": null,
+      "lock_epochs": null,
+      "lock_value_multiple_bps": null,
+      "maturity_epochs": null,
+      "redemption_bps": null
+    },
+    "source_lot_registry": {
+      "ADMITTED_SLASH_PROCEEDS": [
+        "C_SLASH_CARRY",
+        "P0_RESTITUTION",
+        "P1_SAFETY_RESERVE"
+      ],
+      "BACKSTOP_RISK_PRINCIPAL": [
+        "P0_ADMITTED_SLASH_TRANSFORM",
+        "P0_CARRY",
+        "P0_CONTRACTUAL_LOSS",
+        "P0_REFUND_OR_WITHDRAWAL"
+      ],
+      "BUYBACK_CARRY": [
+        "C_BUYBACK_CARRY",
+        "X_BUYBACK_EXECUTION"
+      ],
+      "CREDIT_RESERVE": [
+        "CREDIT_EXPIRY_TO_BUYBACK",
+        "CREDIT_REDEMPTION",
+        "C_CREDIT_RESERVE"
+      ],
+      "GENESIS_LOT": [
+        "C_GENESIS_CARRY",
+        "GENESIS_DISTRIBUTION"
+      ],
+      "MARKET_MAKER_LIQUIDITY": [
+        "P0_AUTHORIZED_SETTLEMENT",
+        "P0_CARRY",
+        "P0_CONTRACTUAL_LOSS",
+        "P0_REFUND_OR_WITHDRAWAL"
+      ],
+      "OPERATIONS_PREFUND": [
+        "C_OPERATIONS_CARRY",
+        "P0_REFUND_OR_WITHDRAWAL",
+        "P3_OPERATIONS_PAYMENT"
+      ],
+      "REFUNDABLE_SERVICE_BOND": [
+        "P0_ADMITTED_SLASH_TRANSFORM",
+        "P0_CARRY",
+        "P0_REFUND_OR_WITHDRAWAL"
+      ],
+      "REVENUE_CARRY": [
+        "C_BUYBACK_CARRY",
+        "C_REVENUE_CARRY",
+        "G_CREDIT_RESERVE_CREATE",
+        "P1_SAFETY_RESERVE",
+        "P2_SERVICE_PAYMENT",
+        "P3_OPERATIONS_PAYMENT",
+        "X_BUYBACK_EXECUTION"
+      ],
+      "SERVICE_PREFUND": [
+        "C_SERVICE_CARRY",
+        "P0_REFUND_OR_WITHDRAWAL",
+        "P2_SERVICE_PAYMENT"
+      ],
+      "THIRD_PARTY_PROPERTY": [
+        "P0_AUTHORIZED_SETTLEMENT",
+        "P0_CARRY",
+        "P0_REFUND_OR_WITHDRAWAL"
+      ],
+      "UNRESTRICTED_PROTOCOL_REVENUE": [
+        "C_BUYBACK_CARRY",
+        "C_REVENUE_CARRY",
+        "G_CREDIT_RESERVE_CREATE",
+        "P1_SAFETY_RESERVE",
+        "P2_SERVICE_PAYMENT",
+        "P3_OPERATIONS_PAYMENT",
+        "X_BUYBACK_EXECUTION"
+      ]
+    },
+    "surplus_definition": {
+      "cross_asset_rule": "Every equation is per asset. Cross-asset funding requires an exact release-selected conversion receipt before allocation.",
+      "excluded": [
+        "all P0 property and liabilities",
+        "genesis and treasury principal",
+        "purpose-bound service and operations prefunds",
+        "refundable bonds and unadmitted slash value",
+        "credit reserves and buyback carry",
+        "internal reserve releases and circular fee-credit value"
+      ],
+      "formula": [
+        "shortfall_Pn = max(0, release_selected_required_Pn - existing_same_purpose_prefund_Pn)",
+        "required_funding = shortfall_P1 + shortfall_P2 + shortfall_P3",
+        "require required_funding <= R; otherwise no surplus allocation exists",
+        "pre_growth_surplus = R - required_funding",
+        "0 <= growth_reserve <= floor(growth_reserve_bps * pre_growth_surplus / 10000)",
+        "eligible_surplus = pre_growth_surplus - growth_reserve",
+        "buyback_execution + buyback_carry = eligible_surplus"
+      ],
+      "interpretation": "Surplus is the unrestricted remainder after all due and selected reserve, service, and operating allocations. An unfunded promised cost makes surplus zero and blocks the affected feature; it cannot be relabeled as burn money.",
+      "revenue_set": "R[a,e] contains only finalized, unrestricted, externally funded protocol-revenue lots in asset a and epoch e"
+    },
+    "volume_and_retention_policy": {
+      "deterministic_campaign_formula": [
+        "qualifying_fee_i = sum(finalized external protocol-fee atoms not funded by credits or rebates)",
+        "ranking_score_i = qualifying_fee_i * selected_lock_weight_i",
+        "award_i <= floor(event_benefit_bps * qualifying_fee_i / 10000)",
+        "sum(awards) <= named_prefunded_campaign_budget",
+        "0 <= event_benefit_bps < 10000"
+      ],
+      "passive_wallet_balance_reward_weight": 0,
+      "permanent_raw_nominal_volume_emission_weight": 0,
+      "raw_volume_campaign_option": {
+        "allowed_role": "A bounded time-limited marketing campaign may use nominal volume as a threshold or leaderboard signal.",
+        "required_nonclaim": "Fixed prize pools, identity screens, and wash-trade disqualification bound treasury loss; they do not prove permissionless manipulation resistance.",
+        "status": "RESEARCH_ONLY_NONPROMOTABLE_WITHOUT_SEPARATE_MODEL"
+      },
+      "recommended_self_executing_basis": "finalized irreversible external protocol-fee atoms, with continuous ZDEX lock and a global benefit cap below those fees",
+      "transaction_count_reward_weight": 0,
+      "wallet_count_reward_weight": 0,
+      "why_fee_linked": "At a fixed fee rate, paid fees track volume while measuring the attacker's nonrefundable economic input directly. Zero-fee or rebated turnover contributes zero qualifying fee."
+    }
+  },
+  "comparative_context": {
+    "items": [
+      {
+        "observation": "Its official page describes swap fees, an LP share, a possible buy-and-burn share, and a separate LP incentive token; this is not evidence of a permanent trader raw-volume payout.",
+        "protocol": "PulseX",
+        "url": "https://pulsex.com/"
+      },
+      {
+        "observation": "Official limited campaigns have used volume thresholds, leaderboards, fixed prize pools, and discretionary wash/self-dealing disqualification.",
+        "protocol": "PancakeSwap campaigns",
+        "url": "https://blog.pancakeswap.finance/articles/trade-tst-trump-pepe-and-more-tokens-on-pancake-swap-perpetual-v2-on-chain-and-share-a-10-000-prize-pool"
+      },
+      {
+        "observation": "The published rewards model weights effective trading fees and staking and uses a daily reward cap.",
+        "protocol": "PancakeSwap perpetual trading rewards",
+        "url": "https://docs.pancakeswap.finance/trade/perpetual-trading/perpetual-trading-v2/trading-rewards-program"
+      }
+    ],
+    "observed_on": "2026-08-16",
+    "status": "NON_NORMATIVE_LINKS_RECHECK_BEFORE_SELECTION"
+  },
+  "evidence_lane": {
+    "deterministic_checks": [
+      "closed source-lot routing registry",
+      "exact input-allocation and successor conservation",
+      "single-use source-lot replay rejection",
+      "credit reserve equals pending plus matured liability",
+      "reject-is-no-op for lot and credit transitions",
+      "finite exact direct-profit, event-cap, and Sybil-split searches",
+      "named profitable semantic mutants"
+    ],
+    "required_before_selection": [
+      "complete participant amounts, assets, caps, claimant witnesses, and terminal paths",
+      "stateful coalition simulation including related LP, host, solver, and external positions",
+      "formal per-asset conservation and global benefit-composition proofs",
+      "legal and tax classification for genesis, rewards, credits, and service payments",
+      "runtime, migration, mounting, and exact release evidence"
+    ]
+  },
+  "game_surface": {
+    "actors": [
+      "traders and related-account coalitions",
+      "LPs and Stability Pool depositors",
+      "proof provers and proof-market suppliers",
+      "validators and finality operators",
+      "oracle reporters, aggregators, disputers, and watchers",
+      "keepers, liquidators, solvers, sequencers, and relayers",
+      "interface, API, static-mirror, and infrastructure hosts",
+      "security, legal, operations, and core contributors",
+      "treasury, reserve, and buyback executors"
+    ],
+    "observable_inputs": [
+      "finalized externally paid protocol-fee atoms",
+      "canonical source-lot lineage and single-use nullifier",
+      "release-selected service, lock, proof, and finality receipts",
+      "named prefunded role budgets and exact remaining capacity"
+    ],
+    "unobservable_or_incomplete_inputs": [
+      "real-world beneficial-owner uniqueness",
+      "off-ledger side payments and fee recapture",
+      "external spot, option, lending, or perpetual positions",
+      "whether nominally distinct wallets form one coalition"
+    ]
+  },
+  "implementation_source_pins": [
+    {
+      "path": "tools/production_readiness_g1_clbf_contract_v1.py",
+      "sha256": "a152f303bc417ef8275fc8515ca6ff6894233090c4d9788657027e1d756acaae"
+    },
+    {
+      "path": "tools/check_production_readiness_g1_clbf_model_v1.py",
+      "sha256": "640216be9d384da050a9d9d0e7ce45cd59b88f2cca6532ddf40da26e9caa5589"
+    }
+  ],
+  "production_promotion": false,
+  "promotion_boundary": {
+    "claim": "The research model makes restricted-fund routes explicit and establishes finite direct bounds for fee-linked benefits below 100%.",
+    "nonclaims": [
+      "No CLBF parameter, payment, genesis transfer, or raw-volume campaign is selected.",
+      "The model does not establish adoption, retention, token price, or legal treatment.",
+      "Finite searches do not prove unbounded arithmetic or coalition safety with external positions.",
+      "The Python model is unmounted and is not a ZenoLedger settlement implementation.",
+      "Source-lot validation does not authorize a source lot or authenticate a service receipt."
+    ]
+  },
+  "research_source_pins": [
+    {
+      "path": "docs/research/PRODUCTION_READINESS_G1_PARTIAL_POLICY_V2.json",
+      "sha256": "bd5f0221bd744250c4f6d23509dd932e2a1d2ac7c2598ad5dfeb9fb1bb87be27",
+      "subject": "ab1476dedee730b3a2c922a9cd19e2d3a02c7e27"
+    },
+    {
+      "path": "docs/research/ZDEX_VOLUME_HOLDING_HYPERDEFLATION_MECHANISM_REPORT_V1.md",
+      "sha256": "15b58102bc84a8476193c7ab5b3f373b11c382f3bc8fbaa7241df933f0b754a8",
+      "subject": "ab1476dedee730b3a2c922a9cd19e2d3a02c7e27"
+    }
+  ],
+  "reviewed_subject": "ab1476dedee730b3a2c922a9cd19e2d3a02c7e27",
+  "schema": "zenodex/production-readiness-g1-clbf-model/v1",
+  "status": "RESEARCH_ONLY_UNSELECTED"
+}

@@ -291,6 +291,46 @@ wallet count, and passive ownership retain zero reward weight. The report also
 defines host compensation as a capped service obligation with no settlement
 authority. It is advisory and
 does not alter the selected partial-policy artifact or activate any parameter.
+
+The executable research companion
+`docs/research/PRODUCTION_READINESS_G1_CLBF_MODEL_V1.json` closes the accounting
+ambiguity in the phrase `eligible surplus`. It admits only finalized,
+unrestricted, externally funded protocol-revenue lots. User and LP property,
+Stability Pool principal, refundable bonds, backstop and market-maker
+principal, genesis lots, purpose-bound prefunds, credit reserves, internal
+reserve releases, and buyback carry remain excluded. For each asset and epoch:
+
+```text
+shortfall_Pn = max(0, selected_required_Pn - existing_same_purpose_prefund_Pn)
+required_funding = shortfall_P1 + shortfall_P2 + shortfall_P3
+require required_funding <= R
+pre_growth_surplus = R - required_funding
+eligible_surplus = pre_growth_surplus - selected_growth_reserve
+buyback_execution + buyback_carry = eligible_surplus
+```
+
+Proof markets, validators, oracle roles, keepers, liquidators, relayers, and
+other enabled work use separately selected and prefunded P2 budgets. Hosting,
+infrastructure, security, legal, audit, and operations use capped P3 budgets or
+a separately quoted opt-in interface fee. Stability Pool and LP principal and
+their accrued property remain P0; an optional reward requires its own P2
+prefund. Bootstrap funding may come only from a later selected genesis or
+treasury lot, and ongoing funding may come only from selected protocol-owned
+fee lanes or other explicitly admitted value sources. If a required budget is
+unfunded, the affected optional lane remains disabled; it cannot manufacture a
+claim against future buyback funds.
+
+The companion gives wallet count, transaction count, passive wallet balance,
+and permanent raw nominal-volume emissions zero weight. Its self-executing
+candidate uses finalized external protocol fees plus a continuous ZDEX lock,
+with every event-linked protocol benefit capped below the fee that funds it. A
+time-limited, fixed-budget marketing campaign may later use nominal volume as
+an eligibility or ranking signal, but such a campaign remains separately
+unselected and carries no permissionless manipulation-resistance claim. The
+typed source-lot and credit transitions, finite integer searches, and named
+mutants are research evidence only. They are unmounted and provide no payment,
+burn, distribution, settlement, or release authority.
+
 The companion entrypoint audit
 `docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json` binds the same
 33-command registry to 12 exact source surfaces. It records the six M6

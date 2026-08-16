@@ -644,6 +644,8 @@ The rehearsal succeeds when the second machine emits `ok=true`, an
 - `docs/research/PRODUCTION_READINESS_G1_PARTIAL_POLICY_V2.json` (2B/E18 bounded-supply decision plus scaled modeling allocations and 22 open participant-compensation obligations; launch remains blocked)
 - `tools/check_production_readiness_g1_partial_policy_v2.py --check` (fail-closed partial-policy check; no distribution, settlement, or release authority)
 - `docs/research/ZDEX_VOLUME_HOLDING_HYPERDEFLATION_MECHANISM_REPORT_V1.md` (advisory CLBF mechanism study; all incentive parameters and activations remain unselected)
+- `docs/research/PRODUCTION_READINESS_G1_CLBF_MODEL_V1.json` (executable source-lot, funding-waterfall, and future-fee-credit research model; activation remains blocked)
+- `tools/check_production_readiness_g1_clbf_model_v1.py --check --json` (fail-closed finite-model check; it grants no payment, burn, campaign, or release authority)
 - `docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json` (base-subject plus verified-repair-descendant static route and writer audit; no production writer is declared)
 - `tools/check_production_readiness_g1_entrypoints.py --check` (fail-closed entrypoint audit; dynamic reachability remains unknown)
 - `docs/SPECIFICATION.md`
