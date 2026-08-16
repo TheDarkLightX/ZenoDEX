@@ -102,6 +102,10 @@ from src.integration.m6_commit_port_v1 import (
     finality_evidence_matches_published_record_v1,
     reverify_zrpf_handle_v1,
 )
+from src.integration.m6_finality_ownership_v1 import (
+    own_tau_batch_certificate_v1,
+    own_verified_zeno_ledger_finality_v1,
+)
 from src.state.canonical import canonical_hex_fixed_allow_0x
 
 DURABLE_SCHEMA_V1 = "zenodex/m6-durable-block/v1"
@@ -117,6 +121,7 @@ MANIFEST_FILE_V1 = "manifest.json"
 _OUTBOX_DELIVERY_ROOT_SUFFIX_V1 = ".outbox-delivery-v1"
 _OUTBOX_SUBMISSION_LEASES_DIR_V1 = "submission-leases"
 _OUTBOX_SUBMISSION_LEASE_DOMAIN_V1 = "m6-outbox-submission-lease-filename-v1"
+_NATIVE_PATH_TYPE = type(Path())
 
 _ACTIVE_DURABLE_ROOT: ContextVar[Path | None] = ContextVar(
     "m6_active_durable_root",
@@ -128,6 +133,10 @@ _ACTIVE_DURABLE_ROOT_FD: ContextVar[int | None] = ContextVar(
 )
 class M6DurableCorruptionError(RuntimeError):
     """The on-disk M6 layout cannot be reconstructed without ambiguity."""
+
+
+class _M6DurablePostInstallCleanupError(M6DurableCorruptionError):
+    """A bundle was installed before its descriptor cleanup failed."""
 
 
 class _M6ExternalEffectLeaseBusy(M6DurableCorruptionError):
@@ -226,6 +235,16 @@ def _root(value: object, *, name: str, allow_zero: bool = False) -> str:
     if value != canonical or (not allow_zero and canonical == ZERO_ROOT_V1):
         raise M6DurableCorruptionError(f"{name} is not an allowed canonical root")
     return canonical
+
+
+def _owned_durable_root_path(root: object) -> Path:
+    """Convert only inert exact path representations at the trust boundary."""
+
+    if type(root) is str:
+        return Path(cast(str, root))
+    if type(root) is _NATIVE_PATH_TYPE:
+        return Path(str(root))
+    raise TypeError("durable M6 root must be an exact str or native Path")
 
 
 def _nonnegative_int(value: object, *, name: str) -> int:
@@ -617,6 +636,9 @@ def _write_bundle_directory(
         parent_fd, final_name = _open_bound_parent(final_dir)
         temp_dir: Path | None = None
         temp_name: str | None = None
+        installed = False
+        primary_error: Exception | None = None
+        cleanup_error: OSError | None = None
         try:
             try:
                 os.stat(final_name, dir_fd=parent_fd, follow_symlinks=False)
@@ -641,15 +663,38 @@ def _write_bundle_directory(
                 src_dir_fd=parent_fd,
                 dst_dir_fd=parent_fd,
             )
+            installed = True
             _fsync_directory(parent_dir)
         except OSError as exc:
-            raise M6DurableCorruptionError(
+            primary_error = M6DurableCorruptionError(
                 f"cannot install durable bundle {final_dir}: {exc}"
-            ) from exc
+            )
+            primary_error.__cause__ = exc
+        except Exception as exc:
+            primary_error = exc
         finally:
-            if temp_dir is not None and (temp_dir.exists() or temp_dir.is_symlink()):
-                shutil.rmtree(temp_dir)
-            os.close(parent_fd)
+            if temp_dir is not None:
+                try:
+                    if temp_dir.exists() or temp_dir.is_symlink():
+                        shutil.rmtree(temp_dir)
+                except OSError as exc:
+                    cleanup_error = exc
+            try:
+                os.close(parent_fd)
+            except OSError as exc:
+                if cleanup_error is None:
+                    cleanup_error = exc
+        if primary_error is not None:
+            if cleanup_error is not None:
+                primary_error.add_note(f"durable bundle cleanup also failed: {cleanup_error}")
+            raise primary_error
+        if cleanup_error is not None:
+            error_type = (
+                _M6DurablePostInstallCleanupError
+                if installed
+                else M6DurableCorruptionError
+            )
+            raise error_type(f"cannot close durable bundle descriptor for {final_dir}") from cleanup_error
         return
     if final_dir.exists() or final_dir.is_symlink():
         raise M6DurableCorruptionError(f"durable block already exists: {final_dir}")
@@ -1474,7 +1519,7 @@ class M6DurableLedgerStoreV1:
     ) -> None:
         if type(subject) is not M6PromotionSubjectV1:
             raise TypeError("durable ledger subject must be the exact owned type")
-        self._root = Path(root)
+        self._root = _owned_durable_root_path(root)
         self._subject = deepcopy(subject)
         self._finality_verifier = finality_verifier
         self._parent_lock_name = f".{self._root.name}.m6-root.lock"
@@ -1504,7 +1549,7 @@ class M6DurableLedgerStoreV1:
             raise TypeError("durable ledger subject must be the exact owned type")
         if type(initial_state) is not M6ApplicationStateV1:
             raise TypeError("durable genesis state must be the exact owned type")
-        root_path = Path(root)
+        root_path = _owned_durable_root_path(root)
         if root_path.is_symlink():
             raise M6DurableCorruptionError(f"durable M6 root must not be a symlink: {root_path}")
         if root_path.exists() and not root_path.is_dir():
@@ -1769,6 +1814,13 @@ class M6DurableLedgerStoreV1:
                 record=result.record,
                 reason=result.reason,
             )
+        expected_block_id = _block_id(
+            self._subject,
+            parent_block_id=reopened.head_block_id,
+            parent_state_root=reopened.state.state_root,
+            parent_head=reopened.state.head,
+            record=result.record,
+        )
         try:
             block_id = self._install_commit_unlocked(reopened, result.record, result.state)
             self._write_head_unlocked(
@@ -1776,6 +1828,15 @@ class M6DurableLedgerStoreV1:
                 result.state,
                 expected_block_id=reopened.head_block_id,
                 expected_state_root=reopened.state.state_root,
+            )
+        except _M6DurablePostInstallCleanupError as cause:
+            return self._recover_post_install_cleanup_failure(
+                reopened=reopened,
+                candidate_id=candidate_id,
+                result=result,
+                block_id=expected_block_id,
+                cause=cause,
+                changed_head_replay=changed_head_replay,
             )
         except M6DurableCorruptionError as cause:
             try:
@@ -1797,6 +1858,48 @@ class M6DurableLedgerStoreV1:
             block_id=block_id,
             record=result.record,
         )
+
+    def _recover_post_install_cleanup_failure(
+        self,
+        *,
+        reopened: M6DurableReopenV1,
+        candidate_id: str,
+        result: CommitResultV1,
+        block_id: str,
+        cause: _M6DurablePostInstallCleanupError,
+        changed_head_replay: Callable[
+            [M6DurableReopenV1],
+            M6DurableCommitResultV1 | None,
+        ],
+    ) -> M6DurableCommitResultV1:
+        """Finish a block whose descriptor cleanup failed after installation."""
+
+        if result.record is None:
+            raise cause
+        try:
+            loaded = self._load_block_unlocked(block_id)
+            if loaded.record != result.record or loaded.state != result.state:
+                raise M6DurableCorruptionError(
+                    "post-install block does not match the verified publication"
+                )
+            try:
+                recovered = self._load_reopened_unlocked()
+            except M6DurableCorruptionError:
+                self._write_head_unlocked(
+                    block_id,
+                    result.state,
+                    expected_block_id=reopened.head_block_id,
+                    expected_state_root=reopened.state.state_root,
+                )
+                recovered = self._load_reopened_unlocked()
+        except M6DurableCorruptionError as recovery_error:
+            raise cause from recovery_error
+        if recovered.head_block_id != block_id:
+            raise cause
+        replay = changed_head_replay(recovered)
+        if replay is None or replay.candidate_id != candidate_id:
+            raise cause
+        return replay
 
     @staticmethod
     def _lease_busy_commit_result(
@@ -1975,6 +2078,18 @@ class M6DurableLedgerStoreV1:
     ) -> M6DurableCommitResultV1:
         if type(candidate) is not AcceptCandidateV1:
             raise TypeError("durable publication candidate is not the exact owned type")
+        try:
+            finality = own_verified_zeno_ledger_finality_v1(finality)
+            tau_certificate = own_tau_batch_certificate_v1(tau_certificate)
+        except (TypeError, ValueError) as exc:
+            with self._file_lock():
+                reopened = self._load_reopened_unlocked()
+                return M6DurableCommitResultV1(
+                    status=CommitStatusV1.FINALITY_REJECTED,
+                    state=reopened.state,
+                    candidate_id=candidate.candidate_id,
+                    reason=str(exc),
+                )
         commands = (candidate.command,)
         with self._acknowledgment_submission_leases(commands) as leases_available:
             with self._file_lock():
@@ -2042,6 +2157,18 @@ class M6DurableLedgerStoreV1:
     ) -> M6DurableCommitResultV1:
         if type(verified_root) is not VerifiedZRPFRootV1:
             raise TypeError("ZRPF publication handle is not the exact verified type")
+        try:
+            finality = own_verified_zeno_ledger_finality_v1(finality)
+            tau_certificate = own_tau_batch_certificate_v1(tau_certificate)
+        except (TypeError, ValueError) as exc:
+            with self._file_lock():
+                reopened = self._load_reopened_unlocked()
+                return M6DurableCommitResultV1(
+                    status=CommitStatusV1.FINALITY_REJECTED,
+                    state=reopened.state,
+                    candidate_id=verified_root.candidate_id,
+                    reason=str(exc),
+                )
         try:
             checked_root = reverify_zrpf_handle_v1(self._subject, verified_root)
         except ValueError as exc:
@@ -2129,6 +2256,18 @@ class M6DurableLedgerStoreV1:
 
         if type(direct) is not DirectBatchCandidateV1:
             raise TypeError("durable direct batch is not the exact owned type")
+        try:
+            finality = own_verified_zeno_ledger_finality_v1(finality)
+            tau_certificate = own_tau_batch_certificate_v1(tau_certificate)
+        except (TypeError, ValueError) as exc:
+            with self._file_lock():
+                reopened = self._load_reopened_unlocked()
+                return M6DurableCommitResultV1(
+                    status=CommitStatusV1.FINALITY_REJECTED,
+                    state=reopened.state,
+                    candidate_id=direct.candidate_id,
+                    reason=str(exc),
+                )
         commands = direct.commands
         with self._acknowledgment_submission_leases(commands) as leases_available:
             with self._file_lock():

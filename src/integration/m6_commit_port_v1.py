@@ -59,6 +59,10 @@ from ..core.m6_zrpf_v1 import (
     verify_zrpf_structure_v1,
 )
 from ..state.canonical import canonical_hex_fixed_allow_0x
+from .m6_finality_ownership_v1 import (
+    own_tau_batch_certificate_v1,
+    own_verified_zeno_ledger_finality_v1,
+)
 
 M6_CANONICAL_JSON_MAX_DEPTH_V1 = 64
 
@@ -753,6 +757,17 @@ class M6CommitPortV1:
         """Publish one direct candidate after finality and expected-head checks."""
         if type(candidate) is not AcceptCandidateV1:
             raise TypeError("commit candidate is not the exact owned type")
+        try:
+            finality = own_verified_zeno_ledger_finality_v1(finality)
+            tau_certificate = own_tau_batch_certificate_v1(tau_certificate)
+        except (TypeError, ValueError) as exc:
+            with self._lock:
+                return CommitResultV1(
+                    status=CommitStatusV1.FINALITY_REJECTED,
+                    state=self._state,
+                    candidate_id=candidate.candidate_id,
+                    reason=str(exc),
+                )
         with self._lock:
             finality_reason = _finality_evidence_reason(self._subject, finality, tau_certificate)
             if finality_reason is not None:
@@ -842,6 +857,17 @@ class M6CommitPortV1:
         if type(verified_root) is not VerifiedZRPFRootV1:
             raise TypeError("ZRPF publication handle is not the exact verified type")
         try:
+            finality = own_verified_zeno_ledger_finality_v1(finality)
+            tau_certificate = own_tau_batch_certificate_v1(tau_certificate)
+        except (TypeError, ValueError) as exc:
+            with self._lock:
+                return CommitResultV1(
+                    status=CommitStatusV1.FINALITY_REJECTED,
+                    state=self._state,
+                    candidate_id=verified_root.candidate_id,
+                    reason=str(exc),
+                )
+        try:
             checked_root = reverify_zrpf_handle_v1(self._subject, verified_root)
         except ValueError as exc:
             with self._lock:
@@ -891,6 +917,17 @@ class M6CommitPortV1:
             raise TypeError("direct batch candidate is not the exact owned type")
         if len(direct.commands) < 2:
             raise ValueError("direct batch publication requires at least two commands")
+        try:
+            finality = own_verified_zeno_ledger_finality_v1(finality)
+            tau_certificate = own_tau_batch_certificate_v1(tau_certificate)
+        except (TypeError, ValueError) as exc:
+            with self._lock:
+                return CommitResultV1(
+                    status=CommitStatusV1.FINALITY_REJECTED,
+                    state=self._state,
+                    candidate_id=direct.candidate_id,
+                    reason=str(exc),
+                )
         with self._lock:
             finality_reason = _finality_evidence_reason(self._subject, finality, tau_certificate)
             if finality_reason is not None:
@@ -947,6 +984,7 @@ class M6CommitPortV1:
         proposal: _CommitProposalV1,
         finality: VerifiedZenoLedgerFinalityV1,
     ) -> CommitResultV1:
+        finality = own_verified_zeno_ledger_finality_v1(finality)
         proposal = deepcopy(proposal)
         with self._lock:
             committed_post_root = self._committed_ids.get(proposal.candidate_id)
@@ -1070,21 +1108,10 @@ class M6CommitPortV1:
 
         if self._finality_verifier is None:
             return None, "external finality verifier is unavailable"
-        if type(caller_finality) is not VerifiedZenoLedgerFinalityV1:
-            return None, "finality evidence must be verifier-created"
-        if (
-            type(caller_finality.certificate) is not ZenoLedgerFinalityCertificateV1
-            or type(caller_finality.verification_receipt)
-            is not M6FinalityVerificationReceiptV1
-            or (
-                caller_finality.tau_certificate is not None
-                and type(caller_finality.tau_certificate) is not TauBatchCertificateV1
-            )
-        ):
-            return None, "finality evidence contains an unowned nested value"
-        caller_snapshot = deepcopy(caller_finality)
-        if type(caller_snapshot) is not VerifiedZenoLedgerFinalityV1:
-            return None, "finality evidence could not be owned"
+        try:
+            caller_snapshot = own_verified_zeno_ledger_finality_v1(caller_finality)
+        except (TypeError, ValueError) as exc:
+            return None, str(exc)
         if caller_snapshot.candidate_parent_head != expected_state.head:
             return None, "finality evidence parent head mismatch"
         if caller_snapshot.candidate_head != proposal.post_state.state_root:
@@ -1107,8 +1134,8 @@ class M6CommitPortV1:
                 expected_execution_receipt_root=(
                     None if proposal.zrpf_receipt is None else proposal.zrpf_receipt.receipt_root
                 ),
-                certificate=deepcopy(caller_snapshot.certificate),
-                tau_certificate=deepcopy(caller_snapshot.tau_certificate),
+                certificate=caller_snapshot.certificate,
+                tau_certificate=caller_snapshot.tau_certificate,
             )
             receipt = self._finality_verifier.verify_finality(request.detached_copy())
             if type(receipt) is not M6FinalityVerificationReceiptV1:
@@ -1349,16 +1376,19 @@ def finality_evidence_matches_published_record_v1(
 ) -> bool:
     """Share the exact replay-authority predicate with durable storage."""
 
-    if type(finality) is not VerifiedZenoLedgerFinalityV1:
+    try:
+        owned_finality = own_verified_zeno_ledger_finality_v1(finality)
+        owned_tau_certificate = own_tau_batch_certificate_v1(tau_certificate)
+    except (TypeError, ValueError):
         return False
-    if _finality_record_binding_reason(subject, record, finality) is not None:
+    if _finality_record_binding_reason(subject, record, owned_finality) is not None:
         return False
     return (
-        record.finality == finality.certificate
+        record.finality == owned_finality.certificate
         and record.finality_receipt is not None
-        and record.finality_receipt.receipt_root == finality.verification_receipt.receipt_root
-        and record.tau_certificate == finality.tau_certificate
-        and finality.tau_certificate == tau_certificate
+        and record.finality_receipt.receipt_root == owned_finality.verification_receipt.receipt_root
+        and record.tau_certificate == owned_finality.tau_certificate
+        and owned_finality.tau_certificate == owned_tau_certificate
     )
 
 

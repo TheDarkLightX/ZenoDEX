@@ -1754,6 +1754,86 @@ def test_durable_publish_rejects_finality_subclass_before_provider_hooks(tmp_pat
     assert tuple((root / "blocks").iterdir()) == ()
 
 
+def test_durable_publication_detaches_nested_finality_before_lock_hooks(tmp_path: Path) -> None:
+    """RIPR: exact outer evidence cannot smuggle an executable nested field."""
+
+    hooks: list[str] = []
+
+    class HostileRoot(str):
+        def __eq__(self, _other: object) -> bool:
+            hooks.append("tau.batch_id.__eq__")
+            raise RuntimeError("PRIVATE_FINALITY_ROOT_HOOK")
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    candidate = _candidate(subject, initial, 1, "nested-hostile-finality")
+    finality, tau = _finality_and_tau(subject, candidate, "nested-hostile-finality-batch")
+    hostile_tau = object.__new__(TauBatchCertificateV1)
+    for field_name in (
+        "batch_id",
+        "tau_profile_root",
+        "chain_id",
+        "ordered_command_hashes",
+        "ordered_nonce_identities",
+        "candidate_parent_head",
+        "certificate_root",
+    ):
+        field_value = object.__getattribute__(tau, field_name)
+        if field_name == "batch_id":
+            field_value = HostileRoot(cast(str, field_value))
+        object.__setattr__(hostile_tau, field_name, field_value)
+
+    port = M6CommitPortV1(subject, initial, _TEST_FINALITY_VERIFIER)
+    separate_tau_result = port.publish(candidate, finality, hostile_tau)
+    assert separate_tau_result.status is CommitStatusV1.FINALITY_REJECTED
+    assert separate_tau_result.reason == "finality evidence contains an unowned nested value: tau_certificate.batch_id"
+    assert hooks == []
+
+    hostile_finality = object.__new__(VerifiedZenoLedgerFinalityV1)
+    for slot in VerifiedZenoLedgerFinalityV1.__slots__:
+        field_value = object.__getattribute__(finality, slot)
+        if slot == "_tau_certificate":
+            field_value = hostile_tau
+        object.__setattr__(hostile_finality, slot, field_value)
+
+    result = port.publish(candidate, hostile_finality, tau)
+
+    assert result.status is CommitStatusV1.FINALITY_REJECTED
+    assert result.reason == "finality evidence contains an unowned nested value: tau_certificate.batch_id"
+    assert hooks == []
+    assert result.state == initial
+
+    root = tmp_path / "ledger"
+    store = M6DurableLedgerStoreV1.create(root, subject, initial)
+    durable_result = store.publish(candidate, hostile_finality, tau)
+    assert durable_result.status is CommitStatusV1.FINALITY_REJECTED
+    assert durable_result.reason == result.reason
+    assert hooks == []
+    assert store.reopen().head_block_id == "genesis"
+
+
+def test_durable_root_rejects_hostile_fspath_before_conversion() -> None:
+    """RIPR: root conversion cannot execute caller-defined path hooks."""
+
+    hooks: list[str] = []
+
+    class HostilePath:
+        def __fspath__(self) -> str:
+            hooks.append("__fspath__")
+            raise RuntimeError("PRIVATE_FSPATH_HOOK")
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    hostile = HostilePath()
+
+    with pytest.raises(TypeError, match="exact str or native Path"):
+        _M6DurableLedgerStoreV1(hostile, subject)
+    with pytest.raises(TypeError, match="exact str or native Path"):
+        _M6DurableLedgerStoreV1.create(hostile, subject, initial)
+
+    assert hooks == []
+
+
 def test_durable_replay_rejects_forged_outbox_projection(tmp_path: Path) -> None:
     subject = _subject()
     initial = replace(
@@ -2717,6 +2797,48 @@ def test_head_parent_fsync_failure_reopens_and_retry_is_idempotent(
     retry = store.publish(candidate, finality, tau)
     assert retry.status is CommitStatusV1.ALREADY_COMMITTED
     assert retry.block_id == installed_block_id
+
+
+def test_post_install_descriptor_close_failure_recovers_idempotently(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RIPR: a close fault after rename cannot strand a verified orphan."""
+
+    subject = _subject()
+    initial = initial_application_state_v1(subject)
+    root = tmp_path / "ledger"
+    store = M6DurableLedgerStoreV1.create(root, subject, initial)
+    candidate = _candidate(subject, initial, 1, "close-after-install")
+    finality, tau = _finality_and_tau(subject, candidate, "close-after-install-batch")
+    original_fsync = durable_store._fsync_directory
+    original_close = durable_store.os.close
+    armed = False
+
+    def arm_after_commit_parent_fsync(path: Path) -> None:
+        nonlocal armed
+        original_fsync(path)
+        if path.name == durable_store.BLOCKS_DIR_V1:
+            armed = True
+
+    def fail_next_close(fd: int) -> None:
+        nonlocal armed
+        if armed:
+            armed = False
+            raise OSError("simulated post-install descriptor close failure")
+        original_close(fd)
+
+    monkeypatch.setattr(durable_store, "_fsync_directory", arm_after_commit_parent_fsync)
+    monkeypatch.setattr(durable_store.os, "close", fail_next_close)
+
+    recovered = store.publish(candidate, finality, tau)
+
+    assert recovered.status is CommitStatusV1.ALREADY_COMMITTED
+    assert recovered.block_id is not None
+    reopened = store.reopen()
+    assert reopened.head_block_id == recovered.block_id
+    assert reopened.state.state_root == candidate.post_state.state_root
+    assert tuple((root / "blocks").iterdir()) == (root / "blocks" / recovered.block_id,)
 
 
 def test_tampered_state_file_is_rejected_by_manifest_digest(tmp_path: Path) -> None:
