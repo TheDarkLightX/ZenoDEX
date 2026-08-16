@@ -142,3 +142,39 @@ def test_profile_decisions_remain_explicitly_open() -> None:
     assert all(decision["affected_workflow_families"] for decision in decisions)
     assert artifact["g1_exit_gate"]["status"] == "BLOCKED_OPEN_PROFILE_DECISIONS"
     assert artifact["g1_exit_gate"]["closed_command_count"] == 0
+
+
+def test_profile_selection_tampering_fails_closed(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    artifact["profile_decisions"][0]["selected_profile"] = "UNVERIFIED_PROFILE"
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["production_ready"] is False
+
+
+def test_profile_option_shape_tampering_fails_closed(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    artifact["profile_option_shapes"]["EXCLUDE_UNTIL_CLOSED"]["meaning"] = "enable now"
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["production_ready"] is False
+
+
+def test_profile_gate_completion_tampering_fails_closed(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    artifact["g1_exit_gate"]["complete"] = True
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["production_ready"] is False
