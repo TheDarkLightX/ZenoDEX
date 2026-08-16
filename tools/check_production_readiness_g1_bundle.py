@@ -231,6 +231,27 @@ def _check_decision_and_state_bindings(documents: Mapping[str, Mapping[str, Any]
     if set(semantic_delta.get("delta_classes", [])) != set(state_algebra.get("delta_classes", [])) or len(semantic_delta.get("delta_classes", [])) != 8:
         errors.append("value-delta classes drift between semantics and state-delta artifacts")
     mapping = documents["state_delta"].get("runtime_mapping_gap_ledger", {})
+    global_effect_surface = mapping.get("global_effect_kind_surface", {}) if isinstance(mapping, Mapping) else {}
+    m6_surface = mapping.get("m6_value_delta_surface", {}) if isinstance(mapping, Mapping) else {}
+    m6_class_type_value = m6_surface.get("delta_class_type") if isinstance(m6_surface, Mapping) else None
+    m6_entry_type_value = m6_surface.get("delta_entry_type") if isinstance(m6_surface, Mapping) else None
+    m6_contract_shape_value = m6_surface.get("abstract_contract_shape") if isinstance(m6_surface, Mapping) else None
+    m6_class_type = m6_class_type_value if isinstance(m6_class_type_value, Mapping) else {}
+    m6_entry_type = m6_entry_type_value if isinstance(m6_entry_type_value, Mapping) else {}
+    m6_contract_shape = m6_contract_shape_value if isinstance(m6_contract_shape_value, Mapping) else {}
+    expected_required_fields: list[str] = []
+    for contract in semantic_delta.get("class_contracts", []):
+        if not isinstance(contract, Mapping):
+            continue
+        for field in contract.get("required_fields", []):
+            if field not in expected_required_fields:
+                expected_required_fields.append(field)
+    expected_m6_missing_fields = [
+        field
+        for field in expected_required_fields
+        if field not in m6_entry_type.get("declared_fields", [])
+    ]
+    m6_pins = m6_surface.get("source_pins") if isinstance(m6_surface, Mapping) else None
     if (
         not isinstance(mapping, Mapping)
         or mapping.get("source_subject") != BASE_SOURCE_SUBJECT
@@ -243,6 +264,45 @@ def _check_decision_and_state_bindings(documents: Mapping[str, Mapping[str, Any]
         or set(mapping.get("unmapped_abstract_fields", [])) != {"lp_state", "auctions"}
         or set(mapping.get("runtime_effect_kinds_without_abstract_delta_candidate", []))
         != {"RESERVE", "FEE_ALLOCATION", "REWARD"}
+        or global_effect_surface.get("runtime_class") != state_delta.RUNTIME_EFFECT_KIND_CLASS
+        or global_effect_surface.get("runtime_effect_kind_count") != 9
+        or global_effect_surface.get("runtime_effect_kinds")
+        != documents["state_delta"]["runtime_projection"]["effect_kind_type"]["kinds"]
+        or not isinstance(m6_surface, Mapping)
+        or m6_surface.get("source_subject") != BASE_SOURCE_SUBJECT
+        or m6_surface.get("status") != "M6_DELTA_SOURCE_SHAPE_RESEARCH_ONLY"
+        or m6_surface.get("semantic_mapping_status")
+        != "GAP_ENTRY_FIELDS_DO_NOT_CLOSE_ABSTRACT_DELTA_CONTRACTS"
+        or m6_surface.get("production_authority") != "NONE"
+        or not isinstance(m6_pins, list)
+        or len(m6_pins) != 1
+        or not isinstance(m6_pins[0], Mapping)
+        or m6_pins[0].get("path") != state_delta.M6_DELTA_SOURCE_PATH
+        or m6_pins[0].get("subject") != BASE_SOURCE_SUBJECT
+        or m6_pins[0].get("sha256") != state_delta.M6_DELTA_SOURCE_SHA256
+        or m6_class_type.get("runtime_delta_class_count") != 9
+        or m6_class_type.get("runtime_delta_classes")
+        != list(state_delta.M6_EXPECTED_RUNTIME_DELTA_CLASSES)
+        or m6_class_type.get("abstract_delta_classes")
+        != list(semantic_delta.get("delta_classes", []))
+        or m6_class_type.get("abstract_delta_classes_without_runtime_kind") != []
+        or m6_class_type.get("runtime_delta_classes_without_abstract_class") != ["noop"]
+        or m6_entry_type.get("declared_field_count") != 5
+        or m6_entry_type.get("declared_fields")
+        != list(state_delta.M6_EXPECTED_DELTA_ENTRY_FIELDS)
+        or m6_entry_type.get("literal_projection_key_order")
+        != list(state_delta.M6_EXPECTED_DELTA_ENTRY_FIELDS)
+        or m6_entry_type.get("declared_fields_match_literal_projection") is not True
+        or m6_contract_shape.get("source_artifact")
+        != state_delta.ABSTRACT_DELTA_CONTRACT_PROJECTION_PATH
+        or m6_contract_shape.get("source_subject") != BASE_SOURCE_SUBJECT
+        or m6_contract_shape.get("projection") != "value_delta_algebra"
+        or m6_contract_shape.get("projection_digest_status")
+        != "EXACT_SUBJECT_HELPER_BASELINE_RESEARCH_ONLY"
+        or m6_contract_shape.get("projection_sha256")
+        != state_delta.ABSTRACT_DELTA_CONTRACT_PROJECTION_SHA256
+        or m6_contract_shape.get("required_fields_missing_from_runtime_entry")
+        != expected_m6_missing_fields
     ):
         errors.append("runtime state/delta mapping gap ledger drifted or overclaims authority")
     return errors
@@ -314,8 +374,9 @@ def _consistency_checks(documents: Mapping[str, Mapping[str, Any]], repo_root: P
             ("SOURCE_SUBJECT_CONTRACT", "base artifacts plus repair-descendant overlay"),
             ("COMMAND_REGISTRY_BINDING", "33 commands and exact 8-command disabled partition"),
             ("PROFILE_DECISION_BINDING", "9 open decisions with no selected authority"),
-            ("STATE_DELTA_BINDING", "14 state fields and 8 value-delta classes"),
-            ("RUNTIME_MAPPING_GAP_BINDING", "source-shape candidates and explicit unmapped runtime kinds"),
+            ("STATE_DELTA_BINDING", "14 state fields and 8 abstract value-delta classes"),
+            ("RUNTIME_MAPPING_GAP_BINDING", "global effect-kind candidates and explicit unmapped runtime kinds"),
+            ("M6_DELTA_SURFACE_GAP_BINDING", "M6 ValueDeltaClassV1 and ValueDeltaEntryV1 shape and contract gap"),
             ("SAFE_HOLD_AND_QUARANTINE", "33 unmounted commands and stale ATDD fail-closed status"),
             ("RESEARCH_ONLY_POSTURE", "no production promotion, writer, or executable BDD evidence"),
             ("CURRENT_HEAD_ANCESTRY", "base and repair subjects are ancestors of current HEAD"),
@@ -329,6 +390,11 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     checks = _consistency_checks(documents, repo_root)
     semantic = documents["semantics"]
     bdd_workflows = documents["bdd"]["workflows"]
+    state_mapping = documents["state_delta"]["runtime_mapping_gap_ledger"]
+    m6_surface = state_mapping["m6_value_delta_surface"]
+    m6_class_type = m6_surface["delta_class_type"]
+    m6_entry_type = m6_surface["delta_entry_type"]
+    m6_contract_shape = m6_surface["abstract_contract_shape"]
     return {
         "schema": SCHEMA,
         "version": "v1",
@@ -369,10 +435,29 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
                 documents["state_delta"]["runtime_mapping_gap_ledger"]["unmapped_abstract_fields"]
             ),
             "runtime_mapping_unmapped_effect_kind_count": len(
-                documents["state_delta"]["runtime_mapping_gap_ledger"][
+                state_mapping[
                     "runtime_effect_kinds_without_abstract_delta_candidate"
                 ]
             ),
+            "m6_value_delta_surface": {
+                "status": m6_surface["status"],
+                "source_subject": m6_surface["source_subject"],
+                "semantic_mapping_status": m6_surface["semantic_mapping_status"],
+                "production_authority": m6_surface["production_authority"],
+                "runtime_delta_classes_without_abstract_class": m6_class_type[
+                    "runtime_delta_classes_without_abstract_class"
+                ],
+                "abstract_contract_projection_sha256": m6_contract_shape[
+                    "projection_sha256"
+                ],
+                "abstract_contract_projection_digest_status": m6_contract_shape[
+                    "projection_digest_status"
+                ],
+                "entry_declared_field_count": m6_entry_type["declared_field_count"],
+                "entry_missing_required_field_count": len(
+                    m6_contract_shape["required_fields_missing_from_runtime_entry"]
+                ),
+            },
             "bdd_scenario_count": sum(len(workflow["scenarios"]) for workflow in bdd_workflows),
         },
         "consistency_checks": checks,
@@ -407,6 +492,12 @@ def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         errors.append(str(exc))
     registry = observed.get("registry_binding")
     obligations = observed.get("obligation_binding")
+    m6_binding_value = (
+        obligations.get("m6_value_delta_surface")
+        if isinstance(obligations, Mapping)
+        else None
+    )
+    m6_binding = m6_binding_value if isinstance(m6_binding_value, Mapping) else {}
     return {
         "schema": "zenodex/production-readiness-g1-bundle-check/v1",
         "ok": not errors,
@@ -425,6 +516,14 @@ def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         )
         if isinstance(obligations, Mapping)
         else 0,
+        "m6_runtime_delta_surplus_count": len(
+            m6_binding.get("runtime_delta_classes_without_abstract_class", [])
+        )
+        if isinstance(m6_binding.get("runtime_delta_classes_without_abstract_class"), list)
+        else 0,
+        "m6_entry_missing_required_field_count": m6_binding.get(
+            "entry_missing_required_field_count", 0
+        ),
         "errors": errors,
         "nonclaim": "PASS means only that the G1 research artifacts are mutually consistent and source-bound; it does not promote G1 or production readiness.",
     }

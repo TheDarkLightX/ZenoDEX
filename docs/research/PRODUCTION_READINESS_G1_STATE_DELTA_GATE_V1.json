@@ -242,9 +242,214 @@
         "status": "UNPROVED_CANDIDATE"
       }
     ],
+    "global_effect_kind_surface": {
+      "delta_mappings": [
+        {
+          "abstract_delta_class": "internal_transfer",
+          "candidate_runtime_effect_kinds": [
+            "ACCOUNT_MOVEMENT"
+          ],
+          "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+        },
+        {
+          "abstract_delta_class": "mint",
+          "candidate_runtime_effect_kinds": [
+            "ISSUE"
+          ],
+          "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+        },
+        {
+          "abstract_delta_class": "burn",
+          "candidate_runtime_effect_kinds": [
+            "BURN"
+          ],
+          "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+        },
+        {
+          "abstract_delta_class": "liability",
+          "candidate_runtime_effect_kinds": [
+            "LIABILITY"
+          ],
+          "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+        },
+        {
+          "abstract_delta_class": "external_in",
+          "candidate_runtime_effect_kinds": [
+            "CUSTODY",
+            "ACCOUNT_MOVEMENT"
+          ],
+          "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+        },
+        {
+          "abstract_delta_class": "external_out",
+          "candidate_runtime_effect_kinds": [
+            "CUSTODY",
+            "ACCOUNT_MOVEMENT"
+          ],
+          "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+        },
+        {
+          "abstract_delta_class": "refund",
+          "candidate_runtime_effect_kinds": [
+            "ACCOUNT_MOVEMENT",
+            "CUSTODY"
+          ],
+          "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+        },
+        {
+          "abstract_delta_class": "slash",
+          "candidate_runtime_effect_kinds": [
+            "SLASH"
+          ],
+          "status": "UNPROVED_EFFECT_KIND_CANDIDATE"
+        }
+      ],
+      "production_authority": "NONE",
+      "runtime_class": "EconomicEffectKindV1",
+      "runtime_effect_kind_count": 9,
+      "runtime_effect_kinds": [
+        "ACCOUNT_MOVEMENT",
+        "ISSUE",
+        "BURN",
+        "CUSTODY",
+        "LIABILITY",
+        "RESERVE",
+        "FEE_ALLOCATION",
+        "REWARD",
+        "SLASH"
+      ],
+      "runtime_effect_kinds_without_abstract_delta_candidate": [
+        "RESERVE",
+        "FEE_ALLOCATION",
+        "REWARD"
+      ],
+      "runtime_source_path": "src/core/global_settlement_types_v1.py",
+      "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED",
+      "status": "GAP_STRUCTURAL_CANDIDATES_ONLY",
+      "unmapped_abstract_delta_classes": []
+    },
+    "m6_value_delta_surface": {
+      "abstract_contract_shape": {
+        "projection": "value_delta_algebra",
+        "projection_digest_status": "EXACT_SUBJECT_HELPER_BASELINE_RESEARCH_ONLY",
+        "projection_sha256": "a1195431c7416fa74fce77061f5001b4aa66196b244acb904b64588858d3b3d2",
+        "required_field_count": 18,
+        "required_fields": [
+          "asset",
+          "amount_atoms",
+          "source_owner",
+          "destination_owner",
+          "source_custody",
+          "destination_custody",
+          "economic_event",
+          "issuer_authority",
+          "recipient_owner",
+          "burn_authority",
+          "liability_owner",
+          "liability_kind",
+          "source_effect",
+          "destination_effect",
+          "refund_owner",
+          "source_event",
+          "slashed_owner",
+          "beneficiary_owner"
+        ],
+        "required_fields_missing_from_runtime_entry": [
+          "amount_atoms",
+          "source_owner",
+          "destination_owner",
+          "source_custody",
+          "destination_custody",
+          "economic_event",
+          "issuer_authority",
+          "recipient_owner",
+          "burn_authority",
+          "liability_owner",
+          "liability_kind",
+          "source_effect",
+          "destination_effect",
+          "refund_owner",
+          "source_event",
+          "slashed_owner",
+          "beneficiary_owner"
+        ],
+        "source_artifact": "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json",
+        "source_subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      },
+      "delta_class_type": {
+        "abstract_delta_class_count": 8,
+        "abstract_delta_classes": [
+          "internal_transfer",
+          "mint",
+          "burn",
+          "liability",
+          "external_in",
+          "external_out",
+          "refund",
+          "slash"
+        ],
+        "abstract_delta_classes_without_runtime_kind": [],
+        "class": "ValueDeltaClassV1",
+        "class_line": 307,
+        "path": "src/core/m6_safe_mount_types_v1.py",
+        "runtime_delta_class_count": 9,
+        "runtime_delta_classes": [
+          "internal_transfer",
+          "mint",
+          "burn",
+          "liability",
+          "external_in",
+          "external_out",
+          "noop",
+          "refund",
+          "slash"
+        ],
+        "runtime_delta_classes_without_abstract_class": [
+          "noop"
+        ]
+      },
+      "delta_entry_type": {
+        "class": "ValueDeltaEntryV1",
+        "class_line": 2032,
+        "declared_field_count": 5,
+        "declared_fields": [
+          "delta_class",
+          "owner",
+          "asset",
+          "custody",
+          "delta_atoms"
+        ],
+        "declared_fields_match_literal_projection": true,
+        "literal_projection_key_order": [
+          "delta_class",
+          "owner",
+          "asset",
+          "custody",
+          "delta_atoms"
+        ],
+        "path": "src/core/m6_safe_mount_types_v1.py"
+      },
+      "nonclaims": [
+        "Matching lower-case enum values does not prove event, authority, party, or terminal semantics.",
+        "The generic five-field ValueDeltaEntryV1 shape does not prove that every abstract delta contract is representable.",
+        "This source-shape inventory does not prove that ValueDeltaEntryV1 is mounted on an authoritative settlement path."
+      ],
+      "production_authority": "NONE",
+      "semantic_mapping_status": "GAP_ENTRY_FIELDS_DO_NOT_CLOSE_ABSTRACT_DELTA_CONTRACTS",
+      "source_pins": [
+        {
+          "path": "src/core/m6_safe_mount_types_v1.py",
+          "sha256": "e9dfe00abd72f20f6c49986dd5af5a7f37042ee100b9f6d26f6b719b8e5623f8",
+          "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+        }
+      ],
+      "source_subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+      "status": "M6_DELTA_SOURCE_SHAPE_RESEARCH_ONLY"
+    },
     "nonclaims": [
       "A candidate name or effect-kind correspondence does not prove semantic ownership or event coverage.",
       "A missing dedicated runtime field does not prove that a value cannot be carried indirectly.",
+      "The global EconomicEffectKindV1 inventory is distinct from the M6 ValueDeltaClassV1 and ValueDeltaEntryV1 surface.",
       "Unmapped runtime effect kinds do not authorize their use or establish unsupported behavior safety."
     ],
     "production_authority": "NONE",

@@ -7,7 +7,9 @@ from pathlib import Path
 import pytest
 
 from tools.check_production_readiness_g1_state_delta_gate import (
+    ABSTRACT_DELTA_CONTRACT_PROJECTION_SHA256,
     DEFAULT_OUTPUT,
+    M6_DELTA_SOURCE_PATH,
     REPO_ROOT,
     RUNTIME_SOURCE_PATH,
     _canonical_method_keys,
@@ -34,6 +36,10 @@ def test_state_delta_gate_is_exact_and_non_authoritative() -> None:
     assert report["runtime_mapping_delta_class_count"] == 8
     assert report["unmapped_abstract_field_count"] == 2
     assert report["unmapped_runtime_effect_kind_count"] == 3
+    assert report["m6_runtime_delta_class_count"] == 9
+    assert report["m6_runtime_delta_surplus_count"] == 1
+    assert report["m6_entry_field_count"] == 5
+    assert report["m6_entry_missing_required_field_count"] == 17
 
 
 def test_declared_fields_and_delta_classes_keep_open_gap_status() -> None:
@@ -78,6 +84,36 @@ def test_runtime_shape_inventory_is_source_bound_without_closing_g1() -> None:
         "REWARD",
     ]
     assert mapping["production_authority"] == "NONE"
+
+    m6_surface = mapping["m6_value_delta_surface"]
+    assert m6_surface["status"] == "M6_DELTA_SOURCE_SHAPE_RESEARCH_ONLY"
+    assert m6_surface["source_subject"] == "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    assert m6_surface["semantic_mapping_status"] == (
+        "GAP_ENTRY_FIELDS_DO_NOT_CLOSE_ABSTRACT_DELTA_CONTRACTS"
+    )
+    assert m6_surface["production_authority"] == "NONE"
+    assert m6_surface["abstract_contract_shape"]["projection_sha256"] == (
+        ABSTRACT_DELTA_CONTRACT_PROJECTION_SHA256
+    )
+    assert m6_surface["abstract_contract_shape"]["projection_digest_status"] == (
+        "EXACT_SUBJECT_HELPER_BASELINE_RESEARCH_ONLY"
+    )
+    assert m6_surface["delta_class_type"]["runtime_delta_class_count"] == 9
+    assert m6_surface["delta_class_type"]["abstract_delta_classes_without_runtime_kind"] == []
+    assert m6_surface["delta_class_type"]["runtime_delta_classes_without_abstract_class"] == [
+        "noop"
+    ]
+    assert m6_surface["delta_entry_type"]["declared_fields"] == [
+        "delta_class",
+        "owner",
+        "asset",
+        "custody",
+        "delta_atoms",
+    ]
+    assert m6_surface["delta_entry_type"]["declared_fields_match_literal_projection"] is True
+    assert "amount_atoms" in m6_surface["abstract_contract_shape"][
+        "required_fields_missing_from_runtime_entry"
+    ]
 
 
 def test_closure_tampering_fails_closed(tmp_path: Path) -> None:
@@ -132,6 +168,52 @@ def test_runtime_mapping_ledger_tampering_fails_closed(tmp_path: Path) -> None:
     assert report["production_ready"] is False
 
 
+def test_m6_delta_surface_tampering_fails_closed(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    artifact["runtime_mapping_gap_ledger"]["m6_value_delta_surface"][
+        "semantic_mapping_status"
+    ] = "CLOSED"
+    candidate = tmp_path / "candidate.json"
+    candidate.write_bytes(_encoded(artifact))
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["m6_runtime_delta_class_count"] == 9
+    assert report["m6_entry_missing_required_field_count"] == 17
+    assert report["production_ready"] is False
+
+
+def test_m6_abstract_contract_baseline_tampering_fails_closed(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    artifact["runtime_mapping_gap_ledger"]["m6_value_delta_surface"][
+        "abstract_contract_shape"
+    ]["projection_sha256"] = "0" * 64
+    candidate = tmp_path / "candidate.json"
+    candidate.write_bytes(_encoded(artifact))
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["m6_abstract_contract_projection_sha256"] == "0" * 64
+    assert report["production_ready"] is False
+
+
+def test_malformed_nested_m6_shape_returns_structured_failure(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    artifact["runtime_mapping_gap_ledger"]["m6_value_delta_surface"][
+        "delta_class_type"
+    ] = None
+    candidate = tmp_path / "candidate.json"
+    candidate.write_bytes(_encoded(artifact))
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["m6_runtime_delta_class_count"] == 0
+    assert report["production_ready"] is False
+
+
 def test_runtime_source_drift_fails_closed() -> None:
     runtime_path = REPO_ROOT / RUNTIME_SOURCE_PATH
 
@@ -145,6 +227,22 @@ def test_runtime_source_drift_fails_closed() -> None:
 
     assert report["ok"] is False
     assert any("runtime source drift" in error for error in report["errors"])
+    assert report["production_ready"] is False
+
+
+def test_m6_delta_source_drift_fails_closed() -> None:
+    m6_path = REPO_ROOT / M6_DELTA_SOURCE_PATH
+
+    def read_bytes_with_drift(path: Path) -> bytes:
+        value = path.read_bytes()
+        if path == m6_path:
+            return value + b"\n# isolated M6 delta drift\n"
+        return value
+
+    report = check_artifact(DEFAULT_OUTPUT, read_current=read_bytes_with_drift)
+
+    assert report["ok"] is False
+    assert any(M6_DELTA_SOURCE_PATH in error for error in report["errors"])
     assert report["production_ready"] is False
 
 

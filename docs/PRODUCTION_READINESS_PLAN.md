@@ -268,6 +268,19 @@ while runtime effect kinds `RESERVE`, `FEE_ALLOCATION`, and `REWARD` have no
 abstract delta-class candidate. These are source-shape gaps, not semantic
 proofs; all mappings remain `UNPROVED_CANDIDATE` or
 `UNPROVED_EFFECT_KIND_CANDIDATE` and production authority remains `NONE`.
+The ledger now keeps that global effect-plan inventory distinct from the M6
+value-delta surface. The exact-base `ValueDeltaClassV1` enum contains the eight
+abstract delta names plus `noop`. `ValueDeltaEntryV1` has five declared and
+canonically projected fields: `delta_class`, `owner`, `asset`, `custody`, and
+`delta_atoms`. This is an exact field-name comparison: seventeen of the
+eighteen required abstract contract field names remain absent from that generic
+entry shape, including `amount_atoms`, owner-role, custody-role, authority,
+liability-kind, effect, and event fields. The M6 surface is source-pinned and
+remains research-only with semantic status
+`GAP_ENTRY_FIELDS_DO_NOT_CLOSE_ABSTRACT_DELTA_CONTRACTS`.
+The exact field-name comparison is additionally bound to a helper-baseline
+SHA-256 projection digest, so a change to the abstract contract inventory fails
+the state gate for explicit review.
 The preserved legacy ATDD contract is explicitly quarantined by
 `docs/research/PRODUCTION_READINESS_G1_LEGACY_ATDD_QUARANTINE_V1.json`: its
 18 workflows and 81 scenarios remain historical research context, while the
@@ -279,9 +292,10 @@ The cross-artifact bundle
 `docs/research/PRODUCTION_READINESS_G1_BUNDLE_V1.json` verifies that these
 seven research artifacts share the exact 33-command registry, eight-command
 disabled partition, nine open profile decisions, 14 state fields, and eight
-value-delta classes. It also verifies the explicit repair-descendant overlay
-relation and the no-launch/quarantine posture. A passing bundle is drift
-evidence only and leaves G1 blocked.
+abstract value-delta classes. It also verifies the explicit repair-descendant overlay
+relation, the global effect-kind gap, the M6 value-delta surface gap, and the
+no-launch/quarantine posture. A passing bundle is drift evidence only and
+leaves G1 blocked.
 
 Replay the slice with:
 

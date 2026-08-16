@@ -28,6 +28,34 @@ RUNTIME_CANONICAL_SOURCE_PATH = "src/state/canonical.py"
 RUNTIME_STATE_CLASS = "GlobalEconomicStateV1"
 RUNTIME_EFFECT_KIND_CLASS = "EconomicEffectKindV1"
 RUNTIME_CANONICAL_HELPER = "canonical_json_bytes"
+M6_DELTA_SOURCE_PATH = "src/core/m6_safe_mount_types_v1.py"
+M6_DELTA_CLASS = "ValueDeltaClassV1"
+M6_DELTA_ENTRY_CLASS = "ValueDeltaEntryV1"
+M6_DELTA_SOURCE_SHA256 = "e9dfe00abd72f20f6c49986dd5af5a7f37042ee100b9f6d26f6b719b8e5623f8"
+M6_EXPECTED_RUNTIME_DELTA_CLASSES = (
+    "internal_transfer",
+    "mint",
+    "burn",
+    "liability",
+    "external_in",
+    "external_out",
+    "noop",
+    "refund",
+    "slash",
+)
+M6_EXPECTED_DELTA_ENTRY_FIELDS = (
+    "delta_class",
+    "owner",
+    "asset",
+    "custody",
+    "delta_atoms",
+)
+ABSTRACT_DELTA_CONTRACT_PROJECTION_PATH = (
+    "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json"
+)
+ABSTRACT_DELTA_CONTRACT_PROJECTION_SHA256 = (
+    "a1195431c7416fa74fce77061f5001b4aa66196b244acb904b64588858d3b3d2"
+)
 
 RUNTIME_STATE_FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
     "balances": ("balances",),
@@ -352,10 +380,99 @@ def _runtime_projection(
     }
 
 
+def _m6_value_delta_surface(
+    repo_root: Path,
+    algebra: Mapping[str, Any],
+    *,
+    read_current: Callable[[Path], bytes] | None = None,
+) -> dict[str, Any]:
+    frozen = _frozen_source(repo_root, M6_DELTA_SOURCE_PATH, read_current=read_current)
+    tree = ast.parse(frozen.decode("utf-8"), filename=M6_DELTA_SOURCE_PATH)
+    delta_class = _class_definition(tree, M6_DELTA_CLASS)
+    delta_entry = _class_definition(tree, M6_DELTA_ENTRY_CLASS)
+    runtime_delta_classes = _enum_values(delta_class)
+    entry_fields = _annotated_field_names(delta_entry)
+    entry_projection_keys = _canonical_method_keys(delta_entry)
+    source_sha256 = hashlib.sha256(frozen).hexdigest()
+    if source_sha256 != M6_DELTA_SOURCE_SHA256:
+        raise ValueError("M6 delta source hash drifted from the exact-subject baseline")
+    if runtime_delta_classes != M6_EXPECTED_RUNTIME_DELTA_CLASSES:
+        raise ValueError("M6 delta enum values drifted from the exact-subject baseline")
+    if entry_fields != M6_EXPECTED_DELTA_ENTRY_FIELDS:
+        raise ValueError("M6 delta entry fields drifted from the exact-subject baseline")
+    if entry_projection_keys != M6_EXPECTED_DELTA_ENTRY_FIELDS:
+        raise ValueError("M6 delta entry projection drifted from the exact-subject baseline")
+
+    abstract_delta_classes = tuple(algebra["delta_classes"])
+    abstract_contract_projection_sha256 = hashlib.sha256(_encoded(algebra)).hexdigest()
+    required_fields: list[str] = []
+    for contract in algebra["class_contracts"]:
+        for field in contract["required_fields"]:
+            if field not in required_fields:
+                required_fields.append(field)
+    missing_required_fields = [field for field in required_fields if field not in entry_fields]
+    abstract_without_runtime_kind = [
+        delta for delta in abstract_delta_classes if delta not in runtime_delta_classes
+    ]
+    runtime_without_abstract_class = [
+        delta for delta in runtime_delta_classes if delta not in abstract_delta_classes
+    ]
+
+    return {
+        "status": "M6_DELTA_SOURCE_SHAPE_RESEARCH_ONLY",
+        "source_subject": semantics.SOURCE_SUBJECT,
+        "source_pins": [
+            {
+                "path": M6_DELTA_SOURCE_PATH,
+                "sha256": source_sha256,
+                "subject": semantics.SOURCE_SUBJECT,
+            }
+        ],
+        "delta_class_type": {
+            "path": M6_DELTA_SOURCE_PATH,
+            "class": M6_DELTA_CLASS,
+            "class_line": delta_class.lineno,
+            "runtime_delta_class_count": len(runtime_delta_classes),
+            "runtime_delta_classes": list(runtime_delta_classes),
+            "abstract_delta_class_count": len(abstract_delta_classes),
+            "abstract_delta_classes": list(abstract_delta_classes),
+            "abstract_delta_classes_without_runtime_kind": abstract_without_runtime_kind,
+            "runtime_delta_classes_without_abstract_class": runtime_without_abstract_class,
+        },
+        "delta_entry_type": {
+            "path": M6_DELTA_SOURCE_PATH,
+            "class": M6_DELTA_ENTRY_CLASS,
+            "class_line": delta_entry.lineno,
+            "declared_field_count": len(entry_fields),
+            "declared_fields": list(entry_fields),
+            "literal_projection_key_order": list(entry_projection_keys),
+            "declared_fields_match_literal_projection": entry_projection_keys == entry_fields,
+        },
+        "abstract_contract_shape": {
+            "source_artifact": ABSTRACT_DELTA_CONTRACT_PROJECTION_PATH,
+            "source_subject": semantics.SOURCE_SUBJECT,
+            "projection": "value_delta_algebra",
+            "projection_sha256": abstract_contract_projection_sha256,
+            "projection_digest_status": "EXACT_SUBJECT_HELPER_BASELINE_RESEARCH_ONLY",
+            "required_field_count": len(required_fields),
+            "required_fields": required_fields,
+            "required_fields_missing_from_runtime_entry": missing_required_fields,
+        },
+        "semantic_mapping_status": "GAP_ENTRY_FIELDS_DO_NOT_CLOSE_ABSTRACT_DELTA_CONTRACTS",
+        "production_authority": "NONE",
+        "nonclaims": [
+            "Matching lower-case enum values does not prove event, authority, party, or terminal semantics.",
+            "The generic five-field ValueDeltaEntryV1 shape does not prove that every abstract delta contract is representable.",
+            "This source-shape inventory does not prove that ValueDeltaEntryV1 is mounted on an authoritative settlement path.",
+        ],
+    }
+
+
 def _runtime_mapping_gap_ledger(
     state: Mapping[str, Any],
     algebra: Mapping[str, Any],
     runtime: Mapping[str, Any],
+    m6_delta_surface: Mapping[str, Any],
 ) -> dict[str, Any]:
     runtime_fields = tuple(runtime["state_type"]["declared_fields"])
     runtime_effect_kinds = tuple(runtime["effect_kind_type"]["kinds"])
@@ -396,6 +513,25 @@ def _runtime_mapping_gap_ledger(
             }
         )
 
+    global_effect_kind_surface = {
+        "runtime_class": RUNTIME_EFFECT_KIND_CLASS,
+        "runtime_source_path": RUNTIME_SOURCE_PATH,
+        "runtime_effect_kind_count": len(runtime_effect_kinds),
+        "runtime_effect_kinds": list(runtime_effect_kinds),
+        "delta_mappings": delta_mappings,
+        "unmapped_abstract_delta_classes": [
+            mapping["abstract_delta_class"]
+            for mapping in delta_mappings
+            if mapping["status"] == "NO_RUNTIME_EFFECT_KIND_CANDIDATE"
+        ],
+        "runtime_effect_kinds_without_abstract_delta_candidate": [
+            kind for kind in runtime_effect_kinds if kind not in candidate_effect_kinds
+        ],
+        "status": "GAP_STRUCTURAL_CANDIDATES_ONLY",
+        "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED",
+        "production_authority": "NONE",
+    }
+
     return {
         "status": "GAP_STRUCTURAL_CANDIDATES_ONLY",
         "source_subject": runtime["source_subject"],
@@ -403,6 +539,8 @@ def _runtime_mapping_gap_ledger(
         "abstract_delta_class_count": len(delta_mappings),
         "field_mappings": field_mappings,
         "delta_mappings": delta_mappings,
+        "global_effect_kind_surface": global_effect_kind_surface,
+        "m6_value_delta_surface": dict(m6_delta_surface),
         "unmapped_abstract_fields": [
             mapping["abstract_field"]
             for mapping in field_mappings
@@ -424,6 +562,7 @@ def _runtime_mapping_gap_ledger(
         "nonclaims": [
             "A candidate name or effect-kind correspondence does not prove semantic ownership or event coverage.",
             "A missing dedicated runtime field does not prove that a value cannot be carried indirectly.",
+            "The global EconomicEffectKindV1 inventory is distinct from the M6 ValueDeltaClassV1 and ValueDeltaEntryV1 surface.",
             "Unmapped runtime effect kinds do not authorize their use or establish unsupported behavior safety.",
         ],
     }
@@ -437,11 +576,20 @@ def build_document(
     semantic = semantics.build_document(repo_root)
     state = semantic["global_state_projection"]
     algebra = semantic["value_delta_algebra"]
+    abstract_contract_projection_sha256 = hashlib.sha256(_encoded(algebra)).hexdigest()
+    if abstract_contract_projection_sha256 != ABSTRACT_DELTA_CONTRACT_PROJECTION_SHA256:
+        raise ValueError(
+            "abstract delta contract projection drifted from the helper baseline: "
+            f"{abstract_contract_projection_sha256}"
+        )
     state_projection = _state_projection(state)
     value_delta_algebra = _value_delta_algebra(algebra)
     runtime_projection = _runtime_projection(repo_root, read_current=read_current)
+    m6_delta_surface = _m6_value_delta_surface(
+        repo_root, algebra, read_current=read_current
+    )
     runtime_mapping_gap_ledger = _runtime_mapping_gap_ledger(
-        state, algebra, runtime_projection
+        state, algebra, runtime_projection, m6_delta_surface
     )
     return {
         "schema": SCHEMA,
@@ -513,6 +661,31 @@ def check_artifact(
     algebra = observed.get("value_delta_algebra")
     runtime = observed.get("runtime_projection")
     mapping = observed.get("runtime_mapping_gap_ledger")
+    m6_delta_surface = mapping.get("m6_value_delta_surface") if isinstance(mapping, Mapping) else None
+    m6_delta_class_type_value = (
+        m6_delta_surface.get("delta_class_type")
+        if isinstance(m6_delta_surface, Mapping)
+        else None
+    )
+    m6_delta_entry_type_value = (
+        m6_delta_surface.get("delta_entry_type")
+        if isinstance(m6_delta_surface, Mapping)
+        else None
+    )
+    m6_contract_shape_value = (
+        m6_delta_surface.get("abstract_contract_shape")
+        if isinstance(m6_delta_surface, Mapping)
+        else None
+    )
+    m6_delta_class_type = (
+        m6_delta_class_type_value if isinstance(m6_delta_class_type_value, Mapping) else {}
+    )
+    m6_delta_entry_type = (
+        m6_delta_entry_type_value if isinstance(m6_delta_entry_type_value, Mapping) else {}
+    )
+    m6_contract_shape = (
+        m6_contract_shape_value if isinstance(m6_contract_shape_value, Mapping) else {}
+    )
     obligations = observed.get("closure_obligations")
     field_count = state.get("field_count", 0) if isinstance(state, Mapping) else 0
     delta_class_count = algebra.get("delta_class_count", 0) if isinstance(algebra, Mapping) else 0
@@ -547,6 +720,23 @@ def check_artifact(
         if isinstance(mapping, Mapping)
         and isinstance(mapping.get("runtime_effect_kinds_without_abstract_delta_candidate"), list)
         else 0,
+        "m6_runtime_delta_class_count": m6_delta_class_type.get(
+            "runtime_delta_class_count", 0
+        ),
+        "m6_runtime_delta_surplus_count": len(
+            m6_delta_class_type.get("runtime_delta_classes_without_abstract_class", [])
+        )
+        if isinstance(m6_delta_class_type.get("runtime_delta_classes_without_abstract_class"), list)
+        else 0,
+        "m6_entry_field_count": m6_delta_entry_type.get("declared_field_count", 0),
+        "m6_entry_missing_required_field_count": len(
+            m6_contract_shape.get("required_fields_missing_from_runtime_entry", [])
+        )
+        if isinstance(m6_contract_shape.get("required_fields_missing_from_runtime_entry"), list)
+        else 0,
+        "m6_abstract_contract_projection_sha256": m6_contract_shape.get(
+            "projection_sha256", ""
+        ),
         "production_authority": "NONE",
         "errors": errors,
         "nonclaim": "PASS means only that the state-delta obligation inventory is exact and source-bound; it does not promote G1 or production readiness.",

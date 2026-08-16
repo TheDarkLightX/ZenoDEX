@@ -61,12 +61,17 @@
     },
     {
       "id": "STATE_DELTA_BINDING",
-      "scope": "14 state fields and 8 value-delta classes",
+      "scope": "14 state fields and 8 abstract value-delta classes",
       "status": "PASS"
     },
     {
       "id": "RUNTIME_MAPPING_GAP_BINDING",
-      "scope": "source-shape candidates and explicit unmapped runtime kinds",
+      "scope": "global effect-kind candidates and explicit unmapped runtime kinds",
+      "status": "PASS"
+    },
+    {
+      "id": "M6_DELTA_SURFACE_GAP_BINDING",
+      "scope": "M6 ValueDeltaClassV1 and ValueDeltaEntryV1 shape and contract gap",
       "status": "PASS"
     },
     {
@@ -102,6 +107,19 @@
   "obligation_binding": {
     "bdd_scenario_count": 267,
     "delta_class_count": 8,
+    "m6_value_delta_surface": {
+      "abstract_contract_projection_digest_status": "EXACT_SUBJECT_HELPER_BASELINE_RESEARCH_ONLY",
+      "abstract_contract_projection_sha256": "a1195431c7416fa74fce77061f5001b4aa66196b244acb904b64588858d3b3d2",
+      "entry_declared_field_count": 5,
+      "entry_missing_required_field_count": 17,
+      "production_authority": "NONE",
+      "runtime_delta_classes_without_abstract_class": [
+        "noop"
+      ],
+      "semantic_mapping_status": "GAP_ENTRY_FIELDS_DO_NOT_CLOSE_ABSTRACT_DELTA_CONTRACTS",
+      "source_subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+      "status": "M6_DELTA_SOURCE_SHAPE_RESEARCH_ONLY"
+    },
     "open_profile_decision_count": 9,
     "open_state_obligation_count": 6,
     "profile_decision_count": 9,
