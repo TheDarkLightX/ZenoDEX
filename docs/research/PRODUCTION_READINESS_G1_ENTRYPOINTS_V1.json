@@ -584,58 +584,60 @@
     {
       "path": "src/core/m6_safe_mount_v1.py",
       "sha256": "bb0b4c32acfdb002e2478b771b4ca285759eaca98386916c22cd9b9e8d118e99",
-      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      "subject": "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2"
     },
     {
       "path": "src/core/m6_safe_mount_transition_v1.py",
       "sha256": "9355b083064439b2756ee1d9454710229eaa3fe31fd529587ea3ece66cba8ee2",
-      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      "subject": "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2"
     },
     {
       "path": "src/core/m6_safe_mount_types_v1.py",
       "sha256": "e9dfe00abd72f20f6c49986dd5af5a7f37042ee100b9f6d26f6b719b8e5623f8",
-      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      "subject": "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2"
     },
     {
       "path": "src/core/m6_zrpf_v1.py",
       "sha256": "ddbfef1f608f691ceff81c1bba52484f3ec0f12736afa3d2e54b04e8080ca486",
-      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      "subject": "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2"
     },
     {
       "path": "src/integration/m6_authority_verifier_v1.py",
       "sha256": "e1f8162e2d314602beb2f0c45e1b8a8843c9af0fa12fe8d08d4be7d8c22acf9e",
-      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      "subject": "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2"
     },
     {
       "path": "src/integration/m6_commit_port_v1.py",
-      "sha256": "5b75fc6016c4a95bcc1cf29663fc14240fcf236bc6a551f7489e81e4a7cadcbb",
-      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      "sha256": "333bfee65bcb7917c09deee3fbb5ba50268f7b06afd5b652fc0bcd9bfe9ad482",
+      "subject": "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2"
     },
     {
       "path": "src/integration/m6_durable_store_v1.py",
-      "sha256": "779c953eb4c9c1a9458212484b5f1f5ded10c4e13907c6e6ea3386078797321a",
-      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      "sha256": "a9e1c127ef750f75a78a6055a3845ebc56dcd1902161c4b256eaf76d84985600",
+      "subject": "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2"
     },
     {
       "path": "src/integration/m6_outbox_delivery_journal_v1.py",
       "sha256": "e3743416946787673ad00b4e4245300c7cd7d40ccfcbf0fc833e255e34552930",
-      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      "subject": "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2"
     },
     {
       "path": "src/integration/m6_outbox_delivery_v1.py",
       "sha256": "e06451b9e8147e49ee1e0d4495c75b8b00e3af73bd7e45acd7a680d684b48401",
-      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      "subject": "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2"
     },
     {
       "path": "tools/m6_writer_inventory_manifest_v1.json",
       "sha256": "6e123f2021f5234895a2b59d2e6a956428fabd2f9a5b45d06dd4b77db2604847",
-      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      "subject": "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2"
     }
   ],
   "source_subject": {
     "base_commit": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
     "current_head_must_descend_from_base": true,
-    "source_authority": "frozen source bytes at the exact base commit"
+    "current_source_pins_subject": "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2",
+    "repair_commit": "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2",
+    "source_authority": "frozen source bytes at the exact verified repair descendant"
   },
   "status": "G1_ENTRYPOINT_AUDIT_RESEARCH_ONLY",
   "surface_inventory": [
@@ -664,7 +666,7 @@
       "class": "M6FinalityVerifierV1",
       "id": "m6_finality_verifier_port",
       "kind": "definition",
-      "line": 83,
+      "line": 87,
       "path": "src/integration/m6_commit_port_v1.py",
       "status": "PORT_ONLY_NO_IMPLEMENTATION",
       "symbol": "verify_finality"
@@ -674,7 +676,7 @@
       "class": "M6CommitPortV1",
       "id": "m6_reference_commit_direct",
       "kind": "definition",
-      "line": 747,
+      "line": 751,
       "path": "src/integration/m6_commit_port_v1.py",
       "status": "M6_RESEARCH_ONLY",
       "symbol": "publish"
@@ -684,7 +686,7 @@
       "class": "M6CommitPortV1",
       "id": "m6_reference_commit_zrpf",
       "kind": "definition",
-      "line": 835,
+      "line": 850,
       "path": "src/integration/m6_commit_port_v1.py",
       "status": "M6_RESEARCH_ONLY",
       "symbol": "publish_zrpf"
@@ -694,7 +696,7 @@
       "class": "M6CommitPortV1",
       "id": "m6_reference_commit_direct_batch",
       "kind": "definition",
-      "line": 882,
+      "line": 908,
       "path": "src/integration/m6_commit_port_v1.py",
       "status": "M6_RESEARCH_ONLY",
       "symbol": "publish_direct_batch"
@@ -704,7 +706,7 @@
       "class": "M6DurableLedgerStoreV1",
       "id": "m6_research_durable_direct",
       "kind": "definition",
-      "line": 1970,
+      "line": 2073,
       "path": "src/integration/m6_durable_store_v1.py",
       "status": "M6_RESEARCH_ONLY",
       "symbol": "publish"
@@ -714,7 +716,7 @@
       "class": "M6DurableLedgerStoreV1",
       "id": "m6_research_durable_zrpf",
       "kind": "definition",
-      "line": 2037,
+      "line": 2152,
       "path": "src/integration/m6_durable_store_v1.py",
       "status": "M6_RESEARCH_ONLY",
       "symbol": "publish_zrpf"
@@ -724,7 +726,7 @@
       "class": "M6DurableLedgerStoreV1",
       "id": "m6_research_durable_direct_batch",
       "kind": "definition",
-      "line": 2122,
+      "line": 2249,
       "path": "src/integration/m6_durable_store_v1.py",
       "status": "M6_RESEARCH_ONLY",
       "symbol": "publish_direct_batch"

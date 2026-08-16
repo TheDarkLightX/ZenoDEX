@@ -25,7 +25,8 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = REPO_ROOT / "docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json"
-SOURCE_SUBJECT = "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+BASE_SOURCE_SUBJECT = "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+SOURCE_SUBJECT = "ea25e6ec70ef0aca4881d671a34d00d5dcef06b2"
 SCHEMA = "zenodex/production-readiness-g1-entrypoints/v1"
 
 sys.path.insert(0, str(REPO_ROOT))
@@ -242,9 +243,11 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         "status": "G1_ENTRYPOINT_AUDIT_RESEARCH_ONLY",
         "production_promotion": False,
         "source_subject": {
-            "base_commit": SOURCE_SUBJECT,
+            "base_commit": BASE_SOURCE_SUBJECT,
+            "repair_commit": SOURCE_SUBJECT,
             "current_head_must_descend_from_base": True,
-            "source_authority": "frozen source bytes at the exact base commit",
+            "current_source_pins_subject": SOURCE_SUBJECT,
+            "source_authority": "frozen source bytes at the exact verified repair descendant",
         },
         "source_pins": source_pins,
         "source_evidence_method": "AST_DEFINITION_INVENTORY_AND_SOURCE_LEVEL_WRITER_MANIFEST",
@@ -327,13 +330,14 @@ def _write_atomic(path: Path, value: Mapping[str, Any]) -> None:
 def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     errors: list[str] = []
     observed: dict[str, Any] = {}
-    ancestry = subprocess.run(
-        ["git", "merge-base", "--is-ancestor", SOURCE_SUBJECT, "HEAD"],
-        cwd=repo_root,
-        check=False,
-    )
-    if ancestry.returncode != 0:
-        errors.append("current HEAD does not descend from the frozen source subject")
+    for label, subject in (("base", BASE_SOURCE_SUBJECT), ("repair", SOURCE_SUBJECT)):
+        ancestry = subprocess.run(
+            ["git", "merge-base", "--is-ancestor", subject, "HEAD"],
+            cwd=repo_root,
+            check=False,
+        )
+        if ancestry.returncode != 0:
+            errors.append(f"current HEAD does not descend from the frozen {label} source subject")
     try:
         expected = build_document(repo_root)
         observed = _load(path)

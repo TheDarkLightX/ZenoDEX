@@ -223,6 +223,14 @@ with 18 unmounted legacy entries, six M6 research entries, and one separate
 research entry; all 25 coverage rows remain open and no production writer is
 declared. Dynamic reachability, generated code, credentials, and deployment
 wiring remain `UNKNOWN`.
+The M6 research shell hardening descendant
+`ea25e6ec70ef0aca4881d671a34d00d5dcef06b2` closes three scoped boundary
+defects from the exact base: post-install descriptor cleanup recovery, deep
+ownership of nested finality and separately supplied Tau evidence before
+locks, and inert-root validation before `Path` conversion. The permanent
+negative and fault tests are recorded in
+`docs/research/M6_SAFE_MOUNT_F123_REPAIR_V1.md`. This repair remains research
+evidence; it does not create a production writer or close G1.
 
 Replay the slice with:
 
