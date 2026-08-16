@@ -248,6 +248,12 @@ the 14 declared global-state fields, eight delta classes, and six closure
 obligations. Field types, root codec, event equations, ownership,
 reconciliation, terminal drains, and parity remain `OPEN_GAP`; this artifact
 does not claim a complete algebra or production authority.
+The preserved legacy ATDD contract is explicitly quarantined by
+`docs/research/PRODUCTION_READINESS_G1_LEGACY_ATDD_QUARANTINE_V1.json`: its
+18 workflows and 81 scenarios remain historical research context, while the
+current check observes one historical-head mismatch and 22 source-pin
+mismatches. The original ATDD command therefore continues to fail closed until
+a separately reviewed exact-subject contract exists.
 
 Replay the slice with:
 
@@ -258,6 +264,7 @@ python3 tools/check_production_readiness_g1_entrypoints.py --check --json
 python3 tools/check_production_readiness_g1_safe_hold.py --check --json
 python3 tools/check_production_readiness_g1_profile_gate.py --check --json
 python3 tools/check_production_readiness_g1_state_delta_gate.py --check --json
+python3 tools/check_production_readiness_g1_legacy_atdd_quarantine.py --check --json
 ```
 
 ### G2: Complete the deterministic functional core

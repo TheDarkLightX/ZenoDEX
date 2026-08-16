@@ -16,23 +16,18 @@ def _contract() -> dict[str, Any]:
     return copy.deepcopy(dict(checker.load_contract(CONTRACT_PATH)))
 
 
-def test_exact_contract_is_closed_and_source_bound() -> None:
+def test_historical_contract_is_rejected_for_the_current_subject() -> None:
     report = checker.validate_contract(_contract())
 
-    assert report == {
-        "schema": "zenodex/m6-global-economic-core-atdd-bdd-check/v1",
-        "ok": True,
-        "contract_schema": "zenodex/m6-global-economic-core-atdd-bdd/v1",
-        "contract_status": "RESEARCH_ONLY_DRAFT",
-        "production_promotion": False,
-        "source_pin_count": 38,
-        "workflow_count": 18,
-        "scenario_count": 81,
-        "errors": [],
-        "nonclaim": (
-            "structural closure and source binding do not prove economic laws or runtime safety"
-        ),
-    }
+    assert report["ok"] is False
+    assert report["contract_schema"] == "zenodex/m6-global-economic-core-atdd-bdd/v1"
+    assert report["contract_status"] == "RESEARCH_ONLY_DRAFT"
+    assert report["production_promotion"] is False
+    assert report["source_pin_count"] == 38
+    assert report["workflow_count"] == 18
+    assert report["scenario_count"] == 81
+    assert any("base_commit must equal current repository HEAD" in error for error in report["errors"])
+    assert sum("sha256 mismatch" in error for error in report["errors"]) == 22
 
 
 def test_missing_workflow_cannot_preserve_completeness_claim() -> None:
@@ -139,7 +134,7 @@ def test_base_commit_must_match_the_inspected_repository_head() -> None:
     assert "base_commit must equal current repository HEAD" in " ".join(report["errors"])
 
 
-def test_tracked_clean_mode_rejects_untracked_promotion_candidate() -> None:
+def test_tracked_clean_mode_rejects_historical_source_provenance() -> None:
     report = checker.validate_contract(
         _contract(),
         contract_path=CONTRACT_PATH,
@@ -147,7 +142,7 @@ def test_tracked_clean_mode_rejects_untracked_promotion_candidate() -> None:
     )
 
     assert report["ok"] is False
-    assert any("untracked paths" in error for error in report["errors"])
+    assert any("tracked source provenance differs from base commit" in error for error in report["errors"])
 
 
 def test_production_promotion_cannot_be_enabled_by_metadata_edit() -> None:
@@ -194,9 +189,9 @@ def test_duplicate_json_key_is_rejected_before_validation(tmp_path: Path) -> Non
 
 
 def test_cli_report_is_stable_json(capsys: pytest.CaptureFixture[str]) -> None:
-    assert checker.main(["--contract", str(CONTRACT_PATH)]) == 0
+    assert checker.main(["--contract", str(CONTRACT_PATH)]) == 1
     output = capsys.readouterr().out
 
     report = json.loads(output)
-    assert report["ok"] is True
+    assert report["ok"] is False
     assert report["scenario_count"] == 81

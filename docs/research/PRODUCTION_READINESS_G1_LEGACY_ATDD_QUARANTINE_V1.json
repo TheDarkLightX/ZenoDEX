@@ -1,0 +1,59 @@
+{
+  "exit_gate": {
+    "complete": false,
+    "production_authority": "NONE",
+    "status": "LEGACY_ATDD_NOT_EXACT_SUBJECT"
+  },
+  "legacy_contract": {
+    "base_commit": "12bde5263b8855e0ac76bd49b3de402e3e6f9b76",
+    "base_commit_is_ancestor_of_current_head": true,
+    "base_commit_matches_current_head": false,
+    "path": "docs/research/m6_global_economic_core_atdd_bdd_v1.json",
+    "scenario_count": 81,
+    "schema": "zenodex/m6-global-economic-core-atdd-bdd/v1",
+    "source_pin_count": 38,
+    "status": "RESEARCH_ONLY_DRAFT",
+    "validation_error_count": 23,
+    "validation_ok": false,
+    "workflow_count": 18
+  },
+  "nonclaims": [
+    "The historical contract remains preserved research context and is not repinned here.",
+    "Quarantine does not prove, implement, mount, or authorize any command.",
+    "The legacy ATDD command must continue to fail closed until a separately reviewed exact-subject contract exists.",
+    "The current G1 source binding does not promote the historical 18-workflow contract."
+  ],
+  "production_promotion": false,
+  "quarantine": {
+    "base_head_mismatch_count": 1,
+    "other_validation_error_count": 0,
+    "production_authority": "NONE",
+    "quarantined": true,
+    "reasons": [
+      "HISTORICAL_BASE_COMMIT_NOT_CURRENT_HEAD",
+      "LEGACY_SOURCE_PINS_DRIFTED"
+    ],
+    "source_pin_mismatch_count": 22,
+    "usable_as_exact_subject_g1_evidence": false
+  },
+  "schema": "zenodex/production-readiness-g1-legacy-atdd-quarantine/v1",
+  "source_pins": [
+    {
+      "path": "src/core/m6_safe_mount_types_v1.py",
+      "sha256": "e9dfe00abd72f20f6c49986dd5af5a7f37042ee100b9f6d26f6b719b8e5623f8",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "src/core/m6_safe_mount_transition_v1.py",
+      "sha256": "9355b083064439b2756ee1d9454710229eaa3fe31fd529587ea3ece66cba8ee2",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    }
+  ],
+  "source_subject": {
+    "base_commit": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+    "current_head_must_descend_from_base": true,
+    "source_authority": "frozen source bytes at the exact base commit"
+  },
+  "status": "LEGACY_ATDD_QUARANTINED_RESEARCH_ONLY",
+  "version": "v1"
+}
