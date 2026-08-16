@@ -99,6 +99,7 @@
         "docs/research/PRODUCTION_READINESS_G1_PARTIAL_POLICY_V2.json",
         "docs/research/ZDEX_VOLUME_HOLDING_HYPERDEFLATION_MECHANISM_REPORT_V1.md",
         "docs/research/PRODUCTION_READINESS_G1_CLBF_MODEL_V1.json",
+        "docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_SAFE_HOLD_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_STATE_DELTA_GATE_V1.json",
@@ -115,6 +116,7 @@
         "tests/test_check_production_readiness_g1_profile_inputs.py",
         "tests/test_check_production_readiness_g1_partial_policy_v2.py",
         "tests/test_check_production_readiness_g1_clbf_model_v1.py",
+        "tests/test_check_production_readiness_g1_service_funding_v1.py",
         "tests/test_check_production_readiness_g1_safe_hold.py",
         "tests/test_check_production_readiness_g1_semantics.py",
         "tests/test_check_production_readiness_g1_state_delta_gate.py",
@@ -127,11 +129,13 @@
         "tools/check_production_readiness_g1_profile_inputs.py",
         "tools/check_production_readiness_g1_partial_policy_v2.py",
         "tools/check_production_readiness_g1_clbf_model_v1.py",
+        "tools/check_production_readiness_g1_service_funding_v1.py",
         "tools/production_readiness_g1_entrypoint_contract.py",
         "tools/production_readiness_g1_entrypoint_ast.py",
         "tools/production_readiness_g1_profile_input_contract.py",
         "tools/production_readiness_g1_partial_policy_contract_v2.py",
         "tools/production_readiness_g1_clbf_contract_v1.py",
+        "tools/production_readiness_g1_service_funding_contract_v1.py",
         "tools/check_production_readiness_g1_entrypoints.py",
         "tools/check_production_readiness_g1_semantics.py"
       ],
@@ -149,6 +153,7 @@
         "The V2 partial policy selects the 2B/E18 supply envelope and a scaled allocation modeling baseline, while 22 participant compensation rows, genesis delivery, legal activation, fee splits, and reward programs remain open and launch-blocking.",
         "The advisory volume, holding, and hyperdeflation study proposes source-lot accounting and a Contribution-Locked Burn Flywheel; no incentive parameter, host payment, credit program, or vesting accelerator is selected or activated.",
         "The executable CLBF research model defines eligible surplus after safety, participant-service, and operations funding; all mechanism parameters and every raw-volume campaign remain unselected, unmounted, and activation-blocked.",
+        "The service-funding runway model classifies all 22 participant rows and exercises capped, replay-protected service budgets; all 12 budget-eligible role policies, payment assets, amounts, work verifiers, legal activation, and release roots remain unselected.",
         "Dynamic reachability, generated code, credentials, and deployment wiring remain UNKNOWN and require a production-build audit.",
         "The legacy ATDD contract is source-pinned to an older subject and is not a valid exact-subject G1 completion receipt.",
         "The broader claims-registry gate fails on the exact base because claims[123] references missing tools/check_derivatives_authorization_matrix.py."
@@ -160,6 +165,7 @@
         "python3 tools/check_production_readiness_g1_profile_inputs.py --check --json",
         "python3 tools/check_production_readiness_g1_partial_policy_v2.py --check --json",
         "python3 tools/check_production_readiness_g1_clbf_model_v1.py --check --json",
+        "python3 tools/check_production_readiness_g1_service_funding_v1.py --check --json",
         "python3 tools/check_production_readiness_g1_entrypoints.py --check --json",
         "python3 tools/check_production_readiness_g1_safe_hold.py --check --json",
         "python3 tools/check_production_readiness_g1_profile_gate.py --check --json",
@@ -178,6 +184,7 @@
         "The G1 partial-policy V2 record selects a research specification and modeling baseline; it grants no mint, distribution, settlement, release, legal, or production authority.",
         "The advisory mechanism study supplies bounded candidates and refutation targets; it is not solver, proof, runtime, legal, release, or production evidence.",
         "The executable CLBF model supplies finite source-lot and direct-profit evidence; it does not select compensation, prove external-position safety, or authorize a payment, volume campaign, buyback, or release.",
+        "The service-funding model supplies finite budget arithmetic and lifecycle evidence; it does not admit work, select a claimant, forecast revenue, satisfy counsel, or authorize payment.",
         "The G1 entrypoint audit is a static source inventory; it cannot establish dynamic reachability, generated-code coverage, no-bypass behavior, or a production writer."
       ],
       "completion_receipt": null

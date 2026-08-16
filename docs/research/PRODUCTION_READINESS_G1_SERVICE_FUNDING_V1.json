@@ -1,0 +1,460 @@
+{
+  "activation_gate": {
+    "activation_allowed": false,
+    "budget_eligible_role_count": 12,
+    "critical_role_assets_selected": false,
+    "critical_role_runway_selected": false,
+    "legal_activation_complete": false,
+    "mounted": false,
+    "participant_count": 22,
+    "production_ready": false,
+    "runtime_implemented": false,
+    "selected_budget_count": 0,
+    "work_verifiers_selected": false
+  },
+  "approval_packet": {
+    "next_decisions": [
+      "choose payment asset and target runway unit for each critical role",
+      "choose fixed versus per-job compensation and exact caps",
+      "choose bootstrap source without treating genesis ZDEX as revenue",
+      "choose recurring protocol fee lanes and exhaustion behavior",
+      "choose work verifier, claimant credential, bond, slash, and terminal rule",
+      "obtain counsel activation independently from genesis distribution"
+    ],
+    "recommended_staging": [
+      "fund consensus and risk-critical roles before launch",
+      "launch optional proof scaling only with direct-execution fallback",
+      "keep optional growth and distribution programs disabled initially",
+      "top up role reserves before computing eligible burn surplus"
+    ],
+    "status": "NOT_READY_FOR_BLANKET_APPROVAL"
+  },
+  "attack_query": {
+    "disaster_states": [
+      "USER_OR_LP_PROPERTY_FUNDS_A_SERVICE",
+      "PROOF_MARKET_CREATES_AN_UNFUNDED_REWARD",
+      "DUPLICATE_JOB_PAYMENT",
+      "PERIOD_OR_JOB_CAP_BYPASS",
+      "UNPAID_FIXED_SERVICE_SILENTLY_EXPIRES",
+      "UNFUNDED_CRITICAL_PERIOD_ACTIVATES",
+      "GENESIS_INVENTORY_IS_RELABELED_AS_CASH_REVENUE"
+    ],
+    "query": "Can a role receive duplicate, cross-role, cross-asset, over-cap, unfunded, or unverifiable payment, or can a fixed obligation disappear during period advance?"
+  },
+  "bounded_funding_evidence": {
+    "accepted_payment_bound_search": {
+      "cases": 59840,
+      "counterexample": null,
+      "domain": "reserve=0..16; period_cap=1..8; spent=0..cap; job_cap=1..8; request=1..10",
+      "predicate": "accepted and (remaining<0 or updated_spent>period_cap or request>job_cap)"
+    },
+    "claim_ceiling": "Exact only for the finite declared integer domains and direct budget arithmetic. Work correctness, market selection, claimant identity, legal status, and future revenue remain external premises.",
+    "named_mutant_witnesses": [
+      {
+        "id": "MISSING_RESERVE_CHECK",
+        "loss_atoms": 1,
+        "payment_atoms": 1,
+        "reserve_atoms": 0
+      },
+      {
+        "already_spent_atoms": 4,
+        "id": "MISSING_PERIOD_CAP",
+        "loss_atoms": 1,
+        "payment_atoms": 1,
+        "period_cap_atoms": 4
+      },
+      {
+        "duplicate_payment_atoms": 5,
+        "first_payment_atoms": 5,
+        "id": "MISSING_JOB_NULLIFIER",
+        "loss_atoms": 5
+      },
+      {
+        "id": "SILENT_FIXED_OBLIGATION_EXPIRY",
+        "loss_atoms": 10,
+        "unpaid_fixed_atoms": 10
+      },
+      {
+        "duplicate_topup_atoms": 5,
+        "first_topup_atoms": 5,
+        "id": "MISSING_TOPUP_NULLIFIER",
+        "loss_atoms": 5
+      }
+    ],
+    "runway_shortfall_search": {
+      "cases": 2112,
+      "counterexample": null,
+      "domain": "reserve=0..32; period_cap=1..8; target_periods=1..8",
+      "predicate": "target_met differs from funded_full_periods >= target_periods"
+    }
+  },
+  "bounded_model": {
+    "allowed_funding_sources": {
+      "core_contributor_contractor_and_operations_provider": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "insurance_and_bad_debt_backstop": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "interface_api_and_static_host": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT",
+        "SIGNED_USER_INTERFACE_FEE"
+      ],
+      "liquidator_and_keeper": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_ACTION_FEE",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "liquidity_bootstrapper_and_market_maker": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "oracle_reporter_aggregator_disputer_and_watcher": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "proof_prover_and_proof_miner": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "security_auditor_and_bounty_researcher": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "solver_batcher_and_sequencer": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT",
+        "USER_GRANTED_EXECUTION_IMPROVEMENT"
+      ],
+      "stability_pool_depositor": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "tau_relayer_and_destination_operator": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "EXPLICIT_EXTERNAL_IO_FEE",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ],
+      "validator_finality_operator": [
+        "DEPLOYMENT_CAPITAL_PREFUND",
+        "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+        "SELECTED_GENESIS_SERVICE_LOT"
+      ]
+    },
+    "bootstrap_and_recurring_sources": {
+      "bootstrap": [
+        "purpose-bound deployment capital in the promised payment asset",
+        "a separately selected and counsel-activated genesis service lot"
+      ],
+      "future_revenue_rule": "Forecast revenue may support sensitivity analysis. Only already purpose-bound reserve counts as prefunded runway.",
+      "genesis_rule": "Genesis ZDEX is distribution inventory. It cannot satisfy a stable-asset liability without an admitted conversion, and its release increases observable liquid supply.",
+      "recurring": [
+        "finalized protocol revenue routed through its selected P2 or P3 target after P0 and P1 reconciliation and before growth or buyback surplus",
+        "selected action or external-I/O fee for the corresponding role",
+        "signed opt-in interface fee for an independent host",
+        "verified user-granted execution improvement for a solver"
+      ]
+    },
+    "distribution_boundary": {
+      "genesis_and_community_distribution": "Remain separately disabled pending beneficial-owner, vesting, custody, anti-sybil, tax, counsel, and release roots.",
+      "service_compensation": "May activate only after asset, source, amount, cap, witness, claimant, custody, replay, exhaustion, terminal, legal, and release fields are selected."
+    },
+    "integer_domain": "all accounting quantities are integer atoms in [0, 2^256 - 1]",
+    "participant_funding_registry": {
+      "community_testnet_and_usage_award_recipient": {
+        "boundary": "DISTRIBUTION_PROGRAM",
+        "service_criticality": null,
+        "unfunded_behavior": "PROGRAM_REMAINS_DISABLED"
+      },
+      "core_contributor_contractor_and_operations_provider": {
+        "boundary": "OPERATIONS_OR_SERVICE_BUDGET",
+        "service_criticality": "GOVERNED_OPERATIONS",
+        "unfunded_behavior": "NO_NEW_PAID_WORK_BEYOND_BUDGET"
+      },
+      "founder_team_partner_and_capital_recipient": {
+        "boundary": "GENESIS_DISTRIBUTION_PROGRAM",
+        "service_criticality": null,
+        "unfunded_behavior": "GENESIS_TRANSFER_REMAINS_DISABLED"
+      },
+      "insurance_and_bad_debt_backstop": {
+        "boundary": "SERVICE_BUDGET",
+        "service_criticality": "RISK_CRITICAL",
+        "unfunded_behavior": "AFFECTED_RISK_PROFILE_DISABLES"
+      },
+      "interface_api_and_static_host": {
+        "boundary": "OPERATIONS_OR_SERVICE_BUDGET",
+        "service_criticality": "GOVERNED_OPERATIONS",
+        "unfunded_behavior": "PAID_REFERENCE_SERVICE_STOPS_PERMISSIONLESS_MIRRORS_REMAIN"
+      },
+      "liquidator_and_keeper": {
+        "boundary": "SERVICE_BUDGET",
+        "service_criticality": "RISK_CRITICAL",
+        "unfunded_behavior": "AFFECTED_AUTOMATION_OR_RISK_INCREASE_DISABLES"
+      },
+      "liquidity_bootstrapper_and_market_maker": {
+        "boundary": "SERVICE_OR_DISTRIBUTION_PROGRAM",
+        "service_criticality": "OPTIONAL_GROWTH",
+        "unfunded_behavior": "LIQUIDITY_SUBSIDY_PROGRAM_STOPS"
+      },
+      "liquidity_provider": {
+        "boundary": "PROPERTY_OR_LIABILITY",
+        "service_criticality": null,
+        "unfunded_behavior": "PROPERTY_CLAIM_PERSISTS"
+      },
+      "oracle_reporter_aggregator_disputer_and_watcher": {
+        "boundary": "SERVICE_BUDGET",
+        "service_criticality": "RISK_CRITICAL",
+        "unfunded_behavior": "ORACLE_DEPENDENT_RISK_INCREASE_DISABLES"
+      },
+      "perps_trader_and_funding_counterparty": {
+        "boundary": "PROPERTY_OR_LIABILITY",
+        "service_criticality": null,
+        "unfunded_behavior": "PROPERTY_CLAIM_PERSISTS"
+      },
+      "proof_prover_and_proof_miner": {
+        "boundary": "SERVICE_BUDGET",
+        "service_criticality": "OPTIONAL_SCALING",
+        "unfunded_behavior": "PROOF_REWARD_STOPS_AND_DIRECT_EXECUTION_CONTINUES"
+      },
+      "protocol_treasury_reserve_and_buyburn_executor": {
+        "boundary": "RESERVE_AND_EXECUTION",
+        "service_criticality": null,
+        "unfunded_behavior": "FUNDS_REMAIN_IN_TYPED_CARRY"
+      },
+      "sealed_bid_bidder_and_private_swap_party": {
+        "boundary": "PROPERTY_OR_LIABILITY",
+        "service_criticality": null,
+        "unfunded_behavior": "PROPERTY_CLAIM_PERSISTS"
+      },
+      "sealed_bid_seller": {
+        "boundary": "PROPERTY_OR_LIABILITY",
+        "service_criticality": null,
+        "unfunded_behavior": "PROPERTY_CLAIM_PERSISTS"
+      },
+      "security_auditor_and_bounty_researcher": {
+        "boundary": "OPERATIONS_OR_SERVICE_BUDGET",
+        "service_criticality": "GOVERNED_OPERATIONS",
+        "unfunded_behavior": "NO_NEW_PAID_WORK_BEYOND_BUDGET"
+      },
+      "solver_batcher_and_sequencer": {
+        "boundary": "SERVICE_BUDGET",
+        "service_criticality": "OPTIONAL_SCALING",
+        "unfunded_behavior": "PAID_SERVICE_STOPS_OR_SAFE_FALLBACK_EXECUTES"
+      },
+      "spot_trader_and_order_user": {
+        "boundary": "PROPERTY_OR_LIABILITY",
+        "service_criticality": null,
+        "unfunded_behavior": "PROPERTY_CLAIM_PERSISTS"
+      },
+      "stability_pool_depositor": {
+        "boundary": "PROPERTY_WITH_OPTIONAL_REWARD",
+        "service_criticality": "OPTIONAL_GROWTH",
+        "unfunded_behavior": "PRINCIPAL_AND_GAINS_PERSIST_OPTIONAL_REWARD_STOPS"
+      },
+      "tau_depositor_and_withdrawer": {
+        "boundary": "PROPERTY_OR_LIABILITY",
+        "service_criticality": null,
+        "unfunded_behavior": "WITHDRAWAL_REMAINS_PENDING_OR_REFUNDS"
+      },
+      "tau_relayer_and_destination_operator": {
+        "boundary": "SERVICE_BUDGET",
+        "service_criticality": "EXTERNAL_IO_CRITICAL",
+        "unfunded_behavior": "TAU_EXTERNAL_IO_REMAINS_PENDING"
+      },
+      "validator_finality_operator": {
+        "boundary": "SERVICE_BUDGET",
+        "service_criticality": "CONSENSUS_CRITICAL",
+        "unfunded_behavior": "UNFUNDED_VALIDATOR_PERIOD_CANNOT_ACTIVATE"
+      },
+      "zusd_borrower_and_redeemer": {
+        "boundary": "PROPERTY_OR_LIABILITY",
+        "service_criticality": null,
+        "unfunded_behavior": "PROPERTY_CLAIM_PERSISTS"
+      }
+    },
+    "payment_contract": [
+      "payment role, asset, policy, period, claimant, job, and admitted-work root must bind",
+      "fixed payment equals the declared fixed liability exactly and occurs once",
+      "variable payment <= per-job cap and job count <= period maximum",
+      "period_spent + payment <= period cap",
+      "payment <= remaining purpose-bound reserve",
+      "each job id is consumed once across all later periods",
+      "each admitted top-up source id is consumed once and preserves the payment asset",
+      "period advance cannot erase an unpaid fixed obligation",
+      "the next period activates only with its complete cap prefunded",
+      "reject leaves reserve, counters, obligations, and nullifiers unchanged"
+    ],
+    "role_specific_exhaustion": {
+      "core_contributor_contractor_and_operations_provider": "NO_NEW_PAID_WORK_BEYOND_BUDGET",
+      "insurance_and_bad_debt_backstop": "AFFECTED_RISK_PROFILE_DISABLES",
+      "interface_api_and_static_host": "PAID_REFERENCE_SERVICE_STOPS_PERMISSIONLESS_MIRRORS_REMAIN",
+      "liquidator_and_keeper": "AFFECTED_AUTOMATION_OR_RISK_INCREASE_DISABLES",
+      "liquidity_bootstrapper_and_market_maker": "LIQUIDITY_SUBSIDY_PROGRAM_STOPS",
+      "oracle_reporter_aggregator_disputer_and_watcher": "ORACLE_DEPENDENT_RISK_INCREASE_DISABLES",
+      "proof_prover_and_proof_miner": "PROOF_REWARD_STOPS_AND_DIRECT_EXECUTION_CONTINUES",
+      "security_auditor_and_bounty_researcher": "NO_NEW_PAID_WORK_BEYOND_BUDGET",
+      "solver_batcher_and_sequencer": "PAID_SERVICE_STOPS_OR_SAFE_FALLBACK_EXECUTES",
+      "stability_pool_depositor": "PRINCIPAL_AND_GAINS_PERSIST_OPTIONAL_REWARD_STOPS",
+      "tau_relayer_and_destination_operator": "TAU_EXTERNAL_IO_REMAINS_PENDING",
+      "validator_finality_operator": "UNFUNDED_VALIDATOR_PERIOD_CANNOT_ACTIVATE"
+    },
+    "runway_contract": {
+      "admission_rule": "maximum_period_liability <= period_cap_atoms",
+      "candidate_critical_runway_months": {
+        "conversion_requirement": "A selected block schedule must convert calendar months to exact budget periods before activation.",
+        "maximum": 36,
+        "minimum": 18,
+        "status": "PROPOSED_UNSELECTED"
+      },
+      "funded_full_periods": "opening_reserve_atoms // period_cap_atoms",
+      "maximum_period_liability": "fixed_atoms_per_period + maximum_jobs_per_period * maximum_atoms_per_job",
+      "period_activation": "remaining_reserve_atoms >= period_cap_atoms",
+      "prefund_shortfall": "max(0, required_prefund - opening_reserve_atoms)",
+      "required_prefund": "period_cap_atoms * target_prefund_periods"
+    },
+    "selected_role_budgets": {
+      "core_contributor_contractor_and_operations_provider": null,
+      "insurance_and_bad_debt_backstop": null,
+      "interface_api_and_static_host": null,
+      "liquidator_and_keeper": null,
+      "liquidity_bootstrapper_and_market_maker": null,
+      "oracle_reporter_aggregator_disputer_and_watcher": null,
+      "proof_prover_and_proof_miner": null,
+      "security_auditor_and_bounty_researcher": null,
+      "solver_batcher_and_sequencer": null,
+      "stability_pool_depositor": null,
+      "tau_relayer_and_destination_operator": null,
+      "validator_finality_operator": null
+    },
+    "source_and_selector_separation": {
+      "payment_formula": [
+        "require admitted_requested_atoms <= per_job_cap",
+        "require admitted_requested_atoms <= remaining_period_cap",
+        "require admitted_requested_atoms <= remaining_reserve",
+        "paid_atoms = admitted_requested_atoms"
+      ],
+      "production_requirement": "Selection output becomes an opaque admitted-work witness only after the release-selected verifier accepts it.",
+      "rule": "A proof market, auction, mining rule, usage rule, or governance process may select a claimant and requested amount. It cannot create the payment source."
+    }
+  },
+  "evidence_lane": {
+    "current": [
+      "closed 22-participant classification",
+      "closed role-specific funding-source registry",
+      "checked integer runway evaluator",
+      "typed fixed, variable, replay, exhaustion, and period transitions",
+      "typed replay-protected recurring-revenue top-up transition",
+      "finite independent overspend and runway searches",
+      "named overspend, replay, and unpaid-obligation mutants"
+    ],
+    "required_before_production": [
+      "Rust production transition and canonical codec",
+      "formal per-asset conservation, replay, and exhaustion proofs",
+      "mounted ZenoLedger payment capability and no-bypass inventory",
+      "migration, restart, authority-epoch, and exact-release tests"
+    ],
+    "required_before_selection": [
+      "payment asset and amount for every enabled role",
+      "independent operating-cost and fee-revenue evidence",
+      "worst-case job arrival and replacement assumptions",
+      "release-selected work verifiers and opaque witnesses",
+      "cross-role stacking and related-party coalition model",
+      "legal, tax, employment, securities, and distribution review"
+    ]
+  },
+  "game_surface": {
+    "actions": [
+      "prefund one role-specific budget in one payment asset",
+      "admit fixed or variable service work",
+      "pay, replay, exhaust, top up, advance, disable, or replace a role",
+      "select a recipient by proof market, auction, mining, governance, or procurement"
+    ],
+    "authoritative_state": [
+      "purpose-bound reserve atoms",
+      "period cap and spent atoms",
+      "fixed obligation status and variable job count",
+      "paid job nullifiers",
+      "policy, work-witness, claimant, period, and asset bindings"
+    ],
+    "players": [
+      "community_testnet_and_usage_award_recipient",
+      "core_contributor_contractor_and_operations_provider",
+      "founder_team_partner_and_capital_recipient",
+      "insurance_and_bad_debt_backstop",
+      "interface_api_and_static_host",
+      "liquidator_and_keeper",
+      "liquidity_bootstrapper_and_market_maker",
+      "liquidity_provider",
+      "oracle_reporter_aggregator_disputer_and_watcher",
+      "perps_trader_and_funding_counterparty",
+      "proof_prover_and_proof_miner",
+      "protocol_treasury_reserve_and_buyburn_executor",
+      "sealed_bid_bidder_and_private_swap_party",
+      "sealed_bid_seller",
+      "security_auditor_and_bounty_researcher",
+      "solver_batcher_and_sequencer",
+      "spot_trader_and_order_user",
+      "stability_pool_depositor",
+      "tau_depositor_and_withdrawer",
+      "tau_relayer_and_destination_operator",
+      "validator_finality_operator",
+      "zusd_borrower_and_redeemer"
+    ],
+    "unobservable_or_external": [
+      "real-world beneficial ownership and related parties",
+      "legal classification and tax treatment",
+      "whether submitted work is correct before a production verifier admits it",
+      "future fee volume, asset prices, and off-ledger service costs"
+    ]
+  },
+  "implementation_source_pins": [
+    {
+      "path": "tools/production_readiness_g1_service_funding_contract_v1.py",
+      "sha256": "52e2c8cfec8e919a0661db41237e5e0fc95938ded3629cb168f9c3373abc3cf9"
+    },
+    {
+      "path": "tools/check_production_readiness_g1_service_funding_v1.py",
+      "sha256": "a9187347a256d47a9232c26b3533d86b5c1fbea70380fcfd4ebd36e05237dd58"
+    }
+  ],
+  "production_promotion": false,
+  "promotion_boundary": {
+    "claim": "The research model prevents direct arithmetic overspend and silent fixed-obligation expiry inside its typed finite model.",
+    "nonclaims": [
+      "No role budget, payment asset, amount, runway, fee lane, or recipient is selected.",
+      "Caller-constructible Python work witnesses provide no production authority.",
+      "The model does not prove service quality, future revenue, claimant identity, or legal status.",
+      "The model is unmounted and cannot pay a participant or move genesis inventory.",
+      "Finite enumeration is not an unbounded proof or a production readiness receipt."
+    ]
+  },
+  "research_source_pins": [
+    {
+      "path": "docs/research/PRODUCTION_READINESS_G1_PARTIAL_POLICY_V2.json",
+      "sha256": "bd5f0221bd744250c4f6d23509dd932e2a1d2ac7c2598ad5dfeb9fb1bb87be27",
+      "subject": "5398d2faa32216be513b61c6cd2f0125564a01e9"
+    },
+    {
+      "path": "docs/research/PRODUCTION_READINESS_G1_CLBF_MODEL_V1.json",
+      "sha256": "5638564b0f915b3cebfc4600ffa3947529db47815b9934d041a21836d33e9e92",
+      "subject": "5398d2faa32216be513b61c6cd2f0125564a01e9"
+    }
+  ],
+  "reviewed_subject": "5398d2faa32216be513b61c6cd2f0125564a01e9",
+  "schema": "zenodex/production-readiness-g1-service-funding/v1",
+  "status": "RESEARCH_ONLY_UNSELECTED"
+}

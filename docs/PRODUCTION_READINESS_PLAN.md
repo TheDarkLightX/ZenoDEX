@@ -331,6 +331,44 @@ typed source-lot and credit transitions, finite integer searches, and named
 mutants are research evidence only. They are unmounted and provide no payment,
 burn, distribution, settlement, or release authority.
 
+The service-funding companion
+`docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json` classifies all
+22 participant rows by ownership boundary. Twelve rows may require a service,
+operations, optional-reward, or liquidity-program budget. Property claims,
+genesis and community distributions, and reserve execution remain outside the
+service-payment API. A market, mining rule, usage rule, procurement process, or
+governance decision may select a claimant only after its own policy is chosen;
+it cannot create a payment source.
+
+For each role and payment asset, the research runway contract is:
+
+```text
+maximum_period_liability =
+    fixed_atoms_per_period
+  + maximum_jobs_per_period * maximum_atoms_per_job
+
+require maximum_period_liability <= period_cap_atoms
+required_prefund = period_cap_atoms * target_prefund_periods
+funded_full_periods = opening_reserve_atoms // period_cap_atoms
+prefund_shortfall = max(0, required_prefund - opening_reserve_atoms)
+```
+
+An enabled period requires its complete cap in purpose-bound custody. Fixed
+payments must equal the declared liability and cannot silently expire. Variable
+payments preserve per-job, job-count, period, and remaining-reserve caps. Job
+and top-up source IDs are single-use across periods. A recurring-revenue top-up
+requires a same-role, same-asset admitted source witness; the Python witness is
+caller-constructible research data and supplies no production authority.
+
+An 18-to-36-month runway for consensus- and risk-critical roles is recorded as
+an advisory candidate. Its conversion to exact block periods, payment assets,
+amounts, fee sources, verifiers, claimant credentials, bonds, exhaustion rules,
+legal activation, and release roots remain unselected. The validator profile
+cannot activate unfunded; oracle-dependent risk increases disable when the
+selected oracle service cannot operate; proof rewards stop while direct
+execution remains available; optional growth and distribution programs remain
+disabled by default.
+
 The companion entrypoint audit
 `docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json` binds the same
 33-command registry to 12 exact source surfaces. It records the six M6
