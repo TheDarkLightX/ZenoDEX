@@ -256,10 +256,11 @@ obligations. Field types, root codec, event equations, ownership,
 reconciliation, terminal drains, and parity remain `OPEN_GAP`; this artifact
 does not claim a complete algebra or production authority. It also records an
 exact-base source-shape inventory for `GlobalEconomicStateV1`: 16 typed runtime
-fields appear in the declared canonical projection, the runtime effect-kind
-enum has 9 values, and the canonical codec is present. This source-shape
-evidence does not establish the mapping from the abstract 14-field/8-delta
-G1 model to runtime semantics.
+fields appear in the literal `to_canonical()` projection, the runtime
+effect-kind enum has 9 values, and the canonical encoder/helper sources are
+both pinned. The source-shape evidence does not establish wire-order semantics
+or the mapping from the abstract 14-field/8-delta G1 model to runtime
+semantics.
 The preserved legacy ATDD contract is explicitly quarantined by
 `docs/research/PRODUCTION_READINESS_G1_LEGACY_ATDD_QUARANTINE_V1.json`: its
 18 workflows and 81 scenarios remain historical research context, while the

@@ -78,6 +78,9 @@
   "production_promotion": false,
   "runtime_projection": {
     "canonical_codec": {
+      "delegate": "canonical_json_bytes",
+      "delegate_line": 50,
+      "delegate_path": "src/state/canonical.py",
       "line": 119,
       "path": "src/core/global_settlement_types_v1.py",
       "status": "PRESENT_SOURCE_SHAPE_ONLY",
@@ -111,29 +114,15 @@
         "path": "src/core/global_settlement_types_v1.py",
         "sha256": "c7ff7f362462502293c017fd986c14ef57c9aaa344e4b1093ea260ec18e84568",
         "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      },
+      {
+        "path": "src/state/canonical.py",
+        "sha256": "5864562594e715eb32bb3b54c5d0afd4987d3009d63d53a77b587f18b3ba429b",
+        "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
       }
     ],
     "source_subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
     "state_type": {
-      "canonical_field_order": [
-        "schema",
-        "chain_id",
-        "deployment_root",
-        "writer_epoch",
-        "height",
-        "profile_root",
-        "lane_roots",
-        "balances",
-        "supplies",
-        "custody",
-        "liabilities",
-        "reserves",
-        "oracle_occurrences",
-        "replay_state",
-        "terminal_obligations",
-        "history_root",
-        "outbox"
-      ],
       "class": "GlobalEconomicStateV1",
       "class_line": 1178,
       "declared_field_count": 16,
@@ -155,7 +144,27 @@
         "history_root",
         "outbox"
       ],
-      "field_order_matches_canonical_projection": true,
+      "declared_fields_match_literal_projection": true,
+      "literal_projection_key_order": [
+        "schema",
+        "chain_id",
+        "deployment_root",
+        "writer_epoch",
+        "height",
+        "profile_root",
+        "lane_roots",
+        "balances",
+        "supplies",
+        "custody",
+        "liabilities",
+        "reserves",
+        "oracle_occurrences",
+        "replay_state",
+        "terminal_obligations",
+        "history_root",
+        "outbox"
+      ],
+      "literal_projection_starts_with_schema": true,
       "path": "src/core/global_settlement_types_v1.py"
     },
     "status": "SOURCE_SHAPE_INVENTORY_RESEARCH_ONLY"

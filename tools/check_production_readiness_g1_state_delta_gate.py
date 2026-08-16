@@ -24,8 +24,10 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = REPO_ROOT / "docs/research/PRODUCTION_READINESS_G1_STATE_DELTA_GATE_V1.json"
 SCHEMA = "zenodex/production-readiness-g1-state-delta-gate/v1"
 RUNTIME_SOURCE_PATH = "src/core/global_settlement_types_v1.py"
+RUNTIME_CANONICAL_SOURCE_PATH = "src/state/canonical.py"
 RUNTIME_STATE_CLASS = "GlobalEconomicStateV1"
 RUNTIME_EFFECT_KIND_CLASS = "EconomicEffectKindV1"
+RUNTIME_CANONICAL_HELPER = "canonical_json_bytes"
 
 sys.path.insert(0, str(REPO_ROOT))
 from tools import check_production_readiness_g1_semantics as semantics  # noqa: E402
@@ -119,10 +121,10 @@ def _value_delta_algebra(value: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _class_definition(tree: ast.Module, name: str) -> ast.ClassDef:
-    for node in tree.body:
-        if isinstance(node, ast.ClassDef) and node.name == name:
-            return node
-    raise ValueError(f"runtime source class is missing: {name}")
+    matches = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name == name]
+    if len(matches) != 1:
+        raise ValueError(f"runtime source class must occur exactly once: {name}")
+    return matches[0]
 
 
 def _annotated_field_names(node: ast.ClassDef) -> tuple[str, ...]:
@@ -134,6 +136,8 @@ def _annotated_field_names(node: ast.ClassDef) -> tuple[str, ...]:
     )
     if not names:
         raise ValueError(f"runtime source class has no annotated fields: {node.name}")
+    if len(names) != len(set(names)):
+        raise ValueError(f"runtime source class has duplicate annotated fields: {node.name}")
     return names
 
 
@@ -145,57 +149,113 @@ def _canonical_method_keys(node: ast.ClassDef) -> tuple[str, ...]:
     ]
     if len(methods) != 1:
         raise ValueError(f"runtime source class must define one to_canonical method: {node.name}")
-    dict_nodes = [child for child in ast.walk(methods[0]) if isinstance(child, ast.Dict)]
-    if len(dict_nodes) != 1:
-        raise ValueError(f"runtime source to_canonical shape is not one literal mapping: {node.name}")
+    returned_mappings = [
+        child.value
+        for child in ast.walk(methods[0])
+        if isinstance(child, ast.Return) and isinstance(child.value, ast.Dict)
+    ]
+    if len(returned_mappings) != 1:
+        raise ValueError(f"runtime source to_canonical must return one literal mapping: {node.name}")
+    mapping = returned_mappings[0]
     keys = tuple(
         key.value
-        for key in dict_nodes[0].keys
+        for key in mapping.keys
         if isinstance(key, ast.Constant) and isinstance(key.value, str)
     )
-    if len(keys) != len(dict_nodes[0].keys):
+    if len(keys) != len(mapping.keys):
         raise ValueError(f"runtime source to_canonical has a non-literal key: {node.name}")
+    if len(keys) != len(set(keys)):
+        raise ValueError(f"runtime source to_canonical has duplicate keys: {node.name}")
     return keys
 
 
 def _enum_values(node: ast.ClassDef) -> tuple[str, ...]:
-    values = tuple(
-        child.value.value
-        for child in node.body
-        if isinstance(child, ast.Assign)
-        and len(child.targets) == 1
-        and isinstance(child.targets[0], ast.Name)
-        and isinstance(child.value, ast.Constant)
-        and isinstance(child.value.value, str)
-    )
+    if not any(
+        (isinstance(base, ast.Name) and base.id == "Enum")
+        or (isinstance(base, ast.Attribute) and base.attr == "Enum")
+        for base in node.bases
+    ):
+        raise ValueError(f"runtime effect-kind class must inherit Enum: {node.name}")
+    values: list[str] = []
+    for child in node.body:
+        if not isinstance(child, ast.Assign):
+            continue
+        if len(child.targets) != 1 or not isinstance(child.targets[0], ast.Name):
+            raise ValueError(f"runtime effect-kind member shape is not a simple assignment: {node.name}")
+        member_name = child.targets[0].id
+        if member_name.startswith("_"):
+            continue
+        if not isinstance(child.value, ast.Constant) or not isinstance(child.value.value, str):
+            raise ValueError(f"runtime effect-kind member is not a string: {node.name}")
+        values.append(child.value.value)
     if not values:
         raise ValueError(f"runtime effect-kind enum has no string values: {node.name}")
-    return values
+    if len(values) != len(set(values)):
+        raise ValueError(f"runtime effect-kind enum has duplicate values: {node.name}")
+    return tuple(values)
 
 
 def _function_line(tree: ast.Module, name: str) -> int:
-    for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
-            return node.lineno
-    raise ValueError(f"runtime source function is missing: {name}")
+    matches = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"runtime source function must occur exactly once: {name}")
+    return matches[0].lineno
 
 
-def _runtime_projection(repo_root: Path) -> dict[str, Any]:
+def _returned_call_name(tree: ast.Module, name: str) -> str:
+    functions = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name
+    ]
+    if len(functions) != 1:
+        raise ValueError(f"runtime source function must occur exactly once: {name}")
+    calls = [
+        child.value.func.id
+        for child in ast.walk(functions[0])
+        if isinstance(child, ast.Return)
+        and isinstance(child.value, ast.Call)
+        and isinstance(child.value.func, ast.Name)
+    ]
+    if len(calls) != 1:
+        raise ValueError(f"runtime source function must return one direct call: {name}")
+    return calls[0]
+
+
+def _frozen_source(repo_root: Path, path: str) -> bytes:
     frozen = subprocess.run(
-        ["git", "show", f"{semantics.SOURCE_SUBJECT}:{RUNTIME_SOURCE_PATH}"],
+        ["git", "show", f"{semantics.SOURCE_SUBJECT}:{path}"],
         cwd=repo_root,
         check=True,
         capture_output=True,
     ).stdout
-    current = (repo_root / RUNTIME_SOURCE_PATH).read_bytes()
-    if current != frozen:
-        raise ValueError(f"runtime source drift from frozen subject: {RUNTIME_SOURCE_PATH}")
+    if (repo_root / path).read_bytes() != frozen:
+        raise ValueError(f"runtime source drift from frozen subject: {path}")
+    return frozen
+
+
+def _runtime_projection(repo_root: Path) -> dict[str, Any]:
+    frozen = _frozen_source(repo_root, RUNTIME_SOURCE_PATH)
+    canonical_frozen = _frozen_source(repo_root, RUNTIME_CANONICAL_SOURCE_PATH)
     tree = ast.parse(frozen.decode("utf-8"), filename=RUNTIME_SOURCE_PATH)
+    canonical_tree = ast.parse(
+        canonical_frozen.decode("utf-8"), filename=RUNTIME_CANONICAL_SOURCE_PATH
+    )
     state_class = _class_definition(tree, RUNTIME_STATE_CLASS)
     effect_kind_class = _class_definition(tree, RUNTIME_EFFECT_KIND_CLASS)
     state_fields = _annotated_field_names(state_class)
     canonical_keys = _canonical_method_keys(state_class)
     effect_kinds = _enum_values(effect_kind_class)
+    canonical_delegate = _returned_call_name(tree, "canonical_global_bytes_v1")
+    if canonical_delegate != RUNTIME_CANONICAL_HELPER:
+        raise ValueError(
+            "canonical_global_bytes_v1 delegates to an unexpected helper: "
+            f"{canonical_delegate}"
+        )
     return {
         "status": "SOURCE_SHAPE_INVENTORY_RESEARCH_ONLY",
         "source_subject": semantics.SOURCE_SUBJECT,
@@ -204,7 +264,12 @@ def _runtime_projection(repo_root: Path) -> dict[str, Any]:
                 "path": RUNTIME_SOURCE_PATH,
                 "sha256": hashlib.sha256(frozen).hexdigest(),
                 "subject": semantics.SOURCE_SUBJECT,
-            }
+            },
+            {
+                "path": RUNTIME_CANONICAL_SOURCE_PATH,
+                "sha256": hashlib.sha256(canonical_frozen).hexdigest(),
+                "subject": semantics.SOURCE_SUBJECT,
+            },
         ],
         "state_type": {
             "path": RUNTIME_SOURCE_PATH,
@@ -212,8 +277,9 @@ def _runtime_projection(repo_root: Path) -> dict[str, Any]:
             "class_line": state_class.lineno,
             "declared_field_count": len(state_fields),
             "declared_fields": list(state_fields),
-            "canonical_field_order": list(canonical_keys),
-            "field_order_matches_canonical_projection": tuple(canonical_keys[1:]) == state_fields,
+            "literal_projection_key_order": list(canonical_keys),
+            "literal_projection_starts_with_schema": canonical_keys[:1] == ("schema",),
+            "declared_fields_match_literal_projection": tuple(canonical_keys[1:]) == state_fields,
         },
         "effect_kind_type": {
             "path": RUNTIME_SOURCE_PATH,
@@ -226,6 +292,9 @@ def _runtime_projection(repo_root: Path) -> dict[str, Any]:
             "path": RUNTIME_SOURCE_PATH,
             "symbol": "canonical_global_bytes_v1",
             "line": _function_line(tree, "canonical_global_bytes_v1"),
+            "delegate": canonical_delegate,
+            "delegate_line": _function_line(canonical_tree, RUNTIME_CANONICAL_HELPER),
+            "delegate_path": RUNTIME_CANONICAL_SOURCE_PATH,
             "status": "PRESENT_SOURCE_SHAPE_ONLY",
         },
         "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED",
@@ -297,6 +366,8 @@ def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     try:
         expected = build_document(repo_root)
         observed = _load(path)
+        if path.read_bytes() != _encoded(observed):
+            errors.append("artifact is not canonically encoded JSON")
         if observed != expected:
             errors.append("artifact differs from the exact-subject generated G1 state-delta gate")
     except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as exc:
