@@ -1,0 +1,825 @@
+{
+  "command_routes": [
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_fallback_activate",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "FALLBACK_ACTIVATE",
+      "id": "fallback_activate",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_lp_add",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "LP_ADD",
+      "id": "lp_add",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "spot_and_liquidity"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_lp_remove",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "LP_REMOVE",
+      "id": "lp_remove",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "spot_and_liquidity"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_oracle_dispute",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
+      "disabled_by_frozen_source": true,
+      "enum_member": "ORACLE_DISPUTE",
+      "id": "oracle_dispute",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "oracle"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_oracle_submit",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
+      "disabled_by_frozen_source": true,
+      "enum_member": "ORACLE_SUBMIT",
+      "id": "oracle_submit",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "oracle"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_perp_close",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "PERP_CLOSE",
+      "id": "perp_close",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "perps_risk"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_perp_funding",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
+      "disabled_by_frozen_source": true,
+      "enum_member": "PERP_FUNDING",
+      "id": "perp_funding",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "perps_risk"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_perp_liquidate",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
+      "disabled_by_frozen_source": true,
+      "enum_member": "PERP_LIQUIDATE",
+      "id": "perp_liquidate",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "perps_risk"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_perp_open",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "PERP_OPEN",
+      "id": "perp_open",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "perps_risk"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_cancel",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "PRIVATE_SWAP_CANCEL",
+      "id": "private_swap_cancel",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_commit",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "PRIVATE_SWAP_COMMIT",
+      "id": "private_swap_commit",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_expire",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "PRIVATE_SWAP_EXPIRE",
+      "id": "private_swap_expire",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_reveal",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "PRIVATE_SWAP_REVEAL",
+      "id": "private_swap_reveal",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_settle",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "PRIVATE_SWAP_SETTLE",
+      "id": "private_swap_settle",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_protocol_buy_and_burn",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
+      "disabled_by_frozen_source": true,
+      "enum_member": "PROTOCOL_BUY_AND_BURN",
+      "id": "protocol_buy_and_burn",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "protocol_token"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_cancel",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "SELLER_AUCTION_CANCEL",
+      "id": "seller_auction_cancel",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_commit",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "SELLER_AUCTION_COMMIT",
+      "id": "seller_auction_commit",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_expire",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "SELLER_AUCTION_EXPIRE",
+      "id": "seller_auction_expire",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_reveal",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "SELLER_AUCTION_REVEAL",
+      "id": "seller_auction_reveal",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_settle",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "SELLER_AUCTION_SETTLE",
+      "id": "seller_auction_settle",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_spot_swap",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "SPOT_SWAP",
+      "id": "spot_swap",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "spot_and_liquidity"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_stability_deposit",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "STABILITY_POOL_DEPOSIT",
+      "id": "stability_pool_deposit",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_stability_withdraw",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "STABILITY_POOL_WITHDRAW",
+      "id": "stability_pool_withdraw",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_tau_escrow_deposit",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "TAU_ESCROW_DEPOSIT",
+      "id": "tau_escrow_deposit",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_tau_rejoin",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "TAU_REJOIN",
+      "id": "tau_rejoin",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_tau_withdrawal",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "TAU_WITHDRAWAL",
+      "id": "tau_withdrawal",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_tau_withdrawal_ack",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "TAU_WITHDRAWAL_ACK",
+      "id": "tau_withdrawal_ack",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_prover_reward",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
+      "disabled_by_frozen_source": true,
+      "enum_member": "ZRPF_PROVER_REWARD",
+      "id": "zrpf_prover_reward",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "proof_reward"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_borrow",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "ZUSD_BORROW",
+      "id": "zusd_borrow",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_liquidate",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
+      "disabled_by_frozen_source": true,
+      "enum_member": "ZUSD_LIQUIDATE",
+      "id": "zusd_liquidate",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_redeem",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "ZUSD_REDEEM",
+      "id": "zusd_redeem",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_redistribute",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
+      "disabled_by_frozen_source": true,
+      "enum_member": "ZUSD_REDISTRIBUTE",
+      "id": "zusd_redistribute",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "candidate_surface": "src/core/m6_safe_mount_transition_v1.py:run_m6_transition_v1",
+      "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_repay",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
+      "disabled_by_frozen_source": false,
+      "enum_member": "ZUSD_REPAY",
+      "id": "zusd_repay",
+      "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+      "production_writer_declared": false,
+      "reference_publication_routes": [
+        "src/integration/m6_commit_port_v1.py:M6CommitPortV1.publish",
+        "src/integration/m6_durable_store_v1.py:M6DurableLedgerStoreV1.publish"
+      ],
+      "status": "GAP_OPEN_PROFILE_DECISION_AND_PRODUCTION_MOUNT",
+      "workflow_family": "zusd_monetary"
+    }
+  ],
+  "g1_exit_gate": {
+    "claim": "The static route inventory is exact and research-only; no production mount is evidenced.",
+    "command_count": 33,
+    "command_routes_with_core_handlers": 33,
+    "command_routes_with_declared_production_writer": 0,
+    "complete": false,
+    "status": "BLOCKED_NO_DECLARED_PRODUCTION_WRITER_AND_OPEN_PROFILE_DECISIONS",
+    "writer_inventory_unmounted_entrypoint_count": 18
+  },
+  "nonclaims": [
+    "Static definition presence does not prove dynamic reachability or deployment wiring.",
+    "The writer inventory is source-level and does not cover generated code, credentials, workers, or database callers.",
+    "A reference commit port, durable filesystem store, or outbox journal is not a production ZenoLedger writer.",
+    "This audit does not implement, prove, mount, or authorize any command.",
+    "A passing audit does not establish M6Ready or production readiness."
+  ],
+  "production_promotion": false,
+  "production_publication_capability": {
+    "declared_production_entrypoint_count": 0,
+    "dynamic_runtime_reachability": "UNKNOWN_NOT_CHECKED",
+    "finality_verifier_implementation": "PORT_ONLY_NO_IMPLEMENTATION",
+    "generated_code_and_deployment_wiring": "UNKNOWN_NOT_CHECKED",
+    "reference_and_durable_routes_are_research_only": true,
+    "required_before_mount": [
+      "selected profile and beneficial owner for every enabled command",
+      "production ZenoLedger publication capability with finality authority",
+      "one exact writer route for every enabled value-moving command",
+      "no-bypass evidence covering legacy and generated entrypoints",
+      "terminal, migration, and replay evidence for every enabled route"
+    ],
+    "status": "NONE_DECLARED_BY_EXACT_SOURCE_LEVEL_INVENTORY"
+  },
+  "schema": "zenodex/production-readiness-g1-entrypoints/v1",
+  "source_evidence_method": "AST_DEFINITION_INVENTORY_AND_SOURCE_LEVEL_WRITER_MANIFEST",
+  "source_markers": {
+    "src/integration/m6_commit_port_v1.py": [
+      "Single in-memory M6 commit port used by the reference and test shell.",
+      "without pretending to",
+      "The reference repository does not implement"
+    ],
+    "src/integration/m6_durable_store_v1.py": [
+      "Research-only durable shell for the M6 typed commit bundle.",
+      "It intentionally has no validator networking",
+      "external effect delivery"
+    ],
+    "src/integration/m6_outbox_delivery_v1.py": [
+      "Research-only Tau outbox delivery shell for the M6 durable ledger.",
+      "never changes M6",
+      "never creates acknowledgment authority"
+    ]
+  },
+  "source_pins": [
+    {
+      "path": "src/core/m6_safe_mount_v1.py",
+      "sha256": "bb0b4c32acfdb002e2478b771b4ca285759eaca98386916c22cd9b9e8d118e99",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "src/core/m6_safe_mount_transition_v1.py",
+      "sha256": "9355b083064439b2756ee1d9454710229eaa3fe31fd529587ea3ece66cba8ee2",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "src/core/m6_safe_mount_types_v1.py",
+      "sha256": "e9dfe00abd72f20f6c49986dd5af5a7f37042ee100b9f6d26f6b719b8e5623f8",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "src/core/m6_zrpf_v1.py",
+      "sha256": "ddbfef1f608f691ceff81c1bba52484f3ec0f12736afa3d2e54b04e8080ca486",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "src/integration/m6_authority_verifier_v1.py",
+      "sha256": "e1f8162e2d314602beb2f0c45e1b8a8843c9af0fa12fe8d08d4be7d8c22acf9e",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "src/integration/m6_commit_port_v1.py",
+      "sha256": "5b75fc6016c4a95bcc1cf29663fc14240fcf236bc6a551f7489e81e4a7cadcbb",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "src/integration/m6_durable_store_v1.py",
+      "sha256": "779c953eb4c9c1a9458212484b5f1f5ded10c4e13907c6e6ea3386078797321a",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "src/integration/m6_outbox_delivery_journal_v1.py",
+      "sha256": "e3743416946787673ad00b4e4245300c7cd7d40ccfcbf0fc833e255e34552930",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "src/integration/m6_outbox_delivery_v1.py",
+      "sha256": "e06451b9e8147e49ee1e0d4495c75b8b00e3af73bd7e45acd7a680d684b48401",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "tools/m6_writer_inventory_manifest_v1.json",
+      "sha256": "6e123f2021f5234895a2b59d2e6a956428fabd2f9a5b45d06dd4b77db2604847",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    }
+  ],
+  "source_subject": {
+    "base_commit": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+    "current_head_must_descend_from_base": true,
+    "source_authority": "frozen source bytes at the exact base commit"
+  },
+  "status": "G1_ENTRYPOINT_AUDIT_RESEARCH_ONLY",
+  "surface_inventory": [
+    {
+      "authority": "candidate_only",
+      "class": null,
+      "id": "m6_public_candidate_facade",
+      "kind": "reexport",
+      "line": 21,
+      "path": "src/core/m6_safe_mount_v1.py",
+      "status": "RESEARCH_ONLY_CANDIDATE_NO_PUBLICATION",
+      "symbol": "run_m6_transition_v1"
+    },
+    {
+      "authority": "candidate_only",
+      "class": null,
+      "id": "m6_core_transition",
+      "kind": "definition",
+      "line": 116,
+      "path": "src/core/m6_safe_mount_transition_v1.py",
+      "status": "RESEARCH_ONLY_CANDIDATE_NO_PUBLICATION",
+      "symbol": "run_m6_transition_v1"
+    },
+    {
+      "authority": "unimplemented_external_verifier_port",
+      "class": "M6FinalityVerifierV1",
+      "id": "m6_finality_verifier_port",
+      "kind": "definition",
+      "line": 83,
+      "path": "src/integration/m6_commit_port_v1.py",
+      "status": "PORT_ONLY_NO_IMPLEMENTATION",
+      "symbol": "verify_finality"
+    },
+    {
+      "authority": "reference_test_commit_shell",
+      "class": "M6CommitPortV1",
+      "id": "m6_reference_commit_direct",
+      "kind": "definition",
+      "line": 747,
+      "path": "src/integration/m6_commit_port_v1.py",
+      "status": "M6_RESEARCH_ONLY",
+      "symbol": "publish"
+    },
+    {
+      "authority": "reference_test_commit_shell",
+      "class": "M6CommitPortV1",
+      "id": "m6_reference_commit_zrpf",
+      "kind": "definition",
+      "line": 835,
+      "path": "src/integration/m6_commit_port_v1.py",
+      "status": "M6_RESEARCH_ONLY",
+      "symbol": "publish_zrpf"
+    },
+    {
+      "authority": "reference_test_commit_shell",
+      "class": "M6CommitPortV1",
+      "id": "m6_reference_commit_direct_batch",
+      "kind": "definition",
+      "line": 882,
+      "path": "src/integration/m6_commit_port_v1.py",
+      "status": "M6_RESEARCH_ONLY",
+      "symbol": "publish_direct_batch"
+    },
+    {
+      "authority": "research_filesystem_adapter",
+      "class": "M6DurableLedgerStoreV1",
+      "id": "m6_research_durable_direct",
+      "kind": "definition",
+      "line": 1970,
+      "path": "src/integration/m6_durable_store_v1.py",
+      "status": "M6_RESEARCH_ONLY",
+      "symbol": "publish"
+    },
+    {
+      "authority": "research_filesystem_adapter",
+      "class": "M6DurableLedgerStoreV1",
+      "id": "m6_research_durable_zrpf",
+      "kind": "definition",
+      "line": 2037,
+      "path": "src/integration/m6_durable_store_v1.py",
+      "status": "M6_RESEARCH_ONLY",
+      "symbol": "publish_zrpf"
+    },
+    {
+      "authority": "research_filesystem_adapter",
+      "class": "M6DurableLedgerStoreV1",
+      "id": "m6_research_durable_direct_batch",
+      "kind": "definition",
+      "line": 2122,
+      "path": "src/integration/m6_durable_store_v1.py",
+      "status": "M6_RESEARCH_ONLY",
+      "symbol": "publish_direct_batch"
+    },
+    {
+      "authority": "external_effect_journal_only",
+      "class": "M6OutboxDeliveryJournalV1",
+      "id": "m6_outbox_journal_reserve",
+      "kind": "definition",
+      "line": 199,
+      "path": "src/integration/m6_outbox_delivery_journal_v1.py",
+      "status": "M6_RESEARCH_ONLY_NO_STATE_WRITER",
+      "symbol": "reserve"
+    },
+    {
+      "authority": "external_effect_journal_only",
+      "class": "M6OutboxDeliveryJournalV1",
+      "id": "m6_outbox_journal_mark_delivered",
+      "kind": "definition",
+      "line": 235,
+      "path": "src/integration/m6_outbox_delivery_journal_v1.py",
+      "status": "M6_RESEARCH_ONLY_NO_STATE_WRITER",
+      "symbol": "mark_delivered"
+    },
+    {
+      "authority": "external_effect_transport_only",
+      "class": "M6OutboxDeliveryPortV1",
+      "id": "m6_outbox_delivery",
+      "kind": "definition",
+      "line": 219,
+      "path": "src/integration/m6_outbox_delivery_v1.py",
+      "status": "M6_RESEARCH_ONLY_NO_STATE_WRITER",
+      "symbol": "deliver"
+    }
+  ],
+  "version": "v1",
+  "writer_inventory": {
+    "coverage_row_count": 25,
+    "declared_production_entrypoint_ids": [],
+    "entrypoint_count": 25,
+    "m6_entrypoints": [
+      {
+        "class": "M6CommitPortV1",
+        "entrypoint_id": "m6_research_commit_direct",
+        "m6_mount_status": "M6_RESEARCH_ONLY",
+        "path": "src/integration/m6_commit_port_v1.py",
+        "symbol": "publish"
+      },
+      {
+        "class": "M6CommitPortV1",
+        "entrypoint_id": "m6_research_commit_direct_batch",
+        "m6_mount_status": "M6_RESEARCH_ONLY",
+        "path": "src/integration/m6_commit_port_v1.py",
+        "symbol": "publish_direct_batch"
+      },
+      {
+        "class": "M6CommitPortV1",
+        "entrypoint_id": "m6_research_commit_zrpf",
+        "m6_mount_status": "M6_RESEARCH_ONLY",
+        "path": "src/integration/m6_commit_port_v1.py",
+        "symbol": "publish_zrpf"
+      },
+      {
+        "class": "M6DurableLedgerStoreV1",
+        "entrypoint_id": "m6_research_durable_direct",
+        "m6_mount_status": "M6_RESEARCH_ONLY",
+        "path": "src/integration/m6_durable_store_v1.py",
+        "symbol": "publish"
+      },
+      {
+        "class": "M6DurableLedgerStoreV1",
+        "entrypoint_id": "m6_research_durable_direct_batch",
+        "m6_mount_status": "M6_RESEARCH_ONLY",
+        "path": "src/integration/m6_durable_store_v1.py",
+        "symbol": "publish_direct_batch"
+      },
+      {
+        "class": "M6DurableLedgerStoreV1",
+        "entrypoint_id": "m6_research_durable_zrpf",
+        "m6_mount_status": "M6_RESEARCH_ONLY",
+        "path": "src/integration/m6_durable_store_v1.py",
+        "symbol": "publish_zrpf"
+      }
+    ],
+    "m6_production_mounted": false,
+    "manifest": "tools/m6_writer_inventory_manifest_v1.json",
+    "manifest_checker_ok": true,
+    "mount_status_counts": {
+      "M6_RESEARCH_ONLY": 6,
+      "SEPARATE_RESEARCH_NOT_M6": 1,
+      "UNMOUNTED_LEGACY": 18
+    },
+    "open_coverage_count": 25,
+    "production_authority": false,
+    "release_ready": false,
+    "unmounted_entrypoint_count": 18
+  }
+}

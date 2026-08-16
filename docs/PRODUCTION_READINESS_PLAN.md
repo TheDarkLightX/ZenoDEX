@@ -214,12 +214,22 @@ exact-subject BDD companion
 research-only workflow and 267 scenario obligations; all scenarios remain
 `UNIMPLEMENTED_RESEARCH_SCENARIO`. The G1 exit gate therefore remains blocked
 and these artifacts do not change any production claim.
+The companion entrypoint audit
+`docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json` binds the same
+33-command registry to 12 exact source surfaces. It records the six M6
+research publication methods, the outbox-only effect surfaces, and the
+finality-verifier port. The source-level writer inventory remains 25 entries,
+with 18 unmounted legacy entries, six M6 research entries, and one separate
+research entry; all 25 coverage rows remain open and no production writer is
+declared. Dynamic reachability, generated code, credentials, and deployment
+wiring remain `UNKNOWN`.
 
 Replay the slice with:
 
 ```bash
 python3 tools/check_production_readiness_g1_semantics.py --check --json
 python3 tools/check_production_readiness_g1_bdd.py --check --json
+python3 tools/check_production_readiness_g1_entrypoints.py --check --json
 ```
 
 ### G2: Complete the deterministic functional core

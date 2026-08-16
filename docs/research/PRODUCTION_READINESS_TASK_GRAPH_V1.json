@@ -91,12 +91,16 @@
         "docs",
         "docs/research",
         "docs/research/PRODUCTION_READINESS_G1_BDD_V1.json",
+        "docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json",
         "src/core",
         "tests",
         "tests/test_check_production_readiness_g1_bdd.py",
+        "tests/test_check_production_readiness_g1_entrypoints.py",
         "tests/test_check_production_readiness_g1_semantics.py",
         "tools/check_production_readiness_g1_bdd.py",
+        "tools/production_readiness_g1_entrypoint_contract.py",
+        "tools/check_production_readiness_g1_entrypoints.py",
         "tools/check_production_readiness_g1_semantics.py"
       ],
       "invariant": "Every enabled command has one selected economic owner and a complete user-to-terminal contract.",
@@ -107,6 +111,8 @@
         "The global state field contracts and value-delta class contracts are declared but remain GAP until types, equations, ownership, and reconciliation are independently checked.",
         "Emergency zUSD shutdown is explicitly absent from the launch registry and requires a new profile decision before any re-entry.",
         "The exact-subject BDD catalogue has 33 research-only workflows and 267 unimplemented scenario obligations; it has no executable evidence.",
+        "The exact-subject entrypoint audit maps 33 commands to 12 source surfaces; the source-level writer inventory has 25 open rows, 18 unmounted entries, and no declared production writer.",
+        "Dynamic reachability, generated code, credentials, and deployment wiring remain UNKNOWN and require a production-build audit.",
         "The legacy ATDD contract is source-pinned to an older subject and is not a valid exact-subject G1 completion receipt.",
         "The broader claims-registry gate fails on the exact base because claims[123] references missing tools/check_derivatives_authorization_matrix.py."
       ],
@@ -114,13 +120,15 @@
         "python3 tools/check_production_readiness_plan.py --json",
         "python3 tools/check_production_readiness_g1_semantics.py --check --json",
         "python3 tools/check_production_readiness_g1_bdd.py --check --json",
+        "python3 tools/check_production_readiness_g1_entrypoints.py --check --json",
         "python3 tools/check_m6_global_economic_core_atdd_v1.py"
       ],
       "artifact_hashes": [],
       "nonclaims": [
         "A closed registry alone does not implement, prove, mount, or test a command.",
         "The G1 semantic mapping is research-only and cannot authorize settlement or production promotion.",
-        "The G1 BDD catalogue is scenario inventory only; it cannot substitute for executable tests, proofs, or mounted runtime evidence."
+        "The G1 BDD catalogue is scenario inventory only; it cannot substitute for executable tests, proofs, or mounted runtime evidence.",
+        "The G1 entrypoint audit is a static source inventory; it cannot establish dynamic reachability, generated-code coverage, no-bypass behavior, or a production writer."
       ],
       "completion_receipt": null
     },
