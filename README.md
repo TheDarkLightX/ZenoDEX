@@ -639,6 +639,8 @@ The rehearsal succeeds when the second machine emits `ok=true`, an
 - `tools/check_production_readiness_g1_semantics.py --check` (fail-closed structural check; a pass is not production evidence)
 - `docs/research/PRODUCTION_READINESS_G1_BDD_V1.json` (33-command research-only BDD contract; scenarios are not executable evidence)
 - `tools/check_production_readiness_g1_bdd.py --check` (fail-closed BDD catalogue check; production promotion remains closed)
+- `docs/research/PRODUCTION_READINESS_G1_PROFILE_INPUTS_V1.json` (nine source-pinned mechanism review packets; every policy selection remains null)
+- `tools/check_production_readiness_g1_profile_inputs.py --check` (fail-closed decision-input check; it has no policy authority)
 - `docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json` (base-subject plus verified-repair-descendant static route and writer audit; no production writer is declared)
 - `tools/check_production_readiness_g1_entrypoints.py --check` (fail-closed entrypoint audit; dynamic reachability remains unknown)
 - `docs/SPECIFICATION.md`

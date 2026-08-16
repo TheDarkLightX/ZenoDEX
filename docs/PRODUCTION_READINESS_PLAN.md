@@ -214,6 +214,18 @@ exact-subject BDD companion
 research-only workflow and 267 scenario obligations; all scenarios remain
 `UNIMPLEMENTED_RESEARCH_SCENARIO`. The G1 exit gate therefore remains blocked
 and these artifacts do not change any production claim.
+The decision-input packet
+`docs/research/PRODUCTION_READINESS_G1_PROFILE_INPUTS_V1.json` binds the exact
+semantic artifact and the frozen V1 type and transition sources. It records
+one game surface, attack query, bounded-model boundary, evidence lane, and
+promotion boundary for each of the nine open decisions. It also records
+incomplete research behaviors such as caller-supplied spot fees, one-to-one LP
+share placeholders, placeholder zUSD collateral comparison, unsupported
+oracle dispute and buy-and-burn paths, and zero-PnL-only perps close. Every
+`selected_profile` remains null. The packet supplies review inputs and has no
+policy, settlement, release, or promotion authority. Its exact symbol and file
+bindings locate the reviewed source; they do not mechanically prove the prose
+interpretation.
 The companion entrypoint audit
 `docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json` binds the same
 33-command registry to 12 exact source surfaces. It records the six M6
@@ -302,6 +314,7 @@ Replay the slice with:
 ```bash
 python3 tools/check_production_readiness_g1_semantics.py --check --json
 python3 tools/check_production_readiness_g1_bdd.py --check --json
+python3 tools/check_production_readiness_g1_profile_inputs.py --check --json
 python3 tools/check_production_readiness_g1_entrypoints.py --check --json
 python3 tools/check_production_readiness_g1_safe_hold.py --check --json
 python3 tools/check_production_readiness_g1_profile_gate.py --check --json

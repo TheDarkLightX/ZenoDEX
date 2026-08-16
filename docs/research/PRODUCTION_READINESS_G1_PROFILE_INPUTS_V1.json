@@ -1,0 +1,1021 @@
+{
+  "decision_inputs": [
+    {
+      "affected_workflow_families": [
+        "spot_and_liquidity",
+        "zusd_monetary",
+        "protocol_token",
+        "proof_reward",
+        "sealed_bid",
+        "tau_escrow"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "attack_query": "Can any caller create or destroy one atom, reset a supply floor, or strand custody without the one selected authority and terminal owner?",
+      "bounded_model": {
+        "assumptions": [
+          "one issue authority and one burn authority per managed asset",
+          "all value deltas reconcile by asset"
+        ],
+        "bounds": "integer widths, asset scales, and supply ceilings remain unselected",
+        "exclusions": [
+          "no launch asset list",
+          "no inferred decimals",
+          "no inferred genesis allocation"
+        ],
+        "integer_variables": [
+          "amount_atoms",
+          "supply_atoms",
+          "custody_atoms",
+          "claim_atoms"
+        ]
+      },
+      "decision_status": "OPEN_UNSELECTED",
+      "evidence_lane": [
+        "per-asset differential oracle",
+        "stateful issue/burn histories",
+        "Lean conservation",
+        "mounted no-bypass audit"
+      ],
+      "game_surface": {
+        "actions": [
+          "issue",
+          "burn",
+          "credit",
+          "debit",
+          "migrate",
+          "terminal drain"
+        ],
+        "authoritative_state": "per-asset supply, balances, custody, reserves, escrows, and claims",
+        "information_sets": [
+          "selected asset policy",
+          "ledger supply",
+          "custody claims",
+          "external finality evidence"
+        ],
+        "loss_surface": "unauthorized issuance, supply underflow, unbacked custody claims, or stranded terminal balances",
+        "players": [
+          "issuer",
+          "burner",
+          "asset holder",
+          "custody adapter",
+          "governance operator"
+        ],
+        "timing": "genesis, every value transition, authority rotation, and terminal migration"
+      },
+      "id": "asset_issue_burn_policy",
+      "input_status": "SOURCE_PINNED_RESEARCH_INPUT_NOT_POLICY",
+      "observed_research_behavior": [
+        "AssetPolicyV1 names asset, issue authority, burn authority, custody domain, and terminal drain without selecting their values.",
+        "M6PromotionSubjectV1 binds a managed-asset-policy root rather than embedding a launch policy.",
+        "The V1 state validator rejects non-zUSD supply without a mounted issuance kernel and reconciles zUSD supply, debt, balances, and pending withdrawals."
+      ],
+      "production_authority": "NONE",
+      "promotion_boundary": "These source types identify required policy fields. They do not authorize an asset, issuer, burner, scale, or supply floor.",
+      "question": "Which managed assets, units, issue authorities, burn authorities, and supply floors are in scope?",
+      "required_outputs": [
+        "managed asset classes and integer base-unit scales",
+        "one issue authority and one burn authority per managed asset",
+        "supply bounds, genesis bindings, and terminal supply disposition"
+      ],
+      "selected_profile": null,
+      "source_observations": [
+        {
+          "path": "src/core/m6_safe_mount_types_v1.py",
+          "symbols": [
+            {
+              "line": 372,
+              "symbol": "AssetPolicyV1"
+            },
+            {
+              "line": 479,
+              "symbol": "M6PromotionSubjectV1"
+            },
+            {
+              "line": 3416,
+              "symbol": "validate_economic_state_v1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "affected_workflow_families": [
+        "spot_and_liquidity"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "attack_query": "Can a trader or LP choose fee, output, share ratio, ordering, or dust disposition to extract value or leave an unowned remainder?",
+      "bounded_model": {
+        "assumptions": [
+          "integer floor arithmetic",
+          "atomic reserve and balance updates"
+        ],
+        "bounds": "fee rates, minimum liquidity, reserve ceilings, and dust thresholds remain unselected",
+        "exclusions": [
+          "the V1 one-to-one LP placeholder is not a launch recommendation",
+          "no inferred fee beneficiary"
+        ],
+        "integer_variables": [
+          "reserve_in",
+          "reserve_out",
+          "amount_in",
+          "amount_out",
+          "fee_atoms",
+          "lp_share_atoms",
+          "dust_atoms"
+        ]
+      },
+      "decision_status": "OPEN_UNSELECTED",
+      "evidence_lane": [
+        "independent AMM arithmetic oracle",
+        "boundary-value reserve vectors",
+        "stateful LP entry/exit",
+        "terminal-drain mutation tests"
+      ],
+      "game_surface": {
+        "actions": [
+          "swap",
+          "add liquidity",
+          "remove liquidity",
+          "collect fee",
+          "drain final pool"
+        ],
+        "authoritative_state": "pool reserves, user balances, LP shares, fee buckets, and dust",
+        "information_sets": [
+          "pre-trade reserves",
+          "declared amounts",
+          "fee policy",
+          "LP supply",
+          "rounding residue"
+        ],
+        "loss_surface": "fee evasion, reserve extraction, dilution, rounding capture, or unreachable final reserves",
+        "players": [
+          "trader",
+          "liquidity provider",
+          "fee beneficiary",
+          "pool",
+          "rounding owner"
+        ],
+        "timing": "quote, admission, atomic reserve update, LP exit, and final-pool drain"
+      },
+      "id": "spot_lp_fee_dust_withdrawal_policy",
+      "input_status": "SOURCE_PINNED_RESEARCH_INPUT_NOT_POLICY",
+      "observed_research_behavior": [
+        "The V1 spot handler checks a constant-product integer-floor output for the caller-supplied input and output amounts.",
+        "The optional fee amount is caller-supplied and credited to the protocol; no fee-rate profile selects it.",
+        "LP mint and burn use an explicitly documented one-share-per-atom placeholder because the complete pool-share pricing policy is absent."
+      ],
+      "production_authority": "NONE",
+      "promotion_boundary": "The observed arithmetic is a research implementation input. Exact fees, LP math, dust ownership, and withdrawal rules require an approved profile.",
+      "question": "Which spot and LP fee, rounding, dust, withdrawal, and final-pool rules are selected?",
+      "required_outputs": [
+        "spot and LP fee rates, rounding direction, and fee beneficiaries",
+        "LP share mint and burn arithmetic with reserve reconciliation",
+        "dust ownership, withdrawal rules, and final-pool terminal drain"
+      ],
+      "selected_profile": null,
+      "source_observations": [
+        {
+          "path": "src/core/m6_safe_mount_transition_v1.py",
+          "symbols": [
+            {
+              "line": 794,
+              "symbol": "_apply_spot_swap"
+            },
+            {
+              "line": 820,
+              "symbol": "_apply_lp_add"
+            },
+            {
+              "line": 837,
+              "symbol": "_apply_lp_remove"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "affected_workflow_families": [
+        "zusd_monetary"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "attack_query": "Can any vault or liquidation sequence create zUSD without matched debt and backing, use stale risk data, or shift loss to an unnamed owner?",
+      "bounded_model": {
+        "assumptions": [
+          "zUSD mint and burn stay inside the monetary kernel",
+          "supply and debt reconcile after every accepted command"
+        ],
+        "bounds": "collateral ratios, fees, redemption limits, liquidation thresholds, and recovery parameters remain unselected",
+        "exclusions": [
+          "emergency zUSD shutdown",
+          "the placeholder collateral comparison is not launch MCR policy"
+        ],
+        "integer_variables": [
+          "collateral_atoms",
+          "debt_atoms",
+          "zusd_supply_atoms",
+          "fee_atoms",
+          "pool_claim_atoms",
+          "bad_debt_atoms"
+        ]
+      },
+      "decision_status": "OPEN_UNSELECTED",
+      "evidence_lane": [
+        "independent Liquity-style accounting oracle",
+        "stateful vault and Stability Pool histories",
+        "Lean liability conservation",
+        "oracle-gated liquidation tests"
+      ],
+      "game_surface": {
+        "actions": [
+          "borrow",
+          "repay",
+          "redeem",
+          "liquidate",
+          "offset",
+          "redistribute",
+          "withdraw"
+        ],
+        "authoritative_state": "zUSD supply, vault debt, collateral custody, Stability Pool claims, reserves, and protocol liabilities",
+        "information_sets": [
+          "collateral",
+          "debt",
+          "oracle occurrence",
+          "fees",
+          "pool claims",
+          "system mode"
+        ],
+        "loss_surface": "unbacked minting, stale-price liquidation, fee leakage, bad-debt orphaning, or Stability Pool claim loss",
+        "players": [
+          "borrower",
+          "redeemer",
+          "liquidator",
+          "stability provider",
+          "fee beneficiary",
+          "bad-debt owner"
+        ],
+        "timing": "vault creation, risk change, oracle update, liquidation, redistribution, recovery, and terminal drain"
+      },
+      "id": "zusd_monetary_lifecycle_policy",
+      "input_status": "SOURCE_PINNED_RESEARCH_INPUT_NOT_POLICY",
+      "observed_research_behavior": [
+        "Borrowing uses amount_atoms <= collateral_atoms as a conservative placeholder because the oracle and minimum-collateral-ratio policy is absent.",
+        "Mint, repay, redeem, and liquidation update zUSD supply and debt with exact integer deltas and no selected fee schedule.",
+        "Stability Pool deposits and withdrawals use one-to-one claim atoms without selected gain, loss, offset, or terminal distribution rules."
+      ],
+      "production_authority": "NONE",
+      "promotion_boundary": "The V1 handlers expose lifecycle and accounting obligations. They do not select collateral, fee, redemption, liquidation, redistribution, or Stability Pool economics.",
+      "question": "Which zUSD collateral, fee, redemption, liquidation, redistribution, and Stability Pool rules are selected?",
+      "required_outputs": [
+        "borrowing and redemption fees with current liability owners",
+        "collateral, redemption, liquidation, and redistribution parameters",
+        "Stability Pool gain, loss, rounding, recovery, and terminal rules"
+      ],
+      "selected_profile": null,
+      "source_observations": [
+        {
+          "path": "src/core/m6_safe_mount_types_v1.py",
+          "symbols": [
+            {
+              "line": 3416,
+              "symbol": "validate_economic_state_v1"
+            }
+          ]
+        },
+        {
+          "path": "src/core/m6_safe_mount_transition_v1.py",
+          "symbols": [
+            {
+              "line": 871,
+              "symbol": "_apply_zusd_borrow"
+            },
+            {
+              "line": 890,
+              "symbol": "_apply_zusd_repay"
+            },
+            {
+              "line": 903,
+              "symbol": "_apply_zusd_redeem"
+            },
+            {
+              "line": 923,
+              "symbol": "_apply_zusd_liquidate"
+            },
+            {
+              "line": 941,
+              "symbol": "_apply_stability_deposit"
+            },
+            {
+              "line": 963,
+              "symbol": "_apply_stability_withdraw"
+            },
+            {
+              "line": 990,
+              "symbol": "_apply_zusd_redistribute"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "affected_workflow_families": [
+        "oracle",
+        "zusd_monetary",
+        "perps_risk"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "attack_query": "Can reporters or consumers reorder, replay, censor, dispute, or age observations to authorize a profitable stale or manipulated transition?",
+      "bounded_model": {
+        "assumptions": [
+          "risk-increasing commands require an admitted fresh occurrence",
+          "report and dispute identities are replay scoped"
+        ],
+        "bounds": "reporter set, quorum, dispute window, aggregation rule, freshness thresholds, and recovery delay remain unselected",
+        "exclusions": [
+          "a stored latest price alone is not an aggregation policy",
+          "no inferred fallback price"
+        ],
+        "integer_variables": [
+          "price_e8",
+          "bond_atoms",
+          "observed_height",
+          "oracle_height",
+          "age_blocks",
+          "reporter_count"
+        ]
+      },
+      "decision_status": "OPEN_UNSELECTED",
+      "evidence_lane": [
+        "occurrence-stream model",
+        "oracle manipulation game",
+        "ESSO outage/recovery",
+        "differential aggregation oracle",
+        "consumer freshness mutation tests"
+      ],
+      "game_surface": {
+        "actions": [
+          "submit",
+          "aggregate",
+          "dispute",
+          "finalize",
+          "mark stale",
+          "recover"
+        ],
+        "authoritative_state": "admitted reports, bonds, disputes, aggregate price, occurrence identity, and freshness context",
+        "information_sets": [
+          "source reports",
+          "occurrence order",
+          "bonds",
+          "freshness",
+          "consumer action class",
+          "outage state"
+        ],
+        "loss_surface": "manipulated or stale risk increase, bond theft, split-brain aggregates, or unsafe outage recovery",
+        "players": [
+          "reporter",
+          "disputer",
+          "aggregator",
+          "price consumer",
+          "bond beneficiary",
+          "recovery operator"
+        ],
+        "timing": "report occurrence, dispute window, aggregation, consumption, outage, and recovery"
+      },
+      "id": "oracle_lifecycle_policy",
+      "input_status": "SOURCE_PINNED_RESEARCH_INPUT_NOT_POLICY",
+      "observed_research_behavior": [
+        "Oracle submission escrows a caller-supplied zUSD bond and replaces one stored integer price.",
+        "Oracle dispute always returns UNSUPPORTED_OPERATION because observation, bond ownership, deadline, and outcome policy are absent.",
+        "The execution context carries freshness bounds and oracle heights, while the business handler does not select reporter admission or aggregation semantics."
+      ],
+      "production_authority": "NONE",
+      "promotion_boundary": "The source records a bounded placeholder lifecycle. Reporter, dispute, aggregation, freshness, outage, and recovery authority remain unselected.",
+      "question": "Which reporter, dispute, aggregation, freshness, outage, and recovery rules are selected?",
+      "required_outputs": [
+        "reporter and dispute authority plus bond disposition",
+        "aggregation, occurrence, freshness, and finality semantics",
+        "stale, disputed, outage, and recovery behavior by command class"
+      ],
+      "selected_profile": null,
+      "source_observations": [
+        {
+          "path": "src/core/m6_safe_mount_types_v1.py",
+          "symbols": [
+            {
+              "line": 400,
+              "symbol": "FreshnessBoundsV1"
+            },
+            {
+              "line": 422,
+              "symbol": "OracleContextV1"
+            }
+          ]
+        },
+        {
+          "path": "src/core/m6_safe_mount_transition_v1.py",
+          "symbols": [
+            {
+              "line": 1108,
+              "symbol": "_apply_oracle_submit"
+            },
+            {
+              "line": 1134,
+              "symbol": "_apply_oracle_dispute"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "affected_workflow_families": [
+        "perps_risk"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "attack_query": "Can a trader or liquidator choose price, PnL, funding, margin, insurance, or close order to externalize a liability or bypass oracle gating?",
+      "bounded_model": {
+        "assumptions": [
+          "integer settlement",
+          "every closed position drains margin and liabilities"
+        ],
+        "bounds": "market list, leverage, margin ratios, funding clamp, liquidation penalty, insurance cap, and terminal limits remain unselected",
+        "exclusions": [
+          "zero-PnL close is a fail-closed research subset",
+          "caller-supplied entry price is not oracle admission"
+        ],
+        "integer_variables": [
+          "size_atoms",
+          "margin_atoms",
+          "price_e8",
+          "pnl_atoms",
+          "funding_atoms",
+          "insurance_atoms",
+          "bad_debt_atoms"
+        ]
+      },
+      "decision_status": "OPEN_UNSELECTED",
+      "evidence_lane": [
+        "independent perps accounting oracle",
+        "stateful funding/liquidation histories",
+        "oracle manipulation sweep",
+        "insurance and bad-debt conservation proof"
+      ],
+      "game_surface": {
+        "actions": [
+          "open",
+          "fund",
+          "reduce",
+          "close",
+          "liquidate",
+          "insure",
+          "terminal settle"
+        ],
+        "authoritative_state": "positions, entry prices, margin, PnL, funding, insurance, and bad debt",
+        "information_sets": [
+          "position",
+          "margin",
+          "entry and mark occurrence",
+          "funding epoch",
+          "insurance",
+          "market mode"
+        ],
+        "loss_surface": "caller-authored PnL, under-margin opening, stale liquidation, insurance overdraw, or orphaned bad debt",
+        "players": [
+          "trader",
+          "counterparty pool",
+          "liquidator",
+          "funding payer",
+          "insurance owner",
+          "bad-debt owner"
+        ],
+        "timing": "open, funding occurrence, risk update, partial or full liquidation, recovery, and terminal close"
+      },
+      "id": "perps_risk_and_terminal_policy",
+      "input_status": "SOURCE_PINNED_RESEARCH_INPUT_NOT_POLICY",
+      "observed_research_behavior": [
+        "Perp open accepts a caller-supplied entry price and moves zUSD margin without a selected initial-margin rule.",
+        "Perp close permits only zero PnL because exit-price and oracle policy are absent.",
+        "Funding is a simple transfer and liquidation consumes the sender's position while allocating a caller-supplied insurance amount; full liquidation and bad-debt policy are absent."
+      ],
+      "production_authority": "NONE",
+      "promotion_boundary": "The current handlers demonstrate a restricted lifecycle. They do not select production markets, margin, funding, liquidation, insurance, or terminal settlement.",
+      "question": "Which perps funding, liquidation, insurance, bad-debt, oracle, and terminal-close rules are selected?",
+      "required_outputs": [
+        "market, collateral, margin, fee, and funding definitions",
+        "liquidation, insurance, and bad-debt allocation",
+        "oracle gating, recovery subset, and terminal close semantics"
+      ],
+      "selected_profile": null,
+      "source_observations": [
+        {
+          "path": "src/core/m6_safe_mount_transition_v1.py",
+          "symbols": [
+            {
+              "line": 1001,
+              "symbol": "_apply_perp_open"
+            },
+            {
+              "line": 1023,
+              "symbol": "_apply_perp_close"
+            },
+            {
+              "line": 1066,
+              "symbol": "_apply_perp_funding"
+            },
+            {
+              "line": 1070,
+              "symbol": "_apply_perp_liquidate"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "affected_workflow_families": [
+        "protocol_token"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "attack_query": "Can an operator redirect budget, trade against a manipulated route, claim an unproven purchase, or burn below the protected supply floor?",
+      "bounded_model": {
+        "assumptions": [
+          "purchase and burn are one governed lifecycle",
+          "burn authority is unique"
+        ],
+        "bounds": "funding source, route, guard, budget, cadence, and floor remain unselected",
+        "exclusions": [
+          "no implicit treasury ownership",
+          "no fallback route",
+          "no inferred token floor"
+        ],
+        "integer_variables": [
+          "budget_atoms",
+          "acquired_atoms",
+          "burn_atoms",
+          "price_e8",
+          "supply_atoms",
+          "floor_atoms"
+        ]
+      },
+      "decision_status": "OPEN_UNSELECTED",
+      "evidence_lane": [
+        "treasury conservation oracle",
+        "price-manipulation scenarios",
+        "burn-supply proof",
+        "route and custody replay tests"
+      ],
+      "game_surface": {
+        "actions": [
+          "fund budget",
+          "purchase",
+          "apply price guard",
+          "custody acquired tokens",
+          "burn",
+          "recover"
+        ],
+        "authoritative_state": "buyback reserve, acquired-token custody, protocol-token supply, burn receipt, and residual budget",
+        "information_sets": [
+          "budget",
+          "route liquidity",
+          "oracle occurrence",
+          "circulating supply",
+          "protected floor",
+          "reserve state"
+        ],
+        "loss_surface": "treasury extraction, manipulated purchase, floor violation, fake burn, or stranded reserve",
+        "players": [
+          "treasury",
+          "route or auction",
+          "protocol-token holder",
+          "burn authority",
+          "reserve beneficiary"
+        ],
+        "timing": "budget activation, execution window, acquisition finality, burn, failure recovery, and reserve termination"
+      },
+      "id": "protocol_buy_burn_policy",
+      "input_status": "SOURCE_PINNED_RESEARCH_INPUT_NOT_POLICY",
+      "observed_research_behavior": [
+        "Protocol buy-and-burn always returns UNSUPPORTED_OPERATION.",
+        "The source names missing protocol-asset identity, purchase evidence, and owning burn kernel as authority blockers."
+      ],
+      "production_authority": "NONE",
+      "promotion_boundary": "The command remains unreachable in the research subset. No buyback funding, route, token, price guard, floor, or burn authority is selected.",
+      "question": "Which buyback funding, route, price guard, supply floor, burn, and reserve rules are selected?",
+      "required_outputs": [
+        "buyback funding source, route, price guard, budget, and cadence",
+        "acquired-token custody, protected supply floor, and burn authority",
+        "rounding, failure, recovery, and terminal reserve disposition"
+      ],
+      "selected_profile": null,
+      "source_observations": [
+        {
+          "path": "src/core/m6_safe_mount_transition_v1.py",
+          "symbols": [
+            {
+              "line": 1142,
+              "symbol": "_apply_protocol_buy_and_burn"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "affected_workflow_families": [
+        "proof_reward"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "attack_query": "Can a caller name itself or another prover, replay a proof, substitute a release, choose an amount, or race exhaustion to overdraw the reserve?",
+      "bounded_model": {
+        "assumptions": [
+          "only a release-selected verifier can establish proof eligibility",
+          "each claim consumes one scoped nullifier"
+        ],
+        "bounds": "funding, eligibility, schedule, cap, and exhaustion thresholds remain unselected",
+        "exclusions": [
+          "proof mining has no fork-choice or settlement authority",
+          "the V1 direct transfer is not a reward schedule"
+        ],
+        "integer_variables": [
+          "reserve_atoms",
+          "reward_atoms",
+          "claim_count",
+          "proof_work_units"
+        ]
+      },
+      "decision_status": "OPEN_UNSELECTED",
+      "evidence_lane": [
+        "proof-substitution negatives",
+        "nullifier replay histories",
+        "reserve conservation oracle",
+        "exhaustion boundary tests"
+      ],
+      "game_surface": {
+        "actions": [
+          "prove",
+          "verify eligibility",
+          "claim",
+          "consume nullifier",
+          "exhaust or drain reserve"
+        ],
+        "authoritative_state": "reward reserve, verified proof identity, claim amount, claimant, nullifier, and terminal reserve owner",
+        "information_sets": [
+          "verified proof identity",
+          "release profile",
+          "schedule",
+          "remaining reserve",
+          "prior claims"
+        ],
+        "loss_surface": "self-award, duplicate claim, proof substitution, reserve overdraw, or stranded remainder",
+        "players": [
+          "prover",
+          "proof verifier",
+          "reward reserve owner",
+          "claimant",
+          "governance operator"
+        ],
+        "timing": "proof verification, claim admission, atomic reserve debit, replay, exhaustion, and terminal drain"
+      },
+      "id": "proof_reward_reserve_policy",
+      "input_status": "SOURCE_PINNED_RESEARCH_INPUT_NOT_POLICY",
+      "observed_research_behavior": [
+        "The V1 handler transfers a caller-specified asset and amount from the protocol reserve to a named prover reward atom.",
+        "The handler does not select proof eligibility, schedule, cap, claim identity, nullifier scope, or exhaustion behavior."
+      ],
+      "production_authority": "NONE",
+      "promotion_boundary": "The source exposes reserve accounting only. Eligibility, reward amount, schedule, claimant identity, nullifier, and exhaustion policy remain unselected.",
+      "question": "Which proof-reward reserve, eligibility, schedule, claim, nullifier, and exhaustion rules are selected?",
+      "required_outputs": [
+        "reward reserve funding and beneficial owner",
+        "eligibility, schedule, cap, claim identity, and nullifier scope",
+        "rounding, exhaustion, recovery, and terminal reserve drain"
+      ],
+      "selected_profile": null,
+      "source_observations": [
+        {
+          "path": "src/core/m6_safe_mount_transition_v1.py",
+          "symbols": [
+            {
+              "line": 1151,
+              "symbol": "_apply_prover_reward"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "affected_workflow_families": [
+        "sealed_bid"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "attack_query": "Can a bidder, seller, operator, or observer exploit ordering, partial information, deadlines, ties, cancellation, or inventory custody to extract or strand value?",
+      "bounded_model": {
+        "assumptions": [
+          "commitments are domain separated",
+          "canonical ordering resolves equal remainders"
+        ],
+        "bounds": "asset list, bond schedule, fees, phase lengths, inventory authority, lot rules, and terminal thresholds remain unselected",
+        "exclusions": [
+          "existing auction-custody balances do not prove funded inventory ingress",
+          "no inferred fee or slash beneficiary"
+        ],
+        "integer_variables": [
+          "bond_atoms",
+          "quantity_atoms",
+          "price_e8",
+          "inventory_atoms",
+          "payment_atoms",
+          "rounding_remainder_e8",
+          "height"
+        ]
+      },
+      "decision_status": "OPEN_UNSELECTED",
+      "evidence_lane": [
+        "stateful commit/reveal grammar fuzzing",
+        "independent apportionment oracle",
+        "deadline BVA",
+        "escrow terminal-drain mutations",
+        "metadata side-channel review"
+      ],
+      "game_surface": {
+        "actions": [
+          "fund inventory",
+          "commit",
+          "reveal",
+          "cancel",
+          "expire",
+          "settle",
+          "refund",
+          "slash"
+        ],
+        "authoritative_state": "inventory custody, bond escrows, commitments, reveals, fills, payments, rounding, refunds, and slashes",
+        "information_sets": [
+          "commitments",
+          "reveals",
+          "deadlines",
+          "inventory",
+          "bonds",
+          "tie order",
+          "clearing data"
+        ],
+        "loss_surface": "unfunded inventory, reveal theft, ordering manipulation, ambiguous cancellation, bond misallocation, or incomplete terminal drain",
+        "players": [
+          "seller",
+          "bidder",
+          "private trader",
+          "settlement operator",
+          "bond beneficiary",
+          "inventory custodian"
+        ],
+        "timing": "inventory funding, commit height, reveal window, settlement window, cancellation, and expiry"
+      },
+      "id": "sealed_bid_inventory_and_lifecycle_policy",
+      "input_status": "SOURCE_PINNED_RESEARCH_INPUT_NOT_POLICY",
+      "observed_research_behavior": [
+        "Both seller-auction and two-party private-swap research lifecycles implement commit, reveal, settle, cancel, and expire phases with integer heights.",
+        "Seller settlement derives a uniform clearing price, uses deterministic pro-rata remainder ordering, refunds revealed bonds, and slashes non-reveals.",
+        "Seller inventory must already exist under an auction-derived ledger owner, while the command language does not select its deposit authority or fee owner.",
+        "Private settlement requires exactly two reciprocal full-amount reveals and refunds both bonds after atomic balance exchange."
+      ],
+      "production_authority": "NONE",
+      "promotion_boundary": "The bounded workflows are research inputs. Inventory ingress, fees, bonds, deadlines, cancellation, privacy, and terminal ownership require an approved profile.",
+      "question": "Which seller-auction and private-swap inventory, phase, fee, cancellation, and terminal rules are selected?",
+      "required_outputs": [
+        "inventory, payment, bond assets, amounts, and custody owners",
+        "phase deadlines, cancellation, expiry, and non-reveal disposition",
+        "tie order, fees, dust, settlement port, and terminal refunds or slashes"
+      ],
+      "selected_profile": null,
+      "source_observations": [
+        {
+          "path": "src/core/m6_safe_mount_transition_v1.py",
+          "symbols": [
+            {
+              "line": 1161,
+              "symbol": "_apply_seller_auction_commit"
+            },
+            {
+              "line": 1384,
+              "symbol": "_apply_seller_auction_settle"
+            },
+            {
+              "line": 1485,
+              "symbol": "_apply_seller_auction_expire"
+            },
+            {
+              "line": 1199,
+              "symbol": "_apply_private_swap_commit"
+            },
+            {
+              "line": 1530,
+              "symbol": "_apply_private_swap_settle"
+            },
+            {
+              "line": 1596,
+              "symbol": "_apply_private_swap_expire"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "affected_workflow_families": [
+        "tau_escrow"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
+      "attack_query": "Can a relayer, destination, stale Tau profile, or recovery operator replay evidence, acknowledge undelivered value, bypass the outbox ancestor, or replace ZenoLedger finality?",
+      "bounded_model": {
+        "assumptions": [
+          "ZenoLedger remains sovereign economic truth",
+          "acknowledgment is a later core transition",
+          "destination delivery is idempotent"
+        ],
+        "bounds": "finality depth, freshness, retry budget, outage trigger, rejoin delay, and profile-rotation window remain unselected",
+        "exclusions": [
+          "Tau evidence cannot select the ZenoLedger head",
+          "no inferred timeout refund",
+          "no inferred stale-profile fallback"
+        ],
+        "integer_variables": [
+          "amount_atoms",
+          "tau_finality_height",
+          "tau_receipt_height",
+          "authority_epoch",
+          "retry_count"
+        ]
+      },
+      "decision_status": "OPEN_UNSELECTED",
+      "evidence_lane": [
+        "outage/rejoin ESSO model",
+        "deposit and acknowledgment replay histories",
+        "destination idempotency fault tests",
+        "authority-epoch migration tests",
+        "no-bypass audit"
+      ],
+      "game_surface": {
+        "actions": [
+          "deposit",
+          "request withdrawal",
+          "deliver",
+          "acknowledge",
+          "retry",
+          "enter fallback",
+          "rejoin"
+        ],
+        "authoritative_state": "Tau escrow claim, internal balance, withdrawal liability, outbox, acknowledgment, migration phase, and authority epoch",
+        "information_sets": [
+          "Tau finality",
+          "profile root",
+          "ledger head",
+          "outbox identity",
+          "destination receipt",
+          "outage checkpoint"
+        ],
+        "loss_surface": "double deposit, double withdrawal, false acknowledgment, lost retry, stale-profile rejoin, or Tau-driven ledger reorganization",
+        "players": [
+          "Tau depositor",
+          "withdrawer",
+          "relayer",
+          "destination adapter",
+          "validator",
+          "recovery operator"
+        ],
+        "timing": "external finality, internal credit, withdrawal commit, delivery attempts, acknowledgment, outage, catch-up, and rejoin"
+      },
+      "id": "tau_escrow_outage_rejoin_policy",
+      "input_status": "SOURCE_PINNED_RESEARCH_INPUT_NOT_POLICY",
+      "observed_research_behavior": [
+        "Tau deposit requires typed authority evidence matching transaction, finality, profile, beneficiary, asset, amount, and optional height.",
+        "Withdrawal atomically debits an internal balance, creates a liability and outbox effect, and later acknowledgment removes the liability using typed receipt evidence.",
+        "Fallback and rejoin require typed migration evidence, exact checkpoints, compatible profile roots, and authority-epoch changes.",
+        "The transition does not select outage timing, retry cadence, destination idempotency implementation, or stale-profile rotation policy."
+      ],
+      "production_authority": "NONE",
+      "promotion_boundary": "The source supplies typed research transitions. Deposit finality, retry, outage, acknowledgment, destination, and rejoin policy remain unselected.",
+      "question": "Which Tau escrow deposit, withdrawal, outage, acknowledgment, retry, and rejoin rules are selected?",
+      "required_outputs": [
+        "deposit evidence, finality, asset mapping, and replay scope",
+        "withdrawal queue, acknowledgment, retry, and destination idempotency",
+        "outage continuation, pending effects, rejoin proof, and profile rotation"
+      ],
+      "selected_profile": null,
+      "source_observations": [
+        {
+          "path": "src/core/m6_safe_mount_types_v1.py",
+          "symbols": [
+            {
+              "line": 1199,
+              "symbol": "TauFinalityBoundDepositWitnessV1"
+            },
+            {
+              "line": 1107,
+              "symbol": "WithdrawalAcknowledgmentV1"
+            },
+            {
+              "line": 1264,
+              "symbol": "MigrationAuthorityProofV1"
+            }
+          ]
+        },
+        {
+          "path": "src/core/m6_safe_mount_transition_v1.py",
+          "symbols": [
+            {
+              "line": 1644,
+              "symbol": "_apply_tau_escrow_deposit"
+            },
+            {
+              "line": 1700,
+              "symbol": "_apply_tau_withdrawal"
+            },
+            {
+              "line": 1739,
+              "symbol": "_apply_tau_withdrawal_ack"
+            },
+            {
+              "line": 1794,
+              "symbol": "_apply_fallback_activate"
+            },
+            {
+              "line": 1821,
+              "symbol": "_apply_tau_rejoin"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "g1_exit_gate": {
+    "complete": false,
+    "decision_input_count": 9,
+    "selected_profile_count": 0,
+    "status": "BLOCKED_NINE_POLICY_SELECTIONS_AND_EVIDENCE_OPEN"
+  },
+  "nonclaims": [
+    "Source-pinned research behavior is not normative production policy.",
+    "Resolved symbols and file hashes bind review locations; they do not mechanically prove the prose interpretation.",
+    "Game surfaces, attack queries, and bounded-model variables are review inputs rather than proofs.",
+    "No fee, ratio, threshold, authority, beneficiary, timeout, retry, or terminal owner is selected here.",
+    "A passing checker does not close G1, enable a command, mount a writer, or establish production readiness."
+  ],
+  "policy_authority": "NONE",
+  "production_promotion": false,
+  "schema": "zenodex/production-readiness-g1-profile-inputs/v1",
+  "semantic_binding": {
+    "artifact": "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json",
+    "checker_status": "EXACT_SUBJECT_PASS",
+    "sha256": "5c6f777786c82936768cc1e8990f4c6a3c34253dc856bf5db15979257f575bc7",
+    "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+  },
+  "source_pins": [
+    {
+      "path": "src/core/m6_safe_mount_types_v1.py",
+      "sha256": "e9dfe00abd72f20f6c49986dd5af5a7f37042ee100b9f6d26f6b719b8e5623f8",
+      "subject": "63624a3b08f78fe84ee443dcc25c5c61203283b8"
+    },
+    {
+      "path": "src/core/m6_safe_mount_transition_v1.py",
+      "sha256": "9355b083064439b2756ee1d9454710229eaa3fe31fd529587ea3ece66cba8ee2",
+      "subject": "63624a3b08f78fe84ee443dcc25c5c61203283b8"
+    }
+  ],
+  "source_subject": {
+    "current_head_must_descend_from_both": true,
+    "repair_commit": "63624a3b08f78fe84ee443dcc25c5c61203283b8",
+    "semantic_base_commit": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+  },
+  "status": "G1_DECISION_INPUTS_RESEARCH_ONLY",
+  "version": "v1"
+}

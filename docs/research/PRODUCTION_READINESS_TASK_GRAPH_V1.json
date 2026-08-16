@@ -95,6 +95,7 @@
         "docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_LEGACY_ATDD_QUARANTINE_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_PROFILE_GATE_V1.json",
+        "docs/research/PRODUCTION_READINESS_G1_PROFILE_INPUTS_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_SAFE_HOLD_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_STATE_DELTA_GATE_V1.json",
@@ -108,6 +109,7 @@
         "tests/test_check_production_readiness_g1_entrypoints.py",
         "tests/test_check_production_readiness_g1_legacy_atdd_quarantine.py",
         "tests/test_check_production_readiness_g1_profile_gate.py",
+        "tests/test_check_production_readiness_g1_profile_inputs.py",
         "tests/test_check_production_readiness_g1_safe_hold.py",
         "tests/test_check_production_readiness_g1_semantics.py",
         "tests/test_check_production_readiness_g1_state_delta_gate.py",
@@ -117,7 +119,10 @@
         "tools/check_production_readiness_g1_state_delta_gate.py",
         "tools/check_production_readiness_g1_legacy_atdd_quarantine.py",
         "tools/check_production_readiness_g1_bdd.py",
+        "tools/check_production_readiness_g1_profile_inputs.py",
         "tools/production_readiness_g1_entrypoint_contract.py",
+        "tools/production_readiness_g1_entrypoint_ast.py",
+        "tools/production_readiness_g1_profile_input_contract.py",
         "tools/check_production_readiness_g1_entrypoints.py",
         "tools/check_production_readiness_g1_semantics.py"
       ],
@@ -131,6 +136,7 @@
         "The exact-subject BDD catalogue has 33 research-only workflows and 267 unimplemented scenario obligations; it has no executable evidence.",
         "The exact-subject entrypoint audit maps 33 commands to 12 source surfaces; the source-level writer inventory has 25 open rows, 18 unmounted entries, and no declared production writer.",
         "The verified repair descendant closes the scoped F1 orphan-recovery, F2 nested-finality ownership, and F3 hostile-path ingress defects with permanent negative tests; it remains research-only.",
+        "The nine source-pinned mechanism review packets retain selected_profile=null and expose research placeholders and unsupported paths rather than selecting production policy.",
         "Dynamic reachability, generated code, credentials, and deployment wiring remain UNKNOWN and require a production-build audit.",
         "The legacy ATDD contract is source-pinned to an older subject and is not a valid exact-subject G1 completion receipt.",
         "The broader claims-registry gate fails on the exact base because claims[123] references missing tools/check_derivatives_authorization_matrix.py."
@@ -139,6 +145,7 @@
         "python3 tools/check_production_readiness_plan.py --json",
         "python3 tools/check_production_readiness_g1_semantics.py --check --json",
         "python3 tools/check_production_readiness_g1_bdd.py --check --json",
+        "python3 tools/check_production_readiness_g1_profile_inputs.py --check --json",
         "python3 tools/check_production_readiness_g1_entrypoints.py --check --json",
         "python3 tools/check_production_readiness_g1_safe_hold.py --check --json",
         "python3 tools/check_production_readiness_g1_profile_gate.py --check --json",
@@ -153,6 +160,7 @@
         "A closed registry alone does not implement, prove, mount, or test a command.",
         "The G1 semantic mapping is research-only and cannot authorize settlement or production promotion.",
         "The G1 BDD catalogue is scenario inventory only; it cannot substitute for executable tests, proofs, or mounted runtime evidence.",
+        "The G1 profile-input packet exposes decision evidence and attack questions; it cannot select fees, authorities, thresholds, beneficiaries, or terminal owners.",
         "The G1 entrypoint audit is a static source inventory; it cannot establish dynamic reachability, generated-code coverage, no-bypass behavior, or a production writer."
       ],
       "completion_receipt": null
