@@ -76,6 +76,90 @@
     "A passing checker result confirms exact source binding only."
   ],
   "production_promotion": false,
+  "runtime_projection": {
+    "canonical_codec": {
+      "line": 119,
+      "path": "src/core/global_settlement_types_v1.py",
+      "status": "PRESENT_SOURCE_SHAPE_ONLY",
+      "symbol": "canonical_global_bytes_v1"
+    },
+    "effect_kind_type": {
+      "class": "EconomicEffectKindV1",
+      "class_line": 1327,
+      "kind_count": 9,
+      "kinds": [
+        "ACCOUNT_MOVEMENT",
+        "ISSUE",
+        "BURN",
+        "CUSTODY",
+        "LIABILITY",
+        "RESERVE",
+        "FEE_ALLOCATION",
+        "REWARD",
+        "SLASH"
+      ],
+      "path": "src/core/global_settlement_types_v1.py"
+    },
+    "nonclaims": [
+      "A source-shape match does not prove that runtime fields implement the abstract G1 projection.",
+      "The inventory does not prove event equations, custody reconciliation, terminal drains, or mounted reachability."
+    ],
+    "production_authority": "NONE",
+    "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED",
+    "source_pins": [
+      {
+        "path": "src/core/global_settlement_types_v1.py",
+        "sha256": "c7ff7f362462502293c017fd986c14ef57c9aaa344e4b1093ea260ec18e84568",
+        "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+      }
+    ],
+    "source_subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+    "state_type": {
+      "canonical_field_order": [
+        "schema",
+        "chain_id",
+        "deployment_root",
+        "writer_epoch",
+        "height",
+        "profile_root",
+        "lane_roots",
+        "balances",
+        "supplies",
+        "custody",
+        "liabilities",
+        "reserves",
+        "oracle_occurrences",
+        "replay_state",
+        "terminal_obligations",
+        "history_root",
+        "outbox"
+      ],
+      "class": "GlobalEconomicStateV1",
+      "class_line": 1178,
+      "declared_field_count": 16,
+      "declared_fields": [
+        "chain_id",
+        "deployment_root",
+        "writer_epoch",
+        "height",
+        "profile_root",
+        "lane_roots",
+        "balances",
+        "supplies",
+        "custody",
+        "liabilities",
+        "reserves",
+        "oracle_occurrences",
+        "replay_state",
+        "terminal_obligations",
+        "history_root",
+        "outbox"
+      ],
+      "field_order_matches_canonical_projection": true,
+      "path": "src/core/global_settlement_types_v1.py"
+    },
+    "status": "SOURCE_SHAPE_INVENTORY_RESEARCH_ONLY"
+  },
   "schema": "zenodex/production-readiness-g1-state-delta-gate/v1",
   "source_pins": [
     {

@@ -9,6 +9,8 @@ or production authority for the economic system.
 from __future__ import annotations
 
 import argparse
+import ast
+import hashlib
 import json
 import os
 import subprocess
@@ -21,6 +23,9 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = REPO_ROOT / "docs/research/PRODUCTION_READINESS_G1_STATE_DELTA_GATE_V1.json"
 SCHEMA = "zenodex/production-readiness-g1-state-delta-gate/v1"
+RUNTIME_SOURCE_PATH = "src/core/global_settlement_types_v1.py"
+RUNTIME_STATE_CLASS = "GlobalEconomicStateV1"
+RUNTIME_EFFECT_KIND_CLASS = "EconomicEffectKindV1"
 
 sys.path.insert(0, str(REPO_ROOT))
 from tools import check_production_readiness_g1_semantics as semantics  # noqa: E402
@@ -113,12 +118,132 @@ def _value_delta_algebra(value: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _class_definition(tree: ast.Module, name: str) -> ast.ClassDef:
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == name:
+            return node
+    raise ValueError(f"runtime source class is missing: {name}")
+
+
+def _annotated_field_names(node: ast.ClassDef) -> tuple[str, ...]:
+    names = tuple(
+        child.target.id
+        for child in node.body
+        if isinstance(child, ast.AnnAssign)
+        and isinstance(child.target, ast.Name)
+    )
+    if not names:
+        raise ValueError(f"runtime source class has no annotated fields: {node.name}")
+    return names
+
+
+def _canonical_method_keys(node: ast.ClassDef) -> tuple[str, ...]:
+    methods = [
+        child
+        for child in node.body
+        if isinstance(child, ast.FunctionDef) and child.name == "to_canonical"
+    ]
+    if len(methods) != 1:
+        raise ValueError(f"runtime source class must define one to_canonical method: {node.name}")
+    dict_nodes = [child for child in ast.walk(methods[0]) if isinstance(child, ast.Dict)]
+    if len(dict_nodes) != 1:
+        raise ValueError(f"runtime source to_canonical shape is not one literal mapping: {node.name}")
+    keys = tuple(
+        key.value
+        for key in dict_nodes[0].keys
+        if isinstance(key, ast.Constant) and isinstance(key.value, str)
+    )
+    if len(keys) != len(dict_nodes[0].keys):
+        raise ValueError(f"runtime source to_canonical has a non-literal key: {node.name}")
+    return keys
+
+
+def _enum_values(node: ast.ClassDef) -> tuple[str, ...]:
+    values = tuple(
+        child.value.value
+        for child in node.body
+        if isinstance(child, ast.Assign)
+        and len(child.targets) == 1
+        and isinstance(child.targets[0], ast.Name)
+        and isinstance(child.value, ast.Constant)
+        and isinstance(child.value.value, str)
+    )
+    if not values:
+        raise ValueError(f"runtime effect-kind enum has no string values: {node.name}")
+    return values
+
+
+def _function_line(tree: ast.Module, name: str) -> int:
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+            return node.lineno
+    raise ValueError(f"runtime source function is missing: {name}")
+
+
+def _runtime_projection(repo_root: Path) -> dict[str, Any]:
+    frozen = subprocess.run(
+        ["git", "show", f"{semantics.SOURCE_SUBJECT}:{RUNTIME_SOURCE_PATH}"],
+        cwd=repo_root,
+        check=True,
+        capture_output=True,
+    ).stdout
+    current = (repo_root / RUNTIME_SOURCE_PATH).read_bytes()
+    if current != frozen:
+        raise ValueError(f"runtime source drift from frozen subject: {RUNTIME_SOURCE_PATH}")
+    tree = ast.parse(frozen.decode("utf-8"), filename=RUNTIME_SOURCE_PATH)
+    state_class = _class_definition(tree, RUNTIME_STATE_CLASS)
+    effect_kind_class = _class_definition(tree, RUNTIME_EFFECT_KIND_CLASS)
+    state_fields = _annotated_field_names(state_class)
+    canonical_keys = _canonical_method_keys(state_class)
+    effect_kinds = _enum_values(effect_kind_class)
+    return {
+        "status": "SOURCE_SHAPE_INVENTORY_RESEARCH_ONLY",
+        "source_subject": semantics.SOURCE_SUBJECT,
+        "source_pins": [
+            {
+                "path": RUNTIME_SOURCE_PATH,
+                "sha256": hashlib.sha256(frozen).hexdigest(),
+                "subject": semantics.SOURCE_SUBJECT,
+            }
+        ],
+        "state_type": {
+            "path": RUNTIME_SOURCE_PATH,
+            "class": RUNTIME_STATE_CLASS,
+            "class_line": state_class.lineno,
+            "declared_field_count": len(state_fields),
+            "declared_fields": list(state_fields),
+            "canonical_field_order": list(canonical_keys),
+            "field_order_matches_canonical_projection": tuple(canonical_keys[1:]) == state_fields,
+        },
+        "effect_kind_type": {
+            "path": RUNTIME_SOURCE_PATH,
+            "class": RUNTIME_EFFECT_KIND_CLASS,
+            "class_line": effect_kind_class.lineno,
+            "kind_count": len(effect_kinds),
+            "kinds": list(effect_kinds),
+        },
+        "canonical_codec": {
+            "path": RUNTIME_SOURCE_PATH,
+            "symbol": "canonical_global_bytes_v1",
+            "line": _function_line(tree, "canonical_global_bytes_v1"),
+            "status": "PRESENT_SOURCE_SHAPE_ONLY",
+        },
+        "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED",
+        "production_authority": "NONE",
+        "nonclaims": [
+            "A source-shape match does not prove that runtime fields implement the abstract G1 projection.",
+            "The inventory does not prove event equations, custody reconciliation, terminal drains, or mounted reachability.",
+        ],
+    }
+
+
 def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     semantic = semantics.build_document(repo_root)
     state = semantic["global_state_projection"]
     algebra = semantic["value_delta_algebra"]
     state_projection = _state_projection(state)
     value_delta_algebra = _value_delta_algebra(algebra)
+    runtime_projection = _runtime_projection(repo_root)
     return {
         "schema": SCHEMA,
         "version": "v1",
@@ -126,6 +251,7 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         "production_promotion": False,
         "source_subject": semantic["source_subject"],
         "source_pins": semantic["source_pins"],
+        "runtime_projection": runtime_projection,
         "state_projection": state_projection,
         "value_delta_algebra": value_delta_algebra,
         "closure_obligations": [
@@ -178,6 +304,7 @@ def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
 
     state = observed.get("state_projection")
     algebra = observed.get("value_delta_algebra")
+    runtime = observed.get("runtime_projection")
     obligations = observed.get("closure_obligations")
     field_count = state.get("field_count", 0) if isinstance(state, Mapping) else 0
     delta_class_count = algebra.get("delta_class_count", 0) if isinstance(algebra, Mapping) else 0
@@ -190,6 +317,12 @@ def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         "state_field_count": field_count,
         "delta_class_count": delta_class_count,
         "open_obligation_count": open_obligation_count,
+        "runtime_state_field_count": runtime.get("state_type", {}).get("declared_field_count", 0)
+        if isinstance(runtime, Mapping)
+        else 0,
+        "runtime_effect_kind_count": runtime.get("effect_kind_type", {}).get("kind_count", 0)
+        if isinstance(runtime, Mapping)
+        else 0,
         "production_authority": "NONE",
         "errors": errors,
         "nonclaim": "PASS means only that the state-delta obligation inventory is exact and source-bound; it does not promote G1 or production readiness.",

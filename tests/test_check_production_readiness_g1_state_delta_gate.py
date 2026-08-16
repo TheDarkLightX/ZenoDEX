@@ -20,6 +20,8 @@ def test_state_delta_gate_is_exact_and_non_authoritative() -> None:
     assert report["delta_class_count"] == 8
     assert report["open_obligation_count"] == 6
     assert report["production_authority"] == "NONE"
+    assert report["runtime_state_field_count"] == 16
+    assert report["runtime_effect_kind_count"] == 9
 
 
 def test_declared_fields_and_delta_classes_keep_open_gap_status() -> None:
@@ -35,6 +37,19 @@ def test_declared_fields_and_delta_classes_keep_open_gap_status() -> None:
     assert algebra["obligation_status"] == "OPEN_GAP"
     assert algebra["delta_class_count"] == algebra["class_contract_count"] == 8
     assert algebra["all_delta_classes_have_contracts"] is True
+
+
+def test_runtime_shape_inventory_is_source_bound_without_closing_g1() -> None:
+    runtime = build_document()["runtime_projection"]
+
+    assert runtime["status"] == "SOURCE_SHAPE_INVENTORY_RESEARCH_ONLY"
+    assert runtime["source_subject"] == "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    assert runtime["state_type"]["declared_field_count"] == 16
+    assert runtime["state_type"]["field_order_matches_canonical_projection"] is True
+    assert runtime["effect_kind_type"]["kind_count"] == 9
+    assert runtime["canonical_codec"]["status"] == "PRESENT_SOURCE_SHAPE_ONLY"
+    assert runtime["semantic_mapping_status"] == "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED"
+    assert runtime["production_authority"] == "NONE"
 
 
 def test_closure_tampering_fails_closed(tmp_path: Path) -> None:
@@ -60,4 +75,17 @@ def test_malformed_state_projection_fails_closed(tmp_path: Path) -> None:
 
     assert report["ok"] is False
     assert report["state_field_count"] == 0
+    assert report["production_ready"] is False
+
+
+def test_runtime_projection_tampering_fails_closed(tmp_path: Path) -> None:
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    artifact["runtime_projection"]["semantic_mapping_status"] = "CLOSED"
+    candidate = tmp_path / "candidate.json"
+    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert report["runtime_state_field_count"] == 16
     assert report["production_ready"] is False
