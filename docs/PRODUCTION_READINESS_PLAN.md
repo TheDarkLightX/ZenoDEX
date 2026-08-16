@@ -207,7 +207,9 @@ The helper G1 slice on the exact subject
 keeps emergency zUSD shutdown explicitly absent from the launch registry and
 declares field-level global state and value-delta contracts; their closure
 status remains `GAP`.
-leaves all nine profile decisions `OPEN`. The exact-subject BDD companion
+Each open decision now records its question, affected command families,
+unselected option shapes, rejection conditions, and required outputs. The
+exact-subject BDD companion
 `docs/research/PRODUCTION_READINESS_G1_BDD_V1.json` gives every command one
 research-only workflow and 267 scenario obligations; all scenarios remain
 `UNIMPLEMENTED_RESEARCH_SCENARIO`. The G1 exit gate therefore remains blocked

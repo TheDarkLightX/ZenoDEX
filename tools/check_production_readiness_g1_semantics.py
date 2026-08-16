@@ -457,6 +457,59 @@ _PROFILE_DECISION_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+_PROFILE_DECISION_QUESTIONS: dict[str, str] = {
+    "asset_issue_burn_policy": "Which managed assets, units, issue authorities, burn authorities, and supply floors are in scope?",
+    "spot_lp_fee_dust_withdrawal_policy": "Which spot and LP fee, rounding, dust, withdrawal, and final-pool rules are selected?",
+    "zusd_monetary_lifecycle_policy": "Which zUSD collateral, fee, redemption, liquidation, redistribution, and Stability Pool rules are selected?",
+    "oracle_lifecycle_policy": "Which reporter, dispute, aggregation, freshness, outage, and recovery rules are selected?",
+    "perps_risk_and_terminal_policy": "Which perps funding, liquidation, insurance, bad-debt, oracle, and terminal-close rules are selected?",
+    "protocol_buy_burn_policy": "Which buyback funding, route, price guard, supply floor, burn, and reserve rules are selected?",
+    "proof_reward_reserve_policy": "Which proof-reward reserve, eligibility, schedule, claim, nullifier, and exhaustion rules are selected?",
+    "sealed_bid_inventory_and_lifecycle_policy": "Which seller-auction and private-swap inventory, phase, fee, cancellation, and terminal rules are selected?",
+    "tau_escrow_outage_rejoin_policy": "Which Tau escrow deposit, withdrawal, outage, acknowledgment, retry, and rejoin rules are selected?",
+}
+
+_PROFILE_DECISION_FAMILIES: dict[str, tuple[str, ...]] = {
+    "asset_issue_burn_policy": (
+        "spot_and_liquidity",
+        "zusd_monetary",
+        "protocol_token",
+        "proof_reward",
+        "sealed_bid",
+        "tau_escrow",
+    ),
+    "spot_lp_fee_dust_withdrawal_policy": ("spot_and_liquidity",),
+    "zusd_monetary_lifecycle_policy": ("zusd_monetary",),
+    "oracle_lifecycle_policy": ("oracle", "zusd_monetary", "perps_risk"),
+    "perps_risk_and_terminal_policy": ("perps_risk",),
+    "protocol_buy_burn_policy": ("protocol_token",),
+    "proof_reward_reserve_policy": ("proof_reward",),
+    "sealed_bid_inventory_and_lifecycle_policy": ("sealed_bid",),
+    "tau_escrow_outage_rejoin_policy": ("tau_escrow",),
+}
+
+_PROFILE_OPTION_SHAPES = {
+    "EXPLICIT_NAMED_PROFILE": {
+        "status": "UNSELECTED_OPTION_SHAPE",
+        "meaning": "Select one exact policy with integer units, authority, bounds, effects, and terminal disposition.",
+    },
+    "VERSIONED_PROFILE_ALTERNATIVE": {
+        "status": "UNSELECTED_OPTION_SHAPE",
+        "meaning": "Select a versioned alternative with explicit activation, migration, compatibility, and rollback rules.",
+    },
+    "EXCLUDE_UNTIL_CLOSED": {
+        "status": "UNSELECTED_OPTION_SHAPE",
+        "meaning": "Keep affected commands unreachable and without a production writer until the decision is closed.",
+    },
+}
+
+_PROFILE_DECISION_REJECTION_CONDITIONS = (
+    "missing integer units, rounding direction, or dust owner",
+    "missing authority, claimant, custody, liability, or terminal owner",
+    "missing stale, outage, replay, recovery, or migration behavior",
+    "no deterministic value-delta equations and independent reconciliation evidence",
+)
+
 _DECISIONS_BY_FAMILY: dict[str, tuple[str, ...]] = {
     "spot_and_liquidity": (
         "asset_issue_burn_policy",
@@ -619,6 +672,10 @@ def _command_entries() -> list[dict[str, Any]]:
         raise ValueError("profile-decision map does not cover every workflow family")
     if set(_PROFILE_DECISIONS) != set(_PROFILE_DECISION_REQUIREMENTS):
         raise ValueError("profile-decision requirements do not cover the closed decision registry")
+    if set(_PROFILE_DECISIONS) != set(_PROFILE_DECISION_QUESTIONS):
+        raise ValueError("profile-decision questions do not cover the closed decision registry")
+    if set(_PROFILE_DECISIONS) != set(_PROFILE_DECISION_FAMILIES):
+        raise ValueError("profile-decision family map does not cover the closed decision registry")
     referenced_decisions = {
         decision
         for decisions in _DECISIONS_BY_FAMILY.values()
@@ -769,6 +826,10 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
                 "id": decision,
                 "status": "OPEN",
                 "owner": "G1_product_semantics_decision",
+                "question": _PROFILE_DECISION_QUESTIONS[decision],
+                "affected_workflow_families": list(_PROFILE_DECISION_FAMILIES[decision]),
+                "allowed_option_shapes": list(_PROFILE_OPTION_SHAPES),
+                "rejection_conditions": list(_PROFILE_DECISION_REJECTION_CONDITIONS),
                 "required_before_g1_exit": True,
                 "required_outputs": list(_PROFILE_DECISION_REQUIREMENTS[decision]),
                 "selected_profile": None,
@@ -776,6 +837,7 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             }
             for decision in blocking_decisions
         ],
+        "profile_option_shapes": _PROFILE_OPTION_SHAPES,
         "bdd_contract": {
             "status": "BLOCKED_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
             "command_count": len(commands),

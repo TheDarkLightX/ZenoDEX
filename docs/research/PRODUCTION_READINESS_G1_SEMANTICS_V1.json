@@ -2158,9 +2158,29 @@
   "production_promotion": false,
   "profile_decisions": [
     {
+      "affected_workflow_families": [
+        "spot_and_liquidity",
+        "zusd_monetary",
+        "protocol_token",
+        "proof_reward",
+        "sealed_bid",
+        "tau_escrow"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
       "id": "asset_issue_burn_policy",
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
+      "question": "Which managed assets, units, issue authorities, burn authorities, and supply floors are in scope?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
       "required_before_g1_exit": true,
       "required_outputs": [
         "managed asset classes and integer base-unit scales",
@@ -2171,9 +2191,24 @@
       "status": "OPEN"
     },
     {
+      "affected_workflow_families": [
+        "spot_and_liquidity"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
       "id": "spot_lp_fee_dust_withdrawal_policy",
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
+      "question": "Which spot and LP fee, rounding, dust, withdrawal, and final-pool rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
       "required_before_g1_exit": true,
       "required_outputs": [
         "spot and LP fee rates, rounding direction, and fee beneficiaries",
@@ -2184,9 +2219,24 @@
       "status": "OPEN"
     },
     {
+      "affected_workflow_families": [
+        "zusd_monetary"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
       "id": "zusd_monetary_lifecycle_policy",
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
+      "question": "Which zUSD collateral, fee, redemption, liquidation, redistribution, and Stability Pool rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
       "required_before_g1_exit": true,
       "required_outputs": [
         "borrowing and redemption fees with current liability owners",
@@ -2197,9 +2247,26 @@
       "status": "OPEN"
     },
     {
+      "affected_workflow_families": [
+        "oracle",
+        "zusd_monetary",
+        "perps_risk"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
       "id": "oracle_lifecycle_policy",
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
+      "question": "Which reporter, dispute, aggregation, freshness, outage, and recovery rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
       "required_before_g1_exit": true,
       "required_outputs": [
         "reporter and dispute authority plus bond disposition",
@@ -2210,9 +2277,24 @@
       "status": "OPEN"
     },
     {
+      "affected_workflow_families": [
+        "perps_risk"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
       "id": "perps_risk_and_terminal_policy",
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
+      "question": "Which perps funding, liquidation, insurance, bad-debt, oracle, and terminal-close rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
       "required_before_g1_exit": true,
       "required_outputs": [
         "market, collateral, margin, fee, and funding definitions",
@@ -2223,9 +2305,24 @@
       "status": "OPEN"
     },
     {
+      "affected_workflow_families": [
+        "protocol_token"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
       "id": "protocol_buy_burn_policy",
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
+      "question": "Which buyback funding, route, price guard, supply floor, burn, and reserve rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
       "required_before_g1_exit": true,
       "required_outputs": [
         "buyback funding source, route, price guard, budget, and cadence",
@@ -2236,9 +2333,24 @@
       "status": "OPEN"
     },
     {
+      "affected_workflow_families": [
+        "proof_reward"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
       "id": "proof_reward_reserve_policy",
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
+      "question": "Which proof-reward reserve, eligibility, schedule, claim, nullifier, and exhaustion rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
       "required_before_g1_exit": true,
       "required_outputs": [
         "reward reserve funding and beneficial owner",
@@ -2249,9 +2361,24 @@
       "status": "OPEN"
     },
     {
+      "affected_workflow_families": [
+        "sealed_bid"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
       "id": "sealed_bid_inventory_and_lifecycle_policy",
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
+      "question": "Which seller-auction and private-swap inventory, phase, fee, cancellation, and terminal rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
       "required_before_g1_exit": true,
       "required_outputs": [
         "inventory, payment, bond assets, amounts, and custody owners",
@@ -2262,9 +2389,24 @@
       "status": "OPEN"
     },
     {
+      "affected_workflow_families": [
+        "tau_escrow"
+      ],
+      "allowed_option_shapes": [
+        "EXPLICIT_NAMED_PROFILE",
+        "VERSIONED_PROFILE_ALTERNATIVE",
+        "EXCLUDE_UNTIL_CLOSED"
+      ],
       "id": "tau_escrow_outage_rejoin_policy",
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
+      "question": "Which Tau escrow deposit, withdrawal, outage, acknowledgment, retry, and rejoin rules are selected?",
+      "rejection_conditions": [
+        "missing integer units, rounding direction, or dust owner",
+        "missing authority, claimant, custody, liability, or terminal owner",
+        "missing stale, outage, replay, recovery, or migration behavior",
+        "no deterministic value-delta equations and independent reconciliation evidence"
+      ],
       "required_before_g1_exit": true,
       "required_outputs": [
         "deposit evidence, finality, asset mapping, and replay scope",
@@ -2275,6 +2417,20 @@
       "status": "OPEN"
     }
   ],
+  "profile_option_shapes": {
+    "EXCLUDE_UNTIL_CLOSED": {
+      "meaning": "Keep affected commands unreachable and without a production writer until the decision is closed.",
+      "status": "UNSELECTED_OPTION_SHAPE"
+    },
+    "EXPLICIT_NAMED_PROFILE": {
+      "meaning": "Select one exact policy with integer units, authority, bounds, effects, and terminal disposition.",
+      "status": "UNSELECTED_OPTION_SHAPE"
+    },
+    "VERSIONED_PROFILE_ALTERNATIVE": {
+      "meaning": "Select a versioned alternative with explicit activation, migration, compatibility, and rollback rules.",
+      "status": "UNSELECTED_OPTION_SHAPE"
+    }
+  },
   "schema": "zenodex/production-readiness-g1-semantics/v1",
   "source_observations": {
     "command_count": 33,

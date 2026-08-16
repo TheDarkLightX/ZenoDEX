@@ -133,5 +133,12 @@ def test_profile_decisions_remain_explicitly_open() -> None:
     assert {decision["status"] for decision in decisions} == {"OPEN"}
     assert all(decision["selected_profile"] is None for decision in decisions)
     assert all(len(decision["required_outputs"]) >= 3 for decision in decisions)
+    assert all(decision["question"] for decision in decisions)
+    assert all(
+        set(decision["allowed_option_shapes"])
+        == {"EXPLICIT_NAMED_PROFILE", "VERSIONED_PROFILE_ALTERNATIVE", "EXCLUDE_UNTIL_CLOSED"}
+        for decision in decisions
+    )
+    assert all(decision["affected_workflow_families"] for decision in decisions)
     assert artifact["g1_exit_gate"]["status"] == "BLOCKED_OPEN_PROFILE_DECISIONS"
     assert artifact["g1_exit_gate"]["closed_command_count"] == 0
