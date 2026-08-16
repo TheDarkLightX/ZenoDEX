@@ -641,6 +641,8 @@ The rehearsal succeeds when the second machine emits `ok=true`, an
 - `tools/check_production_readiness_g1_bdd.py --check` (fail-closed BDD catalogue check; production promotion remains closed)
 - `docs/research/PRODUCTION_READINESS_G1_PROFILE_INPUTS_V1.json` (nine source-pinned mechanism review packets; every policy selection remains null)
 - `tools/check_production_readiness_g1_profile_inputs.py --check` (fail-closed decision-input check; it has no policy authority)
+- `docs/research/PRODUCTION_READINESS_G1_PARTIAL_POLICY_V2.json` (2B/E18 bounded-supply decision plus scaled modeling allocations and 22 open participant-compensation obligations; launch remains blocked)
+- `tools/check_production_readiness_g1_partial_policy_v2.py --check` (fail-closed partial-policy check; no distribution, settlement, or release authority)
 - `docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json` (base-subject plus verified-repair-descendant static route and writer audit; no production writer is declared)
 - `tools/check_production_readiness_g1_entrypoints.py --check` (fail-closed entrypoint audit; dynamic reachability remains unknown)
 - `docs/SPECIFICATION.md`

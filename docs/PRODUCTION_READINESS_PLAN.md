@@ -226,6 +226,58 @@ oracle dispute and buy-and-burn paths, and zero-PnL-only perps close. Every
 policy, settlement, release, or promotion authority. Its exact symbol and file
 bindings locate the reviewed source; they do not mechanically prove the prose
 interpretation.
+The partial-policy V2 record
+`docs/research/PRODUCTION_READINESS_G1_PARTIAL_POLICY_V2.json` selects the ZDEX
+denomination and bounded supply model for G1 specification: 2,000,000,000 whole
+tokens, 18 decimal places, genesis-only issuance, no post-genesis minting, a
+one-atom absolute floor, and a 200,000,000-token launch active floor. A burn may
+consume at most half of the supply above the active floor and must also satisfy
+separately selected epoch and price-impact caps. The record scales the eight
+historical allocation buckets by two as an approved economic-modeling baseline.
+It does not select recipients, delivery, vesting, custody, transfer activation,
+tax treatment, counsel outcome, genesis root, mint event, or release authority.
+
+The same record inventories 22 participant classes across all nine profile
+decisions and all 33 commands. Every compensation policy remains
+`OPEN_UNSELECTED_COMPENSATION_POLICY`; its affected feature stays disabled until
+asset, funding source, amount and rounding, cap, eligibility witness, claimant,
+custody, replay scope, failure, terminal, conflict, legal, and release fields are
+selected. The priority waterfall pays exact user property and accrued
+liabilities first, then selected solvency minimums, prefunded service work, and
+capped operations, security, and hosting. An activated buy-and-burn lane receives
+all remaining eligible surplus. Unresolved or execution-blocked surplus remains
+in named carry custody. It cannot default to buy-and-burn or treasury ownership.
+
+The V2 mechanism review rejects the historical global fee split because it names
+only 7,500 of 10,000 basis points. It holds burn-indexed insider unlock
+acceleration for a source-of-funds, lag, cap, cliff-preservation, related-party,
+manipulation-profit, and counsel gate. It also isolates work rewards into
+role-specific budgets, separates host payment from settlement authority, and
+holds usage rewards until objective anti-wash and counsel activation gates
+exist. These are specification and hold decisions only. They do not close G1 or
+authorize launch.
+
+The recommended volume-growth stack avoids direct payment for reported volume.
+Users may earn nontransferable, expiring credits against future protocol fees,
+with aggregate same-event protocol-funded benefits strictly below the
+irreversible protocol fee. Liquidity programs use sealed reverse auctions for
+time-weighted executable depth, range, and uptime. Team or operator milestones
+use lagged realized net surplus after all priority-zero through priority-three
+obligations. Every parameter and activation remains unselected. Raw volume,
+wallet count, and transferable per-trade token emissions have zero direct reward
+weight in this candidate stack.
+
+The record distinguishes total supply from protocol-observable liquid supply:
+
+```text
+observable_liquid = total_supply - release_bound_nontransferable_balances
+delta_observable_liquid = -burn - (locked_after - locked_before)
+```
+
+Strict observable-float deflation therefore requires each burn to exceed net
+vesting, reward, and program releases in the same measurement window. Lost keys,
+off-ledger beneficial ownership, and market liquidity remain outside this exact
+quantity, so it is not a universal circulating-supply claim.
 The companion entrypoint audit
 `docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json` binds the same
 33-command registry to 12 exact source surfaces. It records the six M6
@@ -315,6 +367,7 @@ Replay the slice with:
 python3 tools/check_production_readiness_g1_semantics.py --check --json
 python3 tools/check_production_readiness_g1_bdd.py --check --json
 python3 tools/check_production_readiness_g1_profile_inputs.py --check --json
+python3 tools/check_production_readiness_g1_partial_policy_v2.py --check --json
 python3 tools/check_production_readiness_g1_entrypoints.py --check --json
 python3 tools/check_production_readiness_g1_safe_hold.py --check --json
 python3 tools/check_production_readiness_g1_profile_gate.py --check --json

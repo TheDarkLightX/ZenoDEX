@@ -996,24 +996,24 @@
   "semantic_binding": {
     "artifact": "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json",
     "checker_status": "EXACT_SUBJECT_PASS",
-    "sha256": "5c6f777786c82936768cc1e8990f4c6a3c34253dc856bf5db15979257f575bc7",
+    "sha256": "33374ef5e636ba1e66e61349fdee81ad19b5dbaba389cc0389cc52b72bfc2bce",
     "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
   },
   "source_pins": [
     {
       "path": "src/core/m6_safe_mount_types_v1.py",
       "sha256": "e9dfe00abd72f20f6c49986dd5af5a7f37042ee100b9f6d26f6b719b8e5623f8",
-      "subject": "63624a3b08f78fe84ee443dcc25c5c61203283b8"
+      "subject": "5361df3ad977a53a7a773cc53730fc57405e25fc"
     },
     {
       "path": "src/core/m6_safe_mount_transition_v1.py",
       "sha256": "9355b083064439b2756ee1d9454710229eaa3fe31fd529587ea3ece66cba8ee2",
-      "subject": "63624a3b08f78fe84ee443dcc25c5c61203283b8"
+      "subject": "5361df3ad977a53a7a773cc53730fc57405e25fc"
     }
   ],
   "source_subject": {
     "current_head_must_descend_from_both": true,
-    "repair_commit": "63624a3b08f78fe84ee443dcc25c5c61203283b8",
+    "repair_commit": "5361df3ad977a53a7a773cc53730fc57405e25fc",
     "semantic_base_commit": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
   },
   "status": "G1_DECISION_INPUTS_RESEARCH_ONLY",

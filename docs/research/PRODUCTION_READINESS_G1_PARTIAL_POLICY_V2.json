@@ -1,0 +1,1172 @@
+{
+  "decision_provenance": {
+    "channel": "INTERACTIVE_USER_INSTRUCTION",
+    "cryptographic_user_signature": null,
+    "exact_artifact_root_reapproval_required": true,
+    "recorded_date": "2026-08-16",
+    "scaled_allocation_activation_authority": "NONE_PENDING_LEGAL_AND_RELEASE_SELECTION",
+    "scaled_historical_allocation_modeling_approval": true
+  },
+  "g1_exit_gate": {
+    "blocking_reasons": [
+      "participant compensation policies are unselected",
+      "genesis recipients, allocations, vesting, custody, and legal activation are unselected",
+      "fee splits, reward budgets, host funding, and buyback route parameters are unselected",
+      "exact artifact root has no cryptographic user signature or release authority"
+    ],
+    "complete": false,
+    "launch_allowed": false,
+    "production_ready": false,
+    "profile_complete": false
+  },
+  "genesis_distribution_gate": {
+    "burn_indexed_insider_unlock_accelerator": "HELD_UNSELECTED_PENDING_MANIPULATION_AND_COUNSEL_GATES",
+    "counsel_review_complete": false,
+    "counsel_review_required": true,
+    "distribution_mechanism_examples_are_unselected": [
+      "proof_market",
+      "proof_mining",
+      "usage_based_award",
+      "retroactive_or_testnet_distribution",
+      "liquidity_program",
+      "direct_or_vested_allocation"
+    ],
+    "genesis_mint_allowed": false,
+    "legal_clearance_claim": false,
+    "modeling_baseline_status": "APPROVED_SCALED_2X_FOR_ECONOMIC_MODELING",
+    "reconciliation": "sum(allocation_atoms) = 2000000000000000000000000000",
+    "required_selection_fields": [
+      "recipient_and_beneficial_owner_set",
+      "allocation_atoms_per_recipient",
+      "allocation_purpose",
+      "eligibility_and_snapshot_rule",
+      "claim_or_direct_delivery_mechanism",
+      "vesting_cliff_unlock_and_remainder_rule",
+      "transfer_and_resale_restrictions",
+      "custody_and_key_recovery",
+      "anti_sybil_wash_and_related_party_controls",
+      "tax_accounting_compensation_and_counsel_review",
+      "unclaimed_expired_and_terminal_disposition",
+      "genesis_distribution_root"
+    ],
+    "scaled_modeling_allocation_total_whole_tokens": 2000000000,
+    "scaled_modeling_allocations": [
+      {
+        "allocation_bps": 1500,
+        "id": "founder_original_rd",
+        "whole_tokens": 300000000
+      },
+      {
+        "allocation_bps": 1000,
+        "id": "core_team_future_contributors",
+        "whole_tokens": 200000000
+      },
+      {
+        "allocation_bps": 2500,
+        "id": "dao_protocol_treasury",
+        "whole_tokens": 500000000
+      },
+      {
+        "allocation_bps": 2500,
+        "id": "ecosystem_lp_solver_operator_proof_incentives",
+        "whole_tokens": 500000000
+      },
+      {
+        "allocation_bps": 1000,
+        "id": "community_retroactive_airdrop_testnet_users",
+        "whole_tokens": 200000000
+      },
+      {
+        "allocation_bps": 500,
+        "id": "security_audits_bounties_insurance_reserve",
+        "whole_tokens": 100000000
+      },
+      {
+        "allocation_bps": 500,
+        "id": "liquidity_bootstrap_market_making",
+        "whole_tokens": 100000000
+      },
+      {
+        "allocation_bps": 500,
+        "id": "strategic_partners_investors_chain_partners",
+        "whole_tokens": 100000000
+      }
+    ],
+    "selected_distribution_release": null,
+    "status": "OPEN_UNSELECTED_COUNSEL_REQUIRED",
+    "transfer_activation_allowed": false
+  },
+  "historical_candidate_conflict": {
+    "current_selection_effect": "NONE",
+    "historical_allocation_total": 1000000000,
+    "historical_fee_split_declared_bps": 7500,
+    "historical_fee_split_status": "INCOMPLETE_2500_BPS_UNNAMED",
+    "historical_whole_supply": 1000000000,
+    "path": "internal/tokenomics/ZENO_TOKENOMICS_CANDIDATE_MODEL_V0.json",
+    "public_launch_allowed": false,
+    "scaling_rule": "SCALED_2X_AS_APPROVED_MODELING_BASELINE_ONLY",
+    "status": "HISTORICAL_UNSELECTED_CONFLICT_INPUT"
+  },
+  "mechanism_review": {
+    "attack_query": "Can any actor redirect an entitlement, self-award a reward, double claim, leave a participant unpaid, manufacture eligibility, or sweep an unselected amount into buy-and-burn or treasury custody?",
+    "bounded_model": {
+      "active_buyburn": "tier4_buyburn[a,e] = eligible_surplus[a,e]",
+      "burn_envelope": "burn_atoms <= floor((supply_before_atoms - active_floor_atoms) / 2)",
+      "closure": "available[a,e] = tier0_property_and_liability[a,e] + tier1_safety[a,e] + tier2_service[a,e] + tier3_operations[a,e] + tier4_buyburn[a,e] + tier5_named_carry[a,e]",
+      "domain": "NONNEGATIVE_CHECKED_INTEGER_ATOMS_PER_ASSET_AND_EPOCH",
+      "eligible_surplus": "eligible_surplus[a,e] = available[a,e] - tier0[a,e] - tier1[a,e] - tier2[a,e] - tier3[a,e]",
+      "genesis_reconciliation": "sum(selected_genesis_allocation_atoms) = 2000000000 * 10^18",
+      "inactive_buyburn": "tier5_named_carry[a,e] = eligible_surplus[a,e]",
+      "protocol_observable_liquid_atoms": "total_supply_atoms - protocol_observable_locked_atoms",
+      "protocol_observable_liquid_delta": "-burn_atoms - (locked_after_atoms - locked_before_atoms)",
+      "protocol_observable_locked_atoms": "genesis_vesting_atoms + reward_reserve_atoms + program_locked_atoms + active_service_bond_atoms + other_release_bound_nontransferable_atoms",
+      "reward_bound": "reward_paid[a,e] <= prefunded_release[a,e] + admitted_slash[a,e]",
+      "strict_protocol_observable_float_deflation": "burn_atoms > locked_before_atoms - locked_after_atoms",
+      "waterfall": "available[a,e] = protocol_revenue[a,e] + prefunded_release[a,e] + admitted_slash[a,e] + carry_in[a,e]"
+    },
+    "burn_indexed_unlock_candidate": {
+      "candidate_formula": "extra_unlock_atoms <= min(selected_epoch_cap_atoms, floor(eligible_burn_atoms * selected_unlock_bps / 10000))",
+      "historical_candidate_unlock_bps_of_eligible_burn": 2500,
+      "required_gates": [
+        "original cliff is preserved",
+        "only finalized protocol-revenue-funded burns are eligible",
+        "treasury-funded, insider-funded, related-party, subsidized, manual, and refunded flows are excluded",
+        "eligible value uses a lagged release-bound TWAP",
+        "epoch and annual acceleration caps are selected",
+        "unlock occurs after a selected lag in a subsequent transition",
+        "buyback route cannot be selected or supplied by an undisclosed beneficiary",
+        "bounded manipulation-profit oracle reports nonpositive profit",
+        "counsel activates the exact vesting amendment and disclosure"
+      ],
+      "residual_risk": "Permissionless addresses do not prove independent beneficial ownership; related-party and subsidy classification requires explicit premises. Independent base vesting or reward releases can still increase protocol-observable liquid supply.",
+      "status": "HELD_UNSELECTED",
+      "supply_effect": "Within the paired burn and accelerated-unlock event, 2500 bps means four eligible burned atoms permit at most one atom of earlier unlock, so that pair reduces protocol-observable liquid supply by at least three atoms."
+    },
+    "evidence_lane": [
+      "exact canonical policy artifact",
+      "independent per-asset waterfall oracle",
+      "stateful claim, replay, exhaustion, cancellation, and terminal histories",
+      "named self-award, double-claim, underpayment, and buyburn-sweep mutants",
+      "counsel-activated genesis and reward-program release root",
+      "Lean conservation and bounded burn proofs"
+    ],
+    "game_surface": {
+      "actions": [
+        "earn or receive an economic entitlement",
+        "submit work or service evidence",
+        "claim from a prefunded program",
+        "fund a reserve or operating budget",
+        "allocate genesis supply",
+        "buy and burn acquired ZDEX",
+        "refund, retry, exhaust, migrate, or terminally drain a program"
+      ],
+      "authoritative_state": "per-asset balances, escrows, claims, reserves, liabilities, reward budgets, allocation roots, nullifiers, and ZDEX supply",
+      "players": [
+        "trader or standing-order user",
+        "liquidity provider",
+        "zUSD borrower, repayer, or redeemer",
+        "Stability Pool depositor",
+        "liquidator or automation keeper",
+        "oracle reporter, aggregator, disputer, or watcher",
+        "perpetuals trader or funding counterparty",
+        "insurance or bad-debt backstop provider",
+        "seller-auction seller",
+        "auction bidder or private-swap party",
+        "Tau escrow depositor or withdrawer",
+        "Tau relayer or destination operator",
+        "prover or proof miner",
+        "ZenoLedger validator or finality operator",
+        "solver, batcher, or sequencer",
+        "web interface, API, static mirror, or Tau-facing host",
+        "security auditor or bounty researcher",
+        "core contributor, contractor, legal provider, or operations provider",
+        "liquidity bootstrapper or market maker",
+        "community, testnet, or usage-based award recipient",
+        "founder, team member, partner, or capital provider",
+        "protocol treasury, named reserve owner, or buy-and-burn executor"
+      ]
+    },
+    "mechanism_improvements": [
+      {
+        "closure": "REJECT_GLOBAL_SPLIT_AND_REQUIRE_COMPLETE_PER_LANE_PRIORITY_WATERFALL",
+        "finding": "The historical fee split names only 7,500 of 10,000 basis points.",
+        "id": "close_unnamed_fee_remainder"
+      },
+      {
+        "closure": "HELD_FOR_LAUNCH_PENDING_ELIGIBLE_BURN_AND_MANIPULATION_PROFIT_GATES",
+        "finding": "Burn-linked insider unlocks create a benefit from manufacturing eligible burn volume.",
+        "id": "disable_burn_indexed_insider_acceleration"
+      },
+      {
+        "closure": "REQUIRE_ROLE_SPECIFIC_SUB_BUDGET_ROOTS_AND_NO_CROSS_PROGRAM_BORROWING",
+        "finding": "One broad ecosystem bucket cannot prove that each service role remains funded or capped.",
+        "id": "isolate_work_reward_budgets"
+      },
+      {
+        "closure": "AUTHENTICATED_SERVICE_CLAIM_WITH_ZERO_SETTLEMENT_ORDERING_OR_CUSTODY_AUTHORITY",
+        "finding": "A paid interface or API host can misreport service attribution or imply trusted settlement.",
+        "id": "separate_host_payment_from_authority"
+      },
+      {
+        "closure": "DISABLED_UNTIL_COUNSEL_ACTIVATION_AND_OBJECTIVE_ANTI_WASH_RECEIPT_GATE",
+        "finding": "Usage-based rewards can subsidize wash volume and remain legally unresolved.",
+        "id": "hold_activity_rewards_against_wash_and_legal_risk"
+      }
+    ],
+    "payment_priority_tiers": [
+      {
+        "id": "exact_user_property_and_accrued_liabilities",
+        "priority": 0,
+        "rule": "PAY_OR_RESERVE_EXACTLY_BEFORE_ANY_DISCRETIONARY_USE"
+      },
+      {
+        "id": "selected_solvency_and_safety_minimums",
+        "priority": 1,
+        "rule": "FUND_TO_RELEASE_BOUND_TARGET_WITH_EXACT_CAP"
+      },
+      {
+        "id": "prefunded_contracted_service_compensation",
+        "priority": 2,
+        "rule": "PAY_ONLY_FROM_ROLE_SPECIFIC_BUDGET_AND_ELIGIBILITY_WITNESS"
+      },
+      {
+        "id": "capped_operations_security_and_hosting",
+        "priority": 3,
+        "rule": "PAY_APPROVED_RECEIPT_OR_SERVICE_CLAIM_WITH_EPOCH_CAP"
+      },
+      {
+        "id": "eligible_surplus_buy_and_burn",
+        "priority": 4,
+        "rule": "ASSIGN_ALL_REMAINING_ELIGIBLE_SURPLUS_WHEN_BUYBURN_IS_ACTIVE"
+      },
+      {
+        "id": "pending_policy_or_guarded_execution_carry",
+        "priority": 5,
+        "rule": "CARRY_WITH_NAMED_OWNER_UNTIL_POLICY_OR_EXECUTION_RESOLVES"
+      }
+    ],
+    "promotion_boundary": "This record selects only ZDEX denomination, supply, burn bounds, and liability-first ordering. It selects no allocation, fee split, reward amount, funding source, participant program, counsel conclusion, launch, writer, settlement, or release authority.",
+    "recommended_volume_incentive_stack": [
+      {
+        "formulas": [
+          "credit_redeemed_atoms <= floor(current_gross_protocol_fee_atoms * selected_redemption_bps / 10000)",
+          "current_cash_protocol_fee_atoms = current_gross_protocol_fee_atoms - credit_redeemed_atoms",
+          "new_credit_atoms <= floor(current_cash_protocol_fee_atoms * selected_earn_bps / 10000)",
+          "0 <= selected_earn_bps < 10000",
+          "0 <= selected_redemption_bps < 10000"
+        ],
+        "id": "loss_bounded_future_fee_credit",
+        "instrument": "NONTRANSFERABLE_EXPIRING_CREDIT_AGAINST_FUTURE_PROTOCOL_FEES",
+        "manipulation_bound": "same_event_protocol_funded_incentive_value_atoms <= floor(irreversible_cash_protocol_fee_atoms * selected_total_incentive_bps / 10000), with selected_total_incentive_bps < 10000",
+        "parameter_bounds": {
+          "earn_bps_maximum_exclusive": 10000,
+          "earn_bps_minimum": 0,
+          "redemption_bps_maximum_exclusive": 10000,
+          "redemption_bps_minimum": 0,
+          "total_incentive_bps_maximum_exclusive": 10000
+        },
+        "rank": 1,
+        "residual_risks": [
+          "reduced buyburn revenue",
+          "program stacking unless every same-event benefit shares one cap",
+          "retention may be subsidized without producing incremental demand"
+        ],
+        "status": "PROPOSED_UNSELECTED",
+        "target": "repeat genuine trading and retention",
+        "why_it_targets_the_goal": "A user must return and pay another fee to consume the credit; the credit cannot be sold, withdrawn, or redeemed for ZDEX or cash."
+      },
+      {
+        "formulas": [
+          "winner = lowest admitted subsidy for the required depth, range, duration, and uptime",
+          "payment_atoms <= selected_program_budget_atoms",
+          "slash_atoms >= bounded_default_gain_atoms"
+        ],
+        "id": "executable_depth_reverse_auction",
+        "instrument": "SEALED_MINIMUM_SUBSIDY_BID_FOR_TIME_WEIGHTED_EXECUTABLE_DEPTH",
+        "manipulation_bound": "Payment depends on capital-at-risk and executable depth receipts, rather than reported trade volume or address count.",
+        "parameter_bounds": {
+          "minimum_slash_atoms": "BOUNDED_DEFAULT_GAIN_ATOMS",
+          "payment_atoms_maximum": "SELECTED_PROGRAM_BUDGET_ATOMS"
+        },
+        "rank": 2,
+        "residual_risks": [
+          "adverse selection and impermanent loss",
+          "collusion among subsidy bidders",
+          "oracle and executable-range measurement"
+        ],
+        "status": "PROPOSED_UNSELECTED",
+        "target": "lower slippage and reliable two-sided liquidity",
+        "why_it_targets_the_goal": "Deeper executable liquidity reduces user slippage and supports organic volume without paying for circular trades."
+      },
+      {
+        "formulas": [
+          "net_surplus_atoms = realized_protocol_revenue_atoms - all_tier0_through_tier3_atoms",
+          "eligible_increment_atoms = max(0, net_surplus_atoms - release_bound_baseline_atoms)",
+          "bonus_value_atoms <= floor(eligible_increment_atoms * selected_bonus_bps / 10000)",
+          "selected_bonus_bps < 10000"
+        ],
+        "id": "net_surplus_performance_milestone",
+        "instrument": "LAGGED_CAPPED_VESTING_MILESTONE_FROM_REALIZED_NET_SURPLUS",
+        "manipulation_bound": "A self-funded actor contributes at least the realized protocol revenue while receiving strictly less bonus value.",
+        "parameter_bounds": {
+          "bonus_bps_maximum_exclusive": 10000,
+          "bonus_bps_minimum": 0
+        },
+        "rank": 3,
+        "residual_risks": [
+          "baseline gaming",
+          "cost deferral across epochs",
+          "related-party revenue attribution",
+          "legal treatment of performance vesting"
+        ],
+        "status": "PROPOSED_UNSELECTED",
+        "target": "team and operator growth alignment",
+        "why_it_targets_the_goal": "The milestone rewards durable fee surplus after every participant and operating obligation, while raw volume has zero direct weight."
+      }
+    ]
+  },
+  "nonclaims": [
+    "No participant amount, asset, fee share, reward, budget, vesting term, or funding source is selected.",
+    "The historical one-billion-token candidate and its allocation percentages have no current selection effect.",
+    "Two billion tokens and E18 denomination do not predict price, market capitalization, adoption, or liquidity.",
+    "A mathematical total-supply floor does not guarantee live float or market depth.",
+    "Total supply can decline while vesting or reward releases increase protocol-observable liquid supply.",
+    "This artifact provides no legal, tax, securities, compensation, custody, launch, or distribution clearance.",
+    "A passing checker grants no settlement, writer, mint, burn, release, mount, or production authority."
+  ],
+  "participant_compensation_gate": {
+    "activation_rule": "Each affected feature remains disabled until every applicable participant row has an exact release-bound compensation and terminal policy.",
+    "covered_command_count": 33,
+    "covered_profile_decisions": [
+      "asset_issue_burn_policy",
+      "oracle_lifecycle_policy",
+      "perps_risk_and_terminal_policy",
+      "proof_reward_reserve_policy",
+      "protocol_buy_burn_policy",
+      "sealed_bid_inventory_and_lifecycle_policy",
+      "spot_lp_fee_dust_withdrawal_policy",
+      "tau_escrow_outage_rejoin_policy",
+      "zusd_monetary_lifecycle_policy"
+    ],
+    "mint_fallback": "FORBIDDEN",
+    "open_participant_count": 22,
+    "participant_count": 22,
+    "participants": [
+      {
+        "affected_commands": [
+          "spot_swap"
+        ],
+        "affected_profile_decisions": [
+          "spot_lp_fee_dust_withdrawal_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "spot_trader_and_order_user",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "trader or standing-order user",
+        "payment_description": "Receive exact swap output, unused input, cancellation refund, and any selected rebate without hidden fee or dust loss.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "ECONOMIC_PROPERTY_OR_LIABILITY"
+      },
+      {
+        "affected_commands": [
+          "lp_add",
+          "lp_remove"
+        ],
+        "affected_profile_decisions": [
+          "spot_lp_fee_dust_withdrawal_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "liquidity_provider",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "liquidity provider",
+        "payment_description": "Receive the selected LP-owned fee share, proportional reserves, refunds, and complete terminal-pool drain.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "ECONOMIC_PROPERTY_OR_LIABILITY"
+      },
+      {
+        "affected_commands": [
+          "zusd_borrow",
+          "zusd_repay",
+          "zusd_redeem"
+        ],
+        "affected_profile_decisions": [
+          "zusd_monetary_lifecycle_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "zusd_borrower_and_redeemer",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "zUSD borrower, repayer, or redeemer",
+        "payment_description": "Receive exact zUSD or collateral claims, collateral surplus, and refunds after selected fees and debt settlement.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "ECONOMIC_PROPERTY_OR_LIABILITY"
+      },
+      {
+        "affected_commands": [
+          "stability_pool_deposit",
+          "stability_pool_withdraw",
+          "zusd_redistribute"
+        ],
+        "affected_profile_decisions": [
+          "zusd_monetary_lifecycle_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "stability_pool_depositor",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "Stability Pool depositor",
+        "payment_description": "Receive reconciled remaining deposit, liquidation collateral gains, selected rewards, and terminal withdrawal rights.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "ECONOMIC_PROPERTY_OR_LIABILITY"
+      },
+      {
+        "affected_commands": [
+          "zusd_liquidate",
+          "perp_liquidate"
+        ],
+        "affected_profile_decisions": [
+          "zusd_monetary_lifecycle_policy",
+          "perps_risk_and_terminal_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "liquidator_and_keeper",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "liquidator or automation keeper",
+        "payment_description": "Receive a prefunded, bounded reward for an eligible liquidation or maintenance action under a selected anti-race rule.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "SERVICE_COMPENSATION"
+      },
+      {
+        "affected_commands": [
+          "oracle_submit",
+          "oracle_dispute"
+        ],
+        "affected_profile_decisions": [
+          "oracle_lifecycle_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "oracle_reporter_aggregator_disputer_and_watcher",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "oracle reporter, aggregator, disputer, or watcher",
+        "payment_description": "Receive selected work compensation and valid bond refunds; admitted faults follow the selected slash and beneficiary rule.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "SERVICE_COMPENSATION"
+      },
+      {
+        "affected_commands": [
+          "perp_open",
+          "perp_close",
+          "perp_funding"
+        ],
+        "affected_profile_decisions": [
+          "perps_risk_and_terminal_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "perps_trader_and_funding_counterparty",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "perpetuals trader or funding counterparty",
+        "payment_description": "Receive reconciled margin, PnL, funding, close proceeds, and terminal settlement.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "ECONOMIC_PROPERTY_OR_LIABILITY"
+      },
+      {
+        "affected_commands": [
+          "perp_liquidate",
+          "zusd_liquidate",
+          "zusd_redistribute"
+        ],
+        "affected_profile_decisions": [
+          "perps_risk_and_terminal_policy",
+          "zusd_monetary_lifecycle_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "insurance_and_bad_debt_backstop",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "insurance or bad-debt backstop provider",
+        "payment_description": "Receive selected compensation for funded risk capacity while preserving exact loss priority, caps, and withdrawal rights.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "SERVICE_COMPENSATION"
+      },
+      {
+        "affected_commands": [
+          "seller_auction_commit",
+          "seller_auction_reveal",
+          "seller_auction_settle",
+          "seller_auction_cancel",
+          "seller_auction_expire"
+        ],
+        "affected_profile_decisions": [
+          "sealed_bid_inventory_and_lifecycle_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "sealed_bid_seller",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "seller-auction seller",
+        "payment_description": "Receive clearing proceeds, unsold inventory, eligible bond proceeds, cancellation recovery, and terminal drain.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "ECONOMIC_PROPERTY_OR_LIABILITY"
+      },
+      {
+        "affected_commands": [
+          "private_swap_commit",
+          "private_swap_reveal",
+          "private_swap_settle",
+          "private_swap_cancel",
+          "private_swap_expire"
+        ],
+        "affected_profile_decisions": [
+          "sealed_bid_inventory_and_lifecycle_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "sealed_bid_bidder_and_private_swap_party",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "auction bidder or private-swap party",
+        "payment_description": "Receive filled inventory or reciprocal assets plus all eligible payment, bond, cancel, and expiry refunds.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "ECONOMIC_PROPERTY_OR_LIABILITY"
+      },
+      {
+        "affected_commands": [
+          "tau_escrow_deposit",
+          "tau_withdrawal",
+          "tau_withdrawal_ack",
+          "fallback_activate",
+          "tau_rejoin"
+        ],
+        "affected_profile_decisions": [
+          "tau_escrow_outage_rejoin_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "tau_depositor_and_withdrawer",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "Tau escrow depositor or withdrawer",
+        "payment_description": "Receive one-to-one admitted deposit credit or a durable pending withdrawal that resolves, retries, or refunds under the selected outage policy.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "ECONOMIC_PROPERTY_OR_LIABILITY"
+      },
+      {
+        "affected_commands": [
+          "tau_escrow_deposit",
+          "tau_withdrawal",
+          "tau_withdrawal_ack"
+        ],
+        "affected_profile_decisions": [
+          "tau_escrow_outage_rejoin_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "tau_relayer_and_destination_operator",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "Tau relayer or destination operator",
+        "payment_description": "Receive bounded compensation for authenticated external delivery or acknowledgment without acquiring settlement authority.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "SERVICE_COMPENSATION"
+      },
+      {
+        "affected_commands": [
+          "zrpf_prover_reward"
+        ],
+        "affected_profile_decisions": [
+          "proof_reward_reserve_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "proof_prover_and_proof_miner",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "prover or proof miner",
+        "payment_description": "Receive a prefunded reward only for release-selected proof work with duplicate-claim rejection and reserve exhaustion handling.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "SERVICE_COMPENSATION"
+      },
+      {
+        "affected_commands": [],
+        "affected_profile_decisions": [
+          "asset_issue_burn_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "validator_finality_operator",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "ZenoLedger validator or finality operator",
+        "payment_description": "Receive selected operating compensation for persisted and validated finality work under explicit equivocation and replacement rules.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "SERVICE_COMPENSATION"
+      },
+      {
+        "affected_commands": [
+          "spot_swap",
+          "seller_auction_settle",
+          "private_swap_settle"
+        ],
+        "affected_profile_decisions": [
+          "spot_lp_fee_dust_withdrawal_policy",
+          "sealed_bid_inventory_and_lifecycle_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "solver_batcher_and_sequencer",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "solver, batcher, or sequencer",
+        "payment_description": "Receive bounded compensation for an admitted execution service under canonical selection, censorship, and self-dealing controls.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "SERVICE_COMPENSATION"
+      },
+      {
+        "affected_commands": [],
+        "affected_profile_decisions": [
+          "asset_issue_burn_policy",
+          "tau_escrow_outage_rejoin_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "interface_api_and_static_host",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "web interface, API, static mirror, or Tau-facing host",
+        "payment_description": "Receive a governed operating payment or authenticated service payment without correctness, ordering, custody, or settlement authority.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "OPERATING_EXPENSE_OR_SERVICE_COMPENSATION"
+      },
+      {
+        "affected_commands": [],
+        "affected_profile_decisions": [
+          "asset_issue_burn_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "security_auditor_and_bounty_researcher",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "security auditor or bounty researcher",
+        "payment_description": "Receive a prefunded milestone or accepted-disclosure payment under duplicate, severity, embargo, and conflict rules.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "OPERATING_EXPENSE_OR_SERVICE_COMPENSATION"
+      },
+      {
+        "affected_commands": [],
+        "affected_profile_decisions": [
+          "asset_issue_burn_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "core_contributor_contractor_and_operations_provider",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "core contributor, contractor, legal provider, or operations provider",
+        "payment_description": "Receive budgeted compensation against approved work, receipts, milestones, caps, and applicable vesting or clawback terms.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "OPERATING_EXPENSE_OR_SERVICE_COMPENSATION"
+      },
+      {
+        "affected_commands": [
+          "lp_add",
+          "lp_remove",
+          "spot_swap"
+        ],
+        "affected_profile_decisions": [
+          "asset_issue_burn_policy",
+          "spot_lp_fee_dust_withdrawal_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "liquidity_bootstrapper_and_market_maker",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "liquidity bootstrapper or market maker",
+        "payment_description": "Receive only a selected and capped liquidity-program allocation or fee under depth, duration, anti-wash, and related-party controls.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "SERVICE_COMPENSATION_OR_DISTRIBUTION_PROGRAM"
+      },
+      {
+        "affected_commands": [],
+        "affected_profile_decisions": [
+          "asset_issue_burn_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "community_testnet_and_usage_award_recipient",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "community, testnet, or usage-based award recipient",
+        "payment_description": "Receive tokens only through a separately budgeted, counsel-activated program with objective receipts and anti-sybil controls.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "DISTRIBUTION_PROGRAM"
+      },
+      {
+        "affected_commands": [],
+        "affected_profile_decisions": [
+          "asset_issue_burn_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "founder_team_partner_and_capital_recipient",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "founder, team member, partner, or capital provider",
+        "payment_description": "Receive tokens only through an exact genesis-bound allocation with selected vesting, beneficial ownership, custody, tax, and legal treatment.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "GENESIS_OR_VESTED_DISTRIBUTION_PROGRAM"
+      },
+      {
+        "affected_commands": [
+          "protocol_buy_and_burn"
+        ],
+        "affected_profile_decisions": [
+          "asset_issue_burn_policy",
+          "protocol_buy_burn_policy"
+        ],
+        "default_if_unselected": "AFFECTED_FEATURE_DISABLED",
+        "id": "protocol_treasury_reserve_and_buyburn_executor",
+        "must_have_explicit_economic_owner": true,
+        "participant_class": "protocol treasury, named reserve owner, or buy-and-burn executor",
+        "payment_description": "Receive only explicitly assigned residuals, operate capped budgets, and route a selected residual lane through the guarded buy-and-burn kernel.",
+        "production_authority": "NONE",
+        "selected_policy": {
+          "amount_and_rounding_rule": null,
+          "bond_and_slashing_rule": null,
+          "budget_and_epoch_cap": null,
+          "claim_and_nullifier_scope": null,
+          "claimant_identity": null,
+          "compensation_asset": null,
+          "conflict_sybil_and_self_dealing_controls": null,
+          "custody_account": null,
+          "eligibility_witness": null,
+          "failure_retry_and_exhaustion_rule": null,
+          "funding_source": null,
+          "release_root": null,
+          "tax_counsel_and_legal_activation": null,
+          "terminal_disposition": null
+        },
+        "status": "OPEN_UNSELECTED_COMPENSATION_POLICY",
+        "value_class": "RESERVE_AND_TERMINAL_OWNERSHIP"
+      }
+    ],
+    "required_selection_fields": [
+      "compensation_asset",
+      "funding_source",
+      "amount_and_rounding_rule",
+      "budget_and_epoch_cap",
+      "eligibility_witness",
+      "claimant_identity",
+      "custody_account",
+      "claim_and_nullifier_scope",
+      "bond_and_slashing_rule",
+      "failure_retry_and_exhaustion_rule",
+      "conflict_sybil_and_self_dealing_controls",
+      "terminal_disposition",
+      "tax_counsel_and_legal_activation",
+      "release_root"
+    ],
+    "status": "OPEN_UNSELECTED"
+  },
+  "policy_authority": "RESEARCH_RECORD_ONLY",
+  "production_promotion": false,
+  "profile_input_binding": {
+    "artifact": "docs/research/PRODUCTION_READINESS_G1_PROFILE_INPUTS_V1.json",
+    "decision_count": 9,
+    "open_decision_count": 9,
+    "sha256": "fcce8137cf926630e883b95156a9213340d451ad4f7bb8acd6b3fa67753698dd",
+    "status": "EXACT_RESEARCH_INPUT_PASS"
+  },
+  "schema": "zenodex/production-readiness-g1-partial-policy/v2",
+  "selected_parameters": {
+    "absolute_floor_atoms": 1,
+    "burn_rule": {
+      "active_floor_change": "NEW_PROFILE_ROOT_AND_RELEASE_ONLY",
+      "admitted_burn_atoms": "min(acquired_atoms, zeno_cap_atoms, selected_epoch_cap_atoms, selected_price_impact_cap_atoms)",
+      "atomicity": "ACQUIRED_ZDEX_AND_SUPPLY_REDUCTION_COMMIT_TOGETHER",
+      "excess_atoms": "supply_before_atoms - active_floor_atoms",
+      "minimum_permitted_active_floor_atoms": 1,
+      "precondition": "supply_before_atoms >= active_floor_atoms",
+      "successor_supply": "supply_before_atoms - admitted_burn_atoms",
+      "zeno_cap_atoms": "floor(excess_atoms / 2)",
+      "zero_or_invalid_route": "REJECT_NO_COMMIT"
+    },
+    "decimals": 18,
+    "genesis_supply_atoms": 2000000000000000000000000000,
+    "implicit_buyburn_or_treasury_sweep": "FORBIDDEN",
+    "issue_authority": "GENESIS_ONLY",
+    "launch_active_floor_atoms": 200000000000000000000000000,
+    "launch_active_floor_whole_tokens": 200000000,
+    "post_genesis_mint": "FORBIDDEN",
+    "selection_status": "SELECTED_FOR_G1_SPECIFICATION_ONLY",
+    "supply_ceiling_atoms": 2000000000000000000000000000,
+    "unallocated_or_unselected_revenue": "NAMED_PENDING_POLICY_CARRY_ONLY",
+    "unit_scale": 1000000000000000000,
+    "waterfall_order": "PAY_EXACT_PROPERTY_AND_LIABILITY_ENTITLEMENTS_THEN_FUND_SELECTED_SAFETY_AND_OPERATIONS_OBLIGATIONS_THEN_ASSIGN_EXPLICIT_BUYBURN_BUDGET",
+    "whole_token_supply": 2000000000,
+    "zdex_symbol": "ZDEX"
+  },
+  "source_pins": [
+    {
+      "path": "internal/tokenomics/ZENO_DISTRIBUTION_AND_TREASURY_PLAN_V0.md",
+      "sha256": "e25ed61c5c4bea7e6687ccb7c56ebec9ed0723f42830418a039732b5c1db2f28",
+      "subject": "5361df3ad977a53a7a773cc53730fc57405e25fc"
+    },
+    {
+      "path": "internal/tokenomics/ZENO_ECONOMIC_GAMES_BOUNDARY_V0.json",
+      "sha256": "dad6feb6e8238fc8b9401309ac828dab09ae7ab30da4994ef03ba030fbf7b0e7",
+      "subject": "5361df3ad977a53a7a773cc53730fc57405e25fc"
+    },
+    {
+      "path": "internal/tokenomics/ZENO_TOKENOMICS_CANDIDATE_MODEL_V0.json",
+      "sha256": "ed9fc29799d8c4183d2ac86e42617bc7cc690cc61c44de7ade6e97f5e1a63938",
+      "subject": "5361df3ad977a53a7a773cc53730fc57405e25fc"
+    },
+    {
+      "path": "docs/PERMISSIONLESS_HOSTING.md",
+      "sha256": "56adfeb464d7fd10b071f5d1e33010ed4b12c52d74a7cae96df0f98dde274bdc",
+      "subject": "5361df3ad977a53a7a773cc53730fc57405e25fc"
+    },
+    {
+      "path": "docs/ORDER_INTENTS.md",
+      "sha256": "e82d6cd37a3a537c395d2f05f26a35f8f0318db71e25652815ac5074a38bd824",
+      "subject": "5361df3ad977a53a7a773cc53730fc57405e25fc"
+    }
+  ],
+  "source_subject": {
+    "current_head_must_descend_from_research_commit": true,
+    "research_commit": "5361df3ad977a53a7a773cc53730fc57405e25fc"
+  },
+  "status": "PARTIAL_POLICY_SELECTED_COMPENSATION_AND_DISTRIBUTION_OPEN",
+  "version": "v2"
+}
