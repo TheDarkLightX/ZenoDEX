@@ -16,7 +16,7 @@ import os
 import subprocess
 import sys
 import tempfile
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -149,14 +149,21 @@ def _canonical_method_keys(node: ast.ClassDef) -> tuple[str, ...]:
     ]
     if len(methods) != 1:
         raise ValueError(f"runtime source class must define one to_canonical method: {node.name}")
-    returned_mappings = [
-        child.value
-        for child in ast.walk(methods[0])
-        if isinstance(child, ast.Return) and isinstance(child.value, ast.Dict)
-    ]
-    if len(returned_mappings) != 1:
-        raise ValueError(f"runtime source to_canonical must return one literal mapping: {node.name}")
-    mapping = returned_mappings[0]
+    body = list(methods[0].body)
+    if (
+        body
+        and isinstance(body[0], ast.Expr)
+        and isinstance(body[0].value, ast.Constant)
+        and isinstance(body[0].value.value, str)
+    ):
+        body = body[1:]
+    if (
+        len(body) != 1
+        or not isinstance(body[0], ast.Return)
+        or not isinstance(body[0].value, ast.Dict)
+    ):
+        raise ValueError(f"runtime source to_canonical must be one direct literal return: {node.name}")
+    mapping = body[0].value
     keys = tuple(
         key.value
         for key in mapping.keys
@@ -226,21 +233,33 @@ def _returned_call_name(tree: ast.Module, name: str) -> str:
     return calls[0]
 
 
-def _frozen_source(repo_root: Path, path: str) -> bytes:
+def _frozen_source(
+    repo_root: Path,
+    path: str,
+    *,
+    read_current: Callable[[Path], bytes] | None = None,
+) -> bytes:
     frozen = subprocess.run(
         ["git", "show", f"{semantics.SOURCE_SUBJECT}:{path}"],
         cwd=repo_root,
         check=True,
         capture_output=True,
     ).stdout
-    if (repo_root / path).read_bytes() != frozen:
+    current = (repo_root / path).read_bytes() if read_current is None else read_current(repo_root / path)
+    if current != frozen:
         raise ValueError(f"runtime source drift from frozen subject: {path}")
     return frozen
 
 
-def _runtime_projection(repo_root: Path) -> dict[str, Any]:
-    frozen = _frozen_source(repo_root, RUNTIME_SOURCE_PATH)
-    canonical_frozen = _frozen_source(repo_root, RUNTIME_CANONICAL_SOURCE_PATH)
+def _runtime_projection(
+    repo_root: Path,
+    *,
+    read_current: Callable[[Path], bytes] | None = None,
+) -> dict[str, Any]:
+    frozen = _frozen_source(repo_root, RUNTIME_SOURCE_PATH, read_current=read_current)
+    canonical_frozen = _frozen_source(
+        repo_root, RUNTIME_CANONICAL_SOURCE_PATH, read_current=read_current
+    )
     tree = ast.parse(frozen.decode("utf-8"), filename=RUNTIME_SOURCE_PATH)
     canonical_tree = ast.parse(
         canonical_frozen.decode("utf-8"), filename=RUNTIME_CANONICAL_SOURCE_PATH
@@ -306,13 +325,17 @@ def _runtime_projection(repo_root: Path) -> dict[str, Any]:
     }
 
 
-def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+def build_document(
+    repo_root: Path = REPO_ROOT,
+    *,
+    read_current: Callable[[Path], bytes] | None = None,
+) -> dict[str, Any]:
     semantic = semantics.build_document(repo_root)
     state = semantic["global_state_projection"]
     algebra = semantic["value_delta_algebra"]
     state_projection = _state_projection(state)
     value_delta_algebra = _value_delta_algebra(algebra)
-    runtime_projection = _runtime_projection(repo_root)
+    runtime_projection = _runtime_projection(repo_root, read_current=read_current)
     return {
         "schema": SCHEMA,
         "version": "v1",
@@ -353,7 +376,12 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     }
 
 
-def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
+def check_artifact(
+    path: Path,
+    repo_root: Path = REPO_ROOT,
+    *,
+    read_current: Callable[[Path], bytes] | None = None,
+) -> dict[str, Any]:
     errors: list[str] = []
     observed: dict[str, Any] = {}
     ancestry = subprocess.run(
@@ -364,7 +392,7 @@ def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     if ancestry.returncode != 0:
         errors.append("current HEAD does not descend from the frozen G1 source subject")
     try:
-        expected = build_document(repo_root)
+        expected = build_document(repo_root, read_current=read_current)
         observed = _load(path)
         if path.read_bytes() != _encoded(observed):
             errors.append("artifact is not canonically encoded JSON")

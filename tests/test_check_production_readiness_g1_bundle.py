@@ -58,3 +58,13 @@ def test_bundle_cannot_promote_through_a_tampered_check_record(tmp_path: Path) -
 
     assert report["ok"] is False
     assert report["production_ready"] is False
+
+
+def test_bundle_rejects_noncanonical_artifact_bytes(tmp_path: Path) -> None:
+    candidate = tmp_path / "candidate.json"
+    candidate.write_bytes(DEFAULT_OUTPUT.read_bytes() + b"\n")
+
+    report = check_artifact(candidate)
+
+    assert report["ok"] is False
+    assert "bundle artifact is not canonically encoded JSON" in report["errors"]

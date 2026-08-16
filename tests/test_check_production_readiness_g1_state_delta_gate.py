@@ -11,6 +11,7 @@ from tools.check_production_readiness_g1_state_delta_gate import (
     REPO_ROOT,
     RUNTIME_SOURCE_PATH,
     _canonical_method_keys,
+    _encoded,
     _enum_values,
     build_document,
     check_artifact,
@@ -66,7 +67,7 @@ def test_closure_tampering_fails_closed(tmp_path: Path) -> None:
     artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
     artifact["state_projection"]["obligation_status"] = "CLOSED"
     candidate = tmp_path / "candidate.json"
-    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+    candidate.write_bytes(_encoded(artifact))
 
     report = check_artifact(candidate)
 
@@ -79,7 +80,7 @@ def test_malformed_state_projection_fails_closed(tmp_path: Path) -> None:
     artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
     artifact["state_projection"] = "unknown"
     candidate = tmp_path / "candidate.json"
-    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+    candidate.write_bytes(_encoded(artifact))
 
     report = check_artifact(candidate)
 
@@ -92,7 +93,7 @@ def test_runtime_projection_tampering_fails_closed(tmp_path: Path) -> None:
     artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
     artifact["runtime_projection"]["semantic_mapping_status"] = "CLOSED"
     candidate = tmp_path / "candidate.json"
-    candidate.write_text(json.dumps(artifact), encoding="utf-8")
+    candidate.write_bytes(_encoded(artifact))
 
     report = check_artifact(candidate)
 
@@ -101,19 +102,16 @@ def test_runtime_projection_tampering_fails_closed(tmp_path: Path) -> None:
     assert report["production_ready"] is False
 
 
-def test_runtime_source_drift_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
-    original_read_bytes = Path.read_bytes
+def test_runtime_source_drift_fails_closed() -> None:
     runtime_path = REPO_ROOT / RUNTIME_SOURCE_PATH
 
     def read_bytes_with_drift(path: Path) -> bytes:
-        value = original_read_bytes(path)
+        value = path.read_bytes()
         if path == runtime_path:
             return value + b"\n# isolated drift\n"
         return value
 
-    monkeypatch.setattr(Path, "read_bytes", read_bytes_with_drift)
-
-    report = check_artifact(DEFAULT_OUTPUT)
+    report = check_artifact(DEFAULT_OUTPUT, read_current=read_bytes_with_drift)
 
     assert report["ok"] is False
     assert any("runtime source drift" in error for error in report["errors"])
@@ -134,14 +132,15 @@ def test_runtime_shape_parsers_reject_nonliteral_and_non_enum_shapes() -> None:
     state = ast.parse(
         "class State:\n"
         "    def to_canonical(self):\n"
-        "        mapping = {'x': 1}\n"
-        "        return mapping\n"
+        "        if self.dynamic:\n"
+        "            return {'x': 1}\n"
+        "        return {'x': 2}\n"
     ).body[0]
     effect = ast.parse("class Effect:\n    VALUE = 'VALUE'\n").body[0]
 
     assert isinstance(state, ast.ClassDef)
     assert isinstance(effect, ast.ClassDef)
-    with pytest.raises(ValueError, match="return one literal mapping"):
+    with pytest.raises(ValueError, match="one direct literal return"):
         _canonical_method_keys(state)
     with pytest.raises(ValueError, match="inherit Enum"):
         _enum_values(effect)

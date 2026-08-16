@@ -115,6 +115,8 @@ def _load_and_verify_artifacts(
     for label, relative_path in ARTIFACT_PATHS.items():
         path = repo_root / relative_path
         value = _load(path)
+        if path.read_bytes() != _encoded(value):
+            raise ValueError(f"{label} artifact is not canonically encoded JSON")
         if value != generated[label]:
             raise ValueError(f"{label} artifact differs from its exact-subject generated form")
         observed[label] = value
@@ -373,6 +375,8 @@ def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     try:
         expected = build_document(repo_root)
         observed = _load(path)
+        if path.read_bytes() != _encoded(observed):
+            errors.append("bundle artifact is not canonically encoded JSON")
         if observed != expected:
             errors.append("bundle artifact differs from the exact-subject cross-artifact G1 bundle")
     except (OSError, ValueError, KeyError, TypeError, subprocess.CalledProcessError) as exc:
