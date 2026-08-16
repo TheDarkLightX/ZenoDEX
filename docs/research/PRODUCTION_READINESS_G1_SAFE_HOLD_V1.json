@@ -1,0 +1,548 @@
+{
+  "command_routes": [
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "tau_escrow_outage_rejoin_policy"
+      ],
+      "command_id": "fallback_activate",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "spot_lp_fee_dust_withdrawal_policy"
+      ],
+      "command_id": "lp_add",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "spot_and_liquidity"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "spot_lp_fee_dust_withdrawal_policy"
+      ],
+      "command_id": "lp_remove",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "spot_and_liquidity"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "oracle_dispute",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
+      "workflow_family": "oracle"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "oracle_submit",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
+      "workflow_family": "oracle"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "perps_risk_and_terminal_policy",
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "perp_close",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "perps_risk"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "perps_risk_and_terminal_policy",
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "perp_funding",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
+      "workflow_family": "perps_risk"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "perps_risk_and_terminal_policy",
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "perp_liquidate",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
+      "workflow_family": "perps_risk"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "perps_risk_and_terminal_policy",
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "perp_open",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "perps_risk"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
+      "command_id": "private_swap_cancel",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
+      "command_id": "private_swap_commit",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
+      "command_id": "private_swap_expire",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
+      "command_id": "private_swap_reveal",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
+      "command_id": "private_swap_settle",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "protocol_buy_burn_policy"
+      ],
+      "command_id": "protocol_buy_and_burn",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
+      "workflow_family": "protocol_token"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
+      "command_id": "seller_auction_cancel",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
+      "command_id": "seller_auction_commit",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
+      "command_id": "seller_auction_expire",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
+      "command_id": "seller_auction_reveal",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
+      "command_id": "seller_auction_settle",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "spot_lp_fee_dust_withdrawal_policy"
+      ],
+      "command_id": "spot_swap",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "spot_and_liquidity"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "stability_pool_deposit",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "stability_pool_withdraw",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "tau_escrow_outage_rejoin_policy"
+      ],
+      "command_id": "tau_escrow_deposit",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "tau_escrow_outage_rejoin_policy"
+      ],
+      "command_id": "tau_rejoin",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "tau_escrow_outage_rejoin_policy"
+      ],
+      "command_id": "tau_withdrawal",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "tau_escrow_outage_rejoin_policy"
+      ],
+      "command_id": "tau_withdrawal_ack",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "proof_reward_reserve_policy"
+      ],
+      "command_id": "zrpf_prover_reward",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
+      "workflow_family": "proof_reward"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "zusd_borrow",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "zusd_liquidate",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "zusd_redeem",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "zusd_redistribute",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "authority": "NONE",
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
+      "command_id": "zusd_repay",
+      "production_writer_declared": false,
+      "safe_hold_status": "UNMOUNTED_RESEARCH_ONLY",
+      "source_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
+      "workflow_family": "zusd_monetary"
+    }
+  ],
+  "g1_exit_gate": {
+    "command_count": 33,
+    "complete": false,
+    "held_command_count": 33,
+    "production_writer_count": 0,
+    "selected_profile_count": 0,
+    "status": "BLOCKED_OPEN_PROFILE_DECISIONS"
+  },
+  "hold_policy": {
+    "action": "KEEP_ALL_COMMANDS_UNMOUNTED_UNTIL_PROFILE_DECISIONS_CLOSE",
+    "authority": "NONE",
+    "mode": "NO_LAUNCH_PROFILE",
+    "production_writer_count": 0,
+    "selected_profile_count": 0
+  },
+  "nonclaims": [
+    "The safe hold does not select an economic profile.",
+    "The safe hold does not implement, prove, mount, or authorize a command.",
+    "UNMOUNTED_RESEARCH_ONLY is a stop condition, not production evidence.",
+    "G1 remains incomplete until every enabled command has a closed profile and executable evidence."
+  ],
+  "production_promotion": false,
+  "profile_decision_holds": [
+    {
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_CLOSED",
+      "id": "asset_issue_burn_policy",
+      "required_outputs": [
+        "managed asset classes and integer base-unit scales",
+        "one issue authority and one burn authority per managed asset",
+        "supply bounds, genesis bindings, and terminal supply disposition"
+      ],
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_CLOSED",
+      "id": "spot_lp_fee_dust_withdrawal_policy",
+      "required_outputs": [
+        "spot and LP fee rates, rounding direction, and fee beneficiaries",
+        "LP share mint and burn arithmetic with reserve reconciliation",
+        "dust ownership, withdrawal rules, and final-pool terminal drain"
+      ],
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_CLOSED",
+      "id": "zusd_monetary_lifecycle_policy",
+      "required_outputs": [
+        "borrowing and redemption fees with current liability owners",
+        "collateral, redemption, liquidation, and redistribution parameters",
+        "Stability Pool gain, loss, rounding, recovery, and terminal rules"
+      ],
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_CLOSED",
+      "id": "oracle_lifecycle_policy",
+      "required_outputs": [
+        "reporter and dispute authority plus bond disposition",
+        "aggregation, occurrence, freshness, and finality semantics",
+        "stale, disputed, outage, and recovery behavior by command class"
+      ],
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_CLOSED",
+      "id": "perps_risk_and_terminal_policy",
+      "required_outputs": [
+        "market, collateral, margin, fee, and funding definitions",
+        "liquidation, insurance, and bad-debt allocation",
+        "oracle gating, recovery subset, and terminal close semantics"
+      ],
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_CLOSED",
+      "id": "protocol_buy_burn_policy",
+      "required_outputs": [
+        "buyback funding source, route, price guard, budget, and cadence",
+        "acquired-token custody, protected supply floor, and burn authority",
+        "rounding, failure, recovery, and terminal reserve disposition"
+      ],
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_CLOSED",
+      "id": "proof_reward_reserve_policy",
+      "required_outputs": [
+        "reward reserve funding and beneficial owner",
+        "eligibility, schedule, cap, claim identity, and nullifier scope",
+        "rounding, exhaustion, recovery, and terminal reserve drain"
+      ],
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_CLOSED",
+      "id": "sealed_bid_inventory_and_lifecycle_policy",
+      "required_outputs": [
+        "inventory, payment, bond assets, amounts, and custody owners",
+        "phase deadlines, cancellation, expiry, and non-reveal disposition",
+        "tie order, fees, dust, settlement port, and terminal refunds or slashes"
+      ],
+      "selected_profile": null,
+      "status": "OPEN"
+    },
+    {
+      "hold_action": "KEEP_AFFECTED_COMMANDS_UNMOUNTED_UNTIL_CLOSED",
+      "id": "tau_escrow_outage_rejoin_policy",
+      "required_outputs": [
+        "deposit evidence, finality, asset mapping, and replay scope",
+        "withdrawal queue, acknowledgment, retry, and destination idempotency",
+        "outage continuation, pending effects, rejoin proof, and profile rotation"
+      ],
+      "selected_profile": null,
+      "status": "OPEN"
+    }
+  ],
+  "schema": "zenodex/production-readiness-g1-safe-hold/v1",
+  "source_pins": [
+    {
+      "path": "src/core/m6_safe_mount_types_v1.py",
+      "sha256": "e9dfe00abd72f20f6c49986dd5af5a7f37042ee100b9f6d26f6b719b8e5623f8",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "src/core/m6_safe_mount_transition_v1.py",
+      "sha256": "9355b083064439b2756ee1d9454710229eaa3fe31fd529587ea3ece66cba8ee2",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    }
+  ],
+  "source_subject": {
+    "base_commit": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+    "current_head_must_descend_from_base": true,
+    "source_authority": "frozen source bytes at the exact base commit"
+  },
+  "status": "G1_SAFE_HOLD_RESEARCH_ONLY",
+  "version": "v1"
+}

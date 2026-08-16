@@ -231,6 +231,12 @@ locks, and inert-root validation before `Path` conversion. The permanent
 negative and fault tests are recorded in
 `docs/research/M6_SAFE_MOUNT_F123_REPAIR_V1.md`. This repair remains research
 evidence; it does not create a production writer or close G1.
+The policy-neutral safe-hold companion
+`docs/research/PRODUCTION_READINESS_G1_SAFE_HOLD_V1.json` records the
+no-launch decision while profile choices remain open: zero selected profiles,
+zero production writers, and all 33 commands explicitly unmounted. Its
+checker is replayable evidence for the stop condition and does not advance
+G1 or production readiness.
 
 Replay the slice with:
 
@@ -238,6 +244,7 @@ Replay the slice with:
 python3 tools/check_production_readiness_g1_semantics.py --check --json
 python3 tools/check_production_readiness_g1_bdd.py --check --json
 python3 tools/check_production_readiness_g1_entrypoints.py --check --json
+python3 tools/check_production_readiness_g1_safe_hold.py --check --json
 ```
 
 ### G2: Complete the deterministic functional core
