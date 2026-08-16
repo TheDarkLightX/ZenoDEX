@@ -262,6 +262,14 @@ current check observes one historical-head mismatch and 22 source-pin
 mismatches. The original ATDD command therefore continues to fail closed until
 a separately reviewed exact-subject contract exists.
 
+The cross-artifact bundle
+`docs/research/PRODUCTION_READINESS_G1_BUNDLE_V1.json` verifies that these
+seven research artifacts share the exact 33-command registry, eight-command
+disabled partition, nine open profile decisions, 14 state fields, and eight
+value-delta classes. It also verifies the explicit repair-descendant overlay
+relation and the no-launch/quarantine posture. A passing bundle is drift
+evidence only and leaves G1 blocked.
+
 Replay the slice with:
 
 ```bash
@@ -272,6 +280,7 @@ python3 tools/check_production_readiness_g1_safe_hold.py --check --json
 python3 tools/check_production_readiness_g1_profile_gate.py --check --json
 python3 tools/check_production_readiness_g1_state_delta_gate.py --check --json
 python3 tools/check_production_readiness_g1_legacy_atdd_quarantine.py --check --json
+python3 tools/check_production_readiness_g1_bundle.py --check --json
 # Expected PASS: scoped M6 safe-mount and durable-store evidence.
 python3 -m pytest -q tests/core/test_m6_safe_mount_v1.py tests/integration/test_m6_durable_store_v1.py
 # Expected nonzero: the historical ATDD contract remains stale and fails closed.

@@ -1,0 +1,168 @@
+{
+  "artifact_bindings": [
+    {
+      "id": "semantics",
+      "path": "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json",
+      "schema": "zenodex/production-readiness-g1-semantics/v1",
+      "source_subject_role": "EXACT_BASE_SUBJECT"
+    },
+    {
+      "id": "bdd",
+      "path": "docs/research/PRODUCTION_READINESS_G1_BDD_V1.json",
+      "schema": "zenodex/production-readiness-g1-bdd/v1",
+      "source_subject_role": "EXACT_BASE_SUBJECT"
+    },
+    {
+      "id": "entrypoints",
+      "path": "docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json",
+      "schema": "zenodex/production-readiness-g1-entrypoints/v1",
+      "source_subject_role": "RESEARCH_REPAIR_DESCENDANT_OVERLAY"
+    },
+    {
+      "id": "safe_hold",
+      "path": "docs/research/PRODUCTION_READINESS_G1_SAFE_HOLD_V1.json",
+      "schema": "zenodex/production-readiness-g1-safe-hold/v1",
+      "source_subject_role": "EXACT_BASE_SUBJECT"
+    },
+    {
+      "id": "profile_gate",
+      "path": "docs/research/PRODUCTION_READINESS_G1_PROFILE_GATE_V1.json",
+      "schema": "zenodex/production-readiness-g1-profile-gate/v1",
+      "source_subject_role": "EXACT_BASE_SUBJECT"
+    },
+    {
+      "id": "state_delta",
+      "path": "docs/research/PRODUCTION_READINESS_G1_STATE_DELTA_GATE_V1.json",
+      "schema": "zenodex/production-readiness-g1-state-delta-gate/v1",
+      "source_subject_role": "EXACT_BASE_SUBJECT"
+    },
+    {
+      "id": "quarantine",
+      "path": "docs/research/PRODUCTION_READINESS_G1_LEGACY_ATDD_QUARANTINE_V1.json",
+      "schema": "zenodex/production-readiness-g1-legacy-atdd-quarantine/v1",
+      "source_subject_role": "EXACT_BASE_SUBJECT"
+    }
+  ],
+  "consistency_checks": [
+    {
+      "id": "SOURCE_SUBJECT_CONTRACT",
+      "scope": "base artifacts plus repair-descendant overlay",
+      "status": "PASS"
+    },
+    {
+      "id": "COMMAND_REGISTRY_BINDING",
+      "scope": "33 commands and exact 8-command disabled partition",
+      "status": "PASS"
+    },
+    {
+      "id": "PROFILE_DECISION_BINDING",
+      "scope": "9 open decisions with no selected authority",
+      "status": "PASS"
+    },
+    {
+      "id": "STATE_DELTA_BINDING",
+      "scope": "14 state fields and 8 value-delta classes",
+      "status": "PASS"
+    },
+    {
+      "id": "SAFE_HOLD_AND_QUARANTINE",
+      "scope": "33 unmounted commands and stale ATDD fail-closed status",
+      "status": "PASS"
+    },
+    {
+      "id": "RESEARCH_ONLY_POSTURE",
+      "scope": "no production promotion, writer, or executable BDD evidence",
+      "status": "PASS"
+    },
+    {
+      "id": "CURRENT_HEAD_ANCESTRY",
+      "scope": "base and repair subjects are ancestors of current HEAD",
+      "status": "PASS"
+    }
+  ],
+  "g1_exit_gate": {
+    "all_commands_unmounted": true,
+    "complete": false,
+    "declared_production_writer_count": 0,
+    "production_authority": "NONE",
+    "production_ready": false,
+    "status": "BLOCKED_OPEN_PROFILE_DECISIONS_AND_STATE_DELTA_GAPS"
+  },
+  "nonclaims": [
+    "A passing bundle proves cross-artifact consistency only; it does not prove economic laws, runtime reachability, or production safety.",
+    "The repair-descendant relation is ancestry evidence and does not prove semantic equivalence to the base subject.",
+    "The bundle preserves open profile decisions, state/delta gaps, and the legacy ATDD quarantine.",
+    "No artifact in this bundle selects policy, mounts a command, settles value, or promotes production authority."
+  ],
+  "obligation_binding": {
+    "bdd_scenario_count": 267,
+    "delta_class_count": 8,
+    "open_profile_decision_count": 9,
+    "open_state_obligation_count": 6,
+    "profile_decision_count": 9,
+    "state_field_count": 14
+  },
+  "production_promotion": false,
+  "registry_binding": {
+    "command_count": 33,
+    "command_ids": [
+      "fallback_activate",
+      "lp_add",
+      "lp_remove",
+      "oracle_dispute",
+      "oracle_submit",
+      "perp_close",
+      "perp_funding",
+      "perp_liquidate",
+      "perp_open",
+      "private_swap_cancel",
+      "private_swap_commit",
+      "private_swap_expire",
+      "private_swap_reveal",
+      "private_swap_settle",
+      "protocol_buy_and_burn",
+      "seller_auction_cancel",
+      "seller_auction_commit",
+      "seller_auction_expire",
+      "seller_auction_reveal",
+      "seller_auction_settle",
+      "spot_swap",
+      "stability_pool_deposit",
+      "stability_pool_withdraw",
+      "tau_escrow_deposit",
+      "tau_rejoin",
+      "tau_withdrawal",
+      "tau_withdrawal_ack",
+      "zrpf_prover_reward",
+      "zusd_borrow",
+      "zusd_liquidate",
+      "zusd_redeem",
+      "zusd_redistribute",
+      "zusd_repay"
+    ],
+    "disabled_command_count": 8,
+    "entrypoint_route_count": 33,
+    "safe_hold_route_count": 33,
+    "workflow_count": 33
+  },
+  "schema": "zenodex/production-readiness-g1-bundle/v1",
+  "source_subject": {
+    "base_artifact_ids": [
+      "bdd",
+      "legacy_atdd_quarantine",
+      "profile_gate",
+      "safe_hold",
+      "semantics",
+      "state_delta"
+    ],
+    "base_commit": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+    "repair_commit": "5361df3ad977a53a7a773cc53730fc57405e25fc",
+    "repair_overlay_artifact_ids": [
+      "entrypoints"
+    ],
+    "repair_relation": "ANCESTRY_ONLY_RESEARCH_OVERLAY",
+    "semantic_equivalence": "NOT_PROVED"
+  },
+  "status": "G1_CROSS_ARTIFACT_BUNDLE_RESEARCH_ONLY",
+  "version": "v1"
+}
