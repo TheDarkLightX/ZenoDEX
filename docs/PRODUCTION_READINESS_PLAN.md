@@ -278,6 +278,19 @@ Strict observable-float deflation therefore requires each burn to exceed net
 vesting, reward, and program releases in the same measurement window. Lost keys,
 off-ledger beneficial ownership, and market liquidity remain outside this exact
 quantity, so it is not a universal circulating-supply claim.
+
+The advisory study
+`docs/research/ZDEX_VOLUME_HOLDING_HYPERDEFLATION_MECHANISM_REPORT_V1.md`
+ranks a Contribution-Locked Burn Flywheel above the simpler fee-credit
+candidate. It adds single-use source-lot lineage, exact credit-reserve
+liabilities, delayed nontransferable credits, continuous ZDEX locks, expiry,
+and a global coalition-benefit cap. Its proposed range assigns 80% to 95% of
+pre-growth surplus to buyback after all participant and operating obligations;
+the hard research ceiling assigns at least 75%. Raw volume, transaction count,
+wallet count, and passive ownership retain zero reward weight. The report also
+defines host compensation as a capped service obligation with no settlement
+authority. It is advisory and
+does not alter the selected partial-policy artifact or activate any parameter.
 The companion entrypoint audit
 `docs/research/PRODUCTION_READINESS_G1_ENTRYPOINTS_V1.json` binds the same
 33-command registry to 12 exact source surfaces. It records the six M6
