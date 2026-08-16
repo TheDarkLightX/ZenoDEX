@@ -11,6 +11,7 @@ entrypoint, or promote a production claim.
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import os
@@ -269,6 +270,95 @@ _PROFILE_DECISIONS = (
     "tau_escrow_outage_rejoin_policy",
 )
 
+_PROFILE_DECISION_REQUIREMENTS: dict[str, tuple[str, ...]] = {
+    "asset_issue_burn_policy": (
+        "managed asset classes and integer base-unit scales",
+        "one issue authority and one burn authority per managed asset",
+        "supply bounds, genesis bindings, and terminal supply disposition",
+    ),
+    "spot_lp_fee_dust_withdrawal_policy": (
+        "spot and LP fee rates, rounding direction, and fee beneficiaries",
+        "LP share mint and burn arithmetic with reserve reconciliation",
+        "dust ownership, withdrawal rules, and final-pool terminal drain",
+    ),
+    "zusd_monetary_lifecycle_policy": (
+        "borrowing and redemption fees with current liability owners",
+        "collateral, redemption, liquidation, and redistribution parameters",
+        "Stability Pool gain, loss, rounding, recovery, and terminal rules",
+    ),
+    "oracle_lifecycle_policy": (
+        "reporter and dispute authority plus bond disposition",
+        "aggregation, occurrence, freshness, and finality semantics",
+        "stale, disputed, outage, and recovery behavior by command class",
+    ),
+    "perps_risk_and_terminal_policy": (
+        "market, collateral, margin, fee, and funding definitions",
+        "liquidation, insurance, and bad-debt allocation",
+        "oracle gating, recovery subset, and terminal close semantics",
+    ),
+    "protocol_buy_burn_policy": (
+        "buyback funding source, route, price guard, budget, and cadence",
+        "acquired-token custody, protected supply floor, and burn authority",
+        "rounding, failure, recovery, and terminal reserve disposition",
+    ),
+    "proof_reward_reserve_policy": (
+        "reward reserve funding and beneficial owner",
+        "eligibility, schedule, cap, claim identity, and nullifier scope",
+        "rounding, exhaustion, recovery, and terminal reserve drain",
+    ),
+    "sealed_bid_inventory_and_lifecycle_policy": (
+        "inventory, payment, bond assets, amounts, and custody owners",
+        "phase deadlines, cancellation, expiry, and non-reveal disposition",
+        "tie order, fees, dust, settlement port, and terminal refunds or slashes",
+    ),
+    "tau_escrow_outage_rejoin_policy": (
+        "deposit evidence, finality, asset mapping, and replay scope",
+        "withdrawal queue, acknowledgment, retry, and destination idempotency",
+        "outage continuation, pending effects, rejoin proof, and profile rotation",
+    ),
+}
+
+_DECISIONS_BY_FAMILY: dict[str, tuple[str, ...]] = {
+    "spot_and_liquidity": (
+        "asset_issue_burn_policy",
+        "spot_lp_fee_dust_withdrawal_policy",
+    ),
+    "zusd_monetary": (
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy",
+    ),
+    "perps_risk": (
+        "perps_risk_and_terminal_policy",
+        "oracle_lifecycle_policy",
+    ),
+    "oracle": ("oracle_lifecycle_policy",),
+    "protocol_token": (
+        "asset_issue_burn_policy",
+        "protocol_buy_burn_policy",
+    ),
+    "proof_reward": (
+        "asset_issue_burn_policy",
+        "proof_reward_reserve_policy",
+    ),
+    "sealed_bid": (
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy",
+    ),
+    "tau_escrow": (
+        "asset_issue_burn_policy",
+        "tau_escrow_outage_rejoin_policy",
+    ),
+}
+
+_REQUIRED_BDD_SCENARIO_CLASSES = (
+    "happy",
+    "rejection",
+    "authorization",
+    "recovery",
+    "terminal",
+)
+
 
 def _run_git(repo_root: Path, *args: str) -> str:
     result = subprocess.run(
@@ -283,6 +373,85 @@ def _run_git(repo_root: Path, *args: str) -> str:
 
 def _sha256_bytes(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
+
+
+def _frozen_transition_tree(repo_root: Path) -> ast.Module:
+    source = _run_git(repo_root, "show", f"{SOURCE_SUBJECT}:{TRANSITION_PATH}")
+    return ast.parse(source, filename=f"{SOURCE_SUBJECT}:{TRANSITION_PATH}")
+
+
+def _frozen_handler_bindings(repo_root: Path) -> dict[GlobalCommandKindV1, str]:
+    tree = _frozen_transition_tree(repo_root)
+    for node in tree.body:
+        if not isinstance(node, ast.AnnAssign):
+            continue
+        if not isinstance(node.target, ast.Name) or node.target.id != "_BUSINESS_HANDLERS":
+            continue
+        if not isinstance(node.value, ast.Call) or not node.value.args:
+            break
+        mapping = node.value.args[0]
+        if not isinstance(mapping, ast.Dict):
+            break
+        bindings: dict[GlobalCommandKindV1, str] = {}
+        for key, value in zip(mapping.keys, mapping.values, strict=True):
+            if not isinstance(key, ast.Attribute) or not isinstance(value, ast.Name):
+                raise ValueError("unsupported frozen business-handler binding shape")
+            try:
+                command = GlobalCommandKindV1[key.attr]
+            except KeyError as exc:
+                raise ValueError(f"unknown frozen handler command: {key.attr}") from exc
+            if command in bindings:
+                raise ValueError(f"duplicate frozen handler command: {command.value}")
+            bindings[command] = value.id
+        return bindings
+    raise ValueError("frozen _BUSINESS_HANDLERS mapping was not found")
+
+
+def _frozen_disabled_guard(repo_root: Path) -> frozenset[GlobalCommandKindV1]:
+    tree = _frozen_transition_tree(repo_root)
+    function = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "_is_research_disabled_command_v1"
+        ),
+        None,
+    )
+    if function is None:
+        raise ValueError("frozen disabled-command guard was not found")
+    return_node = next((node for node in ast.walk(function) if isinstance(node, ast.Return)), None)
+    if return_node is None or not isinstance(return_node.value, ast.Compare):
+        raise ValueError("unsupported frozen disabled-command guard shape")
+    comparison = return_node.value
+    if len(comparison.ops) != 1 or not isinstance(comparison.ops[0], ast.In):
+        raise ValueError("frozen disabled-command guard is not a closed membership test")
+    if len(comparison.comparators) != 1 or not isinstance(comparison.comparators[0], ast.Tuple):
+        raise ValueError("frozen disabled-command guard is not a literal tuple")
+    disabled: set[GlobalCommandKindV1] = set()
+    for item in comparison.comparators[0].elts:
+        if not isinstance(item, ast.Attribute):
+            raise ValueError("unsupported frozen disabled-command member shape")
+        try:
+            disabled.add(GlobalCommandKindV1[item.attr])
+        except KeyError as exc:
+            raise ValueError(f"unknown frozen disabled command: {item.attr}") from exc
+    return frozenset(disabled)
+
+
+def _validate_frozen_runtime_bindings(repo_root: Path) -> dict[str, Any]:
+    handlers = _frozen_handler_bindings(repo_root)
+    disabled = _frozen_disabled_guard(repo_root)
+    if handlers != _HANDLER_BY_COMMAND:
+        raise ValueError("declared core-transition map differs from frozen runtime dispatch")
+    if disabled != EXPECTED_DISABLED:
+        raise ValueError("source disable registry differs from frozen runtime reject guard")
+    return {
+        "handler_binding_count": len(handlers),
+        "handler_bindings_match_frozen_dispatch": True,
+        "disabled_guard_count": len(disabled),
+        "disabled_guard_matches_source_registry": True,
+    }
 
 
 def _source_pins(repo_root: Path) -> list[dict[str, str]]:
@@ -307,12 +476,26 @@ def _command_entries() -> list[dict[str, Any]]:
         raise ValueError("command family map does not cover the closed source registry")
     if set(_HANDLER_BY_COMMAND) != set(EXPECTED_COMMANDS):
         raise ValueError("handler map does not cover the closed source registry")
+    if set(_DECISIONS_BY_FAMILY) != set(_FAMILY_DEFINITIONS):
+        raise ValueError("profile-decision map does not cover every workflow family")
+    if set(_PROFILE_DECISIONS) != set(_PROFILE_DECISION_REQUIREMENTS):
+        raise ValueError("profile-decision requirements do not cover the closed decision registry")
+    referenced_decisions = {
+        decision
+        for decisions in _DECISIONS_BY_FAMILY.values()
+        for decision in decisions
+    }
+    if referenced_decisions != set(_PROFILE_DECISIONS):
+        raise ValueError("workflow families do not reference the closed decision registry exactly")
 
     entries: list[dict[str, Any]] = []
     for command in sorted(EXPECTED_COMMANDS, key=lambda item: item.value):
         family_name = _COMMAND_FAMILY[command]
         family = _FAMILY_DEFINITIONS[family_name]
         disabled = command in EXPECTED_DISABLED
+        required_scenarios = list(_REQUIRED_BDD_SCENARIO_CLASSES)
+        if family_name == "sealed_bid":
+            required_scenarios.append("cancellation")
         entries.append(
             {
                 "id": command.value,
@@ -323,18 +506,34 @@ def _command_entries() -> list[dict[str, Any]]:
                 "production_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER"
                 if disabled
                 else "RESEARCH_ENABLED_PROFILE_REQUIRED",
-                "semantic_status": "MAPPED_RESEARCH_ONLY",
+                "semantic_status": "GAP_OPEN_PROFILE_DECISION",
                 "actor": family["actor"],
                 "economic_owner": family["economic_owner"],
-                "user_story": f"{command.value} has an explicit G1 semantic owner and terminal path.",
-                "normative_spec": f"{SOURCE_PATH}:GlobalCommandKindV1.{command.name}",
+                "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
+                "beneficial_owner": None,
+                "user_story": None,
+                "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
+                "source_registry": f"{SOURCE_PATH}:GlobalCommandKindV1.{command.name}",
+                "normative_spec": None,
+                "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
                 "core_transition": f"{TRANSITION_PATH}:{_HANDLER_BY_COMMAND[command]}",
+                "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED"
+                if disabled
+                else "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
                 "terminal_path": family["terminal_path"],
+                "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
                 "formal_obligation_ids": list(family["formal_obligation_ids"]),
+                "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
                 "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
+                "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
                 "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
+                "mounted_entrypoint_status": "UNMOUNTED",
                 "workflow_family": family_name,
-                "bdd_scenario_classes": list(family["scenario_classes"]),
+                "blocking_profile_decision_ids": list(_DECISIONS_BY_FAMILY[family_name]),
+                "bdd_required_scenario_classes": required_scenarios,
+                "bdd_additional_scenario_classes": list(family["scenario_classes"]),
+                "bdd_executable_scenarios": [],
+                "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
             }
         )
     return entries
@@ -342,6 +541,7 @@ def _command_entries() -> list[dict[str, Any]]:
 
 def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     source_pins = _source_pins(repo_root)
+    runtime_bindings = _validate_frozen_runtime_bindings(repo_root)
     commands = _command_entries()
     blocking_decisions = list(_PROFILE_DECISIONS)
     return {
@@ -361,11 +561,13 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
             "received_plan_disabled_command_count": 10,
             "reconciliation": "EXACT_SOURCE_PARTITION_RECORDED_RECEIVED_COUNT_RETAINED_AS_NONAUTHORITATIVE",
             "source_authority": "GlobalCommandKindV1 and M6_RESEARCH_DISABLED_COMMANDS_V1 at the frozen subject",
+            **runtime_bindings,
         },
         "command_registry": commands,
         "global_state_projection": {
             "schema": "M6GlobalEconomicStateProjectionV1",
             "status": "DECLARED_RESEARCH_PROJECTION",
+            "closure_status": "GAP_FIELD_TYPES_ROOT_CODEC_AND_RECONCILIATION_UNSPECIFIED",
             "authority": "ZenoLedger_candidate_state_before_publication",
             "canonical_order": list(EXPECTED_STATE_FIELDS),
             "fields": [
@@ -381,6 +583,7 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         },
         "value_delta_algebra": {
             "status": "DECLARED_RESEARCH_ALGEBRA",
+            "closure_status": "GAP_EVENT_EQUATIONS_OWNERS_AND_RECONCILIATION_UNSPECIFIED",
             "entry_key": ["asset", "owner", "custody", "economic_event"],
             "amount_representation": "nonnegative_integer_base_units",
             "delta_classes": list(EXPECTED_DELTA_CLASSES),
@@ -399,21 +602,35 @@ def build_document(repo_root: Path = REPO_ROOT) -> dict[str, Any]:
                 "status": "OPEN",
                 "owner": "G1_product_semantics_decision",
                 "required_before_g1_exit": True,
+                "required_outputs": list(_PROFILE_DECISION_REQUIREMENTS[decision]),
+                "selected_profile": None,
                 "production_authority": "NONE",
             }
             for decision in blocking_decisions
         ],
+        "bdd_contract": {
+            "status": "BLOCKED_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+            "command_count": len(commands),
+            "required_for_every_command": list(_REQUIRED_BDD_SCENARIO_CLASSES),
+            "cancellation_required_for_workflow_families": ["sealed_bid"],
+            "executable_scenario_count": 0,
+            "nonclaim": "Scenario-class labels are coverage requirements, not executable BDD evidence.",
+        },
         "g1_exit_gate": {
             "complete": False,
             "status": "BLOCKED_OPEN_PROFILE_DECISIONS",
             "blocking_decisions": blocking_decisions,
-            "claim": "No enabled command has a complete production semantic contract.",
+            "closed_command_count": 0,
+            "commands_with_semantic_gap": len(commands),
+            "claim": "No command has a complete production semantic contract.",
         },
         "nonclaims": [
             "This registry does not prove an economic invariant.",
             "This registry does not mount a runtime entrypoint or authorize settlement.",
             "The source disable-count reconciliation does not select a production profile.",
             "The global projection and delta algebra are research declarations until independently checked.",
+            "Handler reachability establishes only frozen V1 dispatch, not production semantic correctness.",
+            "BDD class labels do not constitute executable scenarios or independent oracles.",
         ],
     }
 
@@ -487,6 +704,16 @@ def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         if isinstance(command_registry, list)
         else 0
     )
+    semantic_gap_count = (
+        sum(
+            1
+            for entry in command_registry
+            if isinstance(entry, dict)
+            and entry.get("semantic_status") == "GAP_OPEN_PROFILE_DECISION"
+        )
+        if isinstance(command_registry, list)
+        else 0
+    )
     return {
         "schema": "zenodex/production-readiness-g1-semantics-check/v1",
         "ok": not errors,
@@ -494,6 +721,8 @@ def check_artifact(path: Path, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
         "production_ready": False,
         "command_count": command_count,
         "disabled_command_count": disabled_count,
+        "semantic_gap_count": semantic_gap_count,
+        "executable_bdd_scenario_count": 0,
         "profile_decision_count": len(_PROFILE_DECISIONS),
         "errors": errors,
         "nonclaim": "PASS means only that the research mapping is exact and source-bound; it does not promote G1 or production readiness.",

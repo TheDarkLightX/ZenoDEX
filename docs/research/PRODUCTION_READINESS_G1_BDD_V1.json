@@ -1,0 +1,4762 @@
+{
+  "g1_exit_gate": {
+    "claim": "BDD obligations are catalogued; no scenario is executable evidence.",
+    "complete": false,
+    "status": "BLOCKED_OPEN_PROFILE_DECISIONS_AND_UNIMPLEMENTED_SCENARIOS"
+  },
+  "nonclaims": [
+    "A BDD scenario text is not a passing test or a proof.",
+    "This contract does not select economic policy or authorize a command.",
+    "UNMOUNTED_RESEARCH_ONLY entrypoints cannot settle value or promote production readiness."
+  ],
+  "open_profile_decisions": [
+    "asset_issue_burn_policy",
+    "spot_lp_fee_dust_withdrawal_policy",
+    "zusd_monetary_lifecycle_policy",
+    "oracle_lifecycle_policy",
+    "perps_risk_and_terminal_policy",
+    "protocol_buy_burn_policy",
+    "proof_reward_reserve_policy",
+    "sealed_bid_inventory_and_lifecycle_policy",
+    "tau_escrow_outage_rejoin_policy"
+  ],
+  "production_promotion": false,
+  "registry_binding": {
+    "command_count": 33,
+    "command_ids": [
+      "fallback_activate",
+      "lp_add",
+      "lp_remove",
+      "oracle_dispute",
+      "oracle_submit",
+      "perp_close",
+      "perp_funding",
+      "perp_liquidate",
+      "perp_open",
+      "private_swap_cancel",
+      "private_swap_commit",
+      "private_swap_expire",
+      "private_swap_reveal",
+      "private_swap_settle",
+      "protocol_buy_and_burn",
+      "seller_auction_cancel",
+      "seller_auction_commit",
+      "seller_auction_expire",
+      "seller_auction_reveal",
+      "seller_auction_settle",
+      "spot_swap",
+      "stability_pool_deposit",
+      "stability_pool_withdraw",
+      "tau_escrow_deposit",
+      "tau_rejoin",
+      "tau_withdrawal",
+      "tau_withdrawal_ack",
+      "zrpf_prover_reward",
+      "zusd_borrow",
+      "zusd_liquidate",
+      "zusd_redeem",
+      "zusd_redistribute",
+      "zusd_repay"
+    ],
+    "disabled_command_count": 8,
+    "disabled_command_ids": [
+      "oracle_dispute",
+      "oracle_submit",
+      "perp_funding",
+      "perp_liquidate",
+      "protocol_buy_and_burn",
+      "zrpf_prover_reward",
+      "zusd_liquidate",
+      "zusd_redistribute"
+    ]
+  },
+  "scenario_policy": {
+    "cancellation_where_applicable": [
+      "private_swap_cancel",
+      "private_swap_commit",
+      "private_swap_expire",
+      "private_swap_reveal",
+      "private_swap_settle",
+      "seller_auction_cancel",
+      "seller_auction_commit",
+      "seller_auction_expire",
+      "seller_auction_reveal",
+      "seller_auction_settle"
+    ],
+    "family_additional_classes": [
+      "accounting",
+      "authorization",
+      "cancellation",
+      "commit",
+      "freshness",
+      "happy",
+      "outage",
+      "recovery",
+      "rejection",
+      "rejoin",
+      "replay",
+      "reveal",
+      "terminal"
+    ],
+    "required_before_promotion": [
+      "executable BDD or equivalent deterministic tests",
+      "reject-is-no-op and terminal-drain evidence",
+      "runtime projection and mounted-entrypoint evidence"
+    ],
+    "scenario_evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+    "universal_classes": [
+      "happy",
+      "rejection",
+      "authorization",
+      "recovery",
+      "terminal",
+      "replay"
+    ]
+  },
+  "schema": "zenodex/production-readiness-g1-bdd/v1",
+  "source_mapping_artifact": "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json",
+  "source_pins": [
+    {
+      "path": "src/core/m6_safe_mount_types_v1.py",
+      "sha256": "e9dfe00abd72f20f6c49986dd5af5a7f37042ee100b9f6d26f6b719b8e5623f8",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    },
+    {
+      "path": "src/core/m6_safe_mount_transition_v1.py",
+      "sha256": "9355b083064439b2756ee1d9454710229eaa3fe31fd529587ea3ece66cba8ee2",
+      "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    }
+  ],
+  "source_subject": {
+    "base_commit": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+    "current_head_must_descend_from_base": true,
+    "source_authority": "frozen source bytes at the exact base commit"
+  },
+  "status": "G1_BDD_RESEARCH_ONLY",
+  "version": "v1",
+  "workflows": [
+    {
+      "actor": "tau_user_or_recovery_operator",
+      "command_id": "fallback_activate",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_fallback_activate",
+      "id": "WF-G1-001",
+      "owner": "tau_escrow_and_rejoin_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "outage",
+        "rejoin"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated fallback_activate command binds the current state and selected profile",
+          "id": "BDD-G1-001",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical fallback_activate command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for fallback_activate is false or its integer policy bound fails",
+          "id": "BDD-G1-002",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated fallback_activate command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for fallback_activate is foreign or stale",
+          "id": "BDD-G1-003",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed fallback_activate payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the fallback_activate publication boundary",
+          "id": "BDD-G1-004",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the fallback_activate workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-005",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the fallback_activate command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-006",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "outage",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the external Tau or destination service is unavailable during fallback_activate",
+          "id": "BDD-G1-007",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the state does not depend on live reachability and pending custody or outbox identity remains recoverable",
+          "when": "the deterministic fallback_activate transition is evaluated"
+        },
+        {
+          "class": "rejoin",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "an actor or deployment returns after an outage with persisted fallback_activate state",
+          "id": "BDD-G1-008",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "continuity, pending effects, and authority epoch reconcile exactly without replaying value movement",
+          "when": "the authenticated rejoin evidence is evaluated"
+        }
+      ],
+      "terminal_path": "tau_escrow_withdrawal_ack_rejoin_terminal",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "actor": "trader_or_liquidity_provider",
+      "command_id": "lp_add",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_lp_add",
+      "id": "WF-G1-002",
+      "owner": "spot_and_liquidity_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated lp_add command binds the current state and selected profile",
+          "id": "BDD-G1-009",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical lp_add command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for lp_add is false or its integer policy bound fails",
+          "id": "BDD-G1-010",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated lp_add command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for lp_add is foreign or stale",
+          "id": "BDD-G1-011",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed lp_add payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the lp_add publication boundary",
+          "id": "BDD-G1-012",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the lp_add workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-013",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the lp_add command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-014",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the lp_add transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-015",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated lp_add candidate is evaluated"
+        }
+      ],
+      "terminal_path": "spot_lp_reserve_and_custody_terminal",
+      "workflow_family": "spot_and_liquidity"
+    },
+    {
+      "actor": "trader_or_liquidity_provider",
+      "command_id": "lp_remove",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_lp_remove",
+      "id": "WF-G1-003",
+      "owner": "spot_and_liquidity_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated lp_remove command binds the current state and selected profile",
+          "id": "BDD-G1-016",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical lp_remove command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for lp_remove is false or its integer policy bound fails",
+          "id": "BDD-G1-017",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated lp_remove command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for lp_remove is foreign or stale",
+          "id": "BDD-G1-018",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed lp_remove payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the lp_remove publication boundary",
+          "id": "BDD-G1-019",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the lp_remove workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-020",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the lp_remove command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-021",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the lp_remove transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-022",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated lp_remove candidate is evaluated"
+        }
+      ],
+      "terminal_path": "spot_lp_reserve_and_custody_terminal",
+      "workflow_family": "spot_and_liquidity"
+    },
+    {
+      "actor": "oracle_reporter_or_disputer",
+      "command_id": "oracle_dispute",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_oracle_dispute",
+      "id": "WF-G1-004",
+      "owner": "oracle_admission_and_commit_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated oracle_dispute command binds the current state and selected profile",
+          "id": "BDD-G1-023",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical oracle_dispute command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for oracle_dispute is false or its integer policy bound fails",
+          "id": "BDD-G1-024",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated oracle_dispute command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for oracle_dispute is foreign or stale",
+          "id": "BDD-G1-025",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed oracle_dispute payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the oracle_dispute publication boundary",
+          "id": "BDD-G1-026",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the oracle_dispute workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-027",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the oracle_dispute command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-028",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for oracle_dispute is stale or pending",
+          "id": "BDD-G1-029",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing oracle_dispute command is evaluated"
+        }
+      ],
+      "terminal_path": "oracle_report_dispute_recovery_terminal",
+      "workflow_family": "oracle"
+    },
+    {
+      "actor": "oracle_reporter_or_disputer",
+      "command_id": "oracle_submit",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_oracle_submit",
+      "id": "WF-G1-005",
+      "owner": "oracle_admission_and_commit_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated oracle_submit command binds the current state and selected profile",
+          "id": "BDD-G1-030",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical oracle_submit command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for oracle_submit is false or its integer policy bound fails",
+          "id": "BDD-G1-031",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated oracle_submit command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for oracle_submit is foreign or stale",
+          "id": "BDD-G1-032",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed oracle_submit payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the oracle_submit publication boundary",
+          "id": "BDD-G1-033",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the oracle_submit workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-034",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the oracle_submit command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-035",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for oracle_submit is stale or pending",
+          "id": "BDD-G1-036",
+          "requirements": [
+            "M6-R05",
+            "M6-R08",
+            "M6-R09"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing oracle_submit command is evaluated"
+        }
+      ],
+      "terminal_path": "oracle_report_dispute_recovery_terminal",
+      "workflow_family": "oracle"
+    },
+    {
+      "actor": "perp_trader_or_liquidator",
+      "command_id": "perp_close",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_perp_close",
+      "id": "WF-G1-006",
+      "owner": "perps_risk_and_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated perp_close command binds the current state and selected profile",
+          "id": "BDD-G1-037",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical perp_close command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for perp_close is false or its integer policy bound fails",
+          "id": "BDD-G1-038",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated perp_close command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for perp_close is foreign or stale",
+          "id": "BDD-G1-039",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed perp_close payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the perp_close publication boundary",
+          "id": "BDD-G1-040",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the perp_close workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-041",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the perp_close command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-042",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the perp_close transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-043",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated perp_close candidate is evaluated"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for perp_close is stale or pending",
+          "id": "BDD-G1-044",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing perp_close command is evaluated"
+        }
+      ],
+      "terminal_path": "perps_margin_insurance_close_terminal",
+      "workflow_family": "perps_risk"
+    },
+    {
+      "actor": "perp_trader_or_liquidator",
+      "command_id": "perp_funding",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_perp_funding",
+      "id": "WF-G1-007",
+      "owner": "perps_risk_and_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated perp_funding command binds the current state and selected profile",
+          "id": "BDD-G1-045",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical perp_funding command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for perp_funding is false or its integer policy bound fails",
+          "id": "BDD-G1-046",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated perp_funding command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for perp_funding is foreign or stale",
+          "id": "BDD-G1-047",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed perp_funding payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the perp_funding publication boundary",
+          "id": "BDD-G1-048",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the perp_funding workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-049",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the perp_funding command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-050",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the perp_funding transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-051",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated perp_funding candidate is evaluated"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for perp_funding is stale or pending",
+          "id": "BDD-G1-052",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing perp_funding command is evaluated"
+        }
+      ],
+      "terminal_path": "perps_margin_insurance_close_terminal",
+      "workflow_family": "perps_risk"
+    },
+    {
+      "actor": "perp_trader_or_liquidator",
+      "command_id": "perp_liquidate",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_perp_liquidate",
+      "id": "WF-G1-008",
+      "owner": "perps_risk_and_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated perp_liquidate command binds the current state and selected profile",
+          "id": "BDD-G1-053",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical perp_liquidate command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for perp_liquidate is false or its integer policy bound fails",
+          "id": "BDD-G1-054",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated perp_liquidate command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for perp_liquidate is foreign or stale",
+          "id": "BDD-G1-055",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed perp_liquidate payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the perp_liquidate publication boundary",
+          "id": "BDD-G1-056",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the perp_liquidate workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-057",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the perp_liquidate command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-058",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the perp_liquidate transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-059",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated perp_liquidate candidate is evaluated"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for perp_liquidate is stale or pending",
+          "id": "BDD-G1-060",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing perp_liquidate command is evaluated"
+        }
+      ],
+      "terminal_path": "perps_margin_insurance_close_terminal",
+      "workflow_family": "perps_risk"
+    },
+    {
+      "actor": "perp_trader_or_liquidator",
+      "command_id": "perp_open",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_perp_open",
+      "id": "WF-G1-009",
+      "owner": "perps_risk_and_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated perp_open command binds the current state and selected profile",
+          "id": "BDD-G1-061",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical perp_open command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for perp_open is false or its integer policy bound fails",
+          "id": "BDD-G1-062",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated perp_open command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for perp_open is foreign or stale",
+          "id": "BDD-G1-063",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed perp_open payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the perp_open publication boundary",
+          "id": "BDD-G1-064",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the perp_open workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-065",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the perp_open command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-066",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the perp_open transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-067",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated perp_open candidate is evaluated"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for perp_open is stale or pending",
+          "id": "BDD-G1-068",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing perp_open command is evaluated"
+        }
+      ],
+      "terminal_path": "perps_margin_insurance_close_terminal",
+      "workflow_family": "perps_risk"
+    },
+    {
+      "actor": "sealed_bidder_or_auction_operator",
+      "command_id": "private_swap_cancel",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_cancel",
+      "id": "WF-G1-010",
+      "owner": "sealed_bid_commit_reveal_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation",
+        "replay",
+        "commit",
+        "reveal"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated private_swap_cancel command binds the current state and selected profile",
+          "id": "BDD-G1-069",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical private_swap_cancel command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for private_swap_cancel is false or its integer policy bound fails",
+          "id": "BDD-G1-070",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated private_swap_cancel command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for private_swap_cancel is foreign or stale",
+          "id": "BDD-G1-071",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed private_swap_cancel payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the private_swap_cancel publication boundary",
+          "id": "BDD-G1-072",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_cancel workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-073",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "cancellation",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_cancel lifecycle has an escrowed amount or inventory eligible for cancellation or expiry",
+          "id": "BDD-G1-074",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "escrow, refund, slash, terminal ownership, and outbox ancestry reconcile exactly once",
+          "when": "the authorized actor executes private_swap_cancel"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_cancel command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-075",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "commit",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_cancel workflow is in its commit phase with an escrowed amount or inventory",
+          "id": "BDD-G1-076",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the commitment binds the declared fields and phase without revealing or moving unowned value",
+          "when": "the actor submits a canonical commitment for private_swap_cancel"
+        },
+        {
+          "class": "reveal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a valid or invalid commitment exists for the private_swap_cancel workflow",
+          "id": "BDD-G1-077",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the reveal either matches the commitment and advances the phase or rejects without partial settlement",
+          "when": "the actor submits a reveal for private_swap_cancel"
+        }
+      ],
+      "terminal_path": "auction_inventory_escrow_outbox_terminal",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "actor": "sealed_bidder_or_auction_operator",
+      "command_id": "private_swap_commit",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_commit",
+      "id": "WF-G1-011",
+      "owner": "sealed_bid_commit_reveal_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation",
+        "replay",
+        "commit",
+        "reveal"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated private_swap_commit command binds the current state and selected profile",
+          "id": "BDD-G1-078",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical private_swap_commit command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for private_swap_commit is false or its integer policy bound fails",
+          "id": "BDD-G1-079",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated private_swap_commit command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for private_swap_commit is foreign or stale",
+          "id": "BDD-G1-080",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed private_swap_commit payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the private_swap_commit publication boundary",
+          "id": "BDD-G1-081",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_commit workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-082",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "cancellation",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_commit lifecycle has an escrowed amount or inventory eligible for cancellation or expiry",
+          "id": "BDD-G1-083",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "escrow, refund, slash, terminal ownership, and outbox ancestry reconcile exactly once",
+          "when": "the authorized actor executes private_swap_commit"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_commit command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-084",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "commit",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_commit workflow is in its commit phase with an escrowed amount or inventory",
+          "id": "BDD-G1-085",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the commitment binds the declared fields and phase without revealing or moving unowned value",
+          "when": "the actor submits a canonical commitment for private_swap_commit"
+        },
+        {
+          "class": "reveal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a valid or invalid commitment exists for the private_swap_commit workflow",
+          "id": "BDD-G1-086",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the reveal either matches the commitment and advances the phase or rejects without partial settlement",
+          "when": "the actor submits a reveal for private_swap_commit"
+        }
+      ],
+      "terminal_path": "auction_inventory_escrow_outbox_terminal",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "actor": "sealed_bidder_or_auction_operator",
+      "command_id": "private_swap_expire",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_expire",
+      "id": "WF-G1-012",
+      "owner": "sealed_bid_commit_reveal_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation",
+        "replay",
+        "commit",
+        "reveal"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated private_swap_expire command binds the current state and selected profile",
+          "id": "BDD-G1-087",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical private_swap_expire command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for private_swap_expire is false or its integer policy bound fails",
+          "id": "BDD-G1-088",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated private_swap_expire command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for private_swap_expire is foreign or stale",
+          "id": "BDD-G1-089",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed private_swap_expire payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the private_swap_expire publication boundary",
+          "id": "BDD-G1-090",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_expire workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-091",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "cancellation",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_expire lifecycle has an escrowed amount or inventory eligible for cancellation or expiry",
+          "id": "BDD-G1-092",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "escrow, refund, slash, terminal ownership, and outbox ancestry reconcile exactly once",
+          "when": "the authorized actor executes private_swap_expire"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_expire command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-093",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "commit",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_expire workflow is in its commit phase with an escrowed amount or inventory",
+          "id": "BDD-G1-094",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the commitment binds the declared fields and phase without revealing or moving unowned value",
+          "when": "the actor submits a canonical commitment for private_swap_expire"
+        },
+        {
+          "class": "reveal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a valid or invalid commitment exists for the private_swap_expire workflow",
+          "id": "BDD-G1-095",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the reveal either matches the commitment and advances the phase or rejects without partial settlement",
+          "when": "the actor submits a reveal for private_swap_expire"
+        }
+      ],
+      "terminal_path": "auction_inventory_escrow_outbox_terminal",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "actor": "sealed_bidder_or_auction_operator",
+      "command_id": "private_swap_reveal",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_reveal",
+      "id": "WF-G1-013",
+      "owner": "sealed_bid_commit_reveal_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation",
+        "replay",
+        "commit",
+        "reveal"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated private_swap_reveal command binds the current state and selected profile",
+          "id": "BDD-G1-096",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical private_swap_reveal command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for private_swap_reveal is false or its integer policy bound fails",
+          "id": "BDD-G1-097",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated private_swap_reveal command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for private_swap_reveal is foreign or stale",
+          "id": "BDD-G1-098",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed private_swap_reveal payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the private_swap_reveal publication boundary",
+          "id": "BDD-G1-099",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_reveal workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-100",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "cancellation",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_reveal lifecycle has an escrowed amount or inventory eligible for cancellation or expiry",
+          "id": "BDD-G1-101",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "escrow, refund, slash, terminal ownership, and outbox ancestry reconcile exactly once",
+          "when": "the authorized actor executes private_swap_reveal"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_reveal command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-102",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "commit",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_reveal workflow is in its commit phase with an escrowed amount or inventory",
+          "id": "BDD-G1-103",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the commitment binds the declared fields and phase without revealing or moving unowned value",
+          "when": "the actor submits a canonical commitment for private_swap_reveal"
+        },
+        {
+          "class": "reveal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a valid or invalid commitment exists for the private_swap_reveal workflow",
+          "id": "BDD-G1-104",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the reveal either matches the commitment and advances the phase or rejects without partial settlement",
+          "when": "the actor submits a reveal for private_swap_reveal"
+        }
+      ],
+      "terminal_path": "auction_inventory_escrow_outbox_terminal",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "actor": "sealed_bidder_or_auction_operator",
+      "command_id": "private_swap_settle",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_settle",
+      "id": "WF-G1-014",
+      "owner": "sealed_bid_commit_reveal_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation",
+        "replay",
+        "commit",
+        "reveal"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated private_swap_settle command binds the current state and selected profile",
+          "id": "BDD-G1-105",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical private_swap_settle command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for private_swap_settle is false or its integer policy bound fails",
+          "id": "BDD-G1-106",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated private_swap_settle command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for private_swap_settle is foreign or stale",
+          "id": "BDD-G1-107",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed private_swap_settle payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the private_swap_settle publication boundary",
+          "id": "BDD-G1-108",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_settle workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-109",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "cancellation",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_settle lifecycle has an escrowed amount or inventory eligible for cancellation or expiry",
+          "id": "BDD-G1-110",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "escrow, refund, slash, terminal ownership, and outbox ancestry reconcile exactly once",
+          "when": "the authorized actor executes private_swap_settle"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_settle command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-111",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "commit",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the private_swap_settle workflow is in its commit phase with an escrowed amount or inventory",
+          "id": "BDD-G1-112",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the commitment binds the declared fields and phase without revealing or moving unowned value",
+          "when": "the actor submits a canonical commitment for private_swap_settle"
+        },
+        {
+          "class": "reveal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a valid or invalid commitment exists for the private_swap_settle workflow",
+          "id": "BDD-G1-113",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the reveal either matches the commitment and advances the phase or rejects without partial settlement",
+          "when": "the actor submits a reveal for private_swap_settle"
+        }
+      ],
+      "terminal_path": "auction_inventory_escrow_outbox_terminal",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "actor": "protocol_treasury_operator",
+      "command_id": "protocol_buy_and_burn",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_protocol_buy_and_burn",
+      "id": "WF-G1-015",
+      "owner": "protocol_token_buy_and_burn_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated protocol_buy_and_burn command binds the current state and selected profile",
+          "id": "BDD-G1-114",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical protocol_buy_and_burn command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for protocol_buy_and_burn is false or its integer policy bound fails",
+          "id": "BDD-G1-115",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated protocol_buy_and_burn command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for protocol_buy_and_burn is foreign or stale",
+          "id": "BDD-G1-116",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed protocol_buy_and_burn payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the protocol_buy_and_burn publication boundary",
+          "id": "BDD-G1-117",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the protocol_buy_and_burn workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-118",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the protocol_buy_and_burn command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-119",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the protocol_buy_and_burn transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-120",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated protocol_buy_and_burn candidate is evaluated"
+        }
+      ],
+      "terminal_path": "protocol_token_treasury_and_burn_terminal",
+      "workflow_family": "protocol_token"
+    },
+    {
+      "actor": "sealed_bidder_or_auction_operator",
+      "command_id": "seller_auction_cancel",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_cancel",
+      "id": "WF-G1-016",
+      "owner": "sealed_bid_commit_reveal_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation",
+        "replay",
+        "commit",
+        "reveal"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated seller_auction_cancel command binds the current state and selected profile",
+          "id": "BDD-G1-121",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical seller_auction_cancel command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for seller_auction_cancel is false or its integer policy bound fails",
+          "id": "BDD-G1-122",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated seller_auction_cancel command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for seller_auction_cancel is foreign or stale",
+          "id": "BDD-G1-123",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed seller_auction_cancel payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the seller_auction_cancel publication boundary",
+          "id": "BDD-G1-124",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_cancel workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-125",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "cancellation",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_cancel lifecycle has an escrowed amount or inventory eligible for cancellation or expiry",
+          "id": "BDD-G1-126",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "escrow, refund, slash, terminal ownership, and outbox ancestry reconcile exactly once",
+          "when": "the authorized actor executes seller_auction_cancel"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_cancel command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-127",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "commit",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_cancel workflow is in its commit phase with an escrowed amount or inventory",
+          "id": "BDD-G1-128",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the commitment binds the declared fields and phase without revealing or moving unowned value",
+          "when": "the actor submits a canonical commitment for seller_auction_cancel"
+        },
+        {
+          "class": "reveal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a valid or invalid commitment exists for the seller_auction_cancel workflow",
+          "id": "BDD-G1-129",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the reveal either matches the commitment and advances the phase or rejects without partial settlement",
+          "when": "the actor submits a reveal for seller_auction_cancel"
+        }
+      ],
+      "terminal_path": "auction_inventory_escrow_outbox_terminal",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "actor": "sealed_bidder_or_auction_operator",
+      "command_id": "seller_auction_commit",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_commit",
+      "id": "WF-G1-017",
+      "owner": "sealed_bid_commit_reveal_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation",
+        "replay",
+        "commit",
+        "reveal"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated seller_auction_commit command binds the current state and selected profile",
+          "id": "BDD-G1-130",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical seller_auction_commit command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for seller_auction_commit is false or its integer policy bound fails",
+          "id": "BDD-G1-131",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated seller_auction_commit command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for seller_auction_commit is foreign or stale",
+          "id": "BDD-G1-132",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed seller_auction_commit payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the seller_auction_commit publication boundary",
+          "id": "BDD-G1-133",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_commit workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-134",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "cancellation",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_commit lifecycle has an escrowed amount or inventory eligible for cancellation or expiry",
+          "id": "BDD-G1-135",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "escrow, refund, slash, terminal ownership, and outbox ancestry reconcile exactly once",
+          "when": "the authorized actor executes seller_auction_commit"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_commit command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-136",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "commit",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_commit workflow is in its commit phase with an escrowed amount or inventory",
+          "id": "BDD-G1-137",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the commitment binds the declared fields and phase without revealing or moving unowned value",
+          "when": "the actor submits a canonical commitment for seller_auction_commit"
+        },
+        {
+          "class": "reveal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a valid or invalid commitment exists for the seller_auction_commit workflow",
+          "id": "BDD-G1-138",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the reveal either matches the commitment and advances the phase or rejects without partial settlement",
+          "when": "the actor submits a reveal for seller_auction_commit"
+        }
+      ],
+      "terminal_path": "auction_inventory_escrow_outbox_terminal",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "actor": "sealed_bidder_or_auction_operator",
+      "command_id": "seller_auction_expire",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_expire",
+      "id": "WF-G1-018",
+      "owner": "sealed_bid_commit_reveal_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation",
+        "replay",
+        "commit",
+        "reveal"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated seller_auction_expire command binds the current state and selected profile",
+          "id": "BDD-G1-139",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical seller_auction_expire command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for seller_auction_expire is false or its integer policy bound fails",
+          "id": "BDD-G1-140",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated seller_auction_expire command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for seller_auction_expire is foreign or stale",
+          "id": "BDD-G1-141",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed seller_auction_expire payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the seller_auction_expire publication boundary",
+          "id": "BDD-G1-142",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_expire workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-143",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "cancellation",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_expire lifecycle has an escrowed amount or inventory eligible for cancellation or expiry",
+          "id": "BDD-G1-144",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "escrow, refund, slash, terminal ownership, and outbox ancestry reconcile exactly once",
+          "when": "the authorized actor executes seller_auction_expire"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_expire command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-145",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "commit",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_expire workflow is in its commit phase with an escrowed amount or inventory",
+          "id": "BDD-G1-146",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the commitment binds the declared fields and phase without revealing or moving unowned value",
+          "when": "the actor submits a canonical commitment for seller_auction_expire"
+        },
+        {
+          "class": "reveal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a valid or invalid commitment exists for the seller_auction_expire workflow",
+          "id": "BDD-G1-147",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the reveal either matches the commitment and advances the phase or rejects without partial settlement",
+          "when": "the actor submits a reveal for seller_auction_expire"
+        }
+      ],
+      "terminal_path": "auction_inventory_escrow_outbox_terminal",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "actor": "sealed_bidder_or_auction_operator",
+      "command_id": "seller_auction_reveal",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_reveal",
+      "id": "WF-G1-019",
+      "owner": "sealed_bid_commit_reveal_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation",
+        "replay",
+        "commit",
+        "reveal"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated seller_auction_reveal command binds the current state and selected profile",
+          "id": "BDD-G1-148",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical seller_auction_reveal command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for seller_auction_reveal is false or its integer policy bound fails",
+          "id": "BDD-G1-149",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated seller_auction_reveal command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for seller_auction_reveal is foreign or stale",
+          "id": "BDD-G1-150",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed seller_auction_reveal payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the seller_auction_reveal publication boundary",
+          "id": "BDD-G1-151",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_reveal workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-152",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "cancellation",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_reveal lifecycle has an escrowed amount or inventory eligible for cancellation or expiry",
+          "id": "BDD-G1-153",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "escrow, refund, slash, terminal ownership, and outbox ancestry reconcile exactly once",
+          "when": "the authorized actor executes seller_auction_reveal"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_reveal command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-154",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "commit",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_reveal workflow is in its commit phase with an escrowed amount or inventory",
+          "id": "BDD-G1-155",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the commitment binds the declared fields and phase without revealing or moving unowned value",
+          "when": "the actor submits a canonical commitment for seller_auction_reveal"
+        },
+        {
+          "class": "reveal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a valid or invalid commitment exists for the seller_auction_reveal workflow",
+          "id": "BDD-G1-156",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the reveal either matches the commitment and advances the phase or rejects without partial settlement",
+          "when": "the actor submits a reveal for seller_auction_reveal"
+        }
+      ],
+      "terminal_path": "auction_inventory_escrow_outbox_terminal",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "actor": "sealed_bidder_or_auction_operator",
+      "command_id": "seller_auction_settle",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_settle",
+      "id": "WF-G1-020",
+      "owner": "sealed_bid_commit_reveal_settlement_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation",
+        "replay",
+        "commit",
+        "reveal"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated seller_auction_settle command binds the current state and selected profile",
+          "id": "BDD-G1-157",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical seller_auction_settle command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for seller_auction_settle is false or its integer policy bound fails",
+          "id": "BDD-G1-158",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated seller_auction_settle command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for seller_auction_settle is foreign or stale",
+          "id": "BDD-G1-159",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed seller_auction_settle payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the seller_auction_settle publication boundary",
+          "id": "BDD-G1-160",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_settle workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-161",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "cancellation",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_settle lifecycle has an escrowed amount or inventory eligible for cancellation or expiry",
+          "id": "BDD-G1-162",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "escrow, refund, slash, terminal ownership, and outbox ancestry reconcile exactly once",
+          "when": "the authorized actor executes seller_auction_settle"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_settle command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-163",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "commit",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the seller_auction_settle workflow is in its commit phase with an escrowed amount or inventory",
+          "id": "BDD-G1-164",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the commitment binds the declared fields and phase without revealing or moving unowned value",
+          "when": "the actor submits a canonical commitment for seller_auction_settle"
+        },
+        {
+          "class": "reveal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a valid or invalid commitment exists for the seller_auction_settle workflow",
+          "id": "BDD-G1-165",
+          "requirements": [
+            "M6-R04",
+            "M6-R05",
+            "M6-R09",
+            "M6-R10",
+            "M6-R13"
+          ],
+          "then": "the reveal either matches the commitment and advances the phase or rejects without partial settlement",
+          "when": "the actor submits a reveal for seller_auction_settle"
+        }
+      ],
+      "terminal_path": "auction_inventory_escrow_outbox_terminal",
+      "workflow_family": "sealed_bid"
+    },
+    {
+      "actor": "trader_or_liquidity_provider",
+      "command_id": "spot_swap",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_spot_swap",
+      "id": "WF-G1-021",
+      "owner": "spot_and_liquidity_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated spot_swap command binds the current state and selected profile",
+          "id": "BDD-G1-166",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical spot_swap command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for spot_swap is false or its integer policy bound fails",
+          "id": "BDD-G1-167",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated spot_swap command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for spot_swap is foreign or stale",
+          "id": "BDD-G1-168",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed spot_swap payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the spot_swap publication boundary",
+          "id": "BDD-G1-169",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the spot_swap workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-170",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the spot_swap command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-171",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the spot_swap transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-172",
+          "requirements": [
+            "M6-R01",
+            "M6-R04",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated spot_swap candidate is evaluated"
+        }
+      ],
+      "terminal_path": "spot_lp_reserve_and_custody_terminal",
+      "workflow_family": "spot_and_liquidity"
+    },
+    {
+      "actor": "borrower_or_stability_provider",
+      "command_id": "stability_pool_deposit",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_stability_deposit",
+      "id": "WF-G1-022",
+      "owner": "zusd_monetary_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated stability_pool_deposit command binds the current state and selected profile",
+          "id": "BDD-G1-173",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical stability_pool_deposit command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for stability_pool_deposit is false or its integer policy bound fails",
+          "id": "BDD-G1-174",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated stability_pool_deposit command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for stability_pool_deposit is foreign or stale",
+          "id": "BDD-G1-175",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed stability_pool_deposit payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the stability_pool_deposit publication boundary",
+          "id": "BDD-G1-176",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the stability_pool_deposit workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-177",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the stability_pool_deposit command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-178",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the stability_pool_deposit transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-179",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated stability_pool_deposit candidate is evaluated"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for stability_pool_deposit is stale or pending",
+          "id": "BDD-G1-180",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing stability_pool_deposit command is evaluated"
+        }
+      ],
+      "terminal_path": "zusd_debt_supply_redemption_terminal",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "actor": "borrower_or_stability_provider",
+      "command_id": "stability_pool_withdraw",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_stability_withdraw",
+      "id": "WF-G1-023",
+      "owner": "zusd_monetary_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated stability_pool_withdraw command binds the current state and selected profile",
+          "id": "BDD-G1-181",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical stability_pool_withdraw command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for stability_pool_withdraw is false or its integer policy bound fails",
+          "id": "BDD-G1-182",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated stability_pool_withdraw command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for stability_pool_withdraw is foreign or stale",
+          "id": "BDD-G1-183",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed stability_pool_withdraw payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the stability_pool_withdraw publication boundary",
+          "id": "BDD-G1-184",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the stability_pool_withdraw workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-185",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the stability_pool_withdraw command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-186",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the stability_pool_withdraw transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-187",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated stability_pool_withdraw candidate is evaluated"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for stability_pool_withdraw is stale or pending",
+          "id": "BDD-G1-188",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing stability_pool_withdraw command is evaluated"
+        }
+      ],
+      "terminal_path": "zusd_debt_supply_redemption_terminal",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "actor": "tau_user_or_recovery_operator",
+      "command_id": "tau_escrow_deposit",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_tau_escrow_deposit",
+      "id": "WF-G1-024",
+      "owner": "tau_escrow_and_rejoin_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "outage",
+        "rejoin"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated tau_escrow_deposit command binds the current state and selected profile",
+          "id": "BDD-G1-189",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical tau_escrow_deposit command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for tau_escrow_deposit is false or its integer policy bound fails",
+          "id": "BDD-G1-190",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated tau_escrow_deposit command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for tau_escrow_deposit is foreign or stale",
+          "id": "BDD-G1-191",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed tau_escrow_deposit payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the tau_escrow_deposit publication boundary",
+          "id": "BDD-G1-192",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the tau_escrow_deposit workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-193",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the tau_escrow_deposit command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-194",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "outage",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the external Tau or destination service is unavailable during tau_escrow_deposit",
+          "id": "BDD-G1-195",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the state does not depend on live reachability and pending custody or outbox identity remains recoverable",
+          "when": "the deterministic tau_escrow_deposit transition is evaluated"
+        },
+        {
+          "class": "rejoin",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "an actor or deployment returns after an outage with persisted tau_escrow_deposit state",
+          "id": "BDD-G1-196",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "continuity, pending effects, and authority epoch reconcile exactly without replaying value movement",
+          "when": "the authenticated rejoin evidence is evaluated"
+        }
+      ],
+      "terminal_path": "tau_escrow_withdrawal_ack_rejoin_terminal",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "actor": "tau_user_or_recovery_operator",
+      "command_id": "tau_rejoin",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_tau_rejoin",
+      "id": "WF-G1-025",
+      "owner": "tau_escrow_and_rejoin_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "outage",
+        "rejoin"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated tau_rejoin command binds the current state and selected profile",
+          "id": "BDD-G1-197",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical tau_rejoin command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for tau_rejoin is false or its integer policy bound fails",
+          "id": "BDD-G1-198",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated tau_rejoin command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for tau_rejoin is foreign or stale",
+          "id": "BDD-G1-199",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed tau_rejoin payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the tau_rejoin publication boundary",
+          "id": "BDD-G1-200",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the tau_rejoin workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-201",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the tau_rejoin command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-202",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "outage",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the external Tau or destination service is unavailable during tau_rejoin",
+          "id": "BDD-G1-203",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the state does not depend on live reachability and pending custody or outbox identity remains recoverable",
+          "when": "the deterministic tau_rejoin transition is evaluated"
+        },
+        {
+          "class": "rejoin",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "an actor or deployment returns after an outage with persisted tau_rejoin state",
+          "id": "BDD-G1-204",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "continuity, pending effects, and authority epoch reconcile exactly without replaying value movement",
+          "when": "the authenticated rejoin evidence is evaluated"
+        }
+      ],
+      "terminal_path": "tau_escrow_withdrawal_ack_rejoin_terminal",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "actor": "tau_user_or_recovery_operator",
+      "command_id": "tau_withdrawal",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_tau_withdrawal",
+      "id": "WF-G1-026",
+      "owner": "tau_escrow_and_rejoin_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "outage",
+        "rejoin"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated tau_withdrawal command binds the current state and selected profile",
+          "id": "BDD-G1-205",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical tau_withdrawal command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for tau_withdrawal is false or its integer policy bound fails",
+          "id": "BDD-G1-206",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated tau_withdrawal command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for tau_withdrawal is foreign or stale",
+          "id": "BDD-G1-207",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed tau_withdrawal payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the tau_withdrawal publication boundary",
+          "id": "BDD-G1-208",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the tau_withdrawal workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-209",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the tau_withdrawal command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-210",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "outage",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the external Tau or destination service is unavailable during tau_withdrawal",
+          "id": "BDD-G1-211",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the state does not depend on live reachability and pending custody or outbox identity remains recoverable",
+          "when": "the deterministic tau_withdrawal transition is evaluated"
+        },
+        {
+          "class": "rejoin",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "an actor or deployment returns after an outage with persisted tau_withdrawal state",
+          "id": "BDD-G1-212",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "continuity, pending effects, and authority epoch reconcile exactly without replaying value movement",
+          "when": "the authenticated rejoin evidence is evaluated"
+        }
+      ],
+      "terminal_path": "tau_escrow_withdrawal_ack_rejoin_terminal",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "actor": "tau_user_or_recovery_operator",
+      "command_id": "tau_withdrawal_ack",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_tau_withdrawal_ack",
+      "id": "WF-G1-027",
+      "owner": "tau_escrow_and_rejoin_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "outage",
+        "rejoin"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated tau_withdrawal_ack command binds the current state and selected profile",
+          "id": "BDD-G1-213",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical tau_withdrawal_ack command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for tau_withdrawal_ack is false or its integer policy bound fails",
+          "id": "BDD-G1-214",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated tau_withdrawal_ack command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for tau_withdrawal_ack is foreign or stale",
+          "id": "BDD-G1-215",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed tau_withdrawal_ack payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the tau_withdrawal_ack publication boundary",
+          "id": "BDD-G1-216",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the tau_withdrawal_ack workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-217",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the tau_withdrawal_ack command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-218",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "outage",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the external Tau or destination service is unavailable during tau_withdrawal_ack",
+          "id": "BDD-G1-219",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "the state does not depend on live reachability and pending custody or outbox identity remains recoverable",
+          "when": "the deterministic tau_withdrawal_ack transition is evaluated"
+        },
+        {
+          "class": "rejoin",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "an actor or deployment returns after an outage with persisted tau_withdrawal_ack state",
+          "id": "BDD-G1-220",
+          "requirements": [
+            "M6-R03",
+            "M6-R07",
+            "M6-R09",
+            "M6-R10",
+            "M6-R11",
+            "M6-R12"
+          ],
+          "then": "continuity, pending effects, and authority epoch reconcile exactly without replaying value movement",
+          "when": "the authenticated rejoin evidence is evaluated"
+        }
+      ],
+      "terminal_path": "tau_escrow_withdrawal_ack_rejoin_terminal",
+      "workflow_family": "tau_escrow"
+    },
+    {
+      "actor": "proof_miner",
+      "command_id": "zrpf_prover_reward",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_prover_reward",
+      "id": "WF-G1-028",
+      "owner": "proof_reward_claim_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated zrpf_prover_reward command binds the current state and selected profile",
+          "id": "BDD-G1-221",
+          "requirements": [
+            "M6-R06",
+            "M6-R07",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical zrpf_prover_reward command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for zrpf_prover_reward is false or its integer policy bound fails",
+          "id": "BDD-G1-222",
+          "requirements": [
+            "M6-R06",
+            "M6-R07",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated zrpf_prover_reward command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for zrpf_prover_reward is foreign or stale",
+          "id": "BDD-G1-223",
+          "requirements": [
+            "M6-R06",
+            "M6-R07",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed zrpf_prover_reward payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the zrpf_prover_reward publication boundary",
+          "id": "BDD-G1-224",
+          "requirements": [
+            "M6-R06",
+            "M6-R07",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zrpf_prover_reward workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-225",
+          "requirements": [
+            "M6-R06",
+            "M6-R07",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zrpf_prover_reward command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-226",
+          "requirements": [
+            "M6-R06",
+            "M6-R07",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zrpf_prover_reward transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-227",
+          "requirements": [
+            "M6-R06",
+            "M6-R07",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated zrpf_prover_reward candidate is evaluated"
+        }
+      ],
+      "terminal_path": "proof_reward_reserve_claim_terminal",
+      "workflow_family": "proof_reward"
+    },
+    {
+      "actor": "borrower_or_stability_provider",
+      "command_id": "zusd_borrow",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_borrow",
+      "id": "WF-G1-029",
+      "owner": "zusd_monetary_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated zusd_borrow command binds the current state and selected profile",
+          "id": "BDD-G1-228",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical zusd_borrow command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for zusd_borrow is false or its integer policy bound fails",
+          "id": "BDD-G1-229",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated zusd_borrow command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for zusd_borrow is foreign or stale",
+          "id": "BDD-G1-230",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed zusd_borrow payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the zusd_borrow publication boundary",
+          "id": "BDD-G1-231",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_borrow workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-232",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_borrow command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-233",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_borrow transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-234",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated zusd_borrow candidate is evaluated"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for zusd_borrow is stale or pending",
+          "id": "BDD-G1-235",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing zusd_borrow command is evaluated"
+        }
+      ],
+      "terminal_path": "zusd_debt_supply_redemption_terminal",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "actor": "borrower_or_stability_provider",
+      "command_id": "zusd_liquidate",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_liquidate",
+      "id": "WF-G1-030",
+      "owner": "zusd_monetary_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated zusd_liquidate command binds the current state and selected profile",
+          "id": "BDD-G1-236",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical zusd_liquidate command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for zusd_liquidate is false or its integer policy bound fails",
+          "id": "BDD-G1-237",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated zusd_liquidate command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for zusd_liquidate is foreign or stale",
+          "id": "BDD-G1-238",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed zusd_liquidate payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the zusd_liquidate publication boundary",
+          "id": "BDD-G1-239",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_liquidate workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-240",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_liquidate command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-241",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_liquidate transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-242",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated zusd_liquidate candidate is evaluated"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for zusd_liquidate is stale or pending",
+          "id": "BDD-G1-243",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing zusd_liquidate command is evaluated"
+        }
+      ],
+      "terminal_path": "zusd_debt_supply_redemption_terminal",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "actor": "borrower_or_stability_provider",
+      "command_id": "zusd_redeem",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_redeem",
+      "id": "WF-G1-031",
+      "owner": "zusd_monetary_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated zusd_redeem command binds the current state and selected profile",
+          "id": "BDD-G1-244",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical zusd_redeem command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for zusd_redeem is false or its integer policy bound fails",
+          "id": "BDD-G1-245",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated zusd_redeem command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for zusd_redeem is foreign or stale",
+          "id": "BDD-G1-246",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed zusd_redeem payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the zusd_redeem publication boundary",
+          "id": "BDD-G1-247",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_redeem workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-248",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_redeem command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-249",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_redeem transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-250",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated zusd_redeem candidate is evaluated"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for zusd_redeem is stale or pending",
+          "id": "BDD-G1-251",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing zusd_redeem command is evaluated"
+        }
+      ],
+      "terminal_path": "zusd_debt_supply_redemption_terminal",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "actor": "borrower_or_stability_provider",
+      "command_id": "zusd_redistribute",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_redistribute",
+      "id": "WF-G1-032",
+      "owner": "zusd_monetary_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated zusd_redistribute command binds the current state and selected profile",
+          "id": "BDD-G1-252",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical zusd_redistribute command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for zusd_redistribute is false or its integer policy bound fails",
+          "id": "BDD-G1-253",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated zusd_redistribute command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for zusd_redistribute is foreign or stale",
+          "id": "BDD-G1-254",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed zusd_redistribute payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the zusd_redistribute publication boundary",
+          "id": "BDD-G1-255",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_redistribute workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-256",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_redistribute command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-257",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_redistribute transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-258",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated zusd_redistribute candidate is evaluated"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for zusd_redistribute is stale or pending",
+          "id": "BDD-G1-259",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing zusd_redistribute command is evaluated"
+        }
+      ],
+      "terminal_path": "zusd_debt_supply_redemption_terminal",
+      "workflow_family": "zusd_monetary"
+    },
+    {
+      "actor": "borrower_or_stability_provider",
+      "command_id": "zusd_repay",
+      "entrypoint": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_repay",
+      "id": "WF-G1-033",
+      "owner": "zusd_monetary_core",
+      "production_mount": "UNMOUNTED_RESEARCH_ONLY",
+      "required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "replay",
+        "accounting",
+        "freshness"
+      ],
+      "scenarios": [
+        {
+          "class": "happy",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the authenticated zusd_repay command binds the current state and selected profile",
+          "id": "BDD-G1-260",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the deterministic candidate contains the complete declared state, value, receipt, and effect projection",
+          "when": "an authorized actor submits one canonical zusd_repay command"
+        },
+        {
+          "class": "rejection",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the business precondition for zusd_repay is false or its integer policy bound fails",
+          "id": "BDD-G1-261",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the declared rejection path is observed with reject-is-no-op economic state and no unowned effect",
+          "when": "the authenticated zusd_repay command reaches the canonical transition"
+        },
+        {
+          "class": "authorization",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the signer, deployment, epoch, or proof context for zusd_repay is foreign or stale",
+          "id": "BDD-G1-262",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects before economic state or external effects change",
+          "when": "the actor submits the well-formed zusd_repay payload"
+        },
+        {
+          "class": "recovery",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "a crash or restart occurs around the zusd_repay publication boundary",
+          "id": "BDD-G1-263",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "only the exact committed PRE or POST state is accepted and no reopen alone grants writer authority",
+          "when": "the durable state reopens and attempts to resume the workflow"
+        },
+        {
+          "class": "terminal",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_repay workflow reaches its declared terminal lifecycle",
+          "id": "BDD-G1-264",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every claim, custody atom, liability, residue, and effect has one exact terminal owner",
+          "when": "the terminal transition is evaluated with the current state and profile"
+        },
+        {
+          "class": "replay",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_repay command identity, nonce, or nullifier is already committed",
+          "id": "BDD-G1-265",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the result is classified deterministically without a duplicate economic delta or external effect",
+          "when": "the same canonical command is submitted again"
+        },
+        {
+          "class": "accounting",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the zusd_repay transition moves one or more value atoms, liabilities, fees, or residues",
+          "id": "BDD-G1-266",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "every asset, owner, custody, supply, liability, fee, and rounding delta reconciles with no unnamed remainder",
+          "when": "the authenticated zusd_repay candidate is evaluated"
+        },
+        {
+          "class": "freshness",
+          "evidence_status": "UNIMPLEMENTED_RESEARCH_SCENARIO",
+          "given": "the current oracle, epoch, or proof context for zusd_repay is stale or pending",
+          "id": "BDD-G1-267",
+          "requirements": [
+            "M6-R04",
+            "M6-R08",
+            "M6-R09",
+            "M6-R13"
+          ],
+          "then": "the command rejects or enters only the explicitly declared recovery subset",
+          "when": "the risk-increasing zusd_repay command is evaluated"
+        }
+      ],
+      "terminal_path": "zusd_debt_supply_redemption_terminal",
+      "workflow_family": "zusd_monetary"
+    }
+  ]
+}

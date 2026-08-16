@@ -1,8 +1,24 @@
 {
+  "bdd_contract": {
+    "cancellation_required_for_workflow_families": [
+      "sealed_bid"
+    ],
+    "command_count": 33,
+    "executable_scenario_count": 0,
+    "nonclaim": "Scenario-class labels are coverage requirements, not executable BDD evidence.",
+    "required_for_every_command": [
+      "happy",
+      "rejection",
+      "authorization",
+      "recovery",
+      "terminal"
+    ],
+    "status": "BLOCKED_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS"
+  },
   "command_registry": [
     {
       "actor": "tau_user_or_recovery_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -12,8 +28,24 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "tau_escrow_outage_rejoin_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_fallback_activate",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "tau_escrow_and_rejoin_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "FALLBACK_ACTIVATE",
       "formal_obligation_ids": [
         "M6-R03",
@@ -23,20 +55,27 @@
         "M6-R11",
         "M6-R12"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "fallback_activate",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.FALLBACK_ACTIVATE",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.FALLBACK_ACTIVATE",
       "terminal_path": "tau_escrow_withdrawal_ack_rejoin_terminal",
-      "user_story": "fallback_activate has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "tau_escrow"
     },
     {
       "actor": "trader_or_liquidity_provider",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -44,8 +83,24 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "spot_lp_fee_dust_withdrawal_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_lp_add",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "spot_and_liquidity_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "LP_ADD",
       "formal_obligation_ids": [
         "M6-R01",
@@ -53,20 +108,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "lp_add",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.LP_ADD",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.LP_ADD",
       "terminal_path": "spot_lp_reserve_and_custody_terminal",
-      "user_story": "lp_add has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "spot_and_liquidity"
     },
     {
       "actor": "trader_or_liquidity_provider",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -74,8 +136,24 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "spot_lp_fee_dust_withdrawal_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_lp_remove",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "spot_and_liquidity_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "LP_REMOVE",
       "formal_obligation_ids": [
         "M6-R01",
@@ -83,20 +161,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "lp_remove",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.LP_REMOVE",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.LP_REMOVE",
       "terminal_path": "spot_lp_reserve_and_custody_terminal",
-      "user_story": "lp_remove has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "spot_and_liquidity"
     },
     {
       "actor": "oracle_reporter_or_disputer",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -104,28 +189,50 @@
         "recovery",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_oracle_dispute",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
       "economic_owner": "oracle_admission_and_commit_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "ORACLE_DISPUTE",
       "formal_obligation_ids": [
         "M6-R05",
         "M6-R08",
         "M6-R09"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "oracle_dispute",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ORACLE_DISPUTE",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ORACLE_DISPUTE",
       "terminal_path": "oracle_report_dispute_recovery_terminal",
-      "user_story": "oracle_dispute has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_DISABLED_COMMANDS_V1",
       "workflow_family": "oracle"
     },
     {
       "actor": "oracle_reporter_or_disputer",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -133,28 +240,50 @@
         "recovery",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_oracle_submit",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
       "economic_owner": "oracle_admission_and_commit_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "ORACLE_SUBMIT",
       "formal_obligation_ids": [
         "M6-R05",
         "M6-R08",
         "M6-R09"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "oracle_submit",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ORACLE_SUBMIT",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ORACLE_SUBMIT",
       "terminal_path": "oracle_report_dispute_recovery_terminal",
-      "user_story": "oracle_submit has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_DISABLED_COMMANDS_V1",
       "workflow_family": "oracle"
     },
     {
       "actor": "perp_trader_or_liquidator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -163,8 +292,24 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "perps_risk_and_terminal_policy",
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_perp_close",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "perps_risk_and_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "PERP_CLOSE",
       "formal_obligation_ids": [
         "M6-R04",
@@ -172,20 +317,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "perp_close",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PERP_CLOSE",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PERP_CLOSE",
       "terminal_path": "perps_margin_insurance_close_terminal",
-      "user_story": "perp_close has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "perps_risk"
     },
     {
       "actor": "perp_trader_or_liquidator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -194,8 +346,24 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "perps_risk_and_terminal_policy",
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_perp_funding",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
       "economic_owner": "perps_risk_and_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "PERP_FUNDING",
       "formal_obligation_ids": [
         "M6-R04",
@@ -203,20 +371,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "perp_funding",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PERP_FUNDING",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PERP_FUNDING",
       "terminal_path": "perps_margin_insurance_close_terminal",
-      "user_story": "perp_funding has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_DISABLED_COMMANDS_V1",
       "workflow_family": "perps_risk"
     },
     {
       "actor": "perp_trader_or_liquidator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -225,8 +400,24 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "perps_risk_and_terminal_policy",
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_perp_liquidate",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
       "economic_owner": "perps_risk_and_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "PERP_LIQUIDATE",
       "formal_obligation_ids": [
         "M6-R04",
@@ -234,20 +425,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "perp_liquidate",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PERP_LIQUIDATE",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PERP_LIQUIDATE",
       "terminal_path": "perps_margin_insurance_close_terminal",
-      "user_story": "perp_liquidate has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_DISABLED_COMMANDS_V1",
       "workflow_family": "perps_risk"
     },
     {
       "actor": "perp_trader_or_liquidator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -256,8 +454,24 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "perps_risk_and_terminal_policy",
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_perp_open",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "perps_risk_and_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "PERP_OPEN",
       "formal_obligation_ids": [
         "M6-R04",
@@ -265,20 +479,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "perp_open",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PERP_OPEN",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PERP_OPEN",
       "terminal_path": "perps_margin_insurance_close_terminal",
-      "user_story": "perp_open has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "perps_risk"
     },
     {
       "actor": "sealed_bidder_or_auction_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -289,8 +510,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_cancel",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "sealed_bid_commit_reveal_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "PRIVATE_SWAP_CANCEL",
       "formal_obligation_ids": [
         "M6-R04",
@@ -299,20 +537,27 @@
         "M6-R10",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "private_swap_cancel",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PRIVATE_SWAP_CANCEL",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PRIVATE_SWAP_CANCEL",
       "terminal_path": "auction_inventory_escrow_outbox_terminal",
-      "user_story": "private_swap_cancel has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "sealed_bid"
     },
     {
       "actor": "sealed_bidder_or_auction_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -323,8 +568,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_commit",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "sealed_bid_commit_reveal_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "PRIVATE_SWAP_COMMIT",
       "formal_obligation_ids": [
         "M6-R04",
@@ -333,20 +595,27 @@
         "M6-R10",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "private_swap_commit",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PRIVATE_SWAP_COMMIT",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PRIVATE_SWAP_COMMIT",
       "terminal_path": "auction_inventory_escrow_outbox_terminal",
-      "user_story": "private_swap_commit has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "sealed_bid"
     },
     {
       "actor": "sealed_bidder_or_auction_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -357,8 +626,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_expire",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "sealed_bid_commit_reveal_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "PRIVATE_SWAP_EXPIRE",
       "formal_obligation_ids": [
         "M6-R04",
@@ -367,20 +653,27 @@
         "M6-R10",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "private_swap_expire",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PRIVATE_SWAP_EXPIRE",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PRIVATE_SWAP_EXPIRE",
       "terminal_path": "auction_inventory_escrow_outbox_terminal",
-      "user_story": "private_swap_expire has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "sealed_bid"
     },
     {
       "actor": "sealed_bidder_or_auction_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -391,8 +684,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_reveal",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "sealed_bid_commit_reveal_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "PRIVATE_SWAP_REVEAL",
       "formal_obligation_ids": [
         "M6-R04",
@@ -401,20 +711,27 @@
         "M6-R10",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "private_swap_reveal",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PRIVATE_SWAP_REVEAL",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PRIVATE_SWAP_REVEAL",
       "terminal_path": "auction_inventory_escrow_outbox_terminal",
-      "user_story": "private_swap_reveal has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "sealed_bid"
     },
     {
       "actor": "sealed_bidder_or_auction_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -425,8 +742,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_private_swap_settle",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "sealed_bid_commit_reveal_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "PRIVATE_SWAP_SETTLE",
       "formal_obligation_ids": [
         "M6-R04",
@@ -435,28 +769,51 @@
         "M6-R10",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "private_swap_settle",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PRIVATE_SWAP_SETTLE",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PRIVATE_SWAP_SETTLE",
       "terminal_path": "auction_inventory_escrow_outbox_terminal",
-      "user_story": "private_swap_settle has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "sealed_bid"
     },
     {
       "actor": "protocol_treasury_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
         "accounting",
         "terminal"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "protocol_buy_burn_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_protocol_buy_and_burn",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
       "economic_owner": "protocol_token_buy_and_burn_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "PROTOCOL_BUY_AND_BURN",
       "formal_obligation_ids": [
         "M6-R01",
@@ -464,20 +821,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "protocol_buy_and_burn",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PROTOCOL_BUY_AND_BURN",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.PROTOCOL_BUY_AND_BURN",
       "terminal_path": "protocol_token_treasury_and_burn_terminal",
-      "user_story": "protocol_buy_and_burn has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_DISABLED_COMMANDS_V1",
       "workflow_family": "protocol_token"
     },
     {
       "actor": "sealed_bidder_or_auction_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -488,8 +852,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_cancel",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "sealed_bid_commit_reveal_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "SELLER_AUCTION_CANCEL",
       "formal_obligation_ids": [
         "M6-R04",
@@ -498,20 +879,27 @@
         "M6-R10",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "seller_auction_cancel",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.SELLER_AUCTION_CANCEL",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.SELLER_AUCTION_CANCEL",
       "terminal_path": "auction_inventory_escrow_outbox_terminal",
-      "user_story": "seller_auction_cancel has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "sealed_bid"
     },
     {
       "actor": "sealed_bidder_or_auction_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -522,8 +910,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_commit",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "sealed_bid_commit_reveal_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "SELLER_AUCTION_COMMIT",
       "formal_obligation_ids": [
         "M6-R04",
@@ -532,20 +937,27 @@
         "M6-R10",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "seller_auction_commit",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.SELLER_AUCTION_COMMIT",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.SELLER_AUCTION_COMMIT",
       "terminal_path": "auction_inventory_escrow_outbox_terminal",
-      "user_story": "seller_auction_commit has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "sealed_bid"
     },
     {
       "actor": "sealed_bidder_or_auction_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -556,8 +968,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_expire",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "sealed_bid_commit_reveal_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "SELLER_AUCTION_EXPIRE",
       "formal_obligation_ids": [
         "M6-R04",
@@ -566,20 +995,27 @@
         "M6-R10",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "seller_auction_expire",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.SELLER_AUCTION_EXPIRE",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.SELLER_AUCTION_EXPIRE",
       "terminal_path": "auction_inventory_escrow_outbox_terminal",
-      "user_story": "seller_auction_expire has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "sealed_bid"
     },
     {
       "actor": "sealed_bidder_or_auction_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -590,8 +1026,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_reveal",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "sealed_bid_commit_reveal_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "SELLER_AUCTION_REVEAL",
       "formal_obligation_ids": [
         "M6-R04",
@@ -600,20 +1053,27 @@
         "M6-R10",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "seller_auction_reveal",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.SELLER_AUCTION_REVEAL",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.SELLER_AUCTION_REVEAL",
       "terminal_path": "auction_inventory_escrow_outbox_terminal",
-      "user_story": "seller_auction_reveal has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "sealed_bid"
     },
     {
       "actor": "sealed_bidder_or_auction_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -624,8 +1084,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal",
+        "cancellation"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "sealed_bid_inventory_and_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_seller_auction_settle",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "sealed_bid_commit_reveal_settlement_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "SELLER_AUCTION_SETTLE",
       "formal_obligation_ids": [
         "M6-R04",
@@ -634,20 +1111,27 @@
         "M6-R10",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "seller_auction_settle",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.SELLER_AUCTION_SETTLE",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.SELLER_AUCTION_SETTLE",
       "terminal_path": "auction_inventory_escrow_outbox_terminal",
-      "user_story": "seller_auction_settle has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "sealed_bid"
     },
     {
       "actor": "trader_or_liquidity_provider",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -655,8 +1139,24 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "spot_lp_fee_dust_withdrawal_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_spot_swap",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "spot_and_liquidity_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "SPOT_SWAP",
       "formal_obligation_ids": [
         "M6-R01",
@@ -664,20 +1164,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "spot_swap",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.SPOT_SWAP",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.SPOT_SWAP",
       "terminal_path": "spot_lp_reserve_and_custody_terminal",
-      "user_story": "spot_swap has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "spot_and_liquidity"
     },
     {
       "actor": "borrower_or_stability_provider",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -686,8 +1193,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_stability_deposit",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "zusd_monetary_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "STABILITY_POOL_DEPOSIT",
       "formal_obligation_ids": [
         "M6-R04",
@@ -695,20 +1219,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "stability_pool_deposit",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.STABILITY_POOL_DEPOSIT",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.STABILITY_POOL_DEPOSIT",
       "terminal_path": "zusd_debt_supply_redemption_terminal",
-      "user_story": "stability_pool_deposit has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "zusd_monetary"
     },
     {
       "actor": "borrower_or_stability_provider",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -717,8 +1248,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_stability_withdraw",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "zusd_monetary_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "STABILITY_POOL_WITHDRAW",
       "formal_obligation_ids": [
         "M6-R04",
@@ -726,20 +1274,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "stability_pool_withdraw",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.STABILITY_POOL_WITHDRAW",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.STABILITY_POOL_WITHDRAW",
       "terminal_path": "zusd_debt_supply_redemption_terminal",
-      "user_story": "stability_pool_withdraw has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "zusd_monetary"
     },
     {
       "actor": "tau_user_or_recovery_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -749,8 +1304,24 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "tau_escrow_outage_rejoin_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_tau_escrow_deposit",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "tau_escrow_and_rejoin_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "TAU_ESCROW_DEPOSIT",
       "formal_obligation_ids": [
         "M6-R03",
@@ -760,20 +1331,27 @@
         "M6-R11",
         "M6-R12"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "tau_escrow_deposit",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.TAU_ESCROW_DEPOSIT",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.TAU_ESCROW_DEPOSIT",
       "terminal_path": "tau_escrow_withdrawal_ack_rejoin_terminal",
-      "user_story": "tau_escrow_deposit has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "tau_escrow"
     },
     {
       "actor": "tau_user_or_recovery_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -783,8 +1361,24 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "tau_escrow_outage_rejoin_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_tau_rejoin",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "tau_escrow_and_rejoin_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "TAU_REJOIN",
       "formal_obligation_ids": [
         "M6-R03",
@@ -794,20 +1388,27 @@
         "M6-R11",
         "M6-R12"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "tau_rejoin",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.TAU_REJOIN",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.TAU_REJOIN",
       "terminal_path": "tau_escrow_withdrawal_ack_rejoin_terminal",
-      "user_story": "tau_rejoin has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "tau_escrow"
     },
     {
       "actor": "tau_user_or_recovery_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -817,8 +1418,24 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "tau_escrow_outage_rejoin_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_tau_withdrawal",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "tau_escrow_and_rejoin_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "TAU_WITHDRAWAL",
       "formal_obligation_ids": [
         "M6-R03",
@@ -828,20 +1445,27 @@
         "M6-R11",
         "M6-R12"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "tau_withdrawal",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.TAU_WITHDRAWAL",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.TAU_WITHDRAWAL",
       "terminal_path": "tau_escrow_withdrawal_ack_rejoin_terminal",
-      "user_story": "tau_withdrawal has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "tau_escrow"
     },
     {
       "actor": "tau_user_or_recovery_operator",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -851,8 +1475,24 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "tau_escrow_outage_rejoin_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_tau_withdrawal_ack",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "tau_escrow_and_rejoin_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "TAU_WITHDRAWAL_ACK",
       "formal_obligation_ids": [
         "M6-R03",
@@ -862,20 +1502,27 @@
         "M6-R11",
         "M6-R12"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "tau_withdrawal_ack",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.TAU_WITHDRAWAL_ACK",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.TAU_WITHDRAWAL_ACK",
       "terminal_path": "tau_escrow_withdrawal_ack_rejoin_terminal",
-      "user_story": "tau_withdrawal_ack has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "tau_escrow"
     },
     {
       "actor": "proof_miner",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -883,8 +1530,24 @@
         "replay",
         "terminal"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "proof_reward_reserve_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_prover_reward",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
       "economic_owner": "proof_reward_claim_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "ZRPF_PROVER_REWARD",
       "formal_obligation_ids": [
         "M6-R06",
@@ -892,20 +1555,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "zrpf_prover_reward",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ZRPF_PROVER_REWARD",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ZRPF_PROVER_REWARD",
       "terminal_path": "proof_reward_reserve_claim_terminal",
-      "user_story": "zrpf_prover_reward has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_DISABLED_COMMANDS_V1",
       "workflow_family": "proof_reward"
     },
     {
       "actor": "borrower_or_stability_provider",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -914,8 +1584,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_borrow",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "zusd_monetary_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "ZUSD_BORROW",
       "formal_obligation_ids": [
         "M6-R04",
@@ -923,20 +1610,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "zusd_borrow",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ZUSD_BORROW",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ZUSD_BORROW",
       "terminal_path": "zusd_debt_supply_redemption_terminal",
-      "user_story": "zusd_borrow has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "zusd_monetary"
     },
     {
       "actor": "borrower_or_stability_provider",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -945,8 +1639,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_liquidate",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
       "economic_owner": "zusd_monetary_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "ZUSD_LIQUIDATE",
       "formal_obligation_ids": [
         "M6-R04",
@@ -954,20 +1665,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "zusd_liquidate",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ZUSD_LIQUIDATE",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ZUSD_LIQUIDATE",
       "terminal_path": "zusd_debt_supply_redemption_terminal",
-      "user_story": "zusd_liquidate has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_DISABLED_COMMANDS_V1",
       "workflow_family": "zusd_monetary"
     },
     {
       "actor": "borrower_or_stability_provider",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -976,8 +1694,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_redeem",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "zusd_monetary_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "ZUSD_REDEEM",
       "formal_obligation_ids": [
         "M6-R04",
@@ -985,20 +1720,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "zusd_redeem",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ZUSD_REDEEM",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ZUSD_REDEEM",
       "terminal_path": "zusd_debt_supply_redemption_terminal",
-      "user_story": "zusd_redeem has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "zusd_monetary"
     },
     {
       "actor": "borrower_or_stability_provider",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -1007,8 +1749,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_redistribute",
+      "core_transition_status": "SOURCE_PRESENT_RUNTIME_REJECTED",
       "economic_owner": "zusd_monetary_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "ZUSD_REDISTRIBUTE",
       "formal_obligation_ids": [
         "M6-R04",
@@ -1016,20 +1775,27 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "zusd_redistribute",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ZUSD_REDISTRIBUTE",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_DISABLED_NO_PRODUCTION_WRITER",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ZUSD_REDISTRIBUTE",
       "terminal_path": "zusd_debt_supply_redemption_terminal",
-      "user_story": "zusd_redistribute has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_DISABLED_COMMANDS_V1",
       "workflow_family": "zusd_monetary"
     },
     {
       "actor": "borrower_or_stability_provider",
-      "bdd_scenario_classes": [
+      "bdd_additional_scenario_classes": [
         "happy",
         "authorization",
         "rejection",
@@ -1038,8 +1804,25 @@
         "terminal",
         "replay"
       ],
+      "bdd_executable_scenarios": [],
+      "bdd_required_scenario_classes": [
+        "happy",
+        "rejection",
+        "authorization",
+        "recovery",
+        "terminal"
+      ],
+      "bdd_status": "GAP_NO_EXACT_SUBJECT_EXECUTABLE_SCENARIOS",
+      "beneficial_owner": null,
+      "blocking_profile_decision_ids": [
+        "asset_issue_burn_policy",
+        "zusd_monetary_lifecycle_policy",
+        "oracle_lifecycle_policy"
+      ],
       "core_transition": "src/core/m6_safe_mount_transition_v1.py:_apply_zusd_repay",
+      "core_transition_status": "RESEARCH_SOURCE_PRESENT_NOT_PRODUCTION_SPECIFIED",
       "economic_owner": "zusd_monetary_core",
+      "economic_owner_status": "IMPLEMENTATION_MODULE_ONLY_BENEFICIAL_OWNER_UNSELECTED",
       "enum_member": "ZUSD_REPAY",
       "formal_obligation_ids": [
         "M6-R04",
@@ -1047,14 +1830,21 @@
         "M6-R09",
         "M6-R13"
       ],
+      "formal_obligation_status": "DECLARED_NOT_PROVED_OR_COMPOSITION_CHECKED",
       "id": "zusd_repay",
       "mounted_entrypoint": "UNMOUNTED_RESEARCH_ONLY",
-      "normative_spec": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ZUSD_REPAY",
+      "mounted_entrypoint_status": "UNMOUNTED",
+      "normative_spec": null,
+      "normative_spec_status": "GAP_PROFILE_NOT_SELECTED",
       "production_enablement": "RESEARCH_ENABLED_PROFILE_REQUIRED",
       "runtime_projection": "G1_GLOBAL_ECONOMIC_STATE_PROJECTION_ONLY",
-      "semantic_status": "MAPPED_RESEARCH_ONLY",
+      "runtime_projection_status": "DECLARED_NOT_IMPLEMENTED_OR_REFINED",
+      "semantic_status": "GAP_OPEN_PROFILE_DECISION",
+      "source_registry": "src/core/m6_safe_mount_types_v1.py:GlobalCommandKindV1.ZUSD_REPAY",
       "terminal_path": "zusd_debt_supply_redemption_terminal",
-      "user_story": "zusd_repay has an explicit G1 semantic owner and terminal path.",
+      "terminal_path_status": "DECLARED_FAMILY_LABEL_NOT_CLOSED_SEMANTICS",
+      "user_story": null,
+      "user_story_status": "GAP_PRODUCT_STORY_NOT_FROZEN",
       "v1_profile": "M6_RESEARCH_ENABLED_COMMANDS_V1",
       "workflow_family": "zusd_monetary"
     }
@@ -1071,7 +1861,9 @@
       "sealed_bid_inventory_and_lifecycle_policy",
       "tau_escrow_outage_rejoin_policy"
     ],
-    "claim": "No enabled command has a complete production semantic contract.",
+    "claim": "No command has a complete production semantic contract.",
+    "closed_command_count": 0,
+    "commands_with_semantic_gap": 33,
     "complete": false,
     "status": "BLOCKED_OPEN_PROFILE_DECISIONS"
   },
@@ -1093,6 +1885,7 @@
       "nullifiers",
       "release_state"
     ],
+    "closure_status": "GAP_FIELD_TYPES_ROOT_CODEC_AND_RECONCILIATION_UNSPECIFIED",
     "fields": [
       {
         "name": "balances",
@@ -1187,7 +1980,9 @@
     "This registry does not prove an economic invariant.",
     "This registry does not mount a runtime entrypoint or authorize settlement.",
     "The source disable-count reconciliation does not select a production profile.",
-    "The global projection and delta algebra are research declarations until independently checked."
+    "The global projection and delta algebra are research declarations until independently checked.",
+    "Handler reachability establishes only frozen V1 dispatch, not production semantic correctness.",
+    "BDD class labels do not constitute executable scenarios or independent oracles."
   ],
   "production_promotion": false,
   "profile_decisions": [
@@ -1196,6 +1991,12 @@
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
       "required_before_g1_exit": true,
+      "required_outputs": [
+        "managed asset classes and integer base-unit scales",
+        "one issue authority and one burn authority per managed asset",
+        "supply bounds, genesis bindings, and terminal supply disposition"
+      ],
+      "selected_profile": null,
       "status": "OPEN"
     },
     {
@@ -1203,6 +2004,12 @@
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
       "required_before_g1_exit": true,
+      "required_outputs": [
+        "spot and LP fee rates, rounding direction, and fee beneficiaries",
+        "LP share mint and burn arithmetic with reserve reconciliation",
+        "dust ownership, withdrawal rules, and final-pool terminal drain"
+      ],
+      "selected_profile": null,
       "status": "OPEN"
     },
     {
@@ -1210,6 +2017,12 @@
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
       "required_before_g1_exit": true,
+      "required_outputs": [
+        "borrowing and redemption fees with current liability owners",
+        "collateral, redemption, liquidation, and redistribution parameters",
+        "Stability Pool gain, loss, rounding, recovery, and terminal rules"
+      ],
+      "selected_profile": null,
       "status": "OPEN"
     },
     {
@@ -1217,6 +2030,12 @@
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
       "required_before_g1_exit": true,
+      "required_outputs": [
+        "reporter and dispute authority plus bond disposition",
+        "aggregation, occurrence, freshness, and finality semantics",
+        "stale, disputed, outage, and recovery behavior by command class"
+      ],
+      "selected_profile": null,
       "status": "OPEN"
     },
     {
@@ -1224,6 +2043,12 @@
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
       "required_before_g1_exit": true,
+      "required_outputs": [
+        "market, collateral, margin, fee, and funding definitions",
+        "liquidation, insurance, and bad-debt allocation",
+        "oracle gating, recovery subset, and terminal close semantics"
+      ],
+      "selected_profile": null,
       "status": "OPEN"
     },
     {
@@ -1231,6 +2056,12 @@
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
       "required_before_g1_exit": true,
+      "required_outputs": [
+        "buyback funding source, route, price guard, budget, and cadence",
+        "acquired-token custody, protected supply floor, and burn authority",
+        "rounding, failure, recovery, and terminal reserve disposition"
+      ],
+      "selected_profile": null,
       "status": "OPEN"
     },
     {
@@ -1238,6 +2069,12 @@
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
       "required_before_g1_exit": true,
+      "required_outputs": [
+        "reward reserve funding and beneficial owner",
+        "eligibility, schedule, cap, claim identity, and nullifier scope",
+        "rounding, exhaustion, recovery, and terminal reserve drain"
+      ],
+      "selected_profile": null,
       "status": "OPEN"
     },
     {
@@ -1245,6 +2082,12 @@
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
       "required_before_g1_exit": true,
+      "required_outputs": [
+        "inventory, payment, bond assets, amounts, and custody owners",
+        "phase deadlines, cancellation, expiry, and non-reveal disposition",
+        "tie order, fees, dust, settlement port, and terminal refunds or slashes"
+      ],
+      "selected_profile": null,
       "status": "OPEN"
     },
     {
@@ -1252,6 +2095,12 @@
       "owner": "G1_product_semantics_decision",
       "production_authority": "NONE",
       "required_before_g1_exit": true,
+      "required_outputs": [
+        "deposit evidence, finality, asset mapping, and replay scope",
+        "withdrawal queue, acknowledgment, retry, and destination idempotency",
+        "outage continuation, pending effects, rejoin proof, and profile rotation"
+      ],
+      "selected_profile": null,
       "status": "OPEN"
     }
   ],
@@ -1259,6 +2108,10 @@
   "source_observations": {
     "command_count": 33,
     "disabled_command_count": 8,
+    "disabled_guard_count": 8,
+    "disabled_guard_matches_source_registry": true,
+    "handler_binding_count": 33,
+    "handler_bindings_match_frozen_dispatch": true,
     "received_plan_disabled_command_count": 10,
     "reconciliation": "EXACT_SOURCE_PARTITION_RECORDED_RECEIVED_COUNT_RETAINED_AS_NONAUTHORITATIVE",
     "source_authority": "GlobalCommandKindV1 and M6_RESEARCH_DISABLED_COMMANDS_V1 at the frozen subject"
@@ -1283,6 +2136,7 @@
   "status": "G1_SEMANTIC_MAPPING_RESEARCH_ONLY",
   "value_delta_algebra": {
     "amount_representation": "nonnegative_integer_base_units",
+    "closure_status": "GAP_EVENT_EQUATIONS_OWNERS_AND_RECONCILIATION_UNSPECIFIED",
     "delta_classes": [
       "internal_transfer",
       "mint",

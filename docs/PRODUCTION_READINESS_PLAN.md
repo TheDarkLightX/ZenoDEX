@@ -205,13 +205,17 @@ The helper G1 slice on the exact subject
 `docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json`. The received
 10-disabled count remains recorded as non-authoritative. The slice also
 declares the global economic state projection and value-delta algebra and
-leaves all nine profile decisions `OPEN`; the G1 exit gate therefore remains
-blocked and this artifact does not change any production claim.
+leaves all nine profile decisions `OPEN`. The exact-subject BDD companion
+`docs/research/PRODUCTION_READINESS_G1_BDD_V1.json` gives every command one
+research-only workflow and 267 scenario obligations; all scenarios remain
+`UNIMPLEMENTED_RESEARCH_SCENARIO`. The G1 exit gate therefore remains blocked
+and these artifacts do not change any production claim.
 
 Replay the slice with:
 
 ```bash
 python3 tools/check_production_readiness_g1_semantics.py --check --json
+python3 tools/check_production_readiness_g1_bdd.py --check --json
 ```
 
 ### G2: Complete the deterministic functional core
