@@ -1,0 +1,63 @@
+{
+  "schema": "zenodex/proof-market-lean-evidence/v1",
+  "status": "DIRECT_FILES_COMPILE_NO_PLACEHOLDERS",
+  "source_subject": {
+    "head": "95fd6ab1e89aef9d96a94a674904f8b064cd780e",
+    "files": [
+      {
+        "path": "internal/proofs/ZenoProofBountyMechanism.lean",
+        "sha256": "5f1930f58d52e08361625f5962b4c88855baeb258bec78787234890162460734"
+      },
+      {
+        "path": "internal/proofs/ZenoProofMechanismComposition.lean",
+        "sha256": "eb4a351ca6aa73b51e2190c15a682dcae17bfb7711c3bee9c1cb5c8f160b7b91"
+      },
+      {
+        "path": "internal/proofs/ZenoProofLinkedAssurance_v2.lean",
+        "sha256": "a127326755bf50536bcc4774b8a7db49f64df469788c49570273b12b07764dff"
+      },
+      {
+        "path": "internal/proofs/ZenoProofMaintenanceFolk.lean",
+        "sha256": "a1d54a762e0ef7070618b0d1d95a2f6da0a480cd340af02b672b06f673cf541c"
+      },
+      {
+        "path": "internal/proofs/ZenoProofSybilBondBound.lean",
+        "sha256": "04fde751e79bb2a2a14dd5ecd5992f1adec2b9592e7d69bdabbdbc49593efca4"
+      },
+      {
+        "path": "internal/proofs/ZenoProofDisputeGameBound.lean",
+        "sha256": "76ee4342ff164adf6a4859abaab4b9d944e6359aaa8b3b2aea2be75cbf02e3c0"
+      }
+    ]
+  },
+  "toolchain": {
+    "lean": "4.27.0",
+    "lean_commit": "db93fe1608548721853390a10cd40580fe7d22ae",
+    "mathlib_commit": "a3a10db0e9d66acbebf76c5e6a135066525ac900",
+    "lean_toolchain_sha256": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb",
+    "lakefile_sha256": "d34c0792dcb7073fcf4cbaf63fc582931f6bcd885c7df6ff9f3d8537d94a42d2",
+    "lake_manifest_sha256": "98ac9d887f935c4e0a87859b00511866f4e9b816e5e1246f428779fa4c8ec046"
+  },
+  "replay": {
+    "command_template": "cd <shared-pinned-lean-environment>/lean-mathlib && lake env lean <isolated-subject>/<path>",
+    "compiled_files": 6,
+    "failed_files": 0,
+    "placeholder_scan": "no declaration matching ^(axiom|admit|sorry) and no by-sorry body",
+    "result": "PASS"
+  },
+  "checked_surfaces": [
+    "positive payout requires bounty eligibility and payout is cap bounded",
+    "parallel and series bounty composition preserve declared caps",
+    "series composition can prioritize a proof and fall through to a counterexample",
+    "linked-assurance pledge thresholds and refund relaxation use exact Nat arithmetic",
+    "maintenance sustainability uses the exact one-shot-deviation predicate and retains a simplified-score counterexample",
+    "the equal-split two-identity Sybil attack has an exact bond bound",
+    "deterministic and probabilistic dispute games require a nonempty honest-versus-frivolous incentive interval"
+  ],
+  "nonclaims": [
+    "These six files compile directly; the repository-wide Lean root was not built in this receipt.",
+    "The generic BountyMechanism typeclass assumes its eligibility and payout laws for each instance.",
+    "The theorems do not establish calibrated market parameters, Bayesian equilibrium, beneficial ownership, runtime refinement, or mounted payment behavior.",
+    "The receipt grants no proof-admission, payment, token, settlement, finality, release, or production authority."
+  ]
+}

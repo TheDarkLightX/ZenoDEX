@@ -1,0 +1,57 @@
+{
+  "schema": "zenodex/proof-market-lifecycle-esso-evidence/v1",
+  "status": "VERIFIED_BOUNDED_DUAL_SOLVER",
+  "model": {
+    "path": "src/kernels/dex/proof_market_lifecycle_v1.yaml",
+    "sha256": "d22a534455b4cecbd6702b6bfa04b9212e0e7644dfc6dcc8aa2e85bf327881c9",
+    "esso_ir_hash": "sha256:b1ea40ef50a85efac5036f8353b2a9f052e4b5bb82680bf31dc92a7e2ca92179"
+  },
+  "replay": {
+    "command": "PYTHONPATH=<pinned-esso-root> python3 -m ESSO verify-multi src/kernels/dex/proof_market_lifecycle_v1.yaml --solvers z3,cvc5 --timeout-ms 30000 --determinism-trials 2 --output <scratch-output> --write-report",
+    "timestamp_utc": "2026-08-17T07:01:59.815386+00:00",
+    "raw_summary_sha256": "0a5b12a586a062ad3bfafebe81864b9c2db2d35f316b654d98168a9fe2f359da",
+    "raw_bundle_result_sha256": "1a3eb1d5e251dd0fd1961383895fdaee4fbbac2f967bd7595aa2e5c0d6f923e3",
+    "determinism_trials": 2,
+    "determinism_fingerprint": "07fbc8654237a5b06b16742a85077db91e556ae1ad53ff8c0be818ec5c4c4f1d",
+    "timeout_ms_per_query": 30000
+  },
+  "toolchain": {
+    "esso_commit": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "python": "3.12.3",
+    "z3": "4.15.4",
+    "cvc5": "1.1.2"
+  },
+  "result": {
+    "verdict": "VERIFIED",
+    "solvers_agreed": true,
+    "total_queries": 10,
+    "passed_queries": 10,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "scope": "INDUCTIVE_K1_FINITE_SEQUENTIAL_STATE_MACHINE"
+  },
+  "proved_in_declared_model": [
+    "buyer prefund conserves across seller payment, verifier payment, listing fee, and refund",
+    "seller bond conserves across escrow, return, and buyer restitution",
+    "positive seller payment descends from a bound verified witness, an unclaimed canonical work key, and one ZenoLedger-named commit",
+    "rejection and expiry refunds pay no seller and claim no canonical work key",
+    "verification itself emits no payment or ZenoLedger commit"
+  ],
+  "preserved_counterexample": {
+    "id": "REFUND_TRUSTS_LIFECYCLE_ENUM_WITHOUT_ZERO_CLAIM_BINDING",
+    "original_ir_hash": "sha256:0cbf45c15fec68db7dc9deb4c554f4be0827c2d03dbffa4c0bc0a7c601e11f90",
+    "original_raw_summary_sha256": "5788e330928ea857f622f74d0a100004aa6a925003f177ba6a090a32c330382b",
+    "original_raw_bundle_result_sha256": "b38e097deec42b1986620389d21afb93ec24f6360159199369721d7aa2f27b31",
+    "original_result": "SAT_BOTH_Z3_AND_CVC5_ON_TWO_REFUND_ACTIONS",
+    "witness": "job_state was JOB_Rejected or JOB_Expired while verified_witness_units=1 and canonical_work_claimed_units=1; a refund action advanced to JOB_Refunded without clearing the claimed key",
+    "repair": "both refund guards now require verified_witness_units=0 and canonical_work_claimed_units=0",
+    "repaired_result": "UNSAT_BOTH_Z3_AND_CVC5"
+  },
+  "nonclaims": [
+    "The six-unit, one-job state machine is not a production price, volume, concurrency, or throughput model.",
+    "Proof-validity, binding, profile-current, and uniqueness parameters abstract verifier-created witnesses.",
+    "The result does not prove cryptography, canonical codecs, beneficial ownership, novelty, runtime refinement, durability, consensus, liveness, or mounted no-bypass behavior.",
+    "The result grants no listing, proof-admission, payment, refund, token, burn, settlement, finality, release, or production authority."
+  ]
+}

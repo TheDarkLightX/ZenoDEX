@@ -1,0 +1,1955 @@
+{
+  "architecture": {
+    "asset_semantics": "A public proof is non-rival. The scarce economic object is a funded work order, private-access right, maintenance obligation, or claim-bound settlement right; no opaque proof token carries truth or finality.",
+    "authority": "Proof-market verification may admit evidence and payment requests. ZenoLedger alone commits payments and economic state; proof artifacts never select the ledger head.",
+    "market_boundary": "ZenoProof is a general market for claim-bound proofs, counterexamples, improvement certificates, maintenance, and verified reuse services.",
+    "secondary_market": {
+      "eligible_right_shapes": [
+        "funded work-order assignment before prover lock",
+        "private-access or embargo right with an exact disclosure deadline",
+        "reserved-capacity right with a named service period",
+        "maintenance obligation with a named verifier and freshness window",
+        "claim-bound settlement right after exact legal and custody review"
+      ],
+      "forbidden_semantics": [
+        "ownership of a public mathematical fact",
+        "transfer of verifier truth, ZenoLedger finality, or settlement authority",
+        "an unbound proof token whose holder can change the claim or assumptions"
+      ],
+      "launch_status": "DISABLED_UNSELECTED"
+    },
+    "zrpf_role": "ZRPF is recurring anchor demand and pays from DEX resource fees; it is one buyer lane rather than the market definition."
+  },
+  "attack_query": [
+    "seller paid without verifier acceptance or exact claim binding",
+    "same work paid twice through artifact-byte or wallet changes",
+    "buyer and seller coalition earns more bootstrap reward than irreversible cost",
+    "counterexample hunters split identities or overlapping search space to multiply rewards",
+    "frivolous dispute expected gain exceeds its bond while honest challenge is unprofitable",
+    "ZRPF internal transfers are misreported as external proof-market revenue",
+    "buyer escrow or seller GMV is misreported as protocol revenue",
+    "subscription, reputation, or proof token substitutes for verifier admission or ledger finality",
+    "maintenance provider profits by withholding freshness or manufacturing expiry"
+  ],
+  "bounded_model": {
+    "business_model": {
+      "break_even_surface": [
+        {
+          "equivalent_5000_usd_subscription_accounts": 10,
+          "monthly_gap_atoms": 5000000,
+          "required_external_gmv_atoms": 250000000,
+          "success_fee_bps": 200
+        },
+        {
+          "equivalent_5000_usd_subscription_accounts": 10,
+          "monthly_gap_atoms": 5000000,
+          "required_external_gmv_atoms": 166666667,
+          "success_fee_bps": 300
+        },
+        {
+          "equivalent_5000_usd_subscription_accounts": 10,
+          "monthly_gap_atoms": 5000000,
+          "required_external_gmv_atoms": 100000000,
+          "success_fee_bps": 500
+        },
+        {
+          "equivalent_5000_usd_subscription_accounts": 20,
+          "monthly_gap_atoms": 10000000,
+          "required_external_gmv_atoms": 500000000,
+          "success_fee_bps": 200
+        },
+        {
+          "equivalent_5000_usd_subscription_accounts": 20,
+          "monthly_gap_atoms": 10000000,
+          "required_external_gmv_atoms": 333333334,
+          "success_fee_bps": 300
+        },
+        {
+          "equivalent_5000_usd_subscription_accounts": 20,
+          "monthly_gap_atoms": 10000000,
+          "required_external_gmv_atoms": 200000000,
+          "success_fee_bps": 500
+        },
+        {
+          "equivalent_5000_usd_subscription_accounts": 50,
+          "monthly_gap_atoms": 25000000,
+          "required_external_gmv_atoms": 1250000000,
+          "success_fee_bps": 200
+        },
+        {
+          "equivalent_5000_usd_subscription_accounts": 50,
+          "monthly_gap_atoms": 25000000,
+          "required_external_gmv_atoms": 833333334,
+          "success_fee_bps": 300
+        },
+        {
+          "equivalent_5000_usd_subscription_accounts": 50,
+          "monthly_gap_atoms": 25000000,
+          "required_external_gmv_atoms": 500000000,
+          "success_fee_bps": 500
+        }
+      ],
+      "candidates": [
+        {
+          "candidate_id": "SUCCESS_FEE_ONLY",
+          "catalog_service_fee_atoms": 0,
+          "complexity_units": 2,
+          "contribution_bonus_bps": 0,
+          "enterprise_subscription_atoms": 0,
+          "external_success_fee_bps": 500,
+          "listing_fee_atoms": 0,
+          "raw_volume_bonus_bps": 0,
+          "supports_catalog_reuse": false,
+          "supports_enterprise_sla": false,
+          "supports_linked_assurance": false
+        },
+        {
+          "candidate_id": "LISTING_PLUS_SUCCESS",
+          "catalog_service_fee_atoms": 0,
+          "complexity_units": 3,
+          "contribution_bonus_bps": 0,
+          "enterprise_subscription_atoms": 0,
+          "external_success_fee_bps": 350,
+          "listing_fee_atoms": 1000,
+          "raw_volume_bonus_bps": 0,
+          "supports_catalog_reuse": false,
+          "supports_enterprise_sla": false,
+          "supports_linked_assurance": false
+        },
+        {
+          "candidate_id": "HYBRID_SLA",
+          "catalog_service_fee_atoms": 0,
+          "complexity_units": 5,
+          "contribution_bonus_bps": 50,
+          "enterprise_subscription_atoms": 500000,
+          "external_success_fee_bps": 300,
+          "listing_fee_atoms": 1000,
+          "raw_volume_bonus_bps": 0,
+          "supports_catalog_reuse": false,
+          "supports_enterprise_sla": true,
+          "supports_linked_assurance": false
+        },
+        {
+          "candidate_id": "HYBRID_SLA_CATALOG",
+          "catalog_service_fee_atoms": 1000,
+          "complexity_units": 6,
+          "contribution_bonus_bps": 50,
+          "enterprise_subscription_atoms": 500000,
+          "external_success_fee_bps": 300,
+          "listing_fee_atoms": 1000,
+          "raw_volume_bonus_bps": 0,
+          "supports_catalog_reuse": true,
+          "supports_enterprise_sla": true,
+          "supports_linked_assurance": false
+        },
+        {
+          "candidate_id": "FULL_HYBRID_ASSURANCE",
+          "catalog_service_fee_atoms": 1000,
+          "complexity_units": 7,
+          "contribution_bonus_bps": 50,
+          "enterprise_subscription_atoms": 500000,
+          "external_success_fee_bps": 300,
+          "listing_fee_atoms": 1000,
+          "raw_volume_bonus_bps": 0,
+          "supports_catalog_reuse": true,
+          "supports_enterprise_sla": true,
+          "supports_linked_assurance": true
+        },
+        {
+          "candidate_id": "SUBSCRIPTION_ONLY",
+          "catalog_service_fee_atoms": 0,
+          "complexity_units": 3,
+          "contribution_bonus_bps": 0,
+          "enterprise_subscription_atoms": 1000000,
+          "external_success_fee_bps": 0,
+          "listing_fee_atoms": 0,
+          "raw_volume_bonus_bps": 0,
+          "supports_catalog_reuse": false,
+          "supports_enterprise_sla": true,
+          "supports_linked_assurance": false
+        },
+        {
+          "candidate_id": "RAW_VOLUME_EMISSION",
+          "catalog_service_fee_atoms": 1000,
+          "complexity_units": 7,
+          "contribution_bonus_bps": 0,
+          "enterprise_subscription_atoms": 500000,
+          "external_success_fee_bps": 300,
+          "listing_fee_atoms": 1000,
+          "raw_volume_bonus_bps": 500,
+          "supports_catalog_reuse": true,
+          "supports_enterprise_sla": true,
+          "supports_linked_assurance": true
+        }
+      ],
+      "deterministic_ranking": [
+        "FULL_HYBRID_ASSURANCE",
+        "HYBRID_SLA_CATALOG",
+        "SUBSCRIPTION_ONLY",
+        "HYBRID_SLA",
+        "SUCCESS_FEE_ONLY",
+        "LISTING_PLUS_SUCCESS",
+        "RAW_VOLUME_EMISSION"
+      ],
+      "evaluations": [
+        {
+          "candidate_id": "SUCCESS_FEE_ONLY",
+          "expected_monthly_surplus_after_bonus_atoms": 1662625,
+          "expected_monthly_surplus_atoms": 1662625,
+          "manipulation_safe": true,
+          "negative_complexity_units": -2,
+          "outcomes": [
+            {
+              "anchor_net_contribution_atoms": 400000,
+              "candidate_id": "SUCCESS_FEE_ONLY",
+              "cash_surplus_atoms": -2712000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -2712000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 1000000,
+              "external_success_fee_revenue_atoms": 1000000,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 4112000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": -500000,
+              "candidate_id": "SUCCESS_FEE_ONLY",
+              "cash_surplus_atoms": -4640000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -4640000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 1000000,
+              "external_success_fee_revenue_atoms": 1000000,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 5140000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2750000,
+              "candidate_id": "SUCCESS_FEE_ONLY",
+              "cash_surplus_atoms": -9460000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -9460000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 1000000,
+              "external_success_fee_revenue_atoms": 1000000,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 7710000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 4000000,
+              "candidate_id": "SUCCESS_FEE_ONLY",
+              "cash_surplus_atoms": 2072000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 2072000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 5000000,
+              "external_success_fee_revenue_atoms": 5000000,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 6928000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 2000000,
+              "candidate_id": "SUCCESS_FEE_ONLY",
+              "cash_surplus_atoms": -1660000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -1660000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 5000000,
+              "external_success_fee_revenue_atoms": 5000000,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 8660000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -3000000,
+              "candidate_id": "SUCCESS_FEE_ONLY",
+              "cash_surplus_atoms": -10990000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -10990000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 5000000,
+              "external_success_fee_revenue_atoms": 5000000,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 12990000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 22000000,
+              "candidate_id": "SUCCESS_FEE_ONLY",
+              "cash_surplus_atoms": 32680000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 32680000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 25000000,
+              "external_success_fee_revenue_atoms": 25000000,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 14320000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 15000000,
+              "candidate_id": "SUCCESS_FEE_ONLY",
+              "cash_surplus_atoms": 22100000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 22100000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 25000000,
+              "external_success_fee_revenue_atoms": 25000000,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 17900000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2500000,
+              "candidate_id": "SUCCESS_FEE_ONLY",
+              "cash_surplus_atoms": -4350000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -4350000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 25000000,
+              "external_success_fee_revenue_atoms": 25000000,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 26850000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_STRESSED"
+            }
+          ],
+          "probability_positive_bps": 3125,
+          "worst_monthly_loss_atoms": 10990000
+        },
+        {
+          "candidate_id": "LISTING_PLUS_SUCCESS",
+          "expected_monthly_surplus_after_bonus_atoms": -197375,
+          "expected_monthly_surplus_atoms": -197375,
+          "manipulation_safe": true,
+          "negative_complexity_units": -3,
+          "outcomes": [
+            {
+              "anchor_net_contribution_atoms": 400000,
+              "candidate_id": "LISTING_PLUS_SUCCESS",
+              "cash_surplus_atoms": -2892000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -2892000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 820000,
+              "external_success_fee_revenue_atoms": 700000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 4112000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": -500000,
+              "candidate_id": "LISTING_PLUS_SUCCESS",
+              "cash_surplus_atoms": -4820000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -4820000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 820000,
+              "external_success_fee_revenue_atoms": 700000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 5140000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2750000,
+              "candidate_id": "LISTING_PLUS_SUCCESS",
+              "cash_surplus_atoms": -9640000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -9640000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 820000,
+              "external_success_fee_revenue_atoms": 700000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 7710000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 4000000,
+              "candidate_id": "LISTING_PLUS_SUCCESS",
+              "cash_surplus_atoms": 1092000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 1092000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 4020000,
+              "external_success_fee_revenue_atoms": 3500000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 6928000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 2000000,
+              "candidate_id": "LISTING_PLUS_SUCCESS",
+              "cash_surplus_atoms": -2640000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -2640000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 4020000,
+              "external_success_fee_revenue_atoms": 3500000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 8660000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -3000000,
+              "candidate_id": "LISTING_PLUS_SUCCESS",
+              "cash_surplus_atoms": -11970000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -11970000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 4020000,
+              "external_success_fee_revenue_atoms": 3500000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 12990000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 22000000,
+              "candidate_id": "LISTING_PLUS_SUCCESS",
+              "cash_surplus_atoms": 27380000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 27380000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 19700000,
+              "external_success_fee_revenue_atoms": 17500000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 14320000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 15000000,
+              "candidate_id": "LISTING_PLUS_SUCCESS",
+              "cash_surplus_atoms": 16800000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 16800000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 19700000,
+              "external_success_fee_revenue_atoms": 17500000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 17900000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2500000,
+              "candidate_id": "LISTING_PLUS_SUCCESS",
+              "cash_surplus_atoms": -9650000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -9650000,
+              "enterprise_revenue_atoms": 0,
+              "external_protocol_revenue_atoms": 19700000,
+              "external_success_fee_revenue_atoms": 17500000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 26850000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_STRESSED"
+            }
+          ],
+          "probability_positive_bps": 3125,
+          "worst_monthly_loss_atoms": 11970000
+        },
+        {
+          "candidate_id": "HYBRID_SLA",
+          "expected_monthly_surplus_after_bonus_atoms": 4919500,
+          "expected_monthly_surplus_atoms": 5819500,
+          "manipulation_safe": true,
+          "negative_complexity_units": -5,
+          "outcomes": [
+            {
+              "anchor_net_contribution_atoms": 400000,
+              "candidate_id": "HYBRID_SLA",
+              "cash_surplus_atoms": -2072000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -2172000,
+              "enterprise_revenue_atoms": 1000000,
+              "external_protocol_revenue_atoms": 1720000,
+              "external_success_fee_revenue_atoms": 600000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 4192000,
+              "proof_reserve_bonus_atoms": 100000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": -500000,
+              "candidate_id": "HYBRID_SLA",
+              "cash_surplus_atoms": -4020000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -4120000,
+              "enterprise_revenue_atoms": 1000000,
+              "external_protocol_revenue_atoms": 1720000,
+              "external_success_fee_revenue_atoms": 600000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 5240000,
+              "proof_reserve_bonus_atoms": 100000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2750000,
+              "candidate_id": "HYBRID_SLA",
+              "cash_surplus_atoms": -8890000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -8990000,
+              "enterprise_revenue_atoms": 1000000,
+              "external_protocol_revenue_atoms": 1720000,
+              "external_success_fee_revenue_atoms": 600000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 7860000,
+              "proof_reserve_bonus_atoms": 100000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 4000000,
+              "candidate_id": "HYBRID_SLA",
+              "cash_surplus_atoms": 5192000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 4692000,
+              "enterprise_revenue_atoms": 5000000,
+              "external_protocol_revenue_atoms": 8520000,
+              "external_success_fee_revenue_atoms": 3000000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 7328000,
+              "proof_reserve_bonus_atoms": 500000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 2000000,
+              "candidate_id": "HYBRID_SLA",
+              "cash_surplus_atoms": 1360000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 860000,
+              "enterprise_revenue_atoms": 5000000,
+              "external_protocol_revenue_atoms": 8520000,
+              "external_success_fee_revenue_atoms": 3000000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 9160000,
+              "proof_reserve_bonus_atoms": 500000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -3000000,
+              "candidate_id": "HYBRID_SLA",
+              "cash_surplus_atoms": -8220000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -8720000,
+              "enterprise_revenue_atoms": 5000000,
+              "external_protocol_revenue_atoms": 8520000,
+              "external_success_fee_revenue_atoms": 3000000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 13740000,
+              "proof_reserve_bonus_atoms": 500000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 22000000,
+              "candidate_id": "HYBRID_SLA",
+              "cash_surplus_atoms": 43280000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 40780000,
+              "enterprise_revenue_atoms": 20000000,
+              "external_protocol_revenue_atoms": 37200000,
+              "external_success_fee_revenue_atoms": 15000000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 15920000,
+              "proof_reserve_bonus_atoms": 2500000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 15000000,
+              "candidate_id": "HYBRID_SLA",
+              "cash_surplus_atoms": 32300000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 29800000,
+              "enterprise_revenue_atoms": 20000000,
+              "external_protocol_revenue_atoms": 37200000,
+              "external_success_fee_revenue_atoms": 15000000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 19900000,
+              "proof_reserve_bonus_atoms": 2500000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2500000,
+              "candidate_id": "HYBRID_SLA",
+              "cash_surplus_atoms": 4850000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 2350000,
+              "enterprise_revenue_atoms": 20000000,
+              "external_protocol_revenue_atoms": 37200000,
+              "external_success_fee_revenue_atoms": 15000000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 29850000,
+              "proof_reserve_bonus_atoms": 2500000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_STRESSED"
+            }
+          ],
+          "probability_positive_bps": 6250,
+          "worst_monthly_loss_atoms": 8890000
+        },
+        {
+          "candidate_id": "HYBRID_SLA_CATALOG",
+          "expected_monthly_surplus_after_bonus_atoms": 10296812,
+          "expected_monthly_surplus_atoms": 11196812,
+          "manipulation_safe": true,
+          "negative_complexity_units": -6,
+          "outcomes": [
+            {
+              "anchor_net_contribution_atoms": 400000,
+              "candidate_id": "HYBRID_SLA_CATALOG",
+              "cash_surplus_atoms": -1980000,
+              "catalog_revenue_atoms": 100000,
+              "economic_surplus_after_bonus_atoms": -2080000,
+              "enterprise_revenue_atoms": 1000000,
+              "external_protocol_revenue_atoms": 1820000,
+              "external_success_fee_revenue_atoms": 600000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 4200000,
+              "proof_reserve_bonus_atoms": 100000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": -500000,
+              "candidate_id": "HYBRID_SLA_CATALOG",
+              "cash_surplus_atoms": -3930000,
+              "catalog_revenue_atoms": 100000,
+              "economic_surplus_after_bonus_atoms": -4030000,
+              "enterprise_revenue_atoms": 1000000,
+              "external_protocol_revenue_atoms": 1820000,
+              "external_success_fee_revenue_atoms": 600000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 5250000,
+              "proof_reserve_bonus_atoms": 100000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2750000,
+              "candidate_id": "HYBRID_SLA_CATALOG",
+              "cash_surplus_atoms": -8805000,
+              "catalog_revenue_atoms": 100000,
+              "economic_surplus_after_bonus_atoms": -8905000,
+              "enterprise_revenue_atoms": 1000000,
+              "external_protocol_revenue_atoms": 1820000,
+              "external_success_fee_revenue_atoms": 600000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 7875000,
+              "proof_reserve_bonus_atoms": 100000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 4000000,
+              "candidate_id": "HYBRID_SLA_CATALOG",
+              "cash_surplus_atoms": 7032000,
+              "catalog_revenue_atoms": 2000000,
+              "economic_surplus_after_bonus_atoms": 6532000,
+              "enterprise_revenue_atoms": 5000000,
+              "external_protocol_revenue_atoms": 10520000,
+              "external_success_fee_revenue_atoms": 3000000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 7488000,
+              "proof_reserve_bonus_atoms": 500000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 2000000,
+              "candidate_id": "HYBRID_SLA_CATALOG",
+              "cash_surplus_atoms": 3160000,
+              "catalog_revenue_atoms": 2000000,
+              "economic_surplus_after_bonus_atoms": 2660000,
+              "enterprise_revenue_atoms": 5000000,
+              "external_protocol_revenue_atoms": 10520000,
+              "external_success_fee_revenue_atoms": 3000000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 9360000,
+              "proof_reserve_bonus_atoms": 500000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -3000000,
+              "candidate_id": "HYBRID_SLA_CATALOG",
+              "cash_surplus_atoms": -6520000,
+              "catalog_revenue_atoms": 2000000,
+              "economic_surplus_after_bonus_atoms": -7020000,
+              "enterprise_revenue_atoms": 5000000,
+              "external_protocol_revenue_atoms": 10520000,
+              "external_success_fee_revenue_atoms": 3000000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 14040000,
+              "proof_reserve_bonus_atoms": 500000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 22000000,
+              "candidate_id": "HYBRID_SLA_CATALOG",
+              "cash_surplus_atoms": 61680000,
+              "catalog_revenue_atoms": 20000000,
+              "economic_surplus_after_bonus_atoms": 59180000,
+              "enterprise_revenue_atoms": 20000000,
+              "external_protocol_revenue_atoms": 57200000,
+              "external_success_fee_revenue_atoms": 15000000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 17520000,
+              "proof_reserve_bonus_atoms": 2500000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 15000000,
+              "candidate_id": "HYBRID_SLA_CATALOG",
+              "cash_surplus_atoms": 50300000,
+              "catalog_revenue_atoms": 20000000,
+              "economic_surplus_after_bonus_atoms": 47800000,
+              "enterprise_revenue_atoms": 20000000,
+              "external_protocol_revenue_atoms": 57200000,
+              "external_success_fee_revenue_atoms": 15000000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 21900000,
+              "proof_reserve_bonus_atoms": 2500000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2500000,
+              "candidate_id": "HYBRID_SLA_CATALOG",
+              "cash_surplus_atoms": 21850000,
+              "catalog_revenue_atoms": 20000000,
+              "economic_surplus_after_bonus_atoms": 19350000,
+              "enterprise_revenue_atoms": 20000000,
+              "external_protocol_revenue_atoms": 57200000,
+              "external_success_fee_revenue_atoms": 15000000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 32850000,
+              "proof_reserve_bonus_atoms": 2500000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_STRESSED"
+            }
+          ],
+          "probability_positive_bps": 6250,
+          "worst_monthly_loss_atoms": 8805000
+        },
+        {
+          "candidate_id": "FULL_HYBRID_ASSURANCE",
+          "expected_monthly_surplus_after_bonus_atoms": 10746812,
+          "expected_monthly_surplus_atoms": 11736812,
+          "manipulation_safe": true,
+          "negative_complexity_units": -7,
+          "outcomes": [
+            {
+              "anchor_net_contribution_atoms": 400000,
+              "candidate_id": "FULL_HYBRID_ASSURANCE",
+              "cash_surplus_atoms": -1920000,
+              "catalog_revenue_atoms": 100000,
+              "economic_surplus_after_bonus_atoms": -2030000,
+              "enterprise_revenue_atoms": 1000000,
+              "external_protocol_revenue_atoms": 1880000,
+              "external_success_fee_revenue_atoms": 660000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 4200000,
+              "proof_reserve_bonus_atoms": 110000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": -500000,
+              "candidate_id": "FULL_HYBRID_ASSURANCE",
+              "cash_surplus_atoms": -3870000,
+              "catalog_revenue_atoms": 100000,
+              "economic_surplus_after_bonus_atoms": -3980000,
+              "enterprise_revenue_atoms": 1000000,
+              "external_protocol_revenue_atoms": 1880000,
+              "external_success_fee_revenue_atoms": 660000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 5250000,
+              "proof_reserve_bonus_atoms": 110000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2750000,
+              "candidate_id": "FULL_HYBRID_ASSURANCE",
+              "cash_surplus_atoms": -8745000,
+              "catalog_revenue_atoms": 100000,
+              "economic_surplus_after_bonus_atoms": -8855000,
+              "enterprise_revenue_atoms": 1000000,
+              "external_protocol_revenue_atoms": 1880000,
+              "external_success_fee_revenue_atoms": 660000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 7875000,
+              "proof_reserve_bonus_atoms": 110000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 4000000,
+              "candidate_id": "FULL_HYBRID_ASSURANCE",
+              "cash_surplus_atoms": 7332000,
+              "catalog_revenue_atoms": 2000000,
+              "economic_surplus_after_bonus_atoms": 6782000,
+              "enterprise_revenue_atoms": 5000000,
+              "external_protocol_revenue_atoms": 10820000,
+              "external_success_fee_revenue_atoms": 3300000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 7488000,
+              "proof_reserve_bonus_atoms": 550000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 2000000,
+              "candidate_id": "FULL_HYBRID_ASSURANCE",
+              "cash_surplus_atoms": 3460000,
+              "catalog_revenue_atoms": 2000000,
+              "economic_surplus_after_bonus_atoms": 2910000,
+              "enterprise_revenue_atoms": 5000000,
+              "external_protocol_revenue_atoms": 10820000,
+              "external_success_fee_revenue_atoms": 3300000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 9360000,
+              "proof_reserve_bonus_atoms": 550000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -3000000,
+              "candidate_id": "FULL_HYBRID_ASSURANCE",
+              "cash_surplus_atoms": -6220000,
+              "catalog_revenue_atoms": 2000000,
+              "economic_surplus_after_bonus_atoms": -6770000,
+              "enterprise_revenue_atoms": 5000000,
+              "external_protocol_revenue_atoms": 10820000,
+              "external_success_fee_revenue_atoms": 3300000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 14040000,
+              "proof_reserve_bonus_atoms": 550000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 22000000,
+              "candidate_id": "FULL_HYBRID_ASSURANCE",
+              "cash_surplus_atoms": 63180000,
+              "catalog_revenue_atoms": 20000000,
+              "economic_surplus_after_bonus_atoms": 60430000,
+              "enterprise_revenue_atoms": 20000000,
+              "external_protocol_revenue_atoms": 58700000,
+              "external_success_fee_revenue_atoms": 16500000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 17520000,
+              "proof_reserve_bonus_atoms": 2750000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 15000000,
+              "candidate_id": "FULL_HYBRID_ASSURANCE",
+              "cash_surplus_atoms": 51800000,
+              "catalog_revenue_atoms": 20000000,
+              "economic_surplus_after_bonus_atoms": 49050000,
+              "enterprise_revenue_atoms": 20000000,
+              "external_protocol_revenue_atoms": 58700000,
+              "external_success_fee_revenue_atoms": 16500000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 21900000,
+              "proof_reserve_bonus_atoms": 2750000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2500000,
+              "candidate_id": "FULL_HYBRID_ASSURANCE",
+              "cash_surplus_atoms": 23350000,
+              "catalog_revenue_atoms": 20000000,
+              "economic_surplus_after_bonus_atoms": 20600000,
+              "enterprise_revenue_atoms": 20000000,
+              "external_protocol_revenue_atoms": 58700000,
+              "external_success_fee_revenue_atoms": 16500000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 32850000,
+              "proof_reserve_bonus_atoms": 2750000,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_STRESSED"
+            }
+          ],
+          "probability_positive_bps": 6250,
+          "worst_monthly_loss_atoms": 8745000
+        },
+        {
+          "candidate_id": "SUBSCRIPTION_ONLY",
+          "expected_monthly_surplus_after_bonus_atoms": 7329500,
+          "expected_monthly_surplus_atoms": 7329500,
+          "manipulation_safe": true,
+          "negative_complexity_units": -3,
+          "outcomes": [
+            {
+              "anchor_net_contribution_atoms": 400000,
+              "candidate_id": "SUBSCRIPTION_ONLY",
+              "cash_surplus_atoms": -1792000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -1792000,
+              "enterprise_revenue_atoms": 2000000,
+              "external_protocol_revenue_atoms": 2000000,
+              "external_success_fee_revenue_atoms": 0,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 4192000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": -500000,
+              "candidate_id": "SUBSCRIPTION_ONLY",
+              "cash_surplus_atoms": -3740000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -3740000,
+              "enterprise_revenue_atoms": 2000000,
+              "external_protocol_revenue_atoms": 2000000,
+              "external_success_fee_revenue_atoms": 0,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 5240000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2750000,
+              "candidate_id": "SUBSCRIPTION_ONLY",
+              "cash_surplus_atoms": -8610000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -8610000,
+              "enterprise_revenue_atoms": 2000000,
+              "external_protocol_revenue_atoms": 2000000,
+              "external_success_fee_revenue_atoms": 0,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 7860000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "LOW_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 4000000,
+              "candidate_id": "SUBSCRIPTION_ONLY",
+              "cash_surplus_atoms": 6672000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 6672000,
+              "enterprise_revenue_atoms": 10000000,
+              "external_protocol_revenue_atoms": 10000000,
+              "external_success_fee_revenue_atoms": 0,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 7328000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 2000000,
+              "candidate_id": "SUBSCRIPTION_ONLY",
+              "cash_surplus_atoms": 2840000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 2840000,
+              "enterprise_revenue_atoms": 10000000,
+              "external_protocol_revenue_atoms": 10000000,
+              "external_success_fee_revenue_atoms": 0,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 9160000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -3000000,
+              "candidate_id": "SUBSCRIPTION_ONLY",
+              "cash_surplus_atoms": -6740000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": -6740000,
+              "enterprise_revenue_atoms": 10000000,
+              "external_protocol_revenue_atoms": 10000000,
+              "external_success_fee_revenue_atoms": 0,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 13740000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "BASE_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 22000000,
+              "candidate_id": "SUBSCRIPTION_ONLY",
+              "cash_surplus_atoms": 46080000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 46080000,
+              "enterprise_revenue_atoms": 40000000,
+              "external_protocol_revenue_atoms": 40000000,
+              "external_success_fee_revenue_atoms": 0,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 15920000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 15000000,
+              "candidate_id": "SUBSCRIPTION_ONLY",
+              "cash_surplus_atoms": 35100000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 35100000,
+              "enterprise_revenue_atoms": 40000000,
+              "external_protocol_revenue_atoms": 40000000,
+              "external_success_fee_revenue_atoms": 0,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 19900000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2500000,
+              "candidate_id": "SUBSCRIPTION_ONLY",
+              "cash_surplus_atoms": 7650000,
+              "catalog_revenue_atoms": 0,
+              "economic_surplus_after_bonus_atoms": 7650000,
+              "enterprise_revenue_atoms": 40000000,
+              "external_protocol_revenue_atoms": 40000000,
+              "external_success_fee_revenue_atoms": 0,
+              "listing_revenue_atoms": 0,
+              "operating_cost_atoms": 29850000,
+              "proof_reserve_bonus_atoms": 0,
+              "raw_volume_self_dealing_safe": true,
+              "scenario_id": "HIGH_STRESSED"
+            }
+          ],
+          "probability_positive_bps": 6250,
+          "worst_monthly_loss_atoms": 8610000
+        },
+        {
+          "candidate_id": "RAW_VOLUME_EMISSION",
+          "expected_monthly_surplus_after_bonus_atoms": 1836812,
+          "expected_monthly_surplus_atoms": 11736812,
+          "manipulation_safe": false,
+          "negative_complexity_units": -7,
+          "outcomes": [
+            {
+              "anchor_net_contribution_atoms": 400000,
+              "candidate_id": "RAW_VOLUME_EMISSION",
+              "cash_surplus_atoms": -1920000,
+              "catalog_revenue_atoms": 100000,
+              "economic_surplus_after_bonus_atoms": -3020000,
+              "enterprise_revenue_atoms": 1000000,
+              "external_protocol_revenue_atoms": 1880000,
+              "external_success_fee_revenue_atoms": 660000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 4200000,
+              "proof_reserve_bonus_atoms": 1100000,
+              "raw_volume_self_dealing_safe": false,
+              "scenario_id": "LOW_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": -500000,
+              "candidate_id": "RAW_VOLUME_EMISSION",
+              "cash_surplus_atoms": -3870000,
+              "catalog_revenue_atoms": 100000,
+              "economic_surplus_after_bonus_atoms": -4970000,
+              "enterprise_revenue_atoms": 1000000,
+              "external_protocol_revenue_atoms": 1880000,
+              "external_success_fee_revenue_atoms": 660000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 5250000,
+              "proof_reserve_bonus_atoms": 1100000,
+              "raw_volume_self_dealing_safe": false,
+              "scenario_id": "LOW_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2750000,
+              "candidate_id": "RAW_VOLUME_EMISSION",
+              "cash_surplus_atoms": -8745000,
+              "catalog_revenue_atoms": 100000,
+              "economic_surplus_after_bonus_atoms": -9845000,
+              "enterprise_revenue_atoms": 1000000,
+              "external_protocol_revenue_atoms": 1880000,
+              "external_success_fee_revenue_atoms": 660000,
+              "listing_revenue_atoms": 120000,
+              "operating_cost_atoms": 7875000,
+              "proof_reserve_bonus_atoms": 1100000,
+              "raw_volume_self_dealing_safe": false,
+              "scenario_id": "LOW_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 4000000,
+              "candidate_id": "RAW_VOLUME_EMISSION",
+              "cash_surplus_atoms": 7332000,
+              "catalog_revenue_atoms": 2000000,
+              "economic_surplus_after_bonus_atoms": 1832000,
+              "enterprise_revenue_atoms": 5000000,
+              "external_protocol_revenue_atoms": 10820000,
+              "external_success_fee_revenue_atoms": 3300000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 7488000,
+              "proof_reserve_bonus_atoms": 5500000,
+              "raw_volume_self_dealing_safe": false,
+              "scenario_id": "BASE_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 2000000,
+              "candidate_id": "RAW_VOLUME_EMISSION",
+              "cash_surplus_atoms": 3460000,
+              "catalog_revenue_atoms": 2000000,
+              "economic_surplus_after_bonus_atoms": -2040000,
+              "enterprise_revenue_atoms": 5000000,
+              "external_protocol_revenue_atoms": 10820000,
+              "external_success_fee_revenue_atoms": 3300000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 9360000,
+              "proof_reserve_bonus_atoms": 5500000,
+              "raw_volume_self_dealing_safe": false,
+              "scenario_id": "BASE_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -3000000,
+              "candidate_id": "RAW_VOLUME_EMISSION",
+              "cash_surplus_atoms": -6220000,
+              "catalog_revenue_atoms": 2000000,
+              "economic_surplus_after_bonus_atoms": -11720000,
+              "enterprise_revenue_atoms": 5000000,
+              "external_protocol_revenue_atoms": 10820000,
+              "external_success_fee_revenue_atoms": 3300000,
+              "listing_revenue_atoms": 520000,
+              "operating_cost_atoms": 14040000,
+              "proof_reserve_bonus_atoms": 5500000,
+              "raw_volume_self_dealing_safe": false,
+              "scenario_id": "BASE_STRESSED"
+            },
+            {
+              "anchor_net_contribution_atoms": 22000000,
+              "candidate_id": "RAW_VOLUME_EMISSION",
+              "cash_surplus_atoms": 63180000,
+              "catalog_revenue_atoms": 20000000,
+              "economic_surplus_after_bonus_atoms": 35680000,
+              "enterprise_revenue_atoms": 20000000,
+              "external_protocol_revenue_atoms": 58700000,
+              "external_success_fee_revenue_atoms": 16500000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 17520000,
+              "proof_reserve_bonus_atoms": 27500000,
+              "raw_volume_self_dealing_safe": false,
+              "scenario_id": "HIGH_EFFICIENT"
+            },
+            {
+              "anchor_net_contribution_atoms": 15000000,
+              "candidate_id": "RAW_VOLUME_EMISSION",
+              "cash_surplus_atoms": 51800000,
+              "catalog_revenue_atoms": 20000000,
+              "economic_surplus_after_bonus_atoms": 24300000,
+              "enterprise_revenue_atoms": 20000000,
+              "external_protocol_revenue_atoms": 58700000,
+              "external_success_fee_revenue_atoms": 16500000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 21900000,
+              "proof_reserve_bonus_atoms": 27500000,
+              "raw_volume_self_dealing_safe": false,
+              "scenario_id": "HIGH_BASE_COST"
+            },
+            {
+              "anchor_net_contribution_atoms": -2500000,
+              "candidate_id": "RAW_VOLUME_EMISSION",
+              "cash_surplus_atoms": 23350000,
+              "catalog_revenue_atoms": 20000000,
+              "economic_surplus_after_bonus_atoms": -4150000,
+              "enterprise_revenue_atoms": 20000000,
+              "external_protocol_revenue_atoms": 58700000,
+              "external_success_fee_revenue_atoms": 16500000,
+              "listing_revenue_atoms": 2200000,
+              "operating_cost_atoms": 32850000,
+              "proof_reserve_bonus_atoms": 27500000,
+              "raw_volume_self_dealing_safe": false,
+              "scenario_id": "HIGH_STRESSED"
+            }
+          ],
+          "probability_positive_bps": 6250,
+          "worst_monthly_loss_atoms": 8745000
+        }
+      ],
+      "interpretation": [
+        "buyer-funded seller payments are GMV and never counted as protocol revenue",
+        "ZRPF user-fee inflow and proof cost are reported as a separate anchor contribution",
+        "subscription and catalog lanes contribute only when the candidate implements them",
+        "raw-volume candidates that let a buyer-seller coalition earn more bonus than fee are ineligible",
+        "the scenario matrix ranks structures under stated assumptions and does not forecast demand"
+      ],
+      "pareto_frontier": [
+        "FULL_HYBRID_ASSURANCE",
+        "HYBRID_SLA_CATALOG",
+        "SUBSCRIPTION_ONLY",
+        "SUCCESS_FEE_ONLY"
+      ],
+      "scenario_contract": {
+        "count": 9,
+        "scenarios": [
+          {
+            "anchor_proof_cost_atoms": 3600000,
+            "anchor_user_fee_atoms": 4000000,
+            "catalog_service_events": 100,
+            "enterprise_accounts": 2,
+            "enterprise_service_cost_per_account_atoms": 40000,
+            "external_listings": 120,
+            "external_success_gmv_atoms": 20000000,
+            "fixed_operations_cost_atoms": 4000000,
+            "public_good_gmv_atoms": 2000000,
+            "scenario_id": "LOW_EFFICIENT",
+            "successful_external_jobs": 80,
+            "variable_cost_per_catalog_event_atoms": 80,
+            "variable_cost_per_listing_atoms": 400,
+            "variable_cost_per_success_atoms": 800,
+            "weight_bps": 625
+          },
+          {
+            "anchor_proof_cost_atoms": 4500000,
+            "anchor_user_fee_atoms": 4000000,
+            "catalog_service_events": 100,
+            "enterprise_accounts": 2,
+            "enterprise_service_cost_per_account_atoms": 50000,
+            "external_listings": 120,
+            "external_success_gmv_atoms": 20000000,
+            "fixed_operations_cost_atoms": 5000000,
+            "public_good_gmv_atoms": 2000000,
+            "scenario_id": "LOW_BASE_COST",
+            "successful_external_jobs": 80,
+            "variable_cost_per_catalog_event_atoms": 100,
+            "variable_cost_per_listing_atoms": 500,
+            "variable_cost_per_success_atoms": 1000,
+            "weight_bps": 1250
+          },
+          {
+            "anchor_proof_cost_atoms": 6750000,
+            "anchor_user_fee_atoms": 4000000,
+            "catalog_service_events": 100,
+            "enterprise_accounts": 2,
+            "enterprise_service_cost_per_account_atoms": 75000,
+            "external_listings": 120,
+            "external_success_gmv_atoms": 20000000,
+            "fixed_operations_cost_atoms": 7500000,
+            "public_good_gmv_atoms": 2000000,
+            "scenario_id": "LOW_STRESSED",
+            "successful_external_jobs": 80,
+            "variable_cost_per_catalog_event_atoms": 150,
+            "variable_cost_per_listing_atoms": 750,
+            "variable_cost_per_success_atoms": 1500,
+            "weight_bps": 625
+          },
+          {
+            "anchor_proof_cost_atoms": 8000000,
+            "anchor_user_fee_atoms": 12000000,
+            "catalog_service_events": 2000,
+            "enterprise_accounts": 10,
+            "enterprise_service_cost_per_account_atoms": 40000,
+            "external_listings": 520,
+            "external_success_gmv_atoms": 100000000,
+            "fixed_operations_cost_atoms": 6400000,
+            "public_good_gmv_atoms": 10000000,
+            "scenario_id": "BASE_EFFICIENT",
+            "successful_external_jobs": 400,
+            "variable_cost_per_catalog_event_atoms": 80,
+            "variable_cost_per_listing_atoms": 400,
+            "variable_cost_per_success_atoms": 800,
+            "weight_bps": 1250
+          },
+          {
+            "anchor_proof_cost_atoms": 10000000,
+            "anchor_user_fee_atoms": 12000000,
+            "catalog_service_events": 2000,
+            "enterprise_accounts": 10,
+            "enterprise_service_cost_per_account_atoms": 50000,
+            "external_listings": 520,
+            "external_success_gmv_atoms": 100000000,
+            "fixed_operations_cost_atoms": 8000000,
+            "public_good_gmv_atoms": 10000000,
+            "scenario_id": "BASE_BASE_COST",
+            "successful_external_jobs": 400,
+            "variable_cost_per_catalog_event_atoms": 100,
+            "variable_cost_per_listing_atoms": 500,
+            "variable_cost_per_success_atoms": 1000,
+            "weight_bps": 2500
+          },
+          {
+            "anchor_proof_cost_atoms": 15000000,
+            "anchor_user_fee_atoms": 12000000,
+            "catalog_service_events": 2000,
+            "enterprise_accounts": 10,
+            "enterprise_service_cost_per_account_atoms": 75000,
+            "external_listings": 520,
+            "external_success_gmv_atoms": 100000000,
+            "fixed_operations_cost_atoms": 12000000,
+            "public_good_gmv_atoms": 10000000,
+            "scenario_id": "BASE_STRESSED",
+            "successful_external_jobs": 400,
+            "variable_cost_per_catalog_event_atoms": 150,
+            "variable_cost_per_listing_atoms": 750,
+            "variable_cost_per_success_atoms": 1500,
+            "weight_bps": 1250
+          },
+          {
+            "anchor_proof_cost_atoms": 28000000,
+            "anchor_user_fee_atoms": 50000000,
+            "catalog_service_events": 20000,
+            "enterprise_accounts": 40,
+            "enterprise_service_cost_per_account_atoms": 40000,
+            "external_listings": 2200,
+            "external_success_gmv_atoms": 500000000,
+            "fixed_operations_cost_atoms": 12000000,
+            "public_good_gmv_atoms": 50000000,
+            "scenario_id": "HIGH_EFFICIENT",
+            "successful_external_jobs": 1800,
+            "variable_cost_per_catalog_event_atoms": 80,
+            "variable_cost_per_listing_atoms": 400,
+            "variable_cost_per_success_atoms": 800,
+            "weight_bps": 625
+          },
+          {
+            "anchor_proof_cost_atoms": 35000000,
+            "anchor_user_fee_atoms": 50000000,
+            "catalog_service_events": 20000,
+            "enterprise_accounts": 40,
+            "enterprise_service_cost_per_account_atoms": 50000,
+            "external_listings": 2200,
+            "external_success_gmv_atoms": 500000000,
+            "fixed_operations_cost_atoms": 15000000,
+            "public_good_gmv_atoms": 50000000,
+            "scenario_id": "HIGH_BASE_COST",
+            "successful_external_jobs": 1800,
+            "variable_cost_per_catalog_event_atoms": 100,
+            "variable_cost_per_listing_atoms": 500,
+            "variable_cost_per_success_atoms": 1000,
+            "weight_bps": 1250
+          },
+          {
+            "anchor_proof_cost_atoms": 52500000,
+            "anchor_user_fee_atoms": 50000000,
+            "catalog_service_events": 20000,
+            "enterprise_accounts": 40,
+            "enterprise_service_cost_per_account_atoms": 75000,
+            "external_listings": 2200,
+            "external_success_gmv_atoms": 500000000,
+            "fixed_operations_cost_atoms": 22500000,
+            "public_good_gmv_atoms": 50000000,
+            "scenario_id": "HIGH_STRESSED",
+            "successful_external_jobs": 1800,
+            "variable_cost_per_catalog_event_atoms": 150,
+            "variable_cost_per_listing_atoms": 750,
+            "variable_cost_per_success_atoms": 1500,
+            "weight_bps": 625
+          }
+        ],
+        "source": "illustrative demand-by-cost stress matrix; not calibrated forecast",
+        "weights_sum_bps": 10000
+      },
+      "units": {
+        "cash": "QUOTE_ATOMS; illustrative fixture uses 100 atoms per USD",
+        "complexity": "ORDINAL_RESEARCH_UNITS",
+        "probability": "BASIS_POINTS"
+      }
+    },
+    "counterexample_market": {
+      "fixture": [
+        {
+          "accepted": true,
+          "contribution_id": "coverage-a",
+          "novel_coverage_units": 30,
+          "partition_id": "partition-a",
+          "submission_epoch": 1,
+          "terminal_counterexample": false
+        },
+        {
+          "accepted": true,
+          "contribution_id": "coverage-b",
+          "novel_coverage_units": 70,
+          "partition_id": "partition-b",
+          "submission_epoch": 1,
+          "terminal_counterexample": false
+        },
+        {
+          "accepted": true,
+          "contribution_id": "refutation",
+          "novel_coverage_units": 0,
+          "partition_id": "partition-c",
+          "submission_epoch": 2,
+          "terminal_counterexample": true
+        }
+      ],
+      "outcome": {
+        "carry_atoms": 0,
+        "milestone_payments_atoms": [
+          [
+            "coverage-a",
+            60
+          ],
+          [
+            "coverage-b",
+            140
+          ]
+        ],
+        "terminal_payment_atoms": 800,
+        "terminal_winner_id": "refutation"
+      },
+      "reason": [
+        "a first-valid-only bounty pays one result while every searcher duplicates private compute",
+        "registry-issued disjoint partitions make contribution identity independent of wallet count",
+        "a small milestone pool pays accepted novel search coverage",
+        "the decisive valid counterexample receives the terminal pool",
+        "coverage units remain unsafe unless a release-selected verifier proves novelty and non-overlap"
+      ],
+      "recommended_mechanism": "PARTITIONED_NOVELTY_POOL_PLUS_TERMINAL_REFUTATION_BOUNTY"
+    },
+    "game_theory": {
+      "contribution_locked_bonus": {
+        "anti_self_dealing_cap_atoms": 2000,
+        "bonus_atoms": 1000,
+        "value_cap_atoms": 1000
+      },
+      "contribution_locked_self_dealing_profit_atoms": -3500,
+      "dispute_bond_witness": {
+        "feasible": true,
+        "maximum_bond_atoms": 14,
+        "minimum_bond_atoms": 1
+      },
+      "external_only_half_fee_cases": 2601,
+      "linked_assurance_witnesses": {
+        "pledge_30_for_value_100_at_half_delay": true,
+        "pledge_60_for_value_100_at_half_delay": false
+      },
+      "maintenance_witnesses": {
+        "sustainable": true,
+        "unsustainable": false
+      },
+      "raw_volume_counterexample_profit_atoms": 2000,
+      "sybil_bond_witness": {
+        "cohort_size": 4,
+        "minimum_bond_atoms": 15,
+        "total_reward_atoms": 100
+      }
+    },
+    "proof_reserve": {
+      "allocations": [
+        {
+          "cap_bps": 5000,
+          "cap_whole_zdex": 15000000,
+          "lane": "ZRPF_AND_PROTOCOL_CRITICAL_PROOFS"
+        },
+        {
+          "cap_bps": 2000,
+          "cap_whole_zdex": 6000000,
+          "lane": "EXTERNAL_VERIFIED_WORK_MATCH"
+        },
+        {
+          "cap_bps": 1500,
+          "cap_whole_zdex": 4500000,
+          "lane": "COUNTEREXAMPLE_AND_IMPROVEMENT"
+        },
+        {
+          "cap_bps": 1000,
+          "cap_whole_zdex": 3000000,
+          "lane": "VERIFIER_AND_MAINTENANCE"
+        },
+        {
+          "cap_bps": 500,
+          "cap_whole_zdex": 1500000,
+          "lane": "UNALLOCATED_SAFETY"
+        }
+      ],
+      "global_release_rule": {
+        "candidate_daily_release_bps_of_remaining_reserve": 5,
+        "exhaustion": "bonus stops; buyer-funded proof procurement continues",
+        "no_mint": true,
+        "payment_source": "fixed genesis proof reserve only"
+      },
+      "nonclaim": "The lane percentages are a launch research envelope, not an activated distribution.",
+      "per_job_rule": "bonus <= scheduled lane cap; bonus <= verified contribution rate; external bonus <= 50% of irreversible external fee; protocol-job bonus may additionally use an independently verified savings cap",
+      "status": "RECOMMENDED_UNSELECTED_ENVELOPE",
+      "total_atoms": 30000000000000000000000000,
+      "total_whole_zdex": 30000000
+    },
+    "protocol_service_funding": {
+      "allowed_funding_sources": {
+        "core_contributor_contractor_and_operations_provider": [
+          "DEPLOYMENT_CAPITAL_PREFUND",
+          "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+          "SELECTED_GENESIS_SERVICE_LOT"
+        ],
+        "insurance_and_bad_debt_backstop": [
+          "DEPLOYMENT_CAPITAL_PREFUND",
+          "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+          "SELECTED_GENESIS_SERVICE_LOT"
+        ],
+        "interface_api_and_static_host": [
+          "DEPLOYMENT_CAPITAL_PREFUND",
+          "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+          "SELECTED_GENESIS_SERVICE_LOT",
+          "SIGNED_USER_INTERFACE_FEE"
+        ],
+        "liquidator_and_keeper": [
+          "DEPLOYMENT_CAPITAL_PREFUND",
+          "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+          "SELECTED_ACTION_FEE",
+          "SELECTED_GENESIS_SERVICE_LOT"
+        ],
+        "liquidity_bootstrapper_and_market_maker": [
+          "DEPLOYMENT_CAPITAL_PREFUND",
+          "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+          "SELECTED_GENESIS_SERVICE_LOT"
+        ],
+        "oracle_reporter_aggregator_disputer_and_watcher": [
+          "DEPLOYMENT_CAPITAL_PREFUND",
+          "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+          "SELECTED_GENESIS_SERVICE_LOT"
+        ],
+        "proof_prover_and_proof_miner": [
+          "DEPLOYMENT_CAPITAL_PREFUND",
+          "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+          "SELECTED_GENESIS_SERVICE_LOT"
+        ],
+        "security_auditor_and_bounty_researcher": [
+          "DEPLOYMENT_CAPITAL_PREFUND",
+          "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+          "SELECTED_GENESIS_SERVICE_LOT"
+        ],
+        "solver_batcher_and_sequencer": [
+          "DEPLOYMENT_CAPITAL_PREFUND",
+          "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+          "SELECTED_GENESIS_SERVICE_LOT",
+          "USER_GRANTED_EXECUTION_IMPROVEMENT"
+        ],
+        "stability_pool_depositor": [
+          "DEPLOYMENT_CAPITAL_PREFUND",
+          "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+          "SELECTED_GENESIS_SERVICE_LOT"
+        ],
+        "tau_relayer_and_destination_operator": [
+          "DEPLOYMENT_CAPITAL_PREFUND",
+          "EXPLICIT_EXTERNAL_IO_FEE",
+          "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+          "SELECTED_GENESIS_SERVICE_LOT"
+        ],
+        "validator_finality_operator": [
+          "DEPLOYMENT_CAPITAL_PREFUND",
+          "FINALIZED_PROTOCOL_REVENUE_PREFUND",
+          "SELECTED_GENESIS_SERVICE_LOT"
+        ]
+      },
+      "budget_eligible_role_count": 12,
+      "integration_rules": [
+        "buyer proof-job escrow funds only that job's declared seller, verifier, publication, fee, and refund legs",
+        "finalized proof-market fee revenue may enter the protocol service waterfall only after job liabilities close",
+        "property claims and prefunded critical services precede buy-and-burn surplus",
+        "an unfunded critical role disables its dependent feature or prevents activation",
+        "genesis ZDEX inventory cannot satisfy a stable-asset liability without an admitted conversion"
+      ],
+      "participant_count": 22,
+      "participant_funding_registry": {
+        "community_testnet_and_usage_award_recipient": {
+          "boundary": "DISTRIBUTION_PROGRAM",
+          "service_criticality": null,
+          "unfunded_behavior": "PROGRAM_REMAINS_DISABLED"
+        },
+        "core_contributor_contractor_and_operations_provider": {
+          "boundary": "OPERATIONS_OR_SERVICE_BUDGET",
+          "service_criticality": "GOVERNED_OPERATIONS",
+          "unfunded_behavior": "NO_NEW_PAID_WORK_BEYOND_BUDGET"
+        },
+        "founder_team_partner_and_capital_recipient": {
+          "boundary": "GENESIS_DISTRIBUTION_PROGRAM",
+          "service_criticality": null,
+          "unfunded_behavior": "GENESIS_TRANSFER_REMAINS_DISABLED"
+        },
+        "insurance_and_bad_debt_backstop": {
+          "boundary": "SERVICE_BUDGET",
+          "service_criticality": "RISK_CRITICAL",
+          "unfunded_behavior": "AFFECTED_RISK_PROFILE_DISABLES"
+        },
+        "interface_api_and_static_host": {
+          "boundary": "OPERATIONS_OR_SERVICE_BUDGET",
+          "service_criticality": "GOVERNED_OPERATIONS",
+          "unfunded_behavior": "PAID_REFERENCE_SERVICE_STOPS_PERMISSIONLESS_MIRRORS_REMAIN"
+        },
+        "liquidator_and_keeper": {
+          "boundary": "SERVICE_BUDGET",
+          "service_criticality": "RISK_CRITICAL",
+          "unfunded_behavior": "AFFECTED_AUTOMATION_OR_RISK_INCREASE_DISABLES"
+        },
+        "liquidity_bootstrapper_and_market_maker": {
+          "boundary": "SERVICE_OR_DISTRIBUTION_PROGRAM",
+          "service_criticality": "OPTIONAL_GROWTH",
+          "unfunded_behavior": "LIQUIDITY_SUBSIDY_PROGRAM_STOPS"
+        },
+        "liquidity_provider": {
+          "boundary": "PROPERTY_OR_LIABILITY",
+          "service_criticality": null,
+          "unfunded_behavior": "PROPERTY_CLAIM_PERSISTS"
+        },
+        "oracle_reporter_aggregator_disputer_and_watcher": {
+          "boundary": "SERVICE_BUDGET",
+          "service_criticality": "RISK_CRITICAL",
+          "unfunded_behavior": "ORACLE_DEPENDENT_RISK_INCREASE_DISABLES"
+        },
+        "perps_trader_and_funding_counterparty": {
+          "boundary": "PROPERTY_OR_LIABILITY",
+          "service_criticality": null,
+          "unfunded_behavior": "PROPERTY_CLAIM_PERSISTS"
+        },
+        "proof_prover_and_proof_miner": {
+          "boundary": "SERVICE_BUDGET",
+          "service_criticality": "OPTIONAL_SCALING",
+          "unfunded_behavior": "PROOF_REWARD_STOPS_AND_DIRECT_EXECUTION_CONTINUES"
+        },
+        "protocol_treasury_reserve_and_buyburn_executor": {
+          "boundary": "RESERVE_AND_EXECUTION",
+          "service_criticality": null,
+          "unfunded_behavior": "FUNDS_REMAIN_IN_TYPED_CARRY"
+        },
+        "sealed_bid_bidder_and_private_swap_party": {
+          "boundary": "PROPERTY_OR_LIABILITY",
+          "service_criticality": null,
+          "unfunded_behavior": "PROPERTY_CLAIM_PERSISTS"
+        },
+        "sealed_bid_seller": {
+          "boundary": "PROPERTY_OR_LIABILITY",
+          "service_criticality": null,
+          "unfunded_behavior": "PROPERTY_CLAIM_PERSISTS"
+        },
+        "security_auditor_and_bounty_researcher": {
+          "boundary": "OPERATIONS_OR_SERVICE_BUDGET",
+          "service_criticality": "GOVERNED_OPERATIONS",
+          "unfunded_behavior": "NO_NEW_PAID_WORK_BEYOND_BUDGET"
+        },
+        "solver_batcher_and_sequencer": {
+          "boundary": "SERVICE_BUDGET",
+          "service_criticality": "OPTIONAL_SCALING",
+          "unfunded_behavior": "PAID_SERVICE_STOPS_OR_SAFE_FALLBACK_EXECUTES"
+        },
+        "spot_trader_and_order_user": {
+          "boundary": "PROPERTY_OR_LIABILITY",
+          "service_criticality": null,
+          "unfunded_behavior": "PROPERTY_CLAIM_PERSISTS"
+        },
+        "stability_pool_depositor": {
+          "boundary": "PROPERTY_WITH_OPTIONAL_REWARD",
+          "service_criticality": "OPTIONAL_GROWTH",
+          "unfunded_behavior": "PRINCIPAL_AND_GAINS_PERSIST_OPTIONAL_REWARD_STOPS"
+        },
+        "tau_depositor_and_withdrawer": {
+          "boundary": "PROPERTY_OR_LIABILITY",
+          "service_criticality": null,
+          "unfunded_behavior": "WITHDRAWAL_REMAINS_PENDING_OR_REFUNDS"
+        },
+        "tau_relayer_and_destination_operator": {
+          "boundary": "SERVICE_BUDGET",
+          "service_criticality": "EXTERNAL_IO_CRITICAL",
+          "unfunded_behavior": "TAU_EXTERNAL_IO_REMAINS_PENDING"
+        },
+        "validator_finality_operator": {
+          "boundary": "SERVICE_BUDGET",
+          "service_criticality": "CONSENSUS_CRITICAL",
+          "unfunded_behavior": "UNFUNDED_VALIDATOR_PERIOD_CANNOT_ACTIVATE"
+        },
+        "zusd_borrower_and_redeemer": {
+          "boundary": "PROPERTY_OR_LIABILITY",
+          "service_criticality": null,
+          "unfunded_behavior": "PROPERTY_CLAIM_PERSISTS"
+        }
+      },
+      "role_specific_exhaustion": {
+        "core_contributor_contractor_and_operations_provider": "NO_NEW_PAID_WORK_BEYOND_BUDGET",
+        "insurance_and_bad_debt_backstop": "AFFECTED_RISK_PROFILE_DISABLES",
+        "interface_api_and_static_host": "PAID_REFERENCE_SERVICE_STOPS_PERMISSIONLESS_MIRRORS_REMAIN",
+        "liquidator_and_keeper": "AFFECTED_AUTOMATION_OR_RISK_INCREASE_DISABLES",
+        "liquidity_bootstrapper_and_market_maker": "LIQUIDITY_SUBSIDY_PROGRAM_STOPS",
+        "oracle_reporter_aggregator_disputer_and_watcher": "ORACLE_DEPENDENT_RISK_INCREASE_DISABLES",
+        "proof_prover_and_proof_miner": "PROOF_REWARD_STOPS_AND_DIRECT_EXECUTION_CONTINUES",
+        "security_auditor_and_bounty_researcher": "NO_NEW_PAID_WORK_BEYOND_BUDGET",
+        "solver_batcher_and_sequencer": "PAID_SERVICE_STOPS_OR_SAFE_FALLBACK_EXECUTES",
+        "stability_pool_depositor": "PRINCIPAL_AND_GAINS_PERSIST_OPTIONAL_REWARD_STOPS",
+        "tau_relayer_and_destination_operator": "TAU_EXTERNAL_IO_REMAINS_PENDING",
+        "validator_finality_operator": "UNFUNDED_VALIDATOR_PERIOD_CANNOT_ACTIVATE"
+      },
+      "selected_budget_count": 0,
+      "selected_role_budgets": {
+        "core_contributor_contractor_and_operations_provider": null,
+        "insurance_and_bad_debt_backstop": null,
+        "interface_api_and_static_host": null,
+        "liquidator_and_keeper": null,
+        "liquidity_bootstrapper_and_market_maker": null,
+        "oracle_reporter_aggregator_disputer_and_watcher": null,
+        "proof_prover_and_proof_miner": null,
+        "security_auditor_and_bounty_researcher": null,
+        "solver_batcher_and_sequencer": null,
+        "stability_pool_depositor": null,
+        "tau_relayer_and_destination_operator": null,
+        "validator_finality_operator": null
+      },
+      "source": {
+        "path": "docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json",
+        "schema": "zenodex/production-readiness-g1-service-funding/v1",
+        "sha256": "4eaec4bd3be1c33973916d63ae02a6484550804208d2d6c32505697dfbc24359",
+        "status": "RESEARCH_ONLY_UNSELECTED"
+      }
+    },
+    "settlement": {
+      "accepted_example": {
+        "accepted": true,
+        "buyer_refund_atoms": 24100,
+        "protocol_revenue_atoms": 3400,
+        "publication_payment_atoms": 1500,
+        "required_buyer_prefund_atoms": 116000,
+        "seller_bond_restitution_atoms": 0,
+        "seller_bond_return_atoms": 50000,
+        "seller_payment_atoms": 80000,
+        "verifier_payment_atoms": 7000
+      },
+      "duplicate_work_example": {
+        "accepted": false,
+        "buyer_refund_atoms": 108000,
+        "protocol_revenue_atoms": 1000,
+        "publication_payment_atoms": 0,
+        "required_buyer_prefund_atoms": 116000,
+        "seller_bond_restitution_atoms": 20000,
+        "seller_bond_return_atoms": 30000,
+        "seller_payment_atoms": 0,
+        "verifier_payment_atoms": 7000
+      },
+      "exhaustive_boolean_cases": 256,
+      "invariants": [
+        "buyer escrow equals seller payment plus verifier and publication costs plus protocol fee plus refund",
+        "seller bond equals returned bond plus restitution",
+        "seller payment requires every closed admission check",
+        "a duplicate canonical work key receives no seller payment",
+        "post-completion buyer discretion cannot override the precommitted objective verifier"
+      ],
+      "terms": {
+        "access_policy": "PUBLIC_CONTENT_ADDRESSED",
+        "funding_scope": "EXTERNAL_BUYER",
+        "listing_fee_atoms": 1000,
+        "maximum_seller_payment_atoms": 100000,
+        "product_kind": "ASSIGNED_VALIDITY_PROOF",
+        "protocol_success_fee_bps": 300,
+        "publication_budget_atoms": 2000,
+        "seller_bond_atoms": 50000,
+        "verifier_budget_atoms": 10000
+      }
+    }
+  },
+  "evidence_lane": {
+    "current": [
+      "exact integer escrow, fee, refund, bond, bonus, dispute, assurance, maintenance, and cash-flow model",
+      "closed eight-check settlement sweep over 256 admission vectors",
+      "bounded half-fee self-dealing search",
+      "nine-scenario demand-by-cost business-model sweep",
+      "dual-solver ESSO lifecycle proof with a retained refund/claim-binding counterexample",
+      "BMSE stock marketplace baseline plus certified Pareto replay over proof-specific candidate evaluations",
+      "six direct-compiled Lean theorem files for bounty caps, composition, Sybil bonds, linked assurance, maintenance, and disputes",
+      "ZRPF dual-solver fee-waterfall ESSO receipt retained as the anchor-buyer submodel"
+    ],
+    "required": [
+      "repository-wide Lean-root integration and runtime projection for the direct-compiled theorem files",
+      "calibrated job demand, compute cost, verifier cost, and customer acquisition distributions",
+      "beneficial-owner and related-party policy with false-positive and evasion analysis",
+      "production Rust transition, canonical codec, mounted ZenoLedger payment port, and no-bypass inventory"
+    ]
+  },
+  "game_surface": {
+    "actions": [
+      "list and prefund a canonical claim-bound job",
+      "lock an assigned proof job or search an admitted counterexample partition",
+      "submit, verify, reject, pay, refund, slash for restitution, or expire",
+      "fund a public proof through linked assurance",
+      "buy private delivery or request public artifact verification and adaptation",
+      "subscribe for reserved capacity and maintenance without changing verifier outcomes"
+    ],
+    "information": [
+      "claim, assumptions, inputs, verifier profile, deadline, and maximum liability are public before lock",
+      "private witnesses may remain committed until payment is finalized or escrow-locked",
+      "beneficial ownership, off-ledger compute cost, and undisclosed collusion remain external premises"
+    ],
+    "players": [
+      "external proof buyer or bounty sponsor",
+      "ZRPF anchor buyer",
+      "proof miner or assigned prover",
+      "counterexample and improvement searcher",
+      "verifier and aggregation operator",
+      "artifact maintainer",
+      "enterprise reserved-capacity customer",
+      "protocol treasury and proof-reserve controller",
+      "ZenoLedger validators"
+    ],
+    "products": [
+      "ASSIGNED_VALIDITY_PROOF",
+      "OPEN_COUNTEREXAMPLE",
+      "IMPROVEMENT_CERTIFICATE",
+      "PUBLIC_GOOD_PROOF",
+      "MAINTENANCE_REVERIFY",
+      "CATALOG_REUSE",
+      "ZRPF_BATCH"
+    ]
+  },
+  "promotion_boundary": {
+    "claim": "The research model closes exact bounded accounting and identifies a hybrid two-sided service market as the strongest structure to test.",
+    "mounted": false,
+    "nonclaims": [
+      "No fee, subscription price, reserve lane, bounty amount, or product is activated.",
+      "Illustrative scenario outputs are sensitivity results rather than demand, price, profit, or token-value forecasts.",
+      "The model does not prove beneficial ownership, novelty, proof correctness, market adoption, or legal classification.",
+      "The BMSE generic marketplace baseline does not express proof-specific verification, reuse, counterexample, or token-reserve semantics.",
+      "No proof artifact, market receipt, subscription, or token carries finality or settlement authority."
+    ],
+    "production_ready": false,
+    "selected": false
+  },
+  "recommendation": {
+    "burn": "Only true protocol-wide surplus enters buy-and-burn. A proof-market business model cannot pre-commit revenue needed by other participants.",
+    "launch_order": [
+      "assigned proof and ZRPF jobs with prefunded reverse-Dutch lock procurement",
+      "objective counterexample and improvement bounties with canonical work keys",
+      "external listing-cost recovery plus 2%-5% success-fee experiment",
+      "enterprise reserved-capacity subscription whose SLA cannot affect verification",
+      "public catalog verification/adaptation after canonical reuse semantics are stable",
+      "linked-assurance public-good funding after the pledge/refund lifecycle is mounted"
+    ],
+    "name": "HYBRID_PROOF_SERVICE_MARKET_V1",
+    "payment_sources": {
+      "bootstrap_bonus": "30M fixed ZDEX proof reserve",
+      "external_jobs": "buyer escrow",
+      "protocol_public_goods": "purpose-bound treasury or pooled sponsor escrow",
+      "validators": "separate finality service budget; never paid from seller escrow by implication",
+      "zrpf_jobs": "DEX per-resource fees with direct-execution fallback"
+    },
+    "revenue": "Protocol revenue is listing-cost recovery, external success fees, catalog verification/adaptation fees, and enterprise subscriptions. Buyer principal, seller payment, verifier pass-through, refundable escrow, restitution, and internal ZRPF transfers are excluded.",
+    "surplus": "Finalized unrestricted revenue remaining after refunds, property claims, proof sellers, verifiers, validators, oracles, safety reserves, hosting, operations, maintenance, and admitted growth liabilities."
+  },
+  "schema": "zenodex/proof-market-business-model/v1",
+  "source_subject": {
+    "checker_bootstrap_verified": false,
+    "reviewed_source_commit": "95fd6ab1e89aef9d96a94a674904f8b064cd780e",
+    "source_pins": [
+      {
+        "path": "tools/proof_market_business_model_v1.py",
+        "sha256": "be670de6ba2643c001d08463e836cb08c1a4820e52402de235f2151ea97ea287"
+      },
+      {
+        "path": "tools/proof_market_bmse_adapter_v1.py",
+        "sha256": "83c144f04fe94f546a68790ec6af4b3199e9f3b1fbfd4ad2efa145510ec96dff"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_BUSINESS_MODEL_V1.md",
+        "sha256": "4c1ca331871310bda4f23bb0c2446ab6eb69643e57214cbe3039b0331a261262"
+      },
+      {
+        "path": "src/kernels/dex/proof_market_lifecycle_v1.yaml",
+        "sha256": "d22a534455b4cecbd6702b6bfa04b9212e0e7644dfc6dcc8aa2e85bf327881c9"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_LIFECYCLE_ESSO_V1.json",
+        "sha256": "beb5947806e4eb3ec1c63e57a95a6aef9ca2143466a7edcbba7267dfa492ba87"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_LEAN_EVIDENCE_V1.json",
+        "sha256": "45aa92cd26370b781bc5da363d4af385d5ade5cfc5f9dc547098214e46f65ae3"
+      },
+      {
+        "path": "tools/zrpf_business_model_v1.py",
+        "sha256": "38b186226850e3670c13f242fb9acd9f2713d7a78beee865be9c1daf54df93c2"
+      },
+      {
+        "path": "docs/research/ZRPF_BUSINESS_MODEL_V1.json",
+        "sha256": "b7dbeff09de153eca83261a2d9252f550fdb461cba7882b2402c731531fec2d8"
+      },
+      {
+        "path": "src/kernels/dex/zrpf_fee_waterfall_v1.yaml",
+        "sha256": "03ff96ce388800d54479f157820606a071d50f2ddc335ce9b40444ec68cc2406"
+      },
+      {
+        "path": "docs/research/ZRPF_FEE_WATERFALL_ESSO_V1.json",
+        "sha256": "ae10aa84ff2d76f8a492e462cd4b5fafd0c5069bc45be1c0660f42b5ea114aa7"
+      },
+      {
+        "path": "docs/ZENOPROOF_V0_DESIGN.md",
+        "sha256": "19443732571496d2bfd752001be7e1e08dcd023004f47590414f262be20eb367"
+      },
+      {
+        "path": "docs/PROOF_MINING.md",
+        "sha256": "1aaf67f5c608520ac2da9ab1c832ff621b1648a8a182dad0a1a2df95ca7af5ca"
+      },
+      {
+        "path": "docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json",
+        "sha256": "4eaec4bd3be1c33973916d63ae02a6484550804208d2d6c32505697dfbc24359"
+      },
+      {
+        "path": "internal/proofs/ZenoProofBountyMechanism.lean",
+        "sha256": "5f1930f58d52e08361625f5962b4c88855baeb258bec78787234890162460734"
+      },
+      {
+        "path": "internal/proofs/ZenoProofMechanismComposition.lean",
+        "sha256": "eb4a351ca6aa73b51e2190c15a682dcae17bfb7711c3bee9c1cb5c8f160b7b91"
+      },
+      {
+        "path": "internal/proofs/ZenoProofLinkedAssurance_v2.lean",
+        "sha256": "a127326755bf50536bcc4774b8a7db49f64df469788c49570273b12b07764dff"
+      },
+      {
+        "path": "internal/proofs/ZenoProofMaintenanceFolk.lean",
+        "sha256": "a1d54a762e0ef7070618b0d1d95a2f6da0a480cd340af02b672b06f673cf541c"
+      },
+      {
+        "path": "internal/proofs/ZenoProofSybilBondBound.lean",
+        "sha256": "04fde751e79bb2a2a14dd5ecd5992f1adec2b9592e7d69bdabbdbc49593efca4"
+      },
+      {
+        "path": "internal/proofs/ZenoProofDisputeGameBound.lean",
+        "sha256": "76ee4342ff164adf6a4859abaab4b9d944e6359aaa8b3b2aea2be75cbf02e3c0"
+      }
+    ]
+  },
+  "status": "RESEARCH_ONLY_UNMOUNTED_UNSELECTED"
+}

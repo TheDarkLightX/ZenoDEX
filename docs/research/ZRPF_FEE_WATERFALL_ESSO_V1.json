@@ -1,0 +1,55 @@
+{
+  "schema": "zenodex/zrpf-fee-waterfall-esso-evidence/v1",
+  "status": "VERIFIED_BOUNDED_DUAL_SOLVER",
+  "model": {
+    "path": "src/kernels/dex/zrpf_fee_waterfall_v1.yaml",
+    "sha256": "03ff96ce388800d54479f157820606a071d50f2ddc335ce9b40444ec68cc2406",
+    "esso_ir_hash": "sha256:a14e81c5a0ed2d6b3b9f4c38b58b5e8261aa9d29ed907e28955f6725297956d5"
+  },
+  "replay": {
+    "command": "PYTHONPATH=<pinned-esso-root> python3 -m ESSO verify-multi src/kernels/dex/zrpf_fee_waterfall_v1.yaml --solvers z3,cvc5 --timeout-ms 60000 --determinism-trials 2 --output <scratch-output> --write-report",
+    "timestamp_utc": "2026-08-17T06:35:01.614291+00:00",
+    "raw_summary_sha256": "2550b6c539215880238595f4404e0e46004f25a1b99139c022aa742e3133b226",
+    "raw_bundle_result_sha256": "1d24bf7a3540032baea2cc6b48510b6883950370116c1ec229baf3487cc57832",
+    "determinism_trials": 2,
+    "determinism_fingerprint": "7ff8d42a628276ccc40fd149e2bb9b7711c0c1712212837ed5118ebd59bb6eeb",
+    "timeout_ms_per_query": 60000
+  },
+  "toolchain": {
+    "esso_commit": "1145cf77668b6d86cda83d79820b13a65fbde12f",
+    "python": "3.12.3",
+    "z3": "4.15.4",
+    "cvc5": "1.1.2"
+  },
+  "result": {
+    "verdict": "VERIFIED",
+    "solvers_agreed": true,
+    "total_queries": 12,
+    "passed_queries": 12,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "disagreements": [],
+    "scope": "INDUCTIVE_K1_FINITE_SEQUENTIAL_STATE_MACHINE"
+  },
+  "proved_in_declared_model": [
+    "fee custody conservation across allocation, proof payment, and burn",
+    "surplus burn requires safety, critical-service, proof, and operations prefund",
+    "proof payment descends from a verified proof-job state and value witness",
+    "ZRPF finality descends from paid verified work and a five-of-seven precommit abstraction",
+    "head generation equals the sum of validator-finalized direct and ZRPF commits"
+  ],
+  "preserved_counterexample": {
+    "id": "PAID_PHASE_WITHOUT_PAYMENT_WITNESS",
+    "original_ir_hash": "sha256:98ff01675f0620dd5a832e152485a1434335b073572a6a8f3afa10dd084172f7",
+    "original_result": "SAT_BOTH_Z3_AND_CVC5",
+    "witness": "proof_job_state=JOB_Paid, proof_paid_units=0, five_of_seven_precommits=true allowed zrpf_finalized_count to advance",
+    "repair": "require proof_paid_units=1 in the paid-phase invariant and validator_finalize_zrpf guard",
+    "repaired_result": "UNSAT_BOTH_Z3_AND_CVC5"
+  },
+  "nonclaims": [
+    "The six-unit, one-job model is not a production cost or throughput model.",
+    "Boolean proof, binding, and quorum parameters abstract opaque verifier-created witnesses.",
+    "The result does not prove cryptography, canonical codecs, runtime refinement, durability, concurrency, liveness, or mounted no-bypass behavior.",
+    "The result grants no fee, payment, proof-admission, burn, finality, settlement, release, or production authority."
+  ]
+}

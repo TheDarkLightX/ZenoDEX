@@ -1,0 +1,372 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "zrpf_fee_waterfall_v1"
+  created_by: "zenodex"
+  notes: |
+    Research-only bounded model for one ZRPF fee-funding period.
+
+    Six abstract same-asset units are allocated in strict order: safety,
+    critical services, two proof-budget units, operations, and one residual
+    burn unit.  A verified proof may consume one proof-budget unit, leaving one
+    next-job prefund unit before residual burn.  ZRPF verification never changes
+    the canonical head.  Only a separately modeled validator-quorum action may
+    finalize direct or proof-backed execution.
+
+    Authentication, proof validity, current-head binding, and quorum booleans
+    abstract opaque verifier-produced witnesses.  Callers must not construct
+    these facts in production.  Bounds, costs, one-job lifecycle, and six value
+    units are deliberately small.  This model does not prove runtime
+    refinement, cryptography, durability, liveness, price truth, or production
+    economics.
+
+observables:
+  state_vars:
+    - "unrestricted_units"
+    - "safety_reserve_units"
+    - "critical_service_units"
+    - "proof_budget_units"
+    - "operations_units"
+    - "proof_paid_units"
+    - "burned_units"
+    - "proof_job_state"
+    - "head_generation"
+    - "direct_finalized_count"
+    - "zrpf_finalized_count"
+  effects:
+    - "event"
+    - "payment_emitted"
+    - "burn_emitted"
+    - "finality_emitted"
+
+types:
+  - id: "ProofJobState"
+    type:
+      kind: "enum"
+      symbols: ["JOB_None", "JOB_Posted", "JOB_Verified", "JOB_Paid"]
+  - id: "Event"
+    type:
+      kind: "enum"
+      symbols:
+        - "EV_SafetyFunded"
+        - "EV_CriticalFunded"
+        - "EV_ProofFunded"
+        - "EV_OperationsFunded"
+        - "EV_ProofPosted"
+        - "EV_ProofVerified"
+        - "EV_ProofPaid"
+        - "EV_ProofTimedOut"
+        - "EV_SurplusBurned"
+        - "EV_DirectFinalized"
+        - "EV_ZRPFFinalized"
+
+state_vars:
+  - id: "unrestricted_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "safety_reserve_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "critical_service_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "proof_budget_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "operations_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "proof_paid_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "burned_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "proof_job_state"
+    role: "control"
+    type: { ref: "ProofJobState" }
+  - id: "head_generation"
+    role: "control"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "direct_finalized_count"
+    role: "control"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "zrpf_finalized_count"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - { var: "unrestricted_units", expr: { const: 6 } }
+  - { var: "safety_reserve_units", expr: { const: 0 } }
+  - { var: "critical_service_units", expr: { const: 0 } }
+  - { var: "proof_budget_units", expr: { const: 0 } }
+  - { var: "operations_units", expr: { const: 0 } }
+  - { var: "proof_paid_units", expr: { const: 0 } }
+  - { var: "burned_units", expr: { const: 0 } }
+  - { var: "proof_job_state", expr: { enum: "JOB_None" } }
+  - { var: "head_generation", expr: { const: 0 } }
+  - { var: "direct_finalized_count", expr: { const: 0 } }
+  - { var: "zrpf_finalized_count", expr: { const: 0 } }
+
+invariants:
+  - id: "inv_fee_custody_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - { var: "unrestricted_units" }
+            - op: "+"
+              args:
+                - { var: "safety_reserve_units" }
+                - op: "+"
+                  args:
+                    - { var: "critical_service_units" }
+                    - op: "+"
+                      args:
+                        - { var: "proof_budget_units" }
+                        - op: "+"
+                          args:
+                            - { var: "operations_units" }
+                            - op: "+"
+                              args:
+                                - { var: "proof_paid_units" }
+                                - { var: "burned_units" }
+        - { const: 6 }
+  - id: "inv_burn_requires_prefund"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "burned_units" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "safety_reserve_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "critical_service_units" }, { const: 1 }] }
+            - { op: ">=", args: [{ var: "proof_budget_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "operations_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "proof_paid_units" }, { const: 1 }] }
+  - id: "inv_payment_requires_verified_job"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "proof_paid_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "proof_job_state" }, { enum: "JOB_Paid" }] }
+  - id: "inv_paid_phase_requires_payment_witness"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args:
+            - { op: "=", args: [{ var: "proof_job_state" }, { enum: "JOB_Paid" }] }
+        - { op: "=", args: [{ var: "proof_paid_units" }, { const: 1 }] }
+  - id: "inv_head_owned_by_validator_finality"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "head_generation" }
+        - op: "+"
+          args:
+            - { var: "direct_finalized_count" }
+            - { var: "zrpf_finalized_count" }
+  - id: "inv_zrpf_finality_descends_from_paid_verified_work"
+    kind: "safety"
+    expr:
+      op: "<="
+      args: [{ var: "zrpf_finalized_count" }, { var: "proof_paid_units" }]
+
+actions:
+  - id: "fund_safety"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: ">", args: [{ var: "unrestricted_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "safety_reserve_units" }, { const: 0 }] }
+    updates:
+      - { var: "unrestricted_units", expr: { op: "-", args: [{ var: "unrestricted_units" }, { const: 1 }] } }
+      - { var: "safety_reserve_units", expr: { const: 1 } }
+    effects: &safety_effects
+      event: { enum: "EV_SafetyFunded" }
+      payment_emitted: { bool: false }
+      burn_emitted: { bool: false }
+      finality_emitted: { bool: false }
+
+  - id: "fund_critical_services"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "safety_reserve_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "critical_service_units" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "unrestricted_units" }, { const: 0 }] }
+    updates:
+      - { var: "unrestricted_units", expr: { op: "-", args: [{ var: "unrestricted_units" }, { const: 1 }] } }
+      - { var: "critical_service_units", expr: { const: 1 } }
+    effects:
+      event: { enum: "EV_CriticalFunded" }
+      payment_emitted: { bool: false }
+      burn_emitted: { bool: false }
+      finality_emitted: { bool: false }
+
+  - id: "fund_proof_budget"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "safety_reserve_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "critical_service_units" }, { const: 1 }] }
+        - { op: "<", args: [{ var: "proof_budget_units" }, { const: 2 }] }
+        - { op: ">", args: [{ var: "unrestricted_units" }, { const: 0 }] }
+    updates:
+      - { var: "unrestricted_units", expr: { op: "-", args: [{ var: "unrestricted_units" }, { const: 1 }] } }
+      - { var: "proof_budget_units", expr: { op: "+", args: [{ var: "proof_budget_units" }, { const: 1 }] } }
+    effects:
+      event: { enum: "EV_ProofFunded" }
+      payment_emitted: { bool: false }
+      burn_emitted: { bool: false }
+      finality_emitted: { bool: false }
+
+  - id: "fund_operations"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "proof_budget_units" }, { const: 2 }] }
+        - { op: "=", args: [{ var: "operations_units" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "unrestricted_units" }, { const: 0 }] }
+    updates:
+      - { var: "unrestricted_units", expr: { op: "-", args: [{ var: "unrestricted_units" }, { const: 1 }] } }
+      - { var: "operations_units", expr: { const: 1 } }
+    effects:
+      event: { enum: "EV_OperationsFunded" }
+      payment_emitted: { bool: false }
+      burn_emitted: { bool: false }
+      finality_emitted: { bool: false }
+
+  - id: "post_proof_job"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "proof_budget_units" }, { const: 2 }] }
+        - { op: "=", args: [{ var: "proof_job_state" }, { enum: "JOB_None" }] }
+    updates:
+      - { var: "proof_job_state", expr: { enum: "JOB_Posted" } }
+    effects:
+      event: { enum: "EV_ProofPosted" }
+      payment_emitted: { bool: false }
+      burn_emitted: { bool: false }
+      finality_emitted: { bool: false }
+
+  - id: "verify_proof"
+    params:
+      - { id: "proof_valid", type: { kind: "bool" } }
+      - { id: "journal_and_current_head_bound", type: { kind: "bool" } }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "proof_job_state" }, { enum: "JOB_Posted" }] }
+        - { param: "proof_valid" }
+        - { param: "journal_and_current_head_bound" }
+    updates:
+      - { var: "proof_job_state", expr: { enum: "JOB_Verified" } }
+    effects:
+      event: { enum: "EV_ProofVerified" }
+      payment_emitted: { bool: false }
+      burn_emitted: { bool: false }
+      finality_emitted: { bool: false }
+
+  - id: "pay_verified_proof"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "proof_job_state" }, { enum: "JOB_Verified" }] }
+        - { op: ">=", args: [{ var: "proof_budget_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "proof_paid_units" }, { const: 0 }] }
+    updates:
+      - { var: "proof_budget_units", expr: { op: "-", args: [{ var: "proof_budget_units" }, { const: 1 }] } }
+      - { var: "proof_paid_units", expr: { const: 1 } }
+      - { var: "proof_job_state", expr: { enum: "JOB_Paid" } }
+    effects:
+      event: { enum: "EV_ProofPaid" }
+      payment_emitted: { bool: true }
+      burn_emitted: { bool: false }
+      finality_emitted: { bool: false }
+
+  - id: "timeout_unpaid_proof"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "proof_job_state" }, { enum: "JOB_Posted" }] }
+        - { op: "=", args: [{ var: "proof_paid_units" }, { const: 0 }] }
+    updates:
+      - { var: "proof_job_state", expr: { enum: "JOB_None" } }
+    effects:
+      event: { enum: "EV_ProofTimedOut" }
+      payment_emitted: { bool: false }
+      burn_emitted: { bool: false }
+      finality_emitted: { bool: false }
+
+  - id: "burn_true_surplus"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "safety_reserve_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "critical_service_units" }, { const: 1 }] }
+        - { op: ">=", args: [{ var: "proof_budget_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "operations_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "proof_paid_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "burned_units" }, { const: 0 }] }
+        - { op: ">", args: [{ var: "unrestricted_units" }, { const: 0 }] }
+    updates:
+      - { var: "unrestricted_units", expr: { op: "-", args: [{ var: "unrestricted_units" }, { const: 1 }] } }
+      - { var: "burned_units", expr: { const: 1 } }
+    effects:
+      event: { enum: "EV_SurplusBurned" }
+      payment_emitted: { bool: false }
+      burn_emitted: { bool: true }
+      finality_emitted: { bool: false }
+
+  - id: "validator_finalize_direct"
+    params:
+      - { id: "five_of_seven_precommits", type: { kind: "bool" } }
+    guard:
+      op: "and"
+      args:
+        - { param: "five_of_seven_precommits" }
+        - { op: "<", args: [{ var: "head_generation" }, { const: 2 }] }
+    updates:
+      - { var: "head_generation", expr: { op: "+", args: [{ var: "head_generation" }, { const: 1 }] } }
+      - { var: "direct_finalized_count", expr: { op: "+", args: [{ var: "direct_finalized_count" }, { const: 1 }] } }
+    effects:
+      event: { enum: "EV_DirectFinalized" }
+      payment_emitted: { bool: false }
+      burn_emitted: { bool: false }
+      finality_emitted: { bool: true }
+
+  - id: "validator_finalize_zrpf"
+    params:
+      - { id: "five_of_seven_precommits", type: { kind: "bool" } }
+    guard:
+      op: "and"
+      args:
+        - { param: "five_of_seven_precommits" }
+        - { op: "=", args: [{ var: "proof_job_state" }, { enum: "JOB_Paid" }] }
+        - { op: "=", args: [{ var: "proof_paid_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "zrpf_finalized_count" }, { const: 0 }] }
+        - { op: "<", args: [{ var: "head_generation" }, { const: 2 }] }
+    updates:
+      - { var: "head_generation", expr: { op: "+", args: [{ var: "head_generation" }, { const: 1 }] } }
+      - { var: "zrpf_finalized_count", expr: { const: 1 } }
+    effects:
+      event: { enum: "EV_ZRPFFinalized" }
+      payment_emitted: { bool: false }
+      burn_emitted: { bool: false }
+      finality_emitted: { bool: true }

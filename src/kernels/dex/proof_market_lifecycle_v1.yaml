@@ -1,0 +1,418 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "proof_market_lifecycle_v1"
+  created_by: "zenodex"
+  notes: |
+    Research-only bounded lifecycle for one externally funded proof-market job.
+
+    Six buyer units cover one listing fee, three seller-payment units, one
+    verifier unit, and one refund unit. Two seller units form a separately
+    conserved performance bond. Verifier acceptance produces a bound witness
+    and moves no value. Only a ZenoLedger-named action commits payment or
+    refund. Rejection and expiry never pay the seller; one bond unit goes to
+    restitution and one returns to the seller.
+
+    The model abstracts cryptographic soundness, canonical encodings, claimant
+    identity, beneficial ownership, real compute cost, storage, liveness, and
+    ZenoLedger consensus as premises. It proves no production refinement or
+    finality property and grants no market, verifier, or payment authority.
+
+observables:
+  state_vars:
+    - "job_state"
+    - "buyer_unrestricted_units"
+    - "buyer_escrow_units"
+    - "seller_unrestricted_units"
+    - "seller_bond_escrow_units"
+    - "seller_paid_units"
+    - "verifier_paid_units"
+    - "protocol_fee_units"
+    - "buyer_refund_units"
+    - "seller_bond_return_units"
+    - "seller_bond_restitution_units"
+    - "verified_witness_units"
+    - "canonical_work_claimed_units"
+    - "settlement_commit_count"
+  effects:
+    - "event"
+    - "proof_admission_emitted"
+    - "payment_emitted"
+    - "refund_emitted"
+    - "zenoledger_commit_emitted"
+
+types:
+  - id: "ProofMarketJobState"
+    type:
+      kind: "enum"
+      symbols:
+        - "JOB_None"
+        - "JOB_Open"
+        - "JOB_Locked"
+        - "JOB_Submitted"
+        - "JOB_Verified"
+        - "JOB_Rejected"
+        - "JOB_Expired"
+        - "JOB_Committed"
+        - "JOB_Refunded"
+  - id: "ProofMarketEvent"
+    type:
+      kind: "enum"
+      symbols:
+        - "EV_ListedAndPrefunded"
+        - "EV_SellerLocked"
+        - "EV_WorkSubmitted"
+        - "EV_WorkVerified"
+        - "EV_WorkRejected"
+        - "EV_WorkExpired"
+        - "EV_PaymentCommitted"
+        - "EV_RefundCommitted"
+
+state_vars:
+  - id: "job_state"
+    role: "control"
+    type: { ref: "ProofMarketJobState" }
+  - id: "buyer_unrestricted_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 6 }
+  - id: "buyer_escrow_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 5 }
+  - id: "seller_unrestricted_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "seller_bond_escrow_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "seller_paid_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3 }
+  - id: "verifier_paid_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "protocol_fee_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "buyer_refund_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 5 }
+  - id: "seller_bond_return_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "seller_bond_restitution_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "verified_witness_units"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "canonical_work_claimed_units"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "settlement_commit_count"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - { var: "job_state", expr: { enum: "JOB_None" } }
+  - { var: "buyer_unrestricted_units", expr: { const: 6 } }
+  - { var: "buyer_escrow_units", expr: { const: 0 } }
+  - { var: "seller_unrestricted_units", expr: { const: 2 } }
+  - { var: "seller_bond_escrow_units", expr: { const: 0 } }
+  - { var: "seller_paid_units", expr: { const: 0 } }
+  - { var: "verifier_paid_units", expr: { const: 0 } }
+  - { var: "protocol_fee_units", expr: { const: 0 } }
+  - { var: "buyer_refund_units", expr: { const: 0 } }
+  - { var: "seller_bond_return_units", expr: { const: 0 } }
+  - { var: "seller_bond_restitution_units", expr: { const: 0 } }
+  - { var: "verified_witness_units", expr: { const: 0 } }
+  - { var: "canonical_work_claimed_units", expr: { const: 0 } }
+  - { var: "settlement_commit_count", expr: { const: 0 } }
+
+invariants:
+  - id: "inv_buyer_value_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - { var: "buyer_unrestricted_units" }
+            - op: "+"
+              args:
+                - { var: "buyer_escrow_units" }
+                - op: "+"
+                  args:
+                    - { var: "seller_paid_units" }
+                    - op: "+"
+                      args:
+                        - { var: "verifier_paid_units" }
+                        - op: "+"
+                          args:
+                            - { var: "protocol_fee_units" }
+                            - { var: "buyer_refund_units" }
+        - { const: 6 }
+  - id: "inv_seller_bond_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - { var: "seller_unrestricted_units" }
+            - op: "+"
+              args:
+                - { var: "seller_bond_escrow_units" }
+                - op: "+"
+                  args:
+                    - { var: "seller_bond_return_units" }
+                    - { var: "seller_bond_restitution_units" }
+        - { const: 2 }
+  - id: "inv_positive_seller_payment_requires_verified_commit"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "seller_paid_units" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Committed" }] }
+            - { op: "=", args: [{ var: "verified_witness_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "canonical_work_claimed_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 1 }] }
+  - id: "inv_committed_job_has_exact_payment_bundle"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args:
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Committed" }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "seller_paid_units" }, { const: 3 }] }
+            - { op: "=", args: [{ var: "verifier_paid_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "protocol_fee_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "buyer_refund_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "seller_bond_return_units" }, { const: 2 }] }
+            - { op: "=", args: [{ var: "seller_bond_restitution_units" }, { const: 0 }] }
+  - id: "inv_refund_never_pays_seller"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args:
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Refunded" }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "seller_paid_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "canonical_work_claimed_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 1 }] }
+  - id: "inv_claim_requires_verified_witness"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - { var: "canonical_work_claimed_units" }
+        - { var: "verified_witness_units" }
+  - id: "inv_protocol_fee_is_listing_cost_only_before_terminal_settlement"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_None" }] }
+        - { op: "=", args: [{ var: "protocol_fee_units" }, { const: 1 }] }
+
+actions:
+  - id: "zenoledger_list_and_prefund"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_None" }] }
+        - { op: "=", args: [{ var: "buyer_unrestricted_units" }, { const: 6 }] }
+    updates:
+      - { var: "buyer_unrestricted_units", expr: { const: 0 } }
+      - { var: "buyer_escrow_units", expr: { const: 5 } }
+      - { var: "protocol_fee_units", expr: { const: 1 } }
+      - { var: "job_state", expr: { enum: "JOB_Open" } }
+    effects:
+      event: { enum: "EV_ListedAndPrefunded" }
+      proof_admission_emitted: { bool: false }
+      payment_emitted: { bool: false }
+      refund_emitted: { bool: false }
+      zenoledger_commit_emitted: { bool: true }
+
+  - id: "seller_lock"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Open" }] }
+        - { op: "=", args: [{ var: "seller_unrestricted_units" }, { const: 2 }] }
+    updates:
+      - { var: "seller_unrestricted_units", expr: { const: 0 } }
+      - { var: "seller_bond_escrow_units", expr: { const: 2 } }
+      - { var: "job_state", expr: { enum: "JOB_Locked" } }
+    effects:
+      event: { enum: "EV_SellerLocked" }
+      proof_admission_emitted: { bool: false }
+      payment_emitted: { bool: false }
+      refund_emitted: { bool: false }
+      zenoledger_commit_emitted: { bool: false }
+
+  - id: "seller_submit"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Locked" }] }
+        - { op: "=", args: [{ var: "seller_bond_escrow_units" }, { const: 2 }] }
+    updates:
+      - { var: "job_state", expr: { enum: "JOB_Submitted" } }
+    effects:
+      event: { enum: "EV_WorkSubmitted" }
+      proof_admission_emitted: { bool: false }
+      payment_emitted: { bool: false }
+      refund_emitted: { bool: false }
+      zenoledger_commit_emitted: { bool: false }
+
+  - id: "verify_bound_unique_work"
+    params:
+      - { id: "proof_valid", type: { kind: "bool" } }
+      - { id: "claim_and_assumptions_bound", type: { kind: "bool" } }
+      - { id: "verifier_profile_current", type: { kind: "bool" } }
+      - { id: "canonical_work_unique", type: { kind: "bool" } }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Submitted" }] }
+        - { param: "proof_valid" }
+        - { param: "claim_and_assumptions_bound" }
+        - { param: "verifier_profile_current" }
+        - { param: "canonical_work_unique" }
+        - { op: "=", args: [{ var: "canonical_work_claimed_units" }, { const: 0 }] }
+    updates:
+      - { var: "verified_witness_units", expr: { const: 1 } }
+      - { var: "job_state", expr: { enum: "JOB_Verified" } }
+    effects:
+      event: { enum: "EV_WorkVerified" }
+      proof_admission_emitted: { bool: true }
+      payment_emitted: { bool: false }
+      refund_emitted: { bool: false }
+      zenoledger_commit_emitted: { bool: false }
+
+  - id: "verifier_reject"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Submitted" }] }
+        - { op: "=", args: [{ var: "verified_witness_units" }, { const: 0 }] }
+    updates:
+      - { var: "job_state", expr: { enum: "JOB_Rejected" } }
+    effects:
+      event: { enum: "EV_WorkRejected" }
+      proof_admission_emitted: { bool: false }
+      payment_emitted: { bool: false }
+      refund_emitted: { bool: false }
+      zenoledger_commit_emitted: { bool: false }
+
+  - id: "timeout_unverified_work"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Locked" }] }
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Submitted" }] }
+        - { op: "=", args: [{ var: "verified_witness_units" }, { const: 0 }] }
+    updates:
+      - { var: "job_state", expr: { enum: "JOB_Expired" } }
+    effects:
+      event: { enum: "EV_WorkExpired" }
+      proof_admission_emitted: { bool: false }
+      payment_emitted: { bool: false }
+      refund_emitted: { bool: false }
+      zenoledger_commit_emitted: { bool: false }
+
+  - id: "zenoledger_commit_verified_payment"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Verified" }] }
+        - { op: "=", args: [{ var: "verified_witness_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "canonical_work_claimed_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "buyer_escrow_units" }, { const: 5 }] }
+        - { op: "=", args: [{ var: "seller_bond_escrow_units" }, { const: 2 }] }
+        - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 0 }] }
+    updates:
+      - { var: "buyer_escrow_units", expr: { const: 0 } }
+      - { var: "seller_paid_units", expr: { const: 3 } }
+      - { var: "verifier_paid_units", expr: { const: 1 } }
+      - { var: "buyer_refund_units", expr: { const: 1 } }
+      - { var: "seller_bond_escrow_units", expr: { const: 0 } }
+      - { var: "seller_bond_return_units", expr: { const: 2 } }
+      - { var: "canonical_work_claimed_units", expr: { const: 1 } }
+      - { var: "settlement_commit_count", expr: { const: 1 } }
+      - { var: "job_state", expr: { enum: "JOB_Committed" } }
+    effects:
+      event: { enum: "EV_PaymentCommitted" }
+      proof_admission_emitted: { bool: false }
+      payment_emitted: { bool: true }
+      refund_emitted: { bool: true }
+      zenoledger_commit_emitted: { bool: true }
+
+  - id: "zenoledger_refund_rejected"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Rejected" }] }
+        - { op: "=", args: [{ var: "buyer_escrow_units" }, { const: 5 }] }
+        - { op: "=", args: [{ var: "seller_bond_escrow_units" }, { const: 2 }] }
+        - { op: "=", args: [{ var: "verified_witness_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "canonical_work_claimed_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 0 }] }
+    updates:
+      - { var: "buyer_escrow_units", expr: { const: 0 } }
+      - { var: "verifier_paid_units", expr: { const: 1 } }
+      - { var: "buyer_refund_units", expr: { const: 4 } }
+      - { var: "seller_bond_escrow_units", expr: { const: 0 } }
+      - { var: "seller_bond_return_units", expr: { const: 1 } }
+      - { var: "seller_bond_restitution_units", expr: { const: 1 } }
+      - { var: "settlement_commit_count", expr: { const: 1 } }
+      - { var: "job_state", expr: { enum: "JOB_Refunded" } }
+    effects:
+      event: { enum: "EV_RefundCommitted" }
+      proof_admission_emitted: { bool: false }
+      payment_emitted: { bool: false }
+      refund_emitted: { bool: true }
+      zenoledger_commit_emitted: { bool: true }
+
+  - id: "zenoledger_refund_expired"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Expired" }] }
+        - { op: "=", args: [{ var: "buyer_escrow_units" }, { const: 5 }] }
+        - { op: "=", args: [{ var: "seller_bond_escrow_units" }, { const: 2 }] }
+        - { op: "=", args: [{ var: "verified_witness_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "canonical_work_claimed_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 0 }] }
+    updates:
+      - { var: "buyer_escrow_units", expr: { const: 0 } }
+      - { var: "buyer_refund_units", expr: { const: 5 } }
+      - { var: "seller_bond_escrow_units", expr: { const: 0 } }
+      - { var: "seller_bond_return_units", expr: { const: 1 } }
+      - { var: "seller_bond_restitution_units", expr: { const: 1 } }
+      - { var: "settlement_commit_count", expr: { const: 1 } }
+      - { var: "job_state", expr: { enum: "JOB_Refunded" } }
+    effects:
+      event: { enum: "EV_RefundCommitted" }
+      proof_admission_emitted: { bool: false }
+      payment_emitted: { bool: false }
+      refund_emitted: { bool: true }
+      zenoledger_commit_emitted: { bool: true }

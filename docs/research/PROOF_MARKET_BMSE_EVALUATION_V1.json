@@ -1,0 +1,229 @@
+{
+  "bmse": {
+    "commit": "bd3601a1c5aea8e24c7775682fa7936540b5d0e4",
+    "generic_marketplace_baseline": {
+      "candidate_count": 23,
+      "eligible_count": 1,
+      "grid_profile": "tuned_v3",
+      "interpretation": "The stock BMSE grid preferred a subscription, self-serve, two-sided network row under its generic priors. It cannot choose ZenoProof fees because proof verification, counterexamples, reuse, ZRPF, and token reserve dimensions are absent.",
+      "objective_profile": "marketplace_family_v1",
+      "ok": true,
+      "sha256": "823ad5a49d799a3858249db88dfe21ec5050d7e06892cb96c2d07dc62e391ecc",
+      "top_candidate": {
+        "cac": 150,
+        "channel": "paid_ads",
+        "customer_type": "consumer",
+        "fulfillment": "self_serve",
+        "revenue_model": "subscription",
+        "two_sided_network": true
+      },
+      "top_objectives": {
+        "expected_npv": 17650,
+        "neg_complexity": -0.2,
+        "neg_cvar_0_95_loss": -500,
+        "p_npv_gt_0": 0.744428
+      }
+    },
+    "repository": "TheDarkLightX/BMSE",
+    "source_pins": [
+      {
+        "path": "bmse_runtime/core.py",
+        "sha256": "8d94b5378958412c9d991d58e8a6c29ecee337114beeb490028fb9584a163bd1"
+      },
+      {
+        "path": "tools/bmse_runtime_explore.py",
+        "sha256": "dc73e29274d38c1b35515ea5aec3f7674a10e9b46817c2d20ccce1affb900dc8"
+      },
+      {
+        "path": "bmse_refine/family_profiles.json",
+        "sha256": "b96a79f40efa4b928e0a8a2a14c6eae8721d6943839b63f89d4d4c7457c67ce4"
+      },
+      {
+        "path": "bmse_refine/objective_profiles.json",
+        "sha256": "aca51ed322502c9d750968f6ec661614e9bdba7dfaf29f8212bd7e12a195bfb6"
+      }
+    ]
+  },
+  "certificate_ok": true,
+  "frontier_candidate_ids": [
+    "FULL_HYBRID_ASSURANCE",
+    "HYBRID_SLA_CATALOG",
+    "SUBSCRIPTION_ONLY"
+  ],
+  "input": {
+    "schema": "zenodex/proof-market-business-model/v1",
+    "sha256": "ec49b5b83e35393cc63fad2a4a3732402605deb3415d146325b3fe6914abebf1"
+  },
+  "objective_mapping": {
+    "chance_ok": "positive monthly cash surplus in at least 6000 bps of scenario weight",
+    "expected_npv": "24 * exact expected monthly contribution after bootstrap bonus; undiscounted proxy, not accounting NPV",
+    "hard_ok": "buyer-seller raw-volume coalition attack is not profitable in the bounded rule",
+    "neg_complexity": "negative ordinal feature-complexity units",
+    "neg_cvar_0_95_loss": "negative worst modeled monthly cash loss proxy",
+    "p_npv_gt_0": "exact scenario weight with positive monthly cash surplus"
+  },
+  "promotion_boundary": {
+    "claim": "BMSE replayed exact Pareto admission over ZenoProof's domain evaluations.",
+    "nonclaims": [
+      "The mapped expected_npv field is an undiscounted contribution proxy.",
+      "BMSE did not verify ZenoProof economic assumptions or forecast demand.",
+      "The certificate authenticates a deterministic decision payload, not its real-world premises.",
+      "This receipt grants no payment, token, proof, settlement, finality, or release authority."
+    ],
+    "production_ready": false,
+    "selected": false
+  },
+  "rows": [
+    {
+      "accepted": true,
+      "candidate_fingerprint": "accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352",
+      "candidate_id": "FULL_HYBRID_ASSURANCE",
+      "certificate": {
+        "kind": "frontier_decision",
+        "payload_hash": "b6f1eb2ca411f7888f216f4199480f711ff673979c779b2d9e4187f2f2ae436d",
+        "payload_json": "{\"accepted\":true,\"candidate_fingerprint\":\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\"],\"frontier_before\":[],\"hard_ok\":true,\"objectives\":{\"expected_npv\":257923488.0,\"neg_complexity\":-7.0,\"neg_cvar_0_95_loss\":-8745000.0,\"p_npv_gt_0\":0.625},\"reason\":\"accepted_nondominated\",\"removed\":[]}"
+      },
+      "chance_ok": true,
+      "dominated_by": [],
+      "hard_ok": true,
+      "objectives": {
+        "expected_npv": 257923488.0,
+        "neg_complexity": -7.0,
+        "neg_cvar_0_95_loss": -8745000.0,
+        "p_npv_gt_0": 0.625
+      },
+      "reason": "accepted_nondominated",
+      "removed": []
+    },
+    {
+      "accepted": true,
+      "candidate_fingerprint": "fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf",
+      "candidate_id": "HYBRID_SLA",
+      "certificate": {
+        "kind": "frontier_decision",
+        "payload_hash": "44abc84c5ad993915de9fefd2006977901806e8cdba8d211b77221d00dcc7294",
+        "payload_json": "{\"accepted\":true,\"candidate_fingerprint\":\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"frontier_before\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":118068000.0,\"neg_complexity\":-5.0,\"neg_cvar_0_95_loss\":-8890000.0,\"p_npv_gt_0\":0.625},\"reason\":\"accepted_nondominated\",\"removed\":[]}"
+      },
+      "chance_ok": true,
+      "dominated_by": [],
+      "hard_ok": true,
+      "objectives": {
+        "expected_npv": 118068000.0,
+        "neg_complexity": -5.0,
+        "neg_cvar_0_95_loss": -8890000.0,
+        "p_npv_gt_0": 0.625
+      },
+      "reason": "accepted_nondominated",
+      "removed": []
+    },
+    {
+      "accepted": true,
+      "candidate_fingerprint": "68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d",
+      "candidate_id": "HYBRID_SLA_CATALOG",
+      "certificate": {
+        "kind": "frontier_decision",
+        "payload_hash": "ba5a0b944ccc24fb0756dc8c912ca76541f645772161fe84b15b22117edb7e09",
+        "payload_json": "{\"accepted\":true,\"candidate_fingerprint\":\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"frontier_before\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":247123488.0,\"neg_complexity\":-6.0,\"neg_cvar_0_95_loss\":-8805000.0,\"p_npv_gt_0\":0.625},\"reason\":\"accepted_nondominated\",\"removed\":[]}"
+      },
+      "chance_ok": true,
+      "dominated_by": [],
+      "hard_ok": true,
+      "objectives": {
+        "expected_npv": 247123488.0,
+        "neg_complexity": -6.0,
+        "neg_cvar_0_95_loss": -8805000.0,
+        "p_npv_gt_0": 0.625
+      },
+      "reason": "accepted_nondominated",
+      "removed": []
+    },
+    {
+      "accepted": false,
+      "candidate_fingerprint": "1268418cafd7164fdfe0c4966907e51e6049a88af35220c5383b819207b100e8",
+      "candidate_id": "LISTING_PLUS_SUCCESS",
+      "certificate": {
+        "kind": "frontier_decision",
+        "payload_hash": "6af1db25d702912dcdb43e64f322f5f3b683522210ecf6968d92cf2cb284f27a",
+        "payload_json": "{\"accepted\":false,\"candidate_fingerprint\":\"1268418cafd7164fdfe0c4966907e51e6049a88af35220c5383b819207b100e8\",\"chance_ok\":false,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"frontier_before\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":-4737000.0,\"neg_complexity\":-3.0,\"neg_cvar_0_95_loss\":-11970000.0,\"p_npv_gt_0\":0.3125},\"reason\":\"chance_infeasible\",\"removed\":[]}"
+      },
+      "chance_ok": false,
+      "dominated_by": [],
+      "hard_ok": true,
+      "objectives": {
+        "expected_npv": -4737000.0,
+        "neg_complexity": -3.0,
+        "neg_cvar_0_95_loss": -11970000.0,
+        "p_npv_gt_0": 0.3125
+      },
+      "reason": "chance_infeasible",
+      "removed": []
+    },
+    {
+      "accepted": false,
+      "candidate_fingerprint": "fb39c81420f425f91886e865600a1d955fab9d1adb6d57e2d78fe7e9614bf939",
+      "candidate_id": "RAW_VOLUME_EMISSION",
+      "certificate": {
+        "kind": "frontier_decision",
+        "payload_hash": "d80932d395bf6dd60d321c14a389763fa3e4ae98d67a881e114b71d7dc1d626d",
+        "payload_json": "{\"accepted\":false,\"candidate_fingerprint\":\"fb39c81420f425f91886e865600a1d955fab9d1adb6d57e2d78fe7e9614bf939\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"frontier_before\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"hard_ok\":false,\"objectives\":{\"expected_npv\":44083488.0,\"neg_complexity\":-7.0,\"neg_cvar_0_95_loss\":-8745000.0,\"p_npv_gt_0\":0.625},\"reason\":\"hard_infeasible\",\"removed\":[]}"
+      },
+      "chance_ok": true,
+      "dominated_by": [],
+      "hard_ok": false,
+      "objectives": {
+        "expected_npv": 44083488.0,
+        "neg_complexity": -7.0,
+        "neg_cvar_0_95_loss": -8745000.0,
+        "p_npv_gt_0": 0.625
+      },
+      "reason": "hard_infeasible",
+      "removed": []
+    },
+    {
+      "accepted": true,
+      "candidate_fingerprint": "045eb46e757952bf22444195242f39a138d9e4048a9c69ff1d32cb639dc706c2",
+      "candidate_id": "SUBSCRIPTION_ONLY",
+      "certificate": {
+        "kind": "frontier_decision",
+        "payload_hash": "3f1204d30aa4baecd3b03ae8bf0898134ae9899c85dba62953193c3eda931b2b",
+        "payload_json": "{\"accepted\":true,\"candidate_fingerprint\":\"045eb46e757952bf22444195242f39a138d9e4048a9c69ff1d32cb639dc706c2\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"045eb46e757952bf22444195242f39a138d9e4048a9c69ff1d32cb639dc706c2\"],\"frontier_before\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":175908000.0,\"neg_complexity\":-3.0,\"neg_cvar_0_95_loss\":-8610000.0,\"p_npv_gt_0\":0.625},\"reason\":\"accepted_nondominated\",\"removed\":[\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"]}"
+      },
+      "chance_ok": true,
+      "dominated_by": [],
+      "hard_ok": true,
+      "objectives": {
+        "expected_npv": 175908000.0,
+        "neg_complexity": -3.0,
+        "neg_cvar_0_95_loss": -8610000.0,
+        "p_npv_gt_0": 0.625
+      },
+      "reason": "accepted_nondominated",
+      "removed": [
+        "fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf"
+      ]
+    },
+    {
+      "accepted": false,
+      "candidate_fingerprint": "38f721220855a2edc42358ff2849e3a156d27731c7f5ad78971bc2124d0c29cf",
+      "candidate_id": "SUCCESS_FEE_ONLY",
+      "certificate": {
+        "kind": "frontier_decision",
+        "payload_hash": "f07cee60d94660c0a91c94ea8132328c238abdb013cde914e78aeaf5b12ed191",
+        "payload_json": "{\"accepted\":false,\"candidate_fingerprint\":\"38f721220855a2edc42358ff2849e3a156d27731c7f5ad78971bc2124d0c29cf\",\"chance_ok\":false,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"045eb46e757952bf22444195242f39a138d9e4048a9c69ff1d32cb639dc706c2\"],\"frontier_before\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"045eb46e757952bf22444195242f39a138d9e4048a9c69ff1d32cb639dc706c2\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":39903000.0,\"neg_complexity\":-2.0,\"neg_cvar_0_95_loss\":-10990000.0,\"p_npv_gt_0\":0.3125},\"reason\":\"chance_infeasible\",\"removed\":[]}"
+      },
+      "chance_ok": false,
+      "dominated_by": [],
+      "hard_ok": true,
+      "objectives": {
+        "expected_npv": 39903000.0,
+        "neg_complexity": -2.0,
+        "neg_cvar_0_95_loss": -10990000.0,
+        "p_npv_gt_0": 0.3125
+      },
+      "reason": "chance_infeasible",
+      "removed": []
+    }
+  ],
+  "schema": "zenodex/proof-market-bmse-evaluation/v1",
+  "status": "RESEARCH_ONLY_ADVISORY"
+}
