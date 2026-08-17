@@ -79,6 +79,32 @@ default loss, replacement cost, prover capital, and detection data. An open
 secondary-prover race is also unselected: urgent redundant computation must be
 explicitly buyer-funded, while ordinary recovery uses a new assigned auction.
 
+### Source-informed calibration
+
+The separate [auction and capacity calibration](PROOF_MARKET_CALIBRATION_V1.md)
+crosses 243 policies over 2,916 auction scenarios and 729 capacity scenarios.
+Its unselected research envelope uses:
+
+- a maximum price capped at four times independently benchmarked reference cost,
+  while the modeled competitive payment averages 1.5526 times reference cost;
+- a primary lock window of 2.5 times reference proving time plus a publication
+  buffer, recalculated after auction delay;
+- a loss-based bond covering 125% replacement cost plus named buyer delay
+  damage;
+- a 20% permissionless capacity floor and a 20% beneficial-owner priority cap.
+
+Under the declared scenarios, this row reaches 100% modeled fulfillment. The
+paired 10x-static-bond row reaches 75%, and its capital-exclusion rate rises
+from 166 to 1,166 basis points. This is a counterexample to treating a fixed
+collateral multiple as universally safer. The four-times price is an escrowed
+ceiling; the modeled collusive-wait uplift remains material and requires live
+monitoring, competition thresholds, and direct-execution or reassignment
+fallbacks.
+
+The source-informed weights and cloud list prices are sensitivity priors. They
+remain unfit for activation until signed live workload, bid, latency, failure,
+reprocurement, utilization, and concentration observations replace them.
+
 ## What the Market Sells
 
 A public proof is non-rival: disclosure lets anyone copy its bytes. Artificial
@@ -508,6 +534,8 @@ Current evidence:
   guards;
 - a source-status-preserving review of official Boundless documentation,
   releases, and four published audit PDFs;
+- a 243-policy exact auction, bond, and capacity calibration with 2,916 auction
+  and 729 capacity scenario evaluations;
 - 2,601-case half-fee self-dealing search and a positive raw-volume mutant;
 - nine-state-weight business-model sweep;
 - BMSE generic baseline and certificate-backed custom Pareto receipt;
@@ -517,19 +545,20 @@ Current evidence:
   zero claimed work key;
 - six directly compiled Lean files for bounty caps, composition, Sybil bonds,
   linked assurance, maintenance, and dispute intervals;
-- the separate ZRPF cost, procurement, waterfall, and reserve submodel.
+- the separate ZRPF cost, procurement, waterfall, and reserve submodel;
 - the exact 22-participant registry projection, including twelve currently
   unselected service budgets and their fail-safe exhaustion behaviors.
 
 Required before selection:
 
-- calibrated demand, compute, verification, storage, support, and acquisition
-  distributions from real quotes or testnet observations;
+- signed live demand, workload-cycle, bid, latency, default, capacity,
+  verification, storage, support, and acquisition observations to replace the
+  source-informed calibration priors;
 - repository-wide Lean-root integration and runtime projections for the six
   directly compiled theorem files;
 - an independently reviewed beneficial-owner and related-party policy;
 - product decisions on default access policy, payment asset, reserve lane caps,
-  counterexample milestone share, and enterprise launch scope.
+  counterexample milestone share, and enterprise launch scope;
 - qualified prefund and recurring-fee budgets for every launch-critical role.
 
 Required before production:
@@ -537,7 +566,7 @@ Required before production:
 - production Rust transitions and canonical codecs;
 - release-selected verifier registries and opaque admission witnesses;
 - mounted ZenoLedger escrow, payment, refund, and restitution capability;
-- migration, restart, concurrency, crash, replay, and no-bypass evidence.
+- migration, restart, concurrency, crash, replay, and no-bypass evidence;
 - independent-process crash, restart, migration, and redelivery evidence for
   durable receipt-before-payment and committed-outbox idempotency.
 

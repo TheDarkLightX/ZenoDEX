@@ -16,12 +16,19 @@ DEFAULT_OUTPUT: Final = REPO_ROOT / "docs/research/PROOF_MARKET_BUSINESS_MODEL_V
 SERVICE_FUNDING_PATH: Final = (
     REPO_ROOT / "docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json"
 )
+CALIBRATION_PATH: Final = (
+    REPO_ROOT / "docs/research/PROOF_MARKET_CALIBRATION_V1.json"
+)
 SCHEMA: Final = "zenodex/proof-market-business-model/v1"
 REVIEWED_SOURCE_COMMIT: Final = "78293acd0dec32e27efdf464fccc63ba2987626c"
 SOURCE_PATHS: Final = (
     "tools/check_proof_market_business_model_v1.py",
     "tools/proof_market_business_model_v1.py",
     "tools/proof_market_boundless_primary_sources_v1.py",
+    "tools/check_proof_market_calibration_v1.py",
+    "tools/proof_market_calibration_v1.py",
+    "docs/research/PROOF_MARKET_CALIBRATION_V1.md",
+    "docs/research/PROOF_MARKET_CALIBRATION_V1.json",
     "tools/proof_market_bmse_adapter_v1.py",
     "docs/research/PROOF_MARKET_BUSINESS_MODEL_V1.md",
     "src/kernels/dex/proof_market_lifecycle_v1.yaml",
@@ -44,6 +51,7 @@ SOURCE_PATHS: Final = (
 
 sys.path.insert(0, str(REPO_ROOT))
 
+from tools import check_proof_market_calibration_v1 as calibration_checker  # noqa: E402
 from tools import proof_market_boundless_primary_sources_v1 as boundless_sources  # noqa: E402
 from tools import proof_market_business_model_v1 as model  # noqa: E402
 
@@ -640,6 +648,42 @@ def _reserve_envelope() -> dict[str, Any]:
     }
 
 
+def _calibration_boundary() -> dict[str, Any]:
+    expected = calibration_checker._canonical_bytes(calibration_checker._document())
+    actual = CALIBRATION_PATH.read_bytes() if CALIBRATION_PATH.is_file() else b""
+    if actual != expected:
+        raise ValueError("proof-market calibration artifact is stale or missing")
+    payload = json.loads(actual)
+    expected_schema = "zenodex/proof-market-calibration/v1"
+    if payload.get("schema") != expected_schema:
+        raise ValueError("unexpected proof-market calibration schema")
+    if payload.get("status") != "RESEARCH_ONLY_UNMOUNTED_UNSELECTED":
+        raise ValueError("proof-market calibration overstates its status")
+    recommendation = payload.get("recommendation")
+    promotion = payload.get("promotion_boundary")
+    if not isinstance(recommendation, dict) or not isinstance(promotion, dict):
+        raise ValueError("proof-market calibration lacks its recommendation boundary")
+    candidate = recommendation.get("candidate")
+    if not isinstance(candidate, dict):
+        raise ValueError("proof-market calibration lacks its candidate envelope")
+    if any(promotion.get(field) is not False for field in ("selected", "mounted", "production_ready")):
+        raise ValueError("proof-market calibration claims unauthorized promotion")
+    return {
+        "source": {
+            "path": str(CALIBRATION_PATH.relative_to(REPO_ROOT)),
+            "sha256": _sha256(actual),
+            "schema": expected_schema,
+            "status": payload["status"],
+        },
+        "candidate": candidate,
+        "paired_bond_rule_comparison": recommendation.get(
+            "paired_bond_rule_comparison"
+        ),
+        "claim": promotion.get("claim"),
+        "nonclaims": promotion.get("nonclaims"),
+    }
+
+
 def _service_funding_boundary() -> dict[str, Any]:
     payload = json.loads(SERVICE_FUNDING_PATH.read_text(encoding="utf-8"))
     expected_schema = "zenodex/production-readiness-g1-service-funding/v1"
@@ -787,6 +831,7 @@ def _document() -> dict[str, Any]:
             "counterexample_market": _counterexample_market(),
             "game_theory": _game_theory(),
             "proof_reserve": _reserve_envelope(),
+            "auction_capacity_calibration": _calibration_boundary(),
             "protocol_service_funding": _service_funding_boundary(),
         },
         "recommendation": {
@@ -828,6 +873,7 @@ def _document() -> dict[str, Any]:
                 "closed fourteen-check settlement sweep over 16,384 admission vectors",
                 "Boundless-derived effective-window, liability-first slash, and permissionless-capacity guard examples",
                 "source-status-preserving review of official Boundless docs, releases, and four published audit PDFs",
+                "243-policy exact auction, bond, and capacity calibration over 2,916 auction and 729 capacity scenarios",
                 "bounded half-fee self-dealing search",
                 "nine-scenario demand-by-cost business-model sweep",
                 "dual-solver ESSO lifecycle proof covering durable receipt-before-payment, atomic callback-outbox ancestry, and one-shot delivery",
@@ -837,7 +883,7 @@ def _document() -> dict[str, Any]:
             ],
             "required": [
                 "repository-wide Lean-root integration and runtime projection for the direct-compiled theorem files",
-                "calibrated job demand, compute cost, verifier cost, and customer acquisition distributions",
+                "signed live job demand, workload-cycle, bid, latency, default, capacity, verifier-cost, and customer-acquisition observations to replace source-informed priors",
                 "beneficial-owner and related-party policy with false-positive and evasion analysis",
                 "production Rust transition, canonical codec, mounted ZenoLedger payment port, and no-bypass inventory",
                 "independent-process crash, restart, migration, and redelivery evidence for durable receipts and committed-outbox effect idempotency",

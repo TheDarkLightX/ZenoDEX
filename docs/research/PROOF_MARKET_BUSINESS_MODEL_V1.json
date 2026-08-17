@@ -38,6 +38,228 @@
     "paid-priority capacity starves the permissionless market"
   ],
   "bounded_model": {
+    "auction_capacity_calibration": {
+      "candidate": {
+        "auction_metrics": {
+          "admitted_late_count": 0,
+          "average_competitive_payment_atoms": 6624003,
+          "average_eligible_owner_fraction_bps": 6500,
+          "average_price_to_reference_bps": 15526,
+          "bond_exclusion_bps": 166,
+          "collusive_uplift_bps": 15762,
+          "fallback_bps": 0,
+          "fulfillment_bps": 10000,
+          "maximum_winner_owner_share_bps": 6500,
+          "policy_id": "LOSS_P40000_W25000_F2000_C2000",
+          "price_exclusion_bps": 458,
+          "window_exclusion_bps": 3333
+        },
+        "auction_policy": {
+          "bond_rule": "LOSS_BASED",
+          "maximum_price_cost_bps": 40000,
+          "minimum_price_cost_bps": 8000,
+          "policy_id": "LOSS_P40000_W25000_F2000_C2000",
+          "primary_window_factor_bps": 25000,
+          "publication_buffer_seconds": 120,
+          "ramp_duration_factor_bps": 5000,
+          "static_bond_multiple_bps": 0
+        },
+        "capacity_metrics": {
+          "maximum_priority_owner_share_bps": 5000,
+          "permissionless_service_bps": 8750,
+          "priority_service_bps": 8094,
+          "utilization_bps": 8250
+        },
+        "capacity_policy": {
+          "permissionless_floor_bps": 2000,
+          "priority_owner_cap_bps": 2000,
+          "total_slots": 100
+        },
+        "hard_constraints": {
+          "BOND_EXCLUSION_AT_MOST_4000_BPS": true,
+          "ELIGIBLE_OWNER_FRACTION_AT_LEAST_5000_BPS": true,
+          "FULFILLMENT_AT_LEAST_9500_BPS": true,
+          "LOSS_BASED_BOND": true,
+          "NO_ADMITTED_LATE_LOCK": true,
+          "PERMISSIONLESS_FLOOR_AT_LEAST_2000_BPS": true,
+          "PERMISSIONLESS_SERVICE_AT_LEAST_8000_BPS": true,
+          "PRIORITY_OWNER_CAP_AT_MOST_3000_BPS": true,
+          "PRIORITY_SERVICE_AT_LEAST_6500_BPS": true,
+          "UTILIZATION_AT_LEAST_7500_BPS": true
+        },
+        "hard_ok": true,
+        "policy_id": "LOSS_P40000_W25000_F2000_C2000"
+      },
+      "claim": "The exact grid identifies a falsifiable launch envelope under the declared source-informed scenarios.",
+      "nonclaims": [
+        "The recommended row is not a selected fee, price, deadline, collateral, or capacity profile.",
+        "The scenario weights do not forecast demand, proving cost, failure, utilization, or market price.",
+        "Cloud list prices omit some host, storage, bandwidth, tax, capital, and operational costs.",
+        "Beneficial-owner aggregation, workload-cycle estimates, and live telemetry remain external authenticated premises.",
+        "No simulation output can admit a proof, reserve capacity, pay a prover, slash a bond, or commit ZenoLedger state."
+      ],
+      "paired_bond_rule_comparison": {
+        "loss_based": {
+          "auction_metrics": {
+            "admitted_late_count": 0,
+            "average_competitive_payment_atoms": 6624003,
+            "average_eligible_owner_fraction_bps": 6500,
+            "average_price_to_reference_bps": 15526,
+            "bond_exclusion_bps": 166,
+            "collusive_uplift_bps": 15762,
+            "fallback_bps": 0,
+            "fulfillment_bps": 10000,
+            "maximum_winner_owner_share_bps": 6500,
+            "policy_id": "LOSS_P40000_W25000_F2000_C2000",
+            "price_exclusion_bps": 458,
+            "window_exclusion_bps": 3333
+          },
+          "auction_policy": {
+            "bond_rule": "LOSS_BASED",
+            "maximum_price_cost_bps": 40000,
+            "minimum_price_cost_bps": 8000,
+            "policy_id": "LOSS_P40000_W25000_F2000_C2000",
+            "primary_window_factor_bps": 25000,
+            "publication_buffer_seconds": 120,
+            "ramp_duration_factor_bps": 5000,
+            "static_bond_multiple_bps": 0
+          },
+          "capacity_metrics": {
+            "maximum_priority_owner_share_bps": 5000,
+            "permissionless_service_bps": 8750,
+            "priority_service_bps": 8094,
+            "utilization_bps": 8250
+          },
+          "capacity_policy": {
+            "permissionless_floor_bps": 2000,
+            "priority_owner_cap_bps": 2000,
+            "total_slots": 100
+          },
+          "hard_constraints": {
+            "BOND_EXCLUSION_AT_MOST_4000_BPS": true,
+            "ELIGIBLE_OWNER_FRACTION_AT_LEAST_5000_BPS": true,
+            "FULFILLMENT_AT_LEAST_9500_BPS": true,
+            "LOSS_BASED_BOND": true,
+            "NO_ADMITTED_LATE_LOCK": true,
+            "PERMISSIONLESS_FLOOR_AT_LEAST_2000_BPS": true,
+            "PERMISSIONLESS_SERVICE_AT_LEAST_8000_BPS": true,
+            "PRIORITY_OWNER_CAP_AT_MOST_3000_BPS": true,
+            "PRIORITY_SERVICE_AT_LEAST_6500_BPS": true,
+            "UTILIZATION_AT_LEAST_7500_BPS": true
+          },
+          "hard_ok": true,
+          "policy_id": "LOSS_P40000_W25000_F2000_C2000"
+        },
+        "static_10x": {
+          "auction_metrics": {
+            "admitted_late_count": 0,
+            "average_competitive_payment_atoms": 6856064,
+            "average_eligible_owner_fraction_bps": 5000,
+            "average_price_to_reference_bps": 16070,
+            "bond_exclusion_bps": 1166,
+            "collusive_uplift_bps": 14890,
+            "fallback_bps": 2500,
+            "fulfillment_bps": 7500,
+            "maximum_winner_owner_share_bps": 8000,
+            "policy_id": "STATIC_10X_P40000_W25000_F2000_C2000",
+            "price_exclusion_bps": 2500,
+            "window_exclusion_bps": 3333
+          },
+          "auction_policy": {
+            "bond_rule": "STATIC_MULTIPLE",
+            "maximum_price_cost_bps": 40000,
+            "minimum_price_cost_bps": 8000,
+            "policy_id": "STATIC_10X_P40000_W25000_F2000_C2000",
+            "primary_window_factor_bps": 25000,
+            "publication_buffer_seconds": 120,
+            "ramp_duration_factor_bps": 5000,
+            "static_bond_multiple_bps": 100000
+          },
+          "capacity_metrics": {
+            "maximum_priority_owner_share_bps": 5000,
+            "permissionless_service_bps": 8750,
+            "priority_service_bps": 8094,
+            "utilization_bps": 8250
+          },
+          "capacity_policy": {
+            "permissionless_floor_bps": 2000,
+            "priority_owner_cap_bps": 2000,
+            "total_slots": 100
+          },
+          "hard_constraints": {
+            "BOND_EXCLUSION_AT_MOST_4000_BPS": true,
+            "ELIGIBLE_OWNER_FRACTION_AT_LEAST_5000_BPS": true,
+            "FULFILLMENT_AT_LEAST_9500_BPS": false,
+            "LOSS_BASED_BOND": false,
+            "NO_ADMITTED_LATE_LOCK": true,
+            "PERMISSIONLESS_FLOOR_AT_LEAST_2000_BPS": true,
+            "PERMISSIONLESS_SERVICE_AT_LEAST_8000_BPS": true,
+            "PRIORITY_OWNER_CAP_AT_MOST_3000_BPS": true,
+            "PRIORITY_SERVICE_AT_LEAST_6500_BPS": true,
+            "UTILIZATION_AT_LEAST_7500_BPS": true
+          },
+          "hard_ok": false,
+          "policy_id": "STATIC_10X_P40000_W25000_F2000_C2000"
+        },
+        "static_5x": {
+          "auction_metrics": {
+            "admitted_late_count": 0,
+            "average_competitive_payment_atoms": 8208046,
+            "average_eligible_owner_fraction_bps": 5458,
+            "average_price_to_reference_bps": 17711,
+            "bond_exclusion_bps": 166,
+            "collusive_uplift_bps": 12584,
+            "fallback_bps": 1125,
+            "fulfillment_bps": 8875,
+            "maximum_winner_owner_share_bps": 5211,
+            "policy_id": "STATIC_5X_P40000_W25000_F2000_C2000",
+            "price_exclusion_bps": 1875,
+            "window_exclusion_bps": 3333
+          },
+          "auction_policy": {
+            "bond_rule": "STATIC_MULTIPLE",
+            "maximum_price_cost_bps": 40000,
+            "minimum_price_cost_bps": 8000,
+            "policy_id": "STATIC_5X_P40000_W25000_F2000_C2000",
+            "primary_window_factor_bps": 25000,
+            "publication_buffer_seconds": 120,
+            "ramp_duration_factor_bps": 5000,
+            "static_bond_multiple_bps": 50000
+          },
+          "capacity_metrics": {
+            "maximum_priority_owner_share_bps": 5000,
+            "permissionless_service_bps": 8750,
+            "priority_service_bps": 8094,
+            "utilization_bps": 8250
+          },
+          "capacity_policy": {
+            "permissionless_floor_bps": 2000,
+            "priority_owner_cap_bps": 2000,
+            "total_slots": 100
+          },
+          "hard_constraints": {
+            "BOND_EXCLUSION_AT_MOST_4000_BPS": true,
+            "ELIGIBLE_OWNER_FRACTION_AT_LEAST_5000_BPS": true,
+            "FULFILLMENT_AT_LEAST_9500_BPS": false,
+            "LOSS_BASED_BOND": false,
+            "NO_ADMITTED_LATE_LOCK": true,
+            "PERMISSIONLESS_FLOOR_AT_LEAST_2000_BPS": true,
+            "PERMISSIONLESS_SERVICE_AT_LEAST_8000_BPS": true,
+            "PRIORITY_OWNER_CAP_AT_MOST_3000_BPS": true,
+            "PRIORITY_SERVICE_AT_LEAST_6500_BPS": true,
+            "UTILIZATION_AT_LEAST_7500_BPS": true
+          },
+          "hard_ok": false,
+          "policy_id": "STATIC_5X_P40000_W25000_F2000_C2000"
+        }
+      },
+      "source": {
+        "path": "docs/research/PROOF_MARKET_CALIBRATION_V1.json",
+        "schema": "zenodex/proof-market-calibration/v1",
+        "sha256": "ef1f1b1476a922ca595d41f906e55a29f4d7ab606ddf4dc2043e88a7cacd2c4b",
+        "status": "RESEARCH_ONLY_UNMOUNTED_UNSELECTED"
+      }
+    },
     "boundless_derived_guards": {
       "fully_funded_claims_example": {
         "buyer_restitution_atoms": 300,
@@ -1848,6 +2070,7 @@
       "closed fourteen-check settlement sweep over 16,384 admission vectors",
       "Boundless-derived effective-window, liability-first slash, and permissionless-capacity guard examples",
       "source-status-preserving review of official Boundless docs, releases, and four published audit PDFs",
+      "243-policy exact auction, bond, and capacity calibration over 2,916 auction and 729 capacity scenarios",
       "bounded half-fee self-dealing search",
       "nine-scenario demand-by-cost business-model sweep",
       "dual-solver ESSO lifecycle proof covering durable receipt-before-payment, atomic callback-outbox ancestry, and one-shot delivery",
@@ -1857,7 +2080,7 @@
     ],
     "required": [
       "repository-wide Lean-root integration and runtime projection for the direct-compiled theorem files",
-      "calibrated job demand, compute cost, verifier cost, and customer acquisition distributions",
+      "signed live job demand, workload-cycle, bid, latency, default, capacity, verifier-cost, and customer-acquisition observations to replace source-informed priors",
       "beneficial-owner and related-party policy with false-positive and evasion analysis",
       "production Rust transition, canonical codec, mounted ZenoLedger payment port, and no-bypass inventory",
       "independent-process crash, restart, migration, and redelivery evidence for durable receipts and committed-outbox effect idempotency"
@@ -2061,7 +2284,7 @@
     "source_pins": [
       {
         "path": "tools/check_proof_market_business_model_v1.py",
-        "sha256": "09f7263833624cd83a3067ba55946c449db49c12ef62d5530ed5ea60238b4056"
+        "sha256": "554d4c503999774e0d9ad51e9193c3101d795eb1af6ed9252b94230e7da83e4e"
       },
       {
         "path": "tools/proof_market_business_model_v1.py",
@@ -2072,12 +2295,28 @@
         "sha256": "6c2cc194f1d2fcb298f7ea5f057b8cb4ac40f50b6665561fee612c45ceed7abd"
       },
       {
+        "path": "tools/check_proof_market_calibration_v1.py",
+        "sha256": "02916f49d0ce74a530e1a7e513ec4c46041e634d2e2f6cd428920794f271baff"
+      },
+      {
+        "path": "tools/proof_market_calibration_v1.py",
+        "sha256": "5195d2bb8905cbfda055e93bd24d79b2ad6dfaae8129e8a9272b9ccb1011e260"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_CALIBRATION_V1.md",
+        "sha256": "35b78ad2f8d30ffad928f0cd8afb5d08853a313b2c2cee190f85c6a7ee158d45"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_CALIBRATION_V1.json",
+        "sha256": "ef1f1b1476a922ca595d41f906e55a29f4d7ab606ddf4dc2043e88a7cacd2c4b"
+      },
+      {
         "path": "tools/proof_market_bmse_adapter_v1.py",
         "sha256": "83c144f04fe94f546a68790ec6af4b3199e9f3b1fbfd4ad2efa145510ec96dff"
       },
       {
         "path": "docs/research/PROOF_MARKET_BUSINESS_MODEL_V1.md",
-        "sha256": "f5b9feab7cdcd53df56a6cc243bfb42f2320204400eef60ab0cdacc9bb9fadf3"
+        "sha256": "ff5597ceedcb94b0857ab4c0c65e8982cd652ca33d738ddf2a9678746730211d"
       },
       {
         "path": "src/kernels/dex/proof_market_lifecycle_v1.yaml",

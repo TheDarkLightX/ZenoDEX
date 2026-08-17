@@ -130,3 +130,16 @@ def test_proof_market_projects_the_complete_service_funding_registry() -> None:
         funding["allowed_funding_sources"]
     )
     assert all(value is None for value in funding["selected_role_budgets"].values())
+
+
+def test_proof_market_binds_unselected_auction_capacity_calibration() -> None:
+    calibration = checker._document()["bounded_model"][
+        "auction_capacity_calibration"
+    ]
+    assert calibration["source"]["status"] == "RESEARCH_ONLY_UNMOUNTED_UNSELECTED"
+    assert calibration["candidate"]["policy_id"] == (
+        "LOSS_P40000_W25000_F2000_C2000"
+    )
+    paired = calibration["paired_bond_rule_comparison"]
+    assert paired["loss_based"]["auction_metrics"]["fulfillment_bps"] == 10_000
+    assert paired["static_10x"]["auction_metrics"]["fulfillment_bps"] == 7_500
