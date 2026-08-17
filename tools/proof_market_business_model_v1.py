@@ -70,6 +70,184 @@ class AccessPolicyV1(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class AuctionLockScheduleV1:
+    auction_start_height: int
+    lock_height: int
+    primary_deadline_height: int
+    final_deadline_height: int
+    estimated_proving_blocks: int
+    safety_margin_blocks: int
+
+
+@dataclass(frozen=True, slots=True)
+class AuctionLockAssessmentV1:
+    effective_work_blocks: int
+    required_work_blocks: int
+    fallback_reprocurement_blocks: int
+    admissible: bool
+    rejection_codes: tuple[str, ...]
+
+
+def assess_auction_lock(schedule: AuctionLockScheduleV1) -> AuctionLockAssessmentV1:
+    """Check the locker's actual service window using canonical ledger heights."""
+
+    for field_name in (
+        "auction_start_height",
+        "lock_height",
+        "primary_deadline_height",
+        "final_deadline_height",
+        "estimated_proving_blocks",
+        "safety_margin_blocks",
+    ):
+        exact_nonnegative(getattr(schedule, field_name), field_name)
+    required_work_blocks = (
+        schedule.estimated_proving_blocks + schedule.safety_margin_blocks
+    )
+    exact_nonnegative(required_work_blocks, "required_work_blocks")
+    effective_work_blocks = max(
+        0,
+        schedule.primary_deadline_height - schedule.lock_height,
+    )
+    fallback_reprocurement_blocks = max(
+        0,
+        schedule.final_deadline_height - schedule.primary_deadline_height,
+    )
+    rejection_codes: list[str] = []
+    if schedule.lock_height < schedule.auction_start_height:
+        rejection_codes.append("LOCK_PRECEDES_AUCTION")
+    if schedule.lock_height >= schedule.primary_deadline_height:
+        rejection_codes.append("LOCK_NOT_BEFORE_PRIMARY_DEADLINE")
+    if schedule.primary_deadline_height > schedule.final_deadline_height:
+        rejection_codes.append("FINAL_DEADLINE_PRECEDES_PRIMARY")
+    if effective_work_blocks < required_work_blocks:
+        rejection_codes.append("INSUFFICIENT_EFFECTIVE_WORK_WINDOW")
+    return AuctionLockAssessmentV1(
+        effective_work_blocks=effective_work_blocks,
+        required_work_blocks=required_work_blocks,
+        fallback_reprocurement_blocks=fallback_reprocurement_blocks,
+        admissible=not rejection_codes,
+        rejection_codes=tuple(rejection_codes),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class DefaultBondClaimsV1:
+    buyer_restitution_claim_atoms: int
+    reprocurement_claim_atoms: int
+    insurance_recovery_claim_atoms: int
+    residual_burn_cap_atoms: int
+
+
+@dataclass(frozen=True, slots=True)
+class DefaultBondAllocationV1:
+    buyer_restitution_atoms: int
+    reprocurement_atoms: int
+    insurance_recovery_atoms: int
+    residual_burn_atoms: int
+    seller_return_atoms: int
+    unfunded_claim_atoms: int
+
+
+def allocate_default_bond(
+    seller_bond_atoms: int,
+    claims: DefaultBondClaimsV1,
+) -> DefaultBondAllocationV1:
+    """Allocate a defaulted bond by loss priority, with burn last."""
+
+    exact_nonnegative(seller_bond_atoms, "seller_bond_atoms")
+    claim_names = (
+        "buyer_restitution_claim_atoms",
+        "reprocurement_claim_atoms",
+        "insurance_recovery_claim_atoms",
+        "residual_burn_cap_atoms",
+    )
+    for field_name in claim_names:
+        exact_nonnegative(getattr(claims, field_name), field_name)
+    total_loss_claim_atoms = (
+        claims.buyer_restitution_claim_atoms
+        + claims.reprocurement_claim_atoms
+        + claims.insurance_recovery_claim_atoms
+    )
+    exact_nonnegative(total_loss_claim_atoms, "total_loss_claim_atoms")
+
+    remaining_atoms = seller_bond_atoms
+    buyer_restitution_atoms = min(
+        remaining_atoms,
+        claims.buyer_restitution_claim_atoms,
+    )
+    remaining_atoms -= buyer_restitution_atoms
+    reprocurement_atoms = min(remaining_atoms, claims.reprocurement_claim_atoms)
+    remaining_atoms -= reprocurement_atoms
+    insurance_recovery_atoms = min(
+        remaining_atoms,
+        claims.insurance_recovery_claim_atoms,
+    )
+    remaining_atoms -= insurance_recovery_atoms
+    funded_loss_claim_atoms = (
+        buyer_restitution_atoms + reprocurement_atoms + insurance_recovery_atoms
+    )
+    unfunded_claim_atoms = total_loss_claim_atoms - funded_loss_claim_atoms
+    residual_burn_atoms = 0
+    if unfunded_claim_atoms == 0:
+        residual_burn_atoms = min(remaining_atoms, claims.residual_burn_cap_atoms)
+        remaining_atoms -= residual_burn_atoms
+    return DefaultBondAllocationV1(
+        buyer_restitution_atoms=buyer_restitution_atoms,
+        reprocurement_atoms=reprocurement_atoms,
+        insurance_recovery_atoms=insurance_recovery_atoms,
+        residual_burn_atoms=residual_burn_atoms,
+        seller_return_atoms=remaining_atoms,
+        unfunded_claim_atoms=unfunded_claim_atoms,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class CapacityPartitionPolicyV1:
+    total_slots: int
+    priority_reserved_slots: int
+    permissionless_floor_slots: int
+    max_priority_slots_per_requestor: int
+
+
+@dataclass(frozen=True, slots=True)
+class CapacityPartitionAssessmentV1:
+    admissible: bool
+    unallocated_slots: int
+    rejection_codes: tuple[str, ...]
+
+
+def assess_capacity_partition(
+    policy: CapacityPartitionPolicyV1,
+) -> CapacityPartitionAssessmentV1:
+    """Protect a nonzero permissionless floor from paid-priority exhaustion."""
+
+    for field_name in (
+        "total_slots",
+        "priority_reserved_slots",
+        "permissionless_floor_slots",
+        "max_priority_slots_per_requestor",
+    ):
+        exact_nonnegative(getattr(policy, field_name), field_name)
+    rejection_codes: list[str] = []
+    if policy.total_slots == 0:
+        rejection_codes.append("ZERO_TOTAL_CAPACITY")
+    if policy.permissionless_floor_slots == 0:
+        rejection_codes.append("ZERO_PERMISSIONLESS_FLOOR")
+    committed_slots = (
+        policy.priority_reserved_slots + policy.permissionless_floor_slots
+    )
+    if committed_slots > policy.total_slots:
+        rejection_codes.append("CAPACITY_PARTITIONS_EXCEED_TOTAL")
+    if policy.max_priority_slots_per_requestor > policy.priority_reserved_slots:
+        rejection_codes.append("REQUESTOR_PRIORITY_CAP_EXCEEDS_RESERVED_CAPACITY")
+    return CapacityPartitionAssessmentV1(
+        admissible=not rejection_codes,
+        unallocated_slots=max(0, policy.total_slots - committed_slots),
+        rejection_codes=tuple(rejection_codes),
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class ProofAdmissionChecksV1:
     verifier_accepts: bool
     claim_binding_matches: bool
@@ -79,6 +257,12 @@ class ProofAdmissionChecksV1:
     verifier_profile_current: bool
     canonical_work_key_unclaimed: bool
     non_vacuity_witness_ok: bool
+    request_id_binding_matches: bool
+    ordered_batch_binding_matches: bool
+    role_signature_domains_separated: bool
+    buyer_payment_escrow_committed: bool
+    durable_work_receipt_committed: bool
+    callback_effect_key_unclaimed: bool
 
     @property
     def accepted(self) -> bool:
@@ -92,6 +276,12 @@ class ProofAdmissionChecksV1:
                 self.verifier_profile_current,
                 self.canonical_work_key_unclaimed,
                 self.non_vacuity_witness_ok,
+                self.request_id_binding_matches,
+                self.ordered_batch_binding_matches,
+                self.role_signature_domains_separated,
+                self.buyer_payment_escrow_committed,
+                self.durable_work_receipt_committed,
+                self.callback_effect_key_unclaimed,
             )
         )
 
@@ -120,6 +310,7 @@ class ProofJobSettlementV1:
     buyer_refund_atoms: int
     seller_bond_return_atoms: int
     seller_bond_restitution_atoms: int
+    seller_bond_reprocurement_atoms: int
 
 
 def required_buyer_prefund(terms: ProofJobTermsV1) -> int:
@@ -165,6 +356,7 @@ def settle_proof_job(
     verifier_cost_atoms: int,
     publication_cost_atoms: int,
     seller_default_damage_atoms: int = 0,
+    seller_reprocurement_claim_atoms: int = 0,
 ) -> ProofJobSettlementV1:
     """Settle a prefunded job with objective admission and exact refunds.
 
@@ -178,6 +370,7 @@ def settle_proof_job(
         ("verifier_cost_atoms", verifier_cost_atoms),
         ("publication_cost_atoms", publication_cost_atoms),
         ("seller_default_damage_atoms", seller_default_damage_atoms),
+        ("seller_reprocurement_claim_atoms", seller_reprocurement_claim_atoms),
     ):
         exact_nonnegative(value, name)
     if requested_seller_payment_atoms > terms.maximum_seller_payment_atoms:
@@ -197,15 +390,23 @@ def settle_proof_job(
         )
         seller_bond_return_atoms = terms.seller_bond_atoms
         seller_bond_restitution_atoms = 0
+        seller_bond_reprocurement_atoms = 0
     else:
         seller_payment_atoms = 0
         publication_payment_atoms = 0
         protocol_success_fee_atoms = 0
-        seller_bond_restitution_atoms = min(
+        bond_allocation = allocate_default_bond(
             terms.seller_bond_atoms,
-            seller_default_damage_atoms,
+            DefaultBondClaimsV1(
+                buyer_restitution_claim_atoms=seller_default_damage_atoms,
+                reprocurement_claim_atoms=seller_reprocurement_claim_atoms,
+                insurance_recovery_claim_atoms=0,
+                residual_burn_cap_atoms=0,
+            ),
         )
-        seller_bond_return_atoms = terms.seller_bond_atoms - seller_bond_restitution_atoms
+        seller_bond_restitution_atoms = bond_allocation.buyer_restitution_atoms
+        seller_bond_reprocurement_atoms = bond_allocation.reprocurement_atoms
+        seller_bond_return_atoms = bond_allocation.seller_return_atoms
 
     protocol_revenue_atoms = terms.listing_fee_atoms + protocol_success_fee_atoms
     spent_prefund_atoms = (
@@ -226,6 +427,7 @@ def settle_proof_job(
         buyer_refund_atoms=prefund_atoms - spent_prefund_atoms,
         seller_bond_return_atoms=seller_bond_return_atoms,
         seller_bond_restitution_atoms=seller_bond_restitution_atoms,
+        seller_bond_reprocurement_atoms=seller_bond_reprocurement_atoms,
     )
 
 

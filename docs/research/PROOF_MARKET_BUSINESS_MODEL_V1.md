@@ -14,8 +14,9 @@ The strongest business structure to test is a phased hybrid:
 1. Buyer-prefunded proof and counterexample jobs with objective settlement.
 2. Exact admission-cost recovery plus a 2%-5% external success-fee experiment;
    3% is the V1 simulation point.
-3. Enterprise subscriptions for reserved capacity, private queues, and support.
-   Subscription status cannot affect proof validity or settlement priority.
+3. Enterprise subscriptions for an explicit reserved-capacity partition and
+   support. Subscription status cannot affect proof validity or settlement,
+   and a governed nonzero permissionless capacity floor remains available.
 4. Public catalog verification, adaptation, and freshness services after the
    canonical reuse contract is stable.
 5. Linked-assurance crowdfunding for non-rival public proofs after its
@@ -42,6 +43,41 @@ the predictable internal buyer of recursive execution proofs. The general
 market can serve independent buyers and sponsors. The experimental 2%-5%
 external success fee in this report is a ZenoProof hypothesis; it was not
 copied from Boundless pricing.
+
+### Lessons from Boundless primary sources
+
+The source review was refreshed on 2026-08-17 using Boundless documentation,
+releases, its security repository, and four published audit PDFs. Audit status
+is preserved below. A fixed historical finding is treated as a regression
+lesson, rather than a claim about current Boundless code.
+
+| Boundless evidence | Source status | ZenoProof construction rule |
+| --- | --- | --- |
+| A request ID was not bound to its request digest, allowing the wrong account to be charged | Critical, fixed in the April 2025 Veridise core audit | One canonical occurrence binds request ID, request digest, claim, verifier profile, payer, and payment account |
+| A commutative batch root allowed proof fields to be permuted | High, fixed in the April 2025 Veridise core audit | Commit the ordered leaf manifest; tag leaves and internal nodes separately |
+| A callback ran before prover payment | High, fixed in the April 2025 Veridise core audit | Commit payment and its outbox ancestor before external delivery |
+| Client and prover signatures used the same message domain | Medium, fixed in the April 2025 Veridise core audit | Separate buyer, prover-lock, verifier, and publication signing domains |
+| Re-submitting one request ID could execute its callback again | Medium, acknowledged in the July 2025 Hexens core audit | Derive one idempotency key from promotion subject, request occurrence, and effect index |
+| An unlocked or expired-lock proof could become fulfilled without guaranteed payment | Low, acknowledged in the July 2025 Hexens core audit | Reserve maximum buyer liability before lock; missing payment rejects without fulfillment |
+| Per-recipient reward caps could be split across work logs | Medium, resolved in the September 2025 OpenZeppelin PoVW audit | Apply caps across all work-log identities for one beneficial recipient and epoch |
+| Pre-v2.0.2 unsubmitted PoVW work receipts lived in an ephemeral container filesystem | Fixed by the v2.0.2 persistence change; old receipts required pre-upgrade submission | Fsync a content-addressed work receipt before acknowledging reward-eligible computation; replay it after restart and migration |
+| Broker requestor priority levels affect order ranking | Documented v2.0.2 feature | Paid reservations occupy a capped partition and cannot consume the permissionless floor or alter verification |
+| Lock timeout is absolute from ramp start; 50% of a defaulted lock bond is burned and 50% funds a secondary-prover race | Documented auction design | Check the actual remaining work window at lock time; fund restitution, re-procurement, and insurance before any residual penalty burn |
+
+Primary artifacts and observed PDF hashes are recorded in the generated JSON.
+The current [Boundless homepage](https://boundless.network/) says the project
+began with proofs and now markets distributed GPU AI compute. This supports a
+limited strategic inference: workload diversity may improve fleet utilization.
+It does not establish that the Boundless proof market failed. ZenoProof keeps a
+general verifier-profile grammar for the same utilization reason, while every
+non-ZRPF workload remains outside ZenoLedger settlement authority.
+
+Static collateral multiples are not adopted. Boundless's auction guide uses a
+10x-maximum-price example and warns that larger collateral can reduce locking.
+ZenoProof therefore leaves the collateral curve unselected pending measured
+default loss, replacement cost, prover capital, and detection data. An open
+secondary-prover race is also unselected: urgent redundant computation must be
+explicitly buyer-funded, while ordinary recovery uses a new assigned auction.
 
 ## What the Market Sells
 
@@ -144,9 +180,22 @@ BuyerPrefund
 ```
 
 The seller posts a separate performance bond. A valid, unique, bound result
-returns the bond. Invalid or late work can route a declared amount to buyer
-restitution or re-procurement. Slashed value does not become burnable protocol
-revenue while a damage or re-procurement liability remains.
+returns the bond. Invalid or late work routes the declared bond by priority:
+
+```text
+SellerBond
+  = BuyerRestitution
+  + ReplacementProcurement
+  + InsuranceRecovery
+  + ResidualPenaltyBurn
+  + SellerReturn
+
+UnfundedLossClaims > 0 -> ResidualPenaltyBurn = 0
+```
+
+Slashed value does not become burnable protocol revenue while a restitution,
+re-procurement, or insurance-recovery liability remains. A residual penalty
+burn must be declared in the job terms; it is distinct from surplus buyback.
 
 Protocol revenue is limited to:
 
@@ -230,11 +279,35 @@ All payment and token quantities use exact integers.
 
 ### Objective proof settlement
 
-Eight closed checks gate seller payment: proof validity, claim binding,
+Fourteen closed checks gate seller payment: proof validity, claim binding,
 assumption binding, input binding, output binding, current verifier profile,
-unclaimed canonical work key, and non-vacuity. The checker enumerates all 256
-boolean vectors. Every rejected vector pays zero to the seller and preserves
-prefund/bond conservation.
+unclaimed canonical work key, non-vacuity, request-ID binding, ordered-batch
+binding, role-separated signatures, committed buyer escrow, a durable work
+receipt, and an unclaimed external-effect key. The checker enumerates all
+16,384 boolean vectors. Every rejected vector pays zero to the seller and
+preserves prefund/bond conservation.
+
+Boundless's absolute lock deadline motivates an additional admission rule:
+
+```text
+EffectiveWorkBlocks = PrimaryDeadlineHeight - LockHeight
+RequiredWorkBlocks  = EstimatedProvingBlocks + SafetyMarginBlocks
+
+AdmitLock -> EffectiveWorkBlocks >= RequiredWorkBlocks
+```
+
+All time inputs are canonical ledger heights. Wall clocks and mixed
+seconds/block conversions are excluded from settlement. Paid capacity follows:
+
+```text
+PriorityReservedSlots + PermissionlessFloorSlots <= TotalSlots
+PermissionlessFloorSlots > 0
+PerRequestorPriorityCap <= PriorityReservedSlots
+```
+
+This bounded partition rule prevents complete priority starvation. Queue
+fairness, geographic diversity, and beneficial-owner aggregation remain open
+mechanism and evidence obligations.
 
 The buyer selects the objective verifier contract before listing. There is no
 post-completion subjective veto that lets a buyer obtain a valid result and
@@ -429,11 +502,17 @@ supports hyper-deflation while preserving every participant's prior claim. The
 
 Current evidence:
 
-- exact Python model and 256-vector settlement enumeration;
+- exact Python model and 16,384-vector settlement enumeration;
+- Boundless-derived effective-window, liability-first bond, durable-receipt,
+  payment-escrow, ordered-binding, callback-idempotency, and permissionless-floor
+  guards;
+- a source-status-preserving review of official Boundless documentation,
+  releases, and four published audit PDFs;
 - 2,601-case half-fee self-dealing search and a positive raw-volume mutant;
 - nine-state-weight business-model sweep;
 - BMSE generic baseline and certificate-backed custom Pareto receipt;
-- ESSO dual-solver agreement over the bounded payment/refund lifecycle;
+- ESSO dual-solver agreement over the bounded payment/refund lifecycle,
+  durable receipt gate, atomic callback-outbox ancestry, and one-shot delivery;
 - a retained ESSO counterexample showing why refund must bind zero witness and
   zero claimed work key;
 - six directly compiled Lean files for bounty caps, composition, Sybil bonds,
@@ -459,6 +538,8 @@ Required before production:
 - release-selected verifier registries and opaque admission witnesses;
 - mounted ZenoLedger escrow, payment, refund, and restitution capability;
 - migration, restart, concurrency, crash, replay, and no-bypass evidence.
+- independent-process crash, restart, migration, and redelivery evidence for
+  durable receipt-before-payment and committed-outbox idempotency.
 
 ## Promotion Boundary
 

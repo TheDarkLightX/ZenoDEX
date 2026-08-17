@@ -8,9 +8,11 @@ meta:
     Six buyer units cover one listing fee, three seller-payment units, one
     verifier unit, and one refund unit. Two seller units form a separately
     conserved performance bond. Verifier acceptance produces a bound witness
-    and moves no value. Only a ZenoLedger-named action commits payment or
-    refund. Rejection and expiry never pay the seller; one bond unit goes to
-    restitution and one returns to the seller.
+    and moves no value. A durable work receipt must be persisted before a
+    ZenoLedger-named action atomically commits payment and a callback outbox
+    ancestor. The callback can then be delivered exactly once. Rejection and
+    expiry never pay the seller; one bond unit goes to restitution and one
+    returns to the seller.
 
     The model abstracts cryptographic soundness, canonical encodings, claimant
     identity, beneficial ownership, real compute cost, storage, liveness, and
@@ -31,14 +33,20 @@ observables:
     - "seller_bond_return_units"
     - "seller_bond_restitution_units"
     - "verified_witness_units"
+    - "durable_work_receipt_units"
     - "canonical_work_claimed_units"
     - "settlement_commit_count"
+    - "callback_outbox_committed_units"
+    - "callback_delivery_count"
   effects:
     - "event"
     - "proof_admission_emitted"
     - "payment_emitted"
     - "refund_emitted"
     - "zenoledger_commit_emitted"
+    - "durable_receipt_emitted"
+    - "committed_outbox_emitted"
+    - "callback_delivery_emitted"
 
 types:
   - id: "ProofMarketJobState"
@@ -50,6 +58,7 @@ types:
         - "JOB_Locked"
         - "JOB_Submitted"
         - "JOB_Verified"
+        - "JOB_ReceiptDurable"
         - "JOB_Rejected"
         - "JOB_Expired"
         - "JOB_Committed"
@@ -62,10 +71,13 @@ types:
         - "EV_SellerLocked"
         - "EV_WorkSubmitted"
         - "EV_WorkVerified"
+        - "EV_WorkReceiptPersisted"
         - "EV_WorkRejected"
         - "EV_WorkExpired"
         - "EV_PaymentCommitted"
         - "EV_RefundCommitted"
+        - "EV_CallbackDelivered"
+        - "EV_ProcessRestarted"
 
 state_vars:
   - id: "job_state"
@@ -104,12 +116,21 @@ state_vars:
   - id: "verified_witness_units"
     role: "control"
     type: { kind: "int", min: 0, max: 1 }
+  - id: "durable_work_receipt_units"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
   - id: "canonical_work_claimed_units"
     role: "control"
     type: { kind: "int", min: 0, max: 1 }
   - id: "settlement_commit_count"
     role: "control"
     type: { kind: "int", min: 0, max: 1 }
+  - id: "callback_outbox_committed_units"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "callback_delivery_count"
+    role: "control"
+    type: { kind: "int", min: 0, max: 2 }
 
 init:
   - { var: "job_state", expr: { enum: "JOB_None" } }
@@ -124,8 +145,11 @@ init:
   - { var: "seller_bond_return_units", expr: { const: 0 } }
   - { var: "seller_bond_restitution_units", expr: { const: 0 } }
   - { var: "verified_witness_units", expr: { const: 0 } }
+  - { var: "durable_work_receipt_units", expr: { const: 0 } }
   - { var: "canonical_work_claimed_units", expr: { const: 0 } }
   - { var: "settlement_commit_count", expr: { const: 0 } }
+  - { var: "callback_outbox_committed_units", expr: { const: 0 } }
+  - { var: "callback_delivery_count", expr: { const: 0 } }
 
 invariants:
   - id: "inv_buyer_value_conservation"
@@ -176,8 +200,10 @@ invariants:
           args:
             - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Committed" }] }
             - { op: "=", args: [{ var: "verified_witness_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "durable_work_receipt_units" }, { const: 1 }] }
             - { op: "=", args: [{ var: "canonical_work_claimed_units" }, { const: 1 }] }
             - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "callback_outbox_committed_units" }, { const: 1 }] }
   - id: "inv_committed_job_has_exact_payment_bundle"
     kind: "safety"
     expr:
@@ -214,6 +240,38 @@ invariants:
       args:
         - { var: "canonical_work_claimed_units" }
         - { var: "verified_witness_units" }
+  - id: "inv_durable_receipt_requires_verified_witness"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - { var: "durable_work_receipt_units" }
+        - { var: "verified_witness_units" }
+  - id: "inv_callback_delivery_has_committed_outbox_ancestor"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - { var: "callback_delivery_count" }
+        - { var: "callback_outbox_committed_units" }
+  - id: "inv_callback_delivered_at_most_once"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - { var: "callback_delivery_count" }
+        - { const: 1 }
+  - id: "inv_committed_outbox_requires_atomic_payment_commit"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "callback_outbox_committed_units" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Committed" }] }
+            - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "seller_paid_units" }, { const: 3 }] }
   - id: "inv_protocol_fee_is_listing_cost_only_before_terminal_settlement"
     kind: "safety"
     expr:
@@ -241,6 +299,9 @@ actions:
       payment_emitted: { bool: false }
       refund_emitted: { bool: false }
       zenoledger_commit_emitted: { bool: true }
+      durable_receipt_emitted: { bool: false }
+      committed_outbox_emitted: { bool: false }
+      callback_delivery_emitted: { bool: false }
 
   - id: "seller_lock"
     params: []
@@ -259,6 +320,9 @@ actions:
       payment_emitted: { bool: false }
       refund_emitted: { bool: false }
       zenoledger_commit_emitted: { bool: false }
+      durable_receipt_emitted: { bool: false }
+      committed_outbox_emitted: { bool: false }
+      callback_delivery_emitted: { bool: false }
 
   - id: "seller_submit"
     params: []
@@ -275,6 +339,9 @@ actions:
       payment_emitted: { bool: false }
       refund_emitted: { bool: false }
       zenoledger_commit_emitted: { bool: false }
+      durable_receipt_emitted: { bool: false }
+      committed_outbox_emitted: { bool: false }
+      callback_delivery_emitted: { bool: false }
 
   - id: "verify_bound_unique_work"
     params:
@@ -300,6 +367,30 @@ actions:
       payment_emitted: { bool: false }
       refund_emitted: { bool: false }
       zenoledger_commit_emitted: { bool: false }
+      durable_receipt_emitted: { bool: false }
+      committed_outbox_emitted: { bool: false }
+      callback_delivery_emitted: { bool: false }
+
+  - id: "persist_durable_work_receipt"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Verified" }] }
+        - { op: "=", args: [{ var: "verified_witness_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "durable_work_receipt_units" }, { const: 0 }] }
+    updates:
+      - { var: "durable_work_receipt_units", expr: { const: 1 } }
+      - { var: "job_state", expr: { enum: "JOB_ReceiptDurable" } }
+    effects:
+      event: { enum: "EV_WorkReceiptPersisted" }
+      proof_admission_emitted: { bool: false }
+      payment_emitted: { bool: false }
+      refund_emitted: { bool: false }
+      zenoledger_commit_emitted: { bool: false }
+      durable_receipt_emitted: { bool: true }
+      committed_outbox_emitted: { bool: false }
+      callback_delivery_emitted: { bool: false }
 
   - id: "verifier_reject"
     params: []
@@ -316,6 +407,9 @@ actions:
       payment_emitted: { bool: false }
       refund_emitted: { bool: false }
       zenoledger_commit_emitted: { bool: false }
+      durable_receipt_emitted: { bool: false }
+      committed_outbox_emitted: { bool: false }
+      callback_delivery_emitted: { bool: false }
 
   - id: "timeout_unverified_work"
     params: []
@@ -335,14 +429,18 @@ actions:
       payment_emitted: { bool: false }
       refund_emitted: { bool: false }
       zenoledger_commit_emitted: { bool: false }
+      durable_receipt_emitted: { bool: false }
+      committed_outbox_emitted: { bool: false }
+      callback_delivery_emitted: { bool: false }
 
   - id: "zenoledger_commit_verified_payment"
     params: []
     guard:
       op: "and"
       args:
-        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Verified" }] }
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_ReceiptDurable" }] }
         - { op: "=", args: [{ var: "verified_witness_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "durable_work_receipt_units" }, { const: 1 }] }
         - { op: "=", args: [{ var: "canonical_work_claimed_units" }, { const: 0 }] }
         - { op: "=", args: [{ var: "buyer_escrow_units" }, { const: 5 }] }
         - { op: "=", args: [{ var: "seller_bond_escrow_units" }, { const: 2 }] }
@@ -356,6 +454,7 @@ actions:
       - { var: "seller_bond_return_units", expr: { const: 2 } }
       - { var: "canonical_work_claimed_units", expr: { const: 1 } }
       - { var: "settlement_commit_count", expr: { const: 1 } }
+      - { var: "callback_outbox_committed_units", expr: { const: 1 } }
       - { var: "job_state", expr: { enum: "JOB_Committed" } }
     effects:
       event: { enum: "EV_PaymentCommitted" }
@@ -363,6 +462,47 @@ actions:
       payment_emitted: { bool: true }
       refund_emitted: { bool: true }
       zenoledger_commit_emitted: { bool: true }
+      durable_receipt_emitted: { bool: false }
+      committed_outbox_emitted: { bool: true }
+      callback_delivery_emitted: { bool: false }
+
+  - id: "deliver_committed_callback"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Committed" }] }
+        - { op: "=", args: [{ var: "callback_outbox_committed_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "callback_delivery_count" }, { const: 0 }] }
+    updates:
+      - { var: "callback_delivery_count", expr: { const: 1 } }
+    effects:
+      event: { enum: "EV_CallbackDelivered" }
+      proof_admission_emitted: { bool: false }
+      payment_emitted: { bool: false }
+      refund_emitted: { bool: false }
+      zenoledger_commit_emitted: { bool: false }
+      durable_receipt_emitted: { bool: false }
+      committed_outbox_emitted: { bool: false }
+      callback_delivery_emitted: { bool: true }
+
+  - id: "process_restart"
+    params: []
+    guard:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_ReceiptDurable" }] }
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Committed" }] }
+    updates: []
+    effects:
+      event: { enum: "EV_ProcessRestarted" }
+      proof_admission_emitted: { bool: false }
+      payment_emitted: { bool: false }
+      refund_emitted: { bool: false }
+      zenoledger_commit_emitted: { bool: false }
+      durable_receipt_emitted: { bool: false }
+      committed_outbox_emitted: { bool: false }
+      callback_delivery_emitted: { bool: false }
 
   - id: "zenoledger_refund_rejected"
     params: []
@@ -390,6 +530,9 @@ actions:
       payment_emitted: { bool: false }
       refund_emitted: { bool: true }
       zenoledger_commit_emitted: { bool: true }
+      durable_receipt_emitted: { bool: false }
+      committed_outbox_emitted: { bool: false }
+      callback_delivery_emitted: { bool: false }
 
   - id: "zenoledger_refund_expired"
     params: []
@@ -416,3 +559,6 @@ actions:
       payment_emitted: { bool: false }
       refund_emitted: { bool: true }
       zenoledger_commit_emitted: { bool: true }
+      durable_receipt_emitted: { bool: false }
+      committed_outbox_emitted: { bool: false }
+      callback_delivery_emitted: { bool: false }

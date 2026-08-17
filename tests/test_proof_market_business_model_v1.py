@@ -7,7 +7,10 @@ import pytest
 from tools.proof_market_business_model_v1 import (
     BPS,
     AccessPolicyV1,
+    AuctionLockScheduleV1,
+    CapacityPartitionPolicyV1,
     ContributionBonusRequestV1,
+    DefaultBondClaimsV1,
     FundingScopeV1,
     MarketCandidateV1,
     MarketMonthScenarioV1,
@@ -16,6 +19,9 @@ from tools.proof_market_business_model_v1 import (
     ProofProductKindV1,
     SearchContributionV1,
     allocate_counterexample_pool,
+    allocate_default_bond,
+    assess_auction_lock,
+    assess_capacity_partition,
     contribution_locked_bonus,
     dispute_bond_interval,
     evaluate_market_candidate,
@@ -145,6 +151,7 @@ def test_job_prefund_and_accepted_settlement_conserve_every_atom() -> None:
     assert result.protocol_revenue_atoms == 260
     assert result.seller_bond_return_atoms == 5_000
     assert result.seller_bond_restitution_atoms == 0
+    assert result.seller_bond_reprocurement_atoms == 0
     assert (
         result.seller_payment_atoms
         + result.verifier_payment_atoms
@@ -167,13 +174,90 @@ def test_every_admission_failure_blocks_seller_payment(failed_check: str) -> Non
         verifier_cost_atoms=300,
         publication_cost_atoms=100,
         seller_default_damage_atoms=2_000,
+        seller_reprocurement_claim_atoms=1_000,
     )
     assert not result.accepted
     assert result.seller_payment_atoms == 0
     assert result.publication_payment_atoms == 0
     assert result.protocol_revenue_atoms == 20
     assert result.seller_bond_restitution_atoms == 2_000
-    assert result.seller_bond_return_atoms == 3_000
+    assert result.seller_bond_reprocurement_atoms == 1_000
+    assert result.seller_bond_return_atoms == 2_000
+
+
+def test_late_lock_is_rejected_when_headline_timeout_hides_short_work_window() -> None:
+    safe = assess_auction_lock(
+        AuctionLockScheduleV1(
+            auction_start_height=100,
+            lock_height=120,
+            primary_deadline_height=240,
+            final_deadline_height=400,
+            estimated_proving_blocks=80,
+            safety_margin_blocks=20,
+        )
+    )
+    late = assess_auction_lock(
+        AuctionLockScheduleV1(
+            auction_start_height=100,
+            lock_height=210,
+            primary_deadline_height=240,
+            final_deadline_height=400,
+            estimated_proving_blocks=80,
+            safety_margin_blocks=20,
+        )
+    )
+    assert safe.admissible
+    assert safe.effective_work_blocks == 120
+    assert not late.admissible
+    assert late.effective_work_blocks == 30
+    assert "INSUFFICIENT_EFFECTIVE_WORK_WINDOW" in late.rejection_codes
+
+
+def test_default_bond_cannot_burn_while_named_loss_claims_are_unfunded() -> None:
+    allocation = allocate_default_bond(
+        1_000,
+        DefaultBondClaimsV1(
+            buyer_restitution_claim_atoms=800,
+            reprocurement_claim_atoms=600,
+            insurance_recovery_claim_atoms=100,
+            residual_burn_cap_atoms=500,
+        ),
+    )
+    assert allocation.buyer_restitution_atoms == 800
+    assert allocation.reprocurement_atoms == 200
+    assert allocation.unfunded_claim_atoms == 500
+    assert allocation.residual_burn_atoms == 0
+    assert (
+        allocation.buyer_restitution_atoms
+        + allocation.reprocurement_atoms
+        + allocation.insurance_recovery_atoms
+        + allocation.residual_burn_atoms
+        + allocation.seller_return_atoms
+        == 1_000
+    )
+
+
+def test_paid_priority_must_preserve_nonzero_permissionless_capacity() -> None:
+    protected = assess_capacity_partition(
+        CapacityPartitionPolicyV1(
+            total_slots=16,
+            priority_reserved_slots=6,
+            permissionless_floor_slots=8,
+            max_priority_slots_per_requestor=2,
+        )
+    )
+    starvation = assess_capacity_partition(
+        CapacityPartitionPolicyV1(
+            total_slots=16,
+            priority_reserved_slots=16,
+            permissionless_floor_slots=0,
+            max_priority_slots_per_requestor=16,
+        )
+    )
+    assert protected.admissible
+    assert protected.unallocated_slots == 2
+    assert not starvation.admissible
+    assert "ZERO_PERMISSIONLESS_FLOOR" in starvation.rejection_codes
 
 
 def test_internal_zrpf_lane_cannot_manufacture_market_take_revenue() -> None:

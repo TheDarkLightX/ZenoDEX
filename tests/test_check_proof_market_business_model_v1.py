@@ -57,6 +57,12 @@ def test_formal_receipts_bind_the_current_model_and_lean_sources() -> None:
     assert _sha256(esso_model.read_bytes()) == esso_receipt["model"]["sha256"]
     assert esso_receipt["result"]["verdict"] == "VERIFIED"
     assert esso_receipt["result"]["solvers_agreed"] is True
+    assert esso_receipt["result"]["total_queries"] == 13
+    counterexample_ids = {
+        row["id"] for row in esso_receipt["preserved_counterexamples"]
+    }
+    assert "PAYMENT_WITHOUT_DURABLE_WORK_RECEIPT" in counterexample_ids
+    assert "CALLBACK_REDELIVERY_AFTER_COMMITTED_PAYMENT" in counterexample_ids
 
     lean_receipt = json.loads(
         (REPO_ROOT / "docs/research/PROOF_MARKET_LEAN_EVIDENCE_V1.json").read_text(
@@ -79,6 +85,38 @@ def test_artifact_preserves_raw_volume_counterexample_and_claim_ceiling() -> Non
     assert game["contribution_locked_self_dealing_profit_atoms"] <= 0
     assert artifact["promotion_boundary"]["selected"] is False
     assert artifact["promotion_boundary"]["production_ready"] is False
+
+
+def test_boundless_review_preserves_source_statuses_and_guard_counterexamples() -> None:
+    artifact = checker._document()
+    review = artifact["external_primary_source_review"]
+    findings = {row["id"]: row for row in review["documented_findings"]}
+    assert findings["REQUEST_ID_NOT_BOUND_TO_REQUEST_DIGEST"]["source_status"] == (
+        "FIXED_IN_REVIEWED_VERSION"
+    )
+    assert findings["DUPLICATE_CALLBACK_ON_RESUBMITTED_REQUEST_ID"]["source_status"] == (
+        "ACKNOWLEDGED_IN_REVIEWED_VERSION"
+    )
+    assert review["inferences"][0]["claim_ceiling"].startswith("strategic inference")
+    pdf_sources = [
+        row for row in review["sources"] if "observed_pdf_sha256" in row
+    ]
+    assert len(pdf_sources) == 4
+    assert all(len(row["observed_pdf_sha256"]) == 64 for row in pdf_sources)
+
+    guards = artifact["bounded_model"]["boundless_derived_guards"]
+    assert guards["safe_lock_example"]["admissible"] is True
+    assert guards["late_lock_counterexample"]["admissible"] is False
+    assert guards["underfunded_claims_example"]["residual_burn_atoms"] == 0
+    assert guards["protected_capacity_example"]["admissible"] is True
+    assert guards["starvation_capacity_counterexample"]["admissible"] is False
+
+
+def test_settlement_sweep_includes_every_boundless_derived_commit_guard() -> None:
+    settlement = checker._document()["bounded_model"]["settlement"]
+    assert settlement["exhaustive_boolean_cases"] == 2**14
+    assert settlement["duplicate_work_example"]["seller_payment_atoms"] == 0
+    assert settlement["duplicate_work_example"]["seller_bond_reprocurement_atoms"] == 10_000
 
 
 def test_proof_market_projects_the_complete_service_funding_registry() -> None:

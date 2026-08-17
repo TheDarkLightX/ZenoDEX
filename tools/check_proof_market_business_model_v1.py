@@ -19,7 +19,9 @@ SERVICE_FUNDING_PATH: Final = (
 SCHEMA: Final = "zenodex/proof-market-business-model/v1"
 REVIEWED_SOURCE_COMMIT: Final = "6ea6b6d6d0f32cd569529ee620b0a8685cb1f582"
 SOURCE_PATHS: Final = (
+    "tools/check_proof_market_business_model_v1.py",
     "tools/proof_market_business_model_v1.py",
+    "tools/proof_market_boundless_primary_sources_v1.py",
     "tools/proof_market_bmse_adapter_v1.py",
     "docs/research/PROOF_MARKET_BUSINESS_MODEL_V1.md",
     "src/kernels/dex/proof_market_lifecycle_v1.yaml",
@@ -42,6 +44,7 @@ SOURCE_PATHS: Final = (
 
 sys.path.insert(0, str(REPO_ROOT))
 
+from tools import proof_market_boundless_primary_sources_v1 as boundless_sources  # noqa: E402
 from tools import proof_market_business_model_v1 as model  # noqa: E402
 
 
@@ -102,6 +105,7 @@ def _settlement_contract() -> dict[str, Any]:
         verifier_cost_atoms=7_000,
         publication_cost_atoms=1_500,
         seller_default_damage_atoms=20_000,
+        seller_reprocurement_claim_atoms=10_000,
     )
     cases = 0
     fields = tuple(field.name for field in dataclasses.fields(model.ProofAdmissionChecksV1))
@@ -119,6 +123,7 @@ def _settlement_contract() -> dict[str, Any]:
             verifier_cost_atoms=7_000,
             publication_cost_atoms=1_500,
             seller_default_damage_atoms=20_000,
+            seller_reprocurement_claim_atoms=10_000,
         )
         accounted_prefund = (
             outcome.seller_payment_atoms
@@ -136,6 +141,7 @@ def _settlement_contract() -> dict[str, Any]:
         if (
             outcome.seller_bond_return_atoms
             + outcome.seller_bond_restitution_atoms
+            + outcome.seller_bond_reprocurement_atoms
             != terms.seller_bond_atoms
         ):
             raise AssertionError("seller bond does not conserve")
@@ -147,10 +153,88 @@ def _settlement_contract() -> dict[str, Any]:
         "exhaustive_boolean_cases": cases,
         "invariants": [
             "buyer escrow equals seller payment plus verifier and publication costs plus protocol fee plus refund",
-            "seller bond equals returned bond plus restitution",
+            "seller bond equals returned bond plus restitution and reprocurement",
             "seller payment requires every closed admission check",
             "a duplicate canonical work key receives no seller payment",
             "post-completion buyer discretion cannot override the precommitted objective verifier",
+            "a rejected job funds restitution and reprocurement before any residual burn",
+        ],
+    }
+
+
+def _boundless_guard_model() -> dict[str, Any]:
+    safe_lock = model.assess_auction_lock(
+        model.AuctionLockScheduleV1(
+            auction_start_height=100,
+            lock_height=120,
+            primary_deadline_height=240,
+            final_deadline_height=400,
+            estimated_proving_blocks=80,
+            safety_margin_blocks=20,
+        )
+    )
+    late_lock = model.assess_auction_lock(
+        model.AuctionLockScheduleV1(
+            auction_start_height=100,
+            lock_height=210,
+            primary_deadline_height=240,
+            final_deadline_height=400,
+            estimated_proving_blocks=80,
+            safety_margin_blocks=20,
+        )
+    )
+    underfunded_claims = model.allocate_default_bond(
+        1_000,
+        model.DefaultBondClaimsV1(
+            buyer_restitution_claim_atoms=800,
+            reprocurement_claim_atoms=600,
+            insurance_recovery_claim_atoms=100,
+            residual_burn_cap_atoms=500,
+        ),
+    )
+    fully_funded_claims = model.allocate_default_bond(
+        1_000,
+        model.DefaultBondClaimsV1(
+            buyer_restitution_claim_atoms=300,
+            reprocurement_claim_atoms=200,
+            insurance_recovery_claim_atoms=100,
+            residual_burn_cap_atoms=500,
+        ),
+    )
+    protected_capacity = model.assess_capacity_partition(
+        model.CapacityPartitionPolicyV1(
+            total_slots=16,
+            priority_reserved_slots=6,
+            permissionless_floor_slots=8,
+            max_priority_slots_per_requestor=2,
+        )
+    )
+    starvation_capacity = model.assess_capacity_partition(
+        model.CapacityPartitionPolicyV1(
+            total_slots=16,
+            priority_reserved_slots=16,
+            permissionless_floor_slots=0,
+            max_priority_slots_per_requestor=16,
+        )
+    )
+    if not safe_lock.admissible or late_lock.admissible:
+        raise AssertionError("effective lock-window guard is not fail closed")
+    if underfunded_claims.residual_burn_atoms != 0:
+        raise AssertionError("default bond burned while loss claims remained unfunded")
+    if not protected_capacity.admissible or starvation_capacity.admissible:
+        raise AssertionError("permissionless capacity floor is not fail closed")
+    return {
+        "safe_lock_example": _asdict(safe_lock),
+        "late_lock_counterexample": _asdict(late_lock),
+        "underfunded_claims_example": _asdict(underfunded_claims),
+        "fully_funded_claims_example": _asdict(fully_funded_claims),
+        "protected_capacity_example": _asdict(protected_capacity),
+        "starvation_capacity_counterexample": _asdict(starvation_capacity),
+        "rules": [
+            "lock admission uses effective remaining ledger-height window rather than the headline timeout",
+            "buyer restitution, replacement procurement, and insurance recovery precede any predeclared residual penalty burn",
+            "paid priority can reserve only an explicit partition and cannot consume the nonzero permissionless floor",
+            "request, proof, ordered batch, signature role, escrow, durable receipt, and external-effect uniqueness all gate payment",
         ],
     }
 
@@ -651,6 +735,7 @@ def _document() -> dict[str, Any]:
                 ],
             },
         },
+        "external_primary_source_review": boundless_sources.primary_source_review(),
         "game_surface": {
             "players": [
                 "external proof buyer or bounty sponsor",
@@ -688,9 +773,16 @@ def _document() -> dict[str, Any]:
             "buyer escrow or seller GMV is misreported as protocol revenue",
             "subscription, reputation, or proof token substitutes for verifier admission or ledger finality",
             "maintenance provider profits by withholding freshness or manufacturing expiry",
+            "request identifier or ordered proof leaf is substituted while a batch root still verifies",
+            "a client or prover signature is replayed across authority roles",
+            "a valid proof finalizes without reserved buyer payment",
+            "a callback or other external effect executes twice for one request occurrence",
+            "a reward receipt disappears across restart, container recreation, or upgrade",
+            "paid-priority capacity starves the permissionless market",
         ],
         "bounded_model": {
             "settlement": _settlement_contract(),
+            "boundless_derived_guards": _boundless_guard_model(),
             "business_model": _business_model_evaluation(),
             "counterexample_market": _counterexample_market(),
             "game_theory": _game_theory(),
@@ -733,10 +825,12 @@ def _document() -> dict[str, Any]:
         "evidence_lane": {
             "current": [
                 "exact integer escrow, fee, refund, bond, bonus, dispute, assurance, maintenance, and cash-flow model",
-                "closed eight-check settlement sweep over 256 admission vectors",
+                "closed fourteen-check settlement sweep over 16,384 admission vectors",
+                "Boundless-derived effective-window, liability-first slash, and permissionless-capacity guard examples",
+                "source-status-preserving review of official Boundless docs, releases, and four published audit PDFs",
                 "bounded half-fee self-dealing search",
                 "nine-scenario demand-by-cost business-model sweep",
-                "dual-solver ESSO lifecycle proof with a retained refund/claim-binding counterexample",
+                "dual-solver ESSO lifecycle proof covering durable receipt-before-payment, atomic callback-outbox ancestry, and one-shot delivery",
                 "BMSE stock marketplace baseline plus certified Pareto replay over proof-specific candidate evaluations",
                 "six direct-compiled Lean theorem files for bounty caps, composition, Sybil bonds, linked assurance, maintenance, and disputes",
                 "ZRPF dual-solver fee-waterfall ESSO receipt retained as the anchor-buyer submodel",
@@ -746,6 +840,7 @@ def _document() -> dict[str, Any]:
                 "calibrated job demand, compute cost, verifier cost, and customer acquisition distributions",
                 "beneficial-owner and related-party policy with false-positive and evasion analysis",
                 "production Rust transition, canonical codec, mounted ZenoLedger payment port, and no-bypass inventory",
+                "independent-process crash, restart, migration, and redelivery evidence for durable receipts and committed-outbox effect idempotency",
             ],
         },
         "promotion_boundary": {

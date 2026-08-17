@@ -3,16 +3,16 @@
   "status": "VERIFIED_BOUNDED_DUAL_SOLVER",
   "model": {
     "path": "src/kernels/dex/proof_market_lifecycle_v1.yaml",
-    "sha256": "d22a534455b4cecbd6702b6bfa04b9212e0e7644dfc6dcc8aa2e85bf327881c9",
-    "esso_ir_hash": "sha256:b1ea40ef50a85efac5036f8353b2a9f052e4b5bb82680bf31dc92a7e2ca92179"
+    "sha256": "e54c43cb73ba669146df61b69c3069be123c88c7001599a010cb9ee2cb78c5f4",
+    "esso_ir_hash": "sha256:2f5537dfb48ac43f46d429e860778f4a945c75a759525205bdbfac02057b65b8"
   },
   "replay": {
     "command": "PYTHONPATH=<pinned-esso-root> python3 -m ESSO verify-multi src/kernels/dex/proof_market_lifecycle_v1.yaml --solvers z3,cvc5 --timeout-ms 30000 --determinism-trials 2 --output <scratch-output> --write-report",
-    "timestamp_utc": "2026-08-17T07:01:59.815386+00:00",
-    "raw_summary_sha256": "0a5b12a586a062ad3bfafebe81864b9c2db2d35f316b654d98168a9fe2f359da",
-    "raw_bundle_result_sha256": "1a3eb1d5e251dd0fd1961383895fdaee4fbbac2f967bd7595aa2e5c0d6f923e3",
+    "timestamp_utc": "2026-08-17T07:45:04.346140+00:00",
+    "verification_report_sha256": "debea8eeb2d13367dd1281f17c28cd18dca85e79733e4f8259528e84da0865cb",
+    "raw_bundle_result_sha256": "48ab689b3c5b2dc97b4594c1197655de85f9aefbfb4671b5263c270e004bb2aa",
     "determinism_trials": 2,
-    "determinism_fingerprint": "07fbc8654237a5b06b16742a85077db91e556ae1ad53ff8c0be818ec5c4c4f1d",
+    "determinism_fingerprint": "36fdeeb47cab1f1f1fda158a25f32c5022926c44ef4bd5bf5065a6d921ed4913",
     "timeout_ms_per_query": 30000
   },
   "toolchain": {
@@ -24,8 +24,8 @@
   "result": {
     "verdict": "VERIFIED",
     "solvers_agreed": true,
-    "total_queries": 10,
-    "passed_queries": 10,
+    "total_queries": 13,
+    "passed_queries": 13,
     "failed_queries": 0,
     "inconclusive_queries": 0,
     "disagreements": [],
@@ -34,24 +34,48 @@
   "proved_in_declared_model": [
     "buyer prefund conserves across seller payment, verifier payment, listing fee, and refund",
     "seller bond conserves across escrow, return, and buyer restitution",
-    "positive seller payment descends from a bound verified witness, an unclaimed canonical work key, and one ZenoLedger-named commit",
+    "positive seller payment descends from a bound verified witness, a durable work receipt, an unclaimed canonical work key, and one ZenoLedger-named commit",
+    "the payment commit atomically creates the callback outbox ancestor",
+    "callback delivery requires that committed ancestor and can occur at most once",
+    "the abstract restart action preserves durable-receipt, settlement, outbox, and delivery state",
     "rejection and expiry refunds pay no seller and claim no canonical work key",
-    "verification itself emits no payment or ZenoLedger commit"
+    "verification and receipt persistence emit no payment or ZenoLedger commit"
   ],
-  "preserved_counterexample": {
-    "id": "REFUND_TRUSTS_LIFECYCLE_ENUM_WITHOUT_ZERO_CLAIM_BINDING",
-    "original_ir_hash": "sha256:0cbf45c15fec68db7dc9deb4c554f4be0827c2d03dbffa4c0bc0a7c601e11f90",
-    "original_raw_summary_sha256": "5788e330928ea857f622f74d0a100004aa6a925003f177ba6a090a32c330382b",
-    "original_raw_bundle_result_sha256": "b38e097deec42b1986620389d21afb93ec24f6360159199369721d7aa2f27b31",
-    "original_result": "SAT_BOTH_Z3_AND_CVC5_ON_TWO_REFUND_ACTIONS",
-    "witness": "job_state was JOB_Rejected or JOB_Expired while verified_witness_units=1 and canonical_work_claimed_units=1; a refund action advanced to JOB_Refunded without clearing the claimed key",
-    "repair": "both refund guards now require verified_witness_units=0 and canonical_work_claimed_units=0",
-    "repaired_result": "UNSAT_BOTH_Z3_AND_CVC5"
-  },
+  "preserved_counterexamples": [
+    {
+      "id": "REFUND_TRUSTS_LIFECYCLE_ENUM_WITHOUT_ZERO_CLAIM_BINDING",
+      "original_ir_hash": "sha256:0cbf45c15fec68db7dc9deb4c554f4be0827c2d03dbffa4c0bc0a7c601e11f90",
+      "original_result": "SAT_BOTH_Z3_AND_CVC5_ON_TWO_REFUND_ACTIONS",
+      "witness": "job_state was JOB_Rejected or JOB_Expired while verified_witness_units=1 and canonical_work_claimed_units=1; a refund action advanced to JOB_Refunded without clearing the claimed key",
+      "repair": "both refund guards require verified_witness_units=0 and canonical_work_claimed_units=0",
+      "repaired_result": "UNSAT_BOTH_Z3_AND_CVC5"
+    },
+    {
+      "id": "PAYMENT_WITHOUT_DURABLE_WORK_RECEIPT",
+      "mutant_model_sha256": "2b74ce0d565ace1c341a7f3f7f85a442294e2412841dc33004878974f63da71a",
+      "mutant_ir_hash": "sha256:791f66c81c6e7ade830226670005fd790d8a7b201d544b242ab18addf1f4dac9",
+      "mutant_verification_report_sha256": "45a45b1f198cb103c27f809f2f62ecb596a8229793bd3537d26940c4f9cff8f8",
+      "original_result": "SAT_BOTH_Z3_AND_CVC5",
+      "witness": "zenoledger_commit_verified_payment advanced from JOB_Verified with durable_work_receipt_units=0 and paid the seller",
+      "repair": "persist_durable_work_receipt advances to JOB_ReceiptDurable; payment requires that state and durable_work_receipt_units=1",
+      "repaired_result": "UNSAT_BOTH_Z3_AND_CVC5"
+    },
+    {
+      "id": "CALLBACK_REDELIVERY_AFTER_COMMITTED_PAYMENT",
+      "mutant_model_sha256": "61f0decd0ba1f301285263dbb60b2e0b0d55bd3f82040500a8ba0838fdaf7a0a",
+      "mutant_ir_hash": "sha256:bef97e49c12c6dfc0ec7e4fe9baffb1e035d867668a25ecd559960cd94f440e0",
+      "mutant_verification_report_sha256": "c6d42a53021db33bb6353ba4240eb77812ddb0a15b684c146a3a2e7b15dbf0f4",
+      "original_result": "SAT_BOTH_Z3_AND_CVC5",
+      "witness": "deliver_committed_callback advanced callback_delivery_count from 1 to 2 for one committed outbox ancestor",
+      "repair": "delivery requires callback_delivery_count=0 and sets it to 1",
+      "repaired_result": "UNSAT_BOTH_Z3_AND_CVC5"
+    }
+  ],
   "nonclaims": [
-    "The six-unit, one-job state machine is not a production price, volume, concurrency, or throughput model.",
-    "Proof-validity, binding, profile-current, and uniqueness parameters abstract verifier-created witnesses.",
-    "The result does not prove cryptography, canonical codecs, beneficial ownership, novelty, runtime refinement, durability, consensus, liveness, or mounted no-bypass behavior.",
-    "The result grants no listing, proof-admission, payment, refund, token, burn, settlement, finality, release, or production authority."
+    "The six-unit, one-job state machine is not a production price, volume, concurrency, throughput, auction, or capacity model.",
+    "The durable_work_receipt_units variable and no-op restart action abstract storage durability; they do not prove fsync, container persistence, crash recovery, migration, or power-loss behavior.",
+    "Proof-validity, binding, profile-current, uniqueness, and effect-key parameters abstract verifier-created witnesses.",
+    "The result does not prove cryptography, canonical codecs, beneficial ownership, novelty, runtime refinement, consensus, liveness, or mounted no-bypass behavior.",
+    "The result grants no listing, proof-admission, payment, refund, callback, token, burn, settlement, finality, release, or production authority."
   ]
 }
