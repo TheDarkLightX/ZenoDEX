@@ -52,7 +52,7 @@
   ],
   "input": {
     "schema": "zenodex/proof-market-business-model/v1",
-    "sha256": "ec49b5b83e35393cc63fad2a4a3732402605deb3415d146325b3fe6914abebf1"
+    "sha256": "7455ce547cd4af9e790170b94bba018b4f07e63d061a36b7af7e8d60ee815f62"
   },
   "objective_mapping": {
     "chance_ok": "positive monthly cash surplus in at least 6000 bps of scenario weight",
@@ -76,12 +76,12 @@
   "rows": [
     {
       "accepted": true,
-      "candidate_fingerprint": "accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352",
+      "candidate_fingerprint": "b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3",
       "candidate_id": "FULL_HYBRID_ASSURANCE",
       "certificate": {
         "kind": "frontier_decision",
-        "payload_hash": "b6f1eb2ca411f7888f216f4199480f711ff673979c779b2d9e4187f2f2ae436d",
-        "payload_json": "{\"accepted\":true,\"candidate_fingerprint\":\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\"],\"frontier_before\":[],\"hard_ok\":true,\"objectives\":{\"expected_npv\":257923488.0,\"neg_complexity\":-7.0,\"neg_cvar_0_95_loss\":-8745000.0,\"p_npv_gt_0\":0.625},\"reason\":\"accepted_nondominated\",\"removed\":[]}"
+        "payload_hash": "f7edf84025cb2a26e812e64beddfb67f9a081d8c96b17992fb5847a467b04f1e",
+        "payload_json": "{\"accepted\":true,\"candidate_fingerprint\":\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\"],\"frontier_before\":[],\"hard_ok\":true,\"objectives\":{\"expected_npv\":257923488.0,\"neg_complexity\":-7.0,\"neg_cvar_0_95_loss\":-8745000.0,\"p_npv_gt_0\":0.625},\"reason\":\"accepted_nondominated\",\"removed\":[]}"
       },
       "chance_ok": true,
       "dominated_by": [],
@@ -97,12 +97,12 @@
     },
     {
       "accepted": true,
-      "candidate_fingerprint": "fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf",
+      "candidate_fingerprint": "0351380cd1a65df18d5365698af821a4bf2feb160bace9e5114e33f7d7aa7460",
       "candidate_id": "HYBRID_SLA",
       "certificate": {
         "kind": "frontier_decision",
-        "payload_hash": "44abc84c5ad993915de9fefd2006977901806e8cdba8d211b77221d00dcc7294",
-        "payload_json": "{\"accepted\":true,\"candidate_fingerprint\":\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"frontier_before\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":118068000.0,\"neg_complexity\":-5.0,\"neg_cvar_0_95_loss\":-8890000.0,\"p_npv_gt_0\":0.625},\"reason\":\"accepted_nondominated\",\"removed\":[]}"
+        "payload_hash": "f90d73a39a0aa752f5513eb2f44937abe9dda0fe39b38a1017491802af8b1dbf",
+        "payload_json": "{\"accepted\":true,\"candidate_fingerprint\":\"0351380cd1a65df18d5365698af821a4bf2feb160bace9e5114e33f7d7aa7460\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\",\"0351380cd1a65df18d5365698af821a4bf2feb160bace9e5114e33f7d7aa7460\"],\"frontier_before\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":118068000.0,\"neg_complexity\":-5.0,\"neg_cvar_0_95_loss\":-8890000.0,\"p_npv_gt_0\":0.625},\"reason\":\"accepted_nondominated\",\"removed\":[]}"
       },
       "chance_ok": true,
       "dominated_by": [],
@@ -118,12 +118,12 @@
     },
     {
       "accepted": true,
-      "candidate_fingerprint": "68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d",
+      "candidate_fingerprint": "2ee0d97ecec81d51d4caecde28c0cc5c31a90d96a903459e2df03de39c0c7882",
       "candidate_id": "HYBRID_SLA_CATALOG",
       "certificate": {
         "kind": "frontier_decision",
-        "payload_hash": "ba5a0b944ccc24fb0756dc8c912ca76541f645772161fe84b15b22117edb7e09",
-        "payload_json": "{\"accepted\":true,\"candidate_fingerprint\":\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"frontier_before\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":247123488.0,\"neg_complexity\":-6.0,\"neg_cvar_0_95_loss\":-8805000.0,\"p_npv_gt_0\":0.625},\"reason\":\"accepted_nondominated\",\"removed\":[]}"
+        "payload_hash": "d7f3a65b945d455c141aa6962836c7e70215c141b50812c9e30c7fb4568e9581",
+        "payload_json": "{\"accepted\":true,\"candidate_fingerprint\":\"2ee0d97ecec81d51d4caecde28c0cc5c31a90d96a903459e2df03de39c0c7882\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\",\"2ee0d97ecec81d51d4caecde28c0cc5c31a90d96a903459e2df03de39c0c7882\",\"0351380cd1a65df18d5365698af821a4bf2feb160bace9e5114e33f7d7aa7460\"],\"frontier_before\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\",\"0351380cd1a65df18d5365698af821a4bf2feb160bace9e5114e33f7d7aa7460\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":247123488.0,\"neg_complexity\":-6.0,\"neg_cvar_0_95_loss\":-8805000.0,\"p_npv_gt_0\":0.625},\"reason\":\"accepted_nondominated\",\"removed\":[]}"
       },
       "chance_ok": true,
       "dominated_by": [],
@@ -139,12 +139,12 @@
     },
     {
       "accepted": false,
-      "candidate_fingerprint": "1268418cafd7164fdfe0c4966907e51e6049a88af35220c5383b819207b100e8",
+      "candidate_fingerprint": "c2e01b9e15c710fbdc604d7cab712e7f250701da18f480e6e53cf6d8782db38c",
       "candidate_id": "LISTING_PLUS_SUCCESS",
       "certificate": {
         "kind": "frontier_decision",
-        "payload_hash": "6af1db25d702912dcdb43e64f322f5f3b683522210ecf6968d92cf2cb284f27a",
-        "payload_json": "{\"accepted\":false,\"candidate_fingerprint\":\"1268418cafd7164fdfe0c4966907e51e6049a88af35220c5383b819207b100e8\",\"chance_ok\":false,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"frontier_before\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":-4737000.0,\"neg_complexity\":-3.0,\"neg_cvar_0_95_loss\":-11970000.0,\"p_npv_gt_0\":0.3125},\"reason\":\"chance_infeasible\",\"removed\":[]}"
+        "payload_hash": "c8f7c6c4a4f4ed5450ff32d5c3c6dc891d51a06062aee71185f50d55a6c8d33c",
+        "payload_json": "{\"accepted\":false,\"candidate_fingerprint\":\"c2e01b9e15c710fbdc604d7cab712e7f250701da18f480e6e53cf6d8782db38c\",\"chance_ok\":false,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\",\"2ee0d97ecec81d51d4caecde28c0cc5c31a90d96a903459e2df03de39c0c7882\",\"0351380cd1a65df18d5365698af821a4bf2feb160bace9e5114e33f7d7aa7460\"],\"frontier_before\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\",\"2ee0d97ecec81d51d4caecde28c0cc5c31a90d96a903459e2df03de39c0c7882\",\"0351380cd1a65df18d5365698af821a4bf2feb160bace9e5114e33f7d7aa7460\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":-4737000.0,\"neg_complexity\":-3.0,\"neg_cvar_0_95_loss\":-11970000.0,\"p_npv_gt_0\":0.3125},\"reason\":\"chance_infeasible\",\"removed\":[]}"
       },
       "chance_ok": false,
       "dominated_by": [],
@@ -160,12 +160,12 @@
     },
     {
       "accepted": false,
-      "candidate_fingerprint": "fb39c81420f425f91886e865600a1d955fab9d1adb6d57e2d78fe7e9614bf939",
+      "candidate_fingerprint": "e15046035d1d1e4d77715863209dc391649ebfdd118e72a8c04706e381080526",
       "candidate_id": "RAW_VOLUME_EMISSION",
       "certificate": {
         "kind": "frontier_decision",
-        "payload_hash": "d80932d395bf6dd60d321c14a389763fa3e4ae98d67a881e114b71d7dc1d626d",
-        "payload_json": "{\"accepted\":false,\"candidate_fingerprint\":\"fb39c81420f425f91886e865600a1d955fab9d1adb6d57e2d78fe7e9614bf939\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"frontier_before\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"hard_ok\":false,\"objectives\":{\"expected_npv\":44083488.0,\"neg_complexity\":-7.0,\"neg_cvar_0_95_loss\":-8745000.0,\"p_npv_gt_0\":0.625},\"reason\":\"hard_infeasible\",\"removed\":[]}"
+        "payload_hash": "b7450a13ebeef127e9d2c82a6b64d755b52b4bcfc664f5776508a6d827e71255",
+        "payload_json": "{\"accepted\":false,\"candidate_fingerprint\":\"e15046035d1d1e4d77715863209dc391649ebfdd118e72a8c04706e381080526\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\",\"2ee0d97ecec81d51d4caecde28c0cc5c31a90d96a903459e2df03de39c0c7882\",\"0351380cd1a65df18d5365698af821a4bf2feb160bace9e5114e33f7d7aa7460\"],\"frontier_before\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\",\"2ee0d97ecec81d51d4caecde28c0cc5c31a90d96a903459e2df03de39c0c7882\",\"0351380cd1a65df18d5365698af821a4bf2feb160bace9e5114e33f7d7aa7460\"],\"hard_ok\":false,\"objectives\":{\"expected_npv\":44083488.0,\"neg_complexity\":-7.0,\"neg_cvar_0_95_loss\":-8745000.0,\"p_npv_gt_0\":0.625},\"reason\":\"hard_infeasible\",\"removed\":[]}"
       },
       "chance_ok": true,
       "dominated_by": [],
@@ -181,12 +181,12 @@
     },
     {
       "accepted": true,
-      "candidate_fingerprint": "045eb46e757952bf22444195242f39a138d9e4048a9c69ff1d32cb639dc706c2",
+      "candidate_fingerprint": "fa123f89053badf9ebc6b8ab83a515d13699ef9efdc710e7ce9b5a19a1480f7f",
       "candidate_id": "SUBSCRIPTION_ONLY",
       "certificate": {
         "kind": "frontier_decision",
-        "payload_hash": "3f1204d30aa4baecd3b03ae8bf0898134ae9899c85dba62953193c3eda931b2b",
-        "payload_json": "{\"accepted\":true,\"candidate_fingerprint\":\"045eb46e757952bf22444195242f39a138d9e4048a9c69ff1d32cb639dc706c2\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"045eb46e757952bf22444195242f39a138d9e4048a9c69ff1d32cb639dc706c2\"],\"frontier_before\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":175908000.0,\"neg_complexity\":-3.0,\"neg_cvar_0_95_loss\":-8610000.0,\"p_npv_gt_0\":0.625},\"reason\":\"accepted_nondominated\",\"removed\":[\"fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf\"]}"
+        "payload_hash": "82852f098024b0778eee1ac8ecdd53deb70e32d18fdde46ce4d6dc8840a8df8a",
+        "payload_json": "{\"accepted\":true,\"candidate_fingerprint\":\"fa123f89053badf9ebc6b8ab83a515d13699ef9efdc710e7ce9b5a19a1480f7f\",\"chance_ok\":true,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\",\"2ee0d97ecec81d51d4caecde28c0cc5c31a90d96a903459e2df03de39c0c7882\",\"fa123f89053badf9ebc6b8ab83a515d13699ef9efdc710e7ce9b5a19a1480f7f\"],\"frontier_before\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\",\"2ee0d97ecec81d51d4caecde28c0cc5c31a90d96a903459e2df03de39c0c7882\",\"0351380cd1a65df18d5365698af821a4bf2feb160bace9e5114e33f7d7aa7460\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":175908000.0,\"neg_complexity\":-3.0,\"neg_cvar_0_95_loss\":-8610000.0,\"p_npv_gt_0\":0.625},\"reason\":\"accepted_nondominated\",\"removed\":[\"0351380cd1a65df18d5365698af821a4bf2feb160bace9e5114e33f7d7aa7460\"]}"
       },
       "chance_ok": true,
       "dominated_by": [],
@@ -199,17 +199,17 @@
       },
       "reason": "accepted_nondominated",
       "removed": [
-        "fc560048e2fd2254dfc093be46921c6cfc9053c562988db568bf134f4fc7aaaf"
+        "0351380cd1a65df18d5365698af821a4bf2feb160bace9e5114e33f7d7aa7460"
       ]
     },
     {
       "accepted": false,
-      "candidate_fingerprint": "38f721220855a2edc42358ff2849e3a156d27731c7f5ad78971bc2124d0c29cf",
+      "candidate_fingerprint": "ad53c0e3a33ce1cac5edfd2942da123ca69aa71c4078446fd5ca5962efd73262",
       "candidate_id": "SUCCESS_FEE_ONLY",
       "certificate": {
         "kind": "frontier_decision",
-        "payload_hash": "f07cee60d94660c0a91c94ea8132328c238abdb013cde914e78aeaf5b12ed191",
-        "payload_json": "{\"accepted\":false,\"candidate_fingerprint\":\"38f721220855a2edc42358ff2849e3a156d27731c7f5ad78971bc2124d0c29cf\",\"chance_ok\":false,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"045eb46e757952bf22444195242f39a138d9e4048a9c69ff1d32cb639dc706c2\"],\"frontier_before\":[\"accf5590af6f5b55b772e40273627c5e7aef9db5a83a3e2cde80323c77cee352\",\"68327d6340fb714c8cb3080f12e732936d654a211d009bb3ef1479c5e35eb23d\",\"045eb46e757952bf22444195242f39a138d9e4048a9c69ff1d32cb639dc706c2\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":39903000.0,\"neg_complexity\":-2.0,\"neg_cvar_0_95_loss\":-10990000.0,\"p_npv_gt_0\":0.3125},\"reason\":\"chance_infeasible\",\"removed\":[]}"
+        "payload_hash": "7bd722bd73c5e6400ac1395781efc70f21e8b189365f8cffd618f9c6fc32c08a",
+        "payload_json": "{\"accepted\":false,\"candidate_fingerprint\":\"ad53c0e3a33ce1cac5edfd2942da123ca69aa71c4078446fd5ca5962efd73262\",\"chance_ok\":false,\"dominated_by\":[],\"epsilon\":1e-09,\"frontier_after\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\",\"2ee0d97ecec81d51d4caecde28c0cc5c31a90d96a903459e2df03de39c0c7882\",\"fa123f89053badf9ebc6b8ab83a515d13699ef9efdc710e7ce9b5a19a1480f7f\"],\"frontier_before\":[\"b013b09d669c58a7f800b8443a59051f888886f344026c9ff376f92f9609e9c3\",\"2ee0d97ecec81d51d4caecde28c0cc5c31a90d96a903459e2df03de39c0c7882\",\"fa123f89053badf9ebc6b8ab83a515d13699ef9efdc710e7ce9b5a19a1480f7f\"],\"hard_ok\":true,\"objectives\":{\"expected_npv\":39903000.0,\"neg_complexity\":-2.0,\"neg_cvar_0_95_loss\":-10990000.0,\"p_npv_gt_0\":0.3125},\"reason\":\"chance_infeasible\",\"removed\":[]}"
       },
       "chance_ok": false,
       "dominated_by": [],

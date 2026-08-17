@@ -7,7 +7,6 @@ import argparse
 import dataclasses
 import hashlib
 import json
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Final
@@ -15,6 +14,7 @@ from typing import Any, Final
 REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT: Final = REPO_ROOT / "docs/research/ZRPF_BUSINESS_MODEL_V1.json"
 SCHEMA: Final = "zenodex/zrpf-business-model/v1"
+REVIEWED_SOURCE_COMMIT: Final = "6ea6b6d6d0f32cd569529ee620b0a8685cb1f582"
 MODEL_PATH: Final = "tools/zrpf_business_model_v1.py"
 CHECKER_PATH: Final = "tools/check_zrpf_business_model_v1.py"
 ESSO_MODEL_PATH: Final = "src/kernels/dex/zrpf_fee_waterfall_v1.yaml"
@@ -22,7 +22,6 @@ SOURCE_PATHS: Final = (
     MODEL_PATH,
     ESSO_MODEL_PATH,
     "docs/research/ZRPF_FEE_WATERFALL_ESSO_V1.json",
-    "tools/production_readiness_g1_semantic_delta_v2_contract.py",
     "docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json",
     "docs/research/PRODUCTION_READINESS_G1_CRITICAL_SERVICE_COSTS_V1.json",
     "docs/research/PRODUCTION_READINESS_G1_CRITICAL_SERVICE_PROCUREMENT_V1.json",
@@ -41,16 +40,6 @@ def _canonical_bytes(document: dict[str, Any]) -> bytes:
 
 def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
-
-
-def _git_head() -> str:
-    return subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=REPO_ROOT,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
 
 
 def _source_pins() -> list[dict[str, str]]:
@@ -461,7 +450,7 @@ def build_document() -> dict[str, Any]:
     return {
         "schema": SCHEMA,
         "status": "RESEARCH_ONLY_ADVISORY",
-        "reviewed_subject": _git_head(),
+        "reviewed_subject": REVIEWED_SOURCE_COMMIT,
         "source_pins": _source_pins(),
         "checker_sha256": _sha256((REPO_ROOT / CHECKER_PATH).read_bytes()),
         "selected_user_inputs": {
@@ -731,7 +720,7 @@ def main() -> int:
         }
         print(json.dumps(status, sort_keys=True) if args.json else "PASS")
         return 0
-    except (OSError, ValueError, AssertionError, subprocess.CalledProcessError) as exc:
+    except (OSError, ValueError, AssertionError) as exc:
         status = {"ok": False, "error": str(exc)}
         print(json.dumps(status, sort_keys=True) if args.json else f"FAIL: {exc}")
         return 1

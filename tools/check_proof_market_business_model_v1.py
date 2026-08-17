@@ -17,7 +17,7 @@ SERVICE_FUNDING_PATH: Final = (
     REPO_ROOT / "docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json"
 )
 SCHEMA: Final = "zenodex/proof-market-business-model/v1"
-REVIEWED_SOURCE_COMMIT: Final = "95fd6ab1e89aef9d96a94a674904f8b064cd780e"
+REVIEWED_SOURCE_COMMIT: Final = "6ea6b6d6d0f32cd569529ee620b0a8685cb1f582"
 SOURCE_PATHS: Final = (
     "tools/proof_market_business_model_v1.py",
     "tools/proof_market_bmse_adapter_v1.py",

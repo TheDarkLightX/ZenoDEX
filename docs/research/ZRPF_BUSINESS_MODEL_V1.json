@@ -31,7 +31,7 @@
     "proof_bonus": "daily_cap = floor((reserve-reserve_floor)*release_bps/10000); pay only verified work contribution",
     "proof_fee": "maximum_proof_liability = ceil(qualified_cost * (10000+contingency_bps)/10000)"
   },
-  "checker_sha256": "fc6c88681f2a2ac64c04bbc46c1315efb5df32da9c89e6abf8ebc659bed576c2",
+  "checker_sha256": "ed4002b381728ab3c7627f80c3feefec6d6e25a9845943272cc11318534c8476",
   "evidence_lane": {
     "esso": {
       "claim": "bounded fee-custody conservation, prefund-before-burn, verified-work-before-payment, and validator-only finality",
@@ -141,7 +141,7 @@
     "validator_and_critical_services": "fund validators, oracles, keepers, relayers, security, hosting, and operations from role-specific finalized-fee budgets; hold a 24-month launch runway only after qualified high-case quotes",
     "volume_and_holding": "use fully reserved, delayed, nontransferable future-fee credits, linear in irreversible protocol fees; test 5% base and 10% maximum for a continuous ZDEX lock; raw volume and wallet count carry zero weight"
   },
-  "reviewed_subject": "95fd6ab1e89aef9d96a94a674904f8b064cd780e",
+  "reviewed_subject": "6ea6b6d6d0f32cd569529ee620b0a8685cb1f582",
   "schema": "zenodex/zrpf-business-model/v1",
   "selected_user_inputs": {
     "post_genesis_mint": false,
@@ -818,10 +818,6 @@
     {
       "path": "docs/research/ZRPF_FEE_WATERFALL_ESSO_V1.json",
       "sha256": "ae10aa84ff2d76f8a492e462cd4b5fafd0c5069bc45be1c0660f42b5ea114aa7"
-    },
-    {
-      "path": "tools/production_readiness_g1_semantic_delta_v2_contract.py",
-      "sha256": "81893d34dcad7f2aeb81f5aa27bbb473d7d8d91ebb81bd8fed121266e9de1a75"
     },
     {
       "path": "docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json",

@@ -178,6 +178,15 @@ def test_business_model_artifact_is_exact_and_research_only() -> None:
     assert observed == document
     assert observed["status"] == "RESEARCH_ONLY_ADVISORY"
     assert observed["promotion_boundary"]["production_ready"] is False
+    for pin in observed["source_pins"]:
+        assert (REPO_ROOT / pin["path"]).is_file()
+        assert subprocess.run(
+            ["git", "ls-files", "--error-unmatch", pin["path"]],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        ).returncode == 0
 
 
 def test_business_model_cli_rejects_tampered_artifact() -> None:

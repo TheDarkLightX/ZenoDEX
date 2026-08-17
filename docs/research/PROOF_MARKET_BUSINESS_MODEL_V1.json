@@ -1871,7 +1871,7 @@
   "schema": "zenodex/proof-market-business-model/v1",
   "source_subject": {
     "checker_bootstrap_verified": false,
-    "reviewed_source_commit": "95fd6ab1e89aef9d96a94a674904f8b064cd780e",
+    "reviewed_source_commit": "6ea6b6d6d0f32cd569529ee620b0a8685cb1f582",
     "source_pins": [
       {
         "path": "tools/proof_market_business_model_v1.py",
@@ -1903,7 +1903,7 @@
       },
       {
         "path": "docs/research/ZRPF_BUSINESS_MODEL_V1.json",
-        "sha256": "b7dbeff09de153eca83261a2d9252f550fdb461cba7882b2402c731531fec2d8"
+        "sha256": "db37b9b73d604be42d7c747bea023b0b4dd4411cb19ac36d7e45f42c7d62565c"
       },
       {
         "path": "src/kernels/dex/zrpf_fee_waterfall_v1.yaml",
