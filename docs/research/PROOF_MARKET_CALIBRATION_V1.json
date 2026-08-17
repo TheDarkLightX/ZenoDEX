@@ -13753,11 +13753,11 @@
   "schema": "zenodex/proof-market-calibration/v1",
   "source_subject": {
     "checker_bootstrap_verified": false,
-    "reviewed_source_commit": "966e81acc8c40a9aa776eb645972fb8a466b75c9",
+    "reviewed_source_commit": "aa9f6a9c8b874b05b318ff93fdd2b5174321d6fa",
     "source_pins": [
       {
         "path": "tools/check_proof_market_calibration_v1.py",
-        "sha256": "02916f49d0ce74a530e1a7e513ec4c46041e634d2e2f6cd428920794f271baff"
+        "sha256": "511dedcd8f61d39c9284efb2540b1fefd69b9baa30b50459e5e456733d795b52"
       },
       {
         "path": "tools/proof_market_calibration_v1.py",

@@ -256,7 +256,7 @@
       "source": {
         "path": "docs/research/PROOF_MARKET_CALIBRATION_V1.json",
         "schema": "zenodex/proof-market-calibration/v1",
-        "sha256": "ef1f1b1476a922ca595d41f906e55a29f4d7ab606ddf4dc2043e88a7cacd2c4b",
+        "sha256": "891900c85e05484c409fe3e4e8e56e6411e3f81fb510f258ddb3fa0f55b0420e",
         "status": "RESEARCH_ONLY_UNMOUNTED_UNSELECTED"
       }
     },
@@ -2280,11 +2280,11 @@
   "schema": "zenodex/proof-market-business-model/v1",
   "source_subject": {
     "checker_bootstrap_verified": false,
-    "reviewed_source_commit": "78293acd0dec32e27efdf464fccc63ba2987626c",
+    "reviewed_source_commit": "aa9f6a9c8b874b05b318ff93fdd2b5174321d6fa",
     "source_pins": [
       {
         "path": "tools/check_proof_market_business_model_v1.py",
-        "sha256": "554d4c503999774e0d9ad51e9193c3101d795eb1af6ed9252b94230e7da83e4e"
+        "sha256": "bfe330d1b77e5b5cacd95dc5014599001d68a08e18f983b058d277adc54af26c"
       },
       {
         "path": "tools/proof_market_business_model_v1.py",
@@ -2296,7 +2296,7 @@
       },
       {
         "path": "tools/check_proof_market_calibration_v1.py",
-        "sha256": "02916f49d0ce74a530e1a7e513ec4c46041e634d2e2f6cd428920794f271baff"
+        "sha256": "511dedcd8f61d39c9284efb2540b1fefd69b9baa30b50459e5e456733d795b52"
       },
       {
         "path": "tools/proof_market_calibration_v1.py",
@@ -2308,7 +2308,7 @@
       },
       {
         "path": "docs/research/PROOF_MARKET_CALIBRATION_V1.json",
-        "sha256": "ef1f1b1476a922ca595d41f906e55a29f4d7ab606ddf4dc2043e88a7cacd2c4b"
+        "sha256": "891900c85e05484c409fe3e4e8e56e6411e3f81fb510f258ddb3fa0f55b0420e"
       },
       {
         "path": "tools/proof_market_bmse_adapter_v1.py",

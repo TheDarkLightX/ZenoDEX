@@ -14,7 +14,7 @@ from typing import Any, Final
 REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT: Final = REPO_ROOT / "docs/research/PROOF_MARKET_CALIBRATION_V1.json"
 SCHEMA: Final = "zenodex/proof-market-calibration/v1"
-REVIEWED_SOURCE_COMMIT: Final = "966e81acc8c40a9aa776eb645972fb8a466b75c9"
+REVIEWED_SOURCE_COMMIT: Final = "aa9f6a9c8b874b05b318ff93fdd2b5174321d6fa"
 SOURCE_PATHS: Final = (
     "tools/check_proof_market_calibration_v1.py",
     "tools/proof_market_calibration_v1.py",

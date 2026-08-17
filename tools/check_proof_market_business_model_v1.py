@@ -20,7 +20,7 @@ CALIBRATION_PATH: Final = (
     REPO_ROOT / "docs/research/PROOF_MARKET_CALIBRATION_V1.json"
 )
 SCHEMA: Final = "zenodex/proof-market-business-model/v1"
-REVIEWED_SOURCE_COMMIT: Final = "78293acd0dec32e27efdf464fccc63ba2987626c"
+REVIEWED_SOURCE_COMMIT: Final = "aa9f6a9c8b874b05b318ff93fdd2b5174321d6fa"
 SOURCE_PATHS: Final = (
     "tools/check_proof_market_business_model_v1.py",
     "tools/proof_market_business_model_v1.py",
