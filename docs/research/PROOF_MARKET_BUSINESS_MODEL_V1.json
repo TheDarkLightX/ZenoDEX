@@ -2057,11 +2057,11 @@
   "schema": "zenodex/proof-market-business-model/v1",
   "source_subject": {
     "checker_bootstrap_verified": false,
-    "reviewed_source_commit": "6ea6b6d6d0f32cd569529ee620b0a8685cb1f582",
+    "reviewed_source_commit": "78293acd0dec32e27efdf464fccc63ba2987626c",
     "source_pins": [
       {
         "path": "tools/check_proof_market_business_model_v1.py",
-        "sha256": "1a470772e190ec13ba1b1ea4e239535e4a21d497c3fd79c1d62bb49983901902"
+        "sha256": "09f7263833624cd83a3067ba55946c449db49c12ef62d5530ed5ea60238b4056"
       },
       {
         "path": "tools/proof_market_business_model_v1.py",
