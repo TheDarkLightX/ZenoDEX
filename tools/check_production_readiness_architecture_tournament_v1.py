@@ -594,8 +594,10 @@ def _check_gate_claims(
     claims = _rows_by_id(candidate.get("gate_claims"), f"{label}.gate_claims", errors)
     if set(claims) != set(HARD_GATES):
         errors.append(f"{label}.gate_claims differ from the checker-owned gate registry")
-    promotion_ready = True
-    for gate_id, minimum_grade in HARD_GATES.items():
+    # V1 has no authenticated evidence resolver.  Candidate-authored strings
+    # therefore cannot promote a gate, regardless of the claimed grade.
+    promotion_ready = False
+    for gate_id, _minimum_grade in HARD_GATES.items():
         row = claims.get(gate_id)
         if row is None:
             promotion_ready = False
@@ -616,16 +618,11 @@ def _check_gate_claims(
         )
         if evidence_status not in ALLOWED_EVIDENCE_STATUSES or not isinstance(grade, int):
             errors.append(f"{label}.gate_claims[{gate_id}] has invalid evidence fields")
-        if evidence_status == "UNVERIFIED" and (grade != 0 or refs):
-            errors.append(f"{label}.gate_claims[{gate_id}] unverified evidence must be empty grade zero")
-        verified = (
-            expected_design == "DESIGN_SATISFIED"
-            and evidence_status == "VERIFIED"
-            and isinstance(grade, int)
-            and grade >= minimum_grade
-            and bool(refs)
-        )
-        promotion_ready &= verified
+        if evidence_status != "UNVERIFIED" or grade != 0 or refs:
+            errors.append(
+                f"{label}.gate_claims[{gate_id}] must remain unverified until "
+                "an authenticated evidence resolver is implemented"
+            )
     return promotion_ready
 
 
@@ -637,7 +634,7 @@ def _check_metrics(
         errors.append(f"{label}.metrics differ from the checker-owned metric registry")
     values: list[int] = []
     weighted_numerator = 0
-    measured = True
+    measured = False
     for metric_id, weight_bps in SOFT_METRICS.items():
         row = rows.get(metric_id)
         if row is None:
@@ -657,11 +654,11 @@ def _check_metrics(
             value = 0
         if status not in ALLOWED_METRIC_STATUSES:
             errors.append(f"{label}.metrics[{metric_id}] has invalid status")
-        if status == "ADVISORY" and refs:
-            errors.append(f"{label}.metrics[{metric_id}] advisory score must not claim evidence")
-        if status == "MEASURED" and not refs:
-            errors.append(f"{label}.metrics[{metric_id}] measured score requires evidence")
-        measured &= status == "MEASURED" and bool(refs)
+        if status != "ADVISORY" or refs:
+            errors.append(
+                f"{label}.metrics[{metric_id}] must remain advisory without "
+                "resolver-backed measurement evidence"
+            )
         values.append(value)
         weighted_numerator += value * weight_bps
     return (min(values, default=0), weighted_numerator // 10_000, measured)
@@ -673,8 +670,8 @@ def _check_scenarios(
     rows = _rows_by_id(candidate.get("scenario_claims"), f"{label}.scenario_claims", errors)
     if set(rows) != set(SCENARIOS):
         errors.append(f"{label}.scenario_claims differ from the checker-owned scenario registry")
-    all_verified = True
-    for scenario_id, minimum_grade in SCENARIOS.items():
+    all_verified = False
+    for scenario_id, _minimum_grade in SCENARIOS.items():
         row = rows.get(scenario_id)
         if row is None:
             all_verified = False
@@ -692,14 +689,11 @@ def _check_scenarios(
         )
         if status not in ALLOWED_SCENARIO_STATUSES or not isinstance(grade, int):
             errors.append(f"{label}.scenario_claims[{scenario_id}] has invalid evidence fields")
-        if status == "UNTESTED" and (grade != 0 or refs):
-            errors.append(f"{label}.scenario_claims[{scenario_id}] untested evidence must be empty grade zero")
-        all_verified &= (
-            status == "VERIFIED"
-            and isinstance(grade, int)
-            and grade >= minimum_grade
-            and bool(refs)
-        )
+        if status != "UNTESTED" or grade != 0 or refs:
+            errors.append(
+                f"{label}.scenario_claims[{scenario_id}] must remain untested until "
+                "an authenticated evidence resolver is implemented"
+            )
     return all_verified
 
 
@@ -924,16 +918,20 @@ def check_document(
         errors.append("architecture_frozen must exactly track a selected promotion-eligible candidate")
     _check_mutants_and_nonclaims(document, errors)
 
+    ok = not errors
+    effective_selected_id = selected_id if ok else None
+    effective_architecture_frozen = bool(architecture_frozen) if ok else False
+
     return {
         "schema": "zenodex/production-readiness-architecture-tournament-check/v1",
-        "ok": not errors,
+        "ok": ok,
         "error_count": len(errors),
         "errors": errors,
         "candidate_count": len(candidates),
         "research_leader_id": leader_id,
         "promotable_candidate_count": len(promotable),
-        "selected_candidate_id": selected_id,
-        "architecture_frozen": architecture_frozen,
+        "selected_candidate_id": effective_selected_id,
+        "architecture_frozen": effective_architecture_frozen,
         "production_ready": False,
         "candidate_reports": candidate_reports,
     }

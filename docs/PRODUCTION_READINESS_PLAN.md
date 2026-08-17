@@ -222,7 +222,72 @@ The research tournament is recorded in
 `docs/research/PRODUCTION_READINESS_ARCHITECTURE_TOURNAMENT_V1.json` and checked
 by `python3 tools/check_production_readiness_architecture_tournament_v1.py`.
 Its initial typed-settlement-microkernel leader is advisory, unselected, and
-unfrozen. The predicate above remains open.
+unfrozen. The V1 checker has no authenticated evidence resolver, so every V1
+gate, metric, and scenario must remain unverified or advisory; candidate-authored
+evidence references cannot select or freeze an architecture.
+
+The detailed leader contract is recorded in
+`docs/research/PRODUCTION_READINESS_ARCHITECTURE_CANDIDATE_V2.json`. Regenerate
+it with
+`python3 tools/render_production_readiness_architecture_candidate_v2.py --write`
+and check it with
+`python3 tools/check_production_readiness_architecture_candidate_v2.py --json`.
+It specifies one settlement-kernel entry, exact typed request/response ports,
+immutable root-bound views, all 33 command routes, one durable ZenoLedger
+writer, and this canonical execution order:
+
+```text
+command_index ascending
+-> per-command route DAG topological order
+-> module_id ascending tie break
+-> intent_index ascending
+```
+
+The multi-module protocol buy-and-burn route is explicitly
+`protocol finance -> spot/LP -> protocol finance` and binds its complete module
+release set. Each route step owns its intent subset, and a checker-owned
+module/intent matrix binds asset scope, account-role scope, authority profile,
+and settlement recheck. Tau representation is resolved through a typed policy
+port. Tau connectivity, policy profile, and software release authority are
+separate. Governed policy/release updates require an opaque governance witness
+in a narrowed authorized request and share the same expected-head publication
+capability as economic commands. Direct and ZRPF execution each produce one
+`ExecutionAdmissionV2` around one `ExecutionCommitmentsV2`. The ZRPF journal
+embeds the same commitment type, and proof verification returns a typed
+verified journal. Checker-derived schema paths cover parent, pre/post state,
+delta, effect, history, nullifier, outbox, release, policy, subject, epoch,
+proof, image, journal, and verifier-profile equality. Publication embeds the
+accepted candidate once. The authoritative input sum includes the 33 economic
+commands, three governed-control variants, and one ZRPF batch-proof variant;
+no other authoritative input is declared.
+
+Closed sum-type contracts bind each discriminator to exact required and
+forbidden fields. ZRPF admissions require their verified journal, direct
+admissions forbid it, and native-backup verifier mode requires governance and
+same-profile equivalence evidence.
+
+The Tau representation contract binds integer scaling, rounding, dust,
+external network, ingress verifier, destination adapter, migration, recovery,
+and permanence roots. Tau-primary/native-backup execution uses a typed,
+epoch-bound verifier profile owned by the policy kernel and requires governed
+activation plus same-profile equivalence evidence. Silent per-query fallback
+is forbidden. The candidate checker reads each regular, non-symlink input
+source once through descriptor-relative traversal, hashes and parses that
+immutable byte snapshot, and rejects a source that changes before the decision
+returns. The already-running checker and Python interpreter remain an explicit
+trusted bootstrap premise. Promotion requires an external authenticated
+executable-identity receipt, which this research slice does not provide.
+
+The closed boundary types specify field names, logical types, cardinalities,
+and units. The 33 command payload schemas, nested domain objects, and delta
+entries remain explicitly open G1/G2 obligations. Source-pinned ESSO models
+with Z3/CVC5 agreement are mandatory for
+bounded composition, lifecycle, migration, and reject-no-commit claims. Lean is
+mandatory for the unbounded global fold, conservation, and runtime-refinement
+theorems. Both formal lanes remain unimplemented and unverified, so this
+detailed candidate is structurally specified research and carries no selection,
+settlement, mounting, release, or production authority. The predicate above
+remains open.
 
 Exit gate: no enabled command has `GAP`, `UNKNOWN`, or an unnamed economic
 owner, and the architecture-closure tournament has an evidence-eligible

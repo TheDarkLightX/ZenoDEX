@@ -179,6 +179,35 @@ def test_unverified_candidate_cannot_be_selected_or_frozen() -> None:
     assert any("not promotion eligible" in error for error in report["errors"])
 
 
+def test_self_attested_evidence_cannot_select_or_freeze_architecture() -> None:
+    document = _document()
+    leader = _leader(document)
+    for gate in leader["gate_claims"]:
+        gate["evidence_status"] = "VERIFIED"
+        gate["evidence_grade"] = 4
+        gate["evidence_refs"] = ["self-attested"]
+    for metric in leader["metrics"]:
+        metric["status"] = "MEASURED"
+        metric["evidence_refs"] = ["self-attested"]
+    for scenario in leader["scenario_claims"]:
+        scenario["status"] = "VERIFIED"
+        scenario["evidence_grade"] = 4
+        scenario["evidence_refs"] = ["self-attested"]
+    for counterexample in leader["counterexamples"]:
+        counterexample["status"] = "CLOSED_VERIFIED"
+    document["selection"]["selected_candidate_id"] = leader["id"]
+    document["architecture_frozen"] = True
+
+    report = checker.check_document(document)
+
+    assert report["ok"] is False
+    assert report["promotable_candidate_count"] == 0
+    assert report["selected_candidate_id"] is None
+    assert report["architecture_frozen"] is False
+    assert any("authenticated evidence resolver" in error for error in report["errors"])
+    assert report["production_ready"] is False
+
+
 def test_source_pin_tampering_fails_closed() -> None:
     document = _document()
     document["source_pins"][0]["sha256"] = "0" * 64

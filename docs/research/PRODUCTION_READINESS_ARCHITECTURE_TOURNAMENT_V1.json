@@ -5,8 +5,8 @@
   "architecture_frozen": false,
   "reviewed_subject": "a2f5fd44333de7d79050534ee8c6c348bf82a423",
   "source_pins": [
-    {"id": "docs/PRODUCTION_READINESS_PLAN.md", "sha256": "b36ec0a5057c342abf15a24def5ac9c2a83fbbb531b1841ec104c33b75c563d0"},
-    {"id": "docs/research/PRODUCTION_READINESS_TASK_GRAPH_V1.json", "sha256": "2041206dfb01b050534cff8582200eca6a5f663a1aa8c4b83e201e029cd58c58"},
+    {"id": "docs/PRODUCTION_READINESS_PLAN.md", "sha256": "be4052d2ac8589ac8adefa3f49dde76d57def6ff2504bb511ed49aaa1cc93e8a"},
+    {"id": "docs/research/PRODUCTION_READINESS_TASK_GRAPH_V1.json", "sha256": "55385445e765deb359d3208c7d8670e43225b467cc24877ea8938165b9beb49e"},
     {"id": "src/core/global_settlement_types_v1.py", "sha256": "c7ff7f362462502293c017fd986c14ef57c9aaa344e4b1093ea260ec18e84568"},
     {"id": "src/integration/m6_commit_port_v1.py", "sha256": "333bfee65bcb7917c09deee3fbb5ba50268f7b06afd5b652fc0bcd9bfe9ad482"},
     {"id": "zk/global_settlement_abi_v1/src/release.rs", "sha256": "0cc42ee1b3c30e8dac0cd593986922165923856af4b40aef4c59787a1cd37f18"}

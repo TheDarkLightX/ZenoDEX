@@ -106,6 +106,9 @@
         "docs/research/PRODUCTION_READINESS_G1_SAFE_HOLD_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json",
         "docs/research/PRODUCTION_READINESS_G1_STATE_DELTA_GATE_V1.json",
+        "docs/research/PRODUCTION_READINESS_ARCHITECTURE_TOURNAMENT_V1.json",
+        "docs/research/PRODUCTION_READINESS_ARCHITECTURE_CANDIDATE_V2.json",
+        "docs/research/PRODUCTION_READINESS_ARCHITECTURE_CANDIDATE_V2.md",
         "docs/research/M6_SAFE_MOUNT_F123_REPAIR_V1.md",
         "src/core",
         "src/integration",
@@ -126,6 +129,8 @@
         "tests/test_check_production_readiness_g1_safe_hold.py",
         "tests/test_check_production_readiness_g1_semantics.py",
         "tests/test_check_production_readiness_g1_state_delta_gate.py",
+        "tests/test_check_production_readiness_architecture_tournament_v1.py",
+        "tests/test_check_production_readiness_architecture_candidate_v2.py",
         "tools/check_production_readiness_g1_safe_hold.py",
         "tools/check_production_readiness_g1_bundle.py",
         "tools/check_production_readiness_g1_profile_gate.py",
@@ -148,6 +153,10 @@
         "tools/production_readiness_g1_service_funding_contract_v1.py",
         "tools/production_readiness_g1_critical_service_cost_contract_v1.py",
         "tools/production_readiness_g1_critical_service_procurement_contract_v1.py",
+        "tools/check_production_readiness_architecture_tournament_v1.py",
+        "tools/production_readiness_architecture_candidate_contract_v2.py",
+        "tools/render_production_readiness_architecture_candidate_v2.py",
+        "tools/check_production_readiness_architecture_candidate_v2.py",
         "tools/check_production_readiness_g1_entrypoints.py",
         "tools/check_production_readiness_g1_semantics.py"
       ],
@@ -169,6 +178,8 @@
         "The service-funding runway model classifies all 22 participant rows and exercises capped, replay-protected service budgets; all 12 budget-eligible role policies, payment assets, amounts, work verifiers, legal activation, and release roots remain unselected.",
         "The critical-service cost model supplies dated component benchmarks and exact high-case sizing for validators, oracle roles, liquidators and keepers, Tau relayers, and proof providers; all five complete cost envelopes, revenue inputs, qualified benchmarks, and purpose-bound reserves remain unselected.",
         "The critical-service procurement model defines complete named quote components, exact-subject qualification, a bonded defect-gain inequality, beneficial-owner and failure-domain caps, and bounded exhaustive multiwinner selection; every real quote and policy remains unselected and no work or payment authority exists.",
+        "The architecture tournament nominates TYPED_SETTLEMENT_MICROKERNEL_V2 as its advisory research leader, while authenticated evidence resolution is absent and the architecture remains unselected and unfrozen.",
+        "The detailed V2 candidate structurally binds 33 routes, 20 modules, 13 state domains, 25 typed ports, 56 module/intent asset-and-account capability rows, command-first and step-local intent composition, separate Tau connectivity/policy/release/governance authority, typed direct/ZRPF admission through one ZenoLedger writer, and 54 named mutants. The 33 command payload schemas and nested domain/delta schemas remain open; ESSO Z3/CVC5, Lean, runtime, migration, verifier-registry, no-bypass, and direct/ZRPF evidence remain open.",
         "Dynamic reachability, generated code, credentials, and deployment wiring remain UNKNOWN and require a production-build audit.",
         "The legacy ATDD contract is source-pinned to an older subject and is not a valid exact-subject G1 completion receipt.",
         "The broader claims-registry gate fails on the exact base because claims[123] references missing tools/check_derivatives_authorization_matrix.py."
@@ -190,6 +201,10 @@
         "python3 tools/check_production_readiness_g1_state_delta_gate.py --check --json",
         "python3 tools/check_production_readiness_g1_legacy_atdd_quarantine.py --check --json",
         "python3 tools/check_production_readiness_g1_bundle.py --check --json",
+        "python3 tools/render_production_readiness_architecture_candidate_v2.py --check",
+        "python3 tools/check_production_readiness_architecture_tournament_v1.py --json",
+        "python3 tools/check_production_readiness_architecture_candidate_v2.py --json",
+        "python3 -m pytest -q tests/test_check_production_readiness_architecture_tournament_v1.py tests/test_check_production_readiness_architecture_candidate_v2.py",
         "python3 -m pytest -q tests/core/test_m6_safe_mount_v1.py tests/integration/test_m6_durable_store_v1.py",
         "python3 tools/check_m6_global_economic_core_atdd_v1.py"
       ],
@@ -206,6 +221,7 @@
         "The service-funding model supplies finite budget arithmetic and lifecycle evidence; it does not admit work, select a claimant, forecast revenue, satisfy counsel, or authorize payment.",
         "The critical-service cost model supplies component-price observations and finite sizing arithmetic; it does not establish complete compensation, future revenue, qualified hardware, a proof-unit price, role activation, or payment authority.",
         "The critical-service procurement model supplies typed quote, qualification, bond, and finite selector evidence; it does not verify beneficial ownership, select a provider, establish unbounded optimality, admit work, authorize payment, or activate a role.",
+        "The architecture tournament and detailed candidate provide structural research evidence only; they do not select an architecture or establish semantic implication, implementation, formal proof, settlement, mounting, release, or production readiness.",
         "The G1 entrypoint audit is a static source inventory; it cannot establish dynamic reachability, generated-code coverage, no-bypass behavior, or a production writer."
       ],
       "completion_receipt": null
