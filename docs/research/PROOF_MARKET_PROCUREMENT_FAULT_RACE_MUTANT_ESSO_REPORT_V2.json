@@ -1,0 +1,231 @@
+{
+  "model_id": "proof_market_procurement_v2",
+  "ir_hash": "15d23532252da28d",
+  "timestamp": "2026-08-18T04:51:01.471565+00:00",
+  "scope": {
+    "kind": "inductive",
+    "time": "unbounded",
+    "k": 1,
+    "solver_timeout_ms": 30000,
+    "solver_seed": 0,
+    "fail_closed": true,
+    "badge": "Inductive(k=1)",
+    "domain_caps": {
+      "state_vars": {
+        "buyer_escrow_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 4
+        },
+        "buyer_refund_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 4
+        },
+        "buyer_unrestricted_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 4
+        },
+        "direct_execution_paid_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 3
+        },
+        "direct_execution_witness_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 1
+        },
+        "job_state": {
+          "kind": "enum",
+          "symbols": [
+            "JOB_None",
+            "JOB_PostedOpen",
+            "JOB_PostedAssigned",
+            "JOB_ScarcityOpen",
+            "JOB_ScarcityAssigned",
+            "JOB_Submitted",
+            "JOB_ProverFaultWitnessed",
+            "JOB_Verified",
+            "JOB_DirectPending",
+            "JOB_Settled"
+          ]
+        },
+        "lane": {
+          "kind": "enum",
+          "symbols": [
+            "LANE_None",
+            "LANE_Posted",
+            "LANE_Scarcity",
+            "LANE_Direct"
+          ]
+        },
+        "occurrence_payment_claimed_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 1
+        },
+        "posted_price_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 2
+        },
+        "prover_fault_recorded_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 1
+        },
+        "prover_fault_witness_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 1
+        },
+        "selected_payment_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 2
+        },
+        "seller_bond_escrow_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 2
+        },
+        "seller_bond_restitution_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 2
+        },
+        "seller_bond_return_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 2
+        },
+        "seller_paid_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 2
+        },
+        "seller_unrestricted_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 2
+        },
+        "settlement_commit_count": {
+          "kind": "int",
+          "min": 0,
+          "max": 1
+        },
+        "verified_witness_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 1
+        },
+        "verifier_fault_recorded_units": {
+          "kind": "int",
+          "min": 0,
+          "max": 1
+        }
+      },
+      "params": {
+        "accept_posted_price": {},
+        "assign_scarcity_bid": {
+          "bid_units": {
+            "kind": "int",
+            "min": 1,
+            "max": 2
+          }
+        },
+        "no_acceptance_open_scarcity": {},
+        "process_restart": {},
+        "record_prover_fault_and_select_direct": {},
+        "record_verifier_fault_and_select_direct": {},
+        "scarcity_failed_select_direct": {},
+        "seller_submit": {},
+        "verifier_create_prover_fault_witness": {
+          "fault_cause_established": {
+            "kind": "bool"
+          },
+          "occurrence_key_bound": {
+            "kind": "bool"
+          },
+          "verifier_profile_current": {
+            "kind": "bool"
+          }
+        },
+        "verify_submitted_work": {
+          "proof_valid": {
+            "kind": "bool"
+          },
+          "verifier_profile_current": {
+            "kind": "bool"
+          },
+          "work_key_bound": {
+            "kind": "bool"
+          }
+        },
+        "zenoledger_commit_direct_execution": {
+          "direct_execution_valid": {
+            "kind": "bool"
+          },
+          "work_key_bound": {
+            "kind": "bool"
+          }
+        },
+        "zenoledger_commit_verified_seller_payment": {},
+        "zenoledger_list_and_prefund": {}
+      },
+      "log2_state_space_upper_bound": 32.38244988459753
+    }
+  },
+  "environment_model": {
+    "scheduler": "sequential",
+    "adversary": "may choose any declared command each step with any in-domain parameters",
+    "command_space": [
+      "accept_posted_price",
+      "assign_scarcity_bid",
+      "no_acceptance_open_scarcity",
+      "process_restart",
+      "record_prover_fault_and_select_direct",
+      "record_verifier_fault_and_select_direct",
+      "scarcity_failed_select_direct",
+      "seller_submit",
+      "verifier_create_prover_fault_witness",
+      "verify_submitted_work",
+      "zenoledger_commit_direct_execution",
+      "zenoledger_commit_verified_seller_payment",
+      "zenoledger_list_and_prefund"
+    ],
+    "notes": [
+      "No concurrency, reordering, or interleaving beyond repeated calls to step(state, command).",
+      "All behavior is defined by the ESSO kernel semantics (guards, simultaneous updates, canonicalizer, invariants)."
+    ]
+  },
+  "tool_versions": {
+    "esso_code_hash": "7f80c6216be85c827e8d1cc2fa08ee3107a74588",
+    "python": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]",
+    "platform": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39",
+    "solvers": {
+      "z3": "4.15.4",
+      "cvc5": "This is cvc5 version 1.1.2"
+    },
+    "cargo": "cargo 1.87.0 (99624be96 2025-05-06)",
+    "rustfmt": "rustfmt 1.8.0-stable (17067e9ac6 2025-05-09)"
+  },
+  "z3_passed": false,
+  "cvc5_available": true,
+  "cvc5_passed": false,
+  "solvers_agreed": true,
+  "total_queries": 14,
+  "passed_queries": 13,
+  "failed_queries": 1,
+  "inconclusive_queries": 0,
+  "disagreements": [],
+  "lean_path": null,
+  "kani_path": null,
+  "smtlib_path": null,
+  "verdict": "FAILED",
+  "notes": [
+    "Found 1 counterexample(s)"
+  ]
+}

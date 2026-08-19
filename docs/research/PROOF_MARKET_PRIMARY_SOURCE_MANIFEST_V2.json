@@ -1,0 +1,140 @@
+{
+  "schema": "zenodex/proof-market-primary-source-manifest/v2",
+  "status": "ADVISORY_OFFICIAL_SOURCE_SUMMARIES_AS_OF_ACCESS_DATE",
+  "accessed_at": "2026-08-18",
+  "externally_authenticated": false,
+  "content_snapshots_preserved": false,
+  "claim_boundary": "These records preserve reviewer summaries, exact URLs, and source-status metadata. Versionless pages were not content-snapshotted, remain mutable, and supply no ZenoProof theorem or deployment premise.",
+  "sources": [
+    {
+      "id": "BOUNDLESS_AUCTION_CURRENT",
+      "name": "Boundless auction documentation",
+      "url": "https://docs.boundless.network/developers/tutorials/auction",
+      "publication_or_version": "versionless official documentation accessed 2026-08-18",
+      "deployment_status": "OFFICIAL_DOCUMENTATION_DESCRIPTION",
+      "exact_observation": "The documentation describes a rising requester price, first-prover lock, and a default disposition split between burn and a secondary-prover bounty.",
+      "use_in_packet": "Comparator and source of public-clock, capital-lock, and secondary-recovery attack queries.",
+      "snapshot_sha256": null
+    },
+    {
+      "id": "BOUNDLESS_LIFECYCLE_CURRENT",
+      "name": "Boundless proof lifecycle",
+      "url": "https://docs.boundless.network/developers/proof-lifecycle",
+      "publication_or_version": "versionless official documentation accessed 2026-08-18",
+      "deployment_status": "OFFICIAL_DOCUMENTATION_DESCRIPTION",
+      "exact_observation": "The documentation describes requester prefunding, prover collateral, and payment after proof verification.",
+      "use_in_packet": "Comparator for prefunding, verification-before-payment, and failure recovery.",
+      "snapshot_sha256": null
+    },
+    {
+      "id": "BOUNDLESS_PROVER_RELEASE_2_0",
+      "name": "Boundless Proving Node v2.0 release",
+      "url": "https://github.com/boundless-xyz/boundless/releases/tag/v2.0.0",
+      "publication_or_version": "v2.0.0, commit d85becb, 2026-05-12",
+      "deployment_status": "OFFICIAL_VERSIONED_RELEASE_NOTE",
+      "exact_observation": "The release note reports removal of an approximately 30% cluster database penalty, approximately 99.6% predecessor lock fulfillment, and 25 ZKC slashed after two predecessor failures.",
+      "use_in_packet": "Operational report that motivates modeling software contention and collateral loss as proof-supply variables; a collateral-driven exit response remains an inference.",
+      "snapshot_sha256": null
+    },
+    {
+      "id": "PROO_PHI_V5",
+      "name": "Proo-phi v5",
+      "url": "https://arxiv.org/html/2404.06495v5",
+      "publication_or_version": "arXiv:2404.06495v5, 2025-03-10",
+      "deployment_status": "VERSIONED_RESEARCH_PAPER",
+      "exact_observation": "Its homogeneous single-round core proves user-value DSIC, prover unit-cost DSIC, and budget balance under its assumptions; capacity reports, Sybils, repeated play, and all-prover monopoly remain outside that theorem.",
+      "use_in_packet": "Narrow theorem comparator; no theorem is transferred to ZenoProof.",
+      "snapshot_sha256": null
+    },
+    {
+      "id": "SUCCINCT_ARCHITECTURE_CURRENT",
+      "name": "Succinct Prover Network architecture documentation",
+      "url": "https://docs.succinct.xyz/docs/protocol/spn/architecture",
+      "publication_or_version": "versionless official documentation accessed 2026-08-18",
+      "deployment_status": "OFFICIAL_DOCUMENTATION_DESCRIPTION",
+      "exact_observation": "The architecture page describes an off-chain auctioneer and ephemeral proof-request data.",
+      "use_in_packet": "Comparator for auctioneer availability, discretion, and recoverability risks.",
+      "snapshot_sha256": null
+    },
+    {
+      "id": "SUCCINCT_AUCTION_CURRENT",
+      "name": "Succinct Prover Network auction documentation",
+      "url": "https://docs.succinct.xyz/docs/protocol/spn/auction",
+      "publication_or_version": "versionless official documentation accessed 2026-08-18",
+      "deployment_status": "OFFICIAL_DOCUMENTATION_DESCRIPTION",
+      "exact_observation": "The auction page describes reverse-auction selection and retry behavior.",
+      "use_in_packet": "Comparator for auction assignment and retry behavior.",
+      "snapshot_sha256": null
+    },
+    {
+      "id": "SUCCINCT_LIFECYCLE_CURRENT",
+      "name": "Succinct Prover Network lifecycle documentation",
+      "url": "https://docs.succinct.xyz/docs/protocol/spn/lifecycle",
+      "publication_or_version": "versionless official documentation accessed 2026-08-18",
+      "deployment_status": "OFFICIAL_DOCUMENTATION_DESCRIPTION",
+      "exact_observation": "The lifecycle page permits multi-factor prover scoring, including price, stake, performance history, and other factors.",
+      "use_in_packet": "Comparator for discretion, concentration, and stake-capacity coupling risks.",
+      "snapshot_sha256": null
+    },
+    {
+      "id": "GEVULOT_FIRESTARTER_CURRENT",
+      "name": "Gevulot Firestarter overview",
+      "url": "https://docs.gevulot.com/gevulot-docs/firestarter/overview",
+      "publication_or_version": "versionless official documentation accessed 2026-08-18",
+      "deployment_status": "OFFICIAL_DOCS_DESCRIBE_PERMISSIONED_SERVICE",
+      "exact_observation": "The official documentation describes Firestarter as a permissioned implementation of the broader ZkCloud design.",
+      "use_in_packet": "Prevents treating the permissionless ZkCloud design as deployed evidence.",
+      "snapshot_sha256": null
+    },
+    {
+      "id": "GEVULOT_ZKCLOUD_DESIGN",
+      "name": "Gevulot ZkCloud execution-guarantee design",
+      "url": "https://docs.gevulot.com/gevulot-docs/zkcloud-design/execution-guarantees",
+      "publication_or_version": "versionless official design documentation accessed 2026-08-18",
+      "deployment_status": "OFFICIAL_DESIGN_DOCUMENTATION_NO_DEPLOYMENT_EVIDENCE",
+      "exact_observation": "The design proposes qualified VRF assignment and configurable redundancy; the page does not establish deployed Firestarter behavior.",
+      "use_in_packet": "Design comparator only. ZenoProof capacity weighting is an internal variation.",
+      "snapshot_sha256": null
+    },
+    {
+      "id": "BREVIS_AUCTION_CURRENT",
+      "name": "Brevis ProverNet request-auction documentation",
+      "url": "https://provernet-docs.brevis.network/provernet-architecture/the-proof-marketplace/request-auction.html",
+      "publication_or_version": "versionless official documentation accessed 2026-08-18",
+      "deployment_status": "OFFICIAL_DOCUMENTATION_DESCRIPTION",
+      "exact_observation": "The request-auction page describes commit-reveal reverse procurement.",
+      "use_in_packet": "Comparator for sealed procurement only; this URL supplies no payment-gating premise.",
+      "snapshot_sha256": null
+    },
+    {
+      "id": "BREVIS_STAKING_CURRENT",
+      "name": "Brevis ProverNet staking documentation",
+      "url": "https://provernet-docs.brevis.network/user-tutorial/staking-in-provernet.html",
+      "publication_or_version": "versionless official documentation accessed 2026-08-18",
+      "deployment_status": "OFFICIAL_SOURCE_STATUS_CONFLICT",
+      "exact_observation": "The staking page says slashing is disabled, which conflicts with the mainnet announcement's statement that slashing rates are enforced.",
+      "use_in_packet": "Fail-closed status-conflict evidence; supplies no ZenoProof slashing premise.",
+      "snapshot_sha256": null
+    },
+    {
+      "id": "BREVIS_MAINNET_ANNOUNCEMENT",
+      "name": "Brevis ProverNet mainnet announcement",
+      "url": "https://blog.brevis.network/2026/01/06/brevis-provernet-mainnet-and-brev-are-live/",
+      "publication_or_version": "official announcement dated 2026-01-06",
+      "deployment_status": "OFFICIAL_SOURCE_STATUS_CONFLICT",
+      "exact_observation": "The announcement says slashing rates are enforced, which conflicts with the staking page's statement that slashing is disabled.",
+      "use_in_packet": "Fail-closed status-conflict evidence; supplies no ZenoProof slashing premise.",
+      "snapshot_sha256": null
+    },
+    {
+      "id": "KARACA_COALITION_PROOF_VCG",
+      "name": "Coalition-proof VCG under supermodularity",
+      "url": "https://arxiv.org/abs/1711.06774v5",
+      "publication_or_version": "arXiv:1711.06774v5; original submission 2017-11-17",
+      "deployment_status": "ADJACENT_VERSIONED_PAPER_NOT_TRANSFERRED",
+      "exact_observation": "Coalition-resistance results require specialized supermodularity and market assumptions that have not been established for discrete ZenoProof jobs.",
+      "use_in_packet": "TheoremSearch follow-up lead only; carries no local proof status.",
+      "snapshot_sha256": null
+    }
+  ]
+}

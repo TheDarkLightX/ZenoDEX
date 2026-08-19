@@ -1,0 +1,733 @@
+{
+  "attack_query": {
+    "first_attempt_success_bps": 9660,
+    "floor_corrected_average_payment_atoms": 6718880,
+    "floor_corrected_payment_to_reference_bps": 15749,
+    "floor_defects": [
+      {
+        "minimum_price_atoms": 3767112,
+        "reported_payment_atoms": 3520442,
+        "scenario_id": "LARGE_5_GCYCLE_EFFICIENT",
+        "shortfall_atoms": 246670
+      },
+      {
+        "minimum_price_atoms": 34071112,
+        "reported_payment_atoms": 27960929,
+        "scenario_id": "VERY_LARGE_50_GCYCLE_EFFICIENT",
+        "shortfall_atoms": 6110183
+      }
+    ],
+    "micro_required_bond_atoms": 3777780,
+    "policy_id": "LOSS_P40000_W25000_F2000_C2000",
+    "saved_collusive_uplift_bps": 15762,
+    "saved_eligibility_fulfillment_bps": 10000,
+    "saved_payment_to_reference_bps": 15526,
+    "saved_reported_average_payment_atoms": 6624003,
+    "unilateral_wait_average_payment_atoms": 8092995,
+    "unilateral_wait_payment_to_reference_bps": 18969,
+    "v1_esso_half_restitution_atoms": 1888890,
+    "waiting_witnesses": [
+      {
+        "floor_corrected_payment_atoms": 526147,
+        "maximum_profitable_wait_price_atoms": 848345,
+        "other_eligible_prover_count": 1,
+        "scenario_id": "MICRO_64_MCYCLE_EFFICIENT",
+        "success_adjusted_expected_gain_atoms": 315754,
+        "success_payment_gain_atoms": 322198,
+        "winner_id": "TEN_GPU_CLUSTER"
+      },
+      {
+        "floor_corrected_payment_atoms": 775489,
+        "maximum_profitable_wait_price_atoms": 1254111,
+        "other_eligible_prover_count": 1,
+        "scenario_id": "MICRO_64_MCYCLE_BASE",
+        "success_adjusted_expected_gain_atoms": 464263,
+        "success_payment_gain_atoms": 478622,
+        "winner_id": "TEN_GPU_CLUSTER"
+      },
+      {
+        "floor_corrected_payment_atoms": 1427481,
+        "maximum_profitable_wait_price_atoms": 2222224,
+        "other_eligible_prover_count": 0,
+        "scenario_id": "MICRO_64_MCYCLE_STRESSED",
+        "success_adjusted_expected_gain_atoms": 739110,
+        "success_payment_gain_atoms": 794743,
+        "winner_id": "TEN_GPU_CLUSTER"
+      },
+      {
+        "floor_corrected_payment_atoms": 1243187,
+        "maximum_profitable_wait_price_atoms": 1361589,
+        "other_eligible_prover_count": 1,
+        "scenario_id": "STANDARD_1024_MCYCLE_EFFICIENT",
+        "success_adjusted_expected_gain_atoms": 116033,
+        "success_payment_gain_atoms": 118402,
+        "winner_id": "TEN_GPU_CLUSTER"
+      },
+      {
+        "floor_corrected_payment_atoms": 1980300,
+        "maximum_profitable_wait_price_atoms": 2166355,
+        "other_eligible_prover_count": 1,
+        "scenario_id": "STANDARD_1024_MCYCLE_BASE",
+        "success_adjusted_expected_gain_atoms": 180473,
+        "success_payment_gain_atoms": 186055,
+        "winner_id": "TEN_GPU_CLUSTER"
+      },
+      {
+        "floor_corrected_payment_atoms": 4318402,
+        "maximum_profitable_wait_price_atoms": 4537590,
+        "other_eligible_prover_count": 1,
+        "scenario_id": "STANDARD_1024_MCYCLE_STRESSED",
+        "success_adjusted_expected_gain_atoms": 203844,
+        "success_payment_gain_atoms": 219188,
+        "winner_id": "TEN_GPU_CLUSTER"
+      },
+      {
+        "floor_corrected_payment_atoms": 3767112,
+        "maximum_profitable_wait_price_atoms": 4283720,
+        "other_eligible_prover_count": 1,
+        "scenario_id": "LARGE_5_GCYCLE_EFFICIENT",
+        "success_adjusted_expected_gain_atoms": 511441,
+        "success_payment_gain_atoms": 516608,
+        "winner_id": "LARGE_CLUSTER"
+      },
+      {
+        "floor_corrected_payment_atoms": 6010546,
+        "maximum_profitable_wait_price_atoms": 7084078,
+        "other_eligible_prover_count": 1,
+        "scenario_id": "LARGE_5_GCYCLE_BASE",
+        "success_adjusted_expected_gain_atoms": 1052061,
+        "success_payment_gain_atoms": 1073532,
+        "winner_id": "LARGE_CLUSTER"
+      },
+      {
+        "floor_corrected_payment_atoms": 14267614,
+        "maximum_profitable_wait_price_atoms": 16540479,
+        "other_eligible_prover_count": 1,
+        "scenario_id": "LARGE_5_GCYCLE_STRESSED",
+        "success_adjusted_expected_gain_atoms": 2136493,
+        "success_payment_gain_atoms": 2272865,
+        "winner_id": "LARGE_CLUSTER"
+      },
+      {
+        "floor_corrected_payment_atoms": 34071112,
+        "maximum_profitable_wait_price_atoms": 38668799,
+        "other_eligible_prover_count": 1,
+        "scenario_id": "VERY_LARGE_50_GCYCLE_EFFICIENT",
+        "success_adjusted_expected_gain_atoms": 4551710,
+        "success_payment_gain_atoms": 4597687,
+        "winner_id": "LARGE_CLUSTER"
+      },
+      {
+        "floor_corrected_payment_atoms": 49544220,
+        "maximum_profitable_wait_price_atoms": 64809851,
+        "other_eligible_prover_count": 1,
+        "scenario_id": "VERY_LARGE_50_GCYCLE_BASE",
+        "success_adjusted_expected_gain_atoms": 14960318,
+        "success_payment_gain_atoms": 15265631,
+        "winner_id": "LARGE_CLUSTER"
+      },
+      {
+        "floor_corrected_payment_atoms": 124297874,
+        "maximum_profitable_wait_price_atoms": 154794816,
+        "other_eligible_prover_count": 1,
+        "scenario_id": "VERY_LARGE_50_GCYCLE_STRESSED",
+        "success_adjusted_expected_gain_atoms": 28667125,
+        "success_payment_gain_atoms": 30496942,
+        "winner_id": "LARGE_CLUSTER"
+      }
+    ]
+  },
+  "bounded_model": {
+    "address_count_diversity_counterexample": {
+      "address_count": 3,
+      "address_gate_passes": true,
+      "alias_payment_atoms": 5,
+      "alias_utility_atoms": 4,
+      "distinct_owner_gate_passes": false,
+      "false_name_utility_gain_atoms": 0,
+      "one_address_payment_atoms": 5,
+      "one_address_utility_atoms": 4,
+      "true_owner_count": 1
+    },
+    "bond": {
+      "named_restitution_atoms": 38,
+      "prover_fault_disposition": {
+        "replacement_premium_atoms": 10,
+        "residual_penalty_insurance_atoms": 12,
+        "seller_return_atoms": 0,
+        "standardized_delay_loss_atoms": 20,
+        "standby_activation_atoms": 5,
+        "verifier_waste_atoms": 3
+      },
+      "prover_fault_disposition_total_atoms": 50,
+      "required_bond_atoms": 50,
+      "verifier_fault_return_atoms": 50
+    },
+    "capacity_ticket_split": {
+      "fixed_seed_owner_merged": "OWNER_A",
+      "fixed_seed_owner_split": "OWNER_B",
+      "merged_owner_ticket_counts": [
+        [
+          "OWNER_A",
+          5
+        ],
+        [
+          "OWNER_B",
+          5
+        ]
+      ],
+      "merged_owner_wins_over_full_ticket_cycle": {
+        "OWNER_A": 5,
+        "OWNER_B": 5
+      },
+      "payment_atoms": 120,
+      "rejection_sampling": {
+        "three_unit_max_word_rejected": true,
+        "three_unit_zero_word_ticket": 0
+      },
+      "split_owner_ticket_counts": [
+        [
+          "OWNER_A",
+          5
+        ],
+        [
+          "OWNER_B",
+          5
+        ]
+      ],
+      "split_owner_wins_over_full_ticket_cycle": {
+        "OWNER_A": 5,
+        "OWNER_B": 5
+      }
+    },
+    "critical_price_coalition_counterexample": {
+      "deviation_coalition_utility_atoms": 3,
+      "deviation_payment_atoms": 4,
+      "profitable_gain_atoms": 2,
+      "truthful_coalition_utility_atoms": 1,
+      "truthful_payment_atoms": 2
+    },
+    "critical_price_dominance": {
+      "bidder_count": 3,
+      "deviation_queries": 7203,
+      "profitable_deviation": null,
+      "report_domain_max_atoms": 6,
+      "reserve_atoms": 5,
+      "truthful_ir_queries": 1029,
+      "truthful_ir_violation": null
+    },
+    "fallback": {
+      "direct_award": {
+        "kind": "DIRECT_EXECUTION",
+        "payment_atoms": 118,
+        "winner_index": null
+      },
+      "direct_beats_costlier_scarcity": {
+        "kind": "DIRECT_EXECUTION",
+        "payment_atoms": 100,
+        "winner_index": null
+      },
+      "scarcity_award": {
+        "kind": "SCARCITY_PROVER",
+        "payment_atoms": 115,
+        "winner_index": 0
+      },
+      "single_provider_stage_withholding": {
+        "deviation_queries": 1050,
+        "profitable_deviation": null
+      },
+      "unfunded_reject": {
+        "kind": "UNFUNDED_REJECT",
+        "payment_atoms": 0,
+        "winner_index": null
+      }
+    },
+    "first_price_truthfulness_counterexample": {
+      "cost_atoms": 1,
+      "deviation_bid_atoms": 2,
+      "deviation_utility_atoms": 1,
+      "next_bid_atoms": 3,
+      "profitable_gain_atoms": 1,
+      "truthful_bid_atoms": 1,
+      "truthful_utility_atoms": 0
+    },
+    "posted_price": {
+      "after_three_acceptances_atoms": 120,
+      "after_zero_acceptances_atoms": 120,
+      "computed_atoms": 120,
+      "current_round_acceptance_is_formula_input": false
+    },
+    "proof_reserve": {
+      "approved_reserve_zdex_atoms_e8": 3000000000000000,
+      "funded_verified_unique_bonus_atoms_e8": 50000000000,
+      "stateful_claim": {
+        "claimed_work_keys_after_first": [
+          "WORK_A"
+        ],
+        "duplicate_rejection": "WORK_KEY_ALREADY_CLAIMED",
+        "duplicate_was_accepted": false,
+        "first_bonus_atoms": 60,
+        "initial_owner_epoch_remaining_atoms": 80,
+        "initial_reserve_remaining_atoms": 100,
+        "owner_epoch_remaining_after_first_atoms": 20,
+        "reserve_remaining_after_first_atoms": 40
+      },
+      "unfunded_base_bonus_atoms_e8": 0
+    },
+    "repeated_cartel": {
+      "discount_one_half": {
+        "cooperate_pv": {
+          "denominator": 1,
+          "numerator": 2
+        },
+        "deviate_pv": {
+          "denominator": 1,
+          "numerator": 3
+        },
+        "sustainable": false
+      },
+      "discount_two_thirds": {
+        "cooperate_pv": {
+          "denominator": 1,
+          "numerator": 3
+        },
+        "deviate_pv": {
+          "denominator": 1,
+          "numerator": 3
+        },
+        "sustainable": true
+      },
+      "model": "STATIONARY_EQUAL_EXPECTED_SHARE_OR_ENFORCEABLE_TRANSFERS",
+      "three_prover_zero_punishment_threshold": {
+        "denominator": 3,
+        "numerator": 2
+      }
+    }
+  },
+  "checks": {
+    "ADDRESS_COUNT_COMPETITION_REFUTED": true,
+    "CAPACITY_TICKET_FIXED_SEED_SPLIT_INVARIANCE_REFUTED": true,
+    "CAPACITY_TICKET_REJECTION_SAMPLING_EXAMPLE": true,
+    "CAPACITY_TICKET_SPLIT_INVARIANT_IN_DECLARED_EXAMPLE": true,
+    "CRITICAL_PRICE_BOUNDED_UNILATERAL_DOMINANCE": true,
+    "CRITICAL_PRICE_COALITION_RESISTANCE_REFUTED": true,
+    "ESSO_DUAL_SOLVER_VERIFIED": true,
+    "FALLBACK_IS_SAME_CAP_AND_DIRECT_COST_AWARE": true,
+    "FIRST_PRICE_TRUTHFULNESS_REFUTED": true,
+    "FULL_PROVER_FAULT_BOND_DISPOSITION_CONSERVES": true,
+    "LEAN_RESTRICTED_THEOREMS_COMPILED": true,
+    "POSTED_PRICE_HAS_NO_SAME_ROUND_RATCHET": true,
+    "PRIMARY_SOURCE_MANIFEST_IS_EXPLICITLY_ADVISORY": true,
+    "PROOF_RESERVE_STATEFUL_CLAIM_CONSUMES_ONCE": true,
+    "SINGLE_PROVIDER_STAGE_WITHHOLDING_HAS_NO_STRICT_GAIN": true,
+    "V1_BOND_DISPOSITION_MISMATCH_REPRODUCED": true,
+    "V1_PAYMENT_FLOOR_DEFECT_REPRODUCED": true,
+    "V1_UNILATERAL_WAIT_PROFIT_REPRODUCED": true
+  },
+  "decision": {
+    "critical_lane": "PAID_DISTINCT_MEASURED_DOMAIN_STANDBY",
+    "critical_price_launch": "REJECTED_COALITION_MANIPULATION",
+    "entry_lane": "FINITE_30M_ZDEX_VERIFIED_USEFUL_WORK_BONUS",
+    "normal_lane": "BENCHMARK_POSTED_PRICE_SEALED_ACCEPT_CAPACITY_TICKET",
+    "reverse_dutch_default": "REJECTED",
+    "scarcity_lane": "RESEARCH_ONLY_SAME_CAP_LATE_CAPACITY_PAY_AS_BID",
+    "selected_for_production": false,
+    "terminal_fallback": "FUNDED_DIRECT_EXECUTION"
+  },
+  "formal_evidence": {
+    "esso": {
+      "counterexample_ids": [
+        "DIRECT_COMMIT_WITHOUT_DIRECT_LANE_BINDING",
+        "PROVER_FAULT_SLASH_WITHOUT_VERIFIER_WITNESS",
+        "PROVER_FAULT_WITNESS_VERIFICATION_RACE"
+      ],
+      "counterexample_retention": {
+        "DIRECT_COMMIT_WITHOUT_DIRECT_LANE_BINDING": "HASH_ONLY_MUTANT_SOURCE_AND_REPORT_NOT_PRESERVED",
+        "PROVER_FAULT_SLASH_WITHOUT_VERIFIER_WITNESS": "HASH_ONLY_MUTANT_SOURCE_AND_REPORT_NOT_PRESERVED",
+        "PROVER_FAULT_WITNESS_VERIFICATION_RACE": "SOURCE_REPORT_AND_BUNDLE_PRESERVED"
+      },
+      "fault_race_mutant_pins_match": true,
+      "fault_race_mutant_replays_sat": true,
+      "model_pin_matches": true,
+      "preserved_report_replays_verified": true,
+      "raw_bundle_result_pin_matches": true,
+      "receipt_path": "docs/research/PROOF_MARKET_PROCUREMENT_ESSO_V2.json",
+      "receipt_sha256": "b4bc80bd26e21433178b5df7140f7eaefb17b320542c49604ae82322688b7b79",
+      "result": {
+        "failed_queries": 0,
+        "inconclusive_queries": 0,
+        "passed_queries": 14,
+        "scope": "INDUCTIVE_K1_FINITE_SEQUENTIAL_STATE_MACHINE",
+        "solvers_agreed": true,
+        "total_queries": 14,
+        "verdict": "VERIFIED"
+      },
+      "status": "VERIFIED_BOUNDED_DUAL_SOLVER",
+      "toolchain": {
+        "cvc5": "1.1.2",
+        "esso_commit": "7f80c6216be85c827e8d1cc2fa08ee3107a74588",
+        "python": "3.12.3",
+        "z3": "4.15.4"
+      },
+      "verification_report_pin_matches": true
+    },
+    "lean": {
+      "compiled_theorems": [
+        "truthful_weakly_dominates_threshold",
+        "truthful_threshold_winner_nonnegative",
+        "first_price_truthfulness_counterexample",
+        "critical_price_coalition_counterexample",
+        "capacity_ticket_split_preserves_owner_weight",
+        "scarcity_payment_has_no_same_occurrence_uplift",
+        "three_prover_stationary_equal_share_boundary",
+        "full_default_bond_disposition_conserves"
+      ],
+      "exit_code": 0,
+      "placeholder_hits": 0,
+      "receipt_path": "docs/research/PROOF_MARKET_GAME_THEORY_LEAN_V2.json",
+      "receipt_sha256": "20ff660ef6442ad4c0135d3da30a3782b657839b11129485f70ea7900434d1c2",
+      "root_import_pin_matches": true,
+      "source_pin_matches": true,
+      "status": "COMPILED_RESTRICTED_THEOREMS",
+      "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "toolchain": {
+        "lean": "4.27.0",
+        "lean_commit": "db93fe1608548721853390a10cd40580fe7d22ae",
+        "mathlib_commit": "a3a10db0e9d66acbebf76c5e6a135066525ac900"
+      }
+    }
+  },
+  "game_surface": {
+    "authority": {
+      "model": "no operational authority",
+      "verifier": "creates an opaque claim-bound validity witness",
+      "zenoledger": "sole proposed escrow, payment, slash, and occurrence-payment commit authority"
+    },
+    "funding": {
+      "bootstrap": "finite 30M ZDEX reserve bonus after funded base payment",
+      "external_jobs": "buyer prefund",
+      "internal_zrpf": "DEX resource fees plus declared runway"
+    },
+    "identity_keys": {
+      "base_payment_nullifier": "occurrence_key",
+      "economic_work_key": "exact canonical task encoding over computation, claim, inputs, verifier profile, and release; excludes buyer, deadline, access policy, and nonce",
+      "occurrence_key": "economic work key plus buyer, prefund commitment, deadline, access policy, and nonce",
+      "reserve_bonus_nullifier": "economic_work_key",
+      "semantic_equivalence": "open unless a closed task registry or independently verified equivalence certificate binds encodings"
+    },
+    "players": [
+      "ZRPF_FEE_FUNDED_BUYER",
+      "EXTERNAL_PREFUNDED_BUYER",
+      "PROVER",
+      "STANDBY_PROVER",
+      "VERIFIER",
+      "PROOF_RESERVE_CONTROLLER",
+      "ZENOLEDGER"
+    ]
+  },
+  "nonclaims": [
+    "No finite model proves that a live permissionless proof market will have adequate honest supply or competitive prices.",
+    "The current leading experiment is not generally coalition-proof, false-name-proof, or equilibrium-efficient.",
+    "Capacity tickets do not authenticate capacity, ownership, randomness, or independent failure domains.",
+    "EconomicWorkKey deduplicates exact canonical encodings; semantic equivalence remains open.",
+    "The bounded Python/ESSO reserve transition is not a mounted ZenoLedger transition and does not prove canonical key encoding or multi-job semantic-equivalence deduplication.",
+    "External source pages were not content-snapshotted and remain advisory mutable evidence.",
+    "Lean and ESSO replay receipts are source-pinned but are not externally signed or remotely attested.",
+    "Direct execution availability, fee funding, cryptographic soundness, and ZenoLedger finality remain premises.",
+    "This artifact grants no market, payment, proof, token, settlement, release, or production authority."
+  ],
+  "ok": true,
+  "primary_source_review": {
+    "accessed_at": "2026-08-18",
+    "claim_boundary": "These records preserve reviewer summaries, exact URLs, and source-status metadata. Versionless pages were not content-snapshotted, remain mutable, and supply no ZenoProof theorem or deployment premise.",
+    "content_snapshots_preserved": false,
+    "externally_authenticated": false,
+    "schema": "zenodex/proof-market-primary-source-manifest/v2",
+    "sources": [
+      {
+        "deployment_status": "OFFICIAL_DOCUMENTATION_DESCRIPTION",
+        "exact_observation": "The documentation describes a rising requester price, first-prover lock, and a default disposition split between burn and a secondary-prover bounty.",
+        "id": "BOUNDLESS_AUCTION_CURRENT",
+        "name": "Boundless auction documentation",
+        "publication_or_version": "versionless official documentation accessed 2026-08-18",
+        "snapshot_sha256": null,
+        "url": "https://docs.boundless.network/developers/tutorials/auction",
+        "use_in_packet": "Comparator and source of public-clock, capital-lock, and secondary-recovery attack queries."
+      },
+      {
+        "deployment_status": "OFFICIAL_DOCUMENTATION_DESCRIPTION",
+        "exact_observation": "The documentation describes requester prefunding, prover collateral, and payment after proof verification.",
+        "id": "BOUNDLESS_LIFECYCLE_CURRENT",
+        "name": "Boundless proof lifecycle",
+        "publication_or_version": "versionless official documentation accessed 2026-08-18",
+        "snapshot_sha256": null,
+        "url": "https://docs.boundless.network/developers/proof-lifecycle",
+        "use_in_packet": "Comparator for prefunding, verification-before-payment, and failure recovery."
+      },
+      {
+        "deployment_status": "OFFICIAL_VERSIONED_RELEASE_NOTE",
+        "exact_observation": "The release note reports removal of an approximately 30% cluster database penalty, approximately 99.6% predecessor lock fulfillment, and 25 ZKC slashed after two predecessor failures.",
+        "id": "BOUNDLESS_PROVER_RELEASE_2_0",
+        "name": "Boundless Proving Node v2.0 release",
+        "publication_or_version": "v2.0.0, commit d85becb, 2026-05-12",
+        "snapshot_sha256": null,
+        "url": "https://github.com/boundless-xyz/boundless/releases/tag/v2.0.0",
+        "use_in_packet": "Operational report that motivates modeling software contention and collateral loss as proof-supply variables; a collateral-driven exit response remains an inference."
+      },
+      {
+        "deployment_status": "VERSIONED_RESEARCH_PAPER",
+        "exact_observation": "Its homogeneous single-round core proves user-value DSIC, prover unit-cost DSIC, and budget balance under its assumptions; capacity reports, Sybils, repeated play, and all-prover monopoly remain outside that theorem.",
+        "id": "PROO_PHI_V5",
+        "name": "Proo-phi v5",
+        "publication_or_version": "arXiv:2404.06495v5, 2025-03-10",
+        "snapshot_sha256": null,
+        "url": "https://arxiv.org/html/2404.06495v5",
+        "use_in_packet": "Narrow theorem comparator; no theorem is transferred to ZenoProof."
+      },
+      {
+        "deployment_status": "OFFICIAL_DOCUMENTATION_DESCRIPTION",
+        "exact_observation": "The architecture page describes an off-chain auctioneer and ephemeral proof-request data.",
+        "id": "SUCCINCT_ARCHITECTURE_CURRENT",
+        "name": "Succinct Prover Network architecture documentation",
+        "publication_or_version": "versionless official documentation accessed 2026-08-18",
+        "snapshot_sha256": null,
+        "url": "https://docs.succinct.xyz/docs/protocol/spn/architecture",
+        "use_in_packet": "Comparator for auctioneer availability, discretion, and recoverability risks."
+      },
+      {
+        "deployment_status": "OFFICIAL_DOCUMENTATION_DESCRIPTION",
+        "exact_observation": "The auction page describes reverse-auction selection and retry behavior.",
+        "id": "SUCCINCT_AUCTION_CURRENT",
+        "name": "Succinct Prover Network auction documentation",
+        "publication_or_version": "versionless official documentation accessed 2026-08-18",
+        "snapshot_sha256": null,
+        "url": "https://docs.succinct.xyz/docs/protocol/spn/auction",
+        "use_in_packet": "Comparator for auction assignment and retry behavior."
+      },
+      {
+        "deployment_status": "OFFICIAL_DOCUMENTATION_DESCRIPTION",
+        "exact_observation": "The lifecycle page permits multi-factor prover scoring, including price, stake, performance history, and other factors.",
+        "id": "SUCCINCT_LIFECYCLE_CURRENT",
+        "name": "Succinct Prover Network lifecycle documentation",
+        "publication_or_version": "versionless official documentation accessed 2026-08-18",
+        "snapshot_sha256": null,
+        "url": "https://docs.succinct.xyz/docs/protocol/spn/lifecycle",
+        "use_in_packet": "Comparator for discretion, concentration, and stake-capacity coupling risks."
+      },
+      {
+        "deployment_status": "OFFICIAL_DOCS_DESCRIBE_PERMISSIONED_SERVICE",
+        "exact_observation": "The official documentation describes Firestarter as a permissioned implementation of the broader ZkCloud design.",
+        "id": "GEVULOT_FIRESTARTER_CURRENT",
+        "name": "Gevulot Firestarter overview",
+        "publication_or_version": "versionless official documentation accessed 2026-08-18",
+        "snapshot_sha256": null,
+        "url": "https://docs.gevulot.com/gevulot-docs/firestarter/overview",
+        "use_in_packet": "Prevents treating the permissionless ZkCloud design as deployed evidence."
+      },
+      {
+        "deployment_status": "OFFICIAL_DESIGN_DOCUMENTATION_NO_DEPLOYMENT_EVIDENCE",
+        "exact_observation": "The design proposes qualified VRF assignment and configurable redundancy; the page does not establish deployed Firestarter behavior.",
+        "id": "GEVULOT_ZKCLOUD_DESIGN",
+        "name": "Gevulot ZkCloud execution-guarantee design",
+        "publication_or_version": "versionless official design documentation accessed 2026-08-18",
+        "snapshot_sha256": null,
+        "url": "https://docs.gevulot.com/gevulot-docs/zkcloud-design/execution-guarantees",
+        "use_in_packet": "Design comparator only. ZenoProof capacity weighting is an internal variation."
+      },
+      {
+        "deployment_status": "OFFICIAL_DOCUMENTATION_DESCRIPTION",
+        "exact_observation": "The request-auction page describes commit-reveal reverse procurement.",
+        "id": "BREVIS_AUCTION_CURRENT",
+        "name": "Brevis ProverNet request-auction documentation",
+        "publication_or_version": "versionless official documentation accessed 2026-08-18",
+        "snapshot_sha256": null,
+        "url": "https://provernet-docs.brevis.network/provernet-architecture/the-proof-marketplace/request-auction.html",
+        "use_in_packet": "Comparator for sealed procurement only; this URL supplies no payment-gating premise."
+      },
+      {
+        "deployment_status": "OFFICIAL_SOURCE_STATUS_CONFLICT",
+        "exact_observation": "The staking page says slashing is disabled, which conflicts with the mainnet announcement's statement that slashing rates are enforced.",
+        "id": "BREVIS_STAKING_CURRENT",
+        "name": "Brevis ProverNet staking documentation",
+        "publication_or_version": "versionless official documentation accessed 2026-08-18",
+        "snapshot_sha256": null,
+        "url": "https://provernet-docs.brevis.network/user-tutorial/staking-in-provernet.html",
+        "use_in_packet": "Fail-closed status-conflict evidence; supplies no ZenoProof slashing premise."
+      },
+      {
+        "deployment_status": "OFFICIAL_SOURCE_STATUS_CONFLICT",
+        "exact_observation": "The announcement says slashing rates are enforced, which conflicts with the staking page's statement that slashing is disabled.",
+        "id": "BREVIS_MAINNET_ANNOUNCEMENT",
+        "name": "Brevis ProverNet mainnet announcement",
+        "publication_or_version": "official announcement dated 2026-01-06",
+        "snapshot_sha256": null,
+        "url": "https://blog.brevis.network/2026/01/06/brevis-provernet-mainnet-and-brev-are-live/",
+        "use_in_packet": "Fail-closed status-conflict evidence; supplies no ZenoProof slashing premise."
+      },
+      {
+        "deployment_status": "ADJACENT_VERSIONED_PAPER_NOT_TRANSFERRED",
+        "exact_observation": "Coalition-resistance results require specialized supermodularity and market assumptions that have not been established for discrete ZenoProof jobs.",
+        "id": "KARACA_COALITION_PROOF_VCG",
+        "name": "Coalition-proof VCG under supermodularity",
+        "publication_or_version": "arXiv:1711.06774v5; original submission 2017-11-17",
+        "snapshot_sha256": null,
+        "url": "https://arxiv.org/abs/1711.06774v5",
+        "use_in_packet": "TheoremSearch follow-up lead only; carries no local proof status."
+      }
+    ],
+    "status": "ADVISORY_OFFICIAL_SOURCE_SUMMARIES_AS_OF_ACCESS_DATE"
+  },
+  "promotion_boundary": {
+    "implemented": false,
+    "mounted": false,
+    "production_ready": false,
+    "proved_or_refuted_in_exact_bounded_subject": [
+      "V1 payment-floor defect",
+      "V1 profitable unilateral clock waiting",
+      "V1 calibration/ESSO bond mismatch",
+      "fixed-identity critical-price unilateral truthfulness",
+      "critical-price coalition counterexample and address-count identity-gate failure",
+      "posted-price current-round action independence",
+      "capacity-ticket aggregate weight equality over a complete uniform seed cycle",
+      "single-provider same-occurrence withholding under a nonincreasing cap, certain normal assignment, and equal lane costs",
+      "bounded lifecycle conservation and typed direct fallback",
+      "bounded reserve and owner-epoch conservation with one-job work-key claim binding"
+    ],
+    "requires_live_evidence": [
+      "cost and latency distributions",
+      "failure correlation",
+      "capacity attestation and non-overcommitment",
+      "beneficial ownership, related-party, and failure-domain evidence",
+      "unpredictable unbiased randomness and frozen acceptor-root timing",
+      "permissionless-floor, owner-cap, and failure-domain assignment policy",
+      "entry, exit, concentration, boycott, and repeated-cartel behavior",
+      "fee sufficiency and direct-execution runway",
+      "semantic-equivalence admission for reserve-bonus deduplication",
+      "mounted reserve-aware terminal settlement and atomic reserve/payment composition"
+    ],
+    "selected": false,
+    "tested_in_reference_subject": [
+      "immutable reserve claim consumes one exact EconomicWorkKey once"
+    ]
+  },
+  "schema": "zenodex/proof-market-game-theory/v2",
+  "source_subject": {
+    "checker_bootstrap": {
+      "externally_authenticated": false,
+      "note": "an in-process checker cannot authenticate its own executed bytes",
+      "path": "tools/check_proof_market_game_theory_v2.py",
+      "sha256": "6b1ce17420ab33f015102f3eb2f52012cf4d2491637d41298093edd0ffa4c919"
+    },
+    "reviewed_source_commit": "fa6d2012fb4ebbbb5893d8f218f0b61ccae93be5",
+    "source_pins": [
+      {
+        "path": "tools/check_proof_market_game_theory_v2.py",
+        "sha256": "6b1ce17420ab33f015102f3eb2f52012cf4d2491637d41298093edd0ffa4c919"
+      },
+      {
+        "path": "tools/proof_market_game_theory_packet_v2.py",
+        "sha256": "a8f43485efe018a70f60fc8fc5fcf50f42bff8b1e3e2bec113d09a047206819c"
+      },
+      {
+        "path": "tools/proof_market_formal_evidence_v2.py",
+        "sha256": "d270a290fd927117d59d0e338c90fced681fb86ee24cb069561a7265d6c577c7"
+      },
+      {
+        "path": "tools/proof_market_game_theory_checks_v2.py",
+        "sha256": "a4c67aa954d91b1a2f215cc0e51f3024dc59b1f41ded911e2131df4cccc759bc"
+      },
+      {
+        "path": "tools/proof_market_v1_refutation_v2.py",
+        "sha256": "dc36cc9bfc7e0757d9d07eb03567baeb39280967084a60b971e49f47d0c61dff"
+      },
+      {
+        "path": "tools/proof_market_game_theory_v2.py",
+        "sha256": "8396dbef758bdce9f9be3bb046147f2a5d40c486946a08bf3700b628adc9fc7a"
+      },
+      {
+        "path": "tools/proof_market_game_theory_economics_v2.py",
+        "sha256": "bca9a47aba052a3b6376aff581c586389341def4b34e4c4ca10db2014a41705e"
+      },
+      {
+        "path": "tools/check_proof_market_calibration_v1.py",
+        "sha256": "511dedcd8f61d39c9284efb2540b1fefd69b9baa30b50459e5e456733d795b52"
+      },
+      {
+        "path": "tools/proof_market_calibration_v1.py",
+        "sha256": "5195d2bb8905cbfda055e93bd24d79b2ad6dfaae8129e8a9272b9ccb1011e260"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_CALIBRATION_V1.json",
+        "sha256": "891900c85e05484c409fe3e4e8e56e6411e3f81fb510f258ddb3fa0f55b0420e"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_GAME_THEORY_V2.md",
+        "sha256": "dc801d81e09ec92d3e26cf8a69e598f5d3b80f49d27e3c0ff2ad7c6cda96fddc"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_PRIMARY_SOURCE_MANIFEST_V2.json",
+        "sha256": "574898222a3f7e1fdd5a36d6968f6d7d04a3f450b1b2c2e64105c00c2c5a5186"
+      },
+      {
+        "path": "src/kernels/dex/proof_market_procurement_v2.yaml",
+        "sha256": "8616a3f242ca91b3e995cf4b92580e7ba6ce7f7bc103d14f90643eba82bcd672"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_PROCUREMENT_ESSO_V2.json",
+        "sha256": "b4bc80bd26e21433178b5df7140f7eaefb17b320542c49604ae82322688b7b79"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_PROCUREMENT_ESSO_REPORT_V2.json",
+        "sha256": "da894dba0384fd2740ab8398970bd8552d950e976edf51e369ae8c173f3c8ee2"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_PROCUREMENT_ESSO_BUNDLE_RESULT_V2.json",
+        "sha256": "93772c56c39dc6e1911acd19fc4db7aac4a249ebbafecfc63ea876bef2600ddd"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_PROCUREMENT_FAULT_RACE_MUTANT_V2.yaml",
+        "sha256": "16fe926df844e91141c121f9800936f4c817bdbfe184cedc98c85780006d26f5"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_PROCUREMENT_FAULT_RACE_MUTANT_ESSO_REPORT_V2.json",
+        "sha256": "6549d33926dfa3853176898a13d4ea26593614c0cf511fd46e4631357c4538bf"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_PROCUREMENT_FAULT_RACE_MUTANT_ESSO_BUNDLE_RESULT_V2.json",
+        "sha256": "8df975219f2da8a001e5abcae820783db8a653ed56680b7994b2e2d04a631213"
+      },
+      {
+        "path": "lean-mathlib/Proofs/ZenoProofProcurementGameV2.lean",
+        "sha256": "dc9c48f8d1f1c6a9e16dc0a10d1c04a553b1bd0d2181b530f964b27c0481941f"
+      },
+      {
+        "path": "lean-mathlib/Proofs.lean",
+        "sha256": "d67a0c228e35f19cf78700cc4defa2bdc2d5b2801c4b7e4dc522db489af540f0"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_GAME_THEORY_LEAN_V2.json",
+        "sha256": "20ff660ef6442ad4c0135d3da30a3782b657839b11129485f70ea7900434d1c2"
+      }
+    ]
+  },
+  "status": "RESEARCH_ONLY_REFUTATION_BACKED_V2",
+  "theoremsearch": {
+    "hit_classification": {
+      "breakers": "ADJACENT_KARACA_SUPERMODULARITY_RESULT_NOT_TRANSFERRED",
+      "truthfulness": "ADJACENT_AND_LOW_SIGNAL"
+    },
+    "promoted_claims": [],
+    "queries": [
+      "single parameter procurement auction dominant strategy truthful critical payment private costs",
+      "procurement auction collusion false name bids group strategyproof impossibility counterexample"
+    ],
+    "raw_artifacts_preserved": false,
+    "raw_hash_status": "ORPHAN_UNVERIFIABLE_HASHES",
+    "role": "RETRIEVAL_ONLY",
+    "unpreserved_raw_output_sha256": {
+      "breakers": "5ab47ca82fe52cec0ebc320696ed5466d6b8457bbd8f0f3729ea6a53127232a9",
+      "truthfulness": "e6be65954d84ca557db7f434d159682a1d5f5931d344277f9f7a3e2d3de1fac2"
+    }
+  }
+}

@@ -1,0 +1,546 @@
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "proof_market_procurement_v2"
+  created_by: "zenodex"
+  notes: |
+    Research-only bounded lifecycle for one fee- or buyer-funded proof job.
+
+    The normal lane posts a fixed two-unit price.  A no-acceptance event may
+    open a sealed scarcity lane without changing that price.  Scarcity may
+    assign a one- or two-unit bid, never above the posted price; failure to clear
+    uses a funded three-unit direct-execution fallback.  A selected prover posts
+    a two-unit bond.  A verifier-created, occurrence-bound prover-fault witness
+    is required before the entire bond routes to named restitution and direct
+    execution.  Verifier infrastructure fault returns the entire bond.
+
+    Four buyer units cover every modeled seller or direct-execution payment and
+    refund.  Direct execution is an explicit availability and funding premise.
+    The model proves lifecycle safety only.  It proves no auction equilibrium,
+    cryptography, live cost, identity, failure-domain independence, consensus,
+    durability, runtime refinement, or production liveness.
+
+observables:
+  state_vars:
+    - "job_state"
+    - "lane"
+    - "posted_price_units"
+    - "buyer_unrestricted_units"
+    - "buyer_escrow_units"
+    - "seller_unrestricted_units"
+    - "seller_bond_escrow_units"
+    - "seller_paid_units"
+    - "direct_execution_paid_units"
+    - "buyer_refund_units"
+    - "seller_bond_return_units"
+    - "seller_bond_restitution_units"
+    - "selected_payment_units"
+    - "verified_witness_units"
+    - "direct_execution_witness_units"
+    - "prover_fault_recorded_units"
+    - "prover_fault_witness_units"
+    - "verifier_fault_recorded_units"
+    - "occurrence_payment_claimed_units"
+    - "settlement_commit_count"
+  effects:
+    - "event"
+
+types:
+  - id: "ProofProcurementStateV2"
+    type:
+      kind: "enum"
+      symbols:
+        - "JOB_None"
+        - "JOB_PostedOpen"
+        - "JOB_PostedAssigned"
+        - "JOB_ScarcityOpen"
+        - "JOB_ScarcityAssigned"
+        - "JOB_Submitted"
+        - "JOB_ProverFaultWitnessed"
+        - "JOB_Verified"
+        - "JOB_DirectPending"
+        - "JOB_Settled"
+  - id: "ProofProcurementLaneV2"
+    type:
+      kind: "enum"
+      symbols:
+        - "LANE_None"
+        - "LANE_Posted"
+        - "LANE_Scarcity"
+        - "LANE_Direct"
+  - id: "ProofProcurementEventV2"
+    type:
+      kind: "enum"
+      symbols:
+        - "EV_Listed"
+        - "EV_PostedAccepted"
+        - "EV_ScarcityOpened"
+        - "EV_ScarcityAssigned"
+        - "EV_DirectSelected"
+        - "EV_WorkSubmitted"
+        - "EV_WorkVerified"
+        - "EV_ProverFaultWitnessCreated"
+        - "EV_ProverFault"
+        - "EV_VerifierFault"
+        - "EV_SellerPaymentCommitted"
+        - "EV_DirectExecutionCommitted"
+        - "EV_ProcessRestarted"
+
+state_vars:
+  - id: "job_state"
+    role: "control"
+    type: { ref: "ProofProcurementStateV2" }
+  - id: "lane"
+    role: "control"
+    type: { ref: "ProofProcurementLaneV2" }
+  - id: "posted_price_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "buyer_unrestricted_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "buyer_escrow_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "seller_unrestricted_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "seller_bond_escrow_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "seller_paid_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "direct_execution_paid_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 3 }
+  - id: "buyer_refund_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 4 }
+  - id: "seller_bond_return_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "seller_bond_restitution_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "selected_payment_units"
+    role: "data"
+    type: { kind: "int", min: 0, max: 2 }
+  - id: "verified_witness_units"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "direct_execution_witness_units"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "prover_fault_recorded_units"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "prover_fault_witness_units"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "verifier_fault_recorded_units"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "occurrence_payment_claimed_units"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+  - id: "settlement_commit_count"
+    role: "control"
+    type: { kind: "int", min: 0, max: 1 }
+
+init:
+  - { var: "job_state", expr: { enum: "JOB_None" } }
+  - { var: "lane", expr: { enum: "LANE_None" } }
+  - { var: "posted_price_units", expr: { const: 2 } }
+  - { var: "buyer_unrestricted_units", expr: { const: 4 } }
+  - { var: "buyer_escrow_units", expr: { const: 0 } }
+  - { var: "seller_unrestricted_units", expr: { const: 2 } }
+  - { var: "seller_bond_escrow_units", expr: { const: 0 } }
+  - { var: "seller_paid_units", expr: { const: 0 } }
+  - { var: "direct_execution_paid_units", expr: { const: 0 } }
+  - { var: "buyer_refund_units", expr: { const: 0 } }
+  - { var: "seller_bond_return_units", expr: { const: 0 } }
+  - { var: "seller_bond_restitution_units", expr: { const: 0 } }
+  - { var: "selected_payment_units", expr: { const: 0 } }
+  - { var: "verified_witness_units", expr: { const: 0 } }
+  - { var: "direct_execution_witness_units", expr: { const: 0 } }
+  - { var: "prover_fault_recorded_units", expr: { const: 0 } }
+  - { var: "prover_fault_witness_units", expr: { const: 0 } }
+  - { var: "verifier_fault_recorded_units", expr: { const: 0 } }
+  - { var: "occurrence_payment_claimed_units", expr: { const: 0 } }
+  - { var: "settlement_commit_count", expr: { const: 0 } }
+
+invariants:
+  - id: "inv_buyer_value_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - { var: "buyer_unrestricted_units" }
+            - op: "+"
+              args:
+                - { var: "buyer_escrow_units" }
+                - op: "+"
+                  args:
+                    - { var: "seller_paid_units" }
+                    - op: "+"
+                      args:
+                        - { var: "direct_execution_paid_units" }
+                        - { var: "buyer_refund_units" }
+        - { const: 4 }
+  - id: "inv_seller_bond_conservation"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - op: "+"
+          args:
+            - { var: "seller_unrestricted_units" }
+            - op: "+"
+              args:
+                - { var: "seller_bond_escrow_units" }
+                - op: "+"
+                  args:
+                    - { var: "seller_bond_return_units" }
+                    - { var: "seller_bond_restitution_units" }
+        - { const: 2 }
+  - id: "inv_no_same_round_price_ratchet"
+    kind: "safety"
+    expr: { op: "=", args: [{ var: "posted_price_units" }, { const: 2 }] }
+  - id: "inv_seller_payment_requires_verified_witness"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "seller_paid_units" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Settled" }] }
+            - { op: "=", args: [{ var: "verified_witness_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "occurrence_payment_claimed_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 1 }] }
+  - id: "inv_direct_payment_requires_direct_witness"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "direct_execution_paid_units" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "lane" }, { enum: "LANE_Direct" }] }
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Settled" }] }
+            - { op: "=", args: [{ var: "direct_execution_witness_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "occurrence_payment_claimed_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 1 }] }
+  - id: "inv_settled_claims_work_exactly_once"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - op: "not"
+          args:
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Settled" }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "occurrence_payment_claimed_units" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 1 }] }
+  - id: "inv_prover_fault_fully_slashes_bond"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "prover_fault_recorded_units" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "seller_bond_escrow_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "seller_bond_restitution_units" }, { const: 2 }] }
+            - { op: "=", args: [{ var: "seller_bond_return_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "seller_paid_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "prover_fault_witness_units" }, { const: 1 }] }
+  - id: "inv_selected_seller_payment_never_exceeds_posted_price"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - { var: "selected_payment_units" }
+        - { var: "posted_price_units" }
+  - id: "inv_prover_fault_record_requires_witness"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "prover_fault_recorded_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "prover_fault_witness_units" }, { const: 1 }] }
+  - id: "inv_prover_fault_witness_excludes_seller_payment"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "prover_fault_witness_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "seller_paid_units" }, { const: 0 }] }
+  - id: "inv_verification_and_prover_fault_witness_are_exclusive"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "verified_witness_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "prover_fault_witness_units" }, { const: 0 }] }
+  - id: "inv_verifier_fault_returns_bond"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "verifier_fault_recorded_units" }, { const: 0 }] }
+        - op: "and"
+          args:
+            - { op: "=", args: [{ var: "seller_bond_escrow_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "seller_bond_restitution_units" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "seller_bond_return_units" }, { const: 2 }] }
+            - { op: "=", args: [{ var: "seller_paid_units" }, { const: 0 }] }
+  - id: "inv_fault_causes_are_exclusive"
+    kind: "safety"
+    expr:
+      op: "<="
+      args:
+        - op: "+"
+          args:
+            - { var: "prover_fault_recorded_units" }
+            - { var: "verifier_fault_recorded_units" }
+        - { const: 1 }
+
+actions:
+  - id: "zenoledger_list_and_prefund"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_None" }] }
+        - { op: "=", args: [{ var: "buyer_unrestricted_units" }, { const: 4 }] }
+    updates:
+      - { var: "buyer_unrestricted_units", expr: { const: 0 } }
+      - { var: "buyer_escrow_units", expr: { const: 4 } }
+      - { var: "job_state", expr: { enum: "JOB_PostedOpen" } }
+      - { var: "lane", expr: { enum: "LANE_Posted" } }
+    effects:
+      event: { enum: "EV_Listed" }
+
+  - id: "accept_posted_price"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_PostedOpen" }] }
+        - { op: "=", args: [{ var: "seller_unrestricted_units" }, { const: 2 }] }
+    updates:
+      - { var: "seller_unrestricted_units", expr: { const: 0 } }
+      - { var: "seller_bond_escrow_units", expr: { const: 2 } }
+      - { var: "selected_payment_units", expr: { const: 2 } }
+      - { var: "job_state", expr: { enum: "JOB_PostedAssigned" } }
+    effects:
+      event: { enum: "EV_PostedAccepted" }
+
+  - id: "no_acceptance_open_scarcity"
+    params: []
+    guard: { op: "=", args: [{ var: "job_state" }, { enum: "JOB_PostedOpen" }] }
+    updates:
+      - { var: "job_state", expr: { enum: "JOB_ScarcityOpen" } }
+      - { var: "lane", expr: { enum: "LANE_Scarcity" } }
+    effects:
+      event: { enum: "EV_ScarcityOpened" }
+
+  - id: "assign_scarcity_bid"
+    params:
+      - { id: "bid_units", type: { kind: "int", min: 1, max: 2 } }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_ScarcityOpen" }] }
+        - { op: "=", args: [{ var: "seller_unrestricted_units" }, { const: 2 }] }
+    updates:
+      - { var: "seller_unrestricted_units", expr: { const: 0 } }
+      - { var: "seller_bond_escrow_units", expr: { const: 2 } }
+      - { var: "selected_payment_units", expr: { param: "bid_units" } }
+      - { var: "job_state", expr: { enum: "JOB_ScarcityAssigned" } }
+    effects:
+      event: { enum: "EV_ScarcityAssigned" }
+
+  - id: "scarcity_failed_select_direct"
+    params: []
+    guard: { op: "=", args: [{ var: "job_state" }, { enum: "JOB_ScarcityOpen" }] }
+    updates:
+      - { var: "job_state", expr: { enum: "JOB_DirectPending" } }
+      - { var: "lane", expr: { enum: "LANE_Direct" } }
+    effects:
+      event: { enum: "EV_DirectSelected" }
+
+  - id: "seller_submit"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_PostedAssigned" }] }
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_ScarcityAssigned" }] }
+        - { op: "=", args: [{ var: "seller_bond_escrow_units" }, { const: 2 }] }
+    updates:
+      - { var: "job_state", expr: { enum: "JOB_Submitted" } }
+    effects:
+      event: { enum: "EV_WorkSubmitted" }
+
+  - id: "verify_submitted_work"
+    params:
+      - { id: "proof_valid", type: { kind: "bool" } }
+      - { id: "work_key_bound", type: { kind: "bool" } }
+      - { id: "verifier_profile_current", type: { kind: "bool" } }
+    guard:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Submitted" }] }
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_ProverFaultWitnessed" }] }
+        - { param: "proof_valid" }
+        - { param: "work_key_bound" }
+        - { param: "verifier_profile_current" }
+        - { op: "=", args: [{ var: "prover_fault_recorded_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "verifier_fault_recorded_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "occurrence_payment_claimed_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 0 }] }
+    updates:
+      - { var: "verified_witness_units", expr: { const: 1 } }
+      - { var: "job_state", expr: { enum: "JOB_Verified" } }
+    effects:
+      event: { enum: "EV_WorkVerified" }
+
+  - id: "verifier_create_prover_fault_witness"
+    params:
+      - { id: "fault_cause_established", type: { kind: "bool" } }
+      - { id: "occurrence_key_bound", type: { kind: "bool" } }
+      - { id: "verifier_profile_current", type: { kind: "bool" } }
+    guard:
+      op: "and"
+      args:
+        - op: "or"
+          args:
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_PostedAssigned" }] }
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_ScarcityAssigned" }] }
+            - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Submitted" }] }
+        - { param: "fault_cause_established" }
+        - { param: "occurrence_key_bound" }
+        - { param: "verifier_profile_current" }
+        - { op: "=", args: [{ var: "prover_fault_witness_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "verified_witness_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "occurrence_payment_claimed_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 0 }] }
+    updates:
+      - { var: "prover_fault_witness_units", expr: { const: 1 } }
+      - { var: "job_state", expr: { enum: "JOB_ProverFaultWitnessed" } }
+    effects:
+      event: { enum: "EV_ProverFaultWitnessCreated" }
+
+  - id: "record_prover_fault_and_select_direct"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_ProverFaultWitnessed" }] }
+        - { op: "=", args: [{ var: "seller_bond_escrow_units" }, { const: 2 }] }
+        - { op: "=", args: [{ var: "prover_fault_witness_units" }, { const: 1 }] }
+    updates:
+      - { var: "seller_bond_escrow_units", expr: { const: 0 } }
+      - { var: "seller_bond_restitution_units", expr: { const: 2 } }
+      - { var: "prover_fault_recorded_units", expr: { const: 1 } }
+      - { var: "job_state", expr: { enum: "JOB_DirectPending" } }
+      - { var: "lane", expr: { enum: "LANE_Direct" } }
+    effects:
+      event: { enum: "EV_ProverFault" }
+
+  - id: "record_verifier_fault_and_select_direct"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Submitted" }] }
+        - { op: "=", args: [{ var: "seller_bond_escrow_units" }, { const: 2 }] }
+        - { op: "=", args: [{ var: "verified_witness_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "prover_fault_witness_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "prover_fault_recorded_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "occurrence_payment_claimed_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 0 }] }
+    updates:
+      - { var: "seller_bond_escrow_units", expr: { const: 0 } }
+      - { var: "seller_bond_return_units", expr: { const: 2 } }
+      - { var: "verifier_fault_recorded_units", expr: { const: 1 } }
+      - { var: "job_state", expr: { enum: "JOB_DirectPending" } }
+      - { var: "lane", expr: { enum: "LANE_Direct" } }
+    effects:
+      event: { enum: "EV_VerifierFault" }
+
+  - id: "zenoledger_commit_verified_seller_payment"
+    params: []
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Verified" }] }
+        - { op: "=", args: [{ var: "verified_witness_units" }, { const: 1 }] }
+        - { op: "=", args: [{ var: "occurrence_payment_claimed_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "buyer_escrow_units" }, { const: 4 }] }
+        - { op: "=", args: [{ var: "seller_bond_escrow_units" }, { const: 2 }] }
+        - { op: "=", args: [{ var: "prover_fault_witness_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "prover_fault_recorded_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "verifier_fault_recorded_units" }, { const: 0 }] }
+    updates:
+      - { var: "buyer_escrow_units", expr: { const: 0 } }
+      - { var: "seller_paid_units", expr: { var: "selected_payment_units" } }
+      - var: "buyer_refund_units"
+        expr:
+          op: "-"
+          args: [{ const: 4 }, { var: "selected_payment_units" }]
+      - { var: "seller_bond_escrow_units", expr: { const: 0 } }
+      - { var: "seller_bond_return_units", expr: { const: 2 } }
+      - { var: "occurrence_payment_claimed_units", expr: { const: 1 } }
+      - { var: "settlement_commit_count", expr: { const: 1 } }
+      - { var: "job_state", expr: { enum: "JOB_Settled" } }
+    effects:
+      event: { enum: "EV_SellerPaymentCommitted" }
+
+  - id: "zenoledger_commit_direct_execution"
+    params:
+      - { id: "direct_execution_valid", type: { kind: "bool" } }
+      - { id: "work_key_bound", type: { kind: "bool" } }
+    guard:
+      op: "and"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_DirectPending" }] }
+        - { op: "=", args: [{ var: "lane" }, { enum: "LANE_Direct" }] }
+        - { param: "direct_execution_valid" }
+        - { param: "work_key_bound" }
+        - { op: "=", args: [{ var: "occurrence_payment_claimed_units" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "settlement_commit_count" }, { const: 0 }] }
+        - { op: "=", args: [{ var: "buyer_escrow_units" }, { const: 4 }] }
+    updates:
+      - { var: "buyer_escrow_units", expr: { const: 0 } }
+      - { var: "direct_execution_paid_units", expr: { const: 3 } }
+      - { var: "buyer_refund_units", expr: { const: 1 } }
+      - { var: "direct_execution_witness_units", expr: { const: 1 } }
+      - { var: "occurrence_payment_claimed_units", expr: { const: 1 } }
+      - { var: "settlement_commit_count", expr: { const: 1 } }
+      - { var: "job_state", expr: { enum: "JOB_Settled" } }
+    effects:
+      event: { enum: "EV_DirectExecutionCommitted" }
+
+  - id: "process_restart"
+    params: []
+    guard:
+      op: "or"
+      args:
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Verified" }] }
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_ProverFaultWitnessed" }] }
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_DirectPending" }] }
+        - { op: "=", args: [{ var: "job_state" }, { enum: "JOB_Settled" }] }
+    updates: []
+    effects:
+      event: { enum: "EV_ProcessRestarted" }

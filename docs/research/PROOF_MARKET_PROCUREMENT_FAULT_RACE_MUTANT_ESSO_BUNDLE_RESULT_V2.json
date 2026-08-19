@@ -1,0 +1,516 @@
+{
+  "environment_model": {
+    "adversary": "may choose any declared command each step with any in-domain parameters",
+    "command_space": [
+      "accept_posted_price",
+      "assign_scarcity_bid",
+      "no_acceptance_open_scarcity",
+      "process_restart",
+      "record_prover_fault_and_select_direct",
+      "record_verifier_fault_and_select_direct",
+      "scarcity_failed_select_direct",
+      "seller_submit",
+      "verifier_create_prover_fault_witness",
+      "verify_submitted_work",
+      "zenoledger_commit_direct_execution",
+      "zenoledger_commit_verified_seller_payment",
+      "zenoledger_list_and_prefund"
+    ],
+    "notes": [
+      "No concurrency, reordering, or interleaving beyond repeated calls to step(state, command).",
+      "All behavior is defined by the ESSO kernel semantics (guards, simultaneous updates, canonicalizer, invariants)."
+    ],
+    "scheduler": "sequential"
+  },
+  "proofs": {},
+  "query_hashes": {
+    "inductive_accept_posted_price": "26cfe40fac004ed2c1a0c67f6f73a74a10cc4b68413da89cd72f01b417038fdb",
+    "inductive_assign_scarcity_bid": "fc702c3811b8d488d18e26ce1eb7e00ee6489d07818739fcf5975eb52894e34b",
+    "inductive_no_acceptance_open_scarcity": "dcd9507540cafc70a3b714a7c559bbe38059a024dedf668af529c9afae3e652c",
+    "inductive_process_restart": "dad277edc64d2094750b2607da3b9d2cf7ae1260ce9fb0a86fb14423010dc9de",
+    "inductive_record_prover_fault_and_select_direct": "dd33ef9f7a7c5c76b0bffa14c148676ab2a2a6e73787a12975cdb3528ce1fb55",
+    "inductive_record_verifier_fault_and_select_direct": "706efd838ebfb3ac5b2f0683e81e4547c879583115a1d493e5e4bccf4b5293f9",
+    "inductive_scarcity_failed_select_direct": "30c4ea855613f8721760f5ee3741f2c07c8567adc6e6be4a92d82a7a364aeac9",
+    "inductive_seller_submit": "81d6f44ea1b95ceb70949c064e7d7e3ccdae9dbae92d6b29c7e7e16101d559d0",
+    "inductive_verifier_create_prover_fault_witness": "b2c24b6f4110d62ef10a45d206a32aa3d5f36c79d017b29c3677a14b4d2eb17b",
+    "inductive_verify_submitted_work": "a9d4c50b94f13ce935fe29ef574f9dfb2506a2ae00a30899a896c8844bd3dfb0",
+    "inductive_zenoledger_commit_direct_execution": "44e4e9c3994853ba72b0a3c25d0e97039eb3eaa12dafe7dc9fbb7602f6a1819b",
+    "inductive_zenoledger_commit_verified_seller_payment": "bb12b884b0eace727976f4f14ee9132da76399ae765e32906d7d89ed41bfc664",
+    "inductive_zenoledger_list_and_prefund": "5217c19499d19536bbcf7701192b2750ab5986b9c2de8ef5e69a82cc76415ba1",
+    "init_implies_inv": "3a34a02da36291f612b50dd6c9b581a8469b032b00680a5782d2eb000afb4442"
+  },
+  "results": {
+    "inductive_accept_posted_price": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_accept_posted_price",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_accept_posted_price",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_accept_posted_price",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_assign_scarcity_bid": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_assign_scarcity_bid",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_assign_scarcity_bid",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_assign_scarcity_bid",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_no_acceptance_open_scarcity": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_no_acceptance_open_scarcity",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_no_acceptance_open_scarcity",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_no_acceptance_open_scarcity",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_process_restart": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_process_restart",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_process_restart",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_process_restart",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_record_prover_fault_and_select_direct": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_record_prover_fault_and_select_direct",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_record_prover_fault_and_select_direct",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_record_prover_fault_and_select_direct",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_record_verifier_fault_and_select_direct": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_record_verifier_fault_and_select_direct",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_record_verifier_fault_and_select_direct",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_record_verifier_fault_and_select_direct",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_scarcity_failed_select_direct": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_scarcity_failed_select_direct",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_scarcity_failed_select_direct",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_scarcity_failed_select_direct",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_seller_submit": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_seller_submit",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_seller_submit",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_seller_submit",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_verifier_create_prover_fault_witness": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_verifier_create_prover_fault_witness",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_verifier_create_prover_fault_witness",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_verifier_create_prover_fault_witness",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_verify_submitted_work": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_verify_submitted_work",
+        "result": "sat",
+        "solver": "cvc5"
+      },
+      "final_result": "sat",
+      "needs_review": false,
+      "query": "inductive_verify_submitted_work",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_verify_submitted_work",
+        "result": "sat",
+        "solver": "z3"
+      }
+    },
+    "inductive_zenoledger_commit_direct_execution": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_zenoledger_commit_direct_execution",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_zenoledger_commit_direct_execution",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_zenoledger_commit_direct_execution",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_zenoledger_commit_verified_seller_payment": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_zenoledger_commit_verified_seller_payment",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_zenoledger_commit_verified_seller_payment",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_zenoledger_commit_verified_seller_payment",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "inductive_zenoledger_list_and_prefund": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_zenoledger_list_and_prefund",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "inductive_zenoledger_list_and_prefund",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "inductive_zenoledger_list_and_prefund",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    },
+    "init_implies_inv": {
+      "agreed": true,
+      "cvc5_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "init_implies_inv",
+        "result": "unsat",
+        "solver": "cvc5"
+      },
+      "final_result": "unsat",
+      "needs_review": false,
+      "query": "init_implies_inv",
+      "z3_result": {
+        "proof_format": null,
+        "proof_has_trust": null,
+        "query": "init_implies_inv",
+        "result": "unsat",
+        "solver": "z3"
+      }
+    }
+  },
+  "scope": {
+    "badge": "Inductive(k=1)",
+    "domain_caps": {
+      "log2_state_space_upper_bound": 32.38244988459753,
+      "params": {
+        "accept_posted_price": {},
+        "assign_scarcity_bid": {
+          "bid_units": {
+            "kind": "int",
+            "max": 2,
+            "min": 1
+          }
+        },
+        "no_acceptance_open_scarcity": {},
+        "process_restart": {},
+        "record_prover_fault_and_select_direct": {},
+        "record_verifier_fault_and_select_direct": {},
+        "scarcity_failed_select_direct": {},
+        "seller_submit": {},
+        "verifier_create_prover_fault_witness": {
+          "fault_cause_established": {
+            "kind": "bool"
+          },
+          "occurrence_key_bound": {
+            "kind": "bool"
+          },
+          "verifier_profile_current": {
+            "kind": "bool"
+          }
+        },
+        "verify_submitted_work": {
+          "proof_valid": {
+            "kind": "bool"
+          },
+          "verifier_profile_current": {
+            "kind": "bool"
+          },
+          "work_key_bound": {
+            "kind": "bool"
+          }
+        },
+        "zenoledger_commit_direct_execution": {
+          "direct_execution_valid": {
+            "kind": "bool"
+          },
+          "work_key_bound": {
+            "kind": "bool"
+          }
+        },
+        "zenoledger_commit_verified_seller_payment": {},
+        "zenoledger_list_and_prefund": {}
+      },
+      "state_vars": {
+        "buyer_escrow_units": {
+          "kind": "int",
+          "max": 4,
+          "min": 0
+        },
+        "buyer_refund_units": {
+          "kind": "int",
+          "max": 4,
+          "min": 0
+        },
+        "buyer_unrestricted_units": {
+          "kind": "int",
+          "max": 4,
+          "min": 0
+        },
+        "direct_execution_paid_units": {
+          "kind": "int",
+          "max": 3,
+          "min": 0
+        },
+        "direct_execution_witness_units": {
+          "kind": "int",
+          "max": 1,
+          "min": 0
+        },
+        "job_state": {
+          "kind": "enum",
+          "symbols": [
+            "JOB_None",
+            "JOB_PostedOpen",
+            "JOB_PostedAssigned",
+            "JOB_ScarcityOpen",
+            "JOB_ScarcityAssigned",
+            "JOB_Submitted",
+            "JOB_ProverFaultWitnessed",
+            "JOB_Verified",
+            "JOB_DirectPending",
+            "JOB_Settled"
+          ]
+        },
+        "lane": {
+          "kind": "enum",
+          "symbols": [
+            "LANE_None",
+            "LANE_Posted",
+            "LANE_Scarcity",
+            "LANE_Direct"
+          ]
+        },
+        "occurrence_payment_claimed_units": {
+          "kind": "int",
+          "max": 1,
+          "min": 0
+        },
+        "posted_price_units": {
+          "kind": "int",
+          "max": 2,
+          "min": 0
+        },
+        "prover_fault_recorded_units": {
+          "kind": "int",
+          "max": 1,
+          "min": 0
+        },
+        "prover_fault_witness_units": {
+          "kind": "int",
+          "max": 1,
+          "min": 0
+        },
+        "selected_payment_units": {
+          "kind": "int",
+          "max": 2,
+          "min": 0
+        },
+        "seller_bond_escrow_units": {
+          "kind": "int",
+          "max": 2,
+          "min": 0
+        },
+        "seller_bond_restitution_units": {
+          "kind": "int",
+          "max": 2,
+          "min": 0
+        },
+        "seller_bond_return_units": {
+          "kind": "int",
+          "max": 2,
+          "min": 0
+        },
+        "seller_paid_units": {
+          "kind": "int",
+          "max": 2,
+          "min": 0
+        },
+        "seller_unrestricted_units": {
+          "kind": "int",
+          "max": 2,
+          "min": 0
+        },
+        "settlement_commit_count": {
+          "kind": "int",
+          "max": 1,
+          "min": 0
+        },
+        "verified_witness_units": {
+          "kind": "int",
+          "max": 1,
+          "min": 0
+        },
+        "verifier_fault_recorded_units": {
+          "kind": "int",
+          "max": 1,
+          "min": 0
+        }
+      }
+    },
+    "fail_closed": true,
+    "k": 1,
+    "kind": "inductive",
+    "solver_seed": 0,
+    "solver_timeout_ms": 30000,
+    "time": "unbounded"
+  },
+  "solvers": [
+    "z3",
+    "cvc5"
+  ],
+  "timeout_ms": 30000,
+  "tool_versions": {
+    "cargo": "cargo 1.87.0 (99624be96 2025-05-06)",
+    "esso_code_hash": "7f80c6216be85c827e8d1cc2fa08ee3107a74588",
+    "platform": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39",
+    "python": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]",
+    "rustfmt": "rustfmt 1.8.0-stable (17067e9ac6 2025-05-09)",
+    "solvers": {
+      "cvc5": "This is cvc5 version 1.1.2",
+      "z3": "4.15.4"
+    }
+  }
+}

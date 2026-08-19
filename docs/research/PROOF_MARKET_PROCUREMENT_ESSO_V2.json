@@ -1,0 +1,100 @@
+{
+  "schema": "zenodex/proof-market-procurement-esso-evidence/v2",
+  "status": "VERIFIED_BOUNDED_DUAL_SOLVER",
+  "model": {
+    "path": "src/kernels/dex/proof_market_procurement_v2.yaml",
+    "sha256": "8616a3f242ca91b3e995cf4b92580e7ba6ce7f7bc103d14f90643eba82bcd672",
+    "esso_ir_hash": "sha256:6f599e389890d898e0f966b7c03a1c992ea078add3c460892cc524f57d7d890b"
+  },
+  "replay": {
+    "guide_command": "PYTHONPATH=<pinned-esso-root> python3 -m ESSO guide --input src/kernels/dex/proof_market_procurement_v2.yaml --goal verify --profile audit",
+    "validate_command": "PYTHONPATH=<pinned-esso-root> python3 -m ESSO validate src/kernels/dex/proof_market_procurement_v2.yaml",
+    "verify_command": "PYTHONPATH=<pinned-esso-root> python3 -m ESSO verify-multi src/kernels/dex/proof_market_procurement_v2.yaml --solvers z3,cvc5 --timeout-ms 30000 --determinism-trials 2 --output <scratch-output> --write-report",
+    "timestamp_utc": "2026-08-19T18:14:17.320364+00:00",
+    "verification_report_path": "docs/research/PROOF_MARKET_PROCUREMENT_ESSO_REPORT_V2.json",
+    "verification_report_sha256": "da894dba0384fd2740ab8398970bd8552d950e976edf51e369ae8c173f3c8ee2",
+    "raw_bundle_result_path": "docs/research/PROOF_MARKET_PROCUREMENT_ESSO_BUNDLE_RESULT_V2.json",
+    "raw_bundle_result_sha256": "93772c56c39dc6e1911acd19fc4db7aac4a249ebbafecfc63ea876bef2600ddd",
+    "determinism_trials": 2,
+    "determinism_fingerprint": "5c6fa3b42f3f1d8aa1413a37e02ed5e73da60dd2a6a2d5139af1c9a60a2c23dd",
+    "timeout_ms_per_query": 30000
+  },
+  "toolchain": {
+    "esso_commit": "7f80c6216be85c827e8d1cc2fa08ee3107a74588",
+    "python": "3.12.3",
+    "z3": "4.15.4",
+    "cvc5": "1.1.2"
+  },
+  "result": {
+    "verdict": "VERIFIED",
+    "solvers_agreed": true,
+    "total_queries": 14,
+    "passed_queries": 14,
+    "failed_queries": 0,
+    "inconclusive_queries": 0,
+    "scope": "INDUCTIVE_K1_FINITE_SEQUENTIAL_STATE_MACHINE"
+  },
+  "proved_in_declared_model": [
+    "buyer value conserves across escrow, seller payment, direct-execution payment, and refund",
+    "seller bond conserves across escrow, full prover-fault restitution, and non-fault return",
+    "proof reserve conserves across remaining and paid reserve units",
+    "owner-epoch reserve cap conserves across remaining and paid cap units",
+    "reserve and owner-epoch debits match for every modeled reserve payment",
+    "a no-acceptance transition cannot ratchet the posted price",
+    "seller payment requires a verified witness, one occurrence-payment claim, and one settlement commit",
+    "direct-execution payment requires the DIRECT lane, a direct-execution witness, one occurrence-payment claim, and one settlement commit",
+    "selected seller payment never exceeds the fixed posted price",
+    "a positive reserve payment requires an eligible verified work claim and a fresh economic work key",
+    "a verifier-created occurrence-bound prover-fault witness is required before the modeled bond is fully slashed and direct fallback is selected",
+    "verifier infrastructure fault returns the full modeled bond before direct fallback",
+    "prover-fault and verifier-fault records are mutually exclusive",
+    "a prover-fault witness, a verified-validity witness, and seller payment cannot coexist in the modeled lifecycle"
+  ],
+  "counterexamples": [
+    {
+      "id": "DIRECT_COMMIT_WITHOUT_DIRECT_LANE_BINDING",
+      "evidence_retention": "HASH_ONLY_MUTANT_SOURCE_AND_REPORT_NOT_PRESERVED",
+      "mutant_ir_hash": "sha256:6ba5ce816770521ccdd82be8634c88a5ff8026b2bb86556322d7c49667089287",
+      "mutant_verification_report_sha256": "5963c8a0f8fc545006289d3015101d51ed5d9a2fcf0a4d63e0967c5cc581fcd5",
+      "mutant_bundle_result_sha256": "a94e05e7d7794c44c96de943da7f76e43aa42e05db5f41ce7a08da11ead4a57d",
+      "original_result": "SAT_BOTH_Z3_AND_CVC5",
+      "witness": "JOB_DirectPending with a non-DIRECT lane could commit a three-unit direct payment and violate the lane-bound payment invariant",
+      "repair": "zenoledger_commit_direct_execution requires lane=LANE_Direct",
+      "repaired_result": "UNSAT_BOTH_Z3_AND_CVC5"
+    },
+    {
+      "id": "PROVER_FAULT_SLASH_WITHOUT_VERIFIER_WITNESS",
+      "evidence_retention": "HASH_ONLY_MUTANT_SOURCE_AND_REPORT_NOT_PRESERVED",
+      "mutant_sha256": "998b43d8a8e5dfd4a60cc137a1e2e0307481d97dca4299b29d5a63f33ee8ac04",
+      "mutant_ir_hash": "sha256:5bb1aa6839e33e52509605afb93e4b7ed75b8f0b0c0e0520ea8c0d81ab23be6e",
+      "mutant_verification_report_sha256": "253fa162a40ee011ac76ff50f7701ec4c17868a818c9b759ccaa07dc39b7a37f",
+      "mutant_bundle_result_sha256": "0ffa8a2cafbf6a88dd273011872f4f57fb3c431adc2aff2a6dd04bcd41ff35f8",
+      "original_result": "SAT_BOTH_Z3_AND_CVC5",
+      "witness": "an assigned or submitted prover could be fully slashed while prover_fault_witness_units remained zero",
+      "repair": "record_prover_fault_and_select_direct requires a verifier-created occurrence-bound fault witness",
+      "repaired_result": "UNSAT_BOTH_Z3_AND_CVC5"
+    },
+    {
+      "id": "PROVER_FAULT_WITNESS_VERIFICATION_RACE",
+      "evidence_retention": "SOURCE_REPORT_AND_BUNDLE_PRESERVED",
+      "mutant_path": "docs/research/PROOF_MARKET_PROCUREMENT_FAULT_RACE_MUTANT_V2.yaml",
+      "mutant_sha256": "16fe926df844e91141c121f9800936f4c817bdbfe184cedc98c85780006d26f5",
+      "mutant_ir_hash": "sha256:15d23532252da28daaa7bcc42a14908b6db2808bf9d719155685edb2ea00a327",
+      "mutant_verification_report_path": "docs/research/PROOF_MARKET_PROCUREMENT_FAULT_RACE_MUTANT_ESSO_REPORT_V2.json",
+      "mutant_verification_report_sha256": "6549d33926dfa3853176898a13d4ea26593614c0cf511fd46e4631357c4538bf",
+      "mutant_bundle_result_path": "docs/research/PROOF_MARKET_PROCUREMENT_FAULT_RACE_MUTANT_ESSO_BUNDLE_RESULT_V2.json",
+      "mutant_bundle_result_sha256": "8df975219f2da8a001e5abcae820783db8a653ed56680b7994b2e2d04a631213",
+      "mutant_result": "SAT_BOTH_Z3_AND_CVC5_ON_INDUCTIVE_VERIFY_SUBMITTED_WORK",
+      "witness": "JOB_ProverFaultWitnessed with one prover-fault witness could transition to JOB_Verified and create a verified-validity witness for the same occurrence",
+      "repair": "exclusive adjudication typestate plus reciprocal witness, claim, and settlement guards",
+      "repaired_result": "UNSAT_BOTH_Z3_AND_CVC5"
+    }
+  ],
+  "nonclaims": [
+    "The one-job integer-unit state machine is not a live price, cost, demand, identity, latency, throughput, or equilibrium model.",
+    "The one-bit economic-work-key state models exact single-occurrence consumption; it does not prove canonical key encoding or semantic-equivalence deduplication.",
+    "Direct execution availability and funding are premises; the model proves no infrastructure liveness.",
+    "The result does not prove cryptography, canonical codecs, beneficial ownership, failure-domain independence, durability, concurrency, consensus, runtime refinement, or no-bypass mounting.",
+    "The result grants no listing, assignment, proof-admission, payment, slash, token, settlement, finality, release, or production authority."
+  ]
+}

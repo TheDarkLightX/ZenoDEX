@@ -1,0 +1,45 @@
+{
+  "schema": "zenodex/proof-market-game-theory-lean-evidence/v2",
+  "status": "COMPILED_RESTRICTED_THEOREMS",
+  "source": {
+    "path": "lean-mathlib/Proofs/ZenoProofProcurementGameV2.lean",
+    "sha256": "dc9c48f8d1f1c6a9e16dc0a10d1c04a553b1bd0d2181b530f964b27c0481941f",
+    "root_import_path": "lean-mathlib/Proofs.lean",
+    "root_import_sha256": "d67a0c228e35f19cf78700cc4defa2bdc2d5b2801c4b7e4dc522db489af540f0"
+  },
+  "replay": {
+    "command": "cd <configured-zenodex-lean-root> && lake env lean <promotion-worktree>/lean-mathlib/Proofs/ZenoProofProcurementGameV2.lean",
+    "replayed_at_utc": "2026-08-18T04:54:00Z",
+    "exit_code": 0,
+    "stdout": "",
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr": "",
+    "stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "placeholder_scan": "rg -n 'sorry|admit|axiom|set_option.*warnAsError false' lean-mathlib/Proofs/ZenoProofProcurementGameV2.lean",
+    "placeholder_hits": 0
+  },
+  "toolchain": {
+    "lean": "4.27.0",
+    "lean_commit": "db93fe1608548721853390a10cd40580fe7d22ae",
+    "mathlib_commit": "a3a10db0e9d66acbebf76c5e6a135066525ac900"
+  },
+  "compiled_theorems": [
+    "truthful_weakly_dominates_threshold",
+    "truthful_threshold_winner_nonnegative",
+    "first_price_truthfulness_counterexample",
+    "critical_price_coalition_counterexample",
+    "capacity_ticket_split_preserves_owner_weight",
+    "scarcity_payment_has_no_same_occurrence_uplift",
+    "three_prover_stationary_equal_share_boundary",
+    "full_default_bond_disposition_conserves"
+  ],
+  "assumptions_and_scope": [
+    "The threshold theorem assumes one single-parameter job, a fixed bidder set, an own-report-independent threshold, quasilinear utility, and objective allocation.",
+    "The threshold theorem proves unilateral weak dominance only; it does not prove coalition, false-name, repeated-game, capacity, effort, or delivery incentive compatibility.",
+    "The same-occurrence scarcity theorem assumes the late-bid cap is no greater than the original posted price; direct-option selection and multi-provider assignment remain Python and lifecycle obligations.",
+    "The capacity theorem proves aggregate attributed owner-weight preservation; it does not prove fixed-seed assignment invariance, uniform randomness, capacity authenticity, or ownership authenticity.",
+    "The cartel theorem assumes risk-neutral symmetric provers, perfect monitoring, stationary equal sharing or enforceable transfers, immediate grim-trigger punishment, and permanent zero punishment profit.",
+    "The bond theorem proves disposition conservation through an explicit structure; separate admission logic must prove that the bond covers named restitution.",
+    "The compilation grants no market, verifier, payment, settlement, token, release, or production authority."
+  ]
+}

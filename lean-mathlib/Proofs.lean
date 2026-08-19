@@ -352,6 +352,7 @@ import Proofs.ZenoProofLinkedAssurance
 import Proofs.ZenoProofLinkedAssurance_v2
 import Proofs.ZenoProofMaintenanceFolk
 import Proofs.ZenoProofMechanismComposition
+import Proofs.ZenoProofProcurementGameV2
 import Proofs.ZenoProofSybilBondBound
 import Proofs.ZenoProofSybilKAtom
 import Proofs.ZPLPayoffCombinators
