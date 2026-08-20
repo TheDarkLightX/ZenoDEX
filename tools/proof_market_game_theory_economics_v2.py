@@ -6,6 +6,8 @@ authority.  All amounts are integer atoms; live parameters remain unselected.
 
 from __future__ import annotations
 
+import hashlib
+import unicodedata
 from dataclasses import dataclass
 from enum import StrEnum
 from fractions import Fraction
@@ -14,6 +16,18 @@ from typing import Final, Iterable
 
 BPS: Final = 10_000
 MAX_ATOMS: Final = 2**256 - 1
+CANONICAL_WORK_KEY_PREFIX_V2: Final = "ewk:v2:"
+CANONICAL_WORK_KEY_DOMAIN_V2: Final = b"ZenoDEX/EconomicWorkKey/v2\x00"
+MAX_CANONICAL_WORK_FIELD_BYTES_V2: Final = 1_048_576
+_ECONOMIC_WORK_FIELDS_V2: Final = (
+    "product_kind",
+    "claim",
+    "assumptions",
+    "public_inputs",
+    "requested_output",
+    "verifier_profile",
+    "release",
+)
 
 
 def exact_natural(value: int, name: str) -> int:
@@ -42,6 +56,63 @@ def ceil_bps(amount: int, rate_bps: int) -> int:
     product = amount * rate_bps
     result = product // BPS + int(product % BPS != 0)
     return exact_natural(result, "ceil_bps result")
+
+
+@dataclass(frozen=True, slots=True)
+class EconomicWorkDescriptorV2:
+    """Exact textual fields that define one reserve-eligible work unit."""
+
+    product_kind: str
+    claim: str
+    assumptions: str
+    public_inputs: str
+    requested_output: str
+    verifier_profile: str
+    release: str
+
+
+def _canonical_work_field_bytes(value: str, name: str) -> bytes:
+    if type(value) is not str or not value:
+        raise ValueError(f"{name} must be a nonempty exact string")
+    if value != value.strip():
+        raise ValueError(f"{name} must not have leading or trailing whitespace")
+    if value != unicodedata.normalize("NFC", value):
+        raise ValueError(f"{name} must be NFC-normalized")
+    if any(unicodedata.category(character).startswith("C") for character in value):
+        raise ValueError(f"{name} must not contain control or format characters")
+    encoded = value.encode("utf-8")
+    if len(encoded) > MAX_CANONICAL_WORK_FIELD_BYTES_V2:
+        raise ValueError(f"{name} exceeds the canonical field byte bound")
+    return encoded
+
+
+def canonical_economic_work_key(
+    descriptor: EconomicWorkDescriptorV2,
+) -> str:
+    """Encode a work descriptor with fixed fields and return its SHA-256 key.
+
+    The encoding is domain-separated and length-prefixed.  Field order is the
+    order declared in ``_ECONOMIC_WORK_FIELDS_V2``; each field name and value is
+    encoded as a four-byte big-endian length followed by UTF-8 bytes.  Inputs
+    must already be NFC-normalized, so this helper never silently rewrites a
+    caller's work description.  Semantic equivalence remains outside this
+    exact-encoding contract.
+    """
+
+    if type(descriptor) is not EconomicWorkDescriptorV2:
+        raise ValueError("descriptor must be an exact EconomicWorkDescriptorV2")
+    encoded = bytearray(CANONICAL_WORK_KEY_DOMAIN_V2)
+    for field_name in _ECONOMIC_WORK_FIELDS_V2:
+        field_name_bytes = field_name.encode("ascii")
+        field_value_bytes = _canonical_work_field_bytes(
+            getattr(descriptor, field_name),
+            field_name,
+        )
+        for field_bytes in (field_name_bytes, field_value_bytes):
+            encoded.extend(len(field_bytes).to_bytes(4, "big"))
+            encoded.extend(field_bytes)
+    digest = hashlib.sha256(bytes(encoded)).hexdigest()
+    return f"{CANONICAL_WORK_KEY_PREFIX_V2}{digest}"
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,6 +330,7 @@ def proof_reserve_bonus(request: ProofReserveRequestV2) -> int:
 
 
 class ProofReserveClaimRejectV2(StrEnum):
+    INVALID_WORK_KEY = "INVALID_WORK_KEY"
     INELIGIBLE = "INELIGIBLE"
     WORK_KEY_ALREADY_CLAIMED = "WORK_KEY_ALREADY_CLAIMED"
     NO_BONUS_CAPACITY = "NO_BONUS_CAPACITY"
@@ -275,9 +347,15 @@ class ProofReserveClaimStateV2:
 
 @dataclass(frozen=True, slots=True)
 class ProofReserveClaimRequestV2:
-    economic_work_key: str
+    work_descriptor: EconomicWorkDescriptorV2
     job_bonus_cap_atoms: int
     eligibility: ProofReserveEligibilityV2
+
+    @property
+    def economic_work_key(self) -> str:
+        """Derive the nullifier from the descriptor; callers cannot supply it."""
+
+        return canonical_economic_work_key(self.work_descriptor)
 
 
 @dataclass(frozen=True, slots=True)
@@ -296,9 +374,20 @@ ProofReserveClaimDecisionV2 = (
 )
 
 
+def _is_canonical_economic_work_key(work_key: object) -> bool:
+    if type(work_key) is not str:
+        return False
+    if not work_key.startswith(CANONICAL_WORK_KEY_PREFIX_V2):
+        return False
+    digest = work_key[len(CANONICAL_WORK_KEY_PREFIX_V2) :]
+    return len(digest) == 64 and all(
+        character in "0123456789abcdef" for character in digest
+    )
+
+
 def _validate_economic_work_key(work_key: str) -> str:
-    if type(work_key) is not str or not work_key:
-        raise ValueError("economic_work_key must be a nonempty exact string")
+    if not _is_canonical_economic_work_key(work_key):
+        raise ValueError("economic_work_key must be a canonical ewk:v2 key")
     return work_key
 
 
@@ -329,14 +418,17 @@ def claim_proof_reserve_bonus(
     """
 
     _validate_proof_reserve_claim_state(state)
-    _validate_economic_work_key(request.economic_work_key)
+    try:
+        economic_work_key = request.economic_work_key
+    except ValueError:
+        return ProofReserveClaimRejectedV2(ProofReserveClaimRejectV2.INVALID_WORK_KEY)
     exact_natural(request.job_bonus_cap_atoms, "job_bonus_cap_atoms")
     if request.eligibility is not (
         ProofReserveEligibilityV2
         .INDEPENDENTLY_BASE_FUNDED_VERIFIED_UNCLAIMED_UNRELATED
     ):
         return ProofReserveClaimRejectedV2(ProofReserveClaimRejectV2.INELIGIBLE)
-    if request.economic_work_key in state.claimed_work_keys:
+    if economic_work_key in state.claimed_work_keys:
         return ProofReserveClaimRejectedV2(
             ProofReserveClaimRejectV2.WORK_KEY_ALREADY_CLAIMED
         )
@@ -358,7 +450,7 @@ def claim_proof_reserve_bonus(
                 state.owner_epoch_remaining_atoms - bonus_atoms
             ),
             claimed_work_keys=state.claimed_work_keys
-            | frozenset((request.economic_work_key,)),
+            | frozenset((economic_work_key,)),
         ),
         bonus_atoms=bonus_atoms,
     )

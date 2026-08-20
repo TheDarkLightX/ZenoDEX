@@ -6,6 +6,9 @@ from typing import Any
 
 EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
 ESSO_COMMIT = "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
+EXPECTED_RESERVE_WORK_KEY_V2 = (
+    "ewk:v2:e87be2b5ecd2f1649f3f0da84726fdaca6e627c9e00004cce7ef5123c4ef0b48"
+)
 
 EXPECTED_LEAN_THEOREMS = [
     "truthful_weakly_dominates_threshold",
@@ -327,8 +330,14 @@ def _capacity_and_bond_checks(games: dict[str, Any]) -> dict[str, bool]:
 
 
 def _reserve_checks(reserve: dict[str, Any]) -> dict[str, bool]:
+    encoding = reserve["economic_work_key_encoding"]
     stateful = reserve["stateful_claim"]
     return {
+        "PROOF_RESERVE_ECONOMIC_WORK_KEY_CANONICAL": (
+            encoding["key"] == EXPECTED_RESERVE_WORK_KEY_V2
+            and stateful["economic_work_key"] == EXPECTED_RESERVE_WORK_KEY_V2
+            and encoding["changed_field_changes_key"] is True
+        ),
         "PROOF_RESERVE_STATEFUL_CLAIM_CONSUMES_ONCE": (
             stateful["first_bonus_atoms"] > 0
             and stateful["reserve_remaining_after_first_atoms"]
@@ -337,7 +346,8 @@ def _reserve_checks(reserve: dict[str, Any]) -> dict[str, bool]:
             and stateful["owner_epoch_remaining_after_first_atoms"]
             == stateful["initial_owner_epoch_remaining_atoms"]
             - stateful["first_bonus_atoms"]
-            and stateful["claimed_work_keys_after_first"] == ["WORK_A"]
+            and stateful["claimed_work_keys_after_first"]
+            == [EXPECTED_RESERVE_WORK_KEY_V2]
             and stateful["duplicate_rejection"] == "WORK_KEY_ALREADY_CLAIMED"
             and stateful["duplicate_was_accepted"] is False
         )

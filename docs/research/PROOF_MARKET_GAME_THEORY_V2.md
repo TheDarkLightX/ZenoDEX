@@ -79,6 +79,20 @@ OccurrenceKey = H(
 )
 ```
 
+The reference key encoding is domain-separated by the byte tag
+`ZenoDEX/EconomicWorkKey/v2`. It emits the seven field names and values in the
+declared order, framing every UTF-8 NFC-normalized byte string with a four-byte
+big-endian length, then returns `ewk:v2:` plus the lowercase SHA-256 digest. A
+field with leading or trailing whitespace, control or format characters, non-NFC text, or
+more than 1 MiB of encoded bytes is rejected. This defines exact encoding for
+the reference subject; a runtime parser and cross-language byte-parity receipt
+remain open.
+
+The reference claim request carries this descriptor and derives its nullifier
+inside the transition. A caller-supplied digest is rejected, so the bounded
+model does not treat key syntax alone as proof that a key matches the claimed
+work.
+
 Base payment nullifies on `OccurrenceKey`. The finite reserve bonus nullifies on
 `EconomicWorkKey`. The current key deduplicates only identical canonical task
 encodings. A semantically equivalent task can receive a different key unless a
@@ -400,14 +414,15 @@ The 30M-ZDEX reserve supports early distribution and contestability through:
 
 Every payout uses one `EconomicWorkKey` nullifier, a job cap, an owner/epoch cap,
 beneficial-owner evidence, an unrelated-party classification, and a declining
-reserve balance. That key currently closes exact canonical duplicates only;
-semantic-equivalence admission remains open. The reserve pays no raw bid,
+reserve balance. That key closes exact canonical duplicates in the reference
+subject; semantic-equivalence admission remains open. The reserve pays no raw bid,
 wallet, request, or unverified compute metric. The Python reference and bounded
 ESSO lifecycle now include an immutable one-job claim transition: an eligible
 exact key consumes the bonus from both declining caps and is recorded once; a
-repeated key is rejected by the terminal guard. The model uses one bounded
-claim-bit, so canonical key encoding and semantic-equivalence admission remain
-open. Marginal-contribution and contestability allocation remain open
+repeated key is rejected by the terminal guard. The Python reference tests the
+canonical encoding, while the ESSO model uses one bounded claim-bit and carries
+no key bytes. Runtime parity, semantic-equivalence admission,
+marginal-contribution, and contestability allocation remain open
 mechanism-design work.
 
 ## 4. Evidence Lane

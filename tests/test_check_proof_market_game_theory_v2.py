@@ -6,6 +6,7 @@ from copy import deepcopy
 from pathlib import Path
 
 from tools import check_proof_market_game_theory_v2 as checker
+from tools.proof_market_game_theory_checks_v2 import EXPECTED_RESERVE_WORK_KEY_V2
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ARTIFACT_PATH = REPO_ROOT / "docs/research/PROOF_MARKET_GAME_THEORY_V2.json"
@@ -77,12 +78,19 @@ def test_reference_reserve_claim_is_single_consumption_and_scoped() -> None:
     assert isinstance(promotion, dict)
     reserve = bounded_model["proof_reserve"]
     assert isinstance(reserve, dict)
+    encoding = reserve["economic_work_key_encoding"]
+    assert isinstance(encoding, dict)
+    assert encoding["key"] == EXPECTED_RESERVE_WORK_KEY_V2
+    assert encoding["changed_field_changes_key"] is True
     stateful = reserve["stateful_claim"]
     assert isinstance(stateful, dict)
     assert stateful["first_bonus_atoms"] == 60
+    assert stateful["economic_work_key"] == EXPECTED_RESERVE_WORK_KEY_V2
     assert stateful["reserve_remaining_after_first_atoms"] == 40
     assert stateful["owner_epoch_remaining_after_first_atoms"] == 20
-    assert stateful["claimed_work_keys_after_first"] == ["WORK_A"]
+    assert stateful["claimed_work_keys_after_first"] == [
+        EXPECTED_RESERVE_WORK_KEY_V2
+    ]
     assert stateful["duplicate_rejection"] == "WORK_KEY_ALREADY_CLAIMED"
     assert stateful["duplicate_was_accepted"] is False
     assert (

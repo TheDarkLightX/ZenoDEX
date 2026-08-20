@@ -259,13 +259,28 @@
     },
     "proof_reserve": {
       "approved_reserve_zdex_atoms_e8": 3000000000000000,
+      "economic_work_key_encoding": {
+        "changed_field_changes_key": true,
+        "changed_requested_output_key": "ewk:v2:f6d4da22966e6ce45d37c3507e2e974603abfc5c68364d7727ea8afb302d723a",
+        "descriptor": {
+          "assumptions": "M6_PROFILE_V2",
+          "claim": "VALIDATE_ZENOLEDGER_STATE_TRANSITION",
+          "product_kind": "ZENO_PROOF",
+          "public_inputs": "PUBLIC_INPUTS_COMMITMENT",
+          "release": "RELEASE_PROFILE_V2",
+          "requested_output": "POST_STATE_AND_EFFECT_PLAN",
+          "verifier_profile": "VERIFIER_PROFILE_V2"
+        },
+        "key": "ewk:v2:e87be2b5ecd2f1649f3f0da84726fdaca6e627c9e00004cce7ef5123c4ef0b48"
+      },
       "funded_verified_unique_bonus_atoms_e8": 50000000000,
       "stateful_claim": {
         "claimed_work_keys_after_first": [
-          "WORK_A"
+          "ewk:v2:e87be2b5ecd2f1649f3f0da84726fdaca6e627c9e00004cce7ef5123c4ef0b48"
         ],
         "duplicate_rejection": "WORK_KEY_ALREADY_CLAIMED",
         "duplicate_was_accepted": false,
+        "economic_work_key": "ewk:v2:e87be2b5ecd2f1649f3f0da84726fdaca6e627c9e00004cce7ef5123c4ef0b48",
         "first_bonus_atoms": 60,
         "initial_owner_epoch_remaining_atoms": 80,
         "initial_reserve_remaining_atoms": 100,
@@ -318,6 +333,7 @@
     "LEAN_RESTRICTED_THEOREMS_COMPILED": true,
     "POSTED_PRICE_HAS_NO_SAME_ROUND_RATCHET": true,
     "PRIMARY_SOURCE_MANIFEST_IS_EXPLICITLY_ADVISORY": true,
+    "PROOF_RESERVE_ECONOMIC_WORK_KEY_CANONICAL": true,
     "PROOF_RESERVE_STATEFUL_CLAIM_CONSUMES_ONCE": true,
     "SINGLE_PROVIDER_STAGE_WITHHOLDING_HAS_NO_STRICT_GAIN": true,
     "V1_BOND_DISPOSITION_MISMATCH_REPRODUCED": true,
@@ -412,6 +428,7 @@
     "identity_keys": {
       "base_payment_nullifier": "occurrence_key",
       "economic_work_key": "exact canonical task encoding over computation, claim, inputs, verifier profile, and release; excludes buyer, deadline, access policy, and nonce",
+      "economic_work_key_encoding": "domain-separated ZenoDEX/EconomicWorkKey/v2 with ordered field-name/value length framing and lowercase SHA-256 digest",
       "occurrence_key": "economic work key plus buyer, prefund commitment, deadline, access policy, and nonce",
       "reserve_bonus_nullifier": "economic_work_key",
       "semantic_equivalence": "open unless a closed task registry or independently verified equivalence certificate binds encodings"
@@ -431,7 +448,7 @@
     "The current leading experiment is not generally coalition-proof, false-name-proof, or equilibrium-efficient.",
     "Capacity tickets do not authenticate capacity, ownership, randomness, or independent failure domains.",
     "EconomicWorkKey deduplicates exact canonical encodings; semantic equivalence remains open.",
-    "The bounded Python/ESSO reserve transition is not a mounted ZenoLedger transition and does not prove canonical key encoding or multi-job semantic-equivalence deduplication.",
+    "The bounded Python canonical-key helper and ESSO reserve transition are not a mounted ZenoLedger transition and do not prove runtime byte parity, multi-job semantic-equivalence deduplication, or crash-safe external commit.",
     "External source pages were not content-snapshotted and remain advisory mutable evidence.",
     "Lean and ESSO replay receipts are source-pinned but are not externally signed or remotely attested.",
     "Direct execution availability, fee funding, cryptographic soundness, and ZenoLedger finality remain premises.",
@@ -603,11 +620,13 @@
       "permissionless-floor, owner-cap, and failure-domain assignment policy",
       "entry, exit, concentration, boycott, and repeated-cartel behavior",
       "fee sufficiency and direct-execution runway",
+      "runtime canonical key parsing and cross-implementation byte parity",
       "semantic-equivalence admission for reserve-bonus deduplication",
       "mounted reserve-aware terminal settlement and atomic reserve/payment composition"
     ],
     "selected": false,
     "tested_in_reference_subject": [
+      "deterministic domain-separated canonical EconomicWorkKey encoding",
       "immutable reserve claim consumes one exact EconomicWorkKey once"
     ]
   },
@@ -627,7 +646,7 @@
       },
       {
         "path": "tools/proof_market_game_theory_packet_v2.py",
-        "sha256": "a8f43485efe018a70f60fc8fc5fcf50f42bff8b1e3e2bec113d09a047206819c"
+        "sha256": "544021f768ed73eb5ab7033bd727df861e8f9de3b967fc1311e37871259204ec"
       },
       {
         "path": "tools/proof_market_formal_evidence_v2.py",
@@ -635,7 +654,7 @@
       },
       {
         "path": "tools/proof_market_game_theory_checks_v2.py",
-        "sha256": "a4c67aa954d91b1a2f215cc0e51f3024dc59b1f41ded911e2131df4cccc759bc"
+        "sha256": "38f039138d1540a19de0b31df76a9300d6beba55d1eb7d5cec24764274e6a250"
       },
       {
         "path": "tools/proof_market_v1_refutation_v2.py",
@@ -643,11 +662,11 @@
       },
       {
         "path": "tools/proof_market_game_theory_v2.py",
-        "sha256": "8396dbef758bdce9f9be3bb046147f2a5d40c486946a08bf3700b628adc9fc7a"
+        "sha256": "601ed959c5565364925e773e6f57e350cb156bf5460360db289dfcdccc52af09"
       },
       {
         "path": "tools/proof_market_game_theory_economics_v2.py",
-        "sha256": "bca9a47aba052a3b6376aff581c586389341def4b34e4c4ca10db2014a41705e"
+        "sha256": "73fd846d6230761cd2d44d86a8c3fb70b714192a0e0069beb1cf4993f26dd996"
       },
       {
         "path": "tools/check_proof_market_calibration_v1.py",
@@ -663,7 +682,7 @@
       },
       {
         "path": "docs/research/PROOF_MARKET_GAME_THEORY_V2.md",
-        "sha256": "dc801d81e09ec92d3e26cf8a69e598f5d3b80f49d27e3c0ff2ad7c6cda96fddc"
+        "sha256": "efcdd9b483ee87245970acc27489984a0dae55f969540745d9c229a17a67f7ed"
       },
       {
         "path": "docs/research/PROOF_MARKET_PRIMARY_SOURCE_MANIFEST_V2.json",

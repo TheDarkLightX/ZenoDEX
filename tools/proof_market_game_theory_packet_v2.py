@@ -160,13 +160,29 @@ def _fallback_evidence() -> dict[str, Any]:
 
 def _reserve_evidence() -> dict[str, Any]:
     reserve = 30_000_000 * 100_000_000
+    work_descriptor = model.EconomicWorkDescriptorV2(
+        product_kind="ZENO_PROOF",
+        claim="VALIDATE_ZENOLEDGER_STATE_TRANSITION",
+        assumptions="M6_PROFILE_V2",
+        public_inputs="PUBLIC_INPUTS_COMMITMENT",
+        requested_output="POST_STATE_AND_EFFECT_PLAN",
+        verifier_profile="VERIFIER_PROFILE_V2",
+        release="RELEASE_PROFILE_V2",
+    )
+    economic_work_key = model.canonical_economic_work_key(work_descriptor)
+    changed_work_key = model.canonical_economic_work_key(
+        dataclasses.replace(
+            work_descriptor,
+            requested_output="POST_STATE_AND_EFFECT_PLAN_V2",
+        )
+    )
     initial_state = model.ProofReserveClaimStateV2(
         reserve_remaining_atoms=100,
         owner_epoch_remaining_atoms=80,
         claimed_work_keys=frozenset(),
     )
     request_a = model.ProofReserveClaimRequestV2(
-        economic_work_key="WORK_A",
+        work_descriptor=work_descriptor,
         job_bonus_cap_atoms=60,
         eligibility=(
             model.ProofReserveEligibilityV2
@@ -175,7 +191,7 @@ def _reserve_evidence() -> dict[str, Any]:
     )
     first_claim = model.claim_proof_reserve_bonus(initial_state, request_a)
     if not isinstance(first_claim, model.ProofReserveClaimAcceptedV2):
-        raise ValueError("bounded reserve claim evidence did not accept WORK_A")
+        raise ValueError("bounded reserve claim evidence did not accept the work key")
     duplicate_claim = model.claim_proof_reserve_bonus(
         first_claim.state,
         request_a,
@@ -206,12 +222,19 @@ def _reserve_evidence() -> dict[str, Any]:
                 model.ProofReserveEligibilityV2.BASE_PAYMENT_UNFUNDED,
             )
         ),
+        "economic_work_key_encoding": {
+            "descriptor": dataclasses.asdict(work_descriptor),
+            "key": economic_work_key,
+            "changed_requested_output_key": changed_work_key,
+            "changed_field_changes_key": changed_work_key != economic_work_key,
+        },
         "stateful_claim": {
             "initial_reserve_remaining_atoms": initial_state.reserve_remaining_atoms,
             "initial_owner_epoch_remaining_atoms": (
                 initial_state.owner_epoch_remaining_atoms
             ),
             "first_bonus_atoms": first_claim.bonus_atoms,
+            "economic_work_key": economic_work_key,
             "reserve_remaining_after_first_atoms": (
                 first_claim.state.reserve_remaining_atoms
             ),
@@ -305,6 +328,7 @@ def _game_surface() -> dict[str, Any]:
         },
         "identity_keys": {
             "economic_work_key": "exact canonical task encoding over computation, claim, inputs, verifier profile, and release; excludes buyer, deadline, access policy, and nonce",
+            "economic_work_key_encoding": "domain-separated ZenoDEX/EconomicWorkKey/v2 with ordered field-name/value length framing and lowercase SHA-256 digest",
             "occurrence_key": "economic work key plus buyer, prefund commitment, deadline, access policy, and nonce",
             "base_payment_nullifier": "occurrence_key",
             "reserve_bonus_nullifier": "economic_work_key",
@@ -332,6 +356,7 @@ def _promotion_boundary() -> dict[str, Any]:
             "bounded reserve and owner-epoch conservation with one-job work-key claim binding",
         ],
         "tested_in_reference_subject": [
+            "deterministic domain-separated canonical EconomicWorkKey encoding",
             "immutable reserve claim consumes one exact EconomicWorkKey once",
         ],
         "requires_live_evidence": [
@@ -343,6 +368,7 @@ def _promotion_boundary() -> dict[str, Any]:
             "permissionless-floor, owner-cap, and failure-domain assignment policy",
             "entry, exit, concentration, boycott, and repeated-cartel behavior",
             "fee sufficiency and direct-execution runway",
+            "runtime canonical key parsing and cross-implementation byte parity",
             "semantic-equivalence admission for reserve-bonus deduplication",
             "mounted reserve-aware terminal settlement and atomic reserve/payment composition",
         ],
@@ -412,7 +438,7 @@ def build_document(
             "The current leading experiment is not generally coalition-proof, false-name-proof, or equilibrium-efficient.",
             "Capacity tickets do not authenticate capacity, ownership, randomness, or independent failure domains.",
             "EconomicWorkKey deduplicates exact canonical encodings; semantic equivalence remains open.",
-            "The bounded Python/ESSO reserve transition is not a mounted ZenoLedger transition and does not prove canonical key encoding or multi-job semantic-equivalence deduplication.",
+            "The bounded Python canonical-key helper and ESSO reserve transition are not a mounted ZenoLedger transition and do not prove runtime byte parity, multi-job semantic-equivalence deduplication, or crash-safe external commit.",
             "External source pages were not content-snapshotted and remain advisory mutable evidence.",
             "Lean and ESSO replay receipts are source-pinned but are not externally signed or remotely attested.",
             "Direct execution availability, fee funding, cryptographic soundness, and ZenoLedger finality remain premises.",

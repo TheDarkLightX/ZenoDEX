@@ -1,10 +1,27 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from itertools import product
 
 import pytest
 
 from tools import proof_market_game_theory_v2 as model
+
+
+def _work_descriptor(label: str) -> model.EconomicWorkDescriptorV2:
+    return model.EconomicWorkDescriptorV2(
+        product_kind="ZENO_PROOF",
+        claim=f"CLAIM_{label}",
+        assumptions="ASSUMPTIONS_V2",
+        public_inputs=f"INPUTS_{label}",
+        requested_output="STATE_DELTA",
+        verifier_profile="VERIFIER_PROFILE_V2",
+        release="RELEASE_PROFILE_V2",
+    )
+
+
+def _work_key(label: str) -> str:
+    return model.canonical_economic_work_key(_work_descriptor(label))
 
 
 def _independent_reverse_vickrey(
@@ -285,6 +302,66 @@ def test_finite_reserve_bonus_requires_funded_verified_unique_work() -> None:
         )
 
 
+def test_economic_work_key_has_fixed_domain_separated_encoding() -> None:
+    descriptor = model.EconomicWorkDescriptorV2(
+        product_kind="ZENO_PROOF",
+        claim="VALIDATE_ZENOLEDGER_STATE_TRANSITION",
+        assumptions="M6_PROFILE_V2",
+        public_inputs="PUBLIC_INPUTS_COMMITMENT",
+        requested_output="POST_STATE_AND_EFFECT_PLAN",
+        verifier_profile="VERIFIER_PROFILE_V2",
+        release="RELEASE_PROFILE_V2",
+    )
+    key = model.canonical_economic_work_key(descriptor)
+    assert key.startswith("ewk:v2:")
+    assert len(key) == len("ewk:v2:") + 64
+    assert key == model.canonical_economic_work_key(descriptor)
+    changed = replace(
+        descriptor,
+        requested_output="POST_STATE_AND_EFFECT_PLAN_V2",
+    )
+    assert model.canonical_economic_work_key(changed) != key
+
+
+def test_economic_work_key_rejects_noncanonical_fields_and_claim_keys() -> None:
+    with pytest.raises(ValueError, match="NFC-normalized"):
+        model.canonical_economic_work_key(
+            model.EconomicWorkDescriptorV2(
+                "ZENO_PROOF",
+                "e\u0301",
+                "ASSUMPTIONS_V2",
+                "INPUTS",
+                "OUTPUT",
+                "PROFILE",
+                "RELEASE",
+            )
+        )
+    state = model.ProofReserveClaimStateV2(100, 80, frozenset())
+    result = model.claim_proof_reserve_bonus(
+        state,
+        model.ProofReserveClaimRequestV2(
+            work_descriptor=model.EconomicWorkDescriptorV2(
+                "ZENO_PROOF",
+                "e\u0301",
+                "ASSUMPTIONS_V2",
+                "INPUTS",
+                "OUTPUT",
+                "PROFILE",
+                "RELEASE",
+            ),
+            job_bonus_cap_atoms=60,
+            eligibility=(
+                model.ProofReserveEligibilityV2
+                .INDEPENDENTLY_BASE_FUNDED_VERIFIED_UNCLAIMED_UNRELATED
+            ),
+        ),
+    )
+    assert result == model.ProofReserveClaimRejectedV2(
+        model.ProofReserveClaimRejectV2.INVALID_WORK_KEY
+    )
+    assert state == model.ProofReserveClaimStateV2(100, 80, frozenset())
+
+
 def test_stateful_reserve_claim_consumes_each_economic_work_key_once() -> None:
     initial = model.ProofReserveClaimStateV2(
         reserve_remaining_atoms=100,
@@ -292,7 +369,7 @@ def test_stateful_reserve_claim_consumes_each_economic_work_key_once() -> None:
         claimed_work_keys=frozenset(),
     )
     request_a = model.ProofReserveClaimRequestV2(
-        economic_work_key="WORK_A",
+        work_descriptor=_work_descriptor("A"),
         job_bonus_cap_atoms=60,
         eligibility=(
             model.ProofReserveEligibilityV2
@@ -305,7 +382,7 @@ def test_stateful_reserve_claim_consumes_each_economic_work_key_once() -> None:
     assert first.state == model.ProofReserveClaimStateV2(
         reserve_remaining_atoms=40,
         owner_epoch_remaining_atoms=20,
-        claimed_work_keys=frozenset({"WORK_A"}),
+        claimed_work_keys=frozenset({_work_key("A")}),
     )
 
     duplicate = model.claim_proof_reserve_bonus(first.state, request_a)
@@ -314,7 +391,7 @@ def test_stateful_reserve_claim_consumes_each_economic_work_key_once() -> None:
     )
 
     request_b = model.ProofReserveClaimRequestV2(
-        economic_work_key="WORK_B",
+        work_descriptor=_work_descriptor("B"),
         job_bonus_cap_atoms=40,
         eligibility=request_a.eligibility,
     )
@@ -323,13 +400,13 @@ def test_stateful_reserve_claim_consumes_each_economic_work_key_once() -> None:
     assert second.bonus_atoms == 20
     assert second.state.reserve_remaining_atoms == 20
     assert second.state.owner_epoch_remaining_atoms == 0
-    assert second.state.claimed_work_keys == frozenset({"WORK_A", "WORK_B"})
+    assert second.state.claimed_work_keys == frozenset({_work_key("A"), _work_key("B")})
 
 
 def test_stateful_reserve_claim_rejects_ineligible_work_without_state_change() -> None:
     state = model.ProofReserveClaimStateV2(100, 80, frozenset())
     request = model.ProofReserveClaimRequestV2(
-        economic_work_key="WORK_UNFUNDED",
+        work_descriptor=_work_descriptor("UNFUNDED"),
         job_bonus_cap_atoms=60,
         eligibility=model.ProofReserveEligibilityV2.BASE_PAYMENT_UNFUNDED,
     )
@@ -343,7 +420,7 @@ def test_stateful_reserve_claim_rejects_ineligible_work_without_state_change() -
 def test_stateful_reserve_claim_rejects_zero_capacity_without_claiming_key() -> None:
     state = model.ProofReserveClaimStateV2(0, 0, frozenset())
     request = model.ProofReserveClaimRequestV2(
-        economic_work_key="WORK_ZERO",
+        work_descriptor=_work_descriptor("ZERO"),
         job_bonus_cap_atoms=10,
         eligibility=(
             model.ProofReserveEligibilityV2
