@@ -29,6 +29,10 @@ impl CanonicalIdV2 {
         }
         Ok(Self(value))
     }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 impl<'de> Deserialize<'de> for CanonicalIdV2 {
@@ -62,7 +66,7 @@ impl RootV2 {
         Ok(Self(value))
     }
 
-    fn as_str(&self) -> &str {
+    pub(crate) fn as_str(&self) -> &str {
         &self.0
     }
 }
@@ -110,7 +114,7 @@ impl<'de> Deserialize<'de> for JsonAtomsV2 {
 }
 
 impl JsonAtomsV2 {
-    fn as_u128(&self) -> DeltaResultV2<u128> {
+    pub(crate) fn as_u128(&self) -> DeltaResultV2<u128> {
         self.0.as_u128().ok_or_else(|| {
             reject_v2(
                 DeltaRejectCodeV2::AmountOutOfRange,

@@ -13,6 +13,17 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 mod model;
+mod source_history;
+mod source_history_admission;
+
+pub use source_history::{
+    decode_source_history_statement_v2, CheckedSourceHistoryStatementV2, SourceHistoryRejectCodeV2,
+    SourceHistoryRejectV2, MAX_SOURCE_HISTORY_INPUT_BYTES_V2, SOURCE_HISTORY_SCHEMA_V2,
+};
+pub use source_history_admission::{
+    admit_source_history_v2, SourceHistoryBackendRejectV2, SourceHistoryProofBackendV2,
+    VerifiedSourceHistoryDeltaPlanV2, MAX_SOURCE_HISTORY_RECEIPT_BYTES_V2,
+};
 
 use model::{
     CanonicalIdV2, EconomicDeltaV2, LiabilityDirectionV2, RawDeltaPlanV2, SourceBindingV2,
@@ -93,7 +104,7 @@ type DeltaResultV2<T> = Result<T, DeltaRejectV2>;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StructurallyValidDeltaPlanV2 {
     events: Vec<EconomicDeltaV2>,
-    source_binding_count: usize,
+    source_bindings: Vec<SourceBindingV2>,
     canonical_bytes: Vec<u8>,
     root: String,
 }
@@ -111,7 +122,7 @@ impl StructurallyValidDeltaPlanV2 {
     }
 
     pub fn source_binding_count(&self) -> usize {
-        self.source_binding_count
+        self.source_bindings.len()
     }
 
     pub fn canonical_bytes(&self) -> &[u8] {
@@ -120,6 +131,10 @@ impl StructurallyValidDeltaPlanV2 {
 
     pub fn root(&self) -> &str {
         &self.root
+    }
+
+    pub(crate) fn source_bindings(&self) -> &[SourceBindingV2] {
+        &self.source_bindings
     }
 }
 
@@ -202,7 +217,7 @@ fn validate_slash_v2(
     Ok(())
 }
 
-fn sorted_json_v2(value: Value) -> Value {
+pub(crate) fn sorted_json_v2(value: Value) -> Value {
     match value {
         Value::Array(items) => Value::Array(items.into_iter().map(sorted_json_v2).collect()),
         Value::Object(object) => {
@@ -285,7 +300,7 @@ fn validate_plan_v2(plan: RawDeltaPlanV2) -> DeltaResultV2<StructurallyValidDelt
     hasher.update(&canonical_bytes);
     let root = format!("sha256:{}", hex::encode(hasher.finalize()));
     Ok(StructurallyValidDeltaPlanV2 {
-        source_binding_count: plan.source_bindings.len(),
+        source_bindings: plan.source_bindings,
         events: plan.events,
         canonical_bytes,
         root,
