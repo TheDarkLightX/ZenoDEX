@@ -354,11 +354,31 @@ def _reserve_checks(reserve: dict[str, Any]) -> dict[str, bool]:
     }
 
 
+def _key_parity_checks(key_parity: dict[str, Any]) -> dict[str, bool]:
+    rust = key_parity.get("rust")
+    receipt_checks = key_parity.get("receipt_checks")
+    return {
+        "PROOF_RESERVE_PYTHON_RUST_KEY_PARITY_GOLDEN_VECTOR": (
+            key_parity.get("status") == "BOUNDED_CROSS_LANGUAGE_GOLDEN_VECTOR"
+            and key_parity.get("ok") is True
+            and isinstance(key_parity.get("python"), dict)
+            and key_parity["python"].get("ok") is True
+            and isinstance(receipt_checks, dict)
+            and all(receipt_checks.values())
+            and isinstance(rust, dict)
+            and rust.get("status") == "PASSED"
+            and rust.get("passed_tests") == 2
+            and rust.get("failed_tests") == 0
+        )
+    }
+
+
 def evaluate_checks(
     v1_attacks: dict[str, Any],
     games: dict[str, Any],
     formal: dict[str, Any],
     source_manifest: dict[str, Any],
+    key_parity: dict[str, Any],
 ) -> dict[str, bool]:
     """Evaluate every named packet claim against exact generated evidence."""
 
@@ -367,6 +387,7 @@ def evaluate_checks(
     checks.update(_capacity_and_bond_checks(games))
     checks.update(_fallback_checks(games["fallback"]))
     checks.update(_reserve_checks(games["proof_reserve"]))
+    checks.update(_key_parity_checks(key_parity))
     checks.update(_formal_checks(formal))
     checks["PRIMARY_SOURCE_MANIFEST_IS_EXPLICITLY_ADVISORY"] = (
         _source_manifest_check(source_manifest)

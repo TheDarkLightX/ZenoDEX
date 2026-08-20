@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
 from collections import Counter
 from fractions import Fraction
@@ -11,6 +12,7 @@ from typing import Any, Final
 
 from tools import proof_market_formal_evidence_v2 as formal
 from tools import proof_market_game_theory_v2 as model
+from tools import proof_market_key_parity_v2 as key_parity_module
 from tools.proof_market_game_theory_checks_v2 import evaluate_checks
 from tools.proof_market_v1_refutation_v2 import v1_attack_evidence
 
@@ -225,6 +227,9 @@ def _reserve_evidence() -> dict[str, Any]:
         "economic_work_key_encoding": {
             "descriptor": dataclasses.asdict(work_descriptor),
             "key": economic_work_key,
+            "canonical_bytes_sha256": hashlib.sha256(
+                model.canonical_economic_work_key_bytes(work_descriptor)
+            ).hexdigest(),
             "changed_requested_output_key": changed_work_key,
             "changed_field_changes_key": changed_work_key != economic_work_key,
         },
@@ -357,6 +362,7 @@ def _promotion_boundary() -> dict[str, Any]:
         ],
         "tested_in_reference_subject": [
             "deterministic domain-separated canonical EconomicWorkKey encoding",
+            "ASCII-subset Rust/Python canonical EconomicWorkKey golden-vector parity",
             "immutable reserve claim consumes one exact EconomicWorkKey once",
         ],
         "requires_live_evidence": [
@@ -368,7 +374,7 @@ def _promotion_boundary() -> dict[str, Any]:
             "permissionless-floor, owner-cap, and failure-domain assignment policy",
             "entry, exit, concentration, boycott, and repeated-cartel behavior",
             "fee sufficiency and direct-execution runway",
-            "runtime canonical key parsing and cross-implementation byte parity",
+            "Unicode/runtime canonical key parsing and cross-implementation byte parity outside the ASCII golden subset",
             "semantic-equivalence admission for reserve-bonus deduplication",
             "mounted reserve-aware terminal settlement and atomic reserve/payment composition",
         ],
@@ -408,8 +414,15 @@ def build_document(
     v1_attacks = v1_attack_evidence()
     games = _bounded_game_evidence()
     formal_evidence = formal.build_formal_evidence()
+    key_parity = key_parity_module.build_evidence()
     source_manifest = _primary_source_manifest()
-    checks = evaluate_checks(v1_attacks, games, formal_evidence, source_manifest)
+    checks = evaluate_checks(
+        v1_attacks,
+        games,
+        formal_evidence,
+        source_manifest,
+        key_parity,
+    )
     return {
         "schema": SCHEMA,
         "status": "RESEARCH_ONLY_REFUTATION_BACKED_V2",
@@ -428,6 +441,7 @@ def build_document(
         "attack_query": v1_attacks,
         "bounded_model": games,
         "formal_evidence": formal_evidence,
+        "key_parity": key_parity,
         "theoremsearch": _theoremsearch_evidence(),
         "primary_source_review": source_manifest,
         "checks": checks,
@@ -438,7 +452,8 @@ def build_document(
             "The current leading experiment is not generally coalition-proof, false-name-proof, or equilibrium-efficient.",
             "Capacity tickets do not authenticate capacity, ownership, randomness, or independent failure domains.",
             "EconomicWorkKey deduplicates exact canonical encodings; semantic equivalence remains open.",
-            "The bounded Python canonical-key helper and ESSO reserve transition are not a mounted ZenoLedger transition and do not prove runtime byte parity, multi-job semantic-equivalence deduplication, or crash-safe external commit.",
+            "The bounded Python canonical-key helper, ASCII-subset Rust parity projection, and ESSO reserve transition are not a mounted ZenoLedger transition and do not prove Unicode runtime parity, multi-job semantic-equivalence deduplication, or crash-safe external commit.",
+            "The Rust/Python result is one ASCII-subset golden vector; Unicode NFC runtime parity remains open.",
             "External source pages were not content-snapshotted and remain advisory mutable evidence.",
             "Lean and ESSO replay receipts are source-pinned but are not externally signed or remotely attested.",
             "Direct execution availability, fee funding, cryptographic soundness, and ZenoLedger finality remain premises.",

@@ -260,6 +260,7 @@
     "proof_reserve": {
       "approved_reserve_zdex_atoms_e8": 3000000000000000,
       "economic_work_key_encoding": {
+        "canonical_bytes_sha256": "e87be2b5ecd2f1649f3f0da84726fdaca6e627c9e00004cce7ef5123c4ef0b48",
         "changed_field_changes_key": true,
         "changed_requested_output_key": "ewk:v2:f6d4da22966e6ce45d37c3507e2e974603abfc5c68364d7727ea8afb302d723a",
         "descriptor": {
@@ -334,6 +335,7 @@
     "POSTED_PRICE_HAS_NO_SAME_ROUND_RATCHET": true,
     "PRIMARY_SOURCE_MANIFEST_IS_EXPLICITLY_ADVISORY": true,
     "PROOF_RESERVE_ECONOMIC_WORK_KEY_CANONICAL": true,
+    "PROOF_RESERVE_PYTHON_RUST_KEY_PARITY_GOLDEN_VECTOR": true,
     "PROOF_RESERVE_STATEFUL_CLAIM_CONSUMES_ONCE": true,
     "SINGLE_PROVIDER_STAGE_WITHHOLDING_HAS_NO_STRICT_GAIN": true,
     "V1_BOND_DISPOSITION_MISMATCH_REPRODUCED": true,
@@ -443,12 +445,62 @@
       "ZENOLEDGER"
     ]
   },
+  "key_parity": {
+    "nonclaims": [
+      "The vector does not prove semantic equivalence between distinct task descriptors.",
+      "The Rust projection is not a mounted ZenoLedger writer or proof authority.",
+      "Unicode NFC runtime parity remains open beyond the declared Rust subset."
+    ],
+    "ok": true,
+    "python": {
+      "checks": {
+        "DOMAIN_EXACT": true,
+        "FIELD_ORDER_EXACT": true,
+        "FRAMING_EXACT": true,
+        "PYTHON_BYTES_MATCH": true,
+        "PYTHON_KEY_MATCHES": true,
+        "SCHEMA_EXACT": true
+      },
+      "fixture_path": "docs/research/PROOF_MARKET_WORK_KEY_GOLDEN_V2.json",
+      "fixture_sha256": "b35bfc3265e9db731f7dc793cc0f4edb08194788a92517cf9103ec88bf6aa6c8",
+      "nonclaims": [
+        "This validates one ASCII golden vector and does not prove semantic equivalence.",
+        "The Rust projection is not a mounted ZenoLedger writer or proof authority.",
+        "Unicode NFC runtime parity remains open beyond the declared Rust subset."
+      ],
+      "ok": true,
+      "python_framed_bytes_sha256": "e87be2b5ecd2f1649f3f0da84726fdaca6e627c9e00004cce7ef5123c4ef0b48",
+      "python_key": "ewk:v2:e87be2b5ecd2f1649f3f0da84726fdaca6e627c9e00004cce7ef5123c4ef0b48",
+      "rust_parity_subset": "ASCII_ONLY"
+    },
+    "receipt_checks": {
+      "RECEIPT_EXTERNAL_AUTH_FALSE": true,
+      "RECEIPT_FIXTURE_MATCHES": true,
+      "RECEIPT_PYTHON_REPLAY_MATCHES": true,
+      "RECEIPT_RUST_REPLAY_MATCHES": true,
+      "RECEIPT_SCHEMA_EXACT": true,
+      "RECEIPT_SOURCE_PINS_MATCH": true,
+      "RECEIPT_STATUS_EXACT": true
+    },
+    "receipt_path": "docs/research/PROOF_MARKET_KEY_PARITY_V2.json",
+    "receipt_sha256": "642118375f5c5f0531146555fa28d310b9c67fd62c101f95ccefa028abaf1ce5",
+    "rust": {
+      "command": "cargo test --manifest-path tools/proof_market_key_parity_rust/Cargo.toml --locked",
+      "failed_tests": 0,
+      "framed_bytes_sha256": "e87be2b5ecd2f1649f3f0da84726fdaca6e627c9e00004cce7ef5123c4ef0b48",
+      "key": "ewk:v2:e87be2b5ecd2f1649f3f0da84726fdaca6e627c9e00004cce7ef5123c4ef0b48",
+      "passed_tests": 2,
+      "status": "PASSED"
+    },
+    "status": "BOUNDED_CROSS_LANGUAGE_GOLDEN_VECTOR"
+  },
   "nonclaims": [
     "No finite model proves that a live permissionless proof market will have adequate honest supply or competitive prices.",
     "The current leading experiment is not generally coalition-proof, false-name-proof, or equilibrium-efficient.",
     "Capacity tickets do not authenticate capacity, ownership, randomness, or independent failure domains.",
     "EconomicWorkKey deduplicates exact canonical encodings; semantic equivalence remains open.",
-    "The bounded Python canonical-key helper and ESSO reserve transition are not a mounted ZenoLedger transition and do not prove runtime byte parity, multi-job semantic-equivalence deduplication, or crash-safe external commit.",
+    "The bounded Python canonical-key helper, ASCII-subset Rust parity projection, and ESSO reserve transition are not a mounted ZenoLedger transition and do not prove Unicode runtime parity, multi-job semantic-equivalence deduplication, or crash-safe external commit.",
+    "The Rust/Python result is one ASCII-subset golden vector; Unicode NFC runtime parity remains open.",
     "External source pages were not content-snapshotted and remain advisory mutable evidence.",
     "Lean and ESSO replay receipts are source-pinned but are not externally signed or remotely attested.",
     "Direct execution availability, fee funding, cryptographic soundness, and ZenoLedger finality remain premises.",
@@ -620,13 +672,14 @@
       "permissionless-floor, owner-cap, and failure-domain assignment policy",
       "entry, exit, concentration, boycott, and repeated-cartel behavior",
       "fee sufficiency and direct-execution runway",
-      "runtime canonical key parsing and cross-implementation byte parity",
+      "Unicode/runtime canonical key parsing and cross-implementation byte parity outside the ASCII golden subset",
       "semantic-equivalence admission for reserve-bonus deduplication",
       "mounted reserve-aware terminal settlement and atomic reserve/payment composition"
     ],
     "selected": false,
     "tested_in_reference_subject": [
       "deterministic domain-separated canonical EconomicWorkKey encoding",
+      "ASCII-subset Rust/Python canonical EconomicWorkKey golden-vector parity",
       "immutable reserve claim consumes one exact EconomicWorkKey once"
     ]
   },
@@ -636,17 +689,17 @@
       "externally_authenticated": false,
       "note": "an in-process checker cannot authenticate its own executed bytes",
       "path": "tools/check_proof_market_game_theory_v2.py",
-      "sha256": "6b1ce17420ab33f015102f3eb2f52012cf4d2491637d41298093edd0ffa4c919"
+      "sha256": "2009a0c1ed702066cd7a6a3f4d86d7d52a70cdc40f862ed620cc1ee3ffe13973"
     },
     "reviewed_source_commit": "fa6d2012fb4ebbbb5893d8f218f0b61ccae93be5",
     "source_pins": [
       {
         "path": "tools/check_proof_market_game_theory_v2.py",
-        "sha256": "6b1ce17420ab33f015102f3eb2f52012cf4d2491637d41298093edd0ffa4c919"
+        "sha256": "2009a0c1ed702066cd7a6a3f4d86d7d52a70cdc40f862ed620cc1ee3ffe13973"
       },
       {
         "path": "tools/proof_market_game_theory_packet_v2.py",
-        "sha256": "544021f768ed73eb5ab7033bd727df861e8f9de3b967fc1311e37871259204ec"
+        "sha256": "019b517af2105a1cd9752087253cd8f14bee411ff823052ee342e89cb7151113"
       },
       {
         "path": "tools/proof_market_formal_evidence_v2.py",
@@ -654,7 +707,7 @@
       },
       {
         "path": "tools/proof_market_game_theory_checks_v2.py",
-        "sha256": "38f039138d1540a19de0b31df76a9300d6beba55d1eb7d5cec24764274e6a250"
+        "sha256": "cb275047a197fea94e7b212c5cbd27544ca584151d76ada9f4104a4f0fb47949"
       },
       {
         "path": "tools/proof_market_v1_refutation_v2.py",
@@ -662,11 +715,43 @@
       },
       {
         "path": "tools/proof_market_game_theory_v2.py",
-        "sha256": "601ed959c5565364925e773e6f57e350cb156bf5460360db289dfcdccc52af09"
+        "sha256": "d4e892f19197811cad6ea5b67b365dff8986fbfd7060077d71176397b8c148e2"
       },
       {
         "path": "tools/proof_market_game_theory_economics_v2.py",
-        "sha256": "73fd846d6230761cd2d44d86a8c3fb70b714192a0e0069beb1cf4993f26dd996"
+        "sha256": "22acbbf2e4a25d061b24fa3b8d1d4d6a6a7f8d8603ae746857153c5ad1268e5a"
+      },
+      {
+        "path": "tools/check_proof_market_key_parity_v2.py",
+        "sha256": "a7f2fe6c4ba86156ce3eadf34fdc8917d4d059da9d91cd591117910cf38fda1c"
+      },
+      {
+        "path": "tools/proof_market_key_parity_v2.py",
+        "sha256": "6876b6a723f8b092f99737e415d94b857832373590a3368fcfcd13326f185f60"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_WORK_KEY_GOLDEN_V2.json",
+        "sha256": "b35bfc3265e9db731f7dc793cc0f4edb08194788a92517cf9103ec88bf6aa6c8"
+      },
+      {
+        "path": "docs/research/PROOF_MARKET_KEY_PARITY_V2.json",
+        "sha256": "642118375f5c5f0531146555fa28d310b9c67fd62c101f95ccefa028abaf1ce5"
+      },
+      {
+        "path": "tools/proof_market_key_parity_rust/Cargo.toml",
+        "sha256": "5ef7c12c862c6b4490a9b9198dbba45d2f3c0aee0ea19f9e5464aca8ade65c53"
+      },
+      {
+        "path": "tools/proof_market_key_parity_rust/Cargo.lock",
+        "sha256": "35fb18d1754262f14574d4ad442f771c1ad2014f19e5cc4045d5cc69c36cf126"
+      },
+      {
+        "path": "tools/proof_market_key_parity_rust/src/lib.rs",
+        "sha256": "49f01262b8b27e780bad306874b75426e3428be3731437d49de74c0edeb9c829"
+      },
+      {
+        "path": "tools/proof_market_key_parity_rust/tests/golden_vector.rs",
+        "sha256": "7cce59a02fd8919c85028cf8da7f809d512eb1435cf883b3c78cdd23b4241019"
       },
       {
         "path": "tools/check_proof_market_calibration_v1.py",
@@ -682,7 +767,7 @@
       },
       {
         "path": "docs/research/PROOF_MARKET_GAME_THEORY_V2.md",
-        "sha256": "efcdd9b483ee87245970acc27489984a0dae55f969540745d9c229a17a67f7ed"
+        "sha256": "eaf300c40395c958b52e4042d997339366238448254972bdc9db3dd53208862c"
       },
       {
         "path": "docs/research/PROOF_MARKET_PRIMARY_SOURCE_MANIFEST_V2.json",

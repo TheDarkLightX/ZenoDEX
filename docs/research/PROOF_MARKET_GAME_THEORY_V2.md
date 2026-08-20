@@ -85,8 +85,9 @@ declared order, framing every UTF-8 NFC-normalized byte string with a four-byte
 big-endian length, then returns `ewk:v2:` plus the lowercase SHA-256 digest. A
 field with leading or trailing whitespace, control or format characters, non-NFC text, or
 more than 1 MiB of encoded bytes is rejected. This defines exact encoding for
-the reference subject; a runtime parser and cross-language byte-parity receipt
-remain open.
+the reference subject. `docs/research/PROOF_MARKET_KEY_PARITY_V2.json` records
+source-pinned Python/Rust parity for one ASCII descriptor under this encoding;
+Unicode NFC runtime parser parity remains open.
 
 The reference claim request carries this descriptor and derives its nullifier
 inside the transition. A caller-supplied digest is rejected, so the bounded
@@ -420,10 +421,10 @@ wallet, request, or unverified compute metric. The Python reference and bounded
 ESSO lifecycle now include an immutable one-job claim transition: an eligible
 exact key consumes the bonus from both declining caps and is recorded once; a
 repeated key is rejected by the terminal guard. The Python reference tests the
-canonical encoding, while the ESSO model uses one bounded claim-bit and carries
-no key bytes. Runtime parity, semantic-equivalence admission,
-marginal-contribution, and contestability allocation remain open
-mechanism-design work.
+canonical encoding. The ESSO model uses one bounded claim-bit and carries no
+key bytes. The source-pinned parity receipt covers the declared ASCII subset;
+Unicode runtime parity, semantic-equivalence admission, marginal-contribution,
+and contestability allocation remain open mechanism-design work.
 
 ## 4. Evidence Lane
 
@@ -580,6 +581,8 @@ The following claims are supported for the exact bounded subject:
   fallback on its typed lane.
 - The bounded Python/ESSO reserve transition consumes one exact work key once
   and rejects duplicate terminal claims without changing reserve state.
+- The source-pinned Python/Rust parity receipt verifies one ASCII golden vector
+  with the exact framed-byte digest; it does not cover Unicode runtime parsing.
 
 Open production evidence includes:
 

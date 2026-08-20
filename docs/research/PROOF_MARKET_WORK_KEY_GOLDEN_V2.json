@@ -1,0 +1,39 @@
+{
+  "schema": "zenodex/proof-market-work-key-golden/v2",
+  "status": "RESEARCH_ONLY_GOLDEN_VECTOR",
+  "descriptor": {
+    "product_kind": "ZENO_PROOF",
+    "claim": "VALIDATE_ZENOLEDGER_STATE_TRANSITION",
+    "assumptions": "M6_PROFILE_V2",
+    "public_inputs": "PUBLIC_INPUTS_COMMITMENT",
+    "requested_output": "POST_STATE_AND_EFFECT_PLAN",
+    "verifier_profile": "VERIFIER_PROFILE_V2",
+    "release": "RELEASE_PROFILE_V2"
+  },
+  "encoding": {
+    "domain": "ZenoDEX/EconomicWorkKey/v2\u0000",
+    "field_order": [
+      "product_kind",
+      "claim",
+      "assumptions",
+      "public_inputs",
+      "requested_output",
+      "verifier_profile",
+      "release"
+    ],
+    "length_bytes": 4,
+    "length_endian": "big",
+    "value_encoding": "UTF-8_NFC",
+    "rust_parity_subset": "ASCII_ONLY",
+    "digest": "SHA-256"
+  },
+  "expected": {
+    "key": "ewk:v2:e87be2b5ecd2f1649f3f0da84726fdaca6e627c9e00004cce7ef5123c4ef0b48",
+    "framed_bytes_sha256": "e87be2b5ecd2f1649f3f0da84726fdaca6e627c9e00004cce7ef5123c4ef0b48"
+  },
+  "nonclaims": [
+    "The vector does not prove semantic equivalence between distinct task descriptors.",
+    "The Rust crate is a research parity projection and is not a mounted ZenoLedger writer.",
+    "ASCII-only Rust parity does not establish Unicode NFC runtime parity or release authority."
+  ]
+}

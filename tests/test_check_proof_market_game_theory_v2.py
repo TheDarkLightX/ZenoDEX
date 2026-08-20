@@ -102,9 +102,11 @@ def test_reference_reserve_claim_is_single_consumption_and_scoped() -> None:
 def test_formal_receipts_and_claim_ceiling_are_fail_closed() -> None:
     artifact = _artifact()
     formal = artifact["formal_evidence"]
+    key_parity = artifact["key_parity"]
     checks = artifact["checks"]
     subject = artifact["source_subject"]
     assert isinstance(formal, dict)
+    assert isinstance(key_parity, dict)
     assert isinstance(checks, dict)
     assert isinstance(subject, dict)
     assert formal["esso"]["result"]["passed_queries"] == 14
@@ -122,6 +124,11 @@ def test_formal_receipts_and_claim_ceiling_are_fail_closed() -> None:
     assert len(formal["lean"]["compiled_theorems"]) == 8
     assert formal["lean"]["source_pin_matches"] is True
     assert formal["lean"]["root_import_pin_matches"] is True
+    assert key_parity["ok"] is True
+    assert key_parity["python"]["ok"] is True
+    assert key_parity["rust"]["passed_tests"] == 2
+    assert key_parity["rust"]["failed_tests"] == 0
+    assert checks["PROOF_RESERVE_PYTHON_RUST_KEY_PARITY_GOLDEN_VECTOR"] is True
     assert all(checks.values())
     assert artifact["ok"] is True
     assert subject["checker_bootstrap"]["externally_authenticated"] is False

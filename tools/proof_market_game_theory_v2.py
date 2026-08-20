@@ -32,6 +32,7 @@ from tools.proof_market_game_theory_economics_v2 import (  # noqa: F401
     StageWithholdingSearchV2,
     StationaryEqualShareCartelScenarioV2,
     canonical_economic_work_key,
+    canonical_economic_work_key_bytes,
     ceil_bps,
     ceil_div,
     claim_proof_reserve_bonus,

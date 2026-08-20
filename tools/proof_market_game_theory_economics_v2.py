@@ -86,10 +86,10 @@ def _canonical_work_field_bytes(value: str, name: str) -> bytes:
     return encoded
 
 
-def canonical_economic_work_key(
+def canonical_economic_work_key_bytes(
     descriptor: EconomicWorkDescriptorV2,
-) -> str:
-    """Encode a work descriptor with fixed fields and return its SHA-256 key.
+) -> bytes:
+    """Encode a work descriptor into its exact domain-separated bytes.
 
     The encoding is domain-separated and length-prefixed.  Field order is the
     order declared in ``_ECONOMIC_WORK_FIELDS_V2``; each field name and value is
@@ -111,7 +111,15 @@ def canonical_economic_work_key(
         for field_bytes in (field_name_bytes, field_value_bytes):
             encoded.extend(len(field_bytes).to_bytes(4, "big"))
             encoded.extend(field_bytes)
-    digest = hashlib.sha256(bytes(encoded)).hexdigest()
+    return bytes(encoded)
+
+
+def canonical_economic_work_key(
+    descriptor: EconomicWorkDescriptorV2,
+) -> str:
+    """Return the lowercase SHA-256 key for canonical work bytes."""
+
+    digest = hashlib.sha256(canonical_economic_work_key_bytes(descriptor)).hexdigest()
     return f"{CANONICAL_WORK_KEY_PREFIX_V2}{digest}"
 
 
