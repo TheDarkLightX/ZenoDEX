@@ -320,18 +320,37 @@ oracle dispute and buy-and-burn paths, and zero-PnL-only perps close. Every
 policy, settlement, release, or promotion authority. Its exact symbol and file
 bindings locate the reviewed source; they do not mechanically prove the prose
 interpretation.
-The partial-policy V2 record
-`docs/research/PRODUCTION_READINESS_G1_PARTIAL_POLICY_V2.json` selects the ZDEX
-denomination and bounded supply model for G1 specification: 2,000,000,000 whole
-tokens, 18 decimal places, genesis-only issuance, no post-genesis minting, a
-one-atom absolute floor, and a 200,000,000-token launch active floor. A burn may
-consume at most half of the supply above the active floor and must also satisfy
-separately selected epoch and price-impact caps. The record scales the eight
-historical allocation buckets by two as an approved economic-modeling baseline.
-It does not select recipients, delivery, vesting, custody, transfer activation,
-tax treatment, counsel outcome, genesis root, mint event, or release authority.
+The historical partial-policy V2 record
+`docs/research/PRODUCTION_READINESS_G1_PARTIAL_POLICY_V2.json` selected an E18
+ZDEX denomination alongside a bounded 2,000,000,000-whole-token modeling
+envelope. The successor asset-precision record
+`docs/research/PRODUCTION_READINESS_G1_ASSET_PRECISION_V1.json` supersedes only
+the denomination-dependent fields. Successor G1 work uses eight decimals,
+`100,000,000` atoms per whole token, `200,000,000,000,000,000` genesis-supply
+atoms, and `20,000,000,000,000,000` launch-active-floor atoms. It retains the
+whole-token modeling envelope, genesis-only issue model, post-genesis mint
+prohibition, one-atom absolute floor, liability-first waterfall, and every open
+launch gate.
 
-The same record inventories 22 participant classes across all nine profile
+The same record defines a four-decimal, `bv[24]` current Tau-testnet adapter and
+an eight-decimal, `bv[64]` target profile. Entry conversion multiplies exactly;
+exit conversion divides exactly or rejects on residue. ZDEX, zUSD, and LP-share
+successor profiles use eight decimal amount atoms. Price and ratio scales remain
+separately versioned. Asset scale is immutable under one asset identity; any
+change requires a new identity or a proved forward migration. Automatic
+governance is classified as a typed command originator with no settlement,
+unbounded issue/burn, in-place scale reinterpretation, or unilateral profile
+activation authority.
+
+The V2 E18-derived CLBF, buyburn-auction, service-funding, task-graph, and
+hyperdeflation artifacts remain historical evidence for their exact profile.
+They are inapplicable to the successor E8 profile until every atom-denominated
+constant, source pin, vector, root, and rounding boundary is regenerated and
+reviewed. Neither precision record selects recipients, delivery, vesting,
+ledger allocations, transfer activation, tax treatment, counsel outcome,
+genesis root, issue event, or release authority.
+
+The historical V2 record inventories 22 participant classes across all nine profile
 decisions and all 33 commands. Every compensation policy remains
 `OPEN_UNSELECTED_COMPENSATION_POLICY`; its affected feature stays disabled until
 asset, funding source, amount and rounding, cap, eligibility witness, claimant,
@@ -457,9 +476,10 @@ coalition behavior, bidder competition, and real escrow custody.
 
 At a fixed active floor `F`, a maximal permitted burn transforms excess
 `E = supply - F` into `ceil(E / 2)`. Every positive accepted burn therefore
-leaves supply strictly above `F`. E18 is a display scale over integer atoms and
-does not create additional supply. A later floor reduction would require a new
-predecessor-bound profile, positive activation delay, unchanged E18 scale,
+leaves supply strictly above `F`. The successor E8 scale is a fixed integer-atom
+interpretation and does not create additional supply. A later scale change
+requires a new asset identity or a proved forward migration. A later floor
+reduction requires a new predecessor-bound profile, positive activation delay,
 unchanged one-atom absolute floor, a sub-100% step cap, and a release root.
 
 The auction route, reserve, cadence, caps, timing, admission, valuation,
@@ -676,6 +696,7 @@ python3 tools/check_production_readiness_g1_semantics.py --check --json
 python3 tools/check_production_readiness_g1_bdd.py --check --json
 python3 tools/check_production_readiness_g1_profile_inputs.py --check --json
 python3 tools/check_production_readiness_g1_partial_policy_v2.py --check --json
+python3 tools/check_production_readiness_g1_asset_precision_v1.py --check --json
 python3 tools/check_production_readiness_g1_entrypoints.py --check --json
 python3 tools/check_production_readiness_g1_safe_hold.py --check --json
 python3 tools/check_production_readiness_g1_profile_gate.py --check --json

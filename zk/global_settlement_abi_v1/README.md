@@ -16,6 +16,16 @@ atom quantities, and signed 128-bit effect deltas. Unknown JSON fields reject.
 Validation is explicit after owned decode. The shared Python-generated fixture
 contains seventeen vectors and includes `2^64 + 1` atoms.
 
+The asset-precision kernel adds a closed, canonically ordered policy registry
+for scales from zero through eighteen decimals. Successor G1 profiles select
+eight-decimal ledger atoms, a four-decimal `bv[24]` Tau-testnet adapter, and an
+eight-decimal `bv[64]` Tau target. Upscaling uses checked powers of ten;
+downscaling requires exact divisibility. Percentage-burn quotes use quotient and
+remainder decomposition to avoid a wide intermediate, expose the fractional
+residue over 10,000, and require explicit asset retirement before the final atom
+can be burned. The registry and arithmetic functions remain unmounted and have
+no profile, Tau-runtime, guest, or writer authority.
+
 The crate also contains the first research-only lane core for authenticated
 account transfer. Its typed transition applies a profile-owned flat fee,
 emits canonical account, fee, conservation, lane-write, and occurrence effects,

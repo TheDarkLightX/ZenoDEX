@@ -6,6 +6,7 @@
 
 mod asset_lane_coordinator;
 mod asset_lane_projection;
+mod asset_precision;
 mod asset_transfer;
 mod asset_transfer_lane_module;
 mod asset_transfer_types;
@@ -28,6 +29,7 @@ mod state;
 
 pub use asset_lane_coordinator::*;
 pub use asset_lane_projection::*;
+pub use asset_precision::*;
 pub use asset_transfer::*;
 pub use asset_transfer_lane_module::*;
 pub use asset_transfer_types::*;

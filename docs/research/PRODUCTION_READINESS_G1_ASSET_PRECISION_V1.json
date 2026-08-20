@@ -1,0 +1,196 @@
+{
+  "arithmetic_contract": {
+    "downscale": "EXACT_DIVISION_OR_TYPED_REJECTION_ON_NONZERO_REMAINDER",
+    "price_and_ratio_precision": "SEPARATELY_VERSIONED_FROM_TOKEN_AMOUNT_DECIMALS",
+    "rust_core_domain": "CHECKED_U128_STATE_AND_I128_BOUNDED_EFFECT_DELTAS",
+    "tau_current_transfer_max_atoms": 16777215,
+    "tau_policy_domain": "FIXED_WIDTH_INTEGER_BITVECTORS",
+    "tau_target_transfer_max_atoms": 18446744073709551615,
+    "upscale": "CHECKED_MULTIPLICATION_BY_POWER_OF_TEN"
+  },
+  "automatic_governance_boundary": {
+    "classification": "TYPED_COMMAND_ORIGINATOR_NOT_AN_ASSET",
+    "may_not_hold": [
+      "SETTLEMENT_PUBLICATION_AUTHORITY",
+      "UNBOUNDED_ISSUE_AUTHORITY",
+      "UNBOUNDED_BURN_AUTHORITY",
+      "IN_PLACE_SCALE_REINTERPRETATION_AUTHORITY",
+      "PROFILE_ACTIVATION_AUTHORITY_WITHOUT_GOVERNED_APPROVAL"
+    ],
+    "may_propose": "REGISTERED_GOVERNANCE_COMMANDS_WITHIN_RELEASE_BOUND_ENVELOPES",
+    "status": "OPEN_SEMANTICS_REQUIRED_BEFORE_MOUNTING"
+  },
+  "burn_contract": {
+    "conservation": [
+      "source_allocation_post = source_allocation_pre - burn_atoms",
+      "supply_post = supply_pre - burn_atoms"
+    ],
+    "final_atom": "REQUIRES_EXPLICIT_ASSET_RETIREMENT_COMMAND",
+    "fractional_residue": "EXPLICIT_NUMERATOR_OVER_10000",
+    "minimum_burn_atoms": 1,
+    "percentage_rounding": "FLOOR",
+    "zero_atom_quote": "NO_BURN_WITH_RECORDED_RESIDUE"
+  },
+  "decision_provenance": {
+    "accepted_recommendation": "E8 target amounts with a BV64 Tau target profile, an exact four-decimal current-testnet adapter, Rust settlement arithmetic, and Tau policy checks",
+    "channel": "INTERACTIVE_USER_INSTRUCTION",
+    "cryptographic_user_signature": null,
+    "recorded_date": "2026-08-20",
+    "release_activation": "UNSELECTED"
+  },
+  "historical_e18_dependents": {
+    "paths": [
+      "docs/research/PRODUCTION_READINESS_G1_BUYBURN_AUCTION_V1.json",
+      "docs/research/PRODUCTION_READINESS_G1_CLBF_MODEL_V1.json",
+      "docs/research/PRODUCTION_READINESS_G1_SERVICE_FUNDING_V1.json",
+      "docs/research/PRODUCTION_READINESS_TASK_GRAPH_V1.json",
+      "docs/research/ZDEX_VOLUME_HOLDING_HYPERDEFLATION_MECHANISM_REPORT_V1.md",
+      "tools/check_production_readiness_g1_buyburn_auction_v1.py",
+      "tools/production_readiness_g1_buyburn_auction_contract_v1.py",
+      "tools/production_readiness_g1_clbf_contract_v1.py",
+      "tools/production_readiness_g1_service_funding_contract_v1.py"
+    ],
+    "required_before_reuse": "Regenerate and re-review every atom-denominated constant, source pin, vector, root, and rounding boundary against this E8 decision",
+    "status": "HISTORICAL_E18_NOT_APPLICABLE_TO_CURRENT_E8_PROFILE"
+  },
+  "implementation_binding": {
+    "mounted_transition_binding": "ABSENT",
+    "proof_guest_binding": "ABSENT",
+    "python_rust_parity": "ABSENT",
+    "rust_contracts": [
+      "AssetPrecisionRegistryV1",
+      "exact_rescale_atoms_v1",
+      "admit_tau_amount_v1",
+      "quote_floor_bps_burn_v1",
+      "admit_burn_v1"
+    ],
+    "source_pins": [
+      {
+        "path": "zk/global_settlement_abi_v1/src/asset_precision.rs",
+        "sha256": "0d25a49ac00ae3787854eef2b34a39e9e6e25fefd5457a0824b32de5a9fa9bd3"
+      },
+      {
+        "path": "zk/global_settlement_abi_v1/src/lib.rs",
+        "sha256": "64f3e5e9684e296c522912fed6084e1c98965c3c0b390e66f17d1541441c6f04"
+      },
+      {
+        "path": "zk/global_settlement_abi_v1/tests/asset_precision.rs",
+        "sha256": "e006237cd521c539b16a20236fe4bdcdf0f4cf0f5937f5ccec9acb2163c45504"
+      },
+      {
+        "path": "tools/check_production_readiness_g1_asset_precision_v1.py",
+        "sha256": "1f55c31a473b6f8a437195328782a3b98442919961bd5773fd2a5a6a16ad6682"
+      },
+      {
+        "path": "tests/test_check_production_readiness_g1_asset_precision_v1.py",
+        "sha256": "6a7ecb9f127d3e882a78b9fd9911b9f05547eca93b13246c2710309fda525d61"
+      }
+    ],
+    "status": "IMPLEMENTED_RESEARCH_KERNEL_UNMOUNTED",
+    "tau_runtime_parity": "ABSENT"
+  },
+  "managed_asset_profiles": [
+    {
+      "asset_class": "TAU_ORIGINATED_TOKEN",
+      "asset_id": "TAU",
+      "current_testnet_adapter": {
+        "amount_width_bits": 24,
+        "conversion": "EXACT_MULTIPLY_ON_ENTRY_EXACT_DIVIDE_OR_REJECT_ON_EXIT",
+        "ledger_decimals": 8,
+        "source_decimals": 4,
+        "status": "TESTNET_COMPATIBILITY_PROFILE_ONLY"
+      },
+      "target_profile": {
+        "amount_width_bits": 64,
+        "ledger_decimals": 8,
+        "source_decimals": 8,
+        "status": "CONDITIONAL_ON_TAU_BV64_PROFILE_AND_REPLAY_EVIDENCE"
+      }
+    },
+    {
+      "asset_class": "ZDEX_PROTOCOL_TOKEN",
+      "asset_id": "ZDEX",
+      "ledger_decimals": 8,
+      "status": "SELECTED_FOR_G1_SPECIFICATION_ONLY",
+      "tau_amount_width_bits": 64
+    },
+    {
+      "asset_class": "CANONICAL_ZUSD",
+      "asset_id": "zUSD",
+      "ledger_decimals": 8,
+      "status": "SELECTED_FOR_G1_SPECIFICATION_ONLY",
+      "tau_amount_width_bits": 64
+    },
+    {
+      "asset_class": "LP_SHARE",
+      "asset_id": "LP_SHARE_RELEASE_DEFINED",
+      "ledger_decimals": 8,
+      "status": "SELECTED_FOR_G1_SPECIFICATION_ONLY",
+      "tau_amount_width_bits": 64
+    }
+  ],
+  "nonclaims": [
+    "This decision does not establish the future Tau mainnet token ABI or native decimal scale.",
+    "The Rust kernel is not mounted by a transition, profile, Tau policy, proof guest, or writer.",
+    "No Python/Rust/Tau/RISC0 refinement evidence exists for this precision kernel yet.",
+    "Historical E18 research remains valid only for its historical profile and is not successor E8 release evidence.",
+    "No issue, burn, migration, settlement, governance, release, or production authority is granted."
+  ],
+  "open_semantic_decisions": [
+    "exact Tau-originated mainnet asset identifiers and native source scales",
+    "issue and burn authorities for every managed asset",
+    "LP-share namespace, maximum supply, and terminal pool disposition",
+    "zUSD collateral and liability lifecycle parameters",
+    "automatic-governance proposal, approval, delay, revocation, and emergency boundaries",
+    "composite policy-registry binding from this precision root into an active profile",
+    "migration from historical E18 research fixtures and any preexisting state"
+  ],
+  "predecessor_binding": {
+    "artifact": "docs/research/PRODUCTION_READINESS_G1_PARTIAL_POLICY_V2.json",
+    "precedence_rule": "THIS_RECORD_CONTROLS_ASSET_SCALE_FOR_SUCCESSOR_G1_WORK",
+    "retained_fields": [
+      "whole_token_supply",
+      "genesis_only_issue_model",
+      "post_genesis_mint_forbidden",
+      "one_atom_absolute_floor",
+      "launch_active_floor_whole_tokens",
+      "liability_first_waterfall",
+      "all_open_participant_and_launch_gates"
+    ],
+    "sha256": "bd5f0221bd744250c4f6d23509dd932e2a1d2ac7c2598ad5dfeb9fb1bb87be27",
+    "superseded_fields": [
+      "decimals",
+      "unit_scale",
+      "genesis_supply_atoms",
+      "supply_ceiling_atoms",
+      "launch_active_floor_atoms",
+      "E18_redenomination_language"
+    ]
+  },
+  "production_authority": "NONE",
+  "release_gate": {
+    "activation_eligible": false,
+    "g1_complete": false,
+    "launch_allowed": false,
+    "production_ready": false
+  },
+  "schema": "zenodex/production-readiness-g1-asset-precision/v1",
+  "selected_precision": {
+    "allowed_registry_decimals": {
+      "maximum": 18,
+      "minimum": 0
+    },
+    "canonical_amount_encoding": "NONNEGATIVE_INTEGER_ATOMS_NO_FLOATS",
+    "launch_active_floor_atoms": 20000000000000000,
+    "launch_active_floor_whole_tokens": 200000000,
+    "maximum_settlement_delta_atoms": 170141183460469231731687303715884105727,
+    "scale_change_rule": "NEW_ASSET_IDENTITY_OR_PROVED_FORWARD_MIGRATION_ONLY",
+    "target_common_decimals": 8,
+    "target_unit_scale": 100000000,
+    "whole_zdex_supply": 2000000000,
+    "zdex_genesis_supply_atoms": 200000000000000000,
+    "zdex_supply_ceiling_atoms": 200000000000000000
+  },
+  "status": "SELECTED_FOR_G1_SPECIFICATION_ONLY",
+  "version": "v1"
+}
