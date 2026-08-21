@@ -1,8 +1,9 @@
 use risc0_zkvm::{FakeReceipt, Receipt, ReceiptClaim};
 use zenodex_asset_lane_coordinator_risc0_host::{
-    build_asset_lane_coordinator_executor_env_v1, prove_asset_lane_coordinator_succinct_v1,
-    require_asset_lane_coordinator_receipt_bytes_len_v1, AssetLaneCoordinatorHostErrorV1,
-    PinnedAssetLaneCoordinatorReceiptVerifierV1, MAX_ASSET_LANE_COORDINATOR_RECEIPT_BYTES_V1,
+    asset_lane_coordinator_image_root_v1, build_asset_lane_coordinator_executor_env_v1,
+    prove_asset_lane_coordinator_succinct_v1, require_asset_lane_coordinator_receipt_bytes_len_v1,
+    AssetLaneCoordinatorHostErrorV1, PinnedAssetLaneCoordinatorReceiptVerifierV1,
+    MAX_ASSET_LANE_COORDINATOR_RECEIPT_BYTES_V1,
 };
 use zenodex_asset_lane_coordinator_risc0_shared::{
     prepare_asset_lane_coordinator_v1, AssetLaneCoordinatorGuestInputV1,
@@ -108,7 +109,7 @@ fn guest_input() -> AssetLaneCoordinatorGuestInputV1 {
 }
 
 #[test]
-fn placeholder_lane_method_and_fake_module_receipt_reject_before_authority() {
+fn method_availability_and_fake_module_receipt_reject_before_authority() {
     // Arrange
     let input = guest_input();
     let prepared = prepare_asset_lane_coordinator_v1(input.clone()).unwrap();
@@ -119,15 +120,27 @@ fn placeholder_lane_method_and_fake_module_receipt_reject_before_authority() {
     .try_into()
     .unwrap();
 
-    // Act / Assert
+    // Act
+    let build_result = build_asset_lane_coordinator_executor_env_v1(&input, fake.clone());
+    let image = asset_lane_coordinator_image_root_v1();
+    let proof_result = prove_asset_lane_coordinator_succinct_v1(&input, fake);
+
+    // Assert
     assert!(matches!(
-        build_asset_lane_coordinator_executor_env_v1(&input, fake.clone()),
+        build_result,
         Err(AssetLaneCoordinatorHostErrorV1::ModuleReceiptKind)
     ));
-    assert!(matches!(
-        prove_asset_lane_coordinator_succinct_v1(&input, fake),
-        Err(AssetLaneCoordinatorHostErrorV1::PlaceholderMethod)
-    ));
+    match image {
+        Err(AssetLaneCoordinatorHostErrorV1::PlaceholderMethod) => assert!(matches!(
+            proof_result,
+            Err(AssetLaneCoordinatorHostErrorV1::PlaceholderMethod)
+        )),
+        Ok(_) => assert!(matches!(
+            proof_result,
+            Err(AssetLaneCoordinatorHostErrorV1::ModuleReceiptKind)
+        )),
+        Err(other) => panic!("unexpected method-availability error: {other:?}"),
+    }
 }
 
 #[test]

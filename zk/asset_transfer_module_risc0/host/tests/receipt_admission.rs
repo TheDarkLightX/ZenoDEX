@@ -1,9 +1,9 @@
 use risc0_zkvm::{FakeReceipt, Receipt, ReceiptClaim};
 use zenodex_asset_transfer_module_risc0_host::{
-    build_asset_transfer_module_executor_env_v1, prove_asset_transfer_module_succinct_v1,
-    require_asset_transfer_module_receipt_bytes_len_v1, verify_asset_transfer_module_receipt_v1,
-    AssetTransferModuleHostErrorV1, PinnedAssetTransferModuleReceiptVerifierV1,
-    MAX_ASSET_TRANSFER_MODULE_RECEIPT_BYTES_V1,
+    asset_transfer_module_image_root_v1, build_asset_transfer_module_executor_env_v1,
+    prove_asset_transfer_module_succinct_v1, require_asset_transfer_module_receipt_bytes_len_v1,
+    verify_asset_transfer_module_receipt_v1, AssetTransferModuleHostErrorV1,
+    PinnedAssetTransferModuleReceiptVerifierV1, MAX_ASSET_TRANSFER_MODULE_RECEIPT_BYTES_V1,
 };
 use zenodex_asset_transfer_module_risc0_shared::AssetTransferGuestErrorV1;
 use zenodex_global_settlement_abi_v1::{
@@ -104,7 +104,7 @@ fn host_preflight_uses_the_same_transition_and_rejects_economic_denial() {
 }
 
 #[test]
-fn placeholder_method_and_fake_receipt_fail_before_authority() {
+fn method_availability_and_fake_receipt_fail_closed_before_authority() {
     // Arrange
     let (_, prepared) = build_asset_transfer_module_executor_env_v1(&module_input(30)).unwrap();
     let fake: Receipt =
@@ -112,11 +112,20 @@ fn placeholder_method_and_fake_receipt_fail_before_authority() {
             .try_into()
             .unwrap();
 
-    // Act / Assert
-    assert!(matches!(
-        prove_asset_transfer_module_succinct_v1(&module_input(30)),
-        Err(AssetTransferModuleHostErrorV1::PlaceholderMethod)
-    ));
+    // Act
+    let image = asset_transfer_module_image_root_v1();
+
+    // Assert: fast RISC0_SKIP_BUILD runs must reject the placeholder. A full
+    // method build is exercised by the ignored real-proof test instead of
+    // unexpectedly generating a proof in this admission test.
+    match image {
+        Ok(_) => {}
+        Err(AssetTransferModuleHostErrorV1::PlaceholderMethod) => assert!(matches!(
+            prove_asset_transfer_module_succinct_v1(&module_input(30)),
+            Err(AssetTransferModuleHostErrorV1::PlaceholderMethod)
+        )),
+        Err(other) => panic!("unexpected method-availability error: {other:?}"),
+    }
     assert!(matches!(
         verify_asset_transfer_module_receipt_v1(&fake, &prepared.journal_bytes),
         Err(AssetTransferModuleHostErrorV1::ReceiptKind)
