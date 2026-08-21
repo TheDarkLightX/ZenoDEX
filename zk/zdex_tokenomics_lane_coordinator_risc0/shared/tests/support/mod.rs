@@ -1,18 +1,28 @@
 use serde_json::json;
 use zenodex_global_settlement_abi_v1::{
     build_zdex_tokenomics_burn_module_journal_v1, build_zdex_tokenomics_burn_private_port_v1,
+    build_zdex_tokenomics_fee_allocation_module_journal_v1,
+    build_zdex_tokenomics_fee_allocation_private_port_v1, candidate_zdex_fee_allocation_policy_v1,
     hash_global_v1, EvidenceStatusV1, LaneIdV1, LaneModuleReleaseV1, ReleaseStatusV1, RootV1,
     ZDEXAMMPurchaseJournalV1, ZDEXAmountBucketV1, ZDEXBurnRouteContextV1,
-    ZDEXFeeDestinationAmountV1, ZDEXFeeDestinationV1, ZDEXFeeStateV1, ZDEXHyperdeflationPolicyV1,
-    ZDEXPurchaseAndBurnCommandV1, ZDEXSupplyStateV1, ZDEXTokenomicsBurnCoordinatorContextV1,
-    ZDEXTokenomicsLaneStateV1, GLOBAL_SETTLEMENT_ABI_V1, PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+    ZDEXFeeAllocationCommandV1, ZDEXFeeAllocationContextV1, ZDEXFeeDestinationAmountV1,
+    ZDEXFeeDestinationV1, ZDEXFeeStateV1, ZDEXHyperdeflationPolicyV1, ZDEXPurchaseAndBurnCommandV1,
+    ZDEXSupplyStateV1, ZDEXTokenomicsBurnCoordinatorContextV1,
+    ZDEXTokenomicsFeeAllocationCoordinatorContextV1, ZDEXTokenomicsLaneStateV1,
+    GLOBAL_SETTLEMENT_ABI_V1, PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+    PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1, ZDEX_FEE_DESTINATIONS_V1,
+};
+use zenodex_zdex_fee_allocation_risc0_shared::{
+    prepare_zdex_fee_allocation_v1, ZDEXFeeAllocationGuestInputV1,
+    ZDEX_FEE_ALLOCATION_GUEST_INPUT_SCHEMA_V1,
 };
 use zenodex_zdex_hyperdeflation_burn_risc0_shared::{
     prepare_zdex_hyperdeflation_burn_v1, ZDEXHyperdeflationBurnGuestInputV1,
     ZDEX_HYPERDEFLATION_BURN_GUEST_INPUT_SCHEMA_V1,
 };
 use zenodex_zdex_tokenomics_lane_coordinator_risc0_shared::{
-    ZDEXTokenomicsLaneCoordinatorGuestInputV1,
+    ZDEXTokenomicsFeeLaneCoordinatorGuestInputV1, ZDEXTokenomicsLaneCoordinatorGuestInputV1,
+    ZDEX_TOKENOMICS_FEE_LANE_COORDINATOR_GUEST_INPUT_SCHEMA_V1,
     ZDEX_TOKENOMICS_LANE_COORDINATOR_GUEST_INPUT_SCHEMA_V1,
 };
 
@@ -20,6 +30,12 @@ pub struct Fixture {
     #[allow(dead_code)]
     pub child_input: ZDEXHyperdeflationBurnGuestInputV1,
     pub coordinator_input: ZDEXTokenomicsLaneCoordinatorGuestInputV1,
+}
+
+pub struct FeeFixture {
+    #[allow(dead_code)]
+    pub child_input: ZDEXFeeAllocationGuestInputV1,
+    pub coordinator_input: ZDEXTokenomicsFeeLaneCoordinatorGuestInputV1,
 }
 
 pub fn root(value: u64) -> RootV1 {
@@ -32,7 +48,8 @@ pub fn root(value: u64) -> RootV1 {
 }
 
 pub fn fixture(child_image_id: RootV1) -> Fixture {
-    let module_release = shadow_module_release(child_image_id);
+    let module_release =
+        shadow_module_release(child_image_id, PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1);
     let policy = ZDEXHyperdeflationPolicyV1 {
         asset_id: root(1),
         retained_numerator: 9,
@@ -163,6 +180,93 @@ pub fn fixture(child_image_id: RootV1) -> Fixture {
     }
 }
 
+pub fn fee_fixture(child_image_id: RootV1) -> FeeFixture {
+    let module_release =
+        shadow_module_release(child_image_id, PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1);
+    let policy = candidate_zdex_fee_allocation_policy_v1();
+    let policy_root = policy.policy_root().unwrap();
+    let child_input = ZDEXFeeAllocationGuestInputV1 {
+        schema: ZDEX_FEE_ALLOCATION_GUEST_INPUT_SCHEMA_V1.to_owned(),
+        context: ZDEXFeeAllocationContextV1 {
+            chain_id: "tau-testnet".to_owned(),
+            deployment_root: root(10),
+            profile_root: root(11),
+            writer_epoch: 7,
+            allocation_route_release_id: root(52),
+            authorized_buyback_route_release_id: root(53),
+            tokenomics_module_release_id: module_release.release_id.clone(),
+            command_occurrence_id: root(54),
+            policy_root: policy_root.clone(),
+        },
+        pre_state: ZDEXFeeStateV1 {
+            fee_asset_id: root(55),
+            policy_root,
+            fee_ingress_atoms: 50_000,
+            unallocated_reserve_atoms: 700,
+            destination_balances: ZDEX_FEE_DESTINATIONS_V1
+                .into_iter()
+                .zip([10, 20, 30, 40, 50, 60])
+                .map(
+                    |(destination, allocation_atoms)| ZDEXFeeDestinationAmountV1 {
+                        destination,
+                        allocation_atoms,
+                    },
+                )
+                .collect(),
+            owned_and_custodied_atoms: 1_000_000,
+            supply_atoms: 1_000_000,
+        },
+        policy,
+        command: ZDEXFeeAllocationCommandV1 {
+            fee_charged_atoms: 10_003,
+        },
+    };
+    let allocation = prepare_zdex_fee_allocation_v1(child_input.clone())
+        .unwrap()
+        .accepted;
+    let private_port =
+        build_zdex_tokenomics_fee_allocation_private_port_v1(&allocation, &child_input.policy)
+            .unwrap();
+    let module_journal = build_zdex_tokenomics_fee_allocation_module_journal_v1(
+        &allocation,
+        &child_input.policy,
+        &private_port,
+    )
+    .unwrap();
+    let context = ZDEXTokenomicsFeeAllocationCoordinatorContextV1 {
+        schema: "zenodex/zdex-tokenomics-fee-allocation-coordinator/v1".to_owned(),
+        chain_id: allocation.occurrence.chain_id.clone(),
+        deployment_root: allocation.occurrence.deployment_root.clone(),
+        profile_root: allocation.occurrence.profile_root.clone(),
+        writer_epoch: allocation.occurrence.writer_epoch,
+        coordinator_release_id: root(43),
+        allocation_route_release_id: allocation.occurrence.allocation_route_release_id.clone(),
+        authorized_buyback_route_release_id: allocation
+            .occurrence
+            .authorized_buyback_route_release_id
+            .clone(),
+        tokenomics_module_release_id: module_release.release_id.clone(),
+        command_occurrence_id: allocation.occurrence.command_occurrence_id.clone(),
+        policy_root: allocation.occurrence.policy_root.clone(),
+    };
+    let coordinator_input = ZDEXTokenomicsFeeLaneCoordinatorGuestInputV1 {
+        schema: ZDEX_TOKENOMICS_FEE_LANE_COORDINATOR_GUEST_INPUT_SCHEMA_V1.to_owned(),
+        module_release,
+        context,
+        module_journal,
+        private_port,
+        pre_state: fee_lane_state(allocation.pre_state.clone()),
+        post_state: fee_lane_state(allocation.post_state.clone()),
+        allocation,
+        policy: child_input.policy.clone(),
+    };
+    coordinator_input.validate().unwrap();
+    FeeFixture {
+        child_input,
+        coordinator_input,
+    }
+}
+
 pub fn rebind_release_id(release: &mut LaneModuleReleaseV1) {
     let content = json!({
         "schema": GLOBAL_SETTLEMENT_ABI_V1,
@@ -182,14 +286,14 @@ pub fn rebind_release_id(release: &mut LaneModuleReleaseV1) {
     release.release_id = hash_global_v1("global-lane-module-release-content-v1", &content).unwrap();
 }
 
-fn shadow_module_release(guest_image_id: RootV1) -> LaneModuleReleaseV1 {
+fn shadow_module_release(guest_image_id: RootV1, command_kind: &str) -> LaneModuleReleaseV1 {
     let mut release = LaneModuleReleaseV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
         lane_id: LaneIdV1::ZDEX_TOKENOMICS,
         release_id: root(99),
         semantic_version: "1.0.0-shadow-risc0-test".to_owned(),
         state_schema_root: root(100),
-        command_variants: vec![PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1.to_owned()],
+        command_variants: vec![command_kind.to_owned()],
         terminal_command_variants: vec![],
         guest_image_id,
         specification_root: root(102),
@@ -206,6 +310,39 @@ fn shadow_module_release(guest_image_id: RootV1) -> LaneModuleReleaseV1 {
     rebind_release_id(&mut release);
     release.validate().unwrap();
     release
+}
+
+fn fee_lane_state(fee_state: ZDEXFeeStateV1) -> ZDEXTokenomicsLaneStateV1 {
+    let hyperdeflation_policy = ZDEXHyperdeflationPolicyV1 {
+        asset_id: root(1),
+        retained_numerator: 9,
+        retained_denominator: 10,
+        maximum_decimals: 64,
+        maximum_decimal_step: 8,
+    };
+    ZDEXTokenomicsLaneStateV1 {
+        schema: "zenodex/zdex-tokenomics-lane-state/v1".to_owned(),
+        supply_state: ZDEXSupplyStateV1 {
+            asset_id: hyperdeflation_policy.asset_id.clone(),
+            policy_root: hyperdeflation_policy.policy_root().unwrap(),
+            decimals: 8,
+            precision_epoch: 0,
+            live_supply_atoms: 1_000,
+            buckets: vec![ZDEXAmountBucketV1 {
+                bucket_id: "wallet:alice".to_owned(),
+                amount_atoms: 1_000,
+            }],
+            burn_budget_epoch: 5,
+            remaining_epoch_burn_cap_atoms: 100,
+        },
+        fee_allocation_states: vec![fee_state],
+        staking_state_root: root(31),
+        host_claims_state_root: root(32),
+        treasury_claims_state_root: root(33),
+        proof_rewards_state_root: root(34),
+        cover_reserve_state_root: root(35),
+        lp_rebates_state_root: root(36),
+    }
 }
 
 fn lane_state(supply_state: ZDEXSupplyStateV1) -> ZDEXTokenomicsLaneStateV1 {

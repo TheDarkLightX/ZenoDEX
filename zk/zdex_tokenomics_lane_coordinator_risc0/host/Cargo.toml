@@ -19,6 +19,9 @@ zenodex-zdex-tokenomics-lane-coordinator-risc0-shared = { path = "../shared" }
 [dev-dependencies]
 hex = "=0.4.3"
 sha2 = "=0.10.9"
+zenodex-zdex-fee-allocation-risc0-host = { path = "../../zdex_fee_allocation_risc0/host" }
+zenodex-zdex-fee-allocation-risc0-methods = { path = "../../zdex_fee_allocation_risc0/methods" }
+zenodex-zdex-fee-allocation-risc0-shared = { path = "../../zdex_fee_allocation_risc0/shared" }
 zenodex-zdex-hyperdeflation-burn-risc0-host = { path = "../../zdex_hyperdeflation_burn_risc0/host" }
 zenodex-zdex-hyperdeflation-burn-risc0-methods = { path = "../../zdex_hyperdeflation_burn_risc0/methods" }
 zenodex-zdex-hyperdeflation-burn-risc0-shared = { path = "../../zdex_hyperdeflation_burn_risc0/shared" }

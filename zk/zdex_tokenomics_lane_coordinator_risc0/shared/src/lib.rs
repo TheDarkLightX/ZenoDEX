@@ -11,6 +11,12 @@ use zenodex_global_settlement_abi_v1::{
     PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
 };
 
+mod dispatch;
+mod fee_lane;
+
+pub use dispatch::*;
+pub use fee_lane::*;
+
 pub const ZDEX_TOKENOMICS_LANE_COORDINATOR_GUEST_INPUT_SCHEMA_V1: &str =
     "zenodex/zdex-tokenomics-lane-coordinator-guest-input/v1";
 pub const MAX_ZDEX_TOKENOMICS_LANE_COORDINATOR_GUEST_INPUT_BYTES_V1: usize = 1_048_576;
@@ -60,7 +66,7 @@ impl ZDEXTokenomicsLaneCoordinatorGuestInputV1 {
         self.module_effects
             .validate()
             .map_err(|_| ZDEXTokenomicsLaneCoordinatorGuestErrorV1::Abi)?;
-        validate_module_release_v1(self)
+        validate_burn_module_release_v1(self)
     }
 }
 
@@ -76,6 +82,7 @@ pub enum ZDEXTokenomicsLaneCoordinatorGuestErrorV1 {
     ModuleReleaseBinding,
     Rejected(ZDEXTokenomicsLaneCoordinatorRejectCodeV1),
     BurnJournalTooLarge,
+    FeeJournalTooLarge,
     LaneJournalTooLarge,
     ImageIdEncoding,
 }
@@ -95,6 +102,9 @@ impl ZDEXTokenomicsLaneCoordinatorGuestErrorV1 {
             }
             Self::Rejected(_) => "ZDEX tokenomics complete lane composition rejected",
             Self::BurnJournalTooLarge => "ZDEX tokenomics child burn journal exceeds release bound",
+            Self::FeeJournalTooLarge => {
+                "ZDEX tokenomics child fee-allocation journal exceeds release bound"
+            }
             Self::LaneJournalTooLarge => {
                 "ZDEX tokenomics coordinator journal exceeds release bound"
             }
@@ -219,10 +229,10 @@ pub fn risc0_digest_bytes_from_root_v1(
     Ok(bytes)
 }
 
-fn validate_module_release_v1(
-    input: &ZDEXTokenomicsLaneCoordinatorGuestInputV1,
+pub(crate) fn validate_module_release_command_v1(
+    release: &LaneModuleReleaseV1,
+    command_kind: &str,
 ) -> Result<(), ZDEXTokenomicsLaneCoordinatorGuestErrorV1> {
-    let release = &input.module_release;
     let derived = release
         .derived_release_id()
         .map_err(|_| ZDEXTokenomicsLaneCoordinatorGuestErrorV1::ModuleRelease)?;
@@ -233,10 +243,19 @@ fn validate_module_release_v1(
         || !release
             .command_variants
             .iter()
-            .any(|command| command == PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1)
+            .any(|command| command == command_kind)
     {
         return Err(ZDEXTokenomicsLaneCoordinatorGuestErrorV1::ModuleRelease);
     }
+    risc0_digest_bytes_from_root_v1(&release.guest_image_id)?;
+    Ok(())
+}
+
+fn validate_burn_module_release_v1(
+    input: &ZDEXTokenomicsLaneCoordinatorGuestInputV1,
+) -> Result<(), ZDEXTokenomicsLaneCoordinatorGuestErrorV1> {
+    let release = &input.module_release;
+    validate_module_release_command_v1(release, PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1)?;
     if input.context.tokenomics_module_release_id != release.release_id
         || input.module_journal.module_release_id != release.release_id
         || input.private_port.module_release_id != release.release_id
@@ -244,11 +263,10 @@ fn validate_module_release_v1(
     {
         return Err(ZDEXTokenomicsLaneCoordinatorGuestErrorV1::ModuleReleaseBinding);
     }
-    risc0_digest_bytes_from_root_v1(&release.guest_image_id)?;
     Ok(())
 }
 
-fn validate_input_size_v1(
+pub(crate) fn validate_input_size_v1(
     input_bytes: &[u8],
 ) -> Result<(), ZDEXTokenomicsLaneCoordinatorGuestErrorV1> {
     if input_bytes.is_empty() {
@@ -272,7 +290,7 @@ fn validate_burn_journal_size_v1(
     Ok(())
 }
 
-fn validate_lane_journal_size_v1(
+pub(crate) fn validate_lane_journal_size_v1(
     bytes: &[u8],
 ) -> Result<(), ZDEXTokenomicsLaneCoordinatorGuestErrorV1> {
     let length = u64::try_from(bytes.len())

@@ -2,21 +2,25 @@
 mod support;
 
 use risc0_zkvm::{FakeReceipt, Receipt, ReceiptClaim};
-use support::{fixture, root};
+use support::{fee_fixture, fixture, root};
 use zenodex_global_settlement_abi_v1::{
     AbiErrorV1, ZDEXLaneSuccinctReceiptVerifierV1, MAX_JOURNAL_BYTES_V1,
 };
 use zenodex_zdex_tokenomics_lane_coordinator_risc0_host::{
+    build_zdex_tokenomics_fee_lane_coordinator_executor_env_v1,
     build_zdex_tokenomics_lane_coordinator_executor_env_v1,
     decode_canonical_zdex_tokenomics_lane_coordinator_receipt_v1,
     encode_zdex_tokenomics_lane_coordinator_receipt_v1,
+    prove_zdex_tokenomics_fee_lane_coordinator_succinct_v1,
     prove_zdex_tokenomics_lane_coordinator_succinct_v1,
     require_zdex_tokenomics_lane_coordinator_receipt_bytes_len_v1, verify_child_burn_receipt_v1,
     verify_zdex_tokenomics_lane_coordinator_receipt_v1,
     PinnedZDEXTokenomicsLaneCoordinatorReceiptVerifierV1, ZDEXTokenomicsLaneCoordinatorHostErrorV1,
     MAX_ZDEX_TOKENOMICS_LANE_COORDINATOR_RECEIPT_BYTES_V1,
 };
-use zenodex_zdex_tokenomics_lane_coordinator_risc0_shared::prepare_zdex_tokenomics_lane_coordinator_v1;
+use zenodex_zdex_tokenomics_lane_coordinator_risc0_shared::{
+    prepare_zdex_tokenomics_fee_lane_coordinator_v1, prepare_zdex_tokenomics_lane_coordinator_v1,
+};
 
 fn fake_receipt(image: [u32; 8], journal: Vec<u8>) -> Receipt {
     FakeReceipt::new(ReceiptClaim::ok(image, journal))
@@ -45,6 +49,35 @@ fn host_preflight_recomputes_the_complete_lane_before_receipt_admission() {
         prepared.accepted.post_state,
         fixture.coordinator_input.post_state
     );
+}
+
+#[test]
+fn fee_host_preflight_recomputes_the_complete_lane_before_receipt_admission() {
+    // Arrange
+    let fixture = fee_fixture(root(201));
+    let prepared =
+        prepare_zdex_tokenomics_fee_lane_coordinator_v1(fixture.coordinator_input.clone()).unwrap();
+    let fake = fake_receipt([1_u32; 8], prepared.child_journal_bytes.clone());
+
+    // Act
+    let result = build_zdex_tokenomics_fee_lane_coordinator_executor_env_v1(
+        &fixture.coordinator_input,
+        &fake,
+    );
+
+    // Assert
+    assert!(matches!(
+        result,
+        Err(ZDEXTokenomicsLaneCoordinatorHostErrorV1::ChildReceiptKind)
+    ));
+    assert_eq!(
+        prepared.accepted.post_state,
+        fixture.coordinator_input.post_state
+    );
+    assert!(matches!(
+        prove_zdex_tokenomics_fee_lane_coordinator_succinct_v1(&fixture.coordinator_input, &fake,),
+        Err(ZDEXTokenomicsLaneCoordinatorHostErrorV1::PlaceholderMethod)
+    ));
 }
 
 #[test]

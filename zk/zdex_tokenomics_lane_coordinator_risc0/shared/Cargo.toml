@@ -15,6 +15,7 @@ serde_json = { version = "=1.0.148", features = ["arbitrary_precision"] }
 zenodex-global-settlement-abi-v1 = { path = "../../global_settlement_abi_v1" }
 
 [dev-dependencies]
+zenodex-zdex-fee-allocation-risc0-shared = { path = "../../zdex_fee_allocation_risc0/shared" }
 zenodex-zdex-hyperdeflation-burn-risc0-shared = { path = "../../zdex_hyperdeflation_burn_risc0/shared" }
 
 [lints.rust]

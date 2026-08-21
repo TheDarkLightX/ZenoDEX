@@ -5,7 +5,7 @@ use risc0_zkvm::{
     Digest,
 };
 use zenodex_zdex_tokenomics_lane_coordinator_risc0_shared::{
-    prepare_zdex_tokenomics_lane_coordinator_from_canonical_bytes_v1,
+    prepare_zdex_tokenomics_lane_coordinator_any_from_canonical_bytes_v1,
     risc0_digest_bytes_from_root_v1, MAX_ZDEX_TOKENOMICS_LANE_COORDINATOR_GUEST_INPUT_BYTES_U32_V1,
 };
 
@@ -24,19 +24,18 @@ pub fn main() {
     let mut input_bytes = vec![0_u8; input_len];
     env::read_slice(&mut input_bytes);
     let prepared =
-        match prepare_zdex_tokenomics_lane_coordinator_from_canonical_bytes_v1(&input_bytes) {
+        match prepare_zdex_tokenomics_lane_coordinator_any_from_canonical_bytes_v1(&input_bytes) {
             Ok(value) => value,
             Err(error) => abort(error.abort_message()),
         };
-    let image_bytes =
-        match risc0_digest_bytes_from_root_v1(&prepared.input.module_release.guest_image_id) {
-            Ok(value) => value,
-            Err(error) => abort(error.abort_message()),
-        };
+    let image_bytes = match risc0_digest_bytes_from_root_v1(prepared.child_image_id()) {
+        Ok(value) => value,
+        Err(error) => abort(error.abort_message()),
+    };
     let image_id = Digest::from(image_bytes);
-    match env::verify(image_id, prepared.burn_journal_bytes.as_slice()) {
+    match env::verify(image_id, prepared.child_journal_bytes()) {
         Ok(()) => {}
         Err(error) => match error {},
     }
-    env::commit_slice(&prepared.lane_journal_bytes);
+    env::commit_slice(prepared.lane_journal_bytes());
 }

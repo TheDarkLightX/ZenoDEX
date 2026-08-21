@@ -3540,6 +3540,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "zenodex-zdex-fee-allocation-risc0-host"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "risc0-zkvm",
+ "serde_json",
+ "zenodex-global-settlement-abi-v1",
+ "zenodex-zdex-fee-allocation-risc0-methods",
+ "zenodex-zdex-fee-allocation-risc0-shared",
+]
+
+[[package]]
+name = "zenodex-zdex-fee-allocation-risc0-methods"
+version = "0.1.0"
+dependencies = [
+ "risc0-build",
+]
+
+[[package]]
+name = "zenodex-zdex-fee-allocation-risc0-shared"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "zenodex-global-settlement-abi-v1",
+]
+
+[[package]]
 name = "zenodex-zdex-hyperdeflation-burn-risc0-host"
 version = "0.1.0"
 dependencies = [
@@ -3583,6 +3611,9 @@ dependencies = [
  "serde_json",
  "sha2",
  "zenodex-global-settlement-abi-v1",
+ "zenodex-zdex-fee-allocation-risc0-host",
+ "zenodex-zdex-fee-allocation-risc0-methods",
+ "zenodex-zdex-fee-allocation-risc0-shared",
  "zenodex-zdex-hyperdeflation-burn-risc0-host",
  "zenodex-zdex-hyperdeflation-burn-risc0-methods",
  "zenodex-zdex-hyperdeflation-burn-risc0-shared",
@@ -3604,6 +3635,7 @@ dependencies = [
  "serde",
  "serde_json",
  "zenodex-global-settlement-abi-v1",
+ "zenodex-zdex-fee-allocation-risc0-shared",
  "zenodex-zdex-hyperdeflation-burn-risc0-shared",
 ]
 

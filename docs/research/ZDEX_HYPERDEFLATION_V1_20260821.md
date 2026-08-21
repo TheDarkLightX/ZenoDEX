@@ -315,11 +315,23 @@ canonical bytes, binds them through a typed private port and module journal,
 and embeds exactly one changed fee asset in the complete tokenomics lane. It
 rejects partial-root claims, changed sibling fee assets, changed supply or
 claim-component roots, route substitutions, and module-receipt substitutions
-with an unchanged lane root and empty effects. It also reruns the governed
-fee-allocation policy and exact leaf transition, so a coherently rehashed split
-cannot become a module statement. Rust/Python golden roots agree.
-Its recursive RISC0 coordinator variant, release-selected receipt adapter, and
-route connection remain open.
+with an unchanged lane root and empty effects. It reruns the supplied
+fee-allocation policy and exact leaf transition, so a policy witness that is
+inconsistent with the bound allocation cannot become a module statement.
+Rust/Python golden roots agree. A coherently regenerated alternative policy is
+rejected only when governed admission compares it with the profile-selected
+policy root; that adapter remains a promotion gate.
+
+The SHADOW RISC0 tokenomics coordinator now has two disjoint canonical input
+schemas under one coordinator image: the historical burn schema and a policy-bound
+fee-allocation schema. Schema dispatch is closed, both paths recompute the
+complete lane journal, and the guest resolves the exact release-selected child
+image and journal as its sole assumption. Host preflight admits only an
+unconditional Succinct child receipt with byte-identical journal output. The
+fee path has lightweight compile and negative preflight evidence; a rebuilt
+coordinator image, real fee child plus coordinator proof, content-derived
+coordinator release, profile-selected policy and receipt adapter, release-bound
+cycle enforcement, and route connection remain open.
 
 All receipt-admission implementations are deliberately `SHADOW`-only.
 `ACTIVE_NEW`, composite, conditional, empty, wrong-effect, and
@@ -397,7 +409,7 @@ receipt consumer, API, client, and historical decoder.
 | Rejected transition changes value | Canonically equal pre/post state and empty effects; Python also preserves object identity | Runtime adapter parity |
 | Epoch ceiling is reused by sequential burns | Burn-budget epoch and remaining capacity are committed in the pre-state and decremented in the post-state; stale larger route ceilings cannot increase capacity | Profile-selected epoch reset transition, guest execution, and global sequencing |
 | Fee split loses atoms to truncation or is coherently rewritten | Exact allocation-plus-residue equation, named reserve, policy-bound transition replay, and a mutation test that shifts one atom between destinations while updating state/effects/roots | Governed residue-release lifecycle and proof-backed policy selection |
-| Fee-allocation substate is presented as the complete tokenomics lane | Source-level Rust/Python coordinator replaces the partial write with one complete-lane write, preserves every sibling component, and has golden-root parity plus mutation-killing no-op tests | Recursive coordinator guest and receipt, governed release binding, route connection, and atomic publication |
+| Fee-allocation substate is presented as the complete tokenomics lane | Source-level Rust/Python coordinator replaces the partial write with one complete-lane write, preserves every sibling component, and has golden-root parity plus mutation-killing no-op tests; the SHADOW RISC0 coordinator recomputes the same complete-lane statement and verifies the exact fee child assumption | Rebuilt image, real recursive proof, governed coordinator release and receipt adapter, route connection, and atomic publication |
 | Caller invents a buyback budget | Shadow route recomputes the fixed-policy allocation and binds journal digest, state roots, amount, source, and consumed-object ID; this rejects semantically invalid invented budgets | Real allocation guest receipt, historical inclusion, and persistent global consumed-object enforcement |
 | Buyback budget debits another holder | Closed protocol buyback source bucket in both composers | Complete mounted caller inventory |
 | Accepted allocation wrapper shifts value between destinations | Independent transition recomputation rejects a sum-preserving allocation mutant before receipt verification | Real guest/image evidence and profile-selected policy registry |

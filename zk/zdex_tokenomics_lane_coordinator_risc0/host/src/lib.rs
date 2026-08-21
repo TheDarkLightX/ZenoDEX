@@ -9,10 +9,12 @@ use zenodex_zdex_tokenomics_lane_coordinator_risc0_methods::{
     ZENODEX_ZDEX_TOKENOMICS_LANE_COORDINATOR_GUEST_ID,
 };
 use zenodex_zdex_tokenomics_lane_coordinator_risc0_shared::{
+    canonical_zdex_tokenomics_fee_lane_coordinator_guest_input_bytes_v1,
     canonical_zdex_tokenomics_lane_coordinator_guest_input_bytes_v1,
-    prepare_zdex_tokenomics_lane_coordinator_v1, risc0_digest_bytes_from_root_v1,
-    PreparedZDEXTokenomicsLaneCoordinatorV1, ZDEXTokenomicsLaneCoordinatorGuestErrorV1,
-    ZDEXTokenomicsLaneCoordinatorGuestInputV1,
+    prepare_zdex_tokenomics_fee_lane_coordinator_v1, prepare_zdex_tokenomics_lane_coordinator_v1,
+    risc0_digest_bytes_from_root_v1, PreparedZDEXTokenomicsFeeLaneCoordinatorV1,
+    PreparedZDEXTokenomicsLaneCoordinatorV1, ZDEXTokenomicsFeeLaneCoordinatorGuestInputV1,
+    ZDEXTokenomicsLaneCoordinatorGuestErrorV1, ZDEXTokenomicsLaneCoordinatorGuestInputV1,
     MAX_ZDEX_TOKENOMICS_LANE_COORDINATOR_JOURNAL_BYTES_V1,
 };
 
@@ -86,6 +88,37 @@ pub fn build_zdex_tokenomics_lane_coordinator_executor_env_v1(
     Ok((env, prepared))
 }
 
+pub fn build_zdex_tokenomics_fee_lane_coordinator_executor_env_v1(
+    input: &ZDEXTokenomicsFeeLaneCoordinatorGuestInputV1,
+    child_fee_receipt: &Receipt,
+) -> Result<
+    (
+        ExecutorEnv<'static>,
+        PreparedZDEXTokenomicsFeeLaneCoordinatorV1,
+    ),
+    ZDEXTokenomicsLaneCoordinatorHostErrorV1,
+> {
+    require_zdex_tokenomics_lane_coordinator_runtime_configuration_v1()?;
+    let input_bytes = canonical_zdex_tokenomics_fee_lane_coordinator_guest_input_bytes_v1(input)?;
+    let input_len = u32::try_from(input_bytes.len())
+        .map_err(|_| ZDEXTokenomicsLaneCoordinatorHostErrorV1::InputTooLarge)?;
+    let prepared = prepare_zdex_tokenomics_fee_lane_coordinator_v1(input.clone())?;
+    verify_child_fee_allocation_receipt_v1(
+        child_fee_receipt,
+        &prepared.input.module_release.guest_image_id,
+        &prepared.child_journal_bytes,
+    )?;
+
+    let mut builder = ExecutorEnv::builder();
+    builder.write_slice(&[input_len]);
+    builder.write_slice(&input_bytes);
+    builder.add_assumption(child_fee_receipt.clone());
+    let env = builder
+        .build()
+        .map_err(|_| ZDEXTokenomicsLaneCoordinatorHostErrorV1::Environment)?;
+    Ok((env, prepared))
+}
+
 pub fn prove_zdex_tokenomics_lane_coordinator_succinct_v1(
     input: &ZDEXTokenomicsLaneCoordinatorGuestInputV1,
     child_burn_receipt: &Receipt,
@@ -108,17 +141,55 @@ pub fn prove_zdex_tokenomics_lane_coordinator_succinct_v1(
     Ok(prove_info.receipt)
 }
 
+pub fn prove_zdex_tokenomics_fee_lane_coordinator_succinct_v1(
+    input: &ZDEXTokenomicsFeeLaneCoordinatorGuestInputV1,
+    child_fee_receipt: &Receipt,
+) -> Result<Receipt, ZDEXTokenomicsLaneCoordinatorHostErrorV1> {
+    require_zdex_tokenomics_lane_coordinator_runtime_configuration_v1()?;
+    require_real_coordinator_method_v1()?;
+    let (env, prepared) =
+        build_zdex_tokenomics_fee_lane_coordinator_executor_env_v1(input, child_fee_receipt)?;
+    let prove_info = default_prover()
+        .prove_with_opts(
+            env,
+            ZENODEX_ZDEX_TOKENOMICS_LANE_COORDINATOR_GUEST_ELF,
+            &ProverOpts::succinct(),
+        )
+        .map_err(|_| ZDEXTokenomicsLaneCoordinatorHostErrorV1::Proving)?;
+    verify_zdex_tokenomics_lane_coordinator_receipt_v1(
+        &prove_info.receipt,
+        &prepared.lane_journal_bytes,
+    )?;
+    Ok(prove_info.receipt)
+}
+
 pub fn verify_child_burn_receipt_v1(
     receipt: &Receipt,
     expected_image_id: &RootV1,
     expected_burn_journal_bytes: &[u8],
 ) -> Result<(), ZDEXTokenomicsLaneCoordinatorHostErrorV1> {
+    verify_child_module_receipt_v1(receipt, expected_image_id, expected_burn_journal_bytes)
+}
+
+pub fn verify_child_fee_allocation_receipt_v1(
+    receipt: &Receipt,
+    expected_image_id: &RootV1,
+    expected_fee_journal_bytes: &[u8],
+) -> Result<(), ZDEXTokenomicsLaneCoordinatorHostErrorV1> {
+    verify_child_module_receipt_v1(receipt, expected_image_id, expected_fee_journal_bytes)
+}
+
+pub fn verify_child_module_receipt_v1(
+    receipt: &Receipt,
+    expected_image_id: &RootV1,
+    expected_child_journal_bytes: &[u8],
+) -> Result<(), ZDEXTokenomicsLaneCoordinatorHostErrorV1> {
     require_zdex_tokenomics_lane_coordinator_runtime_configuration_v1()?;
-    require_expected_journal_bytes_v1(expected_burn_journal_bytes, true)?;
+    require_expected_journal_bytes_v1(expected_child_journal_bytes, true)?;
     if !matches!(&receipt.inner, InnerReceipt::Succinct(_)) {
         return Err(ZDEXTokenomicsLaneCoordinatorHostErrorV1::ChildReceiptKind);
     }
-    if receipt.journal.bytes != expected_burn_journal_bytes {
+    if receipt.journal.bytes != expected_child_journal_bytes {
         return Err(ZDEXTokenomicsLaneCoordinatorHostErrorV1::ChildReceiptJournal);
     }
     let image_id = digest_from_root_v1(expected_image_id)?;
