@@ -26,17 +26,22 @@ protocol fee revenue
   -> one atomic global commit
 ```
 
-The implemented Python burn core consumes a route-authenticated purchase
-occurrence. A separate Rust/Python shadow composer models receipt admission for
-exact Spot and tokenomics leaf journals through release-selected verifier ports
-and pairs their effects. Independent Rust and Python fee-allocation cores derive
-a buyback-budget occurrence from a charged-fee bucket. An unmounted RISC0 3.0.6
-workspace now reuses the Rust transition, commits only the canonical allocation
-occurrence, requires `Succinct` receipt shape, and rejects placeholder methods
-and noncanonical receipt encodings. The real AMM guest, tokenomics guest,
-generated fee-allocation image and receipt, governed percentage and
-host-compensation selection, recursive route proof, active profile admission,
-and atomic global commit remain separate obligations.
+Independent Rust and Python burn cores consume typed route context and bind the
+exact purchase occurrence, source bucket, amount, policy, pre-state root, and
+precision epoch. The canonical supply state also commits the burn-budget epoch
+and its remaining capacity; acceptance decrements that capacity. The Rust
+retention calculation uses quotient/remainder decomposition to avoid a
+`u64 * u128` intermediate overflow. A separate
+Rust/Python shadow composer models receipt admission for exact Spot and
+tokenomics leaf journals through release-selected verifier ports and pairs their
+effects. Independent Rust and Python fee-allocation cores derive a
+buyback-budget occurrence from a charged-fee bucket. An unmounted RISC0 3.0.6
+workspace now reuses the Rust allocation transition, commits only the canonical
+allocation occurrence, requires `Succinct` receipt shape, and rejects
+placeholder methods and noncanonical receipt encodings. The real AMM guest,
+tokenomics guest, generated fee-allocation image and receipt, governed
+percentage and host-compensation selection, recursive route proof, active
+profile admission, and atomic global commit remain separate obligations.
 
 ## Candidate fee-allocation contract
 
@@ -109,7 +114,8 @@ The full implemented burn capacity is:
 B_max = min(
   S - R(S),
   source_atoms - source_reserve_floor_atoms,
-  remaining_epoch_burn_cap_atoms,
+  committed_remaining_epoch_burn_cap_atoms,
+  route_epoch_burn_ceiling_atoms,
   route_safe_output_cap_atoms
 )
 ```
@@ -122,6 +128,8 @@ S_post >= R(S_pre) >= 1
 source_debit_atoms = authorized_burn_atoms = b
 authorized_issue_atoms = 0
 sum(post_buckets) = S_post
+remaining_epoch_burn_cap_post
+  = remaining_epoch_burn_cap_pre - b
 ```
 
 This is not a floor at a fixed percentage of initial supply. For example,
@@ -158,12 +166,16 @@ The verifier-supplied `ZDEXBurnRouteContextV1` binds:
 - purchase occurrence root;
 - burn source bucket;
 - exact purchased ZDEX atoms;
-- source-reserve, epoch, and route ceilings.
+- burn-budget epoch;
+- source-reserve, route-epoch, and route-output ceilings.
 
 The command must repeat the purchase occurrence root, source bucket, and exact
 purchased amount. Any mismatch returns `PURCHASE_BINDING_MISMATCH` with no
-effect. The accepted result carries the policy and route context and
-recomputes its capacity before construction succeeds.
+effect. A route context from another committed burn-budget epoch returns
+`BURN_BUDGET_EPOCH_MISMATCH`. The state-owned remaining capacity is
+authoritative; the route ceiling can only reduce it. The accepted result carries
+the policy and route context, recomputes its capacity, and consumes the exact
+burn from committed capacity before construction succeeds.
 
 This burn-leaf context does not authenticate the purchase by itself. The shadow
 route composer performs the next structural step: it verifies release-selected
@@ -243,10 +255,13 @@ decimals_post = decimals_pre + k
 precision_epoch_post = precision_epoch_pre + 1
 bucket_atoms_post[i] = bucket_atoms_pre[i] * F
 S_post = S_pre * F
+remaining_epoch_burn_cap_post = remaining_epoch_burn_cap_pre * F
 ```
 
-All live ZDEX buckets must be present exactly once and in canonical order.
-Cross multiplication proves that represented token quantity is unchanged:
+All buckets in the supplied projection must be present exactly once and in
+canonical order. V1 bounds that projection to 1,024 entries. Authentication and
+complete global bucket coverage remain separate obligations. Cross
+multiplication proves that represented token quantity is unchanged:
 
 ```text
 atoms_post * scale_pre = atoms_pre * scale_post
@@ -286,19 +301,21 @@ receipt consumer, API, client, and historical decoder.
 
 | Disaster state | Current closure | Remaining obligation |
 |---|---|---|
-| Supply reaches zero through rounding | Ceiling retention and positive-supply theorem | Rust and guest parity |
+| Supply reaches zero through rounding | Ceiling retention, positive-supply theorem, and tested Rust/Python golden-vector root parity including u128/u64 extremes | Guest execution, complete result-encoding vectors, and release-selected policy/state binding |
 | Caller invents the purchased amount | Exact purchase journal, verifier witness, occurrence, source, and amount binding in a shadow route | Real Spot guest and governed profile membership |
 | Preexisting ZDEX is mixed into the purchase output | Purchase transient bucket must project `0 -> B` | Complete global balance-root connection in the Spot guest |
 | Purchased ZDEX is only partly burned | Burn transient bucket must project `B -> 0`; composed transient rows cancel | Recursive route proof and atomic commit |
-| Rejected transition changes value | Identical state object and empty effects | Runtime adapter parity |
+| Rejected transition changes value | Canonically equal pre/post state and empty effects; Python also preserves object identity | Runtime adapter parity |
+| Epoch ceiling is reused by sequential burns | Burn-budget epoch and remaining capacity are committed in the pre-state and decremented in the post-state; stale larger route ceilings cannot increase capacity | Profile-selected epoch reset transition, guest execution, and global sequencing |
 | Fee split loses atoms to truncation | Exact allocation-plus-residue equation and named reserve | Governed residue-release lifecycle |
 | Caller invents a buyback budget | Shadow route recomputes the fixed-policy allocation and binds journal digest, state roots, amount, source, and consumed-object ID; this rejects semantically invalid invented budgets | Real allocation guest receipt, historical inclusion, and persistent global consumed-object enforcement |
 | Buyback budget debits another holder | Closed protocol buyback source bucket in both composers | Complete mounted caller inventory |
 | Accepted allocation wrapper shifts value between destinations | Independent transition recomputation rejects a sum-preserving allocation mutant before receipt verification | Real guest/image evidence and profile-selected policy registry |
 | Burn secretly issues ZDEX | Effect requires zero authorized issuance | Complete writer inventory |
-| Test faucet mints protocol ZDEX | Tau testnet plugin rejects the canonical protocol-token asset | Clean dependency-closed integration replay |
-| Partial denomination migration | All projected buckets scale exactly or transition rejects | Complete global ZDEX bucket registry and atomic migration |
-| Multiplication or epoch overflow | Pre-multiplication u128 guard and u64 epoch exhaustion reject | Rust checked/widened arithmetic parity |
+| Test faucet mints protocol ZDEX | Source guard and authored exact no-state-change scenario reject the canonical protocol-token asset | Dependency-closed integration replay; this branch lacks the tracked consensus-time donor required to import the plugin |
+| Partial denomination migration | All supplied projection buckets and the remaining burn budget scale exactly or transition rejects | Complete global ZDEX bucket registry and atomic migration |
+| Multiplication or epoch overflow | Python pre-multiplication guard, Rust widened quotient/remainder retention, checked rescale, and u64 epoch exhaustion | Guest execution and independent arithmetic review |
+| Oversized serialized input exhausts decoding resources | Supply-state decoding rejects more than 1,024 projection rows and all decoded inputs are validated before transition use | Enforce the release-selected journal byte ceiling before deserialization; parsed string allocation is outside this value-level ABI |
 | Old receipt is replayed after rescale | Precision epoch and pre-state root binding | Global nonce/nullifier and profile binding |
 | Buy-and-burn has no market demand | No mathematical closure claimed | Economic and liquidity analysis |
 | Hosting becomes privileged control | No privilege is granted by this core | Permissionless host protocol and failover evidence |
@@ -337,7 +354,17 @@ exact design.
 - `src/core/zdex_hyperdeflation_v1.py`: narrow transition orchestration and
   stable public import surface;
 - `tests/core/test_zdex_hyperdeflation_v1.py`: BDD, BVA, mutation-killing,
-  malformed-input, exhaustive-small-domain, and reject-no-effect evidence;
+  malformed-input, exhaustive-small-domain, stateful epoch-capacity,
+  reject-no-effect, projection-bound, and Rust-root golden evidence;
+- `zk/global_settlement_abi_v1/src/zdex_hyperdeflation_types.rs`, the bounded
+  decode, transition-result, and accepted-validation siblings, and
+  `zdex_hyperdeflation.rs`: independent checked Rust projection with widened
+  retention arithmetic, fail-closed input/state decoding, exact burn/rescale
+  transitions, crate-controlled accepted values, and typed no-effect rejection;
+- `zk/global_settlement_abi_v1/tests/zdex_hyperdeflation.rs`: every reject code,
+  sequential epoch-capacity consumption, exhaustive small-domain positivity,
+  38/39-decimal BVA, u128/u64 arithmetic and root boundaries, bounded malformed
+  decode, and Python/Rust policy/pre/post-root golden evidence;
 - `lean-mathlib/Proofs/ZDEXHyperdeflationV1.lean`: machine-checked restricted
   theorems for ceiling equivalence, the exact headroom threshold, positive
   retained supply, accepted-burn positivity, guard necessity, exact bucket
@@ -345,8 +372,8 @@ exact design.
 - `tests/formal/test_lean_zdex_hyperdeflation_v1.py`: placeholder scan and
   focused Lean elaboration;
 - `src/core/zdex_purchase_burn_*_v1.py`: immutable shadow journals, canonical
-  effects, release-selected receipt admission, process-local witness markers, and pure
-  two-lane composition;
+  effects, release-selected receipt admission, process-local witness markers,
+  and pure two-lane composition;
 - `zk/global_settlement_abi_v1/src/zdex_purchase_burn_*.rs`: independent Rust
   projection of the same journals, effects, receipt boundary, and composer;
 - `tests/core/test_zdex_purchase_burn_route_v1.py` and
@@ -372,7 +399,10 @@ exact design.
 - `src/integration/tau_testnet_dex_plugin.py`: testnet faucet exclusion for the
   canonical protocol-token asset;
 - `tests/integration/test_tau_testnet_dex_plugin.py`: exact rejection and
-  no-state-change scenario.
+  no-state-change scenario. This scenario is authored but is not counted as
+  replayed branch evidence because `src/core/consensus_time.py` is absent from
+  this branch; the original dirty checkout contains a different untracked
+  candidate that was deliberately not copied into this packet.
 
 ## Promotion gates
 
@@ -381,8 +411,9 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
 1. a normative ZDEX tokenomics release selecting `p/q`, epoch caps, route caps,
    all 10,000 fee basis points or an explicit long-lived residue policy, host
    compensation, and governance envelopes;
-2. a Rust retention/capacity core with Python differential parity and checked
-   widened arithmetic;
+2. a complete profile-selected ZDEX bucket projection and policy release feeding
+   the Rust burn core; current parity covers exact supplied state and does not
+   establish complete mounted bucket coverage;
 3. a generated fee-allocation guest ELF and image ID, a real `Succinct` receipt,
    exact release/source/toolchain manifests, profile selection by the sole
    settlement shell, and end-to-end governed admission with wrong-profile,
@@ -398,8 +429,9 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
 8. independent economic, proof, authority-boundary, and legal review;
 9. one atomic ZenoLedger commit path with no legacy value writer.
 
-Passing the local tests supports only the restricted statements and executable
-behaviors named above.
+Passing focused core tests supports only the restricted statements and
+executable behaviors named above. The blocked plugin import is a promotion gap,
+not a passing integration result.
 
 ## Research Kernel record
 

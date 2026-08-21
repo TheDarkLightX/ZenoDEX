@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from fractions import Fraction
+from typing import TypedDict, cast
 
 import pytest
 
@@ -28,6 +29,15 @@ from src.core.zdex_hyperdeflation_v1 import (
     transition_zdex_precision_rescale_v1,
     transition_zdex_purchase_and_burn_v1,
 )
+
+
+class _ContextKwargs(TypedDict, total=False):
+    purchased_atoms: int
+    burn_source_bucket_id: str
+    source_floor_atoms: int
+    epoch_cap_atoms: int
+    route_cap_atoms: int
+    burn_budget_epoch: int
 
 
 def _root(value: int) -> str:
@@ -57,17 +67,26 @@ def _state(
     holder_atoms: int = 0,
     decimals: int = 8,
     precision_epoch: int = 0,
+    burn_budget_epoch: int = 0,
+    remaining_epoch_burn_cap_atoms: int | None = None,
 ) -> ZDEXSupplyStateV1:
     buckets = [ZDEXAmountBucketV1("route:buyburn:source", source_atoms)]
     if holder_atoms:
         buckets.append(ZDEXAmountBucketV1("wallet:alice", holder_atoms))
+    live_supply_atoms = source_atoms + holder_atoms
     return ZDEXSupplyStateV1(
         asset_id=policy.asset_id,
         policy_root=policy.policy_root,
         decimals=decimals,
         precision_epoch=precision_epoch,
-        live_supply_atoms=source_atoms + holder_atoms,
+        live_supply_atoms=live_supply_atoms,
         buckets=tuple(buckets),
+        burn_budget_epoch=burn_budget_epoch,
+        remaining_epoch_burn_cap_atoms=(
+            live_supply_atoms
+            if remaining_epoch_burn_cap_atoms is None
+            else remaining_epoch_burn_cap_atoms
+        ),
     )
 
 
@@ -79,6 +98,7 @@ def _context(
     source_floor_atoms: int = 0,
     epoch_cap_atoms: int = MAX_ATOMS_V1,
     route_cap_atoms: int = MAX_ATOMS_V1,
+    burn_budget_epoch: int = 0,
 ) -> ZDEXBurnRouteContextV1:
     return ZDEXBurnRouteContextV1(
         route_release_id=_root(2),
@@ -89,6 +109,7 @@ def _context(
         source_reserve_floor_atoms=source_floor_atoms,
         remaining_epoch_burn_cap_atoms=epoch_cap_atoms,
         route_safe_output_cap_atoms=route_cap_atoms,
+        burn_budget_epoch=burn_budget_epoch,
     )
 
 
@@ -143,6 +164,134 @@ def test_purchase_and_burn_preserves_positive_supply_and_bucket_conservation() -
     assert sum(row.amount_atoms for row in result.post_state.buckets) == 900
 
 
+def test_sequential_burns_consume_committed_epoch_capacity() -> None:
+    # Arrange: the first purchase consumes three of five epoch-budget atoms.
+    policy = _policy(retained_numerator=1, retained_denominator=2)
+    state = _state(
+        policy,
+        source_atoms=10,
+        remaining_epoch_burn_cap_atoms=5,
+    )
+    first_context = _context(policy, purchased_atoms=3, epoch_cap_atoms=5)
+
+    # Act: execute a valid first burn, then present a distinct purchase while
+    # reusing the stale route claim that five epoch-budget atoms remain.
+    first = transition_zdex_purchase_and_burn_v1(
+        policy,
+        state,
+        first_context,
+        _burn_command(state, 3),
+    )
+    assert isinstance(first, ZDEXPurchaseAndBurnAcceptedV1)
+    second_context = replace(
+        first_context,
+        purchase_occurrence_root=_root(4),
+    )
+    second_command = replace(
+        _burn_command(first.post_state, 3),
+        expected_purchase_occurrence_root=_root(4),
+    )
+    second = transition_zdex_purchase_and_burn_v1(
+        policy,
+        first.post_state,
+        second_context,
+        second_command,
+    )
+
+    # Assert: committed capacity, rather than the stale context, is
+    # authoritative for the second transition.
+    assert first.post_state.remaining_epoch_burn_cap_atoms == 2
+    assert isinstance(second, ZDEXPurchaseAndBurnRejectedV1)
+    assert second.code is ZDEXBurnRejectCodeV1.PURCHASE_EXCEEDS_BURN_CAPACITY
+    _assert_no_effect_reject(second, first.post_state)
+
+
+def test_burn_rejects_state_outside_policy_precision_envelope() -> None:
+    policy = _policy(maximum_decimals=8)
+    state = _state(policy, source_atoms=10, decimals=9)
+
+    result = transition_zdex_purchase_and_burn_v1(
+        policy,
+        state,
+        _context(policy),
+        _burn_command(state, 1),
+    )
+
+    assert isinstance(result, ZDEXPurchaseAndBurnRejectedV1)
+    assert result.code is ZDEXBurnRejectCodeV1.STATE_OUTSIDE_POLICY
+    _assert_no_effect_reject(result, state)
+
+
+def test_burn_rejects_route_context_from_another_budget_epoch() -> None:
+    policy = _policy()
+    state = _state(policy, source_atoms=10, burn_budget_epoch=7)
+    context = _context(policy, burn_budget_epoch=6)
+
+    result = transition_zdex_purchase_and_burn_v1(
+        policy,
+        state,
+        context,
+        _burn_command(state, 1),
+    )
+
+    assert isinstance(result, ZDEXPurchaseAndBurnRejectedV1)
+    assert result.code is ZDEXBurnRejectCodeV1.BURN_BUDGET_EPOCH_MISMATCH
+    _assert_no_effect_reject(result, state)
+
+
+def test_burn_and_precision_roots_match_rust_golden_vectors() -> None:
+    burn_policy = _policy()
+    burn_state = _state(burn_policy, source_atoms=600, holder_atoms=400)
+    burn = transition_zdex_purchase_and_burn_v1(
+        burn_policy,
+        burn_state,
+        _context(burn_policy, purchased_atoms=100),
+        _burn_command(burn_state, 100),
+    )
+    assert isinstance(burn, ZDEXPurchaseAndBurnAcceptedV1)
+    assert burn_policy.policy_root == (
+        "0x12748f215bca2c960007fe74b5de2236129f5c285bbcd9b98c07736839ba46c6"
+    )
+    assert burn_state.state_root == (
+        "0xeee0aa653a5af6aa7dd08c8f0d45d6c9184dabbc3901b60fba465444a4dbc305"
+    )
+    assert burn.post_state.state_root == (
+        "0x687eacda4d4e96e65bcefd01b9665a9417d661148462fd50fd40b974a2097119"
+    )
+
+    precision_policy = _policy(
+        retained_numerator=1,
+        retained_denominator=2,
+        maximum_decimals=32,
+        maximum_decimal_step=8,
+    )
+    precision_state = _state(
+        precision_policy,
+        source_atoms=3,
+        holder_atoms=2,
+        precision_epoch=7,
+    )
+    precision = transition_zdex_precision_rescale_v1(
+        precision_policy,
+        precision_state,
+        ZDEXPrecisionRescaleCommandV1(
+            precision_state.state_root,
+            7,
+            8,
+        ),
+    )
+    assert isinstance(precision, ZDEXPrecisionRescaleAcceptedV1)
+    assert precision_policy.policy_root == (
+        "0x9d8a4006811588648e07ad65b7ba890465781e311e4e005210f2e205971b8c56"
+    )
+    assert precision_state.state_root == (
+        "0xc64e6e924955b5a2e81e33bb66daf9c113d14ae34412916ebd1a5e908655135b"
+    )
+    assert precision.post_state.state_root == (
+        "0xb001fa4fc9f895e0e006f556770c45428d3f553a24fb6a55319d32ce06f80198"
+    )
+
+
 def test_ceil_retention_mutant_cannot_burn_the_floor_rounded_extra_atom() -> None:
     # Arrange: ceil(5/2)=3, while an incorrect floor implementation would retain 2.
     policy = _policy(retained_numerator=1, retained_denominator=2)
@@ -173,7 +322,7 @@ def test_ceil_retention_mutant_cannot_burn_the_floor_rounded_extra_atom() -> Non
     ],
 )
 def test_burn_capacity_is_the_minimum_of_independent_route_limits(
-    context_kwargs: dict[str, int],
+    context_kwargs: _ContextKwargs,
     expected_capacity: int,
 ) -> None:
     policy = _policy()
@@ -218,7 +367,7 @@ def test_burn_capacity_is_the_minimum_of_independent_route_limits(
 )
 def test_exhausted_capacity_has_specific_no_effect_rejection(
     state_kwargs: dict[str, int],
-    context_kwargs: dict[str, int],
+    context_kwargs: _ContextKwargs,
     expected_code: ZDEXBurnRejectCodeV1,
 ) -> None:
     policy = _policy(retained_numerator=1, retained_denominator=2)
@@ -347,13 +496,29 @@ def test_retained_supply_intermediate_is_safe_at_u128_u64_boundary() -> None:
     policy = _policy(
         retained_numerator=MAX_U64_V1 - 1,
         retained_denominator=MAX_U64_V1,
+        maximum_decimals=MAX_U64_V1,
+        maximum_decimal_step=38,
     )
 
     retained = retained_supply_atoms_v1(MAX_ATOMS_V1, policy)
+    state = _state(
+        policy,
+        source_atoms=MAX_ATOMS_V1,
+        decimals=MAX_U64_V1,
+        precision_epoch=MAX_U64_V1,
+        burn_budget_epoch=MAX_U64_V1,
+        remaining_epoch_burn_cap_atoms=MAX_ATOMS_V1,
+    )
 
     assert 1 <= retained <= MAX_ATOMS_V1
     assert retained == -(
         -((MAX_U64_V1 - 1) * MAX_ATOMS_V1) // MAX_U64_V1
+    )
+    assert policy.policy_root == (
+        "0xad1bc096a89e8ba0327640f77f2ae0946db17b4fdb25f99fa2ed217f073c6536"
+    )
+    assert state.state_root == (
+        "0x9083fedb16da97f36e8c097322bfced6519e2dd4419607f1134f9f93cc2054ed"
     )
 
 
@@ -687,12 +852,15 @@ def test_precision_accepted_value_rejects_forged_bucket_binding() -> None:
             ZDEXBucketScaleV1("pool:other", 3, 30),
             ZDEXBucketScaleV1("wallet:alice", 2, 20),
         ),
+        burn_budget_remaining_before_atoms=5,
+        burn_budget_remaining_after_atoms=50,
     )
     forged_post = replace(
         state,
         decimals=9,
         precision_epoch=1,
         live_supply_atoms=50,
+        remaining_epoch_burn_cap_atoms=50,
         buckets=(
             ZDEXAmountBucketV1("pool:other", 30),
             ZDEXAmountBucketV1("wallet:alice", 20),
@@ -802,6 +970,20 @@ def test_state_rejects_noncanonical_or_incomplete_bucket_projection() -> None:
                 ZDEXAmountBucketV1("pool:a", 2),
             ),
         )
+
+    too_many_buckets = tuple(
+        ZDEXAmountBucketV1(f"wallet:{index:04d}", 1)
+        for index in range(1025)
+    )
+    with pytest.raises(ValueError, match="projection exceeds"):
+        ZDEXSupplyStateV1(
+            policy.asset_id,
+            policy.policy_root,
+            8,
+            0,
+            len(too_many_buckets),
+            too_many_buckets,
+        )
     with pytest.raises(ValueError, match="bucket sum"):
         ZDEXSupplyStateV1(
             policy.asset_id,
@@ -832,22 +1014,22 @@ def test_result_and_effect_wrappers_require_exact_owned_types() -> None:
     with pytest.raises(TypeError, match="exact supply states"):
         ZDEXPurchaseAndBurnRejectedV1(
             ZDEXBurnRejectCodeV1.ZERO_PURCHASE,
-            object(),  # type: ignore[arg-type]
-            object(),  # type: ignore[arg-type]
+            cast(ZDEXSupplyStateV1, object()),
+            cast(ZDEXSupplyStateV1, object()),
         )
     with pytest.raises(TypeError, match="bucket scales are not closed"):
         ZDEXPrecisionEffectV1(
             scale_factor=10,
             supply_before_atoms=5,
             supply_after_atoms=50,
-            bucket_scales=(object(),),  # type: ignore[arg-type]
+            bucket_scales=cast(tuple[ZDEXBucketScaleV1, ...], (object(),)),
         )
     with pytest.raises(TypeError, match="exact effect"):
         ZDEXPrecisionRescaleAcceptedV1(
             policy=policy,
             pre_state=state,
             post_state=state,
-            effect=object(),  # type: ignore[arg-type]
+            effect=cast(ZDEXPrecisionEffectV1, object()),
         )
 
 

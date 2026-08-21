@@ -54,6 +54,7 @@ def compute_zdex_burn_capacity_v1(
     maximum_burn = min(
         ratio_headroom,
         source_headroom,
+        state.remaining_epoch_burn_cap_atoms,
         context.remaining_epoch_burn_cap_atoms,
         context.route_safe_output_cap_atoms,
     )
@@ -61,7 +62,10 @@ def compute_zdex_burn_capacity_v1(
         retained_supply_atoms=retained,
         ratio_headroom_atoms=ratio_headroom,
         source_headroom_atoms=source_headroom,
-        epoch_headroom_atoms=context.remaining_epoch_burn_cap_atoms,
+        epoch_headroom_atoms=min(
+            state.remaining_epoch_burn_cap_atoms,
+            context.remaining_epoch_burn_cap_atoms,
+        ),
         route_headroom_atoms=context.route_safe_output_cap_atoms,
         maximum_burn_atoms=maximum_burn,
     )

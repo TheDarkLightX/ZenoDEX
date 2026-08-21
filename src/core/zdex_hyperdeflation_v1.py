@@ -1,9 +1,9 @@
 """Integer-safe, unmounted ZDEX hyperdeflation transition core.
 
 The module keeps the public V1 import surface while delegating closed values,
-arithmetic, and self-validating results to narrow sibling modules. It proves no
-route authenticity, complete global bucket coverage, migration authority,
-market liveness, or production settlement authority.
+arithmetic, and self-validating results to narrow sibling modules. It
+establishes no route authenticity, complete global bucket coverage, migration
+authority, market liveness, or production settlement authority.
 """
 
 from __future__ import annotations
@@ -26,6 +26,7 @@ from .zdex_hyperdeflation_results_v1 import (
 )
 from .zdex_hyperdeflation_types_v1 import (
     MAX_DECIMAL_SCALE_STEP_V1,
+    MAX_ZDEX_PROJECTION_BUCKETS_V1,
     ZDEXAmountBucketV1,
     ZDEXBucketScaleV1,
     ZDEXBurnCapacityV1,
@@ -87,10 +88,14 @@ def _burn_admission(
         or context.policy_root != policy.policy_root
     ):
         return ZDEXBurnRejectCodeV1.POLICY_MISMATCH, None
+    if state.decimals > policy.maximum_decimals:
+        return ZDEXBurnRejectCodeV1.STATE_OUTSIDE_POLICY, None
     if command.expected_pre_state_root != state.state_root:
         return ZDEXBurnRejectCodeV1.STALE_STATE, None
     if command.expected_precision_epoch != state.precision_epoch:
         return ZDEXBurnRejectCodeV1.PRECISION_EPOCH_MISMATCH, None
+    if context.burn_budget_epoch != state.burn_budget_epoch:
+        return ZDEXBurnRejectCodeV1.BURN_BUDGET_EPOCH_MISMATCH, None
     if command.purchased_zdex_atoms == 0:
         return ZDEXBurnRejectCodeV1.ZERO_PURCHASE, None
     if not _purchase_binding_matches(context, command):
@@ -133,6 +138,9 @@ def _apply_burn(
     post_state = replace(
         state,
         live_supply_atoms=state.live_supply_atoms - burn_atoms,
+        remaining_epoch_burn_cap_atoms=(
+            state.remaining_epoch_burn_cap_atoms - burn_atoms
+        ),
         buckets=burned_bucket_projection_v1(
             state,
             source_bucket_id=command.source_bucket_id,
@@ -183,6 +191,8 @@ def _precision_admission_code(
 def _precision_overflows(state: ZDEXSupplyStateV1, scale_factor: int) -> bool:
     if state.live_supply_atoms > MAX_ATOMS_V1 // scale_factor:
         return True
+    if state.remaining_epoch_burn_cap_atoms > MAX_ATOMS_V1 // scale_factor:
+        return True
     return any(
         bucket.amount_atoms > MAX_ATOMS_V1 // scale_factor
         for bucket in state.buckets
@@ -208,6 +218,9 @@ def _apply_precision_rescale(
         decimals=state.decimals + command.additional_decimals,
         precision_epoch=state.precision_epoch + 1,
         live_supply_atoms=state.live_supply_atoms * scale_factor,
+        remaining_epoch_burn_cap_atoms=(
+            state.remaining_epoch_burn_cap_atoms * scale_factor
+        ),
         buckets=tuple(
             ZDEXAmountBucketV1(row.bucket_id, row.after_atoms)
             for row in bucket_scales
@@ -218,6 +231,12 @@ def _apply_precision_rescale(
         supply_before_atoms=state.live_supply_atoms,
         supply_after_atoms=post_state.live_supply_atoms,
         bucket_scales=bucket_scales,
+        burn_budget_remaining_before_atoms=(
+            state.remaining_epoch_burn_cap_atoms
+        ),
+        burn_budget_remaining_after_atoms=(
+            post_state.remaining_epoch_burn_cap_atoms
+        ),
     )
     return ZDEXPrecisionRescaleAcceptedV1(policy, state, post_state, effect)
 
@@ -281,6 +300,7 @@ def _precision_reject(
 
 __all__ = [
     "MAX_DECIMAL_SCALE_STEP_V1",
+    "MAX_ZDEX_PROJECTION_BUCKETS_V1",
     "ZDEXAmountBucketV1",
     "ZDEXBucketScaleV1",
     "ZDEXBurnCapacityV1",

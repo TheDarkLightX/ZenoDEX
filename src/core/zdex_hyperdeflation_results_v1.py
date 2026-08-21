@@ -143,6 +143,10 @@ def _require_burn_policy_and_route(result: ZDEXPurchaseAndBurnAcceptedV1) -> Non
         or result.route_context.policy_root != result.policy.policy_root
     ):
         raise ValueError("ZDEX accepted burn policy binding is inconsistent")
+    if result.pre_state.decimals > result.policy.maximum_decimals:
+        raise ValueError("ZDEX accepted burn state is outside its policy envelope")
+    if result.route_context.burn_budget_epoch != result.pre_state.burn_budget_epoch:
+        raise ValueError("ZDEX accepted burn budget epoch is inconsistent")
     if (
         result.effect.purchase_occurrence_root
         != result.route_context.purchase_occurrence_root
@@ -166,10 +170,17 @@ def _require_burn_post_state(result: ZDEXPurchaseAndBurnAcceptedV1) -> None:
         raise ValueError("ZDEX accepted burn changed decimal precision")
     if result.pre_state.precision_epoch != result.post_state.precision_epoch:
         raise ValueError("ZDEX accepted burn changed precision epoch")
+    if result.pre_state.burn_budget_epoch != result.post_state.burn_budget_epoch:
+        raise ValueError("ZDEX accepted burn changed burn budget epoch")
     if result.post_state.live_supply_atoms != result.pre_state.live_supply_atoms - burn:
         raise ValueError("ZDEX accepted burn has the wrong post supply")
     if result.post_state.live_supply_atoms < result.capacity.retained_supply_atoms:
         raise ValueError("ZDEX accepted burn violates retained supply")
+    if (
+        result.post_state.remaining_epoch_burn_cap_atoms
+        != result.pre_state.remaining_epoch_burn_cap_atoms - burn
+    ):
+        raise ValueError("ZDEX accepted burn did not consume epoch capacity")
     expected_buckets = burned_bucket_projection_v1(
         result.pre_state,
         source_bucket_id=result.effect.source_bucket_id,
@@ -205,6 +216,8 @@ def _require_precision_policy_and_epoch(
         raise ValueError("ZDEX precision rescale changed asset identity")
     if result.post_state.policy_root != result.pre_state.policy_root:
         raise ValueError("ZDEX precision rescale changed policy identity")
+    if result.post_state.burn_budget_epoch != result.pre_state.burn_budget_epoch:
+        raise ValueError("ZDEX precision rescale changed burn budget epoch")
     if result.post_state.decimals <= result.pre_state.decimals:
         raise ValueError("ZDEX precision rescale must increase decimals")
     decimal_step = result.post_state.decimals - result.pre_state.decimals
@@ -223,6 +236,13 @@ def _require_precision_projection(result: ZDEXPrecisionRescaleAcceptedV1) -> Non
         raise ValueError("ZDEX precision effect has the wrong pre-state supply")
     if result.post_state.live_supply_atoms != result.effect.supply_after_atoms:
         raise ValueError("ZDEX precision effect and post-state supply disagree")
+    if (
+        result.effect.burn_budget_remaining_before_atoms
+        != result.pre_state.remaining_epoch_burn_cap_atoms
+        or result.effect.burn_budget_remaining_after_atoms
+        != result.post_state.remaining_epoch_burn_cap_atoms
+    ):
+        raise ValueError("ZDEX precision effect has the wrong burn budget")
     expected_scales = tuple(
         ZDEXBucketScaleV1(
             bucket_id=bucket.bucket_id,

@@ -16,12 +16,15 @@ from .global_settlement_types_v1 import (
 
 # 10^38 fits in u128 while 10^39 does not.
 MAX_DECIMAL_SCALE_STEP_V1: Final = 38
+MAX_ZDEX_PROJECTION_BUCKETS_V1: Final = 1024
 
 
 class ZDEXBurnRejectCodeV1(str, Enum):
     POLICY_MISMATCH = "POLICY_MISMATCH"
+    STATE_OUTSIDE_POLICY = "STATE_OUTSIDE_POLICY"
     STALE_STATE = "STALE_STATE"
     PRECISION_EPOCH_MISMATCH = "PRECISION_EPOCH_MISMATCH"
+    BURN_BUDGET_EPOCH_MISMATCH = "BURN_BUDGET_EPOCH_MISMATCH"
     PURCHASE_BINDING_MISMATCH = "PURCHASE_BINDING_MISMATCH"
     SOURCE_BUCKET_UNKNOWN = "SOURCE_BUCKET_UNKNOWN"
     ZERO_PURCHASE = "ZERO_PURCHASE"
@@ -121,17 +124,26 @@ class ZDEXSupplyStateV1:
     precision_epoch: int
     live_supply_atoms: int
     buckets: tuple[ZDEXAmountBucketV1, ...]
+    burn_budget_epoch: int = 0
+    remaining_epoch_burn_cap_atoms: int = 0
 
     def __post_init__(self) -> None:
         _require_root(self.asset_id, name="ZDEX state asset id")
         _require_root(self.policy_root, name="ZDEX state policy root")
         _require_nonnegative_int(self.decimals, name="ZDEX state decimals")
         _require_nonnegative_int(self.precision_epoch, name="ZDEX precision epoch")
+        _require_nonnegative_int(self.burn_budget_epoch, name="ZDEX burn budget epoch")
         _require_atoms_u128(self.live_supply_atoms, name="ZDEX live supply")
+        _require_atoms_u128(
+            self.remaining_epoch_burn_cap_atoms,
+            name="ZDEX committed remaining epoch burn cap",
+        )
         if self.live_supply_atoms == 0:
             raise ValueError("ZDEX live supply must be positive")
         if type(self.buckets) is not tuple or not self.buckets:
             raise ValueError("ZDEX state requires a nonempty bucket tuple")
+        if len(self.buckets) > MAX_ZDEX_PROJECTION_BUCKETS_V1:
+            raise ValueError("ZDEX state bucket projection exceeds the V1 bound")
         if any(type(bucket) is not ZDEXAmountBucketV1 for bucket in self.buckets):
             raise TypeError(
                 "ZDEX state buckets must be exact ZDEXAmountBucketV1 values"
@@ -163,6 +175,8 @@ class ZDEXSupplyStateV1:
             "precision_epoch": self.precision_epoch,
             "live_supply_atoms": self.live_supply_atoms,
             "buckets": self.buckets,
+            "burn_budget_epoch": self.burn_budget_epoch,
+            "remaining_epoch_burn_cap_atoms": self.remaining_epoch_burn_cap_atoms,
         }
 
 
@@ -178,6 +192,7 @@ class ZDEXBurnRouteContextV1:
     source_reserve_floor_atoms: int
     remaining_epoch_burn_cap_atoms: int
     route_safe_output_cap_atoms: int
+    burn_budget_epoch: int = 0
 
     def __post_init__(self) -> None:
         _require_root(self.route_release_id, name="ZDEX burn route release id")
@@ -207,6 +222,10 @@ class ZDEXBurnRouteContextV1:
         _require_atoms_u128(
             self.route_safe_output_cap_atoms,
             name="ZDEX route safe output cap",
+        )
+        _require_nonnegative_int(
+            self.burn_budget_epoch,
+            name="ZDEX route burn budget epoch",
         )
 
 
@@ -327,6 +346,8 @@ class ZDEXPrecisionEffectV1:
     bucket_scales: tuple[ZDEXBucketScaleV1, ...]
     authorized_issue_atoms: int = 0
     authorized_burn_atoms: int = 0
+    burn_budget_remaining_before_atoms: int = 0
+    burn_budget_remaining_after_atoms: int = 0
 
     def __post_init__(self) -> None:
         _require_atoms_u128(self.scale_factor, name="ZDEX precision scale factor")
@@ -338,12 +359,22 @@ class ZDEXPrecisionEffectV1:
             self.supply_after_atoms,
             name="ZDEX precision supply after",
         )
+        _require_atoms_u128(
+            self.burn_budget_remaining_before_atoms,
+            name="ZDEX precision burn budget before",
+        )
+        _require_atoms_u128(
+            self.burn_budget_remaining_after_atoms,
+            name="ZDEX precision burn budget after",
+        )
         if self.scale_factor <= 1:
             raise ValueError("ZDEX precision scale factor must exceed one")
         if self.supply_after_atoms != self.supply_before_atoms * self.scale_factor:
             raise ValueError("ZDEX precision supply was not scaled exactly")
         if type(self.bucket_scales) is not tuple or not self.bucket_scales:
             raise ValueError("ZDEX precision effect requires bucket scales")
+        if len(self.bucket_scales) > MAX_ZDEX_PROJECTION_BUCKETS_V1:
+            raise ValueError("ZDEX precision bucket projection exceeds the V1 bound")
         if any(type(row) is not ZDEXBucketScaleV1 for row in self.bucket_scales):
             raise TypeError("ZDEX precision effect bucket scales are not closed")
         bucket_ids = tuple(row.bucket_id for row in self.bucket_scales)
@@ -358,12 +389,18 @@ class ZDEXPrecisionEffectV1:
             raise ValueError("ZDEX precision before buckets do not sum to supply")
         if sum(row.after_atoms for row in self.bucket_scales) != self.supply_after_atoms:
             raise ValueError("ZDEX precision after buckets do not sum to supply")
+        if (
+            self.burn_budget_remaining_after_atoms
+            != self.burn_budget_remaining_before_atoms * self.scale_factor
+        ):
+            raise ValueError("ZDEX precision burn budget was not scaled exactly")
         if self.authorized_issue_atoms != 0 or self.authorized_burn_atoms != 0:
             raise ValueError("ZDEX precision rescale cannot authorize issue or burn")
 
 
 __all__ = [
     "MAX_DECIMAL_SCALE_STEP_V1",
+    "MAX_ZDEX_PROJECTION_BUCKETS_V1",
     "ZDEXAmountBucketV1",
     "ZDEXBucketScaleV1",
     "ZDEXBurnCapacityV1",
