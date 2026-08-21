@@ -20,6 +20,7 @@ MAX_TOKEN_BYTES_V1: Final = 160
 MAX_ROUTE_MODULES_V1: Final = 8
 MAX_EPOCH_COMMANDS_V1: Final = 64
 MAX_EPOCH_LEAF_OCCURRENCES_V1: Final = 64
+MAX_POLICY_BINDINGS_V1: Final = 256
 MAX_JOURNAL_BYTES_V1: Final = 1_048_576
 MAX_CYCLE_BUDGET_V1: Final = 1 << 40
 MAX_U64_V1: Final = (1 << 64) - 1
@@ -821,6 +822,65 @@ class RouteRegistryV1:
 
     def to_canonical(self) -> dict[str, object]:
         return {"schema": GLOBAL_SETTLEMENT_ABI_V1, "routes": self.routes}
+
+
+@dataclass(frozen=True, slots=True)
+class EconomicPolicyBindingV1:
+    policy_kind: str
+    command_kind: str
+    policy_root: str
+
+    def __post_init__(self) -> None:
+        _require_token(self.policy_kind, name="economic policy kind")
+        _require_token(self.command_kind, name="economic policy command kind")
+        _require_root(self.policy_root, name="economic policy root")
+
+    def to_canonical(self) -> dict[str, object]:
+        return {
+            "policy_kind": self.policy_kind,
+            "command_kind": self.command_kind,
+            "policy_root": self.policy_root,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class EconomicPolicyRegistryV1:
+    bindings: tuple[EconomicPolicyBindingV1, ...]
+
+    def __post_init__(self) -> None:
+        _require_tuple(self.bindings, name="economic policy registry bindings")
+        if len(self.bindings) > MAX_POLICY_BINDINGS_V1:
+            raise ValueError("economic policy registry exceeds the ABI V1 bound")
+        if any(type(binding) is not EconomicPolicyBindingV1 for binding in self.bindings):
+            raise TypeError("economic policy registry contains an invalid binding")
+        keys = tuple(
+            (binding.policy_kind, binding.command_kind) for binding in self.bindings
+        )
+        if tuple(sorted(set(keys))) != keys:
+            raise ValueError("economic policy registry must be sorted and unique")
+
+    @property
+    def registry_root(self) -> str:
+        return hash_global_v1("global-economic-policy-registry-v1", self.to_canonical())
+
+    def require_binding(
+        self,
+        *,
+        policy_kind: str,
+        command_kind: str,
+    ) -> EconomicPolicyBindingV1:
+        _require_token(policy_kind, name="economic policy kind")
+        _require_token(command_kind, name="economic policy command kind")
+        for binding in self.bindings:
+            if (
+                binding.policy_kind == policy_kind
+                and binding.command_kind == command_kind
+            ):
+                return binding
+        raise ValueError("economic policy binding is absent from the governed registry")
+
+    def to_canonical(self) -> dict[str, object]:
+        return {"schema": GLOBAL_SETTLEMENT_ABI_V1, "bindings": self.bindings}
 
 
 @dataclass(frozen=True, slots=True)
@@ -1687,6 +1747,7 @@ __all__ = [
     "MAX_ROUTE_MODULES_V1",
     "MAX_EPOCH_COMMANDS_V1",
     "MAX_EPOCH_LEAF_OCCURRENCES_V1",
+    "MAX_POLICY_BINDINGS_V1",
     "MAX_JOURNAL_BYTES_V1",
     "MAX_CYCLE_BUDGET_V1",
     "MAX_U64_V1",
@@ -1706,6 +1767,8 @@ __all__ = [
     "LaneCoordinatorRegistryV1",
     "RouteReleaseV1",
     "RouteRegistryV1",
+    "EconomicPolicyBindingV1",
+    "EconomicPolicyRegistryV1",
     "EconomicProfileSnapshotV1",
     "LaneStateRootV1",
     "EconomicAmountV1",

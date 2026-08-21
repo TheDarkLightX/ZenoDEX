@@ -3,13 +3,18 @@ use serde::Serialize;
 use crate::canonical::{canonical_bytes_v1, hash_global_v1, AbiErrorV1, AbiResultV1, RootV1};
 use crate::effects::GlobalEconomicEffectPlanV1;
 use crate::proof::{EconomicCommandOccurrenceV1, ReceiptKindV1};
-use crate::release::{LaneIdV1, LaneModuleReleaseV1, ReleaseStatusV1, RouteReleaseV1};
+use crate::release::{
+    EconomicPolicyBindingV1, EconomicPolicyRegistryV1, EconomicProfileSnapshotV1,
+    LaneCoordinatorRegistryV1, LaneIdV1, LaneModuleReleaseV1, LaneRegistryV1, ProfileStatusV1,
+    ReleaseStatusV1, RouteRegistryV1, RouteReleaseV1,
+};
 use crate::zdex_fee_allocation::transition_zdex_fee_allocation_v1;
 use crate::zdex_fee_allocation_types::{
     candidate_zdex_fee_allocation_policy_v1, zdex_fee_allocation_port_schema_root_v1,
     ZDEXFeeAllocationCommandV1, ZDEXFeeAllocationContextV1, ZDEXFeeAllocationOccurrenceV1,
     ZDEXFeeAllocationPolicyV1, ZDEXFeeAllocationResultV1, ZDEXFeeStateV1,
     FEE_ALLOCATION_OUTPUT_ROLE_V1, PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1,
+    ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
 };
 use crate::zdex_purchase_burn_receipt_verification::{
     digest_root_v1, verify_receipt_v1, ZDEXLaneReceiptEnvelopeV1, ZDEXLaneSuccinctReceiptVerifierV1,
@@ -22,9 +27,6 @@ use crate::zdex_purchase_burn_types::{
 pub const VERIFIED_ZDEX_FEE_ALLOCATION_SCHEMA_V1: &str = "zenodex/verified-zdex-fee-allocation/v1";
 
 pub struct ZDEXFeeAllocationReceiptCandidateV1<'a> {
-    pub allocation_route_release: &'a RouteReleaseV1,
-    pub authorized_buyback_route_release: &'a RouteReleaseV1,
-    pub module_release: &'a LaneModuleReleaseV1,
     pub occurrence: &'a EconomicCommandOccurrenceV1,
     pub policy: &'a ZDEXFeeAllocationPolicyV1,
     pub pre_state: &'a ZDEXFeeStateV1,
@@ -32,6 +34,22 @@ pub struct ZDEXFeeAllocationReceiptCandidateV1<'a> {
     pub journal: &'a ZDEXFeeAllocationOccurrenceV1,
     pub effects: &'a GlobalEconomicEffectPlanV1,
     pub receipt: &'a ZDEXLaneReceiptEnvelopeV1,
+}
+
+pub struct GovernedZDEXFeeAllocationProfileV1<'a> {
+    profile: &'a EconomicProfileSnapshotV1,
+    allocation_route: &'a RouteReleaseV1,
+    buyback_route: &'a RouteReleaseV1,
+    module_release: &'a LaneModuleReleaseV1,
+    policy_binding: &'a EconomicPolicyBindingV1,
+}
+
+pub struct ZDEXFeeAllocationProfileRegistriesV1<'a> {
+    pub profile: &'a EconomicProfileSnapshotV1,
+    pub lanes: &'a LaneRegistryV1,
+    pub coordinators: &'a LaneCoordinatorRegistryV1,
+    pub routes: &'a RouteRegistryV1,
+    pub policy_registry: &'a EconomicPolicyRegistryV1,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -181,15 +199,85 @@ impl VerifiedZDEXFeeAllocationV1 {
     }
 }
 
-fn require_route_shapes_v1(candidate: &ZDEXFeeAllocationReceiptCandidateV1<'_>) -> AbiResultV1<()> {
-    let allocation_route = candidate.allocation_route_release;
-    let buyback_route = candidate.authorized_buyback_route_release;
+fn registered_route_v1<'a>(
+    routes: &'a RouteRegistryV1,
+    command_kind: &str,
+) -> AbiResultV1<&'a RouteReleaseV1> {
+    routes
+        .routes
+        .iter()
+        .find(|route| route.command_kind == command_kind)
+        .ok_or(AbiErrorV1::InvalidBinding(
+            "ZDEX fee-allocation governed route absent",
+        ))
+}
+
+pub fn bind_zdex_fee_allocation_shadow_profile_v1<'a>(
+    expected_profile_id: &RootV1,
+    expected_authority_epoch: u64,
+    registries: ZDEXFeeAllocationProfileRegistriesV1<'a>,
+) -> AbiResultV1<GovernedZDEXFeeAllocationProfileV1<'a>> {
+    let ZDEXFeeAllocationProfileRegistriesV1 {
+        profile,
+        lanes,
+        coordinators,
+        routes,
+        policy_registry,
+    } = registries;
+    profile.validate()?;
+    if &profile.profile_id != expected_profile_id {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX fee-allocation expected profile",
+        ));
+    }
+    if profile.authority_epoch != expected_authority_epoch {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX fee-allocation expected authority epoch",
+        ));
+    }
+    if profile.status != ProfileStatusV1::SHADOW {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX fee-allocation profile status",
+        ));
+    }
+    profile.validate_registries(lanes, coordinators, routes)?;
+    if profile.policy_registry_root != policy_registry.registry_root()? {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX fee-allocation policy registry",
+        ));
+    }
+    let policy_binding = policy_registry.require_binding(
+        ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
+        PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1,
+    )?;
+    let allocation_route = registered_route_v1(routes, PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1)?;
+    let buyback_route = registered_route_v1(routes, PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1)?;
+    let module_release =
+        lanes
+            .release_for(LaneIdV1::ZDEX_TOKENOMICS)
+            .ok_or(AbiErrorV1::InvalidBinding(
+                "ZDEX fee-allocation module release absent",
+            ))?;
+    let governed = GovernedZDEXFeeAllocationProfileV1 {
+        profile,
+        allocation_route,
+        buyback_route,
+        module_release,
+        policy_binding,
+    };
+    require_route_shapes_v1(&governed)?;
+    Ok(governed)
+}
+
+fn require_route_shapes_v1(governed: &GovernedZDEXFeeAllocationProfileV1<'_>) -> AbiResultV1<()> {
+    let allocation_route = governed.allocation_route;
+    let buyback_route = governed.buyback_route;
     allocation_route.validate()?;
     buyback_route.validate()?;
     if allocation_route.status != ReleaseStatusV1::SHADOW
         || allocation_route.command_kind != PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1
         || allocation_route.ordered_lanes != [LaneIdV1::ZDEX_TOKENOMICS]
-        || allocation_route.module_release_ids != [candidate.module_release.release_id.clone()]
+        || allocation_route.module_release_ids != [governed.module_release.release_id.clone()]
         || allocation_route.dependency_roles != [FEE_ALLOCATION_OUTPUT_ROLE_V1.to_owned()]
         || allocation_route.port_schema_roots != [zdex_fee_allocation_port_schema_root_v1()?]
     {
@@ -200,7 +288,7 @@ fn require_route_shapes_v1(candidate: &ZDEXFeeAllocationReceiptCandidateV1<'_>) 
     if buyback_route.status != ReleaseStatusV1::SHADOW
         || buyback_route.command_kind != PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1
         || buyback_route.ordered_lanes != [LaneIdV1::SPOT_LIQUIDITY, LaneIdV1::ZDEX_TOKENOMICS]
-        || buyback_route.module_release_ids.get(1) != Some(&candidate.module_release.release_id)
+        || buyback_route.module_release_ids.get(1) != Some(&governed.module_release.release_id)
         || buyback_route.dependency_roles
             != [
                 AMM_PURCHASE_OUTPUT_ROLE_V1.to_owned(),
@@ -221,25 +309,28 @@ fn require_route_shapes_v1(candidate: &ZDEXFeeAllocationReceiptCandidateV1<'_>) 
 
 fn validate_candidate_v1(
     candidate: &ZDEXFeeAllocationReceiptCandidateV1<'_>,
+    governed: &GovernedZDEXFeeAllocationProfileV1<'_>,
 ) -> AbiResultV1<RootV1> {
-    require_route_shapes_v1(candidate)?;
-    candidate.module_release.validate()?;
+    governed.module_release.validate()?;
     candidate.occurrence.validate()?;
     candidate.policy.validate()?;
     candidate.pre_state.validate()?;
     candidate.post_state.validate()?;
     candidate.journal.validate()?;
     candidate.effects.validate()?;
-    if candidate.module_release.status != ReleaseStatusV1::SHADOW
-        || candidate.module_release.lane_id != LaneIdV1::ZDEX_TOKENOMICS
-        || !candidate
+    if candidate.occurrence.profile_root != governed.profile.profile_id
+        || candidate.journal.profile_root != governed.profile.profile_id
+        || candidate.journal.writer_epoch != governed.profile.authority_epoch
+        || candidate.policy.policy_root()? != governed.policy_binding.policy_root
+        || governed.module_release.status != ReleaseStatusV1::SHADOW
+        || governed.module_release.lane_id != LaneIdV1::ZDEX_TOKENOMICS
+        || !governed
             .module_release
             .command_variants
             .iter()
             .any(|command| command == PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1)
         || candidate.occurrence.command_kind != PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1
-        || candidate.occurrence.route_release_id
-            != candidate.allocation_route_release.route_release_id
+        || candidate.occurrence.route_release_id != governed.allocation_route.route_release_id
         || candidate.occurrence.pre_state_root != candidate.pre_state.state_root()?
         || candidate.policy != &candidate_zdex_fee_allocation_policy_v1()
     {
@@ -252,6 +343,7 @@ fn validate_candidate_v1(
 
 fn recompute_candidate_v1(
     candidate: &ZDEXFeeAllocationReceiptCandidateV1<'_>,
+    governed: &GovernedZDEXFeeAllocationProfileV1<'_>,
     occurrence_id: &RootV1,
 ) -> AbiResultV1<()> {
     let context = ZDEXFeeAllocationContextV1 {
@@ -259,12 +351,9 @@ fn recompute_candidate_v1(
         deployment_root: candidate.occurrence.deployment_root.clone(),
         profile_root: candidate.occurrence.profile_root.clone(),
         writer_epoch: candidate.journal.writer_epoch,
-        allocation_route_release_id: candidate.allocation_route_release.route_release_id.clone(),
-        authorized_buyback_route_release_id: candidate
-            .authorized_buyback_route_release
-            .route_release_id
-            .clone(),
-        tokenomics_module_release_id: candidate.module_release.release_id.clone(),
+        allocation_route_release_id: governed.allocation_route.route_release_id.clone(),
+        authorized_buyback_route_release_id: governed.buyback_route.route_release_id.clone(),
+        tokenomics_module_release_id: governed.module_release.release_id.clone(),
         command_occurrence_id: occurrence_id.clone(),
         policy_root: candidate.policy.policy_root()?,
     };
@@ -294,28 +383,23 @@ fn recompute_candidate_v1(
 
 fn construct_verified_v1(
     candidate: &ZDEXFeeAllocationReceiptCandidateV1<'_>,
+    governed: &GovernedZDEXFeeAllocationProfileV1<'_>,
     occurrence_id: RootV1,
     journal_digest: RootV1,
     receipt_digest: RootV1,
 ) -> AbiResultV1<VerifiedZDEXFeeAllocationV1> {
     Ok(VerifiedZDEXFeeAllocationV1(
         VerifiedZDEXFeeAllocationFieldsV1 {
-            allocation_route_release_id: candidate
-                .allocation_route_release
-                .route_release_id
-                .clone(),
-            authorized_buyback_route_release_id: candidate
-                .authorized_buyback_route_release
-                .route_release_id
-                .clone(),
-            module_release_id: candidate.module_release.release_id.clone(),
+            allocation_route_release_id: governed.allocation_route.route_release_id.clone(),
+            authorized_buyback_route_release_id: governed.buyback_route.route_release_id.clone(),
+            module_release_id: governed.module_release.release_id.clone(),
             command_occurrence_id: occurrence_id,
             profile_root: candidate.occurrence.profile_root.clone(),
             writer_epoch: candidate.journal.writer_epoch,
             journal_root: candidate.journal.occurrence_root()?,
             journal_digest,
             effect_plan_root: candidate.effects.effect_plan_root()?,
-            expected_image_id: candidate.module_release.guest_image_id.clone(),
+            expected_image_id: governed.module_release.guest_image_id.clone(),
             receipt_digest,
             receipt_kind: candidate.receipt.receipt_kind,
             policy_root: candidate.policy.policy_root()?,
@@ -329,14 +413,15 @@ fn construct_verified_v1(
 
 pub fn verify_zdex_fee_allocation_receipt_v1(
     candidate: ZDEXFeeAllocationReceiptCandidateV1<'_>,
+    governed: &GovernedZDEXFeeAllocationProfileV1<'_>,
     verifier: &impl ZDEXLaneSuccinctReceiptVerifierV1,
 ) -> AbiResultV1<VerifiedZDEXFeeAllocationV1> {
-    let occurrence_id = validate_candidate_v1(&candidate)?;
-    recompute_candidate_v1(&candidate, &occurrence_id)?;
+    let occurrence_id = validate_candidate_v1(&candidate, governed)?;
+    recompute_candidate_v1(&candidate, governed, &occurrence_id)?;
     let journal_bytes = canonical_bytes_v1(candidate.journal)?;
     let journal_len = u64::try_from(journal_bytes.len())
         .map_err(|_| AbiErrorV1::InvalidBounds("ZDEX fee-allocation journal width"))?;
-    if journal_len > candidate.allocation_route_release.max_journal_bytes {
+    if journal_len > governed.allocation_route.max_journal_bytes {
         return Err(AbiErrorV1::InvalidBounds(
             "ZDEX fee-allocation route journal ceiling",
         ));
@@ -344,8 +429,14 @@ pub fn verify_zdex_fee_allocation_receipt_v1(
     let (journal_digest, receipt_digest) = verify_receipt_v1(
         candidate.receipt,
         &journal_bytes,
-        candidate.module_release,
+        governed.module_release,
         verifier,
     )?;
-    construct_verified_v1(&candidate, occurrence_id, journal_digest, receipt_digest)
+    construct_verified_v1(
+        &candidate,
+        governed,
+        occurrence_id,
+        journal_digest,
+        receipt_digest,
+    )
 }

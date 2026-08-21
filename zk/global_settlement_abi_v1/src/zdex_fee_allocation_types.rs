@@ -8,6 +8,7 @@ use crate::effects::GlobalEconomicEffectPlanV1;
 
 pub const BASIS_POINTS_DENOMINATOR_V1: u16 = 10_000;
 pub const PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1: &str = "protocol_fee_allocation";
+pub const ZDEX_FEE_ALLOCATION_POLICY_KIND_V1: &str = "zdex_fee_allocation";
 pub const FEE_ALLOCATION_OUTPUT_ROLE_V1: &str = "FEE_ALLOCATION_OUTPUT";
 pub const FEE_ALLOCATION_OUTPUT_PORT_V1: &str = "ZDEX_FEE_ALLOCATION_OUTPUT_V1";
 pub const FEE_INGRESS_PRINCIPAL_V1: &str = "protocol:fee-ingress";

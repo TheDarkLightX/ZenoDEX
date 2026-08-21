@@ -4,7 +4,7 @@ use crate::canonical::{
     hash_global_v1, validate_root_sequence_v1, validate_schema_v1,
     validate_semantic_unique_tokens_v1, validate_sorted_unique_tokens_v1, validate_token_v1,
     AbiErrorV1, AbiResultV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1, MAX_CYCLE_BUDGET_V1,
-    MAX_JOURNAL_BYTES_V1, MAX_ROUTE_MODULES_V1,
+    MAX_JOURNAL_BYTES_V1, MAX_POLICY_BINDINGS_V1, MAX_ROUTE_MODULES_V1,
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -655,6 +655,75 @@ impl RouteRegistryV1 {
             ));
         }
         Ok(route)
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct EconomicPolicyBindingV1 {
+    pub policy_kind: String,
+    pub command_kind: String,
+    pub policy_root: RootV1,
+}
+
+impl EconomicPolicyBindingV1 {
+    pub fn validate(&self) -> AbiResultV1<()> {
+        validate_token_v1(&self.policy_kind, "economic policy kind")?;
+        validate_token_v1(&self.command_kind, "economic policy command kind")?;
+        self.policy_root.validate("economic policy root", false)
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct EconomicPolicyRegistryV1 {
+    pub schema: String,
+    pub bindings: Vec<EconomicPolicyBindingV1>,
+}
+
+impl EconomicPolicyRegistryV1 {
+    pub fn validate(&self) -> AbiResultV1<()> {
+        validate_schema_v1(&self.schema)?;
+        if self.bindings.len() > MAX_POLICY_BINDINGS_V1 {
+            return Err(AbiErrorV1::InvalidBounds("economic policy registry"));
+        }
+        let keys: Vec<_> = self
+            .bindings
+            .iter()
+            .map(|binding| (binding.policy_kind.as_str(), binding.command_kind.as_str()))
+            .collect();
+        if keys.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(AbiErrorV1::InvalidOrder("economic policy registry"));
+        }
+        for binding in &self.bindings {
+            binding.validate()?;
+        }
+        Ok(())
+    }
+
+    pub fn registry_root(&self) -> AbiResultV1<RootV1> {
+        self.validate()?;
+        hash_global_v1("global-economic-policy-registry-v1", self)
+    }
+
+    pub fn require_binding(
+        &self,
+        policy_kind: &str,
+        command_kind: &str,
+    ) -> AbiResultV1<&EconomicPolicyBindingV1> {
+        self.validate()?;
+        validate_token_v1(policy_kind, "economic policy kind")?;
+        validate_token_v1(command_kind, "economic policy command kind")?;
+        let binding = self
+            .bindings
+            .iter()
+            .find(|binding| {
+                binding.policy_kind == policy_kind && binding.command_kind == command_kind
+            })
+            .ok_or(AbiErrorV1::InvalidBinding(
+                "economic policy binding absent from registry",
+            ))?;
+        Ok(binding)
     }
 }
 

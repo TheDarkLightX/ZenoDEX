@@ -7,6 +7,7 @@ pub const MAX_TOKEN_BYTES_V1: usize = 160;
 pub const MAX_ROUTE_MODULES_V1: usize = 8;
 pub const MAX_EPOCH_COMMANDS_V1: usize = 64;
 pub const MAX_EPOCH_LEAF_OCCURRENCES_V1: u64 = 64;
+pub const MAX_POLICY_BINDINGS_V1: usize = 256;
 pub const MAX_JOURNAL_BYTES_V1: u64 = 1_048_576;
 pub const MAX_CYCLE_BUDGET_V1: u64 = 1 << 40;
 pub const MAX_ATOMS_V1: u128 = u128::MAX;

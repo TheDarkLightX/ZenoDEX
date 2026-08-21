@@ -174,13 +174,26 @@ same chain, deployment, profile, writer epoch, tokenomics release, and quote
 asset, allocate the exact quote input, and target the closed protocol buyback
 bucket. A shadow receipt-admission boundary recomputes the allocation from the
 candidate policy, pre-state, and charged fee before constructing a witness.
+Profile selection is a separate verifier input. The verifier first binds the
+expected profile ID and authority epoch to one `SHADOW` economic profile, its
+lane, coordinator, and route registries, and a canonical economic-policy
+registry. The policy registry contains one exact
+`(policy_kind, command_kind, policy_root)` binding and is bounded to 256
+canonically ordered bindings. The fee receipt candidate cannot supply module
+releases, routes, guest image IDs, or the selected
+profile. Those values are derived from the verifier-selected registries.
+Self-consistent alternative release graphs, same-ID status substitutions,
+policy-registry substitutions, occurrence-profile substitutions, and journal
+epoch substitutions reject before the receipt-verifier port is called.
 The Python composer repeats that recomputation because Python module internals
 cannot provide same-process authority. The Rust witness constructor is private.
 The buy-and-burn command lists the budget root in its exact consumed-object set.
 Its effect plan consumes only the buy-and-burn command occurrence, matching the
 global epoch effect contract. The tests use an injected accepting verifier and
-contain no cryptographic proof. Historical inclusion, persistent global
-consumed-object enforcement, and a real allocation guest receipt remain open.
+contain no cryptographic proof. The expected profile ID and authority epoch
+must eventually come from the sole settlement shell under its consensus/write
+lock. Historical inclusion, persistent global consumed-object enforcement, and
+a real allocation guest receipt remain open.
 
 The purchase journal commits these exact balance projections:
 

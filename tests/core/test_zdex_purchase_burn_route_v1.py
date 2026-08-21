@@ -7,28 +7,41 @@ import pytest
 
 from src.core.global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
 from src.core.global_settlement_types_v1 import (
+    ALL_LANE_IDS_V1,
     REQUIRED_ACTIVE_EVIDENCE_V1,
     ZERO_ROOT_V1,
     AssetConservationRowV1,
     EconomicEffectKindV1,
     EconomicEffectRowV1,
+    EconomicPolicyBindingV1,
+    EconomicPolicyRegistryV1,
+    EconomicProfileSnapshotV1,
     EvidenceStatusV1,
     GlobalEconomicEffectPlanV1,
+    LaneCoordinatorRegistryV1,
+    LaneCoordinatorReleaseV1,
     LaneIdV1,
     LaneModuleReleaseV1,
+    LaneRegistryV1,
     LaneWriteV1,
+    ProfileStatusV1,
     ReleaseStatusV1,
+    RouteRegistryV1,
     RouteReleaseV1,
     canonical_global_bytes_v1,
 )
 from src.core.zdex_fee_allocation_receipt_verification_v1 import (
+    GovernedZDEXFeeAllocationProfileV1,
     VerifiedZDEXFeeAllocationV1,
     ZDEXFeeAllocationReceiptCandidateV1,
+    bind_zdex_fee_allocation_shadow_profile_v1,
     verify_zdex_fee_allocation_receipt_v1,
 )
 from src.core.zdex_fee_allocation_types_v1 import (
     FEE_ALLOCATION_OUTPUT_ROLE_V1,
     PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1,
+    ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
+    ZDEXFeeAllocationPolicyV1,
     zdex_fee_allocation_port_schema_root_v1,
 )
 from src.core.zdex_fee_allocation_v1 import (
@@ -70,7 +83,7 @@ def _root(value: int) -> str:
 
 def _lane_release(lane_id: LaneIdV1, ordinal: int) -> LaneModuleReleaseV1:
     offset = ordinal * 16
-    command_variants = (PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,)
+    command_variants: tuple[str, ...] = (PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,)
     if lane_id is LaneIdV1.ZDEX_TOKENOMICS:
         command_variants = (
             PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
@@ -147,7 +160,81 @@ def _allocation_route_release(
     )
 
 
-def _occurrence(route: RouteReleaseV1) -> EconomicCommandOccurrenceV1:
+def _coordinator_release(
+    lane_id: LaneIdV1,
+    ordinal: int,
+) -> LaneCoordinatorReleaseV1:
+    offset = ordinal * 16
+    return LaneCoordinatorReleaseV1.build(
+        lane_id=lane_id,
+        semantic_version="1.0.0-shadow-test",
+        coordinator_schema_root=_root(700 + offset),
+        guest_image_id=_root(701 + offset),
+        specification_root=_root(702 + offset),
+        source_root=_root(703 + offset),
+        toolchain_root=_root(704 + offset),
+        max_cycles=1_000_000,
+        max_journal_bytes=65_536,
+        status=ReleaseStatusV1.SHADOW,
+        accepts_new_objects=False,
+    )
+
+
+def _governed_shadow_profile(
+    *,
+    spot_release: LaneModuleReleaseV1,
+    tokenomics_release: LaneModuleReleaseV1,
+    buyback_route: RouteReleaseV1,
+    allocation_route: RouteReleaseV1,
+    policy_root: str,
+) -> tuple[EconomicProfileSnapshotV1, EconomicPolicyRegistryV1]:
+    releases = []
+    for ordinal, lane_id in enumerate(ALL_LANE_IDS_V1, start=1):
+        if lane_id is LaneIdV1.SPOT_LIQUIDITY:
+            releases.append(spot_release)
+        elif lane_id is LaneIdV1.ZDEX_TOKENOMICS:
+            releases.append(tokenomics_release)
+        else:
+            releases.append(_lane_release(lane_id, ordinal + 10))
+    lane_registry = LaneRegistryV1(tuple(releases))
+    coordinator_registry = LaneCoordinatorRegistryV1(
+        tuple(
+            _coordinator_release(lane_id, ordinal)
+            for ordinal, lane_id in enumerate(ALL_LANE_IDS_V1, start=1)
+        )
+    )
+    route_registry = RouteRegistryV1(
+        tuple(sorted((buyback_route, allocation_route), key=lambda route: route.command_kind))
+    )
+    policy_registry = EconomicPolicyRegistryV1(
+        (
+            EconomicPolicyBindingV1(
+                ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
+                PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1,
+                policy_root,
+            ),
+        )
+    )
+    profile = EconomicProfileSnapshotV1.build(
+        authority_epoch=11,
+        lane_registry=lane_registry,
+        lane_coordinator_registry=coordinator_registry,
+        route_registry=route_registry,
+        proof_shape_root=_root(810),
+        root_image_id=_root(811),
+        verifier_registry_root=_root(812),
+        migration_registry_root=_root(813),
+        policy_registry_root=policy_registry.registry_root,
+        terminal_registry_root=_root(814),
+        status=ProfileStatusV1.SHADOW,
+    )
+    return profile, policy_registry
+
+
+def _occurrence(
+    route: RouteReleaseV1,
+    profile: EconomicProfileSnapshotV1,
+) -> EconomicCommandOccurrenceV1:
     return EconomicCommandOccurrenceV1(
         chain_id="zenodex-shadow",
         deployment_root=_root(1),
@@ -159,7 +246,7 @@ def _occurrence(route: RouteReleaseV1) -> EconomicCommandOccurrenceV1:
         subject_id="protocol-buyback-controller",
         grant_root=_root(2),
         nonce=9,
-        profile_root=_root(3),
+        profile_root=profile.profile_id,
         pre_state_root=_root(4),
         consumed_object_ids=(),
     )
@@ -392,6 +479,10 @@ def _burn_effects(journal: ZDEXBurnJournalV1) -> GlobalEconomicEffectPlanV1:
 
 def _buyback_budget(
     *,
+    profile: EconomicProfileSnapshotV1,
+    policy_registry: EconomicPolicyRegistryV1,
+    policy: ZDEXFeeAllocationPolicyV1,
+    allocation_route: RouteReleaseV1,
     route: RouteReleaseV1,
     burn_release: LaneModuleReleaseV1,
     occurrence: EconomicCommandOccurrenceV1,
@@ -401,9 +492,7 @@ def _buyback_budget(
     VerifiedZDEXFeeAllocationV1,
     ZDEXFeeAllocationReceiptCandidateV1,
 ]:
-    policy = candidate_zdex_fee_allocation_policy_v1()
     charged_fee_atoms = purchase.quote_amount_in_atoms * 5
-    allocation_route = _allocation_route_release(burn_release)
     state = ZDEXFeeStateV1(
         fee_asset_id=purchase.quote_asset_id,
         policy_root=policy.policy_root,
@@ -450,9 +539,6 @@ def _buyback_budget(
     assert type(result) is ZDEXFeeAllocationAcceptedV1
     assert result.occurrence.buyback_quote_atoms == purchase.quote_amount_in_atoms
     receipt_candidate = ZDEXFeeAllocationReceiptCandidateV1(
-        allocation_route,
-        route,
-        burn_release,
         allocation_occurrence,
         policy,
         state,
@@ -464,8 +550,15 @@ def _buyback_budget(
             b"fee-allocation-receipt",
         ),
     )
+    governed = bind_zdex_fee_allocation_shadow_profile_v1(
+        expected_profile_id=profile.profile_id,
+        expected_authority_epoch=profile.authority_epoch,
+        profile=profile,
+        policy_registry=policy_registry,
+    )
     verified = verify_zdex_fee_allocation_receipt_v1(
         receipt_candidate,
+        governed,
         _Verifier(),
     )
     return result.occurrence, verified, receipt_candidate
@@ -498,7 +591,16 @@ def _verified_fixture(
     spot_release = _lane_release(LaneIdV1.SPOT_LIQUIDITY, 1)
     burn_release = _lane_release(LaneIdV1.ZDEX_TOKENOMICS, 2)
     route = _route_release(spot_release, burn_release)
-    occurrence = _occurrence(route)
+    policy = candidate_zdex_fee_allocation_policy_v1()
+    allocation_route = _allocation_route_release(burn_release)
+    profile, policy_registry = _governed_shadow_profile(
+        spot_release=spot_release,
+        tokenomics_release=burn_release,
+        buyback_route=route,
+        allocation_route=allocation_route,
+        policy_root=policy.policy_root,
+    )
+    occurrence = _occurrence(route, profile)
     purchase = _purchase_journal(
         route=route,
         spot_release=spot_release,
@@ -507,7 +609,8 @@ def _verified_fixture(
     if purchase_overrides:
         normalized_purchase_overrides = dict(purchase_overrides)
         if "quote_amount_in_atoms" in normalized_purchase_overrides:
-            quote_atoms = int(normalized_purchase_overrides["quote_amount_in_atoms"])
+            quote_atoms = normalized_purchase_overrides["quote_amount_in_atoms"]
+            assert isinstance(quote_atoms, int)
             normalized_purchase_overrides.setdefault("quote_source_pre_atoms", quote_atoms + 100)
             normalized_purchase_overrides.setdefault("quote_source_post_atoms", 100)
             normalized_purchase_overrides.setdefault("quote_pool_pre_atoms", 2_000)
@@ -515,7 +618,8 @@ def _verified_fixture(
             normalized_purchase_overrides.setdefault("quote_owned_atoms", quote_atoms * 5 + 2_100)
             normalized_purchase_overrides.setdefault("quote_supply_atoms", quote_atoms * 5 + 2_100)
         if "purchased_zdex_atoms" in normalized_purchase_overrides:
-            purchased_atoms = int(normalized_purchase_overrides["purchased_zdex_atoms"])
+            purchased_atoms = normalized_purchase_overrides["purchased_zdex_atoms"]
+            assert isinstance(purchased_atoms, int)
             normalized_purchase_overrides.setdefault("zdex_pool_pre_atoms", purchased_atoms + 60)
             normalized_purchase_overrides.setdefault("zdex_pool_post_atoms", 60)
             normalized_purchase_overrides.setdefault("burn_bucket_pre_atoms", 0)
@@ -524,6 +628,10 @@ def _verified_fixture(
             normalized_purchase_overrides.setdefault("zdex_supply_atoms", purchased_atoms + 100)
         purchase = replace(purchase, **normalized_purchase_overrides)
     budget, verified_budget, budget_receipt_candidate = _buyback_budget(
+        profile=profile,
+        policy_registry=policy_registry,
+        policy=policy,
+        allocation_route=allocation_route,
         route=route,
         burn_release=burn_release,
         occurrence=occurrence,
@@ -556,7 +664,8 @@ def _verified_fixture(
     if burn_overrides:
         normalized_burn_overrides = dict(burn_overrides)
         if "burned_zdex_atoms" in normalized_burn_overrides:
-            burned_atoms = int(normalized_burn_overrides["burned_zdex_atoms"])
+            burned_atoms = normalized_burn_overrides["burned_zdex_atoms"]
+            assert isinstance(burned_atoms, int)
             normalized_burn_overrides.setdefault("burn_bucket_pre_atoms", burned_atoms)
             normalized_burn_overrides.setdefault("burn_bucket_post_atoms", 0)
         burn = replace(burn, **normalized_burn_overrides)
@@ -602,23 +711,45 @@ def _verified_fixture(
     )
 
 
-def _fee_receipt_candidate_fixture() -> ZDEXFeeAllocationReceiptCandidateV1:
+def _fee_receipt_candidate_fixture() -> tuple[
+    ZDEXFeeAllocationReceiptCandidateV1,
+    GovernedZDEXFeeAllocationProfileV1,
+]:
     spot_release = _lane_release(LaneIdV1.SPOT_LIQUIDITY, 1)
     burn_release = _lane_release(LaneIdV1.ZDEX_TOKENOMICS, 2)
     route = _route_release(spot_release, burn_release)
-    occurrence = _occurrence(route)
+    policy = candidate_zdex_fee_allocation_policy_v1()
+    allocation_route = _allocation_route_release(burn_release)
+    profile, policy_registry = _governed_shadow_profile(
+        spot_release=spot_release,
+        tokenomics_release=burn_release,
+        buyback_route=route,
+        allocation_route=allocation_route,
+        policy_root=policy.policy_root,
+    )
+    occurrence = _occurrence(route, profile)
     purchase = _purchase_journal(
         route=route,
         spot_release=spot_release,
         occurrence=occurrence,
     )
     _, _, receipt_candidate = _buyback_budget(
+        profile=profile,
+        policy_registry=policy_registry,
+        policy=policy,
+        allocation_route=allocation_route,
         route=route,
         burn_release=burn_release,
         occurrence=occurrence,
         purchase=purchase,
     )
-    return receipt_candidate
+    governed = bind_zdex_fee_allocation_shadow_profile_v1(
+        expected_profile_id=profile.profile_id,
+        expected_authority_epoch=profile.authority_epoch,
+        profile=profile,
+        policy_registry=policy_registry,
+    )
+    return receipt_candidate, governed
 
 
 def _assert_no_effect_reject(
@@ -730,6 +861,145 @@ def test_fee_allocation_witness_cannot_be_constructed_by_a_caller() -> None:
         VerifiedZDEXFeeAllocationV1(object(), object())  # type: ignore[arg-type]
 
 
+def test_governed_fee_profile_cannot_be_constructed_by_a_caller() -> None:
+    with pytest.raises(TypeError, match="verifier-constructed"):
+        GovernedZDEXFeeAllocationProfileV1(
+            object(),
+            object(),  # type: ignore[arg-type]
+        )
+
+
+def test_self_consistent_alternative_profile_rejects_trusted_profile_anchor() -> None:
+    _, governed = _fee_receipt_candidate_fixture()
+    fields = governed._fields
+    original = fields.profile
+    alternative = EconomicProfileSnapshotV1.build(
+        authority_epoch=original.authority_epoch + 1,
+        lane_registry=original.lane_registry,
+        lane_coordinator_registry=original.lane_coordinator_registry,
+        route_registry=original.route_registry,
+        proof_shape_root=original.proof_shape_root,
+        root_image_id=original.root_image_id,
+        verifier_registry_root=original.verifier_registry_root,
+        migration_registry_root=original.migration_registry_root,
+        policy_registry_root=original.policy_registry_root,
+        terminal_registry_root=original.terminal_registry_root,
+        status=ProfileStatusV1.SHADOW,
+    )
+
+    with pytest.raises(ValueError, match="expected profile mismatch"):
+        bind_zdex_fee_allocation_shadow_profile_v1(
+            expected_profile_id=original.profile_id,
+            expected_authority_epoch=original.authority_epoch,
+            profile=alternative,
+            policy_registry=fields.policy_registry,
+        )
+
+
+def test_profile_status_substitution_rejects_with_same_profile_id() -> None:
+    _, governed = _fee_receipt_candidate_fixture()
+    fields = governed._fields
+    substituted = replace(fields.profile, status=ProfileStatusV1.CANDIDATE)
+
+    with pytest.raises(ValueError, match="must remain SHADOW"):
+        bind_zdex_fee_allocation_shadow_profile_v1(
+            expected_profile_id=fields.profile.profile_id,
+            expected_authority_epoch=fields.profile.authority_epoch,
+            profile=substituted,
+            policy_registry=fields.policy_registry,
+        )
+
+
+def test_policy_registry_substitution_rejects_before_receipt_verification() -> None:
+    _, governed = _fee_receipt_candidate_fixture()
+    fields = governed._fields
+    substituted = EconomicPolicyRegistryV1(
+        (
+            EconomicPolicyBindingV1(
+                ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
+                PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1,
+                _root(999),
+            ),
+        )
+    )
+
+    with pytest.raises(ValueError, match="outside the profile"):
+        bind_zdex_fee_allocation_shadow_profile_v1(
+            expected_profile_id=fields.profile.profile_id,
+            expected_authority_epoch=fields.profile.authority_epoch,
+            profile=fields.profile,
+            policy_registry=substituted,
+        )
+
+
+@pytest.mark.parametrize("coordinate", ("occurrence_profile", "journal_epoch"))
+def test_profile_coordinate_substitution_rejects_before_receipt_verification(
+    coordinate: str,
+) -> None:
+    candidate, governed = _fee_receipt_candidate_fixture()
+    if coordinate == "occurrence_profile":
+        candidate = replace(
+            candidate,
+            occurrence=replace(candidate.occurrence, profile_root=_root(998)),
+        )
+    else:
+        candidate = replace(
+            candidate,
+            journal=replace(candidate.journal, writer_epoch=candidate.journal.writer_epoch + 1),
+        )
+    verifier = _Verifier()
+
+    with pytest.raises(ValueError, match="governed profile binding mismatch"):
+        verify_zdex_fee_allocation_receipt_v1(candidate, governed, verifier)
+    assert verifier.calls == []
+
+
+def test_policy_registry_root_matches_rust_golden_vector() -> None:
+    _, governed = _fee_receipt_candidate_fixture()
+    policy_registry = governed._fields.policy_registry
+
+    assert policy_registry.registry_root == (
+        "0x67554f616a2cb0413e0b72d6789ae0e08382475943b4ad8a14e009bb0779d0a9"
+    )
+    assert canonical_global_bytes_v1(policy_registry) == (
+        b'{"bindings":[{"command_kind":"protocol_fee_allocation",'
+        b'"policy_kind":"zdex_fee_allocation",'
+        b'"policy_root":"0xd810507e5d15fd874a2e75b6f32b71b47174a799b8015301700e4554614032c2"}],'
+        b'"schema":"zenodex/global-settlement-abi/v1"}'
+    )
+
+
+def test_policy_registry_rejects_duplicate_and_unsorted_binding_keys() -> None:
+    first = EconomicPolicyBindingV1("a", "b", _root(991))
+    second = EconomicPolicyBindingV1("a", "c", _root(992))
+
+    with pytest.raises(ValueError, match="sorted and unique"):
+        EconomicPolicyRegistryV1((first, first))
+    with pytest.raises(ValueError, match="sorted and unique"):
+        EconomicPolicyRegistryV1((second, first))
+
+
+def test_policy_registry_rejects_wrong_command_lookup() -> None:
+    _, governed = _fee_receipt_candidate_fixture()
+
+    with pytest.raises(ValueError, match="binding is absent"):
+        governed._fields.policy_registry.require_binding(
+            policy_kind=ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
+            command_kind="protocol_wrong_command",
+        )
+
+
+def test_policy_registry_accepts_256_and_rejects_257_bindings() -> None:
+    bindings = tuple(
+        EconomicPolicyBindingV1(f"policy_{index:03d}", "command", _root(991))
+        for index in range(257)
+    )
+
+    assert len(EconomicPolicyRegistryV1(bindings[:256]).bindings) == 256
+    with pytest.raises(ValueError, match="exceeds the ABI V1 bound"):
+        EconomicPolicyRegistryV1(bindings)
+
+
 def test_imported_python_token_cannot_authorize_shifted_allocation() -> None:
     from src.core import zdex_fee_allocation_receipt_verification_v1 as receipt_module
 
@@ -825,7 +1095,7 @@ def test_imported_python_token_cannot_authorize_shifted_allocation() -> None:
 
 
 def test_shifted_fee_allocation_rejects_before_receipt_verification() -> None:
-    receipt_candidate = _fee_receipt_candidate_fixture()
+    receipt_candidate, governed = _fee_receipt_candidate_fixture()
     allocations = list(receipt_candidate.journal.allocations)
     allocations[0] = replace(
         allocations[0],
@@ -845,7 +1115,7 @@ def test_shifted_fee_allocation_rejects_before_receipt_verification() -> None:
     verifier = _Verifier()
 
     with pytest.raises(ValueError, match="journal or effects mismatch"):
-        verify_zdex_fee_allocation_receipt_v1(shifted, verifier)
+        verify_zdex_fee_allocation_receipt_v1(shifted, governed, verifier)
     assert verifier.calls == []
 
 
@@ -863,7 +1133,7 @@ def test_fee_allocation_requires_nonempty_succinct_receipt_before_verifier(
     receipt_kind: ReceiptKindV1,
     receipt_bytes: bytes,
 ) -> None:
-    candidate = _fee_receipt_candidate_fixture()
+    candidate, governed = _fee_receipt_candidate_fixture()
     candidate = replace(
         candidate,
         receipt=ZDEXLaneReceiptEnvelopeV1(receipt_kind, receipt_bytes),
@@ -871,7 +1141,7 @@ def test_fee_allocation_requires_nonempty_succinct_receipt_before_verifier(
     verifier = _Verifier()
 
     with pytest.raises(ValueError, match="succinct receipt|must be nonempty"):
-        verify_zdex_fee_allocation_receipt_v1(candidate, verifier)
+        verify_zdex_fee_allocation_receipt_v1(candidate, governed, verifier)
     assert verifier.calls == []
 
 
@@ -1136,7 +1406,7 @@ def test_python_rust_golden_composition_root_is_stable() -> None:
     result = compose_zdex_purchase_burn_route_v1(_verified_fixture())
 
     assert result.composition_root == (
-        "0x782960d11fdc68bbb4db336d39434020316639eb6b9ca9a010aa91cc540e8d30"
+        "0x06e900e256f923aa4a011946d6a830b10d9c9f024e209b9925663f422003567f"
     )
 
 
