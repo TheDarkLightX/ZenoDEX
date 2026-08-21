@@ -27,19 +27,19 @@ def test_state_delta_gate_is_exact_and_non_authoritative() -> None:
     assert report["g1_complete"] is False
     assert report["production_ready"] is False
     assert report["state_field_count"] == 14
-    assert report["delta_class_count"] == 8
+    assert report["delta_class_count"] == 11
     assert report["open_obligation_count"] == 6
     assert report["production_authority"] == "NONE"
     assert report["runtime_state_field_count"] == 16
     assert report["runtime_effect_kind_count"] == 9
     assert report["runtime_mapping_field_count"] == 14
-    assert report["runtime_mapping_delta_class_count"] == 8
+    assert report["runtime_mapping_delta_class_count"] == 11
     assert report["unmapped_abstract_field_count"] == 2
-    assert report["unmapped_runtime_effect_kind_count"] == 3
+    assert report["unmapped_runtime_effect_kind_count"] == 0
     assert report["m6_runtime_delta_class_count"] == 9
     assert report["m6_runtime_delta_surplus_count"] == 1
     assert report["m6_entry_field_count"] == 5
-    assert report["m6_entry_missing_required_field_count"] == 17
+    assert report["m6_entry_missing_required_field_count"] == 29
 
 
 def test_declared_fields_and_delta_classes_keep_open_gap_status() -> None:
@@ -53,7 +53,7 @@ def test_declared_fields_and_delta_classes_keep_open_gap_status() -> None:
     assert state["all_fields_have_terminal_paths"] is True
     assert algebra["closure_status"] == "GAP_EVENT_EQUATIONS_OWNERS_AND_RECONCILIATION_UNSPECIFIED"
     assert algebra["obligation_status"] == "OPEN_GAP"
-    assert algebra["delta_class_count"] == algebra["class_contract_count"] == 8
+    assert algebra["delta_class_count"] == algebra["class_contract_count"] == 11
     assert algebra["all_delta_classes_have_contracts"] is True
 
 
@@ -69,20 +69,16 @@ def test_runtime_shape_inventory_is_source_bound_without_closing_g1() -> None:
     assert runtime["canonical_codec"]["delegate_path"] == "src/state/canonical.py"
     assert runtime["effect_kind_type"]["kind_count"] == 9
     assert runtime["canonical_codec"]["status"] == "PRESENT_SOURCE_SHAPE_ONLY"
-    assert runtime["semantic_mapping_status"] == "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED"
+    assert runtime["semantic_mapping_status"] == "GAP_ABSTRACT_14_FIELD_AND_11_DELTA_MAPPING_UNPROVED"
     assert runtime["production_authority"] == "NONE"
 
     mapping = build_document()["runtime_mapping_gap_ledger"]
     assert mapping["status"] == "GAP_STRUCTURAL_CANDIDATES_ONLY"
     assert mapping["abstract_field_count"] == 14
-    assert mapping["abstract_delta_class_count"] == 8
-    assert mapping["semantic_mapping_status"] == "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED"
+    assert mapping["abstract_delta_class_count"] == 11
+    assert mapping["semantic_mapping_status"] == "GAP_ABSTRACT_14_FIELD_AND_11_DELTA_MAPPING_UNPROVED"
     assert set(mapping["unmapped_abstract_fields"]) == {"lp_state", "auctions"}
-    assert mapping["runtime_effect_kinds_without_abstract_delta_candidate"] == [
-        "RESERVE",
-        "FEE_ALLOCATION",
-        "REWARD",
-    ]
+    assert mapping["runtime_effect_kinds_without_abstract_delta_candidate"] == []
     assert mapping["production_authority"] == "NONE"
 
     m6_surface = mapping["m6_value_delta_surface"]
@@ -99,7 +95,11 @@ def test_runtime_shape_inventory_is_source_bound_without_closing_g1() -> None:
         "EXACT_SUBJECT_HELPER_BASELINE_RESEARCH_ONLY"
     )
     assert m6_surface["delta_class_type"]["runtime_delta_class_count"] == 9
-    assert m6_surface["delta_class_type"]["abstract_delta_classes_without_runtime_kind"] == []
+    assert m6_surface["delta_class_type"]["abstract_delta_classes_without_runtime_kind"] == [
+        "reserve_transfer",
+        "fee_allocation",
+        "reward",
+    ]
     assert m6_surface["delta_class_type"]["runtime_delta_classes_without_abstract_class"] == [
         "noop"
     ]
@@ -180,7 +180,7 @@ def test_m6_delta_surface_tampering_fails_closed(tmp_path: Path) -> None:
 
     assert report["ok"] is False
     assert report["m6_runtime_delta_class_count"] == 9
-    assert report["m6_entry_missing_required_field_count"] == 17
+    assert report["m6_entry_missing_required_field_count"] == 29
     assert report["production_ready"] is False
 
 

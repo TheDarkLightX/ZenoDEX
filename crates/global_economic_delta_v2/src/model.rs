@@ -90,6 +90,13 @@ pub(crate) enum LiabilityDirectionV2 {
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
+pub(crate) enum ReserveDirectionV2 {
+    Increase,
+    Decrease,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub(crate) enum SourceKindV2 {
     ExternalEffect,
     AncestorClaim,
@@ -193,6 +200,36 @@ pub(crate) enum EconomicDeltaV2 {
         pre_atoms: JsonAtomsV2,
         post_atoms: JsonAtomsV2,
     },
+    ReserveTransfer {
+        economic_event: RootV2,
+        asset: CanonicalIdV2,
+        amount_atoms: JsonAtomsV2,
+        direction: ReserveDirectionV2,
+        reserve_owner: CanonicalIdV2,
+        reserve_ledger_allocation: CanonicalIdV2,
+        counterparty_owner: CanonicalIdV2,
+        counterparty_ledger_allocation: CanonicalIdV2,
+    },
+    FeeAllocation {
+        economic_event: RootV2,
+        asset: CanonicalIdV2,
+        amount_atoms: JsonAtomsV2,
+        fee_source_owner: CanonicalIdV2,
+        fee_source_ledger_allocation: CanonicalIdV2,
+        beneficiary_owner: CanonicalIdV2,
+        beneficiary_ledger_allocation: CanonicalIdV2,
+        fee_policy_root: RootV2,
+    },
+    Reward {
+        economic_event: RootV2,
+        asset: CanonicalIdV2,
+        amount_atoms: JsonAtomsV2,
+        reserve_owner: CanonicalIdV2,
+        reserve_ledger_allocation: CanonicalIdV2,
+        reward_owner: CanonicalIdV2,
+        reward_ledger_allocation: CanonicalIdV2,
+        reward_policy_root: RootV2,
+    },
     ExternalIn {
         economic_event: RootV2,
         asset: CanonicalIdV2,
@@ -243,6 +280,9 @@ impl EconomicDeltaV2 {
             | Self::Mint { economic_event, .. }
             | Self::Burn { economic_event, .. }
             | Self::Liability { economic_event, .. }
+            | Self::ReserveTransfer { economic_event, .. }
+            | Self::FeeAllocation { economic_event, .. }
+            | Self::Reward { economic_event, .. }
             | Self::ExternalIn { economic_event, .. }
             | Self::ExternalOut { economic_event, .. }
             | Self::Refund { economic_event, .. }
@@ -256,6 +296,9 @@ impl EconomicDeltaV2 {
             | Self::Mint { amount_atoms, .. }
             | Self::Burn { amount_atoms, .. }
             | Self::Liability { amount_atoms, .. }
+            | Self::ReserveTransfer { amount_atoms, .. }
+            | Self::FeeAllocation { amount_atoms, .. }
+            | Self::Reward { amount_atoms, .. }
             | Self::ExternalIn { amount_atoms, .. }
             | Self::ExternalOut { amount_atoms, .. }
             | Self::Refund { amount_atoms, .. }
@@ -269,6 +312,9 @@ impl EconomicDeltaV2 {
             Self::Mint { .. } => "mint",
             Self::Burn { .. } => "burn",
             Self::Liability { .. } => "liability",
+            Self::ReserveTransfer { .. } => "reserve_transfer",
+            Self::FeeAllocation { .. } => "fee_allocation",
+            Self::Reward { .. } => "reward",
             Self::ExternalIn { .. } => "external_in",
             Self::ExternalOut { .. } => "external_out",
             Self::Refund { .. } => "refund",
@@ -337,6 +383,58 @@ impl EconomicDeltaV2 {
                 pre_atoms.as_u128()?,
                 post_atoms.as_u128()?,
             ),
+            Self::ReserveTransfer {
+                reserve_owner,
+                reserve_ledger_allocation,
+                counterparty_owner,
+                counterparty_ledger_allocation,
+                ..
+            } => require_distinct_locations_v2(
+                reserve_owner,
+                reserve_ledger_allocation,
+                counterparty_owner,
+                counterparty_ledger_allocation,
+            ),
+            Self::FeeAllocation {
+                economic_event,
+                fee_source_owner,
+                fee_source_ledger_allocation,
+                beneficiary_owner,
+                beneficiary_ledger_allocation,
+                fee_policy_root,
+                ..
+            } => {
+                require_distinct_locations_v2(
+                    fee_source_owner,
+                    fee_source_ledger_allocation,
+                    beneficiary_owner,
+                    beneficiary_ledger_allocation,
+                )?;
+                require_distinct_roots_v2(
+                    &[economic_event, fee_policy_root],
+                    "fee event and policy roots must differ",
+                )
+            }
+            Self::Reward {
+                economic_event,
+                reserve_owner,
+                reserve_ledger_allocation,
+                reward_owner,
+                reward_ledger_allocation,
+                reward_policy_root,
+                ..
+            } => {
+                require_distinct_locations_v2(
+                    reserve_owner,
+                    reserve_ledger_allocation,
+                    reward_owner,
+                    reward_ledger_allocation,
+                )?;
+                require_distinct_roots_v2(
+                    &[economic_event, reward_policy_root],
+                    "reward event and policy roots must differ",
+                )
+            }
             Self::ExternalIn {
                 economic_event,
                 source_effect,

@@ -1890,6 +1890,9 @@
       {
         "delta_classes": [
           "internal_transfer",
+          "reserve_transfer",
+          "fee_allocation",
+          "reward",
           "external_in",
           "external_out",
           "refund",
@@ -1941,6 +1944,8 @@
           "internal_transfer",
           "mint",
           "burn",
+          "reserve_transfer",
+          "fee_allocation",
           "refund"
         ],
         "meaning": "pool reserves, LP shares, fees, and rounding residues",
@@ -1952,6 +1957,9 @@
         "delta_classes": [
           "liability",
           "internal_transfer",
+          "reserve_transfer",
+          "fee_allocation",
+          "reward",
           "external_out",
           "refund",
           "slash"
@@ -1964,6 +1972,7 @@
       {
         "delta_classes": [
           "internal_transfer",
+          "reserve_transfer",
           "refund",
           "slash",
           "external_out"
@@ -1978,6 +1987,9 @@
           "internal_transfer",
           "mint",
           "burn",
+          "reserve_transfer",
+          "fee_allocation",
+          "reward",
           "refund",
           "slash"
         ],
@@ -1989,6 +2001,8 @@
       {
         "delta_classes": [
           "internal_transfer",
+          "reserve_transfer",
+          "fee_allocation",
           "refund",
           "slash",
           "external_out"
@@ -2518,6 +2532,51 @@
         "supply_effect": "profile_defined_relation"
       },
       {
+        "class": "reserve_transfer",
+        "law": "one event moves the exact amount between a named reserve and a distinct counterparty allocation",
+        "required_fields": [
+          "asset",
+          "amount_atoms",
+          "direction",
+          "reserve_owner",
+          "reserve_ledger_allocation",
+          "counterparty_owner",
+          "counterparty_ledger_allocation",
+          "economic_event"
+        ],
+        "supply_effect": "zero"
+      },
+      {
+        "class": "fee_allocation",
+        "law": "fee source, beneficiary, amount, and policy root are bound in one event",
+        "required_fields": [
+          "asset",
+          "amount_atoms",
+          "fee_source_owner",
+          "fee_source_ledger_allocation",
+          "beneficiary_owner",
+          "beneficiary_ledger_allocation",
+          "fee_policy_root",
+          "economic_event"
+        ],
+        "supply_effect": "zero"
+      },
+      {
+        "class": "reward",
+        "law": "reward reserve, recipient, amount, and policy root are bound in one event",
+        "required_fields": [
+          "asset",
+          "amount_atoms",
+          "reserve_owner",
+          "reserve_ledger_allocation",
+          "reward_owner",
+          "reward_ledger_allocation",
+          "reward_policy_root",
+          "economic_event"
+        ],
+        "supply_effect": "zero"
+      },
+      {
         "class": "external_in",
         "law": "ingress is authenticated and creates one custody claim before internal credit",
         "required_fields": [
@@ -2572,6 +2631,9 @@
       "mint",
       "burn",
       "liability",
+      "reserve_transfer",
+      "fee_allocation",
+      "reward",
       "external_in",
       "external_out",
       "refund",
@@ -2587,6 +2649,9 @@
       "internal_transfer_preserves_asset_supply",
       "issue_and_burn_require_explicit_authority_and_supply_delta",
       "liability_delta_names_both_owner_and_asset",
+      "reserve_transfer_preserves_supply_and_names_both_allocations",
+      "fee_allocation_binds_source_beneficiary_and_policy",
+      "reward_binds_reserve_recipient_and_policy",
       "external_outflow_requires_ancestor_custody_or_claim",
       "rounding_and_dust_are_assigned_to_an_owner_or_rejected"
     ],

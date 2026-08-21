@@ -54,7 +54,7 @@ ABSTRACT_DELTA_CONTRACT_PROJECTION_PATH = (
     "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json"
 )
 ABSTRACT_DELTA_CONTRACT_PROJECTION_SHA256 = (
-    "a1195431c7416fa74fce77061f5001b4aa66196b244acb904b64588858d3b3d2"
+    "88b595733b596acf6f345835ec40f5e38e4b70bfbf60017fbf02afad9df40bd7"
 )
 
 RUNTIME_STATE_FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
@@ -78,6 +78,9 @@ RUNTIME_DELTA_KIND_CANDIDATES: dict[str, tuple[str, ...]] = {
     "mint": ("ISSUE",),
     "burn": ("BURN",),
     "liability": ("LIABILITY",),
+    "reserve_transfer": ("ACCOUNT_MOVEMENT", "RESERVE"),
+    "fee_allocation": ("ACCOUNT_MOVEMENT", "FEE_ALLOCATION"),
+    "reward": ("ACCOUNT_MOVEMENT", "RESERVE", "REWARD"),
     "external_in": ("CUSTODY", "ACCOUNT_MOVEMENT"),
     "external_out": ("CUSTODY", "ACCOUNT_MOVEMENT"),
     "refund": ("ACCOUNT_MOVEMENT", "CUSTODY"),
@@ -371,7 +374,7 @@ def _runtime_projection(
             "delegate_path": RUNTIME_CANONICAL_SOURCE_PATH,
             "status": "PRESENT_SOURCE_SHAPE_ONLY",
         },
-        "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED",
+        "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_11_DELTA_MAPPING_UNPROVED",
         "production_authority": "NONE",
         "nonclaims": [
             "A source-shape match does not prove that runtime fields implement the abstract G1 projection.",
@@ -528,7 +531,7 @@ def _runtime_mapping_gap_ledger(
             kind for kind in runtime_effect_kinds if kind not in candidate_effect_kinds
         ],
         "status": "GAP_STRUCTURAL_CANDIDATES_ONLY",
-        "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED",
+        "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_11_DELTA_MAPPING_UNPROVED",
         "production_authority": "NONE",
     }
 
@@ -557,7 +560,7 @@ def _runtime_mapping_gap_ledger(
         "runtime_effect_kinds_without_abstract_delta_candidate": [
             kind for kind in runtime_effect_kinds if kind not in candidate_effect_kinds
         ],
-        "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED",
+        "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_11_DELTA_MAPPING_UNPROVED",
         "production_authority": "NONE",
         "nonclaims": [
             "A candidate name or effect-kind correspondence does not prove semantic ownership or event coverage.",

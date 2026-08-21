@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Validate the research-only Global Economic Delta Algebra V2.
 
-The checker closes the eight event-level delta shapes declared by the G1
+The checker closes the event-level delta shapes declared by the G1
 semantic inventory.  It validates owned JSON values and emits deterministic
 canonical bytes and a domain-separated root.  It grants no settlement,
 publication, proof, release, profile-selection, or production authority.
@@ -14,14 +14,14 @@ import hashlib
 import json
 from pathlib import Path
 from types import MappingProxyType
-from typing import Final, Mapping, Sequence
+from typing import Final, Mapping, Sequence, cast
 
 if __package__:
     from tools import global_economic_delta_v2_references as _references
     from tools import global_economic_delta_v2_types as _types
 else:
     import global_economic_delta_v2_references as _references
-    import global_economic_delta_v2_types as _types
+    import global_economic_delta_v2_types as _types  # type: ignore[no-redef]
 
 I128_MAX = _types.I128_MAX
 MAX_EVENTS_V2 = _types.MAX_EVENTS_V2
@@ -58,28 +58,30 @@ def _owned_exact_mapping(
 ) -> dict[str, object]:
     if type(value) is not dict:
         _reject(DeltaRejectCodeV2.EVENT_TYPE_INVALID, f"{label} must be an exact object")
-    owned = dict(value)
+    owned = cast(dict[object, object], value).copy()
     if not all(type(key) is str for key in owned):
         _reject(DeltaRejectCodeV2.EVENT_FIELDS_INVALID, f"{label} keys must be strings")
     if frozenset(owned) != expected:
         _reject(DeltaRejectCodeV2.EVENT_FIELDS_INVALID, f"{label} field set is not closed")
-    return owned
+    return {cast(str, key): item for key, item in owned.items()}
 
 
 def _require_id(value: object, *, field: str) -> str:
-    if type(value) is not str or _ID_RE.fullmatch(value) is None:
+    if type(value) is not str:
         _reject(DeltaRejectCodeV2.IDENTIFIER_INVALID, f"{field} is not canonical")
-    return value
+    text = cast(str, value)
+    if _ID_RE.fullmatch(text) is None:
+        _reject(DeltaRejectCodeV2.IDENTIFIER_INVALID, f"{field} is not canonical")
+    return text
 
 
 def _require_root(value: object, *, field: str) -> str:
-    if (
-        type(value) is not str
-        or _ROOT_RE.fullmatch(value) is None
-        or value == "sha256:" + "0" * 64
-    ):
+    if type(value) is not str:
         _reject(DeltaRejectCodeV2.ROOT_INVALID, f"{field} is not a canonical root")
-    return value
+    text = cast(str, value)
+    if _ROOT_RE.fullmatch(text) is None or text == "sha256:" + "0" * 64:
+        _reject(DeltaRejectCodeV2.ROOT_INVALID, f"{field} is not a canonical root")
+    return text
 
 
 def _require_atoms(
@@ -90,10 +92,11 @@ def _require_atoms(
 ) -> int:
     if type(value) is not int:
         _reject(DeltaRejectCodeV2.AMOUNT_TYPE_INVALID, f"{field} must be an exact integer")
+    atoms = cast(int, value)
     minimum = 0 if zero_policy is ZeroPolicyV2.ALLOW else 1
-    if value < minimum or value > I128_MAX:
+    if atoms < minimum or atoms > I128_MAX:
         _reject(DeltaRejectCodeV2.AMOUNT_OUT_OF_RANGE, f"{field} is outside its range")
-    return value
+    return atoms
 
 
 def _validate_identifiers(event: Mapping[str, object]) -> None:
@@ -130,6 +133,52 @@ def _validate_liability(event: Mapping[str, object]) -> None:
         _reject(
             DeltaRejectCodeV2.LIABILITY_RELATION_INVALID,
             "liability direction and before/after values do not derive the amount",
+        )
+
+
+def _validate_reserve_transfer(event: Mapping[str, object]) -> None:
+    reserve = (event["reserve_owner"], event["reserve_ledger_allocation"])
+    counterparty = (
+        event["counterparty_owner"],
+        event["counterparty_ledger_allocation"],
+    )
+    if reserve == counterparty:
+        _reject(
+            DeltaRejectCodeV2.SOURCE_EQUALS_DESTINATION,
+            "reserve and counterparty locations must differ",
+        )
+
+
+def _validate_fee_allocation(event: Mapping[str, object]) -> None:
+    source = (event["fee_source_owner"], event["fee_source_ledger_allocation"])
+    beneficiary = (
+        event["beneficiary_owner"],
+        event["beneficiary_ledger_allocation"],
+    )
+    if source == beneficiary:
+        _reject(
+            DeltaRejectCodeV2.SOURCE_EQUALS_DESTINATION,
+            "fee source and beneficiary locations must differ",
+        )
+    if event["economic_event"] == event["fee_policy_root"]:
+        _reject(
+            DeltaRejectCodeV2.SELF_REFERENTIAL_EVENT,
+            "fee event and policy roots must differ",
+        )
+
+
+def _validate_reward(event: Mapping[str, object]) -> None:
+    reserve = (event["reserve_owner"], event["reserve_ledger_allocation"])
+    recipient = (event["reward_owner"], event["reward_ledger_allocation"])
+    if reserve == recipient:
+        _reject(
+            DeltaRejectCodeV2.SOURCE_EQUALS_DESTINATION,
+            "reward reserve and recipient locations must differ",
+        )
+    if event["economic_event"] == event["reward_policy_root"]:
+        _reject(
+            DeltaRejectCodeV2.SELF_REFERENTIAL_EVENT,
+            "reward event and policy roots must differ",
         )
 
 
@@ -187,15 +236,18 @@ def _validate_external_out(event: Mapping[str, object]) -> None:
 _RELATION_VALIDATORS: Final = {
     "external_in": _validate_external_in,
     "external_out": _validate_external_out,
+    "fee_allocation": _validate_fee_allocation,
     "internal_transfer": _validate_internal_transfer,
     "liability": _validate_liability,
     "refund": _validate_refund,
+    "reserve_transfer": _validate_reserve_transfer,
+    "reward": _validate_reward,
     "slash": _validate_slash,
 }
 
 
 def _validate_variant_relations(event: Mapping[str, object]) -> None:
-    validator = _RELATION_VALIDATORS.get(event["delta_class"])
+    validator = _RELATION_VALIDATORS.get(cast(str, event["delta_class"]))
     if validator is not None:
         validator(event)
 
@@ -203,12 +255,16 @@ def _validate_variant_relations(event: Mapping[str, object]) -> None:
 def _validate_event(value: object) -> dict[str, ScalarV2]:
     if type(value) is not dict:
         _reject(DeltaRejectCodeV2.EVENT_TYPE_INVALID, "event must be an exact object")
-    raw_class = value.get("delta_class")
+    raw_class = cast(dict[object, object], value).get("delta_class")
     if type(raw_class) is not str or raw_class not in _VARIANT_FIELDS:
         _reject(DeltaRejectCodeV2.DELTA_CLASS_INVALID, "delta class is not closed")
-    event = _owned_exact_mapping(value, expected=_VARIANT_FIELDS[raw_class])
-    if raw_class == "liability" and event["direction"] not in {"increase", "decrease"}:
-        _reject(DeltaRejectCodeV2.DIRECTION_INVALID, "liability direction is not closed")
+    delta_class = cast(str, raw_class)
+    event = _owned_exact_mapping(value, expected=_VARIANT_FIELDS[delta_class])
+    if delta_class in {"liability", "reserve_transfer"} and event["direction"] not in {
+        "increase",
+        "decrease",
+    }:
+        _reject(DeltaRejectCodeV2.DIRECTION_INVALID, f"{delta_class} direction is not closed")
     _validate_identifiers(event)
     for field in _AMOUNT_FIELD_ORDER:
         if field in event:
@@ -219,7 +275,7 @@ def _validate_event(value: object) -> dict[str, ScalarV2]:
             )
             _require_atoms(event[field], field=field, zero_policy=zero_policy)
     _validate_variant_relations(event)
-    return {key: event[key] for key in sorted(event)}  # type: ignore[return-value]
+    return cast(dict[str, ScalarV2], {key: event[key] for key in sorted(event)})
 
 
 def _validate_source_binding(value: object) -> dict[str, ScalarV2]:
@@ -234,7 +290,7 @@ def _validate_source_binding(value: object) -> dict[str, ScalarV2]:
         _reject(DeltaRejectCodeV2.SOURCE_KIND_INVALID, "source kind is not closed")
     _require_id(binding["asset"], field="asset")
     _require_atoms(binding["amount_atoms"], field="amount_atoms")
-    return {key: binding[key] for key in sorted(binding)}  # type: ignore[return-value]
+    return cast(dict[str, ScalarV2], {key: binding[key] for key in sorted(binding)})
 
 
 def _canonical_bytes(
@@ -257,7 +313,7 @@ def validate_plan_v2(value: object) -> _StructuralDeltaPlanDataV2:
 
     if type(value) is not dict:
         _reject(DeltaRejectCodeV2.PLAN_TYPE_INVALID, "plan must be an exact object")
-    owned_plan = dict(value)
+    owned_plan = cast(dict[object, object], value).copy()
     if not all(type(key) is str for key in owned_plan):
         _reject(DeltaRejectCodeV2.PLAN_FIELDS_INVALID, "plan keys must be strings")
     if frozenset(owned_plan) != {"schema", "events", "source_bindings"}:
@@ -272,7 +328,8 @@ def validate_plan_v2(value: object) -> _StructuralDeltaPlanDataV2:
             DeltaRejectCodeV2.EVENTS_TYPE_INVALID,
             "source bindings must be a JSON array",
         )
-    if len(raw_bindings) > MAX_SOURCE_BINDINGS_V2:
+    bindings_input = cast(list[object], raw_bindings)
+    if len(bindings_input) > MAX_SOURCE_BINDINGS_V2:
         _reject(
             DeltaRejectCodeV2.SOURCE_BINDING_COUNT_OUT_OF_RANGE,
             "a delta plan may bind at most 64 source occurrences",
@@ -280,17 +337,18 @@ def validate_plan_v2(value: object) -> _StructuralDeltaPlanDataV2:
     raw_events = owned_plan["events"]
     if type(raw_events) is not list:
         _reject(DeltaRejectCodeV2.EVENTS_TYPE_INVALID, "events must be a JSON array")
-    if not raw_events:
+    events_input = cast(list[object], raw_events)
+    if not events_input:
         _reject(DeltaRejectCodeV2.EMPTY_PLAN, "a delta plan must contain an event")
-    if len(raw_events) > MAX_EVENTS_V2:
+    if len(events_input) > MAX_EVENTS_V2:
         _reject(
             DeltaRejectCodeV2.EVENT_COUNT_OUT_OF_RANGE,
             "a delta plan may contain at most 64 events",
         )
     source_bindings = tuple(
-        _validate_source_binding(binding) for binding in raw_bindings
+        _validate_source_binding(binding) for binding in bindings_input
     )
-    events = tuple(_validate_event(event) for event in raw_events)
+    events = tuple(_validate_event(event) for event in events_input)
     event_ids = tuple(event["economic_event"] for event in events)
     if len(event_ids) != len(set(event_ids)):
         _reject(DeltaRejectCodeV2.DUPLICATE_EVENT, "economic event IDs must be unique")

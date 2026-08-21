@@ -26,9 +26,9 @@ def test_cross_artifact_bundle_is_exact_and_research_only() -> None:
     assert report["profile_decision_count"] == 9
     assert report["open_state_obligation_count"] == 6
     assert report["runtime_mapping_unmapped_field_count"] == 2
-    assert report["runtime_mapping_unmapped_effect_kind_count"] == 3
+    assert report["runtime_mapping_unmapped_effect_kind_count"] == 0
     assert report["m6_runtime_delta_surplus_count"] == 1
-    assert report["m6_entry_missing_required_field_count"] == 17
+    assert report["m6_entry_missing_required_field_count"] == 29
 
 
 def test_bundle_binds_the_registry_and_repair_overlay() -> None:
@@ -52,7 +52,7 @@ def test_bundle_binds_the_registry_and_repair_overlay() -> None:
     )
     assert len(m6_surface["abstract_contract_projection_sha256"]) == 64
     assert m6_surface["entry_declared_field_count"] == 5
-    assert m6_surface["entry_missing_required_field_count"] == 17
+    assert m6_surface["entry_missing_required_field_count"] == 29
 
 
 def test_bundle_tampering_fails_closed(tmp_path: Path) -> None:

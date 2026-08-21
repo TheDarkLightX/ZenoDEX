@@ -93,6 +93,30 @@ _VARIANT_FIELDS: Final[dict[str, frozenset[str]]] = {
     | {"burn_authority", "source_owner", "source_ledger_allocation"},
     "liability": _COMMON_FIELDS
     | {"liability_owner", "liability_kind", "direction", "pre_atoms", "post_atoms"},
+    "reserve_transfer": _COMMON_FIELDS
+    | {
+        "direction",
+        "reserve_owner",
+        "reserve_ledger_allocation",
+        "counterparty_owner",
+        "counterparty_ledger_allocation",
+    },
+    "fee_allocation": _COMMON_FIELDS
+    | {
+        "fee_source_owner",
+        "fee_source_ledger_allocation",
+        "beneficiary_owner",
+        "beneficiary_ledger_allocation",
+        "fee_policy_root",
+    },
+    "reward": _COMMON_FIELDS
+    | {
+        "reserve_owner",
+        "reserve_ledger_allocation",
+        "reward_owner",
+        "reward_ledger_allocation",
+        "reward_policy_root",
+    },
     "external_in": _COMMON_FIELDS
     | {"source_effect", "destination_owner", "destination_ledger_allocation"},
     "external_out": _COMMON_FIELDS
@@ -141,6 +165,8 @@ _ROOT_FIELDS: Final = frozenset(
         "destination_effect",
         "ancestor_claim_event",
         "source_event",
+        "fee_policy_root",
+        "reward_policy_root",
     }
 )
 _AMOUNT_FIELDS: Final = frozenset(
@@ -152,6 +178,8 @@ _ROOT_FIELD_ORDER: Final = (
     "ancestor_claim_event",
     "destination_effect",
     "source_event",
+    "fee_policy_root",
+    "reward_policy_root",
 )
 _AMOUNT_FIELD_ORDER: Final = (
     "amount_atoms",

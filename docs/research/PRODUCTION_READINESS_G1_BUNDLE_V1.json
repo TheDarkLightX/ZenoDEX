@@ -106,12 +106,12 @@
   ],
   "obligation_binding": {
     "bdd_scenario_count": 267,
-    "delta_class_count": 8,
+    "delta_class_count": 11,
     "m6_value_delta_surface": {
       "abstract_contract_projection_digest_status": "EXACT_SUBJECT_HELPER_BASELINE_RESEARCH_ONLY",
-      "abstract_contract_projection_sha256": "a1195431c7416fa74fce77061f5001b4aa66196b244acb904b64588858d3b3d2",
+      "abstract_contract_projection_sha256": "88b595733b596acf6f345835ec40f5e38e4b70bfbf60017fbf02afad9df40bd7",
       "entry_declared_field_count": 5,
-      "entry_missing_required_field_count": 17,
+      "entry_missing_required_field_count": 29,
       "production_authority": "NONE",
       "runtime_delta_classes_without_abstract_class": [
         "noop"
@@ -123,7 +123,7 @@
     "open_profile_decision_count": 9,
     "open_state_obligation_count": 6,
     "profile_decision_count": 9,
-    "runtime_mapping_unmapped_effect_kind_count": 3,
+    "runtime_mapping_unmapped_effect_kind_count": 0,
     "runtime_mapping_unmapped_field_count": 2,
     "state_field_count": 14
   },

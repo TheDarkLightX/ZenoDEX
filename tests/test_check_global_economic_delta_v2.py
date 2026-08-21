@@ -18,6 +18,12 @@ from tools.check_global_economic_delta_v2 import (
 )
 
 VECTOR_PATH = Path(__file__).parent / "data/global_economic_delta_v2_plan.json"
+PROJECTION_VECTOR_PATH = (
+    Path(__file__).parent / "data/global_economic_delta_v2_projection_events.json"
+)
+PROJECTION_VECTOR_ROOT = (
+    "sha256:64663ff48b10b511cdaec74d47634d656a9c083d95c76c13ba652ba37d762a4b"
+)
 VECTOR_ROOT = "sha256:0a7e960b474fd446a834a590ecf2abe6c208adabb704c794a702f9d41894f18a"
 MAX_AMOUNT_VECTOR_ROOT = (
     "sha256:68a13c2c92e55244dc3cae9b4f13114dbf85977a9b18a29f32b5f3819f8d6f4f"
@@ -104,6 +110,87 @@ def test_checked_in_vector_is_canonical_and_root_bound() -> None:
     # Assert
     assert validated.canonical_bytes == raw
     assert validated.root == VECTOR_ROOT
+
+
+def test_projection_event_classes_form_one_canonical_owned_plan() -> None:
+    # Arrange
+    raw = PROJECTION_VECTOR_PATH.read_bytes()
+    value = json.loads(raw)
+
+    # Act
+    validated = validate_plan_v2(value)
+
+    # Assert
+    assert tuple(event["delta_class"] for event in validated.events) == (
+        "reserve_transfer",
+        "fee_allocation",
+        "reward",
+    )
+    assert validated.canonical_bytes == raw
+    assert validated.root == PROJECTION_VECTOR_ROOT
+
+
+@pytest.mark.parametrize("event_index", [0, 1, 2])
+def test_projection_events_reject_same_source_and_destination(event_index: int) -> None:
+    # Arrange
+    value = json.loads(PROJECTION_VECTOR_PATH.read_text(encoding="utf-8"))
+    event = value["events"][event_index]
+    if event["delta_class"] == "reserve_transfer":
+        event["counterparty_owner"] = event["reserve_owner"]
+        event["counterparty_ledger_allocation"] = event["reserve_ledger_allocation"]
+    elif event["delta_class"] == "fee_allocation":
+        event["beneficiary_owner"] = event["fee_source_owner"]
+        event["beneficiary_ledger_allocation"] = event["fee_source_ledger_allocation"]
+    else:
+        event["reward_owner"] = event["reserve_owner"]
+        event["reward_ledger_allocation"] = event["reserve_ledger_allocation"]
+
+    # Act / Assert
+    _assert_reject(value, DeltaRejectCodeV2.SOURCE_EQUALS_DESTINATION)
+
+
+def test_reserve_direction_and_projection_policy_roots_are_closed() -> None:
+    # Arrange
+    invalid_direction = json.loads(PROJECTION_VECTOR_PATH.read_text(encoding="utf-8"))
+    invalid_direction["events"][0]["direction"] = "sideways"
+    invalid_fee_policy = json.loads(PROJECTION_VECTOR_PATH.read_text(encoding="utf-8"))
+    invalid_fee_policy["events"][1]["fee_policy_root"] = "sha256:" + "0" * 64
+    invalid_reward_policy = json.loads(PROJECTION_VECTOR_PATH.read_text(encoding="utf-8"))
+    invalid_reward_policy["events"][2]["reward_policy_root"] = "bad-root"
+    aliased_fee_policy = json.loads(PROJECTION_VECTOR_PATH.read_text(encoding="utf-8"))
+    aliased_fee_policy["events"][1]["fee_policy_root"] = aliased_fee_policy["events"][1][
+        "economic_event"
+    ]
+    aliased_reward_policy = json.loads(PROJECTION_VECTOR_PATH.read_text(encoding="utf-8"))
+    aliased_reward_policy["events"][2]["reward_policy_root"] = aliased_reward_policy[
+        "events"
+    ][2]["economic_event"]
+
+    # Act / Assert
+    _assert_reject(invalid_direction, DeltaRejectCodeV2.DIRECTION_INVALID)
+    _assert_reject(invalid_fee_policy, DeltaRejectCodeV2.ROOT_INVALID)
+    _assert_reject(invalid_reward_policy, DeltaRejectCodeV2.ROOT_INVALID)
+    _assert_reject(aliased_fee_policy, DeltaRejectCodeV2.SELF_REFERENTIAL_EVENT)
+    _assert_reject(aliased_reward_policy, DeltaRejectCodeV2.SELF_REFERENTIAL_EVENT)
+
+
+@pytest.mark.parametrize("event_index", [0, 1, 2])
+def test_projection_event_amount_bva_uses_shared_positive_i128_domain(event_index: int) -> None:
+    # Arrange
+    lower = json.loads(PROJECTION_VECTOR_PATH.read_text(encoding="utf-8"))
+    lower["events"][event_index]["amount_atoms"] = 0
+    minimum = json.loads(PROJECTION_VECTOR_PATH.read_text(encoding="utf-8"))
+    minimum["events"][event_index]["amount_atoms"] = 1
+    maximum = json.loads(PROJECTION_VECTOR_PATH.read_text(encoding="utf-8"))
+    maximum["events"][event_index]["amount_atoms"] = I128_MAX
+    upper = json.loads(PROJECTION_VECTOR_PATH.read_text(encoding="utf-8"))
+    upper["events"][event_index]["amount_atoms"] = I128_MAX + 1
+
+    # Act / Assert
+    _assert_reject(lower, DeltaRejectCodeV2.AMOUNT_OUT_OF_RANGE)
+    assert validate_plan_v2(minimum).events[event_index]["amount_atoms"] == 1
+    assert validate_plan_v2(maximum).events[event_index]["amount_atoms"] == I128_MAX
+    _assert_reject(upper, DeltaRejectCodeV2.AMOUNT_OUT_OF_RANGE)
 
 
 def test_empty_plan_rejects_before_any_candidate_exists() -> None:

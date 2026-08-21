@@ -4,6 +4,8 @@ use zenodex_global_economic_delta_v2::{
 
 const PYTHON_CANONICAL_VECTOR: &str =
     include_str!("../../../tests/data/global_economic_delta_v2_plan.json");
+const PYTHON_PROJECTION_VECTOR: &str =
+    include_str!("../../../tests/data/global_economic_delta_v2_projection_events.json");
 
 fn replace_once(input: &str, from: &str, to: &str) -> String {
     assert_eq!(input.matches(from).count(), 1);
@@ -39,6 +41,68 @@ fn python_rust_vector_has_identical_canonical_bytes_and_root() {
         validated.root(),
         "sha256:0a7e960b474fd446a834a590ecf2abe6c208adabb704c794a702f9d41894f18a"
     );
+}
+
+#[test]
+fn projection_event_classes_share_one_python_rust_canonical_vector() {
+    // Arrange / Act
+    let validated = decode_delta_plan_v2(PYTHON_PROJECTION_VECTOR.as_bytes()).unwrap();
+
+    // Assert
+    assert_eq!(validated.event_count(), 3);
+    assert_eq!(
+        validated.delta_classes(),
+        vec!["reserve_transfer", "fee_allocation", "reward"]
+    );
+    assert_eq!(
+        validated.canonical_bytes(),
+        PYTHON_PROJECTION_VECTOR.as_bytes()
+    );
+    assert_eq!(
+        validated.root(),
+        "sha256:64663ff48b10b511cdaec74d47634d656a9c083d95c76c13ba652ba37d762a4b"
+    );
+}
+
+#[test]
+fn projection_events_reject_invalid_direction_aliases_and_policy_roots() {
+    // Arrange
+    let invalid_direction = replace_once(
+        PYTHON_PROJECTION_VECTOR,
+        r#""direction":"increase""#,
+        r#""direction":"sideways""#,
+    );
+    let aliased_reserve = replace_once(
+        PYTHON_PROJECTION_VECTOR,
+        r#""counterparty_ledger_allocation":"account:treasury","counterparty_owner":"treasury""#,
+        r#""counterparty_ledger_allocation":"reserve:insurance","counterparty_owner":"protocol.insurance""#,
+    );
+    let zero_fee_policy = replace_once(
+        PYTHON_PROJECTION_VECTOR,
+        "sha256:9191919191919191919191919191919191919191919191919191919191919191",
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    );
+    let aliased_reward_policy = replace_once(
+        PYTHON_PROJECTION_VECTOR,
+        "sha256:9292929292929292929292929292929292929292929292929292929292929292",
+        "sha256:0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    );
+
+    // Act / Assert: exact codes kill decoder-collapse and relation-bypass mutants.
+    for (input, expected) in [
+        (invalid_direction, DeltaRejectCodeV2::DecodeInvalid),
+        (aliased_reserve, DeltaRejectCodeV2::SourceEqualsDestination),
+        (zero_fee_policy, DeltaRejectCodeV2::DecodeInvalid),
+        (
+            aliased_reward_policy,
+            DeltaRejectCodeV2::SelfReferentialEvent,
+        ),
+    ] {
+        assert_eq!(
+            decode_delta_plan_v2(input.as_bytes()).unwrap_err().code,
+            expected
+        );
+    }
 }
 
 #[test]

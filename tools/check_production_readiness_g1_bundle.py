@@ -206,8 +206,9 @@ def _check_decision_and_state_bindings(documents: Mapping[str, Mapping[str, Any]
     errors: list[str] = []
     semantic = documents["semantics"]
     decision_ids = {decision.get("id") for decision in semantic.get("profile_decisions", []) if isinstance(decision, Mapping)}
-    profile_gates = documents["profile_gate"].get("decision_gates")
-    profile_ids = {gate.get("id") for gate in profile_gates if isinstance(gate, Mapping)} if isinstance(profile_gates, list) else set()
+    raw_profile_gates = documents["profile_gate"].get("decision_gates")
+    profile_gates = raw_profile_gates if isinstance(raw_profile_gates, list) else []
+    profile_ids = {gate.get("id") for gate in profile_gates if isinstance(gate, Mapping)}
     bdd_open = set(documents["bdd"].get("open_profile_decisions", []))
     safe_holds = documents["safe_hold"].get("profile_decision_holds")
     safe_ids = {hold.get("id") for hold in safe_holds if isinstance(hold, Mapping)} if isinstance(safe_holds, list) else set()
@@ -228,7 +229,7 @@ def _check_decision_and_state_bindings(documents: Mapping[str, Mapping[str, Any]
     state_algebra = documents["state_delta"].get("value_delta_algebra", {})
     if semantic_fields != state_fields or len(semantic_fields) != 14:
         errors.append("state field names drift between semantics and state-delta artifacts")
-    if set(semantic_delta.get("delta_classes", [])) != set(state_algebra.get("delta_classes", [])) or len(semantic_delta.get("delta_classes", [])) != 8:
+    if set(semantic_delta.get("delta_classes", [])) != set(state_algebra.get("delta_classes", [])) or len(semantic_delta.get("delta_classes", [])) != 11:
         errors.append("value-delta classes drift between semantics and state-delta artifacts")
     mapping = documents["state_delta"].get("runtime_mapping_gap_ledger", {})
     global_effect_surface = mapping.get("global_effect_kind_surface", {}) if isinstance(mapping, Mapping) else {}
@@ -257,13 +258,12 @@ def _check_decision_and_state_bindings(documents: Mapping[str, Mapping[str, Any]
         or mapping.get("source_subject") != BASE_SOURCE_SUBJECT
         or mapping.get("status") != "GAP_STRUCTURAL_CANDIDATES_ONLY"
         or mapping.get("semantic_mapping_status")
-        != "GAP_ABSTRACT_14_FIELD_AND_8_DELTA_MAPPING_UNPROVED"
+        != "GAP_ABSTRACT_14_FIELD_AND_11_DELTA_MAPPING_UNPROVED"
         or mapping.get("production_authority") != "NONE"
         or mapping.get("abstract_field_count") != 14
-        or mapping.get("abstract_delta_class_count") != 8
+        or mapping.get("abstract_delta_class_count") != 11
         or set(mapping.get("unmapped_abstract_fields", [])) != {"lp_state", "auctions"}
-        or set(mapping.get("runtime_effect_kinds_without_abstract_delta_candidate", []))
-        != {"RESERVE", "FEE_ALLOCATION", "REWARD"}
+        or mapping.get("runtime_effect_kinds_without_abstract_delta_candidate", []) != []
         or global_effect_surface.get("runtime_class") != state_delta.RUNTIME_EFFECT_KIND_CLASS
         or global_effect_surface.get("runtime_effect_kind_count") != 9
         or global_effect_surface.get("runtime_effect_kinds")
@@ -285,7 +285,8 @@ def _check_decision_and_state_bindings(documents: Mapping[str, Mapping[str, Any]
         != list(state_delta.M6_EXPECTED_RUNTIME_DELTA_CLASSES)
         or m6_class_type.get("abstract_delta_classes")
         != list(semantic_delta.get("delta_classes", []))
-        or m6_class_type.get("abstract_delta_classes_without_runtime_kind") != []
+        or m6_class_type.get("abstract_delta_classes_without_runtime_kind")
+        != ["reserve_transfer", "fee_allocation", "reward"]
         or m6_class_type.get("runtime_delta_classes_without_abstract_class") != ["noop"]
         or m6_entry_type.get("declared_field_count") != 5
         or m6_entry_type.get("declared_fields")

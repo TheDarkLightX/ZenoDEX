@@ -643,7 +643,7 @@ conditions exact and source-bound. It intentionally selects no option shape,
 profile, or authority; its closure status remains `BLOCKED_DECISIONS_OPEN`.
 The state/delta obligation gate
 `docs/research/PRODUCTION_READINESS_G1_STATE_DELTA_GATE_V1.json` inventories
-the 14 declared global-state fields, eight delta classes, and six closure
+the 14 declared global-state fields, eleven delta classes, and six closure
 obligations. Field types, root codec, event equations, ownership,
 reconciliation, terminal drains, and parity remain `OPEN_GAP`; this artifact
 does not claim a complete algebra or production authority. It also records an
@@ -651,22 +651,24 @@ exact-base source-shape inventory for `GlobalEconomicStateV1`: 16 typed runtime
 fields appear in the literal `to_canonical()` projection, the runtime
 effect-kind enum has 9 values, and the canonical encoder/helper sources are
 both pinned. The source-shape evidence does not establish wire-order semantics
-or the mapping from the abstract 14-field/8-delta G1 model to runtime
+or the mapping from the abstract 14-field/11-delta G1 model to runtime
 semantics.
 The same artifact carries a structural mapping-gap ledger: candidate names for
-the 14 abstract fields and eight delta classes are recorded without selecting
-any mapping. `lp_state` and `auctions` have no named runtime field candidate,
-while runtime effect kinds `RESERVE`, `FEE_ALLOCATION`, and `REWARD` have no
-abstract delta-class candidate. These are source-shape gaps, not semantic
-proofs; all mappings remain `UNPROVED_CANDIDATE` or
+the 14 abstract fields and eleven delta classes are recorded without selecting
+any mapping. `lp_state` and `auctions` have no named runtime field candidate.
+The event algebra now gives all nine runtime effect kinds a structural
+candidate through explicit reserve-transfer, fee-allocation, and reward event
+roles. These are source-shape correspondences, not semantic proofs; all
+mappings remain `UNPROVED_CANDIDATE` or
 `UNPROVED_EFFECT_KIND_CANDIDATE` and production authority remains `NONE`.
 The ledger now keeps that global effect-plan inventory distinct from the M6
-value-delta surface. The exact-base `ValueDeltaClassV1` enum contains the eight
-abstract delta names plus `noop`. `ValueDeltaEntryV1` has five declared and
+value-delta surface. The exact-base `ValueDeltaClassV1` enum lacks the three
+new projection roles and retains its eight historical names plus `noop`.
+`ValueDeltaEntryV1` has five declared and
 canonically projected fields: `delta_class`, `owner`, `asset`, `custody`, and
-`delta_atoms`. This is an exact field-name comparison: seventeen of the
-eighteen required abstract contract field names remain absent from that generic
-entry shape, including `amount_atoms`, owner-role, custody-role, authority,
+`delta_atoms`. This is an exact field-name comparison: twenty-nine required
+abstract contract field names remain absent from that generic entry shape,
+including `amount_atoms`, owner-role, allocation-role, policy-root, authority,
 liability-kind, effect, and event fields. The M6 surface is source-pinned and
 remains research-only with semantic status
 `GAP_ENTRY_FIELDS_DO_NOT_CLOSE_ABSTRACT_DELTA_CONTRACTS`.
