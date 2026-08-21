@@ -232,11 +232,11 @@ fn require_release_and_occurrence_v1(
     Ok(())
 }
 
-fn digest_root_v1(bytes: &[u8], field: &'static str) -> AbiResultV1<RootV1> {
+pub(crate) fn digest_root_v1(bytes: &[u8], field: &'static str) -> AbiResultV1<RootV1> {
     RootV1::parse(format!("0x{}", hash_bytes_sha256_v1(bytes)), field, false)
 }
 
-fn verify_receipt_v1(
+pub(crate) fn verify_receipt_v1(
     receipt: &ZDEXLaneReceiptEnvelopeV1,
     journal_bytes: &[u8],
     release: &LaneModuleReleaseV1,

@@ -12,7 +12,8 @@ This packet defines a finite, integer-safe ZDEX burn leaf and an exact
 denomination-rescale transition. It replaces the proposed fixed percentage
 supply floor with a per-occurrence retained-supply rule. It does not alter the
 legacy tokenomics release, mount a writer, authorize a token sale, or prove the
-AMM pricing rule or tokenomics fee-allocation rule.
+AMM pricing rule. The packet now includes an unmounted candidate fee-allocation
+core. Governance has not selected its percentages or hosting policy.
 
 The intended economic lifecycle is:
 
@@ -26,11 +27,62 @@ protocol fee revenue
 ```
 
 The implemented Python burn core consumes a route-authenticated purchase
-occurrence. A separate Rust/Python shadow composer now authenticates exact
-Spot and tokenomics leaf journals through release-selected verifier ports and
-pairs their effects. The real AMM guest, tokenomics guest, governed fee and
-hosting allocation, recursive route proof, profile admission, and atomic global
-commit remain separate obligations.
+occurrence. A separate Rust/Python shadow composer models receipt admission for
+exact Spot and tokenomics leaf journals through release-selected verifier ports
+and pairs their effects. Independent Rust and Python fee-allocation cores derive a
+buyback-budget occurrence from a charged-fee bucket. The real AMM guest,
+tokenomics guest, governed percentage and host-compensation selection,
+recursive route proof, profile admission, and atomic global commit remain
+separate obligations.
+
+## Candidate fee-allocation contract
+
+The closed destination order is:
+
+```text
+BUYBACK
+QUALIFIED_HOST_POOL
+TREASURY
+PROOF_REWARDS
+COVER_RESERVE
+LP_REBATES
+```
+
+The current research candidate assigns, in basis points:
+
+```text
+(2000, 0, 3000, 1000, 1000, 500)
+```
+
+The assigned total is 7,500 bps. The remaining 2,500 bps is deliberately
+unassigned. A zero candidate host share records an unresolved policy decision;
+it does not select zero host compensation for a release.
+
+For one admitted charged-fee input `F` and destination share `b_i`:
+
+```text
+A_i = floor(F * b_i / 10000)
+R = F - sum(A_i)
+F = sum(A_i) + R
+```
+
+`R` combines unassigned-share value and integer rounding dust. The transition
+moves `R` into the named `protocol:fee-unallocated-reserve`. No command in this
+packet spends that reserve. A later release needs a separate governed command
+and evidence before those atoms may move.
+
+The immutable state records the fee asset, policy root, charged-fee ingress,
+destination balances, residue reserve, total controlled amount, and supply.
+An accepted transition checks selected-balance conservation, unchanged supply,
+an exact `FeeConservationRowV1`, one tokenomics lane write, and no external
+outbox effect. Zero fees, policy drift, insufficient ingress, and signed-effect
+width excess produce typed no-effect rejection.
+
+The allocation occurrence commits chain, deployment, profile, writer epoch,
+allocation route, authorized buyback route, tokenomics release, command
+occurrence, fee asset, all six allocations, residue, lane roots, and effect-plan
+root. Rust and Python golden tests agree on the policy, state, effect, and
+occurrence commitments.
 
 ## Integer contract
 
@@ -116,6 +168,19 @@ succinct receipt envelopes for exact canonical leaf journals and requires one
 shared route, occurrence, profile, writer epoch, issue/burn policy, governed
 buyback-budget occurrence, quote input, ZDEX asset, purchased amount, and
 transient burn bucket.
+
+The buyback-budget occurrence must authorize the exact purchase route, use the
+same chain, deployment, profile, writer epoch, tokenomics release, and quote
+asset, allocate the exact quote input, and target the closed protocol buyback
+bucket. A shadow receipt-admission boundary recomputes the allocation from the
+candidate policy, pre-state, and charged fee before constructing a witness.
+The Python composer repeats that recomputation because Python module internals
+cannot provide same-process authority. The Rust witness constructor is private.
+The buy-and-burn command lists the budget root in its exact consumed-object set.
+Its effect plan consumes only the buy-and-burn command occurrence, matching the
+global epoch effect contract. The tests use an injected accepting verifier and
+contain no cryptographic proof. Historical inclusion, persistent global
+consumed-object enforcement, and a real allocation guest receipt remain open.
 
 The purchase journal commits these exact balance projections:
 
@@ -205,7 +270,10 @@ receipt consumer, API, client, and historical decoder.
 | Preexisting ZDEX is mixed into the purchase output | Purchase transient bucket must project `0 -> B` | Complete global balance-root connection in the Spot guest |
 | Purchased ZDEX is only partly burned | Burn transient bucket must project `B -> 0`; composed transient rows cancel | Recursive route proof and atomic commit |
 | Rejected transition changes value | Identical state object and empty effects | Runtime adapter parity |
-| Accepted wrapper is forged | Exact owned types and constructor recomputation | Opaque verifier witness for publication |
+| Fee split loses atoms to truncation | Exact allocation-plus-residue equation and named reserve | Governed residue-release lifecycle |
+| Caller invents a buyback budget | Shadow route recomputes the fixed-policy allocation and binds journal digest, state roots, amount, source, and consumed-object ID; this rejects semantically invalid invented budgets | Real allocation guest receipt, historical inclusion, and persistent global consumed-object enforcement |
+| Buyback budget debits another holder | Closed protocol buyback source bucket in both composers | Complete mounted caller inventory |
+| Accepted allocation wrapper shifts value between destinations | Independent transition recomputation rejects a sum-preserving allocation mutant before receipt verification | Real guest/image evidence and profile-selected policy registry |
 | Burn secretly issues ZDEX | Effect requires zero authorized issuance | Complete writer inventory |
 | Test faucet mints protocol ZDEX | Tau testnet plugin rejects the canonical protocol-token asset | Clean dependency-closed integration replay |
 | Partial denomination migration | All projected buckets scale exactly or transition rejects | Complete global ZDEX bucket registry and atomic migration |
@@ -256,7 +324,7 @@ exact design.
 - `tests/formal/test_lean_zdex_hyperdeflation_v1.py`: placeholder scan and
   focused Lean elaboration;
 - `src/core/zdex_purchase_burn_*_v1.py`: immutable shadow journals, canonical
-  effects, release-selected receipt admission, opaque witnesses, and pure
+  effects, release-selected receipt admission, process-local witness markers, and pure
   two-lane composition;
 - `zk/global_settlement_abi_v1/src/zdex_purchase_burn_*.rs`: independent Rust
   projection of the same journals, effects, receipt boundary, and composer;
@@ -264,6 +332,19 @@ exact design.
   `zk/global_settlement_abi_v1/tests/zdex_purchase_burn_route.rs`: BVA,
   substitution, malformed-receipt, shadow-promotion, exact-once transient
   bucket, no-effect rejection, and cross-language composition-root evidence;
+- `src/core/zdex_fee_allocation_types_v1.py` and
+  `src/core/zdex_fee_allocation_v1.py`: immutable candidate fee types,
+  canonical effects, typed rejection, and pure transition;
+- `src/core/zdex_fee_allocation_receipt_verification_v1.py`: shadow-only exact
+  transition recomputation and non-authoritative process-local allocation marker;
+- `zk/global_settlement_abi_v1/src/zdex_fee_allocation_types.rs` and
+  `zk/global_settlement_abi_v1/src/zdex_fee_allocation.rs`, plus the receipt
+  verification module: independent checked Rust projection of the candidate
+  allocation core and its shadow admission boundary;
+- `tests/core/test_zdex_fee_allocation_v1.py` and
+  `zk/global_settlement_abi_v1/tests/zdex_fee_allocation.rs`: denominator BVA,
+  exhaustive small-domain conservation, no-effect rejection, route binding,
+  hostile Python scalar, and five-commitment cross-language golden evidence;
 - `src/integration/tau_testnet_dex_plugin.py`: testnet faucet exclusion for the
   canonical protocol-token asset;
 - `tests/integration/test_tau_testnet_dex_plugin.py`: exact rejection and
@@ -274,12 +355,14 @@ exact design.
 This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
 
 1. a normative ZDEX tokenomics release selecting `p/q`, epoch caps, route caps,
-   fee allocations, host compensation, and governance envelopes;
+   all 10,000 fee basis points or an explicit long-lived residue policy, host
+   compensation, and governance envelopes;
 2. a Rust retention/capacity core with Python differential parity and checked
    widened arithmetic;
 3. a RISC0 guest and exact journal/image/profile binding;
-4. real Spot and tokenomics guests whose authenticated outputs refine the
-   shadow purchase-to-burn journals and exact route composer;
+4. real Spot, fee-allocation, and tokenomics guests whose authenticated outputs
+   refine the shadow allocation occurrence, purchase-to-burn journals, and
+   exact route composer;
 5. complete protocol-token issue/burn writer inventory and deny-by-default
    mounting;
 6. an ABI revision and proved total migration before any precision rescale;
@@ -288,7 +371,7 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
 8. independent economic, proof, authority-boundary, and legal review;
 9. one atomic ZenoLedger commit path with no legacy value writer.
 
-Passing the local tests proves only the restricted statements and executable
+Passing the local tests supports only the restricted statements and executable
 behaviors named above.
 
 ## Research Kernel record

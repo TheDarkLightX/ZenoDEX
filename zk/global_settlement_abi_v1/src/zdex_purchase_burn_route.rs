@@ -11,6 +11,8 @@ use crate::effects::{
 };
 use crate::proof::EconomicCommandOccurrenceV1;
 use crate::release::{LaneIdV1, RouteReleaseV1};
+use crate::zdex_fee_allocation_receipt_verification::VerifiedZDEXFeeAllocationV1;
+use crate::zdex_fee_allocation_types::{ZDEXFeeAllocationOccurrenceV1, FEE_BUYBACK_PRINCIPAL_V1};
 use crate::zdex_purchase_burn_receipt_verification::{
     VerifiedZDEXAMMPurchaseV1, VerifiedZDEXBurnV1, ZDEXVerifiedLaneExpectationV1,
 };
@@ -35,6 +37,8 @@ pub enum ZDEXPurchaseBurnRouteRejectCodeV1 {
 pub struct ZDEXPurchaseBurnRouteCandidateV1<'a> {
     pub route_release: &'a RouteReleaseV1,
     pub occurrence: &'a EconomicCommandOccurrenceV1,
+    pub buyback_budget_occurrence: &'a ZDEXFeeAllocationOccurrenceV1,
+    pub verified_buyback_budget: &'a VerifiedZDEXFeeAllocationV1,
     pub purchase_journal: &'a ZDEXAMMPurchaseJournalV1,
     pub purchase_effects: &'a GlobalEconomicEffectPlanV1,
     pub verified_purchase: &'a VerifiedZDEXAMMPurchaseV1,
@@ -51,6 +55,7 @@ pub struct ZDEXPurchaseBurnRouteAcceptedV1 {
     pub writer_epoch: u64,
     pub ordered_lane_journal_roots: Vec<RootV1>,
     pub ordered_verified_binding_roots: Vec<RootV1>,
+    pub verified_budget_binding_root: RootV1,
     pub effects: GlobalEconomicEffectPlanV1,
     pub terminal_obligations_root: RootV1,
 }
@@ -69,6 +74,7 @@ impl ZDEXPurchaseBurnRouteAcceptedV1 {
             writer_epoch: u64,
             ordered_lane_journal_roots: &'a [RootV1],
             ordered_verified_binding_roots: &'a [RootV1],
+            verified_budget_binding_root: &'a RootV1,
             effect_plan_root: RootV1,
             terminal_obligations_root: &'a RootV1,
         }
@@ -82,6 +88,7 @@ impl ZDEXPurchaseBurnRouteAcceptedV1 {
                 writer_epoch: self.writer_epoch,
                 ordered_lane_journal_roots: &self.ordered_lane_journal_roots,
                 ordered_verified_binding_roots: &self.ordered_verified_binding_roots,
+                verified_budget_binding_root: &self.verified_budget_binding_root,
                 effect_plan_root: self.effects.effect_plan_root()?,
                 terminal_obligations_root: &self.terminal_obligations_root,
             },
@@ -224,6 +231,7 @@ fn basic_binding_reject_code_v1(
     let route_id = &candidate.route_release.route_release_id;
     let purchase = candidate.purchase_journal;
     let burn = candidate.burn_journal;
+    let budget = candidate.buyback_budget_occurrence;
     if route_id != &candidate.occurrence.route_release_id
         || route_id != &purchase.route_release_id
         || route_id != &burn.route_release_id
@@ -238,8 +246,23 @@ fn basic_binding_reject_code_v1(
     if purchase.profile_root != candidate.occurrence.profile_root
         || burn.profile_root != candidate.occurrence.profile_root
         || purchase.writer_epoch != burn.writer_epoch
+        || purchase.chain_id != candidate.occurrence.chain_id
+        || burn.chain_id != candidate.occurrence.chain_id
+        || purchase.deployment_root != candidate.occurrence.deployment_root
+        || burn.deployment_root != candidate.occurrence.deployment_root
     {
         return Some(ZDEXPurchaseBurnRouteRejectCodeV1::PROFILE_OR_EPOCH_MISMATCH);
+    }
+    if budget.chain_id != candidate.occurrence.chain_id
+        || budget.deployment_root != candidate.occurrence.deployment_root
+        || budget.profile_root != candidate.occurrence.profile_root
+        || budget.writer_epoch != purchase.writer_epoch
+        || budget.authorized_buyback_route_release_id != *route_id
+        || budget.tokenomics_module_release_id != burn.tokenomics_module_release_id
+        || budget.command_occurrence_id == *occurrence_id
+        || purchase.quote_source_bucket_id != FEE_BUYBACK_PRINCIPAL_V1
+    {
+        return Some(ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_BUDGET_MISMATCH);
     }
     None
 }
@@ -285,6 +308,14 @@ fn witness_reject_code_v1(
             ZDEXPurchaseBurnRouteRejectCodeV1::BURN_WITNESS_MISMATCH,
         ));
     }
+    if !candidate
+        .verified_buyback_budget
+        .matches_route_input(route_id, candidate.buyback_budget_occurrence)?
+    {
+        return Ok(Some(
+            ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_BUDGET_MISMATCH,
+        ));
+    }
     Ok(None)
 }
 
@@ -293,6 +324,7 @@ fn economic_reject_code_v1(
 ) -> AbiResultV1<Option<ZDEXPurchaseBurnRouteRejectCodeV1>> {
     let purchase = candidate.purchase_journal;
     let burn = candidate.burn_journal;
+    let budget = candidate.buyback_budget_occurrence;
     if purchase.zdex_asset_id != burn.zdex_asset_id {
         return Ok(Some(ZDEXPurchaseBurnRouteRejectCodeV1::ASSET_MISMATCH));
     }
@@ -311,8 +343,14 @@ fn economic_reject_code_v1(
             ZDEXPurchaseBurnRouteRejectCodeV1::BURN_BUCKET_MISMATCH,
         ));
     }
-    if purchase.buyback_budget_occurrence_root != burn.buyback_budget_occurrence_root
+    let budget_root = budget.occurrence_root()?;
+    if purchase.buyback_budget_occurrence_root != budget_root
+        || burn.buyback_budget_occurrence_root != budget_root
+        || purchase.quote_asset_id != budget.fee_asset_id
         || purchase.quote_amount_in_atoms != burn.authorized_quote_input_atoms
+        || purchase.quote_amount_in_atoms != budget.buyback_quote_atoms()
+        || budget_root == candidate.occurrence.occurrence_id()?
+        || candidate.occurrence.consumed_object_ids != vec![budget_root.to_string()]
     {
         return Ok(Some(
             ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_BUDGET_MISMATCH,
@@ -333,6 +371,7 @@ pub fn compose_zdex_purchase_burn_route_v1(
 ) -> AbiResultV1<ZDEXPurchaseBurnRouteResultV1> {
     candidate.route_release.validate()?;
     candidate.occurrence.validate()?;
+    candidate.buyback_budget_occurrence.validate()?;
     candidate.purchase_journal.validate()?;
     candidate.burn_journal.validate()?;
     candidate.purchase_effects.validate()?;
@@ -364,6 +403,7 @@ pub fn compose_zdex_purchase_burn_route_v1(
                 candidate.verified_purchase.binding_root()?,
                 candidate.verified_burn.binding_root()?,
             ],
+            verified_budget_binding_root: candidate.verified_buyback_budget.binding_root()?,
             effects: compose_effects_v1(&candidate, &occurrence_id)?,
             terminal_obligations_root: RootV1::parse(
                 ZERO_ROOT_V1,

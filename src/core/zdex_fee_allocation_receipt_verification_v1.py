@@ -1,0 +1,374 @@
+"""Receipt admission for one governed ZDEX fee-allocation output.
+
+The verifier recomputes the deterministic allocation before it creates the
+opaque witness consumed by the purchase-and-burn route. This module remains a
+shadow boundary because no production RISC0 image is mounted here.
+"""
+
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass
+from typing import Final
+
+from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
+from .global_settlement_types_v1 import (
+    GlobalEconomicEffectPlanV1,
+    LaneIdV1,
+    LaneModuleReleaseV1,
+    ReleaseStatusV1,
+    RouteReleaseV1,
+    canonical_global_bytes_v1,
+    hash_global_v1,
+)
+from .zdex_fee_allocation_types_v1 import (
+    FEE_ALLOCATION_OUTPUT_ROLE_V1,
+    PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1,
+    ZDEXFeeAllocationAcceptedV1,
+    ZDEXFeeAllocationCommandV1,
+    ZDEXFeeAllocationContextV1,
+    ZDEXFeeAllocationOccurrenceV1,
+    ZDEXFeeAllocationPolicyV1,
+    ZDEXFeeStateV1,
+    candidate_zdex_fee_allocation_policy_v1,
+    zdex_fee_allocation_port_schema_root_v1,
+)
+from .zdex_fee_allocation_v1 import transition_zdex_fee_allocation_v1
+from .zdex_purchase_burn_receipt_verification_v1 import (
+    ZDEXLaneReceiptEnvelopeV1,
+    ZDEXLaneSuccinctReceiptVerifierV1,
+)
+from .zdex_purchase_burn_route_types_v1 import (
+    AMM_PURCHASE_OUTPUT_ROLE_V1,
+    PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+    ZDEX_BURN_INPUT_ROLE_V1,
+    zdex_amm_purchase_port_schema_root_v1,
+    zdex_burn_port_schema_root_v1,
+)
+
+VERIFIED_ZDEX_FEE_ALLOCATION_SCHEMA_V1: Final = (
+    "zenodex/verified-zdex-fee-allocation/v1"
+)
+_VERIFIED_FEE_ALLOCATION_TOKEN = object()
+
+
+@dataclass(frozen=True, slots=True)
+class ZDEXFeeAllocationReceiptCandidateV1:
+    allocation_route_release: RouteReleaseV1
+    authorized_buyback_route_release: RouteReleaseV1
+    module_release: LaneModuleReleaseV1
+    occurrence: EconomicCommandOccurrenceV1
+    policy: ZDEXFeeAllocationPolicyV1
+    pre_state: ZDEXFeeStateV1
+    post_state: ZDEXFeeStateV1
+    journal: ZDEXFeeAllocationOccurrenceV1
+    effects: GlobalEconomicEffectPlanV1
+    receipt: ZDEXLaneReceiptEnvelopeV1
+
+    def __post_init__(self) -> None:
+        expected = (
+            (self.allocation_route_release, RouteReleaseV1, "allocation route"),
+            (self.authorized_buyback_route_release, RouteReleaseV1, "buyback route"),
+            (self.module_release, LaneModuleReleaseV1, "module release"),
+            (self.occurrence, EconomicCommandOccurrenceV1, "occurrence"),
+            (self.policy, ZDEXFeeAllocationPolicyV1, "policy"),
+            (self.pre_state, ZDEXFeeStateV1, "pre-state"),
+            (self.post_state, ZDEXFeeStateV1, "post-state"),
+            (self.journal, ZDEXFeeAllocationOccurrenceV1, "journal"),
+            (self.effects, GlobalEconomicEffectPlanV1, "effects"),
+            (self.receipt, ZDEXLaneReceiptEnvelopeV1, "receipt"),
+        )
+        for value, expected_type, label in expected:
+            if type(value) is not expected_type:
+                raise TypeError(
+                    f"ZDEX fee-allocation receipt {label} must be exact typed data"
+                )
+
+
+@dataclass(frozen=True, slots=True)
+class _VerifiedZDEXFeeAllocationFieldsV1:
+    allocation_route_release_id: str
+    authorized_buyback_route_release_id: str
+    module_release_id: str
+    command_occurrence_id: str
+    profile_root: str
+    writer_epoch: int
+    journal_root: str
+    journal_digest: str
+    effect_plan_root: str
+    expected_image_id: str
+    receipt_digest: str
+    receipt_kind: ReceiptKindV1
+    policy_root: str
+    fee_asset_id: str
+    buyback_quote_atoms: int
+    pre_lane_root: str
+    post_lane_root: str
+
+
+class VerifiedZDEXFeeAllocationV1:
+    """Immutable marker for the verifier factory's shadow admission result.
+
+    Python module internals are inspectable, so this value never carries
+    publication authority. Consumers must independently recompute semantics.
+    """
+
+    __slots__ = ("_fields",)
+    _fields: _VerifiedZDEXFeeAllocationFieldsV1
+
+    def __init__(
+        self,
+        token: object,
+        fields: _VerifiedZDEXFeeAllocationFieldsV1,
+    ) -> None:
+        if token is not _VERIFIED_FEE_ALLOCATION_TOKEN:
+            raise TypeError("VerifiedZDEXFeeAllocationV1 is verifier-constructed")
+        object.__setattr__(self, "_fields", fields)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("VerifiedZDEXFeeAllocationV1 is immutable")
+
+    @property
+    def allocation_route_release_id(self) -> str:
+        return self._fields.allocation_route_release_id
+
+    @property
+    def authorized_buyback_route_release_id(self) -> str:
+        return self._fields.authorized_buyback_route_release_id
+
+    @property
+    def module_release_id(self) -> str:
+        return self._fields.module_release_id
+
+    @property
+    def command_occurrence_id(self) -> str:
+        return self._fields.command_occurrence_id
+
+    @property
+    def profile_root(self) -> str:
+        return self._fields.profile_root
+
+    @property
+    def writer_epoch(self) -> int:
+        return self._fields.writer_epoch
+
+    @property
+    def journal_root(self) -> str:
+        return self._fields.journal_root
+
+    @property
+    def journal_digest(self) -> str:
+        return self._fields.journal_digest
+
+    @property
+    def effect_plan_root(self) -> str:
+        return self._fields.effect_plan_root
+
+    @property
+    def expected_image_id(self) -> str:
+        return self._fields.expected_image_id
+
+    @property
+    def receipt_digest(self) -> str:
+        return self._fields.receipt_digest
+
+    @property
+    def receipt_kind(self) -> ReceiptKindV1:
+        return self._fields.receipt_kind
+
+    @property
+    def policy_root(self) -> str:
+        return self._fields.policy_root
+
+    @property
+    def fee_asset_id(self) -> str:
+        return self._fields.fee_asset_id
+
+    @property
+    def buyback_quote_atoms(self) -> int:
+        return self._fields.buyback_quote_atoms
+
+    @property
+    def pre_lane_root(self) -> str:
+        return self._fields.pre_lane_root
+
+    @property
+    def post_lane_root(self) -> str:
+        return self._fields.post_lane_root
+
+    @property
+    def binding_root(self) -> str:
+        return hash_global_v1(
+            "verified-zdex-fee-allocation-v1",
+            {
+                "schema": VERIFIED_ZDEX_FEE_ALLOCATION_SCHEMA_V1,
+                "allocation_route_release_id": self.allocation_route_release_id,
+                "authorized_buyback_route_release_id": (
+                    self.authorized_buyback_route_release_id
+                ),
+                "module_release_id": self.module_release_id,
+                "command_occurrence_id": self.command_occurrence_id,
+                "profile_root": self.profile_root,
+                "writer_epoch": self.writer_epoch,
+                "journal_root": self.journal_root,
+                "journal_digest": self.journal_digest,
+                "effect_plan_root": self.effect_plan_root,
+                "expected_image_id": self.expected_image_id,
+                "receipt_digest": self.receipt_digest,
+                "receipt_kind": self.receipt_kind,
+                "policy_root": self.policy_root,
+                "fee_asset_id": self.fee_asset_id,
+                "buyback_quote_atoms": self.buyback_quote_atoms,
+                "pre_lane_root": self.pre_lane_root,
+                "post_lane_root": self.post_lane_root,
+            },
+        )
+
+
+def _require_route_shapes(candidate: ZDEXFeeAllocationReceiptCandidateV1) -> None:
+    allocation_route = candidate.allocation_route_release
+    buyback_route = candidate.authorized_buyback_route_release
+    if allocation_route.status is not ReleaseStatusV1.SHADOW:
+        raise ValueError("ZDEX fee-allocation route must remain SHADOW")
+    if (
+        allocation_route.command_kind != PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1
+        or allocation_route.ordered_lanes != (LaneIdV1.ZDEX_TOKENOMICS,)
+        or allocation_route.module_release_ids != (candidate.module_release.release_id,)
+        or allocation_route.dependency_roles != (FEE_ALLOCATION_OUTPUT_ROLE_V1,)
+        or allocation_route.port_schema_roots
+        != (zdex_fee_allocation_port_schema_root_v1(),)
+    ):
+        raise ValueError("ZDEX fee-allocation route shape mismatch")
+    if buyback_route.status is not ReleaseStatusV1.SHADOW:
+        raise ValueError("ZDEX authorized buyback route must remain SHADOW")
+    if (
+        buyback_route.command_kind != PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1
+        or buyback_route.ordered_lanes
+        != (LaneIdV1.SPOT_LIQUIDITY, LaneIdV1.ZDEX_TOKENOMICS)
+        or buyback_route.module_release_ids[1] != candidate.module_release.release_id
+        or buyback_route.dependency_roles
+        != (AMM_PURCHASE_OUTPUT_ROLE_V1, ZDEX_BURN_INPUT_ROLE_V1)
+        or buyback_route.port_schema_roots
+        != (
+            zdex_amm_purchase_port_schema_root_v1(),
+            zdex_burn_port_schema_root_v1(),
+        )
+    ):
+        raise ValueError("ZDEX authorized buyback route shape mismatch")
+
+
+def _require_release_and_occurrence(
+    candidate: ZDEXFeeAllocationReceiptCandidateV1,
+) -> None:
+    release = candidate.module_release
+    occurrence = candidate.occurrence
+    if release.status is not ReleaseStatusV1.SHADOW:
+        raise ValueError("ZDEX fee-allocation module release must remain SHADOW")
+    if (
+        release.lane_id is not LaneIdV1.ZDEX_TOKENOMICS
+        or PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1 not in release.command_variants
+    ):
+        raise ValueError("ZDEX fee-allocation module release mismatch")
+    if (
+        occurrence.command_kind != PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1
+        or occurrence.route_release_id
+        != candidate.allocation_route_release.route_release_id
+        or occurrence.pre_state_root != candidate.pre_state.state_root
+    ):
+        raise ValueError("ZDEX fee-allocation occurrence mismatch")
+    if candidate.policy != candidate_zdex_fee_allocation_policy_v1():
+        raise ValueError("ZDEX fee-allocation policy is outside this shadow release")
+
+
+def _recompute(candidate: ZDEXFeeAllocationReceiptCandidateV1) -> None:
+    journal = candidate.journal
+    occurrence = candidate.occurrence
+    context = ZDEXFeeAllocationContextV1(
+        chain_id=occurrence.chain_id,
+        deployment_root=occurrence.deployment_root,
+        profile_root=occurrence.profile_root,
+        writer_epoch=journal.writer_epoch,
+        allocation_route_release_id=candidate.allocation_route_release.route_release_id,
+        authorized_buyback_route_release_id=(
+            candidate.authorized_buyback_route_release.route_release_id
+        ),
+        tokenomics_module_release_id=candidate.module_release.release_id,
+        command_occurrence_id=occurrence.occurrence_id,
+        policy_root=candidate.policy.policy_root,
+    )
+    recomputed = transition_zdex_fee_allocation_v1(
+        context,
+        candidate.pre_state,
+        candidate.policy,
+        ZDEXFeeAllocationCommandV1(journal.fee_charged_atoms),
+    )
+    if type(recomputed) is not ZDEXFeeAllocationAcceptedV1:
+        raise ValueError("ZDEX fee-allocation transition rejected")
+    if (
+        recomputed.post_state != candidate.post_state
+        or recomputed.occurrence != journal
+        or recomputed.effects != candidate.effects
+    ):
+        raise ValueError("ZDEX fee-allocation journal or effects mismatch")
+
+
+def verify_zdex_fee_allocation_receipt_v1(
+    candidate: ZDEXFeeAllocationReceiptCandidateV1,
+    receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1,
+) -> VerifiedZDEXFeeAllocationV1:
+    """Authenticate one exact allocation under its release-selected image."""
+
+    if type(candidate) is not ZDEXFeeAllocationReceiptCandidateV1:
+        raise TypeError("ZDEX fee-allocation receipt candidate must be exact typed data")
+    _require_route_shapes(candidate)
+    _require_release_and_occurrence(candidate)
+    _recompute(candidate)
+    receipt = candidate.receipt
+    if receipt.receipt_kind is not ReceiptKindV1.SUCCINCT:
+        raise ValueError("ZDEX fee-allocation verification requires a succinct receipt")
+    if not receipt.receipt_bytes:
+        raise ValueError("ZDEX fee-allocation receipt bytes must be nonempty")
+    journal_bytes = canonical_global_bytes_v1(candidate.journal)
+    if len(journal_bytes) > min(
+        candidate.module_release.max_journal_bytes,
+        candidate.allocation_route_release.max_journal_bytes,
+    ):
+        raise ValueError("ZDEX fee-allocation journal exceeds release byte ceiling")
+    receipt_verifier.verify_succinct_receipt(
+        receipt.receipt_bytes,
+        expected_image_id=candidate.module_release.guest_image_id,
+        expected_journal_bytes=journal_bytes,
+    )
+    journal_digest = "0x" + hashlib.sha256(journal_bytes).hexdigest()
+    receipt_digest = "0x" + hashlib.sha256(receipt.receipt_bytes).hexdigest()
+    journal = candidate.journal
+    return VerifiedZDEXFeeAllocationV1(
+        _VERIFIED_FEE_ALLOCATION_TOKEN,
+        _VerifiedZDEXFeeAllocationFieldsV1(
+            candidate.allocation_route_release.route_release_id,
+            candidate.authorized_buyback_route_release.route_release_id,
+            candidate.module_release.release_id,
+            candidate.occurrence.occurrence_id,
+            candidate.occurrence.profile_root,
+            journal.writer_epoch,
+            journal.occurrence_root,
+            journal_digest,
+            candidate.effects.effect_plan_root,
+            candidate.module_release.guest_image_id,
+            receipt_digest,
+            receipt.receipt_kind,
+            candidate.policy.policy_root,
+            journal.fee_asset_id,
+            journal.buyback_quote_atoms,
+            journal.pre_lane_root,
+            journal.post_lane_root,
+        ),
+    )
+
+
+__all__ = [
+    "VERIFIED_ZDEX_FEE_ALLOCATION_SCHEMA_V1",
+    "VerifiedZDEXFeeAllocationV1",
+    "ZDEXFeeAllocationReceiptCandidateV1",
+    "verify_zdex_fee_allocation_receipt_v1",
+]

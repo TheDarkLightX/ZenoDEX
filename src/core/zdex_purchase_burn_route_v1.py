@@ -20,6 +20,20 @@ from .global_settlement_types_v1 import (
     canonical_global_bytes_v1,
     hash_global_v1,
 )
+from .zdex_fee_allocation_receipt_verification_v1 import (
+    VerifiedZDEXFeeAllocationV1,
+)
+from .zdex_fee_allocation_v1 import (
+    FEE_BUYBACK_PRINCIPAL_V1,
+    ZDEXFeeAllocationAcceptedV1,
+    ZDEXFeeAllocationCommandV1,
+    ZDEXFeeAllocationContextV1,
+    ZDEXFeeAllocationOccurrenceV1,
+    ZDEXFeeAllocationPolicyV1,
+    ZDEXFeeStateV1,
+    candidate_zdex_fee_allocation_policy_v1,
+    transition_zdex_fee_allocation_v1,
+)
 from .zdex_purchase_burn_receipt_verification_v1 import (
     VerifiedZDEXAMMPurchaseV1,
     VerifiedZDEXBurnV1,
@@ -35,6 +49,10 @@ from .zdex_purchase_burn_route_types_v1 import (
 class ZDEXPurchaseBurnRouteCandidateV1:
     route_release: RouteReleaseV1
     occurrence: EconomicCommandOccurrenceV1
+    buyback_budget_occurrence: ZDEXFeeAllocationOccurrenceV1
+    verified_buyback_budget: VerifiedZDEXFeeAllocationV1
+    buyback_budget_policy: ZDEXFeeAllocationPolicyV1
+    buyback_budget_pre_state: ZDEXFeeStateV1
     purchase_journal: ZDEXAMMPurchaseJournalV1
     purchase_effects: GlobalEconomicEffectPlanV1
     verified_purchase: VerifiedZDEXAMMPurchaseV1
@@ -46,6 +64,26 @@ class ZDEXPurchaseBurnRouteCandidateV1:
         expected = (
             (self.route_release, RouteReleaseV1, "route release"),
             (self.occurrence, EconomicCommandOccurrenceV1, "occurrence"),
+            (
+                self.buyback_budget_occurrence,
+                ZDEXFeeAllocationOccurrenceV1,
+                "buyback budget occurrence",
+            ),
+            (
+                self.verified_buyback_budget,
+                VerifiedZDEXFeeAllocationV1,
+                "buyback budget witness",
+            ),
+            (
+                self.buyback_budget_policy,
+                ZDEXFeeAllocationPolicyV1,
+                "buyback budget policy",
+            ),
+            (
+                self.buyback_budget_pre_state,
+                ZDEXFeeStateV1,
+                "buyback budget pre-state",
+            ),
             (self.purchase_journal, ZDEXAMMPurchaseJournalV1, "purchase journal"),
             (self.purchase_effects, GlobalEconomicEffectPlanV1, "purchase effects"),
             (self.verified_purchase, VerifiedZDEXAMMPurchaseV1, "purchase witness"),
@@ -66,6 +104,7 @@ class ZDEXPurchaseBurnRouteAcceptedV1:
     writer_epoch: int
     ordered_lane_journal_roots: tuple[str, str]
     ordered_verified_binding_roots: tuple[str, str]
+    verified_budget_binding_root: str
     effects: GlobalEconomicEffectPlanV1
     terminal_obligations_root: str = ZERO_ROOT_V1
 
@@ -81,6 +120,7 @@ class ZDEXPurchaseBurnRouteAcceptedV1:
                 "writer_epoch": self.writer_epoch,
                 "ordered_lane_journal_roots": self.ordered_lane_journal_roots,
                 "ordered_verified_binding_roots": self.ordered_verified_binding_roots,
+                "verified_budget_binding_root": self.verified_budget_binding_root,
                 "effect_plan_root": self.effects.effect_plan_root,
                 "terminal_obligations_root": self.terminal_obligations_root,
             },
@@ -217,6 +257,96 @@ def _compose_effects(
     )
 
 
+def _budget_bindings_match(
+    candidate: ZDEXPurchaseBurnRouteCandidateV1,
+    occurrence_id: str,
+) -> bool:
+    occurrence = candidate.occurrence
+    purchase = candidate.purchase_journal
+    burn = candidate.burn_journal
+    budget = candidate.buyback_budget_occurrence
+    budget_root = budget.occurrence_root
+    return not any(
+        (
+            budget.chain_id != occurrence.chain_id,
+            budget.deployment_root != occurrence.deployment_root,
+            budget.profile_root != occurrence.profile_root,
+            budget.writer_epoch != purchase.writer_epoch,
+            budget.authorized_buyback_route_release_id
+            != candidate.route_release.route_release_id,
+            budget.tokenomics_module_release_id != burn.tokenomics_module_release_id,
+            budget.command_occurrence_id == occurrence_id,
+            budget_root == occurrence_id,
+            occurrence.consumed_object_ids != (budget_root,),
+            purchase.quote_source_bucket_id != FEE_BUYBACK_PRINCIPAL_V1,
+        )
+    )
+
+
+def _budget_witness_matches(candidate: ZDEXPurchaseBurnRouteCandidateV1) -> bool:
+    route = candidate.route_release
+    occurrence = candidate.occurrence
+    purchase = candidate.purchase_journal
+    burn = candidate.burn_journal
+    budget = candidate.buyback_budget_occurrence
+    witness = candidate.verified_buyback_budget
+    journal_digest = "0x" + hashlib.sha256(
+        canonical_global_bytes_v1(budget)
+    ).hexdigest()
+    return not any(
+        (
+            witness.authorized_buyback_route_release_id != route.route_release_id,
+            witness.allocation_route_release_id
+            != budget.allocation_route_release_id,
+            witness.module_release_id != burn.tokenomics_module_release_id,
+            witness.command_occurrence_id != budget.command_occurrence_id,
+            witness.profile_root != occurrence.profile_root,
+            witness.writer_epoch != purchase.writer_epoch,
+            witness.journal_root != budget.occurrence_root,
+            witness.journal_digest != journal_digest,
+            witness.effect_plan_root != budget.effect_plan_root,
+            witness.policy_root != budget.policy_root,
+            witness.fee_asset_id != budget.fee_asset_id,
+            witness.buyback_quote_atoms != budget.buyback_quote_atoms,
+            witness.pre_lane_root != budget.pre_lane_root,
+            witness.post_lane_root != budget.post_lane_root,
+            witness.receipt_kind is not ReceiptKindV1.SUCCINCT,
+        )
+    )
+
+
+def _budget_allocation_recomputes(
+    candidate: ZDEXPurchaseBurnRouteCandidateV1,
+) -> bool:
+    budget = candidate.buyback_budget_occurrence
+    policy = candidate.buyback_budget_policy
+    if policy != candidate_zdex_fee_allocation_policy_v1():
+        return False
+    context = ZDEXFeeAllocationContextV1(
+        chain_id=budget.chain_id,
+        deployment_root=budget.deployment_root,
+        profile_root=budget.profile_root,
+        writer_epoch=budget.writer_epoch,
+        allocation_route_release_id=budget.allocation_route_release_id,
+        authorized_buyback_route_release_id=(
+            budget.authorized_buyback_route_release_id
+        ),
+        tokenomics_module_release_id=budget.tokenomics_module_release_id,
+        command_occurrence_id=budget.command_occurrence_id,
+        policy_root=budget.policy_root,
+    )
+    recomputed = transition_zdex_fee_allocation_v1(
+        context,
+        candidate.buyback_budget_pre_state,
+        policy,
+        ZDEXFeeAllocationCommandV1(budget.fee_charged_atoms),
+    )
+    return (
+        type(recomputed) is ZDEXFeeAllocationAcceptedV1
+        and recomputed.occurrence == budget
+    )
+
+
 def _binding_reject_code(
     candidate: ZDEXPurchaseBurnRouteCandidateV1,
     occurrence_id: str,
@@ -237,8 +367,18 @@ def _binding_reject_code(
         purchase.profile_root != occurrence.profile_root
         or burn.profile_root != occurrence.profile_root
         or purchase.writer_epoch != burn.writer_epoch
+        or purchase.chain_id != occurrence.chain_id
+        or burn.chain_id != occurrence.chain_id
+        or purchase.deployment_root != occurrence.deployment_root
+        or burn.deployment_root != occurrence.deployment_root
     ):
         return ZDEXPurchaseBurnRouteRejectCodeV1.PROFILE_OR_EPOCH_MISMATCH
+    if not _budget_bindings_match(candidate, occurrence_id):
+        return ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH
+    if not _budget_witness_matches(candidate):
+        return ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH
+    if not _budget_allocation_recomputes(candidate):
+        return ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH
     expected = _WitnessExpectationV1(
         route.route_release_id,
         occurrence_id,
@@ -267,6 +407,7 @@ def _economic_reject_code(
 ) -> ZDEXPurchaseBurnRouteRejectCodeV1 | None:
     purchase = candidate.purchase_journal
     burn = candidate.burn_journal
+    budget = candidate.buyback_budget_occurrence
     if purchase.zdex_asset_id != burn.zdex_asset_id:
         return ZDEXPurchaseBurnRouteRejectCodeV1.ASSET_MISMATCH
     if burn.purchase_occurrence_root != purchase.journal_root:
@@ -279,9 +420,11 @@ def _economic_reject_code(
     ):
         return ZDEXPurchaseBurnRouteRejectCodeV1.BURN_BUCKET_MISMATCH
     if (
-        purchase.buyback_budget_occurrence_root
-        != burn.buyback_budget_occurrence_root
+        purchase.buyback_budget_occurrence_root != budget.occurrence_root
+        or burn.buyback_budget_occurrence_root != budget.occurrence_root
+        or purchase.quote_asset_id != budget.fee_asset_id
         or purchase.quote_amount_in_atoms != burn.authorized_quote_input_atoms
+        or purchase.quote_amount_in_atoms != budget.buyback_quote_atoms
     ):
         return ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH
     if (
@@ -323,6 +466,7 @@ def compose_zdex_purchase_burn_route_v1(
             candidate.verified_purchase.binding_root,
             candidate.verified_burn.binding_root,
         ),
+        candidate.verified_buyback_budget.binding_root,
         effects,
     )
 
