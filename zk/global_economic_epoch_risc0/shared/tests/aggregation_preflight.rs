@@ -177,15 +177,31 @@ fn command_aggregation_bva_accepts_one_and_eight_then_rejects_zero_and_nine() {
         assert_eq!(prepared.route_claims.len(), expected_count);
     }
 
+    // Arrange: preserve all non-cardinality fields while constructing zero commands.
     let mut zero = fixture.groups[0].clone();
+    let mut zero_journal: CommandAggregationJournalV1 =
+        serde_json::from_slice(&zero.aggregation_journal_bytes).unwrap();
+    zero_journal.ordered_occurrence_ids.clear();
+    zero_journal.ordered_route_journal_roots.clear();
+    zero_journal.ordered_route_assumption_roots.clear();
+    zero_journal.post_state_root = zero_journal.pre_state_root.clone();
+    zero_journal.module_leaf_occurrences = 0;
+    zero.aggregation_journal_bytes =
+        canonical_json_bytes_v1(&zero_journal, "zero-command aggregation journal").unwrap();
     zero.route_receipts.clear();
+
+    // Act
+    let zero_result = preflight_command_aggregation_guest_input_v1(&zero);
+
+    // Assert
     assert!(matches!(
-        preflight_command_aggregation_guest_input_v1(&zero),
-        Err(EconomicEpochGuestErrorV1::InvalidBinding(
-            "command aggregation route receipt count"
+        zero_result,
+        Err(EconomicEpochGuestErrorV1::InvalidBounds(
+            "command aggregation route count"
         ))
     ));
 
+    // Arrange: a nine-command journal paired with exactly nine route receipts.
     let full = aggregation_topology(9);
     let nine_journal = CommandAggregationJournalV1 {
         schema: COMMAND_AGGREGATION_JOURNAL_SCHEMA_V1.to_owned(),
@@ -204,8 +220,23 @@ fn command_aggregation_bva_accepts_one_and_eight_then_rejects_zero_and_nine() {
         post_state_root: full.certificate.post_state_root.clone(),
         module_leaf_occurrences: 9,
     };
+    let mut nine_route_receipts = full.groups[0].route_receipts.clone();
+    nine_route_receipts.extend(full.groups[1].route_receipts.clone());
+    let nine = CommandAggregationGuestInputV1 {
+        aggregation_journal_bytes: canonical_json_bytes_v1(
+            &nine_journal,
+            "nine-command aggregation journal",
+        )
+        .unwrap(),
+        route_receipts: nine_route_receipts,
+    };
+
+    // Act
+    let nine_result = preflight_command_aggregation_guest_input_v1(&nine);
+
+    // Assert
     assert!(matches!(
-        nine_journal.validate(),
+        nine_result,
         Err(EconomicEpochGuestErrorV1::InvalidBounds(
             "command aggregation route count"
         ))
@@ -222,9 +253,19 @@ fn aggregated_epoch_bva_accepts_nine_and_sixty_four_then_rejects_eight_and_sixty
         assert_eq!(prepared.command_aggregation_claims.len(), count.div_ceil(8));
     }
 
-    let eight = aggregation_topology(8);
+    // Arrange: mark the certificate as aggregated so only the lower count fails.
+    let mut eight = aggregation_topology(8);
+    eight.certificate.aggregation_levels = 1;
+    eight.aggregated_epoch.certificate_journal_bytes =
+        canonical_json_bytes_v1(&eight.certificate, "eight-command aggregated certificate")
+            .unwrap();
+
+    // Act
+    let eight_result = preflight_aggregated_economic_epoch_guest_input_v1(&eight.aggregated_epoch);
+
+    // Assert
     assert!(matches!(
-        preflight_aggregated_economic_epoch_guest_input_v1(&eight.aggregated_epoch),
+        eight_result,
         Err(EconomicEpochGuestErrorV1::InvalidBounds(
             "aggregated epoch shape"
         ))

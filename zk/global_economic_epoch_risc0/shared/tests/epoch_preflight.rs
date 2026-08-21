@@ -142,7 +142,7 @@ fn golden_path() -> PathBuf {
 }
 
 #[test]
-fn direct_epoch_bva_accepts_one_and_eight_then_rejects_zero_nine_and_sixty_four() {
+fn direct_epoch_bva_accepts_one_and_eight_then_rejects_isolated_zero_nine_and_sixty_four() {
     for count in [1, 8] {
         // Arrange
         let input = input_fixture(count);
@@ -158,17 +158,46 @@ fn direct_epoch_bva_accepts_one_and_eight_then_rejects_zero_nine_and_sixty_four(
         );
     }
 
+    // Arrange: a structurally coherent empty certificate and no route receipts.
     let mut zero = input_fixture(1);
+    let mut zero_certificate: GlobalEconomicEpochJournalV1 =
+        serde_json::from_slice(&zero.certificate_journal_bytes).unwrap();
+    zero_certificate.ordered_occurrence_ids.clear();
+    zero_certificate.ordered_route_journal_roots.clear();
+    zero_certificate.ordered_route_assumption_roots.clear();
+    zero_certificate.module_leaf_occurrences = 0;
+    zero_certificate.post_state_root = zero_certificate.pre_state_root.clone();
+    zero_certificate.aggregation_levels = 0;
+    zero.certificate_journal_bytes =
+        canonical_json_bytes_v1(&zero_certificate, "zero-command certificate").unwrap();
     zero.route_receipts.clear();
+
+    // Act
+    let zero_result = preflight_economic_epoch_guest_input_v1(&zero);
+
+    // Assert: command count is the first and exact failed obligation.
     assert!(matches!(
-        preflight_economic_epoch_guest_input_v1(&zero),
-        Err(EconomicEpochGuestErrorV1::InvalidBinding(
-            "epoch route receipt count"
+        zero_result,
+        Err(EconomicEpochGuestErrorV1::InvalidBounds(
+            "epoch command count"
         ))
     ));
+
     for count in [9, 64] {
+        // Arrange: preserve direct-mode metadata so only the upper count fails.
+        let mut input = input_fixture(count);
+        let mut certificate: GlobalEconomicEpochJournalV1 =
+            serde_json::from_slice(&input.certificate_journal_bytes).unwrap();
+        certificate.aggregation_levels = 0;
+        input.certificate_journal_bytes =
+            canonical_json_bytes_v1(&certificate, "direct upper-bound certificate").unwrap();
+
+        // Act
+        let result = preflight_economic_epoch_guest_input_v1(&input);
+
+        // Assert
         assert!(matches!(
-            preflight_economic_epoch_guest_input_v1(&input_fixture(count)),
+            result,
             Err(EconomicEpochGuestErrorV1::InvalidBounds(
                 "direct epoch aggregation shape"
             ))
