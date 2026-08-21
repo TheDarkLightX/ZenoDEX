@@ -1,14 +1,24 @@
+use serde_json::json;
 use zenodex_global_settlement_abi_v1::{
-    build_zdex_tokenomics_burn_private_port_v1, compose_zdex_tokenomics_burn_lane_v1,
-    refine_zdex_burn_leaf_v1, transition_zdex_purchase_and_burn_v1,
-    zdex_tokenomics_complete_lane_obligation_root_v1, LaneIdV1, LaneModuleTransitionJournalV1,
-    RootV1, ZDEXAMMPurchaseJournalV1, ZDEXAmountBucketV1, ZDEXBurnRouteContextV1,
-    ZDEXFeeDestinationAmountV1, ZDEXFeeDestinationV1, ZDEXFeeStateV1, ZDEXHyperdeflationPolicyV1,
-    ZDEXPurchaseAndBurnCommandV1, ZDEXPurchaseAndBurnResultV1, ZDEXSupplyStateV1,
-    ZDEXTokenomicsBurnCoordinatorContextV1, ZDEXTokenomicsBurnLaneCandidateV1,
+    bind_zdex_tokenomics_shadow_profile_v1, build_zdex_tokenomics_burn_module_journal_v1,
+    build_zdex_tokenomics_burn_private_port_v1, canonical_bytes_v1,
+    compose_zdex_tokenomics_burn_lane_v1, hash_global_v1, refine_zdex_burn_leaf_v1,
+    transition_zdex_purchase_and_burn_v1, verify_zdex_burn_receipt_v1,
+    verify_zdex_tokenomics_lane_receipt_v1, zdex_amm_purchase_port_schema_root_v1,
+    zdex_burn_port_schema_root_v1, AbiErrorV1, AbiResultV1, EconomicCommandOccurrenceV1,
+    EconomicProfileSnapshotV1, EvidenceStatusV1, LaneCoordinatorRegistryV1,
+    LaneCoordinatorReleaseV1, LaneIdV1, LaneModuleReleaseV1, LaneModuleTransitionJournalV1,
+    LaneRegistryV1, ProfileStatusV1, ReceiptKindV1, ReleaseStatusV1, RootV1, RouteRegistryV1,
+    RouteReleaseV1, VerifiedZDEXBurnV1, ZDEXAMMPurchaseJournalV1, ZDEXAmountBucketV1,
+    ZDEXBurnReceiptCandidateV1, ZDEXBurnRouteContextV1, ZDEXFeeDestinationAmountV1,
+    ZDEXFeeDestinationV1, ZDEXFeeStateV1, ZDEXHyperdeflationPolicyV1, ZDEXLaneReceiptEnvelopeV1,
+    ZDEXLaneSuccinctReceiptVerifierV1, ZDEXPurchaseAndBurnCommandV1, ZDEXPurchaseAndBurnResultV1,
+    ZDEXSupplyStateV1, ZDEXTokenomicsBurnCoordinatorContextV1, ZDEXTokenomicsBurnLaneCandidateV1,
     ZDEXTokenomicsLaneCompositionResultV1, ZDEXTokenomicsLaneCoordinatorRejectCodeV1,
-    ZDEXTokenomicsLaneStateV1, GLOBAL_SETTLEMENT_ABI_V1, MAX_ZDEX_TOKENOMICS_FEE_ASSETS_V1,
-    ZERO_ROOT_V1,
+    ZDEXTokenomicsLaneReceiptCandidateV1, ZDEXTokenomicsLaneStateV1,
+    ZDEXTokenomicsProfileRegistriesV1, ALL_LANE_IDS_V1, AMM_PURCHASE_OUTPUT_ROLE_V1,
+    GLOBAL_SETTLEMENT_ABI_V1, MAX_ZDEX_TOKENOMICS_FEE_ASSETS_V1,
+    PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1, ZDEX_BURN_INPUT_ROLE_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -22,6 +32,245 @@ fn root(value: u64) -> RootV1 {
 
 fn root_hex(value: &str) -> RootV1 {
     RootV1::parse(value, "ZDEX tokenomics coordinator golden root", false).unwrap()
+}
+
+fn shadow_lane_release(lane_id: LaneIdV1, ordinal: u64) -> LaneModuleReleaseV1 {
+    let offset = ordinal * 16;
+    let state_schema_root = root(100 + offset);
+    let command_variants = vec![PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1.to_owned()];
+    let terminal_command_variants: Vec<String> = vec![];
+    let guest_image_id = root(101 + offset);
+    let specification_root = root(102 + offset);
+    let source_root = root(103 + offset);
+    let toolchain_root = root(104 + offset);
+    let terminal_coverage_root = root(105 + offset);
+    let migration_compatibility_root = root(106 + offset);
+    let content = json!({
+        "schema": GLOBAL_SETTLEMENT_ABI_V1,
+        "lane_id": lane_id,
+        "state_schema_root": state_schema_root,
+        "command_variants": command_variants,
+        "terminal_command_variants": terminal_command_variants,
+        "guest_image_id": guest_image_id,
+        "specification_root": specification_root,
+        "source_root": source_root,
+        "toolchain_root": toolchain_root,
+        "terminal_coverage_root": terminal_coverage_root,
+        "migration_compatibility_root": migration_compatibility_root,
+        "max_cycles": 1_000_000,
+        "max_journal_bytes": 65_536,
+    });
+    LaneModuleReleaseV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        lane_id,
+        release_id: hash_global_v1("global-lane-module-release-content-v1", &content).unwrap(),
+        semantic_version: "1.0.0-shadow-test".to_owned(),
+        state_schema_root,
+        command_variants,
+        terminal_command_variants,
+        guest_image_id,
+        specification_root,
+        source_root,
+        toolchain_root,
+        terminal_coverage_root,
+        migration_compatibility_root,
+        max_cycles: 1_000_000,
+        max_journal_bytes: 65_536,
+        status: ReleaseStatusV1::SHADOW,
+        accepts_new_objects: false,
+        evidence_statuses: Vec::<EvidenceStatusV1>::new(),
+    }
+}
+
+fn shadow_coordinator_release(lane_id: LaneIdV1, ordinal: u64) -> LaneCoordinatorReleaseV1 {
+    let offset = ordinal * 16;
+    let coordinator_schema_root = root(700 + offset);
+    let guest_image_id = root(701 + offset);
+    let specification_root = root(702 + offset);
+    let source_root = root(703 + offset);
+    let toolchain_root = root(704 + offset);
+    let content = json!({
+        "schema": GLOBAL_SETTLEMENT_ABI_V1,
+        "lane_id": lane_id,
+        "coordinator_schema_root": coordinator_schema_root,
+        "guest_image_id": guest_image_id,
+        "specification_root": specification_root,
+        "source_root": source_root,
+        "toolchain_root": toolchain_root,
+        "max_cycles": 1_000_000,
+        "max_journal_bytes": 65_536,
+    });
+    LaneCoordinatorReleaseV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        lane_id,
+        coordinator_release_id: hash_global_v1(
+            "global-lane-coordinator-release-content-v1",
+            &content,
+        )
+        .unwrap(),
+        semantic_version: "1.0.0-shadow-test".to_owned(),
+        coordinator_schema_root,
+        guest_image_id,
+        specification_root,
+        source_root,
+        toolchain_root,
+        max_cycles: 1_000_000,
+        max_journal_bytes: 65_536,
+        status: ReleaseStatusV1::SHADOW,
+        accepts_new_objects: false,
+        evidence_statuses: vec![],
+    }
+}
+
+fn shadow_buyback_route(
+    spot: &LaneModuleReleaseV1,
+    tokenomics: &LaneModuleReleaseV1,
+    issue_burn_policy_root: &RootV1,
+) -> RouteReleaseV1 {
+    let ordered_lanes = vec![LaneIdV1::SPOT_LIQUIDITY, LaneIdV1::ZDEX_TOKENOMICS];
+    let module_release_ids = vec![spot.release_id.clone(), tokenomics.release_id.clone()];
+    let dependency_roles = vec![
+        AMM_PURCHASE_OUTPUT_ROLE_V1.to_owned(),
+        ZDEX_BURN_INPUT_ROLE_V1.to_owned(),
+    ];
+    let port_schema_roots = vec![
+        zdex_amm_purchase_port_schema_root_v1().unwrap(),
+        zdex_burn_port_schema_root_v1().unwrap(),
+    ];
+    let guest_image_id = root(500);
+    let specification_root = root(501);
+    let source_root = root(502);
+    let toolchain_root = root(503);
+    let oracle_policy_root = root(504);
+    let content = json!({
+        "schema": GLOBAL_SETTLEMENT_ABI_V1,
+        "command_kind": PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+        "ordered_lanes": ordered_lanes,
+        "module_release_ids": module_release_ids,
+        "dependency_roles": dependency_roles,
+        "port_schema_roots": port_schema_roots,
+        "guest_image_id": guest_image_id,
+        "specification_root": specification_root,
+        "source_root": source_root,
+        "toolchain_root": toolchain_root,
+        "oracle_policy_root": oracle_policy_root,
+        "issue_burn_policy_root": issue_burn_policy_root,
+        "max_cycles": 2_000_000,
+        "max_journal_bytes": 65_536,
+    });
+    RouteReleaseV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        route_release_id: hash_global_v1("global-route-release-content-v1", &content).unwrap(),
+        semantic_version: "1.0.0-shadow-test".to_owned(),
+        command_kind: PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1.to_owned(),
+        ordered_lanes,
+        module_release_ids,
+        dependency_roles,
+        port_schema_roots,
+        guest_image_id,
+        specification_root,
+        source_root,
+        toolchain_root,
+        oracle_policy_root,
+        issue_burn_policy_root: issue_burn_policy_root.clone(),
+        max_cycles: 2_000_000,
+        max_journal_bytes: 65_536,
+        status: ReleaseStatusV1::SHADOW,
+        accepts_new_objects: false,
+        evidence_statuses: vec![],
+    }
+}
+
+struct ShadowProfile {
+    profile: EconomicProfileSnapshotV1,
+    lanes: LaneRegistryV1,
+    coordinators: LaneCoordinatorRegistryV1,
+    routes: RouteRegistryV1,
+    route: RouteReleaseV1,
+    tokenomics_release: LaneModuleReleaseV1,
+}
+
+fn shadow_profile(issue_burn_policy_root: &RootV1) -> ShadowProfile {
+    let releases: Vec<_> = ALL_LANE_IDS_V1
+        .iter()
+        .enumerate()
+        .map(|(index, lane_id)| shadow_lane_release(*lane_id, index as u64 + 1))
+        .collect();
+    let tokenomics_release = releases
+        .iter()
+        .find(|release| release.lane_id == LaneIdV1::ZDEX_TOKENOMICS)
+        .unwrap()
+        .clone();
+    let spot_release = releases
+        .iter()
+        .find(|release| release.lane_id == LaneIdV1::SPOT_LIQUIDITY)
+        .unwrap()
+        .clone();
+    let lanes = LaneRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        releases,
+    };
+    let coordinators = LaneCoordinatorRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        releases: ALL_LANE_IDS_V1
+            .iter()
+            .enumerate()
+            .map(|(index, lane_id)| shadow_coordinator_release(*lane_id, index as u64 + 1))
+            .collect(),
+    };
+    let route = shadow_buyback_route(&spot_release, &tokenomics_release, issue_burn_policy_root);
+    let routes = RouteRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        routes: vec![route.clone()],
+    };
+    let lane_registry_root = lanes.registry_root().unwrap();
+    let lane_coordinator_registry_root = coordinators.registry_root().unwrap();
+    let route_registry_root = routes.registry_root().unwrap();
+    let proof_shape_root = root(810);
+    let root_image_id = root(811);
+    let verifier_registry_root = root(812);
+    let migration_registry_root = root(813);
+    let policy_registry_root = root(814);
+    let terminal_registry_root = root(815);
+    let content = json!({
+        "schema": GLOBAL_SETTLEMENT_ABI_V1,
+        "authority_epoch": 7,
+        "lane_registry_root": lane_registry_root,
+        "lane_coordinator_registry_root": lane_coordinator_registry_root,
+        "route_registry_root": route_registry_root,
+        "proof_shape_root": proof_shape_root,
+        "root_image_id": root_image_id,
+        "verifier_registry_root": verifier_registry_root,
+        "migration_registry_root": migration_registry_root,
+        "policy_registry_root": policy_registry_root,
+        "terminal_registry_root": terminal_registry_root,
+    });
+    let profile = EconomicProfileSnapshotV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        profile_id: hash_global_v1("global-economic-profile-content-v1", &content).unwrap(),
+        authority_epoch: 7,
+        lane_registry_root,
+        lane_coordinator_registry_root,
+        route_registry_root,
+        proof_shape_root,
+        root_image_id,
+        verifier_registry_root,
+        migration_registry_root,
+        policy_registry_root,
+        terminal_registry_root,
+        status: ProfileStatusV1::SHADOW,
+    };
+    profile
+        .validate_registries(&lanes, &coordinators, &routes)
+        .unwrap();
+    ShadowProfile {
+        profile,
+        lanes,
+        coordinators,
+        routes,
+        route,
+        tokenomics_release,
+    }
 }
 
 fn burn_projection() -> zenodex_global_settlement_abi_v1::ZDEXBurnLeafProjectionV1 {
@@ -170,22 +419,7 @@ fn candidate() -> Candidate {
     let journal = projection.journal();
     let effects = projection.effects();
     let port = build_zdex_tokenomics_burn_private_port_v1(journal, effects).unwrap();
-    let module = LaneModuleTransitionJournalV1 {
-        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
-        chain_id: journal.chain_id.clone(),
-        deployment_root: journal.deployment_root.clone(),
-        profile_root: journal.profile_root.clone(),
-        writer_epoch: journal.writer_epoch,
-        lane_id: LaneIdV1::ZDEX_TOKENOMICS,
-        module_release_id: journal.tokenomics_module_release_id.clone(),
-        command_occurrence_id: journal.command_occurrence_id.clone(),
-        pre_lane_root: RootV1::parse(ZERO_ROOT_V1, "empty pre-lane root", true).unwrap(),
-        post_lane_root: RootV1::parse(ZERO_ROOT_V1, "empty post-lane root", true).unwrap(),
-        effect_plan_root: effects.effect_plan_root().unwrap(),
-        private_port_root: port.port_root().unwrap(),
-        receipt_root: root(41),
-        terminal_obligations_root: zdex_tokenomics_complete_lane_obligation_root_v1().unwrap(),
-    };
+    let module = build_zdex_tokenomics_burn_module_journal_v1(journal, effects, &port).unwrap();
     let context = ZDEXTokenomicsBurnCoordinatorContextV1 {
         schema: "zenodex/zdex-tokenomics-burn-coordinator/v1".to_owned(),
         chain_id: journal.chain_id.clone(),
@@ -217,6 +451,166 @@ fn lane_candidate(candidate: &Candidate) -> ZDEXTokenomicsBurnLaneCandidateV1<'_
         post_state: &candidate.post_lane,
         burn_journal: candidate.projection.journal(),
         module_effects: candidate.projection.effects(),
+    }
+}
+
+struct AcceptingVerifier;
+
+impl ZDEXLaneSuccinctReceiptVerifierV1 for AcceptingVerifier {
+    fn verify_succinct_receipt(
+        &self,
+        _receipt_bytes: &[u8],
+        _expected_image_id: &RootV1,
+        _expected_journal_bytes: &[u8],
+    ) -> AbiResultV1<()> {
+        Ok(())
+    }
+}
+
+struct PanickingVerifier;
+
+impl ZDEXLaneSuccinctReceiptVerifierV1 for PanickingVerifier {
+    fn verify_succinct_receipt(
+        &self,
+        _receipt_bytes: &[u8],
+        _expected_image_id: &RootV1,
+        _expected_journal_bytes: &[u8],
+    ) -> AbiResultV1<()> {
+        panic!("invalid coordinator input reached receipt verification")
+    }
+}
+
+struct RejectingVerifier;
+
+impl ZDEXLaneSuccinctReceiptVerifierV1 for RejectingVerifier {
+    fn verify_succinct_receipt(
+        &self,
+        _receipt_bytes: &[u8],
+        _expected_image_id: &RootV1,
+        _expected_journal_bytes: &[u8],
+    ) -> AbiResultV1<()> {
+        Err(AbiErrorV1::InvalidBinding(
+            "test coordinator receipt rejection",
+        ))
+    }
+}
+
+struct ReceiptFixture {
+    profile: ShadowProfile,
+    occurrence: EconomicCommandOccurrenceV1,
+    context: ZDEXTokenomicsBurnCoordinatorContextV1,
+    module: LaneModuleTransitionJournalV1,
+    port: zenodex_global_settlement_abi_v1::ZDEXTokenomicsBurnPrivatePortV1,
+    pre_lane: ZDEXTokenomicsLaneStateV1,
+    post_lane: ZDEXTokenomicsLaneStateV1,
+    burn: zenodex_global_settlement_abi_v1::ZDEXBurnJournalV1,
+    effects: zenodex_global_settlement_abi_v1::GlobalEconomicEffectPlanV1,
+    verified_burn: VerifiedZDEXBurnV1,
+    receipt: ZDEXLaneReceiptEnvelopeV1,
+}
+
+impl ReceiptFixture {
+    fn lane_candidate(&self) -> ZDEXTokenomicsBurnLaneCandidateV1<'_> {
+        ZDEXTokenomicsBurnLaneCandidateV1 {
+            context: &self.context,
+            module_journal: &self.module,
+            private_port: &self.port,
+            pre_state: &self.pre_lane,
+            post_state: &self.post_lane,
+            burn_journal: &self.burn,
+            module_effects: &self.effects,
+        }
+    }
+
+    fn receipt_candidate(&self) -> ZDEXTokenomicsLaneReceiptCandidateV1<'_> {
+        ZDEXTokenomicsLaneReceiptCandidateV1 {
+            occurrence: &self.occurrence,
+            lane_candidate: self.lane_candidate(),
+            verified_burn: &self.verified_burn,
+            receipt: &self.receipt,
+        }
+    }
+}
+
+fn receipt_fixture() -> ReceiptFixture {
+    let base = candidate();
+    let profile = shadow_profile(&base.pre_lane.supply_state.policy_root);
+    let occurrence = EconomicCommandOccurrenceV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        chain_id: base.context.chain_id.clone(),
+        deployment_root: base.context.deployment_root.clone(),
+        height: 7,
+        tx_index: 2,
+        op_index: 1,
+        command_kind: PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1.to_owned(),
+        route_release_id: profile.route.route_release_id.clone(),
+        subject_id: "protocol-buyback-controller".to_owned(),
+        grant_root: root(820),
+        nonce: 9,
+        profile_root: profile.profile.profile_id.clone(),
+        pre_state_root: base.pre_lane.state_root().unwrap(),
+        consumed_object_ids: vec![],
+    };
+    let occurrence_id = occurrence.occurrence_id().unwrap();
+    let mut burn = base.projection.journal().clone();
+    burn.profile_root = profile.profile.profile_id.clone();
+    burn.route_release_id = profile.route.route_release_id.clone();
+    burn.command_occurrence_id = occurrence_id;
+    burn.tokenomics_module_release_id = profile.tokenomics_release.release_id.clone();
+    burn.effect_plan_root = root(821);
+    let mut effects = base.projection.effects().clone();
+    effects.occurrence_consumptions = vec![burn.command_occurrence_id.clone()];
+    burn.effect_plan_root = effects.effect_plan_root().unwrap();
+    let port = build_zdex_tokenomics_burn_private_port_v1(&burn, &effects).unwrap();
+    let module = build_zdex_tokenomics_burn_module_journal_v1(&burn, &effects, &port).unwrap();
+    let coordinator = profile
+        .coordinators
+        .release_for(LaneIdV1::ZDEX_TOKENOMICS)
+        .unwrap();
+    let context = ZDEXTokenomicsBurnCoordinatorContextV1 {
+        schema: "zenodex/zdex-tokenomics-burn-coordinator/v1".to_owned(),
+        chain_id: occurrence.chain_id.clone(),
+        deployment_root: occurrence.deployment_root.clone(),
+        profile_root: profile.profile.profile_id.clone(),
+        writer_epoch: profile.profile.authority_epoch,
+        coordinator_release_id: coordinator.coordinator_release_id.clone(),
+        route_release_id: profile.route.route_release_id.clone(),
+        tokenomics_module_release_id: profile.tokenomics_release.release_id.clone(),
+        command_occurrence_id: occurrence.occurrence_id().unwrap(),
+        issue_burn_policy_root: profile.route.issue_burn_policy_root.clone(),
+    };
+    let burn_receipt = ZDEXLaneReceiptEnvelopeV1 {
+        receipt_kind: ReceiptKindV1::SUCCINCT,
+        receipt_bytes: b"tokenomics-burn-leaf-receipt".to_vec(),
+    };
+    let verified_burn = verify_zdex_burn_receipt_v1(
+        ZDEXBurnReceiptCandidateV1 {
+            route_release: &profile.route,
+            module_release: &profile.tokenomics_release,
+            occurrence: &occurrence,
+            journal: &burn,
+            effects: &effects,
+            receipt: &burn_receipt,
+        },
+        &AcceptingVerifier,
+    )
+    .unwrap();
+    occurrence.validate().unwrap();
+    ReceiptFixture {
+        profile,
+        occurrence,
+        context,
+        module,
+        port,
+        pre_lane: base.pre_lane,
+        post_lane: base.post_lane,
+        burn,
+        effects,
+        verified_burn,
+        receipt: ZDEXLaneReceiptEnvelopeV1 {
+            receipt_kind: ReceiptKindV1::SUCCINCT,
+            receipt_bytes: b"tokenomics-coordinator-receipt".to_vec(),
+        },
     }
 }
 
@@ -273,7 +667,7 @@ fn burn_substate_is_embedded_in_one_complete_tokenomics_lane_write() {
     );
     assert_eq!(
         candidate.module.journal_root().unwrap(),
-        root_hex("0xbcf63554276350f9f76d4150fd033fd897fd57938238f669c3e29fad52122ee6")
+        root_hex("0x0b5ab6278d91be413bb56072a4210bd1a4b621d0379a85fe6e309cdd727471ca")
     );
     assert_eq!(
         accepted.effects.effect_plan_root().unwrap(),
@@ -281,7 +675,7 @@ fn burn_substate_is_embedded_in_one_complete_tokenomics_lane_write() {
     );
     assert_eq!(
         accepted.lane_journal.journal_root().unwrap(),
-        root_hex("0x19a31e3c73851451198350d031df6737ac4008b2ca30b47a50f3c1378cff31b7")
+        root_hex("0x0f608f755e7fa941a454a49e4e92c86e1e5ca88589be2591a769d238b60ad6f3")
     );
 }
 
@@ -465,6 +859,19 @@ fn route_release_substitution_has_a_closed_no_effect_rejection() {
 }
 
 #[test]
+fn module_receipt_commitment_substitution_rejects_without_effects() {
+    // Arrange
+    let mut candidate = candidate();
+    candidate.module.receipt_root = root(99);
+
+    // Act / Assert
+    assert_typed_no_effect_rejection(
+        lane_candidate(&candidate),
+        ZDEXTokenomicsLaneCoordinatorRejectCodeV1::MODULE_RECEIPT_MISMATCH,
+    );
+}
+
+#[test]
 fn each_coordinator_binding_substitution_is_a_typed_no_effect_rejection() {
     // Arrange
     let candidate = candidate();
@@ -592,9 +999,9 @@ fn self_consistent_leaf_totals_cannot_override_complete_lane_supply() {
     forged_burn.effect_plan_root = forged_effects.effect_plan_root().unwrap();
     let forged_port =
         build_zdex_tokenomics_burn_private_port_v1(&forged_burn, &forged_effects).unwrap();
-    let mut forged_module = candidate.module.clone();
-    forged_module.effect_plan_root = forged_effects.effect_plan_root().unwrap();
-    forged_module.private_port_root = forged_port.port_root().unwrap();
+    let forged_module =
+        build_zdex_tokenomics_burn_module_journal_v1(&forged_burn, &forged_effects, &forged_port)
+            .unwrap();
 
     // Act / Assert
     assert_typed_no_effect_rejection(
@@ -606,5 +1013,178 @@ fn self_consistent_leaf_totals_cannot_override_complete_lane_supply() {
             ..lane_candidate(&candidate)
         },
         ZDEXTokenomicsLaneCoordinatorRejectCodeV1::STATE_EFFECT_MISMATCH,
+    );
+}
+
+#[test]
+fn release_selected_coordinator_receipt_mints_exact_shadow_witness() {
+    // Arrange
+    let fixture = receipt_fixture();
+    let governed = bind_zdex_tokenomics_shadow_profile_v1(
+        &fixture.profile.profile.profile_id,
+        fixture.profile.profile.authority_epoch,
+        ZDEXTokenomicsProfileRegistriesV1 {
+            profile: &fixture.profile.profile,
+            lanes: &fixture.profile.lanes,
+            coordinators: &fixture.profile.coordinators,
+            routes: &fixture.profile.routes,
+        },
+    )
+    .unwrap();
+    let recomputed = compose_zdex_tokenomics_burn_lane_v1(fixture.lane_candidate()).unwrap();
+    let ZDEXTokenomicsLaneCompositionResultV1::Accepted(accepted) = recomputed else {
+        panic!("receipt fixture lane composition must accept")
+    };
+
+    // Act
+    let verified = verify_zdex_tokenomics_lane_receipt_v1(
+        fixture.receipt_candidate(),
+        &governed,
+        &AcceptingVerifier,
+    )
+    .unwrap();
+
+    // Assert
+    assert_eq!(verified.profile_root(), &fixture.profile.profile.profile_id);
+    assert_eq!(
+        verified.route_release_id(),
+        &fixture.profile.route.route_release_id
+    );
+    assert_eq!(
+        verified.module_release_id(),
+        &fixture.profile.tokenomics_release.release_id
+    );
+    assert_eq!(
+        verified.module_image_id(),
+        &fixture.profile.tokenomics_release.guest_image_id
+    );
+    assert_eq!(
+        verified.lane_journal_root(),
+        &accepted.lane_journal.journal_root().unwrap()
+    );
+    assert_eq!(
+        verified.pre_lane_root(),
+        &fixture.pre_lane.state_root().unwrap()
+    );
+    assert_eq!(
+        verified.post_lane_root(),
+        &fixture.post_lane.state_root().unwrap()
+    );
+    assert_eq!(verified.receipt_kind(), ReceiptKindV1::SUCCINCT);
+    assert_eq!(
+        verified.lane_journal_digest(),
+        &RootV1::parse(
+            format!(
+                "0x{}",
+                zenodex_global_settlement_abi_v1::hash_bytes_sha256_v1(
+                    &canonical_bytes_v1(&accepted.lane_journal).unwrap()
+                )
+            ),
+            "expected lane journal digest",
+            false,
+        )
+        .unwrap()
+    );
+    assert_eq!(
+        verified.binding_root().unwrap(),
+        root_hex("0x47aedf19e2d6cd17eef038cc5461fb06dc45d277892507539860023caa7774be")
+    );
+}
+
+#[test]
+fn coordinator_binding_substitution_rejects_before_receipt_verifier() {
+    // Arrange
+    let mut fixture = receipt_fixture();
+    fixture.context.coordinator_release_id = root(999);
+    let governed = bind_zdex_tokenomics_shadow_profile_v1(
+        &fixture.profile.profile.profile_id,
+        fixture.profile.profile.authority_epoch,
+        ZDEXTokenomicsProfileRegistriesV1 {
+            profile: &fixture.profile.profile,
+            lanes: &fixture.profile.lanes,
+            coordinators: &fixture.profile.coordinators,
+            routes: &fixture.profile.routes,
+        },
+    )
+    .unwrap();
+
+    // Act
+    let result = verify_zdex_tokenomics_lane_receipt_v1(
+        fixture.receipt_candidate(),
+        &governed,
+        &PanickingVerifier,
+    );
+
+    // Assert
+    assert_eq!(
+        result,
+        Err(AbiErrorV1::InvalidBinding(
+            "ZDEX tokenomics governed candidate"
+        ))
+    );
+}
+
+#[test]
+fn conditional_coordinator_receipt_rejects_without_verifier_call() {
+    // Arrange
+    let mut fixture = receipt_fixture();
+    fixture.receipt.receipt_kind = ReceiptKindV1::CONDITIONAL;
+    let governed = bind_zdex_tokenomics_shadow_profile_v1(
+        &fixture.profile.profile.profile_id,
+        fixture.profile.profile.authority_epoch,
+        ZDEXTokenomicsProfileRegistriesV1 {
+            profile: &fixture.profile.profile,
+            lanes: &fixture.profile.lanes,
+            coordinators: &fixture.profile.coordinators,
+            routes: &fixture.profile.routes,
+        },
+    )
+    .unwrap();
+
+    // Act
+    let result = verify_zdex_tokenomics_lane_receipt_v1(
+        fixture.receipt_candidate(),
+        &governed,
+        &PanickingVerifier,
+    );
+
+    // Assert
+    assert_eq!(
+        result,
+        Err(AbiErrorV1::InvalidBinding(
+            "ZDEX tokenomics succinct receipt"
+        ))
+    );
+}
+
+#[test]
+fn coordinator_receipt_verifier_rejection_produces_no_witness() {
+    // Arrange
+    let fixture = receipt_fixture();
+    let governed = bind_zdex_tokenomics_shadow_profile_v1(
+        &fixture.profile.profile.profile_id,
+        fixture.profile.profile.authority_epoch,
+        ZDEXTokenomicsProfileRegistriesV1 {
+            profile: &fixture.profile.profile,
+            lanes: &fixture.profile.lanes,
+            coordinators: &fixture.profile.coordinators,
+            routes: &fixture.profile.routes,
+        },
+    )
+    .unwrap();
+
+    // Act
+    let result = verify_zdex_tokenomics_lane_receipt_v1(
+        fixture.receipt_candidate(),
+        &governed,
+        &RejectingVerifier,
+    );
+
+    // Assert
+    assert_eq!(
+        result,
+        Err(AbiErrorV1::InvalidBinding(
+            "test coordinator receipt rejection"
+        ))
     );
 }

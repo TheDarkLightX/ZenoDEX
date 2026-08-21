@@ -4,10 +4,24 @@ from dataclasses import replace
 
 import pytest
 
-from src.core.global_economic_proof_v1 import LaneModuleTransitionJournalV1
+from src.core.global_economic_proof_v1 import (
+    EconomicCommandOccurrenceV1,
+    ReceiptKindV1,
+)
 from src.core.global_settlement_types_v1 import (
+    ALL_LANE_IDS_V1,
     ZERO_ROOT_V1,
+    EconomicProfileSnapshotV1,
+    LaneCoordinatorRegistryV1,
+    LaneCoordinatorReleaseV1,
     LaneIdV1,
+    LaneModuleReleaseV1,
+    LaneRegistryV1,
+    ProfileStatusV1,
+    ReleaseStatusV1,
+    RouteRegistryV1,
+    RouteReleaseV1,
+    canonical_global_bytes_v1,
 )
 from src.core.zdex_fee_allocation_types_v1 import (
     ZDEX_FEE_DESTINATIONS_V1,
@@ -31,10 +45,29 @@ from src.core.zdex_purchase_burn_effects_v1 import (
     burn_effects_v1,
     purchase_effects_v1,
 )
-from src.core.zdex_purchase_burn_route_types_v1 import ZDEXAMMPurchaseJournalV1
+from src.core.zdex_purchase_burn_receipt_verification_v1 import (
+    ZDEXBurnReceiptCandidateV1,
+    ZDEXLaneReceiptEnvelopeV1,
+    verify_zdex_burn_receipt_v1,
+)
+from src.core.zdex_purchase_burn_route_types_v1 import (
+    AMM_PURCHASE_OUTPUT_ROLE_V1,
+    PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+    ZDEX_BURN_INPUT_ROLE_V1,
+    ZDEXAMMPurchaseJournalV1,
+    zdex_amm_purchase_port_schema_root_v1,
+    zdex_burn_port_schema_root_v1,
+)
 from src.core.zdex_tokenomics_lane_coordinator_v1 import (
     ZDEXTokenomicsBurnLaneCandidateV1,
     compose_zdex_tokenomics_burn_lane_v1,
+)
+from src.core.zdex_tokenomics_lane_receipt_verification_v1 import (
+    GovernedZDEXTokenomicsProfileV1,
+    VerifiedZDEXTokenomicsLaneV1,
+    ZDEXTokenomicsLaneReceiptCandidateV1,
+    bind_zdex_tokenomics_shadow_profile_v1,
+    verify_zdex_tokenomics_lane_receipt_v1,
 )
 from src.core.zdex_tokenomics_lane_v1 import (
     MAX_ZDEX_TOKENOMICS_FEE_ASSETS_V1,
@@ -43,8 +76,8 @@ from src.core.zdex_tokenomics_lane_v1 import (
     ZDEXTokenomicsLaneCompositionRejectedV1,
     ZDEXTokenomicsLaneCoordinatorRejectCodeV1,
     ZDEXTokenomicsLaneStateV1,
+    build_zdex_tokenomics_burn_module_journal_v1,
     build_zdex_tokenomics_burn_private_port_v1,
-    zdex_tokenomics_complete_lane_obligation_root_v1,
 )
 
 
@@ -174,22 +207,11 @@ def _candidate() -> tuple[
     projection = _burn_projection()
     journal = projection.journal
     effects = projection.effects
-    obligation = zdex_tokenomics_complete_lane_obligation_root_v1()
     private_port = build_zdex_tokenomics_burn_private_port_v1(journal, effects)
-    module_journal = LaneModuleTransitionJournalV1(
-        chain_id=journal.chain_id,
-        deployment_root=journal.deployment_root,
-        profile_root=journal.profile_root,
-        writer_epoch=journal.writer_epoch,
-        lane_id=LaneIdV1.ZDEX_TOKENOMICS,
-        module_release_id=journal.tokenomics_module_release_id,
-        command_occurrence_id=journal.command_occurrence_id,
-        pre_lane_root=ZERO_ROOT_V1,
-        post_lane_root=ZERO_ROOT_V1,
-        effect_plan_root=effects.effect_plan_root,
-        private_port_root=private_port.port_root,
-        receipt_root=_root(41),
-        terminal_obligations_root=obligation,
+    module_journal = build_zdex_tokenomics_burn_module_journal_v1(
+        journal,
+        effects,
+        private_port,
     )
     context = ZDEXTokenomicsBurnCoordinatorContextV1(
         chain_id=journal.chain_id,
@@ -218,6 +240,227 @@ def _candidate() -> tuple[
     )
 
 
+def _lane_release(
+    lane_id: LaneIdV1,
+    ordinal: int,
+    *,
+    guest_image_id: str | None = None,
+) -> LaneModuleReleaseV1:
+    offset = ordinal * 16
+    return LaneModuleReleaseV1.build(
+        lane_id=lane_id,
+        semantic_version="1.0.0-shadow-test",
+        state_schema_root=_root(100 + offset),
+        command_variants=(PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,),
+        terminal_command_variants=(),
+        guest_image_id=guest_image_id or _root(101 + offset),
+        specification_root=_root(102 + offset),
+        source_root=_root(103 + offset),
+        toolchain_root=_root(104 + offset),
+        terminal_coverage_root=_root(105 + offset),
+        migration_compatibility_root=_root(106 + offset),
+        max_cycles=1_000_000,
+        max_journal_bytes=65_536,
+        status=ReleaseStatusV1.SHADOW,
+        accepts_new_objects=False,
+    )
+
+
+def _coordinator_release(
+    lane_id: LaneIdV1,
+    ordinal: int,
+    *,
+    max_journal_bytes: int = 65_536,
+) -> LaneCoordinatorReleaseV1:
+    offset = ordinal * 16
+    return LaneCoordinatorReleaseV1.build(
+        lane_id=lane_id,
+        semantic_version="1.0.0-shadow-test",
+        coordinator_schema_root=_root(700 + offset),
+        guest_image_id=_root(701 + offset),
+        specification_root=_root(702 + offset),
+        source_root=_root(703 + offset),
+        toolchain_root=_root(704 + offset),
+        max_cycles=1_000_000,
+        max_journal_bytes=max_journal_bytes,
+        status=ReleaseStatusV1.SHADOW,
+        accepts_new_objects=False,
+    )
+
+
+class _Verifier:
+    def __init__(self, *, reject: bool = False) -> None:
+        self.reject = reject
+        self.calls: list[tuple[bytes, str, bytes]] = []
+
+    def verify_succinct_receipt(
+        self,
+        receipt_bytes: bytes,
+        *,
+        expected_image_id: str,
+        expected_journal_bytes: bytes,
+    ) -> None:
+        self.calls.append((receipt_bytes, expected_image_id, expected_journal_bytes))
+        if self.reject:
+            raise ValueError("test verifier rejection")
+
+
+def _receipt_fixture(
+    *,
+    tokenomics_max_journal_bytes: int = 65_536,
+    tokenomics_guest_image_id: str | None = None,
+) -> tuple[
+    ZDEXTokenomicsLaneReceiptCandidateV1,
+    GovernedZDEXTokenomicsProfileV1,
+    EconomicProfileSnapshotV1,
+]:
+    base, _ = _candidate()
+    releases = tuple(
+        _lane_release(
+            lane_id,
+            ordinal,
+            guest_image_id=(
+                tokenomics_guest_image_id
+                if lane_id is LaneIdV1.ZDEX_TOKENOMICS
+                else None
+            ),
+        )
+        for ordinal, lane_id in enumerate(ALL_LANE_IDS_V1, start=1)
+    )
+    lane_registry = LaneRegistryV1(releases)
+    tokenomics_release = lane_registry.release_for(LaneIdV1.ZDEX_TOKENOMICS)
+    spot_release = lane_registry.release_for(LaneIdV1.SPOT_LIQUIDITY)
+    route = RouteReleaseV1.build(
+        semantic_version="1.0.0-shadow-test",
+        command_kind=PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+        ordered_lanes=(LaneIdV1.SPOT_LIQUIDITY, LaneIdV1.ZDEX_TOKENOMICS),
+        module_release_ids=(spot_release.release_id, tokenomics_release.release_id),
+        dependency_roles=(AMM_PURCHASE_OUTPUT_ROLE_V1, ZDEX_BURN_INPUT_ROLE_V1),
+        port_schema_roots=(
+            zdex_amm_purchase_port_schema_root_v1(),
+            zdex_burn_port_schema_root_v1(),
+        ),
+        guest_image_id=_root(500),
+        specification_root=_root(501),
+        source_root=_root(502),
+        toolchain_root=_root(503),
+        oracle_policy_root=_root(504),
+        issue_burn_policy_root=base.pre_state.supply_state.policy_root,
+        max_cycles=2_000_000,
+        max_journal_bytes=65_536,
+        status=ReleaseStatusV1.SHADOW,
+        accepts_new_objects=False,
+    )
+    coordinator_registry = LaneCoordinatorRegistryV1(
+        tuple(
+            _coordinator_release(
+                lane_id,
+                ordinal,
+                max_journal_bytes=(
+                    tokenomics_max_journal_bytes
+                    if lane_id is LaneIdV1.ZDEX_TOKENOMICS
+                    else 65_536
+                ),
+            )
+            for ordinal, lane_id in enumerate(ALL_LANE_IDS_V1, start=1)
+        )
+    )
+    profile = EconomicProfileSnapshotV1.build(
+        authority_epoch=base.context.writer_epoch,
+        lane_registry=lane_registry,
+        lane_coordinator_registry=coordinator_registry,
+        route_registry=RouteRegistryV1((route,)),
+        proof_shape_root=_root(810),
+        root_image_id=_root(811),
+        verifier_registry_root=_root(812),
+        migration_registry_root=_root(813),
+        policy_registry_root=_root(814),
+        terminal_registry_root=_root(815),
+        status=ProfileStatusV1.SHADOW,
+    )
+    occurrence = EconomicCommandOccurrenceV1(
+        chain_id=base.context.chain_id,
+        deployment_root=base.context.deployment_root,
+        height=7,
+        tx_index=2,
+        op_index=1,
+        command_kind=PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+        route_release_id=route.route_release_id,
+        subject_id="protocol-buyback-controller",
+        grant_root=_root(820),
+        nonce=9,
+        profile_root=profile.profile_id,
+        pre_state_root=base.pre_state.state_root,
+        consumed_object_ids=(),
+    )
+    burn = replace(
+        base.burn_journal,
+        profile_root=profile.profile_id,
+        route_release_id=route.route_release_id,
+        command_occurrence_id=occurrence.occurrence_id,
+        tokenomics_module_release_id=tokenomics_release.release_id,
+        effect_plan_root=_root(821),
+    )
+    effects = burn_effects_v1(burn)
+    burn = replace(burn, effect_plan_root=effects.effect_plan_root)
+    effects = burn_effects_v1(burn)
+    port = build_zdex_tokenomics_burn_private_port_v1(burn, effects)
+    module = build_zdex_tokenomics_burn_module_journal_v1(
+        burn,
+        effects,
+        port,
+    )
+    tokenomics_coordinator = coordinator_registry.release_for(
+        LaneIdV1.ZDEX_TOKENOMICS
+    )
+    context = replace(
+        base.context,
+        profile_root=profile.profile_id,
+        coordinator_release_id=tokenomics_coordinator.coordinator_release_id,
+        route_release_id=route.route_release_id,
+        tokenomics_module_release_id=tokenomics_release.release_id,
+        command_occurrence_id=occurrence.occurrence_id,
+    )
+    lane_candidate = replace(
+        base,
+        context=context,
+        module_journal=module,
+        private_port=port,
+        burn_journal=burn,
+        module_effects=effects,
+    )
+    governed = bind_zdex_tokenomics_shadow_profile_v1(
+        expected_profile_id=profile.profile_id,
+        expected_authority_epoch=profile.authority_epoch,
+        profile=profile,
+    )
+    verified_burn = verify_zdex_burn_receipt_v1(
+        ZDEXBurnReceiptCandidateV1(
+            route,
+            tokenomics_release,
+            occurrence,
+            burn,
+            effects,
+            ZDEXLaneReceiptEnvelopeV1(
+                ReceiptKindV1.SUCCINCT,
+                b"tokenomics-burn-leaf-receipt",
+            ),
+        ),
+        _Verifier(),
+    )
+    return (
+        ZDEXTokenomicsLaneReceiptCandidateV1(
+            occurrence,
+            lane_candidate,
+            verified_burn,
+            ZDEXLaneReceiptEnvelopeV1(
+                ReceiptKindV1.SUCCINCT,
+                b"tokenomics-coordinator-receipt",
+            ),
+        ),
+        governed,
+        profile,
+    )
 def test_burn_substate_is_embedded_in_one_complete_tokenomics_lane_write() -> None:
     # Arrange
     candidate, _ = _candidate()
@@ -244,13 +487,13 @@ def test_burn_substate_is_embedded_in_one_complete_tokenomics_lane_write() -> No
         "0x3599e1c7349810b87811902c2cfc367f9c791c9d16aead73c7280753dc24e619"
     )
     assert candidate.module_journal.journal_root == (
-        "0xbcf63554276350f9f76d4150fd033fd897fd57938238f669c3e29fad52122ee6"
+        "0x0b5ab6278d91be413bb56072a4210bd1a4b621d0379a85fe6e309cdd727471ca"
     )
     assert result.effects.effect_plan_root == (
         "0x211aa4aa89fb7f65b422adfb8d1d0549f85b2fdfd83d4222d8285baf7dd534bc"
     )
     assert result.lane_journal.journal_root == (
-        "0x19a31e3c73851451198350d031df6737ac4008b2ca30b47a50f3c1378cff31b7"
+        "0x0f608f755e7fa941a454a49e4e92c86e1e5ca88589be2591a769d238b60ad6f3"
     )
 
 
@@ -378,6 +621,222 @@ def test_route_release_substitution_has_a_closed_no_effect_rejection() -> None:
     assert type(result) is ZDEXTokenomicsLaneCompositionRejectedV1
     assert result.code is ZDEXTokenomicsLaneCoordinatorRejectCodeV1.ROUTE_RELEASE_MISMATCH
     assert result.effects.is_empty
+
+
+def test_module_receipt_commitment_substitution_rejects_without_effects() -> None:
+    # Arrange
+    candidate, _ = _candidate()
+    forged_module = replace(candidate.module_journal, receipt_root=_root(99))
+
+    # Act
+    result = compose_zdex_tokenomics_burn_lane_v1(
+        replace(candidate, module_journal=forged_module)
+    )
+
+    # Assert
+    assert type(result) is ZDEXTokenomicsLaneCompositionRejectedV1
+    assert (
+        result.code
+        is ZDEXTokenomicsLaneCoordinatorRejectCodeV1.MODULE_RECEIPT_MISMATCH
+    )
+    assert result.effects.is_empty
+
+
+def test_verified_tokenomics_lane_witness_cannot_be_caller_constructed() -> None:
+    # Arrange / Act / Assert
+    with pytest.raises(TypeError, match="verifier-constructed"):
+        VerifiedZDEXTokenomicsLaneV1(object(), object())
+
+
+def test_release_selected_coordinator_receipt_binds_exact_lane_journal() -> None:
+    # Arrange
+    candidate, governed, _ = _receipt_fixture()
+    verifier = _Verifier()
+    recomputed = compose_zdex_tokenomics_burn_lane_v1(candidate.lane_candidate)
+    assert type(recomputed) is ZDEXTokenomicsLaneCompositionAcceptedV1
+
+    # Act
+    verified = verify_zdex_tokenomics_lane_receipt_v1(
+        candidate,
+        governed,
+        verifier,
+    )
+
+    # Assert
+    fields = governed._fields
+    assert verifier.calls == [
+        (
+            candidate.receipt.receipt_bytes,
+            fields.coordinator_release.guest_image_id,
+            canonical_global_bytes_v1(recomputed.lane_journal),
+        )
+    ]
+    assert verified.profile_root == fields.profile.profile_id
+    assert verified.route_release_id == fields.route_release.route_release_id
+    assert verified.module_release_id == fields.module_release.release_id
+    assert verified.coordinator_release_id == (
+        fields.coordinator_release.coordinator_release_id
+    )
+    assert verified.pre_lane_root == candidate.lane_candidate.pre_state.state_root
+    assert verified.post_lane_root == candidate.lane_candidate.post_state.state_root
+    assert verified.effect_plan_root == recomputed.effects.effect_plan_root
+    assert verified.module_image_id == fields.module_release.guest_image_id
+    assert verified.receipt_kind is ReceiptKindV1.SUCCINCT
+    assert verified.binding_root == (
+        "0x47aedf19e2d6cd17eef038cc5461fb06dc45d277892507539860023caa7774be"
+    )
+    with pytest.raises(AttributeError, match="immutable"):
+        verified._fields = object()
+
+
+def test_profile_and_coordinator_substitutions_reject_before_receipt_verifier() -> None:
+    # Arrange
+    candidate, governed, profile = _receipt_fixture()
+    verifier = _Verifier()
+    wrong_context = replace(
+        candidate.lane_candidate.context,
+        coordinator_release_id=_root(999),
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="candidate binding mismatch"):
+        verify_zdex_tokenomics_lane_receipt_v1(
+            replace(
+                candidate,
+                lane_candidate=replace(
+                    candidate.lane_candidate,
+                    context=wrong_context,
+                ),
+            ),
+            governed,
+            verifier,
+        )
+    with pytest.raises(ValueError, match="expected profile mismatch"):
+        bind_zdex_tokenomics_shadow_profile_v1(
+            expected_profile_id=_root(998),
+            expected_authority_epoch=profile.authority_epoch,
+            profile=profile,
+        )
+    with pytest.raises(ValueError, match="must remain SHADOW"):
+        bind_zdex_tokenomics_shadow_profile_v1(
+            expected_profile_id=profile.profile_id,
+            expected_authority_epoch=profile.authority_epoch,
+            profile=replace(profile, status=ProfileStatusV1.CANDIDATE),
+        )
+    with pytest.raises(ValueError, match="expected authority epoch mismatch"):
+        bind_zdex_tokenomics_shadow_profile_v1(
+            expected_profile_id=profile.profile_id,
+            expected_authority_epoch=profile.authority_epoch + 1,
+            profile=profile,
+        )
+    assert verifier.calls == []
+
+
+@pytest.mark.parametrize("release_kind", ("module", "coordinator"))
+def test_post_bind_release_image_mutation_rejects_before_receipt_verifier(
+    release_kind: str,
+) -> None:
+    # Arrange
+    candidate, governed, _ = _receipt_fixture()
+    verifier = _Verifier()
+    release = (
+        governed._fields.module_release
+        if release_kind == "module"
+        else governed._fields.coordinator_release
+    )
+    object.__setattr__(release, "guest_image_id", _root(995))
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="content-derived"):
+        verify_zdex_tokenomics_lane_receipt_v1(candidate, governed, verifier)
+    assert verifier.calls == []
+
+
+def test_rejected_lane_semantics_never_reach_receipt_verifier() -> None:
+    # Arrange
+    candidate, governed, _ = _receipt_fixture()
+    verifier = _Verifier()
+    invalid_post = replace(
+        candidate.lane_candidate.post_state,
+        staking_state_root=_root(997),
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="composition rejected"):
+        verify_zdex_tokenomics_lane_receipt_v1(
+            replace(
+                candidate,
+                lane_candidate=replace(
+                    candidate.lane_candidate,
+                    post_state=invalid_post,
+                ),
+            ),
+            governed,
+            verifier,
+        )
+    assert verifier.calls == []
+
+
+@pytest.mark.parametrize(
+    "receipt",
+    (
+        ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.CONDITIONAL, b"conditional"),
+        ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b""),
+    ),
+)
+def test_non_authoritative_receipt_shapes_reject(
+    receipt: ZDEXLaneReceiptEnvelopeV1,
+) -> None:
+    # Arrange
+    candidate, governed, _ = _receipt_fixture()
+    verifier = _Verifier()
+
+    # Act / Assert
+    with pytest.raises(ValueError):
+        verify_zdex_tokenomics_lane_receipt_v1(
+            replace(candidate, receipt=receipt),
+            governed,
+            verifier,
+        )
+    assert verifier.calls == []
+
+
+def test_receipt_verifier_rejection_produces_no_witness() -> None:
+    # Arrange
+    candidate, governed, _ = _receipt_fixture()
+    verifier = _Verifier(reject=True)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="test verifier rejection"):
+        verify_zdex_tokenomics_lane_receipt_v1(candidate, governed, verifier)
+    assert len(verifier.calls) == 1
+
+
+def test_foreign_verified_burn_witness_rejects_before_coordinator_verifier() -> None:
+    # Arrange
+    candidate, governed, _ = _receipt_fixture()
+    foreign, _, _ = _receipt_fixture(tokenomics_guest_image_id=_root(996))
+    verifier = _Verifier()
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="candidate binding mismatch"):
+        verify_zdex_tokenomics_lane_receipt_v1(
+            replace(candidate, verified_burn=foreign.verified_burn),
+            governed,
+            verifier,
+        )
+    assert verifier.calls == []
+
+
+def test_one_byte_coordinator_journal_ceiling_rejects_before_verifier() -> None:
+    # Arrange
+    candidate, governed, _ = _receipt_fixture(tokenomics_max_journal_bytes=1)
+    verifier = _Verifier()
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="journal exceeds release byte ceiling"):
+        verify_zdex_tokenomics_lane_receipt_v1(candidate, governed, verifier)
+    assert verifier.calls == []
 
 
 @pytest.mark.parametrize(
@@ -521,10 +980,10 @@ def test_self_consistent_leaf_totals_cannot_override_complete_lane_supply() -> N
         forged_burn,
         forged_effects,
     )
-    forged_module = replace(
-        candidate.module_journal,
-        effect_plan_root=forged_effects.effect_plan_root,
-        private_port_root=forged_port.port_root,
+    forged_module = build_zdex_tokenomics_burn_module_journal_v1(
+        forged_burn,
+        forged_effects,
+        forged_port,
     )
 
     # Act

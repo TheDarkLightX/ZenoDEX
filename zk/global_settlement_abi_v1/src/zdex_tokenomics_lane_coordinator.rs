@@ -5,10 +5,11 @@ use crate::release::LaneIdV1;
 use crate::zdex_purchase_burn_effects::burn_effects_v1;
 use crate::zdex_purchase_burn_types::ZDEXBurnJournalV1;
 use crate::zdex_tokenomics_lane_types::{
-    zdex_tokenomics_complete_lane_obligation_root_v1, ZDEXTokenomicsBurnCoordinatorContextV1,
-    ZDEXTokenomicsBurnPrivatePortV1, ZDEXTokenomicsLaneCompositionAcceptedV1,
-    ZDEXTokenomicsLaneCompositionRejectedV1, ZDEXTokenomicsLaneCompositionResultV1,
-    ZDEXTokenomicsLaneCoordinatorRejectCodeV1, ZDEXTokenomicsLaneStateV1,
+    build_zdex_tokenomics_burn_module_journal_v1, zdex_tokenomics_complete_lane_obligation_root_v1,
+    ZDEXTokenomicsBurnCoordinatorContextV1, ZDEXTokenomicsBurnPrivatePortV1,
+    ZDEXTokenomicsLaneCompositionAcceptedV1, ZDEXTokenomicsLaneCompositionRejectedV1,
+    ZDEXTokenomicsLaneCompositionResultV1, ZDEXTokenomicsLaneCoordinatorRejectCodeV1,
+    ZDEXTokenomicsLaneStateV1,
 };
 
 fn empty_effects_v1() -> GlobalEconomicEffectPlanV1 {
@@ -147,6 +148,12 @@ fn port_reject_v1(
     {
         return Ok(Some(
             ZDEXTokenomicsLaneCoordinatorRejectCodeV1::EFFECT_PLAN_MISMATCH,
+        ));
+    }
+    let expected_module = build_zdex_tokenomics_burn_module_journal_v1(burn, effects, port)?;
+    if module.receipt_root != expected_module.receipt_root {
+        return Ok(Some(
+            ZDEXTokenomicsLaneCoordinatorRejectCodeV1::MODULE_RECEIPT_MISMATCH,
         ));
     }
     Ok(None)

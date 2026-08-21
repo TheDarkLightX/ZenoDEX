@@ -39,6 +39,7 @@ mod zdex_purchase_burn_receipt_verification;
 mod zdex_purchase_burn_route;
 mod zdex_purchase_burn_types;
 mod zdex_tokenomics_lane_coordinator;
+mod zdex_tokenomics_lane_receipt_verification;
 mod zdex_tokenomics_lane_types;
 
 pub use asset_lane_coordinator::*;
@@ -78,4 +79,5 @@ pub use zdex_purchase_burn_receipt_verification::*;
 pub use zdex_purchase_burn_route::*;
 pub use zdex_purchase_burn_types::*;
 pub use zdex_tokenomics_lane_coordinator::*;
+pub use zdex_tokenomics_lane_receipt_verification::*;
 pub use zdex_tokenomics_lane_types::*;

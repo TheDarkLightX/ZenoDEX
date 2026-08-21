@@ -24,6 +24,7 @@ from .zdex_tokenomics_lane_v1 import (
     ZDEXTokenomicsLaneCompositionResultV1,
     ZDEXTokenomicsLaneCoordinatorRejectCodeV1,
     ZDEXTokenomicsLaneStateV1,
+    build_zdex_tokenomics_burn_module_journal_v1,
     zdex_tokenomics_complete_lane_obligation_root_v1,
 )
 
@@ -156,6 +157,13 @@ def _port_reject(
         or burn.effect_plan_root != effects.effect_plan_root
     ):
         return ZDEXTokenomicsLaneCoordinatorRejectCodeV1.EFFECT_PLAN_MISMATCH
+    expected_module = build_zdex_tokenomics_burn_module_journal_v1(
+        burn,
+        effects,
+        port,
+    )
+    if module.receipt_root != expected_module.receipt_root:
+        return ZDEXTokenomicsLaneCoordinatorRejectCodeV1.MODULE_RECEIPT_MISMATCH
     return None
 
 

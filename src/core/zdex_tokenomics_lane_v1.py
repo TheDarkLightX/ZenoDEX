@@ -10,7 +10,10 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Final
 
-from .global_economic_proof_v1 import LaneCompositionJournalV1
+from .global_economic_proof_v1 import (
+    LaneCompositionJournalV1,
+    LaneModuleTransitionJournalV1,
+)
 from .global_settlement_types_v1 import (
     GLOBAL_SETTLEMENT_ABI_V1,
     ZERO_ROOT_V1,
@@ -207,6 +210,65 @@ def build_zdex_tokenomics_burn_private_port_v1(
     )
 
 
+def _zdex_tokenomics_burn_module_receipt_root_v1(
+    journal: ZDEXBurnJournalV1,
+    effects: GlobalEconomicEffectPlanV1,
+    private_port: ZDEXTokenomicsBurnPrivatePortV1,
+) -> str:
+    return hash_global_v1(
+        "zdex-tokenomics-burn-lane-module-receipt-v1",
+        {
+            "burn_journal_root": journal.journal_root,
+            "pre_burn_substate_root": journal.pre_tokenomics_burn_substate_root,
+            "post_burn_substate_root": journal.post_tokenomics_burn_substate_root,
+            "effect_plan_root": effects.effect_plan_root,
+            "private_port_root": private_port.port_root,
+            "terminal_obligations_root": private_port.terminal_obligations_root,
+        },
+    )
+
+
+def build_zdex_tokenomics_burn_module_journal_v1(
+    journal: ZDEXBurnJournalV1,
+    effects: GlobalEconomicEffectPlanV1,
+    private_port: ZDEXTokenomicsBurnPrivatePortV1,
+) -> LaneModuleTransitionJournalV1:
+    """Build the canonical module journal consumed by the lane coordinator."""
+
+    if type(journal) is not ZDEXBurnJournalV1:
+        raise TypeError("ZDEX burn module journal requires an exact burn journal")
+    if type(effects) is not GlobalEconomicEffectPlanV1:
+        raise TypeError("ZDEX burn module journal requires an exact effect plan")
+    if type(private_port) is not ZDEXTokenomicsBurnPrivatePortV1:
+        raise TypeError("ZDEX burn module journal requires an exact private port")
+    journal.validate()
+    effects.validate()
+    private_port.validate()
+    if effects != burn_effects_v1(journal):
+        raise ValueError("ZDEX burn module journal effects do not match the burn")
+    if private_port != build_zdex_tokenomics_burn_private_port_v1(journal, effects):
+        raise ValueError("ZDEX burn module journal private port does not match the burn")
+    return LaneModuleTransitionJournalV1(
+        chain_id=journal.chain_id,
+        deployment_root=journal.deployment_root,
+        profile_root=journal.profile_root,
+        writer_epoch=journal.writer_epoch,
+        lane_id=LaneIdV1.ZDEX_TOKENOMICS,
+        module_release_id=journal.tokenomics_module_release_id,
+        command_occurrence_id=journal.command_occurrence_id,
+        pre_lane_root=ZERO_ROOT_V1,
+        post_lane_root=ZERO_ROOT_V1,
+        effect_plan_root=effects.effect_plan_root,
+        private_port_root=private_port.port_root,
+        receipt_root=_zdex_tokenomics_burn_module_receipt_root_v1(
+            journal,
+            effects,
+            private_port,
+        ),
+        terminal_obligations_root=private_port.terminal_obligations_root,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class ZDEXTokenomicsBurnCoordinatorContextV1:
     chain_id: str
@@ -254,6 +316,7 @@ class ZDEXTokenomicsLaneCoordinatorRejectCodeV1(str, Enum):
     OCCURRENCE_MISMATCH = "OCCURRENCE_MISMATCH"
     PARTIAL_LANE_ROOT_CLAIM = "PARTIAL_LANE_ROOT_CLAIM"
     PRIVATE_PORT_MISMATCH = "PRIVATE_PORT_MISMATCH"
+    MODULE_RECEIPT_MISMATCH = "MODULE_RECEIPT_MISMATCH"
     TERMINAL_OBLIGATION_MISMATCH = "TERMINAL_OBLIGATION_MISMATCH"
     BURN_JOURNAL_MISMATCH = "BURN_JOURNAL_MISMATCH"
     EFFECT_PLAN_MISMATCH = "EFFECT_PLAN_MISMATCH"
@@ -342,6 +405,7 @@ __all__ = [
     "ZDEXTokenomicsLaneCompositionResultV1",
     "ZDEXTokenomicsLaneCoordinatorRejectCodeV1",
     "ZDEXTokenomicsLaneStateV1",
+    "build_zdex_tokenomics_burn_module_journal_v1",
     "build_zdex_tokenomics_burn_private_port_v1",
     "zdex_tokenomics_complete_lane_obligation_root_v1",
 ]

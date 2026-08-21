@@ -2,9 +2,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::canonical::{
     hash_global_v1, validate_token_v1, AbiErrorV1, AbiResultV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1,
+    ZERO_ROOT_V1,
 };
 use crate::effects::{GlobalEconomicEffectPlanV1, LaneWriteV1};
-use crate::proof::LaneCompositionJournalV1;
+use crate::proof::{LaneCompositionJournalV1, LaneModuleTransitionJournalV1};
 use crate::release::LaneIdV1;
 use crate::zdex_fee_allocation_types::ZDEXFeeStateV1;
 use crate::zdex_hyperdeflation_types::ZDEXSupplyStateV1;
@@ -174,6 +175,72 @@ pub fn build_zdex_tokenomics_burn_private_port_v1(
     Ok(port)
 }
 
+#[derive(Serialize)]
+struct ZDEXTokenomicsBurnModuleReceiptV1<'a> {
+    burn_journal_root: &'a RootV1,
+    pre_burn_substate_root: &'a RootV1,
+    post_burn_substate_root: &'a RootV1,
+    effect_plan_root: &'a RootV1,
+    private_port_root: &'a RootV1,
+    terminal_obligations_root: &'a RootV1,
+}
+
+fn zdex_tokenomics_burn_module_receipt_root_v1(
+    journal: &ZDEXBurnJournalV1,
+    effects: &GlobalEconomicEffectPlanV1,
+    private_port: &ZDEXTokenomicsBurnPrivatePortV1,
+) -> AbiResultV1<RootV1> {
+    let burn_journal_root = journal.journal_root()?;
+    let effect_plan_root = effects.effect_plan_root()?;
+    let private_port_root = private_port.port_root()?;
+    hash_global_v1(
+        "zdex-tokenomics-burn-lane-module-receipt-v1",
+        &ZDEXTokenomicsBurnModuleReceiptV1 {
+            burn_journal_root: &burn_journal_root,
+            pre_burn_substate_root: &journal.pre_tokenomics_burn_substate_root,
+            post_burn_substate_root: &journal.post_tokenomics_burn_substate_root,
+            effect_plan_root: &effect_plan_root,
+            private_port_root: &private_port_root,
+            terminal_obligations_root: &private_port.terminal_obligations_root,
+        },
+    )
+}
+
+pub fn build_zdex_tokenomics_burn_module_journal_v1(
+    journal: &ZDEXBurnJournalV1,
+    effects: &GlobalEconomicEffectPlanV1,
+    private_port: &ZDEXTokenomicsBurnPrivatePortV1,
+) -> AbiResultV1<LaneModuleTransitionJournalV1> {
+    journal.validate()?;
+    effects.validate()?;
+    private_port.validate()?;
+    if effects != &burn_effects_v1(journal)?
+        || private_port != &build_zdex_tokenomics_burn_private_port_v1(journal, effects)?
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX tokenomics burn module journal inputs",
+        ));
+    }
+    let module_journal = LaneModuleTransitionJournalV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        chain_id: journal.chain_id.clone(),
+        deployment_root: journal.deployment_root.clone(),
+        profile_root: journal.profile_root.clone(),
+        writer_epoch: journal.writer_epoch,
+        lane_id: LaneIdV1::ZDEX_TOKENOMICS,
+        module_release_id: journal.tokenomics_module_release_id.clone(),
+        command_occurrence_id: journal.command_occurrence_id.clone(),
+        pre_lane_root: RootV1::parse(ZERO_ROOT_V1, "ZDEX burn partial pre-root", true)?,
+        post_lane_root: RootV1::parse(ZERO_ROOT_V1, "ZDEX burn partial post-root", true)?,
+        effect_plan_root: effects.effect_plan_root()?,
+        private_port_root: private_port.port_root()?,
+        receipt_root: zdex_tokenomics_burn_module_receipt_root_v1(journal, effects, private_port)?,
+        terminal_obligations_root: private_port.terminal_obligations_root.clone(),
+    };
+    module_journal.validate()?;
+    Ok(module_journal)
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct ZDEXTokenomicsBurnCoordinatorContextV1 {
@@ -223,6 +290,7 @@ pub enum ZDEXTokenomicsLaneCoordinatorRejectCodeV1 {
     OCCURRENCE_MISMATCH,
     PARTIAL_LANE_ROOT_CLAIM,
     PRIVATE_PORT_MISMATCH,
+    MODULE_RECEIPT_MISMATCH,
     TERMINAL_OBLIGATION_MISMATCH,
     BURN_JOURNAL_MISMATCH,
     EFFECT_PLAN_MISMATCH,
