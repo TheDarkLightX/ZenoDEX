@@ -25,6 +25,10 @@ mod receipt_backed_asset_lane_composition;
 mod release;
 mod route_composition_receipt_verification;
 mod state;
+mod zdex_purchase_burn_effects;
+mod zdex_purchase_burn_receipt_verification;
+mod zdex_purchase_burn_route;
+mod zdex_purchase_burn_types;
 
 pub use asset_lane_coordinator::*;
 pub use asset_lane_projection::*;
@@ -52,3 +56,6 @@ pub use receipt_backed_asset_lane_composition::*;
 pub use release::*;
 pub use route_composition_receipt_verification::*;
 pub use state::*;
+pub use zdex_purchase_burn_receipt_verification::*;
+pub use zdex_purchase_burn_route::*;
+pub use zdex_purchase_burn_types::*;

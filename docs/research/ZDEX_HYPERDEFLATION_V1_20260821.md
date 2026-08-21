@@ -12,7 +12,7 @@ This packet defines a finite, integer-safe ZDEX burn leaf and an exact
 denomination-rescale transition. It replaces the proposed fixed percentage
 supply floor with a per-occurrence retained-supply rule. It does not alter the
 legacy tokenomics release, mount a writer, authorize a token sale, or prove the
-complete atomic purchase-and-burn route.
+AMM pricing rule or tokenomics fee-allocation rule.
 
 The intended economic lifecycle is:
 
@@ -25,9 +25,12 @@ protocol fee revenue
   -> one atomic global commit
 ```
 
-The implemented core covers the burn leaf after a route has authenticated the
-purchase occurrence. The AMM purchase, fee allocation, hosting allocation,
-route composition, and atomic global commit remain separate obligations.
+The implemented Python burn core consumes a route-authenticated purchase
+occurrence. A separate Rust/Python shadow composer now authenticates exact
+Spot and tokenomics leaf journals through release-selected verifier ports and
+pairs their effects. The real AMM guest, tokenomics guest, governed fee and
+hosting allocation, recursive route proof, profile admission, and atomic global
+commit remain separate obligations.
 
 ## Integer contract
 
@@ -107,10 +110,42 @@ purchased amount. Any mismatch returns `PURCHASE_BINDING_MISMATCH` with no
 effect. The accepted result carries the policy and route context and
 recomputes its capacity before construction succeeds.
 
-This binding does not authenticate the purchase by itself. A future route
-composer must verify the purchase receipt, prove that its exact ZDEX output was
-credited to the declared burn source, pair that output one-to-one with the burn
-debit, and reject residue or duplicate consumption.
+This burn-leaf context does not authenticate the purchase by itself. The shadow
+route composer performs the next structural step: it verifies release-selected
+succinct receipt envelopes for exact canonical leaf journals and requires one
+shared route, occurrence, profile, writer epoch, issue/burn policy, governed
+buyback-budget occurrence, quote input, ZDEX asset, purchased amount, and
+transient burn bucket.
+
+The purchase journal commits these exact balance projections:
+
+```text
+buyback quote source: Q_source_post + Q = Q_source_pre
+AMM quote balance:    Q_pool_pre + Q = Q_pool_post
+AMM ZDEX balance:     Z_pool_post + B = Z_pool_pre
+transient burn bucket: 0 -> B
+```
+
+The burn journal commits:
+
+```text
+transient burn bucket: B -> 0
+ZDEX controlled balances post + B = pre
+ZDEX supply post + B = pre
+```
+
+Composition cancels the transient `+B` and `-B`, emits exactly one authorized
+ZDEX supply burn of `B`, consumes the command occurrence once, orders the Spot
+and tokenomics lane writes, and emits no external outbox row. Any binding or
+history mismatch returns a typed rejection with an empty effect plan.
+
+Both receipt-admission implementations are deliberately `SHADOW`-only.
+`ACTIVE_NEW`, composite, conditional, fake, development, empty, wrong-effect,
+and verifier-rejected receipts cannot construct the opaque verified leaf
+witnesses. The injected verifier port remains a reference boundary; this
+packet contains no RISC0 guest image or cryptographic verifier implementation.
+The accepted shadow composition is also not yet a common
+`RouteCompositionJournalV1`; it cannot enter epoch recursion or publication.
 
 ## Exact denomination rescale
 
@@ -166,7 +201,9 @@ receipt consumer, API, client, and historical decoder.
 | Disaster state | Current closure | Remaining obligation |
 |---|---|---|
 | Supply reaches zero through rounding | Ceiling retention and positive-supply theorem | Rust and guest parity |
-| Caller invents the purchased amount | Exact purchase-occurrence, source, and amount binding | Authenticated purchase receipt and route composer |
+| Caller invents the purchased amount | Exact purchase journal, verifier witness, occurrence, source, and amount binding in a shadow route | Real Spot guest and governed profile membership |
+| Preexisting ZDEX is mixed into the purchase output | Purchase transient bucket must project `0 -> B` | Complete global balance-root connection in the Spot guest |
+| Purchased ZDEX is only partly burned | Burn transient bucket must project `B -> 0`; composed transient rows cancel | Recursive route proof and atomic commit |
 | Rejected transition changes value | Identical state object and empty effects | Runtime adapter parity |
 | Accepted wrapper is forged | Exact owned types and constructor recomputation | Opaque verifier witness for publication |
 | Burn secretly issues ZDEX | Effect requires zero authorized issuance | Complete writer inventory |
@@ -218,6 +255,15 @@ exact design.
   scaling, and finite geometric positivity;
 - `tests/formal/test_lean_zdex_hyperdeflation_v1.py`: placeholder scan and
   focused Lean elaboration;
+- `src/core/zdex_purchase_burn_*_v1.py`: immutable shadow journals, canonical
+  effects, release-selected receipt admission, opaque witnesses, and pure
+  two-lane composition;
+- `zk/global_settlement_abi_v1/src/zdex_purchase_burn_*.rs`: independent Rust
+  projection of the same journals, effects, receipt boundary, and composer;
+- `tests/core/test_zdex_purchase_burn_route_v1.py` and
+  `zk/global_settlement_abi_v1/tests/zdex_purchase_burn_route.rs`: BVA,
+  substitution, malformed-receipt, shadow-promotion, exact-once transient
+  bucket, no-effect rejection, and cross-language composition-root evidence;
 - `src/integration/tau_testnet_dex_plugin.py`: testnet faucet exclusion for the
   canonical protocol-token asset;
 - `tests/integration/test_tau_testnet_dex_plugin.py`: exact rejection and
@@ -229,9 +275,11 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
 
 1. a normative ZDEX tokenomics release selecting `p/q`, epoch caps, route caps,
    fee allocations, host compensation, and governance envelopes;
-2. a Rust core with Python differential parity and checked widened arithmetic;
+2. a Rust retention/capacity core with Python differential parity and checked
+   widened arithmetic;
 3. a RISC0 guest and exact journal/image/profile binding;
-4. an authenticated AMM purchase receipt and exact route composer;
+4. real Spot and tokenomics guests whose authenticated outputs refine the
+   shadow purchase-to-burn journals and exact route composer;
 5. complete protocol-token issue/burn writer inventory and deny-by-default
    mounting;
 6. an ABI revision and proved total migration before any precision rescale;
