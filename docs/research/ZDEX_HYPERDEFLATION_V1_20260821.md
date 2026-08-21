@@ -554,6 +554,22 @@ exact design.
   test: cross-language projection-root parity plus profile, epoch, global-root,
   selected-root, sibling-lane, release metadata, coordinator, route, reorder,
   duplicate, omission, and coherent-mutation substitution evidence;
+- `src/core/global_economic_state_delta_v1.py`,
+  `src/core/global_economic_state_effect_refinement_v1.py`, and the matching
+  Rust modules: an `IMPLEMENTED_UNMOUNTED` functional checker that derives the
+  exact balance, named custody, liability, reserve, supply, and lane-root deltas
+  from complete pre/post states and requires them to equal the canonical effect
+  plan. It independently recomputes conservation from state, requires fee
+  allocation labels to mirror a real state-bearing movement, permits exact
+  burn to zero supply, and rejects occurrence consumption without replay-state
+  application, zero or residual fee aliases, unmapped reward/slash, outbox, and
+  unsupported global-field changes. Its opaque result is a structural
+  refinement witness only;
+- `tests/core/test_global_economic_state_effect_refinement_v1.py` and the
+  matching Rust test: direct delta-oracle checks, one-defect substitutions,
+  hostile frozen-object mutation, unsupported-field and lane-metadata changes,
+  owned-total/supply divergence, final-atom burn, signed-128 aggregation BVA,
+  and a shared Python/Rust refinement-root golden;
 - `zk/zdex_tokenomics_lane_coordinator_risc0`: unmounted RISC0 3.0.6 recursive
   coordinator source, exact governed module-release preflight, guest-side
   `env::verify` over the child image and canonical burn or fee journal, host-side
@@ -595,11 +611,12 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
    wrong-image/journal/profile/assumption evidence before either route
    discharges its nonzero obligation or supplies the full tokenomics lane write;
 6. trusted current-profile anchoring plus route-composer guest and admission
-   integration of the full-state projection, followed by a global effect
-   applicator/refinement check covering balances, supply, custody, liabilities,
-   reserves, replay state, terminal obligations, history, and outbox. The
-   present checker proves no receipt and intentionally does not validate those
-   non-lane state changes;
+   integration of the full-state projection and the new state/effect
+   refinement checker. The current refinement closes balances, supply, named
+   custody, liabilities, reserves, fee-mirror, conservation, and lane-write
+   structure. Replay insertion, Oracle occurrence updates, terminal
+   obligations, history derivation, external outbox commit binding, and the
+   durable effect applicator remain unavailable and fail closed;
 7. release-bound cycle/resource enforcement in the proof statement and
    governed receipt admission; the current leaf verifier cannot authenticate a
    module release `max_cycles` ceiling;

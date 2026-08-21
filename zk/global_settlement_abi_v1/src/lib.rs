@@ -13,6 +13,8 @@ mod canonical;
 mod economic_epoch_receipt_verification;
 mod effects;
 mod epoch_effect_composition;
+mod global_economic_state_delta;
+mod global_economic_state_effect_refinement;
 mod lane_composition_receipt_verification;
 mod lane_module_receipt_verification;
 mod lane_module_release_route_binding;
@@ -62,6 +64,7 @@ pub use canonical::{
 pub use economic_epoch_receipt_verification::*;
 pub use effects::*;
 pub use epoch_effect_composition::*;
+pub use global_economic_state_effect_refinement::*;
 pub use lane_composition_receipt_verification::*;
 pub use lane_module_receipt_verification::*;
 pub use lane_module_release_route_binding::*;

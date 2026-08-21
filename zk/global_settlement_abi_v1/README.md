@@ -111,6 +111,20 @@ epoch plans, wrong route roots, disconnected histories, duplicate occurrences,
 overflow, zero, 65, missing, foreign, reordered, empty, wrong-kind, and
 verifier-rejected evidence.
 
+The full-state route projection and global state/effect refinement are now
+implemented as unmounted deterministic checkers in both language references.
+The projection binds selected lane journals to the monolithic pre/post state
+roots and preserves every unselected lane. The refinement independently derives
+balance, named-custody, liability, reserve, supply, and lane-root deltas; binds
+them to canonical effects; recomputes owned-total/supply conservation; and
+requires fee labels to mirror real value movement. Boundary tests include exact
+burn to zero supply and signed-128 issue/burn aggregation; the primary fixture
+has a shared Python/Rust golden root.
+Unsupported replay consumption, Oracle occurrence, terminal, history,
+zero/residual fee aliases, reward, slash, and outbox changes reject. These
+opaque results verify no receipt, authenticate no current profile, and grant no
+settlement or publication authority.
+
 The deterministic receipt roots are statement commitments, not cryptographic
 proof receipts. This ABI crate contains no guest or cryptographic verifier
 implementation, so its legacy fixtures and module-owned outputs establish
