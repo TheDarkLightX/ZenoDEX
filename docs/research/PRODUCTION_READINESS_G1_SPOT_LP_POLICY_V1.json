@@ -1,0 +1,389 @@
+{
+  "asset_authority_binding": {
+    "artifact": "docs/research/PRODUCTION_READINESS_G1_ASSET_AUTHORITY_V1.json",
+    "candidate_profile_root": "0x389a3941b2f3e4dc722abe2180c80da66859d227c9693681f5f89b59eeb30b4b",
+    "sha256": "ba0bbf5f980b9e375d81b29decbc0a9e9897f4e28b7c67d1caf3328d8c5919ce"
+  },
+  "canonical_rust_binding": {
+    "candidate_profile_root": "0x8de8025b538ffe231ca4246e092d0d87eaf376a08866834ce756ca7d7abeb1fd",
+    "canonical_bytes_sha256": "sha256:c3ec643045a08e2da568701d6659529f37921e6eec30a224b6943bd3fa0b83ff",
+    "status": "EXACT_PYTHON_RUST_POLICY_AND_MATH_VECTORS"
+  },
+  "decision_id": "spot_lp_fee_dust_withdrawal_policy",
+  "decision_status": "PROPOSED_UNSELECTED_USER_CONFIRMATION_REQUIRED",
+  "differential_vectors": {
+    "exact_in": [
+      {
+        "expected": {
+          "fee_atoms": 1,
+          "gross_input_atoms": 333,
+          "k_after": 100013107,
+          "k_before": 100000000,
+          "net_input_atoms": 332,
+          "output_atoms": 321,
+          "post_reserve_in_atoms": 10333,
+          "post_reserve_out_atoms": 9679
+        },
+        "id": "EXACT_IN_10000_10000_333",
+        "input": {
+          "gross_input_atoms": 333,
+          "reserve_in_atoms": 10000,
+          "reserve_out_atoms": 10000
+        }
+      },
+      {
+        "expected": {
+          "fee_atoms": 2,
+          "gross_input_atoms": 334,
+          "k_after": 100022786,
+          "k_before": 100000000,
+          "net_input_atoms": 332,
+          "output_atoms": 321,
+          "post_reserve_in_atoms": 10334,
+          "post_reserve_out_atoms": 9679
+        },
+        "id": "EXACT_IN_10000_10000_334",
+        "input": {
+          "gross_input_atoms": 334,
+          "reserve_in_atoms": 10000,
+          "reserve_out_atoms": 10000
+        }
+      },
+      {
+        "expected": {
+          "fee_atoms": 3,
+          "gross_input_atoms": 1000,
+          "k_after": 200057000,
+          "k_before": 200000000,
+          "net_input_atoms": 997,
+          "output_atoms": 1813,
+          "post_reserve_in_atoms": 11000,
+          "post_reserve_out_atoms": 18187
+        },
+        "id": "EXACT_IN_10000_20000_1000",
+        "input": {
+          "gross_input_atoms": 1000,
+          "reserve_in_atoms": 10000,
+          "reserve_out_atoms": 20000
+        }
+      },
+      {
+        "expected": {
+          "fee_atoms": 30,
+          "gross_input_atoms": 10000,
+          "k_after": 10007,
+          "k_before": 77,
+          "net_input_atoms": 9970,
+          "output_atoms": 10,
+          "post_reserve_in_atoms": 10007,
+          "post_reserve_out_atoms": 1
+        },
+        "id": "EXACT_IN_7_11_10000",
+        "input": {
+          "gross_input_atoms": 10000,
+          "reserve_in_atoms": 7,
+          "reserve_out_atoms": 11
+        }
+      }
+    ],
+    "exact_out": [
+      {
+        "expected": {
+          "fee_atoms": 2,
+          "k_after": 200051000,
+          "k_before": 200000000,
+          "net_input_atoms": 527,
+          "pool_retained_output_atoms": 1,
+          "post_reserve_in_atoms": 10529,
+          "post_reserve_out_atoms": 19000,
+          "quoted_output_atoms": 1001,
+          "requested_output_atoms": 1000,
+          "required_input_atoms": 529
+        },
+        "id": "EXACT_OUT_10000_20000_1000",
+        "input": {
+          "requested_output_atoms": 1000,
+          "reserve_in_atoms": 10000,
+          "reserve_out_atoms": 20000
+        }
+      },
+      {
+        "expected": {
+          "fee_atoms": 1,
+          "k_after": 88,
+          "k_before": 77,
+          "net_input_atoms": 3,
+          "pool_retained_output_atoms": 0,
+          "post_reserve_in_atoms": 11,
+          "post_reserve_out_atoms": 8,
+          "quoted_output_atoms": 3,
+          "requested_output_atoms": 3,
+          "required_input_atoms": 4
+        },
+        "id": "EXACT_OUT_7_11_3",
+        "input": {
+          "requested_output_atoms": 3,
+          "reserve_in_atoms": 7,
+          "reserve_out_atoms": 11
+        }
+      }
+    ],
+    "lp_lifecycle": [
+      {
+        "expected": {
+          "amount0_refund_atoms": 0,
+          "amount0_used_atoms": 10000,
+          "amount1_refund_atoms": 0,
+          "amount1_used_atoms": 40000,
+          "lp_minted_atoms": 20000,
+          "post_pool": {
+            "lp_supply_atoms": 20000,
+            "reserve0_atoms": 10000,
+            "reserve1_atoms": 40000,
+            "status": "ACTIVE"
+          }
+        },
+        "id": "CREATE_NO_PERMANENT_LOCK",
+        "input": {
+          "amount0_atoms": 10000,
+          "amount1_atoms": 40000
+        },
+        "operation": "CREATE"
+      },
+      {
+        "expected": {
+          "amount0_refund_atoms": 0,
+          "amount0_used_atoms": 400,
+          "amount1_refund_atoms": 100,
+          "amount1_used_atoms": 800,
+          "lp_minted_atoms": 400,
+          "post_pool": {
+            "lp_supply_atoms": 1400,
+            "reserve0_atoms": 1400,
+            "reserve1_atoms": 2800,
+            "status": "ACTIVE"
+          }
+        },
+        "id": "ADD_NON_DILUTING_REFUND_EXCESS",
+        "input": {
+          "amount0_desired_atoms": 400,
+          "amount1_desired_atoms": 900,
+          "pool": {
+            "lp_supply_atoms": 1000,
+            "reserve0_atoms": 1000,
+            "reserve1_atoms": 2000,
+            "status": "ACTIVE"
+          }
+        },
+        "operation": "ADD"
+      },
+      {
+        "expected": {
+          "amount0_refund_atoms": 0,
+          "amount0_used_atoms": 3,
+          "amount1_refund_atoms": 0,
+          "amount1_used_atoms": 5,
+          "lp_minted_atoms": 2,
+          "post_pool": {
+            "lp_supply_atoms": 7,
+            "reserve0_atoms": 10,
+            "reserve1_atoms": 16,
+            "status": "ACTIVE"
+          }
+        },
+        "id": "ADD_CEIL_REQUIRED_ASSET_USE",
+        "input": {
+          "amount0_desired_atoms": 3,
+          "amount1_desired_atoms": 5,
+          "pool": {
+            "lp_supply_atoms": 5,
+            "reserve0_atoms": 7,
+            "reserve1_atoms": 11,
+            "status": "ACTIVE"
+          }
+        },
+        "operation": "ADD"
+      },
+      {
+        "expected": {
+          "amount0_out_atoms": 333,
+          "amount0_rounding_numerator": 333,
+          "amount1_out_atoms": 666,
+          "amount1_rounding_numerator": 999,
+          "post_pool": {
+            "lp_supply_atoms": 667,
+            "reserve0_atoms": 668,
+            "reserve1_atoms": 1337,
+            "status": "ACTIVE"
+          },
+          "rounding_denominator": 1000,
+          "terminal_closed": false
+        },
+        "id": "REMOVE_PARTIAL_ROUNDING_REMAINS",
+        "input": {
+          "lp_burn_atoms": 333,
+          "pool": {
+            "lp_supply_atoms": 1000,
+            "reserve0_atoms": 1001,
+            "reserve1_atoms": 2003,
+            "status": "ACTIVE"
+          }
+        },
+        "operation": "REMOVE"
+      },
+      {
+        "expected": {
+          "amount0_out_atoms": 17,
+          "amount0_rounding_numerator": 0,
+          "amount1_out_atoms": 29,
+          "amount1_rounding_numerator": 0,
+          "post_pool": {
+            "lp_supply_atoms": 0,
+            "reserve0_atoms": 0,
+            "reserve1_atoms": 0,
+            "status": "CLOSED"
+          },
+          "rounding_denominator": 3,
+          "terminal_closed": true
+        },
+        "id": "REMOVE_FINAL_DRAINS_AND_CLOSES",
+        "input": {
+          "lp_burn_atoms": 3,
+          "pool": {
+            "lp_supply_atoms": 3,
+            "reserve0_atoms": 17,
+            "reserve1_atoms": 29,
+            "status": "ACTIVE"
+          }
+        },
+        "operation": "REMOVE"
+      }
+    ]
+  },
+  "implementation_binding": {
+    "mounted_transition_binding": "ABSENT",
+    "proof_guest_binding": "ABSENT",
+    "python_rust_differential_vectors": 11,
+    "rust_contracts": [
+      "G1SpotLpPolicyCandidateV1",
+      "SpotPoolMathStateV1",
+      "spot_exact_in_quote_v1",
+      "spot_exact_out_quote_v1",
+      "lp_create_quote_v1",
+      "lp_add_quote_v1",
+      "lp_remove_quote_v1"
+    ],
+    "source_pins": [
+      {
+        "path": "zk/global_settlement_abi_v1/src/spot_liquidity_policy.rs",
+        "sha256": "0d72ad0165c406effff5e6642116219387c622714295ee03f141d88181f68604"
+      },
+      {
+        "path": "zk/global_settlement_abi_v1/src/spot_liquidity_math.rs",
+        "sha256": "f6e7182e1563a82aeff2a4671065e8691c17e78a44aa829d449d2b1b51607de1"
+      },
+      {
+        "path": "zk/global_settlement_abi_v1/src/lib.rs",
+        "sha256": "e939f3d1f9c4d02dce528efee4834ede3fa88f9bee46bee78f46e21ea2a72312"
+      },
+      {
+        "path": "zk/global_settlement_abi_v1/src/canonical.rs",
+        "sha256": "da7a3df9102736bc4a50f469ac525b851dea688b9ea7219be5345347bd49c240"
+      },
+      {
+        "path": "zk/global_settlement_abi_v1/Cargo.toml",
+        "sha256": "ecc25a42a338c6704ea32086e5c7e79eec2358405905a47747b313d56358ee89"
+      },
+      {
+        "path": "zk/global_settlement_abi_v1/Cargo.lock",
+        "sha256": "9420e887c5c030b19cdc721c339f9460ac1db0227567bcbe018337580589360a"
+      },
+      {
+        "path": "zk/global_settlement_abi_v1/tests/spot_liquidity_policy.rs",
+        "sha256": "b0954f9fe7b22f7d8f9a33f4750eb149c2180a32c1a1daf7d1c153c8e39776cb"
+      },
+      {
+        "path": "zk/global_settlement_abi_v1/tests/spot_liquidity_stateful.rs",
+        "sha256": "287b8d51396de5ac3aab526056bc02f330e3913048e4d7f5aec25a68b043f68b"
+      },
+      {
+        "path": "zk/global_settlement_abi_v1/tests/spot_liquidity_properties.rs",
+        "sha256": "58e7e985a9965c8a6909f975a202904cbe7ccfb13e70ae38772afb278827b9b2"
+      },
+      {
+        "path": "tools/production_readiness_g1_spot_lp_reference.py",
+        "sha256": "90539f950ed2560bd6dcd18ff32f54367afce014ecab037973fdac1fa3efa092"
+      },
+      {
+        "path": "tools/check_production_readiness_g1_spot_lp_policy_v1.py",
+        "sha256": "5f4d25e396a57a6d61060e5d9040a798e3e5fbcc1d3bc95829c7e8c838009696"
+      },
+      {
+        "path": "tests/test_check_production_readiness_g1_spot_lp_policy_v1.py",
+        "sha256": "7bc5e06ff3b23c54c7fccf4774790dee68d53dc66cf3aa46db375d6c5f21283e"
+      }
+    ],
+    "status": "IMPLEMENTED_RUST_PURE_CANDIDATE_UNMOUNTED",
+    "tau_runtime_binding": "ABSENT",
+    "writer_binding": "ABSENT"
+  },
+  "nonclaims": [
+    "This is an unselected testnet policy candidate.",
+    "The candidate does not modify or mount the legacy Spot, LP, RISC0, Tau, API, or ledger paths.",
+    "Pure Rust arithmetic and Python differential vectors do not establish economic optimality, runtime refinement, proof admission, or settlement safety.",
+    "The zero protocol share leaves each swap fee in pool reserves for current LP claimants and does not fund tokenomics.",
+    "Final closure is safe only when reserve changes are exclusively constructed by the pool kernel and every outstanding LP share is burned."
+  ],
+  "production_authority": "NONE",
+  "profile_decision_effect": {
+    "closed_profile_decisions": [],
+    "narrowed_profile_decisions": [
+      "spot_lp_fee_dust_withdrawal_policy"
+    ],
+    "remaining_before_selection": [
+      "user confirmation of this exact Spot/LP policy",
+      "pool asset registry and release-compatible LP-share namespace",
+      "mounted transition and complete canonical effect projection",
+      "RISC0 guest, route, terminal, migration, and writer refinement evidence",
+      "economic review of zero protocol fee and no-permanent-lock construction"
+    ]
+  },
+  "refactoring_preflight": {
+    "artifact_and_authority": "Pure inactive policy and arithmetic candidate; no route, receipt, commit, or writer.",
+    "change_separation": "Legacy Python and RISC0 Spot implementations remain unchanged and retain their current claim ceilings.",
+    "commit_and_failure_model": "Out of scope for this unmounted pure candidate; no persistence or external effects exist.",
+    "construction_and_ownership": "Owned scalar inputs and immutable result values; no retained aliases or mutable graphs.",
+    "encoding_and_binding": "Versioned canonical JSON and domain-separated SHA-256 profile root.",
+    "performance": "O(1) arithmetic plus a bounded 64-iteration integer square root",
+    "semantics": {
+      "reject_semantics": "pure typed rejection returns no successor",
+      "residue": "pool reserves remain claims of outstanding LP shares; the final full burn drains all atoms",
+      "rounding": "ceil fee and add-liquidity asset use; floor swap output, LP mint, and partial withdrawal",
+      "units": "E8 ledger atoms under the predecessor asset-authority profile"
+    }
+  },
+  "release_gate": {
+    "activation_eligible": false,
+    "candidate_profile_count": 1,
+    "g1_complete": false,
+    "launch_allowed": false,
+    "production_ready": false,
+    "selected_profile_count": 0
+  },
+  "schema": "zenodex/production-readiness-g1-spot-lp-policy/v1",
+  "spot_lp_policy": {
+    "additional_lp_mint": "MAX_NON_DILUTING_SHARES_CEIL_ASSET_USE_REFUND_EXCESS",
+    "fee_owner": "CURRENT_LP_CLAIMANTS_VIA_POOL_RESERVES",
+    "fee_rounding": "CEIL_GROSS_INPUT",
+    "initial_lp_mint": "FLOOR_SQRT_PRODUCT_NO_PERMANENT_LOCK",
+    "max_pool_atoms": 18446744073709551615,
+    "output_rounding": "FLOOR_POOL_OUTPUT",
+    "protocol_fee_share_bps": 0,
+    "reserve_ingress": "POOL_KERNEL_ONLY",
+    "residue_owner": "REMAINING_LP_CLAIMANTS_THEN_FINAL_BURNER",
+    "swap_fee_bps": 30,
+    "withdrawal": "PRO_RATA_FLOOR_FINAL_BURN_DRAINS_AND_CLOSES"
+  },
+  "status": "G1_SPOT_LP_POLICY_CANDIDATE_RESEARCH_ONLY",
+  "version": "v1"
+}

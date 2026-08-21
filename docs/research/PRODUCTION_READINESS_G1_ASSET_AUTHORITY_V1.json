@@ -54,9 +54,9 @@
     "settlement_publication_authority": "ABSENT_BY_CONSTRUCTION"
   },
   "canonical_rust_binding": {
-    "candidate_profile_root": "0x1cf8301e50f89f5cdaeafb91ffa894c23b0b9da505df12593c67d4ed67be92f2",
-    "canonical_bytes_sha256": "sha256:bf7a2e4070cc2114ec2c7f3311280e850fadd6bffa9b730efb3d876d853d49cf",
-    "precision_registry_root": "0x36229ad7771c74d6a33858c068c0904dfacad0cd3c26f9683dbf274b6c6d7831",
+    "candidate_profile_root": "0x389a3941b2f3e4dc722abe2180c80da66859d227c9693681f5f89b59eeb30b4b",
+    "canonical_bytes_sha256": "sha256:b0bbfabb102524d37736da8890f8822b2690744f7bb07c8a8d98bff3780ff0bf",
+    "precision_registry_root": "0xcb8014b9ffc1cc94cf7082c63a34ddc9c45fbabfcef410bc434998a03e7cf0f4",
     "status": "ONE_EXACT_PYTHON_RUST_GOLDEN_VECTOR"
   },
   "decision_id": "asset_issue_burn_policy",
@@ -73,7 +73,7 @@
     "source_pins": [
       {
         "path": "docs/research/PRODUCTION_READINESS_G1_ASSET_PRECISION_V1.json",
-        "sha256": "36229ad7771c74d6a33858c068c0904dfacad0cd3c26f9683dbf274b6c6d7831"
+        "sha256": "cb8014b9ffc1cc94cf7082c63a34ddc9c45fbabfcef410bc434998a03e7cf0f4"
       },
       {
         "path": "zk/global_settlement_abi_v1/src/asset_authority_profile.rs",
@@ -81,7 +81,7 @@
       },
       {
         "path": "zk/global_settlement_abi_v1/src/lib.rs",
-        "sha256": "a237232f9ffe62e4dc551c9419a9e2fd46ef4027bbbb9fc104776bab64b86970"
+        "sha256": "e939f3d1f9c4d02dce528efee4834ede3fa88f9bee46bee78f46e21ea2a72312"
       },
       {
         "path": "zk/global_settlement_abi_v1/tests/asset_authority_profile.rs",
@@ -109,7 +109,7 @@
   ],
   "precision_binding": {
     "artifact": "docs/research/PRODUCTION_READINESS_G1_ASSET_PRECISION_V1.json",
-    "sha256": "36229ad7771c74d6a33858c068c0904dfacad0cd3c26f9683dbf274b6c6d7831",
+    "sha256": "cb8014b9ffc1cc94cf7082c63a34ddc9c45fbabfcef410bc434998a03e7cf0f4",
     "target_common_decimals": 8
   },
   "production_authority": "NONE",

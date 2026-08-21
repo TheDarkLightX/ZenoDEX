@@ -71,7 +71,7 @@
       },
       {
         "path": "zk/global_settlement_abi_v1/src/lib.rs",
-        "sha256": "a237232f9ffe62e4dc551c9419a9e2fd46ef4027bbbb9fc104776bab64b86970"
+        "sha256": "e939f3d1f9c4d02dce528efee4834ede3fa88f9bee46bee78f46e21ea2a72312"
       },
       {
         "path": "zk/global_settlement_abi_v1/tests/asset_precision.rs",

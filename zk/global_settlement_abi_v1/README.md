@@ -35,6 +35,21 @@ registered proposal and cannot represent supply, activation, or publication
 authority. Candidate validation and its profile root provide no transition,
 proof, release, or writer authority.
 
+The Spot/LP profile adds one exact inactive candidate bound to that asset
+authority root. It proposes a 30-basis-point ceil-rounded input fee with a zero
+protocol share, floor-rounded swap output, pool-kernel-only reserve changes,
+floor-square-root initial shares without a permanent lock, proportional
+non-diluting additions with exact refunds, and pro-rata withdrawals. Partial
+withdrawal residue remains in reserves for outstanding LP claims; the complete
+final burn drains both reserves and closes the pool. Exact-out quote capacity
+above the requested amount remains in pool reserves for outstanding LP claims.
+All reserve, input, and LP supply quantities are bounded by `u64::MAX`; derived
+exact-out `net_required_atoms` values above that ceiling reject before fee
+inversion, making each accepted product exact in `u128`. Python and Rust share
+eleven exact arithmetic vectors. The candidate does
+not alter the legacy Spot transition or RISC0 guest and has no route, receipt,
+activation, settlement, or publication authority.
+
 The crate also contains the first research-only lane core for authenticated
 account transfer. Its typed transition applies a profile-owned flat fee,
 emits canonical account, fee, conservation, lane-write, and occurrence effects,

@@ -26,6 +26,8 @@ mod proof;
 mod receipt_backed_asset_lane_composition;
 mod release;
 mod route_composition_receipt_verification;
+mod spot_liquidity_math;
+mod spot_liquidity_policy;
 mod state;
 
 pub use asset_authority_profile::*;
@@ -55,4 +57,6 @@ pub use proof::*;
 pub use receipt_backed_asset_lane_composition::*;
 pub use release::*;
 pub use route_composition_receipt_verification::*;
+pub use spot_liquidity_math::*;
+pub use spot_liquidity_policy::*;
 pub use state::*;

@@ -357,6 +357,28 @@ unselected pending user confirmation, exact genesis and Tau occurrence
 bindings, LP and zUSD lifecycle profiles, and runtime/proof/migration/writer
 refinement evidence.
 
+The inactive Spot/LP candidate
+`docs/research/PRODUCTION_READINESS_G1_SPOT_LP_POLICY_V1.json` narrows the
+`spot_lp_fee_dust_withdrawal_policy` decision without closing it. It proposes a
+30-basis-point fee rounded up from gross input, a zero protocol-fee share, and
+floor-rounded pool output. Every fee atom remains in pool reserves for current
+LP claimants. Initial LP supply is the floor of the reserve-product square root
+with no permanently locked shares. Direct reserve transfers are excluded from
+the candidate boundary; only the pool kernel may change reserves. Subsequent
+deposits mint the largest non-diluting share amount, round required asset use up,
+and refund excess input. Partial withdrawals round outputs down and leave the
+remainder in reserves for outstanding LP shares. A burn of the complete
+remaining supply returns every reserve atom and closes the pool. The candidate
+uses a `u64::MAX` per-reserve and LP-supply ceiling so each required product is
+exact in `u128` arithmetic; a derived exact-out `net_required_atoms` value above
+that ceiling rejects before fee inversion. Any exact-out quote capacity above
+the requested amount also remains in pool reserves for outstanding LP claims.
+Legacy Python and RISC0 paths retain their existing
+fee-selection and permanent-lock semantics and are outside this candidate's
+authority. User confirmation, asset/LP namespace closure, mounted transition
+and effect refinement, RISC0 guest and route evidence, migration, and atomic
+writer evidence remain open.
+
 The V2 E18-derived CLBF, buyburn-auction, service-funding, task-graph, and
 hyperdeflation artifacts remain historical evidence for their exact profile.
 They are inapplicable to the successor E8 profile until every atom-denominated
