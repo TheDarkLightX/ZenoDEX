@@ -646,7 +646,7 @@ The state/delta obligation gate
 the 14 declared global-state fields, eleven delta classes, and six closure
 obligations. Field types, root codec, event equations, ownership,
 reconciliation, terminal drains, and parity remain `OPEN_GAP`; this artifact
-does not claim a complete algebra or production authority. It also records an
+does not claim a complete algebra or production authority. It also records a
 source-pinned shape inventory for `GlobalEconomicStateV1`: 16 typed runtime
 fields appear in the literal `to_canonical()` projection, the runtime
 effect-kind enum has 9 values, and the canonical encoder/helper sources are
@@ -659,8 +659,9 @@ The same artifact carries a structural mapping-gap ledger: candidate names for
 the 14 abstract fields and eleven delta classes are recorded without selecting
 any mapping. Every abstract field now has a structural candidate. The ledger
 records `lane_roots[SPOT_LIQUIDITY]` for `lp_state` and
-`lane_roots[SEALED_AUCTION]` for `auctions`. These opaque roots do not establish either lane's
-payload schema, transition equations, reconciliation, or terminal lifecycle.
+`lane_roots[SEALED_AUCTION]` for `auctions`. These opaque roots do not
+establish either lane's payload schema, transition equations, reconciliation,
+or terminal lifecycle.
 The event algebra now gives all nine runtime effect kinds a structural
 candidate through explicit reserve-transfer, fee-allocation, and reward event
 roles. These are source-shape correspondences, not semantic proofs; all
@@ -690,11 +691,11 @@ a separately reviewed exact-subject contract exists.
 The cross-artifact bundle
 `docs/research/PRODUCTION_READINESS_G1_BUNDLE_V1.json` verifies that these
 seven research artifacts share the exact 33-command registry, eight-command
-disabled partition, nine open profile decisions, 14 state fields, and eight
-abstract value-delta classes. It also verifies the explicit repair-descendant overlay
-relation, the global effect-kind gap, the M6 value-delta surface gap, and the
-no-launch/quarantine posture. A passing bundle is drift evidence only and
-leaves G1 blocked.
+disabled partition, nine open profile decisions, 14 state fields, and eleven
+abstract value-delta classes. It also verifies the explicit repair-descendant
+overlay relation, the unproved global effect-kind candidate ledger, the M6
+value-delta surface gap, and the no-launch/quarantine posture. A passing bundle
+is drift evidence only and leaves G1 blocked.
 
 Replay the slice with:
 
