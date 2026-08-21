@@ -1,0 +1,205 @@
+{
+  "schema": "ZenoDEXG1Risc0RunpodCudaEvidenceV1",
+  "captured_utc_date_range": [
+    "2026-08-20",
+    "2026-08-21"
+  ],
+  "branch": "codex/g1-economic-delta-algebra-v2-20260820",
+  "evidence_head": "6aa4333cc6104136bb8a19b6207c53226e3b760b",
+  "proof_evidence_head": "6c0594b7e6fdf8fbfebc21d7e3b95ea1126f56c8",
+  "production_authority": "NONE",
+  "activation_eligible": false,
+  "receipt_exported": false,
+  "environment": {
+    "gpu": "NVIDIA L40S",
+    "gpu_memory_mib": 46068,
+    "driver": "570.124.06",
+    "cuda_toolkit": "12.4",
+    "nvcc": "V12.4.131",
+    "rustc": "1.90.0 (1159e78c4 2025-09-14)",
+    "cargo": "1.90.0 (840b83a10 2025-07-30)",
+    "cargo_risczero": "3.0.6",
+    "risc0_zkvm": "3.0.6",
+    "prover": "local",
+    "prover_feature": "cuda",
+    "receipt_kind": "Succinct",
+    "sampled_peak_gpu_compute_percent": 100,
+    "sampled_peak_gpu_memory_controller_percent": 68,
+    "sampled_peak_framebuffer_mib": 13703
+  },
+  "lockfiles": {
+    "zk/asset_transfer_module_risc0/Cargo.lock": "d80b78c6c5dee8ae6366fc99a142412a9527abeb8cb41bba9b6bb29fdd05f671",
+    "zk/asset_lane_coordinator_risc0/Cargo.lock": "95ca67471e77e14802a0ae339be4471101b56f25304575e8a992ea209f506f9f",
+    "zk/global_economic_epoch_risc0/Cargo.lock": "4acd4cce3bae6e3836f36ef086853b7f27c4960ddf7f7ca2c0dfedbee89410b8"
+  },
+  "methods": {
+    "asset_transfer": {
+      "image_words": [
+        2708773262,
+        3284681053,
+        4030353785,
+        209039674,
+        2904775276,
+        1338612034,
+        3001795512,
+        4066241436
+      ],
+      "image_root": "0x8e9974a15d41c8c379513af03ab1750c6c5a23ad4299c94fb8c3ebb29ceb5df2",
+      "method_bin_sha256": "4affdf1877192a51fff973aab9051aaeb36eb548f650baa7e82882bbabd68283"
+    },
+    "asset_lane_coordinator": {
+      "image_words": [
+        3654251601,
+        3195487566,
+        3106616364,
+        3539379948,
+        2697163327,
+        3171258320,
+        3221320101,
+        2106873291
+      ],
+      "image_root": "0x5174cfd94e4577be2c342bb9eca6f6d23f72c3a0d08f05bda57101c0cb55947d",
+      "method_bin_sha256": "a555abc0a29c02942df847d2e4b3fb2dfac2b7b2a07a9888945b395c3e3bf157"
+    },
+    "global_economic_epoch": {
+      "image_words": [
+        79440651,
+        2295325611,
+        1994901049,
+        994102079,
+        1202273119,
+        3874424636,
+        367544175,
+        827540448
+      ],
+      "image_root": "0x0b2bbc04abe3cf8839c6e7763fcb403b5f3ba9473c07efe66f47e815e0435331",
+      "method_bin_sha256": "6ea9191aa391a1961692e18825aa2380ed173715d252bb7aa465cb6bddaee5b2"
+    },
+    "quarantined_structural_route_test_leaf": {
+      "image_words": [
+        147973308,
+        3528505979,
+        2323916366,
+        3003937923,
+        3893956772,
+        534286511,
+        2148072779,
+        1078592089
+      ],
+      "image_root": "0xbce4d1087bba50d24e26848a83740cb3a41019e8af90d81f4bfd088059024a40",
+      "method_bin_sha256": "838b14b0ce37e50b949c31f748b282b6b71c788efea184c3a174dba3bd91bf02",
+      "economic_authority": "NONE"
+    }
+  },
+  "source_hashes": {
+    "zk/asset_transfer_module_risc0/shared/src/lib.rs": "4c479de3d5f9f24b21364579ce359ba7654e0e5d7c6477c60814db18172923b5",
+    "zk/asset_transfer_module_risc0/host/src/lib.rs": "a2c59957470ca5274e113c5f22ced54ab3c6192fbe331ccd2b5adb7f0c0f9386",
+    "zk/asset_transfer_module_risc0/methods/guest/src/main.rs": "4d6173d5fdf1ff1631f3563be5ca3c83b6a028243dece68ee77f7f72b855c727",
+    "zk/asset_transfer_module_risc0/methods/src/lib.rs": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255",
+    "zk/asset_lane_coordinator_risc0/shared/src/lib.rs": "0576686efce702f348d26f7b752305be843909d799280c4eb9ed6a5fa57e4d97",
+    "zk/asset_lane_coordinator_risc0/host/src/lib.rs": "2b5763546e36d3822afb73b8cdc3dffa061ffd43f4354c9258acc676950929ba",
+    "zk/asset_lane_coordinator_risc0/methods/guest/src/main.rs": "daf6e39d6e68017596ea4f651f9be1fa150a197a37e353b89b67dd8f33e2083c",
+    "zk/asset_lane_coordinator_risc0/methods/src/lib.rs": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255",
+    "zk/global_economic_epoch_risc0/shared/src/lib.rs": "0a1789fd05159be30464bb0f9081d37450d1249d03186f35ce42c62dfad9a446",
+    "zk/global_economic_epoch_risc0/shared/src/aggregation.rs": "2371d4fbd9cc961253537fed002599328f6056a794ea5fb568f35974a723aac4",
+    "zk/global_economic_epoch_risc0/shared/src/preflight.rs": "2704b1c6d55a5653904aa32d2e2c1446545c274bf009d6eb975ef3bf7f2d50a8",
+    "zk/global_economic_epoch_risc0/shared/tests/epoch_preflight.rs": "ba39296cc3b4c7a164c80f54ab810be5663ae6ed09fc73108d554f4cbd5cc030",
+    "zk/global_economic_epoch_risc0/shared/tests/aggregation_preflight.rs": "0f25d716822bffcaab6f5c255a7008b8f5b70a2b0a9246729428da9261d292e2",
+    "zk/global_economic_epoch_risc0/host/src/lib.rs": "7448933c542b8fa9119f3875c53242a57526bdccc52d7dfa48cbc51942e63d95",
+    "zk/global_economic_epoch_risc0/host/tests/real_aggregation_nine.rs": "aa1c07de57bfed743e147b1bcf95270788c0d6980a162318cba2c4da4290f259",
+    "zk/global_economic_epoch_risc0/methods/epoch/src/main.rs": "a84563dbb91017431b061fc732ac40458826d650f75a3ccb9aba87050a7c8b4a",
+    "zk/global_economic_epoch_risc0/methods/src/lib.rs": "902d56d952004dd42e65c148a4b537710f869054556528b25ed3e67d050bb255",
+    "zk/global_economic_epoch_risc0/test_methods/route_structural_test_leaf/src/main.rs": "5c853c2a939d43704d77930dfbfbb94c38a4300c4b3769ca687296d202f834b5"
+  },
+  "proof_runs": [
+    {
+      "name": "asset_transfer_module",
+      "proof_run_source": "f574f677c2474a81dceebdde8157b8fe0d6f3f8d",
+      "workspace_unchanged_through_evidence_head": true,
+      "receipt_count": 1,
+      "test_seconds": 37.53,
+      "command_wall_seconds": 43.23,
+      "result": "PASS"
+    },
+    {
+      "name": "release_aware_asset_lane",
+      "proof_run_source": "5d3bc192811197b250d4e5fbdc8f40ffea5c8433",
+      "workspace_unchanged_through_evidence_head": true,
+      "receipt_count": 2,
+      "module_proof_seconds": 38.76300509,
+      "recursive_total_seconds": 98.481183913,
+      "test_seconds": 99.46,
+      "verified_lane_binding_root": "0x8afbb9391f2f4fa0e850253aaf0093b14c7e848ff51d000d3bb6e02f3fa30877",
+      "result": "PASS"
+    },
+    {
+      "name": "global_epoch_one_command",
+      "proof_run_source": "6c0594b7e6fdf8fbfebc21d7e3b95ea1126f56c8",
+      "receipt_count": 3,
+      "test_seconds": 24.71,
+      "command_wall_seconds": 30.78,
+      "result": "PASS"
+    },
+    {
+      "name": "global_epoch_eight_command_direct_boundary",
+      "proof_run_source": "6c0594b7e6fdf8fbfebc21d7e3b95ea1126f56c8",
+      "receipt_count": 9,
+      "test_seconds": 87.49,
+      "command_wall_seconds": 93.53,
+      "result": "PASS"
+    },
+    {
+      "name": "global_epoch_nine_command_fanout_crossing",
+      "proof_run_source": "6c0594b7e6fdf8fbfebc21d7e3b95ea1126f56c8",
+      "receipt_count": 12,
+      "test_seconds": 117.54,
+      "command_wall_seconds": 124.25,
+      "result": "PASS"
+    },
+    {
+      "name": "global_epoch_sixty_four_command_maximum",
+      "proof_run_source": "6c0594b7e6fdf8fbfebc21d7e3b95ea1126f56c8",
+      "receipt_count": 73,
+      "test_seconds": 748.41,
+      "command_wall_seconds": 754.28,
+      "maximum_host_rss_kib": 1173848,
+      "result": "PASS"
+    }
+  ],
+  "non_proving_gates": {
+    "global_epoch_tests": {
+      "passed": 12,
+      "failed": 0,
+      "source": "6c0594b7e6fdf8fbfebc21d7e3b95ea1126f56c8"
+    },
+    "post_review_global_epoch_shared_tests": {
+      "passed": 9,
+      "failed": 0,
+      "source": "6aa4333cc6104136bb8a19b6207c53226e3b760b"
+    },
+    "asset_transfer_tests": {
+      "passed": 7,
+      "failed": 0
+    },
+    "asset_lane_tests": {
+      "passed": 7,
+      "failed": 0
+    },
+    "clippy": {
+      "global_epoch": "PASS",
+      "asset_transfer": "PASS",
+      "asset_lane": "PASS",
+      "flags": "--workspace --lib --tests -- -D warnings",
+      "risc0_skip_build": true,
+      "scope": "host, shared, and integration-test Rust targets; zkVM guest binaries excluded",
+      "post_review_shared_gate": "PASS"
+    }
+  },
+  "nonclaims": [
+    "No production authority, profile activation, settlement mount, writer rotation, or value-moving publication authority.",
+    "The structural route test leaf proves no economics, authorization, conservation, or governed route release.",
+    "The receipts were verified in memory and were not persisted as release artifacts.",
+    "No Groth16 receipt, production throughput, crash-safe publication, migration, or whole-economy proof claim.",
+    "The demonstrated economic leaf and coordinator cover one ASSET_TRANSFER transition shape, not all M6 value movement."
+  ]
+}

@@ -16,53 +16,51 @@ Fast replay:
 
 ```bash
 RISC0_SKIP_BUILD=1 cargo test --locked --workspace
-RISC0_SKIP_BUILD=1 cargo clippy --locked --workspace --all-targets -- -D warnings
+RISC0_SKIP_BUILD=1 cargo clippy --locked --workspace --lib --tests -- -D warnings
 cargo fmt --all -- --check
 ```
 
 Real recursive replay:
 
 ```bash
-cargo test --locked -p zenodex-asset-lane-coordinator-risc0-host \
+RISC0_PROVER=local cargo test --locked \
+  -p zenodex-asset-lane-coordinator-risc0-host \
   --features cuda \
   --test real_composition \
   real_module_receipt_composes_into_the_exact_lane_journal \
-  -- --ignored --nocapture
+  -- --ignored --exact --nocapture
 ```
 
-The `cuda` feature is explicit so CPU-only replay remains portable and a GPU
-runner cannot silently execute the real-proof command through the CPU backend.
-Record `nvidia-smi` and `nvcc --version` with the replay evidence.
+The `cuda` feature makes the CUDA backend available while CPU-only replay stays
+portable. `RISC0_PROVER=local` selects the local prover. Record live
+`nvidia-smi` utilization and `nvcc --version` because feature selection alone
+does not establish that GPU kernels executed.
 
-Recorded local evidence on 2026-08-11:
+Recorded RunPod evidence on 2026-08-20:
 
+- proof-run source: `5d3bc192811197b250d4e5fbdc8f40ffea5c8433`;
+- evidence head: `6aa4333cc6104136bb8a19b6207c53226e3b760b`;
 - coordinator image words:
-  `[1427482587, 4254091243, 771966465, 1925511048, 138359819, 1501093537, 4207195010, 1643793649]`;
+  `[3654251601, 3195487566, 3106616364, 3539379948, 2697163327, 3171258320, 3221320101, 2106873291]`;
 - coordinator image root:
-  `0xdba71555eb4790fd0146032e88f7c4720b343f08a1de785982b3c4faf14cfa61`;
-- embedded method: 659,560 bytes, SHA-256
-  `0bef82521f2ab986cc1e4e3ec8f6f39e79a172189bdeb17095a4ddf80f6bd438`;
-- guest ELF: 627,136 bytes, SHA-256
-  `407e3dae554b509580e67030dbb80148ca695fd0ce0f208012398e50cae649fe`;
-- child ASSET_TRANSFER module proof: 522.722552067 seconds;
-- complete module-to-lane recursive proof: 1,443.666295007 seconds;
+  `0x5174cfd94e4577be2c342bb9eca6f6d23f72c3a0d08f05bda57101c0cb55947d`;
+- generated method `.bin` SHA-256:
+  `a555abc0a29c02942df847d2e4b3fb2dfac2b7b2a07a9888945b395c3e3bf157`;
+- child `ASSET_TRANSFER` module proof: `38.76300509` seconds;
+- complete module-to-lane proof: `98.481183913` seconds;
+- test elapsed: `99.46` seconds;
+- release-aware verified-lane binding root:
+  `0x8afbb9391f2f4fa0e850253aaf0093b14c7e848ff51d000d3bb6e02f3fa30877`;
 - result: one real `Succinct` module receipt was consumed as an exact guest
   assumption and the exact coordinator journal was committed and verified.
 
-That successful replay predates the current release-aware host fixture while
-covering the same unchanged module and coordinator guest images. The current
-fixture constructs content-derived module, coordinator, route, and profile
-records; binds the exact occurrence and journals; and passes the real receipt
-to the stable verifier that alone can construct `VerifiedLaneCompositionV1`.
-Its synthetic active evidence labels and placeholder route image are test data,
-not governance or release evidence.
-
-The release-aware fixture compiled, passed the fast workspace tests, Clippy,
-formatting, and structural-quality checks on 2026-08-11. Its real ignored replay
-was interrupted with exit code 130 at the operator's request because sustained
-local proving exceeded the workstation's heat and CPU budget. No release-aware
-verified-lane binding root or successful receipt result was recorded. That
-replay is deferred to a larger Runpod machine.
+The lane workspace is byte-identical between the proof-run source and evidence
+head. The fixture constructs content-derived module, coordinator, route, and
+profile records; binds the exact occurrence and journals; and passes the real
+receipt to the stable verifier that alone can construct
+`VerifiedLaneCompositionV1`. Its synthetic active evidence labels and
+placeholder route image are test data and carry no governance or release
+authority.
 
 This remains source-scoped research evidence. No deployment-selected profile,
 authenticated verifier registry, governed route composer, economic epoch, or

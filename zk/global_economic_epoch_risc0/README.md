@@ -37,18 +37,18 @@ the RISC0 guest compiler is supplied by the installed 3.0.6 toolchain. The
 current reproducible method identifiers are:
 
 ```text
-epoch ELF sha256:
-  769f762fd1a77e22d776387aa3d72ad167d4811ca825ca9fbcad2e2e06e98d3f
+epoch generated method `.bin` sha256:
+  6ea9191aa391a1961692e18825aa2380ed173715d252bb7aa465cb6bddaee5b2
 epoch image root:
-  0x5374bab8dbe303f907c281566f6e5cd24a21ddaa4332a783223d1bd572ed40cc
+  0x0b2bbc04abe3cf8839c6e7763fcb403b5f3ba9473c07efe66f47e815e0435331
 
-quarantined structural test-leaf ELF sha256:
-  e1a5ff0cf71b1c50449b600f1890ad3056b675383d71ea4771d59935a881a9a0
+quarantined structural test-leaf generated method `.bin` sha256:
+  838b14b0ce37e50b949c31f748b282b6b71c788efea184c3a174dba3bd91bf02
 quarantined structural test-leaf image root:
-  0x7e8adcaf17f8c07bf7303fde3ee764a624cf40412cb8ad9718bf033eb464e93e
+  0xbce4d1087bba50d24e26848a83740cb3a41019e8af90d81f4bfd088059024a40
 ```
 
-These values describe local research artifacts. They are absent from every
+These values describe research artifacts. They are absent from every
 active economic profile and carry no release authority.
 
 `test_methods/route_structural_test_leaf` is quarantined test code. It merely
@@ -63,39 +63,59 @@ and its image ID must never appear in an economic profile.
 cargo build --locked -p zenodex-global-economic-epoch-risc0-methods
 cargo test --locked -p zenodex-global-economic-epoch-risc0-shared
 RISC0_SKIP_BUILD=1 cargo test --locked --workspace
-RISC0_SKIP_BUILD=1 cargo clippy --locked --workspace --all-targets -- -D warnings
+RISC0_SKIP_BUILD=1 cargo clippy --locked --workspace --lib --tests -- -D warnings
 cargo fmt --all -- --check
 
-cargo test --locked \
+RISC0_PROVER=local cargo test --locked \
   -p zenodex-global-economic-epoch-risc0-host \
   --features cuda \
   --test real_composition \
   real_succinct_child_assumption_resolves_into_exact_epoch_journal \
-  -- --ignored --nocapture
+  -- --ignored --exact --nocapture
 
-cargo test --locked \
+RISC0_PROVER=local cargo test --locked \
+  -p zenodex-global-economic-epoch-risc0-host \
+  --features cuda \
+  --test real_aggregation_nine \
+  eight_routes_compose_directly_into_one_exact_epoch_root \
+  -- --ignored --exact --nocapture
+
+RISC0_PROVER=local cargo test --locked \
   -p zenodex-global-economic-epoch-risc0-host \
   --features cuda \
   --test real_aggregation_nine \
   nine_routes_compose_through_two_groups_into_one_exact_epoch_root \
-  -- --ignored --nocapture
+  -- --ignored --exact --nocapture
+
+RISC0_PROVER=local cargo test --locked \
+  -p zenodex-global-economic-epoch-risc0-host \
+  --features cuda \
+  --test real_aggregation_nine \
+  sixty_four_routes_compose_through_eight_groups_into_one_exact_epoch_root \
+  -- --ignored --exact --nocapture
 ```
 
-The `cuda` feature is explicit so CPU-only replay remains portable and a GPU
-runner cannot silently execute these real-proof commands through the CPU
-backend. Record `nvidia-smi` and `nvcc --version` with each replay environment.
+The `cuda` feature makes the CUDA backend available while CPU-only replay stays
+portable. `RISC0_PROVER=local` selects the local prover. Record live
+`nvidia-smi` utilization and `nvcc --version` because feature selection alone
+does not establish that GPU kernels executed.
 
-The ignored test generated a real Succinct structural child, used it to prove
-both a real command-aggregation receipt and a direct epoch receipt, checked
-exact journals and image IDs, and killed a foreign root-image substitution
-before proving. It took 217.73 seconds in the recorded final local run. The
-three receipts were verified in memory and were not exported as release
-artifacts.
+RunPod replay at source commit
+`6c0594b7e6fdf8fbfebc21d7e3b95ea1126f56c8` generated and verified these
+real `Succinct` receipt sets:
 
-The full `9`-command topology additionally generated nine distinct structural
-route receipts, canonical `8+1` command-aggregation receipts, and one exact
-aggregated epoch receipt in 985.82 seconds. All 12 receipts were verified in
-memory under their expected images and journals. The `64`-command boundary has
-typed BVA, canonical-partition, substitution, and Fake-receipt evidence; its
-full 73-receipt real replay has not been generated. No throughput or
-release-backed 64-command claim follows from this evidence.
+- one command: one structural child, one command-aggregation statement, and
+  one direct epoch statement in `24.71` seconds;
+- eight commands: eight structural children and one direct epoch root in
+  `87.49` seconds;
+- nine commands: nine structural children, canonical `8+1` group receipts,
+  and one aggregated epoch root in `117.54` seconds;
+- sixty-four commands: sixty-four structural children, eight canonical group
+  receipts, and one aggregated epoch root in `748.41` seconds.
+
+Every receipt was verified in memory under its expected image and exact journal
+and was not exported as a release artifact. At source commit
+`6aa4333cc6104136bb8a19b6207c53226e3b760b`, isolated non-proving preflight
+fixtures accept the valid `1`, `8`, `9`, and `64` shapes and reject invalid
+`0`, `9` for the direct path, `8` for the aggregated path, and `65`. No
+throughput or release-backed 64-command claim follows from this evidence.

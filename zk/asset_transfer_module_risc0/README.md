@@ -15,44 +15,48 @@ Fast replay:
 
 ```bash
 RISC0_SKIP_BUILD=1 cargo test --locked --workspace
-RISC0_SKIP_BUILD=1 cargo clippy --locked --workspace --all-targets -- -D warnings
+RISC0_SKIP_BUILD=1 cargo clippy --locked --workspace --lib --tests -- -D warnings
 cargo fmt --all -- --check
 ```
 
 Real release-evidence replay:
 
 ```bash
-cargo test --locked -p zenodex-asset-transfer-module-risc0-host \
+RISC0_PROVER=local cargo test --locked \
+  -p zenodex-asset-transfer-module-risc0-host \
   --features cuda \
   --test real_proof \
   real_asset_transfer_transition_proves_the_exact_module_journal \
-  -- --ignored --nocapture
+  -- --ignored --exact --nocapture
 ```
 
-The `cuda` feature is explicit so CPU-only replay remains portable and a GPU
-runner cannot silently execute the real-proof command through the CPU backend.
-Before replay, record both `nvidia-smi` and `nvcc --version`; the former reports
-driver compatibility while the latter reports the compiler toolkit.
+The `cuda` feature makes the CUDA backend available while CPU-only replay stays
+portable. `RISC0_PROVER=local` selects the local prover. Record live
+`nvidia-smi` utilization and `nvcc --version` because feature selection alone
+does not establish that GPU kernels executed.
 
-Recorded local evidence for the exact current guest:
+Recorded RunPod evidence for the exact current guest:
 
 ```text
+proof-run source: f574f677c2474a81dceebdde8157b8fe0d6f3f8d
+evidence head: 6aa4333cc6104136bb8a19b6207c53226e3b760b
 RISC0 version: 3.0.6
-image words: [3494995490, 1275137722, 1377448836, 1356757021,
-              2581487242, 1957138521, 501643869, 607044243]
-image root: 0x226651d0ba0e014c84331a521d78de508a5ede995990a7745d7ae61d93c22e24
-embedded method bytes: 537272
-embedded method SHA-256: 30278587c905f74373fb496acf518ffdfef7b415ad3c3ca6585b0a011b781c21
-guest ELF bytes: 504848
-guest ELF SHA-256: b3b58f60f38cfa8916c240d659a4e7728a8227e3215384f8eaee0b80b6780374
-real proof elapsed: 569.750161942 seconds
+image words: [2708773262, 3284681053, 4030353785, 209039674,
+              2904775276, 1338612034, 3001795512, 4066241436]
+image root: 0x8e9974a15d41c8c379513af03ab1750c6c5a23ad4299c94fb8c3ebb29ceb5df2
+generated method .bin SHA-256:
+  4affdf1877192a51fff973aab9051aaeb36eb548f650baa7e82882bbabd68283
+real proof test elapsed: 37.53 seconds
+complete command elapsed: 43.23 seconds
+receipt kind: Succinct
+result: exact module journal and image verified
 ```
 
-The embedded method constant points to RISC0's generated `.bin`; the guest ELF
-is recorded separately. The timing is one local evidence datum and supplies no
-throughput or resource-ceiling claim. This guest links the std-based stable ABI
-to preserve exact host/guest transition reuse. A future no-std extraction would
-be a new image and requires equivalence evidence.
+The asset workspace is byte-identical between the proof-run source and evidence
+head. The timing is one remote evidence datum and supplies no throughput or
+resource-ceiling claim. This guest links the std-based stable ABI to preserve
+exact host/guest transition reuse. A future no-std extraction would be a new
+image and requires equivalence evidence.
 
 This crate is unmounted. No active `EconomicProfileSnapshotV1` selects its
 image, no lane coordinator or route composer consumes the receipt, and no
