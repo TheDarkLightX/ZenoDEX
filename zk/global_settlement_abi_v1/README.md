@@ -26,6 +26,15 @@ residue over 10,000, and require explicit asset retirement before the final atom
 can be burned. The registry and arithmetic functions remain unmounted and have
 no profile, Tau-runtime, guest, or writer authority.
 
+The asset-authority profile adds one exact inactive four-asset candidate. TAU
+has no local issue or burn authority and remains held for a verified occurrence
+adapter. ZDEX uses genesis-only issuance and tokenomics-owned exact-source burn;
+zUSD supply changes belong to its monetary kernel; LP-share supply changes
+belong to the pool's liquidity kernel. The closed AutoGov role can originate a
+registered proposal and cannot represent supply, activation, or publication
+authority. Candidate validation and its profile root provide no transition,
+proof, release, or writer authority.
+
 The crate also contains the first research-only lane core for authenticated
 account transfer. Its typed transition applies a profile-owned flat fee,
 emits canonical account, fee, conservation, lane-write, and occurrence effects,

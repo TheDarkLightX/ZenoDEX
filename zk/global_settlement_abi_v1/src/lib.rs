@@ -4,6 +4,7 @@
 //! a receipt-verifier port without a verifier implementation, ledger adapter,
 //! writer capability, or production status.
 
+mod asset_authority_profile;
 mod asset_lane_coordinator;
 mod asset_lane_projection;
 mod asset_precision;
@@ -27,6 +28,7 @@ mod release;
 mod route_composition_receipt_verification;
 mod state;
 
+pub use asset_authority_profile::*;
 pub use asset_lane_coordinator::*;
 pub use asset_lane_projection::*;
 pub use asset_precision::*;

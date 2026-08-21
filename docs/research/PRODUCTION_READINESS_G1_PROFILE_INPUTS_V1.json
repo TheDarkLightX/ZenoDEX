@@ -996,7 +996,7 @@
   "semantic_binding": {
     "artifact": "docs/research/PRODUCTION_READINESS_G1_SEMANTICS_V1.json",
     "checker_status": "EXACT_SUBJECT_PASS",
-    "sha256": "33374ef5e636ba1e66e61349fdee81ad19b5dbaba389cc0389cc52b72bfc2bce",
+    "sha256": "e0f7c14af3b46d5deb24c307f80a2c4a4c0867581a92f48cfdf766c961b71147",
     "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
   },
   "source_pins": [

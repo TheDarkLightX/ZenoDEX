@@ -342,6 +342,21 @@ governance is classified as a typed command originator with no settlement,
 unbounded issue/burn, in-place scale reinterpretation, or unilateral profile
 activation authority.
 
+The inactive authority candidate
+`docs/research/PRODUCTION_READINESS_G1_ASSET_AUTHORITY_V1.json` narrows the
+`asset_issue_burn_policy` decision without closing it. It forbids local TAU
+issuance and destruction and requires a future verified Tau occurrence adapter
+before TAU movements can be mirrored. ZDEX issuance is limited to an exact
+genesis activation under `GOVERNANCE_MIGRATION`; subsequent issuance is
+forbidden. ZDEX burn actions belong to `ZDEX_TOKENOMICS` and must name the exact
+source allocation. zUSD supply actions belong to `ZUSD_MONETARY`; LP-share
+supply actions belong to the pool's `SPOT_LIQUIDITY` release. Automatic
+governance can originate registered proposals and has no direct supply,
+activation, settlement-publication, or writer authority. The candidate remains
+unselected pending user confirmation, exact genesis and Tau occurrence
+bindings, LP and zUSD lifecycle profiles, and runtime/proof/migration/writer
+refinement evidence.
+
 The V2 E18-derived CLBF, buyburn-auction, service-funding, task-graph, and
 hyperdeflation artifacts remain historical evidence for their exact profile.
 They are inapplicable to the successor E8 profile until every atom-denominated
