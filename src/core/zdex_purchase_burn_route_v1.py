@@ -42,6 +42,9 @@ from .zdex_purchase_burn_route_types_v1 import (
     ZDEXBurnJournalV1,
     ZDEXPurchaseBurnRouteRejectCodeV1,
 )
+from .zdex_tokenomics_lane_v1 import (
+    zdex_tokenomics_complete_lane_obligation_root_v1,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -248,17 +251,6 @@ def _compose_effects(
         ),
         occurrence_consumptions=(candidate.occurrence.occurrence_id,),
         external_outbox_enqueue=(),
-    )
-
-
-def _tokenomics_coordinator_obligation_root_v1() -> str:
-    return hash_global_v1(
-        "zdex-tokenomics-coordinator-obligation-v1",
-        {
-            "schema": GLOBAL_SETTLEMENT_ABI_V1,
-            "lane_id": LaneIdV1.ZDEX_TOKENOMICS,
-            "requirement": "VERIFIED_COMPLETE_LANE_ROOT",
-        },
     )
 
 
@@ -473,7 +465,7 @@ def compose_zdex_purchase_burn_route_v1(
         ),
         candidate.verified_buyback_budget.binding_root,
         effects,
-        _tokenomics_coordinator_obligation_root_v1(),
+        zdex_tokenomics_complete_lane_obligation_root_v1(),
     )
 
 

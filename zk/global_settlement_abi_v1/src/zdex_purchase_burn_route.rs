@@ -15,6 +15,7 @@ use crate::zdex_purchase_burn_receipt_verification::{
     VerifiedZDEXAMMPurchaseV1, VerifiedZDEXBurnV1, ZDEXVerifiedLaneExpectationV1,
 };
 use crate::zdex_purchase_burn_types::{ZDEXAMMPurchaseJournalV1, ZDEXBurnJournalV1};
+use crate::zdex_tokenomics_lane_types::zdex_tokenomics_complete_lane_obligation_root_v1;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(non_camel_case_types)]
@@ -215,23 +216,6 @@ fn compose_effects_v1(
     Ok(plan)
 }
 
-fn tokenomics_coordinator_obligation_root_v1() -> AbiResultV1<RootV1> {
-    #[derive(Serialize)]
-    struct Requirement {
-        schema: &'static str,
-        lane_id: LaneIdV1,
-        requirement: &'static str,
-    }
-    hash_global_v1(
-        "zdex-tokenomics-coordinator-obligation-v1",
-        &Requirement {
-            schema: GLOBAL_SETTLEMENT_ABI_V1,
-            lane_id: LaneIdV1::ZDEX_TOKENOMICS,
-            requirement: "VERIFIED_COMPLETE_LANE_ROOT",
-        },
-    )
-}
-
 fn basic_binding_reject_code_v1(
     candidate: &ZDEXPurchaseBurnRouteCandidateV1<'_>,
     occurrence_id: &RootV1,
@@ -413,7 +397,7 @@ pub fn compose_zdex_purchase_burn_route_v1(
             ],
             verified_budget_binding_root: candidate.verified_buyback_budget.binding_root()?,
             effects: compose_effects_v1(&candidate, &occurrence_id)?,
-            terminal_obligations_root: tokenomics_coordinator_obligation_root_v1()?,
+            terminal_obligations_root: zdex_tokenomics_complete_lane_obligation_root_v1()?,
         },
     ))
 }

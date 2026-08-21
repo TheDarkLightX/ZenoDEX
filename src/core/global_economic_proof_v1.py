@@ -119,6 +119,9 @@ class LaneModuleTransitionJournalV1:
     terminal_obligations_root: str
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_token(self.chain_id, name="module journal chain id")
         for field_name in (
             "deployment_root",
@@ -149,6 +152,7 @@ class LaneModuleTransitionJournalV1:
 
     @property
     def journal_root(self) -> str:
+        self.validate()
         return hash_global_v1("lane-module-transition-journal-v1", self.to_canonical())
 
     def to_canonical(self) -> dict[str, object]:
@@ -186,6 +190,9 @@ class LaneCompositionJournalV1:
     terminal_obligations_root: str
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_token(self.chain_id, name="lane composition chain id")
         for field_name in (
             "deployment_root",
@@ -217,6 +224,7 @@ class LaneCompositionJournalV1:
 
     @property
     def journal_root(self) -> str:
+        self.validate()
         return hash_global_v1("lane-composition-journal-v1", self.to_canonical())
 
     def to_canonical(self) -> dict[str, object]:

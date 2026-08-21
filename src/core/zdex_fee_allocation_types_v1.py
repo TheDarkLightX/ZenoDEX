@@ -197,6 +197,9 @@ class ZDEXFeeStateV1:
     supply_atoms: int
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_root(self.fee_asset_id, name="ZDEX fee asset id")
         _require_root(self.policy_root, name="ZDEX fee state policy root")
         _require_atoms_u128(self.fee_ingress_atoms, name="ZDEX fee ingress")
@@ -226,6 +229,7 @@ class ZDEXFeeStateV1:
 
     @property
     def state_root(self) -> str:
+        self.validate()
         return hash_global_v1("zdex-fee-allocation-state-v1", self.to_canonical())
 
     def to_canonical(self) -> dict[str, object]:

@@ -1553,6 +1553,9 @@ class GlobalEconomicEffectPlanV1:
     external_outbox_enqueue: tuple[ExternalOutboxEnqueueV1, ...]
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_ordered_objects(
             self.rows,
             name="effect plan rows",
@@ -1625,6 +1628,7 @@ class GlobalEconomicEffectPlanV1:
 
     @property
     def effect_plan_root(self) -> str:
+        self.validate()
         return hash_global_v1("global-economic-effect-plan-v1", self.to_canonical())
 
     @property

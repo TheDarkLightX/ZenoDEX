@@ -263,6 +263,31 @@ epoch verifier cannot admit it until a tokenomics lane coordinator proves and
 supplies the complete lane transition. Any binding or history mismatch returns
 a typed rejection with an empty effect plan.
 
+The source-level coordinator core now defines a closed tokenomics-lane envelope
+containing the exact ZDEX supply state, a canonical registry of one to 64
+fee-allocation states uniquely ordered by fee asset, and explicit component
+roots for staking, qualified-host claims, treasury claims, proof rewards, cover
+reserves, and LP rebates. Global replay, terminal-obligation, profile-policy,
+and history commitments retain their existing owners in `GlobalEconomicStateV1`
+and `EconomicProfileSnapshotV1`; the lane root does not duplicate them. For a
+burn, every component except the supply state must remain canonically equal.
+The coordinator requires the burn module journal to
+leave its lane roots at zero, binds the burn-substate private port and its
+`VERIFIED_COMPLETE_LANE_ROOT` obligation, checks the exact burn journal and
+effects, and derives one common `LaneCompositionJournalV1` with the complete
+pre/post lane roots and one canonical tokenomics lane write. Attempts to place
+the partial burn-substate roots in the module journal's lane-root fields reject
+as `PARTIAL_LANE_ROOT_CLAIM`.
+
+This source-level result authenticates no coordinator receipt. The current
+route composer deliberately retains its nonzero coordinator obligation and does
+not consume this lane result. A release-selected coordinator guest, real
+succinct receipt, opaque verified-lane witness, and exact route connection are
+required before the route may carry the full tokenomics lane write or clear the
+obligation. The existing fee-allocation occurrence fields named
+`pre_lane_root`/`post_lane_root` still commit only the fee-allocation substate;
+their rename and coordinator adapter remain an explicit semantic-cleanup task.
+
 Both receipt-admission implementations are deliberately `SHADOW`-only.
 `ACTIVE_NEW`, composite, conditional, fake, development, empty, wrong-effect,
 and verifier-rejected receipts cannot construct the opaque verified leaf
@@ -334,8 +359,8 @@ receipt consumer, API, client, and historical decoder.
 | Preexisting ZDEX is mixed into the purchase output | Purchase transient bucket must project `0 -> B` | Complete global balance-root connection in the Spot guest |
 | Purchased ZDEX is only partly burned | Burn transient bucket must project `B -> 0`; the burn guest preflight rejects partial drain and composed transient rows cancel | Generated burn receipt, tokenomics lane coordinator, recursive route proof, and atomic commit |
 | Burn journal is assembled independently from the checked transition | Rust/Python refinement derives the journal, burn-substate roots, route-context root, totals, and effects; the source-level burn guest reruns that Rust refinement; coherent amount, route, policy, asset, bucket, total, and nonlimiting-cap substitutions are distinguished or reject | Generated burn image and real receipt plus release-selected receipt verification |
-| Partial burn substate is presented as the complete tokenomics lane | Burn journal fields are explicitly named burn-substate roots; leaf effects emit no tokenomics lane write; shadow composition carries a nonzero complete-lane coordinator obligation | Proved tokenomics lane coordinator and complete lane-state registry |
-| Python value is mutated after constructor validation | Accepted burn inputs and purchase/burn journals revalidate at refinement, effect projection, and root computation; hostile epoch-capacity and zero-quote mutations are regression tested | Python values remain non-authoritative until a release-selected proof verifier admits the exact journal |
+| Partial burn substate is presented as the complete tokenomics lane | Burn journal fields are explicitly named burn-substate roots; leaf effects emit no tokenomics lane write; the source-level coordinator rejects partial lane-root claims and preserves every unrelated component commitment; shadow route composition retains a nonzero complete-lane coordinator obligation | Coordinator guest, real receipt, release-backed lane-state registry, opaque verified-lane witness, and route connection |
+| Python value is mutated after constructor validation | Accepted burn inputs, fee state, common module journals, effect plans, coordinator values, and purchase/burn journals revalidate at refinement, effect projection, root computation, or coordinator admission; hostile scalar and root mutations are regression tested | Python values remain non-authoritative until a release-selected proof verifier admits the exact journal |
 | Rejected transition changes value | Canonically equal pre/post state and empty effects; Python also preserves object identity | Runtime adapter parity |
 | Epoch ceiling is reused by sequential burns | Burn-budget epoch and remaining capacity are committed in the pre-state and decremented in the post-state; stale larger route ceilings cannot increase capacity | Profile-selected epoch reset transition, guest execution, and global sequencing |
 | Fee split loses atoms to truncation | Exact allocation-plus-residue equation and named reserve | Governed residue-release lifecycle |
@@ -435,6 +460,19 @@ exact design.
   pinned succinct-receipt host adapter, placeholder and fake receipt denial,
   input/journal/receipt BVA, typed development-mode rejection, and an ignored
   real-proof replay target;
+- `src/core/zdex_tokenomics_lane_v1.py`,
+  `src/core/zdex_tokenomics_lane_coordinator_v1.py`, and
+  `zk/global_settlement_abi_v1/src/zdex_tokenomics_lane_*.rs`: closed
+  multi-fee-asset tokenomics-lane envelope without duplicated global
+  commitments, burn private port, exact unrelated-component preservation,
+  typed no-effect rejection, canonical full-lane write, and common
+  lane-composition journal derivation without receipt authority;
+- `tests/core/test_zdex_tokenomics_lane_coordinator_v1.py` and the matching Rust
+  test: every typed coordinator rejection branch, fee-registry width/order BVA,
+  partial-lane-claim rejection, all-component preservation, malformed
+  post-construction revalidation, self-consistent forged leaf-total rejection,
+  route/private-port/substate substitution, and six-root Rust/Python golden
+  parity;
 - `tests/core/test_zdex_fee_allocation_v1.py` and
   `zk/global_settlement_abi_v1/tests/zdex_fee_allocation.rs`: denominator BVA,
   exhaustive small-domain conservation, no-effect rejection, route binding,
@@ -464,9 +502,11 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
 4. a real Spot purchase guest plus authenticated fee-allocation output and
    purchase receipt that feed the exact purchase-to-burn journals into the
    route composer;
-5. a proved tokenomics lane coordinator that embeds the burn substate in the
-   complete lane, discharges the nonzero coordinator obligation, and supplies
-   the full tokenomics lane write;
+5. a release-selected tokenomics coordinator guest and real receipt that run
+   the implemented closed-lane core, an opaque verified-lane witness, exact
+   route connection, and corresponding wrong-image/journal/profile/assumption
+   evidence before the route discharges its nonzero obligation or supplies the
+   full tokenomics lane write;
 6. release-bound cycle/resource enforcement in the proof statement and
    governed receipt admission; the current leaf verifier cannot authenticate a
    module release `max_cycles` ceiling;
