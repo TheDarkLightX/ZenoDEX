@@ -542,6 +542,18 @@ exact design.
   route/private-port/substate/module-receipt substitution, foreign verified-leaf
   rejection, profile/image/journal/receipt-shape admission failures, verifier
   rejection, journal-byte BVA, and Rust/Python lane-witness golden parity;
+- `src/core/route_global_state_projection_v1.py` and
+  `zk/global_settlement_abi_v1/src/route_global_state_projection.rs`: an
+  `IMPLEMENTED_UNMOUNTED` full-state checker that recomputes the monolithic
+  global pre/post roots, binds the exact candidate-profile-selected route and
+  ordered lane journals, projects selected lane roots, and rejects any change
+  to an unselected lane. It does not authenticate a trusted current-profile
+  anchor. The Rust result is opaque and construction-controlled; the Python
+  result remains process-local reference evidence;
+- `tests/core/test_route_global_state_projection_v1.py` and the matching Rust
+  test: cross-language projection-root parity plus profile, epoch, global-root,
+  selected-root, sibling-lane, release metadata, coordinator, route, reorder,
+  duplicate, omission, and coherent-mutation substitution evidence;
 - `zk/zdex_tokenomics_lane_coordinator_risc0`: unmounted RISC0 3.0.6 recursive
   coordinator source, exact governed module-release preflight, guest-side
   `env::verify` over the child image and canonical burn or fee journal, host-side
@@ -582,16 +594,22 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
    connection, release/source/toolchain manifests, and replayed
    wrong-image/journal/profile/assumption evidence before either route
    discharges its nonzero obligation or supplies the full tokenomics lane write;
-6. release-bound cycle/resource enforcement in the proof statement and
+6. trusted current-profile anchoring plus route-composer guest and admission
+   integration of the full-state projection, followed by a global effect
+   applicator/refinement check covering balances, supply, custody, liabilities,
+   reserves, replay state, terminal obligations, history, and outbox. The
+   present checker proves no receipt and intentionally does not validate those
+   non-lane state changes;
+7. release-bound cycle/resource enforcement in the proof statement and
    governed receipt admission; the current leaf verifier cannot authenticate a
    module release `max_cycles` ceiling;
-7. complete protocol-token issue/burn writer inventory and deny-by-default
+8. complete protocol-token issue/burn writer inventory and deny-by-default
    mounting;
-8. an ABI revision and proved total migration before any precision rescale;
-9. stateful replay, reordering, partial-failure, migration, and mixed-lane
+9. an ABI revision and proved total migration before any precision rescale;
+10. stateful replay, reordering, partial-failure, migration, and mixed-lane
    evidence;
-10. independent economic, proof, authority-boundary, and legal review;
-11. one atomic ZenoLedger commit path with no legacy value writer.
+11. independent economic, proof, authority-boundary, and legal review;
+12. one atomic ZenoLedger commit path with no legacy value writer.
 
 Passing focused core tests supports only the restricted statements and
 executable behaviors named above. The blocked plugin import is a promotion gap,
