@@ -9,6 +9,10 @@ description = "Fail-closed host and receipt verifier for the ASSET_TRANSFER modu
 [lib]
 doctest = false
 
+[features]
+default = []
+cuda = ["risc0-zkvm/cuda"]
+
 [dependencies]
 hex = "=0.4.3"
 risc0-zkvm = { version = "=3.0.6", features = ["disable-dev-mode"] }

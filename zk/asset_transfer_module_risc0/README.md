@@ -23,10 +23,16 @@ Real release-evidence replay:
 
 ```bash
 cargo test --locked -p zenodex-asset-transfer-module-risc0-host \
+  --features cuda \
   --test real_proof \
   real_asset_transfer_transition_proves_the_exact_module_journal \
   -- --ignored --nocapture
 ```
+
+The `cuda` feature is explicit so CPU-only replay remains portable and a GPU
+runner cannot silently execute the real-proof command through the CPU backend.
+Before replay, record both `nvidia-smi` and `nvcc --version`; the former reports
+driver compatibility while the latter reports the compiler toolkit.
 
 Recorded local evidence for the exact current guest:
 

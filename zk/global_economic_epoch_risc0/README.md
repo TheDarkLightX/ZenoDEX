@@ -68,16 +68,22 @@ cargo fmt --all -- --check
 
 cargo test --locked \
   -p zenodex-global-economic-epoch-risc0-host \
+  --features cuda \
   --test real_composition \
   real_succinct_child_assumption_resolves_into_exact_epoch_journal \
   -- --ignored --nocapture
 
 cargo test --locked \
   -p zenodex-global-economic-epoch-risc0-host \
+  --features cuda \
   --test real_aggregation_nine \
   nine_routes_compose_through_two_groups_into_one_exact_epoch_root \
   -- --ignored --nocapture
 ```
+
+The `cuda` feature is explicit so CPU-only replay remains portable and a GPU
+runner cannot silently execute these real-proof commands through the CPU
+backend. Record `nvidia-smi` and `nvcc --version` with each replay environment.
 
 The ignored test generated a real Succinct structural child, used it to prove
 both a real command-aggregation receipt and a direct epoch receipt, checked

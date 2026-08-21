@@ -24,10 +24,15 @@ Real recursive replay:
 
 ```bash
 cargo test --locked -p zenodex-asset-lane-coordinator-risc0-host \
+  --features cuda \
   --test real_composition \
   real_module_receipt_composes_into_the_exact_lane_journal \
   -- --ignored --nocapture
 ```
+
+The `cuda` feature is explicit so CPU-only replay remains portable and a GPU
+runner cannot silently execute the real-proof command through the CPU backend.
+Record `nvidia-smi` and `nvcc --version` with the replay evidence.
 
 Recorded local evidence on 2026-08-11:
 
