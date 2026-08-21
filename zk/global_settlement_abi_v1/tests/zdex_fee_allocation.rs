@@ -164,6 +164,7 @@ fn effect_projection_reconciles_fee_and_selected_balances() -> AbiResultV1<()> {
         result.occurrence.effect_plan_root,
         result.effects.effect_plan_root()?
     );
+    assert!(result.effects.lane_writes.is_empty());
     Ok(())
 }
 
@@ -359,11 +360,11 @@ fn occurrence_root_binds_authorized_buyback_route() -> AbiResultV1<()> {
     );
     assert_eq!(
         first.effects.effect_plan_root()?.as_str(),
-        "0xe9a396bb00a9c8f09982ed5472dea6b4069b5f6fab76053ef1bc226927142c56"
+        "0xc6ac94bfc7166ae63f006186f856533d19def998eeb924171576c04f177fefaf"
     );
     assert_eq!(
         first.occurrence.occurrence_root()?.as_str(),
-        "0x542ce727f7bff325c7a81d1fcd1e69e5c96a16b476605feabc2d7fa16928ac02"
+        "0xc00e0d5f4f83c82a18ba0b552aa0129d497be0806b2f833541b937fae16fac4e"
     );
     assert_eq!(
         first.occurrence.occurrence_root()?,

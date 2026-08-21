@@ -881,7 +881,7 @@ fn rust_matches_python_golden_composition_root_and_effects() {
             .composition_root()
             .expect("composition root")
             .as_str(),
-        "0x7d396a87e87fe153dbefda03189daff0ee9c1f085e89574ec56d742d718faee1"
+        "0x7f46675f4021fb861b575a4c8170ee9e121c685c5f72e48db9043cc9ce9bfff0"
     );
     assert_eq!(
         zenodex_global_settlement_abi_v1::zdex_burn_port_schema_root_v1()

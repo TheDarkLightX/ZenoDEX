@@ -154,8 +154,7 @@ def test_effect_projection_has_one_source_one_reserve_and_nonzero_allocations() 
     assert residue.delta_atoms == 2_503
     assert accepted.effects.asset_conservation[0].owned_and_custodied_pre_atoms == 1_000_000
     assert accepted.effects.asset_conservation[0].owned_and_custodied_post_atoms == 1_000_000
-    assert accepted.effects.lane_writes[0].pre_root == accepted.occurrence.pre_lane_root
-    assert accepted.effects.lane_writes[0].post_root == accepted.occurrence.post_lane_root
+    assert accepted.effects.lane_writes == ()
     assert accepted.occurrence.effect_plan_root == accepted.effects.effect_plan_root
 
 
@@ -362,10 +361,10 @@ def test_python_rust_golden_commitments_match() -> None:
         "0xd0769fc96bd93c73b730d272ef2b7d3dd141756409177fd02db0bb425d2d4b4d"
     )
     assert accepted.effects.effect_plan_root == (
-        "0xe9a396bb00a9c8f09982ed5472dea6b4069b5f6fab76053ef1bc226927142c56"
+        "0xc6ac94bfc7166ae63f006186f856533d19def998eeb924171576c04f177fefaf"
     )
     assert accepted.occurrence.occurrence_root == (
-        "0x542ce727f7bff325c7a81d1fcd1e69e5c96a16b476605feabc2d7fa16928ac02"
+        "0xc00e0d5f4f83c82a18ba0b552aa0129d497be0806b2f833541b937fae16fac4e"
     )
 
 

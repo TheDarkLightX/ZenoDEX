@@ -1414,7 +1414,7 @@ def test_python_rust_golden_composition_root_is_stable() -> None:
     result = compose_zdex_purchase_burn_route_v1(_verified_fixture())
 
     assert result.composition_root == (
-        "0x7d396a87e87fe153dbefda03189daff0ee9c1f085e89574ec56d742d718faee1"
+        "0x7f46675f4021fb861b575a4c8170ee9e121c685c5f72e48db9043cc9ce9bfff0"
     )
     assert zdex_burn_port_schema_root_v1() == (
         "0x744c54af6df7c8a4fa0c5e0b152e0139add14c337d7cbcf1c8062e8aa2fa5289"

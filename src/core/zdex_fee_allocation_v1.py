@@ -13,8 +13,6 @@ from .global_settlement_types_v1 import (
     EconomicEffectRowV1,
     FeeConservationRowV1,
     GlobalEconomicEffectPlanV1,
-    LaneIdV1,
-    LaneWriteV1,
 )
 from .zdex_fee_allocation_types_v1 import (
     BASIS_POINTS_DENOMINATOR_V1,
@@ -75,15 +73,18 @@ def _require_exact_inputs(
     policy: object,
     command: object,
 ) -> None:
-    expected = (
-        (context, ZDEXFeeAllocationContextV1, "context"),
-        (pre_state, ZDEXFeeStateV1, "pre-state"),
-        (policy, ZDEXFeeAllocationPolicyV1, "policy"),
-        (command, ZDEXFeeAllocationCommandV1, "command"),
-    )
-    for value, expected_type, name in expected:
-        if type(value) is not expected_type:
-            raise TypeError(f"ZDEX fee allocation {name} must be exact typed data")
+    if type(context) is not ZDEXFeeAllocationContextV1:
+        raise TypeError("ZDEX fee allocation context must be exact typed data")
+    if type(pre_state) is not ZDEXFeeStateV1:
+        raise TypeError("ZDEX fee allocation pre-state must be exact typed data")
+    if type(policy) is not ZDEXFeeAllocationPolicyV1:
+        raise TypeError("ZDEX fee allocation policy must be exact typed data")
+    if type(command) is not ZDEXFeeAllocationCommandV1:
+        raise TypeError("ZDEX fee allocation command must be exact typed data")
+    context.validate()
+    pre_state.validate()
+    policy.validate()
+    command.validate()
 
 
 def _precheck(
@@ -188,7 +189,7 @@ def _effect_rows(
 
 
 def _effect_plan(
-    context: ZDEXFeeAllocationContextV1,
+    command_occurrence_id: str,
     pre_state: ZDEXFeeStateV1,
     post_state: ZDEXFeeStateV1,
     projection: _AllocationProjectionV1,
@@ -214,16 +215,108 @@ def _effect_plan(
                 projection.residue_atoms,
             ),
         ),
-        lane_writes=(
-            LaneWriteV1(
-                LaneIdV1.ZDEX_TOKENOMICS,
-                pre_state.state_root,
-                post_state.state_root,
-            ),
-        ),
-        occurrence_consumptions=(context.command_occurrence_id,),
+        lane_writes=(),
+        occurrence_consumptions=(command_occurrence_id,),
         external_outbox_enqueue=(),
     )
+
+
+def _require_fee_effect_projection_v1(
+    occurrence: ZDEXFeeAllocationOccurrenceV1,
+    pre_state: ZDEXFeeStateV1,
+    post_state: ZDEXFeeStateV1,
+    policy: ZDEXFeeAllocationPolicyV1,
+) -> _AllocationProjectionV1:
+    if type(occurrence) is not ZDEXFeeAllocationOccurrenceV1:
+        raise TypeError("ZDEX fee effect occurrence must be exact typed data")
+    if type(pre_state) is not ZDEXFeeStateV1:
+        raise TypeError("ZDEX fee effect pre-state must be exact typed data")
+    if type(post_state) is not ZDEXFeeStateV1:
+        raise TypeError("ZDEX fee effect post-state must be exact typed data")
+    if type(policy) is not ZDEXFeeAllocationPolicyV1:
+        raise TypeError("ZDEX fee effect policy must be exact typed data")
+    pre_state.validate()
+    post_state.validate()
+    occurrence.validate()
+    policy.validate()
+    projection = _project(policy, occurrence.fee_charged_atoms)
+    if (
+        occurrence.policy_root != policy.policy_root
+        or occurrence.allocations != projection.allocations
+        or occurrence.carried_residue_atoms != projection.residue_atoms
+    ):
+        raise ValueError("ZDEX fee occurrence allocation does not match policy")
+    return projection
+
+
+def _require_fee_effect_substates_v1(
+    occurrence: ZDEXFeeAllocationOccurrenceV1,
+    pre_state: ZDEXFeeStateV1,
+    post_state: ZDEXFeeStateV1,
+) -> None:
+    if (
+        occurrence.pre_lane_root != pre_state.state_root
+        or occurrence.post_lane_root != post_state.state_root
+        or occurrence.fee_asset_id != pre_state.fee_asset_id
+        or occurrence.fee_asset_id != post_state.fee_asset_id
+        or occurrence.policy_root != pre_state.policy_root
+        or occurrence.policy_root != post_state.policy_root
+        or post_state.fee_ingress_atoms
+        != pre_state.fee_ingress_atoms - occurrence.fee_charged_atoms
+        or post_state.unallocated_reserve_atoms
+        != pre_state.unallocated_reserve_atoms + occurrence.carried_residue_atoms
+        or post_state.owned_and_custodied_atoms
+        != pre_state.owned_and_custodied_atoms
+        or post_state.supply_atoms != pre_state.supply_atoms
+    ):
+        raise ValueError("ZDEX fee effect substates do not match the occurrence")
+
+
+def _require_fee_destination_deltas_v1(
+    occurrence: ZDEXFeeAllocationOccurrenceV1,
+    pre_state: ZDEXFeeStateV1,
+    post_state: ZDEXFeeStateV1,
+) -> None:
+    for before, after, allocation in zip(
+        pre_state.destination_balances,
+        post_state.destination_balances,
+        occurrence.allocations,
+        strict=True,
+    ):
+        if (
+            before.destination is not allocation.destination
+            or after.destination is not allocation.destination
+            or after.allocation_atoms
+            != before.allocation_atoms + allocation.allocation_atoms
+        ):
+            raise ValueError("ZDEX fee destination delta does not match the occurrence")
+
+
+def fee_allocation_effects_v1(
+    occurrence: ZDEXFeeAllocationOccurrenceV1,
+    pre_state: ZDEXFeeStateV1,
+    post_state: ZDEXFeeStateV1,
+    policy: ZDEXFeeAllocationPolicyV1,
+) -> GlobalEconomicEffectPlanV1:
+    """Recompute the exact leaf effect plan from committed occurrence values."""
+
+    projection = _require_fee_effect_projection_v1(
+        occurrence,
+        pre_state,
+        post_state,
+        policy,
+    )
+    _require_fee_effect_substates_v1(occurrence, pre_state, post_state)
+    _require_fee_destination_deltas_v1(occurrence, pre_state, post_state)
+    effects = _effect_plan(
+        occurrence.command_occurrence_id,
+        pre_state,
+        post_state,
+        projection,
+    )
+    if effects.effect_plan_root != occurrence.effect_plan_root:
+        raise ValueError("ZDEX fee effect plan does not match the occurrence")
+    return effects
 
 
 def _occurrence(inputs: _AcceptedInputsV1) -> ZDEXFeeAllocationOccurrenceV1:
@@ -266,7 +359,7 @@ def transition_zdex_fee_allocation_v1(
     if post_state is None:
         return _reject(ZDEXFeeAllocationRejectCodeV1.STATE_OVERFLOW, pre_state)
     effects = _effect_plan(
-        context,
+        context.command_occurrence_id,
         pre_state,
         post_state,
         projection,
@@ -302,5 +395,6 @@ __all__ = [
     "ZDEXFeeShareV1",
     "ZDEXFeeStateV1",
     "candidate_zdex_fee_allocation_policy_v1",
+    "fee_allocation_effects_v1",
     "transition_zdex_fee_allocation_v1",
 ]

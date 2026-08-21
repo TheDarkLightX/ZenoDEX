@@ -1,9 +1,8 @@
 use crate::canonical::{AbiErrorV1, AbiResultV1, GLOBAL_SETTLEMENT_ABI_V1};
 use crate::effects::{
     AssetConservationRowV1, EconomicEffectKindV1, EconomicEffectRowV1, FeeConservationRowV1,
-    GlobalEconomicEffectPlanV1, LaneWriteV1,
+    GlobalEconomicEffectPlanV1,
 };
-use crate::release::LaneIdV1;
 use crate::zdex_fee_allocation_types::{
     destination_control_domain_v1, destination_principal_v1, ZDEXFeeAllocationAcceptedV1,
     ZDEXFeeAllocationCommandV1, ZDEXFeeAllocationContextV1, ZDEXFeeAllocationOccurrenceV1,
@@ -232,33 +231,143 @@ fn effect_rows_v1(
 }
 
 fn effect_plan_v1(inputs: &EffectInputsV1<'_>) -> AbiResultV1<GlobalEconomicEffectPlanV1> {
+    effect_plan_from_parts_v1(
+        &inputs.context.command_occurrence_id,
+        inputs.pre_state,
+        inputs.post_state,
+        inputs.projection,
+    )
+}
+
+fn effect_plan_from_parts_v1(
+    command_occurrence_id: &crate::RootV1,
+    pre_state: &ZDEXFeeStateV1,
+    post_state: &ZDEXFeeStateV1,
+    projection: &AllocationProjectionV1,
+) -> AbiResultV1<GlobalEconomicEffectPlanV1> {
     let effects = GlobalEconomicEffectPlanV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
-        rows: effect_rows_v1(inputs.pre_state, inputs.projection)?,
+        rows: effect_rows_v1(pre_state, projection)?,
         asset_conservation: vec![AssetConservationRowV1 {
-            asset: inputs.pre_state.fee_asset_id.to_string(),
-            owned_and_custodied_pre_atoms: inputs.pre_state.owned_and_custodied_atoms,
-            owned_and_custodied_post_atoms: inputs.post_state.owned_and_custodied_atoms,
-            supply_pre_atoms: inputs.pre_state.supply_atoms,
-            supply_post_atoms: inputs.post_state.supply_atoms,
+            asset: pre_state.fee_asset_id.to_string(),
+            owned_and_custodied_pre_atoms: pre_state.owned_and_custodied_atoms,
+            owned_and_custodied_post_atoms: post_state.owned_and_custodied_atoms,
+            supply_pre_atoms: pre_state.supply_atoms,
+            supply_post_atoms: post_state.supply_atoms,
             authorized_issue_atoms: 0,
             authorized_burn_atoms: 0,
         }],
         fee_conservation: vec![FeeConservationRowV1 {
-            asset: inputs.pre_state.fee_asset_id.to_string(),
-            fee_charged_atoms: inputs.projection.fee_atoms,
-            current_allocations_atoms: inputs.projection.allocated_atoms()?,
-            carried_residue_atoms: inputs.projection.residue_atoms,
+            asset: pre_state.fee_asset_id.to_string(),
+            fee_charged_atoms: projection.fee_atoms,
+            current_allocations_atoms: projection.allocated_atoms()?,
+            carried_residue_atoms: projection.residue_atoms,
         }],
-        lane_writes: vec![LaneWriteV1 {
-            lane_id: LaneIdV1::ZDEX_TOKENOMICS,
-            pre_root: inputs.pre_state.state_root()?,
-            post_root: inputs.post_state.state_root()?,
-        }],
-        occurrence_consumptions: vec![inputs.context.command_occurrence_id.clone()],
+        lane_writes: vec![],
+        occurrence_consumptions: vec![command_occurrence_id.clone()],
         external_outbox_enqueue: vec![],
     };
     effects.validate()?;
+    Ok(effects)
+}
+
+fn validate_fee_effect_projection_v1(
+    occurrence: &ZDEXFeeAllocationOccurrenceV1,
+    pre_state: &ZDEXFeeStateV1,
+    post_state: &ZDEXFeeStateV1,
+    policy: &ZDEXFeeAllocationPolicyV1,
+) -> AbiResultV1<AllocationProjectionV1> {
+    occurrence.validate()?;
+    pre_state.validate()?;
+    post_state.validate()?;
+    policy.validate()?;
+    let projection = project_v1(policy, occurrence.fee_charged_atoms)?;
+    if occurrence.policy_root != policy.policy_root()?
+        || occurrence.allocations != projection.allocations
+        || occurrence.carried_residue_atoms != projection.residue_atoms
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX fee occurrence policy allocation",
+        ));
+    }
+    Ok(projection)
+}
+
+fn validate_fee_effect_substates_v1(
+    occurrence: &ZDEXFeeAllocationOccurrenceV1,
+    pre_state: &ZDEXFeeStateV1,
+    post_state: &ZDEXFeeStateV1,
+) -> AbiResultV1<()> {
+    if occurrence.pre_lane_root != pre_state.state_root()?
+        || occurrence.post_lane_root != post_state.state_root()?
+        || occurrence.fee_asset_id != pre_state.fee_asset_id
+        || occurrence.fee_asset_id != post_state.fee_asset_id
+        || occurrence.policy_root != pre_state.policy_root
+        || occurrence.policy_root != post_state.policy_root
+        || pre_state
+            .fee_ingress_atoms
+            .checked_sub(occurrence.fee_charged_atoms)
+            != Some(post_state.fee_ingress_atoms)
+        || pre_state
+            .unallocated_reserve_atoms
+            .checked_add(occurrence.carried_residue_atoms)
+            != Some(post_state.unallocated_reserve_atoms)
+        || post_state.owned_and_custodied_atoms != pre_state.owned_and_custodied_atoms
+        || post_state.supply_atoms != pre_state.supply_atoms
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX fee effect occurrence substates",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_fee_destination_deltas_v1(
+    occurrence: &ZDEXFeeAllocationOccurrenceV1,
+    pre_state: &ZDEXFeeStateV1,
+    post_state: &ZDEXFeeStateV1,
+) -> AbiResultV1<()> {
+    for ((before, after), allocation) in pre_state
+        .destination_balances
+        .iter()
+        .zip(&post_state.destination_balances)
+        .zip(&occurrence.allocations)
+    {
+        if before.destination != allocation.destination
+            || after.destination != allocation.destination
+            || before
+                .allocation_atoms
+                .checked_add(allocation.allocation_atoms)
+                != Some(after.allocation_atoms)
+        {
+            return Err(AbiErrorV1::InvalidBinding(
+                "ZDEX fee effect destination delta",
+            ));
+        }
+    }
+    Ok(())
+}
+
+pub fn fee_allocation_effects_v1(
+    occurrence: &ZDEXFeeAllocationOccurrenceV1,
+    pre_state: &ZDEXFeeStateV1,
+    post_state: &ZDEXFeeStateV1,
+    policy: &ZDEXFeeAllocationPolicyV1,
+) -> AbiResultV1<GlobalEconomicEffectPlanV1> {
+    let projection = validate_fee_effect_projection_v1(occurrence, pre_state, post_state, policy)?;
+    validate_fee_effect_substates_v1(occurrence, pre_state, post_state)?;
+    validate_fee_destination_deltas_v1(occurrence, pre_state, post_state)?;
+    let effects = effect_plan_from_parts_v1(
+        &occurrence.command_occurrence_id,
+        pre_state,
+        post_state,
+        &projection,
+    )?;
+    if effects.effect_plan_root()? != occurrence.effect_plan_root {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX fee effect occurrence plan",
+        ));
+    }
     Ok(effects)
 }
 

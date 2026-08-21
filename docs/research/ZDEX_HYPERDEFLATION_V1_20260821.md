@@ -92,9 +92,11 @@ and evidence before those atoms may move.
 The immutable state records the fee asset, policy root, charged-fee ingress,
 destination balances, residue reserve, total controlled amount, and supply.
 An accepted transition checks selected-balance conservation, unchanged supply,
-an exact `FeeConservationRowV1`, one tokenomics lane write, and no external
-outbox effect. Zero fees, policy drift, insufficient ingress, and signed-effect
-width excess produce typed no-effect rejection.
+an exact `FeeConservationRowV1`, no lane write, and no external outbox effect.
+Its roots describe one fee-asset substate, so only the complete-lane
+coordinator may emit a tokenomics lane write. Zero fees, policy drift,
+insufficient ingress, and signed-effect width excess produce typed no-effect
+rejection.
 
 The allocation occurrence commits chain, deployment, profile, writer epoch,
 allocation route, authorized buyback route, tokenomics release, command
@@ -307,8 +309,17 @@ images, a real child receipt, a real recursive coordinator receipt, exact route
 connection, and release/source/toolchain manifests are required before the
 route may carry the full tokenomics lane write or clear the obligation. The
 existing fee-allocation occurrence fields named
-`pre_lane_root`/`post_lane_root` still commit only the fee-allocation substate;
-their rename and coordinator adapter remain an explicit semantic-cleanup task.
+`pre_lane_root`/`post_lane_root` still commit only the fee-allocation substate.
+The source-level Rust and Python fee-allocation coordinator preserves those V1
+canonical bytes, binds them through a typed private port and module journal,
+and embeds exactly one changed fee asset in the complete tokenomics lane. It
+rejects partial-root claims, changed sibling fee assets, changed supply or
+claim-component roots, route substitutions, and module-receipt substitutions
+with an unchanged lane root and empty effects. It also reruns the governed
+fee-allocation policy and exact leaf transition, so a coherently rehashed split
+cannot become a module statement. Rust/Python golden roots agree.
+Its recursive RISC0 coordinator variant, release-selected receipt adapter, and
+route connection remain open.
 
 All receipt-admission implementations are deliberately `SHADOW`-only.
 `ACTIVE_NEW`, composite, conditional, empty, wrong-effect, and
@@ -385,7 +396,8 @@ receipt consumer, API, client, and historical decoder.
 | Python value is mutated after constructor validation | Accepted burn inputs, fee state, common module journals, effect plans, coordinator values, and purchase/burn journals revalidate at refinement, effect projection, root computation, or coordinator admission; hostile scalar and root mutations are regression tested | Python values remain non-authoritative until a release-selected proof verifier admits the exact journal |
 | Rejected transition changes value | Canonically equal pre/post state and empty effects; Python also preserves object identity | Runtime adapter parity |
 | Epoch ceiling is reused by sequential burns | Burn-budget epoch and remaining capacity are committed in the pre-state and decremented in the post-state; stale larger route ceilings cannot increase capacity | Profile-selected epoch reset transition, guest execution, and global sequencing |
-| Fee split loses atoms to truncation | Exact allocation-plus-residue equation and named reserve | Governed residue-release lifecycle |
+| Fee split loses atoms to truncation or is coherently rewritten | Exact allocation-plus-residue equation, named reserve, policy-bound transition replay, and a mutation test that shifts one atom between destinations while updating state/effects/roots | Governed residue-release lifecycle and proof-backed policy selection |
+| Fee-allocation substate is presented as the complete tokenomics lane | Source-level Rust/Python coordinator replaces the partial write with one complete-lane write, preserves every sibling component, and has golden-root parity plus mutation-killing no-op tests | Recursive coordinator guest and receipt, governed release binding, route connection, and atomic publication |
 | Caller invents a buyback budget | Shadow route recomputes the fixed-policy allocation and binds journal digest, state roots, amount, source, and consumed-object ID; this rejects semantically invalid invented budgets | Real allocation guest receipt, historical inclusion, and persistent global consumed-object enforcement |
 | Buyback budget debits another holder | Closed protocol buyback source bucket in both composers | Complete mounted caller inventory |
 | Accepted allocation wrapper shifts value between destinations | Independent transition recomputation rejects a sum-preserving allocation mutant before receipt verification | Real guest/image evidence and profile-selected policy registry |
@@ -534,8 +546,9 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
    purchase receipt that feed the exact purchase-to-burn journals into the
    route composer;
 5. generated tokenomics coordinator and burn images, real child and recursive
-   receipts, exact route connection, release/source/toolchain manifests, and
-   replayed wrong-image/journal/profile/assumption evidence before the route
+   receipts for both burn and fee-allocation complete-lane paths, exact route
+   connection, release/source/toolchain manifests, and replayed
+   wrong-image/journal/profile/assumption evidence before either route
    discharges its nonzero obligation or supplies the full tokenomics lane write;
 6. release-bound cycle/resource enforcement in the proof statement and
    governed receipt admission; the current leaf verifier cannot authenticate a

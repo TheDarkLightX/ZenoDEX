@@ -112,6 +112,9 @@ class ZDEXFeeAllocationPolicyV1:
     shares: tuple[ZDEXFeeShareV1, ...]
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         if type(self.shares) is not tuple or any(
             type(share) is not ZDEXFeeShareV1 for share in self.shares
         ):
@@ -132,6 +135,7 @@ class ZDEXFeeAllocationPolicyV1:
 
     @property
     def policy_root(self) -> str:
+        self.validate()
         return hash_global_v1("zdex-fee-allocation-policy-v1", self.to_canonical())
 
     def to_canonical(self) -> dict[str, object]:
@@ -257,6 +261,9 @@ class ZDEXFeeAllocationContextV1:
     policy_root: str
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_token(self.chain_id, name="ZDEX fee allocation chain id")
         _require_nonnegative_int(self.writer_epoch, name="ZDEX fee writer epoch")
         for name in (
@@ -289,6 +296,9 @@ class ZDEXFeeAllocationCommandV1:
     fee_charged_atoms: int
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_atoms_u128(self.fee_charged_atoms, name="ZDEX charged fee")
 
 
@@ -313,6 +323,9 @@ class ZDEXFeeAllocationOccurrenceV1:
     effect_plan_root: str
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         if self.schema != GLOBAL_SETTLEMENT_ABI_V1:
             raise ValueError("ZDEX fee occurrence schema mismatch")
         _require_token(self.chain_id, name="ZDEX fee occurrence chain id")
@@ -347,10 +360,12 @@ class ZDEXFeeAllocationOccurrenceV1:
 
     @property
     def buyback_quote_atoms(self) -> int:
+        self.validate()
         return self.allocations[0].allocation_atoms
 
     @property
     def occurrence_root(self) -> str:
+        self.validate()
         return hash_global_v1("zdex-fee-allocation-occurrence-v1", self.to_canonical())
 
     def to_canonical(self) -> dict[str, object]:
@@ -391,6 +406,9 @@ class ZDEXFeeAllocationAcceptedV1:
     occurrence: ZDEXFeeAllocationOccurrenceV1
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         if any(
             (
                 type(self.pre_state) is not ZDEXFeeStateV1,
@@ -400,6 +418,10 @@ class ZDEXFeeAllocationAcceptedV1:
             )
         ):
             raise TypeError("ZDEX fee acceptance requires exact typed data")
+        self.pre_state.validate()
+        self.post_state.validate()
+        self.effects.validate()
+        self.occurrence.validate()
         if self.effects.is_empty:
             raise ValueError("ZDEX fee acceptance requires effects")
         if (
