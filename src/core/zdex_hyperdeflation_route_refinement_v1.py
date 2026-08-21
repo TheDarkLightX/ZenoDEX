@@ -114,8 +114,8 @@ def _derive_burn_journal_v1(
     )
     _require_refinement_bindings(accepted, purchase)
     burn = accepted.effect.authorized_burn_atoms
-    pre_lane_root = accepted.pre_state.state_root
-    post_lane_root = accepted.post_state.state_root
+    pre_burn_substate_root = accepted.pre_state.state_root
+    post_burn_substate_root = accepted.post_state.state_root
     effects = _burn_effects_from_values_v1(
         _ZDEXBurnEffectInputsV1(
             command_occurrence_id=purchase.command_occurrence_id,
@@ -126,8 +126,6 @@ def _derive_burn_journal_v1(
             zdex_owned_post_atoms=accepted.post_state.live_supply_atoms,
             zdex_supply_pre_atoms=accepted.pre_state.live_supply_atoms,
             zdex_supply_post_atoms=accepted.post_state.live_supply_atoms,
-            pre_tokenomics_lane_root=pre_lane_root,
-            post_tokenomics_lane_root=post_lane_root,
         )
     )
     return ZDEXBurnJournalV1(
@@ -142,6 +140,7 @@ def _derive_burn_journal_v1(
         buyback_budget_occurrence_root=purchase.buyback_budget_occurrence_root,
         authorized_quote_input_atoms=purchase.quote_amount_in_atoms,
         purchase_occurrence_root=purchase.journal_root,
+        route_context_root=accepted.route_context.context_root,
         zdex_asset_id=accepted.policy.asset_id,
         burn_bucket_id=accepted.effect.source_bucket_id,
         burned_zdex_atoms=burn,
@@ -151,8 +150,8 @@ def _derive_burn_journal_v1(
         zdex_owned_post_atoms=accepted.post_state.live_supply_atoms,
         zdex_supply_pre_atoms=accepted.pre_state.live_supply_atoms,
         zdex_supply_post_atoms=accepted.post_state.live_supply_atoms,
-        pre_tokenomics_lane_root=pre_lane_root,
-        post_tokenomics_lane_root=post_lane_root,
+        pre_tokenomics_burn_substate_root=pre_burn_substate_root,
+        post_tokenomics_burn_substate_root=post_burn_substate_root,
         effect_plan_root=effects.effect_plan_root,
     )
 

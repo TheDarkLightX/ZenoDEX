@@ -75,6 +75,27 @@ fn accepted(
     burned_atoms: u128,
     checked_supply_atoms: u128,
 ) -> zenodex_global_settlement_abi_v1::ZDEXPurchaseAndBurnAcceptedV1 {
+    accepted_with_route_caps(
+        policy,
+        purchase,
+        source_atoms,
+        burned_atoms,
+        checked_supply_atoms,
+        u128::MAX,
+        u128::MAX,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn accepted_with_route_caps(
+    policy: &ZDEXHyperdeflationPolicyV1,
+    purchase: &ZDEXAMMPurchaseJournalV1,
+    source_atoms: u128,
+    burned_atoms: u128,
+    checked_supply_atoms: u128,
+    route_epoch_cap_atoms: u128,
+    route_safe_output_cap_atoms: u128,
+) -> zenodex_global_settlement_abi_v1::ZDEXPurchaseAndBurnAcceptedV1 {
     let state = ZDEXSupplyStateV1 {
         asset_id: policy.asset_id.clone(),
         policy_root: policy.policy_root().unwrap(),
@@ -101,8 +122,8 @@ fn accepted(
         burn_source_bucket_id: purchase.burn_bucket_id.clone(),
         purchased_zdex_atoms: burned_atoms,
         source_reserve_floor_atoms: 0,
-        remaining_epoch_burn_cap_atoms: u128::MAX,
-        route_safe_output_cap_atoms: u128::MAX,
+        remaining_epoch_burn_cap_atoms: route_epoch_cap_atoms,
+        route_safe_output_cap_atoms,
         burn_budget_epoch: state.burn_budget_epoch,
     };
     let command = ZDEXPurchaseAndBurnCommandV1 {
@@ -136,22 +157,47 @@ fn refinement_derives_python_parity_journal_and_effects() {
     );
     assert_eq!(
         projection.journal().journal_root().unwrap().as_str(),
-        "0x969a3954b8de1bf26bfb6ae9ed22bfd4eac2843506d1d3d3721164e891143085"
+        "0xe6c3831c5f376c3436ad48a94132ffa00a4775042c8bc4700df11ca1e1fa515b"
     );
     assert_eq!(
         projection.effects().effect_plan_root().unwrap().as_str(),
-        "0x120e8cb20cf041b14dae207099bc1c1f9e309e8e16e3578fdcc89a0507171373"
+        "0x6853ced9af428e73b826a9f2c356a5966c5cedd300bc28ec1258d10402ef2dc2"
     );
     assert_eq!(
-        projection.journal().pre_tokenomics_lane_root,
+        projection.journal().route_context_root.as_str(),
+        "0x5512d60e46a0728396903fb766dd516a6865620bd0373e79a704912d3c38a451"
+    );
+    assert_eq!(
+        projection.journal().pre_tokenomics_burn_substate_root,
         accepted.pre_state().state_root().unwrap()
     );
     assert_eq!(
-        projection.journal().post_tokenomics_lane_root,
+        projection.journal().post_tokenomics_burn_substate_root,
         accepted.post_state().state_root().unwrap()
     );
     assert_eq!(projection.journal().burned_zdex_atoms, 100);
+    assert!(projection.effects().lane_writes.is_empty());
     assert!(projection.effects().external_outbox_enqueue.is_empty());
+}
+
+#[test]
+fn nonlimiting_route_cap_substitution_changes_the_public_burn_journal() {
+    // Arrange: each route context admits the same state transition and amount.
+    let policy = policy();
+    let purchase = purchase(&policy);
+    let unbounded =
+        accepted_with_route_caps(&policy, &purchase, 100, 100, 1000, u128::MAX, u128::MAX);
+    let bounded = accepted_with_route_caps(&policy, &purchase, 100, 100, 1000, 1000, 1000);
+
+    // Act
+    let unbounded_projection = refine_zdex_burn_leaf_v1(&unbounded, &purchase, &root(20)).unwrap();
+    let bounded_projection = refine_zdex_burn_leaf_v1(&bounded, &purchase, &root(20)).unwrap();
+
+    // Assert: acceptance-affecting policy inputs remain publicly distinguishable.
+    assert_ne!(
+        unbounded_projection.journal().journal_root().unwrap(),
+        bounded_projection.journal().journal_root().unwrap()
+    );
 }
 
 #[test]

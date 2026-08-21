@@ -9,7 +9,6 @@ from src.core.global_economic_proof_v1 import EconomicCommandOccurrenceV1, Recei
 from src.core.global_settlement_types_v1 import (
     ALL_LANE_IDS_V1,
     REQUIRED_ACTIVE_EVIDENCE_V1,
-    ZERO_ROOT_V1,
     AssetConservationRowV1,
     EconomicEffectKindV1,
     EconomicEffectRowV1,
@@ -412,6 +411,7 @@ def _burn_journal(
             if purchase_occurrence_root is None
             else purchase_occurrence_root
         ),
+        route_context_root=_root(619),
         zdex_asset_id=purchase.zdex_asset_id,
         burn_bucket_id=(
             purchase.burn_bucket_id if burn_bucket_id is None else burn_bucket_id
@@ -423,8 +423,8 @@ def _burn_journal(
         zdex_owned_post_atoms=owned_pre - burned,
         zdex_supply_pre_atoms=supply_pre,
         zdex_supply_post_atoms=supply_pre - burned,
-        pre_tokenomics_lane_root=_root(620),
-        post_tokenomics_lane_root=_root(621),
+        pre_tokenomics_burn_substate_root=_root(620),
+        post_tokenomics_burn_substate_root=_root(621),
         effect_plan_root=effect_plan_root,
     )
 
@@ -465,13 +465,7 @@ def _burn_effects(journal: ZDEXBurnJournalV1) -> GlobalEconomicEffectPlanV1:
             ),
         ),
         fee_conservation=(),
-        lane_writes=(
-            LaneWriteV1(
-                LaneIdV1.ZDEX_TOKENOMICS,
-                journal.pre_tokenomics_lane_root,
-                journal.post_tokenomics_lane_root,
-            ),
-        ),
+        lane_writes=(),
         occurrence_consumptions=(journal.command_occurrence_id,),
         external_outbox_enqueue=(),
     )
@@ -761,7 +755,7 @@ def _assert_no_effect_reject(
     assert result.effects.is_empty
 
 
-def test_verified_purchase_and_burn_compose_one_atomic_effect_plan() -> None:
+def test_verified_leaves_compose_shadow_effects_with_open_coordinator_obligation() -> None:
     candidate = _verified_fixture()
 
     result = compose_zdex_purchase_burn_route_v1(candidate)
@@ -774,7 +768,6 @@ def test_verified_purchase_and_burn_compose_one_atomic_effect_plan() -> None:
     )
     assert tuple(row.lane_id for row in result.effects.lane_writes) == (
         LaneIdV1.SPOT_LIQUIDITY,
-        LaneIdV1.ZDEX_TOKENOMICS,
     )
     assert sum(
         -row.delta_atoms
@@ -786,7 +779,9 @@ def test_verified_purchase_and_burn_compose_one_atomic_effect_plan() -> None:
         for row in result.effects.rows
     )
     assert result.effects.external_outbox_enqueue == ()
-    assert result.terminal_obligations_root == ZERO_ROOT_V1
+    assert result.terminal_obligations_root == (
+        "0xb3a804a59299dd1349592fafec630720031217d4b3340a385a345d544d4b4553"
+    )
 
 
 @pytest.mark.parametrize(
@@ -1419,7 +1414,10 @@ def test_python_rust_golden_composition_root_is_stable() -> None:
     result = compose_zdex_purchase_burn_route_v1(_verified_fixture())
 
     assert result.composition_root == (
-        "0x06e900e256f923aa4a011946d6a830b10d9c9f024e209b9925663f422003567f"
+        "0x7d396a87e87fe153dbefda03189daff0ee9c1f085e89574ec56d742d718faee1"
+    )
+    assert zdex_burn_port_schema_root_v1() == (
+        "0x744c54af6df7c8a4fa0c5e0b152e0139add14c337d7cbcf1c8062e8aa2fa5289"
     )
 
 

@@ -10,7 +10,6 @@ from .global_settlement_types_v1 import (
     GLOBAL_SETTLEMENT_ABI_V1,
     MAX_DELTA_ATOMS_V1,
     MIN_DELTA_ATOMS_V1,
-    ZERO_ROOT_V1,
     AssetConservationRowV1,
     EconomicEffectRowV1,
     GlobalEconomicEffectPlanV1,
@@ -106,7 +105,7 @@ class ZDEXPurchaseBurnRouteAcceptedV1:
     ordered_verified_binding_roots: tuple[str, str]
     verified_budget_binding_root: str
     effects: GlobalEconomicEffectPlanV1
-    terminal_obligations_root: str = ZERO_ROOT_V1
+    terminal_obligations_root: str
 
     @property
     def composition_root(self) -> str:
@@ -246,14 +245,20 @@ def _compose_effects(
                 purchase.pre_spot_lane_root,
                 purchase.post_spot_lane_root,
             ),
-            LaneWriteV1(
-                LaneIdV1.ZDEX_TOKENOMICS,
-                burn.pre_tokenomics_lane_root,
-                burn.post_tokenomics_lane_root,
-            ),
         ),
         occurrence_consumptions=(candidate.occurrence.occurrence_id,),
         external_outbox_enqueue=(),
+    )
+
+
+def _tokenomics_coordinator_obligation_root_v1() -> str:
+    return hash_global_v1(
+        "zdex-tokenomics-coordinator-obligation-v1",
+        {
+            "schema": GLOBAL_SETTLEMENT_ABI_V1,
+            "lane_id": LaneIdV1.ZDEX_TOKENOMICS,
+            "requirement": "VERIFIED_COMPLETE_LANE_ROOT",
+        },
     )
 
 
@@ -468,6 +473,7 @@ def compose_zdex_purchase_burn_route_v1(
         ),
         candidate.verified_buyback_budget.binding_root,
         effects,
+        _tokenomics_coordinator_obligation_root_v1(),
     )
 
 

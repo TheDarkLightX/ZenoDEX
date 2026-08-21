@@ -244,6 +244,24 @@ class ZDEXBurnRouteContextV1:
             name="ZDEX route burn budget epoch",
         )
 
+    @property
+    def context_root(self) -> str:
+        self.validate()
+        return hash_global_v1("zdex-burn-route-context-v1", self.to_canonical())
+
+    def to_canonical(self) -> dict[str, object]:
+        return {
+            "route_release_id": self.route_release_id,
+            "policy_root": self.policy_root,
+            "purchase_occurrence_root": self.purchase_occurrence_root,
+            "burn_source_bucket_id": self.burn_source_bucket_id,
+            "purchased_zdex_atoms": self.purchased_zdex_atoms,
+            "source_reserve_floor_atoms": self.source_reserve_floor_atoms,
+            "remaining_epoch_burn_cap_atoms": self.remaining_epoch_burn_cap_atoms,
+            "route_safe_output_cap_atoms": self.route_safe_output_cap_atoms,
+            "burn_budget_epoch": self.burn_budget_epoch,
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class ZDEXPurchaseAndBurnCommandV1:

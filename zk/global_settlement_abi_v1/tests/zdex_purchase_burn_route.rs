@@ -473,11 +473,7 @@ fn burn_effects(journal: &ZDEXBurnJournalV1) -> GlobalEconomicEffectPlanV1 {
             authorized_burn_atoms: journal.burned_zdex_atoms,
         }],
         fee_conservation: vec![],
-        lane_writes: vec![LaneWriteV1 {
-            lane_id: LaneIdV1::ZDEX_TOKENOMICS,
-            pre_root: journal.pre_tokenomics_lane_root.clone(),
-            post_root: journal.post_tokenomics_lane_root.clone(),
-        }],
+        lane_writes: vec![],
         occurrence_consumptions: vec![journal.command_occurrence_id.clone()],
         external_outbox_enqueue: vec![],
     }
@@ -728,6 +724,7 @@ fn fixture() -> Fixture {
         buyback_budget_occurrence_root: purchase.buyback_budget_occurrence_root.clone(),
         authorized_quote_input_atoms: purchase.quote_amount_in_atoms,
         purchase_occurrence_root: purchase.journal_root().expect("purchase journal root"),
+        route_context_root: root(619),
         zdex_asset_id: purchase.zdex_asset_id.clone(),
         burn_bucket_id: purchase.burn_bucket_id.clone(),
         burned_zdex_atoms: purchase.purchased_zdex_atoms,
@@ -737,8 +734,8 @@ fn fixture() -> Fixture {
         zdex_owned_post_atoms: purchase.zdex_owned_atoms - purchase.purchased_zdex_atoms,
         zdex_supply_pre_atoms: purchase.zdex_supply_atoms,
         zdex_supply_post_atoms: purchase.zdex_supply_atoms - purchase.purchased_zdex_atoms,
-        pre_tokenomics_lane_root: root(620),
-        post_tokenomics_lane_root: root(621),
+        pre_tokenomics_burn_substate_root: root(620),
+        post_tokenomics_burn_substate_root: root(621),
         effect_plan_root: root(901),
     };
     let burn_effects = burn_effects(&burn);
@@ -884,7 +881,13 @@ fn rust_matches_python_golden_composition_root_and_effects() {
             .composition_root()
             .expect("composition root")
             .as_str(),
-        "0x06e900e256f923aa4a011946d6a830b10d9c9f024e209b9925663f422003567f"
+        "0x7d396a87e87fe153dbefda03189daff0ee9c1f085e89574ec56d742d718faee1"
+    );
+    assert_eq!(
+        zenodex_global_settlement_abi_v1::zdex_burn_port_schema_root_v1()
+            .expect("burn substate port root")
+            .as_str(),
+        "0x744c54af6df7c8a4fa0c5e0b152e0139add14c337d7cbcf1c8062e8aa2fa5289"
     );
     assert_eq!(
         accepted.effects.occurrence_consumptions,
@@ -898,7 +901,16 @@ fn rust_matches_python_golden_composition_root_and_effects() {
             .expect("budget root")
             .to_string()]
     );
-    assert_eq!(accepted.effects.lane_writes.len(), 2);
+    assert_eq!(accepted.effects.lane_writes.len(), 1);
+    assert_eq!(
+        accepted.effects.lane_writes[0].lane_id,
+        LaneIdV1::SPOT_LIQUIDITY
+    );
+    assert!(!accepted.terminal_obligations_root.is_zero());
+    assert_eq!(
+        accepted.terminal_obligations_root.as_str(),
+        "0xb3a804a59299dd1349592fafec630720031217d4b3340a385a345d544d4b4553"
+    );
     assert!(accepted
         .effects
         .rows

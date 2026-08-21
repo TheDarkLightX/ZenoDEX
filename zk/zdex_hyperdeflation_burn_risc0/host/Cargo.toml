@@ -1,0 +1,24 @@
+[package]
+name = "zenodex-zdex-hyperdeflation-burn-risc0-host"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+description = "Fail-closed host and receipt verifier for the ZDEX hyperdeflation burn guest"
+
+[lib]
+doctest = false
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.6", features = ["disable-dev-mode"] }
+serde_json = "=1.0.148"
+zenodex-global-settlement-abi-v1 = { path = "../../global_settlement_abi_v1" }
+zenodex-zdex-hyperdeflation-burn-risc0-methods = { path = "../methods" }
+zenodex-zdex-hyperdeflation-burn-risc0-shared = { path = "../shared" }
+
+[dev-dependencies]
+hex = "=0.4.3"
+sha2 = "=0.10.9"
+
+[lints.rust]
+unsafe_code = "forbid"

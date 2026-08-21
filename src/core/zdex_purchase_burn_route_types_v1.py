@@ -54,7 +54,7 @@ def zdex_amm_purchase_port_schema_root_v1() -> str:
 
 
 def zdex_burn_port_schema_root_v1() -> str:
-    return _port_schema_root("ZDEX_AUTHORIZED_BURN_INPUT_V1")
+    return _port_schema_root("ZDEX_AUTHORIZED_BURN_SUBSTATE_INPUT_V1")
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,7 +210,7 @@ class ZDEXAMMPurchaseJournalV1:
 
 @dataclass(frozen=True, slots=True)
 class ZDEXBurnJournalV1:
-    """Public output of a checked route-bound ZDEX supply burn."""
+    """Public output of a checked route-bound ZDEX burn substate transition."""
 
     chain_id: str
     deployment_root: str
@@ -223,6 +223,7 @@ class ZDEXBurnJournalV1:
     buyback_budget_occurrence_root: str
     authorized_quote_input_atoms: int
     purchase_occurrence_root: str
+    route_context_root: str
     zdex_asset_id: str
     burn_bucket_id: str
     burned_zdex_atoms: int
@@ -232,8 +233,8 @@ class ZDEXBurnJournalV1:
     zdex_owned_post_atoms: int
     zdex_supply_pre_atoms: int
     zdex_supply_post_atoms: int
-    pre_tokenomics_lane_root: str
-    post_tokenomics_lane_root: str
+    pre_tokenomics_burn_substate_root: str
+    post_tokenomics_burn_substate_root: str
     effect_plan_root: str
 
     def __post_init__(self) -> None:
@@ -250,9 +251,10 @@ class ZDEXBurnJournalV1:
             "issue_burn_policy_root",
             "buyback_budget_occurrence_root",
             "purchase_occurrence_root",
+            "route_context_root",
             "zdex_asset_id",
-            "pre_tokenomics_lane_root",
-            "post_tokenomics_lane_root",
+            "pre_tokenomics_burn_substate_root",
+            "post_tokenomics_burn_substate_root",
             "effect_plan_root",
         ):
             _require_root(getattr(self, field_name), name=f"ZDEX burn {field_name}")
@@ -304,6 +306,7 @@ class ZDEXBurnJournalV1:
             "buyback_budget_occurrence_root": self.buyback_budget_occurrence_root,
             "authorized_quote_input_atoms": self.authorized_quote_input_atoms,
             "purchase_occurrence_root": self.purchase_occurrence_root,
+            "route_context_root": self.route_context_root,
             "zdex_asset_id": self.zdex_asset_id,
             "burn_bucket_id": self.burn_bucket_id,
             "burned_zdex_atoms": self.burned_zdex_atoms,
@@ -313,8 +316,8 @@ class ZDEXBurnJournalV1:
             "zdex_owned_post_atoms": self.zdex_owned_post_atoms,
             "zdex_supply_pre_atoms": self.zdex_supply_pre_atoms,
             "zdex_supply_post_atoms": self.zdex_supply_post_atoms,
-            "pre_tokenomics_lane_root": self.pre_tokenomics_lane_root,
-            "post_tokenomics_lane_root": self.post_tokenomics_lane_root,
+            "pre_tokenomics_burn_substate_root": self.pre_tokenomics_burn_substate_root,
+            "post_tokenomics_burn_substate_root": self.post_tokenomics_burn_substate_root,
             "effect_plan_root": self.effect_plan_root,
         }
 

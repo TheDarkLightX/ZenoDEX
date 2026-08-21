@@ -129,8 +129,6 @@ pub(crate) struct ZDEXBurnEffectInputsV1<'a> {
     pub zdex_owned_post_atoms: u128,
     pub zdex_supply_pre_atoms: u128,
     pub zdex_supply_post_atoms: u128,
-    pub pre_tokenomics_lane_root: &'a RootV1,
-    pub post_tokenomics_lane_root: &'a RootV1,
 }
 
 pub(crate) fn burn_effects_from_inputs_v1(
@@ -167,11 +165,7 @@ pub(crate) fn burn_effects_from_inputs_v1(
             authorized_burn_atoms: inputs.burned_zdex_atoms,
         }],
         fee_conservation: vec![],
-        lane_writes: vec![LaneWriteV1 {
-            lane_id: LaneIdV1::ZDEX_TOKENOMICS,
-            pre_root: inputs.pre_tokenomics_lane_root.clone(),
-            post_root: inputs.post_tokenomics_lane_root.clone(),
-        }],
+        lane_writes: vec![],
         occurrence_consumptions: vec![inputs.command_occurrence_id.clone()],
         external_outbox_enqueue: vec![],
     };
@@ -192,7 +186,5 @@ pub(crate) fn burn_effects_v1(
         zdex_owned_post_atoms: journal.zdex_owned_post_atoms,
         zdex_supply_pre_atoms: journal.zdex_supply_pre_atoms,
         zdex_supply_post_atoms: journal.zdex_supply_post_atoms,
-        pre_tokenomics_lane_root: &journal.pre_tokenomics_lane_root,
-        post_tokenomics_lane_root: &journal.post_tokenomics_lane_root,
     })
 }

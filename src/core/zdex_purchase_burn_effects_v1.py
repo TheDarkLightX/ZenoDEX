@@ -117,8 +117,6 @@ class _ZDEXBurnEffectInputsV1:
     zdex_owned_post_atoms: int
     zdex_supply_pre_atoms: int
     zdex_supply_post_atoms: int
-    pre_tokenomics_lane_root: str
-    post_tokenomics_lane_root: str
 
 
 def _burn_effects_from_values_v1(
@@ -159,13 +157,7 @@ def _burn_effects_from_values_v1(
             ),
         ),
         (),
-        (
-            LaneWriteV1(
-                LaneIdV1.ZDEX_TOKENOMICS,
-                inputs.pre_tokenomics_lane_root,
-                inputs.post_tokenomics_lane_root,
-            ),
-        ),
+        (),
         (inputs.command_occurrence_id,),
         (),
     )
@@ -187,8 +179,6 @@ def burn_effects_v1(journal: ZDEXBurnJournalV1) -> GlobalEconomicEffectPlanV1:
             zdex_owned_post_atoms=journal.zdex_owned_post_atoms,
             zdex_supply_pre_atoms=journal.zdex_supply_pre_atoms,
             zdex_supply_post_atoms=journal.zdex_supply_post_atoms,
-            pre_tokenomics_lane_root=journal.pre_tokenomics_lane_root,
-            post_tokenomics_lane_root=journal.post_tokenomics_lane_root,
         )
     )
 

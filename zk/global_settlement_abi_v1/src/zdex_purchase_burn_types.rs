@@ -34,7 +34,7 @@ pub fn zdex_amm_purchase_port_schema_root_v1() -> AbiResultV1<RootV1> {
 }
 
 pub fn zdex_burn_port_schema_root_v1() -> AbiResultV1<RootV1> {
-    port_schema_root_v1("ZDEX_AUTHORIZED_BURN_INPUT_V1")
+    port_schema_root_v1("ZDEX_AUTHORIZED_BURN_SUBSTATE_INPUT_V1")
 }
 
 fn validate_positive_effect_amount_v1(value: u128, field: &'static str) -> AbiResultV1<()> {
@@ -202,6 +202,7 @@ pub struct ZDEXBurnJournalV1 {
     pub buyback_budget_occurrence_root: RootV1,
     pub authorized_quote_input_atoms: u128,
     pub purchase_occurrence_root: RootV1,
+    pub route_context_root: RootV1,
     pub zdex_asset_id: RootV1,
     pub burn_bucket_id: String,
     pub burned_zdex_atoms: u128,
@@ -211,8 +212,8 @@ pub struct ZDEXBurnJournalV1 {
     pub zdex_owned_post_atoms: u128,
     pub zdex_supply_pre_atoms: u128,
     pub zdex_supply_post_atoms: u128,
-    pub pre_tokenomics_lane_root: RootV1,
-    pub post_tokenomics_lane_root: RootV1,
+    pub pre_tokenomics_burn_substate_root: RootV1,
+    pub post_tokenomics_burn_substate_root: RootV1,
     pub effect_plan_root: RootV1,
 }
 
@@ -229,9 +230,10 @@ impl ZDEXBurnJournalV1 {
             &self.issue_burn_policy_root,
             &self.buyback_budget_occurrence_root,
             &self.purchase_occurrence_root,
+            &self.route_context_root,
             &self.zdex_asset_id,
-            &self.pre_tokenomics_lane_root,
-            &self.post_tokenomics_lane_root,
+            &self.pre_tokenomics_burn_substate_root,
+            &self.post_tokenomics_burn_substate_root,
             &self.effect_plan_root,
         ] {
             root.validate("ZDEX burn root", false)?;

@@ -41,10 +41,15 @@ effects. Independent Rust and Python fee-allocation cores derive a
 buyback-budget occurrence from a charged-fee bucket. An unmounted RISC0 3.0.6
 workspace now reuses the Rust allocation transition, commits only the canonical
 allocation occurrence, requires `Succinct` receipt shape, and rejects
-placeholder methods and noncanonical receipt encodings. The real AMM guest,
-tokenomics guest, generated fee-allocation image and receipt, governed
-percentage and host-compensation selection, recursive route proof, active
-profile admission, and atomic global commit remain separate obligations.
+placeholder methods and noncanonical receipt encodings. A second unmounted
+RISC0 3.0.6 workspace reuses the exact Rust burn transition and route
+refinement, commits only the canonical burn journal, bounds input and receipt
+bytes before decoding, requires `Succinct` receipt shape, and rejects
+placeholder methods and noncanonical receipt encodings. The real AMM purchase
+guest, generated fee-allocation and burn images and receipts, purchase-receipt
+authentication, governed percentage and host-compensation selection, recursive
+route proof, active profile admission, and atomic global commit remain separate
+obligations.
 
 ## Candidate fee-allocation contract
 
@@ -172,6 +177,10 @@ The verifier-supplied `ZDEXBurnRouteContextV1` binds:
 - burn-budget epoch;
 - source-reserve, route-epoch, and route-output ceilings.
 
+The burn journal commits the canonical root of this complete route context.
+Changing a nonlimiting ceiling therefore changes the public statement even when
+the same amount and supply transition would still accept.
+
 The command must repeat the purchase occurrence root, source bucket, and exact
 purchased amount. Any mismatch returns `PURCHASE_BINDING_MISMATCH` with no
 effect. A route context from another committed burn-budget epoch returns
@@ -183,7 +192,8 @@ burn from committed capacity before construction succeeds.
 The burn-journal refinement also recomputes the purchase effect-plan root and
 requires the purchase route, policy, journal root, ZDEX asset, amount, aggregate
 owned value, supply, and transient burn bucket to equal the checked burn. The
-tokenomics lane roots are the checked supply-state roots. The source bucket must
+checked supply-state roots are explicitly tokenomics burn-substate roots. They
+do not claim to be complete tokenomics lane roots. The source bucket must
 contain exactly the purchased amount before the burn and be absent afterward;
 partial source-bucket burns remain valid in the general core but cannot be
 presented as the atomic purchase-to-burn route leaf. The tokenomics module
@@ -244,18 +254,23 @@ ZDEX controlled balances post + B = pre
 ZDEX supply post + B = pre
 ```
 
-Composition cancels the transient `+B` and `-B`, emits exactly one authorized
-ZDEX supply burn of `B`, consumes the command occurrence once, orders the Spot
-and tokenomics lane writes, and emits no external outbox row. Any binding or
-history mismatch returns a typed rejection with an empty effect plan.
+Shadow composition cancels the transient `+B` and `-B`, emits exactly one
+authorized ZDEX supply burn of `B`, consumes the command occurrence once,
+retains the complete Spot lane write, and emits no external outbox row. It emits
+no tokenomics lane write from the partial burn substate. Its nonzero
+terminal-obligations root commits `VERIFIED_COMPLETE_LANE_ROOT`, so the common
+epoch verifier cannot admit it until a tokenomics lane coordinator proves and
+supplies the complete lane transition. Any binding or history mismatch returns
+a typed rejection with an empty effect plan.
 
 Both receipt-admission implementations are deliberately `SHADOW`-only.
 `ACTIVE_NEW`, composite, conditional, fake, development, empty, wrong-effect,
 and verifier-rejected receipts cannot construct the opaque verified leaf
 witnesses. The injected verifier port remains a reference boundary. The packet
 contains an unmounted source-level RISC0 verifier adapter with canonical
-receipt decoding and exact journal/image checks. No generated image or real
-receipt is present. The accepted shadow composition is also not yet a common
+receipt decoding and exact journal/image checks for each implemented source
+guest. No generated burn image or real burn receipt is present. The accepted
+shadow composition is also not yet a common
 `RouteCompositionJournalV1`; it cannot enter epoch recursion or publication.
 
 ## Exact denomination rescale
@@ -314,11 +329,12 @@ receipt consumer, API, client, and historical decoder.
 
 | Disaster state | Current closure | Remaining obligation |
 |---|---|---|
-| Supply reaches zero through rounding | Ceiling retention, positive-supply theorem, and tested Rust/Python golden-vector root parity including u128/u64 extremes | Guest execution, complete result-encoding vectors, and release-selected policy/state binding |
+| Supply reaches zero through rounding | Ceiling retention, positive-supply theorem, tested Rust/Python golden-vector root parity including u128/u64 extremes, and a source-level burn guest wired to the exact Rust transition | Generated burn image, in-VM execution and real receipt, complete result-encoding vectors, and release-selected policy/state binding |
 | Caller invents the purchased amount | Exact purchase journal, verifier witness, occurrence, source, and amount binding in a shadow route | Real Spot guest and governed profile membership |
 | Preexisting ZDEX is mixed into the purchase output | Purchase transient bucket must project `0 -> B` | Complete global balance-root connection in the Spot guest |
-| Purchased ZDEX is only partly burned | Burn transient bucket must project `B -> 0`; composed transient rows cancel | Recursive route proof and atomic commit |
-| Burn journal is assembled independently from the checked transition | Rust/Python refinement derives the journal, lane roots, totals, and effects; coherent amount, route, policy, asset, bucket, and total substitutions reject | Guest execution and release-selected receipt verification |
+| Purchased ZDEX is only partly burned | Burn transient bucket must project `B -> 0`; the burn guest preflight rejects partial drain and composed transient rows cancel | Generated burn receipt, tokenomics lane coordinator, recursive route proof, and atomic commit |
+| Burn journal is assembled independently from the checked transition | Rust/Python refinement derives the journal, burn-substate roots, route-context root, totals, and effects; the source-level burn guest reruns that Rust refinement; coherent amount, route, policy, asset, bucket, total, and nonlimiting-cap substitutions are distinguished or reject | Generated burn image and real receipt plus release-selected receipt verification |
+| Partial burn substate is presented as the complete tokenomics lane | Burn journal fields are explicitly named burn-substate roots; leaf effects emit no tokenomics lane write; shadow composition carries a nonzero complete-lane coordinator obligation | Proved tokenomics lane coordinator and complete lane-state registry |
 | Python value is mutated after constructor validation | Accepted burn inputs and purchase/burn journals revalidate at refinement, effect projection, and root computation; hostile epoch-capacity and zero-quote mutations are regression tested | Python values remain non-authoritative until a release-selected proof verifier admits the exact journal |
 | Rejected transition changes value | Canonically equal pre/post state and empty effects; Python also preserves object identity | Runtime adapter parity |
 | Epoch ceiling is reused by sequential burns | Burn-budget epoch and remaining capacity are committed in the pre-state and decremented in the post-state; stale larger route ceilings cannot increase capacity | Profile-selected epoch reset transition, guest execution, and global sequencing |
@@ -330,7 +346,7 @@ receipt consumer, API, client, and historical decoder.
 | Test faucet mints protocol ZDEX | Source guard and authored exact no-state-change scenario reject the canonical protocol-token asset | Dependency-closed integration replay; this branch lacks the tracked consensus-time donor required to import the plugin |
 | Partial denomination migration | All supplied projection buckets and the remaining burn budget scale exactly or transition rejects | Complete global ZDEX bucket registry and atomic migration |
 | Multiplication or epoch overflow | Python pre-multiplication guard, Rust widened quotient/remainder retention, checked rescale, and u64 epoch exhaustion | Guest execution and independent arithmetic review |
-| Oversized serialized input exhausts decoding resources | Supply-state decoding rejects more than 1,024 projection rows and all decoded inputs are validated before transition use | Enforce the release-selected journal byte ceiling before deserialization; parsed string allocation is outside this value-level ABI |
+| Oversized serialized input exhausts decoding resources | Supply-state decoding rejects more than 1,024 projection rows; the burn guest and host enforce a 1 MiB canonical-input ceiling before decoding; receipt admission enforces a 16 MiB ceiling and the ABI journal ceiling | Apply equivalent pre-decode bounds to every remaining guest and mounted adapter; parsed string allocation elsewhere remains outside this leaf |
 | Old receipt is replayed after rescale | Precision epoch and pre-state root binding | Global nonce/nullifier and profile binding |
 | Buy-and-burn has no market demand | No mathematical closure claimed | Economic and liquidity analysis |
 | Hosting becomes privileged control | No privilege is granted by this core | Permissionless host protocol and failover evidence |
@@ -414,6 +430,11 @@ exact design.
 - `zk/zdex_fee_allocation_risc0`: unmounted RISC0 3.0.6 guest source, canonical
   input/journal seam, pinned succinct-receipt host adapter, placeholder and fake
   receipt denial, receipt-size BVA, and an ignored real-proof replay target;
+- `zk/zdex_hyperdeflation_burn_risc0`: unmounted RISC0 3.0.6 burn guest source,
+  canonical bounded input/journal seam, exact shared transition and refinement,
+  pinned succinct-receipt host adapter, placeholder and fake receipt denial,
+  input/journal/receipt BVA, typed development-mode rejection, and an ignored
+  real-proof replay target;
 - `tests/core/test_zdex_fee_allocation_v1.py` and
   `zk/global_settlement_abi_v1/tests/zdex_fee_allocation.rs`: denominator BVA,
   exhaustive small-domain conservation, no-effect rejection, route binding,
@@ -436,20 +457,26 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
 2. a complete profile-selected ZDEX bucket projection and policy release feeding
    the Rust burn core; current parity covers exact supplied state and does not
    establish complete mounted bucket coverage;
-3. a generated fee-allocation guest ELF and image ID, a real `Succinct` receipt,
-   exact release/source/toolchain manifests, profile selection by the sole
-   settlement shell, and end-to-end governed admission with wrong-profile,
+3. generated fee-allocation and burn guest ELFs and image IDs, real `Succinct`
+   receipts, exact release/source/toolchain manifests, profile selection by the
+   sole settlement shell, and end-to-end governed admission with wrong-profile,
    epoch, route, module, image, journal, and fake-receipt substitutions;
-4. real Spot and tokenomics guests plus authenticated fee-allocation output that
-   execute the checked burn refinement and feed its exact purchase-to-burn
-   journal into the route composer;
-5. complete protocol-token issue/burn writer inventory and deny-by-default
+4. a real Spot purchase guest plus authenticated fee-allocation output and
+   purchase receipt that feed the exact purchase-to-burn journals into the
+   route composer;
+5. a proved tokenomics lane coordinator that embeds the burn substate in the
+   complete lane, discharges the nonzero coordinator obligation, and supplies
+   the full tokenomics lane write;
+6. release-bound cycle/resource enforcement in the proof statement and
+   governed receipt admission; the current leaf verifier cannot authenticate a
+   module release `max_cycles` ceiling;
+7. complete protocol-token issue/burn writer inventory and deny-by-default
    mounting;
-6. an ABI revision and proved total migration before any precision rescale;
-7. stateful replay, reordering, partial-failure, migration, and mixed-lane
+8. an ABI revision and proved total migration before any precision rescale;
+9. stateful replay, reordering, partial-failure, migration, and mixed-lane
    evidence;
-8. independent economic, proof, authority-boundary, and legal review;
-9. one atomic ZenoLedger commit path with no legacy value writer.
+10. independent economic, proof, authority-boundary, and legal review;
+11. one atomic ZenoLedger commit path with no legacy value writer.
 
 Passing focused core tests supports only the restricted statements and
 executable behaviors named above. The blocked plugin import is a promotion gap,

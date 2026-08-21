@@ -119,8 +119,8 @@ fn derive_burn_journal_v1(
     tokenomics_module_release_id.validate("ZDEX tokenomics module release id", false)?;
     require_refinement_bindings_v1(accepted, purchase)?;
     let burn_atoms = accepted.effect.authorized_burn_atoms;
-    let pre_lane_root = accepted.pre_state.state_root()?;
-    let post_lane_root = accepted.post_state.state_root()?;
+    let pre_burn_substate_root = accepted.pre_state.state_root()?;
+    let post_burn_substate_root = accepted.post_state.state_root()?;
     let effects = burn_effects_from_inputs_v1(&ZDEXBurnEffectInputsV1 {
         command_occurrence_id: &purchase.command_occurrence_id,
         zdex_asset_id: &accepted.policy.asset_id,
@@ -130,8 +130,6 @@ fn derive_burn_journal_v1(
         zdex_owned_post_atoms: accepted.post_state.live_supply_atoms,
         zdex_supply_pre_atoms: accepted.pre_state.live_supply_atoms,
         zdex_supply_post_atoms: accepted.post_state.live_supply_atoms,
-        pre_tokenomics_lane_root: &pre_lane_root,
-        post_tokenomics_lane_root: &post_lane_root,
     })?;
     let journal = ZDEXBurnJournalV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
@@ -146,6 +144,7 @@ fn derive_burn_journal_v1(
         buyback_budget_occurrence_root: purchase.buyback_budget_occurrence_root.clone(),
         authorized_quote_input_atoms: purchase.quote_amount_in_atoms,
         purchase_occurrence_root: purchase.journal_root()?,
+        route_context_root: accepted.route_context.context_root()?,
         zdex_asset_id: accepted.policy.asset_id.clone(),
         burn_bucket_id: accepted.effect.source_bucket_id.clone(),
         burned_zdex_atoms: burn_atoms,
@@ -155,8 +154,8 @@ fn derive_burn_journal_v1(
         zdex_owned_post_atoms: accepted.post_state.live_supply_atoms,
         zdex_supply_pre_atoms: accepted.pre_state.live_supply_atoms,
         zdex_supply_post_atoms: accepted.post_state.live_supply_atoms,
-        pre_tokenomics_lane_root: pre_lane_root,
-        post_tokenomics_lane_root: post_lane_root,
+        pre_tokenomics_burn_substate_root: pre_burn_substate_root,
+        post_tokenomics_burn_substate_root: post_burn_substate_root,
         effect_plan_root: effects.effect_plan_root()?,
     };
     journal.validate()?;

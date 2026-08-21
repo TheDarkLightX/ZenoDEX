@@ -171,6 +171,11 @@ impl ZDEXBurnRouteContextV1 {
         }
         Ok(())
     }
+
+    pub fn context_root(&self) -> AbiResultV1<RootV1> {
+        self.validate()?;
+        hash_global_v1("zdex-burn-route-context-v1", self)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]

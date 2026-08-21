@@ -87,6 +87,8 @@ def _accepted(
     source_atoms: int = 100,
     burned_atoms: int | None = None,
     checked_supply_atoms: int | None = None,
+    route_epoch_cap_atoms: int = MAX_ATOMS_V1,
+    route_safe_output_cap_atoms: int = MAX_ATOMS_V1,
 ) -> ZDEXPurchaseAndBurnAcceptedV1:
     checked_burn_atoms = (
         purchase.purchased_zdex_atoms if burned_atoms is None else burned_atoms
@@ -117,8 +119,8 @@ def _accepted(
         burn_source_bucket_id=purchase.burn_bucket_id,
         purchased_zdex_atoms=checked_burn_atoms,
         source_reserve_floor_atoms=0,
-        remaining_epoch_burn_cap_atoms=MAX_ATOMS_V1,
-        route_safe_output_cap_atoms=MAX_ATOMS_V1,
+        remaining_epoch_burn_cap_atoms=route_epoch_cap_atoms,
+        route_safe_output_cap_atoms=route_safe_output_cap_atoms,
         burn_budget_epoch=state.burn_budget_epoch,
     )
     command = ZDEXPurchaseAndBurnCommandV1(
@@ -154,24 +156,44 @@ def test_refinement_derives_exact_burn_journal_and_effects() -> None:
     assert type(projection) is ZDEXBurnLeafProjectionV1
     journal = projection.journal
     assert journal.purchase_occurrence_root == purchase.journal_root
-    assert journal.pre_tokenomics_lane_root == accepted.pre_state.state_root
-    assert journal.post_tokenomics_lane_root == accepted.post_state.state_root
+    assert journal.route_context_root == accepted.route_context.context_root
+    assert journal.pre_tokenomics_burn_substate_root == accepted.pre_state.state_root
+    assert journal.post_tokenomics_burn_substate_root == accepted.post_state.state_root
     assert journal.burn_bucket_pre_atoms == journal.burned_zdex_atoms == 100
     assert journal.burn_bucket_post_atoms == 0
     assert journal.zdex_owned_pre_atoms == journal.zdex_supply_pre_atoms == 1000
     assert journal.zdex_owned_post_atoms == journal.zdex_supply_post_atoms == 900
     assert projection.effects == burn_effects_v1(journal)
     assert journal.effect_plan_root == projection.effects.effect_plan_root
+    assert projection.effects.lane_writes == ()
     assert projection.effects.external_outbox_enqueue == ()
     assert purchase.journal_root == (
         "0xc7bc06f6e2475adba501f493450ca57fcf24a738e179f7ba11079281a9144dc8"
     )
     assert journal.journal_root == (
-        "0x969a3954b8de1bf26bfb6ae9ed22bfd4eac2843506d1d3d3721164e891143085"
+        "0xe6c3831c5f376c3436ad48a94132ffa00a4775042c8bc4700df11ca1e1fa515b"
     )
     assert projection.effects.effect_plan_root == (
-        "0x120e8cb20cf041b14dae207099bc1c1f9e309e8e16e3578fdcc89a0507171373"
+        "0x6853ced9af428e73b826a9f2c356a5966c5cedd300bc28ec1258d10402ef2dc2"
     )
+
+
+def test_nonlimiting_route_cap_substitution_changes_public_burn_journal() -> None:
+    # Arrange: each context admits the same state transition and burn amount.
+    policy, purchase, accepted = _fixture()
+    bounded = _accepted(
+        policy,
+        purchase,
+        route_epoch_cap_atoms=1000,
+        route_safe_output_cap_atoms=1000,
+    )
+
+    # Act
+    unbounded_projection = refine_zdex_burn_leaf_v1(accepted, purchase, _root(20))
+    bounded_projection = refine_zdex_burn_leaf_v1(bounded, purchase, _root(20))
+
+    # Assert: acceptance-affecting policy inputs remain publicly distinguishable.
+    assert unbounded_projection.journal.journal_root != bounded_projection.journal.journal_root
 
 
 def test_refinement_rejects_purchase_effect_root_substitution() -> None:
