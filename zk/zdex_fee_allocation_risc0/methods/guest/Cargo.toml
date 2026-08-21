@@ -1,0 +1,15 @@
+[package]
+name = "zenodex-zdex-fee-allocation-guest"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.6", default-features = false, features = ["std"] }
+zenodex-zdex-fee-allocation-risc0-shared = { path = "../../shared" }
+
+[[bin]]
+name = "zenodex-zdex-fee-allocation-guest"
+path = "src/main.rs"
+test = false
+bench = false

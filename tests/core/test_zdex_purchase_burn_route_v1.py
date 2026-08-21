@@ -858,14 +858,14 @@ def test_command_must_consume_exact_authenticated_budget_object(
 
 def test_fee_allocation_witness_cannot_be_constructed_by_a_caller() -> None:
     with pytest.raises(TypeError, match="verifier-constructed"):
-        VerifiedZDEXFeeAllocationV1(object(), object())  # type: ignore[arg-type]
+        VerifiedZDEXFeeAllocationV1(object(), object())
 
 
 def test_governed_fee_profile_cannot_be_constructed_by_a_caller() -> None:
     with pytest.raises(TypeError, match="verifier-constructed"):
         GovernedZDEXFeeAllocationProfileV1(
             object(),
-            object(),  # type: ignore[arg-type]
+            object(),
         )
 
 
@@ -906,6 +906,19 @@ def test_profile_status_substitution_rejects_with_same_profile_id() -> None:
             expected_profile_id=fields.profile.profile_id,
             expected_authority_epoch=fields.profile.authority_epoch,
             profile=substituted,
+            policy_registry=fields.policy_registry,
+        )
+
+
+def test_wrong_expected_authority_epoch_rejects_trusted_profile_anchor() -> None:
+    _, governed = _fee_receipt_candidate_fixture()
+    fields = governed._fields
+
+    with pytest.raises(ValueError, match="expected authority epoch mismatch"):
+        bind_zdex_fee_allocation_shadow_profile_v1(
+            expected_profile_id=fields.profile.profile_id,
+            expected_authority_epoch=fields.profile.authority_epoch + 1,
+            profile=fields.profile,
             policy_registry=fields.policy_registry,
         )
 

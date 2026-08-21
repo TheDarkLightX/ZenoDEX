@@ -29,11 +29,14 @@ protocol fee revenue
 The implemented Python burn core consumes a route-authenticated purchase
 occurrence. A separate Rust/Python shadow composer models receipt admission for
 exact Spot and tokenomics leaf journals through release-selected verifier ports
-and pairs their effects. Independent Rust and Python fee-allocation cores derive a
-buyback-budget occurrence from a charged-fee bucket. The real AMM guest,
-tokenomics guest, governed percentage and host-compensation selection,
-recursive route proof, profile admission, and atomic global commit remain
-separate obligations.
+and pairs their effects. Independent Rust and Python fee-allocation cores derive
+a buyback-budget occurrence from a charged-fee bucket. An unmounted RISC0 3.0.6
+workspace now reuses the Rust transition, commits only the canonical allocation
+occurrence, requires `Succinct` receipt shape, and rejects placeholder methods
+and noncanonical receipt encodings. The real AMM guest, tokenomics guest,
+generated fee-allocation image and receipt, governed percentage and
+host-compensation selection, recursive route proof, active profile admission,
+and atomic global commit remain separate obligations.
 
 ## Candidate fee-allocation contract
 
@@ -183,17 +186,21 @@ canonically ordered bindings. The fee receipt candidate cannot supply module
 releases, routes, guest image IDs, or the selected
 profile. Those values are derived from the verifier-selected registries.
 Self-consistent alternative release graphs, same-ID status substitutions,
-policy-registry substitutions, occurrence-profile substitutions, and journal
-epoch substitutions reject before the receipt-verifier port is called.
+independent lane/coordinator/route-registry substitutions, trusted authority
+epoch substitutions, policy-registry substitutions, occurrence-profile
+substitutions, and journal epoch substitutions reject before the
+receipt-verifier port is called.
 The Python composer repeats that recomputation because Python module internals
 cannot provide same-process authority. The Rust witness constructor is private.
 The buy-and-burn command lists the budget root in its exact consumed-object set.
 Its effect plan consumes only the buy-and-burn command occurrence, matching the
-global epoch effect contract. The tests use an injected accepting verifier and
-contain no cryptographic proof. The expected profile ID and authority epoch
-must eventually come from the sole settlement shell under its consensus/write
-lock. Historical inclusion, persistent global consumed-object enforcement, and
-a real allocation guest receipt remain open.
+global epoch effect contract. Composer tests use an injected accepting verifier
+and contain no cryptographic proof. Fast RISC0 workspace tests use a deliberate
+placeholder method and therefore also contain no cryptographic proof. The
+expected profile ID and authority epoch must eventually come from the sole
+settlement shell under its consensus/write lock. Historical inclusion,
+persistent global consumed-object enforcement, a generated guest image, and a
+real allocation receipt remain open.
 
 The purchase journal commits these exact balance projections:
 
@@ -220,9 +227,10 @@ history mismatch returns a typed rejection with an empty effect plan.
 Both receipt-admission implementations are deliberately `SHADOW`-only.
 `ACTIVE_NEW`, composite, conditional, fake, development, empty, wrong-effect,
 and verifier-rejected receipts cannot construct the opaque verified leaf
-witnesses. The injected verifier port remains a reference boundary; this
-packet contains no RISC0 guest image or cryptographic verifier implementation.
-The accepted shadow composition is also not yet a common
+witnesses. The injected verifier port remains a reference boundary. The packet
+contains an unmounted source-level RISC0 verifier adapter with canonical
+receipt decoding and exact journal/image checks. No generated image or real
+receipt is present. The accepted shadow composition is also not yet a common
 `RouteCompositionJournalV1`; it cannot enter epoch recursion or publication.
 
 ## Exact denomination rescale
@@ -354,6 +362,9 @@ exact design.
   `zk/global_settlement_abi_v1/src/zdex_fee_allocation.rs`, plus the receipt
   verification module: independent checked Rust projection of the candidate
   allocation core and its shadow admission boundary;
+- `zk/zdex_fee_allocation_risc0`: unmounted RISC0 3.0.6 guest source, canonical
+  input/journal seam, pinned succinct-receipt host adapter, placeholder and fake
+  receipt denial, receipt-size BVA, and an ignored real-proof replay target;
 - `tests/core/test_zdex_fee_allocation_v1.py` and
   `zk/global_settlement_abi_v1/tests/zdex_fee_allocation.rs`: denominator BVA,
   exhaustive small-domain conservation, no-effect rejection, route binding,
@@ -372,8 +383,11 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
    compensation, and governance envelopes;
 2. a Rust retention/capacity core with Python differential parity and checked
    widened arithmetic;
-3. a RISC0 guest and exact journal/image/profile binding;
-4. real Spot, fee-allocation, and tokenomics guests whose authenticated outputs
+3. a generated fee-allocation guest ELF and image ID, a real `Succinct` receipt,
+   exact release/source/toolchain manifests, profile selection by the sole
+   settlement shell, and end-to-end governed admission with wrong-profile,
+   epoch, route, module, image, journal, and fake-receipt substitutions;
+4. real Spot and tokenomics guests plus authenticated fee-allocation output that
    refine the shadow allocation occurrence, purchase-to-burn journals, and
    exact route composer;
 5. complete protocol-token issue/burn writer inventory and deny-by-default

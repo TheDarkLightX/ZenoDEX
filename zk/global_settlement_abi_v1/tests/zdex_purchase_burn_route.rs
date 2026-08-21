@@ -997,6 +997,68 @@ fn profile_status_substitution_rejects_with_same_profile_id() {
 }
 
 #[test]
+fn wrong_expected_authority_epoch_rejects_trusted_profile_anchor() {
+    let fixture = fixture();
+
+    let error = bind_zdex_fee_allocation_shadow_profile_v1(
+        &fixture.profile.profile_id,
+        fixture.profile.authority_epoch + 1,
+        ZDEXFeeAllocationProfileRegistriesV1 {
+            profile: &fixture.profile,
+            lanes: &fixture.lanes,
+            coordinators: &fixture.coordinators,
+            routes: &fixture.routes,
+            policy_registry: &fixture.policies,
+        },
+    )
+    .err()
+    .expect("wrong trusted authority epoch must reject");
+
+    assert!(error.to_string().contains("expected authority epoch"));
+}
+
+#[test]
+fn trusted_profile_rejects_each_independently_substituted_release_registry() {
+    let fixture = fixture();
+    let mut lanes = fixture.lanes.clone();
+    lanes.releases[0] = lane_release(lanes.releases[0].lane_id, 991);
+    let mut coordinators = fixture.coordinators.clone();
+    coordinators.releases[0] = coordinator_release(coordinators.releases[0].lane_id, 992);
+    let mut routes = fixture.routes.clone();
+    routes.routes[0].status = ReleaseStatusV1::CANDIDATE;
+
+    for (label, candidate_lanes, candidate_coordinators, candidate_routes) in [
+        ("lanes", &lanes, &fixture.coordinators, &fixture.routes),
+        (
+            "coordinators",
+            &fixture.lanes,
+            &coordinators,
+            &fixture.routes,
+        ),
+        ("routes", &fixture.lanes, &fixture.coordinators, &routes),
+    ] {
+        let error = bind_zdex_fee_allocation_shadow_profile_v1(
+            &fixture.profile.profile_id,
+            fixture.profile.authority_epoch,
+            ZDEXFeeAllocationProfileRegistriesV1 {
+                profile: &fixture.profile,
+                lanes: candidate_lanes,
+                coordinators: candidate_coordinators,
+                routes: candidate_routes,
+                policy_registry: &fixture.policies,
+            },
+        )
+        .err()
+        .unwrap_or_else(|| panic!("{label} registry substitution must reject"));
+
+        assert!(
+            error.to_string().contains("registry"),
+            "unexpected {label} registry error: {error}"
+        );
+    }
+}
+
+#[test]
 fn policy_registry_substitution_rejects_before_receipt_verification() {
     let fixture = fixture();
     let substituted = EconomicPolicyRegistryV1 {
