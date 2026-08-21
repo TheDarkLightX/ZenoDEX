@@ -1,4 +1,4 @@
-use crate::canonical::{AbiErrorV1, AbiResultV1, GLOBAL_SETTLEMENT_ABI_V1};
+use crate::canonical::{AbiErrorV1, AbiResultV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1};
 use crate::effects::{
     AssetConservationRowV1, EconomicEffectKindV1, EconomicEffectRowV1, GlobalEconomicEffectPlanV1,
     LaneWriteV1,
@@ -48,6 +48,7 @@ fn positive_i128_v1(value: u128) -> AbiResultV1<i128> {
 pub(crate) fn purchase_effects_v1(
     journal: &ZDEXAMMPurchaseJournalV1,
 ) -> AbiResultV1<GlobalEconomicEffectPlanV1> {
+    journal.validate()?;
     let quote = positive_i128_v1(journal.quote_amount_in_atoms)?;
     let purchased = positive_i128_v1(journal.purchased_zdex_atoms)?;
     let mut rows = vec![
@@ -119,22 +120,35 @@ pub(crate) fn purchase_effects_v1(
     Ok(plan)
 }
 
-pub(crate) fn burn_effects_v1(
-    journal: &ZDEXBurnJournalV1,
+pub(crate) struct ZDEXBurnEffectInputsV1<'a> {
+    pub command_occurrence_id: &'a RootV1,
+    pub zdex_asset_id: &'a RootV1,
+    pub burn_bucket_id: &'a str,
+    pub burned_zdex_atoms: u128,
+    pub zdex_owned_pre_atoms: u128,
+    pub zdex_owned_post_atoms: u128,
+    pub zdex_supply_pre_atoms: u128,
+    pub zdex_supply_post_atoms: u128,
+    pub pre_tokenomics_lane_root: &'a RootV1,
+    pub post_tokenomics_lane_root: &'a RootV1,
+}
+
+pub(crate) fn burn_effects_from_inputs_v1(
+    inputs: &ZDEXBurnEffectInputsV1<'_>,
 ) -> AbiResultV1<GlobalEconomicEffectPlanV1> {
-    let burned = positive_i128_v1(journal.burned_zdex_atoms)?;
+    let burned = positive_i128_v1(inputs.burned_zdex_atoms)?;
     let mut rows = vec![
         EconomicEffectRowV1 {
             kind: EconomicEffectKindV1::BURN,
             principal: ZDEX_SUPPLY_PRINCIPAL_V1.to_owned(),
-            asset: journal.zdex_asset_id.to_string(),
+            asset: inputs.zdex_asset_id.to_string(),
             custody_domain: PROTOCOL_SUPPLY_CUSTODY_DOMAIN_V1.to_owned(),
             delta_atoms: -burned,
         },
         EconomicEffectRowV1 {
             kind: EconomicEffectKindV1::CUSTODY,
-            principal: journal.burn_bucket_id.clone(),
-            asset: journal.zdex_asset_id.to_string(),
+            principal: inputs.burn_bucket_id.to_owned(),
+            asset: inputs.zdex_asset_id.to_string(),
             custody_domain: PROTOCOL_BURN_CUSTODY_DOMAIN_V1.to_owned(),
             delta_atoms: -burned,
         },
@@ -144,23 +158,41 @@ pub(crate) fn burn_effects_v1(
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
         rows,
         asset_conservation: vec![AssetConservationRowV1 {
-            asset: journal.zdex_asset_id.to_string(),
-            owned_and_custodied_pre_atoms: journal.zdex_owned_pre_atoms,
-            owned_and_custodied_post_atoms: journal.zdex_owned_post_atoms,
-            supply_pre_atoms: journal.zdex_supply_pre_atoms,
-            supply_post_atoms: journal.zdex_supply_post_atoms,
+            asset: inputs.zdex_asset_id.to_string(),
+            owned_and_custodied_pre_atoms: inputs.zdex_owned_pre_atoms,
+            owned_and_custodied_post_atoms: inputs.zdex_owned_post_atoms,
+            supply_pre_atoms: inputs.zdex_supply_pre_atoms,
+            supply_post_atoms: inputs.zdex_supply_post_atoms,
             authorized_issue_atoms: 0,
-            authorized_burn_atoms: journal.burned_zdex_atoms,
+            authorized_burn_atoms: inputs.burned_zdex_atoms,
         }],
         fee_conservation: vec![],
         lane_writes: vec![LaneWriteV1 {
             lane_id: LaneIdV1::ZDEX_TOKENOMICS,
-            pre_root: journal.pre_tokenomics_lane_root.clone(),
-            post_root: journal.post_tokenomics_lane_root.clone(),
+            pre_root: inputs.pre_tokenomics_lane_root.clone(),
+            post_root: inputs.post_tokenomics_lane_root.clone(),
         }],
-        occurrence_consumptions: vec![journal.command_occurrence_id.clone()],
+        occurrence_consumptions: vec![inputs.command_occurrence_id.clone()],
         external_outbox_enqueue: vec![],
     };
     plan.validate()?;
     Ok(plan)
+}
+
+pub(crate) fn burn_effects_v1(
+    journal: &ZDEXBurnJournalV1,
+) -> AbiResultV1<GlobalEconomicEffectPlanV1> {
+    journal.validate()?;
+    burn_effects_from_inputs_v1(&ZDEXBurnEffectInputsV1 {
+        command_occurrence_id: &journal.command_occurrence_id,
+        zdex_asset_id: &journal.zdex_asset_id,
+        burn_bucket_id: &journal.burn_bucket_id,
+        burned_zdex_atoms: journal.burned_zdex_atoms,
+        zdex_owned_pre_atoms: journal.zdex_owned_pre_atoms,
+        zdex_owned_post_atoms: journal.zdex_owned_post_atoms,
+        zdex_supply_pre_atoms: journal.zdex_supply_pre_atoms,
+        zdex_supply_post_atoms: journal.zdex_supply_post_atoms,
+        pre_tokenomics_lane_root: &journal.pre_tokenomics_lane_root,
+        post_tokenomics_lane_root: &journal.post_tokenomics_lane_root,
+    })
 }

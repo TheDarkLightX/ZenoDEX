@@ -31,7 +31,10 @@ exact purchase occurrence, source bucket, amount, policy, pre-state root, and
 precision epoch. The canonical supply state also commits the burn-budget epoch
 and its remaining capacity; acceptance decrements that capacity. The Rust
 retention calculation uses quotient/remainder decomposition to avoid a
-`u64 * u128` intermediate overflow. A separate
+`u64 * u128` intermediate overflow. A deterministic Rust/Python refinement
+derives the route burn journal and global effects from the accepted transition
+and the exact purchase journal it names. The refinement authenticates no
+receipt and grants no authority. A separate
 Rust/Python shadow composer models receipt admission for exact Spot and
 tokenomics leaf journals through release-selected verifier ports and pairs their
 effects. Independent Rust and Python fee-allocation cores derive a
@@ -177,6 +180,16 @@ authoritative; the route ceiling can only reduce it. The accepted result carries
 the policy and route context, recomputes its capacity, and consumes the exact
 burn from committed capacity before construction succeeds.
 
+The burn-journal refinement also recomputes the purchase effect-plan root and
+requires the purchase route, policy, journal root, ZDEX asset, amount, aggregate
+owned value, supply, and transient burn bucket to equal the checked burn. The
+tokenomics lane roots are the checked supply-state roots. The source bucket must
+contain exactly the purchased amount before the burn and be absent afterward;
+partial source-bucket burns remain valid in the general core but cannot be
+presented as the atomic purchase-to-burn route leaf. The tokenomics module
+release ID is an explicit nonzero input whose registry membership remains an
+outer release-verifier obligation.
+
 This burn-leaf context does not authenticate the purchase by itself. The shadow
 route composer performs the next structural step: it verifies release-selected
 succinct receipt envelopes for exact canonical leaf journals and requires one
@@ -305,6 +318,8 @@ receipt consumer, API, client, and historical decoder.
 | Caller invents the purchased amount | Exact purchase journal, verifier witness, occurrence, source, and amount binding in a shadow route | Real Spot guest and governed profile membership |
 | Preexisting ZDEX is mixed into the purchase output | Purchase transient bucket must project `0 -> B` | Complete global balance-root connection in the Spot guest |
 | Purchased ZDEX is only partly burned | Burn transient bucket must project `B -> 0`; composed transient rows cancel | Recursive route proof and atomic commit |
+| Burn journal is assembled independently from the checked transition | Rust/Python refinement derives the journal, lane roots, totals, and effects; coherent amount, route, policy, asset, bucket, and total substitutions reject | Guest execution and release-selected receipt verification |
+| Python value is mutated after constructor validation | Accepted burn inputs and purchase/burn journals revalidate at refinement, effect projection, and root computation; hostile epoch-capacity and zero-quote mutations are regression tested | Python values remain non-authoritative until a release-selected proof verifier admits the exact journal |
 | Rejected transition changes value | Canonically equal pre/post state and empty effects; Python also preserves object identity | Runtime adapter parity |
 | Epoch ceiling is reused by sequential burns | Burn-budget epoch and remaining capacity are committed in the pre-state and decremented in the post-state; stale larger route ceilings cannot increase capacity | Profile-selected epoch reset transition, guest execution, and global sequencing |
 | Fee split loses atoms to truncation | Exact allocation-plus-residue equation and named reserve | Governed residue-release lifecycle |
@@ -365,6 +380,13 @@ exact design.
   sequential epoch-capacity consumption, exhaustive small-domain positivity,
   38/39-decimal BVA, u128/u64 arithmetic and root boundaries, bounded malformed
   decode, and Python/Rust policy/pre/post-root golden evidence;
+- `src/core/zdex_hyperdeflation_route_refinement_v1.py` and the matching Rust
+  module: self-recomputing, non-authoritative checked-burn to route-journal and
+  effect-plan refinement;
+- `tests/core/test_zdex_hyperdeflation_route_refinement_v1.py` and the matching
+  Rust test: coherent-substitution, partial-drain, stale-effect-root, output
+  mutation, hostile post-construction revalidation, no-outbox, and three-root
+  cross-language golden evidence;
 - `lean-mathlib/Proofs/ZDEXHyperdeflationV1.lean`: machine-checked restricted
   theorems for ceiling equivalence, the exact headroom threshold, positive
   retained supply, accepted-burn positivity, guard necessity, exact bucket
@@ -419,8 +441,8 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
    settlement shell, and end-to-end governed admission with wrong-profile,
    epoch, route, module, image, journal, and fake-receipt substitutions;
 4. real Spot and tokenomics guests plus authenticated fee-allocation output that
-   refine the shadow allocation occurrence, purchase-to-burn journals, and
-   exact route composer;
+   execute the checked burn refinement and feed its exact purchase-to-burn
+   journal into the route composer;
 5. complete protocol-token issue/burn writer inventory and deny-by-default
    mounting;
 6. an ABI revision and proved total migration before any precision rescale;

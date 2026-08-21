@@ -95,6 +95,9 @@ class ZDEXAMMPurchaseJournalV1:
     effect_plan_root: str
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_token(self.chain_id, name="ZDEX purchase chain id")
         for field_name in (
             "deployment_root",
@@ -164,6 +167,7 @@ class ZDEXAMMPurchaseJournalV1:
 
     @property
     def journal_root(self) -> str:
+        self.validate()
         return hash_global_v1("zdex-amm-purchase-journal-v1", self.to_canonical())
 
     def to_canonical(self) -> dict[str, object]:
@@ -233,6 +237,9 @@ class ZDEXBurnJournalV1:
     effect_plan_root: str
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_token(self.chain_id, name="ZDEX burn chain id")
         for field_name in (
             "deployment_root",
@@ -280,6 +287,7 @@ class ZDEXBurnJournalV1:
 
     @property
     def journal_root(self) -> str:
+        self.validate()
         return hash_global_v1("zdex-authorized-burn-journal-v1", self.to_canonical())
 
     def to_canonical(self) -> dict[str, object]:

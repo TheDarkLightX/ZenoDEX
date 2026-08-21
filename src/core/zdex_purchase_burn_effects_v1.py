@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from .global_settlement_types_v1 import (
     AssetConservationRowV1,
     EconomicEffectKindV1,
@@ -26,6 +28,9 @@ def purchase_effects_v1(
 ) -> GlobalEconomicEffectPlanV1:
     """Project the exact two-asset movement proved by the Spot leaf."""
 
+    if type(journal) is not ZDEXAMMPurchaseJournalV1:
+        raise TypeError("ZDEX purchase effects require an exact purchase journal")
+    journal.validate()
     rows = tuple(
         sorted(
             (
@@ -102,25 +107,39 @@ def purchase_effects_v1(
     )
 
 
-def burn_effects_v1(journal: ZDEXBurnJournalV1) -> GlobalEconomicEffectPlanV1:
-    """Project the exact supply and transient-bucket reduction of the burn leaf."""
+@dataclass(frozen=True, slots=True)
+class _ZDEXBurnEffectInputsV1:
+    command_occurrence_id: str
+    zdex_asset_id: str
+    burn_bucket_id: str
+    burned_zdex_atoms: int
+    zdex_owned_pre_atoms: int
+    zdex_owned_post_atoms: int
+    zdex_supply_pre_atoms: int
+    zdex_supply_post_atoms: int
+    pre_tokenomics_lane_root: str
+    post_tokenomics_lane_root: str
 
+
+def _burn_effects_from_values_v1(
+    inputs: _ZDEXBurnEffectInputsV1,
+) -> GlobalEconomicEffectPlanV1:
     rows = tuple(
         sorted(
             (
                 EconomicEffectRowV1(
                     EconomicEffectKindV1.BURN,
                     ZDEX_SUPPLY_PRINCIPAL_V1,
-                    journal.zdex_asset_id,
+                    inputs.zdex_asset_id,
                     PROTOCOL_SUPPLY_CUSTODY_DOMAIN_V1,
-                    -journal.burned_zdex_atoms,
+                    -inputs.burned_zdex_atoms,
                 ),
                 EconomicEffectRowV1(
                     EconomicEffectKindV1.CUSTODY,
-                    journal.burn_bucket_id,
-                    journal.zdex_asset_id,
+                    inputs.burn_bucket_id,
+                    inputs.zdex_asset_id,
                     PROTOCOL_BURN_CUSTODY_DOMAIN_V1,
-                    -journal.burned_zdex_atoms,
+                    -inputs.burned_zdex_atoms,
                 ),
             ),
             key=lambda row: row.key,
@@ -130,25 +149,47 @@ def burn_effects_v1(journal: ZDEXBurnJournalV1) -> GlobalEconomicEffectPlanV1:
         rows,
         (
             AssetConservationRowV1(
-                journal.zdex_asset_id,
-                journal.zdex_owned_pre_atoms,
-                journal.zdex_owned_post_atoms,
-                journal.zdex_supply_pre_atoms,
-                journal.zdex_supply_post_atoms,
+                inputs.zdex_asset_id,
+                inputs.zdex_owned_pre_atoms,
+                inputs.zdex_owned_post_atoms,
+                inputs.zdex_supply_pre_atoms,
+                inputs.zdex_supply_post_atoms,
                 0,
-                journal.burned_zdex_atoms,
+                inputs.burned_zdex_atoms,
             ),
         ),
         (),
         (
             LaneWriteV1(
                 LaneIdV1.ZDEX_TOKENOMICS,
-                journal.pre_tokenomics_lane_root,
-                journal.post_tokenomics_lane_root,
+                inputs.pre_tokenomics_lane_root,
+                inputs.post_tokenomics_lane_root,
             ),
         ),
-        (journal.command_occurrence_id,),
+        (inputs.command_occurrence_id,),
         (),
+    )
+
+
+def burn_effects_v1(journal: ZDEXBurnJournalV1) -> GlobalEconomicEffectPlanV1:
+    """Project the exact supply and transient-bucket reduction of the burn leaf."""
+
+    if type(journal) is not ZDEXBurnJournalV1:
+        raise TypeError("ZDEX burn effects require an exact burn journal")
+    journal.validate()
+    return _burn_effects_from_values_v1(
+        _ZDEXBurnEffectInputsV1(
+            command_occurrence_id=journal.command_occurrence_id,
+            zdex_asset_id=journal.zdex_asset_id,
+            burn_bucket_id=journal.burn_bucket_id,
+            burned_zdex_atoms=journal.burned_zdex_atoms,
+            zdex_owned_pre_atoms=journal.zdex_owned_pre_atoms,
+            zdex_owned_post_atoms=journal.zdex_owned_post_atoms,
+            zdex_supply_pre_atoms=journal.zdex_supply_pre_atoms,
+            zdex_supply_post_atoms=journal.zdex_supply_post_atoms,
+            pre_tokenomics_lane_root=journal.pre_tokenomics_lane_root,
+            post_tokenomics_lane_root=journal.post_tokenomics_lane_root,
+        )
     )
 
 

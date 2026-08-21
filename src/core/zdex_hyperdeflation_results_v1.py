@@ -33,7 +33,16 @@ class ZDEXPurchaseAndBurnAcceptedV1:
     effect: ZDEXBurnEffectV1
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_burn_result_types(self)
+        self.policy.validate()
+        self.route_context.validate()
+        self.pre_state.validate()
+        self.post_state.validate()
+        self.capacity.validate()
+        self.effect.validate()
         _require_burn_policy_and_route(self)
         expected_capacity = compute_zdex_burn_capacity_v1(
             self.policy,

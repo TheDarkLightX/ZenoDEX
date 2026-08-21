@@ -57,6 +57,9 @@ class ZDEXHyperdeflationPolicyV1:
     maximum_decimal_step: int
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_root(self.asset_id, name="ZDEX policy asset id")
         numerator = _require_nonnegative_int(
             self.retained_numerator,
@@ -85,6 +88,7 @@ class ZDEXHyperdeflationPolicyV1:
 
     @property
     def policy_root(self) -> str:
+        self.validate()
         return hash_global_v1("zdex-hyperdeflation-policy-v1", self.to_canonical())
 
     def to_canonical(self) -> dict[str, object]:
@@ -105,6 +109,9 @@ class ZDEXAmountBucketV1:
     amount_atoms: int
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_token(self.bucket_id, name="ZDEX bucket id")
         _require_atoms_u128(self.amount_atoms, name="ZDEX bucket amount")
         if self.amount_atoms == 0:
@@ -128,6 +135,9 @@ class ZDEXSupplyStateV1:
     remaining_epoch_burn_cap_atoms: int = 0
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_root(self.asset_id, name="ZDEX state asset id")
         _require_root(self.policy_root, name="ZDEX state policy root")
         _require_nonnegative_int(self.decimals, name="ZDEX state decimals")
@@ -148,6 +158,8 @@ class ZDEXSupplyStateV1:
             raise TypeError(
                 "ZDEX state buckets must be exact ZDEXAmountBucketV1 values"
             )
+        for bucket in self.buckets:
+            bucket.validate()
         bucket_ids = tuple(bucket.bucket_id for bucket in self.buckets)
         if bucket_ids != tuple(sorted(bucket_ids)) or len(set(bucket_ids)) != len(
             bucket_ids
@@ -158,6 +170,7 @@ class ZDEXSupplyStateV1:
 
     @property
     def state_root(self) -> str:
+        self.validate()
         return hash_global_v1("zdex-supply-state-v1", self.to_canonical())
 
     def bucket_atoms(self, bucket_id: str) -> int | None:
@@ -195,6 +208,9 @@ class ZDEXBurnRouteContextV1:
     burn_budget_epoch: int = 0
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_root(self.route_release_id, name="ZDEX burn route release id")
         _require_root(self.policy_root, name="ZDEX burn route policy root")
         _require_root(
@@ -261,6 +277,9 @@ class ZDEXBurnCapacityV1:
     maximum_burn_atoms: int
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         values = (
             self.retained_supply_atoms,
             self.ratio_headroom_atoms,
@@ -292,6 +311,9 @@ class ZDEXBurnEffectV1:
     authorized_issue_atoms: int = 0
 
     def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
         _require_root(
             self.purchase_occurrence_root,
             name="ZDEX burn effect purchase occurrence",
