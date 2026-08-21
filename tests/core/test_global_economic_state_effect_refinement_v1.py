@@ -11,6 +11,10 @@ from dataclasses import replace
 import pytest
 
 import src.core.global_economic_state_effect_refinement_v1 as refinement_module
+from src.core.global_economic_proof_v1 import (
+    EconomicCommandOccurrenceV1,
+    RouteCompositionJournalV1,
+)
 from src.core.global_economic_state_effect_refinement_v1 import (
     GlobalEconomicStateEffectRefinementCandidateV1,
     refine_global_economic_state_effects_v1,
@@ -18,6 +22,7 @@ from src.core.global_economic_state_effect_refinement_v1 import (
 from src.core.global_settlement_types_v1 import (
     ALL_LANE_IDS_V1,
     MAX_ATOMS_V1,
+    ZERO_ROOT_V1,
     AssetConservationRowV1,
     AssetSupplyV1,
     EconomicAmountV1,
@@ -163,6 +168,130 @@ def _candidate() -> GlobalEconomicStateEffectRefinementCandidateV1:
     )
 
 
+def _occurrence(
+    *,
+    subject_id: str = "alice",
+    nonce: int = 11,
+    command_kind: str = "TRANSFER",
+    chain_id: str = "zeno-refinement-test",
+    tx_index: int = 3,
+    pre_state_root: str | None = None,
+) -> EconomicCommandOccurrenceV1:
+    return EconomicCommandOccurrenceV1(
+        chain_id=chain_id,
+        deployment_root=_root(1_000),
+        height=41,
+        tx_index=tx_index,
+        op_index=1,
+        command_kind=command_kind,
+        route_release_id=_root(4_001),
+        subject_id=subject_id,
+        grant_root=_root(4_002),
+        nonce=nonce,
+        profile_root=_root(1_001),
+        pre_state_root=_pre_state().state_root if pre_state_root is None else pre_state_root,
+        consumed_object_ids=(),
+    )
+
+
+def _route_journal(
+    occurrence: EconomicCommandOccurrenceV1,
+    post_state_root: str,
+) -> RouteCompositionJournalV1:
+    return RouteCompositionJournalV1(
+        chain_id=occurrence.chain_id,
+        deployment_root=occurrence.deployment_root,
+        profile_root=occurrence.profile_root,
+        writer_epoch=17,
+        route_release_id=occurrence.route_release_id,
+        command_occurrence_id=occurrence.occurrence_id,
+        ordered_lane_journal_roots=(_root(20_000 + occurrence.tx_index),),
+        pre_state_root=occurrence.pre_state_root,
+        post_state_root=post_state_root,
+        effect_plan_root=_root(30_000 + occurrence.tx_index),
+        terminal_obligations_root=ZERO_ROOT_V1,
+    )
+
+
+def _replay_candidate(
+    occurrence: EconomicCommandOccurrenceV1 | None = None,
+) -> GlobalEconomicStateEffectRefinementCandidateV1:
+    consumed = _occurrence() if occurrence is None else occurrence
+    effect_plan = replace(
+        _effect_plan(),
+        occurrence_consumptions=(consumed.occurrence_id,),
+    )
+    post_state = replace(
+        _post_state(),
+        replay_state=(ReplayStateV1(consumed.replay_id, consumed.occurrence_id),),
+    )
+    return GlobalEconomicStateEffectRefinementCandidateV1(
+        _pre_state(),
+        post_state,
+        effect_plan,
+        (consumed,),
+        (_route_journal(consumed, post_state.state_root),),
+    )
+
+
+def _with_replay_post(
+    candidate: GlobalEconomicStateEffectRefinementCandidateV1,
+    replay_state: tuple[ReplayStateV1, ...],
+) -> GlobalEconomicStateEffectRefinementCandidateV1:
+    post_state = replace(candidate.post_state, replay_state=replay_state)
+    route_journals = candidate.route_journals
+    if route_journals:
+        route_journals = (
+            *route_journals[:-1],
+            replace(route_journals[-1], post_state_root=post_state.state_root),
+        )
+    return replace(
+        candidate,
+        post_state=post_state,
+        route_journals=route_journals,
+    )
+
+
+def _replay_batch(
+    count: int,
+    *,
+    pre_state: GlobalEconomicStateV1 | None = None,
+) -> GlobalEconomicStateEffectRefinementCandidateV1:
+    pre = _pre_state() if pre_state is None else pre_state
+    current = pre
+    occurrences: list[EconomicCommandOccurrenceV1] = []
+    journals: list[RouteCompositionJournalV1] = []
+    for index in range(count):
+        occurrence = _occurrence(
+            nonce=index,
+            tx_index=index,
+            pre_state_root=current.state_root,
+        )
+        replay_row = ReplayStateV1(occurrence.replay_id, occurrence.occurrence_id)
+        next_state = replace(
+            current,
+            replay_state=tuple(
+                sorted((*current.replay_state, replay_row), key=lambda row: row.replay_id)
+            ),
+        )
+        occurrences.append(occurrence)
+        journals.append(_route_journal(occurrence, next_state.state_root))
+        current = next_state
+    effect_plan = replace(
+        GlobalEconomicEffectPlanV1.empty(),
+        occurrence_consumptions=tuple(
+            sorted(occurrence.occurrence_id for occurrence in occurrences)
+        ),
+    )
+    return GlobalEconomicStateEffectRefinementCandidateV1(
+        pre,
+        current,
+        effect_plan,
+        tuple(occurrences),
+        tuple(journals),
+    )
+
+
 def _replace_amount(
     state: GlobalEconomicStateV1,
     field: str,
@@ -185,7 +314,7 @@ def test_refinement_matches_cross_language_golden_root() -> None:
     assert refinement.post_state_root == candidate.post_state.state_root
     assert refinement.effect_plan_root == candidate.effect_plan.effect_plan_root
     assert refinement.refinement_root == (
-        "0xa390b8bc7bf078478dab2d03a62e8d0824199b4a8c6dcfb03ef97e5578e7fd31"
+        "0x5026263a651e46d40e4ee6d818c3e222a7d36f484ac48a180500047f51725fdc"
     )
 
 
@@ -300,7 +429,6 @@ def test_refinement_rejects_unmapped_reward_and_slash_labels(
         {"height": 42},
         {"history_root": _root(7_001)},
         {"oracle_occurrences": (OracleOccurrenceStateV1("oracle", _root(7_002), 41, True),)},
-        {"replay_state": (ReplayStateV1("replay", _root(7_003)),)},
         {
             "terminal_obligations": (
                 TerminalObligationV1(
@@ -333,7 +461,13 @@ def test_refinement_rejects_unsupported_global_field_change(
 
     with pytest.raises(ValueError, match="unsupported global field changed"):
         refine_global_economic_state_effects_v1(
-            replace(candidate, post_state=replace(candidate.post_state, **post_change))
+            replace(
+                candidate,
+                post_state=replace(
+                    candidate.post_state,
+                    **post_change,
+                ),
+            )
         )
 
 
@@ -362,8 +496,297 @@ def test_refinement_rejects_occurrence_without_replay_application() -> None:
         occurrence_consumptions=(_root(5_000),),
     )
 
-    with pytest.raises(ValueError, match="replay occurrence refinement is unavailable"):
+    with pytest.raises(ValueError, match="occurrence disclosure mismatch"):
         refine_global_economic_state_effects_v1(replace(candidate, effect_plan=wrong))
+
+
+def test_replay_refinement_derives_subject_nonce_identity_and_exact_post_row() -> None:
+    candidate = _replay_candidate()
+    occurrence = candidate.consumed_occurrences[0]
+
+    refinement = refine_global_economic_state_effects_v1(candidate)
+
+    assert occurrence.replay_id == (
+        "0xf417802071c3267b5954ae64c2a3b74195af67dbf8f8123d0f4f9a24760a2f4b"
+    )
+    assert candidate.post_state.replay_state == (
+        ReplayStateV1(occurrence.replay_id, occurrence.occurrence_id),
+    )
+    assert refinement.post_state_root == candidate.post_state.state_root
+
+
+def test_replay_refinement_rejects_missing_or_substituted_occurrence_disclosure() -> None:
+    candidate = _replay_candidate()
+    substituted = _occurrence(nonce=12)
+
+    with pytest.raises(ValueError, match="occurrence disclosure mismatch"):
+        refine_global_economic_state_effects_v1(
+            replace(candidate, consumed_occurrences=(), route_journals=())
+        )
+    with pytest.raises(ValueError, match="occurrence disclosure mismatch"):
+        refine_global_economic_state_effects_v1(
+            replace(candidate, consumed_occurrences=(substituted,))
+        )
+
+
+def test_replay_refinement_rejects_missing_extra_or_mutated_post_row() -> None:
+    candidate = _replay_candidate()
+    expected = candidate.post_state.replay_state[0]
+
+    with pytest.raises(ValueError, match="replay state delta mismatch"):
+        refine_global_economic_state_effects_v1(
+            _with_replay_post(candidate, ())
+        )
+    with pytest.raises(ValueError, match="replay state delta mismatch"):
+        refine_global_economic_state_effects_v1(
+            replace(
+                _candidate(),
+                post_state=replace(
+                    _candidate().post_state,
+                    replay_state=(ReplayStateV1("unexpected", _root(7_003)),),
+                ),
+            )
+        )
+    with pytest.raises(ValueError, match="replay state delta mismatch"):
+        refine_global_economic_state_effects_v1(
+            _with_replay_post(
+                candidate,
+                (replace(expected, occurrence_id=_root(7_004)),),
+            )
+        )
+
+
+def test_replay_refinement_rejects_cross_context_and_previously_consumed_nonce() -> None:
+    foreign = _occurrence(chain_id="foreign-chain")
+    foreign_candidate = _replay_candidate(foreign)
+    candidate = _replay_candidate()
+    replay = candidate.post_state.replay_state[0]
+    replayed_pre = replace(candidate.pre_state, replay_state=(replay,))
+    replayed_occurrence = _occurrence(pre_state_root=replayed_pre.state_root)
+    replayed_effects = replace(
+        candidate.effect_plan,
+        occurrence_consumptions=(replayed_occurrence.occurrence_id,),
+    )
+    replayed_post = replace(candidate.post_state, replay_state=(replay,))
+    replayed = GlobalEconomicStateEffectRefinementCandidateV1(
+        replayed_pre,
+        replayed_post,
+        replayed_effects,
+        (replayed_occurrence,),
+        (_route_journal(replayed_occurrence, replayed_post.state_root),),
+    )
+
+    with pytest.raises(ValueError, match="occurrence state context mismatch"):
+        refine_global_economic_state_effects_v1(foreign_candidate)
+    with pytest.raises(ValueError, match="replay identity already consumed"):
+        refine_global_economic_state_effects_v1(replayed)
+
+
+@pytest.mark.parametrize(
+    "override",
+    (
+        {"deployment_root": _root(91_001)},
+        {"profile_root": _root(91_002)},
+        {"height": 40},
+        {"pre_state_root": _root(91_003)},
+    ),
+)
+def test_replay_refinement_rejects_each_execution_context_mutant(
+    override: dict[str, object],
+) -> None:
+    occurrence = replace(_occurrence(), **override)
+
+    with pytest.raises(ValueError, match="occurrence state context mismatch"):
+        refine_global_economic_state_effects_v1(_replay_candidate(occurrence))
+
+
+@pytest.mark.parametrize(
+    "override",
+    (
+        {"chain_id": "foreign-chain"},
+        {"deployment_root": _root(93_001)},
+        {"profile_root": _root(93_002)},
+        {"writer_epoch": 18},
+        {"route_release_id": _root(93_003)},
+        {"command_occurrence_id": _root(93_004)},
+        {"pre_state_root": _root(93_005)},
+    ),
+)
+def test_replay_refinement_rejects_each_route_chain_context_mutant(
+    override: dict[str, object],
+) -> None:
+    candidate = _replay_candidate()
+    journal = replace(candidate.route_journals[0], **override)
+
+    with pytest.raises(ValueError, match="occurrence state context mismatch"):
+        refine_global_economic_state_effects_v1(
+            replace(candidate, route_journals=(journal,))
+        )
+
+
+def test_replay_refinement_rejects_route_chain_count_and_terminal_mutants() -> None:
+    candidate = _replay_candidate()
+    terminal = replace(candidate.route_journals[0], post_state_root=_root(93_006))
+
+    with pytest.raises(ValueError, match="route-state chain count mismatch"):
+        refine_global_economic_state_effects_v1(
+            replace(candidate, route_journals=())
+        )
+    with pytest.raises(ValueError, match="route-state chain terminal mismatch"):
+        refine_global_economic_state_effects_v1(
+            replace(candidate, route_journals=(terminal,))
+        )
+
+
+def test_replay_refinement_rejects_reordered_execution_history() -> None:
+    candidate = _replay_batch(2)
+
+    with pytest.raises(ValueError, match="occurrence order mismatch"):
+        refine_global_economic_state_effects_v1(
+            replace(
+                candidate,
+                consumed_occurrences=tuple(reversed(candidate.consumed_occurrences)),
+                route_journals=tuple(reversed(candidate.route_journals)),
+            )
+        )
+
+
+@pytest.mark.parametrize("nonce", (0, (1 << 64) - 1))
+def test_replay_refinement_accepts_nonce_unsigned_64_bit_boundaries(nonce: int) -> None:
+    candidate = _replay_candidate(_occurrence(nonce=nonce))
+
+    refinement = refine_global_economic_state_effects_v1(candidate)
+
+    assert refinement.post_state_root == candidate.post_state.state_root
+
+
+@pytest.mark.parametrize("count", (0, 1, 64))
+def test_replay_refinement_accepts_zero_one_and_sixty_four_disclosures(
+    count: int,
+) -> None:
+    candidate = _replay_batch(count)
+
+    refinement = refine_global_economic_state_effects_v1(candidate)
+
+    assert refinement.post_state_root == candidate.post_state.state_root
+
+
+def test_replay_refinement_rejects_sixty_five_disclosures_before_chain_work() -> None:
+    with pytest.raises(ValueError, match="occurrence count exceeds epoch bound"):
+        refine_global_economic_state_effects_v1(_replay_batch(65))
+
+
+def test_replay_refinement_preserves_unrelated_preexisting_replay_row() -> None:
+    pre = replace(
+        _pre_state(),
+        replay_state=(ReplayStateV1("legacy-unrelated", _root(92_001)),),
+    )
+    candidate = _replay_batch(1, pre_state=pre)
+
+    refine_global_economic_state_effects_v1(candidate)
+
+    assert ReplayStateV1("legacy-unrelated", _root(92_001)) in (
+        candidate.post_state.replay_state
+    )
+
+
+def test_two_occurrence_replay_refinement_has_cross_language_golden_root() -> None:
+    refinement = refine_global_economic_state_effects_v1(_replay_batch(2))
+
+    assert refinement.refinement_root == (
+        "0x146bb63d8b989606409aeb8f9bb09e7a9715194750840c82a7e68ff518dccc07"
+    )
+
+
+def test_replay_refinement_rejects_duplicate_subject_nonce_under_distinct_occurrences() -> None:
+    first = _occurrence(command_kind="TRANSFER")
+    first_row = ReplayStateV1(first.replay_id, first.occurrence_id)
+    intermediate = replace(_pre_state(), replay_state=(first_row,))
+    second = _occurrence(
+        command_kind="MANAGED_BURN",
+        tx_index=4,
+        pre_state_root=intermediate.state_root,
+    )
+    occurrences = (first, second)
+    effects = replace(
+        _effect_plan(),
+        occurrence_consumptions=tuple(sorted(item.occurrence_id for item in occurrences)),
+    )
+    post = replace(
+        _post_state(),
+        replay_state=(first_row,),
+    )
+
+    with pytest.raises(ValueError, match="duplicate replay identity"):
+        refine_global_economic_state_effects_v1(
+            GlobalEconomicStateEffectRefinementCandidateV1(
+                _pre_state(),
+                post,
+                effects,
+                occurrences,
+                (
+                    _route_journal(first, intermediate.state_root),
+                    _route_journal(second, post.state_root),
+                ),
+            )
+        )
+
+
+def test_replay_refinement_rejects_hostile_scalar_subclasses_before_comparison() -> None:
+    class AlwaysEqual(str):
+        def __eq__(self, other: object) -> bool:
+            return True
+
+        __hash__ = str.__hash__
+
+    occurrence_candidate = _replay_candidate()
+    object.__setattr__(
+        occurrence_candidate.consumed_occurrences[0],
+        "chain_id",
+        AlwaysEqual("foreign-chain"),
+    )
+    state_candidate = _candidate()
+    object.__setattr__(state_candidate.pre_state, "chain_id", AlwaysEqual("foreign-chain"))
+
+    with pytest.raises(TypeError, match="must be an exact primitive"):
+        refine_global_economic_state_effects_v1(occurrence_candidate)
+    with pytest.raises(TypeError, match="must be an exact primitive"):
+        refine_global_economic_state_effects_v1(state_candidate)
+
+
+def test_replay_refinement_rejects_hostile_string_enum_before_comparison() -> None:
+    from enum import Enum
+
+    class AlwaysEqualEnum(str, Enum):
+        FORGED = _root(99_001)
+
+        def __eq__(self, other: object) -> bool:
+            return True
+
+        __hash__ = str.__hash__
+
+    candidate = _replay_candidate()
+    object.__setattr__(
+        candidate.post_state.replay_state[0],
+        "occurrence_id",
+        AlwaysEqualEnum.FORGED,
+    )
+
+    with pytest.raises(TypeError, match="must be an exact primitive"):
+        refine_global_economic_state_effects_v1(candidate)
+
+
+def test_global_state_rejects_one_occurrence_under_two_replay_aliases() -> None:
+    occurrence_id = _root(90_001)
+
+    with pytest.raises(ValueError, match="replay occurrence ids must be unique"):
+        replace(
+            _pre_state(),
+            replay_state=(
+                ReplayStateV1("alias-a", occurrence_id),
+                ReplayStateV1("alias-b", occurrence_id),
+            ),
+        )
 
 
 def test_refinement_uses_one_owned_snapshot_under_retained_alias_mutation(
@@ -377,9 +800,15 @@ def test_refinement_uses_one_owned_snapshot_under_retained_alias_mutation(
         pre_state: GlobalEconomicStateV1,
         post_state: GlobalEconomicStateV1,
         effect_plan: GlobalEconomicEffectPlanV1,
+        replay_insertions: tuple[ReplayStateV1, ...],
     ) -> object:
         object.__setattr__(candidate.post_state.balances[0], "amount_atoms", 94)
-        return original_derive(pre_state, post_state, effect_plan)
+        return original_derive(
+            pre_state,
+            post_state,
+            effect_plan,
+            replay_insertions,
+        )
 
     monkeypatch.setattr(
         refinement_module,

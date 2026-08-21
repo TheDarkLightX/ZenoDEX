@@ -83,6 +83,20 @@ class EconomicCommandOccurrenceV1:
     def occurrence_id(self) -> str:
         return hash_global_v1("global-economic-command-occurrence-v1", self.to_canonical())
 
+    @property
+    def replay_id(self) -> str:
+        """Return the deployment-scoped replay identity for subject and nonce."""
+
+        return hash_global_v1(
+            "global-economic-replay-id-v1",
+            {
+                "chain_id": self.chain_id,
+                "deployment_root": self.deployment_root,
+                "subject_id": self.subject_id,
+                "nonce": self.nonce,
+            },
+        )
+
     def to_canonical(self) -> dict[str, object]:
         return {
             "schema": GLOBAL_SETTLEMENT_ABI_V1,

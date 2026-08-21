@@ -27,6 +27,14 @@ pub struct EconomicCommandOccurrenceV1 {
     pub consumed_object_ids: Vec<String>,
 }
 
+#[derive(Serialize)]
+struct ReplayIdContentV1<'a> {
+    chain_id: &'a str,
+    deployment_root: &'a RootV1,
+    subject_id: &'a str,
+    nonce: u64,
+}
+
 impl EconomicCommandOccurrenceV1 {
     pub fn validate(&self) -> AbiResultV1<()> {
         validate_schema_v1(&self.schema)?;
@@ -52,6 +60,19 @@ impl EconomicCommandOccurrenceV1 {
     pub fn occurrence_id(&self) -> AbiResultV1<RootV1> {
         self.validate()?;
         hash_global_v1("global-economic-command-occurrence-v1", self)
+    }
+
+    pub fn replay_id(&self) -> AbiResultV1<RootV1> {
+        self.validate()?;
+        hash_global_v1(
+            "global-economic-replay-id-v1",
+            &ReplayIdContentV1 {
+                chain_id: &self.chain_id,
+                deployment_root: &self.deployment_root,
+                subject_id: &self.subject_id,
+                nonce: self.nonce,
+            },
+        )
     }
 }
 

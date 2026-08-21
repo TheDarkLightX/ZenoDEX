@@ -232,6 +232,16 @@ impl GlobalEconomicStateV1 {
             |row| row.replay_id.clone(),
             ReplayStateV1::validate,
         )?;
+        if self
+            .replay_state
+            .iter()
+            .map(|row| &row.occurrence_id)
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != self.replay_state.len()
+        {
+            return Err(AbiErrorV1::InvalidOrder("global replay occurrence ids"));
+        }
         validate_ordered_by_v1(
             &self.terminal_obligations,
             "global terminal obligations",

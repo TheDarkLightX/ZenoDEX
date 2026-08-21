@@ -117,13 +117,20 @@ The projection binds selected lane journals to the monolithic pre/post state
 roots and preserves every unselected lane. The refinement independently derives
 balance, named-custody, liability, reserve, supply, and lane-root deltas; binds
 them to canonical effects; recomputes owned-total/supply conservation; and
-requires fee labels to mirror real value movement. Boundary tests include exact
-burn to zero supply and signed-128 issue/burn aggregation; the primary fixture
-has a shared Python/Rust golden root.
-Unsupported replay consumption, Oracle occurrence, terminal, history,
-zero/residual fee aliases, reward, slash, and outbox changes reject. These
-opaque results verify no receipt, authenticate no current profile, and grant no
-settlement or publication authority.
+requires fee labels to mirror real value movement. It also derives one
+deployment-scoped subject/nonce replay ID from each disclosed consumed
+occurrence, binds the ordered occurrence and route-journal chain from the exact
+pre-state root to post-state root, and requires post replay state to equal pre
+replay state plus insertions fresh by both replay ID and occurrence ID. Boundary
+tests include exact burn to zero supply, signed-128 issue/burn aggregation,
+0/1/64/65 occurrence BVA, nonce endpoints, hostile Python scalar and Enum
+subclasses, and replay omission, substitution, cross-context, duplicate, alias,
+and prior-consumption attacks; fixtures have shared Python/Rust single- and
+multi-occurrence golden roots. Canonical authenticated subject identity and
+deployment continuity across migration remain outer requirements. Oracle
+occurrence, terminal, history, zero/residual fee aliases, reward, slash, and
+outbox changes reject. These opaque results verify no receipt, authenticate no
+current profile, and grant no settlement or publication authority.
 
 The deterministic receipt roots are statement commitments, not cryptographic
 proof receipts. This ABI crate contains no guest or cryptographic verifier

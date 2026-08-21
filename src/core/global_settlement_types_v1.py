@@ -1290,6 +1290,9 @@ class GlobalEconomicStateV1:
             expected_type=ReplayStateV1,
             key="replay_id",
         )
+        replay_occurrence_ids = tuple(row.occurrence_id for row in self.replay_state)
+        if len(replay_occurrence_ids) != len(set(replay_occurrence_ids)):
+            raise ValueError("global state replay occurrence ids must be unique")
         _require_ordered_objects(
             self.terminal_obligations,
             name="global state terminal obligations",

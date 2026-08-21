@@ -13,6 +13,7 @@ from .global_settlement_types_v1 import (
     GlobalEconomicEffectPlanV1,
     GlobalEconomicStateV1,
     LaneWriteV1,
+    ReplayStateV1,
     hash_global_v1,
 )
 
@@ -56,6 +57,7 @@ class _DerivedGlobalEconomicStateDeltaV1:
     amount_deltas: tuple[_AmountDeltaRowV1, ...]
     supply_deltas: tuple[_SupplyDeltaRowV1, ...]
     lane_writes: tuple[LaneWriteV1, ...]
+    replay_insertions: tuple[ReplayStateV1, ...]
 
     @property
     def touched_assets(self) -> frozenset[str]:
@@ -72,6 +74,7 @@ class _DerivedGlobalEconomicStateDeltaV1:
                 "amount_deltas": self.amount_deltas,
                 "supply_deltas": self.supply_deltas,
                 "lane_writes": self.lane_writes,
+                "replay_insertions": self.replay_insertions,
             },
         )
 
@@ -215,6 +218,7 @@ def _derive_global_economic_state_delta_v1(
     pre_state: GlobalEconomicStateV1,
     post_state: GlobalEconomicStateV1,
     effect_plan: GlobalEconomicEffectPlanV1,
+    replay_insertions: tuple[ReplayStateV1, ...],
 ) -> _DerivedGlobalEconomicStateDeltaV1:
     return _DerivedGlobalEconomicStateDeltaV1(
         amount_deltas=_require_amount_table_refinement_v1(
@@ -226,4 +230,5 @@ def _derive_global_economic_state_delta_v1(
         lane_writes=_require_lane_write_refinement_v1(
             pre_state, post_state, effect_plan
         ),
+        replay_insertions=replay_insertions,
     )

@@ -1,8 +1,9 @@
 //! Exact refinement between full global states and canonical economic effects.
 //!
 //! This deterministic checker covers sparse amount tables, supply, lane roots,
-//! and their conservation rows. Unsupported state and effect categories fail
-//! closed. The result verifies no receipt and grants no publication authority.
+//! replay insertion, and conservation rows. Unsupported state and effect
+//! categories fail closed. The result verifies no receipt and grants no
+//! publication authority.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -10,9 +11,11 @@ use serde::Serialize;
 
 use crate::canonical::{hash_global_v1, AbiErrorV1, AbiResultV1, RootV1};
 use crate::effects::{EconomicEffectKindV1, GlobalEconomicEffectPlanV1};
+use crate::global_economic_replay_refinement::derive_replay_insertions_v1;
 use crate::global_economic_state_delta::{
     derive_global_economic_state_delta_v1, supply_map_v1, DerivedGlobalEconomicStateDeltaV1,
 };
+use crate::proof::{EconomicCommandOccurrenceV1, RouteCompositionJournalV1};
 use crate::state::GlobalEconomicStateV1;
 
 pub const GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_SCHEMA_V1: &str =
@@ -23,6 +26,8 @@ pub struct GlobalEconomicStateEffectRefinementCandidateV1<'a> {
     pub pre_state: &'a GlobalEconomicStateV1,
     pub post_state: &'a GlobalEconomicStateV1,
     pub effect_plan: &'a GlobalEconomicEffectPlanV1,
+    pub consumed_occurrences: &'a [EconomicCommandOccurrenceV1],
+    pub route_journals: &'a [RouteCompositionJournalV1],
 }
 
 #[derive(Serialize)]
@@ -83,7 +88,6 @@ fn require_fixed_context_v1(
         || pre_state.height != post_state.height
         || pre_state.profile_root != post_state.profile_root
         || pre_state.oracle_occurrences != post_state.oracle_occurrences
-        || pre_state.replay_state != post_state.replay_state
         || pre_state.terminal_obligations != post_state.terminal_obligations
         || pre_state.history_root != post_state.history_root
         || pre_state.outbox != post_state.outbox
@@ -112,11 +116,6 @@ fn require_nonzero_sparse_amounts_v1(state: &GlobalEconomicStateV1) -> AbiResult
 }
 
 fn require_supported_effects_v1(effect_plan: &GlobalEconomicEffectPlanV1) -> AbiResultV1<()> {
-    if !effect_plan.occurrence_consumptions.is_empty() {
-        return Err(AbiErrorV1::InvalidBinding(
-            "economic refinement replay occurrence unavailable",
-        ));
-    }
     if !effect_plan.external_outbox_enqueue.is_empty() {
         return Err(AbiErrorV1::InvalidBinding(
             "economic refinement external outbox unavailable",
@@ -299,11 +298,19 @@ pub fn refine_global_economic_state_effects_v1(
     require_nonzero_sparse_amounts_v1(candidate.pre_state)?;
     require_nonzero_sparse_amounts_v1(candidate.post_state)?;
     require_supported_effects_v1(candidate.effect_plan)?;
+    let replay_insertions = derive_replay_insertions_v1(
+        candidate.pre_state,
+        candidate.post_state,
+        candidate.effect_plan,
+        candidate.consumed_occurrences,
+        candidate.route_journals,
+    )?;
     require_fee_mirror_v1(candidate.effect_plan)?;
     let state_delta = derive_global_economic_state_delta_v1(
         candidate.pre_state,
         candidate.post_state,
         candidate.effect_plan,
+        &replay_insertions,
     )?;
     require_conservation_v1(
         candidate.pre_state,

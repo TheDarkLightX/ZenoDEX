@@ -555,21 +555,37 @@ exact design.
   selected-root, sibling-lane, release metadata, coordinator, route, reorder,
   duplicate, omission, and coherent-mutation substitution evidence;
 - `src/core/global_economic_state_delta_v1.py`,
+  `src/core/global_economic_refinement_snapshot_v1.py`,
+  `src/core/global_economic_replay_refinement_v1.py`,
   `src/core/global_economic_state_effect_refinement_v1.py`, and the matching
   Rust modules: an `IMPLEMENTED_UNMOUNTED` functional checker that derives the
-  exact balance, named custody, liability, reserve, supply, and lane-root deltas
-  from complete pre/post states and requires them to equal the canonical effect
-  plan. It independently recomputes conservation from state, requires fee
-  allocation labels to mirror a real state-bearing movement, permits exact
-  burn to zero supply, and rejects occurrence consumption without replay-state
-  application, zero or residual fee aliases, unmapped reward/slash, outbox, and
-  unsupported global-field changes. Its opaque result is a structural
-  refinement witness only;
+  exact balance, named custody, liability, reserve, supply, lane-root, and
+  replay-insertion deltas from complete pre/post states and requires them to
+  equal the canonical effect plan. Replay IDs are domain-separated commitments
+  to chain, deployment, subject, and nonce. Every consumed occurrence must be
+  disclosed exactly, bind one canonically ordered route-state chain from the
+  candidate pre-root to post-root, be fresh under both replay and occurrence
+  identity, and add one immutable replay row. The chain enforces the 64-command
+  ceiling; its zero-occurrence case is a static refinement relation, while the
+  existing economic-epoch boundary separately rejects zero-command epochs. The
+  checker independently recomputes conservation from state,
+  requires fee-allocation labels to mirror real state-bearing movement, permits
+  exact burn to zero supply, and rejects missing or substituted occurrence
+  disclosures, duplicate or previously consumed replay identities, zero or
+  residual fee aliases, unmapped reward/slash, outbox, and unsupported
+  global-field changes. Its opaque result is a structural refinement witness
+  only;
 - `tests/core/test_global_economic_state_effect_refinement_v1.py` and the
   matching Rust test: direct delta-oracle checks, one-defect substitutions,
-  hostile frozen-object mutation, unsupported-field and lane-metadata changes,
-  owned-total/supply divergence, final-atom burn, signed-128 aggregation BVA,
-  and a shared Python/Rust refinement-root golden;
+  hostile frozen-object and scalar-subclass mutation, unsupported-field and
+  lane-metadata changes, replay omission/substitution/cross-context/duplicate
+  histories, 0/1/64/65 disclosure BVA, nonce endpoints, owned-total/supply
+  divergence, final-atom burn, signed-128 aggregation BVA, and shared
+  Python/Rust replay-ID and single/multi-occurrence refinement-root goldens;
+- Replay-ID safety assumes authenticated ingress supplies one canonical
+  `subject_id` per principal, canonical chain identity, and migration rules
+  that preserve deployment replay continuity. This checker does not establish
+  those external identity premises;
 - `zk/zdex_tokenomics_lane_coordinator_risc0`: unmounted RISC0 3.0.6 recursive
   coordinator source, exact governed module-release preflight, guest-side
   `env::verify` over the child image and canonical burn or fee journal, host-side

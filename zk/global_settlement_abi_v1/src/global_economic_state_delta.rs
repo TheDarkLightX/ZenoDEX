@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use crate::canonical::{hash_global_v1, AbiErrorV1, AbiResultV1, RootV1};
 use crate::effects::{EconomicEffectKindV1, GlobalEconomicEffectPlanV1, LaneWriteV1};
-use crate::state::{EconomicAmountV1, GlobalEconomicStateV1};
+use crate::state::{EconomicAmountV1, GlobalEconomicStateV1, ReplayStateV1};
 use crate::GLOBAL_SETTLEMENT_ABI_V1;
 
 const I128_MIN_MAGNITUDE_V1: u128 = 1_u128 << 127;
@@ -32,6 +32,7 @@ struct StateDeltaContentV1<'a> {
     amount_deltas: &'a [AmountDeltaRowV1],
     supply_deltas: &'a [SupplyDeltaRowV1],
     lane_writes: &'a [LaneWriteV1],
+    replay_insertions: &'a [ReplayStateV1],
 }
 
 pub(crate) struct DerivedGlobalEconomicStateDeltaV1 {
@@ -296,6 +297,7 @@ pub(crate) fn derive_global_economic_state_delta_v1(
     pre_state: &GlobalEconomicStateV1,
     post_state: &GlobalEconomicStateV1,
     effect_plan: &GlobalEconomicEffectPlanV1,
+    replay_insertions: &[ReplayStateV1],
 ) -> AbiResultV1<DerivedGlobalEconomicStateDeltaV1> {
     let amount_deltas = require_amount_table_v1(pre_state, post_state, effect_plan)?;
     let supply_deltas = require_supply_v1(pre_state, post_state, effect_plan)?;
@@ -312,6 +314,7 @@ pub(crate) fn derive_global_economic_state_delta_v1(
             amount_deltas: &amount_deltas,
             supply_deltas: &supply_deltas,
             lane_writes: &lane_writes,
+            replay_insertions,
         },
     )?;
     Ok(DerivedGlobalEconomicStateDeltaV1 {

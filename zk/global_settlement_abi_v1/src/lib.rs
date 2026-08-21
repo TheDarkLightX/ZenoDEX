@@ -13,6 +13,7 @@ mod canonical;
 mod economic_epoch_receipt_verification;
 mod effects;
 mod epoch_effect_composition;
+mod global_economic_replay_refinement;
 mod global_economic_state_delta;
 mod global_economic_state_effect_refinement;
 mod lane_composition_receipt_verification;
