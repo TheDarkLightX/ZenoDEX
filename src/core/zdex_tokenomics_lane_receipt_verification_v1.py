@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, replace
-from typing import Final
 
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
 from .global_settlement_types_v1 import (
@@ -22,7 +21,6 @@ from .global_settlement_types_v1 import (
     ReleaseStatusV1,
     RouteReleaseV1,
     canonical_global_bytes_v1,
-    hash_global_v1,
 )
 from .zdex_purchase_burn_receipt_verification_v1 import (
     VerifiedZDEXBurnV1,
@@ -40,13 +38,16 @@ from .zdex_tokenomics_lane_coordinator_v1 import (
     ZDEXTokenomicsBurnLaneCandidateV1,
     compose_zdex_tokenomics_burn_lane_v1,
 )
+from .zdex_tokenomics_lane_receipt_common_v1 import (
+    VERIFIED_ZDEX_TOKENOMICS_LANE_SCHEMA_V1,
+    VerifiedZDEXTokenomicsLaneV1,
+    _verify_and_build_zdex_tokenomics_lane_v1,
+    _ZDEXTokenomicsCoordinatorReceiptExpectationV1,
+    _ZDEXTokenomicsLaneBindingV1,
+)
 from .zdex_tokenomics_lane_v1 import ZDEXTokenomicsLaneCompositionAcceptedV1
 
-VERIFIED_ZDEX_TOKENOMICS_LANE_SCHEMA_V1: Final = (
-    "zenodex/verified-zdex-tokenomics-lane/v1"
-)
 _GOVERNED_TOKENOMICS_PROFILE_TOKEN = object()
-_VERIFIED_TOKENOMICS_LANE_TOKEN = object()
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,134 +100,6 @@ class GovernedZDEXTokenomicsProfileV1:
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("governed ZDEX tokenomics profile is immutable")
-
-
-@dataclass(frozen=True, slots=True)
-class _VerifiedZDEXTokenomicsLaneFieldsV1:
-    profile_root: str
-    route_release_id: str
-    module_release_id: str
-    coordinator_release_id: str
-    command_occurrence_id: str
-    writer_epoch: int
-    module_journal_root: str
-    lane_journal_root: str
-    lane_journal_digest: str
-    pre_lane_root: str
-    post_lane_root: str
-    effect_plan_root: str
-    module_image_id: str
-    expected_image_id: str
-    receipt_digest: str
-    receipt_kind: ReceiptKindV1
-
-
-class VerifiedZDEXTokenomicsLaneV1:
-    """Non-authoritative process-local marker for shadow receipt admission."""
-
-    __slots__ = ("_fields",)
-    _fields: _VerifiedZDEXTokenomicsLaneFieldsV1
-
-    def __init__(
-        self,
-        token: object,
-        fields: _VerifiedZDEXTokenomicsLaneFieldsV1,
-    ) -> None:
-        if token is not _VERIFIED_TOKENOMICS_LANE_TOKEN:
-            raise TypeError("VerifiedZDEXTokenomicsLaneV1 is verifier-constructed")
-        object.__setattr__(self, "_fields", fields)
-
-    def __setattr__(self, name: str, value: object) -> None:
-        raise AttributeError("VerifiedZDEXTokenomicsLaneV1 is immutable")
-
-    @property
-    def profile_root(self) -> str:
-        return self._fields.profile_root
-
-    @property
-    def route_release_id(self) -> str:
-        return self._fields.route_release_id
-
-    @property
-    def module_release_id(self) -> str:
-        return self._fields.module_release_id
-
-    @property
-    def coordinator_release_id(self) -> str:
-        return self._fields.coordinator_release_id
-
-    @property
-    def command_occurrence_id(self) -> str:
-        return self._fields.command_occurrence_id
-
-    @property
-    def writer_epoch(self) -> int:
-        return self._fields.writer_epoch
-
-    @property
-    def module_journal_root(self) -> str:
-        return self._fields.module_journal_root
-
-    @property
-    def lane_journal_root(self) -> str:
-        return self._fields.lane_journal_root
-
-    @property
-    def lane_journal_digest(self) -> str:
-        return self._fields.lane_journal_digest
-
-    @property
-    def pre_lane_root(self) -> str:
-        return self._fields.pre_lane_root
-
-    @property
-    def post_lane_root(self) -> str:
-        return self._fields.post_lane_root
-
-    @property
-    def effect_plan_root(self) -> str:
-        return self._fields.effect_plan_root
-
-    @property
-    def module_image_id(self) -> str:
-        return self._fields.module_image_id
-
-    @property
-    def expected_image_id(self) -> str:
-        return self._fields.expected_image_id
-
-    @property
-    def receipt_digest(self) -> str:
-        return self._fields.receipt_digest
-
-    @property
-    def receipt_kind(self) -> ReceiptKindV1:
-        return self._fields.receipt_kind
-
-    @property
-    def binding_root(self) -> str:
-        return hash_global_v1(
-            "verified-zdex-tokenomics-lane-v1",
-            {
-                "schema": VERIFIED_ZDEX_TOKENOMICS_LANE_SCHEMA_V1,
-                "profile_root": self.profile_root,
-                "route_release_id": self.route_release_id,
-                "module_release_id": self.module_release_id,
-                "coordinator_release_id": self.coordinator_release_id,
-                "command_occurrence_id": self.command_occurrence_id,
-                "writer_epoch": self.writer_epoch,
-                "module_journal_root": self.module_journal_root,
-                "lane_journal_root": self.lane_journal_root,
-                "lane_journal_digest": self.lane_journal_digest,
-                "pre_lane_root": self.pre_lane_root,
-                "post_lane_root": self.post_lane_root,
-                "effect_plan_root": self.effect_plan_root,
-                "module_image_id": self.module_image_id,
-                "expected_image_id": self.expected_image_id,
-                "receipt_digest": self.receipt_digest,
-                "receipt_kind": self.receipt_kind,
-            },
-        )
 
 
 def _registered_buyback_route(
@@ -337,11 +210,12 @@ def _require_candidate_bindings(
     burn = lane.burn_journal
     burn_bytes = canonical_global_bytes_v1(burn)
     verified_burn = candidate.verified_burn
+    # Route admission owns the occurrence's global pre-root. The exact
+    # coordinator receipt binds this lane's pre/post roots.
     if (
         occurrence.profile_root != fields.profile.profile_id
         or occurrence.command_kind != fields.route_release.command_kind
         or occurrence.route_release_id != fields.route_release.route_release_id
-        or occurrence.pre_state_root != lane.pre_state.state_root
         or context.chain_id != occurrence.chain_id
         or context.deployment_root != occurrence.deployment_root
         or context.profile_root != fields.profile.profile_id
@@ -368,33 +242,6 @@ def _require_candidate_bindings(
         raise ValueError("ZDEX tokenomics governed candidate binding mismatch")
 
 
-def _verify_coordinator_receipt(
-    receipt: ZDEXLaneReceiptEnvelopeV1,
-    journal: object,
-    fields: _GovernedZDEXTokenomicsProfileFieldsV1,
-    receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1,
-) -> tuple[str, str]:
-    if receipt.receipt_kind is not ReceiptKindV1.SUCCINCT:
-        raise ValueError("ZDEX tokenomics lane verification requires a succinct receipt")
-    if not receipt.receipt_bytes:
-        raise ValueError("ZDEX tokenomics lane receipt bytes must be nonempty")
-    journal_bytes = canonical_global_bytes_v1(journal)
-    if len(journal_bytes) > min(
-        fields.route_release.max_journal_bytes,
-        fields.coordinator_release.max_journal_bytes,
-    ):
-        raise ValueError("ZDEX tokenomics lane journal exceeds release byte ceiling")
-    receipt_verifier.verify_succinct_receipt(
-        receipt.receipt_bytes,
-        expected_image_id=fields.coordinator_release.guest_image_id,
-        expected_journal_bytes=journal_bytes,
-    )
-    return (
-        "0x" + hashlib.sha256(journal_bytes).hexdigest(),
-        "0x" + hashlib.sha256(receipt.receipt_bytes).hexdigest(),
-    )
-
-
 def verify_zdex_tokenomics_lane_receipt_v1(
     candidate: ZDEXTokenomicsLaneReceiptCandidateV1,
     governed: GovernedZDEXTokenomicsProfileV1,
@@ -414,32 +261,23 @@ def verify_zdex_tokenomics_lane_receipt_v1(
         raise ValueError("ZDEX tokenomics lane composition rejected")
     receipt = candidate.receipt
     journal = recomputed.lane_journal
-    journal_digest, receipt_digest = _verify_coordinator_receipt(
+    return _verify_and_build_zdex_tokenomics_lane_v1(
         receipt,
         journal,
-        fields,
-        receipt_verifier,
-    )
-    return VerifiedZDEXTokenomicsLaneV1(
-        _VERIFIED_TOKENOMICS_LANE_TOKEN,
-        _VerifiedZDEXTokenomicsLaneFieldsV1(
+        _ZDEXTokenomicsCoordinatorReceiptExpectationV1(
+            fields.route_release,
+            fields.coordinator_release,
+        ),
+        _ZDEXTokenomicsLaneBindingV1(
             fields.profile.profile_id,
             fields.route_release.route_release_id,
             fields.module_release.release_id,
-            fields.coordinator_release.coordinator_release_id,
             candidate.occurrence.occurrence_id,
             fields.profile.authority_epoch,
             candidate.lane_candidate.module_journal.journal_root,
-            journal.journal_root,
-            journal_digest,
-            journal.pre_lane_root,
-            journal.post_lane_root,
-            recomputed.effects.effect_plan_root,
             fields.module_release.guest_image_id,
-            fields.coordinator_release.guest_image_id,
-            receipt_digest,
-            receipt.receipt_kind,
         ),
+        receipt_verifier,
     )
 
 

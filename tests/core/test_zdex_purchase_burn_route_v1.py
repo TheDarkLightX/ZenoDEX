@@ -54,6 +54,10 @@ from src.core.zdex_fee_allocation_v1 import (
     candidate_zdex_fee_allocation_policy_v1,
     transition_zdex_fee_allocation_v1,
 )
+from src.core.zdex_hyperdeflation_types_v1 import (
+    ZDEXAmountBucketV1,
+    ZDEXSupplyStateV1,
+)
 from src.core.zdex_purchase_burn_receipt_verification_v1 import (
     ZDEXBurnReceiptCandidateV1,
     ZDEXLaneReceiptEnvelopeV1,
@@ -73,6 +77,23 @@ from src.core.zdex_purchase_burn_route_v1 import (
     ZDEXPurchaseBurnRouteCandidateV1,
     ZDEXPurchaseBurnRouteRejectedV1,
     compose_zdex_purchase_burn_route_v1,
+)
+from src.core.zdex_tokenomics_fee_lane_coordinator_v1 import (
+    ZDEXTokenomicsFeeAllocationLaneCandidateV1,
+    compose_zdex_tokenomics_fee_allocation_lane_v1,
+)
+from src.core.zdex_tokenomics_fee_lane_receipt_verification_v1 import (
+    ZDEXTokenomicsFeeLaneReceiptCandidateV1,
+    verify_zdex_tokenomics_fee_lane_receipt_v1,
+)
+from src.core.zdex_tokenomics_fee_lane_v1 import (
+    ZDEXTokenomicsFeeAllocationCoordinatorContextV1,
+    build_zdex_tokenomics_fee_allocation_module_journal_v1,
+    build_zdex_tokenomics_fee_allocation_private_port_v1,
+)
+from src.core.zdex_tokenomics_lane_v1 import (
+    ZDEXTokenomicsLaneCompositionAcceptedV1,
+    ZDEXTokenomicsLaneStateV1,
 )
 
 
@@ -511,7 +532,7 @@ def _buyback_budget(
         grant_root=_root(5),
         nonce=8,
         profile_root=occurrence.profile_root,
-        pre_state_root=state.state_root,
+        pre_state_root=occurrence.pre_state_root,
         consumed_object_ids=(),
     )
     result = transition_zdex_fee_allocation_v1(
@@ -573,6 +594,24 @@ class _Verifier:
         self.calls.append((receipt_bytes, expected_image_id, expected_journal_bytes))
         if self.reject:
             raise ValueError("test verifier rejection")
+
+
+class _ExactVerifier:
+    def __init__(self, receipt: bytes, image: str, journal: bytes) -> None:
+        self.expected = (receipt, image, journal)
+        self.calls: list[tuple[bytes, str, bytes]] = []
+
+    def verify_succinct_receipt(
+        self,
+        receipt_bytes: bytes,
+        *,
+        expected_image_id: str,
+        expected_journal_bytes: bytes,
+    ) -> None:
+        actual = (receipt_bytes, expected_image_id, expected_journal_bytes)
+        self.calls.append(actual)
+        if actual != self.expected:
+            raise ValueError("fee lane exact receipt binding mismatch")
 
 
 def _verified_fixture(
@@ -1414,7 +1453,7 @@ def test_python_rust_golden_composition_root_is_stable() -> None:
     result = compose_zdex_purchase_burn_route_v1(_verified_fixture())
 
     assert result.composition_root == (
-        "0x7f46675f4021fb861b575a4c8170ee9e121c685c5f72e48db9043cc9ce9bfff0"
+        "0xbc9467ff47c5b37ad785667477868fb3ad28af84ce0618d427ab7d395d897524"
     )
     assert zdex_burn_port_schema_root_v1() == (
         "0x744c54af6df7c8a4fa0c5e0b152e0139add14c337d7cbcf1c8062e8aa2fa5289"
@@ -1462,3 +1501,226 @@ def test_quote_source_cannot_spend_more_than_its_committed_balance() -> None:
 
     with pytest.raises(ValueError, match="quote source projection"):
         replace(purchase, quote_source_pre_atoms=124, quote_source_post_atoms=0)
+
+
+def _fee_lane_state(fee_state: ZDEXFeeStateV1) -> ZDEXTokenomicsLaneStateV1:
+    return ZDEXTokenomicsLaneStateV1(
+        supply_state=ZDEXSupplyStateV1(
+            asset_id=_root(880),
+            policy_root=_root(881),
+            decimals=8,
+            precision_epoch=0,
+            live_supply_atoms=1_000,
+            buckets=(ZDEXAmountBucketV1("wallet:alice", 1_000),),
+            burn_budget_epoch=5,
+            remaining_epoch_burn_cap_atoms=100,
+        ),
+        fee_allocation_states=(fee_state,),
+        staking_state_root=_root(882),
+        host_claims_state_root=_root(883),
+        treasury_claims_state_root=_root(884),
+        proof_rewards_state_root=_root(885),
+        cover_reserve_state_root=_root(886),
+        lp_rebates_state_root=_root(887),
+    )
+
+
+def _fee_lane_receipt_fixture() -> tuple[
+    ZDEXTokenomicsFeeLaneReceiptCandidateV1,
+    GovernedZDEXFeeAllocationProfileV1,
+]:
+    leaf, governed = _fee_receipt_candidate_fixture()
+    allocation = ZDEXFeeAllocationAcceptedV1(
+        leaf.pre_state,
+        leaf.post_state,
+        leaf.effects,
+        leaf.journal,
+    )
+    port = build_zdex_tokenomics_fee_allocation_private_port_v1(
+        allocation,
+        leaf.policy,
+    )
+    module = build_zdex_tokenomics_fee_allocation_module_journal_v1(
+        allocation,
+        leaf.policy,
+        port,
+    )
+    occurrence = leaf.journal
+    coordinator = governed._fields.coordinator_release
+    context = ZDEXTokenomicsFeeAllocationCoordinatorContextV1(
+        chain_id=occurrence.chain_id,
+        deployment_root=occurrence.deployment_root,
+        profile_root=occurrence.profile_root,
+        writer_epoch=occurrence.writer_epoch,
+        coordinator_release_id=coordinator.coordinator_release_id,
+        allocation_route_release_id=occurrence.allocation_route_release_id,
+        authorized_buyback_route_release_id=(
+            occurrence.authorized_buyback_route_release_id
+        ),
+        tokenomics_module_release_id=occurrence.tokenomics_module_release_id,
+        command_occurrence_id=occurrence.command_occurrence_id,
+        policy_root=occurrence.policy_root,
+    )
+    lane = ZDEXTokenomicsFeeAllocationLaneCandidateV1(
+        context,
+        module,
+        port,
+        _fee_lane_state(allocation.pre_state),
+        _fee_lane_state(allocation.post_state),
+        allocation,
+        leaf.policy,
+    )
+    verified_leaf = verify_zdex_fee_allocation_receipt_v1(
+        leaf,
+        governed,
+        _Verifier(),
+    )
+    return (
+        ZDEXTokenomicsFeeLaneReceiptCandidateV1(
+            leaf.occurrence,
+            lane,
+            verified_leaf,
+            ZDEXLaneReceiptEnvelopeV1(
+                ReceiptKindV1.SUCCINCT,
+                b"fee-tokenomics-lane-receipt",
+            ),
+        ),
+        governed,
+    )
+
+
+def test_profile_selected_fee_leaf_and_coordinator_bind_complete_lane() -> None:
+    # Arrange
+    candidate, governed = _fee_lane_receipt_fixture()
+    composed = compose_zdex_tokenomics_fee_allocation_lane_v1(
+        candidate.lane_candidate
+    )
+    assert type(composed) is ZDEXTokenomicsLaneCompositionAcceptedV1
+    verifier = _Verifier()
+    assert (
+        candidate.occurrence.pre_state_root
+        != candidate.lane_candidate.allocation.pre_state.state_root
+    )
+
+    # Act
+    verified = verify_zdex_tokenomics_fee_lane_receipt_v1(
+        candidate,
+        governed,
+        verifier,
+    )
+
+    # Assert
+    fields = governed._fields
+    assert verified.profile_root == fields.profile.profile_id
+    assert verified.route_release_id == fields.allocation_route.route_release_id
+    assert verified.module_release_id == fields.module_release.release_id
+    assert (
+        verified.coordinator_release_id
+        == fields.coordinator_release.coordinator_release_id
+    )
+    assert verified.pre_lane_root == candidate.lane_candidate.pre_state.state_root
+    assert verified.post_lane_root == candidate.lane_candidate.post_state.state_root
+    assert verified.binding_root == (
+        "0x677e85c16d4d26d2c37056eff1f39bc6bbbbf21b239db974d6d3275602a546e1"
+    )
+    assert verifier.calls == [
+        (
+            candidate.receipt.receipt_bytes,
+            fields.coordinator_release.guest_image_id,
+            canonical_global_bytes_v1(composed.lane_journal),
+        )
+    ]
+
+
+def test_unrelated_lane_root_substitution_requires_a_new_exact_receipt() -> None:
+    # Arrange
+    candidate, governed = _fee_lane_receipt_fixture()
+    original = compose_zdex_tokenomics_fee_allocation_lane_v1(
+        candidate.lane_candidate
+    )
+    assert type(original) is ZDEXTokenomicsLaneCompositionAcceptedV1
+    verifier = _ExactVerifier(
+        candidate.receipt.receipt_bytes,
+        governed._fields.coordinator_release.guest_image_id,
+        canonical_global_bytes_v1(original.lane_journal),
+    )
+    shifted_lane = replace(
+        candidate.lane_candidate,
+        pre_state=replace(
+            candidate.lane_candidate.pre_state,
+            staking_state_root=_root(999),
+        ),
+        post_state=replace(
+            candidate.lane_candidate.post_state,
+            staking_state_root=_root(999),
+        ),
+    )
+    shifted = replace(candidate, lane_candidate=shifted_lane)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="exact receipt binding mismatch"):
+        verify_zdex_tokenomics_fee_lane_receipt_v1(
+            shifted,
+            governed,
+            verifier,
+        )
+    assert len(verifier.calls) == 1
+    assert verifier.calls[0][2] != verifier.expected[2]
+
+
+def test_fee_lane_context_and_receipt_shape_reject_before_verifier() -> None:
+    # Arrange
+    candidate, governed = _fee_lane_receipt_fixture()
+    wrong_context = replace(
+        candidate,
+        lane_candidate=replace(
+            candidate.lane_candidate,
+            context=replace(
+                candidate.lane_candidate.context,
+                coordinator_release_id=_root(999),
+            ),
+        ),
+    )
+    wrong_receipt = replace(
+        candidate,
+        receipt=ZDEXLaneReceiptEnvelopeV1(
+            ReceiptKindV1.CONDITIONAL,
+            b"conditional",
+        ),
+    )
+    verifier = _Verifier(reject=True)
+
+    # Act / Assert
+    with pytest.raises(ValueError):
+        verify_zdex_tokenomics_fee_lane_receipt_v1(
+            wrong_context,
+            governed,
+            verifier,
+        )
+    with pytest.raises(ValueError):
+        verify_zdex_tokenomics_fee_lane_receipt_v1(
+            wrong_receipt,
+            governed,
+            verifier,
+        )
+    assert verifier.calls == []
+
+
+def test_mutated_governed_fee_profile_rejects_before_lane_verifier() -> None:
+    # Arrange
+    candidate, governed = _fee_lane_receipt_fixture()
+    object.__setattr__(
+        governed._fields.coordinator_release,
+        "guest_image_id",
+        _root(999),
+    )
+    verifier = _Verifier(reject=True)
+
+    # Act / Assert
+    with pytest.raises(ValueError):
+        verify_zdex_tokenomics_fee_lane_receipt_v1(
+            candidate,
+            governed,
+            verifier,
+        )
+    assert verifier.calls == []

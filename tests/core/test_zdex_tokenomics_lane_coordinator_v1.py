@@ -305,6 +305,24 @@ class _Verifier:
             raise ValueError("test verifier rejection")
 
 
+class _ExactVerifier:
+    def __init__(self, receipt: bytes, image: str, journal: bytes) -> None:
+        self.expected = (receipt, image, journal)
+        self.calls: list[tuple[bytes, str, bytes]] = []
+
+    def verify_succinct_receipt(
+        self,
+        receipt_bytes: bytes,
+        *,
+        expected_image_id: str,
+        expected_journal_bytes: bytes,
+    ) -> None:
+        actual = (receipt_bytes, expected_image_id, expected_journal_bytes)
+        self.calls.append(actual)
+        if actual != self.expected:
+            raise ValueError("tokenomics lane exact receipt binding mismatch")
+
+
 def _receipt_fixture(
     *,
     tokenomics_max_journal_bytes: int = 65_536,
@@ -390,7 +408,7 @@ def _receipt_fixture(
         grant_root=_root(820),
         nonce=9,
         profile_root=profile.profile_id,
-        pre_state_root=base.pre_state.state_root,
+        pre_state_root=_root(816),
         consumed_object_ids=(),
     )
     burn = replace(
@@ -654,6 +672,10 @@ def test_release_selected_coordinator_receipt_binds_exact_lane_journal() -> None
     verifier = _Verifier()
     recomputed = compose_zdex_tokenomics_burn_lane_v1(candidate.lane_candidate)
     assert type(recomputed) is ZDEXTokenomicsLaneCompositionAcceptedV1
+    assert (
+        candidate.occurrence.pre_state_root
+        != candidate.lane_candidate.pre_state.state_root
+    )
 
     # Act
     verified = verify_zdex_tokenomics_lane_receipt_v1(
@@ -683,10 +705,43 @@ def test_release_selected_coordinator_receipt_binds_exact_lane_journal() -> None
     assert verified.module_image_id == fields.module_release.guest_image_id
     assert verified.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified.binding_root == (
-        "0x47aedf19e2d6cd17eef038cc5461fb06dc45d277892507539860023caa7774be"
+        "0x0e281f45aa36ab86b9cf1a8c95c2456f0e4c3efa295af8bbab867107bb9b4458"
     )
     with pytest.raises(AttributeError, match="immutable"):
         verified._fields = object()
+
+
+def test_burn_lane_unrelated_root_substitution_requires_new_exact_receipt() -> None:
+    # Arrange
+    candidate, governed, _ = _receipt_fixture()
+    original = compose_zdex_tokenomics_burn_lane_v1(candidate.lane_candidate)
+    assert type(original) is ZDEXTokenomicsLaneCompositionAcceptedV1
+    verifier = _ExactVerifier(
+        candidate.receipt.receipt_bytes,
+        governed._fields.coordinator_release.guest_image_id,
+        canonical_global_bytes_v1(original.lane_journal),
+    )
+    shifted_lane = replace(
+        candidate.lane_candidate,
+        pre_state=replace(
+            candidate.lane_candidate.pre_state,
+            staking_state_root=_root(999),
+        ),
+        post_state=replace(
+            candidate.lane_candidate.post_state,
+            staking_state_root=_root(999),
+        ),
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="exact receipt binding mismatch"):
+        verify_zdex_tokenomics_lane_receipt_v1(
+            replace(candidate, lane_candidate=shifted_lane),
+            governed,
+            verifier,
+        )
+    assert len(verifier.calls) == 1
+    assert verifier.calls[0][2] != verifier.expected[2]
 
 
 def test_profile_and_coordinator_substitutions_reject_before_receipt_verifier() -> None:

@@ -330,8 +330,26 @@ image and journal as its sole assumption. Host preflight admits only an
 unconditional Succinct child receipt with byte-identical journal output. The
 fee path has lightweight compile and negative preflight evidence; a rebuilt
 coordinator image, real fee child plus coordinator proof, content-derived
-coordinator release, profile-selected policy and receipt adapter, release-bound
-cycle enforcement, and route connection remain open.
+coordinator release, release-bound cycle enforcement, and route connection
+remain open.
+
+The Rust and Python SHADOW admission boundary now selects the fee policy,
+allocation route, tokenomics module image, and tokenomics coordinator image from
+one exact profile. It consumes the opaque verified fee-allocation leaf,
+recomputes the complete lane journal, and verifies exact coordinator receipt
+bytes against that release-selected image and journal. A caller-supplied
+verifier remains a reference port, so this process-local marker has no
+settlement authority; a pinned concrete verifier and real recursive replay are
+still required for promotion.
+
+Root domains remain explicit. `EconomicCommandOccurrenceV1.pre_state_root` is
+the route/global pre-state root; the allocation journal binds fee-substate
+roots, and the lane journal binds complete tokenomics-lane roots. Leaf and lane
+admission therefore do not equate the occurrence root with either narrower
+root. A coherent unrelated-lane substitution changes the exact lane journal and
+requires a new coordinator receipt. The missing proved projection from the
+global state root to the selected lane roots remains a route/epoch promotion
+gate.
 
 All receipt-admission implementations are deliberately `SHADOW`-only.
 `ACTIVE_NEW`, composite, conditional, empty, wrong-effect, and
@@ -409,7 +427,8 @@ receipt consumer, API, client, and historical decoder.
 | Rejected transition changes value | Canonically equal pre/post state and empty effects; Python also preserves object identity | Runtime adapter parity |
 | Epoch ceiling is reused by sequential burns | Burn-budget epoch and remaining capacity are committed in the pre-state and decremented in the post-state; stale larger route ceilings cannot increase capacity | Profile-selected epoch reset transition, guest execution, and global sequencing |
 | Fee split loses atoms to truncation or is coherently rewritten | Exact allocation-plus-residue equation, named reserve, policy-bound transition replay, and a mutation test that shifts one atom between destinations while updating state/effects/roots | Governed residue-release lifecycle and proof-backed policy selection |
-| Fee-allocation substate is presented as the complete tokenomics lane | Source-level Rust/Python coordinator replaces the partial write with one complete-lane write, preserves every sibling component, and has golden-root parity plus mutation-killing no-op tests; the SHADOW RISC0 coordinator recomputes the same complete-lane statement and verifies the exact fee child assumption | Rebuilt image, real recursive proof, governed coordinator release and receipt adapter, route connection, and atomic publication |
+| Fee-allocation substate is presented as the complete tokenomics lane | Source-level Rust/Python coordinator replaces the partial write with one complete-lane write, preserves every sibling component, and has golden-root parity plus mutation-killing no-op tests; the SHADOW RISC0 coordinator recomputes the same complete-lane statement and verifies the exact fee child assumption; profile-selected SHADOW admission binds the exact leaf, module image, coordinator image, and complete-lane journal | Rebuilt image, real recursive proof, pinned concrete receipt verifier, route connection, and atomic publication |
+| Global occurrence root is confused with a fee or lane substate root | Leaf and lane admission preserve separate root domains; Rust/Python tests use a global occurrence root distinct from the fee root, and an unrelated complete-lane substitution fails against the original exact receipt | Proved global-state-to-lane projection at route/epoch admission |
 | Caller invents a buyback budget | Shadow route recomputes the fixed-policy allocation and binds journal digest, state roots, amount, source, and consumed-object ID; this rejects semantically invalid invented budgets | Real allocation guest receipt, historical inclusion, and persistent global consumed-object enforcement |
 | Buyback budget debits another holder | Closed protocol buyback source bucket in both composers | Complete mounted caller inventory |
 | Accepted allocation wrapper shifts value between destinations | Independent transition recomputation rejects a sum-preserving allocation mutant before receipt verification | Real guest/image evidence and profile-selected policy registry |
@@ -513,8 +532,9 @@ exact design.
   commitments, burn private port, exact unrelated-component preservation,
   deterministic module-statement commitment, typed no-effect rejection,
   canonical full-lane write, common lane-composition journal derivation, and
-  shadow release-selected receipt admission requiring an exact verified burn
-  leaf before constructing a non-authoritative process-local lane marker;
+  shadow release-selected receipt admission requiring an exact verified burn or
+  profile-selected fee-allocation leaf before constructing a non-authoritative
+  process-local lane marker;
 - `tests/core/test_zdex_tokenomics_lane_coordinator_v1.py` and the matching Rust
   test: every typed coordinator rejection branch, fee-registry width/order BVA,
   partial-lane-claim rejection, all-component preservation, malformed
@@ -524,7 +544,7 @@ exact design.
   rejection, journal-byte BVA, and Rust/Python lane-witness golden parity;
 - `zk/zdex_tokenomics_lane_coordinator_risc0`: unmounted RISC0 3.0.6 recursive
   coordinator source, exact governed module-release preflight, guest-side
-  `env::verify` over the child image and canonical burn journal, host-side
+  `env::verify` over the child image and canonical burn or fee journal, host-side
   `add_assumption` with unconditional `Succinct` enforcement, bounded
   input/journal/receipt admission, placeholder and development-mode denial, and
   an ignored real recursive-proof replay target;

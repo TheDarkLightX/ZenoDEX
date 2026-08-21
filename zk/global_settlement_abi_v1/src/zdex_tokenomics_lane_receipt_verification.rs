@@ -1,15 +1,13 @@
-use serde::Serialize;
-
-use crate::canonical::{canonical_bytes_v1, hash_global_v1, AbiErrorV1, AbiResultV1, RootV1};
-use crate::proof::{EconomicCommandOccurrenceV1, ReceiptKindV1};
+use crate::canonical::{AbiErrorV1, AbiResultV1, RootV1};
+use crate::proof::EconomicCommandOccurrenceV1;
 use crate::release::{
     EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1, LaneIdV1,
     LaneModuleReleaseV1, LaneRegistryV1, ProfileStatusV1, ReleaseStatusV1, RouteRegistryV1,
     RouteReleaseV1,
 };
 use crate::zdex_purchase_burn_receipt_verification::{
-    digest_root_v1, VerifiedZDEXBurnV1, ZDEXLaneReceiptEnvelopeV1,
-    ZDEXLaneSuccinctReceiptVerifierV1, ZDEXVerifiedLaneExpectationV1,
+    VerifiedZDEXBurnV1, ZDEXLaneReceiptEnvelopeV1, ZDEXLaneSuccinctReceiptVerifierV1,
+    ZDEXVerifiedLaneExpectationV1,
 };
 use crate::zdex_purchase_burn_types::{
     zdex_amm_purchase_port_schema_root_v1, zdex_burn_port_schema_root_v1,
@@ -18,10 +16,11 @@ use crate::zdex_purchase_burn_types::{
 use crate::zdex_tokenomics_lane_coordinator::{
     compose_zdex_tokenomics_burn_lane_v1, ZDEXTokenomicsBurnLaneCandidateV1,
 };
+use crate::zdex_tokenomics_lane_receipt_common::{
+    verify_and_construct_zdex_tokenomics_lane_v1, VerifiedZDEXTokenomicsLaneV1,
+    ZDEXTokenomicsCoordinatorReceiptExpectationV1, ZDEXTokenomicsLaneBindingV1,
+};
 use crate::zdex_tokenomics_lane_types::ZDEXTokenomicsLaneCompositionResultV1;
-
-pub const VERIFIED_ZDEX_TOKENOMICS_LANE_SCHEMA_V1: &str =
-    "zenodex/verified-zdex-tokenomics-lane/v1";
 
 pub struct ZDEXTokenomicsLaneReceiptCandidateV1<'a> {
     pub occurrence: &'a EconomicCommandOccurrenceV1,
@@ -42,122 +41,6 @@ pub struct GovernedZDEXTokenomicsProfileV1<'a> {
     route_release: &'a RouteReleaseV1,
     module_release: &'a LaneModuleReleaseV1,
     coordinator_release: &'a LaneCoordinatorReleaseV1,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct VerifiedZDEXTokenomicsLaneV1 {
-    profile_root: RootV1,
-    route_release_id: RootV1,
-    module_release_id: RootV1,
-    coordinator_release_id: RootV1,
-    command_occurrence_id: RootV1,
-    writer_epoch: u64,
-    module_journal_root: RootV1,
-    lane_journal_root: RootV1,
-    lane_journal_digest: RootV1,
-    pre_lane_root: RootV1,
-    post_lane_root: RootV1,
-    effect_plan_root: RootV1,
-    module_image_id: RootV1,
-    expected_image_id: RootV1,
-    receipt_digest: RootV1,
-    receipt_kind: ReceiptKindV1,
-}
-
-impl VerifiedZDEXTokenomicsLaneV1 {
-    pub fn profile_root(&self) -> &RootV1 {
-        &self.profile_root
-    }
-    pub fn route_release_id(&self) -> &RootV1 {
-        &self.route_release_id
-    }
-    pub fn module_release_id(&self) -> &RootV1 {
-        &self.module_release_id
-    }
-    pub fn coordinator_release_id(&self) -> &RootV1 {
-        &self.coordinator_release_id
-    }
-    pub fn command_occurrence_id(&self) -> &RootV1 {
-        &self.command_occurrence_id
-    }
-    pub fn writer_epoch(&self) -> u64 {
-        self.writer_epoch
-    }
-    pub fn module_journal_root(&self) -> &RootV1 {
-        &self.module_journal_root
-    }
-    pub fn lane_journal_root(&self) -> &RootV1 {
-        &self.lane_journal_root
-    }
-    pub fn lane_journal_digest(&self) -> &RootV1 {
-        &self.lane_journal_digest
-    }
-    pub fn pre_lane_root(&self) -> &RootV1 {
-        &self.pre_lane_root
-    }
-    pub fn post_lane_root(&self) -> &RootV1 {
-        &self.post_lane_root
-    }
-    pub fn effect_plan_root(&self) -> &RootV1 {
-        &self.effect_plan_root
-    }
-    pub fn module_image_id(&self) -> &RootV1 {
-        &self.module_image_id
-    }
-    pub fn expected_image_id(&self) -> &RootV1 {
-        &self.expected_image_id
-    }
-    pub fn receipt_digest(&self) -> &RootV1 {
-        &self.receipt_digest
-    }
-    pub fn receipt_kind(&self) -> ReceiptKindV1 {
-        self.receipt_kind
-    }
-
-    pub fn binding_root(&self) -> AbiResultV1<RootV1> {
-        #[derive(Serialize)]
-        struct Binding<'a> {
-            schema: &'static str,
-            profile_root: &'a RootV1,
-            route_release_id: &'a RootV1,
-            module_release_id: &'a RootV1,
-            coordinator_release_id: &'a RootV1,
-            command_occurrence_id: &'a RootV1,
-            writer_epoch: u64,
-            module_journal_root: &'a RootV1,
-            lane_journal_root: &'a RootV1,
-            lane_journal_digest: &'a RootV1,
-            pre_lane_root: &'a RootV1,
-            post_lane_root: &'a RootV1,
-            effect_plan_root: &'a RootV1,
-            module_image_id: &'a RootV1,
-            expected_image_id: &'a RootV1,
-            receipt_digest: &'a RootV1,
-            receipt_kind: ReceiptKindV1,
-        }
-        hash_global_v1(
-            "verified-zdex-tokenomics-lane-v1",
-            &Binding {
-                schema: VERIFIED_ZDEX_TOKENOMICS_LANE_SCHEMA_V1,
-                profile_root: &self.profile_root,
-                route_release_id: &self.route_release_id,
-                module_release_id: &self.module_release_id,
-                coordinator_release_id: &self.coordinator_release_id,
-                command_occurrence_id: &self.command_occurrence_id,
-                writer_epoch: self.writer_epoch,
-                module_journal_root: &self.module_journal_root,
-                lane_journal_root: &self.lane_journal_root,
-                lane_journal_digest: &self.lane_journal_digest,
-                pre_lane_root: &self.pre_lane_root,
-                post_lane_root: &self.post_lane_root,
-                effect_plan_root: &self.effect_plan_root,
-                module_image_id: &self.module_image_id,
-                expected_image_id: &self.expected_image_id,
-                receipt_digest: &self.receipt_digest,
-                receipt_kind: self.receipt_kind,
-            },
-        )
-    }
 }
 
 fn registered_buyback_route_v1(routes: &RouteRegistryV1) -> AbiResultV1<&RouteReleaseV1> {
@@ -275,10 +158,11 @@ fn require_candidate_bindings_v1(
             effect_plan_root: &candidate.lane_candidate.module_effects.effect_plan_root()?,
         },
     )?;
+    // Route admission owns the occurrence's global pre-root. The exact
+    // coordinator receipt binds this lane's pre/post roots.
     if candidate.occurrence.profile_root != governed.profile.profile_id
         || candidate.occurrence.command_kind != governed.route_release.command_kind
         || candidate.occurrence.route_release_id != governed.route_release.route_release_id
-        || candidate.occurrence.pre_state_root != candidate.lane_candidate.pre_state.state_root()?
         || context.chain_id != candidate.occurrence.chain_id
         || context.deployment_root != candidate.occurrence.deployment_root
         || context.profile_root != governed.profile.profile_id
@@ -299,44 +183,6 @@ fn require_candidate_bindings_v1(
     Ok(occurrence_id)
 }
 
-fn verify_coordinator_receipt_v1(
-    receipt: &ZDEXLaneReceiptEnvelopeV1,
-    journal: &crate::proof::LaneCompositionJournalV1,
-    governed: &GovernedZDEXTokenomicsProfileV1<'_>,
-    verifier: &impl ZDEXLaneSuccinctReceiptVerifierV1,
-) -> AbiResultV1<(RootV1, RootV1)> {
-    if receipt.receipt_kind != ReceiptKindV1::SUCCINCT || receipt.receipt_bytes.is_empty() {
-        return Err(AbiErrorV1::InvalidBinding(
-            "ZDEX tokenomics succinct receipt",
-        ));
-    }
-    let journal_bytes = canonical_bytes_v1(journal)?;
-    let journal_len = u64::try_from(journal_bytes.len())
-        .map_err(|_| AbiErrorV1::InvalidBounds("ZDEX tokenomics journal byte width"))?;
-    if journal_len
-        > governed
-            .route_release
-            .max_journal_bytes
-            .min(governed.coordinator_release.max_journal_bytes)
-    {
-        return Err(AbiErrorV1::InvalidBounds(
-            "ZDEX tokenomics journal byte ceiling",
-        ));
-    }
-    verifier.verify_succinct_receipt(
-        &receipt.receipt_bytes,
-        &governed.coordinator_release.guest_image_id,
-        &journal_bytes,
-    )?;
-    Ok((
-        digest_root_v1(&journal_bytes, "ZDEX tokenomics lane journal digest")?,
-        digest_root_v1(
-            &receipt.receipt_bytes,
-            "ZDEX tokenomics lane receipt digest",
-        )?,
-    ))
-}
-
 /// Run reference shadow admission through the supplied verifier port.
 ///
 /// The returned marker carries no settlement authority. An authoritative shell
@@ -355,28 +201,22 @@ pub fn verify_zdex_tokenomics_lane_receipt_v1(
             "ZDEX tokenomics lane composition rejected",
         ));
     };
-    let (lane_journal_digest, receipt_digest) = verify_coordinator_receipt_v1(
+    verify_and_construct_zdex_tokenomics_lane_v1(
         candidate.receipt,
         &accepted.lane_journal,
-        governed,
+        ZDEXTokenomicsCoordinatorReceiptExpectationV1 {
+            route_release: governed.route_release,
+            coordinator_release: governed.coordinator_release,
+        },
+        ZDEXTokenomicsLaneBindingV1 {
+            profile_root: governed.profile.profile_id.clone(),
+            route_release_id: governed.route_release.route_release_id.clone(),
+            module_release_id: governed.module_release.release_id.clone(),
+            command_occurrence_id: occurrence_id,
+            writer_epoch: governed.profile.authority_epoch,
+            module_journal_root,
+            module_image_id: governed.module_release.guest_image_id.clone(),
+        },
         verifier,
-    )?;
-    Ok(VerifiedZDEXTokenomicsLaneV1 {
-        profile_root: governed.profile.profile_id.clone(),
-        route_release_id: governed.route_release.route_release_id.clone(),
-        module_release_id: governed.module_release.release_id.clone(),
-        coordinator_release_id: governed.coordinator_release.coordinator_release_id.clone(),
-        command_occurrence_id: occurrence_id,
-        writer_epoch: governed.profile.authority_epoch,
-        module_journal_root,
-        lane_journal_root: accepted.lane_journal.journal_root()?,
-        lane_journal_digest,
-        pre_lane_root: accepted.lane_journal.pre_lane_root.clone(),
-        post_lane_root: accepted.lane_journal.post_lane_root.clone(),
-        effect_plan_root: accepted.effects.effect_plan_root()?,
-        module_image_id: governed.module_release.guest_image_id.clone(),
-        expected_image_id: governed.coordinator_release.guest_image_id.clone(),
-        receipt_digest,
-        receipt_kind: candidate.receipt.receipt_kind,
-    })
+    )
 }

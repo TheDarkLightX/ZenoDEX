@@ -495,6 +495,31 @@ impl ZDEXLaneSuccinctReceiptVerifierV1 for RejectingVerifier {
     }
 }
 
+struct ExactVerifier {
+    receipt_bytes: Vec<u8>,
+    image_id: RootV1,
+    journal_bytes: Vec<u8>,
+}
+
+impl ZDEXLaneSuccinctReceiptVerifierV1 for ExactVerifier {
+    fn verify_succinct_receipt(
+        &self,
+        receipt_bytes: &[u8],
+        expected_image_id: &RootV1,
+        expected_journal_bytes: &[u8],
+    ) -> AbiResultV1<()> {
+        if receipt_bytes != self.receipt_bytes
+            || expected_image_id != &self.image_id
+            || expected_journal_bytes != self.journal_bytes
+        {
+            return Err(AbiErrorV1::InvalidBinding(
+                "tokenomics lane exact receipt binding mismatch",
+            ));
+        }
+        Ok(())
+    }
+}
+
 struct ReceiptFixture {
     profile: ShadowProfile,
     occurrence: EconomicCommandOccurrenceV1,
@@ -548,7 +573,7 @@ fn receipt_fixture() -> ReceiptFixture {
         grant_root: root(820),
         nonce: 9,
         profile_root: profile.profile.profile_id.clone(),
-        pre_state_root: base.pre_lane.state_root().unwrap(),
+        pre_state_root: root(816),
         consumed_object_ids: vec![],
     };
     let occurrence_id = occurrence.occurrence_id().unwrap();
@@ -1035,6 +1060,10 @@ fn release_selected_coordinator_receipt_mints_exact_shadow_witness() {
     let ZDEXTokenomicsLaneCompositionResultV1::Accepted(accepted) = recomputed else {
         panic!("receipt fixture lane composition must accept")
     };
+    assert_ne!(
+        fixture.occurrence.pre_state_root,
+        fixture.pre_lane.state_root().unwrap()
+    );
 
     // Act
     let verified = verify_zdex_tokenomics_lane_receipt_v1(
@@ -1087,7 +1116,53 @@ fn release_selected_coordinator_receipt_mints_exact_shadow_witness() {
     );
     assert_eq!(
         verified.binding_root().unwrap(),
-        root_hex("0x47aedf19e2d6cd17eef038cc5461fb06dc45d277892507539860023caa7774be")
+        root_hex("0x0e281f45aa36ab86b9cf1a8c95c2456f0e4c3efa295af8bbab867107bb9b4458")
+    );
+}
+
+#[test]
+fn burn_lane_unrelated_root_substitution_requires_new_exact_receipt() {
+    // Arrange
+    let mut fixture = receipt_fixture();
+    let original = compose_zdex_tokenomics_burn_lane_v1(fixture.lane_candidate()).unwrap();
+    let ZDEXTokenomicsLaneCompositionResultV1::Accepted(accepted) = original else {
+        panic!("receipt fixture lane composition must accept")
+    };
+    let verifier = ExactVerifier {
+        receipt_bytes: fixture.receipt.receipt_bytes.clone(),
+        image_id: fixture
+            .profile
+            .coordinators
+            .release_for(LaneIdV1::ZDEX_TOKENOMICS)
+            .unwrap()
+            .guest_image_id
+            .clone(),
+        journal_bytes: canonical_bytes_v1(&accepted.lane_journal).unwrap(),
+    };
+    fixture.pre_lane.staking_state_root = root(999);
+    fixture.post_lane.staking_state_root = root(999);
+    let governed = bind_zdex_tokenomics_shadow_profile_v1(
+        &fixture.profile.profile.profile_id,
+        fixture.profile.profile.authority_epoch,
+        ZDEXTokenomicsProfileRegistriesV1 {
+            profile: &fixture.profile.profile,
+            lanes: &fixture.profile.lanes,
+            coordinators: &fixture.profile.coordinators,
+            routes: &fixture.profile.routes,
+        },
+    )
+    .unwrap();
+
+    // Act
+    let result =
+        verify_zdex_tokenomics_lane_receipt_v1(fixture.receipt_candidate(), &governed, &verifier);
+
+    // Assert
+    assert_eq!(
+        result,
+        Err(AbiErrorV1::InvalidBinding(
+            "tokenomics lane exact receipt binding mismatch"
+        ))
     );
 }
 

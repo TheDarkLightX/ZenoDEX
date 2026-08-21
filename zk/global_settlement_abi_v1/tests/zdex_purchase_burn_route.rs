@@ -1,29 +1,36 @@
 use serde_json::json;
 use zenodex_global_settlement_abi_v1::{
-    bind_zdex_fee_allocation_shadow_profile_v1, candidate_zdex_fee_allocation_policy_v1,
-    canonical_bytes_v1, compose_zdex_purchase_burn_route_v1, hash_global_v1,
+    bind_zdex_fee_allocation_shadow_profile_v1,
+    build_zdex_tokenomics_fee_allocation_module_journal_v1,
+    build_zdex_tokenomics_fee_allocation_private_port_v1, candidate_zdex_fee_allocation_policy_v1,
+    canonical_bytes_v1, compose_zdex_purchase_burn_route_v1,
+    compose_zdex_tokenomics_fee_allocation_lane_v1, hash_global_v1,
     transition_zdex_fee_allocation_v1, verify_zdex_amm_purchase_receipt_v1,
     verify_zdex_burn_receipt_v1, verify_zdex_fee_allocation_receipt_v1,
-    zdex_amm_purchase_port_schema_root_v1, zdex_burn_port_schema_root_v1,
-    zdex_fee_allocation_port_schema_root_v1, AbiErrorV1, AbiResultV1, AssetConservationRowV1,
-    EconomicCommandOccurrenceV1, EconomicEffectKindV1, EconomicEffectRowV1,
-    EconomicPolicyBindingV1, EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, EvidenceStatusV1,
-    GlobalEconomicEffectPlanV1, GovernedZDEXFeeAllocationProfileV1, LaneCoordinatorRegistryV1,
-    LaneCoordinatorReleaseV1, LaneIdV1, LaneModuleReleaseV1, LaneRegistryV1, LaneWriteV1,
-    ProfileStatusV1, ReceiptKindV1, ReleaseStatusV1, RootV1, RouteRegistryV1, RouteReleaseV1,
-    VerifiedZDEXAMMPurchaseV1, VerifiedZDEXBurnV1, VerifiedZDEXFeeAllocationV1,
-    ZDEXAMMPurchaseJournalV1, ZDEXBurnJournalV1, ZDEXBurnReceiptCandidateV1,
-    ZDEXFeeAllocationCommandV1, ZDEXFeeAllocationContextV1, ZDEXFeeAllocationOccurrenceV1,
-    ZDEXFeeAllocationPolicyV1, ZDEXFeeAllocationProfileRegistriesV1,
-    ZDEXFeeAllocationReceiptCandidateV1, ZDEXFeeAllocationResultV1, ZDEXFeeDestinationAmountV1,
-    ZDEXFeeStateV1, ZDEXLaneReceiptEnvelopeV1, ZDEXLaneSuccinctReceiptVerifierV1,
-    ZDEXPurchaseBurnRouteCandidateV1, ZDEXPurchaseBurnRouteRejectCodeV1,
-    ZDEXPurchaseBurnRouteResultV1, ZDEXPurchaseReceiptCandidateV1, ALL_LANE_IDS_V1,
-    AMM_POOL_CUSTODY_DOMAIN_V1, FEE_ALLOCATION_OUTPUT_ROLE_V1, GLOBAL_SETTLEMENT_ABI_V1,
-    PROTOCOL_BURN_CUSTODY_DOMAIN_V1, PROTOCOL_BUYBACK_CUSTODY_DOMAIN_V1,
-    PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1, PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1,
-    PROTOCOL_SUPPLY_CUSTODY_DOMAIN_V1, ZDEX_FEE_ALLOCATION_POLICY_KIND_V1,
-    ZDEX_FEE_DESTINATIONS_V1, ZDEX_SUPPLY_PRINCIPAL_V1,
+    verify_zdex_tokenomics_fee_lane_receipt_v1, zdex_amm_purchase_port_schema_root_v1,
+    zdex_burn_port_schema_root_v1, zdex_fee_allocation_port_schema_root_v1, AbiErrorV1,
+    AbiResultV1, AssetConservationRowV1, EconomicCommandOccurrenceV1, EconomicEffectKindV1,
+    EconomicEffectRowV1, EconomicPolicyBindingV1, EconomicPolicyRegistryV1,
+    EconomicProfileSnapshotV1, EvidenceStatusV1, GlobalEconomicEffectPlanV1,
+    GovernedZDEXFeeAllocationProfileV1, LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1,
+    LaneIdV1, LaneModuleReleaseV1, LaneRegistryV1, LaneWriteV1, ProfileStatusV1, ReceiptKindV1,
+    ReleaseStatusV1, RootV1, RouteRegistryV1, RouteReleaseV1, VerifiedZDEXAMMPurchaseV1,
+    VerifiedZDEXBurnV1, VerifiedZDEXFeeAllocationV1, ZDEXAMMPurchaseJournalV1, ZDEXAmountBucketV1,
+    ZDEXBurnJournalV1, ZDEXBurnReceiptCandidateV1, ZDEXFeeAllocationCommandV1,
+    ZDEXFeeAllocationContextV1, ZDEXFeeAllocationOccurrenceV1, ZDEXFeeAllocationPolicyV1,
+    ZDEXFeeAllocationProfileRegistriesV1, ZDEXFeeAllocationReceiptCandidateV1,
+    ZDEXFeeAllocationResultV1, ZDEXFeeDestinationAmountV1, ZDEXFeeStateV1,
+    ZDEXLaneReceiptEnvelopeV1, ZDEXLaneSuccinctReceiptVerifierV1, ZDEXPurchaseBurnRouteCandidateV1,
+    ZDEXPurchaseBurnRouteRejectCodeV1, ZDEXPurchaseBurnRouteResultV1,
+    ZDEXPurchaseReceiptCandidateV1, ZDEXSupplyStateV1,
+    ZDEXTokenomicsFeeAllocationCoordinatorContextV1, ZDEXTokenomicsFeeAllocationLaneCandidateV1,
+    ZDEXTokenomicsFeeLaneReceiptCandidateV1, ZDEXTokenomicsLaneCompositionResultV1,
+    ZDEXTokenomicsLaneStateV1, ALL_LANE_IDS_V1, AMM_POOL_CUSTODY_DOMAIN_V1,
+    FEE_ALLOCATION_OUTPUT_ROLE_V1, GLOBAL_SETTLEMENT_ABI_V1, PROTOCOL_BURN_CUSTODY_DOMAIN_V1,
+    PROTOCOL_BUYBACK_CUSTODY_DOMAIN_V1, PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+    PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1, PROTOCOL_SUPPLY_CUSTODY_DOMAIN_V1,
+    ZDEX_FEE_ALLOCATION_POLICY_KIND_V1, ZDEX_FEE_DESTINATIONS_V1, ZDEX_SUPPLY_PRINCIPAL_V1,
+    ZDEX_TOKENOMICS_FEE_ALLOCATION_COORDINATOR_SCHEMA_V1, ZDEX_TOKENOMICS_LANE_STATE_SCHEMA_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -622,7 +629,7 @@ fn fixture() -> Fixture {
         grant_root: root(5),
         nonce: 8,
         profile_root: occurrence.profile_root.clone(),
-        pre_state_root: fee_state.state_root().expect("fee state root"),
+        pre_state_root: occurrence.pre_state_root.clone(),
         consumed_object_ids: vec![],
     };
     let fee_context = ZDEXFeeAllocationContextV1 {
@@ -881,7 +888,7 @@ fn rust_matches_python_golden_composition_root_and_effects() {
             .composition_root()
             .expect("composition root")
             .as_str(),
-        "0x7f46675f4021fb861b575a4c8170ee9e121c685c5f72e48db9043cc9ce9bfff0"
+        "0xbc9467ff47c5b37ad785667477868fb3ad28af84ce0618d427ab7d395d897524"
     );
     assert_eq!(
         zenodex_global_settlement_abi_v1::zdex_burn_port_schema_root_v1()
@@ -1478,4 +1485,286 @@ fn incomplete_transient_burn_drain_is_invalid() {
     assert!(error
         .to_string()
         .contains("ZDEX burn transient bucket projection"));
+}
+
+struct FeeLaneReceiptFixture {
+    context: ZDEXTokenomicsFeeAllocationCoordinatorContextV1,
+    module: zenodex_global_settlement_abi_v1::LaneModuleTransitionJournalV1,
+    port: zenodex_global_settlement_abi_v1::ZDEXTokenomicsFeeAllocationPrivatePortV1,
+    pre_state: ZDEXTokenomicsLaneStateV1,
+    post_state: ZDEXTokenomicsLaneStateV1,
+    allocation: zenodex_global_settlement_abi_v1::ZDEXFeeAllocationAcceptedV1,
+    policy: ZDEXFeeAllocationPolicyV1,
+    receipt: ZDEXLaneReceiptEnvelopeV1,
+}
+
+impl FeeLaneReceiptFixture {
+    fn lane_candidate(&self) -> ZDEXTokenomicsFeeAllocationLaneCandidateV1<'_> {
+        ZDEXTokenomicsFeeAllocationLaneCandidateV1 {
+            context: &self.context,
+            module_journal: &self.module,
+            private_port: &self.port,
+            pre_state: &self.pre_state,
+            post_state: &self.post_state,
+            allocation: &self.allocation,
+            policy: &self.policy,
+        }
+    }
+
+    fn receipt_candidate<'a>(
+        &'a self,
+        occurrence: &'a EconomicCommandOccurrenceV1,
+        verified_allocation: &'a VerifiedZDEXFeeAllocationV1,
+    ) -> ZDEXTokenomicsFeeLaneReceiptCandidateV1<'a> {
+        ZDEXTokenomicsFeeLaneReceiptCandidateV1 {
+            occurrence,
+            lane_candidate: self.lane_candidate(),
+            verified_allocation,
+            receipt: &self.receipt,
+        }
+    }
+}
+
+fn fee_lane_state(fee_state: ZDEXFeeStateV1) -> ZDEXTokenomicsLaneStateV1 {
+    ZDEXTokenomicsLaneStateV1 {
+        schema: ZDEX_TOKENOMICS_LANE_STATE_SCHEMA_V1.to_owned(),
+        supply_state: ZDEXSupplyStateV1 {
+            asset_id: root(880),
+            policy_root: root(881),
+            decimals: 8,
+            precision_epoch: 0,
+            live_supply_atoms: 1_000,
+            buckets: vec![ZDEXAmountBucketV1 {
+                bucket_id: "wallet:alice".to_owned(),
+                amount_atoms: 1_000,
+            }],
+            burn_budget_epoch: 5,
+            remaining_epoch_burn_cap_atoms: 100,
+        },
+        fee_allocation_states: vec![fee_state],
+        staking_state_root: root(882),
+        host_claims_state_root: root(883),
+        treasury_claims_state_root: root(884),
+        proof_rewards_state_root: root(885),
+        cover_reserve_state_root: root(886),
+        lp_rebates_state_root: root(887),
+    }
+}
+
+fn fee_lane_receipt_fixture(base: &Fixture) -> FeeLaneReceiptFixture {
+    let allocation = zenodex_global_settlement_abi_v1::ZDEXFeeAllocationAcceptedV1 {
+        pre_state: base.fee_state.clone(),
+        post_state: base.fee_post_state.clone(),
+        effects: base.fee_effects.clone(),
+        occurrence: base.buyback_budget_occurrence.clone(),
+    };
+    allocation.validate().expect("fee acceptance must validate");
+    let policy = base.fee_policy.clone();
+    let port = build_zdex_tokenomics_fee_allocation_private_port_v1(&allocation, &policy)
+        .expect("fee private port");
+    let module =
+        build_zdex_tokenomics_fee_allocation_module_journal_v1(&allocation, &policy, &port)
+            .expect("fee module journal");
+    let occurrence = &allocation.occurrence;
+    let coordinator = base
+        .coordinators
+        .release_for(LaneIdV1::ZDEX_TOKENOMICS)
+        .expect("tokenomics coordinator");
+    FeeLaneReceiptFixture {
+        context: ZDEXTokenomicsFeeAllocationCoordinatorContextV1 {
+            schema: ZDEX_TOKENOMICS_FEE_ALLOCATION_COORDINATOR_SCHEMA_V1.to_owned(),
+            chain_id: occurrence.chain_id.clone(),
+            deployment_root: occurrence.deployment_root.clone(),
+            profile_root: occurrence.profile_root.clone(),
+            writer_epoch: occurrence.writer_epoch,
+            coordinator_release_id: coordinator.coordinator_release_id.clone(),
+            allocation_route_release_id: occurrence.allocation_route_release_id.clone(),
+            authorized_buyback_route_release_id: occurrence
+                .authorized_buyback_route_release_id
+                .clone(),
+            tokenomics_module_release_id: occurrence.tokenomics_module_release_id.clone(),
+            command_occurrence_id: occurrence.command_occurrence_id.clone(),
+            policy_root: occurrence.policy_root.clone(),
+        },
+        module,
+        port,
+        pre_state: fee_lane_state(allocation.pre_state.clone()),
+        post_state: fee_lane_state(allocation.post_state.clone()),
+        allocation,
+        policy,
+        receipt: ZDEXLaneReceiptEnvelopeV1 {
+            receipt_kind: ReceiptKindV1::SUCCINCT,
+            receipt_bytes: b"fee-tokenomics-lane-receipt".to_vec(),
+        },
+    }
+}
+
+struct ExactLaneVerifier {
+    receipt: Vec<u8>,
+    image: RootV1,
+    journal: Vec<u8>,
+}
+
+impl ZDEXLaneSuccinctReceiptVerifierV1 for ExactLaneVerifier {
+    fn verify_succinct_receipt(
+        &self,
+        receipt_bytes: &[u8],
+        expected_image_id: &RootV1,
+        expected_journal_bytes: &[u8],
+    ) -> AbiResultV1<()> {
+        if receipt_bytes != self.receipt
+            || expected_image_id != &self.image
+            || expected_journal_bytes != self.journal
+        {
+            return Err(AbiErrorV1::InvalidBinding("fee lane exact receipt binding"));
+        }
+        Ok(())
+    }
+}
+
+#[test]
+fn profile_selected_fee_leaf_and_coordinator_receipt_bind_one_complete_lane() {
+    // Arrange
+    let base = fixture();
+    let lane = fee_lane_receipt_fixture(&base);
+    let governed = bind_zdex_fee_allocation_shadow_profile_v1(
+        &base.profile.profile_id,
+        base.profile.authority_epoch,
+        ZDEXFeeAllocationProfileRegistriesV1 {
+            profile: &base.profile,
+            lanes: &base.lanes,
+            coordinators: &base.coordinators,
+            routes: &base.routes,
+            policy_registry: &base.policies,
+        },
+    )
+    .expect("governed fee profile");
+    let composed = compose_zdex_tokenomics_fee_allocation_lane_v1(lane.lane_candidate())
+        .expect("fee lane composition");
+    let ZDEXTokenomicsLaneCompositionResultV1::Accepted(composed) = composed else {
+        panic!("valid fee lane rejected")
+    };
+    let coordinator = base
+        .coordinators
+        .release_for(LaneIdV1::ZDEX_TOKENOMICS)
+        .expect("tokenomics coordinator");
+    let verifier = ExactLaneVerifier {
+        receipt: lane.receipt.receipt_bytes.clone(),
+        image: coordinator.guest_image_id.clone(),
+        journal: canonical_bytes_v1(&composed.lane_journal).expect("lane journal bytes"),
+    };
+    assert_ne!(
+        base.allocation_occurrence.pre_state_root,
+        base.fee_state.state_root().unwrap()
+    );
+
+    // Act
+    let verified = verify_zdex_tokenomics_fee_lane_receipt_v1(
+        lane.receipt_candidate(&base.allocation_occurrence, &base.verified_buyback_budget),
+        &governed,
+        &verifier,
+    )
+    .expect("fee lane receipt must verify");
+
+    // Assert
+    assert_eq!(verified.profile_root(), &base.profile.profile_id);
+    assert_eq!(
+        verified.route_release_id(),
+        &base.buyback_budget_occurrence.allocation_route_release_id
+    );
+    assert_eq!(verified.module_release_id(), &base.burn_release.release_id);
+    assert_eq!(
+        verified.coordinator_release_id(),
+        &coordinator.coordinator_release_id
+    );
+    assert_eq!(
+        verified.pre_lane_root(),
+        &lane.pre_state.state_root().unwrap()
+    );
+    assert_eq!(
+        verified.post_lane_root(),
+        &lane.post_state.state_root().unwrap()
+    );
+    assert_eq!(
+        verified.binding_root().unwrap(),
+        RootV1::parse(
+            "0x677e85c16d4d26d2c37056eff1f39bc6bbbbf21b239db974d6d3275602a546e1",
+            "fee lane verified binding root",
+            false,
+        )
+        .unwrap()
+    );
+}
+
+#[test]
+fn unrelated_lane_root_substitution_requires_a_new_exact_receipt() {
+    // Arrange
+    let base = fixture();
+    let mut shifted = fee_lane_receipt_fixture(&base);
+    let original = compose_zdex_tokenomics_fee_allocation_lane_v1(shifted.lane_candidate())
+        .expect("original fee lane composition");
+    let ZDEXTokenomicsLaneCompositionResultV1::Accepted(original) = original else {
+        panic!("valid original fee lane rejected")
+    };
+    let coordinator = base
+        .coordinators
+        .release_for(LaneIdV1::ZDEX_TOKENOMICS)
+        .expect("tokenomics coordinator");
+    let verifier = ExactLaneVerifier {
+        receipt: shifted.receipt.receipt_bytes.clone(),
+        image: coordinator.guest_image_id.clone(),
+        journal: canonical_bytes_v1(&original.lane_journal).expect("original lane journal bytes"),
+    };
+    shifted.pre_state.staking_state_root = root(999);
+    shifted.post_state.staking_state_root = root(999);
+    let governed = governed_fee_profile(&base);
+
+    // Act
+    let result = verify_zdex_tokenomics_fee_lane_receipt_v1(
+        shifted.receipt_candidate(&base.allocation_occurrence, &base.verified_buyback_budget),
+        &governed,
+        &verifier,
+    );
+
+    // Assert
+    let error = result.expect_err("shifted lane state requires a new exact receipt");
+    assert!(error.to_string().contains("exact receipt binding"));
+}
+
+#[test]
+fn fee_lane_receipt_rejects_context_and_receipt_shape_before_verifier() {
+    // Arrange
+    let base = fixture();
+    let mut wrong_context = fee_lane_receipt_fixture(&base);
+    wrong_context.context.coordinator_release_id = root(999);
+    let governed = bind_zdex_fee_allocation_shadow_profile_v1(
+        &base.profile.profile_id,
+        base.profile.authority_epoch,
+        ZDEXFeeAllocationProfileRegistriesV1 {
+            profile: &base.profile,
+            lanes: &base.lanes,
+            coordinators: &base.coordinators,
+            routes: &base.routes,
+            policy_registry: &base.policies,
+        },
+    )
+    .expect("governed fee profile");
+    let mut wrong_receipt = fee_lane_receipt_fixture(&base);
+    wrong_receipt.receipt.receipt_kind = ReceiptKindV1::CONDITIONAL;
+
+    // Act
+    let context_result = verify_zdex_tokenomics_fee_lane_receipt_v1(
+        wrong_context.receipt_candidate(&base.allocation_occurrence, &base.verified_buyback_budget),
+        &governed,
+        &PanickingVerifier,
+    );
+    let receipt_result = verify_zdex_tokenomics_fee_lane_receipt_v1(
+        wrong_receipt.receipt_candidate(&base.allocation_occurrence, &base.verified_buyback_budget),
+        &governed,
+        &PanickingVerifier,
+    );
+
+    // Assert
+    assert!(context_result.is_err());
+    assert!(receipt_result.is_err());
 }
