@@ -798,6 +798,23 @@ def test_closed_lane_registry_and_global_state_require_every_lane() -> None:
         )
 
 
+def test_enabled_lane_requires_a_nonzero_state_commitment() -> None:
+    # Arrange
+    profile, _ = _profile()
+    state = _state(profile, height=0)
+
+    # Act / Assert: kills a mutant that lets an enabled lane commit no state.
+    with pytest.raises(ValueError, match="enabled lane state root must be nonzero"):
+        replace(state.lane_roots[0], state_root=ZERO_ROOT_V1)
+
+    disabled_empty = replace(
+        state.lane_roots[1],
+        enabled=False,
+        state_root=ZERO_ROOT_V1,
+    )
+    assert disabled_empty.state_root == ZERO_ROOT_V1
+
+
 def test_release_ids_bind_content_while_semver_remains_descriptive() -> None:
     release = _module_release(LaneIdV1.ZUSD_MONETARY, 1)
     renamed = replace(release, semantic_version="descriptive-label")

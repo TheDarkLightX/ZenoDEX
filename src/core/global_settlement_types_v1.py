@@ -1007,6 +1007,8 @@ class LaneStateRootV1:
         _require_root(self.module_release_id, name="lane state module release id")
         _require_bool(self.enabled, name="lane state enabled")
         _require_root(self.state_root, name="lane state root", allow_zero=True)
+        if self.enabled and self.state_root == ZERO_ROOT_V1:
+            raise ValueError("enabled lane state root must be nonzero")
 
     def to_canonical(self) -> dict[str, object]:
         return {

@@ -14,7 +14,7 @@ use zenodex_global_settlement_abi_v1::{
     LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1, LaneIdV1, LaneModuleReleaseV1,
     LaneModuleTransitionJournalV1, LaneRegistryV1, MigrationObjectClassV1, ReceiptKindV1, RootV1,
     RouteCompositionJournalV1, RouteRegistryV1, RouteReleaseV1, StateMigrationCertificateV1,
-    ALL_LANE_IDS_V1, ROUTE_COMPOSITION_ASSUMPTION_SCHEMA_V1,
+    ALL_LANE_IDS_V1, ROUTE_COMPOSITION_ASSUMPTION_SCHEMA_V1, ZERO_ROOT_V1,
 };
 
 const FIXTURE_SCHEMA: &str = "zenodex/global-settlement-abi-v1-golden/v1";
@@ -121,6 +121,26 @@ fn check_vector<T: DeserializeOwned + Serialize>(
         vector.expected_root
     );
     typed
+}
+
+#[test]
+fn enabled_lane_requires_a_nonzero_state_commitment() {
+    // Arrange
+    let fixture = load_fixture();
+    let mut state = parse_vector::<GlobalEconomicStateV1>(vector(&fixture, "global_state"));
+    state.lane_roots[0].state_root =
+        RootV1::parse(ZERO_ROOT_V1, "test zero lane state root", true).unwrap();
+
+    // Act
+    let rejected = state.validate().unwrap_err();
+
+    // Assert: kills a mutant that allows an enabled lane to commit no state.
+    assert_eq!(rejected, AbiErrorV1::InvalidRoot("enabled lane state root"));
+
+    let disabled = parse_vector::<GlobalEconomicStateV1>(vector(&fixture, "global_state"));
+    assert!(!disabled.lane_roots[1].enabled);
+    assert!(disabled.lane_roots[1].state_root.is_zero());
+    disabled.validate().unwrap();
 }
 
 #[test]

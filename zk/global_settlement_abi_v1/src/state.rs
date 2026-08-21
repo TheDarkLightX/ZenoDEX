@@ -20,7 +20,11 @@ impl LaneStateRootV1 {
     fn validate(&self) -> AbiResultV1<()> {
         self.module_release_id
             .validate("lane state module release id", false)?;
-        self.state_root.validate("lane state root", true)
+        self.state_root.validate("lane state root", true)?;
+        if self.enabled && self.state_root.is_zero() {
+            return Err(AbiErrorV1::InvalidRoot("enabled lane state root"));
+        }
+        Ok(())
     }
 }
 
