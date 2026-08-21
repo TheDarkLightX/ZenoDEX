@@ -65,6 +65,7 @@ from .proof_mining_runtime import (
     sync_proof_mining_runtime_balance,
 )
 from .proof_verifier import ProofVerifierConfig
+from .zeno_ledger_v0 import hash_v0
 from .zusd_custody_registry import build_live_canonical_zusd_custody_registry
 from .zusd_monetary_bridge import (
     ZUSDMonetaryConfig,
@@ -415,6 +416,7 @@ def _apply_faucet(
     faucet_op: Any,
     *,
     allow: bool,
+    reserved_protocol_token_asset_id: str,
     reserved_zusd_asset_id: str,
 ) -> Tuple[bool, DexState, Optional[str]]:
     if faucet_op is None:
@@ -439,6 +441,11 @@ def _apply_faucet(
             asset,
             name=f"faucet.mint[{i}].asset",
         )
+        if canonical_asset == _asset_identity(
+            reserved_protocol_token_asset_id,
+            name="reserved_protocol_token_asset_id",
+        ):
+            return False, state, "faucet cannot mint protocol token"
         if canonical_asset == _asset_identity(
             reserved_zusd_asset_id,
             name="reserved_zusd_asset_id",
@@ -1245,6 +1252,15 @@ def _compute_app_tx_proposal_legacy_v1(
     consensus_mode = _bool_env("TAU_DEX_CONSENSUS_MODE", default=True)
     chain_id = os.environ.get("TAU_DEX_CHAIN_ID", "").strip() or os.environ.get("TAU_NETWORK_ID", "").strip() or "tau-local"
     canonical_zusd_asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
+    token_symbol = os.environ.get("TAU_DEX_TOKEN_SYMBOL", "ZDEX").strip() or "ZDEX"
+    configured_protocol_token_asset_id = os.environ.get(
+        "TAU_DEX_PROTOCOL_TOKEN_ASSET_ID",
+        "",
+    ).strip()
+    canonical_protocol_token_asset_id = configured_protocol_token_asset_id or hash_v0(
+        "testnet_bundle_token_asset",
+        {"chain_id": chain_id, "symbol": token_symbol},
+    )
 
     try:
         state, proof_mining_state, zusd_monetary_state = _load_state(app_state_json)
@@ -1276,6 +1292,7 @@ def _compute_app_tx_proposal_legacy_v1(
         state,
         faucet_op,
         allow=allow_faucet,
+        reserved_protocol_token_asset_id=canonical_protocol_token_asset_id,
         reserved_zusd_asset_id=canonical_zusd_asset_id,
     )
     if not ok:

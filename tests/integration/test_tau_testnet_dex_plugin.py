@@ -34,7 +34,12 @@ def _settlement_commitment_dict_from_settlement(settlement_obj: dict) -> dict:
 
 
 def _batch_commitment(*, signing_dicts: list[dict], settlement_obj: dict) -> str:
-    from src.state.canonical import CANONICAL_ENCODING_VERSION, canonical_json_bytes, domain_sep_bytes, sha256_hex
+    from src.state.canonical import (
+        CANONICAL_ENCODING_VERSION,
+        canonical_json_bytes,
+        domain_sep_bytes,
+        sha256_hex,
+    )
 
     payload = {
         "schema": "zenodex_batch",
@@ -71,6 +76,39 @@ def test_apply_app_tx_sync_only(monkeypatch):
     parsed = json.loads(app_state_json)
     assert isinstance(parsed, dict)
     assert parsed.get("version") == DEX_SNAPSHOT_VERSION
+
+
+def test_given_protocol_token_when_faucet_mint_requested_then_rejects_without_state_change(monkeypatch):
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.zeno_ledger_v0 import hash_v0
+
+    sender_pubkey = "00" * 48
+    chain_id = "tau-local"
+    protocol_token_asset_id = hash_v0(
+        "testnet_bundle_token_asset",
+        {"chain_id": chain_id, "symbol": "ZDEX"},
+    )
+    monkeypatch.setenv("TAU_DEX_FAUCET", "1")
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
+    monkeypatch.setenv("TAU_DEX_TOKEN_SYMBOL", "ZDEX")
+
+    result = plugin.apply_app_tx(
+        app_state_json="",
+        chain_balances={sender_pubkey: 123},
+        operations={
+            "7": {"mint": [[sender_pubkey, protocol_token_asset_id, 1]]},
+        },
+        tx_sender_pubkey=sender_pubkey,
+        block_timestamp=123,
+    )
+
+    assert result == (
+        False,
+        "",
+        "",
+        None,
+        "faucet cannot mint protocol token",
+    )
 
 
 def test_apply_app_tx_create_pool_unsigned_intent(monkeypatch):
