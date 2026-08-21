@@ -9,6 +9,9 @@ use zenodex_asset_lane_coordinator_risc0_shared::{
     prepare_asset_lane_coordinator_v1, AssetLaneCoordinatorGuestInputV1,
     ASSET_LANE_COORDINATOR_GUEST_INPUT_SCHEMA_V1, ASSET_TRANSFER_MODULE_IMAGE_ID_V1,
 };
+use zenodex_asset_transfer_module_risc0_methods::{
+    ZENODEX_ASSET_TRANSFER_MODULE_GUEST_ELF, ZENODEX_ASSET_TRANSFER_MODULE_GUEST_ID,
+};
 use zenodex_global_settlement_abi_v1::{
     AbiErrorV1, AssetLaneCoordinatorContextV1, AssetLaneModuleCompatibilityV1, AssetSupplyV1,
     AssetTransferCommandV1, AssetTransferContextV1, AssetTransferLaneModuleInputV1,
@@ -140,6 +143,23 @@ fn method_availability_and_fake_module_receipt_reject_before_authority() {
             Err(AssetLaneCoordinatorHostErrorV1::ModuleReceiptKind)
         )),
         Err(other) => panic!("unexpected method-availability error: {other:?}"),
+    }
+}
+
+#[test]
+fn pinned_child_image_matches_exact_embedded_module_or_placeholder_mode() {
+    // Arrange / Act
+    let method_is_placeholder = ZENODEX_ASSET_TRANSFER_MODULE_GUEST_ELF.is_empty();
+
+    // Assert: full method builds bind the coordinator source pin to the exact
+    // generated child image. Fast skip-build fixtures remain explicit.
+    if method_is_placeholder {
+        assert_eq!(ZENODEX_ASSET_TRANSFER_MODULE_GUEST_ID, [0; 8]);
+    } else {
+        assert_eq!(
+            ZENODEX_ASSET_TRANSFER_MODULE_GUEST_ID,
+            ASSET_TRANSFER_MODULE_IMAGE_ID_V1
+        );
     }
 }
 
