@@ -28,6 +28,7 @@ RUNTIME_CANONICAL_SOURCE_PATH = "src/state/canonical.py"
 RUNTIME_STATE_CLASS = "GlobalEconomicStateV1"
 RUNTIME_EFFECT_KIND_CLASS = "EconomicEffectKindV1"
 RUNTIME_CANONICAL_HELPER = "canonical_json_bytes"
+RUNTIME_SOURCE_SUBJECT = "76c205cf4e03997a9148e40167eb5656654d75b1"
 M6_DELTA_SOURCE_PATH = "src/core/m6_safe_mount_types_v1.py"
 M6_DELTA_CLASS = "ValueDeltaClassV1"
 M6_DELTA_ENTRY_CLASS = "ValueDeltaEntryV1"
@@ -62,16 +63,20 @@ RUNTIME_STATE_FIELD_CANDIDATES: dict[str, tuple[str, ...]] = {
     "custody": ("custody",),
     "supply": ("supplies",),
     "debt": ("liabilities",),
-    "lp_state": (),
+    "lp_state": ("lane_roots",),
     "perps_liabilities": ("liabilities",),
     "escrows": ("custody", "outbox", "terminal_obligations"),
     "reserves": ("reserves",),
-    "auctions": (),
+    "auctions": ("lane_roots",),
     "withdrawals": ("outbox", "custody", "terminal_obligations"),
     "outbox": ("outbox",),
     "history": ("history_root",),
     "nullifiers": ("replay_state",),
     "release_state": ("writer_epoch", "profile_root", "lane_roots"),
+}
+RUNTIME_STATE_LANE_SLICES: dict[str, tuple[tuple[str, str], ...]] = {
+    "lp_state": (("lane_roots", "SPOT_LIQUIDITY"),),
+    "auctions": (("lane_roots", "SEALED_AUCTION"),),
 }
 RUNTIME_DELTA_KIND_CANDIDATES: dict[str, tuple[str, ...]] = {
     "internal_transfer": ("ACCOUNT_MOVEMENT",),
@@ -295,10 +300,11 @@ def _frozen_source(
     repo_root: Path,
     path: str,
     *,
+    subject: str,
     read_current: Callable[[Path], bytes] | None = None,
 ) -> bytes:
     frozen = subprocess.run(
-        ["git", "show", f"{semantics.SOURCE_SUBJECT}:{path}"],
+        ["git", "show", f"{subject}:{path}"],
         cwd=repo_root,
         check=True,
         capture_output=True,
@@ -314,9 +320,17 @@ def _runtime_projection(
     *,
     read_current: Callable[[Path], bytes] | None = None,
 ) -> dict[str, Any]:
-    frozen = _frozen_source(repo_root, RUNTIME_SOURCE_PATH, read_current=read_current)
+    frozen = _frozen_source(
+        repo_root,
+        RUNTIME_SOURCE_PATH,
+        subject=RUNTIME_SOURCE_SUBJECT,
+        read_current=read_current,
+    )
     canonical_frozen = _frozen_source(
-        repo_root, RUNTIME_CANONICAL_SOURCE_PATH, read_current=read_current
+        repo_root,
+        RUNTIME_CANONICAL_SOURCE_PATH,
+        subject=RUNTIME_SOURCE_SUBJECT,
+        read_current=read_current,
     )
     tree = ast.parse(frozen.decode("utf-8"), filename=RUNTIME_SOURCE_PATH)
     canonical_tree = ast.parse(
@@ -335,17 +349,17 @@ def _runtime_projection(
         )
     return {
         "status": "SOURCE_SHAPE_INVENTORY_RESEARCH_ONLY",
-        "source_subject": semantics.SOURCE_SUBJECT,
+        "source_subject": RUNTIME_SOURCE_SUBJECT,
         "source_pins": [
             {
                 "path": RUNTIME_SOURCE_PATH,
                 "sha256": hashlib.sha256(frozen).hexdigest(),
-                "subject": semantics.SOURCE_SUBJECT,
+                "subject": RUNTIME_SOURCE_SUBJECT,
             },
             {
                 "path": RUNTIME_CANONICAL_SOURCE_PATH,
                 "sha256": hashlib.sha256(canonical_frozen).hexdigest(),
-                "subject": semantics.SOURCE_SUBJECT,
+                "subject": RUNTIME_SOURCE_SUBJECT,
             },
         ],
         "state_type": {
@@ -389,7 +403,12 @@ def _m6_value_delta_surface(
     *,
     read_current: Callable[[Path], bytes] | None = None,
 ) -> dict[str, Any]:
-    frozen = _frozen_source(repo_root, M6_DELTA_SOURCE_PATH, read_current=read_current)
+    frozen = _frozen_source(
+        repo_root,
+        M6_DELTA_SOURCE_PATH,
+        subject=semantics.SOURCE_SUBJECT,
+        read_current=read_current,
+    )
     tree = ast.parse(frozen.decode("utf-8"), filename=M6_DELTA_SOURCE_PATH)
     delta_class = _class_definition(tree, M6_DELTA_CLASS)
     delta_entry = _class_definition(tree, M6_DELTA_ENTRY_CLASS)
@@ -485,11 +504,17 @@ def _runtime_mapping_gap_ledger(
         abstract_name = field["name"]
         candidate_names = RUNTIME_STATE_FIELD_CANDIDATES[abstract_name]
         present_candidates = tuple(name for name in candidate_names if name in runtime_fields)
+        lane_slices = [
+            {"runtime_field": runtime_field, "lane_id": lane_id}
+            for runtime_field, lane_id in RUNTIME_STATE_LANE_SLICES.get(abstract_name, ())
+            if runtime_field in present_candidates
+        ]
         candidate_fields.update(present_candidates)
         field_mappings.append(
             {
                 "abstract_field": abstract_name,
                 "candidate_runtime_fields": list(present_candidates),
+                "candidate_runtime_lane_slices": lane_slices,
                 "status": (
                     "UNPROVED_CANDIDATE"
                     if present_candidates

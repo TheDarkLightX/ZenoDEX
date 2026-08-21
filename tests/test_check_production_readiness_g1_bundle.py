@@ -25,7 +25,7 @@ def test_cross_artifact_bundle_is_exact_and_research_only() -> None:
     assert report["command_count"] == 33
     assert report["profile_decision_count"] == 9
     assert report["open_state_obligation_count"] == 6
-    assert report["runtime_mapping_unmapped_field_count"] == 2
+    assert report["runtime_mapping_unmapped_field_count"] == 0
     assert report["runtime_mapping_unmapped_effect_kind_count"] == 0
     assert report["m6_runtime_delta_surplus_count"] == 1
     assert report["m6_entry_missing_required_field_count"] == 29

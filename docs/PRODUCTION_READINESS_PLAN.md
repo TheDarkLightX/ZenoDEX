@@ -647,15 +647,20 @@ the 14 declared global-state fields, eleven delta classes, and six closure
 obligations. Field types, root codec, event equations, ownership,
 reconciliation, terminal drains, and parity remain `OPEN_GAP`; this artifact
 does not claim a complete algebra or production authority. It also records an
-exact-base source-shape inventory for `GlobalEconomicStateV1`: 16 typed runtime
+source-pinned shape inventory for `GlobalEconomicStateV1`: 16 typed runtime
 fields appear in the literal `to_canonical()` projection, the runtime
 effect-kind enum has 9 values, and the canonical encoder/helper sources are
-both pinned. The source-shape evidence does not establish wire-order semantics
+both pinned. Enabled lane roots now reject the all-zero root in Python and
+Rust, while disabled lanes retain an explicit zero-root representation. The
+source-shape evidence does not establish wire-order semantics
 or the mapping from the abstract 14-field/11-delta G1 model to runtime
 semantics.
 The same artifact carries a structural mapping-gap ledger: candidate names for
 the 14 abstract fields and eleven delta classes are recorded without selecting
-any mapping. `lp_state` and `auctions` have no named runtime field candidate.
+any mapping. Every abstract field now has a structural candidate. The ledger
+records `lane_roots[SPOT_LIQUIDITY]` for `lp_state` and
+`lane_roots[SEALED_AUCTION]` for `auctions`. These opaque roots do not establish either lane's
+payload schema, transition equations, reconciliation, or terminal lifecycle.
 The event algebra now gives all nine runtime effect kinds a structural
 candidate through explicit reserve-transfer, fee-allocation, and reward event
 roles. These are source-shape correspondences, not semantic proofs; all

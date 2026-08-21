@@ -34,7 +34,7 @@ def test_state_delta_gate_is_exact_and_non_authoritative() -> None:
     assert report["runtime_effect_kind_count"] == 9
     assert report["runtime_mapping_field_count"] == 14
     assert report["runtime_mapping_delta_class_count"] == 11
-    assert report["unmapped_abstract_field_count"] == 2
+    assert report["unmapped_abstract_field_count"] == 0
     assert report["unmapped_runtime_effect_kind_count"] == 0
     assert report["m6_runtime_delta_class_count"] == 9
     assert report["m6_runtime_delta_surplus_count"] == 1
@@ -61,7 +61,7 @@ def test_runtime_shape_inventory_is_source_bound_without_closing_g1() -> None:
     runtime = build_document()["runtime_projection"]
 
     assert runtime["status"] == "SOURCE_SHAPE_INVENTORY_RESEARCH_ONLY"
-    assert runtime["source_subject"] == "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+    assert runtime["source_subject"] == "76c205cf4e03997a9148e40167eb5656654d75b1"
     assert runtime["state_type"]["declared_field_count"] == 16
     assert runtime["state_type"]["literal_projection_starts_with_schema"] is True
     assert runtime["state_type"]["declared_fields_match_literal_projection"] is True
@@ -77,9 +77,21 @@ def test_runtime_shape_inventory_is_source_bound_without_closing_g1() -> None:
     assert mapping["abstract_field_count"] == 14
     assert mapping["abstract_delta_class_count"] == 11
     assert mapping["semantic_mapping_status"] == "GAP_ABSTRACT_14_FIELD_AND_11_DELTA_MAPPING_UNPROVED"
-    assert set(mapping["unmapped_abstract_fields"]) == {"lp_state", "auctions"}
+    assert mapping["unmapped_abstract_fields"] == []
     assert mapping["runtime_effect_kinds_without_abstract_delta_candidate"] == []
     assert mapping["production_authority"] == "NONE"
+
+    field_mappings = {
+        item["abstract_field"]: item for item in mapping["field_mappings"]
+    }
+    assert field_mappings["lp_state"]["candidate_runtime_lane_slices"] == [
+        {"lane_id": "SPOT_LIQUIDITY", "runtime_field": "lane_roots"}
+    ]
+    assert field_mappings["auctions"]["candidate_runtime_lane_slices"] == [
+        {"lane_id": "SEALED_AUCTION", "runtime_field": "lane_roots"}
+    ]
+    assert field_mappings["lp_state"]["status"] == "UNPROVED_CANDIDATE"
+    assert field_mappings["auctions"]["status"] == "UNPROVED_CANDIDATE"
 
     m6_surface = mapping["m6_value_delta_surface"]
     assert m6_surface["status"] == "M6_DELTA_SOURCE_SHAPE_RESEARCH_ONLY"
@@ -127,6 +139,23 @@ def test_closure_tampering_fails_closed(tmp_path: Path) -> None:
     assert report["ok"] is False
     assert report["g1_complete"] is False
     assert report["production_ready"] is False
+
+
+def test_lane_slice_selector_tampering_fails_closed(tmp_path: Path) -> None:
+    # Arrange
+    artifact = json.loads(DEFAULT_OUTPUT.read_text(encoding="utf-8"))
+    mappings = artifact["runtime_mapping_gap_ledger"]["field_mappings"]
+    lp_mapping = next(item for item in mappings if item["abstract_field"] == "lp_state")
+    lp_mapping["candidate_runtime_lane_slices"][0]["lane_id"] = "SEALED_AUCTION"
+    candidate = tmp_path / "candidate.json"
+    candidate.write_bytes(_encoded(artifact))
+
+    # Act
+    report = check_artifact(candidate)
+
+    # Assert: kills a lane-selector swap that preserves the outer field name.
+    assert report["ok"] is False
+    assert report["production_authority"] == "NONE"
 
 
 def test_malformed_state_projection_fails_closed(tmp_path: Path) -> None:

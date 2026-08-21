@@ -124,7 +124,7 @@
     "open_state_obligation_count": 6,
     "profile_decision_count": 9,
     "runtime_mapping_unmapped_effect_kind_count": 0,
-    "runtime_mapping_unmapped_field_count": 2,
+    "runtime_mapping_unmapped_field_count": 0,
     "state_field_count": 14
   },
   "production_promotion": false,

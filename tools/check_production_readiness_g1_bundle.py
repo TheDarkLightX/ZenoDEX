@@ -255,14 +255,14 @@ def _check_decision_and_state_bindings(documents: Mapping[str, Mapping[str, Any]
     m6_pins = m6_surface.get("source_pins") if isinstance(m6_surface, Mapping) else None
     if (
         not isinstance(mapping, Mapping)
-        or mapping.get("source_subject") != BASE_SOURCE_SUBJECT
+        or mapping.get("source_subject") != state_delta.RUNTIME_SOURCE_SUBJECT
         or mapping.get("status") != "GAP_STRUCTURAL_CANDIDATES_ONLY"
         or mapping.get("semantic_mapping_status")
         != "GAP_ABSTRACT_14_FIELD_AND_11_DELTA_MAPPING_UNPROVED"
         or mapping.get("production_authority") != "NONE"
         or mapping.get("abstract_field_count") != 14
         or mapping.get("abstract_delta_class_count") != 11
-        or set(mapping.get("unmapped_abstract_fields", [])) != {"lp_state", "auctions"}
+        or mapping.get("unmapped_abstract_fields", []) != []
         or mapping.get("runtime_effect_kinds_without_abstract_delta_candidate", []) != []
         or global_effect_surface.get("runtime_class") != state_delta.RUNTIME_EFFECT_KIND_CLASS
         or global_effect_surface.get("runtime_effect_kind_count") != 9

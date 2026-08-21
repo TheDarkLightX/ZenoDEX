@@ -171,6 +171,7 @@
         "candidate_runtime_fields": [
           "balances"
         ],
+        "candidate_runtime_lane_slices": [],
         "status": "UNPROVED_CANDIDATE"
       },
       {
@@ -178,6 +179,7 @@
         "candidate_runtime_fields": [
           "custody"
         ],
+        "candidate_runtime_lane_slices": [],
         "status": "UNPROVED_CANDIDATE"
       },
       {
@@ -185,6 +187,7 @@
         "candidate_runtime_fields": [
           "supplies"
         ],
+        "candidate_runtime_lane_slices": [],
         "status": "UNPROVED_CANDIDATE"
       },
       {
@@ -192,18 +195,28 @@
         "candidate_runtime_fields": [
           "liabilities"
         ],
+        "candidate_runtime_lane_slices": [],
         "status": "UNPROVED_CANDIDATE"
       },
       {
         "abstract_field": "lp_state",
-        "candidate_runtime_fields": [],
-        "status": "NO_DEDICATED_RUNTIME_FIELD_CANDIDATE"
+        "candidate_runtime_fields": [
+          "lane_roots"
+        ],
+        "candidate_runtime_lane_slices": [
+          {
+            "lane_id": "SPOT_LIQUIDITY",
+            "runtime_field": "lane_roots"
+          }
+        ],
+        "status": "UNPROVED_CANDIDATE"
       },
       {
         "abstract_field": "perps_liabilities",
         "candidate_runtime_fields": [
           "liabilities"
         ],
+        "candidate_runtime_lane_slices": [],
         "status": "UNPROVED_CANDIDATE"
       },
       {
@@ -213,6 +226,7 @@
           "outbox",
           "terminal_obligations"
         ],
+        "candidate_runtime_lane_slices": [],
         "status": "UNPROVED_CANDIDATE"
       },
       {
@@ -220,12 +234,21 @@
         "candidate_runtime_fields": [
           "reserves"
         ],
+        "candidate_runtime_lane_slices": [],
         "status": "UNPROVED_CANDIDATE"
       },
       {
         "abstract_field": "auctions",
-        "candidate_runtime_fields": [],
-        "status": "NO_DEDICATED_RUNTIME_FIELD_CANDIDATE"
+        "candidate_runtime_fields": [
+          "lane_roots"
+        ],
+        "candidate_runtime_lane_slices": [
+          {
+            "lane_id": "SEALED_AUCTION",
+            "runtime_field": "lane_roots"
+          }
+        ],
+        "status": "UNPROVED_CANDIDATE"
       },
       {
         "abstract_field": "withdrawals",
@@ -234,6 +257,7 @@
           "custody",
           "terminal_obligations"
         ],
+        "candidate_runtime_lane_slices": [],
         "status": "UNPROVED_CANDIDATE"
       },
       {
@@ -241,6 +265,7 @@
         "candidate_runtime_fields": [
           "outbox"
         ],
+        "candidate_runtime_lane_slices": [],
         "status": "UNPROVED_CANDIDATE"
       },
       {
@@ -248,6 +273,7 @@
         "candidate_runtime_fields": [
           "history_root"
         ],
+        "candidate_runtime_lane_slices": [],
         "status": "UNPROVED_CANDIDATE"
       },
       {
@@ -255,6 +281,7 @@
         "candidate_runtime_fields": [
           "replay_state"
         ],
+        "candidate_runtime_lane_slices": [],
         "status": "UNPROVED_CANDIDATE"
       },
       {
@@ -264,6 +291,7 @@
           "profile_root",
           "lane_roots"
         ],
+        "candidate_runtime_lane_slices": [],
         "status": "UNPROVED_CANDIDATE"
       }
     ],
@@ -538,13 +566,10 @@
       "oracle_occurrences"
     ],
     "semantic_mapping_status": "GAP_ABSTRACT_14_FIELD_AND_11_DELTA_MAPPING_UNPROVED",
-    "source_subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+    "source_subject": "76c205cf4e03997a9148e40167eb5656654d75b1",
     "status": "GAP_STRUCTURAL_CANDIDATES_ONLY",
     "unmapped_abstract_delta_classes": [],
-    "unmapped_abstract_fields": [
-      "lp_state",
-      "auctions"
-    ]
+    "unmapped_abstract_fields": []
   },
   "runtime_projection": {
     "canonical_codec": {
@@ -558,7 +583,7 @@
     },
     "effect_kind_type": {
       "class": "EconomicEffectKindV1",
-      "class_line": 1327,
+      "class_line": 1329,
       "kind_count": 9,
       "kinds": [
         "ACCOUNT_MOVEMENT",
@@ -582,19 +607,19 @@
     "source_pins": [
       {
         "path": "src/core/global_settlement_types_v1.py",
-        "sha256": "c7ff7f362462502293c017fd986c14ef57c9aaa344e4b1093ea260ec18e84568",
-        "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+        "sha256": "918f0de9366e6f2cfd9eaca41f911b557249bae4a7d39b50d2d6d593d1856d8f",
+        "subject": "76c205cf4e03997a9148e40167eb5656654d75b1"
       },
       {
         "path": "src/state/canonical.py",
         "sha256": "5864562594e715eb32bb3b54c5d0afd4987d3009d63d53a77b587f18b3ba429b",
-        "subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c"
+        "subject": "76c205cf4e03997a9148e40167eb5656654d75b1"
       }
     ],
-    "source_subject": "e8059cb5e27e80c2f8ba627501d6097f3c5e6b0c",
+    "source_subject": "76c205cf4e03997a9148e40167eb5656654d75b1",
     "state_type": {
       "class": "GlobalEconomicStateV1",
-      "class_line": 1178,
+      "class_line": 1180,
       "declared_field_count": 16,
       "declared_fields": [
         "chain_id",
