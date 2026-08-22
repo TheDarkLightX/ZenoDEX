@@ -480,6 +480,17 @@ buy-and-burn, Oracle-economics, strategy-escrow, proof-task, external-finality,
 and autonomous-governance capability. A profile containing only the workflows
 already represented there must not satisfy VM-01 or VM-04 by omission.
 
+`ZENODEX_M6_CAPABILITY_MANIFEST_V1.json` now fixes an independent research
+universe of 103 capability requirements over all 12 lanes, four required
+cross-lane routes, and the day-one exclusions. Its content-derived root is
+bound through the profile's governed policy registry, and certified initial
+state admission rejects a missing, foreign, or altered capability binding.
+This closes the self-declared subset-universe counterexample for the in-memory
+reference path. The manifest deliberately remains `manifest_complete=false`
+and `release_eligible=false`: individual command semantics, disabled-writer
+certificates, implementation/evidence mappings, and economic policy decisions
+are still unresolved, so this binding grants no production authority.
+
 ## Recommended implementation order
 
 1. Freeze the exact complete M6 capability manifest and ZDEX semantic anchors,
