@@ -1,0 +1,173 @@
+{
+  "entries": [
+    {
+      "authority_status": "NON_AUTHORITATIVE",
+      "classification": "ADVISORY_CONTROL_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/autonomous_governance_session_store_file.py",
+      "rationale": "Persists an autonomous-governance advisory session; the session can submit ordinary commands and has no publication capability.",
+      "release_binding": null,
+      "sink_id": "autogov_session_atomic_replace",
+      "sink_kind": "OS_REPLACE",
+      "symbol": "_write_store_file",
+      "writer_entrypoint_ids": []
+    },
+    {
+      "authority_status": "UNMOUNTED_LEGACY",
+      "classification": "DURABLE_VALUE_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/confidential_sealed_bid_api.py",
+      "rationale": "Persists legacy sealed-bid API records outside the selected M6 publication route.",
+      "release_binding": null,
+      "sink_id": "legacy_sealed_bid_atomic_replace",
+      "sink_kind": "OS_REPLACE",
+      "symbol": "_atomic_write_json",
+      "writer_entrypoint_ids": [
+        "legacy_sealed_bid_commit",
+        "legacy_sealed_bid_settle"
+      ]
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "INITIALIZATION_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/global_economic_commit_v1.py",
+      "rationale": "Installs only a verifier-admitted initial economic state into the research publisher.",
+      "release_binding": null,
+      "sink_id": "global_economic_initial_state_assignment",
+      "sink_kind": "STATE_ATTRIBUTE_ASSIGN",
+      "symbol": "GlobalEconomicCommitPortV1.__init__",
+      "writer_entrypoint_ids": [
+        "separate_global_economic_commit_port"
+      ]
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "PUBLICATION_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/global_economic_commit_v1.py",
+      "rationale": "Publishes a verifier-witnessed epoch into the research in-memory global state after the public wrapper takes the commit lock.",
+      "release_binding": null,
+      "sink_id": "global_economic_epoch_state_assignment",
+      "sink_kind": "STATE_ATTRIBUTE_ASSIGN",
+      "symbol": "GlobalEconomicCommitPortV1._commit_locked",
+      "writer_entrypoint_ids": [
+        "separate_global_economic_commit_port"
+      ]
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "INITIALIZATION_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/m6_commit_port_v1.py",
+      "rationale": "Installs the validated M6 research initial state before any publication attempt.",
+      "release_binding": null,
+      "sink_id": "m6_commit_initial_state_assignment",
+      "sink_kind": "STATE_ATTRIBUTE_ASSIGN",
+      "symbol": "M6CommitPortV1.__init__",
+      "writer_entrypoint_ids": [
+        "m6_research_commit_direct",
+        "m6_research_commit_direct_batch",
+        "m6_research_commit_zrpf"
+      ]
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "PUBLICATION_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/m6_commit_port_v1.py",
+      "rationale": "The research M6 commit port changes its in-memory head only after finality and binding checks.",
+      "release_binding": null,
+      "sink_id": "m6_commit_publication_state_assignment",
+      "sink_kind": "STATE_ATTRIBUTE_ASSIGN",
+      "symbol": "M6CommitPortV1._publish_proposal",
+      "writer_entrypoint_ids": [
+        "m6_research_commit_direct",
+        "m6_research_commit_direct_batch",
+        "m6_research_commit_zrpf"
+      ]
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "DURABLE_VALUE_STATE",
+      "occurrence_count": 2,
+      "path": "src/integration/m6_durable_store_v1.py",
+      "rationale": "Atomically installs bounded canonical M6 ledger files in the research durable store.",
+      "release_binding": null,
+      "sink_id": "m6_durable_file_atomic_replace",
+      "sink_kind": "OS_REPLACE",
+      "symbol": "_atomic_replace_file",
+      "writer_entrypoint_ids": [
+        "m6_research_durable_direct",
+        "m6_research_durable_direct_batch",
+        "m6_research_durable_zrpf"
+      ]
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "DURABLE_VALUE_STATE",
+      "occurrence_count": 2,
+      "path": "src/integration/m6_durable_store_v1.py",
+      "rationale": "Atomically installs a complete immutable M6 ledger bundle directory.",
+      "release_binding": null,
+      "sink_id": "m6_durable_bundle_atomic_replace",
+      "sink_kind": "OS_REPLACE",
+      "symbol": "_write_bundle_directory",
+      "writer_entrypoint_ids": [
+        "m6_research_durable_direct",
+        "m6_research_durable_direct_batch",
+        "m6_research_durable_zrpf"
+      ]
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "AUTHORITY_CONTROL_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/m6_migration_admission_v1.py",
+      "rationale": "Persists the anti-rollback external anchor for a research migration branch.",
+      "release_binding": null,
+      "sink_id": "m6_migration_anchor_atomic_replace",
+      "sink_kind": "OS_REPLACE",
+      "symbol": "_write_external_anchor",
+      "writer_entrypoint_ids": []
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "DURABLE_VALUE_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/m6_migration_admission_v1.py",
+      "rationale": "Atomically persists migration state and committed-step history in the research HEAD.",
+      "release_binding": null,
+      "sink_id": "m6_migration_head_atomic_replace",
+      "sink_kind": "OS_REPLACE",
+      "symbol": "_write_head",
+      "writer_entrypoint_ids": []
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "DURABLE_EXTERNAL_EFFECT_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/m6_outbox_delivery_journal_v1.py",
+      "rationale": "Persists one delivery attempt whose state controls external-effect retry and quarantine behavior.",
+      "release_binding": null,
+      "sink_id": "m6_outbox_attempt_atomic_replace",
+      "sink_kind": "OS_REPLACE",
+      "symbol": "M6OutboxDeliveryJournalV1._replace_attempt_unlocked",
+      "writer_entrypoint_ids": []
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "DURABLE_EXTERNAL_EFFECT_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/m6_outbox_delivery_journal_v1.py",
+      "rationale": "Persists the manifest binding delivery-attempt files to their canonical roots.",
+      "release_binding": null,
+      "sink_id": "m6_outbox_attempt_manifest_atomic_replace",
+      "sink_kind": "OS_REPLACE",
+      "symbol": "M6OutboxDeliveryJournalV1._update_attempt_manifest_unlocked",
+      "writer_entrypoint_ids": []
+    }
+  ],
+  "schema": "zenodex/m6-value-sink-inventory/v1",
+  "scope": "Python direct os.replace and literal SQL DML under src plus self._state publication sinks under src/integration; research inventory only"
+}
