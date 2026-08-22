@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
+from typing import cast
 
 from tools.check_value_movement_closure_status_v1 import (
     DEFAULT_STATUS_PATH,
@@ -23,10 +24,18 @@ def _write_status(tmp_path: Path, value: dict[str, object]) -> Path:
     return path
 
 
+def _implemented_slices(value: dict[str, object]) -> list[dict[str, object]]:
+    return cast(list[dict[str, object]], value["implemented_slices"])
+
+
+def _findings(report: dict[str, object]) -> list[str]:
+    return cast(list[str], report["findings"])
+
+
 def _replay_slice(value: dict[str, object]) -> dict[str, object]:
     return next(
         row
-        for row in value["implemented_slices"]  # type: ignore[index]
+        for row in _implemented_slices(value)
         if row["id"] == "ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1"
     )
 
@@ -34,7 +43,7 @@ def _replay_slice(value: dict[str, object]) -> dict[str, object]:
 def _source_head_slice(value: dict[str, object]) -> dict[str, object]:
     return next(
         row
-        for row in value["implemented_slices"]  # type: ignore[index]
+        for row in _implemented_slices(value)
         if row["id"] == "ECONOMIC_INITIAL_STATE_SOURCE_HEAD_ACTIVATION_V1"
     )
 
@@ -42,7 +51,7 @@ def _source_head_slice(value: dict[str, object]) -> dict[str, object]:
 def _durable_activation_slice(value: dict[str, object]) -> dict[str, object]:
     return next(
         row
-        for row in value["implemented_slices"]  # type: ignore[index]
+        for row in _implemented_slices(value)
         if row["id"] == "GLOBAL_ECONOMIC_DURABLE_ACTIVATION_JOURNAL_V1"
     )
 
@@ -51,7 +60,7 @@ def test_current_value_movement_closure_status_is_exact_and_fail_closed() -> Non
     report = check_value_movement_closure_status_v1()
 
     assert report["ok"] is True
-    assert report["findings"] == []
+    assert _findings(report) == []
     assert report["gate_count"] == 12
     assert report["production_authority"] == "NONE"
 
@@ -70,10 +79,10 @@ def test_checker_rejects_authority_gate_and_semantic_promotion_drift(
     )
 
     assert report["ok"] is False
-    assert "authority or readiness nonclaim drift" in report["findings"]
-    assert "VM gate IDs must be complete and ordered" in report["findings"]
-    assert "buy-and-burn semantic anchor drift" in report["findings"]
-    assert "claim status drift" in report["findings"]
+    assert "authority or readiness nonclaim drift" in _findings(report)
+    assert "VM gate IDs must be complete and ordered" in _findings(report)
+    assert "buy-and-burn semantic anchor drift" in _findings(report)
+    assert "claim status drift" in _findings(report)
 
 
 def test_checker_rejects_stale_claim_hash_and_duplicate_json_key(tmp_path: Path) -> None:
@@ -90,9 +99,9 @@ def test_checker_rejects_stale_claim_hash_and_duplicate_json_key(tmp_path: Path)
     )
 
     assert stale_report["ok"] is False
-    assert "claim contract hash mismatch" in stale_report["findings"]
+    assert "claim contract hash mismatch" in _findings(stale_report)
     assert duplicate_report["ok"] is False
-    assert "duplicate JSON key" in duplicate_report["findings"][0]
+    assert "duplicate JSON key" in _findings(duplicate_report)[0]
 
 
 def test_checker_rejects_stale_replay_slice_evidence(tmp_path: Path) -> None:
@@ -107,13 +116,13 @@ def test_checker_rejects_stale_replay_slice_evidence(tmp_path: Path) -> None:
     )
 
     assert report["ok"] is False
-    assert "replay slice implementation commit mismatch" in report["findings"]
+    assert "replay slice implementation commit mismatch" in _findings(report)
     assert (
-        "replay slice artifact hash mismatch: python_sha256" in report["findings"]
+        "replay slice artifact hash mismatch: python_sha256" in _findings(report)
     )
     assert (
         "replay slice golden evidence mismatch: golden_continuity_root"
-        in report["findings"]
+        in _findings(report)
     )
 
 
@@ -128,10 +137,10 @@ def test_checker_rejects_stale_source_head_slice_evidence(tmp_path: Path) -> Non
     )
 
     assert report["ok"] is False
-    assert "source-head slice subject commit mismatch" in report["findings"]
+    assert "source-head slice subject commit mismatch" in _findings(report)
     assert (
         "source-head slice artifact hash mismatch: python_commit_port_sha256"
-        in report["findings"]
+        in _findings(report)
     )
 
 
@@ -150,15 +159,16 @@ def test_checker_rejects_stale_durable_activation_slice_evidence(
 
     assert report["ok"] is False
     assert (
-        "durable activation slice implementation commit mismatch" in report["findings"]
+        "durable activation slice implementation commit mismatch"
+        in _findings(report)
     )
     assert (
         "durable activation slice artifact subject commit mismatch"
-        in report["findings"]
+        in _findings(report)
     )
     assert (
         "durable activation slice artifact hash mismatch: python_journal_sha256"
-        in report["findings"]
+        in _findings(report)
     )
 
 
@@ -206,7 +216,9 @@ def test_checker_rejects_erased_known_semantic_conflict(tmp_path: Path) -> None:
     )
 
     assert report["ok"] is False
-    assert "known semantic conflict IDs are incomplete or unordered" in report["findings"]
+    assert "known semantic conflict IDs are incomplete or unordered" in _findings(
+        report
+    )
 
 
 def test_checker_rejects_stale_value_sink_observation(tmp_path: Path) -> None:
@@ -220,7 +232,9 @@ def test_checker_rejects_stale_value_sink_observation(tmp_path: Path) -> None:
     )
 
     assert report["ok"] is False
-    assert "value sink inventory observation is stale or incomplete" in report["findings"]
+    assert "value sink inventory observation is stale or incomplete" in _findings(
+        report
+    )
 
 
 def test_checker_rejects_stale_asset_precision_observation(tmp_path: Path) -> None:
@@ -234,4 +248,6 @@ def test_checker_rejects_stale_asset_precision_observation(tmp_path: Path) -> No
     )
 
     assert report["ok"] is False
-    assert "asset precision policy observation is stale or incomplete" in report["findings"]
+    assert "asset precision policy observation is stale or incomplete" in _findings(
+        report
+    )
