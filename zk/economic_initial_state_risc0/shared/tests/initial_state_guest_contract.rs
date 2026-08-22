@@ -10,15 +10,17 @@ use zenodex_economic_initial_state_risc0_shared::{
 };
 use zenodex_global_settlement_abi_v1::{
     derive_economic_initial_state_atom_occurrences_v1,
+    derive_economic_initial_state_outbox_continuity_root_v1,
     derive_economic_initial_state_replay_continuity_root_v1,
     economic_initial_state_atom_coverage_policy_binding_v1, EconomicAmountV1,
     EconomicInitialStateAtomClassificationV1, EconomicInitialStateAtomSourceV1,
     EconomicInitialStateJournalV1, EconomicInitialStateKindV1,
     EconomicInitialStateSourceManifestV1, EconomicPolicyBindingV1, EconomicPolicyRegistryV1,
-    EconomicProfileSnapshotV1, GlobalEconomicStateV1, ReplayStateV1, RootV1,
-    GLOBAL_SETTLEMENT_ABI_V1, M6_ASSET_PRECISION_POLICY_KIND_V1, M6_ASSET_PRECISION_POLICY_ROOT_V1,
-    M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1, M6_CAPABILITY_MANIFEST_ROOT_V1,
-    M6_CAPABILITY_POLICY_KIND_V1, M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
+    EconomicProfileSnapshotV1, GlobalEconomicStateV1, OutboxStateV1, OutboxStatusV1, ReplayStateV1,
+    RootV1, GLOBAL_SETTLEMENT_ABI_V1, M6_ASSET_PRECISION_POLICY_KIND_V1,
+    M6_ASSET_PRECISION_POLICY_ROOT_V1, M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1,
+    M6_CAPABILITY_MANIFEST_ROOT_V1, M6_CAPABILITY_POLICY_KIND_V1,
+    M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -129,7 +131,12 @@ fn fixture() -> EconomicInitialStateGuestInputV1 {
         )
         .unwrap(),
         terminal_continuity_root: root(2_005),
-        outbox_continuity_root: root(2_006),
+        outbox_continuity_root: derive_economic_initial_state_outbox_continuity_root_v1(
+            EconomicInitialStateKindV1::MIGRATION,
+            &state,
+            Some(&predecessor_state),
+        )
+        .unwrap(),
         source_manifest_root: root(2_007),
         toolchain_manifest_root: root(2_008),
         root_image_id: profile.root_image_id.clone(),
@@ -193,6 +200,8 @@ fn predecessor_substitution_or_absence_rejects_before_any_receipt_exists() {
     missing_predecessor.predecessor_state = None;
     let mut changed_replay_root = fixture();
     changed_replay_root.statement.replay_continuity_root = root(9_002);
+    let mut changed_outbox_root = fixture();
+    changed_outbox_root.statement.outbox_continuity_root = root(9_004);
     let mut deleted_replay = fixture();
     deleted_replay
         .predecessor_state
@@ -220,6 +229,10 @@ fn predecessor_substitution_or_absence_rejects_before_any_receipt_exists() {
     ));
     assert!(matches!(
         prepare_economic_initial_state_v1(changed_replay_root),
+        Err(EconomicInitialStateGuestErrorV1::StatementBinding)
+    ));
+    assert!(matches!(
+        prepare_economic_initial_state_v1(changed_outbox_root),
         Err(EconomicInitialStateGuestErrorV1::StatementBinding)
     ));
     assert!(matches!(
@@ -284,5 +297,45 @@ fn guest_rejects_4097_predecessor_rows_before_validating_the_hostile_first_row()
     assert!(matches!(
         prepare_economic_initial_state_v1(input),
         Err(EconomicInitialStateGuestErrorV1::ExplicitRowCount)
+    ));
+}
+
+fn oversized_outbox() -> Vec<OutboxStateV1> {
+    let mut rows: Vec<_> = (0..4_097)
+        .map(|index| OutboxStateV1 {
+            effect_id: root(20_000 + index),
+            destination_id: "bridge:test".to_owned(),
+            payload_hash: root(30_000 + index),
+            commit_id: root(40_000 + index),
+            status: OutboxStatusV1::PENDING,
+        })
+        .collect();
+    rows[0].destination_id = "invalid unicode ☃".to_owned();
+    rows
+}
+
+#[test]
+fn guest_preflights_4097_target_outbox_rows_before_row_validation() {
+    // Arrange
+    let mut input = fixture();
+    input.state.outbox = oversized_outbox();
+
+    // Act / Assert
+    assert!(matches!(
+        prepare_economic_initial_state_v1(input),
+        Err(EconomicInitialStateGuestErrorV1::OutboxRowCount)
+    ));
+}
+
+#[test]
+fn guest_preflights_4097_predecessor_outbox_rows_before_row_validation() {
+    // Arrange
+    let mut input = fixture();
+    input.predecessor_state.as_mut().unwrap().outbox = oversized_outbox();
+
+    // Act / Assert
+    assert!(matches!(
+        prepare_economic_initial_state_v1(input),
+        Err(EconomicInitialStateGuestErrorV1::OutboxRowCount)
     ));
 }

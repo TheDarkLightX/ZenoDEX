@@ -3,9 +3,9 @@
 This workspace contains the bounded RISC0 3.0.6 guest and host verifier for an
 `EconomicInitialStateJournalV1`. The guest checks the canonical typed input,
 the exact explicit-row coverage statement, predecessor-state binding, and the
-bounded replay-preservation relation, then commits the canonical journal. The
-host requires the measured method image, a Succinct receipt, the exact journal
-bytes, and successful receipt verification.
+bounded replay and outbox-preservation relations, then commits the canonical
+journal. The host requires the measured method image, a Succinct receipt, the
+exact journal bytes, and successful receipt verification.
 
 ## Fast contract gate
 
@@ -61,8 +61,15 @@ root commits the complete predecessor and target replay tables. Target-only
 replay rows remain unauthenticated and can consume future identifiers, so this
 relation does not establish full nonce or nullifier continuity.
 
+For external-effect outbox state, genesis requires an empty table and migration
+requires exact preservation of every row, including delivery status, under a
+4,096-row preflight bound. Migration-time enqueue, deletion, acknowledgment or
+compaction rejects. This relation does not prove that a source row came from an
+authorized effect, or that external delivery, finality, retry, acknowledgment
+and destination idempotency are correct.
+
 The guest also does not prove private lane-root contents, predecessor migration
 classification totality, source authorization legitimacy, Oracle continuity,
 private-lane nullifiers, ledger-history continuity, terminal-obligation
-continuity, outbox continuity or delivery, mounted writer exclusivity, or
+continuity, external delivery, mounted writer exclusivity, or
 whole-economy value-movement safety.

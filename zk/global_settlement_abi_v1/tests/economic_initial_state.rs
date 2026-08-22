@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use serde_json::Value;
 use zenodex_global_settlement_abi_v1::{
     derive_economic_initial_state_atom_occurrences_v1,
+    derive_economic_initial_state_outbox_continuity_root_v1,
     derive_economic_initial_state_replay_continuity_root_v1,
     economic_initial_state_atom_coverage_policy_binding_v1, hash_bytes_sha256_v1, hash_global_v1,
     validate_economic_initial_state_bindings_v1,
@@ -11,11 +12,11 @@ use zenodex_global_settlement_abi_v1::{
     EconomicInitialStateAtomClassificationV1, EconomicInitialStateAtomSourceV1,
     EconomicInitialStateCertificateV1, EconomicInitialStateKindV1,
     EconomicInitialStateSourceManifestV1, EconomicPolicyBindingV1, EconomicPolicyRegistryV1,
-    EconomicProfileSnapshotV1, GlobalEconomicStateV1, ProfileStatusV1, ReceiptKindV1,
-    ReplayStateV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1, M6_ASSET_PRECISION_POLICY_KIND_V1,
-    M6_ASSET_PRECISION_POLICY_ROOT_V1, M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1,
-    M6_CAPABILITY_MANIFEST_ROOT_V1, M6_CAPABILITY_POLICY_KIND_V1,
-    M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
+    EconomicProfileSnapshotV1, GlobalEconomicStateV1, OutboxStateV1, OutboxStatusV1,
+    ProfileStatusV1, ReceiptKindV1, ReplayStateV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1,
+    M6_ASSET_PRECISION_POLICY_KIND_V1, M6_ASSET_PRECISION_POLICY_ROOT_V1,
+    M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1, M6_CAPABILITY_MANIFEST_ROOT_V1,
+    M6_CAPABILITY_POLICY_KIND_V1, M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -152,7 +153,12 @@ fn migration_certificate(
         )
         .unwrap(),
         terminal_continuity_root: root(35),
-        outbox_continuity_root: root(36),
+        outbox_continuity_root: derive_economic_initial_state_outbox_continuity_root_v1(
+            EconomicInitialStateKindV1::MIGRATION,
+            state,
+            Some(predecessor_state),
+        )
+        .unwrap(),
         source_manifest_root: root(37),
         toolchain_manifest_root: root(38),
         root_image_id: profile.root_image_id.clone(),
@@ -261,6 +267,12 @@ fn genesis_predecessor_binding_requires_absence() {
         None,
     )
     .unwrap();
+    certificate.outbox_continuity_root = derive_economic_initial_state_outbox_continuity_root_v1(
+        EconomicInitialStateKindV1::GENESIS,
+        &state,
+        None,
+    )
+    .unwrap();
     certificate.root_image_id = profile.root_image_id.clone();
     let statement = certificate.journal();
 
@@ -358,7 +370,7 @@ fn initialization_statement_binds_exact_profile_state_and_manifest_without_recei
 
     // Assert
     accepted.unwrap();
-    let mut changed_statement = statement;
+    let mut changed_statement = statement.clone();
     changed_statement.state_atom_coverage_root = root(8_001);
     assert!(validate_economic_initial_state_statement_bindings_v1(
         &profile,
@@ -383,6 +395,21 @@ fn initialization_statement_binds_exact_profile_state_and_manifest_without_recei
         ),
         Err(AbiErrorV1::InvalidBinding(
             "initial state replay continuity root"
+        ))
+    );
+    let mut changed_outbox_root = statement;
+    changed_outbox_root.outbox_continuity_root = root(8_003);
+    assert_eq!(
+        validate_economic_initial_state_statement_bindings_v1(
+            &profile,
+            &policy_registry,
+            &state,
+            Some(&predecessor_state),
+            &source_manifest,
+            &changed_outbox_root,
+        ),
+        Err(AbiErrorV1::InvalidBinding(
+            "initial state outbox continuity root"
         ))
     );
 }
@@ -436,6 +463,38 @@ fn migration_statement_rejects_missing_or_substituted_predecessor_state() {
         ),
         Err(AbiErrorV1::InvalidBinding(
             "migration replay predecessor preservation"
+        ))
+    );
+
+    let mut predecessor_with_unpreserved_outbox = predecessor_state.clone();
+    predecessor_with_unpreserved_outbox.outbox = vec![OutboxStateV1 {
+        effect_id: root(8_204),
+        destination_id: "bridge:test".to_owned(),
+        payload_hash: root(8_205),
+        commit_id: root(8_206),
+        status: OutboxStatusV1::PENDING,
+    }];
+    let mut rebound_outbox_statement = statement.clone();
+    rebound_outbox_statement.source_state_root =
+        predecessor_with_unpreserved_outbox.state_root().unwrap();
+    rebound_outbox_statement.replay_continuity_root =
+        derive_economic_initial_state_replay_continuity_root_v1(
+            EconomicInitialStateKindV1::MIGRATION,
+            &state,
+            Some(&predecessor_with_unpreserved_outbox),
+        )
+        .unwrap();
+    assert_eq!(
+        validate_economic_initial_state_statement_bindings_v1(
+            &profile,
+            &policy_registry,
+            &state,
+            Some(&predecessor_with_unpreserved_outbox),
+            &source_manifest,
+            &rebound_outbox_statement,
+        ),
+        Err(AbiErrorV1::InvalidBinding(
+            "migration outbox predecessor preservation"
         ))
     );
     let mut changed_balance = predecessor_state.clone();

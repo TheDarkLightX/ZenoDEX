@@ -13,6 +13,10 @@ from .economic_initial_state_atom_coverage_v1 import (
     validate_economic_initial_state_atom_coverage_v1,
     validate_economic_initial_state_explicit_row_count_v1,
 )
+from .economic_initial_state_outbox_continuity_v1 import (
+    derive_economic_initial_state_outbox_continuity_root_v1,
+    validate_economic_initial_state_outbox_row_count_v1,
+)
 from .economic_initial_state_replay_continuity_v1 import (
     derive_economic_initial_state_replay_continuity_root_v1,
 )
@@ -254,8 +258,12 @@ def _snapshot_economic_initial_state_admission_v1(
 ) -> _OwnedEconomicInitialStateAdmissionV1:
     if type(admission) is not EconomicInitialStateAdmissionV1:
         raise TypeError("commit port initial admission type is not closed")
+    validate_economic_initial_state_outbox_row_count_v1(admission.state)
     validate_economic_initial_state_explicit_row_count_v1(admission.state)
     if admission.predecessor_state is not None:
+        validate_economic_initial_state_outbox_row_count_v1(
+            admission.predecessor_state
+        )
         validate_economic_initial_state_explicit_row_count_v1(
             admission.predecessor_state
         )
@@ -318,6 +326,27 @@ def _validate_economic_initial_state_predecessor_binding_v1(
             raise ValueError(f"initial state predecessor {label} mismatch")
 
 
+def _validate_economic_initial_state_continuity_bindings_v1(
+    state: GlobalEconomicStateV1,
+    predecessor_state: GlobalEconomicStateV1 | None,
+    certificate: EconomicInitialStateCertificateV1,
+) -> None:
+    replay_root = derive_economic_initial_state_replay_continuity_root_v1(
+        certificate.kind,
+        state,
+        predecessor_state,
+    )
+    if certificate.replay_continuity_root != replay_root:
+        raise ValueError("initial state replay continuity root mismatch")
+    outbox_root = derive_economic_initial_state_outbox_continuity_root_v1(
+        certificate.kind,
+        state,
+        predecessor_state,
+    )
+    if certificate.outbox_continuity_root != outbox_root:
+        raise ValueError("initial state outbox continuity root mismatch")
+
+
 def _validate_owned_economic_initial_state_admission_v1(
     owned: _OwnedEconomicInitialStateAdmissionV1,
 ) -> bytes:
@@ -341,13 +370,11 @@ def _validate_owned_economic_initial_state_admission_v1(
         owned.predecessor_state,
         certificate,
     )
-    replay_continuity_root = derive_economic_initial_state_replay_continuity_root_v1(
-        certificate.kind,
+    _validate_economic_initial_state_continuity_bindings_v1(
         state,
         owned.predecessor_state,
+        certificate,
     )
-    if certificate.replay_continuity_root != replay_continuity_root:
-        raise ValueError("initial state replay continuity root mismatch")
     if certificate.kind is not source_manifest.kind:
         raise ValueError("initial state certificate and source manifest kind mismatch")
     coverage_root = validate_economic_initial_state_atom_coverage_v1(

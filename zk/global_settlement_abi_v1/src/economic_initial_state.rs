@@ -11,6 +11,10 @@ use crate::economic_initial_state_atom_coverage::{
     validate_economic_initial_state_atom_coverage_v1,
     validate_economic_initial_state_explicit_row_count_v1, EconomicInitialStateSourceManifestV1,
 };
+use crate::economic_initial_state_outbox_continuity::{
+    validate_economic_initial_state_outbox_continuity_binding_v1,
+    validate_economic_initial_state_outbox_row_count_v1,
+};
 use crate::economic_initial_state_replay_continuity::validate_economic_initial_state_replay_continuity_binding_v1;
 use crate::proof::ReceiptKindV1;
 use crate::release::{
@@ -207,8 +211,10 @@ pub fn validate_economic_initial_state_statement_bindings_v1(
     source_manifest: &EconomicInitialStateSourceManifestV1,
     statement: &EconomicInitialStateJournalV1,
 ) -> AbiResultV1<()> {
+    validate_economic_initial_state_outbox_row_count_v1(state)?;
     validate_economic_initial_state_explicit_row_count_v1(state)?;
     if let Some(predecessor) = predecessor_state {
+        validate_economic_initial_state_outbox_row_count_v1(predecessor)?;
         validate_economic_initial_state_explicit_row_count_v1(predecessor)?;
     }
     profile.validate()?;
@@ -226,12 +232,7 @@ pub fn validate_economic_initial_state_statement_bindings_v1(
     )?;
     state.validate_profile(profile)?;
     validate_economic_initial_state_predecessor_binding_v1(state, predecessor_state, statement)?;
-    validate_economic_initial_state_replay_continuity_binding_v1(
-        statement.kind,
-        state,
-        predecessor_state,
-        &statement.replay_continuity_root,
-    )?;
+    validate_economic_initial_state_continuity_bindings_v1(state, predecessor_state, statement)?;
     if statement.kind != source_manifest.kind {
         return Err(AbiErrorV1::InvalidBinding(
             "initial state statement source manifest kind",
@@ -258,6 +259,25 @@ pub fn validate_economic_initial_state_statement_bindings_v1(
         return Err(AbiErrorV1::InvalidBinding("economic initial state content"));
     }
     Ok(())
+}
+
+fn validate_economic_initial_state_continuity_bindings_v1(
+    state: &GlobalEconomicStateV1,
+    predecessor_state: Option<&GlobalEconomicStateV1>,
+    statement: &EconomicInitialStateJournalV1,
+) -> AbiResultV1<()> {
+    validate_economic_initial_state_replay_continuity_binding_v1(
+        statement.kind,
+        state,
+        predecessor_state,
+        &statement.replay_continuity_root,
+    )?;
+    validate_economic_initial_state_outbox_continuity_binding_v1(
+        statement.kind,
+        state,
+        predecessor_state,
+        &statement.outbox_continuity_root,
+    )
 }
 
 fn validate_economic_initial_state_predecessor_binding_v1(

@@ -4,14 +4,15 @@
 //! explicit global-state tables. Migration inputs also disclose the exact
 //! predecessor state whose root and coordinates are committed by the public
 //! journal. Private lane-root contents, predecessor-source classification
-//! totality, continuity relations, and source-authorization legitimacy remain
-//! external obligations.
+//! totality, remaining continuity relations, and source-authorization
+//! legitimacy remain external obligations.
 
 use core::fmt;
 
 use serde::{Deserialize, Serialize};
 use zenodex_global_settlement_abi_v1::{
     canonical_bytes_v1, validate_economic_initial_state_explicit_row_count_v1,
+    validate_economic_initial_state_outbox_row_count_v1,
     validate_economic_initial_state_statement_bindings_v1, EconomicInitialStateJournalV1,
     EconomicInitialStateSourceManifestV1, EconomicPolicyRegistryV1, EconomicProfileSnapshotV1,
     GlobalEconomicStateV1, MAX_JOURNAL_BYTES_V1,
@@ -35,16 +36,25 @@ pub struct EconomicInitialStateGuestInputV1 {
 }
 
 impl EconomicInitialStateGuestInputV1 {
+    fn validate_row_counts(&self) -> Result<(), EconomicInitialStateGuestErrorV1> {
+        validate_economic_initial_state_outbox_row_count_v1(&self.state)
+            .map_err(|_| EconomicInitialStateGuestErrorV1::OutboxRowCount)?;
+        validate_economic_initial_state_explicit_row_count_v1(&self.state)
+            .map_err(|_| EconomicInitialStateGuestErrorV1::ExplicitRowCount)?;
+        if let Some(predecessor) = &self.predecessor_state {
+            validate_economic_initial_state_outbox_row_count_v1(predecessor)
+                .map_err(|_| EconomicInitialStateGuestErrorV1::OutboxRowCount)?;
+            validate_economic_initial_state_explicit_row_count_v1(predecessor)
+                .map_err(|_| EconomicInitialStateGuestErrorV1::ExplicitRowCount)?;
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> Result<(), EconomicInitialStateGuestErrorV1> {
         if self.schema != ECONOMIC_INITIAL_STATE_GUEST_INPUT_SCHEMA_V1 {
             return Err(EconomicInitialStateGuestErrorV1::Schema);
         }
-        validate_economic_initial_state_explicit_row_count_v1(&self.state)
-            .map_err(|_| EconomicInitialStateGuestErrorV1::ExplicitRowCount)?;
-        if let Some(predecessor) = &self.predecessor_state {
-            validate_economic_initial_state_explicit_row_count_v1(predecessor)
-                .map_err(|_| EconomicInitialStateGuestErrorV1::ExplicitRowCount)?;
-        }
+        self.validate_row_counts()?;
         self.profile
             .validate()
             .map_err(|_| EconomicInitialStateGuestErrorV1::Abi)?;
@@ -76,6 +86,7 @@ pub enum EconomicInitialStateGuestErrorV1 {
     NonCanonicalInput,
     Schema,
     ExplicitRowCount,
+    OutboxRowCount,
     Abi,
     StatementBinding,
     JournalTooLarge,
@@ -92,6 +103,7 @@ impl EconomicInitialStateGuestErrorV1 {
             Self::ExplicitRowCount => {
                 "economic initial-state explicit row count exceeds release bound"
             }
+            Self::OutboxRowCount => "economic initial-state outbox row count exceeds release bound",
             Self::Abi => "economic initial-state guest ABI validation failed",
             Self::StatementBinding => "economic initial-state statement binding rejected",
             Self::JournalTooLarge => "economic initial-state journal exceeds ABI bound",
@@ -146,6 +158,7 @@ pub fn prepare_economic_initial_state_from_canonical_bytes_v1(
     validate_input_size_v1(input_bytes)?;
     let input: EconomicInitialStateGuestInputV1 = serde_json::from_slice(input_bytes)
         .map_err(|_| EconomicInitialStateGuestErrorV1::Decode)?;
+    input.validate_row_counts()?;
     let canonical =
         canonical_bytes_v1(&input).map_err(|_| EconomicInitialStateGuestErrorV1::Abi)?;
     if canonical != input_bytes {

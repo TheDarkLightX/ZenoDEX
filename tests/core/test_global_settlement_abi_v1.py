@@ -94,6 +94,8 @@ from src.core.global_settlement_abi_v1 import (
     LaneTransitionRejectedV1,
     MigrationObjectClassV1,
     MigrationObjectRowV1,
+    OutboxStateV1,
+    OutboxStatusV1,
     ProfileStatusV1,
     ReceiptKindV1,
     ReleaseStatusV1,
@@ -106,6 +108,7 @@ from src.core.global_settlement_abi_v1 import (
     canonical_economic_command_body_bytes_v1,
     compose_asset_lane_epoch_effect_plans_v1,
     derive_economic_initial_state_atom_occurrences_v1,
+    derive_economic_initial_state_outbox_continuity_root_v1,
     derive_economic_initial_state_replay_continuity_root_v1,
     economic_initial_state_atom_coverage_policy_binding_v1,
     economic_initial_state_atom_occurrence_v1,
@@ -522,7 +525,11 @@ def _initial_state_admission(
             predecessor_state,
         ),
         terminal_continuity_root=_root(453),
-        outbox_continuity_root=_root(454),
+        outbox_continuity_root=derive_economic_initial_state_outbox_continuity_root_v1(
+            kind,
+            state,
+            predecessor_state,
+        ),
         source_manifest_root=_root(455),
         toolchain_manifest_root=_root(456),
         root_image_id=profile.root_image_id,
@@ -3046,6 +3053,19 @@ def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> 
             replay_verifier,
         )
     assert replay_verifier.calls == []
+    outbox_verifier = _RecordingReceiptVerifier()
+    with pytest.raises(ValueError, match="outbox continuity root mismatch"):
+        GlobalEconomicCommitPortV1(
+            replace(
+                admission,
+                certificate=replace(
+                    admission.certificate,
+                    outbox_continuity_root=_root(88_206),
+                ),
+            ),
+            outbox_verifier,
+        )
+    assert outbox_verifier.calls == []
     with pytest.raises(ValueError, match="writer epoch exactly once"):
         replace(
             migration_certificate,
@@ -3163,6 +3183,59 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
             verifier,
         )
 
+    pending_outbox = OutboxStateV1(
+        effect_id=_root(88_207),
+        destination_id="bridge:test",
+        payload_hash=_root(88_208),
+        commit_id=_root(88_209),
+        status=OutboxStatusV1.PENDING,
+    )
+    predecessor_with_outbox = replace(source_state, outbox=(pending_outbox,))
+    migrated_with_outbox = replace(migrated_state, outbox=(pending_outbox,))
+    exact_outbox_admission = _initial_state_admission(
+        target_profile,
+        migrated_with_outbox,
+        kind=EconomicInitialStateKindV1.MIGRATION,
+        source_manifest=source_manifest,
+        source_profile_root=source_profile.profile_id,
+        source_state_root=predecessor_with_outbox.state_root,
+        source_writer_epoch=predecessor_with_outbox.writer_epoch,
+        source_height=predecessor_with_outbox.height,
+        predecessor_state=predecessor_with_outbox,
+    )
+    assert (
+        GlobalEconomicCommitPortV1(
+            exact_outbox_admission,
+            _RecordingReceiptVerifier(),
+        ).state.state_root
+        == migrated_with_outbox.state_root
+    )
+    acknowledged_target = replace(
+        migrated_with_outbox,
+        outbox=(replace(pending_outbox, status=OutboxStatusV1.ACKNOWLEDGED),),
+    )
+    rewritten_outbox_verifier = _RecordingReceiptVerifier()
+    with pytest.raises(ValueError, match="preserve the exact predecessor outbox"):
+        GlobalEconomicCommitPortV1(
+            replace(
+                exact_outbox_admission,
+                state=acknowledged_target,
+                certificate=replace(
+                    exact_outbox_admission.certificate,
+                    state_root=acknowledged_target.state_root,
+                    replay_continuity_root=(
+                        derive_economic_initial_state_replay_continuity_root_v1(
+                            EconomicInitialStateKindV1.MIGRATION,
+                            acknowledged_target,
+                            predecessor_with_outbox,
+                        )
+                    ),
+                ),
+            ),
+            rewritten_outbox_verifier,
+        )
+    assert rewritten_outbox_verifier.calls == []
+
     genesis_profile, _ = _profile()
     genesis_state = _state(genesis_profile, height=0)
     genesis_admission = _initial_state_admission(genesis_profile, genesis_state)
@@ -3174,6 +3247,24 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
     )
     with pytest.raises(ValueError, match="genesis replay state must be empty"):
         _initial_state_admission(genesis_profile, genesis_with_replay)
+    genesis_with_outbox = replace(
+        genesis_state,
+        outbox=(pending_outbox,),
+    )
+    with pytest.raises(ValueError, match="genesis outbox must be empty"):
+        _initial_state_admission(genesis_profile, genesis_with_outbox)
+
+    oversized_outbox_predecessor = replace(source_state)
+    object.__setattr__(
+        oversized_outbox_predecessor,
+        "outbox",
+        tuple(pending_outbox for _ in range(4_097)),
+    )
+    with pytest.raises(ValueError, match="outbox exceeds the continuity row bound"):
+        GlobalEconomicCommitPortV1(
+            replace(admission, predecessor_state=oversized_outbox_predecessor),
+            verifier,
+        )
 
     oversized_predecessor = replace(
         source_state,
@@ -3199,6 +3290,117 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
             verifier,
         )
     assert verifier.calls == []
+
+
+def test_migration_initial_state_rejects_each_outbox_mutation_before_receipt() -> None:
+    # Arrange
+    source_profile, _ = _profile()
+    source_state = _state(source_profile, height=0)
+    provisional_target = _state(source_profile, height=1)
+    source_manifest = _source_manifest_for_state_v1(
+        EconomicInitialStateKindV1.MIGRATION,
+        provisional_target,
+    )
+    target_profile, _ = _profile(
+        source_manifest=source_manifest,
+        authority_epoch=source_profile.authority_epoch + 1,
+    )
+    target_state = _state(target_profile, height=1)
+    first = OutboxStateV1(
+        effect_id=_root(89_001),
+        destination_id="bridge:test",
+        payload_hash=_root(89_002),
+        commit_id=_root(89_003),
+        status=OutboxStatusV1.PENDING,
+    )
+    second = OutboxStateV1(
+        effect_id=_root(89_004),
+        destination_id="bridge:test",
+        payload_hash=_root(89_005),
+        commit_id=_root(89_006),
+        status=OutboxStatusV1.ACKNOWLEDGED,
+    )
+    predecessor = replace(source_state, outbox=(first, second))
+    exact_target = replace(target_state, outbox=(first, second))
+    exact_admission = _initial_state_admission(
+        target_profile,
+        exact_target,
+        kind=EconomicInitialStateKindV1.MIGRATION,
+        source_manifest=source_manifest,
+        source_profile_root=source_profile.profile_id,
+        source_state_root=predecessor.state_root,
+        source_writer_epoch=predecessor.writer_epoch,
+        source_height=predecessor.height,
+        predecessor_state=predecessor,
+    )
+    mutation_rows = (
+        ("deletion", (first,)),
+        (
+            "addition",
+            (
+                first,
+                second,
+                OutboxStateV1(
+                    _root(89_007),
+                    "bridge:test",
+                    _root(89_008),
+                    _root(89_009),
+                    OutboxStatusV1.PENDING,
+                ),
+            ),
+        ),
+        ("effect", (replace(first, effect_id=_root(89_000)), second)),
+        ("destination", (replace(first, destination_id="bridge:evil"), second)),
+        ("payload", (replace(first, payload_hash=_root(89_010)), second)),
+        ("commit", (replace(first, commit_id=_root(89_011)), second)),
+        ("status", (replace(first, status=OutboxStatusV1.ACKNOWLEDGED), second)),
+    )
+
+    # Act / Assert
+    assert (
+        GlobalEconomicCommitPortV1(
+            exact_admission,
+            _RecordingReceiptVerifier(),
+        ).state.state_root
+        == exact_target.state_root
+    )
+    for label, changed_rows in mutation_rows:
+        changed_target = replace(exact_target, outbox=changed_rows)
+        changed_certificate = replace(
+            exact_admission.certificate,
+            state_root=changed_target.state_root,
+            replay_continuity_root=(
+                derive_economic_initial_state_replay_continuity_root_v1(
+                    EconomicInitialStateKindV1.MIGRATION,
+                    changed_target,
+                    predecessor,
+                )
+            ),
+        )
+        verifier = _RecordingReceiptVerifier()
+        with pytest.raises(
+            ValueError,
+            match="preserve the exact predecessor outbox",
+        ):
+            GlobalEconomicCommitPortV1(
+                replace(
+                    exact_admission,
+                    state=changed_target,
+                    certificate=changed_certificate,
+                ),
+                verifier,
+            )
+        assert verifier.calls == [], label
+
+    reordered_target = replace(exact_target)
+    object.__setattr__(reordered_target, "outbox", (second, first))
+    reorder_verifier = _RecordingReceiptVerifier()
+    with pytest.raises(ValueError, match="outbox must be canonically ordered"):
+        GlobalEconomicCommitPortV1(
+            replace(exact_admission, state=reordered_target),
+            reorder_verifier,
+        )
+    assert reorder_verifier.calls == []
 
 
 def test_commit_port_owns_and_revalidates_active_profile_graph() -> None:
