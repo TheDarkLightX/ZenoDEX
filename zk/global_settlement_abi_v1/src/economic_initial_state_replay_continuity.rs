@@ -18,27 +18,6 @@ struct EconomicInitialStateReplayContinuityV1<'a> {
     target_replay_state: &'a [ReplayStateV1],
 }
 
-fn require_source_rows_preserved_v1(
-    source_rows: &[ReplayStateV1],
-    target_rows: &[ReplayStateV1],
-) -> AbiResultV1<()> {
-    let mut target_index = 0_usize;
-    for source_row in source_rows {
-        while target_index < target_rows.len()
-            && target_rows[target_index].replay_id < source_row.replay_id
-        {
-            target_index += 1;
-        }
-        if target_index == target_rows.len() || target_rows[target_index] != *source_row {
-            return Err(AbiErrorV1::InvalidBinding(
-                "migration replay predecessor preservation",
-            ));
-        }
-        target_index += 1;
-    }
-    Ok(())
-}
-
 pub fn derive_economic_initial_state_replay_continuity_root_v1(
     kind: EconomicInitialStateKindV1,
     target_state: &GlobalEconomicStateV1,
@@ -65,10 +44,11 @@ pub fn derive_economic_initial_state_replay_continuity_root_v1(
         }
         (EconomicInitialStateKindV1::MIGRATION, Some(predecessor)) => {
             let source_state_root = predecessor.state_root()?;
-            require_source_rows_preserved_v1(
-                &predecessor.replay_state,
-                &target_state.replay_state,
-            )?;
+            if target_state.replay_state != predecessor.replay_state {
+                return Err(AbiErrorV1::InvalidBinding(
+                    "migration replay predecessor preservation",
+                ));
+            }
             (source_state_root, predecessor.replay_state.as_slice())
         }
     };

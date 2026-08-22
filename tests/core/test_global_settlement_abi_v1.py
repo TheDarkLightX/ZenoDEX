@@ -3003,7 +3003,10 @@ def test_initial_state_callback_cannot_mutate_publisher_owned_state() -> None:
 def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> None:
     source_profile, _ = _profile()
     source_state = _state(source_profile, height=0)
-    provisional_target = _state(source_profile, height=1)
+    provisional_target = replace(
+        _state(source_profile, height=1),
+        replay_state=source_state.replay_state,
+    )
     source_manifest = _source_manifest_for_state_v1(
         EconomicInitialStateKindV1.MIGRATION,
         provisional_target,
@@ -3012,7 +3015,10 @@ def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> 
         source_manifest=source_manifest,
         authority_epoch=source_profile.authority_epoch + 1,
     )
-    migrated_state = _state(target_profile, height=1)
+    migrated_state = replace(
+        _state(target_profile, height=1),
+        replay_state=source_state.replay_state,
+    )
     admission = _initial_state_admission(
         target_profile,
         migrated_state,
@@ -3029,26 +3035,6 @@ def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> 
     port = GlobalEconomicCommitPortV1(admission, _RecordingReceiptVerifier())
 
     assert port.state.state_root == migrated_state.state_root
-    preserved_source_state = replace(
-        source_state,
-        replay_state=migrated_state.replay_state,
-    )
-    preserved_admission = _initial_state_admission(
-        target_profile,
-        migrated_state,
-        kind=EconomicInitialStateKindV1.MIGRATION,
-        source_manifest=source_manifest,
-        source_profile_root=source_profile.profile_id,
-        source_state_root=preserved_source_state.state_root,
-        source_writer_epoch=preserved_source_state.writer_epoch,
-        source_height=preserved_source_state.height,
-        predecessor_state=preserved_source_state,
-    )
-    preserved_port = GlobalEconomicCommitPortV1(
-        preserved_admission,
-        _RecordingReceiptVerifier(),
-    )
-    assert preserved_port.state.state_root == migrated_state.state_root
     replay_verifier = _RecordingReceiptVerifier()
     with pytest.raises(ValueError, match="replay continuity root mismatch"):
         GlobalEconomicCommitPortV1(
@@ -3084,11 +3070,14 @@ def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> 
         replace(migration_certificate, source_height=migrated_state.height)
 
 
-def test_migration_initial_state_rejects_predecessor_substitution_before_receipt() -> None:
+def test_migration_rejects_target_only_replay_row_before_receipt() -> None:
     # Arrange
     source_profile, _ = _profile()
     source_state = _state(source_profile, height=0)
-    provisional_target = _state(source_profile, height=1)
+    provisional_target = replace(
+        _state(source_profile, height=1),
+        replay_state=source_state.replay_state,
+    )
     source_manifest = _source_manifest_for_state_v1(
         EconomicInitialStateKindV1.MIGRATION,
         provisional_target,
@@ -3097,7 +3086,80 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
         source_manifest=source_manifest,
         authority_epoch=source_profile.authority_epoch + 1,
     )
-    migrated_state = _state(target_profile, height=1)
+    exact_target = replace(
+        _state(target_profile, height=1),
+        replay_state=source_state.replay_state,
+    )
+    exact_admission = _initial_state_admission(
+        target_profile,
+        exact_target,
+        kind=EconomicInitialStateKindV1.MIGRATION,
+        source_manifest=source_manifest,
+        source_profile_root=source_profile.profile_id,
+        source_state_root=source_state.state_root,
+        source_writer_epoch=source_state.writer_epoch,
+        source_height=source_state.height,
+        predecessor_state=source_state,
+    )
+    target_only_row = ReplayStateV1("migration-injected", _root(88_207))
+    changed_target = replace(exact_target, replay_state=(target_only_row,))
+    changed_certificate = replace(
+        exact_admission.certificate,
+        state_root=changed_target.state_root,
+        replay_continuity_root=exact_admission.certificate.replay_continuity_root,
+        terminal_continuity_root=(
+            derive_economic_initial_state_terminal_continuity_root_v1(
+                EconomicInitialStateKindV1.MIGRATION,
+                changed_target,
+                source_state,
+            )
+        ),
+        outbox_continuity_root=(
+            derive_economic_initial_state_outbox_continuity_root_v1(
+                EconomicInitialStateKindV1.MIGRATION,
+                changed_target,
+                source_state,
+            )
+        ),
+    )
+    verifier = _RecordingReceiptVerifier()
+
+    # Act / Assert
+    with pytest.raises(
+        ValueError,
+        match="preserve the exact predecessor replay state",
+    ):
+        GlobalEconomicCommitPortV1(
+            replace(
+                exact_admission,
+                state=changed_target,
+                certificate=changed_certificate,
+            ),
+            verifier,
+        )
+    assert verifier.calls == []
+
+
+def test_migration_initial_state_rejects_predecessor_substitution_before_receipt() -> None:
+    # Arrange
+    source_profile, _ = _profile()
+    source_state = _state(source_profile, height=0)
+    provisional_target = replace(
+        _state(source_profile, height=1),
+        replay_state=source_state.replay_state,
+    )
+    source_manifest = _source_manifest_for_state_v1(
+        EconomicInitialStateKindV1.MIGRATION,
+        provisional_target,
+    )
+    target_profile, _ = _profile(
+        source_manifest=source_manifest,
+        authority_epoch=source_profile.authority_epoch + 1,
+    )
+    migrated_state = replace(
+        _state(target_profile, height=1),
+        replay_state=source_state.replay_state,
+    )
     admission = _initial_state_admission(
         target_profile,
         migrated_state,
@@ -3158,7 +3220,7 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
         admission.certificate,
         source_state_root=predecessor_with_unpreserved_replay.state_root,
     )
-    with pytest.raises(ValueError, match="preserve every predecessor row"):
+    with pytest.raises(ValueError, match="preserve the exact predecessor replay state"):
         GlobalEconomicCommitPortV1(
             replace(
                 admission,
@@ -3168,7 +3230,7 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
             verifier,
         )
 
-    target_replay_row = migrated_state.replay_state[0]
+    target_replay_row = ReplayStateV1("source-replay-2", _root(88_206))
     predecessor_with_rewritten_occurrence = replace(
         source_state,
         replay_state=(
@@ -3182,7 +3244,7 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
         admission.certificate,
         source_state_root=predecessor_with_rewritten_occurrence.state_root,
     )
-    with pytest.raises(ValueError, match="preserve every predecessor row"):
+    with pytest.raises(ValueError, match="preserve the exact predecessor replay state"):
         GlobalEconomicCommitPortV1(
             replace(
                 admission,
@@ -3312,7 +3374,10 @@ def test_migration_initial_state_rejects_each_outbox_mutation_before_receipt() -
     # Arrange
     source_profile, _ = _profile()
     source_state = _state(source_profile, height=0)
-    provisional_target = _state(source_profile, height=1)
+    provisional_target = replace(
+        _state(source_profile, height=1),
+        replay_state=source_state.replay_state,
+    )
     source_manifest = _source_manifest_for_state_v1(
         EconomicInitialStateKindV1.MIGRATION,
         provisional_target,
@@ -3321,7 +3386,10 @@ def test_migration_initial_state_rejects_each_outbox_mutation_before_receipt() -
         source_manifest=source_manifest,
         authority_epoch=source_profile.authority_epoch + 1,
     )
-    target_state = _state(target_profile, height=1)
+    target_state = replace(
+        _state(target_profile, height=1),
+        replay_state=source_state.replay_state,
+    )
     first = OutboxStateV1(
         effect_id=_root(89_001),
         destination_id="bridge:test",
@@ -3473,6 +3541,7 @@ def test_migration_rejects_each_terminal_mutation_before_receipt() -> None:
     )
     provisional_target = replace(
         _state(source_profile, height=1),
+        replay_state=source_state.replay_state,
         terminal_obligations=(first, second),
     )
     source_manifest = _source_manifest_for_state_v1(
@@ -3485,6 +3554,7 @@ def test_migration_rejects_each_terminal_mutation_before_receipt() -> None:
     )
     exact_target = replace(
         _state(target_profile, height=1),
+        replay_state=source_state.replay_state,
         terminal_obligations=(first, second),
     )
     exact_admission = _initial_state_admission(

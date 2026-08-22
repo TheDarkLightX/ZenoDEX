@@ -25,35 +25,37 @@ fn state_fixture() -> GlobalEconomicStateV1 {
 }
 
 #[test]
-fn migration_preserves_source_rows_and_commits_target_additions() {
+fn migration_requires_exact_replay_state_preservation() {
     // Arrange
     let mut predecessor = state_fixture();
     predecessor.replay_state = vec![ReplayStateV1 {
         replay_id: "replay-a".to_owned(),
         occurrence_id: root(9_001),
     }];
-    let mut target = predecessor.clone();
-    target.replay_state.push(ReplayStateV1 {
+    let exact_target = predecessor.clone();
+    let mut added = exact_target.clone();
+    added.replay_state.push(ReplayStateV1 {
         replay_id: "replay-b".to_owned(),
         occurrence_id: root(9_002),
     });
 
-    // Act
-    let with_addition = derive_economic_initial_state_replay_continuity_root_v1(
+    // Act / Assert
+    assert!(derive_economic_initial_state_replay_continuity_root_v1(
         EconomicInitialStateKindV1::MIGRATION,
-        &target,
+        &exact_target,
         Some(&predecessor),
     )
-    .unwrap();
-    let without_addition = derive_economic_initial_state_replay_continuity_root_v1(
-        EconomicInitialStateKindV1::MIGRATION,
-        &predecessor,
-        Some(&predecessor),
-    )
-    .unwrap();
-
-    // Assert
-    assert_ne!(with_addition, without_addition);
+    .is_ok());
+    assert_eq!(
+        derive_economic_initial_state_replay_continuity_root_v1(
+            EconomicInitialStateKindV1::MIGRATION,
+            &added,
+            Some(&predecessor),
+        ),
+        Err(AbiErrorV1::InvalidBinding(
+            "migration replay predecessor preservation"
+        ))
+    );
 }
 
 #[test]
@@ -66,11 +68,13 @@ fn migration_rejects_deleted_or_rewritten_source_rows() {
     }];
     let mut rewritten = predecessor.clone();
     rewritten.replay_state[0].occurrence_id = root(9_004);
+    let mut renamed = predecessor.clone();
+    renamed.replay_state[0].replay_id = "replay-b".to_owned();
     let mut deleted = predecessor.clone();
     deleted.replay_state.clear();
 
     // Act / Assert
-    for target in [&rewritten, &deleted] {
+    for target in [&rewritten, &renamed, &deleted] {
         assert_eq!(
             derive_economic_initial_state_replay_continuity_root_v1(
                 EconomicInitialStateKindV1::MIGRATION,
@@ -82,6 +86,34 @@ fn migration_rejects_deleted_or_rewritten_source_rows() {
             ))
         );
     }
+}
+
+#[test]
+fn migration_rejects_noncanonical_target_before_equality() {
+    // Arrange
+    let mut predecessor = state_fixture();
+    predecessor.replay_state = vec![
+        ReplayStateV1 {
+            replay_id: "replay-a".to_owned(),
+            occurrence_id: root(9_006),
+        },
+        ReplayStateV1 {
+            replay_id: "replay-b".to_owned(),
+            occurrence_id: root(9_007),
+        },
+    ];
+    let mut reordered = predecessor.clone();
+    reordered.replay_state.reverse();
+
+    // Act / Assert
+    assert_eq!(
+        derive_economic_initial_state_replay_continuity_root_v1(
+            EconomicInitialStateKindV1::MIGRATION,
+            &reordered,
+            Some(&predecessor),
+        ),
+        Err(AbiErrorV1::InvalidOrder("global replay state"))
+    );
 }
 
 #[test]

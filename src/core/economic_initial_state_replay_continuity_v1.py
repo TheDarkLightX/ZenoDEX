@@ -13,30 +13,12 @@ from .global_settlement_types_v1 import (
 )
 
 
-def _require_source_rows_preserved_v1(
-    source_rows: tuple[ReplayStateV1, ...],
-    target_rows: tuple[ReplayStateV1, ...],
-) -> None:
-    target_index = 0
-    for source_row in source_rows:
-        while (
-            target_index < len(target_rows)
-            and target_rows[target_index].replay_id < source_row.replay_id
-        ):
-            target_index += 1
-        if target_index == len(target_rows) or target_rows[target_index] != source_row:
-            raise ValueError(
-                "migration replay continuity must preserve every predecessor row"
-            )
-        target_index += 1
-
-
 def derive_economic_initial_state_replay_continuity_root_v1(
     kind: EconomicInitialStateKindV1,
     target_state: GlobalEconomicStateV1,
     predecessor_state: GlobalEconomicStateV1 | None,
 ) -> str:
-    """Commit exact replay tables after enforcing predecessor-row preservation."""
+    """Commit exact replay tables after enforcing isolated-migration equality."""
 
     if type(kind) is not EconomicInitialStateKindV1:
         raise TypeError("initial state replay continuity kind is not closed")
@@ -61,7 +43,11 @@ def derive_economic_initial_state_replay_continuity_root_v1(
         predecessor = _snapshot_state_v1(predecessor_state)
         source_state_root = predecessor.state_root
         source_rows = predecessor.replay_state
-        _require_source_rows_preserved_v1(source_rows, target.replay_state)
+        if target.replay_state != source_rows:
+            raise ValueError(
+                "migration replay continuity must preserve the exact predecessor "
+                "replay state"
+            )
 
     return hash_global_v1(
         "economic-initial-state-replay-continuity-v1",

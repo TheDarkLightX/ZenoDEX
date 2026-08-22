@@ -238,14 +238,13 @@ def _replay_continuity_vector(
     state: GlobalEconomicStateV1,
 ) -> tuple[dict[str, object], str]:
     source_row = ReplayStateV1("replay-source", _root(1_501))
-    target_row = ReplayStateV1("replay-target", _root(1_502))
     predecessor_state = replace(state, replay_state=(source_row,))
     target_state = replace(
         predecessor_state,
         writer_epoch=predecessor_state.writer_epoch + 1,
         height=predecessor_state.height + 1,
         profile_root=_root(1_503),
-        replay_state=(source_row, target_row),
+        replay_state=(source_row,),
     )
     vector = {
         "kind": EconomicInitialStateKindV1.MIGRATION,

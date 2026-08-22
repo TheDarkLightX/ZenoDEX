@@ -505,10 +505,6 @@
             {
               "occurrence_id": "0x00000000000000000000000000000000000000000000000000000000000005dd",
               "replay_id": "replay-source"
-            },
-            {
-              "occurrence_id": "0x00000000000000000000000000000000000000000000000000000000000005de",
-              "replay_id": "replay-target"
             }
           ],
           "reserves": [],
@@ -523,8 +519,8 @@
           "writer_epoch": 8
         }
       },
-      "canonical_bytes_sha256": "706724e9aa3c7e099667a531b9bcbf73165667d76d83a69962f407d666287f2e",
-      "expected_root": "0xcb5556d578aeb59ee6b159c5fe6f226d7a4e811f4d85752c17a88ae83a7014cc"
+      "canonical_bytes_sha256": "79e199c0d8bb7fc4977094965251fcf5219119ac65511a1db264ef78f615de3b",
+      "expected_root": "0x745187e4d961ba25a2e6db19aa8e339b314b90432944f479a6c672ad4730c127"
     },
     "economic_initial_state_terminal_continuity": {
       "canonical": {
