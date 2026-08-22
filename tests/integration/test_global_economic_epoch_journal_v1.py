@@ -96,7 +96,7 @@ def _stored_epoch_rows_v1(path: Path) -> tuple[int, str, bytes]:
     return count, head_id, bundle_bytes
 
 
-def _two_epoch_chain_v1():
+def _two_epoch_chain_v1(*, reuse_commit_id: bool = False):
     activation, _, first = _fixture_v1(receipt_bytes=b"stateful-epoch-one")
     payload = json.loads(first.payload)
     state = payload["body_and_state"]["post_state"]
@@ -123,9 +123,13 @@ def _two_epoch_chain_v1():
         "global-economic-epoch-certificate-v1",
         certificate,
     )
-    commit_id = hash_global_v1(
-        "durable-journal-test-only-synthetic-commit-v1",
-        {"source": first.record.publication_id, "certificate": certificate_root},
+    commit_id = (
+        first.record.commit_id
+        if reuse_commit_id
+        else hash_global_v1(
+            "durable-journal-test-only-synthetic-commit-v1",
+            {"source": first.record.publication_id, "certificate": certificate_root},
+        )
     )
     published = payload["published_epoch"]
     published["commit_id"] = commit_id
@@ -304,6 +308,27 @@ def test_given_two_epoch_history_when_first_retries_then_tip_remains_second(
     assert retry.status is DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED
     assert retry.committed_epoch == first_epoch.head
     assert retry.head == second_epoch.head
+    journal.close()
+
+
+def test_given_adjacent_epoch_reusing_commit_id_then_replay_is_rejected(
+    tmp_path: Path,
+) -> None:
+    # Arrange: a fully rehashed successor reuses the prior verifier commit identity.
+    activation, first_epoch, duplicate_commit_epoch = _two_epoch_chain_v1(
+        reuse_commit_id=True
+    )
+    path = tmp_path / "duplicate-commit-id.sqlite"
+    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    journal.commit_epoch(first_epoch, journal.acquire_cas_head_token())
+
+    # Act and assert: durable replay identity is unique across the full history.
+    with pytest.raises(ValueError, match="commit identity"):
+        journal.commit_epoch(
+            duplicate_commit_epoch,
+            journal.acquire_cas_head_token(),
+        )
+    assert journal.head == first_epoch.head
     journal.close()
 
 

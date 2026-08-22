@@ -43,6 +43,7 @@ _CREATE_METADATA_SQL_V1: Final = (
 _CREATE_EPOCHS_SQL_V1: Final = (
     "CREATE TABLE economic_epochs ("
     "publication_id TEXT PRIMARY KEY NOT NULL, "
+    "commit_id TEXT NOT NULL UNIQUE, "
     "sequence_decimal TEXT NOT NULL UNIQUE, "
     "bundle_bytes BLOB NOT NULL"
     ") STRICT"
@@ -370,8 +371,9 @@ class GlobalEconomicEpochJournalV1:
                 "economic_epochs",
                 (
                     (0, "publication_id", "TEXT", 1, None, 1),
-                    (1, "sequence_decimal", "TEXT", 1, None, 0),
-                    (2, "bundle_bytes", "BLOB", 1, None, 0),
+                    (1, "commit_id", "TEXT", 1, None, 0),
+                    (2, "sequence_decimal", "TEXT", 1, None, 0),
+                    (3, "bundle_bytes", "BLOB", 1, None, 0),
                 ),
             ),
             (
@@ -424,20 +426,28 @@ class GlobalEconomicEpochJournalV1:
 
     @staticmethod
     def _decode_epoch_row_v1(row: tuple[object, ...]) -> DurableEconomicEpochBundleV1:
-        if len(row) != 3:
+        if len(row) != 4:
             raise RuntimeError("durable epoch history row shape mismatch")
-        publication_id, sequence_decimal, raw = row
-        if type(publication_id) is not str or type(raw) is not bytes:
+        publication_id, commit_id, sequence_decimal, raw = row
+        if (
+            type(publication_id) is not str
+            or type(commit_id) is not str
+            or type(raw) is not bytes
+        ):
             raise TypeError("durable epoch history row types are invalid")
         sequence = _canonical_decimal_v1(sequence_decimal, name="durable epoch row sequence")
         epoch = decode_durable_economic_epoch_bundle_v1(raw)
-        if epoch.record.publication_id != publication_id or epoch.record.sequence != sequence:
+        if (
+            epoch.record.publication_id != publication_id
+            or epoch.record.commit_id != commit_id
+            or epoch.record.sequence != sequence
+        ):
             raise ValueError("durable epoch history row binding mismatch")
         return epoch
 
     def _read_epochs_v1(self) -> tuple[DurableEconomicEpochBundleV1, ...]:
         rows = self._connection.execute(
-            "SELECT publication_id, sequence_decimal, bundle_bytes "
+            "SELECT publication_id, commit_id, sequence_decimal, bundle_bytes "
             "FROM economic_epochs ORDER BY length(sequence_decimal), sequence_decimal"
         ).fetchall()
         if len(rows) > _MAX_EPOCH_HISTORY_V1:
@@ -578,6 +588,12 @@ class GlobalEconomicEpochJournalV1:
                     DurableEconomicEpochCommitStatusV1.STALE_HEAD,
                     current,
                 )
+            duplicate_commit = connection.execute(
+                "SELECT publication_id FROM economic_epochs WHERE commit_id = ?",
+                (record.commit_id,),
+            ).fetchone()
+            if duplicate_commit is not None:
+                raise ValueError("durable epoch commit identity is already published")
             count, byte_count = self._history_bounds_v1()
             if count + 1 > _MAX_EPOCH_HISTORY_V1 or byte_count + len(target_bytes) > _MAX_EPOCH_STORE_BYTES_V1:
                 connection.execute("ROLLBACK")
@@ -586,9 +602,15 @@ class GlobalEconomicEpochJournalV1:
                     current,
                 )
             connection.execute(
-                "INSERT INTO economic_epochs(publication_id, sequence_decimal, bundle_bytes) "
-                "VALUES (?, ?, ?)",
-                (record.publication_id, str(record.sequence), target_bytes),
+                "INSERT INTO economic_epochs("
+                "publication_id, commit_id, sequence_decimal, bundle_bytes"
+                ") VALUES (?, ?, ?, ?)",
+                (
+                    record.publication_id,
+                    record.commit_id,
+                    str(record.sequence),
+                    target_bytes,
+                ),
             )
             if fault is _DurableEconomicEpochCommitFaultV1.AFTER_INSERT:
                 raise _SimulatedDurableEconomicEpochCrashV1(fault.value)
@@ -626,7 +648,7 @@ class GlobalEconomicEpochJournalV1:
         target_bytes: bytes,
     ) -> DurableEconomicEpochBundleV1 | None:
         row = self._connection.execute(
-            "SELECT publication_id, sequence_decimal, bundle_bytes "
+            "SELECT publication_id, commit_id, sequence_decimal, bundle_bytes "
             "FROM economic_epochs WHERE publication_id = ?",
             (epoch.record.publication_id,),
         ).fetchone()

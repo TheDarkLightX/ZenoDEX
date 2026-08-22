@@ -34,6 +34,7 @@ contiguous ordinary-epoch history with:
 
 - a journal-minted process-local CAS snapshot token;
 - exact byte retry, including historical retry after later epochs;
+- globally unique verifier commit identity across the activation history;
 - typed stale-head and capacity no-ops;
 - one transaction for epoch insertion and singleton-head update;
 - `DELETE` journal mode, `synchronous=FULL`, strict tables, trusted schema off,
