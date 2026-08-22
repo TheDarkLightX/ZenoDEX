@@ -2,7 +2,7 @@
 
 Date: 2026-08-22
 
-Status: `DRAFT_REVISED_SOURCE_HEAD_REVIEWED`
+Status: `DRAFT_REVISED_DURABLE_EPOCH_REVIEWED`
 
 Claim authority: `NONE`
 
@@ -529,11 +529,11 @@ deterministic regression that pauses activation inside the tuple update. The
 regression failed before the repair and passes afterward.
 
 This establishes publisher-current source-head authority only inside the
-in-memory conformance shell. The separately reviewed SQLite journal provides a
-bounded durable candidate checkpoint, but the two components are not mounted
-as one verifier-owned publisher. Objective consensus finality, ordinary epoch
-transactionality, committed migration-release selection, cross-process
-isolation, deployed writer fencing, and production activation remain open.
+in-memory conformance shell. The separately reviewed SQLite activation journal
+provides a bounded durable candidate checkpoint. Verifier admission and durable
+publication remain separate operations. Objective consensus finality,
+committed migration-release selection, cross-process isolation, deployed
+writer fencing, and production activation remain open.
 
 Commit `0d29ea7286bd302cf3e2135a7fc7511d78ef5816` strengthens the bounded
 replay relation. Genesis requires an empty replay table. An isolated migration
@@ -634,11 +634,11 @@ are still unresolved, so this binding grants no production authority.
 
 The operation-derived Python sink inventory now scans direct `os.replace`
 calls and literal SQL mutation calls throughout `src`, plus direct
-`self._state` publication assignments in `src/integration`. It classifies 16
-sink identities containing 20 current occurrences. Its negative evidence uses
+`self._state` publication assignments in `src/integration`. It classifies 18
+sink identities containing 24 current occurrences. Its negative evidence uses
 an arbitrarily named `persist_balance_patch()` function, demonstrating that a
 new literal SQL value mutation cannot evade this V1 scan by avoiding known
-writer names. Fifteen authority-relevant sink groups remain without
+writer names. Seventeen authority-relevant sink groups remain without
 release-backed bindings. VM-01 therefore remains `PARTIAL`. Dynamic SQL, ORM
 mutation, indirect assignment, Rust, Tau, shell, generated code, native
 extensions, runtime loading, deployment wiring, and actual deployed
@@ -659,13 +659,33 @@ passing tests. GPT-5.6 Sol max returned `GO` only for `UNMOUNTED`,
 `TESTED_DISCOVERY` infrastructure after two earlier `NO-GO` reviews produced
 and then verified concrete repairs.
 
-This durable slice narrows VM-10 and VM-11. It does not verify retained receipt
-bytes, select a migration release, establish objective source-head finality,
-publish ordinary economic epochs, reconcile external acknowledgments, mount a
-sole writer, or retire legacy paths. Its process-local CAS token grants no
-writer authorization. VM-10 therefore advances from an absent durable
-activation checkpoint to `PARTIAL`; the whole-value-movement claim remains
-`UNPROVED` and production authority remains `NONE`.
+Commit `edd03093d3a4485c26bc73df231cb507094d2cf6` adds an unmounted
+ordinary-epoch durability contract. One canonical bundle retains the complete
+post-state, epoch certificate, global effect plan, published record, release
+observation, and raw receipt bytes. It equates canonically sorted effect
+occurrence consumption with the certificate occurrence set, requires the exact
+canonical journal-byte declaration, enforces the ABI resource ceilings, and
+rejects foreign inner ABI schemas. Its SQLite transaction inserts the bundle
+and advances the head under CAS, unique durable commit identity, contiguous
+lineage, and row/byte capacity bounds. Exact-limit and one-byte-over capacity
+tests, exact and historical
+retry, cross-instance serialization, exception faults, and abrupt-process
+crashes exercise recovery. The focused ordinary-epoch suite has 37 passing
+tests; the combined ABI, activation-journal, and ordinary-journal run has 141.
+Two max reviews returned `NO-GO` and identified byte-capacity, occurrence
+ordering, exact journal-length, proof-resource, and evidence defects. Commit
+`edd03093d3a4485c26bc73df231cb507094d2cf6` repairs those findings. The final
+max re-review returned `GO` only for `UNMOUNTED`, `TESTED_DISCOVERY`
+infrastructure and preserved every authority and production nonclaim.
+
+These durable slices narrow VM-10 and VM-11. They do not verify retained
+receipt bytes, select a migration release, establish objective source-head
+finality, reconcile external acknowledgments, mount a sole writer, or retire
+legacy paths. Receipt verification and the ordinary-epoch SQLite commit remain
+two operations, so a crash can invalidate freshness between them. Their
+process-local CAS tokens grant no writer authorization. VM-10 remains
+`PARTIAL`; the whole-value-movement claim remains `UNPROVED` and production
+authority remains `NONE`.
 
 The eight-decimal anchor is now represented by the content-derived policy root
 `0xacfbd1be88e823fcdd1b094b8d2f0c8ee1bf19c826004e89752f27fd22aa49dd`.
