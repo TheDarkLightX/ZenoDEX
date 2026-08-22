@@ -558,7 +558,8 @@ exact design.
   `src/core/global_economic_refinement_snapshot_v1.py`,
   `src/core/global_economic_replay_refinement_v1.py`,
   `src/core/global_economic_state_effect_refinement_v1.py`, and the matching
-  Rust modules: an `IMPLEMENTED_UNMOUNTED` functional checker that derives the
+  Rust modules: a functional checker now invoked by the unmounted reference
+  epoch verifier in both languages. It derives the
   exact balance, named custody, liability, reserve, supply, lane-root, and
   replay-insertion deltas from complete pre/post states and requires them to
   equal the canonical effect plan. Replay IDs are domain-separated commitments
@@ -567,8 +568,10 @@ exact design.
   candidate pre-root to post-root, be fresh under both replay and occurrence
   identity, and add one immutable replay row. The chain enforces the 64-command
   ceiling; its zero-occurrence case is a static refinement relation, while the
-  existing economic-epoch boundary separately rejects zero-command epochs. The
-  checker independently recomputes conservation from state,
+  economic-epoch candidate rejects zero-command epochs. Nonempty epoch
+  refinement requires the post height to advance exactly once and every
+  occurrence to use that post height. The checker independently recomputes
+  conservation from state,
   requires fee-allocation labels to mirror real state-bearing movement, permits
   exact burn to zero supply, and rejects missing or substituted occurrence
   disclosures, duplicate or previously consumed replay identities, zero or
@@ -582,6 +585,16 @@ exact design.
   histories, 0/1/64/65 disclosure BVA, nonce endpoints, owned-total/supply
   divergence, final-atom burn, signed-128 aggregation BVA, and shared
   Python/Rust replay-ID and single/multi-occurrence refinement-root goldens;
+- the Python/Rust epoch-verifier suites now construct full state histories at
+  1, 8, 9, and 64 occurrences and kill replay-omission, false-balance, foreign
+  refinement-witness, and height-semantics mutants before root-receipt
+  verification;
+- Python callback and retained-alias RIPR now require owned certificate,
+  effect-plan, full-state, body, and complete governed-profile snapshots; the
+  reference commit port revalidates content-derived profile identity under its
+  lock, reruns state/effect/replay refinement from verifier-owned disclosures,
+  binds the result to immutable verification roots, and rejects coherent
+  certificate, profile, or post-state rerooting before publication;
 - Replay-ID safety assumes authenticated ingress supplies one canonical
   `subject_id` per principal, canonical chain identity, and migration rules
   that preserve deployment replay continuity. This checker does not establish
@@ -627,12 +640,13 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
    wrong-image/journal/profile/assumption evidence before either route
    discharges its nonzero obligation or supplies the full tokenomics lane write;
 6. trusted current-profile anchoring plus route-composer guest and admission
-   integration of the full-state projection and the new state/effect
-   refinement checker. The current refinement closes balances, supply, named
+   integration of the full-state projection. The unmounted deterministic epoch
+   boundary now invokes the state/effect refinement checker and enforces replay
+   insertion, balances, supply, named
    custody, liabilities, reserves, fee-mirror, conservation, and lane-write
-   structure. Replay insertion, Oracle occurrence updates, terminal
-   obligations, history derivation, external outbox commit binding, and the
-   durable effect applicator remain unavailable and fail closed;
+   structure. Oracle occurrence updates, terminal obligations, history
+   derivation, external outbox commit binding, and the durable effect applicator
+   remain unavailable and fail closed;
 7. release-bound cycle/resource enforcement in the proof statement and
    governed receipt admission; the current leaf verifier cannot authenticate a
    module release `max_cycles` ceiling;

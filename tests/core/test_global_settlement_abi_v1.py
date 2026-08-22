@@ -6,11 +6,13 @@ from dataclasses import FrozenInstanceError, dataclass, replace
 
 import pytest
 
+import src.core.global_economic_state_effect_refinement_v1 as refinement_module
 from src.core.asset_lane_coordinator_v1 import compose_asset_lane_single_v1
 from src.core.asset_lane_projection_v1 import (
     AssetLaneCompositionAcceptedV1,
     AssetLaneCoordinatorContextV1,
     AssetLaneModuleCompatibilityV1,
+    project_asset_transfer_state_v1,
 )
 from src.core.asset_transfer_lane_module_v1 import (
     AssetTransferLaneModuleAcceptedV1,
@@ -60,6 +62,7 @@ from src.core.global_settlement_abi_v1 import (
     ProfileStatusV1,
     ReceiptKindV1,
     ReleaseStatusV1,
+    ReplayStateV1,
     RouteCompositionJournalV1,
     RouteRegistryV1,
     RouteReleaseV1,
@@ -222,23 +225,23 @@ def _profile() -> tuple[EconomicProfileSnapshotV1, RouteReleaseV1]:
 
 
 def _state(profile: EconomicProfileSnapshotV1, *, height: int) -> GlobalEconomicStateV1:
-    lane_roots = tuple(
-        LaneStateRootV1(
-            lane_id=release.lane_id,
-            module_release_id=release.release_id,
-            enabled=True,
-            state_root=_root(1_000 + ordinal),
-        )
-        for ordinal, release in enumerate(profile.lane_registry.releases)
-    )
-    return GlobalEconomicStateV1(
-        chain_id="zeno-test-chain",
-        deployment_root=_root(500),
-        writer_epoch=profile.authority_epoch,
-        height=height,
-        profile_root=profile.profile_id,
-        lane_roots=lane_roots,
-        supplies=(AssetSupplyV1("USD", 100),),
+    if height not in (0, 1):
+        raise ValueError("test economic state supports only adjacent epoch heights")
+    module_state = _epoch_asset_module_state(profile)
+    pre_state = _global_state_from_asset_module(profile, module_state, height=0)
+    if height == 0:
+        return pre_state
+    route = profile.route_registry.routes[0]
+    occurrence = _occurrence(profile, route, pre_state)
+    module_input = _asset_module_input_for_occurrence(profile, occurrence, module_state)
+    accepted = transition_asset_transfer_lane_module_v1(module_input)
+    assert isinstance(accepted, AssetTransferLaneModuleAcceptedV1)
+    replay = ReplayStateV1(occurrence.replay_id, occurrence.occurrence_id)
+    return _global_state_from_asset_module(
+        profile,
+        accepted.post_state,
+        height=1,
+        replay_state=(replay,),
     )
 
 
@@ -330,11 +333,12 @@ class _VerifiedRouteEffectFixture:
 
 @dataclass(frozen=True, slots=True)
 class _EpochRouteFixture:
+    pre_state: GlobalEconomicStateV1
+    post_state: GlobalEconomicStateV1
     occurrences: tuple[EconomicCommandOccurrenceV1, ...]
     route_journals: tuple[RouteCompositionJournalV1, ...]
     verified_routes: tuple[VerifiedRouteCompositionV1, ...]
     route_effect_plans: tuple[GlobalEconomicEffectPlanV1, ...]
-    post_state_root: str
 
 
 def _default_asset_module_state(
@@ -590,6 +594,7 @@ def _verified_epoch(
         profile,
         occurrence,
         post_state_root=post_state.state_root,
+        pre_module_state=_epoch_asset_module_state(profile),
     )
     route_journal = route_fixture.route_journal
     verified_route = route_fixture.verified_route
@@ -629,6 +634,8 @@ def _verified_epoch(
         _epoch_candidate(
             profile,
             certificate,
+            pre_state,
+            post_state,
             (occurrence,),
             (route_journal,),
             (verified_route,),
@@ -644,6 +651,8 @@ def _verified_epoch(
 def _epoch_candidate(
     profile: EconomicProfileSnapshotV1,
     certificate: GlobalEconomicEpochCertificateV1,
+    pre_state: GlobalEconomicStateV1,
+    post_state: GlobalEconomicStateV1,
     occurrences: tuple[EconomicCommandOccurrenceV1, ...],
     route_journals: tuple[RouteCompositionJournalV1, ...],
     verified_routes: tuple[VerifiedRouteCompositionV1, ...],
@@ -654,6 +663,8 @@ def _epoch_candidate(
     return EconomicEpochReceiptCandidateV1(
         profile=profile,
         certificate=certificate,
+        pre_state=pre_state,
+        post_state=post_state,
         command_occurrences=occurrences,
         route_journals=route_journals,
         verified_routes=verified_routes,
@@ -687,6 +698,47 @@ def _epoch_asset_module_state(profile: EconomicProfileSnapshotV1) -> AssetTransf
     )
 
 
+def _global_state_from_asset_module(
+    profile: EconomicProfileSnapshotV1,
+    module_state: AssetTransferStateV1,
+    *,
+    height: int,
+    replay_state: tuple[ReplayStateV1, ...] = (),
+) -> GlobalEconomicStateV1:
+    asset_lane_state = project_asset_transfer_state_v1(
+        module_state,
+        asset_policy_registry_root=_root(11),
+        fee_policy_registry_root=_root(12),
+    )
+    lane_roots = tuple(
+        LaneStateRootV1(
+            lane_id=release.lane_id,
+            module_release_id=release.release_id,
+            enabled=(
+                release.status is ReleaseStatusV1.ACTIVE_NEW
+                and release.accepts_new_objects
+            ),
+            state_root=(
+                asset_lane_state.state_root
+                if release.lane_id is LaneIdV1.ASSET_TRANSFER
+                else _root(1_000 + ordinal)
+            ),
+        )
+        for ordinal, release in enumerate(profile.lane_registry.releases)
+    )
+    return GlobalEconomicStateV1(
+        chain_id="zeno-test-chain",
+        deployment_root=_root(500),
+        writer_epoch=profile.authority_epoch,
+        height=height,
+        profile_root=profile.profile_id,
+        lane_roots=lane_roots,
+        balances=module_state.balances,
+        supplies=module_state.supplies,
+        replay_state=replay_state,
+    )
+
+
 def _epoch_route_fixture(
     profile: EconomicProfileSnapshotV1,
     route: RouteReleaseV1,
@@ -698,33 +750,83 @@ def _epoch_route_fixture(
     verified_routes: list[VerifiedRouteCompositionV1] = []
     route_effect_plans: list[GlobalEconomicEffectPlanV1] = []
     module_state = _epoch_asset_module_state(profile)
-    current_root = pre_state.state_root
+    current_state = pre_state
     for index in range(count):
         occurrence = replace(
             _occurrence(profile, route, pre_state),
             tx_index=index,
             nonce=index + 1,
-            pre_state_root=current_root,
+            pre_state_root=current_state.state_root,
         )
-        next_root = _root(30_000 + index)
-        route_fixture = _verified_route_effect_fixture(
+        module_input = _asset_module_input_for_occurrence(
             profile,
             occurrence,
-            post_state_root=next_root,
-            pre_module_state=module_state,
+            module_state,
+        )
+        accepted, verified_module = _verified_asset_module_for_occurrence(
+            profile,
+            occurrence,
+            module_input,
+        )
+        lane_journal, verified_lane, lane_effects = _verified_asset_lane_for_occurrence(
+            profile,
+            occurrence,
+            module_input,
+            accepted,
+            verified_module,
+        )
+        replay = ReplayStateV1(occurrence.replay_id, occurrence.occurrence_id)
+        next_state = _global_state_from_asset_module(
+            profile,
+            accepted.post_state,
+            height=1,
+            replay_state=tuple(
+                sorted(
+                    (*current_state.replay_state, replay),
+                    key=lambda row: row.replay_id,
+                )
+            ),
+        )
+        route_journal = RouteCompositionJournalV1(
+            chain_id=occurrence.chain_id,
+            deployment_root=occurrence.deployment_root,
+            profile_root=profile.profile_id,
+            writer_epoch=profile.authority_epoch,
+            route_release_id=occurrence.route_release_id,
+            command_occurrence_id=occurrence.occurrence_id,
+            ordered_lane_journal_roots=(lane_journal.journal_root,),
+            pre_state_root=occurrence.pre_state_root,
+            post_state_root=next_state.state_root,
+            effect_plan_root=lane_journal.effect_plan_root,
+            terminal_obligations_root=lane_journal.terminal_obligations_root,
+        )
+        verified_route = verify_route_composition_receipt_v1(
+            RouteCompositionReceiptCandidateV1(
+                profile,
+                occurrence,
+                (lane_journal,),
+                (verified_lane,),
+                route_journal,
+                RouteCompositionReceiptEnvelopeV1(
+                    ReceiptKindV1.SUCCINCT,
+                    b"route:" + occurrence.occurrence_id.encode("ascii"),
+                ),
+            ),
+            _RecordingReceiptVerifier(),
         )
         occurrences.append(occurrence)
-        route_journals.append(route_fixture.route_journal)
-        verified_routes.append(route_fixture.verified_route)
-        route_effect_plans.append(route_fixture.effect_plan)
-        module_state = route_fixture.post_module_state
-        current_root = next_root
+        route_journals.append(route_journal)
+        verified_routes.append(verified_route)
+        route_effect_plans.append(lane_effects)
+        module_state = accepted.post_state
+        current_state = next_state
     return _EpochRouteFixture(
+        pre_state,
+        current_state,
         tuple(occurrences),
         tuple(route_journals),
         tuple(verified_routes),
         tuple(route_effect_plans),
-        current_root,
     )
 
 
@@ -743,7 +845,7 @@ def _epoch_admission_fixture(
         writer_epoch=profile.authority_epoch,
         height=1,
         pre_state_root=pre_state.state_root,
-        post_state_root=routes.post_state_root,
+        post_state_root=routes.post_state.state_root,
         ordered_occurrence_ids=tuple(item.occurrence_id for item in routes.occurrences),
         ordered_route_journal_roots=tuple(item.journal_root for item in routes.route_journals),
         ordered_route_assumption_roots=tuple(
@@ -772,12 +874,51 @@ def _epoch_admission_fixture(
     return _epoch_candidate(
         profile,
         certificate,
+        routes.pre_state,
+        routes.post_state,
         routes.occurrences,
         routes.route_journals,
         routes.verified_routes,
         routes.route_effect_plans,
         effects,
         receipt_bytes,
+    )
+
+
+def _epoch_candidate_with_rebound_post_state(
+    candidate: EconomicEpochReceiptCandidateV1,
+    post_state: GlobalEconomicStateV1,
+) -> EconomicEpochReceiptCandidateV1:
+    occurrence = candidate.command_occurrences[0]
+    route_fixture = _verified_route_effect_fixture(
+        candidate.profile,
+        occurrence,
+        post_state_root=post_state.state_root,
+        pre_module_state=_epoch_asset_module_state(candidate.profile),
+    )
+    effects = compose_asset_lane_epoch_effect_plans_v1((route_fixture.effect_plan,))
+    certificate = replace(
+        candidate.certificate,
+        post_state_root=post_state.state_root,
+        ordered_route_journal_roots=(route_fixture.route_journal.journal_root,),
+        ordered_route_assumption_roots=(route_fixture.verified_route.assumption_root,),
+        effect_plan_root=effects.effect_plan_root,
+    )
+    certificate = replace(
+        certificate,
+        journal_bytes=len(certificate.canonical_journal_bytes),
+    )
+    return _epoch_candidate(
+        candidate.profile,
+        certificate,
+        candidate.pre_state,
+        post_state,
+        (occurrence,),
+        (route_fixture.route_journal,),
+        (route_fixture.verified_route,),
+        (route_fixture.effect_plan,),
+        effects,
+        candidate.receipt_bytes,
     )
 
 
@@ -972,6 +1113,12 @@ def test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle() 
         post_state,
     )
     assert verified.certificate.post_state_root == post_state.state_root
+    assert verified.state_effect_refinement.pre_state_root == pre_state.state_root
+    assert verified.state_effect_refinement.post_state_root == post_state.state_root
+    assert (
+        verified.state_effect_refinement.effect_plan_root
+        == verified.effect_plan.effect_plan_root
+    )
     assert len(verifier.calls) == 1
     assert verifier.calls[0][1] == profile.root_image_id
     with pytest.raises(AttributeError, match="immutable"):
@@ -983,11 +1130,15 @@ def test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle() 
             verified.effect_plan,
             verified.ordered_route_binding_roots,
             verified.receipt_digest,
+            verified.state_effect_refinement,
+            (occurrence,),
+            (route_journal,),
         )
     rebuilt_route = _verified_route_effect_fixture(
         profile,
         occurrence,
         post_state_root=post_state.state_root,
+        pre_module_state=_epoch_asset_module_state(profile),
     )
     rebuilt_route_journal = rebuilt_route.route_journal
     verified_route = rebuilt_route.verified_route
@@ -995,6 +1146,8 @@ def test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle() 
     candidate = _epoch_candidate(
         profile,
         verified.certificate,
+        pre_state,
+        post_state,
         (occurrence,),
         (route_journal,),
         (verified_route,),
@@ -1016,9 +1169,6 @@ def test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle() 
             replace(
                 candidate,
                 certificate=wrong_image,
-                command_occurrences=(),
-                route_journals=(),
-                verified_routes=(),
                 expected_body_commitment=wrong_image.body_commitment,
             ),
             _RecordingReceiptVerifier(),
@@ -1055,6 +1205,83 @@ def test_epoch_rejects_route_effect_plan_with_wrong_committed_root() -> None:
     # Act / Assert
     with pytest.raises(ValueError, match="route effect plan root mismatch"):
         verify_economic_epoch_v1(candidate, verifier)
+    assert verifier.calls == []
+
+
+def test_epoch_state_refinement_kills_replay_and_balance_mutants_before_receipt() -> None:
+    # Arrange: rebuild all route/certificate roots around semantically invalid full states.
+    valid = _epoch_admission_fixture(1)
+    missing_replay = replace(valid.post_state, replay_state=())
+    first_balance = valid.post_state.balances[0]
+    wrong_balances = (
+        replace(first_balance, amount_atoms=first_balance.amount_atoms + 1),
+        *valid.post_state.balances[1:],
+    )
+    wrong_balance = replace(valid.post_state, balances=wrong_balances)
+
+    for post_state, message in (
+        (missing_replay, "replay state delta mismatch"),
+        (wrong_balance, "balance delta mismatch"),
+    ):
+        candidate = _epoch_candidate_with_rebound_post_state(valid, post_state)
+        verifier = _RecordingReceiptVerifier()
+
+        # Act / Assert: structural route receipts cannot authorize a false state/effect relation.
+        with pytest.raises(ValueError, match=message):
+            verify_economic_epoch_v1(candidate, verifier)
+        assert verifier.calls == []
+
+
+def test_epoch_rejects_foreign_checker_witness_before_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    valid = _epoch_admission_fixture(1)
+    foreign = verify_economic_epoch_v1(
+        _epoch_admission_fixture(2),
+        _RecordingReceiptVerifier(),
+    ).state_effect_refinement
+    monkeypatch.setattr(
+        refinement_module,
+        "refine_global_economic_state_effects_v1",
+        lambda _candidate: foreign,
+    )
+    verifier = _RecordingReceiptVerifier()
+
+    with pytest.raises(ValueError, match="state/effect refinement root mismatch"):
+        verify_economic_epoch_v1(valid, verifier)
+    assert verifier.calls == []
+
+
+def test_epoch_rejects_hostile_refinement_subclass_before_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    valid = _epoch_admission_fixture(1)
+
+    class ForgedRefinement(refinement_module.GlobalEconomicStateEffectRefinementV1):
+        def __init__(self) -> None:
+            pass
+
+        @property
+        def pre_state_root(self) -> str:
+            return valid.certificate.pre_state_root
+
+        @property
+        def post_state_root(self) -> str:
+            return valid.certificate.post_state_root
+
+        @property
+        def effect_plan_root(self) -> str:
+            return valid.certificate.effect_plan_root
+
+    monkeypatch.setattr(
+        refinement_module,
+        "refine_global_economic_state_effects_v1",
+        lambda _candidate: ForgedRefinement(),
+    )
+    verifier = _RecordingReceiptVerifier()
+
+    with pytest.raises(TypeError, match="exact checker-constructed type"):
+        verify_economic_epoch_v1(valid, verifier)
     assert verifier.calls == []
 
 
@@ -1312,6 +1539,13 @@ def test_epoch_route_witness_boundary_counts_are_admitted(count: int) -> None:
     assert len(verifier.calls) == 1
 
 
+def test_epoch_candidate_rejects_sixty_five_occurrences_at_typed_ingress() -> None:
+    valid = _epoch_admission_fixture(1)
+
+    with pytest.raises(ValueError, match="between one and 64 command occurrences"):
+        replace(valid, command_occurrences=valid.command_occurrences * 65)
+
+
 def test_epoch_certificate_binds_exact_guest_route_assumption_roots() -> None:
     # Arrange
     candidate = _epoch_admission_fixture(1)
@@ -1507,13 +1741,271 @@ def test_atomic_commit_is_idempotent_and_binding_rejects_are_noops() -> None:
     assert retry.record == committed.record
 
 
-def test_commit_rejects_certificate_chain_and_deployment_drift_as_noop() -> None:
-    """RIPR: verifier journals cannot move a foreign chain into local state."""
+def test_epoch_verifier_owns_certificate_and_effect_snapshots_across_callback() -> None:
+    # Arrange: the verifier callback retains aliases to the caller's frozen-looking values.
+    candidate = _epoch_admission_fixture(1)
+    expected_post_root = candidate.certificate.post_state_root
+    expected_effect_root = candidate.effect_plan.effect_plan_root
+
+    class MutatingReceiptVerifier:
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            del receipt_bytes, expected_image_id, expected_journal_bytes
+            object.__setattr__(candidate.certificate, "post_state_root", _root(77_001))
+            row = candidate.effect_plan.rows[0]
+            object.__setattr__(row, "delta_atoms", row.delta_atoms + 1)
+
+    # Act
+    verified = verify_economic_epoch_v1(candidate, MutatingReceiptVerifier())
+
+    # Assert: callback mutation cannot alter the authority-bearing returned values.
+    assert verified.certificate.post_state_root == expected_post_root
+    assert verified.effect_plan.effect_plan_root == expected_effect_root
+    assert verified.state_effect_refinement.post_state_root == expected_post_root
+    assert verified.state_effect_refinement.effect_plan_root == expected_effect_root
+
+    exposed_certificate = verified.certificate
+    exposed_effect_plan = verified.effect_plan
+    exposed_refinement = verified.state_effect_refinement
+    object.__setattr__(exposed_certificate, "post_state_root", _root(77_002))
+    object.__setattr__(exposed_effect_plan.rows[0], "delta_atoms", 77_003)
+    object.__setattr__(exposed_refinement._fields, "post_state_root", _root(77_004))
+
+    assert verified.certificate.post_state_root == expected_post_root
+    assert verified.effect_plan.effect_plan_root == expected_effect_root
+    assert verified.state_effect_refinement.post_state_root == expected_post_root
+
+
+def test_epoch_verifier_owns_profile_snapshot_across_callback() -> None:
+    candidate = _epoch_admission_fixture(1)
+    expected_image_id = candidate.profile.root_image_id
+    observed_images: list[str] = []
+
+    class ProfileMutatingReceiptVerifier:
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            del receipt_bytes, expected_journal_bytes
+            observed_images.append(expected_image_id)
+            object.__setattr__(candidate.profile, "root_image_id", _root(77_010))
+
+    verified = verify_economic_epoch_v1(candidate, ProfileMutatingReceiptVerifier())
+
+    assert observed_images == [expected_image_id]
+    assert verified.certificate.root_image_id == expected_image_id
+
+
+def test_commit_rebinds_refinement_against_post_return_certificate_mutation() -> None:
+    # Arrange: coherently re-root the exposed certificate around an unbalanced post-state.
+    profile, route = _profile()
+    pre_state = _state(profile, height=0)
+    post_state = _state(profile, height=1)
+    verified, body, _, _, _ = _verified_epoch(profile, route, pre_state, post_state)
+    original_commit_id = verified.commit_id
+    first_balance = post_state.balances[0]
+    unbalanced_state = replace(
+        post_state,
+        balances=(
+            replace(first_balance, amount_atoms=first_balance.amount_atoms + 1),
+            *post_state.balances[1:],
+        ),
+    )
+    unbalanced_body = replace(body, post_state=unbalanced_state)
+    object.__setattr__(
+        verified._certificate,
+        "post_state_root",
+        unbalanced_state.state_root,
+    )
+    object.__setattr__(
+        verified._certificate,
+        "body_commitment",
+        unbalanced_body.body_commitment,
+    )
+    object.__setattr__(
+        verified._state_effect_refinement._fields,
+        "post_state_root",
+        unbalanced_state.state_root,
+    )
+    assert verified.commit_id == original_commit_id
+    port = GlobalEconomicCommitPortV1(profile, pre_state)
+
+    # Act
+    result = port.commit_verified_economic_epoch(
+        expected_head=pre_state.state_root,
+        expected_profile=profile.profile_id,
+        verified_epoch=verified,
+        body_and_state=unbalanced_body,
+    )
+
+    # Assert: the commit lock rebinds the original checker witness and remains a no-op.
+    assert result.status is CommitOutcomeStatusV1.BINDING_REJECTED
+    assert result.reason is not None
+    assert result.reason.startswith("state/effect refinement recheck rejected:")
+    assert port.state == pre_state
+    assert port.records == ()
+
+
+def test_commit_owns_published_state_against_retained_body_alias() -> None:
+    profile, route = _profile()
+    pre_state = _state(profile, height=0)
+    post_state = _state(profile, height=1)
+    verified, body, _, _, _ = _verified_epoch(profile, route, pre_state, post_state)
+    port = GlobalEconomicCommitPortV1(profile, pre_state)
+    committed = port.commit_verified_economic_epoch(
+        expected_head=pre_state.state_root,
+        expected_profile=profile.profile_id,
+        verified_epoch=verified,
+        body_and_state=body,
+    )
+    published_root = committed.state.state_root
+    assert committed.record is not None
+    stored_record = port.records[0]
+
+    object.__setattr__(body.post_state.balances[0], "amount_atoms", 99_999)
+    object.__setattr__(committed.record, "post_state_root", _root(88_880))
+
+    assert port.state.state_root == published_root
+    assert committed.state.state_root == published_root
+    assert port.records[0] == stored_record
+
+
+def test_commit_port_owns_initial_state_before_validation_returns() -> None:
+    profile, _ = _profile()
+    initial_state = _state(profile, height=0)
+    expected_root = initial_state.state_root
+    port = GlobalEconomicCommitPortV1(profile, initial_state)
+
+    object.__setattr__(initial_state.balances[0], "amount_atoms", 99_999)
+
+    assert port.state.state_root == expected_root
+
+
+def test_commit_port_owns_and_revalidates_active_profile_graph() -> None:
+    profile, route = _profile()
+    pre_state = _state(profile, height=0)
+    post_state = _state(profile, height=1)
+    verified, body, _, _, _ = _verified_epoch(profile, route, pre_state, post_state)
+    port = GlobalEconomicCommitPortV1(profile, pre_state)
+    expected_profile_id = profile.profile_id
+    expected_image_id = profile.root_image_id
+    expected_lane_root = profile.lane_registry.registry_root
+    expected_coordinator_root = profile.lane_coordinator_registry.registry_root
+    expected_route_root = profile.route_registry.registry_root
+
+    object.__setattr__(profile, "root_image_id", _root(77_020))
+    object.__setattr__(
+        profile.lane_registry.releases[0],
+        "guest_image_id",
+        _root(77_021),
+    )
+    object.__setattr__(
+        profile.lane_coordinator_registry.releases[0],
+        "guest_image_id",
+        _root(77_022),
+    )
+    object.__setattr__(
+        profile.route_registry.routes[0],
+        "guest_image_id",
+        _root(77_023),
+    )
+    exposed_profile = port.profile
+    object.__setattr__(exposed_profile, "root_image_id", _root(77_024))
+    object.__setattr__(
+        exposed_profile.lane_registry.releases[0],
+        "guest_image_id",
+        _root(77_025),
+    )
+    object.__setattr__(
+        exposed_profile.lane_coordinator_registry.releases[0],
+        "guest_image_id",
+        _root(77_026),
+    )
+    object.__setattr__(
+        exposed_profile.route_registry.routes[0],
+        "guest_image_id",
+        _root(77_027),
+    )
+
+    assert port.profile.profile_id == expected_profile_id
+    assert port.profile.root_image_id == expected_image_id
+    assert port.profile.lane_registry.registry_root == expected_lane_root
+    assert (
+        port.profile.lane_coordinator_registry.registry_root
+        == expected_coordinator_root
+    )
+    assert port.profile.route_registry.registry_root == expected_route_root
+    committed = port.commit_verified_economic_epoch(
+        expected_head=pre_state.state_root,
+        expected_profile=expected_profile_id,
+        verified_epoch=verified,
+        body_and_state=body,
+    )
+    assert committed.status is CommitOutcomeStatusV1.COMMITTED
+
+    poisoned_port = GlobalEconomicCommitPortV1(port.profile, pre_state)
+    object.__setattr__(poisoned_port._profile, "root_image_id", _root(77_028))
+    rejected = poisoned_port.commit_verified_economic_epoch(
+        expected_head=pre_state.state_root,
+        expected_profile=expected_profile_id,
+        verified_epoch=verified,
+        body_and_state=body,
+    )
+    assert rejected.status is CommitOutcomeStatusV1.BINDING_REJECTED
+    assert rejected.reason == "active profile content binding is invalid"
+    assert poisoned_port.state == pre_state
+    assert poisoned_port.records == ()
+
+
+def test_commit_rejects_hostile_expected_root_subclasses_before_lock() -> None:
+    class AlwaysEqual(str):
+        def __eq__(self, other: object) -> bool:
+            return other != ZERO_ROOT_V1
+
+        def __ne__(self, other: object) -> bool:
+            return not self.__eq__(other)
+
+        __hash__ = str.__hash__
 
     profile, route = _profile()
     pre_state = _state(profile, height=0)
     post_state = _state(profile, height=1)
-    verified, body, _, occurrence, _route_journal = _verified_epoch(
+    verified, body, _, _, _ = _verified_epoch(profile, route, pre_state, post_state)
+    port = GlobalEconomicCommitPortV1(profile, pre_state)
+
+    with pytest.raises(TypeError, match="expected head must be exact str"):
+        port.commit_verified_economic_epoch(
+            expected_head=AlwaysEqual(_root(77_030)),
+            expected_profile=profile.profile_id,
+            verified_epoch=verified,
+            body_and_state=body,
+        )
+    with pytest.raises(TypeError, match="expected profile must be exact str"):
+        port.commit_verified_economic_epoch(
+            expected_head=pre_state.state_root,
+            expected_profile=AlwaysEqual(_root(77_031)),
+            verified_epoch=verified,
+            body_and_state=body,
+        )
+    assert port.state == pre_state
+    assert port.records == ()
+
+
+def test_epoch_verifier_rejects_chain_and_deployment_drift_before_commit() -> None:
+    """RIPR: no opaque epoch witness exists for a foreign execution context."""
+
+    profile, route = _profile()
+    pre_state = _state(profile, height=0)
+    post_state = _state(profile, height=1)
+    verified, _body, _, occurrence, _route_journal = _verified_epoch(
         profile,
         route,
         pre_state,
@@ -1521,8 +2013,8 @@ def test_commit_rejects_certificate_chain_and_deployment_drift_as_noop() -> None
     )
 
     substitutions = (
-        ("chain_id", "foreign-chain", "certificate chain mismatch"),
-        ("deployment_root", _root(88_001), "certificate deployment mismatch"),
+        ("chain_id", "foreign-chain", "pre-state chain mismatch"),
+        ("deployment_root", _root(88_001), "pre-state deployment mismatch"),
     )
     for field_name, foreign_value, expected_reason in substitutions:
         port = GlobalEconomicCommitPortV1(profile, pre_state)
@@ -1531,6 +2023,7 @@ def test_commit_rejects_certificate_chain_and_deployment_drift_as_noop() -> None
             profile,
             foreign_occurrence,
             post_state_root=post_state.state_root,
+            pre_module_state=_epoch_asset_module_state(profile),
         )
         foreign_route_journal = foreign_route.route_journal
         foreign_verified_route = foreign_route.verified_route
@@ -1553,32 +2046,23 @@ def test_commit_rejects_certificate_chain_and_deployment_drift_as_noop() -> None
             foreign_certificate,
             journal_bytes=len(foreign_certificate.canonical_journal_bytes),
         )
-        foreign_verified = verify_economic_epoch_v1(
-            _epoch_candidate(
-                profile,
-                foreign_certificate,
-                (foreign_occurrence,),
-                (foreign_route_journal,),
-                (foreign_verified_route,),
-                (foreign_route.effect_plan,),
-                foreign_effects,
-                b"succinct-receipt-one",
-            ),
-            _RecordingReceiptVerifier(),
-        )
         before = (port.state, port.records)
-
-        rejected = port.commit_verified_economic_epoch(
-            expected_head=pre_state.state_root,
-            expected_profile=profile.profile_id,
-            verified_epoch=foreign_verified,
-            body_and_state=body,
-        )
-
-        assert rejected.status is CommitOutcomeStatusV1.BINDING_REJECTED
-        assert rejected.reason == expected_reason
-        assert rejected.record is None
-        assert rejected.state == before[0]
+        with pytest.raises(ValueError, match=expected_reason):
+            verify_economic_epoch_v1(
+                _epoch_candidate(
+                    profile,
+                    foreign_certificate,
+                    pre_state,
+                    post_state,
+                    (foreign_occurrence,),
+                    (foreign_route_journal,),
+                    (foreign_verified_route,),
+                    (foreign_route.effect_plan,),
+                    foreign_effects,
+                    b"succinct-receipt-one",
+                ),
+                _RecordingReceiptVerifier(),
+            )
         assert (port.state, port.records) == before
 
 

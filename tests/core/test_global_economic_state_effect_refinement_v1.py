@@ -180,7 +180,7 @@ def _occurrence(
     return EconomicCommandOccurrenceV1(
         chain_id=chain_id,
         deployment_root=_root(1_000),
-        height=41,
+        height=42,
         tx_index=tx_index,
         op_index=1,
         command_kind=command_kind,
@@ -223,6 +223,7 @@ def _replay_candidate(
     )
     post_state = replace(
         _post_state(),
+        height=42,
         replay_state=(ReplayStateV1(consumed.replay_id, consumed.occurrence_id),),
     )
     return GlobalEconomicStateEffectRefinementCandidateV1(
@@ -270,6 +271,7 @@ def _replay_batch(
         replay_row = ReplayStateV1(occurrence.replay_id, occurrence.occurrence_id)
         next_state = replace(
             current,
+            height=42,
             replay_state=tuple(
                 sorted((*current.replay_state, replay_row), key=lambda row: row.replay_id)
             ),
@@ -426,7 +428,6 @@ def test_refinement_rejects_unmapped_reward_and_slash_labels(
 @pytest.mark.parametrize(
     "post_change",
     (
-        {"height": 42},
         {"history_root": _root(7_001)},
         {"oracle_occurrences": (OracleOccurrenceStateV1("oracle", _root(7_002), 41, True),)},
         {
@@ -467,6 +468,29 @@ def test_refinement_rejects_unsupported_global_field_change(
                     candidate.post_state,
                     **post_change,
                 ),
+            )
+        )
+
+
+def test_refinement_height_progression_is_zero_for_static_and_one_for_epoch() -> None:
+    static = _candidate()
+    with pytest.raises(ValueError, match="state height progression mismatch"):
+        refine_global_economic_state_effects_v1(
+            replace(static, post_state=replace(static.post_state, height=42))
+        )
+
+    epoch = _replay_candidate()
+    with pytest.raises(ValueError, match="state height progression mismatch"):
+        refine_global_economic_state_effects_v1(
+            replace(epoch, post_state=replace(epoch.post_state, height=41))
+        )
+
+    with pytest.raises(ValueError, match="state height overflow"):
+        refine_global_economic_state_effects_v1(
+            replace(
+                epoch,
+                pre_state=replace(epoch.pre_state, height=(1 << 64) - 1),
+                post_state=replace(epoch.post_state, height=(1 << 64) - 1),
             )
         )
 
@@ -694,14 +718,14 @@ def test_two_occurrence_replay_refinement_has_cross_language_golden_root() -> No
     refinement = refine_global_economic_state_effects_v1(_replay_batch(2))
 
     assert refinement.refinement_root == (
-        "0x146bb63d8b989606409aeb8f9bb09e7a9715194750840c82a7e68ff518dccc07"
+        "0x31be418cbddb787cdb112389b4303bd4cf3cdbce81a678cd39cd55df092e26d1"
     )
 
 
 def test_replay_refinement_rejects_duplicate_subject_nonce_under_distinct_occurrences() -> None:
     first = _occurrence(command_kind="TRANSFER")
     first_row = ReplayStateV1(first.replay_id, first.occurrence_id)
-    intermediate = replace(_pre_state(), replay_state=(first_row,))
+    intermediate = replace(_pre_state(), height=42, replay_state=(first_row,))
     second = _occurrence(
         command_kind="MANAGED_BURN",
         tx_index=4,
@@ -714,6 +738,7 @@ def test_replay_refinement_rejects_duplicate_subject_nonce_under_distinct_occurr
     )
     post = replace(
         _post_state(),
+        height=42,
         replay_state=(first_row,),
     )
 

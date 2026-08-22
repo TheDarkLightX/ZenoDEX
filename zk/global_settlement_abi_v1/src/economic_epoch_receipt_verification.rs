@@ -8,6 +8,10 @@ use crate::canonical::{
 };
 use crate::effects::GlobalEconomicEffectPlanV1;
 use crate::epoch_effect_composition::compose_asset_lane_epoch_effect_plans_v1;
+use crate::global_economic_state_effect_refinement::{
+    refine_global_economic_state_effects_v1, GlobalEconomicStateEffectRefinementCandidateV1,
+    GlobalEconomicStateEffectRefinementV1,
+};
 use crate::proof::{
     EconomicCommandOccurrenceV1, GlobalEconomicEpochCertificateV1, ReceiptKindV1,
     RouteCompositionJournalV1,
@@ -17,6 +21,7 @@ use crate::release::{
     ProfileStatusV1, RouteRegistryV1,
 };
 use crate::route_composition_receipt_verification::VerifiedRouteCompositionV1;
+use crate::state::GlobalEconomicStateV1;
 
 pub const VERIFIED_ECONOMIC_EPOCH_SCHEMA_V1: &str = "zenodex/verified-economic-epoch/v1";
 
@@ -37,6 +42,8 @@ pub struct EconomicEpochReceiptCandidateV1<'a> {
     pub coordinators: &'a LaneCoordinatorRegistryV1,
     pub routes: &'a RouteRegistryV1,
     pub certificate: &'a GlobalEconomicEpochCertificateV1,
+    pub pre_state: &'a GlobalEconomicStateV1,
+    pub post_state: &'a GlobalEconomicStateV1,
     pub command_occurrences: &'a [EconomicCommandOccurrenceV1],
     pub route_journals: &'a [RouteCompositionJournalV1],
     pub verified_routes: &'a [VerifiedRouteCompositionV1],
@@ -55,6 +62,7 @@ pub struct VerifiedEconomicEpochV1 {
     effect_plan: GlobalEconomicEffectPlanV1,
     ordered_route_binding_roots: Vec<RootV1>,
     receipt_digest: RootV1,
+    state_effect_refinement: GlobalEconomicStateEffectRefinementV1,
 }
 
 #[derive(Serialize)]
@@ -79,6 +87,10 @@ impl VerifiedEconomicEpochV1 {
 
     pub fn receipt_digest(&self) -> &RootV1 {
         &self.receipt_digest
+    }
+
+    pub fn state_effect_refinement(&self) -> &GlobalEconomicStateEffectRefinementV1 {
+        &self.state_effect_refinement
     }
 
     pub fn commit_id(&self) -> AbiResultV1<RootV1> {
@@ -370,6 +382,52 @@ fn require_route_effect_bindings_v1(
     Ok(())
 }
 
+fn require_state_effect_refinement_v1(
+    candidate: &EconomicEpochReceiptCandidateV1<'_>,
+) -> AbiResultV1<GlobalEconomicStateEffectRefinementV1> {
+    candidate
+        .pre_state
+        .validate_profile_registry(candidate.profile, candidate.lanes)?;
+    candidate
+        .post_state
+        .validate_profile_registry(candidate.profile, candidate.lanes)?;
+    let expected_post_height = candidate
+        .pre_state
+        .height
+        .checked_add(1)
+        .ok_or(AbiErrorV1::InvalidBounds("economic epoch state height"))?;
+    if candidate.pre_state.chain_id != candidate.certificate.chain_id
+        || candidate.post_state.chain_id != candidate.certificate.chain_id
+        || candidate.pre_state.deployment_root != candidate.certificate.deployment_root
+        || candidate.post_state.deployment_root != candidate.certificate.deployment_root
+        || candidate.pre_state.state_root()? != candidate.certificate.pre_state_root
+        || candidate.post_state.state_root()? != candidate.certificate.post_state_root
+        || candidate.post_state.height != candidate.certificate.height
+        || candidate.post_state.height != expected_post_height
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "economic epoch exact state transition",
+        ));
+    }
+    let refinement =
+        refine_global_economic_state_effects_v1(&GlobalEconomicStateEffectRefinementCandidateV1 {
+            pre_state: candidate.pre_state,
+            post_state: candidate.post_state,
+            effect_plan: candidate.effect_plan,
+            consumed_occurrences: candidate.command_occurrences,
+            route_journals: candidate.route_journals,
+        })?;
+    if refinement.pre_state_root() != &candidate.certificate.pre_state_root
+        || refinement.post_state_root() != &candidate.certificate.post_state_root
+        || refinement.effect_plan_root() != &candidate.certificate.effect_plan_root
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "economic epoch state effect refinement root",
+        ));
+    }
+    Ok(refinement)
+}
+
 pub fn verify_economic_epoch_receipt_v1(
     candidate: EconomicEpochReceiptCandidateV1<'_>,
     receipt_verifier: &dyn EconomicEpochSuccinctReceiptVerifierV1,
@@ -379,6 +437,7 @@ pub fn verify_economic_epoch_receipt_v1(
     require_route_journal_chain_v1(&candidate)?;
     let ordered_route_binding_roots = require_verified_route_bindings_v1(&candidate)?;
     require_route_effect_bindings_v1(&candidate)?;
+    let state_effect_refinement = require_state_effect_refinement_v1(&candidate)?;
     if candidate.receipt_bytes.is_empty() {
         return Err(AbiErrorV1::InvalidBounds("economic epoch receipt bytes"));
     }
@@ -398,5 +457,6 @@ pub fn verify_economic_epoch_receipt_v1(
         effect_plan: candidate.effect_plan.clone(),
         ordered_route_binding_roots,
         receipt_digest,
+        state_effect_refinement,
     })
 }

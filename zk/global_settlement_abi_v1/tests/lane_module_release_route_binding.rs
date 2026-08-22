@@ -6,27 +6,28 @@ use zenodex_global_settlement_abi_v1::{
     bind_managed_asset_lifecycle_lane_output_to_release_route_v1,
     compose_asset_lane_epoch_effect_plans_v1, compose_asset_lane_single_v1,
     compose_receipt_backed_asset_lane_single_v1, derive_route_composition_assumption_root_v1,
-    hash_bytes_sha256_v1, hash_global_v1, transition_asset_transfer_lane_module_v1,
-    transition_managed_asset_lifecycle_lane_module_v1, verify_asset_lane_composition_receipt_v1,
-    verify_asset_transfer_lane_module_receipt_v1, verify_economic_epoch_receipt_v1,
-    verify_managed_asset_lifecycle_lane_module_receipt_v1, verify_route_composition_receipt_v1,
-    AbiErrorV1, AssetLaneCompositionResultV1, AssetLaneCoordinatorContextV1,
-    AssetLaneModuleCompatibilityV1, AssetSupplyV1, AssetTransferCommandV1, AssetTransferContextV1,
-    AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
-    AssetTransferLaneModuleReceiptCandidateV1, AssetTransferLaneModuleResultV1,
-    AssetTransferPolicyV1, AssetTransferStateV1, EconomicAmountV1, EconomicCommandOccurrenceV1,
-    EconomicEffectKindV1, EconomicEpochReceiptCandidateV1, EconomicEpochSuccinctReceiptVerifierV1,
-    EconomicProfileSnapshotV1, EvidenceStatusV1, ExternalOutboxEnqueueV1,
-    GlobalEconomicEffectPlanV1, GlobalEconomicEpochCertificateV1, LaneCompositionAuthorityLevelV1,
-    LaneCompositionJournalV1, LaneCompositionReceiptCandidateV1, LaneCompositionReceiptEnvelopeV1,
+    hash_bytes_sha256_v1, hash_global_v1, project_asset_transfer_state_v1,
+    transition_asset_transfer_lane_module_v1, transition_managed_asset_lifecycle_lane_module_v1,
+    verify_asset_lane_composition_receipt_v1, verify_asset_transfer_lane_module_receipt_v1,
+    verify_economic_epoch_receipt_v1, verify_managed_asset_lifecycle_lane_module_receipt_v1,
+    verify_route_composition_receipt_v1, AbiErrorV1, AssetLaneCompositionResultV1,
+    AssetLaneCoordinatorContextV1, AssetLaneModuleCompatibilityV1, AssetSupplyV1,
+    AssetTransferCommandV1, AssetTransferContextV1, AssetTransferLaneModuleAcceptedV1,
+    AssetTransferLaneModuleInputV1, AssetTransferLaneModuleReceiptCandidateV1,
+    AssetTransferLaneModuleResultV1, AssetTransferPolicyV1, AssetTransferStateV1, EconomicAmountV1,
+    EconomicCommandOccurrenceV1, EconomicEffectKindV1, EconomicEpochReceiptCandidateV1,
+    EconomicEpochSuccinctReceiptVerifierV1, EconomicProfileSnapshotV1, EvidenceStatusV1,
+    ExternalOutboxEnqueueV1, GlobalEconomicEffectPlanV1, GlobalEconomicEpochCertificateV1,
+    GlobalEconomicStateV1, LaneCompositionAuthorityLevelV1, LaneCompositionJournalV1,
+    LaneCompositionReceiptCandidateV1, LaneCompositionReceiptEnvelopeV1,
     LaneCompositionSuccinctReceiptVerifierV1, LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1,
     LaneIdV1, LaneModuleReceiptEnvelopeV1, LaneModuleReleaseV1,
-    LaneModuleSuccinctReceiptVerifierV1, LaneRegistryV1, ManagedAssetClassV1,
+    LaneModuleSuccinctReceiptVerifierV1, LaneRegistryV1, LaneStateRootV1, ManagedAssetClassV1,
     ManagedAssetLifecycleCommandV1, ManagedAssetLifecycleContextV1,
     ManagedAssetLifecycleLaneModuleInputV1, ManagedAssetLifecycleLaneModuleReceiptCandidateV1,
     ManagedAssetLifecycleLaneModuleResultV1, ManagedAssetLifecyclePolicyV1,
     ManagedAssetLifecycleStateV1, ProfileStatusV1, ReceiptBackedAssetLaneCompositionCandidateV1,
-    ReceiptBackedAssetLaneCompositionV1, ReceiptKindV1, ReleaseStatusV1, RootV1,
+    ReceiptBackedAssetLaneCompositionV1, ReceiptKindV1, ReleaseStatusV1, ReplayStateV1, RootV1,
     RouteCompositionJournalV1, RouteCompositionReceiptCandidateV1,
     RouteCompositionReceiptEnvelopeV1, RouteCompositionSuccinctReceiptVerifierV1, RouteRegistryV1,
     RouteReleaseV1, VerifiedLaneCompositionV1, VerifiedLaneModuleTransitionV1,
@@ -1973,6 +1974,8 @@ struct VerifiedEconomicEpochFixture {
     coordinators: LaneCoordinatorRegistryV1,
     routes: RouteRegistryV1,
     certificate: GlobalEconomicEpochCertificateV1,
+    pre_state: GlobalEconomicStateV1,
+    post_state: GlobalEconomicStateV1,
     occurrences: Vec<EconomicCommandOccurrenceV1>,
     route_journals: Vec<RouteCompositionJournalV1>,
     verified_routes: Vec<VerifiedRouteCompositionV1>,
@@ -1989,6 +1992,8 @@ impl VerifiedEconomicEpochFixture {
             coordinators: &self.coordinators,
             routes: &self.routes,
             certificate: &self.certificate,
+            pre_state: &self.pre_state,
+            post_state: &self.post_state,
             command_occurrences: &self.occurrences,
             route_journals: &self.route_journals,
             verified_routes: &self.verified_routes,
@@ -2040,12 +2045,57 @@ fn epoch_asset_module_state(
 }
 
 struct VerifiedEpochRouteSequence {
-    pre_state_root: RootV1,
-    post_state_root: RootV1,
+    pre_state: GlobalEconomicStateV1,
+    post_state: GlobalEconomicStateV1,
     occurrences: Vec<EconomicCommandOccurrenceV1>,
     route_journals: Vec<RouteCompositionJournalV1>,
     verified_routes: Vec<VerifiedRouteCompositionV1>,
     route_effect_plans: Vec<GlobalEconomicEffectPlanV1>,
+}
+
+fn epoch_global_state(
+    profile: &EconomicProfileSnapshotV1,
+    lanes: &LaneRegistryV1,
+    module_state: &AssetTransferStateV1,
+    height: u64,
+    replay_state: Vec<ReplayStateV1>,
+) -> GlobalEconomicStateV1 {
+    let asset_lane = project_asset_transfer_state_v1(module_state, &root(11), &root(12), vec![])
+        .expect("test asset state must project");
+    GlobalEconomicStateV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        chain_id: "zeno-release-route-test".to_owned(),
+        deployment_root: root(1),
+        writer_epoch: profile.authority_epoch,
+        height,
+        profile_root: profile.profile_id.clone(),
+        lane_roots: lanes
+            .releases
+            .iter()
+            .enumerate()
+            .map(|(index, release)| LaneStateRootV1 {
+                lane_id: release.lane_id,
+                module_release_id: release.release_id.clone(),
+                enabled: release.status == ReleaseStatusV1::ACTIVE_NEW
+                    && release.accepts_new_objects,
+                state_root: if release.lane_id == LaneIdV1::ASSET_TRANSFER {
+                    asset_lane.state_root().expect("test lane state must hash")
+                } else {
+                    root(60_000 + index as u64)
+                },
+            })
+            .collect(),
+        balances: module_state.balances.clone(),
+        supplies: module_state.supplies.clone(),
+        custody: vec![],
+        liabilities: vec![],
+        reserves: vec![],
+        oracle_occurrences: vec![],
+        replay_state,
+        terminal_obligations: vec![],
+        history_root: RootV1::parse(ZERO_ROOT_V1, "test history root", true).unwrap(),
+        outbox: vec![],
+    }
 }
 
 fn verified_epoch_route_sequence(count: usize) -> VerifiedEpochRouteSequence {
@@ -2055,20 +2105,35 @@ fn verified_epoch_route_sequence(count: usize) -> VerifiedEpochRouteSequence {
     let mut route_journals = Vec::with_capacity(count);
     let mut verified_routes = Vec::with_capacity(count);
     let mut route_effect_plans = Vec::with_capacity(count);
-    let pre_state_root = root(2);
-    let mut current_root = pre_state_root.clone();
     let mut module_state = epoch_asset_module_state(&profile, &lanes, &routes);
+    let pre_state = epoch_global_state(&profile, &lanes, &module_state, 10, vec![]);
+    let mut current_state = pre_state.clone();
 
     for index in 0..count {
-        let next_root = root(80_000 + index as u64);
-        let fixture = verified_route_composition_fixture_with_state_at(
+        let mut fixture = verified_route_composition_fixture_with_state_at(
             index as u64,
             index as u64 + 1,
-            current_root,
-            next_root.clone(),
+            current_state.state_root().unwrap(),
+            root(80_000 + index as u64),
             Some(module_state),
         );
         assert_eq!(fixture.base.profile.profile_id, profile.profile_id);
+        let occurrence_id = fixture.base.occurrence.occurrence_id().unwrap();
+        let replay_id = fixture.base.occurrence.replay_id().unwrap();
+        let mut replay_state = current_state.replay_state.clone();
+        replay_state.push(ReplayStateV1 {
+            replay_id: replay_id.to_string(),
+            occurrence_id,
+        });
+        replay_state.sort_by(|left, right| left.replay_id.cmp(&right.replay_id));
+        let next_state = epoch_global_state(
+            &profile,
+            &lanes,
+            &fixture.base.accepted.post_state,
+            11,
+            replay_state,
+        );
+        fixture.route_journal.post_state_root = next_state.state_root().unwrap();
         let route_receipt_bytes = format!("succinct-route-receipt-{index}").into_bytes();
         let verified_route = verify_route_composition_receipt_v1(
             fixture.candidate(ReceiptKindV1::SUCCINCT, &route_receipt_bytes),
@@ -2080,11 +2145,11 @@ fn verified_epoch_route_sequence(count: usize) -> VerifiedEpochRouteSequence {
         module_state = fixture.base.accepted.post_state.clone();
         route_journals.push(fixture.route_journal);
         verified_routes.push(verified_route);
-        current_root = next_root;
+        current_state = next_state;
     }
     VerifiedEpochRouteSequence {
-        pre_state_root,
-        post_state_root: current_root,
+        pre_state,
+        post_state: current_state,
         occurrences,
         route_journals,
         verified_routes,
@@ -2111,8 +2176,8 @@ fn verified_epoch_statement(
         profile_root: profile.profile_id.clone(),
         writer_epoch: profile.authority_epoch,
         height: 11,
-        pre_state_root: routes.pre_state_root.clone(),
-        post_state_root: routes.post_state_root.clone(),
+        pre_state_root: routes.pre_state.state_root().unwrap(),
+        post_state_root: routes.post_state.state_root().unwrap(),
         ordered_occurrence_ids: routes
             .occurrences
             .iter()
@@ -2171,6 +2236,8 @@ fn verified_economic_epoch_fixture(count: usize) -> VerifiedEconomicEpochFixture
         coordinators,
         routes,
         certificate,
+        pre_state: sequence.pre_state,
+        post_state: sequence.post_state,
         occurrences: sequence.occurrences,
         route_journals: sequence.route_journals,
         verified_routes: sequence.verified_routes,
@@ -2196,6 +2263,14 @@ fn economic_epoch_admits_exact_route_witnesses_at_one_eight_nine_and_sixty_four(
         assert_eq!(verified.certificate(), &fixture.certificate);
         assert_eq!(verified.effect_plan(), &fixture.effect_plan);
         assert_eq!(verified.receipt_digest(), &fixture.certificate.receipt_root);
+        assert_eq!(
+            verified.state_effect_refinement().pre_state_root(),
+            &fixture.certificate.pre_state_root
+        );
+        assert_eq!(
+            verified.state_effect_refinement().post_state_root(),
+            &fixture.certificate.post_state_root
+        );
         assert_eq!(verifier.calls.borrow().len(), 1);
         assert_eq!(verifier.calls.borrow()[0].1, fixture.profile.root_image_id);
         assert_eq!(
@@ -2249,6 +2324,61 @@ fn economic_epoch_rejects_route_effect_plan_with_wrong_committed_root() {
     assert_eq!(
         error,
         AbiErrorV1::InvalidBinding("economic epoch route effect plan root")
+    );
+    assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
+fn economic_epoch_state_refinement_rejects_missing_replay_before_receipt() {
+    // Arrange: rebuild the authenticated route and certificate around a post-state
+    // that omits the occurrence's required replay insertion.
+    let fixture = verified_economic_epoch_fixture(1);
+    let mut defective_post = fixture.post_state.clone();
+    defective_post.replay_state.clear();
+    let mut route_fixture = verified_route_composition_fixture_with_state_at(
+        0,
+        1,
+        fixture.pre_state.state_root().unwrap(),
+        defective_post.state_root().unwrap(),
+        Some(epoch_asset_module_state(
+            &fixture.profile,
+            &fixture.lanes,
+            &fixture.routes,
+        )),
+    );
+    route_fixture.route_journal.post_state_root = defective_post.state_root().unwrap();
+    let verified_route = verify_route_composition_receipt_v1(
+        route_fixture.candidate(ReceiptKindV1::SUCCINCT, b"succinct-route-replay-mutant"),
+        &RecordingRouteReceiptVerifier::default(),
+    )
+    .expect("mutant route remains structurally receipt-backed");
+    let route_journals = vec![route_fixture.route_journal.clone()];
+    let verified_routes = vec![verified_route];
+    let route_effect_plans = vec![route_fixture.effect_plan.clone()];
+    let effect_plan = compose_asset_lane_epoch_effect_plans_v1(&route_effect_plans).unwrap();
+    let mut certificate = fixture.certificate.clone();
+    certificate.post_state_root = defective_post.state_root().unwrap();
+    certificate.ordered_route_journal_roots = vec![route_journals[0].journal_root().unwrap()];
+    certificate.ordered_route_assumption_roots =
+        vec![verified_routes[0].assumption_root().unwrap()];
+    certificate.effect_plan_root = effect_plan.effect_plan_root().unwrap();
+    certificate.journal_bytes = certificate.canonical_journal_bytes().unwrap().len() as u64;
+    let verifier = RecordingEpochReceiptVerifier::default();
+    let mut candidate = fixture.candidate();
+    candidate.certificate = &certificate;
+    candidate.post_state = &defective_post;
+    candidate.route_journals = &route_journals;
+    candidate.verified_routes = &verified_routes;
+    candidate.route_effect_plans = &route_effect_plans;
+    candidate.effect_plan = &effect_plan;
+
+    // Act
+    let error = verify_economic_epoch_receipt_v1(candidate, &verifier).unwrap_err();
+
+    // Assert: the epoch receipt verifier is never reached.
+    assert_eq!(
+        error,
+        AbiErrorV1::InvalidBinding("economic refinement replay state delta mismatch")
     );
     assert!(verifier.calls.borrow().is_empty());
 }

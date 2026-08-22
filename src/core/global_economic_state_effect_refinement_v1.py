@@ -2,9 +2,10 @@
 
 This deterministic checker binds full pre/post global economic states to the
 canonical effect plan.  It derives replay insertion from disclosed command
-occurrences. Oracle occurrences, terminal obligations, history, and external
-outbox commit binding remain outside this refinement and therefore cannot
-change here.
+occurrences. Nonempty disclosures advance state height exactly once; the
+zero-occurrence static relation preserves height. Oracle occurrences, terminal
+obligations, history, and external outbox commit binding remain outside this
+refinement and therefore cannot change here.
 
 The returned value is an opaque structural witness.  It verifies no receipt,
 selects no active profile, applies no durable write, and grants no settlement
@@ -31,9 +32,11 @@ from .global_economic_state_delta_v1 import (
 )
 from .global_settlement_types_v1 import (
     MAX_ATOMS_V1,
+    MAX_U64_V1,
     EconomicEffectKindV1,
     GlobalEconomicEffectPlanV1,
     GlobalEconomicStateV1,
+    _require_root,
     hash_global_v1,
 )
 
@@ -129,6 +132,40 @@ class GlobalEconomicStateEffectRefinementV1:
         )
 
 
+def _snapshot_global_economic_state_effect_refinement_v1(
+    refinement: GlobalEconomicStateEffectRefinementV1,
+) -> GlobalEconomicStateEffectRefinementV1:
+    if type(refinement) is not GlobalEconomicStateEffectRefinementV1:
+        raise TypeError("economic refinement snapshot requires the exact witness type")
+    roots = (
+        refinement.pre_state_root,
+        refinement.post_state_root,
+        refinement.effect_plan_root,
+        refinement.state_delta_root,
+    )
+    if any(type(root) is not str for root in roots):
+        raise TypeError("economic refinement snapshot roots must be exact str")
+    fields = _RefinementFieldsV1(
+        pre_state_root=_require_root(
+            refinement.pre_state_root,
+            name="economic refinement pre-state root",
+        ),
+        post_state_root=_require_root(
+            refinement.post_state_root,
+            name="economic refinement post-state root",
+        ),
+        effect_plan_root=_require_root(
+            refinement.effect_plan_root,
+            name="economic refinement effect-plan root",
+        ),
+        state_delta_root=_require_root(
+            refinement.state_delta_root,
+            name="economic refinement state-delta root",
+        ),
+    )
+    return GlobalEconomicStateEffectRefinementV1(_REFINEMENT_TOKEN, fields)
+
+
 def _snapshot_candidate_v1(
     candidate: GlobalEconomicStateEffectRefinementCandidateV1,
 ) -> GlobalEconomicStateEffectRefinementCandidateV1:
@@ -158,12 +195,13 @@ def _snapshot_candidate_v1(
 def _require_fixed_context_v1(
     pre_state: GlobalEconomicStateV1,
     post_state: GlobalEconomicStateV1,
+    *,
+    has_occurrences: bool,
 ) -> None:
     fixed_fields = (
         "chain_id",
         "deployment_root",
         "writer_epoch",
-        "height",
         "profile_root",
         "oracle_occurrences",
         "terminal_obligations",
@@ -172,6 +210,11 @@ def _require_fixed_context_v1(
     )
     if any(getattr(pre_state, field) != getattr(post_state, field) for field in fixed_fields):
         raise ValueError("economic refinement unsupported global field changed")
+    if has_occurrences and pre_state.height == MAX_U64_V1:
+        raise ValueError("economic refinement state height overflow")
+    expected_post_height = pre_state.height + int(has_occurrences)
+    if post_state.height != expected_post_height:
+        raise ValueError("economic refinement state height progression mismatch")
 
 
 def _require_nonzero_sparse_amounts_v1(state: GlobalEconomicStateV1) -> None:
@@ -277,7 +320,13 @@ def refine_global_economic_state_effects_v1(
     pre_state = snapshot.pre_state
     post_state = snapshot.post_state
     effect_plan = snapshot.effect_plan
-    _require_fixed_context_v1(pre_state, post_state)
+    if bool(effect_plan.occurrence_consumptions) != bool(snapshot.consumed_occurrences):
+        raise ValueError("economic refinement occurrence disclosure mismatch")
+    _require_fixed_context_v1(
+        pre_state,
+        post_state,
+        has_occurrences=bool(effect_plan.occurrence_consumptions),
+    )
     _require_nonzero_sparse_amounts_v1(pre_state)
     _require_nonzero_sparse_amounts_v1(post_state)
     _require_supported_effects_v1(effect_plan)
@@ -307,5 +356,6 @@ __all__ = [
     "GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_SCHEMA_V1",
     "GlobalEconomicStateEffectRefinementCandidateV1",
     "GlobalEconomicStateEffectRefinementV1",
+    "_snapshot_global_economic_state_effect_refinement_v1",
     "refine_global_economic_state_effects_v1",
 ]

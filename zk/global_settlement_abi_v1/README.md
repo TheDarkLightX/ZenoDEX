@@ -111,13 +111,17 @@ epoch plans, wrong route roots, disconnected histories, duplicate occurrences,
 overflow, zero, 65, missing, foreign, reordered, empty, wrong-kind, and
 verifier-rejected evidence.
 
-The full-state route projection and global state/effect refinement are now
-implemented as unmounted deterministic checkers in both language references.
-The projection binds selected lane journals to the monolithic pre/post state
-roots and preserves every unselected lane. The refinement independently derives
-balance, named-custody, liability, reserve, supply, and lane-root deltas; binds
-them to canonical effects; recomputes owned-total/supply conservation; and
-requires fee labels to mirror real value movement. It also derives one
+The full-state route projection remains an unmounted deterministic checker in
+both language references. The projection binds selected lane journals to the
+monolithic pre/post state roots and preserves every unselected lane. The global
+state/effect refinement is now invoked by the bounded reference epoch verifier
+before its root-receipt port. Epoch candidates disclose exact full pre/post
+states; the verifier binds them to the active profile, certificate roots,
+chain, deployment, writer epoch, and one-step height progression, then retains
+the checker-constructed refinement in `VerifiedEconomicEpochV1`. The refinement
+derives balance, named-custody, liability, reserve, supply, and lane-root deltas;
+binds them to canonical effects; recomputes owned-total/supply conservation;
+and requires fee labels to mirror real value movement. It also derives one
 deployment-scoped subject/nonce replay ID from each disclosed consumed
 occurrence, binds the ordered occurrence and route-journal chain from the exact
 pre-state root to post-state root, and requires post replay state to equal pre
@@ -129,8 +133,16 @@ and prior-consumption attacks; fixtures have shared Python/Rust single- and
 multi-occurrence golden roots. Canonical authenticated subject identity and
 deployment continuity across migration remain outer requirements. Oracle
 occurrence, terminal, history, zero/residual fee aliases, reward, slash, and
-outbox changes reject. These opaque results verify no receipt, authenticate no
-current profile, and grant no settlement or publication authority.
+outbox changes reject. A standalone refinement result verifies no receipt and
+grants no settlement or publication authority. The enclosing epoch boundary
+uses defensively owned Python snapshots of the complete governed profile graph,
+certificate, disclosed states, occurrences, journals, and effects before
+validation. The reference commit port revalidates the content-derived active
+profile under its lock, reruns state/effect/replay refinement from verifier-owned
+occurrence and route disclosures, rebinds the result to immutable verification
+roots, and owns its published state copy. It still has no deployed cryptographic
+verifier, external governed-profile anchor, durable writer, or production
+authority: `production_authority=NONE`.
 
 The deterministic receipt roots are statement commitments, not cryptographic
 proof receipts. This ABI crate contains no guest or cryptographic verifier

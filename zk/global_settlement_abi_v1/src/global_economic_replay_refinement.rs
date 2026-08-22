@@ -49,7 +49,7 @@ pub(crate) fn derive_replay_insertions_v1(
         if occurrence.chain_id != pre_state.chain_id
             || occurrence.deployment_root != pre_state.deployment_root
             || occurrence.profile_root != pre_state.profile_root
-            || occurrence.height != pre_state.height
+            || occurrence.height != post_state.height
             || occurrence.pre_state_root != current_root
             || journal.chain_id != pre_state.chain_id
             || journal.deployment_root != pre_state.deployment_root

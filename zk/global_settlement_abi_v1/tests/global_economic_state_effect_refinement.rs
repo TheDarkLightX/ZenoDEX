@@ -221,7 +221,7 @@ fn occurrence(
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
         chain_id: chain_id.to_owned(),
         deployment_root: root(1_000),
-        height: 41,
+        height: 42,
         tx_index,
         op_index: 1,
         command_kind: command_kind.to_owned(),
@@ -281,6 +281,7 @@ fn replay_batch_for_nonces(
             occurrence_id: item.occurrence_id().unwrap(),
         };
         let mut next = current.clone();
+        next.height = 42;
         next.replay_state.push(replay);
         next.replay_state
             .sort_by(|left, right| left.replay_id.cmp(&right.replay_id));
@@ -336,6 +337,55 @@ fn refinement_matches_python_golden_root() {
         refinement.refinement_root().unwrap().as_str(),
         "0x5026263a651e46d40e4ee6d818c3e222a7d36f484ac48a180500047f51725fdc"
     );
+}
+
+#[test]
+fn refinement_height_progression_kills_static_epoch_and_overflow_mutants() {
+    let pre = pre_state();
+    let mut wrong_static_post = post_state();
+    wrong_static_post.height += 1;
+    assert!(matches!(
+        refine_global_economic_state_effects_v1(&candidate(
+            &pre,
+            &wrong_static_post,
+            &effect_plan(),
+        )),
+        Err(AbiErrorV1::InvalidBinding(
+            "economic refinement state height progression"
+        ))
+    ));
+
+    let (epoch_pre, mut wrong_epoch_post, epoch_effects, occurrences, journals) = replay_batch(1);
+    wrong_epoch_post.height = epoch_pre.height;
+    assert!(matches!(
+        refine_global_economic_state_effects_v1(&GlobalEconomicStateEffectRefinementCandidateV1 {
+            pre_state: &epoch_pre,
+            post_state: &wrong_epoch_post,
+            effect_plan: &epoch_effects,
+            consumed_occurrences: &occurrences,
+            route_journals: &journals,
+        }),
+        Err(AbiErrorV1::InvalidBinding(
+            "economic refinement state height progression"
+        ))
+    ));
+
+    let mut overflow_pre = epoch_pre;
+    let mut overflow_post = wrong_epoch_post;
+    overflow_pre.height = u64::MAX;
+    overflow_post.height = u64::MAX;
+    assert!(matches!(
+        refine_global_economic_state_effects_v1(&GlobalEconomicStateEffectRefinementCandidateV1 {
+            pre_state: &overflow_pre,
+            post_state: &overflow_post,
+            effect_plan: &epoch_effects,
+            consumed_occurrences: &occurrences,
+            route_journals: &journals,
+        }),
+        Err(AbiErrorV1::InvalidBounds(
+            "economic refinement state height"
+        ))
+    ));
 }
 
 #[test]
@@ -553,6 +603,7 @@ fn replay_refinement_rejects_missing_post_cross_context_and_prior_consumption() 
     replayed_effects.occurrence_consumptions =
         vec![replayed_occurrences[0].occurrence_id().unwrap()];
     let mut replayed_post = replayed_pre.clone();
+    replayed_post.height = 42;
     replayed_post.replay_state = vec![replay_row];
     let replayed_journals = [route_journal(
         &replayed_occurrences[0],
@@ -589,6 +640,7 @@ fn replay_refinement_rejects_duplicate_subject_nonce_under_distinct_occurrences(
         occurrence_id: first.occurrence_id().unwrap(),
     };
     let mut intermediate = pre.clone();
+    intermediate.height = 42;
     intermediate.replay_state = vec![first_row.clone()];
     let second = occurrence(
         "zeno-refinement-test",
@@ -602,6 +654,7 @@ fn replay_refinement_rejects_duplicate_subject_nonce_under_distinct_occurrences(
         .iter()
         .map(|item| item.occurrence_id().unwrap())
         .collect();
+    post.height = 42;
     post.replay_state = vec![first_row];
     let journals = vec![
         route_journal(&occurrences[0], intermediate.state_root().unwrap()),
@@ -665,7 +718,7 @@ fn replay_refinement_matches_two_occurrence_python_golden_and_u64_nonce_max() {
         .unwrap();
     assert_eq!(
         refinement.refinement_root().unwrap().as_str(),
-        "0x146bb63d8b989606409aeb8f9bb09e7a9715194750840c82a7e68ff518dccc07"
+        "0x31be418cbddb787cdb112389b4303bd4cf3cdbce81a678cd39cd55df092e26d1"
     );
 
     let (pre, post, effects, occurrences, journals) = replay_batch_for_nonces(&[u64::MAX]);

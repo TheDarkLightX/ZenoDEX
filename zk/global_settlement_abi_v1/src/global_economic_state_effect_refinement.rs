@@ -1,9 +1,9 @@
 //! Exact refinement between full global states and canonical economic effects.
 //!
 //! This deterministic checker covers sparse amount tables, supply, lane roots,
-//! replay insertion, and conservation rows. Unsupported state and effect
-//! categories fail closed. The result verifies no receipt and grants no
-//! publication authority.
+//! replay insertion, one-step nonempty epoch height progression, and conservation
+//! rows. Unsupported state and effect categories fail closed. The result verifies
+//! no receipt and grants no publication authority.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -81,11 +81,11 @@ impl GlobalEconomicStateEffectRefinementV1 {
 fn require_fixed_context_v1(
     pre_state: &GlobalEconomicStateV1,
     post_state: &GlobalEconomicStateV1,
+    has_occurrences: bool,
 ) -> AbiResultV1<()> {
     if pre_state.chain_id != post_state.chain_id
         || pre_state.deployment_root != post_state.deployment_root
         || pre_state.writer_epoch != post_state.writer_epoch
-        || pre_state.height != post_state.height
         || pre_state.profile_root != post_state.profile_root
         || pre_state.oracle_occurrences != post_state.oracle_occurrences
         || pre_state.terminal_obligations != post_state.terminal_obligations
@@ -94,6 +94,17 @@ fn require_fixed_context_v1(
     {
         return Err(AbiErrorV1::InvalidBinding(
             "economic refinement unsupported global field changed",
+        ));
+    }
+    let expected_post_height = pre_state
+        .height
+        .checked_add(u64::from(has_occurrences))
+        .ok_or(AbiErrorV1::InvalidBounds(
+            "economic refinement state height",
+        ))?;
+    if post_state.height != expected_post_height {
+        return Err(AbiErrorV1::InvalidBinding(
+            "economic refinement state height progression",
         ));
     }
     Ok(())
@@ -294,7 +305,18 @@ pub fn refine_global_economic_state_effects_v1(
     candidate.pre_state.validate()?;
     candidate.post_state.validate()?;
     candidate.effect_plan.validate()?;
-    require_fixed_context_v1(candidate.pre_state, candidate.post_state)?;
+    if candidate.effect_plan.occurrence_consumptions.is_empty()
+        != candidate.consumed_occurrences.is_empty()
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "economic refinement occurrence disclosure mismatch",
+        ));
+    }
+    require_fixed_context_v1(
+        candidate.pre_state,
+        candidate.post_state,
+        !candidate.effect_plan.occurrence_consumptions.is_empty(),
+    )?;
     require_nonzero_sparse_amounts_v1(candidate.pre_state)?;
     require_nonzero_sparse_amounts_v1(candidate.post_state)?;
     require_supported_effects_v1(candidate.effect_plan)?;

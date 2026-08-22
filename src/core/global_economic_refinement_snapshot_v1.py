@@ -8,6 +8,7 @@ from typing import Any
 
 from .global_economic_proof_v1 import (
     EconomicCommandOccurrenceV1,
+    GlobalEconomicEpochCertificateV1,
     RouteCompositionJournalV1,
 )
 from .global_settlement_types_v1 import (
@@ -40,7 +41,12 @@ def _require_exact_dataclass_scalars_v1(
             if type(item) is not tuple:
                 raise TypeError(f"economic refinement {name}.{field.name} must be exact tuple")
             continue
-        if isinstance(item, Enum) and field.name not in {"kind", "lane_id", "status"}:
+        if isinstance(item, Enum) and field.name not in {
+            "kind",
+            "lane_id",
+            "receipt_kind",
+            "status",
+        }:
             raise TypeError(
                 f"economic refinement {name}.{field.name} must be an exact primitive"
             )
@@ -138,6 +144,20 @@ def _snapshot_state_v1(state: GlobalEconomicStateV1) -> GlobalEconomicStateV1:
 def _snapshot_effect_plan_v1(
     effect_plan: GlobalEconomicEffectPlanV1,
 ) -> GlobalEconomicEffectPlanV1:
+    _require_exact_dataclass_scalars_v1(
+        effect_plan,
+        name="effect plan",
+        tuple_fields=frozenset(
+            {
+                "rows",
+                "asset_conservation",
+                "fee_conservation",
+                "lane_writes",
+                "occurrence_consumptions",
+                "external_outbox_enqueue",
+            }
+        ),
+    )
     consumptions = _require_exact_tuple_items(
         effect_plan.occurrence_consumptions,
         str,
@@ -166,6 +186,49 @@ def _snapshot_effect_plan_v1(
             effect_plan.external_outbox_enqueue,
             ExternalOutboxEnqueueV1,
             "effect plan external_outbox_enqueue",
+        ),
+    )
+
+
+def _snapshot_epoch_certificate_v1(
+    certificate: GlobalEconomicEpochCertificateV1,
+) -> GlobalEconomicEpochCertificateV1:
+    if type(certificate) is not GlobalEconomicEpochCertificateV1:
+        raise TypeError("economic epoch certificate must have the exact typed value")
+    tuple_fields = frozenset(
+        {
+            "ordered_occurrence_ids",
+            "ordered_route_journal_roots",
+            "ordered_route_assumption_roots",
+        }
+    )
+    _require_exact_dataclass_scalars_v1(
+        certificate,
+        name="epoch certificate",
+        tuple_fields=tuple_fields,
+    )
+    return replace(
+        certificate,
+        ordered_occurrence_ids=tuple(
+            _require_exact_tuple_items(
+                certificate.ordered_occurrence_ids,
+                str,
+                "epoch certificate occurrence ids",
+            )
+        ),
+        ordered_route_journal_roots=tuple(
+            _require_exact_tuple_items(
+                certificate.ordered_route_journal_roots,
+                str,
+                "epoch certificate route journal roots",
+            )
+        ),
+        ordered_route_assumption_roots=tuple(
+            _require_exact_tuple_items(
+                certificate.ordered_route_assumption_roots,
+                str,
+                "epoch certificate route assumption roots",
+            )
         ),
     )
 
@@ -213,6 +276,7 @@ def _snapshot_route_journal_v1(
 __all__ = [
     "_require_exact_tuple_items",
     "_snapshot_effect_plan_v1",
+    "_snapshot_epoch_certificate_v1",
     "_snapshot_occurrence_v1",
     "_snapshot_route_journal_v1",
     "_snapshot_state_v1",

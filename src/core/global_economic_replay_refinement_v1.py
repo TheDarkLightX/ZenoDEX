@@ -59,7 +59,7 @@ def _require_route_state_chain_v1(candidate: _ReplayRefinementInputV1) -> None:
             occurrence.chain_id == pre_state.chain_id
             and occurrence.deployment_root == pre_state.deployment_root
             and occurrence.profile_root == pre_state.profile_root
-            and occurrence.height == pre_state.height
+            and occurrence.height == candidate.post_state.height
             and occurrence.pre_state_root == current_root
             and journal.chain_id == pre_state.chain_id
             and journal.deployment_root == pre_state.deployment_root
