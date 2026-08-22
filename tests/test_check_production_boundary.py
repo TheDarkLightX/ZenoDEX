@@ -20,6 +20,7 @@ from tools.check_production_boundary import (
     THEOREMSEARCH_RETRIEVAL_REQUIRED_NEGATIVES,
     ResearchPromotionBoundaryContract,
     audit_production_boundary,
+    main,
     research_promotion_control_fixture_digest,
     research_promotion_obligation_manifest_digest,
     research_promotion_registry_manifest_digest,
@@ -36,6 +37,35 @@ from tools.check_production_boundary import (
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_cli_reports_a_fail_closed_row_when_the_audit_cannot_execute(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def broken_audit(_root: Path) -> dict[str, object]:
+        raise ModuleNotFoundError("missing release dependency")
+
+    monkeypatch.setattr(
+        "tools.check_production_boundary.audit_production_boundary",
+        broken_audit,
+    )
+
+    exit_code = main(["--json"])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 1
+    assert payload["ok"] is False
+    assert payload["checks"] == [
+        {
+            "check_id": "production_boundary_audit_execution_complete",
+            "evidence": (
+                '{"exception_type": "ModuleNotFoundError", '
+                '"message": "missing release dependency"}'
+            ),
+            "ok": False,
+        }
+    ]
 
 
 def test_current_production_boundary_audit_passes() -> None:

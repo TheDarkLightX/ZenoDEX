@@ -1248,7 +1248,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
-    payload = audit_production_boundary(args.root)
+    try:
+        payload = audit_production_boundary(args.root)
+    except Exception as exc:  # noqa: BLE001 - a broken gate must fail closed
+        payload = {
+            "schema": "zenodex/production_boundary_audit/v0",
+            "ok": False,
+            "checks": [
+                BoundaryCheck(
+                    check_id="production_boundary_audit_execution_complete",
+                    ok=False,
+                    evidence=json.dumps(
+                        {
+                            "exception_type": type(exc).__name__,
+                            "message": str(exc),
+                        },
+                        sort_keys=True,
+                    ),
+                ).to_dict()
+            ],
+            "requirements": [],
+        }
     if args.json or not payload["ok"]:
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:
