@@ -520,6 +520,20 @@ replay additions, prove private-lane nullifier continuity, or establish
 source-head finality. Target-only additions remain a release-blocking authority
 and availability obligation.
 
+Commit `1ea1303dd8509b34bf8278c54720fa9f458060fc` adds one bounded external-outbox
+relation. Genesis requires an empty outbox. Migration requires byte-equivalent
+canonical preservation of every outbox row, including effect ID, destination,
+payload hash, originating commit ID, status, row count and order. Source and
+target tables each reject above 4,096 rows before state validation, copying or
+hashing in the raw admission and guest entry paths. The public continuity root
+commits both complete tables and both state roots. A generated Python/Rust
+vector fixes the expected root; only the Python renderer has executed locally.
+Migration-time enqueue, deletion, acknowledgment, rewrite or compaction
+therefore rejects in this bounded source model. This does not prove that a
+source row came from an authorized committed effect, or that delivery,
+external finality, retry, acknowledgment authenticity, destination idempotency
+or durable reconciliation is correct.
+
 A pinned RISC0 3.0.6 guest and host source use the same Rust statement checker
 over canonical bounded input and contain guards for development mode,
 placeholder methods, non-succinct receipts, wrong journals, and wrong measured
@@ -595,8 +609,9 @@ remains excluded from GlobalSettlementABI V1.
    including buy-and-burn, hosting compensation, eight-decimal units,
    retained-supply hyperdeflation, recovery, and terminal behavior.
 2. Add separate invariant-owner certificates for Oracle, history, terminal,
-   outbox, and private lane-object continuity; authenticate every target-only
-   replay addition and complete private nullifier continuity and
+   and private lane-object continuity; authenticate every target-only replay
+   addition, complete private nullifier continuity, prove outbox source
+   authorization and delivery/acknowledgment refinement, and complete
    predecessor-source migration classification. Select the genesis or migration
    release from committed profile state. Build and measure the predecessor-bound
    RISC0 guest, then generate and replay its real succinct receipt on the proof
@@ -701,3 +716,5 @@ Any false or missing conjunct keeps the claim disabled.
 - No assertion that a proof system repairs an incorrect or incomplete guest.
 - No assertion that replay-row preservation authenticates target-only replay
   additions or proves complete nonce and private-nullifier continuity.
+- No assertion that outbox-table preservation proves authorized origin,
+  external delivery, finality, acknowledgment authenticity or idempotency.
