@@ -56,6 +56,38 @@ pub struct CertifiedEconomicInitialStateV1 {
     pub receipt_bytes: Vec<u8>,
 }
 
+/// Host-observed execution diagnostics. These values carry no receipt authority.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EconomicInitialStateProofMetricsV1 {
+    pub segments: usize,
+    pub total_cycles: u64,
+    pub user_cycles: u64,
+    pub paging_cycles: u64,
+    pub reserved_cycles: u64,
+}
+
+/// A receipt already checked by the host, paired with non-authoritative diagnostics.
+#[derive(Clone, Debug)]
+#[must_use]
+pub struct ProvedEconomicInitialStateV1 {
+    receipt: Receipt,
+    metrics: EconomicInitialStateProofMetricsV1,
+}
+
+impl ProvedEconomicInitialStateV1 {
+    pub fn receipt(&self) -> &Receipt {
+        &self.receipt
+    }
+
+    pub const fn metrics(&self) -> &EconomicInitialStateProofMetricsV1 {
+        &self.metrics
+    }
+
+    pub fn into_receipt(self) -> Receipt {
+        self.receipt
+    }
+}
+
 pub fn build_economic_initial_state_executor_env_v1(
     input: &EconomicInitialStateGuestInputV1,
 ) -> Result<(ExecutorEnv<'static>, PreparedEconomicInitialStateV1), EconomicInitialStateHostErrorV1>
@@ -76,6 +108,12 @@ pub fn build_economic_initial_state_executor_env_v1(
 pub fn prove_economic_initial_state_succinct_v1(
     input: &EconomicInitialStateGuestInputV1,
 ) -> Result<Receipt, EconomicInitialStateHostErrorV1> {
+    Ok(prove_economic_initial_state_succinct_with_metrics_v1(input)?.into_receipt())
+}
+
+pub fn prove_economic_initial_state_succinct_with_metrics_v1(
+    input: &EconomicInitialStateGuestInputV1,
+) -> Result<ProvedEconomicInitialStateV1, EconomicInitialStateHostErrorV1> {
     require_economic_initial_state_runtime_configuration_v1()?;
     require_input_method_binding_v1(input)?;
     let (env, prepared) = build_economic_initial_state_executor_env_v1(input)?;
@@ -87,7 +125,17 @@ pub fn prove_economic_initial_state_succinct_v1(
         )
         .map_err(|_| EconomicInitialStateHostErrorV1::Proving)?;
     verify_economic_initial_state_receipt_v1(&prove_info.receipt, prepared.journal_bytes())?;
-    Ok(prove_info.receipt)
+    let metrics = EconomicInitialStateProofMetricsV1 {
+        segments: prove_info.stats.segments,
+        total_cycles: prove_info.stats.total_cycles,
+        user_cycles: prove_info.stats.user_cycles,
+        paging_cycles: prove_info.stats.paging_cycles,
+        reserved_cycles: prove_info.stats.reserved_cycles,
+    };
+    Ok(ProvedEconomicInitialStateV1 {
+        receipt: prove_info.receipt,
+        metrics,
+    })
 }
 
 pub fn verify_economic_initial_state_receipt_v1(

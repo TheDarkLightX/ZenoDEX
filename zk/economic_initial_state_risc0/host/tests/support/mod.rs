@@ -1,0 +1,159 @@
+use std::fs;
+use std::path::PathBuf;
+
+use serde_json::Value;
+use zenodex_economic_initial_state_risc0_shared::{
+    EconomicInitialStateGuestInputV1, ECONOMIC_INITIAL_STATE_GUEST_INPUT_SCHEMA_V1,
+};
+use zenodex_global_settlement_abi_v1::{
+    derive_economic_initial_state_atom_occurrences_v1,
+    economic_initial_state_atom_coverage_policy_binding_v1,
+    EconomicInitialStateAtomClassificationV1, EconomicInitialStateAtomSourceV1,
+    EconomicInitialStateJournalV1, EconomicInitialStateKindV1,
+    EconomicInitialStateSourceManifestV1, EconomicPolicyBindingV1, EconomicPolicyRegistryV1,
+    EconomicProfileSnapshotV1, GlobalEconomicStateV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1,
+    M6_ASSET_PRECISION_POLICY_KIND_V1, M6_ASSET_PRECISION_POLICY_ROOT_V1,
+    M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1, M6_CAPABILITY_MANIFEST_ROOT_V1,
+    M6_CAPABILITY_POLICY_KIND_V1, M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
+};
+
+pub fn root(value: u64) -> RootV1 {
+    RootV1::parse(
+        format!("0x{value:064x}"),
+        "initial-state real-proof test root",
+        false,
+    )
+    .unwrap()
+}
+
+fn fixture_vector(name: &str) -> Value {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../..")
+        .join("tests/data/global_settlement_abi_v1_golden.json");
+    let fixture: Value = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+    fixture["vectors"][name]["canonical"].clone()
+}
+
+fn source_manifest(state: &GlobalEconomicStateV1) -> EconomicInitialStateSourceManifestV1 {
+    EconomicInitialStateSourceManifestV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        kind: EconomicInitialStateKindV1::MIGRATION,
+        rows: derive_economic_initial_state_atom_occurrences_v1(state)
+            .unwrap()
+            .into_iter()
+            .enumerate()
+            .map(|(index, occurrence)| EconomicInitialStateAtomSourceV1 {
+                occurrence,
+                classification: EconomicInitialStateAtomClassificationV1::MigratedTarget,
+                source_authorization_root: root(1_000 + u64::try_from(index).unwrap()),
+            })
+            .collect(),
+    }
+}
+
+fn policy_registry(
+    source_manifest: &EconomicInitialStateSourceManifestV1,
+) -> EconomicPolicyRegistryV1 {
+    EconomicPolicyRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        bindings: vec![
+            EconomicPolicyBindingV1 {
+                policy_kind: M6_ASSET_PRECISION_POLICY_KIND_V1.to_owned(),
+                command_kind: M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1.to_owned(),
+                policy_root: RootV1::parse(
+                    M6_ASSET_PRECISION_POLICY_ROOT_V1,
+                    "precision policy root",
+                    false,
+                )
+                .unwrap(),
+            },
+            EconomicPolicyBindingV1 {
+                policy_kind: M6_CAPABILITY_POLICY_KIND_V1.to_owned(),
+                command_kind: M6_CAPABILITY_PROFILE_COMMAND_KIND_V1.to_owned(),
+                policy_root: RootV1::parse(
+                    M6_CAPABILITY_MANIFEST_ROOT_V1,
+                    "capability policy root",
+                    false,
+                )
+                .unwrap(),
+            },
+            economic_initial_state_atom_coverage_policy_binding_v1(&source_manifest).unwrap(),
+        ],
+    }
+}
+
+fn bind_profile(
+    profile: &mut EconomicProfileSnapshotV1,
+    policy_registry: &EconomicPolicyRegistryV1,
+    root_image_id: RootV1,
+) {
+    profile.root_image_id = root_image_id;
+    profile.policy_registry_root = policy_registry.registry_root().unwrap();
+    let profile_content = serde_json::json!({
+        "schema": GLOBAL_SETTLEMENT_ABI_V1,
+        "authority_epoch": profile.authority_epoch,
+        "lane_registry_root": profile.lane_registry_root,
+        "lane_coordinator_registry_root": profile.lane_coordinator_registry_root,
+        "route_registry_root": profile.route_registry_root,
+        "proof_shape_root": profile.proof_shape_root,
+        "root_image_id": profile.root_image_id,
+        "verifier_registry_root": profile.verifier_registry_root,
+        "migration_registry_root": profile.migration_registry_root,
+        "policy_registry_root": profile.policy_registry_root,
+        "terminal_registry_root": profile.terminal_registry_root,
+    });
+    profile.profile_id = zenodex_global_settlement_abi_v1::hash_global_v1(
+        "global-economic-profile-content-v1",
+        &profile_content,
+    )
+    .unwrap();
+}
+
+fn statement(
+    profile: &EconomicProfileSnapshotV1,
+    state: &GlobalEconomicStateV1,
+    source_manifest: &EconomicInitialStateSourceManifestV1,
+) -> EconomicInitialStateJournalV1 {
+    EconomicInitialStateJournalV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        kind: EconomicInitialStateKindV1::MIGRATION,
+        chain_id: state.chain_id.clone(),
+        deployment_root: state.deployment_root.clone(),
+        profile_root: profile.profile_id.clone(),
+        writer_epoch: state.writer_epoch,
+        height: state.height,
+        state_root: state.state_root().unwrap(),
+        source_profile_root: root(2_001),
+        source_state_root: root(2_002),
+        source_writer_epoch: state.writer_epoch.checked_sub(1).unwrap(),
+        source_height: state.height.checked_sub(1).unwrap(),
+        state_atom_coverage_root: source_manifest.manifest_root().unwrap(),
+        lane_object_coverage_root: root(2_003),
+        replay_continuity_root: root(2_004),
+        terminal_continuity_root: root(2_005),
+        outbox_continuity_root: root(2_006),
+        source_manifest_root: root(2_007),
+        toolchain_manifest_root: root(2_008),
+        root_image_id: profile.root_image_id.clone(),
+    }
+}
+
+pub fn guest_input(root_image_id: RootV1) -> EconomicInitialStateGuestInputV1 {
+    let mut profile: EconomicProfileSnapshotV1 =
+        serde_json::from_value(fixture_vector("economic_profile")).unwrap();
+    let mut state: GlobalEconomicStateV1 =
+        serde_json::from_value(fixture_vector("global_state")).unwrap();
+    let source_manifest = source_manifest(&state);
+    let policy_registry = policy_registry(&source_manifest);
+    bind_profile(&mut profile, &policy_registry, root_image_id);
+    state.profile_root = profile.profile_id.clone();
+    let statement = statement(&profile, &state, &source_manifest);
+    EconomicInitialStateGuestInputV1 {
+        schema: ECONOMIC_INITIAL_STATE_GUEST_INPUT_SCHEMA_V1.to_owned(),
+        profile,
+        policy_registry,
+        state,
+        source_manifest,
+        statement,
+    }
+}
