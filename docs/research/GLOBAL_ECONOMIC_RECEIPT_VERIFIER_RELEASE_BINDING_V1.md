@@ -24,9 +24,10 @@ Request.image_id = SelectedRelease.root_image_id
 
 Every equality is exact and type-sensitive. One release is selected for the
 closed purpose `RESEARCH_SHADOW` or `PRODUCTION_NEW`. An `ACTIVE_NEW` release
-requires the complete evidence set declared by V1. The current publisher
-requires `RESEARCH_SHADOW`, so this implementation cannot promote itself into a
-production verifier path.
+record requires the complete evidence-label set declared by V1. Production
+selection still rejects unconditionally because no checker-derived activation
+certificate exists. The current publisher requires `RESEARCH_SHADOW`, so this
+implementation cannot promote itself into a production verifier path.
 
 ## Preflight and pattern selection
 
@@ -64,6 +65,8 @@ the capability identity, release ID, and binding root across each backend call.
 - unknown, duplicate, unsorted, ambiguous, or profile-mismatched releases fail
   closed;
 - shadow and active release states have separate evidence requirements;
+- `PRODUCTION_NEW` selection rejects until an objective activation certificate
+  type and verifier are implemented;
 - manifest coordinates and evidence statuses must exactly match the release;
 - measured artifact bytes must match the release implementation root;
 - the backend protocol has a deterministic root and exact success contract;

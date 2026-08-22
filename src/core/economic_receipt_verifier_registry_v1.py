@@ -357,6 +357,10 @@ def select_profile_governed_economic_receipt_verifier_release_v1(
         and owned_profile.status is not ProfileStatusV1.ACTIVE
     ):
         raise ValueError("production receipt verifier requires an active profile")
+    if selection_purpose is EconomicReceiptVerifierSelectionPurposeV1.PRODUCTION_NEW:
+        raise ValueError(
+            "production receipt verifier activation certificate is not implemented"
+        )
     if owned_profile.verifier_registry_root != verifier_registry.registry_root:
         raise ValueError("economic receipt verifier registry is not profile governed")
     release = verifier_registry.release_for(selection_purpose)

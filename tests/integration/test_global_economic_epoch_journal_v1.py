@@ -9,6 +9,7 @@ import sys
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
@@ -859,7 +860,7 @@ def test_direct_journal_has_no_unfenced_epoch_commit_api(tmp_path: Path) -> None
         journal._commit_epoch_from_verified_publisher_v1(
             epoch,
             token,
-            object(),  # type: ignore[arg-type]
+            cast(Any, object()),
         )
     with pytest.raises(TypeError, match="publisher-minted"):
         DurableEconomicEpochWriteCapabilityV1(object(), journal)

@@ -49,6 +49,8 @@ Mechanical guarantees:
 - exact profile-to-verifier-registry-root and profile-to-root-image selection;
 - content-derived verifier release identity with closed `SHADOW` versus
   `ACTIVE_NEW` purposes and evidence requirements;
+- unconditional `PRODUCTION_NEW` rejection until checker-derived verifier
+  activation evidence exists;
 - exact evidence-manifest, implementation-artifact, backend-protocol, profile,
   deployment, receipt-size, and journal-size binding;
 - byte-identical activation reproduction on reopen;

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any, cast
 
 import pytest
 
@@ -228,8 +229,8 @@ def test_active_release_requires_complete_release_evidence() -> None:
         )
 
 
-def test_complete_active_release_is_selected_only_for_production_purpose() -> None:
-    # Arrange: a profile commits one active release with the complete V1 label set.
+def test_complete_active_labels_cannot_mint_production_authority() -> None:
+    # Arrange: Mallory supplies every producer-controlled evidence label.
     manifest = _manifest(evidence_statuses=_ACTIVE_EVIDENCE)
     release = _release(
         manifest,
@@ -239,16 +240,20 @@ def test_complete_active_release_is_selected_only_for_production_purpose() -> No
     )
     registry = EconomicReceiptVerifierRegistryV1((release,))
     profile, _ = _profile(verifier_registry_root=registry.registry_root)
+    backend = _RecordingBackend()
 
-    # Act: resolve the closed production-new selection purpose.
-    selected = select_profile_governed_economic_receipt_verifier_release_v1(
-        profile=profile,
-        verifier_registry=registry,
-        selection_purpose=EconomicReceiptVerifierSelectionPurposeV1.PRODUCTION_NEW,
-    )
-
-    # Assert: purpose selection returns the exact profile/image-bound release.
-    assert selected == release
+    # Act and assert: labels cannot replace an objective activation certificate.
+    with pytest.raises(ValueError, match="activation certificate is not implemented"):
+        bind_economic_receipt_verifier_deployment_v1(
+            profile=profile,
+            verifier_registry=registry,
+            selection_purpose=EconomicReceiptVerifierSelectionPurposeV1.PRODUCTION_NEW,
+            evidence_manifest=manifest,
+            measured_artifact_bytes=_ARTIFACT_BYTES,
+            deployment_root=_root(7),
+            backend=backend,
+        )
+    assert backend.calls == []
 
 
 def test_production_selection_rejects_inactive_profile() -> None:
@@ -430,7 +435,7 @@ def test_bound_capability_is_loader_constructed_and_has_no_data_slots() -> None:
 
     # Act and assert: direct construction and authority-field injection fail.
     with pytest.raises(TypeError, match="deployment-constructed"):
-        BoundEconomicReceiptVerifierV1(object(), object())  # type: ignore[arg-type]
+        BoundEconomicReceiptVerifierV1(object(), cast(Any, object()))
     with pytest.raises((AttributeError, TypeError)):
         object.__setattr__(bound, "release_id", _root(999))
     assert bound.binding_root == baseline
