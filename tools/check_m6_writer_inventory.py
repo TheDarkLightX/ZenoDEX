@@ -588,14 +588,18 @@ def _render_writer_entry(spec: WriterSpec, *, root: Path) -> dict[str, object]:
     return spec.to_dict(line=line)
 
 
-def _release_gap(row: CommandCoverageV1) -> dict[str, object]:
+def _release_gap(row: CommandCoverageV1) -> dict[str, object] | None:
+    assurance_gaps = [
+        status for status in REQUIRED_ASSURANCE_STATUSES if status not in row.assurance_statuses
+    ]
+    binding_gaps = [
+        name for name, binding in row.bindings if binding.status != "RELEASE_BACKED"
+    ]
+    if not assurance_gaps and not binding_gaps and row.release_status != "OPEN":
+        return None
     return {
-        "assurance_gaps": [
-            status for status in REQUIRED_ASSURANCE_STATUSES if status not in row.assurance_statuses
-        ],
-        "binding_gaps": [
-            name for name, binding in row.bindings if binding.status != "RELEASE_BACKED"
-        ],
+        "assurance_gaps": assurance_gaps,
+        "binding_gaps": binding_gaps,
         "command_kind": row.command_kind,
         "coverage_id": row.coverage_id,
         "entrypoint_id": row.entrypoint_id,
@@ -627,7 +631,9 @@ def check_m6_writer_inventory(root: Path = REPO_ROOT) -> dict[str, object]:
     writers_without_coverage = sorted(
         spec.entrypoint_id for spec in specs if spec.entrypoint_id not in covered_writer_ids
     )
-    release_gaps = [_release_gap(row) for row in coverage_rows]
+    release_gaps = [
+        gap for row in coverage_rows if (gap := _release_gap(row)) is not None
+    ]
     release_ready = bool(coverage_rows) and not findings and not release_gaps
     return {
         "coverage_row_count": len(coverage_rows),

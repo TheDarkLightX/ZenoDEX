@@ -10,7 +10,10 @@ from tools.check_m6_writer_inventory import (
     M6_LANE_IDS,
     REQUIRED_ASSURANCE_STATUSES,
     REQUIRED_COVERAGE_BINDINGS,
+    CommandCoverageV1,
+    CoverageBindingV1,
     WriterSpec,
+    _release_gap,
     check_m6_writer_inventory,
     load_writer_inventory_manifest,
     main,
@@ -88,6 +91,24 @@ def test_release_readiness_mode_fails_closed_for_open_coverage(
     assert report["release_ready"] is False
     assert report["production_authority"] is False
     assert report["required_assurance_statuses"] == list(REQUIRED_ASSURANCE_STATUSES)
+
+
+def test_gap_derivation_does_not_block_a_complete_future_schema_row() -> None:
+    row = CommandCoverageV1(
+        coverage_id="future-release-backed-row",
+        entrypoint_id="future-writer",
+        command_kind="future/command/v1",
+        lane_ids=("ASSET_TRANSFER",),
+        workflow_ids=("WF-01",),
+        bindings=tuple(
+            (name, CoverageBindingV1("release://exact", "RELEASE_BACKED"))
+            for name in REQUIRED_COVERAGE_BINDINGS
+        ),
+        assurance_statuses=REQUIRED_ASSURANCE_STATUSES,
+        release_status="RELEASE_BACKED",
+    )
+
+    assert _release_gap(row) is None
 
 
 def test_inventory_rejects_missing_command_coverage_row(tmp_path: Path) -> None:
