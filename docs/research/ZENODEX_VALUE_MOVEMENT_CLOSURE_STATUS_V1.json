@@ -1,0 +1,194 @@
+{
+  "schema": "zenodex/value-movement-closure-status/v1",
+  "observed_at": "2026-08-22",
+  "subject": {
+    "branch": "codex/zdex-hyperdeflation-v1-20260821",
+    "commit": "9296579e23493ee606f16c880ae0fa6e9c1a62e6",
+    "scoped_worktree_clean_before_this_ledger": true
+  },
+  "authority": {
+    "claim_authority": "NONE",
+    "production_authority": "NONE",
+    "production_ready": false,
+    "release_ready": false
+  },
+  "claim_contract": {
+    "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
+    "sha256": "7ea889f06c13b6a4e00c1a33c6ea51dc454c906433f92a7f5b4cb773ea1fc536",
+    "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
+    "verdict": "UNPROVED"
+  },
+  "tau_upstream": {
+    "official_repository": "https://github.com/IDNI/tau-lang",
+    "local_nested_head": "1195b4a629250d284ac33789021263dd0395cfb3",
+    "official_main_head": "9b191af689abdb75f3e43f200e09d35c0e99a664",
+    "common_ancestor": false,
+    "updater_repair_commit": "568637e894a52649aacc15723e808b9e9a713dfa",
+    "updater_sha256": "be9e33726d013f1a9dc7c226b853cf89de0fff1e3dc11d76963bdf708e9af54a",
+    "requalification_required": true,
+    "full_side_by_side_build_run": false,
+    "significant_changes": [
+      "Tau-BA constant-normalization soundness fix",
+      "mixed Tau and bit-vector nested-conditional fix",
+      "pointwise revision alternatives now have semantic order",
+      "CLI, REPL, and API runtime resource caps",
+      "stable pivot tie-breaking under parser regeneration",
+      "anti-prenexing, parser, CVC5, and bit-vector changes"
+    ]
+  },
+  "semantic_anchors": {
+    "self_custody_language": "Key control determines practical custody. Same-ledger values are modeled by accounting location, accounting control domain, and claimant entitlement.",
+    "asset_precision": "Eight decimal places; integer atoms; no floating point in consensus, accounting, proof, verifier, or settlement paths.",
+    "rescaling": "No denomination rescaling under GlobalSettlementABI V1. Rescaling requires an ABI V2 migration that distinguishes conversion from issue or burn.",
+    "buy_and_burn": "Atomically spend the governed quote-asset fee allocation through the selected authenticated Spot route and burn the exact ZDEX atoms received.",
+    "buy_and_burn_exclusions": [
+      "treasury-balance burn shortcut",
+      "legacy transfer-burn substitution"
+    ],
+    "hosting_compensation": "Separately named governed fee allocation with explicit eligibility, claimant, expiry, cancellation, and terminal-drain semantics.",
+    "hyperdeflation": "No arbitrary fixed percentage of initial supply is required as a floor. Bind a retained-supply rule such as R(S)=ceil(p*S/q), 0<p<q, and burn<=S-R(S).",
+    "autonomous_governance": "Autonomous governance and LLM agents may submit authenticated typed commands only. They receive no independent publication capability.",
+    "external_registry_default": "Empty until a complete registered external finality, timeout, refund, acknowledgment, and idempotency profile is approved."
+  },
+  "independent_reviews": [
+    {
+      "reviewer": "maximum-reasoning hostile review",
+      "verdict": "REVISE",
+      "first_counterexample": "An arbitrary or insufficiently certified initial state can contain unauthorized value that every later conservation proof preserves."
+    },
+    {
+      "reviewer": "GPT-5.6 Sol max read-only review",
+      "subject_commit": "568637e894a52649aacc15723e808b9e9a713dfa",
+      "verdict": "REVISE",
+      "first_counterexample": "A caller-selected receipt verifier can return success and indirectly construct the otherwise opaque VerifiedEconomicEpochV1 witness.",
+      "additional_false_passes": [
+        "A transition-defined Reach set can exclude bypass-writer states by definition.",
+        "A profile enabling only a small subset of intended M6 capabilities can satisfy a vacuous claim."
+      ]
+    }
+  ],
+  "implemented_slices": [
+    {
+      "id": "ECONOMIC_EFFECT_OCCURRENCE_V1",
+      "commit": "5f88467fc8f3b70f8c9f7bde293f1c8abb55324c",
+      "python_sha256": "1e4015c0ad59c71ac2a2854ce45845befef5ec3bb269637212277624282ba329",
+      "status": [
+        "IMPLEMENTED_PYTHON",
+        "IMPLEMENTED_RUST",
+        "TESTED",
+        "UNMOUNTED",
+        "UNPROVED"
+      ],
+      "closed_obligation": "Identical route-effect rows in different commands retain distinct IDs bound to command occurrence, route release, canonical index, and exact row.",
+      "remaining_obligations": [
+        "journal and proof-guest binding",
+        "durable publisher retention",
+        "authorization grant and policy source binding",
+        "whole-effect-category coverage"
+      ]
+    },
+    {
+      "id": "PRODUCTION_BOUNDARY_FAIL_CLOSED_EXECUTION",
+      "commit": "9296579e23493ee606f16c880ae0fa6e9c1a62e6",
+      "checker_sha256": "5b01a6afc3f6f08137df3caed7fe8c72582f84c5d40b5a9e1b0f157047e0eeda",
+      "status": [
+        "IMPLEMENTED",
+        "TESTED",
+        "BLOCKED_MISSING_TAU_SPECS"
+      ],
+      "closed_obligation": "A checker dependency failure emits a deterministic failed gate row instead of an uncaught traceback."
+    }
+  ],
+  "gate_status": [
+    {
+      "id": "VM-01",
+      "status": "GAP",
+      "evidence": "Writer inventory reports 25 open coverage rows and 18 unmounted entrypoints; sink-first cross-language completeness is absent."
+    },
+    {
+      "id": "VM-02",
+      "status": "PARTIAL",
+      "evidence": "Typed Python and Rust global state and canonical roots exist; complete M6 semantic and codec parity is blocked."
+    },
+    {
+      "id": "VM-03",
+      "status": "PARTIAL",
+      "evidence": "Injective route-effect occurrences are implemented and tested in Python and Rust; full authorization, claimant, residue, terminal, and external-delivery effect coverage is absent."
+    },
+    {
+      "id": "VM-04",
+      "status": "GAP",
+      "evidence": "Most enabled whole-economy lane lifecycles lack complete core, recovery, and terminal-drain evidence."
+    },
+    {
+      "id": "VM-05",
+      "status": "GAP",
+      "evidence": "Global epoch composition is restricted to the bounded ASSET_TRANSFER slice; mixed-lane authoritative routes remain absent."
+    },
+    {
+      "id": "VM-06",
+      "status": "PARTIAL",
+      "evidence": "Bounded recursive structural proof work exists; whole-economy economic execution and complete real-proof replay are absent."
+    },
+    {
+      "id": "VM-07",
+      "status": "GAP",
+      "evidence": "Python, Rust, RISC0 guest, Tau, verifier, and mounted-runtime decision and effect parity is not established."
+    },
+    {
+      "id": "VM-08",
+      "status": "GAP",
+      "evidence": "The public epoch verification boundary accepts a caller-selected receipt verifier; measured release-selected verifier authority is absent."
+    },
+    {
+      "id": "VM-09",
+      "status": "GAP",
+      "evidence": "Local ledger, M6 direct, direct-batch, ZRPF, M6 durable, and separate global commit paths coexist."
+    },
+    {
+      "id": "VM-10",
+      "status": "GAP",
+      "evidence": "The global commit port is in-memory; crash-atomic durability and external acknowledgment reconciliation are absent."
+    },
+    {
+      "id": "VM-11",
+      "status": "GAP",
+      "evidence": "The global commit port accepts a caller-constructed initial state; certified genesis or migration admission and atomic activation are absent."
+    },
+    {
+      "id": "VM-12",
+      "status": "GAP",
+      "evidence": "This ledger binds one clean scoped subject, but complete release evidence and independent replay on the final candidate are absent."
+    }
+  ],
+  "live_gate_observations": {
+    "writer_inventory": {
+      "exit_code": 0,
+      "coverage_row_count": 25,
+      "unmounted_entrypoint_count": 18,
+      "release_gate_status": "BLOCKED_OPEN_COVERAGE",
+      "release_ready": false,
+      "production_authority": false
+    },
+    "production_boundary": {
+      "exit_code": 1,
+      "ok": false,
+      "failure": "ModuleNotFoundError: No module named 'src.tau_specs'"
+    }
+  },
+  "next_dependency_order": [
+    "Freeze and bind the complete intended M6 capability manifest and disabled-capability certificates.",
+    "Replace caller-constructed initial state with certified genesis or migration admission.",
+    "Discover writers from actual durable sinks and close VM-01 without name-pattern assumptions.",
+    "Complete effect source, authorization, claimant, residue, terminal, and external-delivery bindings.",
+    "Seal authoritative verification behind a measured release-selected verifier.",
+    "Complete lane cores, governed routes, proof guests, durable publication, migration, and external reconciliation in dependency order."
+  ],
+  "nonclaims": [
+    "No production readiness, production authority, settlement authority, writer rotation, or value-moving authority.",
+    "No whole-economy formal safety proof.",
+    "No claim that tests alone establish safety.",
+    "No claim that the latest Tau main is production-stable or integration-compatible.",
+    "No claim that existing proof compression establishes omitted economic semantics."
+  ]
+}
