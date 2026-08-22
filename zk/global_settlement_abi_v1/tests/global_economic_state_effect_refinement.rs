@@ -225,6 +225,7 @@ fn occurrence(
         tx_index,
         op_index: 1,
         command_kind: command_kind.to_owned(),
+        command_body_hash: root(5_000 + tx_index),
         route_release_id: root(4_001),
         subject_id: "alice".to_owned(),
         grant_root: root(4_002),
@@ -718,7 +719,7 @@ fn replay_refinement_matches_two_occurrence_python_golden_and_u64_nonce_max() {
         .unwrap();
     assert_eq!(
         refinement.refinement_root().unwrap().as_str(),
-        "0x31be418cbddb787cdb112389b4303bd4cf3cdbce81a678cd39cd55df092e26d1"
+        "0x04a52daea5b87169f428fc698537e115fa14330a1eea885db0e8db7a7b503517"
     );
 
     let (pre, post, effects, occurrences, journals) = replay_batch_for_nonces(&[u64::MAX]);

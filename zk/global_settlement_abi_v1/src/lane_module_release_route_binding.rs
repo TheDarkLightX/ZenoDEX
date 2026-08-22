@@ -119,6 +119,7 @@ struct ModuleContextBindingV1<'a> {
 
 struct BindingCandidateV1<'a> {
     actual_command_kind: &'a str,
+    command_body_hash: RootV1,
     statement_root: &'a RootV1,
     producer_module_schema: &'a str,
     context: ModuleContextBindingV1<'a>,
@@ -197,6 +198,9 @@ fn bind_candidate_v1(
     if candidate.actual_command_kind != occurrence.command_kind {
         return Err(AbiErrorV1::InvalidBinding("lane module command kind"));
     }
+    if candidate.command_body_hash != occurrence.command_body_hash {
+        return Err(AbiErrorV1::InvalidBinding("lane module command body hash"));
+    }
     require_context_binding(profile, occurrence, &candidate.context)?;
     require_journal_binding(profile, occurrence, candidate.module_journal)?;
 
@@ -263,6 +267,7 @@ pub fn bind_asset_transfer_lane_output_to_release_route_v1(
         occurrence,
         BindingCandidateV1 {
             actual_command_kind: &module_input.command.command_kind,
+            command_body_hash: module_input.command.command_body_hash()?,
             statement_root: &accepted.statement_root,
             producer_module_schema: &accepted.private_port.producer_module_schema,
             context: ModuleContextBindingV1 {
@@ -305,6 +310,7 @@ pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
         occurrence,
         BindingCandidateV1 {
             actual_command_kind: &module_input.command.command_kind,
+            command_body_hash: module_input.command.command_body_hash()?,
             statement_root: &accepted.statement_root,
             producer_module_schema: &accepted.private_port.producer_module_schema,
             context: ModuleContextBindingV1 {

@@ -377,6 +377,7 @@ fn occurrence(
         tx_index: 2,
         op_index: 1,
         command_kind: PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1.to_owned(),
+        command_body_hash: root(3),
         route_release_id: route.route_release_id.clone(),
         subject_id: "protocol-buyback-controller".to_owned(),
         grant_root: root(2),
@@ -624,6 +625,7 @@ fn fixture() -> Fixture {
         tx_index: occurrence.tx_index,
         op_index: 0,
         command_kind: PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1.to_owned(),
+        command_body_hash: root(6),
         route_release_id: allocation_route.route_release_id.clone(),
         subject_id: "protocol-fee-allocator".to_owned(),
         grant_root: root(5),
@@ -888,7 +890,7 @@ fn rust_matches_python_golden_composition_root_and_effects() {
             .composition_root()
             .expect("composition root")
             .as_str(),
-        "0xbc9467ff47c5b37ad785667477868fb3ad28af84ce0618d427ab7d395d897524"
+        "0xe4016bdba019f681a033744d30632102d8d34c3efd50dd85289c4e564e3b0a7b"
     );
     assert_eq!(
         zenodex_global_settlement_abi_v1::zdex_burn_port_schema_root_v1()
@@ -1688,7 +1690,7 @@ fn profile_selected_fee_leaf_and_coordinator_receipt_bind_one_complete_lane() {
     assert_eq!(
         verified.binding_root().unwrap(),
         RootV1::parse(
-            "0x677e85c16d4d26d2c37056eff1f39bc6bbbbf21b239db974d6d3275602a546e1",
+            "0x0734719e8e80b95ece0dff339bef408d584610b67533e9aa74a9f2e52a11aca8",
             "fee lane verified binding root",
             false,
         )

@@ -161,8 +161,12 @@ The closed command shape is:
 asset_transfer(asset, sender, recipient, amount_atoms, max_fee_atoms)
 ```
 
-The explicit context binds chain, deployment, profile, writer epoch, module
-release, occurrence, authenticated subject, and grant root. The transition
+The occurrence identity includes a domain-separated hash of the exact canonical
+typed command payload. The explicit context binds chain, deployment, profile,
+writer epoch, module release, occurrence, authenticated subject, and grant root.
+The release-route binder recomputes the command-body hash from the command
+inside the module statement and requires equality with the occurrence before
+receipt admission. The transition
 accepts only when the context release matches the state release, the command
 kind and asset are registered, the asset is enabled, the sender is the
 authenticated subject, the recipient differs from the sender, the amount is
@@ -326,10 +330,18 @@ derives the exact certificate-bound epoch plan from 1..64 sequential
 single-lane `ASSET_TRANSFER` route plans. It rejects disconnected histories,
 duplicate occurrences, overflow, terminal obligations, external outbox rows,
 and unsupported routes before receipt verification. The boundary then checks
-profile/image, chain/deployment, pre-root, body, journal-byte, and receipt-hash
+profile/image, chain/deployment, pre-root, exact ordered occurrence/body-hash
+pairing, body commitment, journal-byte, and receipt-hash
 bindings before it delegates root-receipt acceptance to
 `SuccinctReceiptVerifierV1`. Only that function can
 construct `VerifiedEconomicEpochV1` inside the Python module.
+
+Repeated identical command payloads may share a body hash. Their occurrence
+coordinates, authenticated subject, grant, nonce, and replay ID remain distinct.
+This V1 contract is still pre-release and unmounted; adding the body-hash field
+invalidates all earlier occurrence IDs, journals, receipts, vectors, and guest
+images, which must be rebuilt together before any activation. Authenticated
+ingress and canonical-byte availability remain outer requirements.
 
 The Rust reference implements the parallel bounded admission function in
 `economic_epoch_receipt_verification.rs` and the pure composer in

@@ -6,12 +6,16 @@ They carry no receipt-verification or publication authority.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Final
 
 from .asset_transfer_types_v1 import AssetTransferStateV1
 from .global_economic_proof_v1 import LaneCompositionJournalV1
+from .global_economic_refinement_snapshot_v1 import (
+    _require_exact_dataclass_scalars_v1,
+    _snapshot_dataclass_tuple_v1,
+)
 from .global_settlement_types_v1 import (
     AssetSupplyV1,
     EconomicAmountV1,
@@ -212,6 +216,61 @@ class AssetLanePrivatePortV1:
             "module_effect_plan_root": self.module_effect_plan_root,
             "terminal_obligations_root": self.terminal_obligations_root,
         }
+
+
+def _snapshot_asset_lane_state_projection_v1(
+    state: AssetLaneStateProjectionV1,
+) -> AssetLaneStateProjectionV1:
+    if type(state) is not AssetLaneStateProjectionV1:
+        raise TypeError("asset lane projection must have the exact typed value")
+    _require_exact_dataclass_scalars_v1(
+        state,
+        name="asset lane projection",
+        tuple_fields=frozenset({"balances", "custody", "supplies"}),
+    )
+    return replace(
+        state,
+        balances=_snapshot_dataclass_tuple_v1(
+            state.balances,
+            EconomicAmountV1,
+            "asset lane projection balances",
+        ),
+        custody=_snapshot_dataclass_tuple_v1(
+            state.custody,
+            EconomicAmountV1,
+            "asset lane projection custody",
+        ),
+        supplies=_snapshot_dataclass_tuple_v1(
+            state.supplies,
+            AssetSupplyV1,
+            "asset lane projection supplies",
+        ),
+    )
+
+
+def _snapshot_asset_lane_private_port_v1(
+    port: AssetLanePrivatePortV1,
+) -> AssetLanePrivatePortV1:
+    if type(port) is not AssetLanePrivatePortV1:
+        raise TypeError("asset lane private port must have the exact typed value")
+    for field_name in (
+        "producer_module_schema",
+        "module_release_id",
+        "command_occurrence_id",
+        "module_effect_plan_root",
+        "terminal_obligations_root",
+    ):
+        if type(getattr(port, field_name)) is not str:
+            raise TypeError(f"asset lane private port {field_name} must be exact text")
+    return AssetLanePrivatePortV1(
+        producer_module_schema=port.producer_module_schema,
+        module_release_id=port.module_release_id,
+        command_occurrence_id=port.command_occurrence_id,
+        pre_state=_snapshot_asset_lane_state_projection_v1(port.pre_state),
+        post_state=_snapshot_asset_lane_state_projection_v1(port.post_state),
+        module_effect_plan_root=port.module_effect_plan_root,
+        terminal_obligations_root=port.terminal_obligations_root,
+    )
 
 
 @dataclass(frozen=True, slots=True)

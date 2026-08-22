@@ -184,6 +184,7 @@ def _occurrence(
         tx_index=tx_index,
         op_index=1,
         command_kind=command_kind,
+        command_body_hash=_root(5_000 + tx_index),
         route_release_id=_root(4_001),
         subject_id=subject_id,
         grant_root=_root(4_002),
@@ -718,7 +719,7 @@ def test_two_occurrence_replay_refinement_has_cross_language_golden_root() -> No
     refinement = refine_global_economic_state_effects_v1(_replay_batch(2))
 
     assert refinement.refinement_root == (
-        "0x31be418cbddb787cdb112389b4303bd4cf3cdbce81a678cd39cd55df092e26d1"
+        "0x04a52daea5b87169f428fc698537e115fa14330a1eea885db0e8db7a7b503517"
     )
 
 

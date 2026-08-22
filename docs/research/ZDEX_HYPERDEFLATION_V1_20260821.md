@@ -424,7 +424,7 @@ receipt consumer, API, client, and historical decoder.
 | Purchased ZDEX is only partly burned | Burn transient bucket must project `B -> 0`; the burn guest preflight rejects partial drain and composed transient rows cancel | Generated burn receipt, real coordinator receipt, recursive route proof, and atomic commit |
 | Burn journal is assembled independently from the checked transition | Rust/Python refinement derives the journal, burn-substate roots, route-context root, totals, and effects; the source-level burn guest reruns that Rust refinement; coherent amount, route, policy, asset, bucket, total, and nonlimiting-cap substitutions are distinguished or reject | Generated burn image and real receipt plus release-selected receipt verification |
 | Partial burn substate is presented as the complete tokenomics lane | Burn journal fields are explicitly named burn-substate roots; leaf effects emit no tokenomics lane write; the coordinator source and guest reject partial lane-root claims and preserve every unrelated component commitment; shadow receipt admission requires the exact verified burn leaf and complete-lane journal; route composition retains a nonzero complete-lane obligation | Generated coordinator image, real child and coordinator receipts, release-backed lane-state registry, route connection, and atomic publication |
-| Python value is mutated after constructor validation | Accepted burn inputs, fee state, common module journals, effect plans, coordinator values, and purchase/burn journals revalidate at refinement, effect projection, root computation, or coordinator admission; hostile scalar and root mutations are regression tested; verified epoch handles have no writable data slots and recover commit inputs from a separately owned process-local registry, so coherent private-field injection is rejected | Python remains a same-process reference and gains no security boundary until a release-selected cryptographic verifier admits the exact journal |
+| Python value is mutated after constructor validation | Accepted burn inputs, fee state, common module journals, effect plans, coordinator values, and purchase/burn journals revalidate at refinement, effect projection, root computation, or coordinator admission; hostile scalar and root mutations are regression tested; asset-transfer and managed-lifecycle execution and binding boundaries deep-snapshot exact inputs, recompute the complete accepted output, compare the supplied output exactly, and pass the recomputed journal to receipt verification; retained-alias command substitution, statement rerooting, nested effect/port/journal mutation, and subclasses that override an advertised body hash reject before the receipt verifier; verified epoch handles have no writable data slots and recover commit inputs from a separately owned process-local registry, so coherent private-field injection is rejected | Python remains a same-process reference and gains no security boundary until a release-selected cryptographic verifier admits the exact journal |
 | Rejected transition changes value | Canonically equal pre/post state and empty effects; Python also preserves object identity | Runtime adapter parity |
 | Epoch ceiling is reused by sequential burns | Burn-budget epoch and remaining capacity are committed in the pre-state and decremented in the post-state; stale larger route ceilings cannot increase capacity | Profile-selected epoch reset transition, guest execution, and global sequencing |
 | Fee split loses atoms to truncation or is coherently rewritten | Exact allocation-plus-residue equation, named reserve, policy-bound transition replay, and a mutation test that shifts one atom between destinations while updating state/effects/roots | Governed residue-release lifecycle and proof-backed policy selection |
@@ -596,6 +596,14 @@ exact design.
   refinement-witness, disclosure-count, hidden intermediate unselected-lane,
   transient intermediate balance injection/restoration, and height-semantics
   mutants before root-receipt verification;
+- `EconomicCommandOccurrenceV1` now commits a nonzero canonical command-body
+  hash. The asset-transfer and managed issue/burn release-route binders derive
+  the same domain-separated hash from the exact typed command committed by the
+  module statement. Same-kind recipient and amount substitutions reject before
+  receipt admission in Python and Rust. The epoch candidate and commit port
+  require exact ordered equality between body hashes and verifier-owned
+  occurrences. Identical payload hashes are allowed because occurrence
+  position, subject, grant, nonce, and replay identity remain distinct;
 - Python callback and retained-alias RIPR now require owned certificate,
   effect-plan, full-state, body, and complete governed-profile snapshots; the
   reference commit port revalidates content-derived profile identity under its
@@ -607,9 +615,13 @@ exact design.
   private-field injection at commit and exact retry. This narrows Python alias risk;
   it does not create a same-process security boundary;
 - Replay-ID safety assumes authenticated ingress supplies one canonical
-  `subject_id` per principal, canonical chain identity, and migration rules
-  that preserve deployment replay continuity. This checker does not establish
-  those external identity premises;
+  `subject_id` per principal, verifies authorization over the exact occurrence,
+  preserves the canonical command bytes in the DA/archive layer, supplies
+  canonical chain identity, and applies migration rules that preserve
+  deployment replay continuity. This checker does not establish those external
+  identity, authentication, or availability premises. Other module families
+  must add the same executed-command/body-hash relation before authoritative
+  route admission;
 - `zk/zdex_tokenomics_lane_coordinator_risc0`: unmounted RISC0 3.0.6 recursive
   coordinator source, exact governed module-release preflight, guest-side
   `env::verify` over the child image and canonical burn or fee journal, host-side
@@ -659,7 +671,11 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
    custody, liabilities, reserves, fee-mirror, conservation, and lane-write
    structure. Oracle occurrence updates, terminal obligations, history
    derivation, external outbox commit binding, and the durable effect applicator
-   remain unavailable and fail closed;
+   remain unavailable and fail closed. Every newly admitted module must also
+   prove its exact deterministic
+   projection from the authenticated top-level command body into the command it
+   executes; the current binding covers only asset transfer and managed
+   issue/burn leaves;
 7. release-bound cycle/resource enforcement in the proof statement and
    governed receipt admission; the current leaf verifier cannot authenticate a
    module release `max_cycles` ceiling;

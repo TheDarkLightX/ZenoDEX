@@ -179,6 +179,26 @@ pub fn hash_global_v1<T: Serialize>(domain: &str, value: &T) -> AbiResultV1<Root
     )
 }
 
+#[derive(Serialize)]
+struct EconomicCommandBodyContentV1<'a, T: Serialize> {
+    command_kind: &'a str,
+    command: &'a T,
+}
+
+pub fn hash_economic_command_body_v1<T: Serialize>(
+    command_kind: &str,
+    command: &T,
+) -> AbiResultV1<RootV1> {
+    validate_token_v1(command_kind, "economic command body kind")?;
+    hash_global_v1(
+        "authenticated-economic-command-body-v1",
+        &EconomicCommandBodyContentV1 {
+            command_kind,
+            command,
+        },
+    )
+}
+
 pub fn hash_bytes_sha256_v1(bytes: &[u8]) -> String {
     hex::encode(Sha256::digest(bytes))
 }

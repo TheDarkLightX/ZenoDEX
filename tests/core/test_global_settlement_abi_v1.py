@@ -252,6 +252,14 @@ def _occurrence(
     route: RouteReleaseV1,
     pre_state: GlobalEconomicStateV1,
 ) -> EconomicCommandOccurrenceV1:
+    command = AssetTransferCommandV1(
+        command_kind=ASSET_TRANSFER_COMMAND_KIND_V1,
+        asset="USD",
+        sender="alice",
+        recipient="recipient",
+        amount_atoms=30,
+        max_fee_atoms=2,
+    )
     return EconomicCommandOccurrenceV1(
         chain_id=pre_state.chain_id,
         deployment_root=pre_state.deployment_root,
@@ -259,6 +267,7 @@ def _occurrence(
         tx_index=0,
         op_index=0,
         command_kind=route.command_kind,
+        command_body_hash=command.command_body_hash,
         route_release_id=route.route_release_id,
         subject_id="alice",
         grant_root=_root(600),
@@ -590,7 +599,7 @@ def _verified_epoch(
     body = EconomicEpochBodyAndStateV1(
         pre_state_root=pre_state.state_root,
         post_state=post_state,
-        ordered_command_body_hashes=(_root(700),),
+        ordered_command_body_hashes=(occurrence.command_body_hash,),
         receipt_archive_root=_root(701),
         data_availability_root=_root(702),
         finality_root=_root(703),
@@ -678,6 +687,9 @@ def _epoch_candidate(
         pre_state=pre_state,
         post_state=post_state,
         command_occurrences=occurrences,
+        ordered_command_body_hashes=tuple(
+            occurrence.command_body_hash for occurrence in occurrences
+        ),
         route_journals=route_journals,
         route_state_disclosures=route_state_disclosures,
         verified_routes=verified_routes,
@@ -969,6 +981,42 @@ def _epoch_candidate_with_rebound_post_state(
         effects,
         candidate.receipt_bytes,
     )
+
+
+def test_occurrence_identity_binds_exact_command_body_hash() -> None:
+    # Arrange: one authenticated occurrence coordinate and two distinct command bodies.
+    profile, route = _profile()
+    occurrence = _occurrence(profile, route, _state(profile, height=0))
+
+    # Act
+    changed_body = replace(occurrence, command_body_hash=_root(799))
+
+    # Assert: module/lane/route journals cannot reuse the old occurrence identity.
+    assert changed_body.occurrence_id != occurrence.occurrence_id
+    assert changed_body.replay_id == occurrence.replay_id
+
+
+@pytest.mark.parametrize(
+    ("body_hashes", "message"),
+    (
+        ((), "count mismatch"),
+        ((_root(700), _root(701)), "count mismatch"),
+        ((_root(799),), "binding mismatch"),
+    ),
+)
+def test_epoch_rejects_unpaired_command_body_hashes_before_receipt(
+    body_hashes: tuple[str, ...],
+    message: str,
+) -> None:
+    # Arrange: bypass the frozen candidate constructor to model hostile retained input.
+    candidate = _epoch_admission_fixture(1)
+    verifier = _RecordingReceiptVerifier()
+    object.__setattr__(candidate, "ordered_command_body_hashes", body_hashes)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match=message):
+        verify_economic_epoch_v1(candidate, verifier)
+    assert verifier.calls == []
 
 
 def test_closed_lane_registry_and_global_state_require_every_lane() -> None:
@@ -1693,15 +1741,19 @@ def test_epoch_route_witness_boundary_counts_are_admitted(count: int) -> None:
 
 def test_epoch_two_route_state_evidence_has_stable_python_golden_roots() -> None:
     candidate = _epoch_admission_fixture(2)
+    assert candidate.ordered_command_body_hashes == (
+        candidate.command_occurrences[0].command_body_hash,
+        candidate.command_occurrences[0].command_body_hash,
+    )
     verified = verify_economic_epoch_v1(candidate, _RecordingReceiptVerifier())
 
     assert verified.route_state_projection_roots == (
-        "0xc3c51cd78ad6230fbbb9227460704f9f0d9ba0214e5063172bb36c8630990fe3",
-        "0x60be90c6b8b9139c163a9cade6695cea02342b3818a1ffea96d8161bf140448b",
+        "0xa34cb59bb2e3f93e209b7424c863654c1a74f3160f9b071c6fa02be0032e5661",
+        "0x22e70a982dbff34dff29cd6e020d67a444c4c8cfb16f4db74f974cbfa1f274ca",
     )
     assert verified.route_state_effect_refinement_roots == (
-        "0x0df71ac81e273c9b78a6b3c29f36f8519a0ea245ea4b2daaf7d39a258dbf312c",
-        "0xeb7681f4eca9a5dd823793d615748be0bd16abc920df0e3508a77a28d70177d8",
+        "0xde1871141e7fb7f89eab118c7771494b400a87f969cd7bc1d7a72e83ba086906",
+        "0xf1d22c9d76743e53f0a91dfa645028f05361001a2f4795397fcee4de57a30977",
     )
 
 
@@ -1755,6 +1807,14 @@ def test_epoch_rejects_missing_foreign_and_journal_substituted_route_witnesses()
         occurrence,
         subject_id="mallory",
         nonce=occurrence.nonce + 1,
+        command_body_hash=AssetTransferCommandV1(
+            command_kind=ASSET_TRANSFER_COMMAND_KIND_V1,
+            asset="USD",
+            sender="mallory",
+            recipient="recipient",
+            amount_atoms=30,
+            max_fee_atoms=2,
+        ).command_body_hash,
     )
     _, foreign_verified_route = _verified_route_for_occurrence(
         candidate.profile,
@@ -1832,6 +1892,10 @@ def test_epoch_rejects_noncanonical_command_and_route_witness_order() -> None:
                 candidate,
                 certificate=reversed_certificate,
                 command_occurrences=reversed_occurrences,
+                ordered_command_body_hashes=tuple(
+                    occurrence.command_body_hash
+                    for occurrence in reversed_occurrences
+                ),
                 route_journals=reversed_journals,
                 verified_routes=reversed_witnesses,
             ),

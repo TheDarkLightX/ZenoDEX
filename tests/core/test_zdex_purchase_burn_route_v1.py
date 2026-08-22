@@ -262,6 +262,7 @@ def _occurrence(
         tx_index=2,
         op_index=1,
         command_kind=PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+        command_body_hash=_root(3),
         route_release_id=route.route_release_id,
         subject_id="protocol-buyback-controller",
         grant_root=_root(2),
@@ -527,6 +528,7 @@ def _buyback_budget(
         tx_index=occurrence.tx_index,
         op_index=0,
         command_kind=PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1,
+        command_body_hash=_root(6),
         route_release_id=allocation_route.route_release_id,
         subject_id="protocol-fee-allocator",
         grant_root=_root(5),
@@ -1453,7 +1455,7 @@ def test_python_rust_golden_composition_root_is_stable() -> None:
     result = compose_zdex_purchase_burn_route_v1(_verified_fixture())
 
     assert result.composition_root == (
-        "0xbc9467ff47c5b37ad785667477868fb3ad28af84ce0618d427ab7d395d897524"
+        "0xe4016bdba019f681a033744d30632102d8d34c3efd50dd85289c4e564e3b0a7b"
     )
     assert zdex_burn_port_schema_root_v1() == (
         "0x744c54af6df7c8a4fa0c5e0b152e0139add14c337d7cbcf1c8062e8aa2fa5289"
@@ -1621,7 +1623,7 @@ def test_profile_selected_fee_leaf_and_coordinator_bind_complete_lane() -> None:
     assert verified.pre_lane_root == candidate.lane_candidate.pre_state.state_root
     assert verified.post_lane_root == candidate.lane_candidate.post_state.state_root
     assert verified.binding_root == (
-        "0x677e85c16d4d26d2c37056eff1f39bc6bbbbf21b239db974d6d3275602a546e1"
+        "0x0734719e8e80b95ece0dff339bef408d584610b67533e9aa74a9f2e52a11aca8"
     )
     assert verifier.calls == [
         (

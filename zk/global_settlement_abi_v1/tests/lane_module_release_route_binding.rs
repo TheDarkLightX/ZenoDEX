@@ -329,6 +329,36 @@ fn occurrence(
     let route = routes
         .route_for_command(command_kind, None)
         .expect("test route must exist");
+    let command_body_hash = if command_kind == ASSET_TRANSFER_COMMAND_KIND_V1 {
+        AssetTransferCommandV1 {
+            command_kind: ASSET_TRANSFER_COMMAND_KIND_V1.to_owned(),
+            asset: "USD".to_owned(),
+            sender: "alice".to_owned(),
+            recipient: "bob".to_owned(),
+            amount_atoms: 30,
+            max_fee_atoms: 2,
+        }
+        .command_body_hash()
+        .expect("test transfer command must hash")
+    } else if matches!(
+        command_kind,
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1 | MANAGED_ASSET_BURN_COMMAND_KIND_V1
+    ) {
+        ManagedAssetLifecycleCommandV1 {
+            command_kind: command_kind.to_owned(),
+            asset: "USD".to_owned(),
+            account_owner: "alice".to_owned(),
+            amount_atoms: if command_kind == MANAGED_ASSET_ISSUE_COMMAND_KIND_V1 {
+                7
+            } else {
+                4
+            },
+        }
+        .command_body_hash()
+        .expect("test managed command must hash")
+    } else {
+        panic!("unsupported test command kind")
+    };
     EconomicCommandOccurrenceV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
         chain_id: "zeno-release-route-test".to_owned(),
@@ -337,6 +367,7 @@ fn occurrence(
         tx_index: 2,
         op_index: 3,
         command_kind: command_kind.to_owned(),
+        command_body_hash,
         route_release_id: route.route_release_id.clone(),
         subject_id: subject_id.to_owned(),
         grant_root,
@@ -513,7 +544,7 @@ fn asset_issue_and_burn_outputs_bind_to_exact_active_profile_routes() {
     );
     assert_eq!(
         bound.binding_root().unwrap().as_str(),
-        "0x8c984258df8fd4c7f20ad262ac180e5a91d0ba2da1997831bebf3d8ca7608724"
+        "0xae8da5b98eb050274008340bad2f012f2497fa74975838dc298285cd0022a16f"
     );
 
     for (command_kind, subject_id, grant_root) in [
@@ -541,6 +572,117 @@ fn asset_issue_and_burn_outputs_bind_to_exact_active_profile_routes() {
         assert_eq!(
             bound.producer_module_schema(),
             MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1
+        );
+    }
+}
+
+#[test]
+fn authenticated_command_body_hashes_match_python_golden_vectors() {
+    let transfer = AssetTransferCommandV1 {
+        command_kind: ASSET_TRANSFER_COMMAND_KIND_V1.to_owned(),
+        asset: "USD".to_owned(),
+        sender: "alice".to_owned(),
+        recipient: "bob".to_owned(),
+        amount_atoms: 30,
+        max_fee_atoms: 2,
+    };
+    let issue = ManagedAssetLifecycleCommandV1 {
+        command_kind: MANAGED_ASSET_ISSUE_COMMAND_KIND_V1.to_owned(),
+        asset: "USD".to_owned(),
+        account_owner: "alice".to_owned(),
+        amount_atoms: 7,
+    };
+    let burn = ManagedAssetLifecycleCommandV1 {
+        command_kind: MANAGED_ASSET_BURN_COMMAND_KIND_V1.to_owned(),
+        asset: "USD".to_owned(),
+        account_owner: "alice".to_owned(),
+        amount_atoms: 4,
+    };
+
+    assert_eq!(
+        transfer.command_body_hash().unwrap().as_str(),
+        "0x86c77102b725de42ba4928542495129ab51bbfa71d3ebf14218d16c403f4f9c6"
+    );
+    assert_eq!(
+        issue.command_body_hash().unwrap().as_str(),
+        "0xba582530e63ec9b3646fae1a361fb8b3aaa7cf4f9ea98d3c47d09d717fcb8983"
+    );
+    assert_eq!(
+        burn.command_body_hash().unwrap().as_str(),
+        "0xfea954a9c050efcb620a3971bdd7fabed19a56b82cb5ad6aacfaa8db6df847b6"
+    );
+}
+
+#[test]
+fn same_kind_transfer_body_substitution_rejects_before_receipt_binding() {
+    // Arrange: the occurrence authenticates Bob, while the module executes Mallory.
+    let (profile, lanes, coordinators, routes) = profile();
+    let occurrence = occurrence(
+        &profile,
+        &routes,
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        "alice",
+        root(7),
+    );
+    let mut input = asset_input(&profile, &lanes, &occurrence, None);
+    input.command.recipient = "mallory".to_owned();
+    let AssetTransferLaneModuleResultV1::Accepted(accepted) =
+        transition_asset_transfer_lane_module_v1(&input).unwrap()
+    else {
+        panic!("substituted transfer remains economically valid")
+    };
+
+    // Act / Assert
+    assert_eq!(
+        bind_asset_transfer_lane_output_to_release_route_v1(
+            &profile,
+            &lanes,
+            &coordinators,
+            &routes,
+            &occurrence,
+            &input,
+            &accepted,
+        )
+        .unwrap_err(),
+        AbiErrorV1::InvalidBinding("lane module command body hash")
+    );
+}
+
+#[test]
+fn same_kind_managed_body_substitution_rejects_before_receipt_binding() {
+    let (profile, lanes, coordinators, routes) = profile();
+    for (command_kind, subject_id) in [
+        (MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, "issuer"),
+        (MANAGED_ASSET_BURN_COMMAND_KIND_V1, "alice"),
+    ] {
+        // Arrange
+        let grant_root = if command_kind == MANAGED_ASSET_ISSUE_COMMAND_KIND_V1 {
+            root(5)
+        } else {
+            root(6)
+        };
+        let occurrence = occurrence(&profile, &routes, command_kind, subject_id, grant_root);
+        let mut input = managed_input(&profile, &lanes, &occurrence, command_kind);
+        input.command.amount_atoms += 1;
+        let ManagedAssetLifecycleLaneModuleResultV1::Accepted(accepted) =
+            transition_managed_asset_lifecycle_lane_module_v1(&input).unwrap()
+        else {
+            panic!("substituted managed command remains economically valid")
+        };
+
+        // Act / Assert
+        assert_eq!(
+            bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
+                &profile,
+                &lanes,
+                &coordinators,
+                &routes,
+                &occurrence,
+                &input,
+                &accepted,
+            )
+            .unwrap_err(),
+            AbiErrorV1::InvalidBinding("lane module command body hash")
         );
     }
 }
@@ -1042,11 +1184,11 @@ fn module_receipt_verification_uses_release_image_and_exact_journal() {
     );
     assert_eq!(
         verified.binding_root().unwrap().as_str(),
-        "0xff9d4232a72f8e1039d6afd78ae92052aaca8f29b5d7bd0dd7cf7b6ec50c844f"
+        "0x6ae20472ca9c27befc6707cdbae18c97b1dc5c220145b6c022849d32b72b828d"
     );
     assert_eq!(
         verified.module_journal_digest().as_str(),
-        "0x0cf2ba41acceffc7fbaa961960537eb9d55fa2b893c239cfe86960ea63799123"
+        "0x94fc7afb4670d96de4e0aab2d6468a23fad28677103757c077a9af76d9201774"
     );
     assert_eq!(
         verified.receipt_digest().as_str(),
@@ -1199,7 +1341,7 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
             &verifier,
         )
         .unwrap_err(),
-        AbiErrorV1::InvalidBinding("lane module structural binding")
+        AbiErrorV1::InvalidBinding("lane module command body hash")
     );
     assert!(verifier.calls.borrow().is_empty());
 
@@ -1268,7 +1410,7 @@ fn exact_verified_module_receipt_backs_structural_lane_composition() {
     );
     assert_eq!(
         composition.binding_root().unwrap().as_str(),
-        "0xee2fd20b3a047f1bb86c014decaaeeca38603fd935af8c2fa7c8a0fd3b97d839"
+        "0xe0d5116ef8420b6193f82a548e63d1cb7b51ea848fddc528d14e348c3833aa50"
     );
 }
 
@@ -1276,7 +1418,7 @@ fn exact_verified_module_receipt_backs_structural_lane_composition() {
 fn valid_module_receipt_for_another_journal_rejects() {
     let fixture = verified_asset_lane_fixture();
     let mut substituted_input = fixture.input.clone();
-    substituted_input.command.amount_atoms = 29;
+    substituted_input.pre_state.policies[0].transfer_fee_atoms = 1;
     let AssetTransferLaneModuleResultV1::Accepted(substituted) =
         transition_asset_transfer_lane_module_v1(&substituted_input).unwrap()
     else {
@@ -1474,11 +1616,11 @@ fn lane_composition_receipt_uses_governed_image_and_exact_journal() {
     assert_eq!(verified.receipt_kind(), ReceiptKindV1::SUCCINCT);
     assert_eq!(
         verified.lane_journal_digest().as_str(),
-        "0x9ce2b12b41782f3e1f7ecf5afdc83cc4b3e863de4d62d2efafd6e3770efd6e51"
+        "0x60d852dca79ac715476ae04b7b5789186437120eabc7f15ec2321377956fa750"
     );
     assert_eq!(
         verified.binding_root().unwrap().as_str(),
-        "0x033c60a4fcf6dbf3c6d9b3893106060bcb344ff0662e149322bfb3ffce8037cb"
+        "0x2690590f3fe2401292c5322d052bf203295f8a55d7651221bdcf61655fcf32a1"
     );
 }
 
@@ -1752,11 +1894,11 @@ fn assert_verified_route_receipt(
     assert_eq!(verified.receipt_kind(), ReceiptKindV1::SUCCINCT);
     assert_eq!(
         verified.route_journal_digest().as_str(),
-        "0xe2a86aaaaca9ed4e25fb58a3e11471073ce3c3dc6779033f22d9c0e105522af5"
+        "0xb3394c15b174fc81883fe075e0a1f12323bba49f0c5bf5b512d0d1ff76264324"
     );
     assert_eq!(
         verified.binding_root().unwrap().as_str(),
-        "0xfc0d847ff20c8a00aef5865eb65d51aca7b7b6ff70246c03b070a8a190d1e817"
+        "0x193c8b0d56b5c34291fc62ff6bd7ebda2d2cbbb861df21c599a9e2cd8a324e6e"
     );
 }
 
@@ -1977,6 +2119,7 @@ struct VerifiedEconomicEpochFixture {
     pre_state: GlobalEconomicStateV1,
     post_state: GlobalEconomicStateV1,
     occurrences: Vec<EconomicCommandOccurrenceV1>,
+    command_body_hashes: Vec<RootV1>,
     route_journals: Vec<RouteCompositionJournalV1>,
     route_state_disclosures: Vec<EconomicEpochRouteStateDisclosureV1>,
     verified_routes: Vec<VerifiedRouteCompositionV1>,
@@ -1996,6 +2139,7 @@ impl VerifiedEconomicEpochFixture {
             pre_state: &self.pre_state,
             post_state: &self.post_state,
             command_occurrences: &self.occurrences,
+            ordered_command_body_hashes: &self.command_body_hashes,
             route_journals: &self.route_journals,
             route_state_disclosures: &self.route_state_disclosures,
             verified_routes: &self.verified_routes,
@@ -2266,6 +2410,11 @@ fn verified_economic_epoch_fixture_from_sequence(
         certificate,
         pre_state: sequence.pre_state,
         post_state: sequence.post_state,
+        command_body_hashes: sequence
+            .occurrences
+            .iter()
+            .map(|occurrence| occurrence.command_body_hash.clone())
+            .collect(),
         occurrences: sequence.occurrences,
         route_journals: sequence.route_journals,
         route_state_disclosures: sequence.route_state_disclosures,
@@ -2289,6 +2438,10 @@ fn economic_epoch_admits_exact_route_witnesses_at_one_eight_nine_and_sixty_four(
 
         // Assert
         assert_eq!(verified.ordered_route_binding_roots().len(), count);
+        assert_eq!(
+            verified.ordered_command_body_hashes(),
+            fixture.command_body_hashes
+        );
         assert_eq!(
             verified.route_state_projection_roots().unwrap().len(),
             count
@@ -2321,8 +2474,73 @@ fn economic_epoch_admits_exact_route_witnesses_at_one_eight_nine_and_sixty_four(
 }
 
 #[test]
+fn economic_occurrence_identity_binds_exact_command_body_hash() {
+    // Arrange
+    let fixture = verified_economic_epoch_fixture(1);
+    let occurrence = fixture.occurrences[0].clone();
+    let mut changed_body = occurrence.clone();
+    changed_body.command_body_hash = root(99_001);
+
+    // Act / Assert
+    assert_ne!(
+        occurrence.occurrence_id().unwrap(),
+        changed_body.occurrence_id().unwrap()
+    );
+    assert_eq!(
+        occurrence.replay_id().unwrap(),
+        changed_body.replay_id().unwrap()
+    );
+}
+
+#[test]
+fn economic_epoch_rejects_unpaired_command_body_hashes_before_receipt() {
+    // Arrange
+    let fixture = verified_economic_epoch_fixture(1);
+    let verifier = RecordingEpochReceiptVerifier::default();
+    let empty = Vec::new();
+    let extra = vec![fixture.command_body_hashes[0].clone(), root(99_002)];
+    let substituted = vec![root(99_003)];
+
+    // Act / Assert: 0, 2, and same-width substitution all fail before verification.
+    for (hashes, expected) in [
+        (
+            &empty,
+            AbiErrorV1::InvalidBinding("economic epoch occurrence count"),
+        ),
+        (
+            &extra,
+            AbiErrorV1::InvalidBinding("economic epoch occurrence count"),
+        ),
+        (
+            &substituted,
+            AbiErrorV1::InvalidBinding("economic epoch command body hash binding"),
+        ),
+    ] {
+        assert_eq!(
+            verify_economic_epoch_receipt_v1(
+                EconomicEpochReceiptCandidateV1 {
+                    ordered_command_body_hashes: hashes,
+                    ..fixture.candidate()
+                },
+                &verifier,
+            )
+            .unwrap_err(),
+            expected
+        );
+    }
+    assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
 fn economic_epoch_two_route_state_evidence_has_stable_rust_golden_roots() {
     let fixture = verified_economic_epoch_fixture(2);
+    assert_eq!(
+        fixture.command_body_hashes,
+        vec![
+            fixture.occurrences[0].command_body_hash.clone(),
+            fixture.occurrences[0].command_body_hash.clone(),
+        ]
+    );
     let verified = verify_economic_epoch_receipt_v1(
         fixture.candidate(),
         &RecordingEpochReceiptVerifier::default(),
@@ -2333,13 +2551,13 @@ fn economic_epoch_two_route_state_evidence_has_stable_rust_golden_roots() {
         verified.route_state_projection_roots().unwrap(),
         vec![
             RootV1::parse(
-                "0x72c8448be1bdf1ae1e3eed00a1a7b7b14c0e98dcb73522c72b9ea3d40d6f70c4",
+                "0x7926202c57d13785f9fc5e2041e8fc510c59fe0a31ad7a010481723717013014",
                 "projection golden",
                 false,
             )
             .unwrap(),
             RootV1::parse(
-                "0x3c76bf7129cc2cf277773d152d7b1849e24bd6ae0d03a60c4dce2e26769f4315",
+                "0xb2c33e50cc5f581f02ef766e4c8ac34ae6999f381e3b1ec2b8c3b1d46afc5958",
                 "projection golden",
                 false,
             )
@@ -2350,13 +2568,13 @@ fn economic_epoch_two_route_state_evidence_has_stable_rust_golden_roots() {
         verified.route_state_effect_refinement_roots().unwrap(),
         vec![
             RootV1::parse(
-                "0x0e7ebe97c0f3b8e28ad6801f29c5971d52de3802eb7071e3c04b8f3f63c23f87",
+                "0xbdd1153663d031e3ac6800593ab2f63244c1a8b96d691124566008fbdf8eeb0d",
                 "refinement golden",
                 false,
             )
             .unwrap(),
             RootV1::parse(
-                "0x9679d760b7c8748c5c41983f067a0f9f72a14a22fabc676bbeb24e461d022128",
+                "0x4a2507056edd9659491d6fe865969026824bd767cedda7f4fdaf685e966d13e7",
                 "refinement golden",
                 false,
             )
@@ -2807,6 +3025,10 @@ fn economic_epoch_reordered_occurrences_and_routes_reject_before_verifier() {
     let mut verified_routes = fixture.verified_routes.clone();
     let mut route_effect_plans = fixture.route_effect_plans.clone();
     occurrences.reverse();
+    let command_body_hashes = occurrences
+        .iter()
+        .map(|occurrence| occurrence.command_body_hash.clone())
+        .collect::<Vec<_>>();
     route_journals.reverse();
     verified_routes.reverse();
     route_effect_plans.reverse();
@@ -2826,6 +3048,7 @@ fn economic_epoch_reordered_occurrences_and_routes_reject_before_verifier() {
     let mut candidate = fixture.candidate();
     candidate.certificate = &certificate;
     candidate.command_occurrences = &occurrences;
+    candidate.ordered_command_body_hashes = &command_body_hashes;
     candidate.route_journals = &route_journals;
     candidate.verified_routes = &verified_routes;
     candidate.route_effect_plans = &route_effect_plans;

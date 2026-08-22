@@ -247,6 +247,29 @@ def _occurrence(
     subject_id: str,
     grant_root: str,
 ) -> EconomicCommandOccurrenceV1:
+    if route.command_kind == ASSET_TRANSFER_COMMAND_KIND_V1:
+        command_body_hash = AssetTransferCommandV1(
+            ASSET_TRANSFER_COMMAND_KIND_V1,
+            "USD",
+            "alice",
+            "bob",
+            30,
+            2,
+        ).command_body_hash
+    elif route.command_kind in {
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+        MANAGED_ASSET_BURN_COMMAND_KIND_V1,
+    }:
+        command_body_hash = ManagedAssetLifecycleCommandV1(
+            command_kind=route.command_kind,
+            asset="USD",
+            account_owner="alice",
+            amount_atoms=(
+                7 if route.command_kind == MANAGED_ASSET_ISSUE_COMMAND_KIND_V1 else 4
+            ),
+        ).command_body_hash
+    else:
+        raise ValueError("test occurrence command kind is unsupported")
     return EconomicCommandOccurrenceV1(
         chain_id="zeno-release-route-test",
         deployment_root=_root(1),
@@ -254,6 +277,7 @@ def _occurrence(
         tx_index=2,
         op_index=3,
         command_kind=route.command_kind,
+        command_body_hash=command_body_hash,
         route_release_id=route.route_release_id,
         subject_id=subject_id,
         grant_root=grant_root,
@@ -378,9 +402,206 @@ def test_asset_output_gets_opaque_active_profile_release_route_binding() -> None
     assert bound.producer_module_schema == ASSET_TRANSFER_MODULE_SCHEMA_V1
     assert bound.route_lane_index == 0
     assert bound.port_schema_root == routes[ASSET_TRANSFER_COMMAND_KIND_V1].port_schema_roots[0]
-    assert bound.binding_root == "0x8c984258df8fd4c7f20ad262ac180e5a91d0ba2da1997831bebf3d8ca7608724"
+    assert bound.binding_root == "0xae8da5b98eb050274008340bad2f012f2497fa74975838dc298285cd0022a16f"
     with pytest.raises(AttributeError, match="immutable"):
         bound._profile_id = _root(999)
+
+
+def test_authenticated_command_body_hashes_match_rust_golden_vectors() -> None:
+    transfer = AssetTransferCommandV1(
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        "USD",
+        "alice",
+        "bob",
+        30,
+        2,
+    )
+    issue = ManagedAssetLifecycleCommandV1(
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+        "USD",
+        "alice",
+        7,
+    )
+    burn = ManagedAssetLifecycleCommandV1(
+        MANAGED_ASSET_BURN_COMMAND_KIND_V1,
+        "USD",
+        "alice",
+        4,
+    )
+
+    assert transfer.command_body_hash == (
+        "0x86c77102b725de42ba4928542495129ab51bbfa71d3ebf14218d16c403f4f9c6"
+    )
+    assert issue.command_body_hash == (
+        "0xba582530e63ec9b3646fae1a361fb8b3aaa7cf4f9ea98d3c47d09d717fcb8983"
+    )
+    assert burn.command_body_hash == (
+        "0xfea954a9c050efcb620a3971bdd7fabed19a56b82cb5ad6aacfaa8db6df847b6"
+    )
+
+
+def test_same_kind_transfer_body_substitution_rejects_before_receipt_binding() -> None:
+    # Arrange: Alice authenticated a transfer to Bob, while the module executes Mallory.
+    profile, routes = _profile()
+    occurrence = _occurrence(
+        profile,
+        routes[ASSET_TRANSFER_COMMAND_KIND_V1],
+        subject_id="alice",
+        grant_root=_root(7),
+    )
+    authenticated = _asset_input(profile, occurrence)
+    substituted = replace(
+        authenticated,
+        command=replace(authenticated.command, recipient="mallory"),
+    )
+    accepted = transition_asset_transfer_lane_module_v1(substituted)
+    assert isinstance(accepted, AssetTransferLaneModuleAcceptedV1)
+
+    # Act / Assert: same command kind and valid economics cannot reuse Alice's body hash.
+    with pytest.raises(ValueError, match="command body hash mismatch"):
+        bind_asset_transfer_lane_output_to_release_route_v1(
+            profile,
+            occurrence,
+            substituted,
+            accepted,
+        )
+
+
+def test_hostile_transfer_command_subclass_cannot_forge_body_hash() -> None:
+    # Arrange: a retained exact input and a subclass advertising Bob's hash.
+    profile, routes = _profile()
+    occurrence = _occurrence(
+        profile,
+        routes[ASSET_TRANSFER_COMMAND_KIND_V1],
+        subject_id="alice",
+        grant_root=_root(7),
+    )
+    authenticated = _asset_input(profile, occurrence)
+    advertised_hash = authenticated.command.command_body_hash
+
+    class ForgedBodyHashCommand(AssetTransferCommandV1):
+        @property
+        def command_body_hash(self) -> str:
+            return advertised_hash
+
+    forged = ForgedBodyHashCommand(
+        command_kind=authenticated.command.command_kind,
+        asset=authenticated.command.asset,
+        sender=authenticated.command.sender,
+        recipient="mallory",
+        amount_atoms=authenticated.command.amount_atoms,
+        max_fee_atoms=authenticated.command.max_fee_atoms,
+    )
+
+    # Act / Assert: post-construction injection before execution rejects.
+    object.__setattr__(authenticated, "command", forged)
+    with pytest.raises(TypeError, match="command must have the exact typed value"):
+        transition_asset_transfer_lane_module_v1(authenticated)
+
+    # Arrange / Act: mutation after transition also rejects at binding.
+    retained = _asset_input(profile, occurrence)
+    accepted = transition_asset_transfer_lane_module_v1(retained)
+    assert isinstance(accepted, AssetTransferLaneModuleAcceptedV1)
+    object.__setattr__(retained, "command", forged)
+    with pytest.raises(TypeError, match="command must have the exact typed value"):
+        bind_asset_transfer_lane_output_to_release_route_v1(
+            profile,
+            occurrence,
+            retained,
+            accepted,
+        )
+
+
+def test_hostile_managed_command_subclass_cannot_forge_body_hash() -> None:
+    # Arrange: a retained exact input and a subclass advertising the approved hash.
+    profile, routes = _profile()
+    occurrence = _occurrence(
+        profile,
+        routes[MANAGED_ASSET_ISSUE_COMMAND_KIND_V1],
+        subject_id="issuer",
+        grant_root=_root(5),
+    )
+    authenticated = _managed_input(
+        profile,
+        occurrence,
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+    )
+    advertised_hash = authenticated.command.command_body_hash
+
+    class ForgedBodyHashCommand(ManagedAssetLifecycleCommandV1):
+        @property
+        def command_body_hash(self) -> str:
+            return advertised_hash
+
+    forged = ForgedBodyHashCommand(
+        command_kind=authenticated.command.command_kind,
+        asset=authenticated.command.asset,
+        account_owner=authenticated.command.account_owner,
+        amount_atoms=authenticated.command.amount_atoms + 1,
+    )
+
+    # Act / Assert: post-construction injection before execution rejects.
+    object.__setattr__(authenticated, "command", forged)
+    with pytest.raises(TypeError, match="command must have the exact typed value"):
+        transition_managed_asset_lifecycle_lane_module_v1(authenticated)
+
+    # Arrange / Act: mutation after transition also rejects at binding.
+    retained = _managed_input(
+        profile,
+        occurrence,
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+    )
+    accepted = transition_managed_asset_lifecycle_lane_module_v1(retained)
+    assert isinstance(accepted, ManagedAssetLifecycleLaneModuleAcceptedV1)
+    object.__setattr__(retained, "command", forged)
+    with pytest.raises(TypeError, match="command must have the exact typed value"):
+        bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
+            profile,
+            occurrence,
+            retained,
+            accepted,
+        )
+
+
+@pytest.mark.parametrize(
+    "command_kind",
+    (MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, MANAGED_ASSET_BURN_COMMAND_KIND_V1),
+)
+def test_same_kind_managed_body_substitution_rejects_before_receipt_binding(
+    command_kind: str,
+) -> None:
+    # Arrange
+    profile, routes = _profile()
+    subject = "issuer" if command_kind == MANAGED_ASSET_ISSUE_COMMAND_KIND_V1 else "alice"
+    occurrence = _occurrence(
+        profile,
+        routes[command_kind],
+        subject_id=subject,
+        grant_root=(
+            _root(5)
+            if command_kind == MANAGED_ASSET_ISSUE_COMMAND_KIND_V1
+            else _root(6)
+        ),
+    )
+    authenticated = _managed_input(profile, occurrence, command_kind)
+    substituted = replace(
+        authenticated,
+        command=replace(
+            authenticated.command,
+            amount_atoms=authenticated.command.amount_atoms + 1,
+        ),
+    )
+    accepted = transition_managed_asset_lifecycle_lane_module_v1(substituted)
+    assert isinstance(accepted, ManagedAssetLifecycleLaneModuleAcceptedV1)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="command body hash mismatch"):
+        bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
+            profile,
+            occurrence,
+            substituted,
+            accepted,
+        )
 
 
 @pytest.mark.parametrize(
@@ -561,6 +782,36 @@ def _accepted_transfer_with_binding() -> tuple[
     return profile, occurrence, module_input, accepted, bound
 
 
+def _accepted_managed_issue_with_binding() -> tuple[
+    EconomicProfileSnapshotV1,
+    EconomicCommandOccurrenceV1,
+    ManagedAssetLifecycleLaneModuleInputV1,
+    ManagedAssetLifecycleLaneModuleAcceptedV1,
+    ReleaseRouteBoundLaneTransitionV1,
+]:
+    profile, routes = _profile()
+    occurrence = _occurrence(
+        profile,
+        routes[MANAGED_ASSET_ISSUE_COMMAND_KIND_V1],
+        subject_id="issuer",
+        grant_root=_root(5),
+    )
+    module_input = _managed_input(
+        profile,
+        occurrence,
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+    )
+    accepted = transition_managed_asset_lifecycle_lane_module_v1(module_input)
+    assert isinstance(accepted, ManagedAssetLifecycleLaneModuleAcceptedV1)
+    bound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
+        profile,
+        occurrence,
+        module_input,
+        accepted,
+    )
+    return profile, occurrence, module_input, accepted, bound
+
+
 def test_module_receipt_verification_uses_release_image_and_exact_journal() -> None:
     profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
     receipt_bytes = b"succinct-asset-transfer-module-receipt-v1"
@@ -588,7 +839,7 @@ def test_module_receipt_verification_uses_release_image_and_exact_journal() -> N
     assert verified.receipt_digest == "0x" + hashlib.sha256(receipt_bytes).hexdigest()
     assert verified.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified.receipt_digest != accepted.module_journal.receipt_root
-    assert verified.binding_root == "0xff9d4232a72f8e1039d6afd78ae92052aaca8f29b5d7bd0dd7cf7b6ec50c844f"
+    assert verified.binding_root == "0x6ae20472ca9c27befc6707cdbae18c97b1dc5c220145b6c022849d32b72b828d"
     with pytest.raises(AttributeError, match="immutable"):
         verified._receipt_digest = _root(999)
 
@@ -699,7 +950,7 @@ def test_structural_binding_cannot_authorize_a_mutated_module_journal() -> None:
     assert isinstance(substituted, AssetTransferLaneModuleAcceptedV1)
     verifier = _RecordingModuleReceiptVerifier()
 
-    with pytest.raises(ValueError, match="structural binding mismatch"):
+    with pytest.raises(ValueError, match="command body hash mismatch"):
         verify_asset_transfer_lane_module_receipt_v1(
             AssetTransferLaneModuleReceiptCandidateV1(
                 profile,
@@ -715,6 +966,207 @@ def test_structural_binding_cannot_authorize_a_mutated_module_journal() -> None:
             verifier,
         )
 
+    assert verifier.calls == []
+
+
+def test_transfer_accepted_output_cannot_be_rerooted_to_another_command() -> None:
+    # Arrange: execute Mallory's payload, then advertise Bob's statement root.
+    profile, occurrence, authenticated, _, _ = _accepted_transfer_with_binding()
+    executed = replace(
+        authenticated,
+        command=replace(authenticated.command, recipient="mallory"),
+    )
+    accepted = transition_asset_transfer_lane_module_v1(executed)
+    assert isinstance(accepted, AssetTransferLaneModuleAcceptedV1)
+    object.__setattr__(accepted, "statement_root", authenticated.statement_root)
+
+    # Act / Assert: full deterministic recomputation rejects the reroot.
+    with pytest.raises(ValueError, match="receipt root mismatch"):
+        bind_asset_transfer_lane_output_to_release_route_v1(
+            profile,
+            occurrence,
+            authenticated,
+            accepted,
+        )
+
+
+def test_managed_accepted_output_cannot_be_rerooted_to_another_command() -> None:
+    # Arrange: execute an eight-atom issue, then advertise the seven-atom statement.
+    profile, occurrence, authenticated, _, _ = _accepted_managed_issue_with_binding()
+    executed = replace(
+        authenticated,
+        command=replace(
+            authenticated.command,
+            amount_atoms=authenticated.command.amount_atoms + 1,
+        ),
+    )
+    accepted = transition_managed_asset_lifecycle_lane_module_v1(executed)
+    assert isinstance(accepted, ManagedAssetLifecycleLaneModuleAcceptedV1)
+    object.__setattr__(accepted, "statement_root", authenticated.statement_root)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="receipt root mismatch"):
+        bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
+            profile,
+            occurrence,
+            authenticated,
+            accepted,
+        )
+
+
+def _mutate_retained_accepted_output(accepted: object, mutation: str) -> None:
+    if mutation == "statement":
+        object.__setattr__(accepted, "statement_root", _root(91_001))
+    elif mutation == "journal":
+        object.__setattr__(accepted.module_journal, "receipt_root", _root(91_002))
+    elif mutation == "private_port":
+        object.__setattr__(
+            accepted.private_port,
+            "module_effect_plan_root",
+            _root(91_003),
+        )
+    elif mutation == "effects":
+        object.__setattr__(accepted.effects, "occurrence_consumptions", ())
+    else:
+        raise AssertionError(f"unknown test mutation: {mutation}")
+
+
+@pytest.mark.parametrize("mutation", ("statement", "journal", "private_port", "effects"))
+def test_transfer_candidate_revalidates_retained_accepted_output_before_verifier(
+    mutation: str,
+) -> None:
+    # Arrange: retain a valid candidate, then mutate one accepted-output layer.
+    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    candidate = AssetTransferLaneModuleReceiptCandidateV1(
+        profile,
+        occurrence,
+        module_input,
+        accepted,
+        bound,
+        LaneModuleReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"mutated-transfer"),
+    )
+    _mutate_retained_accepted_output(accepted, mutation)
+    verifier = _RecordingModuleReceiptVerifier()
+
+    # Act / Assert
+    with pytest.raises((TypeError, ValueError)):
+        verify_asset_transfer_lane_module_receipt_v1(candidate, verifier)
+    assert verifier.calls == []
+
+
+@pytest.mark.parametrize("mutation", ("statement", "journal", "private_port", "effects"))
+def test_managed_candidate_revalidates_retained_accepted_output_before_verifier(
+    mutation: str,
+) -> None:
+    # Arrange
+    profile, occurrence, module_input, accepted, bound = _accepted_managed_issue_with_binding()
+    candidate = ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
+        profile,
+        occurrence,
+        module_input,
+        accepted,
+        bound,
+        LaneModuleReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"mutated-issue"),
+    )
+    _mutate_retained_accepted_output(accepted, mutation)
+    verifier = _RecordingModuleReceiptVerifier()
+
+    # Act / Assert
+    with pytest.raises((TypeError, ValueError)):
+        verify_managed_asset_lifecycle_lane_module_receipt_v1(candidate, verifier)
+    assert verifier.calls == []
+
+
+def test_transfer_receipt_rejects_retained_command_subclass_before_verifier() -> None:
+    # Arrange: construct the candidate, then mutate its retained input alias.
+    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    advertised_hash = module_input.command.command_body_hash
+
+    class ForgedBodyHashCommand(AssetTransferCommandV1):
+        @property
+        def command_body_hash(self) -> str:
+            return advertised_hash
+
+    candidate = AssetTransferLaneModuleReceiptCandidateV1(
+        profile,
+        occurrence,
+        module_input,
+        accepted,
+        bound,
+        LaneModuleReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"forged-transfer"),
+    )
+    object.__setattr__(
+        module_input,
+        "command",
+        ForgedBodyHashCommand(
+            module_input.command.command_kind,
+            module_input.command.asset,
+            module_input.command.sender,
+            "mallory",
+            module_input.command.amount_atoms,
+            module_input.command.max_fee_atoms,
+        ),
+    )
+    verifier = _RecordingModuleReceiptVerifier()
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="command must have the exact typed value"):
+        verify_asset_transfer_lane_module_receipt_v1(candidate, verifier)
+    assert verifier.calls == []
+
+
+def test_managed_receipt_rejects_retained_command_subclass_before_verifier() -> None:
+    # Arrange
+    profile, routes = _profile()
+    occurrence = _occurrence(
+        profile,
+        routes[MANAGED_ASSET_ISSUE_COMMAND_KIND_V1],
+        subject_id="issuer",
+        grant_root=_root(5),
+    )
+    module_input = _managed_input(
+        profile,
+        occurrence,
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+    )
+    accepted = transition_managed_asset_lifecycle_lane_module_v1(module_input)
+    assert isinstance(accepted, ManagedAssetLifecycleLaneModuleAcceptedV1)
+    bound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
+        profile,
+        occurrence,
+        module_input,
+        accepted,
+    )
+    advertised_hash = module_input.command.command_body_hash
+
+    class ForgedBodyHashCommand(ManagedAssetLifecycleCommandV1):
+        @property
+        def command_body_hash(self) -> str:
+            return advertised_hash
+
+    candidate = ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
+        profile,
+        occurrence,
+        module_input,
+        accepted,
+        bound,
+        LaneModuleReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"forged-issue"),
+    )
+    object.__setattr__(
+        module_input,
+        "command",
+        ForgedBodyHashCommand(
+            module_input.command.command_kind,
+            module_input.command.asset,
+            module_input.command.account_owner,
+            module_input.command.amount_atoms + 1,
+        ),
+    )
+    verifier = _RecordingModuleReceiptVerifier()
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="command must have the exact typed value"):
+        verify_managed_asset_lifecycle_lane_module_receipt_v1(candidate, verifier)
     assert verifier.calls == []
 
 
@@ -855,7 +1307,7 @@ def test_verified_module_receipt_backs_only_exact_structural_lane_composition() 
     assert composition.module_receipt_digest == verified.receipt_digest
     assert composition.lane_journal_root != accepted.module_journal.journal_root
     assert composition.binding_root == (
-        "0xee2fd20b3a047f1bb86c014decaaeeca38603fd935af8c2fa7c8a0fd3b97d839"
+        "0xe0d5116ef8420b6193f82a548e63d1cb7b51ea848fddc528d14e348c3833aa50"
     )
 
 
@@ -928,7 +1380,7 @@ def test_lane_composition_receipt_uses_selected_image_and_exact_journal() -> Non
     )
     assert verified_composition.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified_composition.binding_root == (
-        "0x033c60a4fcf6dbf3c6d9b3893106060bcb344ff0662e149322bfb3ffce8037cb"
+        "0x2690590f3fe2401292c5322d052bf203295f8a55d7651221bdcf61655fcf32a1"
     )
 
 
@@ -1010,7 +1462,15 @@ def test_valid_module_receipt_cannot_back_a_different_lane_journal() -> None:
     )
     substituted_input = replace(
         module_input,
-        command=replace(module_input.command, amount_atoms=29),
+        pre_state=replace(
+            module_input.pre_state,
+            policies=(
+                replace(
+                    module_input.pre_state.policies[0],
+                    transfer_fee_atoms=1,
+                ),
+            ),
+        ),
     )
     substituted = transition_asset_transfer_lane_module_v1(substituted_input)
     assert isinstance(substituted, AssetTransferLaneModuleAcceptedV1)
@@ -1142,7 +1602,7 @@ def test_route_composition_receipt_uses_selected_image_and_exact_lane_witness() 
     assert verified_route.receipt_digest == "0x" + hashlib.sha256(receipt_bytes).hexdigest()
     assert verified_route.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified_route.binding_root == (
-        "0xfc0d847ff20c8a00aef5865eb65d51aca7b7b6ff70246c03b070a8a190d1e817"
+        "0x193c8b0d56b5c34291fc62ff6bd7ebda2d2cbbb861df21c599a9e2cd8a324e6e"
     )
 
 

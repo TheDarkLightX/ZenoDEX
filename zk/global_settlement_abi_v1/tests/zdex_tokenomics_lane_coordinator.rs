@@ -568,6 +568,7 @@ fn receipt_fixture() -> ReceiptFixture {
         tx_index: 2,
         op_index: 1,
         command_kind: PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1.to_owned(),
+        command_body_hash: root(821),
         route_release_id: profile.route.route_release_id.clone(),
         subject_id: "protocol-buyback-controller".to_owned(),
         grant_root: root(820),
@@ -1116,7 +1117,7 @@ fn release_selected_coordinator_receipt_mints_exact_shadow_witness() {
     );
     assert_eq!(
         verified.binding_root().unwrap(),
-        root_hex("0x0e281f45aa36ab86b9cf1a8c95c2456f0e4c3efa295af8bbab867107bb9b4458")
+        root_hex("0x3d9398fda81e68baa95f537e08197e6474bbe9d5ecef562853d25888e1dbdd5f")
     );
 }
 

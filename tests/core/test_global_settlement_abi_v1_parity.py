@@ -40,6 +40,7 @@ def test_consensus_integer_widths_reject_cross_language_overflow() -> None:
             tx_index=0,
             op_index=0,
             command_kind="transfer",
+            command_body_hash=_root(6),
             route_release_id=_root(2),
             subject_id="alice",
             grant_root=_root(3),

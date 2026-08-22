@@ -385,6 +385,7 @@ def _occurrence(
         tx_index=2,
         op_index=3,
         command_kind=route.command_kind,
+        command_body_hash=_root(1_203),
         route_release_id=route.route_release_id,
         subject_id="alice",
         grant_root=_root(1_200),

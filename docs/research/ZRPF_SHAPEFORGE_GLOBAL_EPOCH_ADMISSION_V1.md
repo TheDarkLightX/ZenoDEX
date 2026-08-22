@@ -404,6 +404,12 @@ call. The Rust ABI implements the parallel bounded boundary. The reference
 publisher accepts only the resulting opaque
 epoch witness and rechecks current head, profile, body, post-state, data
 availability, finality, height, and command cardinality under one lock.
+The pre-release ABI now includes the canonical command-body hash in each
+occurrence identity. Implemented asset transfer and managed issue/burn binders
+derive that hash from the exact command in the module statement, while epoch
+verification and commit require the exact ordered body-hash sequence. This is
+structural reference evidence; authenticated ingress and canonical-byte
+availability remain outer premises.
 
 This reaches evidence class `contract`. The existing settlement
 strong-validation slice retains its scoped `proved` status. The sibling RISC0

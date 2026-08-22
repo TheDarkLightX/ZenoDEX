@@ -8,16 +8,24 @@ authority.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Final, TypeAlias
 
 from .asset_lane_projection_v1 import (
     AssetLanePrivatePortV1,
+    _snapshot_asset_lane_private_port_v1,
     project_managed_asset_lifecycle_state_v1,
 )
 from .global_economic_proof_v1 import LaneModuleTransitionJournalV1
+from .global_economic_refinement_snapshot_v1 import (
+    _require_exact_dataclass_scalars_v1,
+    _require_exact_tuple_items,
+    _snapshot_dataclass_tuple_v1,
+    _snapshot_effect_plan_v1,
+)
 from .global_settlement_types_v1 import (
     ZERO_ROOT_V1,
+    AssetSupplyV1,
     EconomicAmountV1,
     GlobalEconomicEffectPlanV1,
     _require_ordered_objects,
@@ -27,9 +35,11 @@ from .global_settlement_types_v1 import (
 from .managed_asset_lifecycle_module_v1 import transition_managed_asset_lifecycle_v1
 from .managed_asset_lifecycle_types_v1 import (
     MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1,
+    ManagedAssetClassV1,
     ManagedAssetLifecycleAcceptedV1,
     ManagedAssetLifecycleCommandV1,
     ManagedAssetLifecycleContextV1,
+    ManagedAssetLifecyclePolicyV1,
     ManagedAssetLifecycleRejectedV1,
     ManagedAssetLifecycleStateV1,
 )
@@ -51,12 +61,12 @@ class ManagedAssetLifecycleLaneModuleInputV1:
     custody: tuple[EconomicAmountV1, ...]
 
     def __post_init__(self) -> None:
-        if not isinstance(self.context, ManagedAssetLifecycleContextV1):
-            raise TypeError("managed asset lane module context must be typed")
-        if not isinstance(self.pre_state, ManagedAssetLifecycleStateV1):
-            raise TypeError("managed asset lane module pre-state must be typed")
-        if not isinstance(self.command, ManagedAssetLifecycleCommandV1):
-            raise TypeError("managed asset lane module command must be typed")
+        if type(self.context) is not ManagedAssetLifecycleContextV1:
+            raise TypeError("managed asset lane module context must have the exact typed value")
+        if type(self.pre_state) is not ManagedAssetLifecycleStateV1:
+            raise TypeError("managed asset lane module pre-state must have the exact typed value")
+        if type(self.command) is not ManagedAssetLifecycleCommandV1:
+            raise TypeError("managed asset lane module command must have the exact typed value")
         _require_root(
             self.asset_policy_registry_root,
             name="managed asset lane module asset policy registry",
@@ -95,6 +105,97 @@ class ManagedAssetLifecycleLaneModuleInputV1:
             "fee_policy_registry_root": self.fee_policy_registry_root,
             "custody": self.custody,
         }
+
+
+def _snapshot_managed_policies_v1(
+    policies: object,
+) -> tuple[ManagedAssetLifecyclePolicyV1, ...]:
+    snapshots = []
+    for policy in _require_exact_tuple_items(
+        policies,
+        ManagedAssetLifecyclePolicyV1,
+        "managed asset policies",
+    ):
+        if type(policy.asset) is not str:
+            raise TypeError("managed asset policy asset must be an exact string")
+        if type(policy.asset_class) is not ManagedAssetClassV1:
+            raise TypeError("managed asset policy class must be an exact closed value")
+        for field_name in (
+            "issue_authority_subject",
+            "issue_policy_root",
+            "burn_policy_root",
+        ):
+            item = getattr(policy, field_name)
+            if item is not None and type(item) is not str:
+                raise TypeError(f"managed asset policy {field_name} must be exact text")
+        if type(policy.enabled) is not bool:
+            raise TypeError("managed asset policy enabled must be an exact bool")
+        snapshots.append(replace(policy))
+    return tuple(snapshots)
+
+
+def _snapshot_managed_asset_lifecycle_state_v1(
+    state: ManagedAssetLifecycleStateV1,
+) -> ManagedAssetLifecycleStateV1:
+    _require_exact_dataclass_scalars_v1(
+        state,
+        name="managed asset state",
+        tuple_fields=frozenset({"policies", "balances", "supplies"}),
+    )
+    return replace(
+        state,
+        policies=_snapshot_managed_policies_v1(state.policies),
+        balances=_snapshot_dataclass_tuple_v1(
+            state.balances,
+            EconomicAmountV1,
+            "managed asset balances",
+        ),
+        supplies=_snapshot_dataclass_tuple_v1(
+            state.supplies,
+            AssetSupplyV1,
+            "managed asset supplies",
+        ),
+    )
+
+
+def _snapshot_managed_asset_lifecycle_lane_module_input_v1(
+    module_input: ManagedAssetLifecycleLaneModuleInputV1,
+) -> ManagedAssetLifecycleLaneModuleInputV1:
+    """Own one exact, revalidated input before execution or authority binding."""
+
+    if type(module_input) is not ManagedAssetLifecycleLaneModuleInputV1:
+        raise TypeError("managed asset lifecycle lane input must have the exact typed value")
+    if type(module_input.context) is not ManagedAssetLifecycleContextV1:
+        raise TypeError("managed asset lane module context must have the exact typed value")
+    if type(module_input.pre_state) is not ManagedAssetLifecycleStateV1:
+        raise TypeError("managed asset lane module pre-state must have the exact typed value")
+    if type(module_input.command) is not ManagedAssetLifecycleCommandV1:
+        raise TypeError("managed asset lane module command must have the exact typed value")
+    if type(module_input.asset_policy_registry_root) is not str:
+        raise TypeError("managed asset asset-policy root must be an exact string")
+    if type(module_input.fee_policy_registry_root) is not str:
+        raise TypeError("managed asset fee-policy root must be an exact string")
+
+    _require_exact_dataclass_scalars_v1(
+        module_input.context,
+        name="managed asset context",
+    )
+    _require_exact_dataclass_scalars_v1(
+        module_input.command,
+        name="managed asset command",
+    )
+    return ManagedAssetLifecycleLaneModuleInputV1(
+        context=replace(module_input.context),
+        pre_state=_snapshot_managed_asset_lifecycle_state_v1(module_input.pre_state),
+        command=replace(module_input.command),
+        asset_policy_registry_root=module_input.asset_policy_registry_root,
+        fee_policy_registry_root=module_input.fee_policy_registry_root,
+        custody=_snapshot_dataclass_tuple_v1(
+            module_input.custody,
+            EconomicAmountV1,
+            "managed asset custody",
+        ),
+    )
 
 
 def _receipt_root(
@@ -160,6 +261,32 @@ class ManagedAssetLifecycleLaneModuleAcceptedV1:
         return self.module_journal.receipt_root
 
 
+def _snapshot_managed_asset_lifecycle_lane_module_accepted_v1(
+    accepted: ManagedAssetLifecycleLaneModuleAcceptedV1,
+) -> ManagedAssetLifecycleLaneModuleAcceptedV1:
+    if type(accepted) is not ManagedAssetLifecycleLaneModuleAcceptedV1:
+        raise TypeError("managed lifecycle accepted output must have the exact typed value")
+    if type(accepted.statement_root) is not str:
+        raise TypeError("managed lifecycle accepted statement root must be exact text")
+    if type(accepted.post_state) is not ManagedAssetLifecycleStateV1:
+        raise TypeError("managed lifecycle accepted state must have the exact typed value")
+    if type(accepted.effects) is not GlobalEconomicEffectPlanV1:
+        raise TypeError("managed lifecycle accepted effects must have the exact typed value")
+    if type(accepted.module_journal) is not LaneModuleTransitionJournalV1:
+        raise TypeError("managed lifecycle accepted journal must have the exact typed value")
+    _require_exact_dataclass_scalars_v1(
+        accepted.module_journal,
+        name="managed lifecycle accepted journal",
+    )
+    return ManagedAssetLifecycleLaneModuleAcceptedV1(
+        statement_root=accepted.statement_root,
+        post_state=_snapshot_managed_asset_lifecycle_state_v1(accepted.post_state),
+        effects=_snapshot_effect_plan_v1(accepted.effects),
+        module_journal=replace(accepted.module_journal),
+        private_port=_snapshot_asset_lane_private_port_v1(accepted.private_port),
+    )
+
+
 ManagedAssetLifecycleLaneModuleResultV1: TypeAlias = (
     ManagedAssetLifecycleLaneModuleAcceptedV1 | ManagedAssetLifecycleRejectedV1
 )
@@ -221,22 +348,18 @@ def _bound_journal(
     )
 
 
-def transition_managed_asset_lifecycle_lane_module_v1(
-    module_input: ManagedAssetLifecycleLaneModuleInputV1,
+def _transition_owned_managed_asset_lifecycle_lane_module_v1(
+    owned_input: ManagedAssetLifecycleLaneModuleInputV1,
 ) -> ManagedAssetLifecycleLaneModuleResultV1:
-    """Run one bound issue or burn transition with exact reject no-op semantics."""
-
-    if not isinstance(module_input, ManagedAssetLifecycleLaneModuleInputV1):
-        raise TypeError("managed asset lifecycle lane module input must be typed")
     base_result = transition_managed_asset_lifecycle_v1(
-        module_input.context,
-        module_input.pre_state,
-        module_input.command,
+        owned_input.context,
+        owned_input.pre_state,
+        owned_input.command,
     )
     if isinstance(base_result, ManagedAssetLifecycleRejectedV1):
         return base_result
-    private_port = _private_port(module_input, base_result)
-    statement_root = module_input.statement_root
+    private_port = _private_port(owned_input, base_result)
+    statement_root = owned_input.statement_root
     return ManagedAssetLifecycleLaneModuleAcceptedV1(
         statement_root,
         base_result.post_state,
@@ -244,6 +367,33 @@ def transition_managed_asset_lifecycle_lane_module_v1(
         _bound_journal(statement_root, base_result, private_port),
         private_port,
     )
+
+
+def transition_managed_asset_lifecycle_lane_module_v1(
+    module_input: ManagedAssetLifecycleLaneModuleInputV1,
+) -> ManagedAssetLifecycleLaneModuleResultV1:
+    """Run one bound issue or burn transition with exact reject no-op semantics."""
+
+    return _transition_owned_managed_asset_lifecycle_lane_module_v1(
+        _snapshot_managed_asset_lifecycle_lane_module_input_v1(module_input)
+    )
+
+
+def _recompute_managed_asset_lifecycle_lane_module_accepted_v1(
+    module_input: ManagedAssetLifecycleLaneModuleInputV1,
+    accepted: ManagedAssetLifecycleLaneModuleAcceptedV1,
+) -> tuple[
+    ManagedAssetLifecycleLaneModuleInputV1,
+    ManagedAssetLifecycleLaneModuleAcceptedV1,
+]:
+    owned_input = _snapshot_managed_asset_lifecycle_lane_module_input_v1(module_input)
+    expected = _transition_owned_managed_asset_lifecycle_lane_module_v1(owned_input)
+    if type(expected) is not ManagedAssetLifecycleLaneModuleAcceptedV1:
+        raise ValueError("managed lifecycle supplied acceptance recomputes to rejection")
+    supplied = _snapshot_managed_asset_lifecycle_lane_module_accepted_v1(accepted)
+    if supplied != expected:
+        raise ValueError("managed lifecycle supplied acceptance differs from recomputation")
+    return owned_input, expected
 
 
 __all__ = [

@@ -18,6 +18,7 @@ from typing import Final
 from .asset_transfer_lane_module_v1 import (
     AssetTransferLaneModuleAcceptedV1,
     AssetTransferLaneModuleInputV1,
+    _recompute_asset_transfer_lane_module_accepted_v1,
 )
 from .global_economic_proof_v1 import (
     EconomicCommandOccurrenceV1,
@@ -39,6 +40,7 @@ from .lane_module_release_route_binding_v1 import (
 from .managed_asset_lifecycle_lane_module_v1 import (
     ManagedAssetLifecycleLaneModuleAcceptedV1,
     ManagedAssetLifecycleLaneModuleInputV1,
+    _recompute_managed_asset_lifecycle_lane_module_accepted_v1,
 )
 
 VERIFIED_LANE_MODULE_TRANSITION_SCHEMA_V1: Final = (
@@ -268,10 +270,14 @@ def verify_asset_transfer_lane_module_receipt_v1(
         candidate.module_input,
         candidate.accepted,
     )
+    _, expected = _recompute_asset_transfer_lane_module_accepted_v1(
+        candidate.module_input,
+        candidate.accepted,
+    )
     return _verify_rebound_module_receipt_v1(
         _ReboundLaneModuleReceiptCandidateV1(
             candidate.profile,
-            candidate.accepted.module_journal,
+            expected.module_journal,
             candidate.release_route_binding,
             rebound,
             candidate.receipt,
@@ -292,10 +298,14 @@ def verify_managed_asset_lifecycle_lane_module_receipt_v1(
         candidate.module_input,
         candidate.accepted,
     )
+    _, expected = _recompute_managed_asset_lifecycle_lane_module_accepted_v1(
+        candidate.module_input,
+        candidate.accepted,
+    )
     return _verify_rebound_module_receipt_v1(
         _ReboundLaneModuleReceiptCandidateV1(
             candidate.profile,
-            candidate.accepted.module_journal,
+            expected.module_journal,
             candidate.release_route_binding,
             rebound,
             candidate.receipt,

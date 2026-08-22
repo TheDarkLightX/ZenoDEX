@@ -3,7 +3,10 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::asset_transfer_types::ACCOUNT_CUSTODY_DOMAIN_V1;
-use crate::canonical::{hash_global_v1, validate_token_v1, AbiErrorV1, AbiResultV1, RootV1};
+use crate::canonical::{
+    hash_economic_command_body_v1, hash_global_v1, validate_token_v1, AbiErrorV1, AbiResultV1,
+    RootV1,
+};
 use crate::effects::GlobalEconomicEffectPlanV1;
 use crate::proof::LaneModuleTransitionJournalV1;
 use crate::release::LaneIdV1;
@@ -258,6 +261,11 @@ impl ManagedAssetLifecycleCommandV1 {
         validate_token_v1(&self.command_kind, "managed asset command kind")?;
         validate_token_v1(&self.asset, "managed asset command asset")?;
         validate_token_v1(&self.account_owner, "managed asset command account owner")
+    }
+
+    pub fn command_body_hash(&self) -> AbiResultV1<RootV1> {
+        self.validate()?;
+        hash_economic_command_body_v1(&self.command_kind, self)
     }
 }
 

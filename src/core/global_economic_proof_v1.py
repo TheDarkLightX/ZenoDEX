@@ -60,6 +60,7 @@ class EconomicCommandOccurrenceV1:
     tx_index: int
     op_index: int
     command_kind: str
+    command_body_hash: str
     route_release_id: str
     subject_id: str
     grant_root: str
@@ -75,6 +76,7 @@ class EconomicCommandOccurrenceV1:
         _require_nonnegative_int(self.tx_index, name="occurrence tx_index")
         _require_nonnegative_int(self.op_index, name="occurrence op_index")
         _require_token(self.command_kind, name="occurrence command kind")
+        _require_root(self.command_body_hash, name="occurrence command body hash")
         _require_root(self.route_release_id, name="occurrence route release id")
         _require_token(self.subject_id, name="occurrence subject id")
         _require_root(self.grant_root, name="occurrence grant root")
@@ -113,6 +115,7 @@ class EconomicCommandOccurrenceV1:
             "tx_index": self.tx_index,
             "op_index": self.op_index,
             "command_kind": self.command_kind,
+            "command_body_hash": self.command_body_hash,
             "route_release_id": self.route_release_id,
             "subject_id": self.subject_id,
             "grant_root": self.grant_root,
@@ -758,6 +761,7 @@ class EconomicEpochReceiptCandidateV1:
     pre_state: GlobalEconomicStateV1
     post_state: GlobalEconomicStateV1
     command_occurrences: tuple[EconomicCommandOccurrenceV1, ...]
+    ordered_command_body_hashes: tuple[str, ...]
     route_journals: tuple[RouteCompositionJournalV1, ...]
     route_state_disclosures: tuple[EconomicEpochRouteStateDisclosureV1, ...]
     verified_routes: tuple[VerifiedRouteCompositionV1, ...]
@@ -786,6 +790,21 @@ class EconomicEpochReceiptCandidateV1:
             raise ValueError("economic epoch requires between one and 64 command occurrences")
         if any(type(item) is not EconomicCommandOccurrenceV1 for item in self.command_occurrences):
             raise TypeError("economic epoch contains an invalid command occurrence")
+        body_hashes = _require_tuple(
+            self.ordered_command_body_hashes,
+            name="economic epoch command body hashes",
+        )
+        if len(body_hashes) != len(self.command_occurrences):
+            raise ValueError("economic epoch command body hash count mismatch")
+        for index, command_body_hash in enumerate(body_hashes):
+            _require_root(
+                command_body_hash,
+                name=f"economic epoch command body hash[{index}]",
+            )
+        if body_hashes != tuple(
+            occurrence.command_body_hash for occurrence in self.command_occurrences
+        ):
+            raise ValueError("economic epoch command body hash binding mismatch")
         if type(self.route_journals) is not tuple or any(
             type(item) is not RouteCompositionJournalV1 for item in self.route_journals
         ):
@@ -845,6 +864,13 @@ def _snapshot_economic_epoch_candidate_v1(
                 candidate.command_occurrences,
                 EconomicCommandOccurrenceV1,
                 "epoch command occurrences",
+            )
+        ),
+        ordered_command_body_hashes=tuple(
+            _require_exact_tuple_items(
+                candidate.ordered_command_body_hashes,
+                str,
+                "epoch command body hashes",
             )
         ),
         route_journals=tuple(
@@ -1153,6 +1179,14 @@ class VerifiedEconomicEpochV1:
         return _verified_economic_epoch_authority_v1(
             self
         ).ordered_route_binding_roots
+
+    @property
+    def ordered_command_body_hashes(self) -> tuple[str, ...]:
+        authority = _verified_economic_epoch_authority_v1(self)
+        return tuple(
+            occurrence.command_body_hash
+            for occurrence in authority.command_occurrences
+        )
 
     @property
     def receipt_digest(self) -> str:
@@ -1563,7 +1597,11 @@ def _validate_route_journals(
     certificate = candidate.certificate
     command_occurrences = candidate.command_occurrences
     route_journals = candidate.route_journals
-    _validate_command_occurrences(certificate, command_occurrences)
+    _validate_command_occurrences(
+        certificate,
+        command_occurrences,
+        candidate.ordered_command_body_hashes,
+    )
     _require_tuple(route_journals, name="economic epoch route journals")
     if len(route_journals) != len(certificate.ordered_occurrence_ids):
         raise ValueError("economic epoch route journal count mismatch")
@@ -1596,6 +1634,7 @@ def _validate_route_journals(
 def _validate_command_occurrences(
     certificate: GlobalEconomicEpochCertificateV1,
     command_occurrences: tuple[EconomicCommandOccurrenceV1, ...],
+    ordered_command_body_hashes: tuple[str, ...],
 ) -> None:
     _require_tuple(command_occurrences, name="economic epoch command occurrences")
     if any(not isinstance(item, EconomicCommandOccurrenceV1) for item in command_occurrences):
@@ -1605,6 +1644,10 @@ def _validate_command_occurrences(
         != certificate.ordered_occurrence_ids
     ):
         raise ValueError("economic epoch command occurrence order or root mismatch")
+    if tuple(item.command_body_hash for item in command_occurrences) != (
+        ordered_command_body_hashes
+    ):
+        raise ValueError("economic epoch command body hash binding mismatch")
     positions = tuple((item.height, item.tx_index, item.op_index) for item in command_occurrences)
     if positions != tuple(sorted(set(positions))):
         raise ValueError(

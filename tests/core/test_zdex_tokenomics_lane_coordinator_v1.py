@@ -403,6 +403,7 @@ def _receipt_fixture(
         tx_index=2,
         op_index=1,
         command_kind=PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+        command_body_hash=_root(821),
         route_release_id=route.route_release_id,
         subject_id="protocol-buyback-controller",
         grant_root=_root(820),
@@ -705,7 +706,7 @@ def test_release_selected_coordinator_receipt_binds_exact_lane_journal() -> None
     assert verified.module_image_id == fields.module_release.guest_image_id
     assert verified.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified.binding_root == (
-        "0x0e281f45aa36ab86b9cf1a8c95c2456f0e4c3efa295af8bbab867107bb9b4458"
+        "0x3d9398fda81e68baa95f537e08197e6474bbe9d5ecef562853d25888e1dbdd5f"
     )
     with pytest.raises(AttributeError, match="immutable"):
         verified._fields = object()

@@ -94,7 +94,12 @@ epoch, commit, settlement, or publication authority.
 The epoch receipt boundary consumes one immutable
 `EconomicEpochReceiptCandidateV1` in both language references and requires one
 exact opaque route witness for every canonical occurrence and route journal.
-It checks governed route release and image, writer epoch, lane order,
+Each occurrence identity now commits the exact canonical command-body hash.
+For the implemented asset transfer and managed issue/burn leaves, the
+release-route binder recomputes that hash from the exact typed command inside
+the module statement and requires equality before receipt admission. A
+same-kind recipient, amount, or lifecycle substitution therefore cannot reuse
+the authenticated occurrence. It checks governed route release and image, writer epoch, lane order,
 route-journal root and canonical digest, exact public route-assumption root,
 and one disclosed effect plan whose root and occurrence match that route
 journal. A pure checked composer folds the route plans into the only admissible
@@ -146,13 +151,25 @@ certificate, disclosed states, occurrences, journals, and effects before
 validation. The reference commit port revalidates the content-derived active
 profile under its lock, reruns route/full-state projection and
 per-route plus aggregate state/effect/replay refinement from verifier-owned
-disclosures, rebinds the results to verification-time roots, and owns its
-published state copy. Python handle authority is recovered from a separately
+disclosures, requires the exact ordered body hashes to equal the hashes retained
+in verifier-owned occurrences, rebinds the results to verification-time roots,
+and owns its published state copy. Python handle authority is recovered from a separately
 owned process-local verifier registry. The opaque handle has no writable data
 slots, so coherent private-field injection cannot replace the verified
-transition. This
-process-local registry is defensive reference hardening, not a same-process security or
-cryptographic boundary.
+transition. Asset-transfer and managed-lifecycle execution and binding
+boundaries deep-snapshot exact owned input values, so retained-alias mutation
+or command subclasses cannot override the body hash used for admission. This
+binding step also recomputes the complete accepted output, compares it with an
+exact deep snapshot of the supplied output, and gives receipt verification the
+recomputed journal. Statement rerooting or mutation of nested effects, ports,
+or journals therefore rejects before the receipt verifier is called. This
+process-local hardening creates no same-process security or cryptographic
+boundary.
+Identical economic payloads may have identical body hashes; canonical
+occurrence coordinates, subject, grant, nonce, and replay identity disambiguate
+their authorization and ordering. Authenticated ingress must still verify the
+signature or grant over the exact occurrence, and the DA/archive layer must
+retain the canonical bytes. Those outer premises are unimplemented here.
 These reference checkers remain `IMPLEMENTED_UNMOUNTED`: there is no deployed
 route-composer guest, cryptographic verifier, external governed-profile anchor,
 durable writer, or production authority. `production_authority=NONE`.

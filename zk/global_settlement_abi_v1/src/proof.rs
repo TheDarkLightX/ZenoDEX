@@ -18,6 +18,7 @@ pub struct EconomicCommandOccurrenceV1 {
     pub tx_index: u64,
     pub op_index: u64,
     pub command_kind: String,
+    pub command_body_hash: RootV1,
     pub route_release_id: RootV1,
     pub subject_id: String,
     pub grant_root: RootV1,
@@ -43,6 +44,7 @@ impl EconomicCommandOccurrenceV1 {
         validate_token_v1(&self.subject_id, "occurrence subject id")?;
         for root in [
             &self.deployment_root,
+            &self.command_body_hash,
             &self.route_release_id,
             &self.grant_root,
             &self.profile_root,

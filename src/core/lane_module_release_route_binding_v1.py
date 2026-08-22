@@ -13,6 +13,7 @@ from typing import Final, Protocol
 from .asset_transfer_lane_module_v1 import (
     AssetTransferLaneModuleAcceptedV1,
     AssetTransferLaneModuleInputV1,
+    _recompute_asset_transfer_lane_module_accepted_v1,
 )
 from .global_economic_proof_v1 import (
     EconomicCommandOccurrenceV1,
@@ -27,6 +28,7 @@ from .global_settlement_types_v1 import (
 from .managed_asset_lifecycle_lane_module_v1 import (
     ManagedAssetLifecycleLaneModuleAcceptedV1,
     ManagedAssetLifecycleLaneModuleInputV1,
+    _recompute_managed_asset_lifecycle_lane_module_accepted_v1,
 )
 
 RELEASE_ROUTE_BOUND_LANE_TRANSITION_SCHEMA_V1: Final = (
@@ -155,6 +157,7 @@ class ReleaseRouteBoundLaneTransitionV1:
 @dataclass(frozen=True, slots=True)
 class _BindingCandidateV1:
     actual_command_kind: str
+    command_body_hash: str
     statement_root: str
     producer_module_schema: str
     context: _ModuleContextV1
@@ -225,6 +228,8 @@ def _bind_candidate_v1(
     )
     if candidate.actual_command_kind != occurrence.command_kind:
         raise ValueError("lane module release-route command kind mismatch")
+    if candidate.command_body_hash != occurrence.command_body_hash:
+        raise ValueError("lane module release-route command body hash mismatch")
     _require_exact_context_binding(profile, occurrence, candidate)
     _require_exact_journal_binding(profile, occurrence, candidate)
 
@@ -266,25 +271,28 @@ def bind_asset_transfer_lane_output_to_release_route_v1(
 ) -> ReleaseRouteBoundLaneTransitionV1:
     """Bind one accepted transfer output to its governed active route."""
 
-    if not isinstance(profile, EconomicProfileSnapshotV1):
-        raise TypeError("economic profile must be typed")
-    if not isinstance(occurrence, EconomicCommandOccurrenceV1):
-        raise TypeError("economic command occurrence must be typed")
-    if not isinstance(module_input, AssetTransferLaneModuleInputV1):
-        raise TypeError("asset transfer lane input must be typed")
-    if not isinstance(accepted, AssetTransferLaneModuleAcceptedV1):
-        raise TypeError("asset transfer accepted output must be typed")
-    if accepted.statement_root != module_input.statement_root:
-        raise ValueError("asset transfer accepted statement mismatch")
+    if type(profile) is not EconomicProfileSnapshotV1:
+        raise TypeError("economic profile must have the exact typed value")
+    if type(occurrence) is not EconomicCommandOccurrenceV1:
+        raise TypeError("economic command occurrence must have the exact typed value")
+    if type(module_input) is not AssetTransferLaneModuleInputV1:
+        raise TypeError("asset transfer lane input must have the exact typed value")
+    if type(accepted) is not AssetTransferLaneModuleAcceptedV1:
+        raise TypeError("asset transfer accepted output must have the exact typed value")
+    owned_input, expected = _recompute_asset_transfer_lane_module_accepted_v1(
+        module_input,
+        accepted,
+    )
     return _bind_candidate_v1(
         profile,
         occurrence,
         _BindingCandidateV1(
-            module_input.command.command_kind,
-            accepted.statement_root,
-            accepted.private_port.producer_module_schema,
-            module_input.context,
-            accepted.module_journal,
+            owned_input.command.command_kind,
+            owned_input.command.command_body_hash,
+            expected.statement_root,
+            expected.private_port.producer_module_schema,
+            owned_input.context,
+            expected.module_journal,
         ),
     )
 
@@ -297,25 +305,28 @@ def bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
 ) -> ReleaseRouteBoundLaneTransitionV1:
     """Bind one accepted ordinary-token issue or burn to its governed route."""
 
-    if not isinstance(profile, EconomicProfileSnapshotV1):
-        raise TypeError("economic profile must be typed")
-    if not isinstance(occurrence, EconomicCommandOccurrenceV1):
-        raise TypeError("economic command occurrence must be typed")
-    if not isinstance(module_input, ManagedAssetLifecycleLaneModuleInputV1):
-        raise TypeError("managed asset lifecycle lane input must be typed")
-    if not isinstance(accepted, ManagedAssetLifecycleLaneModuleAcceptedV1):
-        raise TypeError("managed asset lifecycle accepted output must be typed")
-    if accepted.statement_root != module_input.statement_root:
-        raise ValueError("managed asset lifecycle accepted statement mismatch")
+    if type(profile) is not EconomicProfileSnapshotV1:
+        raise TypeError("economic profile must have the exact typed value")
+    if type(occurrence) is not EconomicCommandOccurrenceV1:
+        raise TypeError("economic command occurrence must have the exact typed value")
+    if type(module_input) is not ManagedAssetLifecycleLaneModuleInputV1:
+        raise TypeError("managed asset lifecycle lane input must have the exact typed value")
+    if type(accepted) is not ManagedAssetLifecycleLaneModuleAcceptedV1:
+        raise TypeError("managed asset lifecycle accepted output must have the exact typed value")
+    owned_input, expected = _recompute_managed_asset_lifecycle_lane_module_accepted_v1(
+        module_input,
+        accepted,
+    )
     return _bind_candidate_v1(
         profile,
         occurrence,
         _BindingCandidateV1(
-            module_input.command.command_kind,
-            accepted.statement_root,
-            accepted.private_port.producer_module_schema,
-            module_input.context,
-            accepted.module_journal,
+            owned_input.command.command_kind,
+            owned_input.command.command_body_hash,
+            expected.statement_root,
+            expected.private_port.producer_module_schema,
+            owned_input.context,
+            expected.module_journal,
         ),
     )
 

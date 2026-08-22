@@ -10,13 +10,13 @@
         "group_index": 0,
         "module_leaf_occurrences": 1,
         "ordered_occurrence_ids": [
-          "0x57b181676efe8ba77bd7a16ab4c9fc7a6651899758949f56752c22a56e8bbf5f"
+          "0x25c15519d7fddb79dac22617c0a206d2bd4875008ad66e68511b3db6562f2b2d"
         ],
         "ordered_route_assumption_roots": [
-          "0x33b6dab8b8ae6ba922ac1a604dd03802e74a1e707f7f3b458b11999f0bd2a595"
+          "0x0a651df39071fffaf358f0e8948a3c5c02051386358eb8b0741d5de649745d8f"
         ],
         "ordered_route_journal_roots": [
-          "0xabeb704d22c464ccfd9b782b7f2776a306d78b316df70535ae37c072572e5cfc"
+          "0x93210322c3afc0e781b59b166e411ba0606cf9c2420eff9efdb5ec31299e03b7"
         ],
         "post_state_root": "0x0000000000000000000000000000000000000000000000000000000000000514",
         "pre_state_root": "0x577b79555ae8c381f59ecc2a41c2274a29c9e689c7d658f4e3f02ba9185a50dd",
@@ -25,12 +25,13 @@
         "settlement_abi": "zenodex/global-settlement-abi/v1",
         "writer_epoch": 7
       },
-      "canonical_bytes_sha256": "d557942016279a5131c2863aac726022e88ae9e1bd215a4eb0e67f23c8c6a769",
-      "expected_root": "0xc15219c0612b8214a90e78d0ebdd7c4801fec2662d184d46ea79efa8be423f43"
+      "canonical_bytes_sha256": "f5221a405a2d6d6f9715ddef572150d2dea717edb9b7235b131f06e61a699806",
+      "expected_root": "0xf588a9248a052a61760f695d89f1c3f4cd5dff374ff96cb8baba69f983c2b024"
     },
     "command_occurrence": {
       "canonical": {
         "chain_id": "zeno-golden-chain",
+        "command_body_hash": "0x00000000000000000000000000000000000000000000000000000000000004b3",
         "command_kind": "transfer",
         "consumed_object_ids": [
           "0x00000000000000000000000000000000000000000000000000000000000004b1",
@@ -48,8 +49,8 @@
         "subject_id": "alice",
         "tx_index": 2
       },
-      "canonical_bytes_sha256": "554053a2cbc93f1bd06bfe09866784bc0ee78290245651674e1668c3dea9c51f",
-      "expected_root": "0x57b181676efe8ba77bd7a16ab4c9fc7a6651899758949f56752c22a56e8bbf5f"
+      "canonical_bytes_sha256": "1bf649648fe45a2befe5e1959663ce0968fc0bf7592ab78e5be0422798c30b45",
+      "expected_root": "0x25c15519d7fddb79dac22617c0a206d2bd4875008ad66e68511b3db6562f2b2d"
     },
     "economic_profile": {
       "canonical": {
@@ -155,13 +156,13 @@
         "journal_bytes": 1547,
         "module_leaf_occurrences": 1,
         "ordered_occurrence_ids": [
-          "0x57b181676efe8ba77bd7a16ab4c9fc7a6651899758949f56752c22a56e8bbf5f"
+          "0x25c15519d7fddb79dac22617c0a206d2bd4875008ad66e68511b3db6562f2b2d"
         ],
         "ordered_route_assumption_roots": [
-          "0x33b6dab8b8ae6ba922ac1a604dd03802e74a1e707f7f3b458b11999f0bd2a595"
+          "0x0a651df39071fffaf358f0e8948a3c5c02051386358eb8b0741d5de649745d8f"
         ],
         "ordered_route_journal_roots": [
-          "0xabeb704d22c464ccfd9b782b7f2776a306d78b316df70535ae37c072572e5cfc"
+          "0x93210322c3afc0e781b59b166e411ba0606cf9c2420eff9efdb5ec31299e03b7"
         ],
         "post_state_root": "0x0000000000000000000000000000000000000000000000000000000000000514",
         "pre_state_root": "0x577b79555ae8c381f59ecc2a41c2274a29c9e689c7d658f4e3f02ba9185a50dd",
@@ -175,10 +176,10 @@
         "toolchain_manifest_root": "0x0000000000000000000000000000000000000000000000000000000000000519",
         "writer_epoch": 7
       },
-      "canonical_bytes_sha256": "aab01c4df6973e253bb93b9e91595169600ddfc250df5e003d40947d4bc7df99",
-      "expected_root": "0x42f16b8bbd6e7f60b1e590d136e97e8cf9ac42efa93f21f8ecc57f6921f2348f",
+      "canonical_bytes_sha256": "e649776922e0836e21dd674434d527e14b34909da70eae3e85dcdc47970c8295",
+      "expected_root": "0x333d84624bf8a02739339f8601fefc9e6364f4eb06779e3a65bfdbda8ee64a0f",
       "journal_bytes_len": 1547,
-      "journal_bytes_sha256": "1c95d808e5460c444377b8db72ee60b4729b031dd80956297f2d619d8a3a1307",
+      "journal_bytes_sha256": "82246b02c8224f34f76b8488107461714bb1d38b2d3d4ab9f9e1efef16631e3c",
       "journal_canonical": {
         "aggregation_fanout": 8,
         "aggregation_levels": 0,
@@ -191,13 +192,13 @@
         "height": 42,
         "module_leaf_occurrences": 1,
         "ordered_occurrence_ids": [
-          "0x57b181676efe8ba77bd7a16ab4c9fc7a6651899758949f56752c22a56e8bbf5f"
+          "0x25c15519d7fddb79dac22617c0a206d2bd4875008ad66e68511b3db6562f2b2d"
         ],
         "ordered_route_assumption_roots": [
-          "0x33b6dab8b8ae6ba922ac1a604dd03802e74a1e707f7f3b458b11999f0bd2a595"
+          "0x0a651df39071fffaf358f0e8948a3c5c02051386358eb8b0741d5de649745d8f"
         ],
         "ordered_route_journal_roots": [
-          "0xabeb704d22c464ccfd9b782b7f2776a306d78b316df70535ae37c072572e5cfc"
+          "0x93210322c3afc0e781b59b166e411ba0606cf9c2420eff9efdb5ec31299e03b7"
         ],
         "post_state_root": "0x0000000000000000000000000000000000000000000000000000000000000514",
         "pre_state_root": "0x577b79555ae8c381f59ecc2a41c2274a29c9e689c7d658f4e3f02ba9185a50dd",
@@ -786,13 +787,13 @@
     "lane_journal": {
       "canonical": {
         "chain_id": "zeno-golden-chain",
-        "command_occurrence_id": "0x57b181676efe8ba77bd7a16ab4c9fc7a6651899758949f56752c22a56e8bbf5f",
+        "command_occurrence_id": "0x25c15519d7fddb79dac22617c0a206d2bd4875008ad66e68511b3db6562f2b2d",
         "coordinator_release_id": "0xc81b6dfd967c6b185ecfc906f1269071f87a0333201842ea3a54938c43a36d66",
         "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000320",
         "effect_plan_root": "0xf5512134ec29d6bb5ff600b11923ef2a0a7fc07e46436063b70f8df9d46ab34a",
         "lane_id": "ASSET_TRANSFER",
         "ordered_module_journal_roots": [
-          "0x800fd77383fc1177a17503b67f0fd26d4ceb0ba4c0827c6d8164ff9920b8f2f7"
+          "0xc14ba8217282936d8f40da9a9e112755f811e996c9e40a3ce641b885f13b6c23"
         ],
         "post_lane_root": "0x000000000000000000000000000000000000000000000000000000000000044c",
         "pre_lane_root": "0x00000000000000000000000000000000000000000000000000000000000003e8",
@@ -801,8 +802,8 @@
         "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "writer_epoch": 7
       },
-      "canonical_bytes_sha256": "b0fddc4488489ea43c4316938f4d9a350b61879df25e378bbccb1caae8bd34e9",
-      "expected_root": "0x177351d3f9e213aad964cb1260b771709d5146fcd7bc07058d980eb5f733470e"
+      "canonical_bytes_sha256": "b960a6aa05738ac9ac5704d7230daafbdbe1be4de666dc3ecaeda46dca376e91",
+      "expected_root": "0x3bb663c16821b8da52e54bfa0676b4a8cfb439607a0f4f8f542e921bb121464c"
     },
     "lane_module_release": {
       "canonical": {
@@ -1162,7 +1163,7 @@
     "module_journal": {
       "canonical": {
         "chain_id": "zeno-golden-chain",
-        "command_occurrence_id": "0x57b181676efe8ba77bd7a16ab4c9fc7a6651899758949f56752c22a56e8bbf5f",
+        "command_occurrence_id": "0x25c15519d7fddb79dac22617c0a206d2bd4875008ad66e68511b3db6562f2b2d",
         "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000320",
         "effect_plan_root": "0xf5512134ec29d6bb5ff600b11923ef2a0a7fc07e46436063b70f8df9d46ab34a",
         "lane_id": "ASSET_TRANSFER",
@@ -1176,31 +1177,31 @@
         "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "writer_epoch": 7
       },
-      "canonical_bytes_sha256": "6d9229ee106fa24d2568ba516081cd103e0a5e6d53558a6701aef0fcc15cc20a",
-      "expected_root": "0x800fd77383fc1177a17503b67f0fd26d4ceb0ba4c0827c6d8164ff9920b8f2f7"
+      "canonical_bytes_sha256": "e389af817b6b257720abd173b80632d45c4a823afebbf36e88c65637849d652f",
+      "expected_root": "0xc14ba8217282936d8f40da9a9e112755f811e996c9e40a3ce641b885f13b6c23"
     },
     "route_assumption": {
       "canonical": {
-        "command_occurrence_id": "0x57b181676efe8ba77bd7a16ab4c9fc7a6651899758949f56752c22a56e8bbf5f",
+        "command_occurrence_id": "0x25c15519d7fddb79dac22617c0a206d2bd4875008ad66e68511b3db6562f2b2d",
         "expected_image_id": "0x00000000000000000000000000000000000000000000000000000000000002bf",
         "profile_id": "0x6b9b23732a449ea5ee4c4721d0c14d5afbfe33e7209fe8815a6487baeec06604",
-        "route_journal_digest": "0xe759b5c4a7d358e581f27455e7fe7605242472fddba30208ebf005fb750a23b2",
-        "route_journal_root": "0xabeb704d22c464ccfd9b782b7f2776a306d78b316df70535ae37c072572e5cfc",
+        "route_journal_digest": "0x2a5e5e71e12868d4ade27f2ab3ef1cd4cb99c4c7e8a24ea017e0b6c1cbee07ad",
+        "route_journal_root": "0x93210322c3afc0e781b59b166e411ba0606cf9c2420eff9efdb5ec31299e03b7",
         "route_release_id": "0x5c48e3f7a4cbd9395f5594e15ccea19408c450c85fe4ae2e6074602ee44ebb4a",
         "schema": "zenodex/route-composition-assumption/v1",
         "writer_epoch": 7
       },
-      "canonical_bytes_sha256": "937ef61edb75f4826e658c279920fbb2bbccbbc6824a08b22bd957a27d6fc67b",
-      "expected_root": "0x33b6dab8b8ae6ba922ac1a604dd03802e74a1e707f7f3b458b11999f0bd2a595"
+      "canonical_bytes_sha256": "ef1107bdbe30f6f0e653bfb96da9cff4f5735c3bb54110695ce5103ce4781f16",
+      "expected_root": "0x0a651df39071fffaf358f0e8948a3c5c02051386358eb8b0741d5de649745d8f"
     },
     "route_journal": {
       "canonical": {
         "chain_id": "zeno-golden-chain",
-        "command_occurrence_id": "0x57b181676efe8ba77bd7a16ab4c9fc7a6651899758949f56752c22a56e8bbf5f",
+        "command_occurrence_id": "0x25c15519d7fddb79dac22617c0a206d2bd4875008ad66e68511b3db6562f2b2d",
         "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000320",
         "effect_plan_root": "0xf5512134ec29d6bb5ff600b11923ef2a0a7fc07e46436063b70f8df9d46ab34a",
         "ordered_lane_journal_roots": [
-          "0x177351d3f9e213aad964cb1260b771709d5146fcd7bc07058d980eb5f733470e"
+          "0x3bb663c16821b8da52e54bfa0676b4a8cfb439607a0f4f8f542e921bb121464c"
         ],
         "post_state_root": "0x0000000000000000000000000000000000000000000000000000000000000514",
         "pre_state_root": "0x577b79555ae8c381f59ecc2a41c2274a29c9e689c7d658f4e3f02ba9185a50dd",
@@ -1210,8 +1211,8 @@
         "terminal_obligations_root": "0x0000000000000000000000000000000000000000000000000000000000000000",
         "writer_epoch": 7
       },
-      "canonical_bytes_sha256": "e759b5c4a7d358e581f27455e7fe7605242472fddba30208ebf005fb750a23b2",
-      "expected_root": "0xabeb704d22c464ccfd9b782b7f2776a306d78b316df70535ae37c072572e5cfc"
+      "canonical_bytes_sha256": "2a5e5e71e12868d4ade27f2ab3ef1cd4cb99c4c7e8a24ea017e0b6c1cbee07ad",
+      "expected_root": "0x93210322c3afc0e781b59b166e411ba0606cf9c2420eff9efdb5ec31299e03b7"
     },
     "route_registry": {
       "canonical": {
@@ -1306,14 +1307,14 @@
     },
     "verified_epoch_commit": {
       "canonical": {
-        "certificate_root": "0x42f16b8bbd6e7f60b1e590d136e97e8cf9ac42efa93f21f8ecc57f6921f2348f",
+        "certificate_root": "0x333d84624bf8a02739339f8601fefc9e6364f4eb06779e3a65bfdbda8ee64a0f",
         "ordered_route_binding_roots": [
           "0x000000000000000000000000000000000000000000000000000000000000051b"
         ],
         "receipt_digest": "0x000000000000000000000000000000000000000000000000000000000000051a"
       },
-      "canonical_bytes_sha256": "a3a472829ff7bf1323e371a3061199152b700ba33a3aeceb920ec7be3092657f",
-      "expected_root": "0xca8772f56b71d2929f03bf2241d3c45563e30b7883817869a058d52d0e83f6f1"
+      "canonical_bytes_sha256": "e28dbfeec2471f298662084a48fbebb9e14f6bbef43ac9f4a331438e89b6c323",
+      "expected_root": "0x9530425e4ba0c326b121fabfdb20c42baeeb4a05bb5dde8157431e377bb33017"
     }
   }
 }

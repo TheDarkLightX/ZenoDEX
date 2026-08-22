@@ -28,7 +28,7 @@ from ..core.global_settlement_types_v1 import (
     GlobalEconomicStateV1,
     ProfileStatusV1,
     _require_root,
-    _require_semantic_order_unique,
+    _require_tuple,
     hash_global_v1,
     validate_global_state_profile_v1,
 )
@@ -47,7 +47,7 @@ class EconomicEpochBodyAndStateV1:
         _require_root(self.pre_state_root, name="epoch body pre-state root")
         if type(self.post_state) is not GlobalEconomicStateV1:
             raise TypeError("epoch body post-state is invalid")
-        hashes = _require_semantic_order_unique(
+        hashes = _require_tuple(
             self.ordered_command_body_hashes,
             name="epoch body command hashes",
         )
@@ -501,8 +501,11 @@ class GlobalEconomicCommitPortV1:
                 return f"{label} mismatch"
         if certificate.height != self._state.height + 1:
             return "economic epoch height must advance exactly once"
-        if len(body_and_state.ordered_command_body_hashes) != len(certificate.ordered_occurrence_ids):
-            return "body command count does not match verified occurrences"
+        if (
+            body_and_state.ordered_command_body_hashes
+            != verified_epoch.ordered_command_body_hashes
+        ):
+            return "body command hashes do not match verified occurrences"
         return None
 
     def _committed_replay_binding_rejection_reason(

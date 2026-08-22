@@ -133,6 +133,19 @@ def hash_global_v1(domain: str, value: object) -> str:
     return "0x" + digest.hexdigest()
 
 
+def hash_economic_command_body_v1(command_kind: str, command: object) -> str:
+    """Commit one exact canonical typed command payload under the ABI domain."""
+
+    _require_token(command_kind, name="economic command body kind")
+    return hash_global_v1(
+        "authenticated-economic-command-body-v1",
+        {
+            "command_kind": command_kind,
+            "command": command,
+        },
+    )
+
+
 def _require_tuple(value: object, *, name: str) -> tuple[object, ...]:
     if not isinstance(value, tuple):
         raise TypeError(f"{name} must be a tuple")
@@ -1789,6 +1802,7 @@ __all__ = [
     "GlobalEconomicStateV1",
     "GlobalEconomicStateRootV1",
     "validate_global_state_profile_v1",
+    "hash_economic_command_body_v1",
     "EconomicEffectKindV1",
     "EconomicEffectRowV1",
     "AssetConservationRowV1",

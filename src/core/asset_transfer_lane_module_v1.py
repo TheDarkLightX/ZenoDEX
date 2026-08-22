@@ -8,11 +8,12 @@ no cryptographic receipt verification and grants no publication authority.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Final, TypeAlias
 
 from .asset_lane_projection_v1 import (
     AssetLanePrivatePortV1,
+    _snapshot_asset_lane_private_port_v1,
     project_asset_transfer_state_v1,
 )
 from .asset_transfer_module_v1 import transition_asset_transfer_v1
@@ -21,12 +22,19 @@ from .asset_transfer_types_v1 import (
     AssetTransferAcceptedV1,
     AssetTransferCommandV1,
     AssetTransferContextV1,
+    AssetTransferPolicyV1,
     AssetTransferRejectedV1,
     AssetTransferStateV1,
 )
 from .global_economic_proof_v1 import LaneModuleTransitionJournalV1
+from .global_economic_refinement_snapshot_v1 import (
+    _require_exact_dataclass_scalars_v1,
+    _snapshot_dataclass_tuple_v1,
+    _snapshot_effect_plan_v1,
+)
 from .global_settlement_types_v1 import (
     ZERO_ROOT_V1,
+    AssetSupplyV1,
     EconomicAmountV1,
     GlobalEconomicEffectPlanV1,
     _require_ordered_objects,
@@ -51,12 +59,12 @@ class AssetTransferLaneModuleInputV1:
     custody: tuple[EconomicAmountV1, ...]
 
     def __post_init__(self) -> None:
-        if not isinstance(self.context, AssetTransferContextV1):
-            raise TypeError("asset transfer lane module context must be typed")
-        if not isinstance(self.pre_state, AssetTransferStateV1):
-            raise TypeError("asset transfer lane module pre-state must be typed")
-        if not isinstance(self.command, AssetTransferCommandV1):
-            raise TypeError("asset transfer lane module command must be typed")
+        if type(self.context) is not AssetTransferContextV1:
+            raise TypeError("asset transfer lane module context must have the exact typed value")
+        if type(self.pre_state) is not AssetTransferStateV1:
+            raise TypeError("asset transfer lane module pre-state must have the exact typed value")
+        if type(self.command) is not AssetTransferCommandV1:
+            raise TypeError("asset transfer lane module command must have the exact typed value")
         _require_root(
             self.asset_policy_registry_root,
             name="asset transfer lane module asset policy registry",
@@ -95,6 +103,74 @@ class AssetTransferLaneModuleInputV1:
             "fee_policy_registry_root": self.fee_policy_registry_root,
             "custody": self.custody,
         }
+
+
+def _snapshot_asset_transfer_state_v1(
+    state: AssetTransferStateV1,
+) -> AssetTransferStateV1:
+    _require_exact_dataclass_scalars_v1(
+        state,
+        name="asset transfer state",
+        tuple_fields=frozenset({"policies", "balances", "supplies"}),
+    )
+    return replace(
+        state,
+        policies=_snapshot_dataclass_tuple_v1(
+            state.policies,
+            AssetTransferPolicyV1,
+            "asset transfer policies",
+        ),
+        balances=_snapshot_dataclass_tuple_v1(
+            state.balances,
+            EconomicAmountV1,
+            "asset transfer balances",
+        ),
+        supplies=_snapshot_dataclass_tuple_v1(
+            state.supplies,
+            AssetSupplyV1,
+            "asset transfer supplies",
+        ),
+    )
+
+
+def _snapshot_asset_transfer_lane_module_input_v1(
+    module_input: AssetTransferLaneModuleInputV1,
+) -> AssetTransferLaneModuleInputV1:
+    """Own one exact, revalidated input before execution or authority binding."""
+
+    if type(module_input) is not AssetTransferLaneModuleInputV1:
+        raise TypeError("asset transfer lane module input must have the exact typed value")
+    if type(module_input.context) is not AssetTransferContextV1:
+        raise TypeError("asset transfer lane module context must have the exact typed value")
+    if type(module_input.pre_state) is not AssetTransferStateV1:
+        raise TypeError("asset transfer lane module pre-state must have the exact typed value")
+    if type(module_input.command) is not AssetTransferCommandV1:
+        raise TypeError("asset transfer lane module command must have the exact typed value")
+    if type(module_input.asset_policy_registry_root) is not str:
+        raise TypeError("asset transfer asset-policy root must be an exact string")
+    if type(module_input.fee_policy_registry_root) is not str:
+        raise TypeError("asset transfer fee-policy root must be an exact string")
+
+    _require_exact_dataclass_scalars_v1(
+        module_input.context,
+        name="asset transfer context",
+    )
+    _require_exact_dataclass_scalars_v1(
+        module_input.command,
+        name="asset transfer command",
+    )
+    return AssetTransferLaneModuleInputV1(
+        context=replace(module_input.context),
+        pre_state=_snapshot_asset_transfer_state_v1(module_input.pre_state),
+        command=replace(module_input.command),
+        asset_policy_registry_root=module_input.asset_policy_registry_root,
+        fee_policy_registry_root=module_input.fee_policy_registry_root,
+        custody=_snapshot_dataclass_tuple_v1(
+            module_input.custody,
+            EconomicAmountV1,
+            "asset transfer custody",
+        ),
+    )
 
 
 def _receipt_root(
@@ -163,6 +239,32 @@ class AssetTransferLaneModuleAcceptedV1:
         return self.module_journal.receipt_root
 
 
+def _snapshot_asset_transfer_lane_module_accepted_v1(
+    accepted: AssetTransferLaneModuleAcceptedV1,
+) -> AssetTransferLaneModuleAcceptedV1:
+    if type(accepted) is not AssetTransferLaneModuleAcceptedV1:
+        raise TypeError("asset transfer accepted output must have the exact typed value")
+    if type(accepted.statement_root) is not str:
+        raise TypeError("asset transfer accepted statement root must be exact text")
+    if type(accepted.post_state) is not AssetTransferStateV1:
+        raise TypeError("asset transfer accepted state must have the exact typed value")
+    if type(accepted.effects) is not GlobalEconomicEffectPlanV1:
+        raise TypeError("asset transfer accepted effects must have the exact typed value")
+    if type(accepted.module_journal) is not LaneModuleTransitionJournalV1:
+        raise TypeError("asset transfer accepted journal must have the exact typed value")
+    _require_exact_dataclass_scalars_v1(
+        accepted.module_journal,
+        name="asset transfer accepted journal",
+    )
+    return AssetTransferLaneModuleAcceptedV1(
+        statement_root=accepted.statement_root,
+        post_state=_snapshot_asset_transfer_state_v1(accepted.post_state),
+        effects=_snapshot_effect_plan_v1(accepted.effects),
+        module_journal=replace(accepted.module_journal),
+        private_port=_snapshot_asset_lane_private_port_v1(accepted.private_port),
+    )
+
+
 AssetTransferLaneModuleResultV1: TypeAlias = (
     AssetTransferLaneModuleAcceptedV1 | AssetTransferRejectedV1
 )
@@ -224,23 +326,19 @@ def _bound_journal(
     )
 
 
-def transition_asset_transfer_lane_module_v1(
-    module_input: AssetTransferLaneModuleInputV1,
+def _transition_owned_asset_transfer_lane_module_v1(
+    owned_input: AssetTransferLaneModuleInputV1,
 ) -> AssetTransferLaneModuleResultV1:
-    """Run one bound module transition with exact reject-as-no-op semantics."""
-
-    if not isinstance(module_input, AssetTransferLaneModuleInputV1):
-        raise TypeError("asset transfer lane module input must be typed")
     base_result = transition_asset_transfer_v1(
-        module_input.context,
-        module_input.pre_state,
-        module_input.command,
+        owned_input.context,
+        owned_input.pre_state,
+        owned_input.command,
     )
     if isinstance(base_result, AssetTransferRejectedV1):
         return base_result
 
-    private_port = _private_port(module_input, base_result)
-    statement_root = module_input.statement_root
+    private_port = _private_port(owned_input, base_result)
+    statement_root = owned_input.statement_root
     module_journal = _bound_journal(statement_root, base_result, private_port)
     return AssetTransferLaneModuleAcceptedV1(
         statement_root,
@@ -249,6 +347,30 @@ def transition_asset_transfer_lane_module_v1(
         module_journal,
         private_port,
     )
+
+
+def transition_asset_transfer_lane_module_v1(
+    module_input: AssetTransferLaneModuleInputV1,
+) -> AssetTransferLaneModuleResultV1:
+    """Run one bound module transition with exact reject-as-no-op semantics."""
+
+    return _transition_owned_asset_transfer_lane_module_v1(
+        _snapshot_asset_transfer_lane_module_input_v1(module_input)
+    )
+
+
+def _recompute_asset_transfer_lane_module_accepted_v1(
+    module_input: AssetTransferLaneModuleInputV1,
+    accepted: AssetTransferLaneModuleAcceptedV1,
+) -> tuple[AssetTransferLaneModuleInputV1, AssetTransferLaneModuleAcceptedV1]:
+    owned_input = _snapshot_asset_transfer_lane_module_input_v1(module_input)
+    expected = _transition_owned_asset_transfer_lane_module_v1(owned_input)
+    if type(expected) is not AssetTransferLaneModuleAcceptedV1:
+        raise ValueError("asset transfer supplied acceptance recomputes to rejection")
+    supplied = _snapshot_asset_transfer_lane_module_accepted_v1(accepted)
+    if supplied != expected:
+        raise ValueError("asset transfer supplied acceptance differs from recomputation")
+    return owned_input, expected
 
 
 __all__ = [

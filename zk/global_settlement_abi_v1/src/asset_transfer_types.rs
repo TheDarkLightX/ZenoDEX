@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::canonical::{hash_global_v1, validate_token_v1, AbiErrorV1, AbiResultV1, RootV1};
+use crate::canonical::{
+    hash_economic_command_body_v1, hash_global_v1, validate_token_v1, AbiErrorV1, AbiResultV1,
+    RootV1,
+};
 use crate::effects::GlobalEconomicEffectPlanV1;
 use crate::proof::LaneModuleTransitionJournalV1;
 use crate::release::LaneIdV1;
@@ -208,6 +211,11 @@ impl AssetTransferCommandV1 {
         validate_token_v1(&self.asset, "asset transfer command asset")?;
         validate_token_v1(&self.sender, "asset transfer command sender")?;
         validate_token_v1(&self.recipient, "asset transfer command recipient")
+    }
+
+    pub fn command_body_hash(&self) -> AbiResultV1<RootV1> {
+        self.validate()?;
+        hash_economic_command_body_v1(&self.command_kind, self)
     }
 }
 

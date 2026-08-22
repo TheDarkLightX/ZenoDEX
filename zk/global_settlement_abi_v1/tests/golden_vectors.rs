@@ -307,6 +307,26 @@ fn strict_decode_rejects_unknown_fields_bool_aliases_and_numeric_strings() {
         .insert("height".to_owned(), Value::String("42".to_owned()));
     assert!(serde_json::from_value::<EconomicCommandOccurrenceV1>(occurrence).is_err());
 
+    let mut missing_body_hash = vector(&fixture, "command_occurrence").canonical.clone();
+    missing_body_hash
+        .as_object_mut()
+        .expect("occurrence vector must be an object")
+        .remove("command_body_hash");
+    assert!(serde_json::from_value::<EconomicCommandOccurrenceV1>(missing_body_hash).is_err());
+
+    let occurrence = vector(&fixture, "command_occurrence").canonical.clone();
+    let encoded = serde_json::to_string(&occurrence).expect("occurrence must encode");
+    let body_hash = occurrence["command_body_hash"]
+        .as_str()
+        .expect("command body hash must be text");
+    let field = format!("\"command_body_hash\":\"{body_hash}\"");
+    let duplicate = format!("{field},{field}");
+    let duplicate_encoded = encoded.replacen(&field, &duplicate, 1);
+    assert!(serde_json::from_str::<EconomicCommandOccurrenceV1>(&duplicate_encoded).is_err());
+    assert!(
+        serde_json::from_str::<EconomicCommandOccurrenceV1>(&format!("{encoded}{{}}")).is_err()
+    );
+
     let mut effects = vector(&fixture, "effect_plan").canonical.clone();
     effects["rows"][0]
         .as_object_mut()

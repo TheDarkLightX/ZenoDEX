@@ -18,6 +18,7 @@ from .global_settlement_types_v1 import (
     _require_ordered_objects,
     _require_root,
     _require_token,
+    hash_economic_command_body_v1,
     hash_global_v1,
 )
 
@@ -194,6 +195,10 @@ class AssetTransferCommandV1:
             "amount_atoms": self.amount_atoms,
             "max_fee_atoms": self.max_fee_atoms,
         }
+
+    @property
+    def command_body_hash(self) -> str:
+        return hash_economic_command_body_v1(self.command_kind, self)
 
 
 @dataclass(frozen=True, slots=True)

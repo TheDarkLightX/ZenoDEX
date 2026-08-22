@@ -55,6 +55,7 @@ pub struct EconomicEpochReceiptCandidateV1<'a> {
     pub pre_state: &'a GlobalEconomicStateV1,
     pub post_state: &'a GlobalEconomicStateV1,
     pub command_occurrences: &'a [EconomicCommandOccurrenceV1],
+    pub ordered_command_body_hashes: &'a [RootV1],
     pub route_journals: &'a [RouteCompositionJournalV1],
     pub route_state_disclosures: &'a [EconomicEpochRouteStateDisclosureV1],
     pub verified_routes: &'a [VerifiedRouteCompositionV1],
@@ -70,6 +71,7 @@ pub struct EconomicEpochReceiptCandidateV1<'a> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifiedEconomicEpochV1 {
     certificate: GlobalEconomicEpochCertificateV1,
+    command_occurrences: Vec<EconomicCommandOccurrenceV1>,
     effect_plan: GlobalEconomicEffectPlanV1,
     ordered_route_binding_roots: Vec<RootV1>,
     receipt_digest: RootV1,
@@ -92,6 +94,13 @@ impl VerifiedEconomicEpochV1 {
 
     pub fn effect_plan(&self) -> &GlobalEconomicEffectPlanV1 {
         &self.effect_plan
+    }
+
+    pub fn ordered_command_body_hashes(&self) -> Vec<RootV1> {
+        self.command_occurrences
+            .iter()
+            .map(|occurrence| occurrence.command_body_hash.clone())
+            .collect()
     }
 
     pub fn ordered_route_binding_roots(&self) -> &[RootV1] {
@@ -213,17 +222,28 @@ fn require_profile_and_certificate_bindings_v1(
 fn require_occurrence_set_v1(
     certificate: &GlobalEconomicEpochCertificateV1,
     occurrences: &[EconomicCommandOccurrenceV1],
+    ordered_command_body_hashes: &[RootV1],
 ) -> AbiResultV1<()> {
-    if occurrences.len() != certificate.ordered_occurrence_ids.len() {
+    if occurrences.len() != certificate.ordered_occurrence_ids.len()
+        || ordered_command_body_hashes.len() != occurrences.len()
+    {
         return Err(AbiErrorV1::InvalidBinding(
             "economic epoch occurrence count",
         ));
+    }
+    for command_body_hash in ordered_command_body_hashes {
+        command_body_hash.validate("economic epoch command body hash", false)?;
     }
     let mut positions = Vec::with_capacity(occurrences.len());
     let mut replay_keys = BTreeSet::new();
     let mut consumed_objects = BTreeSet::new();
     for (index, occurrence) in occurrences.iter().enumerate() {
         occurrence.validate()?;
+        if occurrence.command_body_hash != ordered_command_body_hashes[index] {
+            return Err(AbiErrorV1::InvalidBinding(
+                "economic epoch command body hash binding",
+            ));
+        }
         if occurrence.occurrence_id()? != certificate.ordered_occurrence_ids[index] {
             return Err(AbiErrorV1::InvalidOrder(
                 "economic epoch command occurrences",
@@ -518,7 +538,11 @@ pub fn verify_economic_epoch_receipt_v1(
     receipt_verifier: &dyn EconomicEpochSuccinctReceiptVerifierV1,
 ) -> AbiResultV1<VerifiedEconomicEpochV1> {
     require_profile_and_certificate_bindings_v1(&candidate)?;
-    require_occurrence_set_v1(candidate.certificate, candidate.command_occurrences)?;
+    require_occurrence_set_v1(
+        candidate.certificate,
+        candidate.command_occurrences,
+        candidate.ordered_command_body_hashes,
+    )?;
     require_route_journal_chain_v1(&candidate)?;
     let ordered_route_binding_roots = require_verified_route_bindings_v1(&candidate)?;
     require_route_effect_bindings_v1(&candidate)?;
@@ -541,6 +565,7 @@ pub fn verify_economic_epoch_receipt_v1(
 
     Ok(VerifiedEconomicEpochV1 {
         certificate: candidate.certificate.clone(),
+        command_occurrences: candidate.command_occurrences.to_vec(),
         effect_plan: candidate.effect_plan.clone(),
         ordered_route_binding_roots,
         receipt_digest,
