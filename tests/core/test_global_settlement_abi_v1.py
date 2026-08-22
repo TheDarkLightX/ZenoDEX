@@ -1965,6 +1965,28 @@ def test_epoch_route_witness_boundary_counts_are_admitted(count: int) -> None:
         item.binding_root for item in candidate.verified_routes
     )
     assert len(verifier.calls) == 1
+    assert len(verified.effect_occurrences) == sum(
+        len(plan.rows) for plan in candidate.route_effect_plans
+    )
+    assert len(
+        {item.effect_occurrence_id for item in verified.effect_occurrences}
+    ) == len(verified.effect_occurrences)
+    offset = 0
+    for occurrence, plan in zip(
+        candidate.command_occurrences,
+        candidate.route_effect_plans,
+        strict=True,
+    ):
+        route_occurrences = verified.effect_occurrences[
+            offset : offset + len(plan.rows)
+        ]
+        assert tuple(item.command_occurrence_id for item in route_occurrences) == (
+            occurrence.occurrence_id,
+        ) * len(plan.rows)
+        assert tuple(item.effect_index for item in route_occurrences) == tuple(
+            range(len(plan.rows))
+        )
+        offset += len(plan.rows)
 
 
 def test_epoch_two_route_state_evidence_has_stable_python_golden_roots() -> None:

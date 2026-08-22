@@ -15,6 +15,10 @@ from threading import Lock
 from typing import TYPE_CHECKING, Protocol
 from weakref import WeakKeyDictionary
 
+from .economic_effect_occurrence_v1 import (
+    EconomicEffectOccurrenceV1,
+    derive_route_effect_occurrences_v1,
+)
 from .epoch_effect_composition_v1 import compose_asset_lane_epoch_effect_plans_v1
 from .global_settlement_types_v1 import (
     GLOBAL_SETTLEMENT_ABI_V1,
@@ -1173,6 +1177,29 @@ class VerifiedEconomicEpochV1:
 
         authority = _verified_economic_epoch_authority_v1(self)
         return _snapshot_effect_plan_v1(authority.effect_plan)
+
+    @property
+    def effect_occurrences(self) -> tuple[EconomicEffectOccurrenceV1, ...]:
+        """Return verifier-owned route effects with injective occurrence IDs."""
+
+        authority = _verified_economic_epoch_authority_v1(self)
+        occurrences = tuple(
+            item
+            for command, plan in zip(
+                authority.command_occurrences,
+                authority.route_effect_plans,
+                strict=True,
+            )
+            for item in derive_route_effect_occurrences_v1(
+                command_occurrence_id=command.occurrence_id,
+                route_release_id=command.route_release_id,
+                effect_plan=plan,
+            )
+        )
+        identities = tuple(item.effect_occurrence_id for item in occurrences)
+        if len(identities) != len(set(identities)):
+            raise ValueError("verified epoch effect occurrence identities are not unique")
+        return occurrences
 
     @property
     def ordered_route_binding_roots(self) -> tuple[str, ...]:

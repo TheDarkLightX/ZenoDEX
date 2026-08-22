@@ -50,7 +50,7 @@ pub struct EconomicEffectRowV1 {
 }
 
 impl EconomicEffectRowV1 {
-    fn validate(&self) -> AbiResultV1<()> {
+    pub(crate) fn validate(&self) -> AbiResultV1<()> {
         validate_token_v1(&self.principal, "effect principal")?;
         validate_token_v1(&self.asset, "effect asset")?;
         validate_token_v1(&self.custody_domain, "effect custody domain")?;

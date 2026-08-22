@@ -2714,6 +2714,33 @@ fn economic_epoch_admits_exact_route_witnesses_at_one_eight_nine_and_sixty_four(
         );
         assert_eq!(verified.certificate(), &fixture.certificate);
         assert_eq!(verified.effect_plan(), &fixture.effect_plan);
+        assert_eq!(
+            verified.effect_occurrences().len(),
+            fixture
+                .route_effect_plans
+                .iter()
+                .map(|plan| plan.rows.len())
+                .sum::<usize>()
+        );
+        assert_eq!(
+            verified
+                .effect_occurrences()
+                .iter()
+                .map(|item| &item.effect_occurrence_id)
+                .collect::<std::collections::BTreeSet<_>>()
+                .len(),
+            verified.effect_occurrences().len()
+        );
+        let mut offset = 0;
+        for (occurrence, plan) in fixture.occurrences.iter().zip(&fixture.route_effect_plans) {
+            let next = offset + plan.rows.len();
+            let route_occurrences = &verified.effect_occurrences()[offset..next];
+            assert!(route_occurrences.iter().enumerate().all(|(index, item)| {
+                item.command_occurrence_id == occurrence.occurrence_id().unwrap()
+                    && item.effect_index == u64::try_from(index).unwrap()
+            }));
+            offset = next;
+        }
         assert_eq!(verified.receipt_digest(), &fixture.certificate.receipt_root);
         assert_eq!(
             verified.state_effect_refinement().pre_state_root(),

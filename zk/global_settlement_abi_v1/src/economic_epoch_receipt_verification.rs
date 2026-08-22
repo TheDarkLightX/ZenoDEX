@@ -6,6 +6,9 @@ use crate::canonical::{
     canonical_bytes_v1, hash_bytes_sha256_v1, hash_global_v1, validate_token_v1, AbiErrorV1,
     AbiResultV1, RootV1,
 };
+use crate::economic_effect_occurrence::{
+    derive_route_effect_occurrences_v1, EconomicEffectOccurrenceV1,
+};
 use crate::effects::GlobalEconomicEffectPlanV1;
 use crate::epoch_effect_composition::compose_asset_lane_epoch_effect_plans_v1;
 use crate::global_economic_state_effect_refinement::{
@@ -73,6 +76,7 @@ pub struct VerifiedEconomicEpochV1 {
     certificate: GlobalEconomicEpochCertificateV1,
     command_occurrences: Vec<EconomicCommandOccurrenceV1>,
     effect_plan: GlobalEconomicEffectPlanV1,
+    effect_occurrences: Vec<EconomicEffectOccurrenceV1>,
     ordered_route_binding_roots: Vec<RootV1>,
     receipt_digest: RootV1,
     route_state_effect_refinements: Vec<GlobalEconomicStateEffectRefinementV1>,
@@ -94,6 +98,10 @@ impl VerifiedEconomicEpochV1 {
 
     pub fn effect_plan(&self) -> &GlobalEconomicEffectPlanV1 {
         &self.effect_plan
+    }
+
+    pub fn effect_occurrences(&self) -> &[EconomicEffectOccurrenceV1] {
+        &self.effect_occurrences
     }
 
     pub fn ordered_command_body_hashes(&self) -> Vec<RootV1> {
@@ -429,6 +437,35 @@ fn require_route_effect_bindings_v1(
     Ok(())
 }
 
+fn derive_epoch_effect_occurrences_v1(
+    candidate: &EconomicEpochReceiptCandidateV1<'_>,
+) -> AbiResultV1<Vec<EconomicEffectOccurrenceV1>> {
+    let mut result = Vec::new();
+    for (occurrence, plan) in candidate
+        .command_occurrences
+        .iter()
+        .zip(candidate.route_effect_plans)
+    {
+        result.extend(derive_route_effect_occurrences_v1(
+            &occurrence.occurrence_id()?,
+            &occurrence.route_release_id,
+            plan,
+        )?);
+    }
+    if result
+        .iter()
+        .map(|item| &item.effect_occurrence_id)
+        .collect::<BTreeSet<_>>()
+        .len()
+        != result.len()
+    {
+        return Err(AbiErrorV1::InvalidOrder(
+            "economic epoch effect occurrence identities",
+        ));
+    }
+    Ok(result)
+}
+
 fn require_route_state_projections_v1(
     candidate: &EconomicEpochReceiptCandidateV1<'_>,
 ) -> AbiResultV1<(
@@ -546,6 +583,7 @@ pub fn verify_economic_epoch_receipt_v1(
     require_route_journal_chain_v1(&candidate)?;
     let ordered_route_binding_roots = require_verified_route_bindings_v1(&candidate)?;
     require_route_effect_bindings_v1(&candidate)?;
+    let effect_occurrences = derive_epoch_effect_occurrences_v1(&candidate)?;
     let state_effect_refinement = require_state_effect_refinement_v1(&candidate)?;
     let (route_state_projections, route_state_effect_refinements) =
         require_route_state_projections_v1(&candidate)?;
@@ -567,6 +605,7 @@ pub fn verify_economic_epoch_receipt_v1(
         certificate: candidate.certificate.clone(),
         command_occurrences: candidate.command_occurrences.to_vec(),
         effect_plan: candidate.effect_plan.clone(),
+        effect_occurrences,
         ordered_route_binding_roots,
         receipt_digest,
         route_state_effect_refinements,
