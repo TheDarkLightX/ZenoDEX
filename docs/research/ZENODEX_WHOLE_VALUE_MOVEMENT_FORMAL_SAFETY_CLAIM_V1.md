@@ -733,6 +733,14 @@ composition counterexamples and their repairs:
 - verified-publisher create retry recovers only a byte-identical committed
   activation after acknowledgement loss.
 
+Commit `0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64` closes three composed
+follow-up histories. Create retry now rejects matching activations with a
+nonzero stored history. Open rejects crash-left WAL/SHM and a WAL-mode database
+header before SQLite can checkpoint or unlink those artifacts, with a regression
+covering the complete tested file family. Journal paths accept exact strings or
+the exact platform `Path` type, preventing method-overriding path subclasses
+from redirecting a publisher capability.
+
 The callable guarantee is process-local. Mutable callable behavior, globals,
 closure state, and the executing binary remain unattested. A first-wave
 adversarial review also demonstrated two unresolved lifecycle histories: an old
@@ -743,6 +751,13 @@ commits profile, writer epoch, verifier release, deployment, and revocation
 generation; migration must advance that head atomically, and publication must
 recheck it inside the durable CAS transaction.
 
+The SQLite preflight cannot fence a different process that changes the store
+between immutable validation and writable open. `open` validates structural
+history and does not replay every retained receipt under a newly supplied
+verifier. Production recovery therefore requires exclusive authenticated store
+ownership, and a recovery design must specify exact receipt replay or equivalent
+authenticated provenance.
+
 The closure-status checker now treats the Git object database as the exact
 subject oracle for mapped evidence. It requires each recorded artifact hash to
 equal both the scoped live file and the blob at the declared 40-hex subject.
@@ -752,8 +767,7 @@ later worktree edit plus refreshed hash from representing an earlier commit.
 The checker itself still requires release packaging, independent replay, and
 authenticated distribution before it can contribute production authority.
 
-The combined verifier-release, ABI, ordinary-journal, publisher,
-writer-inventory, and value-sink run has 167 passing tests. It includes
+The combined focused closure run has 192 passing tests. It includes
 zero/one/max/max+1 receipt and journal boundaries, active-profile selection,
 wrong registry/image/deployment/manifest/artifact rejection, generic-verifier
 rejection, forged and foreign capabilities, retained-callable mutation killing,

@@ -8,17 +8,9 @@ import hashlib
 import json
 import re
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from typing import Mapping
-
-if __package__:
-    from tools.check_m6_asset_precision_policy_v1 import (
-        check_m6_asset_precision_policy_v1,
-    )
-    from tools.check_m6_value_sinks_v1 import check_m6_value_sinks_v1
-else:
-    from check_m6_asset_precision_policy_v1 import check_m6_asset_precision_policy_v1
-    from check_m6_value_sinks_v1 import check_m6_value_sinks_v1
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_STATUS_PATH = Path(
@@ -26,17 +18,25 @@ DEFAULT_STATUS_PATH = Path(
 )
 M6_ATDD_PATH = Path("docs/research/m6_global_economic_core_atdd_bdd_v1.json")
 EXPECTED_GATE_IDS = tuple(f"VM-{index:02d}" for index in range(1, 13))
-EXPECTED_SEMANTIC_KEYS = frozenset(
+EXPECTED_SUBJECT_COMMIT = "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64"
+EXPECTED_TOP_LEVEL_FIELDS = frozenset(
     {
-        "asset_precision",
-        "autonomous_governance",
-        "buy_and_burn",
-        "buy_and_burn_exclusions",
-        "external_registry_default",
-        "hosting_compensation",
-        "hyperdeflation",
-        "rescaling",
-        "self_custody_language",
+        "authority",
+        "checker_dependencies",
+        "claim_contract",
+        "disaster_campaign",
+        "gate_status",
+        "implemented_slices",
+        "independent_reviews",
+        "known_semantic_conflicts",
+        "live_gate_observations",
+        "next_dependency_order",
+        "nonclaims",
+        "observed_at",
+        "schema",
+        "semantic_anchors",
+        "subject",
+        "tau_upstream",
     }
 )
 EXPECTED_BUY_AND_BURN = (
@@ -49,6 +49,89 @@ EXPECTED_HYPERDEFLATION = (
     "Bind a retained-supply rule such as R(S)=ceil(p*S/q), 0<p<q, and "
     "burn<=S-R(S)."
 )
+EXPECTED_SEMANTIC_ANCHORS: Mapping[str, object] = {
+    "self_custody_language": (
+        "Key control determines practical custody. Same-ledger values are modeled "
+        "by accounting location, accounting control domain, and claimant entitlement."
+    ),
+    "asset_precision": (
+        "Eight decimal places; integer atoms; no floating point in consensus, "
+        "accounting, proof, verifier, or settlement paths."
+    ),
+    "rescaling": (
+        "No denomination rescaling under GlobalSettlementABI V1. Rescaling requires "
+        "an ABI V2 migration that distinguishes conversion from issue or burn."
+    ),
+    "buy_and_burn": EXPECTED_BUY_AND_BURN,
+    "buy_and_burn_exclusions": [
+        "treasury-balance burn shortcut",
+        "legacy transfer-burn substitution",
+    ],
+    "hosting_compensation": (
+        "Separately named governed fee allocation with explicit eligibility, "
+        "claimant, expiry, cancellation, and terminal-drain semantics."
+    ),
+    "hyperdeflation": EXPECTED_HYPERDEFLATION,
+    "autonomous_governance": (
+        "Autonomous governance and LLM agents may submit authenticated typed "
+        "commands only. They receive no independent publication capability."
+    ),
+    "external_registry_default": (
+        "Empty until a complete registered external finality, timeout, refund, "
+        "acknowledgment, and idempotency profile is approved."
+    ),
+}
+EXPECTED_IMPLEMENTED_SLICE_IDS = (
+    "ECONOMIC_EFFECT_OCCURRENCE_V1",
+    "PRODUCTION_BOUNDARY_FAIL_CLOSED_EXECUTION",
+    "PUBLISHER_BOUND_EPOCH_VERIFICATION",
+    "CERTIFIED_INITIAL_STATE_ADMISSION",
+    "INITIAL_STATE_ATOM_COVERAGE_V1",
+    "ECONOMIC_INITIAL_STATE_RISC0_GUEST_SOURCE_V1",
+    "ECONOMIC_INITIAL_STATE_PREDECESSOR_BINDING_V1",
+    "ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1",
+    "ECONOMIC_INITIAL_STATE_SOURCE_HEAD_ACTIVATION_V1",
+    "GLOBAL_ECONOMIC_DURABLE_ACTIVATION_JOURNAL_V1",
+    "GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1",
+    "GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1",
+    "ECONOMIC_INITIAL_STATE_OUTBOX_CONTINUITY_V1",
+    "ECONOMIC_INITIAL_STATE_TERMINAL_CONTINUITY_V1",
+    "M6_ZDEX_SEMANTIC_DRIFT_GUARD",
+    "M6_COMPLETE_CAPABILITY_REQUIREMENTS",
+    "M6_CAPABILITY_PROFILE_BINDING",
+    "PYTHON_VALUE_SINK_INVENTORY_V1",
+    "M6_ASSET_PRECISION_PROFILE_BINDING_V1",
+)
+EXPECTED_CLAIM_PATH = Path(
+    "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md"
+)
+EXPECTED_CAMPAIGN_PATH = Path(
+    "docs/research/GLOBAL_ECONOMIC_COMPOSITION_DISASTER_CAMPAIGN_V1.md"
+)
+EXPECTED_CLAIM_SHA256 = "2f34278be0393645d2c03e5d0a4eaf2e27357357e74602aa12ee2acb01f9854f"
+EXPECTED_CAMPAIGN_SHA256 = "20bf0a5b69dbd9a58ab54068cc902445787e2de8ee6e09b028a9fb4db831d8b8"
+EXPECTED_VM12_EVIDENCE = (
+    "This ledger binds clean scoped implementation subject "
+    "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64. The second max-review wave "
+    "found and preserved minimized create-recovery, crash-left WAL, behaviorful "
+    "Path, exact-subject, contract-path, semantic-anchor, and dependency-binding "
+    "counterexamples. The combined focused closure run has 192 passing tests; "
+    "touched Python passes Ruff and targeted mypy. The review remains REVISE "
+    "because unified migration/revocation authority, isolated executable "
+    "attestation, sole-writer fencing, real Rust/RISC0 replay, objective finality, "
+    "and complete release evidence are absent."
+)
+CHECKER_DEPENDENCY_ARTIFACTS = {
+    "asset_precision_checker_sha256": Path(
+        "tools/check_m6_asset_precision_policy_v1.py"
+    ),
+    "value_sink_checker_sha256": Path("tools/check_m6_value_sinks_v1.py"),
+    "m6_atdd_sha256": M6_ATDD_PATH,
+    "asset_precision_policy_sha256": Path(
+        "docs/research/ZENODEX_M6_ASSET_PRECISION_POLICY_V1.json"
+    ),
+    "value_sink_manifest_sha256": Path("tools/m6_value_sink_manifest_v1.json"),
+}
 EXPECTED_M6_ZDEX_PRODUCTION_RULE = (
     "Only the exact ZDEX atoms produced by atomically spending a governed "
     "quote-asset fee allocation through the selected authenticated Spot route "
@@ -135,7 +218,7 @@ DURABLE_ACTIVATION_SLICE_ARTIFACTS = {
     ),
 }
 DURABLE_EPOCH_SLICE_ID = "GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1"
-DURABLE_EPOCH_SLICE_COMMIT = "a34f11ff50cb6615bc68ffaa240c7e215ad4a379"
+DURABLE_EPOCH_SLICE_COMMIT = EXPECTED_SUBJECT_COMMIT
 DURABLE_EPOCH_SLICE_ARTIFACTS = {
     "design_sha256": Path(
         "docs/research/GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1.md"
@@ -153,7 +236,7 @@ DURABLE_EPOCH_SLICE_ARTIFACTS = {
     "sink_test_sha256": Path("tests/test_check_m6_value_sinks_v1.py"),
 }
 DURABLE_PUBLISHER_SLICE_ID = "GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1"
-DURABLE_PUBLISHER_SLICE_COMMIT = "a34f11ff50cb6615bc68ffaa240c7e215ad4a379"
+DURABLE_PUBLISHER_SLICE_COMMIT = EXPECTED_SUBJECT_COMMIT
 DURABLE_PUBLISHER_SLICE_ARTIFACTS = {
     "design_sha256": Path(
         "docs/research/GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1.md"
@@ -228,6 +311,27 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _load_live_gate_checkers_v1() -> tuple[
+    Callable[[Path], dict[str, object]],
+    Callable[[Path], dict[str, object]],
+]:
+    """Import checked live-gate helpers only after their source hashes pass."""
+
+    if __package__:
+        from tools.check_m6_asset_precision_policy_v1 import (
+            check_m6_asset_precision_policy_v1,
+        )
+        from tools.check_m6_value_sinks_v1 import check_m6_value_sinks_v1
+    else:
+        from check_m6_asset_precision_policy_v1 import (
+            check_m6_asset_precision_policy_v1,
+        )
+        from check_m6_value_sinks_v1 import (
+            check_m6_value_sinks_v1,
+        )
+    return check_m6_asset_precision_policy_v1, check_m6_value_sinks_v1
+
+
 def _git_blob_sha256_v1(
     root: Path,
     commit: object,
@@ -241,6 +345,7 @@ def _git_blob_sha256_v1(
         result = subprocess.run(
             [
                 "git",
+                "--no-replace-objects",
                 "-C",
                 str(root),
                 "cat-file",
@@ -527,13 +632,45 @@ def check_value_movement_closure_status_v1(
 
     if status.get("schema") != "zenodex/value-movement-closure-status/v1":
         findings.append("closure status schema mismatch")
+    if frozenset(status) != EXPECTED_TOP_LEVEL_FIELDS:
+        findings.append("closure status top-level field set mismatch")
 
     subject = _mapping(status.get("subject"), "subject", findings)
+    if frozenset(subject) != frozenset(
+        {"branch", "commit", "scoped_worktree_clean_before_this_ledger"}
+    ):
+        findings.append("subject field set mismatch")
     commit = subject.get("commit")
     if type(commit) is not str or re.fullmatch(r"[0-9a-f]{40}", commit) is None:
         findings.append("subject commit must be exact lowercase 40-hex")
+    if commit != EXPECTED_SUBJECT_COMMIT:
+        findings.append("subject commit differs from checker-pinned subject")
     if subject.get("scoped_worktree_clean_before_this_ledger") is not True:
         findings.append("ledger subject was not recorded from a clean scoped worktree")
+
+    slices = status.get("implemented_slices")
+    if type(slices) is not list or any(type(row) is not dict for row in slices):
+        findings.append("implemented slices must be a list of objects")
+    elif tuple(row.get("id") for row in slices) != EXPECTED_IMPLEMENTED_SLICE_IDS:
+        findings.append("implemented slice IDs are incomplete, unknown, or unordered")
+
+    dependencies = _mapping(
+        status.get("checker_dependencies"),
+        "checker dependencies",
+        findings,
+    )
+    if frozenset(dependencies) != frozenset(CHECKER_DEPENDENCY_ARTIFACTS):
+        findings.append("checker dependency field set mismatch")
+    dependency_findings_before = len(findings)
+    _validate_artifact_map_v1(
+        root,
+        dependencies,
+        EXPECTED_SUBJECT_COMMIT,
+        CHECKER_DEPENDENCY_ARTIFACTS,
+        "checker dependency",
+        findings,
+    )
+    dependencies_valid = len(findings) == dependency_findings_before
 
     _validate_replay_slice_evidence_v1(root, status, commit, findings)
     _validate_source_head_slice_evidence_v1(root, status, commit, findings)
@@ -553,12 +690,20 @@ def check_value_movement_closure_status_v1(
         findings.append("authority or readiness nonclaim drift")
 
     claim = _mapping(status.get("claim_contract"), "claim contract", findings)
+    if frozenset(claim) != frozenset({"path", "sha256", "status", "verdict"}):
+        findings.append("claim contract field set mismatch")
     claim_path = claim.get("path")
     claim_sha = claim.get("sha256")
-    if type(claim_path) is not str or type(claim_sha) is not str:
+    if claim_path != EXPECTED_CLAIM_PATH.as_posix():
+        findings.append("claim contract path is outside the closed contract")
+    if type(claim_sha) is not str:
         findings.append("claim contract path and sha256 must be strings")
     else:
-        resolved_claim = root / claim_path
+        if claim_sha != EXPECTED_CLAIM_SHA256:
+            findings.append("claim contract differs from checker-pinned contract")
+        resolved_claim = root / EXPECTED_CLAIM_PATH
+        if resolved_claim.is_symlink():
+            findings.append("claim contract must not be a symlink")
         if not resolved_claim.is_file() or _sha256(resolved_claim) != claim_sha:
             findings.append("claim contract hash mismatch")
     if claim.get("status") != EXPECTED_CLAIM_STATUS:
@@ -566,13 +711,40 @@ def check_value_movement_closure_status_v1(
     if claim.get("verdict") != "UNPROVED":
         findings.append("claim verdict must remain UNPROVED")
 
+    campaign = _mapping(
+        status.get("disaster_campaign"),
+        "disaster campaign",
+        findings,
+    )
+    if frozenset(campaign) != frozenset({"path", "sha256", "status"}):
+        findings.append("disaster campaign field set mismatch")
+    if campaign.get("path") != EXPECTED_CAMPAIGN_PATH.as_posix():
+        findings.append("disaster campaign path is outside the closed contract")
+    campaign_sha = campaign.get("sha256")
+    if campaign_sha != EXPECTED_CAMPAIGN_SHA256:
+        findings.append("disaster campaign differs from checker-pinned contract")
+    if (
+        type(campaign_sha) is not str
+        or not (root / EXPECTED_CAMPAIGN_PATH).is_file()
+        or _sha256(root / EXPECTED_CAMPAIGN_PATH) != campaign_sha
+    ):
+        findings.append("disaster campaign hash mismatch")
+    if (root / EXPECTED_CAMPAIGN_PATH).is_symlink():
+        findings.append("disaster campaign must not be a symlink")
+    if campaign.get("status") != "TESTED_DISCOVERY":
+        findings.append("disaster campaign status drift")
+
     semantics = _mapping(status.get("semantic_anchors"), "semantic anchors", findings)
-    if frozenset(semantics) != EXPECTED_SEMANTIC_KEYS:
+    if frozenset(semantics) != frozenset(EXPECTED_SEMANTIC_ANCHORS):
         findings.append("semantic anchor key set mismatch")
-    if semantics.get("buy_and_burn") != EXPECTED_BUY_AND_BURN:
-        findings.append("buy-and-burn semantic anchor drift")
-    if semantics.get("hyperdeflation") != EXPECTED_HYPERDEFLATION:
-        findings.append("hyperdeflation semantic anchor drift")
+    for field, expected in EXPECTED_SEMANTIC_ANCHORS.items():
+        if semantics.get(field) != expected:
+            if field == "buy_and_burn":
+                findings.append("buy-and-burn semantic anchor drift")
+            elif field == "hyperdeflation":
+                findings.append("hyperdeflation semantic anchor drift")
+            else:
+                findings.append(f"semantic anchor drift: {field}")
 
     try:
         m6_atdd = _load_exact_json(root / M6_ATDD_PATH)
@@ -608,6 +780,11 @@ def check_value_movement_closure_status_v1(
             findings.append("a VM gate exceeds the currently supported claim ceiling")
         if any(type(row.get("evidence")) is not str or not row["evidence"] for row in gate_rows):
             findings.append("every VM gate requires nonempty evidence")
+        if any(frozenset(row) != frozenset({"id", "status", "evidence"}) for row in gate_rows):
+            findings.append("VM gate field set mismatch")
+        vm12_rows = [row for row in gate_rows if row.get("id") == "VM-12"]
+        if len(vm12_rows) != 1 or vm12_rows[0].get("evidence") != EXPECTED_VM12_EVIDENCE:
+            findings.append("VM-12 exact evidence receipt drift")
 
     tau = _mapping(status.get("tau_upstream"), "Tau upstream", findings)
     if tau.get("common_ancestor") is not False or tau.get("requalification_required") is not True:
@@ -632,12 +809,28 @@ def check_value_movement_closure_status_v1(
         "value sink inventory observation",
         findings,
     )
-    live_value_sinks = check_m6_value_sinks_v1(root)
+    if dependencies_valid:
+        check_precision, check_value_sinks = _load_live_gate_checkers_v1()
+        live_value_sinks = check_value_sinks(root)
+    else:
+        live_value_sinks = {
+            "ok": False,
+            "classified_identity_count": -1,
+            "observed_occurrence_count": -1,
+            "release_gaps": [],
+            "release_ready": False,
+            "production_authority": False,
+        }
+        findings.append("live gate helpers skipped because dependency binding failed")
+    release_gaps = live_value_sinks["release_gaps"]
+    if type(release_gaps) is not list:
+        findings.append("live value sink release gaps are not a list")
+        release_gaps = []
     expected_value_sink_observation = {
         "exit_code": 0 if live_value_sinks["ok"] is True else 1,
         "classified_identity_count": live_value_sinks["classified_identity_count"],
         "observed_occurrence_count": live_value_sinks["observed_occurrence_count"],
-        "release_gap_count": len(live_value_sinks["release_gaps"]),
+        "release_gap_count": len(release_gaps),
         "release_ready": live_value_sinks["release_ready"],
         "production_authority": live_value_sinks["production_authority"],
     }
@@ -650,9 +843,21 @@ def check_value_movement_closure_status_v1(
         "asset precision policy observation",
         findings,
     )
-    live_precision = check_m6_asset_precision_policy_v1(
-        root / "docs" / "research" / "ZENODEX_M6_ASSET_PRECISION_POLICY_V1.json"
-    )
+    if dependencies_valid:
+        live_precision = check_precision(
+            root
+            / "docs"
+            / "research"
+            / "ZENODEX_M6_ASSET_PRECISION_POLICY_V1.json"
+        )
+    else:
+        live_precision = {
+            "ok": False,
+            "decimal_places": -1,
+            "atoms_per_display_unit": -1,
+            "policy_root": "",
+            "production_authority": False,
+        }
     expected_precision_observation = {
         "exit_code": 0 if live_precision["ok"] is True else 1,
         "decimal_places": live_precision["decimal_places"],

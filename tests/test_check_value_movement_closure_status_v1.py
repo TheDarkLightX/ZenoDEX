@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import subprocess
 from copy import deepcopy
 from pathlib import Path
 from typing import cast
@@ -9,6 +11,7 @@ from tools.check_value_movement_closure_status_v1 import (
     DEFAULT_STATUS_PATH,
     M6_ATDD_PATH,
     REPO_ROOT,
+    _git_blob_sha256_v1,
     check_value_movement_closure_status_v1,
     validate_m6_zdex_semantic_anchor_v1,
 )
@@ -296,6 +299,231 @@ def test_checker_requires_proof_admission_artifacts(tmp_path: Path) -> None:
         "publisher-bound slice artifact hash mismatch: core_sha256"
         in _findings(report)
     )
+
+
+def test_subject_blob_lookup_ignores_git_replacement_objects(tmp_path: Path) -> None:
+    # Arrange: Mallory installs a local replacement commit for the named subject.
+    repository = tmp_path / "replacement-object-repository"
+    subprocess.run(["git", "init", "--quiet", repository], check=True)
+    artifact = repository / "artifact.txt"
+    artifact.write_text("original\n", encoding="utf-8")
+    subprocess.run(["git", "-C", repository, "add", "artifact.txt"], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            repository,
+            "-c",
+            "user.name=Closure Test",
+            "-c",
+            "user.email=closure-test@example.invalid",
+            "commit",
+            "--quiet",
+            "-m",
+            "original",
+        ],
+        check=True,
+    )
+    original_commit = subprocess.run(
+        ["git", "-C", repository, "rev-parse", "HEAD"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    artifact.write_text("replacement\n", encoding="utf-8")
+    subprocess.run(["git", "-C", repository, "add", "artifact.txt"], check=True)
+    replacement_tree = subprocess.run(
+        ["git", "-C", repository, "write-tree"],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    replacement_commit = subprocess.run(
+        [
+            "git",
+            "-C",
+            repository,
+            "-c",
+            "user.name=Closure Test",
+            "-c",
+            "user.email=closure-test@example.invalid",
+            "commit-tree",
+            replacement_tree,
+            "-m",
+            "replacement",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "-C", repository, "replace", original_commit, replacement_commit],
+        check=True,
+    )
+    replaced = subprocess.run(
+        ["git", "-C", repository, "cat-file", "blob", f"{original_commit}:artifact.txt"],
+        check=True,
+        capture_output=True,
+    ).stdout
+    assert replaced == b"replacement\n"
+
+    # Act: resolve the same subject through the closure checker's exact lookup.
+    observed = _git_blob_sha256_v1(
+        repository,
+        original_commit,
+        Path("artifact.txt"),
+    )
+
+    # Assert: local replace refs cannot alter the subject-tree oracle.
+    assert observed == hashlib.sha256(b"original\n").hexdigest()
+
+
+def test_checker_rejects_self_selected_subject(tmp_path: Path) -> None:
+    # Arrange: Mallory retargets every moving subject field to another commit.
+    mutated = deepcopy(_status())
+    replacement = "bf2410d70b9949f701e97a684471e8a0c3e53349"
+    mutated["subject"]["commit"] = replacement  # type: ignore[index]
+    for row in _implemented_slices(mutated):
+        if row.get("artifact_subject_commit") is not None:
+            row["artifact_subject_commit"] = replacement
+    _source_head_slice(mutated)["commit"] = replacement
+
+    # Act: validate the internally consistent, caller-selected subject packet.
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    # Assert: the checker release owns the exact implementation subject.
+    assert report["ok"] is False
+    assert "subject commit differs from checker-pinned subject" in _findings(report)
+
+
+def test_checker_rejects_claim_path_escape_and_contract_substitution(
+    tmp_path: Path,
+) -> None:
+    # Arrange: an outside file carries the expected nonclaim labels and a fresh hash.
+    outside = tmp_path / "outside-claim.md"
+    outside.write_text("substituted claim\n", encoding="utf-8")
+    digest = hashlib.sha256(outside.read_bytes()).hexdigest()
+
+    for hostile_path in (str(outside), "../../outside-claim.md"):
+        mutated = deepcopy(_status())
+        mutated["claim_contract"]["path"] = hostile_path  # type: ignore[index]
+        mutated["claim_contract"]["sha256"] = digest  # type: ignore[index]
+
+        # Act: validate one absolute or traversing claim substitution.
+        report = check_value_movement_closure_status_v1(
+            status_path=_write_status(tmp_path, mutated)
+        )
+
+        # Assert: exact repository path and checker-pinned bytes are mandatory.
+        assert report["ok"] is False
+        assert (
+            "claim contract path is outside the closed contract"
+            in _findings(report)
+        )
+        assert (
+            "claim contract differs from checker-pinned contract"
+            in _findings(report)
+        )
+
+
+def test_checker_rejects_every_semantic_anchor_value_mutant(tmp_path: Path) -> None:
+    # Arrange/act/assert: mutate each drift-control decision independently.
+    for field in cast(dict[str, object], _status()["semantic_anchors"]):
+        mutated = deepcopy(_status())
+        mutated["semantic_anchors"][field] = None  # type: ignore[index]
+        report = check_value_movement_closure_status_v1(
+            status_path=_write_status(tmp_path, mutated)
+        )
+
+        assert report["ok"] is False
+        expected = {
+            "buy_and_burn": "buy-and-burn semantic anchor drift",
+            "hyperdeflation": "hyperdeflation semantic anchor drift",
+        }.get(field, f"semantic anchor drift: {field}")
+        assert expected in _findings(report)
+
+
+def test_checker_rejects_unknown_slice_and_top_level_fields(tmp_path: Path) -> None:
+    # Arrange: Mallory adds authority-shaped evidence outside both closed registries.
+    mutated = deepcopy(_status())
+    _implemented_slices(mutated).append(
+        {"id": "MALLORY_PRODUCTION_AUTHORITY", "status": "PROVED"}
+    )
+    mutated["mallory_extension"] = {"production_authority": True}
+
+    # Act: validate the open-world evidence packet.
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    # Assert: unknown top-level and implemented-slice variants fail closed.
+    assert report["ok"] is False
+    assert "closure status top-level field set mismatch" in _findings(report)
+    assert (
+        "implemented slice IDs are incomplete, unknown, or unordered"
+        in _findings(report)
+    )
+
+
+def test_checker_rejects_dirty_live_gate_dependency_binding(tmp_path: Path) -> None:
+    # Arrange: the ledger no longer binds the imported value-sink checker.
+    mutated = deepcopy(_status())
+    mutated["checker_dependencies"]["value_sink_checker_sha256"] = "0" * 64  # type: ignore[index]
+
+    # Act: validate before any unbound helper may decide live-gate status.
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    # Assert: both subject mismatch and helper-execution suppression are visible.
+    assert report["ok"] is False
+    assert (
+        "checker dependency artifact hash mismatch: value_sink_checker_sha256"
+        in _findings(report)
+    )
+    assert (
+        "live gate helpers skipped because dependency binding failed"
+        in _findings(report)
+    )
+
+
+def test_checker_rejects_disaster_campaign_drift(tmp_path: Path) -> None:
+    # Arrange: an open architectural disaster is hidden behind a fresh ledger hash.
+    mutated = deepcopy(_status())
+    mutated["disaster_campaign"]["sha256"] = "0" * 64  # type: ignore[index]
+    mutated["disaster_campaign"]["status"] = "CLOSED"  # type: ignore[index]
+
+    # Act: validate the promoted campaign packet.
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    # Assert: campaign bytes and conservative status are checker-owned.
+    assert report["ok"] is False
+    assert (
+        "disaster campaign differs from checker-pinned contract"
+        in _findings(report)
+    )
+    assert "disaster campaign status drift" in _findings(report)
+
+
+def test_checker_rejects_vm12_subject_and_test_receipt_drift(tmp_path: Path) -> None:
+    # Arrange: stale review prose still carries a nonempty GAP evidence field.
+    mutated = deepcopy(_status())
+    gate_rows = cast(list[dict[str, object]], mutated["gate_status"])
+    vm12 = next(row for row in gate_rows if row["id"] == "VM-12")
+    vm12["evidence"] = "An older subject had fewer passing tests."
+
+    # Act: validate the stale but superficially conservative gate row.
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    # Assert: VM-12 binds the current subject, test count, and residual blockers.
+    assert report["ok"] is False
+    assert "VM-12 exact evidence receipt drift" in _findings(report)
 
 
 def test_checker_kills_fixed_floor_and_treasury_burn_semantic_mutants() -> None:

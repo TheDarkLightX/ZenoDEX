@@ -3,8 +3,15 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "a34f11ff50cb6615bc68ffaa240c7e215ad4a379",
+    "commit": "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64",
     "scoped_worktree_clean_before_this_ledger": true
+  },
+  "checker_dependencies": {
+    "asset_precision_checker_sha256": "06b4dcd8cfddab5364f731a2e40beb9c44a5329e434afd06f2ab45d1fc18e8a8",
+    "value_sink_checker_sha256": "deb1298ec2ea7265afa9546e3810981ec007d54bdeb71f586ac1e31309ee96a0",
+    "m6_atdd_sha256": "c7a6b52b6167e0b899aacc233c6db7c6a9fe3235d6aa6918609267a9d030fcfc",
+    "asset_precision_policy_sha256": "d1427502b4a6eea32fdc0895b9f872d13eea6dc9670cec2a117dcb9d96fdb815",
+    "value_sink_manifest_sha256": "2d935eb8712f6b114d56f7df142b48db5fac8ea25abbd3d3d78b7b8a551ad04c"
   },
   "authority": {
     "claim_authority": "NONE",
@@ -14,9 +21,14 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "febb6547f3fcd56a1a658182333e5c1522e35265eafed286de8c4a6ec58b0501",
+    "sha256": "2f34278be0393645d2c03e5d0a4eaf2e27357357e74602aa12ee2acb01f9854f",
     "status": "DRAFT_REVISED_VERIFIER_RELEASE_BOUND",
     "verdict": "UNPROVED"
+  },
+  "disaster_campaign": {
+    "path": "docs/research/GLOBAL_ECONOMIC_COMPOSITION_DISASTER_CAMPAIGN_V1.md",
+    "sha256": "20bf0a5b69dbd9a58ab54068cc902445787e2de8ee6e09b028a9fb4db831d8b8",
+    "status": "TESTED_DISCOVERY"
   },
   "tau_upstream": {
     "official_repository": "https://github.com/IDNI/tau-lang",
@@ -382,7 +394,7 @@
     {
       "id": "PUBLISHER_BOUND_EPOCH_VERIFICATION",
       "commit": "408cf223723b001131c013cdb6382c70e56ad932",
-      "artifact_subject_commit": "a34f11ff50cb6615bc68ffaa240c7e215ad4a379",
+      "artifact_subject_commit": "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64",
       "core_sha256": "ee346430be797b19427f52a5dff307965ce3f3983a2004cee950468ce9d67577",
       "publisher_sha256": "7ed2e205fa72d59cfde97229cc4a5d7408e9c891983dfb6a9f425cccead12f47",
       "status": [
@@ -523,7 +535,7 @@
     {
       "id": "ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1",
       "commit": "0d29ea7286bd302cf3e2135a7fc7511d78ef5816",
-      "artifact_subject_commit": "a34f11ff50cb6615bc68ffaa240c7e215ad4a379",
+      "artifact_subject_commit": "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64",
       "design_sha256": "73d4269dc58b9fa9fe334bbb9d126b13589d1c02538f0f21c2a237dd6b481831",
       "python_sha256": "e4958644e482f867799601bb2b03b62a1aaf83c4a04e946efdb6309c46c54996",
       "python_admission_sha256": "625338660a772404db772c03af3c227abf1b1603308ffb6028125c53b1f6fbbd",
@@ -562,7 +574,7 @@
     },
     {
       "id": "ECONOMIC_INITIAL_STATE_SOURCE_HEAD_ACTIVATION_V1",
-      "commit": "a34f11ff50cb6615bc68ffaa240c7e215ad4a379",
+      "commit": "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64",
       "design_sha256": "471ed937844a880269563ee3a83a04b13b030a41a57a29599546355a4462f6c4",
       "python_initial_state_sha256": "625338660a772404db772c03af3c227abf1b1603308ffb6028125c53b1f6fbbd",
       "python_publisher_verification_sha256": "172f92131cd3be3c9aa801bc77e1baccfffa2a21aa74b505687b4e1328e8375f",
@@ -590,7 +602,7 @@
     {
       "id": "GLOBAL_ECONOMIC_DURABLE_ACTIVATION_JOURNAL_V1",
       "commit": "7b5b142e32c505261fbcea68ebb915464b187acb",
-      "artifact_subject_commit": "a34f11ff50cb6615bc68ffaa240c7e215ad4a379",
+      "artifact_subject_commit": "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64",
       "design_sha256": "52a6898278b37465082776f7a8c35d1ca8a8d4f36eabb94c721d05b6e4b120cb",
       "python_core_sha256": "36ceffb91d70ea1fd750b250300707340cefd1bf7a9a06cdadce3a6953605d21",
       "python_journal_sha256": "089b2c06829f9f0398456873f41720f5f6be7ef3c4877e7c9b6253d12ff7bf28",
@@ -615,12 +627,12 @@
     },
     {
       "id": "GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1",
-      "commit": "a34f11ff50cb6615bc68ffaa240c7e215ad4a379",
-      "artifact_subject_commit": "a34f11ff50cb6615bc68ffaa240c7e215ad4a379",
-      "design_sha256": "899028e2730d1a0de08036de87c6c0bd38c76218c4c4efd8fcfa5341e531113b",
+      "commit": "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64",
+      "artifact_subject_commit": "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64",
+      "design_sha256": "1b4b6edd2dd17329e9a6460118c1ef4141eab5369fdfccee7acaabab27614a9d",
       "python_bundle_sha256": "d3500267964f84e05dcc278ab0843a4b8b46b7c4163e27691ad4bfd9c29299ba",
-      "python_journal_sha256": "f9072a5c16c312c1a0a35a6ac474c520840fee575b8a2161a12795d2c946225f",
-      "python_test_sha256": "fc6626a822d9541d7d2c95a814feabdf08faa5182ce74bc6b73f8e06341f0bd4",
+      "python_journal_sha256": "e41ba8f1d2bf0c617ca879f34ff8e7da26a0665a2427882dab7a8c767d308bff",
+      "python_test_sha256": "63dc4c5bd1318e183b54966bbd101c0b80f8ba9c6949d23f514e789ac8206219",
       "sink_manifest_sha256": "2d935eb8712f6b114d56f7df142b48db5fac8ea25abbd3d3d78b7b8a551ad04c",
       "sink_test_sha256": "1abb387e4ab97b3996fe0f7425c0a1b1f285797d9d05bc88b847bc18eba02aa4",
       "status": [
@@ -630,13 +642,16 @@
         "PUBLIC_COMMIT_API_REMOVED",
         "PRIVATE_SAME_INTERPRETER_WRITER_EXPLICITLY_BLOCKING",
         "REJECTED_OPEN_NONMUTATING_TESTED",
+        "CRASH_LEFT_WAL_FILE_FAMILY_PRESERVED",
+        "BEHAVIORFUL_PATH_REJECTED",
         "EXACT_ACTIVATION_CREATE_RECOVERY",
+        "NONZERO_CREATE_RECOVERY_REJECTED",
         "TESTED_AAA_BVA_STATEFUL_CRASH_MUTATION_KILLERS",
         "INDEPENDENT_MAX_REVIEW_PASS_AFTER_TWO_REVISIONS",
         "TESTED_DISCOVERY",
         "UNMOUNTED"
       ],
-      "closed_obligation": "For one exact activation, one internally body-bound ordinary epoch bundle durably retains the complete post-state, certificate, effect plan, published record, release observation and raw receipt bytes. It binds canonically sorted effect occurrence consumption to the certificate occurrence set, requires the exact canonical journal byte declaration, enforces ABI proof-resource ceilings, and rejects foreign inner ABI schemas. The bounded journal advances insertion and head through one SQLite transaction, rejects stale CAS, duplicate commit identity, row or byte capacity excess, malformed canonical bodies and exact-schema drift, and recovers exact PRE or POST at tested exception and abrupt-process boundaries.",
+      "closed_obligation": "For one exact activation, one internally body-bound ordinary epoch bundle durably retains the complete post-state, certificate, effect plan, published record, release observation and raw receipt bytes. It binds canonically sorted effect occurrence consumption to the certificate occurrence set, requires the exact canonical journal byte declaration, enforces ABI proof-resource ceilings, and rejects foreign inner ABI schemas. The bounded journal advances insertion and head through one SQLite transaction, rejects stale CAS, duplicate commit identity, row or byte capacity excess, malformed canonical bodies and exact-schema drift, and recovers exact PRE or POST at tested exception and abrupt-process boundaries. Create recovery accepts only the sequence-zero activation head; crash-left WAL artifacts and behaviorful Path subclasses reject before SQLite or redirected-store access in the tested histories.",
       "remaining_obligations": [
         "remove or OS-fence the private same-interpreter structural writer",
         "bind measured verifier artifacts to the code actually executing in an isolated verifier service",
@@ -647,20 +662,20 @@
     },
     {
       "id": "GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1",
-      "commit": "a34f11ff50cb6615bc68ffaa240c7e215ad4a379",
-      "artifact_subject_commit": "a34f11ff50cb6615bc68ffaa240c7e215ad4a379",
-      "design_sha256": "5c7b6feecb0b4a20ea88b320f0d7bc61fb4fd5e791ec6a886611fbc41d16f357",
+      "commit": "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64",
+      "artifact_subject_commit": "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64",
+      "design_sha256": "4b354b00691e90759eac21df75b4edf646c75ba07e36089d5c1cc5dd6b04e33f",
       "verifier_design_sha256": "e996c317d5361597ae97d5e0efef0c505acbd6bdaf8a6e76c0eda3fc56ae6189",
       "python_verifier_registry_sha256": "04c1b791a0e9fb546a6f8138b1ff74c955666ece32c271ab024f04a8362f8bde",
       "python_verifier_evidence_sha256": "66bbc6de53605e05a28d45602f2de896058370d6ac3df7cb04ef0a1cb97ce045",
       "python_verifier_deployment_sha256": "dc32a1e0abfaad182c6240cf951f0ee049aee19313b1dde87c5127b845179278",
       "python_publisher_sha256": "f7f90cec6ede48234afde5bb834c7530efa6bc0b8f2c97da44580ed7d78f3b53",
       "python_proof_sha256": "ee346430be797b19427f52a5dff307965ce3f3983a2004cee950468ce9d67577",
-      "python_journal_sha256": "f9072a5c16c312c1a0a35a6ac474c520840fee575b8a2161a12795d2c946225f",
+      "python_journal_sha256": "e41ba8f1d2bf0c617ca879f34ff8e7da26a0665a2427882dab7a8c767d308bff",
       "python_verifier_test_sha256": "cacc89e0245d61183d12779b8684dcbbbc417fc35bb98f727b64d8221e23842e",
       "python_abi_test_sha256": "744458522e0fdd7d4e752d154c225da76371455001b8e2160ba036028b46655b",
-      "python_publisher_test_sha256": "49879bfe78575eeebb5a1972dc44ff91a947b9181273c209332e06fe22bfe6ef",
-      "python_journal_test_sha256": "fc6626a822d9541d7d2c95a814feabdf08faa5182ce74bc6b73f8e06341f0bd4",
+      "python_publisher_test_sha256": "22cb1b51e3d42eec1d47d64f04dab00e649732eb2741eb3daa9a66ac7ce2c7d0",
+      "python_journal_test_sha256": "63dc4c5bd1318e183b54966bbd101c0b80f8ba9c6949d23f514e789ac8206219",
       "writer_manifest_sha256": "a0f8bd4c11660aa4d614a089b252ac5403d7cee0d4cb73454afc121a4bfa0b9f",
       "sink_manifest_sha256": "2d935eb8712f6b114d56f7df142b48db5fac8ea25abbd3d3d78b7b8a551ad04c",
       "writer_test_sha256": "e030b1847b8e21d81035ef8acafbe38a56907bbc4dfa08e973fca9594bc55545",
@@ -671,6 +686,7 @@
         "MEASURED_ARTIFACT_BYTES_PROCESS_LOCAL_CAPABILITY",
         "RETAINED_EXACT_BACKEND_CALLABLE",
         "REGISTRY_RELEASE_COORDINATES_RESELECTED",
+        "CREATE_RECOVERY_SEQUENCE_ZERO_ONLY",
         "GENERIC_CALLER_VERIFIER_REJECTED",
         "EXACT_STORED_SOURCE_RESOLUTION",
         "PUBLIC_JOURNAL_COMMIT_ABSENT_PRIVATE_WRITER_RETAINED",
@@ -881,7 +897,7 @@
     {
       "id": "VM-01",
       "status": "PARTIAL",
-      "evidence": "A closed research manifest names and profile-binds 103 requirements across all 12 lanes and four cross-lane routes. The exact eight-decimal policy is profile-bound in the Python initial admission path and has a Rust root-parity validator. An operation-derived Python V1 scan classifies 18 sink identities and 24 occurrences, including the in-memory migration assignment and all nine literal SQL mutations in the unmounted durable activation and ordinary-epoch journals, and kills an arbitrary-name literal-SQL mutation. Writer inventory still reports 25 open coverage rows and 18 unmounted entrypoints; 17 Python sink groups lack release bindings, and dynamic Python plus cross-language, generated-code, deployment, and reachability completeness remain absent."
+      "evidence": "A closed research manifest names and profile-binds 103 requirements across all 12 lanes and four cross-lane routes. The exact eight-decimal policy is profile-bound in the Python initial admission path and has a Rust root-parity validator. An operation-derived Python V1 scan classifies 18 sink identities and 24 occurrences, including the in-memory migration assignment and all nine literal SQL mutations in the unmounted durable activation and ordinary-epoch journals, and kills an arbitrary-name literal-SQL mutation. Writer inventory reports 27 open coverage rows and 18 unmounted entrypoints; 17 Python sink groups lack release bindings, and dynamic Python plus cross-language, generated-code, deployment, and reachability completeness remain absent."
     },
     {
       "id": "VM-02",
@@ -916,7 +932,7 @@
     {
       "id": "VM-08",
       "status": "PARTIAL",
-      "evidence": "Commit 369fe53f2 makes the unmounted durable publisher require an opaque process-local verifier capability selected from the active profile's exact verifier-registry root and root image. The capability binds a content-derived shadow release, evidence-manifest root, measured artifact bytes, deployment, backend-protocol root, purpose and byte ceilings; generic caller-selected verifier objects reject before backend use. Evidence labels remain producer supplied, supplied artifact bytes are not proven to be the code executed by the injected backend, and same-process isolation, real RISC0 replay, executable attestation, mounted revocation and release-backed evidence remain absent."
+      "evidence": "Commit 0b0d93cdd retains an opaque process-local verifier capability selected from the active profile's exact verifier-registry root and root image. The capability reselects the exact release coordinates and retains one callable identity; generic caller-selected verifier objects and post-bind method replacement reject. Callable semantics, closure state, globals and the executing backend remain unattested, and evidence labels remain producer supplied. Same-process isolation, real RISC0 replay, executable attestation, mounted revocation and release-backed evidence remain absent."
     },
     {
       "id": "VM-09",
@@ -926,7 +942,7 @@
     {
       "id": "VM-10",
       "status": "PARTIAL",
-      "evidence": "Commit 7b5b142e3 adds an unmounted bounded SQLite activation journal. Commit edd03093d adds the complete ordinary-epoch bundle and bounded SQLite journal. Commit eb6bf17b1 joins ordinary-epoch receipt verification, exact source/state/effect/body/profile rechecks, internal publication-record and bundle construction, and SQLite CAS behind one factory-constructed fixed-profile API. Commit 369fe53f2 removes the public ordinary-epoch journal commit method and gives the intended publisher path a separate journal-instance write capability while preserving an executable negative witness for the underscore-prefixed same-interpreter structural writer. SQLite remains the sole durable linearization point for that API; exact historical retry covers a lost acknowledgment, and competing publications or a head advance during verification cannot overwrite the winning head. The private structural writer and alternative writers remain callable and release-blocking. Executable verifier attestation, migration, outbox delivery and acknowledgment reconciliation, objective finality, hardware power-loss evidence, Rust/RISC0 parity, one mounted authoritative writer, and legacy-path retirement remain absent."
+      "evidence": "Commit 7b5b142e3 adds an unmounted bounded SQLite activation journal. Commit edd03093d adds the complete ordinary-epoch bundle and bounded SQLite journal. Commit eb6bf17b1 joins ordinary-epoch receipt verification, exact source/state/effect/body/profile rechecks, internal publication-record and bundle construction, and SQLite CAS behind one factory-constructed fixed-profile API. Commit 0b0d93cdd restricts create recovery to the exact sequence-zero activation head, rejects crash-left WAL artifacts before SQLite opens the store, performs immutable read-only prevalidation, and rejects behaviorful Path subclasses. SQLite remains the sole durable linearization point for this unmounted API; exact historical retry covers a lost acknowledgment, and competing publications or a head advance during verification cannot overwrite the winning head. The private structural writer and alternative writers remain callable and release-blocking. Executable verifier attestation, cross-process race fencing, migration, outbox delivery and acknowledgment reconciliation, objective finality, hardware power-loss evidence, Rust/RISC0 parity, one mounted authoritative writer, and legacy-path retirement remain absent."
     },
     {
       "id": "VM-11",
@@ -936,7 +952,7 @@
     {
       "id": "VM-12",
       "status": "GAP",
-      "evidence": "This ledger binds clean scoped implementation subject eb6bf17b1. The durable activation implementation is commit 7b5b142e3; the ordinary-epoch journal is commit edd03093d; the verifier-owned durable publisher is commit eb6bf17b1. Eleven focused publisher tests and 136 combined ABI, ordinary-journal, publisher, writer-inventory and value-sink tests pass before this ledger update. Touched Python source passes Ruff and targeted mypy. Independent maximum-reasoning review returned GO only for unmounted tested-discovery infrastructure and preserved every authority nonclaim. Rust compilation and vector replay, real proof replay, reproducible proof-machine artifacts, mounted release-selected publication, writer fencing, and complete release evidence remain absent."
+      "evidence": "This ledger binds clean scoped implementation subject 0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64. The second max-review wave found and preserved minimized create-recovery, crash-left WAL, behaviorful Path, exact-subject, contract-path, semantic-anchor, and dependency-binding counterexamples. The combined focused closure run has 192 passing tests; touched Python passes Ruff and targeted mypy. The review remains REVISE because unified migration/revocation authority, isolated executable attestation, sole-writer fencing, real Rust/RISC0 replay, objective finality, and complete release evidence are absent."
     }
   ],
   "live_gate_observations": {
