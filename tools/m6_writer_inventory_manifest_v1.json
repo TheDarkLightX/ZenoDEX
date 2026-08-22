@@ -496,6 +496,44 @@
         "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "FARM_INCENTIVES", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "SEALED_AUCTION", "STRATEGY_ESCROW", "PROOF_REWARDS", "EXTERNAL_CUSTODY", "GOVERNANCE_MIGRATION"],
         "release_status": "OPEN",
         "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-13", "WF-14", "WF-15", "WF-16", "WF-17", "WF-18"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/global_economic_durable_publisher_v1.py::VerifiedDurableEconomicPublisherV1.publish_economic_epoch", "status": "RESEARCH_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "research/global-economic-durable-epoch/v1",
+        "coverage_id": "coverage_separate_global_economic_durable_publisher",
+        "entrypoint_id": "separate_global_economic_durable_publisher",
+        "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "FARM_INCENTIVES", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "SEALED_AUCTION", "STRATEGY_ESCROW", "PROOF_REWARDS", "EXTERNAL_CUSTODY", "GOVERNANCE_MIGRATION"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-13", "WF-14", "WF-15", "WF-16", "WF-17", "WF-18"]
+      },
+      {
+        "assurance_statuses": [],
+        "bindings": {
+          "adapter": {"reference": "src/integration/global_economic_epoch_journal_v1.py::GlobalEconomicEpochJournalV1.commit_epoch", "status": "RESEARCH_ONLY"},
+          "canonical_effect_projection": {"reference": null, "status": "GAP"},
+          "evidence": {"reference": null, "status": "GAP"},
+          "module_release": {"reference": null, "status": "GAP"},
+          "proof_profile": {"reference": null, "status": "GAP"},
+          "route": {"reference": null, "status": "GAP"},
+          "terminal_path": {"reference": null, "status": "GAP"},
+          "transition": {"reference": null, "status": "GAP"}
+        },
+        "command_kind": "research/global-economic-structural-epoch/v1",
+        "coverage_id": "coverage_separate_global_economic_epoch_journal_commit",
+        "entrypoint_id": "separate_global_economic_epoch_journal_commit",
+        "lane_ids": ["ASSET_TRANSFER", "SPOT_LIQUIDITY", "FARM_INCENTIVES", "ZDEX_TOKENOMICS", "ZUSD_MONETARY", "PERPS_MARKET", "ORACLE_MARKET", "SEALED_AUCTION", "STRATEGY_ESCROW", "PROOF_REWARDS", "EXTERNAL_CUSTODY", "GOVERNANCE_MIGRATION"],
+        "release_status": "OPEN",
+        "workflow_ids": ["WF-01", "WF-02", "WF-03", "WF-04", "WF-05", "WF-06", "WF-07", "WF-08", "WF-09", "WF-10", "WF-11", "WF-12", "WF-13", "WF-14", "WF-15", "WF-16", "WF-17", "WF-18"]
       }
     ],
     "schema": "zenodex/m6-writer-coverage/v1"
@@ -775,6 +813,28 @@
       "path": "src/integration/global_economic_commit_v1.py",
       "requires_unique_commit_port": true,
       "symbol": "commit_verified_economic_epoch_v1"
+    },
+    {
+      "class": "VerifiedDurableEconomicPublisherV1",
+      "commit_port_route": "VerifiedDurableEconomicPublisherV1",
+      "entrypoint_id": "separate_global_economic_durable_publisher",
+      "evidence_markers": ["_verify_economic_epoch_for_publisher_v1", "commit_epoch"],
+      "kind": "separate_research_durable_publisher",
+      "m6_mount_status": "SEPARATE_RESEARCH_NOT_M6",
+      "path": "src/integration/global_economic_durable_publisher_v1.py",
+      "requires_unique_commit_port": true,
+      "symbol": "publish_economic_epoch"
+    },
+    {
+      "class": "GlobalEconomicEpochJournalV1",
+      "commit_port_route": "none",
+      "entrypoint_id": "separate_global_economic_epoch_journal_commit",
+      "evidence_markers": ["_commit_epoch_v1"],
+      "kind": "separate_research_structural_epoch_writer",
+      "m6_mount_status": "SEPARATE_RESEARCH_NOT_M6",
+      "path": "src/integration/global_economic_epoch_journal_v1.py",
+      "requires_unique_commit_port": true,
+      "symbol": "commit_epoch"
     }
   ],
   "schema": "zenodex/m6-writer-inventory/v1",

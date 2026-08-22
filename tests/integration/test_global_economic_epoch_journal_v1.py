@@ -507,6 +507,32 @@ def test_given_activation_when_epoch_commits_then_bundle_and_head_are_atomic(
     reopened.close()
 
 
+def test_journal_resolves_owned_activation_and_exact_historical_heads(
+    tmp_path: Path,
+) -> None:
+    # Arrange: one activation and one ordinary epoch are durably published.
+    activation, source_head, epoch = _fixture_v1()
+    journal = GlobalEconomicEpochJournalV1.create(
+        tmp_path / "head-resolution.sqlite",
+        activation,
+    )
+    journal.commit_epoch(epoch, journal.acquire_cas_head_token())
+
+    # Act: resolve the immutable activation and both content-addressed heads.
+    owned_activation = journal.activation_bundle
+    resolved_source = journal.publication_head(source_head.publication_id)
+    resolved_epoch = journal.publication_head(epoch.head.publication_id)
+    absent = journal.publication_head("0x" + "ff" * 32)
+
+    # Assert: callers receive exact owned snapshots and unknown identities stay absent.
+    assert owned_activation == activation
+    assert owned_activation is not activation
+    assert resolved_source == source_head
+    assert resolved_epoch == epoch.head
+    assert absent is None
+    journal.close()
+
+
 def test_given_lost_ack_when_exact_epoch_retries_then_no_duplicate_is_created(
     tmp_path: Path,
 ) -> None:

@@ -21,7 +21,7 @@ from ..core.global_economic_durable_activation_v1 import (
     _decode_exact_canonical_json_v1,
     decode_durable_economic_initial_state_bundle_v1,
 )
-from ..core.global_settlement_types_v1 import hash_global_v1
+from ..core.global_settlement_types_v1 import _require_root, hash_global_v1
 from .global_economic_durable_epoch_v1 import (
     DURABLE_ECONOMIC_EPOCH_SCHEMA_V1,
     DurableEconomicEpochBundleV1,
@@ -309,6 +309,58 @@ class GlobalEconomicEpochJournalV1:
         with self._lock:
             self._require_open_v1()
             return self._read_snapshot_v1()
+
+    @property
+    def activation_bundle(self) -> DurableEconomicInitialStateBundleV1:
+        """Return an owned snapshot of the immutable activation bundle."""
+
+        with self._lock:
+            self._require_open_v1()
+            self._connection.execute("BEGIN")
+            try:
+                self._validate_store_v1()
+                activation = self._read_activation_v1()
+                self._connection.execute("COMMIT")
+                return activation
+            except BaseException:
+                _rollback_v1(self._connection)
+                raise
+
+    def publication_head(
+        self,
+        publication_id: str,
+    ) -> DurableEconomicPublicationHeadV1 | None:
+        """Resolve one exact activation or epoch head from validated history."""
+
+        if type(publication_id) is not str:
+            raise TypeError("durable epoch publication id must be exact str")
+        _require_root(publication_id, name="durable epoch publication id")
+        with self._lock:
+            self._require_open_v1()
+            self._connection.execute("BEGIN")
+            try:
+                self._validate_store_v1()
+                activation = self._read_activation_v1()
+                if publication_id == activation.record.activation_id:
+                    result = DurableEconomicPublicationHeadV1.from_activation(
+                        activation.head
+                    )
+                else:
+                    row = self._connection.execute(
+                        "SELECT publication_id, commit_id, sequence_decimal, "
+                        "bundle_bytes FROM economic_epochs WHERE publication_id = ?",
+                        (publication_id,),
+                    ).fetchone()
+                    result = (
+                        None
+                        if row is None
+                        else self._decode_epoch_row_v1(row).head
+                    )
+                self._connection.execute("COMMIT")
+                return result
+            except BaseException:
+                _rollback_v1(self._connection)
+                raise
 
     def acquire_cas_head_token(self) -> DurableEconomicEpochCasTokenV1:
         with self._lock:

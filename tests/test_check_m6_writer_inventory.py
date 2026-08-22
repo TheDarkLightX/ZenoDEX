@@ -31,12 +31,12 @@ def test_current_m6_writer_inventory_is_explicit_and_unmounted() -> None:
     assert report["m6_production_mounted"] is False
     assert report["production_authority"] is False
     assert report["findings"] == []
-    assert report["entrypoint_count"] == 25
-    assert report["coverage_row_count"] == 25
+    assert report["entrypoint_count"] == 27
+    assert report["coverage_row_count"] == 27
     assert report["writers_without_coverage"] == []
     assert report["release_ready"] is False
     assert report["release_gate_status"] == "BLOCKED_OPEN_COVERAGE"
-    assert report["open_coverage_count"] == 25
+    assert report["open_coverage_count"] == 27
     assert report["release_gaps"]
     entries = {entry["entrypoint_id"]: entry for entry in report["entrypoints"]}
     assert entries["legacy_tau_apply_app_tx"]["m6_mount_status"] == "UNMOUNTED_LEGACY"
@@ -49,6 +49,12 @@ def test_current_m6_writer_inventory_is_explicit_and_unmounted() -> None:
     assert entries["m6_research_durable_direct_batch"]["commit_port_route"] == (
         "M6CommitPortV1.publish_direct_batch"
     )
+    assert entries["separate_global_economic_durable_publisher"][
+        "m6_mount_status"
+    ] == "SEPARATE_RESEARCH_NOT_M6"
+    assert entries["separate_global_economic_epoch_journal_commit"][
+        "commit_port_route"
+    ] == "none"
     coverage = {row["entrypoint_id"]: row for row in report["coverage_rows"]}
     assert set(coverage) == set(entries)
     assert coverage["legacy_tau_apply_app_tx"]["command_kind"] == (
@@ -74,6 +80,9 @@ def test_current_m6_writer_inventory_is_explicit_and_unmounted() -> None:
         "reference": "src/integration/tau_testnet_dex_plugin.py::apply_app_tx",
         "status": "LEGACY_ONLY",
     }
+    assert coverage["separate_global_economic_durable_publisher"][
+        "bindings"
+    ]["route"] == {"reference": None, "status": "GAP"}
 
 
 def test_inventory_lane_registry_matches_global_settlement_abi_v1() -> None:

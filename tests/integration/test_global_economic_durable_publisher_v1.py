@@ -1,0 +1,434 @@
+"""Authority, replay, and concurrency evidence for the durable publisher."""
+
+from __future__ import annotations
+
+import hashlib
+import inspect
+from dataclasses import replace
+from pathlib import Path
+from threading import Event, Thread
+
+import pytest
+
+from src.core.global_settlement_types_v1 import hash_global_v1
+from src.integration.global_economic_commit_v1 import EconomicEpochBodyAndStateV1
+from src.integration.global_economic_durable_publisher_v1 import (
+    VerifiedDurableEconomicPublisherV1,
+    VerifiedDurableEconomicPublishOutcomeV1,
+)
+from src.integration.global_economic_epoch_journal_v1 import (
+    DurableEconomicEpochCommitStatusV1,
+)
+from tests.core.test_global_settlement_abi_v1 import (
+    _epoch_admission_fixture,
+    _initial_state_admission,
+    _RecordingReceiptVerifier,
+)
+
+
+def _publisher_fixture_v1(*, receipt_bytes: bytes = b"durable-publisher-epoch"):
+    candidate = _epoch_admission_fixture(1)
+    body = EconomicEpochBodyAndStateV1(
+        pre_state_root=candidate.pre_state.state_root,
+        post_state=candidate.post_state,
+        ordered_command_body_hashes=candidate.ordered_command_body_hashes,
+        receipt_archive_root=hash_global_v1(
+            "durable-publisher-receipt-archive-v1",
+            {"receipt_sha256": hashlib.sha256(receipt_bytes).hexdigest()},
+        ),
+        data_availability_root=candidate.certificate.data_availability_root,
+        finality_root=candidate.certificate.finality_root,
+    )
+    certificate = replace(
+        candidate.certificate,
+        body_commitment=body.body_commitment,
+        receipt_root="0x" + hashlib.sha256(receipt_bytes).hexdigest(),
+        journal_bytes=1,
+    )
+    certificate = replace(
+        certificate,
+        journal_bytes=len(certificate.canonical_journal_bytes),
+    )
+    candidate = replace(
+        candidate,
+        certificate=certificate,
+        receipt_bytes=receipt_bytes,
+        expected_body_commitment=body.body_commitment,
+    )
+    admission = _initial_state_admission(candidate.profile, candidate.pre_state)
+    return admission, candidate, body
+
+
+def test_create_publish_reopen_and_exact_retry_are_one_durable_history(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Alice prepares one valid epoch and a verifier-backed genesis.
+    admission, candidate, body = _publisher_fixture_v1()
+    path = tmp_path / "publisher.sqlite"
+    first_verifier = _RecordingReceiptVerifier()
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        first_verifier,
+    )
+    source = publisher.head
+
+    # Act: publish, simulate a lost acknowledgement, reopen, and retry exactly.
+    committed = publisher.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+    publisher.close()
+    retry_verifier = _RecordingReceiptVerifier()
+    reopened = VerifiedDurableEconomicPublisherV1.open(
+        path,
+        admission,
+        retry_verifier,
+    )
+    retried = reopened.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: one exact publication survives restart and duplicate submission.
+    assert committed.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    assert retried.status is DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED
+    assert committed.published_epoch == retried.published_epoch
+    assert reopened.head == committed.committed_epoch
+    assert len(first_verifier.calls) == 2
+    assert len(retry_verifier.calls) == 2
+    reopened.close()
+
+
+def test_fabricated_source_metadata_is_stale_before_receipt_verification(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Mallory retains the real publication id but changes its certificate.
+    admission, candidate, body = _publisher_fixture_v1()
+    verifier = _RecordingReceiptVerifier()
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        tmp_path / "fabricated-source.sqlite",
+        admission,
+        verifier,
+    )
+    source = publisher.head
+    fabricated = replace(source, certificate_root="0x" + "ab" * 32)
+
+    # Act: submit a valid epoch against the fabricated source description.
+    outcome = publisher.publish_economic_epoch(
+        expected_source=fabricated,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: stored history owns source identity and no epoch receipt is checked.
+    assert outcome.status is DurableEconomicEpochCommitStatusV1.STALE_HEAD
+    assert outcome.published_epoch is None
+    assert publisher.head == source
+    assert len(verifier.calls) == 1
+    publisher.close()
+
+
+def test_body_binding_rejection_is_noop(
+    tmp_path: Path,
+) -> None:
+    # Arrange: the supplied body differs from the certificate-bound receipt archive.
+    admission, candidate, body = _publisher_fixture_v1()
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        tmp_path / "body-mismatch.sqlite",
+        admission,
+        _RecordingReceiptVerifier(),
+    )
+    source = publisher.head
+    wrong_body = replace(body, receipt_archive_root="0x" + "cd" * 32)
+
+    # Act and assert: verified proof material cannot publish a different full body.
+    with pytest.raises(ValueError, match="body commitment"):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=wrong_body,
+        )
+    assert publisher.head == source
+    publisher.close()
+
+
+def test_receipt_replacement_rejects_without_publication(
+    tmp_path: Path,
+) -> None:
+    # Arrange: the candidate receipt changes after its certificate was constructed.
+    admission, candidate, body = _publisher_fixture_v1()
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        tmp_path / "receipt-replacement.sqlite",
+        admission,
+        _RecordingReceiptVerifier(),
+    )
+    source = publisher.head
+    replaced_receipt = replace(candidate, receipt_bytes=b"replacement-receipt")
+
+    # Act and assert: receipt-root verification fails before durable publication.
+    with pytest.raises(ValueError, match="receipt root"):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=replaced_receipt,
+            body_and_state=body,
+        )
+    assert publisher.head == source
+    publisher.close()
+
+
+def test_selected_verifier_rejection_is_noop(
+    tmp_path: Path,
+) -> None:
+    # Arrange: genesis verifies, while the selected backend rejects the epoch proof.
+    admission, candidate, body = _publisher_fixture_v1()
+
+    class RejectingEpochVerifier(_RecordingReceiptVerifier):
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            super().verify_succinct_receipt(
+                receipt_bytes,
+                expected_image_id=expected_image_id,
+                expected_journal_bytes=expected_journal_bytes,
+            )
+            if receipt_bytes == candidate.receipt_bytes:
+                raise ValueError("selected verifier rejected epoch")
+
+    verifier = RejectingEpochVerifier()
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        tmp_path / "verifier-reject.sqlite",
+        admission,
+        verifier,
+    )
+    source = publisher.head
+
+    # Act and assert: verifier rejection propagates and SQLite stays at genesis.
+    with pytest.raises(ValueError, match="selected verifier rejected"):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=body,
+        )
+    assert publisher.head == source
+    assert len(verifier.calls) == 2
+    publisher.close()
+
+
+def test_two_publishers_from_one_source_linearize_one_valid_successor(
+    tmp_path: Path,
+) -> None:
+    # Arrange: two sequencers hold distinct, valid receipts for the same source.
+    admission, first_candidate, first_body = _publisher_fixture_v1(
+        receipt_bytes=b"first-competing-receipt"
+    )
+    _, second_candidate, second_body = _publisher_fixture_v1(
+        receipt_bytes=b"second-competing-receipt"
+    )
+    path = tmp_path / "competing-publishers.sqlite"
+    first = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _RecordingReceiptVerifier(),
+    )
+    second = VerifiedDurableEconomicPublisherV1.open(
+        path,
+        admission,
+        _RecordingReceiptVerifier(),
+    )
+    source = first.head
+
+    # Act: the first candidate commits before the second reaches SQLite CAS.
+    winner = first.publish_economic_epoch(
+        expected_source=source,
+        candidate=first_candidate,
+        body_and_state=first_body,
+    )
+    loser = second.publish_economic_epoch(
+        expected_source=source,
+        candidate=second_candidate,
+        body_and_state=second_body,
+    )
+
+    # Assert: one full verifier-derived bundle wins and the other is a typed no-op.
+    assert winner.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    assert loser.status is DurableEconomicEpochCommitStatusV1.STALE_HEAD
+    assert first.head == second.head == winner.committed_epoch
+    first.close()
+    second.close()
+
+
+def test_head_change_during_receipt_verification_returns_stale_noop(
+    tmp_path: Path,
+) -> None:
+    # Arrange: one verifier pauses while a second publisher commits another receipt.
+    admission, delayed_candidate, delayed_body = _publisher_fixture_v1(
+        receipt_bytes=b"delayed-valid-receipt"
+    )
+    _, fast_candidate, fast_body = _publisher_fixture_v1(
+        receipt_bytes=b"fast-valid-receipt"
+    )
+    entered = Event()
+    release = Event()
+
+    class BlockingEpochVerifier(_RecordingReceiptVerifier):
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            super().verify_succinct_receipt(
+                receipt_bytes,
+                expected_image_id=expected_image_id,
+                expected_journal_bytes=expected_journal_bytes,
+            )
+            if receipt_bytes == delayed_candidate.receipt_bytes:
+                entered.set()
+                if not release.wait(timeout=10):
+                    raise RuntimeError("test verifier release timed out")
+
+    path = tmp_path / "verification-race.sqlite"
+    delayed = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        BlockingEpochVerifier(),
+    )
+    fast = VerifiedDurableEconomicPublisherV1.open(
+        path,
+        admission,
+        _RecordingReceiptVerifier(),
+    )
+    source = delayed.head
+    results: list[VerifiedDurableEconomicPublishOutcomeV1] = []
+
+    def publish_delayed() -> None:
+        results.append(
+            delayed.publish_economic_epoch(
+                expected_source=source,
+                candidate=delayed_candidate,
+                body_and_state=delayed_body,
+            )
+        )
+
+    thread = Thread(target=publish_delayed)
+    thread.start()
+    assert entered.wait(timeout=10)
+
+    # Act: a competing valid epoch commits while the first verifier is paused.
+    winner = fast.publish_economic_epoch(
+        expected_source=source,
+        candidate=fast_candidate,
+        body_and_state=fast_body,
+    )
+    release.set()
+    thread.join(timeout=10)
+
+    # Assert: the delayed candidate observes the changed source and publishes nothing.
+    assert not thread.is_alive()
+    assert winner.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    assert len(results) == 1
+    delayed_outcome = results[0]
+    assert delayed_outcome.status is DurableEconomicEpochCommitStatusV1.STALE_HEAD
+    assert delayed.head == fast.head == winner.committed_epoch
+    delayed.close()
+    fast.close()
+
+
+def test_open_rejects_a_different_verified_activation(
+    tmp_path: Path,
+) -> None:
+    # Arrange: a journal is created from one exact genesis admission.
+    admission, candidate, _ = _publisher_fixture_v1()
+    path = tmp_path / "wrong-activation.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _RecordingReceiptVerifier(),
+    )
+    publisher.close()
+    different_state = replace(
+        candidate.pre_state,
+        history_root="0x" + "ef" * 32,
+    )
+    different_admission = _initial_state_admission(
+        candidate.profile,
+        different_state,
+    )
+
+    # Act and assert: restart must reproduce the byte-identical durable activation.
+    with pytest.raises(ValueError, match="activation"):
+        VerifiedDurableEconomicPublisherV1.open(
+            path,
+            different_admission,
+            _RecordingReceiptVerifier(),
+        )
+
+
+def test_expected_source_rejects_boolean_sequence_alias(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Python's bool/int alias is injected past the frozen dataclass guard.
+    admission, candidate, body = _publisher_fixture_v1()
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        tmp_path / "boolean-sequence.sqlite",
+        admission,
+        _RecordingReceiptVerifier(),
+    )
+    source = publisher.head
+    object.__setattr__(source, "sequence", False)
+
+    # Act and assert: the boundary reconstructs exact typed source coordinates.
+    with pytest.raises(TypeError, match="sequence"):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=body,
+        )
+    assert publisher.head.sequence == 0
+    publisher.close()
+
+
+def test_direct_publisher_construction_is_rejected() -> None:
+    # Arrange: Mallory has caller-constructible placeholders for every argument.
+    foreign_mint = object()
+
+    # Act and assert: only create/open may construct the authority boundary.
+    with pytest.raises(TypeError, match="factory-constructed"):
+        VerifiedDurableEconomicPublisherV1(
+            foreign_mint,
+            object(),  # type: ignore[arg-type]
+            object(),  # type: ignore[arg-type]
+            object(),  # type: ignore[arg-type]
+            "0x" + "00" * 32,
+        )
+
+
+def test_publication_api_has_no_caller_supplied_authority_objects() -> None:
+    # Arrange: the method signature is part of the authority-boundary contract.
+    signature = inspect.signature(
+        VerifiedDurableEconomicPublisherV1.publish_economic_epoch
+    )
+
+    # Act: enumerate every caller-controlled publication input.
+    parameter_names = tuple(signature.parameters)
+
+    # Assert: witnesses, records, bundles, tokens, and journals remain internal.
+    assert parameter_names == (
+        "self",
+        "expected_source",
+        "candidate",
+        "body_and_state",
+    )
+    assert "journal" not in VerifiedDurableEconomicPublisherV1.__dict__
+    assert "verify_economic_epoch" not in VerifiedDurableEconomicPublisherV1.__dict__
+    assert "commit_verified_economic_epoch" not in (
+        VerifiedDurableEconomicPublisherV1.__dict__
+    )

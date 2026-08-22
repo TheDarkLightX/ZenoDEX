@@ -33,6 +33,8 @@ migration activation bundle. For that activation it stores a bounded,
 contiguous ordinary-epoch history with:
 
 - a journal-minted process-local CAS snapshot token;
+- owned activation snapshots and exact activation/epoch head resolution from
+  one validated SQLite read snapshot;
 - exact byte retry, including historical retry after later epochs;
 - globally unique verifier commit identity across the activation history;
 - typed stale-head and capacity no-ops;
@@ -67,12 +69,17 @@ RISC0 receipt, reconstruct verifier-owned route-binding roots, decide policy,
 authorize a command, establish data availability or objective finality, deliver
 an outbox item, reconcile an acknowledgment, or grant writer authority.
 
-The current in-memory verifier/publisher and this durable journal remain
-separate. Calling them sequentially would leave a two-phase crash window.
-Production mounting therefore remains forbidden until one verifier-owned
-publisher performs verification freshness checks and the durable CAS commit at
-one controlled linearization point, while all alternative value writers are
-fenced or retired.
+`VerifiedDurableEconomicPublisherV1` now owns one unmounted path from retained
+receipt verification through exact source/body/effect binding and internal
+bundle derivation to this journal's CAS transaction. Verification has no durable
+side effect, and SQLite remains the publication linearization point. The direct
+journal API still performs structural checks only and grants no receipt or
+writer authority.
+
+Production mounting remains forbidden. The selected verifier is not yet bound
+to a deployed release registry, alternative value writers are not fenced,
+migrations and outbox delivery remain outside this publisher, and Rust/RISC0
+runtime parity is incomplete.
 
 Passing this slice narrows VM-10 durable-publication risk. It does not close
 VM-09 sole-authority mounting, VM-10 external delivery refinement, VM-11 full

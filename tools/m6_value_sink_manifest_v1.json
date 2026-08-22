@@ -79,7 +79,10 @@
       "sink_id": "global_economic_durable_epoch_publication_sql",
       "sink_kind": "SQL_DML",
       "symbol": "GlobalEconomicEpochJournalV1._commit_under_lock_v1",
-      "writer_entrypoint_ids": []
+      "writer_entrypoint_ids": [
+        "separate_global_economic_durable_publisher",
+        "separate_global_economic_epoch_journal_commit"
+      ]
     },
     {
       "authority_status": "M6_RESEARCH_ONLY",
