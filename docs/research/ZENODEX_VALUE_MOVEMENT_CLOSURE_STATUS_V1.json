@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "1ea1303dd8509b34bf8278c54720fa9f458060fc",
+    "commit": "348076a1dacc3348fb819f217d4bb40913edb27f",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,7 +14,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "e2ab805e2726ad644d1389e2ab195a23032c7b04e9661d03f6ad4b7c93f5d72c",
+    "sha256": "d2a5f41056e8503f0ad8fe8bc9c7660798e67b27b24d112994ae191aa3c2262e",
     "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
     "verdict": "UNPROVED"
   },
@@ -202,6 +202,23 @@
         "external delivery, finality, retry, acknowledgment authenticity, idempotency and durable reconciliation are unproved",
         "no real ELF, measured image, proof, receipt replay, mount, or production authority exists"
       ]
+    },
+    {
+      "reviewer": "built-in max terminal-continuity review workers",
+      "subject_commit": "348076a1dacc3348fb819f217d4bb40913edb27f",
+      "verdict": "NO_RESULT_INFRASTRUCTURE_STALL",
+      "scope": "Terminal-obligation continuity semantics, binding, Python/Rust/RISC0 source parity, BVA, mutation killers, and claim wording.",
+      "attempts": [
+        "GPT-5.6 Sol max attempt 1",
+        "GPT-5.6 Sol max attempt 2",
+        "GPT-5.6 Terra max",
+        "GPT-5.6 Luna max"
+      ],
+      "residual_nonclaims": [
+        "no independent review verdict exists for this slice",
+        "the changed Rust targets and shared golden vector are uncompiled and unrun in Rust",
+        "no real ELF, measured image, proof, receipt replay, mount, or production authority exists"
+      ]
     }
   ],
   "implemented_slices": [
@@ -294,7 +311,7 @@
         "UNMOUNTED",
         "UNPROVED_PRIVATE_LANE_STATE"
       ],
-      "closed_obligation": "For valid deeply owned states and one exact authority-selected profile-bound manifest, every explicit initial balance, supply, accounting-control-domain, liability, reserve, and terminal-obligation target row is classified exactly once by kind, canonical index, and canonical row root; omission, duplication, reordering, stale data, illegal-for-kind classification, and relative source substitution reject before receipt verification.",
+      "closed_obligation": "For valid deeply owned states and one exact authority-selected profile-bound manifest, every explicit initial balance, supply, named accounting-location, liability, reserve, and terminal-obligation target row is classified exactly once by kind, canonical index, and canonical row root; omission, duplication, reordering, stale data, illegal-for-kind classification, and relative source substitution reject before receipt verification.",
       "remaining_obligations": [
         "private lane-root object coverage",
         "total predecessor-source migration classification including closed and tombstoned objects",
@@ -367,7 +384,7 @@
       "closed_obligation": "Genesis rejects a predecessor witness. Migration requires one exact GlobalEconomicStateV1 predecessor witness and binds its recomputed state root, chain, deployment, source profile root, writer epoch, and height before receipt verification; source and target explicit-row graphs reject above 4096 before row validation or hashing.",
       "remaining_obligations": [
         "authenticate the predecessor as the finalized source head",
-        "prove source-to-target replay, history, terminal, outbox, and private lane continuity",
+        "prove source-to-target Oracle, history, terminal validity and payable paths, external-effect authorization and delivery, and private lane continuity",
         "prove total predecessor-object migration classification and source authorization",
         "compile and run the changed Rust targets with exact locks",
         "build, measure, prove, and independently replay the new guest image",
@@ -445,6 +462,51 @@
         "prove every source row originated from an authorized committed external effect",
         "authenticate the predecessor as the finalized source head",
         "prove delivery, external finality, retry, acknowledgment authenticity, destination idempotency and durable reconciliation",
+        "compile and run the changed Rust ABI, golden-vector and RISC0 shared targets with exact locks",
+        "build, measure, prove and independently replay the new guest image",
+        "select the image and migration through committed release registries",
+        "mount durable atomic activation and writer rotation"
+      ]
+    },
+    {
+      "id": "ECONOMIC_INITIAL_STATE_TERMINAL_CONTINUITY_V1",
+      "commit": "348076a1dacc3348fb819f217d4bb40913edb27f",
+      "design_sha256": "da6a92688d357bec8fef665bc48b95f82c336714fa02d7db06e118621ae8b9e8",
+      "design_sha256_at_source_commit": "b3f08929f7de87b20ca3cdb165156e06700b46d621250276137c4c01062cca26",
+      "python_sha256": "923b17757dc2ef3603404353aaac075ab2e9025f5a871714c3c64f0895f0200d",
+      "python_admission_sha256": "48c4cdb6ca2ab1fc71fb5ab9ef4be3079ffdcfbf7e7a50ed7b660b20437d7011",
+      "python_unit_test_sha256": "b90e9ff84468c6a9ea4d939027c1ee0faab3b8644b1c70c97c9f238ec3c0e40e",
+      "python_integration_test_sha256": "e565493a0231d3ee24b1795bc568be67492835c591a6443e97b8bff5361d7d54",
+      "golden_fixture_sha256": "34f3f60ee22f14ec0b2b6b9d874a4cf45460488d840feaac9eb0d63d243a470d",
+      "golden_renderer_sha256": "d2420f56d2e73d59146e84d2d25126bc1e038e56f9672b422ce18889d094de0f",
+      "golden_continuity_root": "0xd8e20ce9589e9ea0aae937356e42cf7d1e418def919db6806663f6e9d2f0eb87",
+      "golden_canonical_bytes_sha256": "ad87b5e6a94f1ed91ee0542a17950519a89c0816d4e3a3f8f863a324af56cda1",
+      "rust_sha256": "271b4eb94f5eb32b7f38a64e1c1e581217797224f33e93f2da4e25571e78beaf",
+      "rust_admission_sha256": "904617d86f8e55ccf6d84a6f621feb67755e9e9c7a4a14d2db411a1e6bdd4daa",
+      "rust_test_sha256": "e6fb11e677053aba881855dbc5b6550499e950eaee7442b308ba6eaf945a4535",
+      "risc0_shared_sha256": "bc297a34d9b03aea48218e534ab344aed4c57e4c7c95550e25254e140cd93f67",
+      "risc0_shared_test_sha256": "1b7f4689d7593d9f4a4a84466a19c0b41dbc9738f741c211df93707a8144fcd0",
+      "risc0_test_support_sha256": "897a25f8aa593bdded5aea773612cb4edd94db6ed4d3ff90700a0ef40165668b",
+      "status": [
+        "IMPLEMENTED_PYTHON_REFERENCE",
+        "IMPLEMENTED_RUST_ABI_SOURCE",
+        "IMPLEMENTED_RISC0_SHARED_CORE_SOURCE",
+        "TESTED_PYTHON_AAA_BVA_MUTATION_KILLERS",
+        "SHARED_GOLDEN_VECTOR_GENERATED",
+        "INDEPENDENT_REVIEW_PENDING",
+        "RUST_TARGETS_UNCOMPILED",
+        "REAL_ELF_UNBUILT",
+        "REAL_RECEIPT_UNPROVED",
+        "UNMOUNTED"
+      ],
+      "closed_obligation": "Genesis commits its complete classified target terminal-obligation table with no predecessor. Migration preserves the exact complete predecessor table, including every field, status, count and order, under the shared 4096-row explicit-value preflight; mutation and public-root substitution reject before receipt verification.",
+      "remaining_obligations": [
+        "prove obligation validity and funding",
+        "prove claimant key control and payable terminal-route completeness",
+        "prove correct drain and tombstone semantics through ordinary transitions",
+        "authenticate the predecessor as the finalized source head",
+        "complete total predecessor-source migration classification",
+        "obtain an independent critical review verdict",
         "compile and run the changed Rust ABI, golden-vector and RISC0 shared targets with exact locks",
         "build, measure, prove and independently replay the new guest image",
         "select the image and migration through committed release registries",
@@ -607,12 +669,12 @@
     {
       "id": "VM-11",
       "status": "PARTIAL",
-      "evidence": "For valid deeply owned states and one exact authority-selected profile-bound manifest, Python and Rust derive the same roots for every explicit balance, supply, accounting-control-domain, liability, reserve, and terminal-obligation target row, including all terminal statuses and u128 boundaries. Commit 8eea5cb80 requires a migration witness to disclose a full predecessor GlobalEconomicStateV1 and binds its recomputed root and coordinates. Commit 659cbc9ff requires empty genesis replay and exact preservation of every predecessor global replay row. Commit 1ea1303dd requires an empty genesis outbox and exact migration preservation of every external-effect outbox row under a 4096-row preflight. Generated Python/Rust vectors bind complete replay and outbox tables; Python tests kill replay deletion/rewriting and every outbox field, add/delete/order and public-root mutant before receipt verification. The changed Rust targets and shared vectors remain uncompiled and unrun in Rust. Target-only replay additions remain unauthenticated. Outbox source authorization, delivery, finality, retry, acknowledgment authenticity, idempotency and durable reconciliation remain unproved. Predecessor finality, a valid complete migration relation, Oracle/history/terminal/private-lane continuity, private nullifier continuity, semantic migration labels, total predecessor-source classification, objective source authorization, a real measured ELF and receipt, migration-registry selection, durable atomic activation, and coexistence theorems remain absent."
+      "evidence": "For valid deeply owned states and one exact authority-selected profile-bound manifest, Python and Rust derive the same roots for every explicit balance, supply, named accounting-location, liability, reserve, and terminal-obligation target row, including all terminal statuses and u128 boundaries. Commit 8eea5cb80 requires a migration witness to disclose a full predecessor GlobalEconomicStateV1 and binds its recomputed root and coordinates. Commit 659cbc9ff requires empty genesis replay and exact preservation of every predecessor global replay row. Commit 1ea1303dd requires an empty genesis outbox and exact migration preservation of every external-effect outbox row. Commit 348076a1d requires no genesis terminal predecessor and exact migration preservation of every terminal-obligation field, status, count and canonical order under the combined 4096-row explicit-value preflight. Generated Python/Rust vectors bind complete replay, outbox and terminal tables; executed Python tests kill terminal public-root substitution and every terminal field, add, delete and order mutant before receipt verification. The changed Rust targets and shared vectors remain uncompiled and unrun in Rust, and independent terminal-slice review remains pending after four stalled built-in max workers spanning Sol, Terra, and Luna. Target-only replay additions remain unauthenticated. Terminal obligation validity, funding, claimant key control, payable routes, and drain or tombstone semantics remain unproved. Outbox source authorization, delivery, finality, retry, acknowledgment authenticity, idempotency and durable reconciliation remain unproved. Predecessor finality, a valid complete migration relation, Oracle and history continuity, private-lane and private-nullifier continuity, semantic migration labels, total predecessor-source classification, objective source authorization, a real measured ELF and receipt, migration-registry selection, durable atomic activation, and coexistence theorems remain absent."
     },
     {
       "id": "VM-12",
       "status": "GAP",
-      "evidence": "This ledger binds clean scoped implementation subject 1ea1303dd and a GPT-5.6 Sol max static outbox-continuity PASS after one Low mutation-portfolio repair. Compilation of the changed Rust targets, Rust replay of the shared vector, real proof replay, reproducible proof-machine artifacts, and complete release evidence remain absent."
+      "evidence": "This ledger binds clean scoped implementation subject 348076a1d. The most recent completed independent result remains the GPT-5.6 Sol max static outbox-continuity PASS on 1ea1303dd. Four built-in max review workers spanning Sol, Terra, and Luna stalled without a report, so the terminal slice has no independent verdict. Compilation of the changed Rust targets, Rust replay of the shared vector, real proof replay, reproducible proof-machine artifacts, and complete release evidence remain absent."
     }
   ],
   "live_gate_observations": {
@@ -647,7 +709,7 @@
   },
   "next_dependency_order": [
     "Bind the complete intended M6 capability manifest into the profile and map each row to command, transition, effect, route, terminal, adapter, and evidence status.",
-    "Implement separate invariant-owner certificates for Oracle, history, terminal and private lane-object continuity, source-head authority, target-only replay authorization, complete private nullifier continuity, outbox source authorization and delivery/acknowledgment refinement, and total predecessor-source migration classification; then build, measure, register, prove, and replay the predecessor-bound initialization guest on the proof machine.",
+    "Implement separate invariant-owner certificates for Oracle, history, terminal validity and payable-path completeness, and private lane-object continuity, source-head authority, target-only replay authorization, complete private nullifier continuity, outbox source authorization and delivery/acknowledgment refinement, and total predecessor-source migration classification; then build, measure, register, prove, and replay the predecessor-bound initialization guest on the proof machine.",
     "Extend operation-derived sink discovery across dynamic Python, Rust, Tau, shell, generated code, native extensions, deployment wiring, and deployed reachability, then close VM-01.",
     "Complete effect source, authorization, claimant, residue, terminal, and external-delivery bindings.",
     "Seal authoritative verification behind a measured release-selected verifier.",
@@ -661,6 +723,7 @@
     "No claim that predecessor content commitment proves source-head finality or a valid source-to-target migration relation.",
     "No claim that replay-row preservation authenticates target-only replay additions or proves private-lane nullifier continuity.",
     "No claim that outbox-table preservation proves authorized origin, external delivery, finality, acknowledgment authenticity, idempotency or durable reconciliation.",
+    "No claim that terminal-table preservation proves obligation validity, funding, claimant key control, payable-path completeness, or correct drain and tombstone semantics.",
     "No claim that the latest Tau main is production-stable or integration-compatible.",
     "No claim that existing proof compression establishes omitted economic semantics."
   ]

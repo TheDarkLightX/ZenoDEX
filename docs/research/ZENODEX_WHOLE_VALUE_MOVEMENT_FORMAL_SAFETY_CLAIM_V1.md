@@ -474,7 +474,7 @@ is not yet composed into admission, activation is not durable and atomic, and
 coexisting shared-asset releases lack their required theorems.
 
 The bounded initialization admission now derives a canonical occurrence for
-every explicit balance, supply, accounting-control-domain, liability, reserve,
+every explicit balance, supply, named accounting-location, liability, reserve,
 and terminal-obligation row in `GlobalEconomicStateV1`. Each occurrence binds
 its row kind, canonical table index, and canonical row root. A closed source
 manifest classifies every target occurrence exactly once as a genesis
@@ -503,10 +503,10 @@ explicit-row graph receives the same 4,096-row preflight ceiling as the target.
 
 This predecessor binding proves knowledge of the exact committed global-state
 preimage. It does not prove that the disclosed state was the finalized ledger
-head or that the target is a valid migration of it. Oracle, history, terminal,
-outbox, and private lane contents are committed through the global state root,
-while their source-to-target continuity relations remain separate unimplemented
-obligations.
+head or that the target is a valid migration of it. Oracle, history, terminal
+validity and payable paths, external-effect authorization and delivery, and
+private lane contents remain separate obligations beyond state-root content
+commitment.
 
 Commit `659cbc9ff24d9c261e8b78dd1b0de210dc747a87` adds one bounded replay
 relation. Genesis requires an empty replay table. Migration requires every
@@ -533,6 +533,29 @@ therefore rejects in this bounded source model. This does not prove that a
 source row came from an authorized committed effect, or that delivery,
 external finality, retry, acknowledgment authenticity, destination idempotency
 or durable reconciliation is correct.
+
+Commit `348076a1dacc3348fb819f217d4bb40913edb27f` adds one conservative
+terminal-obligation continuity relation. Genesis requires no predecessor and
+commits the complete target terminal table whose rows the separate atom
+manifest classifies. Migration requires exact equality between complete
+predecessor and target tables, including obligation ID, lane ID, claimant,
+asset, amount atoms, status, row count, and canonical order. The public root
+also commits the initialization kind and exact source and target state roots.
+Terminal rows share the 4,096-row combined explicit-value ceiling with
+balances, supplies, named accounting-location rows, liabilities, and reserves.
+
+Executed Python admission tests kill public-root substitution, addition,
+deletion, reordering, every terminal field mutation, and both illegal
+kind/predecessor shapes before receipt verification. The checked-in golden
+fixture commits the complete Python/Rust projection. Rust ABI, vector, and
+RISC0 shared-core test sources exist and remain uncompiled. This relation
+rejects migration-time erasure or rewrite of the disclosed terminal table in
+the bounded admission model. It does not establish obligation validity,
+funding, claimant key control, a payable terminal route, correct drain or
+tombstone semantics, source-head finality, or complete migration
+classification. Four built-in max-review workers spanning Sol, Terra, and Luna
+stalled without returning a report, so independent review of this slice
+remains pending.
 
 A pinned RISC0 3.0.6 guest and host source use the same Rust statement checker
 over canonical bounded input and contain guards for development mode,
@@ -608,14 +631,14 @@ remains excluded from GlobalSettlementABI V1.
 1. Freeze the exact complete M6 capability manifest and ZDEX semantic anchors,
    including buy-and-burn, hosting compensation, eight-decimal units,
    retained-supply hyperdeflation, recovery, and terminal behavior.
-2. Add separate invariant-owner certificates for Oracle, history, terminal,
-   and private lane-object continuity; authenticate every target-only replay
-   addition, complete private nullifier continuity, prove outbox source
-   authorization and delivery/acknowledgment refinement, and complete
-   predecessor-source migration classification. Select the genesis or migration
-   release from committed profile state. Build and measure the predecessor-bound
-   RISC0 guest, then generate and replay its real succinct receipt on the proof
-   machine.
+2. Add separate invariant-owner certificates for Oracle, history, terminal
+   validity and payable-path completeness, and private lane-object continuity;
+   authenticate every target-only replay addition, complete private nullifier
+   continuity, prove outbox source authorization and delivery/acknowledgment
+   refinement, and complete predecessor-source migration classification.
+   Select the genesis or migration release from committed profile state. Build
+   and measure the predecessor-bound RISC0 guest, then generate and replay its
+   real succinct receipt on the proof machine.
 3. Extend the operation-derived sink inventory across dynamic Python, Rust,
    Tau, shell, generated code, native extensions, runtime loading, deployment
    wiring, and deployed entrypoints. Bind every discovered sink to an
@@ -718,3 +741,6 @@ Any false or missing conjunct keeps the claim disabled.
   additions or proves complete nonce and private-nullifier continuity.
 - No assertion that outbox-table preservation proves authorized origin,
   external delivery, finality, acknowledgment authenticity or idempotency.
+- No assertion that terminal-table preservation proves obligation validity,
+  funding, claimant key control, payable-path completeness, or correct drain
+  and tombstone semantics.

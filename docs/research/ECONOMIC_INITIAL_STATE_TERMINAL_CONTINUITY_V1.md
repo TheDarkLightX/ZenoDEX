@@ -101,6 +101,6 @@ status, BVA at 4,096/4,097, and a shared Python/Rust canonical vector.
 - No source-head finality or complete predecessor-object classification proof.
 - No permission to create, drain, rewrite, or tombstone obligations in migration.
 - No compiled changed Rust targets or real RISC0 receipt for this source.
-- No completed independent-review result for this slice; three built-in max
-  review attempts stalled without returning a report.
+- No completed independent-review result for this slice; four built-in max
+  workers spanning Sol, Terra, and Luna stalled without returning a report.
 - No mount, writer rotation, production authority, or whole-value safety claim.
