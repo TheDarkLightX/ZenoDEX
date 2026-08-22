@@ -71,6 +71,42 @@
     },
     {
       "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "AUTHORITY_CONTROL_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/global_economic_migration_journal_v1.py",
+      "rationale": "Updates the singleton research activation head inside the same SQLite transaction that inserts one complete migration candidate; the journal is unmounted and the CAS token grants no writer authorization.",
+      "release_binding": null,
+      "sink_id": "global_economic_durable_activation_head_sql",
+      "sink_kind": "SQL_DML",
+      "symbol": "GlobalEconomicMigrationJournalV1._commit_under_lock_v1",
+      "writer_entrypoint_ids": []
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "INITIALIZATION_STATE",
+      "occurrence_count": 3,
+      "path": "src/integration/global_economic_migration_journal_v1.py",
+      "rationale": "Creates the bounded research activation schema, genesis row, and singleton head in one SQLite transaction; no runtime entrypoint mounts this journal.",
+      "release_binding": null,
+      "sink_id": "global_economic_durable_genesis_sql",
+      "sink_kind": "SQL_DML",
+      "symbol": "GlobalEconomicMigrationJournalV1._create_schema_and_genesis_v1",
+      "writer_entrypoint_ids": []
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "DURABLE_VALUE_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/global_economic_migration_journal_v1.py",
+      "rationale": "Inserts one immutable complete activation candidate after source, lineage, capacity, and exact-retry checks; the unmounted journal does not verify receipt validity.",
+      "release_binding": null,
+      "sink_id": "global_economic_durable_activation_insert_sql",
+      "sink_kind": "SQL_DML",
+      "symbol": "GlobalEconomicMigrationJournalV1._insert_activation_v1",
+      "writer_entrypoint_ids": []
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
       "classification": "INITIALIZATION_STATE",
       "occurrence_count": 1,
       "path": "src/integration/m6_commit_port_v1.py",
