@@ -111,14 +111,20 @@ epoch plans, wrong route roots, disconnected histories, duplicate occurrences,
 overflow, zero, 65, missing, foreign, reordered, empty, wrong-kind, and
 verifier-rejected evidence.
 
-The full-state route projection remains an unmounted deterministic checker in
-both language references. The projection binds selected lane journals to the
-monolithic pre/post state roots and preserves every unselected lane. The global
-state/effect refinement is now invoked by the bounded reference epoch verifier
-before its root-receipt port. Epoch candidates disclose exact full pre/post
-states; the verifier binds them to the active profile, certificate roots,
-chain, deployment, writer epoch, and one-step height progression, then retains
-the checker-constructed refinement in `VerifiedEconomicEpochV1`. The refinement
+The full-state route projection is now invoked by the bounded reference epoch
+verifier in both languages. Each route discloses its exact lane journals and
+full intermediate post-state. The checker binds selected lane journals to the
+monolithic pre/post state roots, preserves every unselected lane, and requires
+the ordered disclosures to reach the certificate-bound epoch post-state. The
+verifier also refines each disclosed route transition against that route's
+exact effect plan and replay insertion. This prevents temporary balance,
+supply, custody, liability, reserve, replay, or unsupported-field mutations
+from being hidden between valid epoch endpoints. The global state/effect
+refinement runs before the root-receipt port as an independent whole-epoch
+check. The verifier binds the disclosed states to the active
+profile, certificate roots, chain, deployment, writer epoch, and one-step
+height progression, then retains both checker-constructed witness families in
+`VerifiedEconomicEpochV1`. The refinement
 derives balance, named-custody, liability, reserve, supply, and lane-root deltas;
 binds them to canonical effects; recomputes owned-total/supply conservation;
 and requires fee labels to mirror real value movement. It also derives one
@@ -138,11 +144,18 @@ grants no settlement or publication authority. The enclosing epoch boundary
 uses defensively owned Python snapshots of the complete governed profile graph,
 certificate, disclosed states, occurrences, journals, and effects before
 validation. The reference commit port revalidates the content-derived active
-profile under its lock, reruns state/effect/replay refinement from verifier-owned
-occurrence and route disclosures, rebinds the result to immutable verification
-roots, and owns its published state copy. It still has no deployed cryptographic
-verifier, external governed-profile anchor, durable writer, or production
-authority: `production_authority=NONE`.
+profile under its lock, reruns route/full-state projection and
+per-route plus aggregate state/effect/replay refinement from verifier-owned
+disclosures, rebinds the results to verification-time roots, and owns its
+published state copy. Python handle authority is recovered from a separately
+owned process-local verifier registry. The opaque handle has no writable data
+slots, so coherent private-field injection cannot replace the verified
+transition. This
+process-local registry is defensive reference hardening, not a same-process security or
+cryptographic boundary.
+These reference checkers remain `IMPLEMENTED_UNMOUNTED`: there is no deployed
+route-composer guest, cryptographic verifier, external governed-profile anchor,
+durable writer, or production authority. `production_authority=NONE`.
 
 The deterministic receipt roots are statement commitments, not cryptographic
 proof receipts. This ABI crate contains no guest or cryptographic verifier

@@ -347,9 +347,10 @@ the route/global pre-state root; the allocation journal binds fee-substate
 roots, and the lane journal binds complete tokenomics-lane roots. Leaf and lane
 admission therefore do not equate the occurrence root with either narrower
 root. A coherent unrelated-lane substitution changes the exact lane journal and
-requires a new coordinator receipt. The missing proved projection from the
-global state root to the selected lane roots remains a route/epoch promotion
-gate.
+requires a new coordinator receipt. The bounded reference epoch verifier now
+runs the deterministic full-state route projection over every route and exact
+intermediate state. A route-composer guest, real receipt, and trusted current
+profile anchor remain promotion gates.
 
 All receipt-admission implementations are deliberately `SHADOW`-only.
 `ACTIVE_NEW`, composite, conditional, empty, wrong-effect, and
@@ -423,12 +424,12 @@ receipt consumer, API, client, and historical decoder.
 | Purchased ZDEX is only partly burned | Burn transient bucket must project `B -> 0`; the burn guest preflight rejects partial drain and composed transient rows cancel | Generated burn receipt, real coordinator receipt, recursive route proof, and atomic commit |
 | Burn journal is assembled independently from the checked transition | Rust/Python refinement derives the journal, burn-substate roots, route-context root, totals, and effects; the source-level burn guest reruns that Rust refinement; coherent amount, route, policy, asset, bucket, total, and nonlimiting-cap substitutions are distinguished or reject | Generated burn image and real receipt plus release-selected receipt verification |
 | Partial burn substate is presented as the complete tokenomics lane | Burn journal fields are explicitly named burn-substate roots; leaf effects emit no tokenomics lane write; the coordinator source and guest reject partial lane-root claims and preserve every unrelated component commitment; shadow receipt admission requires the exact verified burn leaf and complete-lane journal; route composition retains a nonzero complete-lane obligation | Generated coordinator image, real child and coordinator receipts, release-backed lane-state registry, route connection, and atomic publication |
-| Python value is mutated after constructor validation | Accepted burn inputs, fee state, common module journals, effect plans, coordinator values, and purchase/burn journals revalidate at refinement, effect projection, root computation, or coordinator admission; hostile scalar and root mutations are regression tested | Python values remain non-authoritative until a release-selected proof verifier admits the exact journal |
+| Python value is mutated after constructor validation | Accepted burn inputs, fee state, common module journals, effect plans, coordinator values, and purchase/burn journals revalidate at refinement, effect projection, root computation, or coordinator admission; hostile scalar and root mutations are regression tested; verified epoch handles have no writable data slots and recover commit inputs from a separately owned process-local registry, so coherent private-field injection is rejected | Python remains a same-process reference and gains no security boundary until a release-selected cryptographic verifier admits the exact journal |
 | Rejected transition changes value | Canonically equal pre/post state and empty effects; Python also preserves object identity | Runtime adapter parity |
 | Epoch ceiling is reused by sequential burns | Burn-budget epoch and remaining capacity are committed in the pre-state and decremented in the post-state; stale larger route ceilings cannot increase capacity | Profile-selected epoch reset transition, guest execution, and global sequencing |
 | Fee split loses atoms to truncation or is coherently rewritten | Exact allocation-plus-residue equation, named reserve, policy-bound transition replay, and a mutation test that shifts one atom between destinations while updating state/effects/roots | Governed residue-release lifecycle and proof-backed policy selection |
 | Fee-allocation substate is presented as the complete tokenomics lane | Source-level Rust/Python coordinator replaces the partial write with one complete-lane write, preserves every sibling component, and has golden-root parity plus mutation-killing no-op tests; the SHADOW RISC0 coordinator recomputes the same complete-lane statement and verifies the exact fee child assumption; profile-selected SHADOW admission binds the exact leaf, module image, coordinator image, and complete-lane journal | Rebuilt image, real recursive proof, pinned concrete receipt verifier, route connection, and atomic publication |
-| Global occurrence root is confused with a fee or lane substate root | Leaf and lane admission preserve separate root domains; Rust/Python tests use a global occurrence root distinct from the fee root, and an unrelated complete-lane substitution fails against the original exact receipt | Proved global-state-to-lane projection at route/epoch admission |
+| Global occurrence root is confused with a fee or lane substate root | Leaf and lane admission preserve separate root domains; Rust/Python tests use a global occurrence root distinct from the fee root, an unrelated complete-lane substitution fails against the original exact receipt, and the reference epoch verifier checks every selected lane journal against the corresponding full-state roots while preserving unselected lanes and refining each intermediate transition against its exact route effects | Route-composer guest, real receipt, and trusted current-profile anchoring |
 | Caller invents a buyback budget | Shadow route recomputes the fixed-policy allocation and binds journal digest, state roots, amount, source, and consumed-object ID; this rejects semantically invalid invented budgets | Real allocation guest receipt, historical inclusion, and persistent global consumed-object enforcement |
 | Buyback budget debits another holder | Closed protocol buyback source bucket in both composers | Complete mounted caller inventory |
 | Accepted allocation wrapper shifts value between destinations | Independent transition recomputation rejects a sum-preserving allocation mutant before receipt verification | Real guest/image evidence and profile-selected policy registry |
@@ -544,12 +545,17 @@ exact design.
   rejection, journal-byte BVA, and Rust/Python lane-witness golden parity;
 - `src/core/route_global_state_projection_v1.py` and
   `zk/global_settlement_abi_v1/src/route_global_state_projection.rs`: an
-  `IMPLEMENTED_UNMOUNTED` full-state checker that recomputes the monolithic
-  global pre/post roots, binds the exact candidate-profile-selected route and
-  ordered lane journals, projects selected lane roots, and rejects any change
-  to an unselected lane. It does not authenticate a trusted current-profile
-  anchor. The Rust result is opaque and construction-controlled; the Python
-  result remains process-local reference evidence;
+  `IMPLEMENTED_UNMOUNTED` full-state checker now invoked for every route by the
+  bounded reference epoch verifier. It recomputes the monolithic global
+  pre/post roots, binds the exact candidate-profile-selected route and ordered
+  lane journals, projects selected lane roots, rejects any change to an
+  unselected lane, and requires the disclosed intermediate-state chain to reach
+  the epoch post-state. Epoch admission additionally applies exact per-route
+  state/effect/replay refinement, so a temporary non-lane mutation cannot be
+  introduced and restored between honest endpoints. It does not authenticate a
+  trusted current-profile anchor or verify a route-composer receipt. The Rust
+  result is opaque and construction-controlled; the Python result remains
+  process-local reference evidence;
 - `tests/core/test_route_global_state_projection_v1.py` and the matching Rust
   test: cross-language projection-root parity plus profile, epoch, global-root,
   selected-root, sibling-lane, release metadata, coordinator, route, reorder,
@@ -587,14 +593,19 @@ exact design.
   Python/Rust replay-ID and single/multi-occurrence refinement-root goldens;
 - the Python/Rust epoch-verifier suites now construct full state histories at
   1, 8, 9, and 64 occurrences and kill replay-omission, false-balance, foreign
-  refinement-witness, and height-semantics mutants before root-receipt
-  verification;
+  refinement-witness, disclosure-count, hidden intermediate unselected-lane,
+  transient intermediate balance injection/restoration, and height-semantics
+  mutants before root-receipt verification;
 - Python callback and retained-alias RIPR now require owned certificate,
   effect-plan, full-state, body, and complete governed-profile snapshots; the
   reference commit port revalidates content-derived profile identity under its
-  lock, reruns state/effect/replay refinement from verifier-owned disclosures,
-  binds the result to immutable verification roots, and rejects coherent
-  certificate, profile, or post-state rerooting before publication;
+  lock, reruns route/full-state projection and state/effect/replay refinement
+  from verifier-owned disclosures, binds the results to verification-time
+  roots, and rejects coherent certificate, profile, intermediate-state, or
+  post-state rerooting before publication. A separately owned process-local
+  authority registry plus a data-slot-free opaque handle rejects coherent
+  private-field injection at commit and exact retry. This narrows Python alias risk;
+  it does not create a same-process security boundary;
 - Replay-ID safety assumes authenticated ingress supplies one canonical
   `subject_id` per principal, canonical chain identity, and migration rules
   that preserve deployment replay continuity. This checker does not establish
@@ -639,10 +650,12 @@ This work remains `EXPERIMENTAL_UNMOUNTED` until all of the following exist:
    connection, release/source/toolchain manifests, and replayed
    wrong-image/journal/profile/assumption evidence before either route
    discharges its nonzero obligation or supplies the full tokenomics lane write;
-6. trusted current-profile anchoring plus route-composer guest and admission
-   integration of the full-state projection. The unmounted deterministic epoch
-   boundary now invokes the state/effect refinement checker and enforces replay
-   insertion, balances, supply, named
+6. trusted current-profile anchoring plus a route-composer guest, real receipt,
+   and governed cryptographic admission for the full-state projection. The
+   unmounted deterministic epoch boundary now invokes the per-route full-state
+   projection, per-route state/effect/replay refinement, and
+   whole-epoch state/effect refinement checkers. It enforces replay insertion,
+   balances, supply, named
    custody, liabilities, reserves, fee-mirror, conservation, and lane-write
    structure. Oracle occurrence updates, terminal obligations, history
    derivation, external outbox commit binding, and the durable effect applicator

@@ -1,9 +1,10 @@
 //! Exact refinement between full global states and canonical economic effects.
 //!
 //! This deterministic checker covers sparse amount tables, supply, lane roots,
-//! replay insertion, one-step nonempty epoch height progression, and conservation
-//! rows. Unsupported state and effect categories fail closed. The result verifies
-//! no receipt and grants no publication authority.
+//! replay insertion, one-step whole-epoch height progression, intra-epoch route
+//! height preservation, and conservation rows. Unsupported state and effect
+//! categories fail closed. The result verifies no receipt and grants no
+//! publication authority.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -81,7 +82,7 @@ impl GlobalEconomicStateEffectRefinementV1 {
 fn require_fixed_context_v1(
     pre_state: &GlobalEconomicStateV1,
     post_state: &GlobalEconomicStateV1,
-    has_occurrences: bool,
+    expected_post_height: u64,
 ) -> AbiResultV1<()> {
     if pre_state.chain_id != post_state.chain_id
         || pre_state.deployment_root != post_state.deployment_root
@@ -96,12 +97,6 @@ fn require_fixed_context_v1(
             "economic refinement unsupported global field changed",
         ));
     }
-    let expected_post_height = pre_state
-        .height
-        .checked_add(u64::from(has_occurrences))
-        .ok_or(AbiErrorV1::InvalidBounds(
-            "economic refinement state height",
-        ))?;
     if post_state.height != expected_post_height {
         return Err(AbiErrorV1::InvalidBinding(
             "economic refinement state height progression",
@@ -299,8 +294,9 @@ fn require_conservation_v1(
     Ok(())
 }
 
-pub fn refine_global_economic_state_effects_v1(
+fn refine_with_expected_post_height_v1(
     candidate: &GlobalEconomicStateEffectRefinementCandidateV1<'_>,
+    expected_post_height: u64,
 ) -> AbiResultV1<GlobalEconomicStateEffectRefinementV1> {
     candidate.pre_state.validate()?;
     candidate.post_state.validate()?;
@@ -315,7 +311,7 @@ pub fn refine_global_economic_state_effects_v1(
     require_fixed_context_v1(
         candidate.pre_state,
         candidate.post_state,
-        !candidate.effect_plan.occurrence_consumptions.is_empty(),
+        expected_post_height,
     )?;
     require_nonzero_sparse_amounts_v1(candidate.pre_state)?;
     require_nonzero_sparse_amounts_v1(candidate.post_state)?;
@@ -349,4 +345,42 @@ pub fn refine_global_economic_state_effects_v1(
         effect_plan_root,
         state_delta_root: state_delta.state_delta_root,
     })
+}
+
+pub fn refine_global_economic_state_effects_v1(
+    candidate: &GlobalEconomicStateEffectRefinementCandidateV1<'_>,
+) -> AbiResultV1<GlobalEconomicStateEffectRefinementV1> {
+    let has_occurrences = !candidate.effect_plan.occurrence_consumptions.is_empty();
+    let expected_post_height = candidate
+        .pre_state
+        .height
+        .checked_add(u64::from(has_occurrences))
+        .ok_or(AbiErrorV1::InvalidBounds(
+            "economic refinement state height",
+        ))?;
+    refine_with_expected_post_height_v1(candidate, expected_post_height)
+}
+
+pub fn refine_route_global_economic_state_effects_v1(
+    candidate: &GlobalEconomicStateEffectRefinementCandidateV1<'_>,
+) -> AbiResultV1<GlobalEconomicStateEffectRefinementV1> {
+    if candidate.consumed_occurrences.len() != 1
+        || candidate.route_journals.len() != 1
+        || candidate.effect_plan.occurrence_consumptions.len() != 1
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "route economic refinement occurrence count",
+        ));
+    }
+    let occurrence = &candidate.consumed_occurrences[0];
+    let post_height = candidate.post_state.height;
+    if occurrence.height != post_height
+        || (candidate.pre_state.height != post_height
+            && candidate.pre_state.height.checked_add(1) != Some(post_height))
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "route economic refinement epoch height context",
+        ));
+    }
+    refine_with_expected_post_height_v1(candidate, post_height)
 }

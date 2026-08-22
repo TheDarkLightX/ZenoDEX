@@ -11,7 +11,9 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 from enum import Enum
+from threading import Lock
 from typing import TYPE_CHECKING, Protocol
+from weakref import WeakKeyDictionary
 
 from .epoch_effect_composition_v1 import compose_asset_lane_epoch_effect_plans_v1
 from .global_settlement_types_v1 import (
@@ -706,6 +708,48 @@ class SuccinctReceiptVerifierV1(Protocol):
 
 
 @dataclass(frozen=True, slots=True)
+class EconomicEpochRouteStateDisclosureV1:
+    """Exact lane journals and full post-state disclosed for one route."""
+
+    lane_journals: tuple[LaneCompositionJournalV1, ...]
+    post_state: GlobalEconomicStateV1
+
+    def __post_init__(self) -> None:
+        if type(self.lane_journals) is not tuple or any(
+            type(item) is not LaneCompositionJournalV1 for item in self.lane_journals
+        ):
+            raise TypeError("economic epoch route lane journals must be exact typed values")
+        if type(self.post_state) is not GlobalEconomicStateV1:
+            raise TypeError("economic epoch route post-state must be exact typed state")
+
+
+def _snapshot_epoch_route_state_disclosure_v1(
+    disclosure: EconomicEpochRouteStateDisclosureV1,
+    *,
+    name: str,
+) -> EconomicEpochRouteStateDisclosureV1:
+    from .global_economic_refinement_snapshot_v1 import (
+        _require_exact_tuple_items,
+        _snapshot_lane_journal_v1,
+        _snapshot_state_v1,
+    )
+
+    if type(disclosure) is not EconomicEpochRouteStateDisclosureV1:
+        raise TypeError(f"{name} must have the exact typed value")
+    return EconomicEpochRouteStateDisclosureV1(
+        lane_journals=tuple(
+            _snapshot_lane_journal_v1(journal)
+            for journal in _require_exact_tuple_items(
+                disclosure.lane_journals,
+                LaneCompositionJournalV1,
+                f"{name} lane journals",
+            )
+        ),
+        post_state=_snapshot_state_v1(disclosure.post_state),
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class EconomicEpochReceiptCandidateV1:
     """Immutable untrusted input bundle for bounded epoch verification."""
 
@@ -715,6 +759,7 @@ class EconomicEpochReceiptCandidateV1:
     post_state: GlobalEconomicStateV1
     command_occurrences: tuple[EconomicCommandOccurrenceV1, ...]
     route_journals: tuple[RouteCompositionJournalV1, ...]
+    route_state_disclosures: tuple[EconomicEpochRouteStateDisclosureV1, ...]
     verified_routes: tuple[VerifiedRouteCompositionV1, ...]
     route_effect_plans: tuple[GlobalEconomicEffectPlanV1, ...]
     effect_plan: GlobalEconomicEffectPlanV1
@@ -745,6 +790,13 @@ class EconomicEpochReceiptCandidateV1:
             type(item) is not RouteCompositionJournalV1 for item in self.route_journals
         ):
             raise TypeError("economic epoch contains an invalid route journal")
+        if type(self.route_state_disclosures) is not tuple or any(
+            type(item) is not EconomicEpochRouteStateDisclosureV1
+            for item in self.route_state_disclosures
+        ):
+            raise TypeError("economic epoch contains an invalid route state disclosure")
+        if len(self.route_state_disclosures) != len(self.command_occurrences):
+            raise ValueError("economic epoch route state disclosure count mismatch")
         if type(self.verified_routes) is not tuple or any(
             type(item) is not VerifiedRouteCompositionV1 for item in self.verified_routes
         ):
@@ -801,6 +853,17 @@ def _snapshot_economic_epoch_candidate_v1(
                 candidate.route_journals,
                 RouteCompositionJournalV1,
                 "epoch route journals",
+            )
+        ),
+        route_state_disclosures=tuple(
+            _snapshot_epoch_route_state_disclosure_v1(
+                disclosure,
+                name="epoch route state disclosure",
+            )
+            for disclosure in _require_exact_tuple_items(
+                candidate.route_state_disclosures,
+                EconomicEpochRouteStateDisclosureV1,
+                "epoch route state disclosures",
             )
         ),
         verified_routes=tuple(
@@ -860,121 +923,210 @@ def derive_verified_economic_epoch_commit_id_v1(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class _VerifiedEconomicEpochAuthorityRecordV1:
+    """Verifier-owned immutable source for one process-local opaque handle."""
+
+    certificate: GlobalEconomicEpochCertificateV1
+    certificate_root: str
+    command_occurrences: tuple[EconomicCommandOccurrenceV1, ...]
+    effect_plan: GlobalEconomicEffectPlanV1
+    effect_plan_root: str
+    ordered_route_binding_roots: tuple[str, ...]
+    profile: EconomicProfileSnapshotV1
+    receipt_digest: str
+    route_effect_plans: tuple[GlobalEconomicEffectPlanV1, ...]
+    route_journals: tuple[RouteCompositionJournalV1, ...]
+    route_state_disclosures: tuple[EconomicEpochRouteStateDisclosureV1, ...]
+    route_state_effect_refinement_roots: tuple[str, ...]
+    route_state_projection_roots: tuple[str, ...]
+    state_effect_refinement: GlobalEconomicStateEffectRefinementV1
+    state_effect_refinement_root: str
+
+
+@dataclass(frozen=True, slots=True)
+class _VerifiedEconomicEpochRouteEvidenceV1:
+    command_occurrences: tuple[EconomicCommandOccurrenceV1, ...]
+    ordered_route_binding_roots: tuple[str, ...]
+    route_effect_plans: tuple[GlobalEconomicEffectPlanV1, ...]
+    route_journals: tuple[RouteCompositionJournalV1, ...]
+    route_state_disclosures: tuple[EconomicEpochRouteStateDisclosureV1, ...]
+    route_state_effect_refinement_roots: tuple[str, ...]
+    route_state_projection_roots: tuple[str, ...]
+
+
+def _snapshot_verified_epoch_root_tuple_v1(
+    values: tuple[str, ...],
+    *,
+    name: str,
+    expected_count: int,
+) -> tuple[str, ...]:
+    _require_tuple(values, name=name)
+    if len(values) != expected_count:
+        raise ValueError(f"{name} count mismatch")
+    if not values:
+        raise ValueError(f"{name} must not be empty")
+    if any(type(root) is not str for root in values):
+        raise TypeError(f"{name} must contain exact str roots")
+    for index, root in enumerate(values):
+        _require_root(root, name=f"{name}[{index}]")
+    if len(values) != len(set(values)):
+        raise ValueError(f"{name} must be unique")
+    return tuple(values)
+
+
+def _snapshot_verified_epoch_route_evidence_v1(
+    authority: _VerifiedEconomicEpochAuthorityRecordV1,
+) -> _VerifiedEconomicEpochRouteEvidenceV1:
+    from .global_economic_refinement_snapshot_v1 import (
+        _require_exact_tuple_items,
+        _snapshot_effect_plan_v1,
+        _snapshot_occurrence_v1,
+        _snapshot_route_journal_v1,
+    )
+
+    occurrences = tuple(
+        _snapshot_occurrence_v1(item)
+        for item in _require_exact_tuple_items(
+            authority.command_occurrences,
+            EconomicCommandOccurrenceV1,
+            "verified epoch command occurrences",
+        )
+    )
+    journals = tuple(
+        _snapshot_route_journal_v1(item)
+        for item in _require_exact_tuple_items(
+            authority.route_journals,
+            RouteCompositionJournalV1,
+            "verified epoch route journals",
+        )
+    )
+    effect_plans = tuple(
+        _snapshot_effect_plan_v1(item)
+        for item in _require_exact_tuple_items(
+            authority.route_effect_plans,
+            GlobalEconomicEffectPlanV1,
+            "verified epoch route effect plans",
+        )
+    )
+    disclosures = tuple(
+        _snapshot_epoch_route_state_disclosure_v1(
+            item,
+            name="verified epoch route state disclosure",
+        )
+        for item in _require_exact_tuple_items(
+            authority.route_state_disclosures,
+            EconomicEpochRouteStateDisclosureV1,
+            "verified epoch route state disclosures",
+        )
+    )
+    count = len(occurrences)
+    if count == 0 or not (
+        count == len(journals) == len(effect_plans) == len(disclosures)
+    ):
+        raise ValueError("verified epoch route evidence count mismatch")
+    return _VerifiedEconomicEpochRouteEvidenceV1(
+        command_occurrences=occurrences,
+        ordered_route_binding_roots=_snapshot_verified_epoch_root_tuple_v1(
+            authority.ordered_route_binding_roots,
+            name="verified epoch route binding roots",
+            expected_count=count,
+        ),
+        route_effect_plans=effect_plans,
+        route_journals=journals,
+        route_state_disclosures=disclosures,
+        route_state_effect_refinement_roots=_snapshot_verified_epoch_root_tuple_v1(
+            authority.route_state_effect_refinement_roots,
+            name="verified epoch route state/effect refinement roots",
+            expected_count=count,
+        ),
+        route_state_projection_roots=_snapshot_verified_epoch_root_tuple_v1(
+            authority.route_state_projection_roots,
+            name="verified epoch route state projection roots",
+            expected_count=count,
+        ),
+    )
+
+
+def _snapshot_verified_economic_epoch_authority_record_v1(
+    authority: _VerifiedEconomicEpochAuthorityRecordV1,
+) -> _VerifiedEconomicEpochAuthorityRecordV1:
+    from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
+    from .global_economic_refinement_snapshot_v1 import (
+        _snapshot_effect_plan_v1,
+        _snapshot_epoch_certificate_v1,
+    )
+    from .global_economic_state_effect_refinement_v1 import (
+        GlobalEconomicStateEffectRefinementV1,
+        _snapshot_global_economic_state_effect_refinement_v1,
+    )
+
+    if type(authority) is not _VerifiedEconomicEpochAuthorityRecordV1:
+        raise TypeError("verified epoch authority record type is not closed")
+    if type(authority.state_effect_refinement) is not GlobalEconomicStateEffectRefinementV1:
+        raise TypeError("verified epoch refinement witness type is not closed")
+    certificate = _snapshot_epoch_certificate_v1(authority.certificate)
+    effect_plan = _snapshot_effect_plan_v1(authority.effect_plan)
+    refinement = _snapshot_global_economic_state_effect_refinement_v1(
+        authority.state_effect_refinement
+    )
+    route_evidence = _snapshot_verified_epoch_route_evidence_v1(authority)
+    if type(authority.receipt_digest) is not str:
+        raise TypeError("verified epoch receipt digest must be exact str")
+    receipt_digest = _require_root(
+        authority.receipt_digest,
+        name="verified epoch receipt digest",
+    )
+    computed_roots = (
+        certificate.certificate_root,
+        effect_plan.effect_plan_root,
+        refinement.refinement_root,
+    )
+    retained_roots = (
+        authority.certificate_root,
+        authority.effect_plan_root,
+        authority.state_effect_refinement_root,
+    )
+    if any(type(root) is not str for root in retained_roots):
+        raise TypeError("verified epoch authority baseline roots must be exact str")
+    if computed_roots != retained_roots:
+        raise ValueError("verified epoch authority baseline root mismatch")
+    return _VerifiedEconomicEpochAuthorityRecordV1(
+        certificate=certificate,
+        certificate_root=computed_roots[0],
+        command_occurrences=route_evidence.command_occurrences,
+        effect_plan=effect_plan,
+        effect_plan_root=computed_roots[1],
+        ordered_route_binding_roots=route_evidence.ordered_route_binding_roots,
+        profile=snapshot_economic_profile_v1(authority.profile),
+        receipt_digest=receipt_digest,
+        route_effect_plans=route_evidence.route_effect_plans,
+        route_journals=route_evidence.route_journals,
+        route_state_disclosures=route_evidence.route_state_disclosures,
+        route_state_effect_refinement_roots=(
+            route_evidence.route_state_effect_refinement_roots
+        ),
+        route_state_projection_roots=route_evidence.route_state_projection_roots,
+        state_effect_refinement=refinement,
+        state_effect_refinement_root=computed_roots[2],
+    )
+
+
 class VerifiedEconomicEpochV1:
     """Opaque epoch witness constructible only through the verifier function."""
 
-    __slots__ = (
-        "_certificate",
-        "_certificate_root",
-        "_command_occurrences",
-        "_effect_plan",
-        "_effect_plan_root",
-        "_ordered_route_binding_roots",
-        "_receipt_digest",
-        "_route_journals",
-        "_state_effect_refinement",
-        "_state_effect_refinement_root",
-    )
-    _certificate: GlobalEconomicEpochCertificateV1
-    _certificate_root: str
-    _command_occurrences: tuple[EconomicCommandOccurrenceV1, ...]
-    _effect_plan: GlobalEconomicEffectPlanV1
-    _effect_plan_root: str
-    _ordered_route_binding_roots: tuple[str, ...]
-    _receipt_digest: str
-    _route_journals: tuple[RouteCompositionJournalV1, ...]
-    _state_effect_refinement: GlobalEconomicStateEffectRefinementV1
-    _state_effect_refinement_root: str
+    __slots__ = ("__weakref__",)
 
     def __init__(
         self,
         token: object,
-        certificate: GlobalEconomicEpochCertificateV1,
-        effect_plan: GlobalEconomicEffectPlanV1,
-        ordered_route_binding_roots: tuple[str, ...],
-        receipt_digest: str,
-        state_effect_refinement: GlobalEconomicStateEffectRefinementV1,
-        command_occurrences: tuple[EconomicCommandOccurrenceV1, ...],
-        route_journals: tuple[RouteCompositionJournalV1, ...],
+        authority: _VerifiedEconomicEpochAuthorityRecordV1,
     ) -> None:
-        from .global_economic_refinement_snapshot_v1 import (
-            _require_exact_tuple_items,
-            _snapshot_effect_plan_v1,
-            _snapshot_epoch_certificate_v1,
-            _snapshot_occurrence_v1,
-            _snapshot_route_journal_v1,
-        )
-        from .global_economic_state_effect_refinement_v1 import (
-            GlobalEconomicStateEffectRefinementV1,
-            _snapshot_global_economic_state_effect_refinement_v1,
-        )
-
         if token is not _VERIFIED_ECONOMIC_EPOCH_TOKEN:
             raise TypeError("VerifiedEconomicEpochV1 is verifier-constructed")
-        if type(state_effect_refinement) is not GlobalEconomicStateEffectRefinementV1:
-            raise TypeError(
-                "verified epoch state/effect refinement must have the exact "
-                "checker-constructed type"
-            )
-        _require_tuple(
-            ordered_route_binding_roots,
-            name="verified epoch route binding roots",
-        )
-        if not ordered_route_binding_roots:
-            raise ValueError("verified epoch requires at least one route binding root")
-        for index, root in enumerate(ordered_route_binding_roots):
-            _require_root(root, name=f"verified epoch route binding root[{index}]")
-        if len(ordered_route_binding_roots) != len(set(ordered_route_binding_roots)):
-            raise ValueError("verified epoch route binding roots must be unique")
-        object.__setattr__(
+        _register_verified_economic_epoch_authority_v1(
             self,
-            "_certificate",
-            _snapshot_epoch_certificate_v1(certificate),
-        )
-        object.__setattr__(self, "_effect_plan", _snapshot_effect_plan_v1(effect_plan))
-        object.__setattr__(
-            self,
-            "_command_occurrences",
-            tuple(
-                _snapshot_occurrence_v1(item)
-                for item in _require_exact_tuple_items(
-                    command_occurrences,
-                    EconomicCommandOccurrenceV1,
-                    "verified epoch command occurrences",
-                )
-            ),
-        )
-        object.__setattr__(
-            self,
-            "_route_journals",
-            tuple(
-                _snapshot_route_journal_v1(item)
-                for item in _require_exact_tuple_items(
-                    route_journals,
-                    RouteCompositionJournalV1,
-                    "verified epoch route journals",
-                )
-            ),
-        )
-        object.__setattr__(
-            self,
-            "_ordered_route_binding_roots",
-            ordered_route_binding_roots,
-        )
-        object.__setattr__(self, "_receipt_digest", receipt_digest)
-        object.__setattr__(
-            self,
-            "_state_effect_refinement",
-            _snapshot_global_economic_state_effect_refinement_v1(
-                state_effect_refinement
-            ),
-        )
-        object.__setattr__(self, "_certificate_root", self._certificate.certificate_root)
-        object.__setattr__(self, "_effect_plan_root", self._effect_plan.effect_plan_root)
-        object.__setattr__(
-            self,
-            "_state_effect_refinement_root",
-            self._state_effect_refinement.refinement_root,
+            _snapshot_verified_economic_epoch_authority_record_v1(authority),
         )
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -986,33 +1138,51 @@ class VerifiedEconomicEpochV1:
             _snapshot_epoch_certificate_v1,
         )
 
-        return _snapshot_epoch_certificate_v1(self._certificate)
+        authority = _verified_economic_epoch_authority_v1(self)
+        return _snapshot_epoch_certificate_v1(authority.certificate)
 
     @property
     def effect_plan(self) -> GlobalEconomicEffectPlanV1:
         from .global_economic_refinement_snapshot_v1 import _snapshot_effect_plan_v1
 
-        return _snapshot_effect_plan_v1(self._effect_plan)
+        authority = _verified_economic_epoch_authority_v1(self)
+        return _snapshot_effect_plan_v1(authority.effect_plan)
 
     @property
     def ordered_route_binding_roots(self) -> tuple[str, ...]:
-        return self._ordered_route_binding_roots
+        return _verified_economic_epoch_authority_v1(
+            self
+        ).ordered_route_binding_roots
 
     @property
     def receipt_digest(self) -> str:
-        return self._receipt_digest
+        return _verified_economic_epoch_authority_v1(self).receipt_digest
 
     @property
     def verified_certificate_root(self) -> str:
-        return self._certificate_root
+        return _verified_economic_epoch_authority_v1(self).certificate_root
 
     @property
     def verified_effect_plan_root(self) -> str:
-        return self._effect_plan_root
+        return _verified_economic_epoch_authority_v1(self).effect_plan_root
 
     @property
     def verified_state_effect_refinement_root(self) -> str:
-        return self._state_effect_refinement_root
+        return _verified_economic_epoch_authority_v1(
+            self
+        ).state_effect_refinement_root
+
+    @property
+    def route_state_projection_roots(self) -> tuple[str, ...]:
+        return _verified_economic_epoch_authority_v1(
+            self
+        ).route_state_projection_roots
+
+    @property
+    def route_state_effect_refinement_roots(self) -> tuple[str, ...]:
+        return _verified_economic_epoch_authority_v1(
+            self
+        ).route_state_effect_refinement_roots
 
     @property
     def state_effect_refinement(self) -> GlobalEconomicStateEffectRefinementV1:
@@ -1020,8 +1190,9 @@ class VerifiedEconomicEpochV1:
             _snapshot_global_economic_state_effect_refinement_v1,
         )
 
+        authority = _verified_economic_epoch_authority_v1(self)
         return _snapshot_global_economic_state_effect_refinement_v1(
-            self._state_effect_refinement
+            authority.state_effect_refinement
         )
 
     def recheck_state_effect_refinement(
@@ -1041,23 +1212,101 @@ class VerifiedEconomicEpochV1:
             raise TypeError("verified epoch recheck pre-state must be exact typed state")
         if type(post_state) is not GlobalEconomicStateV1:
             raise TypeError("verified epoch recheck post-state must be exact typed state")
+        authority = _verified_economic_epoch_authority_v1(self)
         return refine_global_economic_state_effects_v1(
             GlobalEconomicStateEffectRefinementCandidateV1(
                 pre_state=pre_state,
                 post_state=post_state,
-                effect_plan=self._effect_plan,
-                consumed_occurrences=self._command_occurrences,
-                route_journals=self._route_journals,
+                effect_plan=authority.effect_plan,
+                consumed_occurrences=authority.command_occurrences,
+                route_journals=authority.route_journals,
             )
+        )
+
+    def recheck_route_state_projections(
+        self,
+        *,
+        pre_state: GlobalEconomicStateV1,
+        post_state: GlobalEconomicStateV1,
+    ) -> tuple[str, ...]:
+        """Recompute every route/full-state projection from owned disclosures."""
+
+        projection_roots, _ = self.recheck_route_state_evidence(
+            pre_state=pre_state,
+            post_state=post_state,
+        )
+        return projection_roots
+
+    def recheck_route_state_evidence(
+        self,
+        *,
+        pre_state: GlobalEconomicStateV1,
+        post_state: GlobalEconomicStateV1,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Recompute per-route projection and exact state/effect refinements."""
+
+        authority = _verified_economic_epoch_authority_v1(self)
+        return _derive_route_state_evidence_roots_v1(
+            profile=authority.profile,
+            pre_state=pre_state,
+            post_state=post_state,
+            command_occurrences=authority.command_occurrences,
+            route_journals=authority.route_journals,
+            route_state_disclosures=authority.route_state_disclosures,
+            route_effect_plans=authority.route_effect_plans,
         )
 
     @property
     def commit_id(self) -> str:
+        authority = _verified_economic_epoch_authority_v1(self)
         return derive_verified_economic_epoch_commit_id_v1(
-            certificate_root=self._certificate_root,
-            ordered_route_binding_roots=self._ordered_route_binding_roots,
-            receipt_digest=self._receipt_digest,
+            certificate_root=authority.certificate_root,
+            ordered_route_binding_roots=authority.ordered_route_binding_roots,
+            receipt_digest=authority.receipt_digest,
         )
+
+
+_VERIFIED_ECONOMIC_EPOCH_AUTHORITY_LOCK = Lock()
+_VERIFIED_ECONOMIC_EPOCH_AUTHORITIES: WeakKeyDictionary[
+    VerifiedEconomicEpochV1,
+    _VerifiedEconomicEpochAuthorityRecordV1,
+] = WeakKeyDictionary()
+
+
+def _register_verified_economic_epoch_authority_v1(
+    witness: VerifiedEconomicEpochV1,
+    authority: _VerifiedEconomicEpochAuthorityRecordV1,
+) -> None:
+    """Bind one exact handle identity to its verifier-owned immutable record."""
+
+    with _VERIFIED_ECONOMIC_EPOCH_AUTHORITY_LOCK:
+        if witness in _VERIFIED_ECONOMIC_EPOCH_AUTHORITIES:
+            raise RuntimeError("verified economic epoch handle is already registered")
+        _VERIFIED_ECONOMIC_EPOCH_AUTHORITIES[witness] = authority
+
+
+def _verified_economic_epoch_authority_v1(
+    witness: VerifiedEconomicEpochV1,
+) -> _VerifiedEconomicEpochAuthorityRecordV1:
+    if type(witness) is not VerifiedEconomicEpochV1:
+        raise TypeError("verified economic epoch handle type is not closed")
+    with _VERIFIED_ECONOMIC_EPOCH_AUTHORITY_LOCK:
+        authority = _VERIFIED_ECONOMIC_EPOCH_AUTHORITIES.get(witness)
+    if authority is None:
+        raise TypeError("verified economic epoch handle is not verifier-registered")
+    return authority
+
+
+def _snapshot_verified_economic_epoch_v1(
+    witness: VerifiedEconomicEpochV1,
+) -> VerifiedEconomicEpochV1:
+    """Return a fresh handle derived only from the verifier-owned authority record."""
+
+    authority = _verified_economic_epoch_authority_v1(witness)
+    return VerifiedEconomicEpochV1(
+        _VERIFIED_ECONOMIC_EPOCH_TOKEN,
+        authority,
+    )
 
 
 def verify_economic_epoch_v1(
@@ -1079,6 +1328,18 @@ def verify_economic_epoch_v1(
     ordered_route_binding_roots = _validate_verified_routes(candidate)
     _validate_route_effect_plans(candidate)
     state_effect_refinement = _validate_state_effect_refinement(candidate)
+    (
+        route_state_projection_roots,
+        route_state_effect_refinement_roots,
+    ) = _derive_route_state_evidence_roots_v1(
+        profile=candidate.profile,
+        pre_state=candidate.pre_state,
+        post_state=candidate.post_state,
+        command_occurrences=candidate.command_occurrences,
+        route_journals=candidate.route_journals,
+        route_state_disclosures=candidate.route_state_disclosures,
+        route_effect_plans=candidate.route_effect_plans,
+    )
     journal_bytes = candidate.certificate.canonical_journal_bytes
     if candidate.certificate.journal_bytes != len(journal_bytes):
         raise ValueError("economic epoch canonical journal byte count mismatch")
@@ -1094,14 +1355,106 @@ def verify_economic_epoch_v1(
     )
     return VerifiedEconomicEpochV1(
         _VERIFIED_ECONOMIC_EPOCH_TOKEN,
-        candidate.certificate,
-        candidate.effect_plan,
-        ordered_route_binding_roots,
-        receipt_digest,
-        state_effect_refinement,
-        candidate.command_occurrences,
-        candidate.route_journals,
+        _VerifiedEconomicEpochAuthorityRecordV1(
+            certificate=candidate.certificate,
+            certificate_root=candidate.certificate.certificate_root,
+            command_occurrences=candidate.command_occurrences,
+            effect_plan=candidate.effect_plan,
+            effect_plan_root=candidate.effect_plan.effect_plan_root,
+            ordered_route_binding_roots=ordered_route_binding_roots,
+            profile=candidate.profile,
+            receipt_digest=receipt_digest,
+            route_effect_plans=candidate.route_effect_plans,
+            route_journals=candidate.route_journals,
+            route_state_disclosures=candidate.route_state_disclosures,
+            route_state_effect_refinement_roots=(
+                route_state_effect_refinement_roots
+            ),
+            route_state_projection_roots=route_state_projection_roots,
+            state_effect_refinement=state_effect_refinement,
+            state_effect_refinement_root=state_effect_refinement.refinement_root,
+        ),
     )
+
+
+def _derive_route_state_evidence_roots_v1(
+    *,
+    profile: EconomicProfileSnapshotV1,
+    pre_state: GlobalEconomicStateV1,
+    post_state: GlobalEconomicStateV1,
+    command_occurrences: tuple[EconomicCommandOccurrenceV1, ...],
+    route_journals: tuple[RouteCompositionJournalV1, ...],
+    route_state_disclosures: tuple[EconomicEpochRouteStateDisclosureV1, ...],
+    route_effect_plans: tuple[GlobalEconomicEffectPlanV1, ...],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    from .global_economic_state_effect_refinement_v1 import (
+        GlobalEconomicStateEffectRefinementCandidateV1,
+        GlobalEconomicStateEffectRefinementV1,
+        refine_route_global_economic_state_effects_v1,
+    )
+    from .route_global_state_projection_v1 import (
+        RouteGlobalStateProjectionCandidateV1,
+        RouteGlobalStateProjectionV1,
+        project_route_global_state_v1,
+    )
+
+    count = len(command_occurrences)
+    if not (
+        count
+        == len(route_journals)
+        == len(route_state_disclosures)
+        == len(route_effect_plans)
+    ):
+        raise ValueError("economic epoch route state disclosure count mismatch")
+    current_state = pre_state
+    projection_roots: list[str] = []
+    refinement_roots: list[str] = []
+    for occurrence, route_journal, disclosure, route_effect_plan in zip(
+        command_occurrences,
+        route_journals,
+        route_state_disclosures,
+        route_effect_plans,
+        strict=True,
+    ):
+        route = profile.route_registry.route_for_command(
+            occurrence.command_kind,
+            claimed_route_release_id=occurrence.route_release_id,
+        )
+        projection = project_route_global_state_v1(
+            RouteGlobalStateProjectionCandidateV1(
+                profile=profile,
+                route=route,
+                lane_journals=disclosure.lane_journals,
+                route_journal=route_journal,
+                pre_state=current_state,
+                post_state=disclosure.post_state,
+            )
+        )
+        if type(projection) is not RouteGlobalStateProjectionV1:
+            raise TypeError(
+                "economic epoch route state projection must have the exact "
+                "checker-constructed type"
+            )
+        refinement = refine_route_global_economic_state_effects_v1(
+            GlobalEconomicStateEffectRefinementCandidateV1(
+                pre_state=current_state,
+                post_state=disclosure.post_state,
+                effect_plan=route_effect_plan,
+                consumed_occurrences=(occurrence,),
+                route_journals=(route_journal,),
+            )
+        )
+        if type(refinement) is not GlobalEconomicStateEffectRefinementV1:
+            raise TypeError(
+                "economic epoch route state/effect refinement must have the exact "
+                "checker-constructed type"
+            )
+        projection_roots.append(projection.projection_root)
+        refinement_roots.append(refinement.refinement_root)
+        current_state = disclosure.post_state
+    if current_state != post_state:
+        raise ValueError("economic epoch route state disclosures do not reach post-state")
+    return tuple(projection_roots), tuple(refinement_roots)
 
 
 def _validate_state_effect_refinement(
@@ -1418,6 +1771,7 @@ __all__ = [
     "MigrationObjectRowV1",
     "StateMigrationCertificateV1",
     "SuccinctReceiptVerifierV1",
+    "EconomicEpochRouteStateDisclosureV1",
     "EconomicEpochReceiptCandidateV1",
     "VerifiedEconomicEpochV1",
     "derive_verified_economic_epoch_commit_id_v1",

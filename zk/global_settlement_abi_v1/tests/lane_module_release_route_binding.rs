@@ -16,14 +16,14 @@ use zenodex_global_settlement_abi_v1::{
     AssetTransferLaneModuleInputV1, AssetTransferLaneModuleReceiptCandidateV1,
     AssetTransferLaneModuleResultV1, AssetTransferPolicyV1, AssetTransferStateV1, EconomicAmountV1,
     EconomicCommandOccurrenceV1, EconomicEffectKindV1, EconomicEpochReceiptCandidateV1,
-    EconomicEpochSuccinctReceiptVerifierV1, EconomicProfileSnapshotV1, EvidenceStatusV1,
-    ExternalOutboxEnqueueV1, GlobalEconomicEffectPlanV1, GlobalEconomicEpochCertificateV1,
-    GlobalEconomicStateV1, LaneCompositionAuthorityLevelV1, LaneCompositionJournalV1,
-    LaneCompositionReceiptCandidateV1, LaneCompositionReceiptEnvelopeV1,
-    LaneCompositionSuccinctReceiptVerifierV1, LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1,
-    LaneIdV1, LaneModuleReceiptEnvelopeV1, LaneModuleReleaseV1,
-    LaneModuleSuccinctReceiptVerifierV1, LaneRegistryV1, LaneStateRootV1, ManagedAssetClassV1,
-    ManagedAssetLifecycleCommandV1, ManagedAssetLifecycleContextV1,
+    EconomicEpochRouteStateDisclosureV1, EconomicEpochSuccinctReceiptVerifierV1,
+    EconomicProfileSnapshotV1, EvidenceStatusV1, ExternalOutboxEnqueueV1,
+    GlobalEconomicEffectPlanV1, GlobalEconomicEpochCertificateV1, GlobalEconomicStateV1,
+    LaneCompositionAuthorityLevelV1, LaneCompositionJournalV1, LaneCompositionReceiptCandidateV1,
+    LaneCompositionReceiptEnvelopeV1, LaneCompositionSuccinctReceiptVerifierV1,
+    LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1, LaneIdV1, LaneModuleReceiptEnvelopeV1,
+    LaneModuleReleaseV1, LaneModuleSuccinctReceiptVerifierV1, LaneRegistryV1, LaneStateRootV1,
+    ManagedAssetClassV1, ManagedAssetLifecycleCommandV1, ManagedAssetLifecycleContextV1,
     ManagedAssetLifecycleLaneModuleInputV1, ManagedAssetLifecycleLaneModuleReceiptCandidateV1,
     ManagedAssetLifecycleLaneModuleResultV1, ManagedAssetLifecyclePolicyV1,
     ManagedAssetLifecycleStateV1, ProfileStatusV1, ReceiptBackedAssetLaneCompositionCandidateV1,
@@ -1978,6 +1978,7 @@ struct VerifiedEconomicEpochFixture {
     post_state: GlobalEconomicStateV1,
     occurrences: Vec<EconomicCommandOccurrenceV1>,
     route_journals: Vec<RouteCompositionJournalV1>,
+    route_state_disclosures: Vec<EconomicEpochRouteStateDisclosureV1>,
     verified_routes: Vec<VerifiedRouteCompositionV1>,
     route_effect_plans: Vec<GlobalEconomicEffectPlanV1>,
     effect_plan: GlobalEconomicEffectPlanV1,
@@ -1996,6 +1997,7 @@ impl VerifiedEconomicEpochFixture {
             post_state: &self.post_state,
             command_occurrences: &self.occurrences,
             route_journals: &self.route_journals,
+            route_state_disclosures: &self.route_state_disclosures,
             verified_routes: &self.verified_routes,
             route_effect_plans: &self.route_effect_plans,
             effect_plan: &self.effect_plan,
@@ -2049,6 +2051,7 @@ struct VerifiedEpochRouteSequence {
     post_state: GlobalEconomicStateV1,
     occurrences: Vec<EconomicCommandOccurrenceV1>,
     route_journals: Vec<RouteCompositionJournalV1>,
+    route_state_disclosures: Vec<EconomicEpochRouteStateDisclosureV1>,
     verified_routes: Vec<VerifiedRouteCompositionV1>,
     route_effect_plans: Vec<GlobalEconomicEffectPlanV1>,
 }
@@ -2099,10 +2102,19 @@ fn epoch_global_state(
 }
 
 fn verified_epoch_route_sequence(count: usize) -> VerifiedEpochRouteSequence {
+    verified_epoch_route_sequence_with_hidden_state(count, None, None)
+}
+
+fn verified_epoch_route_sequence_with_hidden_state(
+    count: usize,
+    hidden_balance_after: Option<usize>,
+    hidden_height_after: Option<usize>,
+) -> VerifiedEpochRouteSequence {
     assert!((1..=64).contains(&count));
     let (profile, lanes, _coordinators, routes) = profile();
     let mut occurrences = Vec::with_capacity(count);
     let mut route_journals = Vec::with_capacity(count);
+    let mut route_state_disclosures = Vec::with_capacity(count);
     let mut verified_routes = Vec::with_capacity(count);
     let mut route_effect_plans = Vec::with_capacity(count);
     let mut module_state = epoch_asset_module_state(&profile, &lanes, &routes);
@@ -2126,13 +2138,19 @@ fn verified_epoch_route_sequence(count: usize) -> VerifiedEpochRouteSequence {
             occurrence_id,
         });
         replay_state.sort_by(|left, right| left.replay_id.cmp(&right.replay_id));
-        let next_state = epoch_global_state(
+        let mut next_state = epoch_global_state(
             &profile,
             &lanes,
             &fixture.base.accepted.post_state,
             11,
             replay_state,
         );
+        if hidden_balance_after == Some(index) {
+            next_state.balances[0].amount_atoms += 1;
+        }
+        if hidden_height_after == Some(index) {
+            next_state.height += 1;
+        }
         fixture.route_journal.post_state_root = next_state.state_root().unwrap();
         let route_receipt_bytes = format!("succinct-route-receipt-{index}").into_bytes();
         let verified_route = verify_route_composition_receipt_v1(
@@ -2143,6 +2161,10 @@ fn verified_epoch_route_sequence(count: usize) -> VerifiedEpochRouteSequence {
         occurrences.push(fixture.base.occurrence.clone());
         route_effect_plans.push(fixture.effect_plan.clone());
         module_state = fixture.base.accepted.post_state.clone();
+        route_state_disclosures.push(EconomicEpochRouteStateDisclosureV1 {
+            lane_journals: vec![fixture.lane_journal.clone()],
+            post_state: next_state.clone(),
+        });
         route_journals.push(fixture.route_journal);
         verified_routes.push(verified_route);
         current_state = next_state;
@@ -2152,6 +2174,7 @@ fn verified_epoch_route_sequence(count: usize) -> VerifiedEpochRouteSequence {
         post_state: current_state,
         occurrences,
         route_journals,
+        route_state_disclosures,
         verified_routes,
         route_effect_plans,
     }
@@ -2226,8 +2249,13 @@ fn verified_epoch_statement(
 }
 
 fn verified_economic_epoch_fixture(count: usize) -> VerifiedEconomicEpochFixture {
+    verified_economic_epoch_fixture_from_sequence(verified_epoch_route_sequence(count))
+}
+
+fn verified_economic_epoch_fixture_from_sequence(
+    sequence: VerifiedEpochRouteSequence,
+) -> VerifiedEconomicEpochFixture {
     let (profile, lanes, coordinators, routes) = profile();
-    let sequence = verified_epoch_route_sequence(count);
     let (effect_plan, receipt_bytes, certificate) = verified_epoch_statement(&profile, &sequence);
 
     VerifiedEconomicEpochFixture {
@@ -2240,6 +2268,7 @@ fn verified_economic_epoch_fixture(count: usize) -> VerifiedEconomicEpochFixture
         post_state: sequence.post_state,
         occurrences: sequence.occurrences,
         route_journals: sequence.route_journals,
+        route_state_disclosures: sequence.route_state_disclosures,
         verified_routes: sequence.verified_routes,
         route_effect_plans: sequence.route_effect_plans,
         effect_plan,
@@ -2260,6 +2289,17 @@ fn economic_epoch_admits_exact_route_witnesses_at_one_eight_nine_and_sixty_four(
 
         // Assert
         assert_eq!(verified.ordered_route_binding_roots().len(), count);
+        assert_eq!(
+            verified.route_state_projection_roots().unwrap().len(),
+            count
+        );
+        assert_eq!(
+            verified
+                .route_state_effect_refinement_roots()
+                .unwrap()
+                .len(),
+            count
+        );
         assert_eq!(verified.certificate(), &fixture.certificate);
         assert_eq!(verified.effect_plan(), &fixture.effect_plan);
         assert_eq!(verified.receipt_digest(), &fixture.certificate.receipt_root);
@@ -2278,6 +2318,137 @@ fn economic_epoch_admits_exact_route_witnesses_at_one_eight_nine_and_sixty_four(
             fixture.certificate.canonical_journal_bytes().unwrap()
         );
     }
+}
+
+#[test]
+fn economic_epoch_two_route_state_evidence_has_stable_rust_golden_roots() {
+    let fixture = verified_economic_epoch_fixture(2);
+    let verified = verify_economic_epoch_receipt_v1(
+        fixture.candidate(),
+        &RecordingEpochReceiptVerifier::default(),
+    )
+    .expect("two exact route transitions must verify");
+
+    assert_eq!(
+        verified.route_state_projection_roots().unwrap(),
+        vec![
+            RootV1::parse(
+                "0x72c8448be1bdf1ae1e3eed00a1a7b7b14c0e98dcb73522c72b9ea3d40d6f70c4",
+                "projection golden",
+                false,
+            )
+            .unwrap(),
+            RootV1::parse(
+                "0x3c76bf7129cc2cf277773d152d7b1849e24bd6ae0d03a60c4dce2e26769f4315",
+                "projection golden",
+                false,
+            )
+            .unwrap(),
+        ]
+    );
+    assert_eq!(
+        verified.route_state_effect_refinement_roots().unwrap(),
+        vec![
+            RootV1::parse(
+                "0x0e7ebe97c0f3b8e28ad6801f29c5971d52de3802eb7071e3c04b8f3f63c23f87",
+                "refinement golden",
+                false,
+            )
+            .unwrap(),
+            RootV1::parse(
+                "0x9679d760b7c8748c5c41983f067a0f9f72a14a22fabc676bbeb24e461d022128",
+                "refinement golden",
+                false,
+            )
+            .unwrap(),
+        ]
+    );
+}
+
+#[test]
+fn economic_epoch_route_state_disclosures_reject_count_neighbors_before_receipt() {
+    // Arrange
+    let fixture = verified_economic_epoch_fixture(1);
+    let empty = Vec::new();
+    let extra = vec![
+        fixture.route_state_disclosures[0].clone(),
+        fixture.route_state_disclosures[0].clone(),
+    ];
+
+    for disclosures in [&empty, &extra] {
+        let verifier = RecordingEpochReceiptVerifier::default();
+        let mut candidate = fixture.candidate();
+        candidate.route_state_disclosures = disclosures;
+
+        // Act
+        let error = verify_economic_epoch_receipt_v1(candidate, &verifier).unwrap_err();
+
+        // Assert
+        assert_eq!(
+            error,
+            AbiErrorV1::InvalidBinding("economic epoch route state disclosure count")
+        );
+        assert!(verifier.calls.borrow().is_empty());
+    }
+}
+
+#[test]
+fn economic_epoch_route_state_projection_rejects_hidden_intermediate_lane_mutation() {
+    // Arrange: alter an unselected lane only in the first disclosed intermediate state.
+    let fixture = verified_economic_epoch_fixture(2);
+    let mut disclosures = fixture.route_state_disclosures.clone();
+    disclosures[0].post_state.lane_roots[1].state_root = root(88_101);
+    let verifier = RecordingEpochReceiptVerifier::default();
+    let mut candidate = fixture.candidate();
+    candidate.route_state_disclosures = &disclosures;
+
+    // Act
+    let error = verify_economic_epoch_receipt_v1(candidate, &verifier).unwrap_err();
+
+    // Assert
+    assert_eq!(
+        error,
+        AbiErrorV1::InvalidBinding("route global projection exact global context")
+    );
+    assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
+fn economic_epoch_route_refinement_rejects_transient_hidden_balance() {
+    // Arrange: route one injects one unlabelled atom into full state. Route two
+    // restores the honest endpoint while every route/lane witness remains coherent.
+    let sequence = verified_epoch_route_sequence_with_hidden_state(2, Some(0), None);
+    let fixture = verified_economic_epoch_fixture_from_sequence(sequence);
+    let verifier = RecordingEpochReceiptVerifier::default();
+
+    // Act
+    let error = verify_economic_epoch_receipt_v1(fixture.candidate(), &verifier).unwrap_err();
+
+    // Assert
+    assert_eq!(
+        error,
+        AbiErrorV1::InvalidBinding("economic refinement balance delta mismatch")
+    );
+    assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
+fn economic_epoch_route_refinement_rejects_transient_hidden_height() {
+    // Arrange: route one temporarily advances beyond the occurrence epoch;
+    // route two restores the valid endpoint while all state roots are rebuilt.
+    let sequence = verified_epoch_route_sequence_with_hidden_state(2, None, Some(0));
+    let fixture = verified_economic_epoch_fixture_from_sequence(sequence);
+    let verifier = RecordingEpochReceiptVerifier::default();
+
+    // Act
+    let error = verify_economic_epoch_receipt_v1(fixture.candidate(), &verifier).unwrap_err();
+
+    // Assert
+    assert_eq!(
+        error,
+        AbiErrorV1::InvalidBinding("route economic refinement epoch height context")
+    );
+    assert!(verifier.calls.borrow().is_empty());
 }
 
 #[test]

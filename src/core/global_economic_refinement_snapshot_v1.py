@@ -9,6 +9,7 @@ from typing import Any
 from .global_economic_proof_v1 import (
     EconomicCommandOccurrenceV1,
     GlobalEconomicEpochCertificateV1,
+    LaneCompositionJournalV1,
     RouteCompositionJournalV1,
 )
 from .global_settlement_types_v1 import (
@@ -253,6 +254,26 @@ def _snapshot_occurrence_v1(
     )
 
 
+def _snapshot_lane_journal_v1(
+    journal: LaneCompositionJournalV1,
+) -> LaneCompositionJournalV1:
+    _require_exact_dataclass_scalars_v1(
+        journal,
+        name="lane journal",
+        tuple_fields=frozenset({"ordered_module_journal_roots"}),
+    )
+    return replace(
+        journal,
+        ordered_module_journal_roots=tuple(
+            _require_exact_tuple_items(
+                journal.ordered_module_journal_roots,
+                str,
+                "lane journal module roots",
+            )
+        ),
+    )
+
+
 def _snapshot_route_journal_v1(
     journal: RouteCompositionJournalV1,
 ) -> RouteCompositionJournalV1:
@@ -277,6 +298,7 @@ __all__ = [
     "_require_exact_tuple_items",
     "_snapshot_effect_plan_v1",
     "_snapshot_epoch_certificate_v1",
+    "_snapshot_lane_journal_v1",
     "_snapshot_occurrence_v1",
     "_snapshot_route_journal_v1",
     "_snapshot_state_v1",

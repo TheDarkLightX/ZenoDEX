@@ -9,18 +9,22 @@ use crate::canonical::{
 use crate::effects::GlobalEconomicEffectPlanV1;
 use crate::epoch_effect_composition::compose_asset_lane_epoch_effect_plans_v1;
 use crate::global_economic_state_effect_refinement::{
-    refine_global_economic_state_effects_v1, GlobalEconomicStateEffectRefinementCandidateV1,
-    GlobalEconomicStateEffectRefinementV1,
+    refine_global_economic_state_effects_v1, refine_route_global_economic_state_effects_v1,
+    GlobalEconomicStateEffectRefinementCandidateV1, GlobalEconomicStateEffectRefinementV1,
 };
 use crate::proof::{
-    EconomicCommandOccurrenceV1, GlobalEconomicEpochCertificateV1, ReceiptKindV1,
-    RouteCompositionJournalV1,
+    EconomicCommandOccurrenceV1, GlobalEconomicEpochCertificateV1, LaneCompositionJournalV1,
+    ReceiptKindV1, RouteCompositionJournalV1,
 };
 use crate::release::{
     EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1, LaneIdV1, LaneRegistryV1,
     ProfileStatusV1, RouteRegistryV1,
 };
 use crate::route_composition_receipt_verification::VerifiedRouteCompositionV1;
+use crate::route_global_state_projection::{
+    project_route_global_state_v1, RouteGlobalStateProjectionCandidateV1,
+    RouteGlobalStateProjectionV1,
+};
 use crate::state::GlobalEconomicStateV1;
 
 pub const VERIFIED_ECONOMIC_EPOCH_SCHEMA_V1: &str = "zenodex/verified-economic-epoch/v1";
@@ -35,6 +39,12 @@ pub trait EconomicEpochSuccinctReceiptVerifierV1 {
     ) -> AbiResultV1<()>;
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EconomicEpochRouteStateDisclosureV1 {
+    pub lane_journals: Vec<LaneCompositionJournalV1>,
+    pub post_state: GlobalEconomicStateV1,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct EconomicEpochReceiptCandidateV1<'a> {
     pub profile: &'a EconomicProfileSnapshotV1,
@@ -46,6 +56,7 @@ pub struct EconomicEpochReceiptCandidateV1<'a> {
     pub post_state: &'a GlobalEconomicStateV1,
     pub command_occurrences: &'a [EconomicCommandOccurrenceV1],
     pub route_journals: &'a [RouteCompositionJournalV1],
+    pub route_state_disclosures: &'a [EconomicEpochRouteStateDisclosureV1],
     pub verified_routes: &'a [VerifiedRouteCompositionV1],
     pub route_effect_plans: &'a [GlobalEconomicEffectPlanV1],
     pub effect_plan: &'a GlobalEconomicEffectPlanV1,
@@ -62,6 +73,8 @@ pub struct VerifiedEconomicEpochV1 {
     effect_plan: GlobalEconomicEffectPlanV1,
     ordered_route_binding_roots: Vec<RootV1>,
     receipt_digest: RootV1,
+    route_state_effect_refinements: Vec<GlobalEconomicStateEffectRefinementV1>,
+    route_state_projections: Vec<RouteGlobalStateProjectionV1>,
     state_effect_refinement: GlobalEconomicStateEffectRefinementV1,
 }
 
@@ -87,6 +100,20 @@ impl VerifiedEconomicEpochV1 {
 
     pub fn receipt_digest(&self) -> &RootV1 {
         &self.receipt_digest
+    }
+
+    pub fn route_state_projection_roots(&self) -> AbiResultV1<Vec<RootV1>> {
+        self.route_state_projections
+            .iter()
+            .map(RouteGlobalStateProjectionV1::projection_root)
+            .collect()
+    }
+
+    pub fn route_state_effect_refinement_roots(&self) -> AbiResultV1<Vec<RootV1>> {
+        self.route_state_effect_refinements
+            .iter()
+            .map(GlobalEconomicStateEffectRefinementV1::refinement_root)
+            .collect()
     }
 
     pub fn state_effect_refinement(&self) -> &GlobalEconomicStateEffectRefinementV1 {
@@ -382,6 +409,64 @@ fn require_route_effect_bindings_v1(
     Ok(())
 }
 
+fn require_route_state_projections_v1(
+    candidate: &EconomicEpochReceiptCandidateV1<'_>,
+) -> AbiResultV1<(
+    Vec<RouteGlobalStateProjectionV1>,
+    Vec<GlobalEconomicStateEffectRefinementV1>,
+)> {
+    if candidate.route_state_disclosures.len() != candidate.command_occurrences.len()
+        || candidate.route_effect_plans.len() != candidate.command_occurrences.len()
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "economic epoch route state disclosure count",
+        ));
+    }
+    let mut current_state = candidate.pre_state;
+    let mut projections = Vec::with_capacity(candidate.command_occurrences.len());
+    let mut refinements = Vec::with_capacity(candidate.command_occurrences.len());
+    for (((occurrence, route_journal), disclosure), route_effect_plan) in candidate
+        .command_occurrences
+        .iter()
+        .zip(candidate.route_journals)
+        .zip(candidate.route_state_disclosures)
+        .zip(candidate.route_effect_plans)
+    {
+        let route = candidate
+            .routes
+            .route_for_command(&occurrence.command_kind, Some(&occurrence.route_release_id))?;
+        projections.push(project_route_global_state_v1(
+            RouteGlobalStateProjectionCandidateV1 {
+                profile: candidate.profile,
+                lanes: candidate.lanes,
+                coordinators: candidate.coordinators,
+                routes: candidate.routes,
+                route,
+                lane_journals: &disclosure.lane_journals,
+                route_journal,
+                pre_state: current_state,
+                post_state: &disclosure.post_state,
+            },
+        )?);
+        refinements.push(refine_route_global_economic_state_effects_v1(
+            &GlobalEconomicStateEffectRefinementCandidateV1 {
+                pre_state: current_state,
+                post_state: &disclosure.post_state,
+                effect_plan: route_effect_plan,
+                consumed_occurrences: std::slice::from_ref(occurrence),
+                route_journals: std::slice::from_ref(route_journal),
+            },
+        )?);
+        current_state = &disclosure.post_state;
+    }
+    if current_state != candidate.post_state {
+        return Err(AbiErrorV1::InvalidBinding(
+            "economic epoch route state disclosures reach post-state",
+        ));
+    }
+    Ok((projections, refinements))
+}
+
 fn require_state_effect_refinement_v1(
     candidate: &EconomicEpochReceiptCandidateV1<'_>,
 ) -> AbiResultV1<GlobalEconomicStateEffectRefinementV1> {
@@ -438,6 +523,8 @@ pub fn verify_economic_epoch_receipt_v1(
     let ordered_route_binding_roots = require_verified_route_bindings_v1(&candidate)?;
     require_route_effect_bindings_v1(&candidate)?;
     let state_effect_refinement = require_state_effect_refinement_v1(&candidate)?;
+    let (route_state_projections, route_state_effect_refinements) =
+        require_route_state_projections_v1(&candidate)?;
     if candidate.receipt_bytes.is_empty() {
         return Err(AbiErrorV1::InvalidBounds("economic epoch receipt bytes"));
     }
@@ -457,6 +544,8 @@ pub fn verify_economic_epoch_receipt_v1(
         effect_plan: candidate.effect_plan.clone(),
         ordered_route_binding_roots,
         receipt_digest,
+        route_state_effect_refinements,
+        route_state_projections,
         state_effect_refinement,
     })
 }

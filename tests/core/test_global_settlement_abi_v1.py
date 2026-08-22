@@ -7,6 +7,7 @@ from dataclasses import FrozenInstanceError, dataclass, replace
 import pytest
 
 import src.core.global_economic_state_effect_refinement_v1 as refinement_module
+import src.core.route_global_state_projection_v1 as route_projection_module
 from src.core.asset_lane_coordinator_v1 import compose_asset_lane_single_v1
 from src.core.asset_lane_projection_v1 import (
     AssetLaneCompositionAcceptedV1,
@@ -40,6 +41,7 @@ from src.core.global_settlement_abi_v1 import (
     EconomicEffectKindV1,
     EconomicEffectRowV1,
     EconomicEpochReceiptCandidateV1,
+    EconomicEpochRouteStateDisclosureV1,
     EconomicProfileSnapshotV1,
     EvidenceStatusV1,
     ExternalOutboxEnqueueV1,
@@ -327,6 +329,7 @@ class _RecordingReceiptVerifier:
 class _VerifiedRouteEffectFixture:
     route_journal: RouteCompositionJournalV1
     verified_route: VerifiedRouteCompositionV1
+    lane_journals: tuple[LaneCompositionJournalV1, ...]
     effect_plan: GlobalEconomicEffectPlanV1
     post_module_state: AssetTransferStateV1
 
@@ -337,6 +340,7 @@ class _EpochRouteFixture:
     post_state: GlobalEconomicStateV1
     occurrences: tuple[EconomicCommandOccurrenceV1, ...]
     route_journals: tuple[RouteCompositionJournalV1, ...]
+    route_state_disclosures: tuple[EconomicEpochRouteStateDisclosureV1, ...]
     verified_routes: tuple[VerifiedRouteCompositionV1, ...]
     route_effect_plans: tuple[GlobalEconomicEffectPlanV1, ...]
 
@@ -548,6 +552,7 @@ def _verified_route_effect_fixture(
     return _VerifiedRouteEffectFixture(
         route_journal,
         verified_route,
+        (lane_journal,),
         lane_effects,
         accepted.post_state,
     )
@@ -638,6 +643,12 @@ def _verified_epoch(
             post_state,
             (occurrence,),
             (route_journal,),
+            (
+                EconomicEpochRouteStateDisclosureV1(
+                    route_fixture.lane_journals,
+                    post_state,
+                ),
+            ),
             (verified_route,),
             route_effect_plans,
             effects,
@@ -655,6 +666,7 @@ def _epoch_candidate(
     post_state: GlobalEconomicStateV1,
     occurrences: tuple[EconomicCommandOccurrenceV1, ...],
     route_journals: tuple[RouteCompositionJournalV1, ...],
+    route_state_disclosures: tuple[EconomicEpochRouteStateDisclosureV1, ...],
     verified_routes: tuple[VerifiedRouteCompositionV1, ...],
     route_effect_plans: tuple[GlobalEconomicEffectPlanV1, ...],
     effect_plan: GlobalEconomicEffectPlanV1,
@@ -667,6 +679,7 @@ def _epoch_candidate(
         post_state=post_state,
         command_occurrences=occurrences,
         route_journals=route_journals,
+        route_state_disclosures=route_state_disclosures,
         verified_routes=verified_routes,
         route_effect_plans=route_effect_plans,
         effect_plan=effect_plan,
@@ -744,9 +757,13 @@ def _epoch_route_fixture(
     route: RouteReleaseV1,
     pre_state: GlobalEconomicStateV1,
     count: int,
+    *,
+    hidden_balance_after: int | None = None,
+    hidden_height_after: int | None = None,
 ) -> _EpochRouteFixture:
     occurrences: list[EconomicCommandOccurrenceV1] = []
     route_journals: list[RouteCompositionJournalV1] = []
+    route_state_disclosures: list[EconomicEpochRouteStateDisclosureV1] = []
     verified_routes: list[VerifiedRouteCompositionV1] = []
     route_effect_plans: list[GlobalEconomicEffectPlanV1] = []
     module_state = _epoch_asset_module_state(profile)
@@ -787,6 +804,17 @@ def _epoch_route_fixture(
                 )
             ),
         )
+        if hidden_balance_after == index:
+            first_balance = next_state.balances[0]
+            next_state = replace(
+                next_state,
+                balances=(
+                    replace(first_balance, amount_atoms=first_balance.amount_atoms + 1),
+                    *next_state.balances[1:],
+                ),
+            )
+        if hidden_height_after == index:
+            next_state = replace(next_state, height=next_state.height + 1)
         route_journal = RouteCompositionJournalV1(
             chain_id=occurrence.chain_id,
             deployment_root=occurrence.deployment_root,
@@ -816,6 +844,9 @@ def _epoch_route_fixture(
         )
         occurrences.append(occurrence)
         route_journals.append(route_journal)
+        route_state_disclosures.append(
+            EconomicEpochRouteStateDisclosureV1((lane_journal,), next_state)
+        )
         verified_routes.append(verified_route)
         route_effect_plans.append(lane_effects)
         module_state = accepted.post_state
@@ -825,6 +856,7 @@ def _epoch_route_fixture(
         current_state,
         tuple(occurrences),
         tuple(route_journals),
+        tuple(route_state_disclosures),
         tuple(verified_routes),
         tuple(route_effect_plans),
     )
@@ -832,10 +864,20 @@ def _epoch_route_fixture(
 
 def _epoch_admission_fixture(
     count: int,
+    *,
+    hidden_balance_after: int | None = None,
+    hidden_height_after: int | None = None,
 ) -> EconomicEpochReceiptCandidateV1:
     profile, route = _profile()
     pre_state = _state(profile, height=0)
-    routes = _epoch_route_fixture(profile, route, pre_state, count)
+    routes = _epoch_route_fixture(
+        profile,
+        route,
+        pre_state,
+        count,
+        hidden_balance_after=hidden_balance_after,
+        hidden_height_after=hidden_height_after,
+    )
     effects = compose_asset_lane_epoch_effect_plans_v1(routes.route_effect_plans)
     receipt_bytes = f"succinct-epoch-receipt-{count}".encode("ascii")
     certificate = GlobalEconomicEpochCertificateV1(
@@ -878,6 +920,7 @@ def _epoch_admission_fixture(
         routes.post_state,
         routes.occurrences,
         routes.route_journals,
+        routes.route_state_disclosures,
         routes.verified_routes,
         routes.route_effect_plans,
         effects,
@@ -915,6 +958,12 @@ def _epoch_candidate_with_rebound_post_state(
         post_state,
         (occurrence,),
         (route_fixture.route_journal,),
+        (
+            EconomicEpochRouteStateDisclosureV1(
+                route_fixture.lane_journals,
+                post_state,
+            ),
+        ),
         (route_fixture.verified_route,),
         (route_fixture.effect_plan,),
         effects,
@@ -1119,21 +1168,31 @@ def test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle() 
         verified.state_effect_refinement.effect_plan_root
         == verified.effect_plan.effect_plan_root
     )
+    assert len(verified.route_state_projection_roots) == 1
+    assert len(verified.route_state_effect_refinement_roots) == 1
+    assert verified.recheck_route_state_projections(
+        pre_state=pre_state,
+        post_state=post_state,
+    ) == verified.route_state_projection_roots
     assert len(verifier.calls) == 1
     assert verifier.calls[0][1] == profile.root_image_id
     with pytest.raises(AttributeError, match="immutable"):
         verified._receipt_digest = _root(8_999)
     with pytest.raises(TypeError, match="verifier-constructed"):
-        VerifiedEconomicEpochV1(
-            object(),
-            verified.certificate,
-            verified.effect_plan,
-            verified.ordered_route_binding_roots,
-            verified.receipt_digest,
-            verified.state_effect_refinement,
-            (occurrence,),
-            (route_journal,),
+        VerifiedEconomicEpochV1(object(), object())  # type: ignore[arg-type]
+    forged = object.__new__(VerifiedEconomicEpochV1)
+    with pytest.raises(TypeError, match="not verifier-registered"):
+        _ = forged.commit_id
+    forged_port = GlobalEconomicCommitPortV1(profile, pre_state)
+    with pytest.raises(TypeError, match="not verifier-registered"):
+        forged_port.commit_verified_economic_epoch(
+            expected_head=pre_state.state_root,
+            expected_profile=profile.profile_id,
+            verified_epoch=forged,
+            body_and_state=body,
         )
+    assert forged_port.state == pre_state
+    assert forged_port.records == ()
     rebuilt_route = _verified_route_effect_fixture(
         profile,
         occurrence,
@@ -1150,6 +1209,12 @@ def test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle() 
         post_state,
         (occurrence,),
         (route_journal,),
+        (
+            EconomicEpochRouteStateDisclosureV1(
+                rebuilt_route.lane_journals,
+                post_state,
+            ),
+        ),
         (verified_route,),
         (rebuilt_route.effect_plan,),
         verified.effect_plan,
@@ -1282,6 +1347,93 @@ def test_epoch_rejects_hostile_refinement_subclass_before_receipt(
 
     with pytest.raises(TypeError, match="exact checker-constructed type"):
         verify_economic_epoch_v1(valid, verifier)
+    assert verifier.calls == []
+
+
+def test_epoch_route_state_projection_rejects_hostile_witness_before_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    valid = _epoch_admission_fixture(1)
+
+    class ForgedProjection(route_projection_module.RouteGlobalStateProjectionV1):
+        def __init__(self) -> None:
+            pass
+
+        @property
+        def projection_root(self) -> str:
+            return _root(88_100)
+
+    monkeypatch.setattr(
+        route_projection_module,
+        "project_route_global_state_v1",
+        lambda _candidate: ForgedProjection(),
+    )
+    verifier = _RecordingReceiptVerifier()
+
+    with pytest.raises(TypeError, match="exact checker-constructed type"):
+        verify_economic_epoch_v1(valid, verifier)
+    assert verifier.calls == []
+
+
+def test_epoch_route_state_disclosures_apply_count_and_intermediate_mutation_bva() -> None:
+    valid = _epoch_admission_fixture(2)
+
+    with pytest.raises(ValueError, match="route state disclosure count mismatch"):
+        replace(valid, route_state_disclosures=())
+    with pytest.raises(ValueError, match="route state disclosure count mismatch"):
+        replace(
+            valid,
+            route_state_disclosures=(
+                *valid.route_state_disclosures,
+                valid.route_state_disclosures[-1],
+            ),
+        )
+
+    first = valid.route_state_disclosures[0]
+    unselected = first.post_state.lane_roots[1]
+    hidden_post_state = replace(
+        first.post_state,
+        lane_roots=(
+            first.post_state.lane_roots[0],
+            replace(unselected, state_root=_root(88_101)),
+            *first.post_state.lane_roots[2:],
+        ),
+    )
+    candidate = replace(
+        valid,
+        route_state_disclosures=(
+            replace(first, post_state=hidden_post_state),
+            valid.route_state_disclosures[1],
+        ),
+    )
+    verifier = _RecordingReceiptVerifier()
+
+    with pytest.raises(ValueError, match="global state root mismatch"):
+        verify_economic_epoch_v1(candidate, verifier)
+    assert verifier.calls == []
+
+
+def test_epoch_route_refinement_rejects_transient_hidden_balance_before_receipt() -> None:
+    # Arrange: route one injects an unlabelled atom into full state and route two
+    # restores the honest endpoint. Route/lane roots and witnesses are coherent.
+    candidate = _epoch_admission_fixture(2, hidden_balance_after=0)
+    verifier = _RecordingReceiptVerifier()
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="balance delta mismatch"):
+        verify_economic_epoch_v1(candidate, verifier)
+    assert verifier.calls == []
+
+
+def test_epoch_route_refinement_rejects_transient_hidden_height_before_receipt() -> None:
+    # Arrange: route one temporarily advances to the wrong height while route
+    # two restores the valid epoch endpoint and all state roots are rebuilt.
+    candidate = _epoch_admission_fixture(2, hidden_height_after=0)
+    verifier = _RecordingReceiptVerifier()
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="epoch height context mismatch"):
+        verify_economic_epoch_v1(candidate, verifier)
     assert verifier.calls == []
 
 
@@ -1537,6 +1689,20 @@ def test_epoch_route_witness_boundary_counts_are_admitted(count: int) -> None:
         item.binding_root for item in candidate.verified_routes
     )
     assert len(verifier.calls) == 1
+
+
+def test_epoch_two_route_state_evidence_has_stable_python_golden_roots() -> None:
+    candidate = _epoch_admission_fixture(2)
+    verified = verify_economic_epoch_v1(candidate, _RecordingReceiptVerifier())
+
+    assert verified.route_state_projection_roots == (
+        "0xc3c51cd78ad6230fbbb9227460704f9f0d9ba0214e5063172bb36c8630990fe3",
+        "0x60be90c6b8b9139c163a9cade6695cea02342b3818a1ffea96d8161bf140448b",
+    )
+    assert verified.route_state_effect_refinement_roots == (
+        "0x0df71ac81e273c9b78a6b3c29f36f8519a0ea245ea4b2daaf7d39a258dbf312c",
+        "0xeb7681f4eca9a5dd823793d615748be0bd16abc920df0e3508a77a28d70177d8",
+    )
 
 
 def test_epoch_candidate_rejects_sixty_five_occurrences_at_typed_ingress() -> None:
@@ -1820,21 +1986,12 @@ def test_commit_rebinds_refinement_against_post_return_certificate_mutation() ->
         ),
     )
     unbalanced_body = replace(body, post_state=unbalanced_state)
-    object.__setattr__(
-        verified._certificate,
-        "post_state_root",
-        unbalanced_state.state_root,
-    )
-    object.__setattr__(
-        verified._certificate,
-        "body_commitment",
-        unbalanced_body.body_commitment,
-    )
-    object.__setattr__(
-        verified._state_effect_refinement._fields,
-        "post_state_root",
-        unbalanced_state.state_root,
-    )
+    for field_name, value in (
+        ("_certificate", replace(verified.certificate, post_state_root=unbalanced_state.state_root)),
+        ("_state_effect_refinement", verified.state_effect_refinement),
+    ):
+        with pytest.raises(AttributeError):
+            object.__setattr__(verified, field_name, value)
     assert verified.commit_id == original_commit_id
     port = GlobalEconomicCommitPortV1(profile, pre_state)
 
@@ -1849,9 +2006,138 @@ def test_commit_rebinds_refinement_against_post_return_certificate_mutation() ->
     # Assert: the commit lock rebinds the original checker witness and remains a no-op.
     assert result.status is CommitOutcomeStatusV1.BINDING_REJECTED
     assert result.reason is not None
-    assert result.reason.startswith("state/effect refinement recheck rejected:")
+    assert result.reason.startswith("route state projection recheck rejected:")
     assert port.state == pre_state
     assert port.records == ()
+
+
+def test_opaque_handle_blocks_route_disclosure_replacement_before_commit() -> None:
+    # Arrange: the handle has no writable or visible route-disclosure slot.
+    profile, route = _profile()
+    pre_state = _state(profile, height=0)
+    post_state = _state(profile, height=1)
+    verified, body, _, _, _ = _verified_epoch(profile, route, pre_state, post_state)
+    projection_roots = verified.route_state_projection_roots
+    with pytest.raises(AttributeError):
+        object.__setattr__(verified, "_route_state_disclosures", ())
+    assert verified.recheck_route_state_projections(
+        pre_state=pre_state,
+        post_state=post_state,
+    ) == projection_roots
+    port = GlobalEconomicCommitPortV1(profile, pre_state)
+
+    # Act
+    result = port.commit_verified_economic_epoch(
+        expected_head=pre_state.state_root,
+        expected_profile=profile.profile_id,
+        verified_epoch=verified,
+        body_and_state=body,
+    )
+
+    # Assert: rejected field injection cannot alter the verifier-owned authority record.
+    assert result.status is CommitOutcomeStatusV1.COMMITTED
+    assert result.record is not None
+    assert result.record.route_state_projection_roots == projection_roots
+    assert port.state == post_state
+    retry = port.commit_verified_economic_epoch(
+        expected_head=pre_state.state_root,
+        expected_profile=profile.profile_id,
+        verified_epoch=verified,
+        body_and_state=body,
+    )
+    assert retry.status is CommitOutcomeStatusV1.ALREADY_COMMITTED
+    assert retry.record == result.record
+
+
+def test_coherent_private_witness_replacement_cannot_rebind_original_receipt() -> None:
+    def verified_epoch_and_body(
+        count: int,
+    ) -> tuple[
+        VerifiedEconomicEpochV1,
+        EconomicEpochBodyAndStateV1,
+        EconomicEpochReceiptCandidateV1,
+    ]:
+        candidate = _epoch_admission_fixture(count)
+        body = EconomicEpochBodyAndStateV1(
+            pre_state_root=candidate.pre_state.state_root,
+            post_state=candidate.post_state,
+            ordered_command_body_hashes=tuple(
+                _root(77_100 + index) for index in range(count)
+            ),
+            receipt_archive_root=_root(77_200 + count),
+            data_availability_root=candidate.certificate.data_availability_root,
+            finality_root=candidate.certificate.finality_root,
+        )
+        certificate = replace(
+            candidate.certificate,
+            body_commitment=body.body_commitment,
+        )
+        certificate = replace(
+            certificate,
+            journal_bytes=len(certificate.canonical_journal_bytes),
+        )
+        rebound = replace(
+            candidate,
+            certificate=certificate,
+            expected_body_commitment=body.body_commitment,
+        )
+        return (
+            verify_economic_epoch_v1(rebound, _RecordingReceiptVerifier()),
+            body,
+            rebound,
+        )
+
+    # Arrange: reproduce the former attack by replacing every visible private
+    # authority field with a coherent two-command witness except the old receipt digest.
+    original, _original_body, _original_candidate = verified_epoch_and_body(1)
+    foreign, foreign_body, foreign_candidate = verified_epoch_and_body(2)
+    original_commit_id = original.commit_id
+    attack_certificate = replace(
+        foreign.certificate,
+        receipt_root=original.receipt_digest,
+    )
+    attack_certificate = replace(
+        attack_certificate,
+        journal_bytes=len(attack_certificate.canonical_journal_bytes),
+    )
+    substitutions = {
+        "_certificate": attack_certificate,
+        "_certificate_root": attack_certificate.certificate_root,
+        "_command_occurrences": foreign_candidate.command_occurrences,
+        "_effect_plan": foreign.effect_plan,
+        "_effect_plan_root": foreign.verified_effect_plan_root,
+        "_ordered_route_binding_roots": foreign.ordered_route_binding_roots,
+        "_profile": foreign_candidate.profile,
+        "_route_effect_plans": foreign_candidate.route_effect_plans,
+        "_route_journals": foreign_candidate.route_journals,
+        "_route_state_disclosures": foreign_candidate.route_state_disclosures,
+        "_route_state_effect_refinement_roots": foreign.route_state_effect_refinement_roots,
+        "_route_state_projection_roots": foreign.route_state_projection_roots,
+        "_state_effect_refinement": foreign.state_effect_refinement,
+        "_state_effect_refinement_root": foreign.verified_state_effect_refinement_root,
+    }
+    for field_name, value in substitutions.items():
+        with pytest.raises(AttributeError):
+            object.__setattr__(original, field_name, value)
+    assert original.commit_id == original_commit_id
+    port = GlobalEconomicCommitPortV1(
+        foreign_candidate.profile,
+        _epoch_admission_fixture(1).pre_state,
+    )
+    before = (port.state, port.records)
+
+    # Act
+    result = port.commit_verified_economic_epoch(
+        expected_head=foreign_body.pre_state_root,
+        expected_profile=foreign_candidate.profile.profile_id,
+        verified_epoch=original,
+        body_and_state=foreign_body,
+    )
+
+    # Assert: the verifier-owned record preserves the original one-command witness.
+    assert result.status is CommitOutcomeStatusV1.BINDING_REJECTED
+    assert result.reason is not None
+    assert (port.state, port.records) == before
 
 
 def test_commit_owns_published_state_against_retained_body_alias() -> None:
@@ -2056,6 +2342,12 @@ def test_epoch_verifier_rejects_chain_and_deployment_drift_before_commit() -> No
                     post_state,
                     (foreign_occurrence,),
                     (foreign_route_journal,),
+                    (
+                        EconomicEpochRouteStateDisclosureV1(
+                            foreign_route.lane_journals,
+                            post_state,
+                        ),
+                    ),
                     (foreign_verified_route,),
                     (foreign_route.effect_plan,),
                     foreign_effects,

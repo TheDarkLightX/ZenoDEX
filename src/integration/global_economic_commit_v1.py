@@ -14,7 +14,10 @@ from threading import Lock
 from typing import Mapping
 
 from ..core.global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
-from ..core.global_economic_proof_v1 import VerifiedEconomicEpochV1
+from ..core.global_economic_proof_v1 import (
+    VerifiedEconomicEpochV1,
+    _snapshot_verified_economic_epoch_v1,
+)
 from ..core.global_economic_refinement_snapshot_v1 import (
     _require_exact_tuple_items,
     _snapshot_state_v1,
@@ -131,6 +134,8 @@ class PublishedEconomicEpochV1:
     receipt_root: str
     receipt_archive_root: str
     effect_plan_root: str
+    route_state_effect_refinement_roots: tuple[str, ...]
+    route_state_projection_roots: tuple[str, ...]
     release_observation_root: str
 
     def __post_init__(self) -> None:
@@ -149,6 +154,41 @@ class PublishedEconomicEpochV1:
             "release_observation_root",
         ):
             _require_root(getattr(self, field_name), name=f"published epoch {field_name}")
+        projection_roots = tuple(
+            _require_exact_tuple_items(
+                self.route_state_projection_roots,
+                str,
+                "published epoch route state projection roots",
+            )
+        )
+        if not 1 <= len(projection_roots) <= MAX_EPOCH_COMMANDS_V1:
+            raise ValueError(
+                "published epoch requires between one and 64 route state projection roots"
+            )
+        if len(projection_roots) != len(set(projection_roots)):
+            raise ValueError("published epoch route state projection roots must be unique")
+        for index, root in enumerate(projection_roots):
+            _require_root(root, name=f"published epoch route state projection root[{index}]")
+        refinement_roots = tuple(
+            _require_exact_tuple_items(
+                self.route_state_effect_refinement_roots,
+                str,
+                "published epoch route state/effect refinement roots",
+            )
+        )
+        if len(refinement_roots) != len(projection_roots):
+            raise ValueError(
+                "published epoch route state/effect refinement count mismatch"
+            )
+        if len(refinement_roots) != len(set(refinement_roots)):
+            raise ValueError(
+                "published epoch route state/effect refinement roots must be unique"
+            )
+        for index, root in enumerate(refinement_roots):
+            _require_root(
+                root,
+                name=f"published epoch route state/effect refinement root[{index}]",
+            )
         if type(self.writer_epoch) is not int or self.writer_epoch < 0:
             raise ValueError("published epoch writer_epoch must be a non-negative integer")
 
@@ -166,6 +206,10 @@ class PublishedEconomicEpochV1:
             "receipt_root": self.receipt_root,
             "receipt_archive_root": self.receipt_archive_root,
             "effect_plan_root": self.effect_plan_root,
+            "route_state_effect_refinement_roots": (
+                self.route_state_effect_refinement_roots
+            ),
+            "route_state_projection_roots": self.route_state_projection_roots,
             "release_observation_root": self.release_observation_root,
         }
 
@@ -233,6 +277,7 @@ class GlobalEconomicCommitPortV1:
         _require_root(expected_profile, name="commit expected profile")
         if type(verified_epoch) is not VerifiedEconomicEpochV1:
             raise TypeError("commit requires VerifiedEconomicEpochV1")
+        owned_verified_epoch = _snapshot_verified_economic_epoch_v1(verified_epoch)
         if type(body_and_state) is not EconomicEpochBodyAndStateV1:
             raise TypeError("commit body_and_state is invalid")
         owned_body = _snapshot_body_and_state_v1(body_and_state)
@@ -240,7 +285,7 @@ class GlobalEconomicCommitPortV1:
             return self._commit_locked(
                 expected_head=expected_head,
                 expected_profile=expected_profile,
-                verified_epoch=verified_epoch,
+                verified_epoch=owned_verified_epoch,
                 body_and_state=owned_body,
             )
 
@@ -306,6 +351,10 @@ class GlobalEconomicCommitPortV1:
             receipt_root=certificate.receipt_root,
             receipt_archive_root=body_and_state.receipt_archive_root,
             effect_plan_root=verified_epoch.verified_effect_plan_root,
+            route_state_effect_refinement_roots=(
+                verified_epoch.route_state_effect_refinement_roots
+            ),
+            route_state_projection_roots=verified_epoch.route_state_projection_roots,
             release_observation_root=hash_global_v1(
                 "global-economic-release-observation-v1",
                 {
@@ -336,6 +385,23 @@ class GlobalEconomicCommitPortV1:
             validate_global_state_profile_v1(post_state, self._profile)
         except ValueError as exc:
             return str(exc)
+        try:
+            (
+                route_state_projection_roots,
+                route_state_effect_refinement_roots,
+            ) = verified_epoch.recheck_route_state_evidence(
+                pre_state=self._state,
+                post_state=post_state,
+            )
+        except (TypeError, ValueError) as exc:
+            return f"route state projection recheck rejected: {exc}"
+        if route_state_projection_roots != verified_epoch.route_state_projection_roots:
+            return "route state projection root mismatch"
+        if (
+            route_state_effect_refinement_roots
+            != verified_epoch.route_state_effect_refinement_roots
+        ):
+            return "route state/effect refinement root mismatch"
         try:
             refinement = verified_epoch.recheck_state_effect_refinement(
                 pre_state=self._state,
@@ -480,6 +546,16 @@ class GlobalEconomicCommitPortV1:
             (certificate.receipt_root, previous.receipt_root, "certificate receipt root"),
             (verified_epoch.receipt_digest, previous.receipt_root, "receipt digest"),
             (verified_epoch.effect_plan.effect_plan_root, previous.effect_plan_root, "effect plan root"),
+            (
+                verified_epoch.route_state_projection_roots,
+                previous.route_state_projection_roots,
+                "route state projection roots",
+            ),
+            (
+                verified_epoch.route_state_effect_refinement_roots,
+                previous.route_state_effect_refinement_roots,
+                "route state/effect refinement roots",
+            ),
             (refinement.pre_state_root, previous.pre_state_root, "state refinement pre-state root"),
             (refinement.post_state_root, previous.post_state_root, "state refinement post-state root"),
             (refinement.effect_plan_root, previous.effect_plan_root, "state refinement effect plan root"),

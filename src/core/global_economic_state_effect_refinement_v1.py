@@ -1,8 +1,10 @@
 """Exact state/effect refinement for the supported GlobalSettlementABI V1 fields.
 
 This deterministic checker binds full pre/post global economic states to the
-canonical effect plan.  It derives replay insertion from disclosed command
-occurrences. Nonempty disclosures advance state height exactly once; the
+canonical effect plan. It derives replay insertion from disclosed command
+occurrences. Whole-epoch refinement advances state height exactly once for a
+nonempty epoch. Per-route refinement requires the first route to reach the
+occurrence epoch height and permits later routes to preserve that height. The
 zero-occurrence static relation preserves height. Oracle occurrences, terminal
 obligations, history, and external outbox commit binding remain outside this
 refinement and therefore cannot change here.
@@ -196,7 +198,7 @@ def _require_fixed_context_v1(
     pre_state: GlobalEconomicStateV1,
     post_state: GlobalEconomicStateV1,
     *,
-    has_occurrences: bool,
+    expected_post_height: int,
 ) -> None:
     fixed_fields = (
         "chain_id",
@@ -210,9 +212,6 @@ def _require_fixed_context_v1(
     )
     if any(getattr(pre_state, field) != getattr(post_state, field) for field in fixed_fields):
         raise ValueError("economic refinement unsupported global field changed")
-    if has_occurrences and pre_state.height == MAX_U64_V1:
-        raise ValueError("economic refinement state height overflow")
-    expected_post_height = pre_state.height + int(has_occurrences)
     if post_state.height != expected_post_height:
         raise ValueError("economic refinement state height progression mismatch")
 
@@ -309,14 +308,11 @@ def _require_conservation_refinement_v1(
             raise ValueError("economic refinement conservation state mismatch")
 
 
-def refine_global_economic_state_effects_v1(
-    candidate: GlobalEconomicStateEffectRefinementCandidateV1,
+def _refine_snapshot_v1(
+    snapshot: GlobalEconomicStateEffectRefinementCandidateV1,
+    *,
+    expected_post_height: int,
 ) -> GlobalEconomicStateEffectRefinementV1:
-    """Return an opaque witness after exact supported-field refinement checks."""
-
-    if type(candidate) is not GlobalEconomicStateEffectRefinementCandidateV1:
-        raise TypeError("economic refinement candidate must be typed")
-    snapshot = _snapshot_candidate_v1(candidate)
     pre_state = snapshot.pre_state
     post_state = snapshot.post_state
     effect_plan = snapshot.effect_plan
@@ -325,7 +321,7 @@ def refine_global_economic_state_effects_v1(
     _require_fixed_context_v1(
         pre_state,
         post_state,
-        has_occurrences=bool(effect_plan.occurrence_consumptions),
+        expected_post_height=expected_post_height,
     )
     _require_nonzero_sparse_amounts_v1(pre_state)
     _require_nonzero_sparse_amounts_v1(post_state)
@@ -352,10 +348,55 @@ def refine_global_economic_state_effects_v1(
     )
 
 
+def refine_global_economic_state_effects_v1(
+    candidate: GlobalEconomicStateEffectRefinementCandidateV1,
+) -> GlobalEconomicStateEffectRefinementV1:
+    """Return an opaque witness for one complete epoch endpoint refinement."""
+
+    if type(candidate) is not GlobalEconomicStateEffectRefinementCandidateV1:
+        raise TypeError("economic refinement candidate must be typed")
+    snapshot = _snapshot_candidate_v1(candidate)
+    has_occurrences = bool(snapshot.effect_plan.occurrence_consumptions)
+    if has_occurrences and snapshot.pre_state.height == MAX_U64_V1:
+        raise ValueError("economic refinement state height overflow")
+    return _refine_snapshot_v1(
+        snapshot,
+        expected_post_height=snapshot.pre_state.height + int(has_occurrences),
+    )
+
+
+def refine_route_global_economic_state_effects_v1(
+    candidate: GlobalEconomicStateEffectRefinementCandidateV1,
+) -> GlobalEconomicStateEffectRefinementV1:
+    """Refine one route inside an epoch, including its exact intermediate state."""
+
+    if type(candidate) is not GlobalEconomicStateEffectRefinementCandidateV1:
+        raise TypeError("route economic refinement candidate must be typed")
+    snapshot = _snapshot_candidate_v1(candidate)
+    if (
+        len(snapshot.consumed_occurrences) != 1
+        or len(snapshot.route_journals) != 1
+        or len(snapshot.effect_plan.occurrence_consumptions) != 1
+    ):
+        raise ValueError("route economic refinement requires exactly one occurrence")
+    occurrence = snapshot.consumed_occurrences[0]
+    post_height = snapshot.post_state.height
+    allowed_pre_heights = {post_height}
+    if post_height > 0:
+        allowed_pre_heights.add(post_height - 1)
+    if occurrence.height != post_height or snapshot.pre_state.height not in allowed_pre_heights:
+        raise ValueError("route economic refinement epoch height context mismatch")
+    return _refine_snapshot_v1(
+        snapshot,
+        expected_post_height=post_height,
+    )
+
+
 __all__ = [
     "GLOBAL_ECONOMIC_STATE_EFFECT_REFINEMENT_SCHEMA_V1",
     "GlobalEconomicStateEffectRefinementCandidateV1",
     "GlobalEconomicStateEffectRefinementV1",
     "_snapshot_global_economic_state_effect_refinement_v1",
     "refine_global_economic_state_effects_v1",
+    "refine_route_global_economic_state_effects_v1",
 ]
