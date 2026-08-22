@@ -492,23 +492,38 @@ validation, or hashing. The future guest wire boundary rejects inputs larger
 than 8 MiB before deserialization.
 
 This closes fixed-profile exact target-row coverage for valid, deeply owned
-states in the six explicit tables. The standalone Python and Rust checkers now
-reject hostile state values outside the shared `u128` domain. A pinned RISC0
-3.0.6 guest and host source execute the same Rust statement checker over
-canonical bounded input and reject development mode, placeholder methods,
-non-succinct receipts, wrong journals, and wrong measured images. The source
-keeps the prepared statement opaque, recomputes its journal before certificate
-construction, and requires the journal's image field to equal the measured
-guest image. It compiles and passes tests with a placeholder method. Commit
-`d3b0e38c872106940a0a8e7478d78481281a7c8a` adds a real-proof harness that
+states in the six explicit tables. The standalone Python and Rust checkers
+reject hostile state values outside the shared `u128` domain. Commit
+`8eea5cb80ececccada8253cd2c758544de906c2c` also requires every migration proof
+input to disclose one full predecessor `GlobalEconomicStateV1`. The same Rust
+core imported by the guest recomputes that predecessor state root and binds its
+chain, deployment, profile root, writer epoch, and height to the public journal.
+Genesis requires the predecessor witness to be absent. The predecessor's
+explicit-row graph receives the same 4,096-row preflight ceiling as the target.
+
+This predecessor binding proves knowledge of the exact committed global-state
+preimage. It does not prove that the disclosed state was the finalized ledger
+head or that the target is a valid migration of it. Oracle, replay, history,
+terminal, outbox, and private lane contents are committed through the global
+state root, while their source-to-target continuity relations remain separate
+unimplemented obligations.
+
+A pinned RISC0 3.0.6 guest and host source use the same Rust statement checker
+over canonical bounded input and contain guards for development mode,
+placeholder methods, non-succinct receipts, wrong journals, and wrong measured
+images. The source keeps the prepared statement opaque, recomputes its journal
+before certificate construction, and requires the journal's image field to
+equal the measured guest image. Commit
+`d3b0e38c872106940a0a8e7478d78481281a7c8a` added a real-proof harness that
 records non-authoritative host cycle diagnostics, canonically serializes and
 replays a Succinct receipt, kills removal of the cryptographic verification
-call, and retains explicit unmounted and no-production-authority wording. That
-new harness has not been compiled or run: the local workstation heat constraint
-excludes the several-gigabyte rebuild, and the previously authorized
-proof-machine endpoints are unavailable. No real ELF, image ID, cycle
-measurement, proof, or receipt replay has therefore been produced for this
-guest.
+call, and retains explicit unmounted and no-production-authority wording. The
+predecessor-bearing Rust candidate has passed formatting parse and locked Cargo
+metadata resolution only. Its Rust targets have not been type-checked or run:
+the local workstation heat constraint excludes the several-gigabyte rebuild,
+and the previously authorized proof-machine endpoints are unavailable. No real
+ELF, image ID, cycle measurement, proof, or receipt replay has therefore been
+produced for this guest.
 
 The current manifest does not individually source-classify Oracle occurrences,
 replay rows, history, outbox rows, or objects hidden behind private lane roots.
@@ -565,11 +580,12 @@ remains excluded from GlobalSettlementABI V1.
 1. Freeze the exact complete M6 capability manifest and ZDEX semantic anchors,
    including buy-and-burn, hosting compensation, eight-decimal units,
    retained-supply hyperdeflation, recovery, and terminal behavior.
-2. Extend the exact target-row initialization manifest to Oracle, replay,
-   history, outbox, and private lane objects and complete predecessor-source
-   migration classification. Select the genesis or migration release from
-   committed profile state. Build and measure the existing RISC0 guest, then
-   generate and replay its real succinct receipt on the proof machine.
+2. Add separate invariant-owner certificates for Oracle, replay, history,
+   terminal, outbox, and private lane-object continuity and complete
+   predecessor-source migration classification. Select the genesis or migration
+   release from committed profile state. Build and measure the predecessor-bound
+   RISC0 guest, then generate and replay its real succinct receipt on the proof
+   machine.
 3. Extend the operation-derived sink inventory across dynamic Python, Rust,
    Tau, shell, generated code, native extensions, runtime loading, deployment
    wiring, and deployed entrypoints. Bind every discovered sink to an

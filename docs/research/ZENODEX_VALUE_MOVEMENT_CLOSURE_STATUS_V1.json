@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "d3b0e38c872106940a0a8e7478d78481281a7c8a",
+    "commit": "8eea5cb80ececccada8253cd2c758544de906c2c",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,7 +14,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "16eb26493dafe78b5f267474bc5b9aecde254953a833fdccaf4fed7c91864a6b",
+    "sha256": "0b32a564412ac9d2f825b3d1aec84bdb7b21ca4c563785a0ecb19c041a1a76f9",
     "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
     "verdict": "UNPROVED"
   },
@@ -156,6 +156,20 @@
         "no real ELF, measured image, cycle run, proof, or receipt replay exists",
         "host SessionStats carry no receipt authority and do not enforce a release max_cycles ceiling"
       ]
+    },
+    {
+      "reviewer": "GPT-5.6 Sol max predecessor-binding review",
+      "subject_commit": "8eea5cb80ececccada8253cd2c758544de906c2c",
+      "verdict": "PASS_STATIC_AFTER_LOW_REPAIR",
+      "scope": "Migration predecessor presence, state-root recomputation, chain, deployment, source-profile, writer-epoch, height, bounded prevalidation, Python ownership, and claim wording.",
+      "repaired_findings": [
+        "a direct Rust ABI 4097-row predecessor test now kills removal or reordering of the prevalidation ceiling"
+      ],
+      "residual_nonclaims": [
+        "the changed Rust targets are not compiled or run",
+        "no source-head authority, migration relation, or continuity theorem exists",
+        "no real ELF, measured image, proof, receipt replay, mount, or production authority exists"
+      ]
     }
   ],
   "implemented_slices": [
@@ -293,6 +307,40 @@
         "select the measured image through committed release and verifier registries",
         "mount verified admission in durable atomic activation",
         "extend coverage beyond the six explicit target tables"
+      ]
+    },
+    {
+      "id": "ECONOMIC_INITIAL_STATE_PREDECESSOR_BINDING_V1",
+      "commit": "8eea5cb80ececccada8253cd2c758544de906c2c",
+      "design_sha256": "badb6d747ce4499932b928e4ae390a53f2a28fa10026f3faa9635ee15b958326",
+      "python_coverage_sha256": "b1a927720ff306b50b0f248e09760efc767ded29ab632d063eb28b30ce3cd6d6",
+      "python_admission_sha256": "a344e8894d3a1df8c788ab486ddab392943e2ca8636409688f9d24213cd40ef6",
+      "python_test_sha256": "82b98897e35e042f8c2cc8d7c96c1ab7916c4b92ddc75b48cdf4c938c7864453",
+      "rust_abi_sha256": "f074f726e22cf9f9f1ec8cdc9f8bfb6ff0db41fe83c0996b73fea85276672cfa",
+      "rust_abi_test_sha256": "310382033a6dcd2fccd9ad7516e5d88536976382e6990f595f323ad0bf67ab80",
+      "risc0_shared_sha256": "6c9d9c2aa7c4c88d4850699e937b28fdb40f07fb522873fefd28d18d70de6d1e",
+      "risc0_shared_test_sha256": "d4f72e96f29bdc4e7a27a08916ba345a5ee75ce6dd087095ef2ce77f9aa9ba7e",
+      "risc0_test_support_sha256": "73d724efc1b49e7f6709a73d27a41a5b430b473c014b9379269f648477440ff1",
+      "status": [
+        "IMPLEMENTED_PYTHON_REFERENCE",
+        "IMPLEMENTED_RUST_ABI_SOURCE",
+        "IMPLEMENTED_RISC0_GUEST_INPUT_SOURCE",
+        "TESTED_PYTHON",
+        "STATIC_MAX_REVIEW_PASS",
+        "RUST_TARGETS_UNCOMPILED",
+        "REAL_ELF_UNBUILT",
+        "REAL_RECEIPT_UNPROVED",
+        "UNMOUNTED"
+      ],
+      "closed_obligation": "Genesis rejects a predecessor witness. Migration requires one exact GlobalEconomicStateV1 predecessor witness and binds its recomputed state root, chain, deployment, source profile root, writer epoch, and height before receipt verification; source and target explicit-row graphs reject above 4096 before row validation or hashing.",
+      "remaining_obligations": [
+        "authenticate the predecessor as the finalized source head",
+        "prove source-to-target replay, history, terminal, outbox, and private lane continuity",
+        "prove total predecessor-object migration classification and source authorization",
+        "compile and run the changed Rust targets with exact locks",
+        "build, measure, prove, and independently replay the new guest image",
+        "select the image and migration through committed release registries",
+        "mount durable atomic activation and writer rotation"
       ]
     },
     {
@@ -451,12 +499,12 @@
     {
       "id": "VM-11",
       "status": "PARTIAL",
-      "evidence": "For valid deeply owned states and one exact authority-selected profile-bound manifest, Python and Rust derive the same roots for every explicit balance, supply, accounting-control-domain, liability, reserve, and terminal-obligation target row, including all terminal statuses and u128 boundaries. The 4097 case rejects before row processing. Pinned RISC0 3.0.6 guest and host source compile and pass prior placeholder-mode tests over the same Rust statement checker. Commit d3b0e38c adds a real-proof and canonical byte-replay harness plus fake, noncanonical, resource-bound, cycle-budget, wrong-image, wrong-journal, and corrupted-Succinct-seal negative test source. The new test targets remain uncompiled and unrun. Oracle, replay, history, outbox, private lane-root objects, semantic migration labels, total predecessor-source classification, objective source authorization, a real measured ELF and receipt, migration-registry selection, durable atomic activation, and coexistence theorems remain absent."
+      "evidence": "For valid deeply owned states and one exact authority-selected profile-bound manifest, Python and Rust derive the same roots for every explicit balance, supply, accounting-control-domain, liability, reserve, and terminal-obligation target row, including all terminal statuses and u128 boundaries. Commit 8eea5cb80 requires a migration witness to disclose a full predecessor GlobalEconomicStateV1, recomputes its root, and binds chain, deployment, source profile, writer epoch, and height; genesis rejects a predecessor. Python executed tests pass and a GPT-5.6 Sol max static review passes after adding the direct Rust ABI 4097-row mutation killer. The changed Rust targets remain uncompiled and unrun. Predecessor finality, a valid migration relation, Oracle/replay/history/terminal/outbox/private-lane continuity, semantic migration labels, total predecessor-source classification, objective source authorization, a real measured ELF and receipt, migration-registry selection, durable atomic activation, and coexistence theorems remain absent."
     },
     {
       "id": "VM-12",
       "status": "GAP",
-      "evidence": "This ledger binds clean scoped subject d3b0e38c and a GPT-5.6 Sol max static review of its proof harness. Compilation, real proof replay, reproducible proof-machine artifacts, and complete release evidence remain absent."
+      "evidence": "This ledger binds clean scoped implementation subject 8eea5cb80 and a GPT-5.6 Sol max static review of its predecessor-binding seam. Compilation of the changed Rust targets, real proof replay, reproducible proof-machine artifacts, and complete release evidence remain absent."
     }
   ],
   "live_gate_observations": {
@@ -491,7 +539,7 @@
   },
   "next_dependency_order": [
     "Bind the complete intended M6 capability manifest into the profile and map each row to command, transition, effect, route, terminal, adapter, and evidence status.",
-    "Extend certified initialization from six explicit target tables to Oracle, replay, history, outbox, private lane objects, and total predecessor-source migration classification; then build, measure, register, prove, and replay the new initialization guest on the proof machine.",
+    "Implement separate invariant-owner certificates for Oracle, replay, history, terminal, outbox, private lane-object continuity, source-head authority, and total predecessor-source migration classification; then build, measure, register, prove, and replay the predecessor-bound initialization guest on the proof machine.",
     "Extend operation-derived sink discovery across dynamic Python, Rust, Tau, shell, generated code, native extensions, deployment wiring, and deployed reachability, then close VM-01.",
     "Complete effect source, authorization, claimant, residue, terminal, and external-delivery bindings.",
     "Seal authoritative verification behind a measured release-selected verifier.",
@@ -502,6 +550,7 @@
     "No whole-economy formal safety proof.",
     "No claim that tests alone establish safety.",
     "No real initialization guest ELF, measured image ID, proof, or receipt replay.",
+    "No claim that predecessor content commitment proves source-head finality or a valid source-to-target migration relation.",
     "No claim that the latest Tau main is production-stable or integration-compatible.",
     "No claim that existing proof compression establishes omitted economic semantics."
   ]
