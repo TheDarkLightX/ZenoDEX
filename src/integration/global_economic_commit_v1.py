@@ -13,6 +13,10 @@ from enum import Enum
 from threading import Lock
 from typing import Mapping
 
+from ..core.economic_initial_state_v1 import (
+    EconomicInitialStateAdmissionV1,
+    _verify_economic_initial_state_for_publisher_v1,
+)
 from ..core.global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from ..core.global_economic_proof_v1 import (
     EconomicEpochReceiptCandidateV1,
@@ -232,24 +236,21 @@ class GlobalEconomicCommitPortV1:
 
     def __init__(
         self,
-        profile: EconomicProfileSnapshotV1,
-        initial_state: GlobalEconomicStateV1,
+        initial_state_admission: EconomicInitialStateAdmissionV1,
         receipt_verifier: SuccinctReceiptVerifierV1,
     ) -> None:
-        if type(profile) is not EconomicProfileSnapshotV1:
-            raise TypeError("commit port profile must have the exact typed value")
-        if type(initial_state) is not GlobalEconomicStateV1:
-            raise TypeError("commit port initial state must have the exact typed value")
-        owned_profile = snapshot_economic_profile_v1(profile)
-        if owned_profile.status is not ProfileStatusV1.ACTIVE:
-            raise ValueError("commit port requires an ACTIVE economic profile")
-        owned_initial_state = _snapshot_state_v1(initial_state)
-        validate_global_state_profile_v1(owned_initial_state, owned_profile)
+        if type(initial_state_admission) is not EconomicInitialStateAdmissionV1:
+            raise TypeError("commit port requires exact initial-state admission")
         verify_method = getattr(receipt_verifier, "verify_succinct_receipt", None)
         if not callable(verify_method):
             raise TypeError("commit port receipt verifier is invalid")
-        self._profile = owned_profile
-        self._state = owned_initial_state
+        verified_initial_state = _verify_economic_initial_state_for_publisher_v1(
+            initial_state_admission,
+            receipt_verifier,
+        )
+        self._profile = verified_initial_state.profile
+        self._state = verified_initial_state.state
+        self._initial_state_certificate_root = verified_initial_state.certificate_root
         self._receipt_verifier = receipt_verifier
         self.__publisher_binding_token = object()
         self._records: dict[str, PublishedEconomicEpochV1] = {}
@@ -258,6 +259,10 @@ class GlobalEconomicCommitPortV1:
     @property
     def profile(self) -> EconomicProfileSnapshotV1:
         return snapshot_economic_profile_v1(self._profile)
+
+    @property
+    def initial_state_certificate_root(self) -> str:
+        return self._initial_state_certificate_root
 
     @property
     def state(self) -> GlobalEconomicStateV1:

@@ -447,6 +447,21 @@ remains open because Python same-process code is not an isolation boundary, the
 backend is not yet measured against a deployed verifier artifact, and verifier
 selection is not yet derived from durable committed profile state.
 
+The reference publisher also now requires an
+`EconomicInitialStateAdmissionV1`; it no longer accepts a plain caller-supplied
+profile and state pair. The admission binds an active profile, exact state root,
+chain, deployment, writer epoch, height, source lineage, coverage and
+continuity roots, source/toolchain manifests, selected root image, canonical
+journal, receipt digest, and a succinct-receipt check before the publisher is
+constructed. Python and Rust share canonical certificate golden vectors, and
+the publisher owns snapshots before invoking the verification callback. This
+closes the plain-snapshot constructor counterexample in the in-memory reference
+model. VM-11 remains open: the coverage roots are not yet established by a real
+initialization guest, migration releases are not yet selected from the
+committed migration registry, the existing object-classification certificate
+is not yet composed into admission, activation is not durable and atomic, and
+coexisting shared-asset releases lack their required theorems.
+
 ## Recommended implementation order
 
 1. Freeze the exact complete M6 capability manifest and ZDEX semantic anchors,

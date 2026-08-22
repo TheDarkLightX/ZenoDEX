@@ -66,6 +66,9 @@ from src.core.global_settlement_abi_v1 import (
     EconomicEffectRowV1,
     EconomicEpochReceiptCandidateV1,
     EconomicEpochRouteStateDisclosureV1,
+    EconomicInitialStateAdmissionV1,
+    EconomicInitialStateCertificateV1,
+    EconomicInitialStateKindV1,
     EconomicPolicyBindingV1,
     EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
@@ -364,6 +367,62 @@ def _state(profile: EconomicProfileSnapshotV1, *, height: int) -> GlobalEconomic
         accepted.post_state,
         height=1,
         replay_state=(replay,),
+    )
+
+
+def _initial_state_admission(
+    profile: EconomicProfileSnapshotV1,
+    state: GlobalEconomicStateV1,
+    *,
+    receipt_bytes: bytes = b"succinct-initial-state-receipt",
+) -> EconomicInitialStateAdmissionV1:
+    receipt_root = "0x" + hashlib.sha256(receipt_bytes).hexdigest()
+    certificate = EconomicInitialStateCertificateV1(
+        kind=EconomicInitialStateKindV1.GENESIS,
+        chain_id=state.chain_id,
+        deployment_root=state.deployment_root,
+        profile_root=profile.profile_id,
+        writer_epoch=profile.authority_epoch,
+        height=state.height,
+        state_root=state.state_root,
+        source_profile_root=ZERO_ROOT_V1,
+        source_state_root=ZERO_ROOT_V1,
+        source_writer_epoch=0,
+        source_height=0,
+        state_atom_coverage_root=_root(450),
+        lane_object_coverage_root=_root(451),
+        replay_continuity_root=_root(452),
+        terminal_continuity_root=_root(453),
+        outbox_continuity_root=_root(454),
+        source_manifest_root=_root(455),
+        toolchain_manifest_root=_root(456),
+        root_image_id=profile.root_image_id,
+        receipt_root=receipt_root,
+        receipt_kind=ReceiptKindV1.SUCCINCT,
+        journal_bytes=1,
+        cycle_budget=1_000_000,
+    )
+    certificate = replace(
+        certificate,
+        journal_bytes=len(certificate.canonical_journal_bytes),
+    )
+    return EconomicInitialStateAdmissionV1(
+        profile=profile,
+        state=state,
+        certificate=certificate,
+        receipt_bytes=receipt_bytes,
+    )
+
+
+def _commit_port(
+    profile: EconomicProfileSnapshotV1,
+    state: GlobalEconomicStateV1,
+    receipt_verifier: _RecordingReceiptVerifier | None = None,
+) -> GlobalEconomicCommitPortV1:
+    verifier = receipt_verifier or _RecordingReceiptVerifier()
+    return GlobalEconomicCommitPortV1(
+        _initial_state_admission(profile, state),
+        verifier,
     )
 
 
@@ -916,7 +975,7 @@ def _publisher_verified_epoch(
     RouteCompositionJournalV1,
 ]:
     verifier = _RecordingReceiptVerifier()
-    publisher = GlobalEconomicCommitPortV1(profile, pre_state, verifier)
+    publisher = _commit_port(profile, pre_state, verifier)
     verified, body, _, occurrence, journal = _verified_epoch(
         profile,
         route,
@@ -1492,7 +1551,7 @@ def test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle() 
     forged = object.__new__(VerifiedEconomicEpochV1)
     with pytest.raises(TypeError, match="not verifier-registered"):
         _ = forged.commit_id
-    forged_port = GlobalEconomicCommitPortV1(
+    forged_port = _commit_port(
         profile,
         pre_state,
         _RecordingReceiptVerifier(),
@@ -2472,7 +2531,7 @@ def test_caller_selected_verifier_witness_cannot_reach_the_publisher() -> None:
         with pytest.raises(AttributeError):
             object.__setattr__(original, field_name, value)
     assert original.commit_id == original_commit_id
-    port = GlobalEconomicCommitPortV1(
+    port = _commit_port(
         foreign_candidate.profile,
         _epoch_admission_fixture(1).pre_state,
         _RecordingReceiptVerifier(),
@@ -2500,7 +2559,7 @@ def test_release_selected_witness_is_bound_to_one_exact_publisher() -> None:
         pre_state,
         post_state,
     )
-    second_port = GlobalEconomicCommitPortV1(
+    second_port = _commit_port(
         profile,
         pre_state,
         _RecordingReceiptVerifier(),
@@ -2563,15 +2622,109 @@ def test_commit_port_owns_initial_state_before_validation_returns() -> None:
     profile, _ = _profile()
     initial_state = _state(profile, height=0)
     expected_root = initial_state.state_root
-    port = GlobalEconomicCommitPortV1(
-        profile,
-        initial_state,
-        _RecordingReceiptVerifier(),
-    )
+    verifier = _RecordingReceiptVerifier()
+    port = _commit_port(profile, initial_state, verifier)
 
     object.__setattr__(initial_state.balances[0], "amount_atoms", 99_999)
 
     assert port.state.state_root == expected_root
+    assert len(verifier.calls) == 1
+    assert port.initial_state_certificate_root != ZERO_ROOT_V1
+
+
+def test_commit_port_rejects_plain_or_mismatched_initial_state_before_receipt() -> None:
+    profile, _ = _profile()
+    initial_state = _state(profile, height=0)
+    admission = _initial_state_admission(profile, initial_state)
+    verifier = _RecordingReceiptVerifier()
+
+    with pytest.raises(TypeError, match="initial-state admission"):
+        GlobalEconomicCommitPortV1(initial_state, verifier)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="state root mismatch"):
+        GlobalEconomicCommitPortV1(
+            replace(
+                admission,
+                certificate=replace(admission.certificate, state_root=_root(77_100)),
+            ),
+            verifier,
+        )
+    with pytest.raises(ValueError, match="receipt root mismatch"):
+        GlobalEconomicCommitPortV1(
+            replace(
+                admission,
+                certificate=replace(admission.certificate, receipt_root=_root(77_101)),
+            ),
+            verifier,
+        )
+    with pytest.raises(ValueError, match="ACTIVE profile"):
+        GlobalEconomicCommitPortV1(
+            replace(admission, profile=replace(profile, status=ProfileStatusV1.SHADOW)),
+            verifier,
+        )
+
+    assert verifier.calls == []
+
+
+def test_initial_state_callback_cannot_mutate_publisher_owned_state() -> None:
+    profile, _ = _profile()
+    initial_state = _state(profile, height=0)
+    admission = _initial_state_admission(profile, initial_state)
+    expected_state_root = initial_state.state_root
+    expected_certificate_root = admission.certificate.certificate_root
+
+    class MutatingInitialStateVerifier:
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            del receipt_bytes, expected_image_id, expected_journal_bytes
+            object.__setattr__(initial_state.balances[0], "amount_atoms", 99_999)
+            object.__setattr__(admission.certificate, "state_root", _root(77_102))
+
+    port = GlobalEconomicCommitPortV1(admission, MutatingInitialStateVerifier())
+
+    assert port.state.state_root == expected_state_root
+    assert port.initial_state_certificate_root == expected_certificate_root
+
+
+def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> None:
+    profile, _ = _profile()
+    migrated_state = _state(profile, height=1)
+    genesis = _initial_state_admission(profile, _state(profile, height=0))
+    migration_certificate = replace(
+        genesis.certificate,
+        kind=EconomicInitialStateKindV1.MIGRATION,
+        height=migrated_state.height,
+        state_root=migrated_state.state_root,
+        source_profile_root=_root(77_110),
+        source_state_root=_root(77_111),
+        source_writer_epoch=profile.authority_epoch - 1,
+        source_height=migrated_state.height - 1,
+    )
+    migration_certificate = replace(
+        migration_certificate,
+        journal_bytes=len(migration_certificate.canonical_journal_bytes),
+    )
+    admission = EconomicInitialStateAdmissionV1(
+        profile,
+        migrated_state,
+        migration_certificate,
+        genesis.receipt_bytes,
+    )
+
+    port = GlobalEconomicCommitPortV1(admission, _RecordingReceiptVerifier())
+
+    assert port.state.state_root == migrated_state.state_root
+    with pytest.raises(ValueError, match="writer epoch exactly once"):
+        replace(
+            migration_certificate,
+            source_writer_epoch=profile.authority_epoch - 2,
+        )
+    with pytest.raises(ValueError, match="one transition height"):
+        replace(migration_certificate, source_height=migrated_state.height)
 
 
 def test_commit_port_owns_and_revalidates_active_profile_graph() -> None:
@@ -2643,7 +2796,7 @@ def test_commit_port_owns_and_revalidates_active_profile_graph() -> None:
     poisoned_profile = port.profile
     poisoned_route = poisoned_profile.route_registry.routes[0]
     poisoned_verifier = _RecordingReceiptVerifier()
-    poisoned_port = GlobalEconomicCommitPortV1(
+    poisoned_port = _commit_port(
         poisoned_profile,
         pre_state,
         poisoned_verifier,
@@ -2725,7 +2878,7 @@ def test_epoch_verifier_rejects_chain_and_deployment_drift_before_commit() -> No
         ("deployment_root", _root(88_001), "pre-state deployment mismatch"),
     )
     for field_name, foreign_value, expected_reason in substitutions:
-        port = GlobalEconomicCommitPortV1(
+        port = _commit_port(
             profile,
             pre_state,
             _RecordingReceiptVerifier(),
@@ -2894,7 +3047,7 @@ def test_concurrent_roots_have_one_atomic_winner_and_one_stale_noop() -> None:
     pre_state = _state(profile, height=0)
     post_state = _state(profile, height=1)
     verifier = _RecordingReceiptVerifier()
-    port = GlobalEconomicCommitPortV1(profile, pre_state, verifier)
+    port = _commit_port(profile, pre_state, verifier)
     first, body, _, _, _ = _verified_epoch(
         profile,
         route,
