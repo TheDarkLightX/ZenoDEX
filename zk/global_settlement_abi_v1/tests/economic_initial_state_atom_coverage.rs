@@ -4,11 +4,12 @@ use std::path::PathBuf;
 use serde_json::Value;
 use zenodex_global_settlement_abi_v1::{
     derive_economic_initial_state_atom_occurrences_v1,
-    validate_economic_initial_state_atom_coverage_v1, EconomicInitialStateAtomClassificationV1,
-    EconomicInitialStateAtomKindV1, EconomicInitialStateAtomOccurrenceV1,
-    EconomicInitialStateAtomSourceV1, EconomicInitialStateKindV1,
-    EconomicInitialStateSourceManifestV1, GlobalEconomicStateV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1,
-    MAX_INITIAL_STATE_ATOM_ROWS_V1,
+    validate_economic_initial_state_atom_coverage_v1, AbiErrorV1, AssetSupplyV1, EconomicAmountV1,
+    EconomicInitialStateAtomClassificationV1, EconomicInitialStateAtomKindV1,
+    EconomicInitialStateAtomOccurrenceV1, EconomicInitialStateAtomSourceV1,
+    EconomicInitialStateKindV1, EconomicInitialStateSourceManifestV1, GlobalEconomicStateV1,
+    RootV1, TerminalObligationStatusV1, TerminalObligationV1, ALL_LANE_IDS_V1,
+    GLOBAL_SETTLEMENT_ABI_V1, MAX_INITIAL_STATE_ATOM_ROWS_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -83,6 +84,110 @@ fn explicit_state_atoms_are_classified_exactly_once() {
     assert_eq!(
         manifest.rows[1].occurrence.row_root.as_str(),
         "0x35847c7f890093296e3e65a83971465e55ae776d7d2e0cb72152e961ce0f4122"
+    );
+}
+
+#[test]
+fn all_six_row_kinds_and_terminal_statuses_match_python_golden_vectors() {
+    let mut state = fixture_state();
+    state.balances = vec![EconomicAmountV1 {
+        owner: "alice".to_owned(),
+        asset: "ZDEX".to_owned(),
+        custody_domain: "accounts".to_owned(),
+        amount_atoms: 1,
+    }];
+    state.supplies = vec![AssetSupplyV1 {
+        asset: "ZDEX".to_owned(),
+        amount_atoms: 6,
+    }];
+    state.custody = vec![EconomicAmountV1 {
+        owner: "pool-1".to_owned(),
+        asset: "ZDEX".to_owned(),
+        custody_domain: "pool".to_owned(),
+        amount_atoms: 2,
+    }];
+    state.liabilities = vec![EconomicAmountV1 {
+        owner: "claim-1".to_owned(),
+        asset: "ZDEX".to_owned(),
+        custody_domain: "claim".to_owned(),
+        amount_atoms: 3,
+    }];
+    state.reserves = vec![EconomicAmountV1 {
+        owner: "treasury".to_owned(),
+        asset: "ZDEX".to_owned(),
+        custody_domain: "reserve".to_owned(),
+        amount_atoms: 4,
+    }];
+    state.terminal_obligations = vec![TerminalObligationV1 {
+        obligation_id: "terminal-1".to_owned(),
+        lane_id: ALL_LANE_IDS_V1[0],
+        claimant: "bob".to_owned(),
+        asset: "ZDEX".to_owned(),
+        amount_atoms: 5,
+        status: TerminalObligationStatusV1::OPEN,
+    }];
+
+    let roots: Vec<_> = derive_economic_initial_state_atom_occurrences_v1(&state)
+        .unwrap()
+        .into_iter()
+        .map(|occurrence| occurrence.row_root.as_str().to_owned())
+        .collect();
+
+    assert_eq!(
+        roots,
+        vec![
+            "0x9cd2992d3a82595674d5901579ff34119bc3c38416516a13563ccbd8c0bb9248",
+            "0x89b99532450803b9a8360197d2ae4b3786724369c5f1f384b3a801c059010e45",
+            "0xcbc21f2d14fdb62d2c01547ab962eef36de37d04ad09de4ffec54188c9d792ad",
+            "0xf083b46ed21f18ace90b8ef7713fbdb58b2a4babb3f66b187be4a0803527a9f9",
+            "0xfa7e604762f4317f929d060a2d9c6d245e75402ffe7efcb9679eb0d8fc7389cc",
+            "0x816cc31d257fff3434228aeb0a53a50d032fe47e0833541c5ebd063007511c8d",
+        ]
+    );
+
+    state.balances.clear();
+    state.supplies.clear();
+    state.custody.clear();
+    state.liabilities.clear();
+    state.reserves.clear();
+    state.terminal_obligations = vec![
+        TerminalObligationV1 {
+            obligation_id: "a-open".to_owned(),
+            lane_id: ALL_LANE_IDS_V1[0],
+            claimant: "alice".to_owned(),
+            asset: "ZDEX".to_owned(),
+            amount_atoms: 0,
+            status: TerminalObligationStatusV1::OPEN,
+        },
+        TerminalObligationV1 {
+            obligation_id: "b-drained".to_owned(),
+            lane_id: ALL_LANE_IDS_V1[0],
+            claimant: "bob".to_owned(),
+            asset: "ZDEX".to_owned(),
+            amount_atoms: 1,
+            status: TerminalObligationStatusV1::DRAINED,
+        },
+        TerminalObligationV1 {
+            obligation_id: "c-tombstoned".to_owned(),
+            lane_id: ALL_LANE_IDS_V1[0],
+            claimant: "carol".to_owned(),
+            asset: "ZDEX".to_owned(),
+            amount_atoms: u128::MAX,
+            status: TerminalObligationStatusV1::TOMBSTONED,
+        },
+    ];
+    let terminal_roots: Vec<_> = derive_economic_initial_state_atom_occurrences_v1(&state)
+        .unwrap()
+        .into_iter()
+        .map(|occurrence| occurrence.row_root.as_str().to_owned())
+        .collect();
+    assert_eq!(
+        terminal_roots,
+        vec![
+            "0xb648e4f3759df2305eec420f54a998300dd7a1de7c401ea3dcca786ed1e8b106",
+            "0x3ba55fce49c0b0dd2d6a4be268357ccf3ca855277b3daea11599c66ee444326a",
+            "0x9cac82bc2b5ffcd8e60ecefe17aa000d1d2308a097f74a24da966b61ca1d82cc",
+        ]
     );
 }
 
@@ -168,4 +273,45 @@ fn source_manifest_row_bound_has_exact_neighbors() {
 
     assert!(at_limit.validate().is_ok());
     assert!(over_limit.validate().is_err());
+}
+
+#[test]
+fn explicit_state_row_count_checks_4095_4096_and_rejects_4097_before_row_validation() {
+    let balances = |row_count: usize| {
+        (0..row_count)
+            .map(|index| EconomicAmountV1 {
+                owner: format!("owner-{index:04}"),
+                asset: "ZDEX".to_owned(),
+                custody_domain: "accounts".to_owned(),
+                amount_atoms: u128::try_from(index).unwrap(),
+            })
+            .collect::<Vec<_>>()
+    };
+
+    for row_count in [4_095, 4_096] {
+        let mut state = fixture_state();
+        state.balances = balances(row_count);
+        state.supplies.clear();
+        let occurrences = derive_economic_initial_state_atom_occurrences_v1(&state).unwrap();
+        assert_eq!(occurrences.len(), row_count);
+        assert_eq!(
+            occurrences.last().unwrap().state_row_index,
+            u64::try_from(row_count - 1).unwrap()
+        );
+    }
+
+    let mut oversized = fixture_state();
+    oversized.balances = balances(4_097);
+    oversized.balances[0].owner = "not allowed unicode ☃".to_owned();
+    oversized.supplies.clear();
+    assert!(matches!(
+        derive_economic_initial_state_atom_occurrences_v1(&oversized),
+        Err(AbiErrorV1::InvalidBounds(
+            "initial state explicit value rows"
+        ))
+    ));
+
+    let mut invalid_token = fixture_state();
+    invalid_token.balances[0].owner = "not allowed unicode ☃".to_owned();
+    assert!(derive_economic_initial_state_atom_occurrences_v1(&invalid_token).is_err());
 }

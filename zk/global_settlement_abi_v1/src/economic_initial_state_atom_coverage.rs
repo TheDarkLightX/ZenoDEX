@@ -163,8 +163,26 @@ fn extend_occurrences_v1<T: Serialize>(
 pub fn derive_economic_initial_state_atom_occurrences_v1(
     state: &GlobalEconomicStateV1,
 ) -> AbiResultV1<Vec<EconomicInitialStateAtomOccurrenceV1>> {
+    let explicit_row_count = [
+        state.balances.len(),
+        state.supplies.len(),
+        state.custody.len(),
+        state.liabilities.len(),
+        state.reserves.len(),
+        state.terminal_obligations.len(),
+    ]
+    .into_iter()
+    .try_fold(0_usize, |total, count| total.checked_add(count))
+    .ok_or(AbiErrorV1::InvalidBounds(
+        "initial state explicit value rows",
+    ))?;
+    if explicit_row_count > MAX_INITIAL_STATE_ATOM_ROWS_V1 {
+        return Err(AbiErrorV1::InvalidBounds(
+            "initial state explicit value rows",
+        ));
+    }
     state.validate()?;
-    let mut occurrences = Vec::new();
+    let mut occurrences = Vec::with_capacity(explicit_row_count);
     extend_occurrences_v1(
         &mut occurrences,
         EconomicInitialStateAtomKindV1::Balance,
@@ -195,11 +213,6 @@ pub fn derive_economic_initial_state_atom_occurrences_v1(
         EconomicInitialStateAtomKindV1::TerminalObligation,
         &state.terminal_obligations,
     )?;
-    if occurrences.len() > MAX_INITIAL_STATE_ATOM_ROWS_V1 {
-        return Err(AbiErrorV1::InvalidBounds(
-            "initial state explicit value rows",
-        ));
-    }
     Ok(occurrences)
 }
 

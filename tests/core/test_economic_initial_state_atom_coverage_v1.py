@@ -4,6 +4,7 @@ from dataclasses import replace
 
 import pytest
 
+import src.core.economic_initial_state_atom_coverage_v1 as coverage_module
 from src.core.economic_initial_state_atom_coverage_v1 import (
     MAX_INITIAL_STATE_ATOM_ROWS_V1,
     EconomicInitialStateAtomClassificationV1,
@@ -147,6 +148,64 @@ def test_atom_row_and_manifest_roots_match_rust_golden_vectors() -> None:
         "0x8fb2073a85c1b563f09860071e0d3ebd2508be80a111c95fcf585eebc90187ba"
     )
 
+    all_kind_roots = tuple(
+        occurrence.row_root
+        for occurrence in derive_economic_initial_state_atom_occurrences_v1(_state())
+    )
+    assert all_kind_roots == (
+        "0x9cd2992d3a82595674d5901579ff34119bc3c38416516a13563ccbd8c0bb9248",
+        "0x89b99532450803b9a8360197d2ae4b3786724369c5f1f384b3a801c059010e45",
+        "0xcbc21f2d14fdb62d2c01547ab962eef36de37d04ad09de4ffec54188c9d792ad",
+        "0xf083b46ed21f18ace90b8ef7713fbdb58b2a4babb3f66b187be4a0803527a9f9",
+        "0xfa7e604762f4317f929d060a2d9c6d245e75402ffe7efcb9679eb0d8fc7389cc",
+        "0x816cc31d257fff3434228aeb0a53a50d032fe47e0833541c5ebd063007511c8d",
+    )
+
+    terminal_status_state = replace(
+        _state(),
+        balances=(),
+        supplies=(),
+        custody=(),
+        liabilities=(),
+        reserves=(),
+        terminal_obligations=(
+            TerminalObligationV1(
+                "a-open",
+                ALL_LANE_IDS_V1[0],
+                "alice",
+                "ZDEX",
+                0,
+                TerminalObligationStatusV1.OPEN,
+            ),
+            TerminalObligationV1(
+                "b-drained",
+                ALL_LANE_IDS_V1[0],
+                "bob",
+                "ZDEX",
+                1,
+                TerminalObligationStatusV1.DRAINED,
+            ),
+            TerminalObligationV1(
+                "c-tombstoned",
+                ALL_LANE_IDS_V1[0],
+                "carol",
+                "ZDEX",
+                (1 << 128) - 1,
+                TerminalObligationStatusV1.TOMBSTONED,
+            ),
+        ),
+    )
+    assert tuple(
+        occurrence.row_root
+        for occurrence in derive_economic_initial_state_atom_occurrences_v1(
+            terminal_status_state
+        )
+    ) == (
+        "0xb648e4f3759df2305eec420f54a998300dd7a1de7c401ea3dcca786ed1e8b106",
+        "0x3ba55fce49c0b0dd2d6a4be268357ccf3ca855277b3daea11599c66ee444326a",
+        "0x9cac82bc2b5ffcd8e60ecefe17aa000d1d2308a097f74a24da966b61ca1d82cc",
+    )
+
 
 @pytest.mark.parametrize("mutation", ("omit", "stale", "wrong_classification"))
 def test_given_incomplete_or_stale_manifest_when_validated_then_rejects(
@@ -271,3 +330,60 @@ def test_manifest_row_bound_and_exact_integer_index_bva() -> None:
             True,  # type: ignore[arg-type]
             _root(9),
         )
+
+
+def _state_with_balance_count(row_count: int) -> GlobalEconomicStateV1:
+    state = _state()
+    return replace(
+        state,
+        balances=tuple(
+            EconomicAmountV1(f"owner-{index:04}", "ZDEX", "accounts", index)
+            for index in range(row_count)
+        ),
+        supplies=(),
+        custody=(),
+        liabilities=(),
+        reserves=(),
+        terminal_obligations=(),
+    )
+
+
+@pytest.mark.parametrize("row_count", (4_095, 4_096))
+def test_explicit_state_row_count_accepts_release_boundary_neighbors(
+    row_count: int,
+) -> None:
+    # Arrange
+    state = _state_with_balance_count(row_count)
+
+    # Act
+    occurrences = derive_economic_initial_state_atom_occurrences_v1(state)
+
+    # Assert
+    assert len(occurrences) == row_count
+    assert occurrences[-1].state_row_index == row_count - 1
+
+
+def test_oversize_state_rejects_before_copy_validation_or_row_hashing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    state = _state_with_balance_count(4_097)
+
+    def forbidden_hash(*_args: object, **_kwargs: object) -> str:
+        raise AssertionError("oversize rows must reject before hashing")
+
+    monkeypatch.setattr(coverage_module, "hash_global_v1", forbidden_hash)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="coverage bound"):
+        derive_economic_initial_state_atom_occurrences_v1(state)
+
+
+def test_public_checker_revalidates_hostile_frozen_row_mutation() -> None:
+    # Arrange
+    state = _state()
+    object.__setattr__(state.balances[0], "amount_atoms", 1 << 128)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="unsigned 128-bit"):
+        derive_economic_initial_state_atom_occurrences_v1(state)

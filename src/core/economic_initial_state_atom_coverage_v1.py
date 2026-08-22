@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from enum import Enum
 from typing import Final
 
+from .global_economic_refinement_snapshot_v1 import _snapshot_state_v1
 from .global_settlement_types_v1 import (
     GLOBAL_SETTLEMENT_ABI_V1,
     AssetSupplyV1,
@@ -225,9 +226,18 @@ def derive_economic_initial_state_atom_occurrences_v1(
 
     if type(state) is not GlobalEconomicStateV1:
         raise TypeError("initial state atom coverage state type is not closed")
+    total_rows = 0
+    for _, field_name, _ in _ATOM_FIELDS_V1:
+        rows = getattr(state, field_name)
+        if type(rows) is not tuple:
+            raise TypeError(f"initial state {field_name} rows must be an exact tuple")
+        total_rows += len(rows)
+        if total_rows > MAX_INITIAL_STATE_ATOM_ROWS_V1:
+            raise ValueError("initial state explicit value rows exceed the coverage bound")
+    owned_state = _snapshot_state_v1(state)
     occurrences: list[EconomicInitialStateAtomOccurrenceV1] = []
     for atom_kind, field_name, _ in _ATOM_FIELDS_V1:
-        rows = getattr(state, field_name)
+        rows = getattr(owned_state, field_name)
         for state_row_index, row in enumerate(rows):
             occurrences.append(
                 economic_initial_state_atom_occurrence_v1(
@@ -236,8 +246,6 @@ def derive_economic_initial_state_atom_occurrences_v1(
                     row,
                 )
             )
-    if len(occurrences) > MAX_INITIAL_STATE_ATOM_ROWS_V1:
-        raise ValueError("initial state explicit value rows exceed the coverage bound")
     return tuple(occurrences)
 
 
