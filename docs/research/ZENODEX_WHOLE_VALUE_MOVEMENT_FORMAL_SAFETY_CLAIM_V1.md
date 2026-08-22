@@ -117,6 +117,17 @@ The current detailed tokenomics design is
 `docs/research/ZDEX_HYPERDEFLATION_V1_20260821.md`. Any conflict between that
 document and these anchors is a release-blocking semantic gap.
 
+Known legacy and experimental surfaces remain incompatible with these anchors.
+The local-testnet tokenomics path in
+`src/integration/zeno_ledger_tokenomics.py`, its node and Tau-witness adapters,
+and the current token-statistics UI still implement or describe a fixed
+`supply_floor`. They cannot be mounted under the selected M6 profile unless
+they are replaced or passed through a separately proved migration. The
+experimental ZDEX precision-rescale transition also cannot be routed under
+GlobalSettlementABI V1; changing denomination requires an ABI V2 migration.
+Their presence in the repository is research or legacy evidence, not semantic
+authority.
+
 ### 1. Total deterministic decision
 
 ```text
@@ -461,6 +472,13 @@ initialization guest, migration releases are not yet selected from the
 committed migration registry, the existing object-classification certificate
 is not yet composed into admission, activation is not durable and atomic, and
 coexisting shared-asset releases lack their required theorems.
+
+The 18-workflow/81-scenario ATDD catalogue and its historical 11 Luna-required
+expansions are insufficient as a complete M6 capability manifest. The catalogue
+does not yet provide closed lifecycle contracts for every required farm,
+buy-and-burn, Oracle-economics, strategy-escrow, proof-task, external-finality,
+and autonomous-governance capability. A profile containing only the workflows
+already represented there must not satisfy VM-01 or VM-04 by omission.
 
 ## Recommended implementation order
 

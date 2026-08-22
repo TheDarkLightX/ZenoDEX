@@ -14,6 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_STATUS_PATH = Path(
     "docs/research/ZENODEX_VALUE_MOVEMENT_CLOSURE_STATUS_V1.json"
 )
+M6_ATDD_PATH = Path("docs/research/m6_global_economic_core_atdd_bdd_v1.json")
 EXPECTED_GATE_IDS = tuple(f"VM-{index:02d}" for index in range(1, 13))
 EXPECTED_SEMANTIC_KEYS = frozenset(
     {
@@ -36,6 +37,12 @@ EXPECTED_HYPERDEFLATION = (
     "No arbitrary fixed percentage of initial supply is required as a floor. "
     "Bind a retained-supply rule such as R(S)=ceil(p*S/q), 0<p<q, and "
     "burn<=S-R(S)."
+)
+EXPECTED_M6_ZDEX_PRODUCTION_RULE = (
+    "Only the exact ZDEX atoms produced by atomically spending a governed "
+    "quote-asset fee allocation through the selected authenticated Spot route "
+    "may burn. Each burn preserves R(S)=ceil(p*S/q), with 0<p<q and "
+    "burn<=S-R(S); no fixed initial-supply percentage floor is authoritative."
 )
 
 
@@ -69,6 +76,28 @@ def _mapping(value: object, name: str, findings: list[str]) -> Mapping[str, obje
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def validate_m6_zdex_semantic_anchor_v1(value: object) -> list[str]:
+    """Reject the historical fixed-floor or shortcut-burn M6 semantics."""
+
+    if type(value) is not dict:
+        return ["M6 ATDD contract must be an object"]
+    policies = value.get("managed_asset_policy")
+    if type(policies) is not list or any(type(policy) is not dict for policy in policies):
+        return ["M6 ATDD managed_asset_policy must be a list of objects"]
+    zdex_rows = [
+        policy for policy in policies if policy.get("asset_class") == "zdex_protocol_token"
+    ]
+    if len(zdex_rows) != 1:
+        return ["M6 ATDD must contain exactly one ZDEX managed-asset policy"]
+    row = zdex_rows[0]
+    findings: list[str] = []
+    if row.get("burn_authority") != "fee-funded protocol buy-and-burn transition":
+        findings.append("M6 ATDD ZDEX burn authority drift")
+    if row.get("production_rule") != EXPECTED_M6_ZDEX_PRODUCTION_RULE:
+        findings.append("M6 ATDD ZDEX retained-supply or purchase-and-burn drift")
+    return findings
 
 
 def check_value_movement_closure_status_v1(
@@ -127,6 +156,13 @@ def check_value_movement_closure_status_v1(
         findings.append("buy-and-burn semantic anchor drift")
     if semantics.get("hyperdeflation") != EXPECTED_HYPERDEFLATION:
         findings.append("hyperdeflation semantic anchor drift")
+
+    try:
+        m6_atdd = _load_exact_json(root / M6_ATDD_PATH)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        findings.append(f"M6 ATDD semantic source cannot be loaded: {type(exc).__name__}: {exc}")
+    else:
+        findings.extend(validate_m6_zdex_semantic_anchor_v1(m6_atdd))
 
     gate_rows = status.get("gate_status")
     if type(gate_rows) is not list or any(type(row) is not dict for row in gate_rows):

@@ -54,7 +54,7 @@
     {"asset_class": "tau_native_coin", "issue_authority": "outside the ZenoDEX formal core", "burn_authority": "outside the ZenoDEX formal core", "production_rule": "The all-zero native asset is authenticated current ZenoLedger state and every DEX custody delta publishes in the same atomic ledger transition; callers cannot supply balance authority."},
     {"asset_class": "canonical_zusd", "issue_authority": "collateralized zUSD debt transition", "burn_authority": "repayment, exact owner close, redemption, or Stability Pool debt offset", "production_rule": "The shared token stream is transfer-only for zUSD; faucet and generic mint or burn reject."},
     {"asset_class": "lp_share", "issue_authority": "pool add-liquidity transition", "burn_authority": "pool remove-liquidity transition", "production_rule": "LP supply changes only with the matching reserve and custody transition."},
-    {"asset_class": "zdex_protocol_token", "issue_authority": "versioned genesis or explicitly approved issuance profile", "burn_authority": "fee-funded protocol buy-and-burn transition", "production_rule": "Only ZDEX acquired from committed buyback custody may burn, subject to the protected supply floor."},
+    {"asset_class": "zdex_protocol_token", "issue_authority": "versioned genesis or explicitly approved issuance profile", "burn_authority": "fee-funded protocol buy-and-burn transition", "production_rule": "Only the exact ZDEX atoms produced by atomically spending a governed quote-asset fee allocation through the selected authenticated Spot route may burn. Each burn preserves R(S)=ceil(p*S/q), with 0<p<q and burn<=S-R(S); no fixed initial-supply percentage floor is authoritative."},
     {"asset_class": "sealed_bid_payment_or_inventory", "issue_authority": "none within sealed-bid settlement", "burn_authority": "none within sealed-bid settlement", "production_rule": "The auction may only escrow, transfer, refund, or slash existing amounts through the exact asset's declared policy."},
     {"asset_class": "registered_ordinary_token", "issue_authority": "named versioned asset issuer profile", "burn_authority": "named versioned asset burn profile", "production_rule": "Production defaults to transfer-only; arbitrary generic mint or burn is test-profile-only and otherwise rejects."}
   ],
@@ -369,6 +369,7 @@
   },
   "open_decisions": [
     "Approve the complete current fee-liability owners, claim paths, routing shares, fallback, and terminal-drain policy.",
+    "Freeze hosting compensation as a separately named governed fee allocation with explicit eligibility, claimant, expiry, cancellation, and terminal-drain behavior.",
     "Freeze the production publication profile in which Tau evaluates the versioned formal core and ZenoLedger owns the unique durable commit capability.",
     "Freeze the sealed-bid inventory and payment assets, bond amount, phase deadlines, cancellation policy, non-reveal disposition, tie order, and mounted asset-settlement port.",
     "Close the day-one capability gaps listed by the source-bound product ATDD contract or keep their UI actions disabled.",

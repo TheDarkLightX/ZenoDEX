@@ -6,8 +6,10 @@ from pathlib import Path
 
 from tools.check_value_movement_closure_status_v1 import (
     DEFAULT_STATUS_PATH,
+    M6_ATDD_PATH,
     REPO_ROOT,
     check_value_movement_closure_status_v1,
+    validate_m6_zdex_semantic_anchor_v1,
 )
 
 
@@ -65,3 +67,38 @@ def test_checker_rejects_stale_claim_hash_and_duplicate_json_key(tmp_path: Path)
     assert "claim contract hash mismatch" in stale_report["findings"]
     assert duplicate_report["ok"] is False
     assert "duplicate JSON key" in duplicate_report["findings"][0]
+
+
+def test_checker_kills_fixed_floor_and_treasury_burn_semantic_mutants() -> None:
+    contract = json.loads((REPO_ROOT / M6_ATDD_PATH).read_text(encoding="utf-8"))
+    zdex = next(
+        row
+        for row in contract["managed_asset_policy"]
+        if row["asset_class"] == "zdex_protocol_token"
+    )
+
+    fixed_floor = deepcopy(contract)
+    fixed_floor_row = next(
+        row
+        for row in fixed_floor["managed_asset_policy"]
+        if row["asset_class"] == "zdex_protocol_token"
+    )
+    fixed_floor_row["production_rule"] = "Burn treasury ZDEX until a 10% floor."
+    shortcut = deepcopy(contract)
+    shortcut_row = next(
+        row
+        for row in shortcut["managed_asset_policy"]
+        if row["asset_class"] == "zdex_protocol_token"
+    )
+    shortcut_row["burn_authority"] = "treasury balance burn"
+
+    assert validate_m6_zdex_semantic_anchor_v1(contract) == []
+    assert validate_m6_zdex_semantic_anchor_v1(fixed_floor) == [
+        "M6 ATDD ZDEX retained-supply or purchase-and-burn drift"
+    ]
+    assert validate_m6_zdex_semantic_anchor_v1(shortcut) == [
+        "M6 ATDD ZDEX burn authority drift"
+    ]
+    assert zdex["production_rule"].endswith(
+        "no fixed initial-supply percentage floor is authoritative."
+    )
