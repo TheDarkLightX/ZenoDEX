@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-usage: tools/update_tau_lang.sh [--ref <git-ref>] [--build-dir <dir>] [--tau-dir <dir>] [--python-bindings]
+usage: tools/update_tau_lang.sh [--ref <git-ref>] [--build-dir <dir>] [--tau-dir <dir>] [--python-bindings] [--resolve-only]
 
 Updates (or clones) external/tau-lang and builds a Tau binary.
 
@@ -20,6 +20,9 @@ Examples:
 
   # Build with Python bindings enabled (optional tooling; not for consensus-critical verification)
   tools/update_tau_lang.sh --python-bindings
+
+  # Fetch and resolve the exact source revision without running submodules or a build
+  tools/update_tau_lang.sh --resolve-only
 EOF
 }
 
@@ -30,6 +33,7 @@ BUILD_DIR="build-Release"
 BUILD_TYPE="Release"
 TAU_DIR_REL="external/tau-lang"
 PY_BINDINGS=0
+RESOLVE_ONLY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -47,6 +51,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --python-bindings)
       PY_BINDINGS=1
+      shift 1
+      ;;
+    --resolve-only)
+      RESOLVE_ONLY=1
       shift 1
       ;;
     -h|--help)
@@ -112,23 +120,59 @@ if [[ ! -d "${TAU_DIR_REAL}" ]]; then
   git clone https://github.com/IDNI/tau-lang "${TAU_DIR_REAL}"
 fi
 
-git -C "${TAU_DIR_REAL}" fetch --prune origin
-
-# Accept local branch, remote branch (origin/<ref>), tag, or commit hash.
-if git -C "${TAU_DIR_REAL}" show-ref --verify --quiet "refs/heads/${REF}"; then
-  git -C "${TAU_DIR_REAL}" checkout "${REF}"
-elif git -C "${TAU_DIR_REAL}" show-ref --verify --quiet "refs/remotes/origin/${REF}"; then
-  git -C "${TAU_DIR_REAL}" checkout -B "${REF}" "origin/${REF}"
-else
-  git -C "${TAU_DIR_REAL}" checkout "${REF}"
+if [[ -n "$(git -C "${TAU_DIR_REAL}" status --porcelain --untracked-files=all)" ]]; then
+  echo "error: Tau checkout has local tracked or untracked changes; refusing to switch or update it" >&2
+  echo "  checkout: ${TAU_DIR_REAL}" >&2
+  echo "  preserve the changes or use a separate --tau-dir" >&2
+  exit 1
 fi
 
-# Only pull when we're on a named branch tracking origin.
-if git -C "${TAU_DIR_REAL}" symbolic-ref -q HEAD >/dev/null 2>&1; then
-  BRANCH="$(git -C "${TAU_DIR_REAL}" rev-parse --abbrev-ref HEAD)"
-  if git -C "${TAU_DIR_REAL}" show-ref --verify --quiet "refs/remotes/origin/${BRANCH}"; then
-    git -C "${TAU_DIR_REAL}" pull --ff-only origin "${BRANCH}" || true
+git -C "${TAU_DIR_REAL}" fetch --prune origin
+
+# Accept a local/remote branch, origin/<branch>, tag, or commit hash. A named
+# branch may advance only by an ordinary fast-forward. In particular, never
+# suppress a pull failure and then build a stale or unrelated local history.
+REF_NAME="${REF#origin/}"
+LOCAL_BRANCH_REF="refs/heads/${REF_NAME}"
+REMOTE_BRANCH_REF="refs/remotes/origin/${REF_NAME}"
+if git -C "${TAU_DIR_REAL}" show-ref --verify --quiet "${LOCAL_BRANCH_REF}" && \
+   git -C "${TAU_DIR_REAL}" show-ref --verify --quiet "${REMOTE_BRANCH_REF}"; then
+  LOCAL_OID="$(git -C "${TAU_DIR_REAL}" rev-parse "${LOCAL_BRANCH_REF}^{commit}")"
+  REMOTE_OID="$(git -C "${TAU_DIR_REAL}" rev-parse "${REMOTE_BRANCH_REF}^{commit}")"
+  if [[ "${LOCAL_OID}" != "${REMOTE_OID}" ]]; then
+    if ! git -C "${TAU_DIR_REAL}" merge-base "${LOCAL_OID}" "${REMOTE_OID}" >/dev/null 2>&1; then
+      echo "error: local branch '${REF_NAME}' and 'origin/${REF_NAME}' have no common ancestor" >&2
+      echo "  local:  ${LOCAL_OID}" >&2
+      echo "  remote: ${REMOTE_OID}" >&2
+      echo "  upstream history may have been replaced; preserve this checkout and use a separate --tau-dir" >&2
+      exit 1
+    fi
+    if ! git -C "${TAU_DIR_REAL}" merge-base --is-ancestor "${LOCAL_OID}" "${REMOTE_OID}"; then
+      echo "error: local branch '${REF_NAME}' cannot fast-forward to 'origin/${REF_NAME}'" >&2
+      echo "  local:  ${LOCAL_OID}" >&2
+      echo "  remote: ${REMOTE_OID}" >&2
+      echo "  preserve this checkout and use a separate --tau-dir" >&2
+      exit 1
+    fi
   fi
+  git -C "${TAU_DIR_REAL}" checkout "${REF_NAME}"
+  git -C "${TAU_DIR_REAL}" merge --ff-only "${REMOTE_BRANCH_REF}"
+elif git -C "${TAU_DIR_REAL}" show-ref --verify --quiet "${REMOTE_BRANCH_REF}"; then
+  git -C "${TAU_DIR_REAL}" checkout --track -b "${REF_NAME}" "${REMOTE_BRANCH_REF}"
+elif git -C "${TAU_DIR_REAL}" show-ref --verify --quiet "${LOCAL_BRANCH_REF}"; then
+  git -C "${TAU_DIR_REAL}" checkout "${REF_NAME}"
+elif git -C "${TAU_DIR_REAL}" rev-parse --verify --quiet "${REF}^{commit}" >/dev/null; then
+  git -C "${TAU_DIR_REAL}" checkout --detach "${REF}"
+else
+  echo "error: Tau ref does not resolve to a local branch, remote branch, tag, or commit: ${REF}" >&2
+  exit 1
+fi
+
+RESOLVED_TAU_HEAD="$(git -C "${TAU_DIR_REAL}" rev-parse HEAD)"
+if [[ "${RESOLVE_ONLY}" -eq 1 ]]; then
+  echo "tau-lang git: ${RESOLVED_TAU_HEAD}"
+  echo "resolve-only: source resolved; submodules and build were not run"
+  exit 0
 fi
 
 git -C "${TAU_DIR_REAL}" submodule update --init --recursive
@@ -169,5 +213,5 @@ cmake -S "${TAU_DIR_BUILD}" -B "${TAU_DIR_BUILD}/${BUILD_DIR}" "${CMAKE_ARGS[@]}
 cmake --build "${TAU_DIR_BUILD}/${BUILD_DIR}" -j "${JOBS}"
 
 echo
-echo "tau-lang git: $(git -C "${TAU_DIR_REAL}" rev-parse HEAD)"
+echo "tau-lang git: ${RESOLVED_TAU_HEAD}"
 "${TAU_DIR_REAL}/${BUILD_DIR}/tau" --version
