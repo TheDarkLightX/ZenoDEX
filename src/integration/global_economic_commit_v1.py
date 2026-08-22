@@ -234,6 +234,206 @@ class CommitOutcomeV1:
     reason: str | None = None
 
 
+def _economic_epoch_binding_rejection_reason_v1(
+    *,
+    profile: EconomicProfileSnapshotV1,
+    pre_state: GlobalEconomicStateV1,
+    verified_epoch: VerifiedEconomicEpochV1,
+    body_and_state: EconomicEpochBodyAndStateV1,
+) -> str | None:
+    """Recheck one verifier-owned epoch against an exact publication source."""
+
+    certificate = verified_epoch.certificate
+    retained_refinement = verified_epoch.state_effect_refinement
+    post_state = body_and_state.post_state
+    try:
+        validate_global_state_profile_v1(post_state, profile)
+    except ValueError as exc:
+        return str(exc)
+    try:
+        (
+            route_state_projection_roots,
+            route_state_effect_refinement_roots,
+        ) = verified_epoch.recheck_route_state_evidence(
+            pre_state=pre_state,
+            post_state=post_state,
+        )
+    except (TypeError, ValueError) as exc:
+        return f"route state projection recheck rejected: {exc}"
+    if route_state_projection_roots != verified_epoch.route_state_projection_roots:
+        return "route state projection root mismatch"
+    if (
+        route_state_effect_refinement_roots
+        != verified_epoch.route_state_effect_refinement_roots
+    ):
+        return "route state/effect refinement root mismatch"
+    try:
+        refinement = verified_epoch.recheck_state_effect_refinement(
+            pre_state=pre_state,
+            post_state=post_state,
+        )
+    except (TypeError, ValueError) as exc:
+        return f"state/effect refinement recheck rejected: {exc}"
+    bindings = (
+        (
+            certificate.certificate_root,
+            verified_epoch.verified_certificate_root,
+            "verified certificate root",
+        ),
+        (
+            verified_epoch.effect_plan.effect_plan_root,
+            verified_epoch.verified_effect_plan_root,
+            "verified effect plan root",
+        ),
+        (
+            retained_refinement.refinement_root,
+            verified_epoch.verified_state_effect_refinement_root,
+            "verified retained refinement root",
+        ),
+        (
+            refinement.refinement_root,
+            verified_epoch.verified_state_effect_refinement_root,
+            "rechecked refinement root",
+        ),
+        (certificate.chain_id, pre_state.chain_id, "certificate chain"),
+        (
+            certificate.deployment_root,
+            pre_state.deployment_root,
+            "certificate deployment",
+        ),
+        (certificate.profile_root, profile.profile_id, "certificate profile"),
+        (certificate.writer_epoch, profile.authority_epoch, "writer epoch"),
+        (certificate.pre_state_root, pre_state.state_root, "pre-state root"),
+        (body_and_state.pre_state_root, pre_state.state_root, "body pre-state root"),
+        (certificate.post_state_root, post_state.state_root, "post-state root"),
+        (
+            refinement.pre_state_root,
+            pre_state.state_root,
+            "state refinement pre-state root",
+        ),
+        (
+            refinement.post_state_root,
+            post_state.state_root,
+            "state refinement post-state root",
+        ),
+        (
+            refinement.effect_plan_root,
+            verified_epoch.effect_plan.effect_plan_root,
+            "state refinement effect plan root",
+        ),
+        (
+            retained_refinement.pre_state_root,
+            refinement.pre_state_root,
+            "retained refinement pre-state root",
+        ),
+        (
+            retained_refinement.post_state_root,
+            refinement.post_state_root,
+            "retained refinement post-state root",
+        ),
+        (
+            retained_refinement.effect_plan_root,
+            refinement.effect_plan_root,
+            "retained refinement effect plan root",
+        ),
+        (
+            certificate.pre_state_root,
+            refinement.pre_state_root,
+            "certificate refinement pre-state root",
+        ),
+        (
+            certificate.post_state_root,
+            refinement.post_state_root,
+            "certificate refinement post-state root",
+        ),
+        (
+            certificate.effect_plan_root,
+            refinement.effect_plan_root,
+            "certificate refinement effect plan root",
+        ),
+        (
+            verified_epoch.receipt_digest,
+            certificate.receipt_root,
+            "verified receipt root",
+        ),
+        (
+            certificate.body_commitment,
+            body_and_state.body_commitment,
+            "body commitment",
+        ),
+        (
+            certificate.data_availability_root,
+            body_and_state.data_availability_root,
+            "data availability root",
+        ),
+        (
+            certificate.finality_root,
+            body_and_state.finality_root,
+            "finality root",
+        ),
+        (post_state.profile_root, profile.profile_id, "post-state profile"),
+        (
+            post_state.writer_epoch,
+            profile.authority_epoch,
+            "post-state writer epoch",
+        ),
+        (post_state.chain_id, pre_state.chain_id, "post-state chain"),
+        (
+            post_state.deployment_root,
+            pre_state.deployment_root,
+            "post-state deployment",
+        ),
+        (post_state.height, certificate.height, "post-state height"),
+    )
+    for actual, expected, label in bindings:
+        if actual != expected:
+            return f"{label} mismatch"
+    if certificate.height != pre_state.height + 1:
+        return "economic epoch height must advance exactly once"
+    if body_and_state.ordered_command_body_hashes != (
+        verified_epoch.ordered_command_body_hashes
+    ):
+        return "body command hashes do not match verified occurrences"
+    return None
+
+
+def _build_published_economic_epoch_v1(
+    *,
+    profile: EconomicProfileSnapshotV1,
+    verified_epoch: VerifiedEconomicEpochV1,
+    body_and_state: EconomicEpochBodyAndStateV1,
+) -> PublishedEconomicEpochV1:
+    """Project one checked opaque witness into its exact publication record."""
+
+    certificate = verified_epoch.certificate
+    return PublishedEconomicEpochV1(
+        commit_id=verified_epoch.commit_id,
+        certificate_root=verified_epoch.verified_certificate_root,
+        profile_root=certificate.profile_root,
+        writer_epoch=certificate.writer_epoch,
+        pre_state_root=certificate.pre_state_root,
+        post_state_root=certificate.post_state_root,
+        body_commitment=certificate.body_commitment,
+        data_availability_root=certificate.data_availability_root,
+        finality_root=certificate.finality_root,
+        receipt_root=certificate.receipt_root,
+        receipt_archive_root=body_and_state.receipt_archive_root,
+        effect_plan_root=verified_epoch.verified_effect_plan_root,
+        route_state_effect_refinement_roots=(
+            verified_epoch.route_state_effect_refinement_roots
+        ),
+        route_state_projection_roots=verified_epoch.route_state_projection_roots,
+        release_observation_root=hash_global_v1(
+            "global-economic-release-observation-v1",
+            {
+                "profile_root": profile.profile_id,
+                "lane_registry_root": profile.lane_registry.registry_root,
+                "route_registry_root": profile.route_registry.registry_root,
+            },
+        ),
+    )
+
+
 class GlobalEconomicCommitPortV1:
     """Reference unique publication capability for one active profile."""
 
@@ -456,32 +656,10 @@ class GlobalEconomicCommitPortV1:
         reason = self._binding_rejection_reason(verified_epoch, body_and_state)
         if reason is not None:
             return self._reject(CommitOutcomeStatusV1.BINDING_REJECTED, commit_id, reason)
-        certificate = verified_epoch.certificate
-        record = PublishedEconomicEpochV1(
-            commit_id=commit_id,
-            certificate_root=verified_epoch.verified_certificate_root,
-            profile_root=certificate.profile_root,
-            writer_epoch=certificate.writer_epoch,
-            pre_state_root=certificate.pre_state_root,
-            post_state_root=certificate.post_state_root,
-            body_commitment=certificate.body_commitment,
-            data_availability_root=certificate.data_availability_root,
-            finality_root=certificate.finality_root,
-            receipt_root=certificate.receipt_root,
-            receipt_archive_root=body_and_state.receipt_archive_root,
-            effect_plan_root=verified_epoch.verified_effect_plan_root,
-            route_state_effect_refinement_roots=(
-                verified_epoch.route_state_effect_refinement_roots
-            ),
-            route_state_projection_roots=verified_epoch.route_state_projection_roots,
-            release_observation_root=hash_global_v1(
-                "global-economic-release-observation-v1",
-                {
-                    "profile_root": self._profile.profile_id,
-                    "lane_registry_root": self._profile.lane_registry.registry_root,
-                    "route_registry_root": self._profile.route_registry.registry_root,
-                },
-            ),
+        record = _build_published_economic_epoch_v1(
+            profile=self._profile,
+            verified_epoch=verified_epoch,
+            body_and_state=body_and_state,
         )
         self._state = _snapshot_state_v1(body_and_state.post_state)
         self._records[commit_id] = record
@@ -497,135 +675,12 @@ class GlobalEconomicCommitPortV1:
         verified_epoch: VerifiedEconomicEpochV1,
         body_and_state: EconomicEpochBodyAndStateV1,
     ) -> str | None:
-        certificate = verified_epoch.certificate
-        retained_refinement = verified_epoch.state_effect_refinement
-        post_state = body_and_state.post_state
-        try:
-            validate_global_state_profile_v1(post_state, self._profile)
-        except ValueError as exc:
-            return str(exc)
-        try:
-            (
-                route_state_projection_roots,
-                route_state_effect_refinement_roots,
-            ) = verified_epoch.recheck_route_state_evidence(
-                pre_state=self._state,
-                post_state=post_state,
-            )
-        except (TypeError, ValueError) as exc:
-            return f"route state projection recheck rejected: {exc}"
-        if route_state_projection_roots != verified_epoch.route_state_projection_roots:
-            return "route state projection root mismatch"
-        if (
-            route_state_effect_refinement_roots
-            != verified_epoch.route_state_effect_refinement_roots
-        ):
-            return "route state/effect refinement root mismatch"
-        try:
-            refinement = verified_epoch.recheck_state_effect_refinement(
-                pre_state=self._state,
-                post_state=post_state,
-            )
-        except (TypeError, ValueError) as exc:
-            return f"state/effect refinement recheck rejected: {exc}"
-        bindings = (
-            (
-                certificate.certificate_root,
-                verified_epoch.verified_certificate_root,
-                "verified certificate root",
-            ),
-            (
-                verified_epoch.effect_plan.effect_plan_root,
-                verified_epoch.verified_effect_plan_root,
-                "verified effect plan root",
-            ),
-            (
-                retained_refinement.refinement_root,
-                verified_epoch.verified_state_effect_refinement_root,
-                "verified retained refinement root",
-            ),
-            (
-                refinement.refinement_root,
-                verified_epoch.verified_state_effect_refinement_root,
-                "rechecked refinement root",
-            ),
-            (certificate.chain_id, self._state.chain_id, "certificate chain"),
-            (certificate.deployment_root, self._state.deployment_root, "certificate deployment"),
-            (certificate.profile_root, self._profile.profile_id, "certificate profile"),
-            (certificate.writer_epoch, self._profile.authority_epoch, "writer epoch"),
-            (certificate.pre_state_root, self._state.state_root, "pre-state root"),
-            (body_and_state.pre_state_root, self._state.state_root, "body pre-state root"),
-            (certificate.post_state_root, post_state.state_root, "post-state root"),
-            (
-                refinement.pre_state_root,
-                self._state.state_root,
-                "state refinement pre-state root",
-            ),
-            (
-                refinement.post_state_root,
-                post_state.state_root,
-                "state refinement post-state root",
-            ),
-            (
-                refinement.effect_plan_root,
-                verified_epoch.effect_plan.effect_plan_root,
-                "state refinement effect plan root",
-            ),
-            (
-                retained_refinement.pre_state_root,
-                refinement.pre_state_root,
-                "retained refinement pre-state root",
-            ),
-            (
-                retained_refinement.post_state_root,
-                refinement.post_state_root,
-                "retained refinement post-state root",
-            ),
-            (
-                retained_refinement.effect_plan_root,
-                refinement.effect_plan_root,
-                "retained refinement effect plan root",
-            ),
-            (
-                certificate.pre_state_root,
-                refinement.pre_state_root,
-                "certificate refinement pre-state root",
-            ),
-            (
-                certificate.post_state_root,
-                refinement.post_state_root,
-                "certificate refinement post-state root",
-            ),
-            (
-                certificate.effect_plan_root,
-                refinement.effect_plan_root,
-                "certificate refinement effect plan root",
-            ),
-            (
-                verified_epoch.receipt_digest,
-                certificate.receipt_root,
-                "verified receipt root",
-            ),
-            (certificate.body_commitment, body_and_state.body_commitment, "body commitment"),
-            (certificate.data_availability_root, body_and_state.data_availability_root, "data availability root"),
-            (certificate.finality_root, body_and_state.finality_root, "finality root"),
-            (post_state.profile_root, self._profile.profile_id, "post-state profile"),
-            (post_state.writer_epoch, self._profile.authority_epoch, "post-state writer epoch"),
-            (post_state.chain_id, self._state.chain_id, "post-state chain"),
-            (post_state.deployment_root, self._state.deployment_root, "post-state deployment"),
-            (post_state.height, certificate.height, "post-state height"),
+        return _economic_epoch_binding_rejection_reason_v1(
+            profile=self._profile,
+            pre_state=self._state,
+            verified_epoch=verified_epoch,
+            body_and_state=body_and_state,
         )
-        for actual, expected, label in bindings:
-            if actual != expected:
-                return f"{label} mismatch"
-        if certificate.height != self._state.height + 1:
-            return "economic epoch height must advance exactly once"
-        if (
-            body_and_state.ordered_command_body_hashes
-            != verified_epoch.ordered_command_body_hashes
-        ):
-            return "body command hashes do not match verified occurrences"
-        return None
 
     def _committed_replay_binding_rejection_reason(
         self,
