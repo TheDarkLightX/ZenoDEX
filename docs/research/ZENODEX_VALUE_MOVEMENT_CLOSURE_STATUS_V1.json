@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "408cf223723b001131c013cdb6382c70e56ad932",
+    "commit": "7578fad9f5b5b81ca054d8c8c5437e8050f48cdb",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,7 +14,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "ab83cdb24c023a3a0460490f1cdd118a07d68035248b47dfcd5c5f4f8be4f413",
+    "sha256": "7c5f51649b8a9c1683eca65454389360464475fce31c761862244c2b70c68a90",
     "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
     "verdict": "UNPROVED"
   },
@@ -116,6 +116,28 @@
         "hostile same-process isolation",
         "Rust publisher parity"
       ]
+    },
+    {
+      "id": "CERTIFIED_INITIAL_STATE_ADMISSION",
+      "commit": "7578fad9f5b5b81ca054d8c8c5437e8050f48cdb",
+      "python_sha256": "67c79370cee10a3411cb5ced6df47bfc6483cacbde36bf5906772cb12cc858ad",
+      "rust_sha256": "95ac647484630a586695ac82aab0b0435d223b4d00d3acfe8372c46c74aa4a3c",
+      "publisher_sha256": "2f000ac55f3477bae6973b0180e6ecb0a5f17ddccf98fbbb243bc36ecde48743",
+      "status": [
+        "IMPLEMENTED_PYTHON_REFERENCE",
+        "IMPLEMENTED_RUST_ABI",
+        "TESTED",
+        "UNMOUNTED",
+        "UNPROVED_COVERAGE"
+      ],
+      "closed_obligation": "The in-memory reference publisher no longer accepts a plain caller-supplied initial profile and state pair; it requires exact receipt-bound genesis or adjacent migration admission.",
+      "remaining_obligations": [
+        "real initialization proof guest and receipt replay",
+        "migration release selection from the committed registry",
+        "composition with complete object-classification evidence",
+        "durable atomic profile activation and writer rotation",
+        "shared-asset coexistence theorems"
+      ]
     }
   ],
   "gate_status": [
@@ -171,8 +193,8 @@
     },
     {
       "id": "VM-11",
-      "status": "GAP",
-      "evidence": "The global commit port accepts a caller-constructed initial state; certified genesis or migration admission and atomic activation are absent."
+      "status": "PARTIAL",
+      "evidence": "Python and Rust define exact receipt-bound genesis or adjacent-migration certificate bindings, share canonical golden vectors, and the in-memory publisher rejects a plain initial state. Real proof coverage, migration-registry selection, object-classification composition, durable atomic activation, and coexistence theorems remain absent."
     },
     {
       "id": "VM-12",
@@ -197,7 +219,7 @@
   },
   "next_dependency_order": [
     "Freeze and bind the complete intended M6 capability manifest and disabled-capability certificates.",
-    "Replace caller-constructed initial state with certified genesis or migration admission.",
+    "Bind certified initialization to a registered migration or genesis proof release, complete object classification, and real receipt replay.",
     "Discover writers from actual durable sinks and close VM-01 without name-pattern assumptions.",
     "Complete effect source, authorization, claimant, residue, terminal, and external-delivery bindings.",
     "Seal authoritative verification behind a measured release-selected verifier.",
