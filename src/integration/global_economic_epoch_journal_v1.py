@@ -32,6 +32,7 @@ from .global_economic_durable_epoch_v1 import (
 _MAX_EPOCH_HISTORY_V1: Final = 4096
 _MAX_EPOCH_STORE_BYTES_V1: Final = 512 * 1024 * 1024
 _CAS_TOKEN_MINT_V1: Final = object()
+_WRITE_CAPABILITY_MINT_V1: Final = object()
 _CREATE_METADATA_SQL_V1: Final = (
     "CREATE TABLE metadata ("
     "singleton INTEGER PRIMARY KEY CHECK (singleton = 1), "
@@ -118,6 +119,49 @@ class DurableEconomicEpochCasTokenV1:
     @property
     def sequence(self) -> int:
         return self.__sequence
+
+
+class DurableEconomicEpochWriteCapabilityV1:
+    """Data-slot-free handle bound to one journal instance."""
+
+    __slots__ = ("__weakref__",)
+
+    def __init__(self, mint: object, journal: object) -> None:
+        if mint is not _WRITE_CAPABILITY_MINT_V1:
+            raise TypeError("durable epoch write capability is publisher-minted")
+        _register_write_capability_v1(self, journal)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("durable epoch write capability is immutable")
+
+
+_WRITE_CAPABILITY_LOCK_V1 = Lock()
+_WRITE_CAPABILITY_AUTHORITIES_V1: WeakKeyDictionary[
+    DurableEconomicEpochWriteCapabilityV1,
+    object,
+] = WeakKeyDictionary()
+
+
+def _register_write_capability_v1(
+    capability: DurableEconomicEpochWriteCapabilityV1,
+    journal: object,
+) -> None:
+    with _WRITE_CAPABILITY_LOCK_V1:
+        if capability in _WRITE_CAPABILITY_AUTHORITIES_V1:
+            raise TypeError("durable epoch write capability is already registered")
+        _WRITE_CAPABILITY_AUTHORITIES_V1[capability] = journal
+
+
+def _require_write_capability_v1(
+    journal: object,
+    capability: DurableEconomicEpochWriteCapabilityV1,
+) -> None:
+    if type(capability) is not DurableEconomicEpochWriteCapabilityV1:
+        raise TypeError("durable epoch commit requires exact write capability")
+    with _WRITE_CAPABILITY_LOCK_V1:
+        authority = _WRITE_CAPABILITY_AUTHORITIES_V1.get(capability)
+    if authority is not journal:
+        raise ValueError("durable epoch write capability is foreign or forged")
 
 
 class _DurableEconomicEpochCommitFaultV1(str, Enum):
@@ -556,11 +600,13 @@ class GlobalEconomicEpochJournalV1:
             _rollback_v1(self._connection)
             raise
 
-    def commit_epoch(
+    def _commit_epoch_from_verified_publisher_v1(
         self,
         epoch: DurableEconomicEpochBundleV1,
         cas_token: DurableEconomicEpochCasTokenV1,
+        write_capability: DurableEconomicEpochWriteCapabilityV1,
     ) -> DurableEconomicEpochCommitOutcomeV1:
+        _require_write_capability_v1(self, write_capability)
         return self._commit_epoch_v1(epoch, cas_token, fault=None)
 
     def _commit_epoch_with_fault_for_test_v1(
@@ -568,7 +614,9 @@ class GlobalEconomicEpochJournalV1:
         epoch: DurableEconomicEpochBundleV1,
         cas_token: DurableEconomicEpochCasTokenV1,
         fault: _DurableEconomicEpochCommitFaultV1,
+        write_capability: DurableEconomicEpochWriteCapabilityV1,
     ) -> DurableEconomicEpochCommitOutcomeV1:
+        _require_write_capability_v1(self, write_capability)
         if type(fault) is not _DurableEconomicEpochCommitFaultV1:
             raise TypeError("durable epoch test fault is not closed")
         return self._commit_epoch_v1(epoch, cas_token, fault=fault)
@@ -718,6 +766,48 @@ class GlobalEconomicEpochJournalV1:
         if row is None or type(row[0]) is not int or type(row[1]) is not int:
             raise RuntimeError("durable epoch history bounds query failed")
         return row[0], row[1]
+
+
+def _create_epoch_journal_for_verified_publisher_v1(
+    path: str | Path,
+    activation: DurableEconomicInitialStateBundleV1,
+) -> tuple[GlobalEconomicEpochJournalV1, DurableEconomicEpochWriteCapabilityV1]:
+    """Create one journal and its instance-bound publisher capability."""
+
+    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    try:
+        capability = _mint_write_capability_for_verified_publisher_v1(journal)
+    except BaseException:
+        journal.close()
+        raise
+    return journal, capability
+
+
+def _open_epoch_journal_for_verified_publisher_v1(
+    path: str | Path,
+) -> tuple[GlobalEconomicEpochJournalV1, DurableEconomicEpochWriteCapabilityV1]:
+    """Open one journal and mint a fresh instance-bound publisher capability."""
+
+    journal = GlobalEconomicEpochJournalV1.open(path)
+    try:
+        capability = _mint_write_capability_for_verified_publisher_v1(journal)
+    except BaseException:
+        journal.close()
+        raise
+    return journal, capability
+
+
+def _mint_write_capability_for_verified_publisher_v1(
+    journal: GlobalEconomicEpochJournalV1,
+) -> DurableEconomicEpochWriteCapabilityV1:
+    """Central same-process issuer for the unmounted verified publisher."""
+
+    if type(journal) is not GlobalEconomicEpochJournalV1:
+        raise TypeError("durable epoch write capability journal type is not closed")
+    return DurableEconomicEpochWriteCapabilityV1(
+        _WRITE_CAPABILITY_MINT_V1,
+        journal,
+    )
 
 
 __all__ = [

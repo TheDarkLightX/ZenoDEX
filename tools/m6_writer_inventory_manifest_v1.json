@@ -519,7 +519,7 @@
       {
         "assurance_statuses": [],
         "bindings": {
-          "adapter": {"reference": "src/integration/global_economic_epoch_journal_v1.py::GlobalEconomicEpochJournalV1.commit_epoch", "status": "RESEARCH_ONLY"},
+          "adapter": {"reference": "src/integration/global_economic_epoch_journal_v1.py::GlobalEconomicEpochJournalV1._commit_epoch_v1", "status": "RESEARCH_ONLY"},
           "canonical_effect_projection": {"reference": null, "status": "GAP"},
           "evidence": {"reference": null, "status": "GAP"},
           "module_release": {"reference": null, "status": "GAP"},
@@ -818,7 +818,7 @@
       "class": "VerifiedDurableEconomicPublisherV1",
       "commit_port_route": "VerifiedDurableEconomicPublisherV1",
       "entrypoint_id": "separate_global_economic_durable_publisher",
-      "evidence_markers": ["_verify_economic_epoch_for_publisher_v1", "commit_epoch"],
+      "evidence_markers": ["_verify_economic_epoch_for_publisher_v1", "binding_root", "release_id"],
       "kind": "separate_research_durable_publisher",
       "m6_mount_status": "SEPARATE_RESEARCH_NOT_M6",
       "path": "src/integration/global_economic_durable_publisher_v1.py",
@@ -829,12 +829,12 @@
       "class": "GlobalEconomicEpochJournalV1",
       "commit_port_route": "none",
       "entrypoint_id": "separate_global_economic_epoch_journal_commit",
-      "evidence_markers": ["_commit_epoch_v1"],
-      "kind": "separate_research_structural_epoch_writer",
+      "evidence_markers": ["_snapshot_epoch_v1", "_commit_under_lock_v1"],
+      "kind": "separate_research_private_structural_epoch_writer",
       "m6_mount_status": "SEPARATE_RESEARCH_NOT_M6",
       "path": "src/integration/global_economic_epoch_journal_v1.py",
       "requires_unique_commit_port": true,
-      "symbol": "commit_epoch"
+      "symbol": "_commit_epoch_v1"
     }
   ],
   "schema": "zenodex/m6-writer-inventory/v1",

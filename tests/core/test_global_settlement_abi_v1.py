@@ -429,6 +429,8 @@ def _profile(
     *,
     source_manifest: EconomicInitialStateSourceManifestV1 | None = None,
     authority_epoch: int = 7,
+    verifier_registry_root: str | None = None,
+    status: ProfileStatusV1 = ProfileStatusV1.ACTIVE,
 ) -> tuple[EconomicProfileSnapshotV1, RouteReleaseV1]:
     releases = tuple(
         _module_release(lane_id, ordinal)
@@ -469,11 +471,11 @@ def _profile(
         route_registry=RouteRegistryV1((route,)),
         proof_shape_root=_root(410),
         root_image_id=_root(411),
-        verifier_registry_root=_root(412),
+        verifier_registry_root=verifier_registry_root or _root(412),
         migration_registry_root=_root(413),
         policy_registry_root=policy_registry.registry_root,
         terminal_registry_root=_root(415),
-        status=ProfileStatusV1.ACTIVE,
+        status=status,
     )
     return profile, route
 
@@ -1406,8 +1408,9 @@ def _epoch_admission_fixture(
     *,
     hidden_balance_after: int | None = None,
     hidden_height_after: int | None = None,
+    verifier_registry_root: str | None = None,
 ) -> EconomicEpochReceiptCandidateV1:
-    profile, route = _profile()
+    profile, route = _profile(verifier_registry_root=verifier_registry_root)
     pre_state = _state(profile, height=0)
     routes = _epoch_route_fixture(
         profile,

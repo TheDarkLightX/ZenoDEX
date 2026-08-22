@@ -55,6 +55,9 @@ def test_current_m6_writer_inventory_is_explicit_and_unmounted() -> None:
     assert entries["separate_global_economic_epoch_journal_commit"][
         "commit_port_route"
     ] == "none"
+    assert entries["separate_global_economic_epoch_journal_commit"]["symbol"] == (
+        "_commit_epoch_v1"
+    )
     coverage = {row["entrypoint_id"]: row for row in report["coverage_rows"]}
     assert set(coverage) == set(entries)
     assert coverage["legacy_tau_apply_app_tx"]["command_kind"] == (

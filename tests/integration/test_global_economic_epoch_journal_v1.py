@@ -14,6 +14,7 @@ import pytest
 
 import src.integration.global_economic_epoch_journal_v1 as journal_module
 from src.core.global_economic_durable_activation_v1 import (
+    DurableEconomicInitialStateBundleV1,
     prepare_durable_economic_initial_state_bundle_v1,
 )
 from src.core.global_settlement_types_v1 import (
@@ -39,9 +40,14 @@ from src.integration.global_economic_durable_epoch_v1 import (
     prepare_durable_economic_epoch_bundle_v1,
 )
 from src.integration.global_economic_epoch_journal_v1 import (
+    DurableEconomicEpochCasTokenV1,
+    DurableEconomicEpochCommitOutcomeV1,
     DurableEconomicEpochCommitStatusV1,
+    DurableEconomicEpochWriteCapabilityV1,
     GlobalEconomicEpochJournalV1,
+    _create_epoch_journal_for_verified_publisher_v1,
     _DurableEconomicEpochCommitFaultV1,
+    _open_epoch_journal_for_verified_publisher_v1,
     _SimulatedDurableEconomicEpochCrashV1,
 )
 from tests.core.test_global_settlement_abi_v1 import (
@@ -91,6 +97,32 @@ def _fixture_v1(*, receipt_bytes: bytes = b"durable-ordinary-epoch-receipt"):
         )
     )
     return activation, source_head, epoch
+
+
+def _create_writer_v1(
+    path: Path,
+    activation: DurableEconomicInitialStateBundleV1,
+) -> tuple[GlobalEconomicEpochJournalV1, DurableEconomicEpochWriteCapabilityV1]:
+    return _create_epoch_journal_for_verified_publisher_v1(path, activation)
+
+
+def _open_writer_v1(
+    path: Path,
+) -> tuple[GlobalEconomicEpochJournalV1, DurableEconomicEpochWriteCapabilityV1]:
+    return _open_epoch_journal_for_verified_publisher_v1(path)
+
+
+def _commit_v1(
+    journal: GlobalEconomicEpochJournalV1,
+    write_capability: DurableEconomicEpochWriteCapabilityV1,
+    epoch: DurableEconomicEpochBundleV1,
+    cas_token: DurableEconomicEpochCasTokenV1,
+) -> DurableEconomicEpochCommitOutcomeV1:
+    return journal._commit_epoch_from_verified_publisher_v1(
+        epoch,
+        cas_token,
+        write_capability,
+    )
 
 
 def _stored_epoch_rows_v1(path: Path) -> tuple[int, str, bytes]:
@@ -488,11 +520,11 @@ def test_given_activation_when_epoch_commits_then_bundle_and_head_are_atomic(
     # Arrange: the durable journal begins from one exact activation bundle.
     activation, _, epoch = _fixture_v1()
     path = tmp_path / "economic-epochs.sqlite"
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    journal, write_capability = _create_writer_v1(path, activation)
     token = journal.acquire_cas_head_token()
 
     # Act: publish one adjacent ordinary epoch and reopen the database.
-    outcome = journal.commit_epoch(epoch, token)
+    outcome = _commit_v1(journal, write_capability, epoch, token)
     journal.close()
     reopened = GlobalEconomicEpochJournalV1.open(path)
 
@@ -512,11 +544,16 @@ def test_journal_resolves_owned_activation_and_exact_historical_heads(
 ) -> None:
     # Arrange: one activation and one ordinary epoch are durably published.
     activation, source_head, epoch = _fixture_v1()
-    journal = GlobalEconomicEpochJournalV1.create(
+    journal, write_capability = _create_writer_v1(
         tmp_path / "head-resolution.sqlite",
         activation,
     )
-    journal.commit_epoch(epoch, journal.acquire_cas_head_token())
+    _commit_v1(
+        journal,
+        write_capability,
+        epoch,
+        journal.acquire_cas_head_token(),
+    )
 
     # Act: resolve the immutable activation and both content-addressed heads.
     owned_activation = journal.activation_bundle
@@ -539,12 +576,12 @@ def test_given_lost_ack_when_exact_epoch_retries_then_no_duplicate_is_created(
     # Arrange: a caller retains its source token after the epoch actually committed.
     activation, _, epoch = _fixture_v1()
     path = tmp_path / "lost-ack.sqlite"
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    journal, write_capability = _create_writer_v1(path, activation)
     token = journal.acquire_cas_head_token()
-    first = journal.commit_epoch(epoch, token)
+    first = _commit_v1(journal, write_capability, epoch, token)
 
     # Act: retry the byte-identical epoch through the original token.
-    retry = journal.commit_epoch(epoch, token)
+    retry = _commit_v1(journal, write_capability, epoch, token)
 
     # Assert: retry is typed, exact, and leaves one history row.
     assert first.status is DurableEconomicEpochCommitStatusV1.COMMITTED
@@ -560,13 +597,18 @@ def test_given_two_epoch_history_when_first_retries_then_tip_remains_second(
     # Arrange: two adjacent epochs commit after the first caller loses its ACK.
     activation, first_epoch, second_epoch = _two_epoch_chain_v1()
     path = tmp_path / "historical-retry.sqlite"
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    journal, write_capability = _create_writer_v1(path, activation)
     first_token = journal.acquire_cas_head_token()
-    journal.commit_epoch(first_epoch, first_token)
-    journal.commit_epoch(second_epoch, journal.acquire_cas_head_token())
+    _commit_v1(journal, write_capability, first_epoch, first_token)
+    _commit_v1(
+        journal,
+        write_capability,
+        second_epoch,
+        journal.acquire_cas_head_token(),
+    )
 
     # Act: retry the historical byte-identical first epoch through its source token.
-    retry = journal.commit_epoch(first_epoch, first_token)
+    retry = _commit_v1(journal, write_capability, first_epoch, first_token)
 
     # Assert: original identity is returned while the durable head remains epoch two.
     assert retry.status is DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED
@@ -583,12 +625,19 @@ def test_given_adjacent_epoch_reusing_commit_id_then_replay_is_rejected(
         reuse_commit_id=True
     )
     path = tmp_path / "duplicate-commit-id.sqlite"
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
-    journal.commit_epoch(first_epoch, journal.acquire_cas_head_token())
+    journal, write_capability = _create_writer_v1(path, activation)
+    _commit_v1(
+        journal,
+        write_capability,
+        first_epoch,
+        journal.acquire_cas_head_token(),
+    )
 
     # Act and assert: durable replay identity is unique across the full history.
     with pytest.raises(ValueError, match="commit identity"):
-        journal.commit_epoch(
+        _commit_v1(
+            journal,
+            write_capability,
             duplicate_commit_epoch,
             journal.acquire_cas_head_token(),
         )
@@ -602,13 +651,13 @@ def test_commit_resnapshots_epoch_after_hostile_frozen_object_mutation(
     # Arrange: bypass frozen-dataclass guards after the bundle validated once.
     activation, _, epoch = _fixture_v1()
     path = tmp_path / "hostile-object.sqlite"
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    journal, write_capability = _create_writer_v1(path, activation)
     token = journal.acquire_cas_head_token()
     object.__setattr__(epoch.record, "commit_id", "0x" + "cd" * 32)
 
     # Act and assert: commit re-decodes owned bytes and leaves activation unchanged.
     with pytest.raises(ValueError, match="publication id"):
-        journal.commit_epoch(epoch, token)
+        _commit_v1(journal, write_capability, epoch, token)
     assert journal.head.publication_id == activation.record.activation_id
     journal.close()
 
@@ -622,13 +671,13 @@ def test_given_two_valid_successors_when_one_wins_then_other_is_stale_no_effect(
     assert alternate_activation == activation
     assert second.record.publication_id != first.record.publication_id
     path = tmp_path / "competing.sqlite"
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    journal, write_capability = _create_writer_v1(path, activation)
     first_token = journal.acquire_cas_head_token()
     second_token = journal.acquire_cas_head_token()
 
     # Act: first commits; second submits from its now-stale source snapshot.
-    winner = journal.commit_epoch(first, first_token)
-    loser = journal.commit_epoch(second, second_token)
+    winner = _commit_v1(journal, write_capability, first, first_token)
+    loser = _commit_v1(journal, write_capability, second, second_token)
 
     # Assert: history contains only the winner and the loser is an exact no-op.
     assert winner.status is DurableEconomicEpochCommitStatusV1.COMMITTED
@@ -649,14 +698,24 @@ def test_given_two_open_instances_when_one_commits_then_other_observes_stale(
     activation, _, first_epoch = _fixture_v1(receipt_bytes=b"cross-instance-first")
     _, _, second_epoch = _fixture_v1(receipt_bytes=b"cross-instance-second")
     path = tmp_path / "cross-instance.sqlite"
-    first = GlobalEconomicEpochJournalV1.create(path, activation)
-    second = GlobalEconomicEpochJournalV1.open(path)
+    first, first_write_capability = _create_writer_v1(path, activation)
+    second, second_write_capability = _open_writer_v1(path)
     first_token = first.acquire_cas_head_token()
     second_token = second.acquire_cas_head_token()
 
     # Act: SQLite serializes the winner before the second shell validates its CAS.
-    winner = first.commit_epoch(first_epoch, first_token)
-    loser = second.commit_epoch(second_epoch, second_token)
+    winner = _commit_v1(
+        first,
+        first_write_capability,
+        first_epoch,
+        first_token,
+    )
+    loser = _commit_v1(
+        second,
+        second_write_capability,
+        second_epoch,
+        second_token,
+    )
 
     # Assert: both instances converge on one complete publication.
     assert winner.status is DurableEconomicEpochCommitStatusV1.COMMITTED
@@ -683,21 +742,35 @@ def test_given_crash_boundary_when_reopened_then_store_is_exact_pre_or_post(
     # Arrange: one deterministic failure point surrounds the commit boundary.
     activation, source_head, epoch = _fixture_v1()
     path = tmp_path / f"fault-{fault.value}.sqlite"
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    journal, write_capability = _create_writer_v1(path, activation)
     token = journal.acquire_cas_head_token()
 
     # Act: inject failure, close, and recover from the file.
     with pytest.raises(_SimulatedDurableEconomicEpochCrashV1, match=fault.value):
-        journal._commit_epoch_with_fault_for_test_v1(epoch, token, fault)
+        journal._commit_epoch_with_fault_for_test_v1(
+            epoch,
+            token,
+            fault,
+            write_capability,
+        )
     journal.close()
     reopened = GlobalEconomicEpochJournalV1.open(path)
 
     # Assert: recovery exposes a complete PRE or complete POST state only.
     assert reopened.head == (epoch.head if expected_post else source_head)
     if expected_post:
-        retry = reopened.commit_epoch(epoch, reopened.acquire_cas_head_token())
+        reopened_writer, reopened_write_capability = _open_writer_v1(path)
+        reopened.close()
+        retry = _commit_v1(
+            reopened_writer,
+            reopened_write_capability,
+            epoch,
+            reopened_writer.acquire_cas_head_token(),
+        )
         assert retry.status is DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED
-    reopened.close()
+        reopened_writer.close()
+    else:
+        reopened.close()
 
 
 @pytest.mark.parametrize(
@@ -717,7 +790,7 @@ def test_given_abrupt_exit_when_reopened_then_sqlite_recovers_pre_or_post(
     # Arrange: persist the base activation before handing work to a child process.
     activation, source_head, epoch = _fixture_v1()
     path = tmp_path / f"hard-exit-{fault.value}.sqlite"
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    journal, _ = _create_writer_v1(path, activation)
     journal.close()
     child_program = """
 import os
@@ -729,10 +802,10 @@ from tests.integration.test_global_economic_epoch_journal_v1 import _fixture_v1
 path = sys.argv[1]
 fault = journal_module._DurableEconomicEpochCommitFaultV1(sys.argv[2])
 _, _, epoch = _fixture_v1()
-journal = journal_module.GlobalEconomicEpochJournalV1.open(path)
+journal, write_capability = journal_module._open_epoch_journal_for_verified_publisher_v1(path)
 token = journal.acquire_cas_head_token()
 journal_module._SimulatedDurableEconomicEpochCrashV1 = lambda _message: os._exit(97)
-journal._commit_epoch_with_fault_for_test_v1(epoch, token, fault)
+journal._commit_epoch_with_fault_for_test_v1(epoch, token, fault, write_capability)
 raise RuntimeError("hard-exit mutation unexpectedly returned")
 """
 
@@ -756,14 +829,85 @@ def test_given_foreign_cas_token_when_used_then_commit_rejects_without_effect(
 ) -> None:
     # Arrange: Mallory obtains a valid token from a different journal instance.
     activation, source_head, epoch = _fixture_v1()
-    first = GlobalEconomicEpochJournalV1.create(tmp_path / "first.sqlite", activation)
-    second = GlobalEconomicEpochJournalV1.create(tmp_path / "second.sqlite", activation)
+    first, first_write_capability = _create_writer_v1(
+        tmp_path / "first.sqlite",
+        activation,
+    )
+    second, _ = _create_writer_v1(tmp_path / "second.sqlite", activation)
     foreign = second.acquire_cas_head_token()
 
     # Act and assert: token ownership rejects before any economic row is inserted.
     with pytest.raises(ValueError, match="foreign or forged"):
-        first.commit_epoch(epoch, foreign)
+        _commit_v1(first, first_write_capability, epoch, foreign)
     assert first.head == source_head
+    first.close()
+    second.close()
+
+
+def test_direct_journal_has_no_unfenced_epoch_commit_api(tmp_path: Path) -> None:
+    # Arrange: Mallory can open the structural journal and form a valid bundle.
+    activation, source_head, epoch = _fixture_v1()
+    journal = GlobalEconomicEpochJournalV1.create(
+        tmp_path / "reader-only.sqlite",
+        activation,
+    )
+    token = journal.acquire_cas_head_token()
+
+    # Act and assert: no public commit exists and a fabricated capability rejects.
+    assert "commit_epoch" not in GlobalEconomicEpochJournalV1.__dict__
+    with pytest.raises(TypeError, match="exact write capability"):
+        journal._commit_epoch_from_verified_publisher_v1(
+            epoch,
+            token,
+            object(),  # type: ignore[arg-type]
+        )
+    with pytest.raises(TypeError, match="publisher-minted"):
+        DurableEconomicEpochWriteCapabilityV1(object(), journal)
+    assert journal.head == source_head
+    journal.close()
+
+
+def test_private_structural_writer_remains_a_same_process_release_blocker(
+    tmp_path: Path,
+) -> None:
+    # Arrange: same-interpreter code opens the unmounted structural journal.
+    activation, _, epoch = _fixture_v1()
+    journal = GlobalEconomicEpochJournalV1.create(
+        tmp_path / "private-writer-blocker.sqlite",
+        activation,
+    )
+
+    # Act: Python permits direct invocation of the underscore-prefixed writer.
+    outcome = journal._commit_epoch_v1(
+        epoch,
+        journal.acquire_cas_head_token(),
+        fault=None,
+    )
+
+    # Assert: preserve the counterexample until an OS-isolated writer replaces it.
+    assert outcome.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    assert journal.head == epoch.head
+    journal.close()
+
+
+def test_write_capability_is_bound_to_one_journal_instance(tmp_path: Path) -> None:
+    # Arrange: two journals hold identical activations and distinct capabilities.
+    activation, source_head, epoch = _fixture_v1()
+    first, _ = _create_writer_v1(tmp_path / "cap-first.sqlite", activation)
+    second, second_capability = _create_writer_v1(
+        tmp_path / "cap-second.sqlite",
+        activation,
+    )
+
+    # Act and assert: a capability cannot authorize a different journal instance.
+    with pytest.raises(ValueError, match="foreign or forged"):
+        _commit_v1(
+            first,
+            second_capability,
+            epoch,
+            first.acquire_cas_head_token(),
+        )
+    assert first.head == second.head == source_head
     first.close()
     second.close()
 
@@ -774,7 +918,7 @@ def test_given_extra_schema_object_when_opened_then_exact_schema_gate_rejects(
     # Arrange: a local attacker adds an unowned trigger-capable schema surface.
     activation, _, _ = _fixture_v1()
     path = tmp_path / "schema-mutant.sqlite"
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    journal, _ = _create_writer_v1(path, activation)
     journal.close()
     with sqlite3.connect(path) as connection:
         connection.execute("CREATE TABLE shadow_writer (value TEXT) STRICT")
@@ -791,12 +935,12 @@ def test_given_zero_remaining_row_capacity_when_committing_then_typed_noop(
     # Arrange: set the bounded journal at its exact zero-remaining-row boundary.
     activation, source_head, epoch = _fixture_v1()
     path = tmp_path / "capacity.sqlite"
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    journal, write_capability = _create_writer_v1(path, activation)
     token = journal.acquire_cas_head_token()
     monkeypatch.setattr(journal_module, "_MAX_EPOCH_HISTORY_V1", 0)
 
     # Act: submit an otherwise valid adjacent epoch.
-    outcome = journal.commit_epoch(epoch, token)
+    outcome = _commit_v1(journal, write_capability, epoch, token)
 
     # Assert: capacity rejection is typed and no state, history, or head changes.
     assert outcome.status is DurableEconomicEpochCommitStatusV1.CAPACITY_EXCEEDED
@@ -812,8 +956,13 @@ def test_open_accepts_history_at_exact_byte_capacity(
     # Arrange: one committed epoch consumes exactly the configured byte capacity.
     activation, _, epoch = _fixture_v1()
     path = tmp_path / "exact-byte-capacity.sqlite"
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
-    journal.commit_epoch(epoch, journal.acquire_cas_head_token())
+    journal, write_capability = _create_writer_v1(path, activation)
+    _commit_v1(
+        journal,
+        write_capability,
+        epoch,
+        journal.acquire_cas_head_token(),
+    )
     journal.close()
     monkeypatch.setattr(
         journal_module,
@@ -836,8 +985,13 @@ def test_open_rejects_history_one_byte_over_capacity(
     # Arrange: the stored history exceeds the configured byte ceiling by one byte.
     activation, _, epoch = _fixture_v1()
     path = tmp_path / "one-over-byte-capacity.sqlite"
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
-    journal.commit_epoch(epoch, journal.acquire_cas_head_token())
+    journal, write_capability = _create_writer_v1(path, activation)
+    _commit_v1(
+        journal,
+        write_capability,
+        epoch,
+        journal.acquire_cas_head_token(),
+    )
     journal.close()
     monkeypatch.setattr(
         journal_module,

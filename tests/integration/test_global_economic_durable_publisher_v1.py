@@ -10,6 +10,16 @@ from threading import Event, Thread
 
 import pytest
 
+from src.core.economic_receipt_verifier_deployment_v1 import (
+    BoundEconomicReceiptVerifierV1,
+    EconomicReceiptVerifierEvidenceManifestV1,
+    bind_economic_receipt_verifier_deployment_v1,
+)
+from src.core.economic_receipt_verifier_registry_v1 import (
+    EconomicReceiptVerifierRegistryV1,
+    EconomicReceiptVerifierSelectionPurposeV1,
+)
+from src.core.global_economic_proof_v1 import EconomicEpochReceiptCandidateV1
 from src.core.global_settlement_types_v1 import hash_global_v1
 from src.integration.global_economic_commit_v1 import EconomicEpochBodyAndStateV1
 from src.integration.global_economic_durable_publisher_v1 import (
@@ -18,16 +28,61 @@ from src.integration.global_economic_durable_publisher_v1 import (
 )
 from src.integration.global_economic_epoch_journal_v1 import (
     DurableEconomicEpochCommitStatusV1,
+    GlobalEconomicEpochJournalV1,
+)
+from tests.core.test_economic_receipt_verifier_release_v1 import (
+    _ARTIFACT_BYTES,
+    _manifest,
+    _RecordingBackend,
+    _release,
 )
 from tests.core.test_global_settlement_abi_v1 import (
     _epoch_admission_fixture,
     _initial_state_admission,
     _RecordingReceiptVerifier,
+    _root,
 )
 
 
+def _receipt_verifier_manifest_v1() -> EconomicReceiptVerifierEvidenceManifestV1:
+    return _manifest(
+        root_image_id=_root(411),
+        max_receipt_bytes=4_096,
+        max_journal_bytes=1_048_576,
+    )
+
+
+def _bound_receipt_verifier_v1(
+    candidate: EconomicEpochReceiptCandidateV1,
+    backend: _RecordingBackend | None = None,
+) -> tuple[BoundEconomicReceiptVerifierV1, _RecordingBackend]:
+    manifest = _receipt_verifier_manifest_v1()
+    registry = EconomicReceiptVerifierRegistryV1((_release(manifest),))
+    assert registry.registry_root == candidate.profile.verifier_registry_root
+    selected_backend = backend or _RecordingBackend()
+    return (
+        bind_economic_receipt_verifier_deployment_v1(
+            profile=candidate.profile,
+            verifier_registry=registry,
+            selection_purpose=(
+                EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW
+            ),
+            evidence_manifest=manifest,
+            measured_artifact_bytes=_ARTIFACT_BYTES,
+            deployment_root=candidate.pre_state.deployment_root,
+            backend=selected_backend,
+        ),
+        selected_backend,
+    )
+
+
 def _publisher_fixture_v1(*, receipt_bytes: bytes = b"durable-publisher-epoch"):
-    candidate = _epoch_admission_fixture(1)
+    manifest = _receipt_verifier_manifest_v1()
+    registry = EconomicReceiptVerifierRegistryV1((_release(manifest),))
+    candidate = _epoch_admission_fixture(
+        1,
+        verifier_registry_root=registry.registry_root,
+    )
     body = EconomicEpochBodyAndStateV1(
         pre_state_root=candidate.pre_state.state_root,
         post_state=candidate.post_state,
@@ -65,7 +120,7 @@ def test_create_publish_reopen_and_exact_retry_are_one_durable_history(
     # Arrange: Alice prepares one valid epoch and a verifier-backed genesis.
     admission, candidate, body = _publisher_fixture_v1()
     path = tmp_path / "publisher.sqlite"
-    first_verifier = _RecordingReceiptVerifier()
+    first_verifier, first_backend = _bound_receipt_verifier_v1(candidate)
     publisher = VerifiedDurableEconomicPublisherV1.create(
         path,
         admission,
@@ -80,7 +135,7 @@ def test_create_publish_reopen_and_exact_retry_are_one_durable_history(
         body_and_state=body,
     )
     publisher.close()
-    retry_verifier = _RecordingReceiptVerifier()
+    retry_verifier, retry_backend = _bound_receipt_verifier_v1(candidate)
     reopened = VerifiedDurableEconomicPublisherV1.open(
         path,
         admission,
@@ -97,8 +152,8 @@ def test_create_publish_reopen_and_exact_retry_are_one_durable_history(
     assert retried.status is DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED
     assert committed.published_epoch == retried.published_epoch
     assert reopened.head == committed.committed_epoch
-    assert len(first_verifier.calls) == 2
-    assert len(retry_verifier.calls) == 2
+    assert len(first_backend.calls) == 2
+    assert len(retry_backend.calls) == 2
     reopened.close()
 
 
@@ -107,7 +162,7 @@ def test_fabricated_source_metadata_is_stale_before_receipt_verification(
 ) -> None:
     # Arrange: Mallory retains the real publication id but changes its certificate.
     admission, candidate, body = _publisher_fixture_v1()
-    verifier = _RecordingReceiptVerifier()
+    verifier, verifier_backend = _bound_receipt_verifier_v1(candidate)
     publisher = VerifiedDurableEconomicPublisherV1.create(
         tmp_path / "fabricated-source.sqlite",
         admission,
@@ -127,7 +182,7 @@ def test_fabricated_source_metadata_is_stale_before_receipt_verification(
     assert outcome.status is DurableEconomicEpochCommitStatusV1.STALE_HEAD
     assert outcome.published_epoch is None
     assert publisher.head == source
-    assert len(verifier.calls) == 1
+    assert len(verifier_backend.calls) == 1
     publisher.close()
 
 
@@ -139,7 +194,7 @@ def test_body_binding_rejection_is_noop(
     publisher = VerifiedDurableEconomicPublisherV1.create(
         tmp_path / "body-mismatch.sqlite",
         admission,
-        _RecordingReceiptVerifier(),
+        _bound_receipt_verifier_v1(candidate)[0],
     )
     source = publisher.head
     wrong_body = replace(body, receipt_archive_root="0x" + "cd" * 32)
@@ -163,7 +218,7 @@ def test_receipt_replacement_rejects_without_publication(
     publisher = VerifiedDurableEconomicPublisherV1.create(
         tmp_path / "receipt-replacement.sqlite",
         admission,
-        _RecordingReceiptVerifier(),
+        _bound_receipt_verifier_v1(candidate)[0],
     )
     source = publisher.head
     replaced_receipt = replace(candidate, receipt_bytes=b"replacement-receipt")
@@ -185,23 +240,25 @@ def test_selected_verifier_rejection_is_noop(
     # Arrange: genesis verifies, while the selected backend rejects the epoch proof.
     admission, candidate, body = _publisher_fixture_v1()
 
-    class RejectingEpochVerifier(_RecordingReceiptVerifier):
+    class RejectingEpochVerifier(_RecordingBackend):
         def verify_succinct_receipt(
             self,
             receipt_bytes: bytes,
             *,
             expected_image_id: str,
             expected_journal_bytes: bytes,
-        ) -> None:
-            super().verify_succinct_receipt(
+        ) -> object:
+            result = super().verify_succinct_receipt(
                 receipt_bytes,
                 expected_image_id=expected_image_id,
                 expected_journal_bytes=expected_journal_bytes,
             )
             if receipt_bytes == candidate.receipt_bytes:
                 raise ValueError("selected verifier rejected epoch")
+            return result
 
-    verifier = RejectingEpochVerifier()
+    backend = RejectingEpochVerifier()
+    verifier, _ = _bound_receipt_verifier_v1(candidate, backend)
     publisher = VerifiedDurableEconomicPublisherV1.create(
         tmp_path / "verifier-reject.sqlite",
         admission,
@@ -217,8 +274,25 @@ def test_selected_verifier_rejection_is_noop(
             body_and_state=body,
         )
     assert publisher.head == source
-    assert len(verifier.calls) == 2
+    assert len(backend.calls) == 2
     publisher.close()
+
+
+def test_generic_caller_selected_verifier_rejects_before_backend_use(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Mallory supplies a protocol-shaped verifier with no release binding.
+    admission, _, _ = _publisher_fixture_v1()
+    generic = _RecordingReceiptVerifier()
+
+    # Act and assert: only an exact measured profile-selected capability is accepted.
+    with pytest.raises(TypeError, match="bound economic receipt verifier"):
+        VerifiedDurableEconomicPublisherV1.create(
+            tmp_path / "generic-verifier.sqlite",
+            admission,
+            generic,
+        )
+    assert generic.calls == []
 
 
 def test_two_publishers_from_one_source_linearize_one_valid_successor(
@@ -235,12 +309,12 @@ def test_two_publishers_from_one_source_linearize_one_valid_successor(
     first = VerifiedDurableEconomicPublisherV1.create(
         path,
         admission,
-        _RecordingReceiptVerifier(),
+        _bound_receipt_verifier_v1(first_candidate)[0],
     )
     second = VerifiedDurableEconomicPublisherV1.open(
         path,
         admission,
-        _RecordingReceiptVerifier(),
+        _bound_receipt_verifier_v1(second_candidate)[0],
     )
     source = first.head
 
@@ -277,15 +351,15 @@ def test_head_change_during_receipt_verification_returns_stale_noop(
     entered = Event()
     release = Event()
 
-    class BlockingEpochVerifier(_RecordingReceiptVerifier):
+    class BlockingEpochVerifier(_RecordingBackend):
         def verify_succinct_receipt(
             self,
             receipt_bytes: bytes,
             *,
             expected_image_id: str,
             expected_journal_bytes: bytes,
-        ) -> None:
-            super().verify_succinct_receipt(
+        ) -> object:
+            result = super().verify_succinct_receipt(
                 receipt_bytes,
                 expected_image_id=expected_image_id,
                 expected_journal_bytes=expected_journal_bytes,
@@ -294,17 +368,21 @@ def test_head_change_during_receipt_verification_returns_stale_noop(
                 entered.set()
                 if not release.wait(timeout=10):
                     raise RuntimeError("test verifier release timed out")
+            return result
 
     path = tmp_path / "verification-race.sqlite"
     delayed = VerifiedDurableEconomicPublisherV1.create(
         path,
         admission,
-        BlockingEpochVerifier(),
+        _bound_receipt_verifier_v1(
+            delayed_candidate,
+            BlockingEpochVerifier(),
+        )[0],
     )
     fast = VerifiedDurableEconomicPublisherV1.open(
         path,
         admission,
-        _RecordingReceiptVerifier(),
+        _bound_receipt_verifier_v1(fast_candidate)[0],
     )
     source = delayed.head
     results: list[VerifiedDurableEconomicPublishOutcomeV1] = []
@@ -351,7 +429,7 @@ def test_open_rejects_a_different_verified_activation(
     publisher = VerifiedDurableEconomicPublisherV1.create(
         path,
         admission,
-        _RecordingReceiptVerifier(),
+        _bound_receipt_verifier_v1(candidate)[0],
     )
     publisher.close()
     different_state = replace(
@@ -368,7 +446,7 @@ def test_open_rejects_a_different_verified_activation(
         VerifiedDurableEconomicPublisherV1.open(
             path,
             different_admission,
-            _RecordingReceiptVerifier(),
+            _bound_receipt_verifier_v1(candidate)[0],
         )
 
 
@@ -380,7 +458,7 @@ def test_expected_source_rejects_boolean_sequence_alias(
     publisher = VerifiedDurableEconomicPublisherV1.create(
         tmp_path / "boolean-sequence.sqlite",
         admission,
-        _RecordingReceiptVerifier(),
+        _bound_receipt_verifier_v1(candidate)[0],
     )
     source = publisher.head
     object.__setattr__(source, "sequence", False)
@@ -406,6 +484,7 @@ def test_direct_publisher_construction_is_rejected() -> None:
             foreign_mint,
             object(),  # type: ignore[arg-type]
             object(),  # type: ignore[arg-type]
+            object(),
             object(),  # type: ignore[arg-type]
             "0x" + "00" * 32,
         )
@@ -428,6 +507,7 @@ def test_publication_api_has_no_caller_supplied_authority_objects() -> None:
         "body_and_state",
     )
     assert "journal" not in VerifiedDurableEconomicPublisherV1.__dict__
+    assert "commit_epoch" not in GlobalEconomicEpochJournalV1.__dict__
     assert "verify_economic_epoch" not in VerifiedDurableEconomicPublisherV1.__dict__
     assert "commit_verified_economic_epoch" not in (
         VerifiedDurableEconomicPublisherV1.__dict__

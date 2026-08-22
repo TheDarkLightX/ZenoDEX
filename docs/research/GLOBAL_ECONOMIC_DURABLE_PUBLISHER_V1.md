@@ -33,9 +33,10 @@ StoredSource x TypedCandidate x CompleteBody
   -> SQLite CAS
 ```
 
-The selected profile, activation identity, verifier object, binding token, and
-journal are fixed for the publisher lifetime. The publisher carries no mutable
-in-memory economic head; SQLite history owns source identity and replay.
+The selected profile, activation identity, profile-governed verifier release,
+measured verifier binding, private verifier token, journal, and journal write
+capability are fixed for the publisher lifetime. The publisher carries no
+mutable in-memory economic head; SQLite history owns source identity and replay.
 
 Applicability: this pattern is used because an ordinary epoch must be admitted
 and persisted as one candidate identity. Exposing the lower journal or accepting
@@ -43,26 +44,39 @@ a caller-built witness would create parallel authority paths.
 
 Mechanical guarantees:
 
-- factory-only construction after verifier-admitted genesis;
+- factory-only construction after genesis admission by an exactly typed bound
+  verifier capability;
+- exact profile-to-verifier-registry-root and profile-to-root-image selection;
+- content-derived verifier release identity with closed `SHADOW` versus
+  `ACTIVE_NEW` purposes and evidence requirements;
+- exact evidence-manifest, implementation-artifact, backend-protocol, profile,
+  deployment, receipt-size, and journal-size binding;
 - byte-identical activation reproduction on reopen;
 - exact selected-profile comparison;
 - exact historical source resolution from one validated SQLite read snapshot;
-- verifier-instance and publisher-token binding;
+- verifier-instance, release, measured-binding-root, and publisher-token binding;
+- journal-instance-bound write capability checked separately from the CAS token;
 - internal publication-record and durable-bundle derivation;
 - typed stale and capacity no-effects;
 - exact retry and SQLite CAS conflict handling.
 
-Explicit non-guarantees: Python process privacy is not a cryptographic
-capability boundary. The verifier object's implementation determines receipt
-assurance. This slice provides no deployed RISC0 verifier registry, objective
-data availability or finality, migration activation, outbox delivery,
-destination acknowledgement, OS-level writer fencing, consensus mount, or
-production release authority.
+Explicit non-guarantees: Python process privacy and module-private names are not
+cryptographic capability boundaries. The backend object is an injected
+process-local premise, and artifact bytes are supplied to the binding function;
+this slice does not load and attest a deployed verifier executable. It provides
+no real RISC0 receipt replay, active production verifier release, objective data
+availability or finality, migration activation, outbox delivery, destination
+acknowledgement, OS-level writer fencing, consensus mount, or production release
+authority.
 
-Trusted constructors and boundary: `create` and `open` are the only public
-constructors. They reverify the genesis admission. `publish_economic_epoch`
-owns the verifier-to-journal path. `GlobalEconomicEpochJournalV1` owns the
-transaction and exact retry relation.
+Trusted constructors and boundary: the deployment binder is the only public
+constructor for `BoundEconomicReceiptVerifierV1`; `create` and `open` are the
+only public publisher constructors. They reverify the genesis admission.
+`publish_economic_epoch` owns the verifier-to-journal path. The journal's public
+API exposes no ordinary-epoch commit method. Its module-private factory
+functions return the journal and an instance-bound write capability together;
+both use one inventoried module-private capability issuer.
+`GlobalEconomicEpochJournalV1` owns the transaction and exact retry relation.
 
 Staleness, aliasing, concurrency, and crash behavior:
 
@@ -75,10 +89,14 @@ Staleness, aliasing, concurrency, and crash behavior:
 - lower-journal exception and abrupt-exit tests establish bounded PRE-or-POST
   recovery at each SQLite fault point.
 
-Python enforcement: exact-type checks, frozen typed values, private factory
-mint, private verifier binding token, sealed publisher selection, canonical
-bytes, full-history validation, and SQLite CAS. Same-process reflective mutation
-remains outside the capability claim.
+Python enforcement: exact-type checks, frozen typed values, content-derived
+release and registry roots, measured artifact hash, closed evidence states,
+data-slot-free verifier and write capabilities, private factory mints, private
+verifier binding token, sealed publisher selection, canonical bytes,
+full-history validation, and SQLite CAS. Same-process reflective mutation and
+direct import of underscore-prefixed functions remain outside the capability
+claim. The underscore-prefixed structural journal writer remains explicitly
+inventoried and blocks `NO_BYPASS` promotion.
 
 Rust enforcement: absent for this adapter. Rust/RISC0 parity and real receipt
 replay remain release-blocking gaps.
@@ -96,6 +114,14 @@ The focused tests use Arrange/Act/Assert structure and cover:
 - fabricated source metadata rejected before epoch receipt verification;
 - body-commitment and receipt-root mutation as no-publication failures;
 - selected verifier rejection as an exact no-publication failure;
+- generic caller-selected verifier rejection before backend use;
+- wrong registry, image, deployment, evidence manifest, implementation artifact,
+  byte bound, and backend success-shape rejection;
+- shadow/active release evidence and unique-selection checks;
+- absent public journal commit method, forged write capability rejection, and
+  cross-journal capability rejection;
+- an executable negative witness showing the private structural journal writer
+  remains callable in the same interpreter and blocks `NO_BYPASS`;
 - two valid competing publishers and a head change during receipt verification;
 - wrong activation on reopen;
 - bool/int source-coordinate alias rejection;
@@ -111,7 +137,8 @@ proof-profile, route, terminal, adapter-promotion, and release-evidence gaps.
 
 ## Promotion boundary
 
-This slice narrows the ordinary-epoch portion of VM-10. It does not close VM-09
-sole-authority mounting, complete Rust/RISC0 refinement, objective finality,
-external delivery, migration, whole-economy terminal coverage, or release
-evidence. `production_authority` remains `NONE`.
+This slice narrows verifier selection and the ordinary-epoch portion of VM-10.
+It does not close VM-09 sole-authority mounting, complete Rust/RISC0 refinement,
+deployed artifact loading and attestation, objective finality, external delivery,
+migration, whole-economy terminal coverage, or active release evidence.
+`production_authority` remains `NONE`.

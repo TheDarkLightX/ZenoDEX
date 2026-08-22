@@ -20,6 +20,12 @@ from ..core.economic_initial_state_publisher_verification_v1 import (
     _verify_economic_initial_state_for_publisher_v1,
 )
 from ..core.economic_initial_state_v1 import EconomicInitialStateAdmissionV1
+from ..core.economic_receipt_verifier_deployment_v1 import (
+    BoundEconomicReceiptVerifierV1,
+)
+from ..core.economic_receipt_verifier_registry_v1 import (
+    EconomicReceiptVerifierSelectionPurposeV1,
+)
 from ..core.global_economic_durable_activation_v1 import (
     DurableEconomicInitialStateBundleV1,
     prepare_durable_economic_initial_state_bundle_v1,
@@ -27,7 +33,6 @@ from ..core.global_economic_durable_activation_v1 import (
 from ..core.global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from ..core.global_economic_proof_v1 import (
     EconomicEpochReceiptCandidateV1,
-    SuccinctReceiptVerifierV1,
     _snapshot_economic_epoch_candidate_v1,
     _snapshot_verified_economic_epoch_v1,
     _verified_economic_epoch_is_bound_to_publisher_v1,
@@ -55,7 +60,11 @@ from .global_economic_durable_epoch_v1 import (
 from .global_economic_epoch_journal_v1 import (
     DurableEconomicEpochCommitOutcomeV1,
     DurableEconomicEpochCommitStatusV1,
+    DurableEconomicEpochWriteCapabilityV1,
     GlobalEconomicEpochJournalV1,
+    _create_epoch_journal_for_verified_publisher_v1,
+    _open_epoch_journal_for_verified_publisher_v1,
+    _require_write_capability_v1,
 )
 
 _DURABLE_PUBLISHER_MINT_V1 = object()
@@ -149,13 +158,25 @@ def _same_publication_head_v1(
 
 def _prepare_verified_activation_v1(
     admission: EconomicInitialStateAdmissionV1,
-    receipt_verifier: SuccinctReceiptVerifierV1,
+    receipt_verifier: BoundEconomicReceiptVerifierV1,
 ) -> _VerifiedActivationV1:
     if type(admission) is not EconomicInitialStateAdmissionV1:
         raise TypeError("durable publisher requires exact initial-state admission")
-    verify_method = getattr(receipt_verifier, "verify_succinct_receipt", None)
-    if not callable(verify_method):
-        raise TypeError("durable publisher receipt verifier is invalid")
+    if type(receipt_verifier) is not BoundEconomicReceiptVerifierV1:
+        raise TypeError(
+            "durable publisher requires a bound economic receipt verifier"
+        )
+    admission_profile = snapshot_economic_profile_v1(admission.profile)
+    admission_state = _snapshot_state_v1(admission.state)
+    receipt_verifier.require_binding(
+        verifier_registry_root=admission_profile.verifier_registry_root,
+        deployment_root=admission_state.deployment_root,
+        profile_root=admission_profile.profile_id,
+        root_image_id=admission_profile.root_image_id,
+        selection_purpose=(
+            EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW
+        ),
+    )
     verified = _verify_economic_initial_state_for_publisher_v1(
         admission,
         receipt_verifier,
@@ -164,6 +185,15 @@ def _prepare_verified_activation_v1(
     state = _snapshot_state_v1(verified.state)
     if profile.status is not ProfileStatusV1.ACTIVE:
         raise ValueError("durable publisher genesis profile must be active")
+    receipt_verifier.require_binding(
+        verifier_registry_root=profile.verifier_registry_root,
+        deployment_root=state.deployment_root,
+        profile_root=profile.profile_id,
+        root_image_id=profile.root_image_id,
+        selection_purpose=(
+            EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW
+        ),
+    )
     bundle = prepare_durable_economic_initial_state_bundle_v1(
         admission,
         source_head=None,
@@ -236,27 +266,42 @@ class VerifiedDurableEconomicPublisherV1:
         "__lock",
         "__profile",
         "__receipt_verifier",
+        "__receipt_verifier_binding_root",
+        "__receipt_verifier_release_id",
         "__sealed",
+        "__write_capability",
     )
     __activation_id: str
     __binding_token: object
     __journal: GlobalEconomicEpochJournalV1
     __lock: Lock
     __profile: EconomicProfileSnapshotV1
-    __receipt_verifier: SuccinctReceiptVerifierV1
+    __receipt_verifier: BoundEconomicReceiptVerifierV1
+    __receipt_verifier_binding_root: str
+    __receipt_verifier_release_id: str
     __sealed: bool
+    __write_capability: DurableEconomicEpochWriteCapabilityV1
 
     def __init__(
         self,
         mint: object,
         journal: GlobalEconomicEpochJournalV1,
+        write_capability: DurableEconomicEpochWriteCapabilityV1,
         profile: EconomicProfileSnapshotV1,
-        receipt_verifier: SuccinctReceiptVerifierV1,
+        receipt_verifier: BoundEconomicReceiptVerifierV1,
         activation_id: str,
     ) -> None:
         if mint is not _DURABLE_PUBLISHER_MINT_V1:
             raise TypeError("durable publisher is factory-constructed")
+        if type(journal) is not GlobalEconomicEpochJournalV1:
+            raise TypeError("durable publisher journal type is not closed")
+        _require_write_capability_v1(journal, write_capability)
         object.__setattr__(self, "_VerifiedDurableEconomicPublisherV1__journal", journal)
+        object.__setattr__(
+            self,
+            "_VerifiedDurableEconomicPublisherV1__write_capability",
+            write_capability,
+        )
         object.__setattr__(
             self,
             "_VerifiedDurableEconomicPublisherV1__profile",
@@ -266,6 +311,16 @@ class VerifiedDurableEconomicPublisherV1:
             self,
             "_VerifiedDurableEconomicPublisherV1__receipt_verifier",
             receipt_verifier,
+        )
+        object.__setattr__(
+            self,
+            "_VerifiedDurableEconomicPublisherV1__receipt_verifier_binding_root",
+            receipt_verifier.binding_root,
+        )
+        object.__setattr__(
+            self,
+            "_VerifiedDurableEconomicPublisherV1__receipt_verifier_release_id",
+            receipt_verifier.release_id,
         )
         object.__setattr__(
             self,
@@ -294,16 +349,19 @@ class VerifiedDurableEconomicPublisherV1:
         cls,
         path: str | Path,
         initial_state_admission: EconomicInitialStateAdmissionV1,
-        receipt_verifier: SuccinctReceiptVerifierV1,
+        receipt_verifier: BoundEconomicReceiptVerifierV1,
     ) -> VerifiedDurableEconomicPublisherV1:
         verified = _prepare_verified_activation_v1(
             initial_state_admission,
             receipt_verifier,
         )
-        journal = GlobalEconomicEpochJournalV1.create(path, verified.bundle)
+        journal, write_capability = (
+            _create_epoch_journal_for_verified_publisher_v1(path, verified.bundle)
+        )
         return cls(
             _DURABLE_PUBLISHER_MINT_V1,
             journal,
+            write_capability,
             verified.profile,
             receipt_verifier,
             verified.bundle.record.activation_id,
@@ -314,13 +372,15 @@ class VerifiedDurableEconomicPublisherV1:
         cls,
         path: str | Path,
         initial_state_admission: EconomicInitialStateAdmissionV1,
-        receipt_verifier: SuccinctReceiptVerifierV1,
+        receipt_verifier: BoundEconomicReceiptVerifierV1,
     ) -> VerifiedDurableEconomicPublisherV1:
         verified = _prepare_verified_activation_v1(
             initial_state_admission,
             receipt_verifier,
         )
-        journal = GlobalEconomicEpochJournalV1.open(path)
+        journal, write_capability = _open_epoch_journal_for_verified_publisher_v1(
+            path
+        )
         try:
             if (
                 journal.activation_bundle.canonical_bytes
@@ -330,6 +390,7 @@ class VerifiedDurableEconomicPublisherV1:
             return cls(
                 _DURABLE_PUBLISHER_MINT_V1,
                 journal,
+                write_capability,
                 verified.profile,
                 receipt_verifier,
                 verified.bundle.record.activation_id,
@@ -399,6 +460,8 @@ class VerifiedDurableEconomicPublisherV1:
 
             cas_token = self.__journal.acquire_cas_head_token()
             receipt_verifier = self.__receipt_verifier
+            receipt_verifier_binding_root = self.__receipt_verifier_binding_root
+            receipt_verifier_release_id = self.__receipt_verifier_release_id
             binding_token = self.__binding_token
             verified = _verify_economic_epoch_for_publisher_v1(
                 owned_candidate,
@@ -407,6 +470,12 @@ class VerifiedDurableEconomicPublisherV1:
             )
             if (
                 self.__receipt_verifier is not receipt_verifier
+                or self.__receipt_verifier_binding_root
+                != receipt_verifier_binding_root
+                or self.__receipt_verifier_release_id
+                != receipt_verifier_release_id
+                or receipt_verifier.binding_root != receipt_verifier_binding_root
+                or receipt_verifier.release_id != receipt_verifier_release_id
                 or self.__binding_token is not binding_token
                 or canonical_global_bytes_v1(self.__profile)
                 != canonical_global_bytes_v1(selected_profile)
@@ -446,7 +515,13 @@ class VerifiedDurableEconomicPublisherV1:
                     receipt_bytes=owned_candidate.receipt_bytes,
                 )
             )
-            journal_outcome = self.__journal.commit_epoch(bundle, cas_token)
+            journal_outcome = (
+                self.__journal._commit_epoch_from_verified_publisher_v1(
+                    bundle,
+                    cas_token,
+                    self.__write_capability,
+                )
+            )
             return self._outcome_v1(journal_outcome, published)
 
     @staticmethod

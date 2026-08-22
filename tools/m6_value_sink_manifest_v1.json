@@ -74,7 +74,7 @@
       "classification": "DURABLE_VALUE_STATE",
       "occurrence_count": 2,
       "path": "src/integration/global_economic_epoch_journal_v1.py",
-      "rationale": "Inserts one complete ordinary economic epoch and advances its singleton head in the same bounded SQLite transaction; the journal is unmounted and does not verify receipts or grant writer authority.",
+      "rationale": "Inserts one complete ordinary economic epoch and advances its singleton head in the same bounded SQLite transaction. The public journal commit method is absent and the intended publisher path requires both an instance-bound CAS token and an instance-bound write capability. The underscore-prefixed structural commit method remains directly callable by code in the same interpreter, is inventoried as a release blocker, and prevents any NO_BYPASS claim.",
       "release_binding": null,
       "sink_id": "global_economic_durable_epoch_publication_sql",
       "sink_kind": "SQL_DML",

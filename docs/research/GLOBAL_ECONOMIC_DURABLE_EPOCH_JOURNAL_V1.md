@@ -33,6 +33,8 @@ migration activation bundle. For that activation it stores a bounded,
 contiguous ordinary-epoch history with:
 
 - a journal-minted process-local CAS snapshot token;
+- a separate data-slot-free write capability bound to the exact journal
+  instance;
 - owned activation snapshots and exact activation/epoch head resolution from
   one validated SQLite read snapshot;
 - exact byte retry, including historical retry after later epochs;
@@ -53,7 +55,10 @@ The focused suite covers:
   outbox;
 - repeated command bodies under distinct occurrences;
 - exact retry, historical retry, stale competing successors, foreign CAS
-  tokens, cross-instance races, and zero remaining capacity;
+  tokens, forged or foreign write capabilities, cross-instance races, and zero
+  remaining capacity;
+- an executable negative witness preserving the underscore-prefixed
+  same-interpreter structural-writer bypass as a release blocker;
 - schema expansion;
 - exception recovery and abrupt process exit after begin, insert, head update,
   and commit-before-ack.
@@ -69,17 +74,23 @@ RISC0 receipt, reconstruct verifier-owned route-binding roots, decide policy,
 authorize a command, establish data availability or objective finality, deliver
 an outbox item, reconcile an acknowledgment, or grant writer authority.
 
-`VerifiedDurableEconomicPublisherV1` now owns one unmounted path from retained
-receipt verification through exact source/body/effect binding and internal
-bundle derivation to this journal's CAS transaction. Verification has no durable
-side effect, and SQLite remains the publication linearization point. The direct
-journal API still performs structural checks only and grants no receipt or
-writer authority.
+`VerifiedDurableEconomicPublisherV1` now owns one unmounted path from a
+profile-governed, release-bound verifier capability through exact
+source/body/effect binding and internal bundle derivation to this journal's CAS
+transaction. Verification has no durable side effect, and SQLite remains the
+publication linearization point. The journal exposes no public ordinary-epoch
+commit method. Its module-private factory mints a same-process, instance-bound
+write capability for the publisher. Python module privacy is an engineering
+interlock and does not establish an OS or cryptographic writer boundary. The
+underscore-prefixed structural commit method remains directly callable by code
+already executing in the same interpreter and is retained in the writer
+inventory as a release blocker.
 
-Production mounting remains forbidden. The selected verifier is not yet bound
-to a deployed release registry, alternative value writers are not fenced,
-migrations and outbox delivery remain outside this publisher, and Rust/RISC0
-runtime parity is incomplete.
+Production mounting remains forbidden. The verifier release and supplied
+artifact bytes are bound in process, while deployed executable loading,
+attestation, and real RISC0 receipt replay remain absent. Alternative value
+writers are not fenced, migrations and outbox delivery remain outside this
+publisher, and Rust/RISC0 runtime parity is incomplete.
 
 Passing this slice narrows VM-10 durable-publication risk. It does not close
 VM-09 sole-authority mounting, VM-10 external delivery refinement, VM-11 full
