@@ -473,6 +473,26 @@ committed migration registry, the existing object-classification certificate
 is not yet composed into admission, activation is not durable and atomic, and
 coexisting shared-asset releases lack their required theorems.
 
+The bounded initialization admission now derives a canonical occurrence for
+every explicit balance, supply, accounting-control-domain, liability, reserve,
+and terminal-obligation row in `GlobalEconomicStateV1`. Each occurrence binds
+its row kind, canonical table index, and canonical row root. A closed source
+manifest classifies every target occurrence exactly once as a genesis
+allocation, migrated target, or retained drain target and binds a nonzero
+source-authorization root. The manifest root is committed both by the active
+profile policy registry and by the initialization certificate. Python and Rust
+derive the same roots. Omitted, duplicated, reordered, stale, wrongly
+classified, or source-substituted rows reject before receipt verification; the
+bounded row-count boundary is tested at 4,096 and 4,097.
+
+This closes exact target-row coverage for the six explicit tables in the
+deterministic reference and Rust ABI checker. It does not establish the
+contents of private lane roots, total predecessor-source classification for a
+migration, the objective authority represented by a source-authorization root,
+selection from the governed migration-release registry, a real RISC0
+initialization receipt, durable atomic activation, writer rotation, or
+shared-asset coexistence. Those remain VM-11 blockers.
+
 The 18-workflow/81-scenario ATDD catalogue and its historical 11 Luna-required
 expansions are insufficient as a complete M6 capability manifest. The catalogue
 does not yet provide closed lifecycle contracts for every required farm,
@@ -520,8 +540,10 @@ remains excluded from GlobalSettlementABI V1.
 1. Freeze the exact complete M6 capability manifest and ZDEX semantic anchors,
    including buy-and-burn, hosting compensation, eight-decimal units,
    retained-supply hyperdeflation, recovery, and terminal behavior.
-2. Freeze a clean candidate, a certified initial-state predecessor, checker
-   sources, exact commands, and reviewed donor slices under one candidate root.
+2. Extend the exact target-row initialization manifest to private lane objects
+   and complete predecessor-source migration classification. Select the
+   genesis or migration release from committed profile state, then execute this
+   same checker in the real RISC0 initialization guest.
 3. Extend the operation-derived sink inventory across dynamic Python, Rust,
    Tau, shell, generated code, native extensions, runtime loading, deployment
    wiring, and deployed entrypoints. Bind every discovered sink to an
@@ -530,8 +552,8 @@ remains excluded from GlobalSettlementABI V1.
    injective effect provenance, and Python/Rust parity required by VM-02 and
    VM-03.
 5. Seal initial-state and epoch authority behind release-selected verifier
-   implementations. Remove caller-selected verifier objects from every
-   authoritative constructor path.
+   implementations, measured images, and exact receipt replay. Remove
+   caller-selected verifier objects from every authoritative constructor path.
 6. Implement each enabled lane behind the stable ABI. Keep unresolved lanes
    absent from active routes and prove they have no writer.
 7. Complete coordinators, governed routes, terminal obligations, and the global

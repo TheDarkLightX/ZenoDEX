@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "c4c5255f3bfbc7b7673ffeaf7b3f36ccdd6bdbdf",
+    "commit": "88d5d21fbb1815f67e6dc5c86a2ed2d306817555",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,7 +14,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "a944391187bb9c8b12f1bbba0d28e918a80eb994ff9c6e12514464284c3cfbae",
+    "sha256": "a90587c9015ba81465be34a30ba02695b9461d634172e1e6b4b8a5a4c26a986a",
     "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
     "verdict": "UNPROVED"
   },
@@ -166,14 +166,43 @@
         "IMPLEMENTED_RUST_ABI",
         "TESTED",
         "UNMOUNTED",
-        "UNPROVED_COVERAGE"
+        "EXPLICIT_TARGET_ROW_COVERAGE_BOUND",
+        "UNPROVED_PRIVATE_LANE_STATE"
       ],
       "closed_obligation": "The in-memory reference publisher no longer accepts a plain caller-supplied initial profile and state pair; it requires exact receipt-bound genesis or adjacent migration admission.",
       "remaining_obligations": [
         "real initialization proof guest and receipt replay",
         "migration release selection from the committed registry",
-        "composition with complete object-classification evidence",
+        "private lane-object and predecessor-source classification totality",
         "durable atomic profile activation and writer rotation",
+        "shared-asset coexistence theorems"
+      ]
+    },
+    {
+      "id": "INITIAL_STATE_ATOM_COVERAGE_V1",
+      "commit": "88d5d21fbb1815f67e6dc5c86a2ed2d306817555",
+      "manifest_root_golden": "0x8fb2073a85c1b563f09860071e0d3ebd2508be80a111c95fcf585eebc90187ba",
+      "python_sha256": "c1d35941d5733928e71fcda3324d4789967f41e62048888de929185b9f9231d3",
+      "python_admission_sha256": "2eb8db9cf2563e2c82983a9c80a15c1381fe7c2c797c8e160f3399feffe8256f",
+      "rust_sha256": "466b0cf93e0c5e7e6716ed2b23b8843b68f83e8d60b1c1795ef9cab4d6e54447",
+      "rust_admission_sha256": "543cfb1e24dc687ba773ee448a829cf23c4998148c7cb3501282765a552fb847",
+      "status": [
+        "IMPLEMENTED_PYTHON_REFERENCE",
+        "IMPLEMENTED_RUST_ABI",
+        "CROSS_LANGUAGE_ROOT_PARITY",
+        "PROFILE_BOUND",
+        "TESTED_MUTATION_KILLERS",
+        "UNMOUNTED",
+        "UNPROVED_PRIVATE_LANE_STATE"
+      ],
+      "closed_obligation": "Every explicit initial balance, supply, accounting-control-domain, liability, reserve, and terminal-obligation target row is classified exactly once by kind, canonical index, and canonical row root under the profile-bound manifest; omission, duplication, reordering, stale data, wrong classification, and source substitution reject before receipt verification.",
+      "remaining_obligations": [
+        "private lane-root object coverage",
+        "total predecessor-source migration classification including closed and tombstoned objects",
+        "objective authorization behind source-authorization roots",
+        "governed genesis or migration release selection",
+        "real initialization guest and receipt replay",
+        "durable atomic activation and writer rotation",
         "shared-asset coexistence theorems"
       ]
     },
@@ -333,7 +362,7 @@
     {
       "id": "VM-11",
       "status": "PARTIAL",
-      "evidence": "Python and Rust define exact receipt-bound genesis or adjacent-migration certificate bindings, share canonical golden vectors, and the in-memory publisher rejects a plain initial state. Real proof coverage, migration-registry selection, object-classification composition, durable atomic activation, and coexistence theorems remain absent."
+      "evidence": "Python and Rust define exact receipt-bound genesis or adjacent-migration certificate bindings and derive the same profile-bound manifest root over every explicit balance, supply, accounting-control-domain, liability, reserve, and terminal-obligation target row. Mutation tests reject omission, duplication, reordering, stale rows, wrong classification, and source substitution before receipt verification. Private lane-root objects, total predecessor-source migration classification, objective source authorization, real proof coverage, migration-registry selection, durable atomic activation, and coexistence theorems remain absent."
     },
     {
       "id": "VM-12",
@@ -373,7 +402,7 @@
   },
   "next_dependency_order": [
     "Bind the complete intended M6 capability manifest into the profile and map each row to command, transition, effect, route, terminal, adapter, and evidence status.",
-    "Bind certified initialization to a registered migration or genesis proof release, complete object classification, and real receipt replay.",
+    "Extend certified initialization from exact explicit target rows to private lane objects and total predecessor-source migration classification, then bind a registered genesis or migration proof release and real receipt replay.",
     "Extend operation-derived sink discovery across dynamic Python, Rust, Tau, shell, generated code, native extensions, deployment wiring, and deployed reachability, then close VM-01.",
     "Complete effect source, authorization, claimant, residue, terminal, and external-delivery bindings.",
     "Seal authoritative verification behind a measured release-selected verifier.",
