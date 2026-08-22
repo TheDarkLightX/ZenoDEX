@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "1b23967d378a14ac42cecd5f83dfbff78159dcfc",
+    "commit": "c4c5255f3bfbc7b7673ffeaf7b3f36ccdd6bdbdf",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,7 +14,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "c46c9f72dd66ef580b4cd38eb096b7eee4514a4918b3a7422330f55b4780ef89",
+    "sha256": "a944391187bb9c8b12f1bbba0d28e918a80eb994ff9c6e12514464284c3cfbae",
     "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
     "verdict": "UNPROVED"
   },
@@ -254,13 +254,36 @@
         "deployed reachability and caller traversal",
         "release bindings for all authority-relevant sinks"
       ]
+    },
+    {
+      "id": "M6_ASSET_PRECISION_PROFILE_BINDING_V1",
+      "commit": "c4c5255f3bfbc7b7673ffeaf7b3f36ccdd6bdbdf",
+      "policy_root": "0xacfbd1be88e823fcdd1b094b8d2f0c8ee1bf19c826004e89752f27fd22aa49dd",
+      "policy_artifact_sha256": "d1427502b4a6eea32fdc0895b9f872d13eea6dc9670cec2a117dcb9d96fdb815",
+      "python_sha256": "14c88736b3ce63053ff65c6ee0b2712af993065f12dbe19afddd9cf8a60ad86f",
+      "rust_sha256": "d20a5fea3fbb0c7f21b66630d1979736a15472f2f02a35602d6c580f716b8c4e",
+      "checker_sha256": "06b4dcd8cfddab5364f731a2e40beb9c44a5329e434afd06f2ab45d1fc18e8a8",
+      "status": [
+        "IMPLEMENTED_PYTHON_ADMISSION",
+        "IMPLEMENTED_RUST_VALIDATOR",
+        "CROSS_LANGUAGE_ROOT_PARITY",
+        "TESTED_MUTATION_KILLERS",
+        "UNMOUNTED"
+      ],
+      "closed_obligation": "The bounded Python initial-state admission and Rust profile validator bind eight decimal places, 100000000 atoms per display unit, integer-only conversion, explicit integer rounding, and ABI V2-only denomination rescaling to one content-derived governed policy root.",
+      "remaining_obligations": [
+        "bind the precision policy in real initialization and epoch proof guests",
+        "prove every command-specific rounding and dust rule",
+        "audit every Tau, API, CLI, UI, storage, and mounted-runtime conversion boundary",
+        "prove denomination rescaling absent from every ABI V1 route"
+      ]
     }
   ],
   "gate_status": [
     {
       "id": "VM-01",
       "status": "PARTIAL",
-      "evidence": "A closed research manifest names and profile-binds 103 requirements across all 12 lanes and four cross-lane routes. An operation-derived Python V1 scan classifies 12 sink identities and 14 occurrences and kills an arbitrary-name literal-SQL mutation. Writer inventory still reports 25 open coverage rows and 18 unmounted entrypoints; 11 Python sink groups lack release bindings, and dynamic Python plus cross-language, generated-code, deployment, and reachability completeness remain absent."
+      "evidence": "A closed research manifest names and profile-binds 103 requirements across all 12 lanes and four cross-lane routes. The exact eight-decimal policy is profile-bound in the Python initial admission path and has a Rust root-parity validator. An operation-derived Python V1 scan classifies 12 sink identities and 14 occurrences and kills an arbitrary-name literal-SQL mutation. Writer inventory still reports 25 open coverage rows and 18 unmounted entrypoints; 11 Python sink groups lack release bindings, and dynamic Python plus cross-language, generated-code, deployment, and reachability completeness remain absent."
     },
     {
       "id": "VM-02",
@@ -333,6 +356,13 @@
       "observed_occurrence_count": 14,
       "release_gap_count": 11,
       "release_ready": false,
+      "production_authority": false
+    },
+    "asset_precision_policy": {
+      "exit_code": 0,
+      "decimal_places": 8,
+      "atoms_per_display_unit": 100000000,
+      "policy_root": "0xacfbd1be88e823fcdd1b094b8d2f0c8ee1bf19c826004e89752f27fd22aa49dd",
       "production_authority": false
     },
     "production_boundary": {

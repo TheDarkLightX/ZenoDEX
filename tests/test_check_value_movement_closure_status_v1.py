@@ -128,3 +128,17 @@ def test_checker_rejects_stale_value_sink_observation(tmp_path: Path) -> None:
 
     assert report["ok"] is False
     assert "value sink inventory observation is stale or incomplete" in report["findings"]
+
+
+def test_checker_rejects_stale_asset_precision_observation(tmp_path: Path) -> None:
+    mutated = deepcopy(_status())
+    mutated["live_gate_observations"]["asset_precision_policy"][  # type: ignore[index]
+        "decimal_places"
+    ] = 18
+
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    assert report["ok"] is False
+    assert "asset precision policy observation is stale or incomplete" in report["findings"]

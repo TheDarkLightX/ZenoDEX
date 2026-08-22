@@ -504,6 +504,17 @@ extensions, runtime loading, deployment wiring, and actual deployed
 reachability still require independent sink-first inventories and a composed
 complete-mediation gate.
 
+The eight-decimal anchor is now represented by the content-derived policy root
+`0xacfbd1be88e823fcdd1b094b8d2f0c8ee1bf19c826004e89752f27fd22aa49dd`.
+The Python reference initial-state admission requires this exact binding in the
+profile's governed policy registry before receipt verification. Rust
+independently derives the same policy root and exposes the corresponding
+profile-binding validator. This closes policy substitution at that bounded
+admission surface. It does not yet prove that every decoder, command, rounding
+rule, proof guest, Tau policy, API formatter, UI formatter, or mounted runtime
+uses the same eight-decimal conversion contract. Denomination rescaling
+remains excluded from GlobalSettlementABI V1.
+
 ## Recommended implementation order
 
 1. Freeze the exact complete M6 capability manifest and ZDEX semantic anchors,

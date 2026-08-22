@@ -11,8 +11,12 @@ from pathlib import Path
 from typing import Mapping
 
 if __package__:
+    from tools.check_m6_asset_precision_policy_v1 import (
+        check_m6_asset_precision_policy_v1,
+    )
     from tools.check_m6_value_sinks_v1 import check_m6_value_sinks_v1
 else:
+    from check_m6_asset_precision_policy_v1 import check_m6_asset_precision_policy_v1
     from check_m6_value_sinks_v1 import check_m6_value_sinks_v1
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -238,6 +242,25 @@ def check_value_movement_closure_status_v1(
         findings.append("value sink inventory observation is stale or incomplete")
     if live_value_sinks["ok"] is not True:
         findings.append("live value sink inventory has findings")
+    precision_observation = _mapping(
+        observations.get("asset_precision_policy"),
+        "asset precision policy observation",
+        findings,
+    )
+    live_precision = check_m6_asset_precision_policy_v1(
+        root / "docs" / "research" / "ZENODEX_M6_ASSET_PRECISION_POLICY_V1.json"
+    )
+    expected_precision_observation = {
+        "exit_code": 0 if live_precision["ok"] is True else 1,
+        "decimal_places": live_precision["decimal_places"],
+        "atoms_per_display_unit": live_precision["atoms_per_display_unit"],
+        "policy_root": live_precision["policy_root"],
+        "production_authority": live_precision["production_authority"],
+    }
+    if dict(precision_observation) != expected_precision_observation:
+        findings.append("asset precision policy observation is stale or incomplete")
+    if live_precision["ok"] is not True:
+        findings.append("live asset precision policy has findings")
 
     return {
         "schema": "zenodex/value-movement-closure-status-check/v1",
