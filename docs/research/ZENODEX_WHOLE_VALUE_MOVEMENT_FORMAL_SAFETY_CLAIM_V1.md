@@ -767,7 +767,8 @@ later worktree edit plus refreshed hash from representing an earlier commit.
 The checker itself still requires release packaging, independent replay, and
 authenticated distribution before it can contribute production authority.
 
-The combined focused closure run has 192 passing tests. It includes
+The focused closure portfolio has 194 passing tests: a 193-test combined run
+plus the final lifecycle-gate evidence mutation test. It includes
 zero/one/max/max+1 receipt and journal boundaries, active-profile selection,
 wrong registry/image/deployment/manifest/artifact rejection, generic-verifier
 rejection, forged and foreign capabilities, retained-callable mutation killing,

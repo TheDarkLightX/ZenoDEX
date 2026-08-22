@@ -18,6 +18,9 @@ DEFAULT_STATUS_PATH = Path(
 )
 M6_ATDD_PATH = Path("docs/research/m6_global_economic_core_atdd_bdd_v1.json")
 EXPECTED_GATE_IDS = tuple(f"VM-{index:02d}" for index in range(1, 13))
+EXPECTED_GATE_EVIDENCE_ROOT = (
+    "bda76e927917ec74be78744acbbe41d65ab9d60e63d6dc45e76b2ce167268ca7"
+)
 EXPECTED_SUBJECT_COMMIT = "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64"
 EXPECTED_TOP_LEVEL_FIELDS = frozenset(
     {
@@ -102,21 +105,25 @@ EXPECTED_IMPLEMENTED_SLICE_IDS = (
     "PYTHON_VALUE_SINK_INVENTORY_V1",
     "M6_ASSET_PRECISION_PROFILE_BINDING_V1",
 )
+EXPECTED_IMPLEMENTED_SLICE_FIELD_SET_ROOT = (
+    "74e362d8ab5b7522b8306d8cd6356a09b0244d90eedc9da90ffac1c0d69b6726"
+)
 EXPECTED_CLAIM_PATH = Path(
     "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md"
 )
 EXPECTED_CAMPAIGN_PATH = Path(
     "docs/research/GLOBAL_ECONOMIC_COMPOSITION_DISASTER_CAMPAIGN_V1.md"
 )
-EXPECTED_CLAIM_SHA256 = "2f34278be0393645d2c03e5d0a4eaf2e27357357e74602aa12ee2acb01f9854f"
+EXPECTED_CLAIM_SHA256 = "48dcdcb59be547f8563c97d44d5dab244988e47c571b93cf284b9bb538aeac03"
 EXPECTED_CAMPAIGN_SHA256 = "20bf0a5b69dbd9a58ab54068cc902445787e2de8ee6e09b028a9fb4db831d8b8"
 EXPECTED_VM12_EVIDENCE = (
     "This ledger binds clean scoped implementation subject "
     "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64. The second max-review wave "
     "found and preserved minimized create-recovery, crash-left WAL, behaviorful "
     "Path, exact-subject, contract-path, semantic-anchor, and dependency-binding "
-    "counterexamples. The combined focused closure run has 192 passing tests; "
-    "touched Python passes Ruff and targeted mypy. The review remains REVISE "
+    "counterexamples. The focused closure portfolio has 194 passing tests: a "
+    "193-test combined run plus the final lifecycle-gate evidence mutation test. "
+    "Touched Python passes Ruff and targeted mypy. The review remains REVISE "
     "because unified migration/revocation authority, isolated executable "
     "attestation, sole-writer fencing, real Rust/RISC0 replay, objective finality, "
     "and complete release evidence are absent."
@@ -653,6 +660,21 @@ def check_value_movement_closure_status_v1(
         findings.append("implemented slices must be a list of objects")
     elif tuple(row.get("id") for row in slices) != EXPECTED_IMPLEMENTED_SLICE_IDS:
         findings.append("implemented slice IDs are incomplete, unknown, or unordered")
+    else:
+        field_shape = tuple(
+            (row["id"], tuple(sorted(row)))
+            for row in slices
+        )
+        field_shape_bytes = json.dumps(
+            field_shape,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("utf-8")
+        if (
+            hashlib.sha256(field_shape_bytes).hexdigest()
+            != EXPECTED_IMPLEMENTED_SLICE_FIELD_SET_ROOT
+        ):
+            findings.append("implemented slice field sets drift")
 
     dependencies = _mapping(
         status.get("checker_dependencies"),
@@ -782,6 +804,16 @@ def check_value_movement_closure_status_v1(
             findings.append("every VM gate requires nonempty evidence")
         if any(frozenset(row) != frozenset({"id", "status", "evidence"}) for row in gate_rows):
             findings.append("VM gate field set mismatch")
+        gate_evidence_bytes = json.dumps(
+            tuple(
+                (row.get("id"), row.get("status"), row.get("evidence"))
+                for row in gate_rows
+            ),
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("utf-8")
+        if hashlib.sha256(gate_evidence_bytes).hexdigest() != EXPECTED_GATE_EVIDENCE_ROOT:
+            findings.append("VM gate evidence root drift")
         vm12_rows = [row for row in gate_rows if row.get("id") == "VM-12"]
         if len(vm12_rows) != 1 or vm12_rows[0].get("evidence") != EXPECTED_VM12_EVIDENCE:
             findings.append("VM-12 exact evidence receipt drift")

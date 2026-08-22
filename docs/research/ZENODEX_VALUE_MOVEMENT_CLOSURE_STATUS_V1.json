@@ -21,7 +21,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "2f34278be0393645d2c03e5d0a4eaf2e27357357e74602aa12ee2acb01f9854f",
+    "sha256": "48dcdcb59be547f8563c97d44d5dab244988e47c571b93cf284b9bb538aeac03",
     "status": "DRAFT_REVISED_VERIFIER_RELEASE_BOUND",
     "verdict": "UNPROVED"
   },
@@ -952,7 +952,7 @@
     {
       "id": "VM-12",
       "status": "GAP",
-      "evidence": "This ledger binds clean scoped implementation subject 0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64. The second max-review wave found and preserved minimized create-recovery, crash-left WAL, behaviorful Path, exact-subject, contract-path, semantic-anchor, and dependency-binding counterexamples. The combined focused closure run has 192 passing tests; touched Python passes Ruff and targeted mypy. The review remains REVISE because unified migration/revocation authority, isolated executable attestation, sole-writer fencing, real Rust/RISC0 replay, objective finality, and complete release evidence are absent."
+      "evidence": "This ledger binds clean scoped implementation subject 0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64. The second max-review wave found and preserved minimized create-recovery, crash-left WAL, behaviorful Path, exact-subject, contract-path, semantic-anchor, and dependency-binding counterexamples. The focused closure portfolio has 194 passing tests: a 193-test combined run plus the final lifecycle-gate evidence mutation test. Touched Python passes Ruff and targeted mypy. The review remains REVISE because unified migration/revocation authority, isolated executable attestation, sole-writer fencing, real Rust/RISC0 replay, objective finality, and complete release evidence are absent."
     }
   ],
   "live_gate_observations": {

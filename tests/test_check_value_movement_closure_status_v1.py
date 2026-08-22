@@ -467,6 +467,21 @@ def test_checker_rejects_unknown_slice_and_top_level_fields(tmp_path: Path) -> N
     )
 
 
+def test_checker_rejects_unknown_field_on_known_slice(tmp_path: Path) -> None:
+    # Arrange: Mallory adds authority-shaped data without changing the closed ID list.
+    mutated = deepcopy(_status())
+    _durable_publisher_slice(mutated)["production_authority"] = "GRANTED"
+
+    # Act: validate the known row with an expanded nested schema.
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    # Assert: every implemented-slice field set is part of the closed contract.
+    assert report["ok"] is False
+    assert "implemented slice field sets drift" in _findings(report)
+
+
 def test_checker_rejects_dirty_live_gate_dependency_binding(tmp_path: Path) -> None:
     # Arrange: the ledger no longer binds the imported value-sink checker.
     mutated = deepcopy(_status())
@@ -524,6 +539,23 @@ def test_checker_rejects_vm12_subject_and_test_receipt_drift(tmp_path: Path) -> 
     # Assert: VM-12 binds the current subject, test count, and residual blockers.
     assert report["ok"] is False
     assert "VM-12 exact evidence receipt drift" in _findings(report)
+
+
+def test_checker_rejects_lifecycle_gate_evidence_drift(tmp_path: Path) -> None:
+    # Arrange: VM-04 keeps GAP status while its lifecycle blockers are erased.
+    mutated = deepcopy(_status())
+    gate_rows = cast(list[dict[str, object]], mutated["gate_status"])
+    vm04 = next(row for row in gate_rows if row["id"] == "VM-04")
+    vm04["evidence"] = "All enabled economic lifecycles are complete."
+
+    # Act: validate contradictory evidence under the same conservative status.
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    # Assert: every gate's exact blocker statement is part of the contract.
+    assert report["ok"] is False
+    assert "VM gate evidence root drift" in _findings(report)
 
 
 def test_checker_kills_fixed_floor_and_treasury_burn_semantic_mutants() -> None:
