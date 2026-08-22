@@ -3,8 +3,8 @@
 This workspace contains the bounded RISC0 3.0.6 guest and host verifier for an
 `EconomicInitialStateJournalV1`. The guest checks the canonical typed input,
 the exact explicit-row coverage statement, predecessor-state binding, and the
-bounded replay and outbox-preservation relations, then commits the canonical
-journal. The host requires the measured method image, a Succinct receipt, the
+bounded replay, terminal-obligation, and outbox-preservation relations, then
+commits the canonical journal. The host requires the measured method image, a Succinct receipt, the
 exact journal bytes, and successful receipt verification.
 
 ## Fast contract gate
@@ -68,8 +68,17 @@ compaction rejects. This relation does not prove that a source row came from an
 authorized effect, or that external delivery, finality, retry, acknowledgment
 and destination idempotency are correct.
 
+For terminal obligations, genesis commits the complete target table whose rows
+must also be classified by the initial-state atom manifest. Migration requires
+exact preservation of the complete predecessor table. Creation, deletion,
+claimant, lane, asset, amount, status, or order changes reject under the common
+4,096 explicit-row preflight ceiling. The relation does not establish that an
+obligation is valid, funded, controlled by the named claimant, reachable through
+a payable terminal route, or correctly drained or tombstoned before migration.
+
 The guest also does not prove private lane-root contents, predecessor migration
 classification totality, source authorization legitimacy, Oracle continuity,
 private-lane nullifiers, ledger-history continuity, terminal-obligation
-continuity, external delivery, mounted writer exclusivity, or
+validity and payable-path completeness, external delivery, mounted writer
+exclusivity, or
 whole-economy value-movement safety.

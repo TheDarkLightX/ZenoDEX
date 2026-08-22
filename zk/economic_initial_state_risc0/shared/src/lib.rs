@@ -4,8 +4,9 @@
 //! explicit global-state tables. Migration inputs also disclose the exact
 //! predecessor state whose root and coordinates are committed by the public
 //! journal. Private lane-root contents, predecessor-source classification
-//! totality, remaining continuity relations, and source-authorization
-//! legitimacy remain external obligations.
+//! totality, terminal-obligation validity and payable-path completeness,
+//! remaining continuity relations, and source-authorization legitimacy remain
+//! external obligations.
 
 use core::fmt;
 

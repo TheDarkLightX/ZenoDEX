@@ -16,6 +16,7 @@ use crate::economic_initial_state_outbox_continuity::{
     validate_economic_initial_state_outbox_row_count_v1,
 };
 use crate::economic_initial_state_replay_continuity::validate_economic_initial_state_replay_continuity_binding_v1;
+use crate::economic_initial_state_terminal_continuity::validate_economic_initial_state_terminal_continuity_binding_v1;
 use crate::proof::ReceiptKindV1;
 use crate::release::{
     validate_m6_asset_precision_profile_binding_v1, validate_m6_capability_profile_binding_v1,
@@ -271,6 +272,12 @@ fn validate_economic_initial_state_continuity_bindings_v1(
         state,
         predecessor_state,
         &statement.replay_continuity_root,
+    )?;
+    validate_economic_initial_state_terminal_continuity_binding_v1(
+        statement.kind,
+        state,
+        predecessor_state,
+        &statement.terminal_continuity_root,
     )?;
     validate_economic_initial_state_outbox_continuity_binding_v1(
         statement.kind,

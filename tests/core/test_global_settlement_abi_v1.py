@@ -104,12 +104,15 @@ from src.core.global_settlement_abi_v1 import (
     RouteRegistryV1,
     RouteReleaseV1,
     StateMigrationCertificateV1,
+    TerminalObligationStatusV1,
+    TerminalObligationV1,
     VerifiedEconomicEpochV1,
     canonical_economic_command_body_bytes_v1,
     compose_asset_lane_epoch_effect_plans_v1,
     derive_economic_initial_state_atom_occurrences_v1,
     derive_economic_initial_state_outbox_continuity_root_v1,
     derive_economic_initial_state_replay_continuity_root_v1,
+    derive_economic_initial_state_terminal_continuity_root_v1,
     economic_initial_state_atom_coverage_policy_binding_v1,
     economic_initial_state_atom_occurrence_v1,
     m6_asset_precision_policy_binding_v1,
@@ -524,7 +527,13 @@ def _initial_state_admission(
             state,
             predecessor_state,
         ),
-        terminal_continuity_root=_root(453),
+        terminal_continuity_root=(
+            derive_economic_initial_state_terminal_continuity_root_v1(
+                kind,
+                state,
+                predecessor_state,
+            )
+        ),
         outbox_continuity_root=derive_economic_initial_state_outbox_continuity_root_v1(
             kind,
             state,
@@ -3230,6 +3239,13 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
                             predecessor_with_outbox,
                         )
                     ),
+                    terminal_continuity_root=(
+                        derive_economic_initial_state_terminal_continuity_root_v1(
+                            EconomicInitialStateKindV1.MIGRATION,
+                            acknowledged_target,
+                            predecessor_with_outbox,
+                        )
+                    ),
                 ),
             ),
             rewritten_outbox_verifier,
@@ -3376,6 +3392,13 @@ def test_migration_initial_state_rejects_each_outbox_mutation_before_receipt() -
                     predecessor,
                 )
             ),
+            terminal_continuity_root=(
+                derive_economic_initial_state_terminal_continuity_root_v1(
+                    EconomicInitialStateKindV1.MIGRATION,
+                    changed_target,
+                    predecessor,
+                )
+            ),
         )
         verifier = _RecordingReceiptVerifier()
         with pytest.raises(
@@ -3401,6 +3424,147 @@ def test_migration_initial_state_rejects_each_outbox_mutation_before_receipt() -
             reorder_verifier,
         )
     assert reorder_verifier.calls == []
+
+
+def test_initial_state_rejects_unbound_terminal_continuity_root_before_receipt() -> None:
+    # Arrange
+    profile, _ = _profile()
+    state = _state(profile, height=0)
+    admission = _initial_state_admission(profile, state)
+    verifier = _RecordingReceiptVerifier()
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="terminal continuity root mismatch"):
+        GlobalEconomicCommitPortV1(
+            replace(
+                admission,
+                certificate=replace(
+                    admission.certificate,
+                    terminal_continuity_root=_root(89_101),
+                ),
+            ),
+            verifier,
+        )
+    assert verifier.calls == []
+
+
+def test_migration_rejects_each_terminal_mutation_before_receipt() -> None:
+    # Arrange
+    source_profile, _ = _profile()
+    first = TerminalObligationV1(
+        "obligation-1",
+        LaneIdV1.ZUSD_MONETARY,
+        "alice",
+        "zUSD",
+        17,
+        TerminalObligationStatusV1.OPEN,
+    )
+    second = TerminalObligationV1(
+        "obligation-2",
+        LaneIdV1.PROOF_REWARDS,
+        "bob",
+        "ZDEX",
+        23,
+        TerminalObligationStatusV1.DRAINED,
+    )
+    source_state = replace(
+        _state(source_profile, height=0),
+        terminal_obligations=(first, second),
+    )
+    provisional_target = replace(
+        _state(source_profile, height=1),
+        terminal_obligations=(first, second),
+    )
+    source_manifest = _source_manifest_for_state_v1(
+        EconomicInitialStateKindV1.MIGRATION,
+        provisional_target,
+    )
+    target_profile, _ = _profile(
+        source_manifest=source_manifest,
+        authority_epoch=source_profile.authority_epoch + 1,
+    )
+    exact_target = replace(
+        _state(target_profile, height=1),
+        terminal_obligations=(first, second),
+    )
+    exact_admission = _initial_state_admission(
+        target_profile,
+        exact_target,
+        kind=EconomicInitialStateKindV1.MIGRATION,
+        source_manifest=source_manifest,
+        source_profile_root=source_profile.profile_id,
+        source_state_root=source_state.state_root,
+        source_writer_epoch=source_state.writer_epoch,
+        source_height=source_state.height,
+        predecessor_state=source_state,
+    )
+    changed_first_rows = (
+        replace(first, obligation_id="obligation-0"),
+        replace(first, lane_id=LaneIdV1.PERPS_MARKET),
+        replace(first, claimant="mallory"),
+        replace(first, asset="ZDEX"),
+        replace(first, amount_atoms=18),
+        replace(first, status=TerminalObligationStatusV1.TOMBSTONED),
+    )
+    changed_tables = (
+        (first,),
+        (
+            first,
+            second,
+            TerminalObligationV1(
+                "obligation-3",
+                LaneIdV1.FARM_INCENTIVES,
+                "carol",
+                "ZDEX",
+                29,
+                TerminalObligationStatusV1.OPEN,
+            ),
+        ),
+        *((changed, second) for changed in changed_first_rows),
+    )
+
+    # Act / Assert
+    assert (
+        GlobalEconomicCommitPortV1(
+            exact_admission,
+            _RecordingReceiptVerifier(),
+        ).state.state_root
+        == exact_target.state_root
+    )
+    for changed_rows in changed_tables:
+        changed_target = replace(exact_target, terminal_obligations=changed_rows)
+        changed_certificate = replace(
+            exact_admission.certificate,
+            state_root=changed_target.state_root,
+            replay_continuity_root=(
+                derive_economic_initial_state_replay_continuity_root_v1(
+                    EconomicInitialStateKindV1.MIGRATION,
+                    changed_target,
+                    source_state,
+                )
+            ),
+            outbox_continuity_root=(
+                derive_economic_initial_state_outbox_continuity_root_v1(
+                    EconomicInitialStateKindV1.MIGRATION,
+                    changed_target,
+                    source_state,
+                )
+            ),
+        )
+        verifier = _RecordingReceiptVerifier()
+        with pytest.raises(
+            ValueError,
+            match="preserve the exact predecessor terminal obligations",
+        ):
+            GlobalEconomicCommitPortV1(
+                replace(
+                    exact_admission,
+                    state=changed_target,
+                    certificate=changed_certificate,
+                ),
+                verifier,
+            )
+        assert verifier.calls == []
 
 
 def test_commit_port_owns_and_revalidates_active_profile_graph() -> None:

@@ -6,6 +6,7 @@ use zenodex_global_settlement_abi_v1::{
     derive_economic_initial_state_atom_occurrences_v1,
     derive_economic_initial_state_outbox_continuity_root_v1,
     derive_economic_initial_state_replay_continuity_root_v1,
+    derive_economic_initial_state_terminal_continuity_root_v1,
     economic_initial_state_atom_coverage_policy_binding_v1, hash_bytes_sha256_v1, hash_global_v1,
     validate_economic_initial_state_bindings_v1,
     validate_economic_initial_state_statement_bindings_v1, AbiErrorV1, EconomicAmountV1,
@@ -152,7 +153,12 @@ fn migration_certificate(
             Some(predecessor_state),
         )
         .unwrap(),
-        terminal_continuity_root: root(35),
+        terminal_continuity_root: derive_economic_initial_state_terminal_continuity_root_v1(
+            EconomicInitialStateKindV1::MIGRATION,
+            state,
+            Some(predecessor_state),
+        )
+        .unwrap(),
         outbox_continuity_root: derive_economic_initial_state_outbox_continuity_root_v1(
             EconomicInitialStateKindV1::MIGRATION,
             state,
@@ -267,6 +273,13 @@ fn genesis_predecessor_binding_requires_absence() {
         None,
     )
     .unwrap();
+    certificate.terminal_continuity_root =
+        derive_economic_initial_state_terminal_continuity_root_v1(
+            EconomicInitialStateKindV1::GENESIS,
+            &state,
+            None,
+        )
+        .unwrap();
     certificate.outbox_continuity_root = derive_economic_initial_state_outbox_continuity_root_v1(
         EconomicInitialStateKindV1::GENESIS,
         &state,
@@ -412,6 +425,21 @@ fn initialization_statement_binds_exact_profile_state_and_manifest_without_recei
             "initial state outbox continuity root"
         ))
     );
+    let mut changed_terminal_root = certificate.journal();
+    changed_terminal_root.terminal_continuity_root = root(8_004);
+    assert_eq!(
+        validate_economic_initial_state_statement_bindings_v1(
+            &profile,
+            &policy_registry,
+            &state,
+            Some(&predecessor_state),
+            &source_manifest,
+            &changed_terminal_root,
+        ),
+        Err(AbiErrorV1::InvalidBinding(
+            "initial state terminal continuity root"
+        ))
+    );
 }
 
 #[test]
@@ -479,6 +507,13 @@ fn migration_statement_rejects_missing_or_substituted_predecessor_state() {
         predecessor_with_unpreserved_outbox.state_root().unwrap();
     rebound_outbox_statement.replay_continuity_root =
         derive_economic_initial_state_replay_continuity_root_v1(
+            EconomicInitialStateKindV1::MIGRATION,
+            &state,
+            Some(&predecessor_with_unpreserved_outbox),
+        )
+        .unwrap();
+    rebound_outbox_statement.terminal_continuity_root =
+        derive_economic_initial_state_terminal_continuity_root_v1(
             EconomicInitialStateKindV1::MIGRATION,
             &state,
             Some(&predecessor_with_unpreserved_outbox),

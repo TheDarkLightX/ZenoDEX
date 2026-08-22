@@ -20,6 +20,9 @@ from .economic_initial_state_outbox_continuity_v1 import (
 from .economic_initial_state_replay_continuity_v1 import (
     derive_economic_initial_state_replay_continuity_root_v1,
 )
+from .economic_initial_state_terminal_continuity_v1 import (
+    derive_economic_initial_state_terminal_continuity_root_v1,
+)
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import ReceiptKindV1, SuccinctReceiptVerifierV1
 from .global_economic_refinement_snapshot_v1 import _snapshot_state_v1
@@ -338,6 +341,13 @@ def _validate_economic_initial_state_continuity_bindings_v1(
     )
     if certificate.replay_continuity_root != replay_root:
         raise ValueError("initial state replay continuity root mismatch")
+    terminal_root = derive_economic_initial_state_terminal_continuity_root_v1(
+        certificate.kind,
+        state,
+        predecessor_state,
+    )
+    if certificate.terminal_continuity_root != terminal_root:
+        raise ValueError("initial state terminal continuity root mismatch")
     outbox_root = derive_economic_initial_state_outbox_continuity_root_v1(
         certificate.kind,
         state,

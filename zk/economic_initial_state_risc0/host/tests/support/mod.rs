@@ -9,6 +9,7 @@ use zenodex_global_settlement_abi_v1::{
     derive_economic_initial_state_atom_occurrences_v1,
     derive_economic_initial_state_outbox_continuity_root_v1,
     derive_economic_initial_state_replay_continuity_root_v1,
+    derive_economic_initial_state_terminal_continuity_root_v1,
     economic_initial_state_atom_coverage_policy_binding_v1,
     EconomicInitialStateAtomClassificationV1, EconomicInitialStateAtomSourceV1,
     EconomicInitialStateJournalV1, EconomicInitialStateKindV1,
@@ -158,6 +159,12 @@ pub fn guest_input(root_image_id: RootV1) -> EconomicInitialStateGuestInputV1 {
     statement.source_writer_epoch = predecessor_state.writer_epoch;
     statement.source_height = predecessor_state.height;
     statement.replay_continuity_root = derive_economic_initial_state_replay_continuity_root_v1(
+        EconomicInitialStateKindV1::MIGRATION,
+        &state,
+        Some(&predecessor_state),
+    )
+    .unwrap();
+    statement.terminal_continuity_root = derive_economic_initial_state_terminal_continuity_root_v1(
         EconomicInitialStateKindV1::MIGRATION,
         &state,
         Some(&predecessor_state),

@@ -61,10 +61,13 @@ from src.core.global_settlement_abi_v1 import (
     ReplayStateV1,
     RouteRegistryV1,
     RouteReleaseV1,
+    TerminalObligationStatusV1,
+    TerminalObligationV1,
     canonical_global_bytes_v1,
     compose_asset_lane_epoch_effect_plans_v1,
     derive_economic_initial_state_outbox_continuity_root_v1,
     derive_economic_initial_state_replay_continuity_root_v1,
+    derive_economic_initial_state_terminal_continuity_root_v1,
 )
 from src.core.route_composition_receipt_verification_v1 import (
     ROUTE_COMPOSITION_ASSUMPTION_SCHEMA_V1,
@@ -289,6 +292,56 @@ def _outbox_continuity_vector(
         "predecessor_state": predecessor_state,
     }
     expected_root = derive_economic_initial_state_outbox_continuity_root_v1(
+        EconomicInitialStateKindV1.MIGRATION,
+        target_state,
+        predecessor_state,
+    )
+    return vector, expected_root
+
+
+def _terminal_continuity_vector(
+    state: GlobalEconomicStateV1,
+) -> tuple[dict[str, object], str]:
+    rows = (
+        TerminalObligationV1(
+            "terminal-open",
+            LaneIdV1.ZUSD_MONETARY,
+            "alice",
+            "zUSD",
+            17,
+            TerminalObligationStatusV1.OPEN,
+        ),
+        TerminalObligationV1(
+            "terminal-drained",
+            LaneIdV1.PROOF_REWARDS,
+            "bob",
+            "ZDEX",
+            23,
+            TerminalObligationStatusV1.DRAINED,
+        ),
+        TerminalObligationV1(
+            "terminal-tombstoned",
+            LaneIdV1.STRATEGY_ESCROW,
+            "carol",
+            "USD",
+            29,
+            TerminalObligationStatusV1.TOMBSTONED,
+        ),
+    )
+    rows = tuple(sorted(rows, key=lambda row: row.obligation_id))
+    predecessor_state = replace(state, terminal_obligations=rows)
+    target_state = replace(
+        predecessor_state,
+        writer_epoch=predecessor_state.writer_epoch + 1,
+        height=predecessor_state.height + 1,
+        profile_root=_root(1_518),
+    )
+    vector = {
+        "kind": EconomicInitialStateKindV1.MIGRATION,
+        "target_state": target_state,
+        "predecessor_state": predecessor_state,
+    }
+    expected_root = derive_economic_initial_state_terminal_continuity_root_v1(
         EconomicInitialStateKindV1.MIGRATION,
         target_state,
         predecessor_state,
@@ -620,6 +673,7 @@ def build_vectors_v1() -> dict[str, object]:
     state = _state(profile)
     replay_continuity, replay_continuity_root = _replay_continuity_vector(state)
     outbox_continuity, outbox_continuity_root = _outbox_continuity_vector(state)
+    terminal_continuity, terminal_continuity_root = _terminal_continuity_vector(state)
     effect_plan = _effect_plan(state.lane_roots)
     epoch_route_effect_plans = _epoch_route_effect_plans()
     epoch_composed_effect_plan = compose_asset_lane_epoch_effect_plans_v1(
@@ -703,6 +757,10 @@ def build_vectors_v1() -> dict[str, object]:
         "economic_initial_state_outbox_continuity": _vector(
             outbox_continuity,
             expected_root=outbox_continuity_root,
+        ),
+        "economic_initial_state_terminal_continuity": _vector(
+            terminal_continuity,
+            expected_root=terminal_continuity_root,
         ),
         "effect_plan": _vector(effect_plan, expected_root=effect_plan.effect_plan_root),
         "epoch_route_effect_plan_1": _vector(

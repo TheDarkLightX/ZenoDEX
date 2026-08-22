@@ -9,6 +9,7 @@ use zenodex_global_settlement_abi_v1::{
     canonical_bytes_v1, compose_asset_lane_epoch_effect_plans_v1,
     derive_economic_initial_state_outbox_continuity_root_v1,
     derive_economic_initial_state_replay_continuity_root_v1,
+    derive_economic_initial_state_terminal_continuity_root_v1,
     derive_route_composition_assumption_root_v1, derive_verified_economic_epoch_commit_id_v1,
     hash_bytes_sha256_v1, AbiErrorV1, AbiResultV1, CommandAggregationJournalV1,
     EconomicCommandOccurrenceV1, EconomicInitialStateKindV1, EconomicProfileSnapshotV1,
@@ -136,7 +137,7 @@ fn check_vector<T: DeserializeOwned + Serialize>(
 #[test]
 fn python_and_rust_recompute_identical_typed_roots_and_journal_bytes() {
     let fixture = load_fixture();
-    assert_eq!(fixture.vectors.len(), 23);
+    assert_eq!(fixture.vectors.len(), 24);
 
     check_vector::<LaneModuleReleaseV1>(
         vector(&fixture, "lane_module_release"),
@@ -206,6 +207,20 @@ fn python_and_rust_recompute_identical_typed_roots_and_journal_bytes() {
         },
         |input| {
             derive_economic_initial_state_outbox_continuity_root_v1(
+                input.kind,
+                &input.target_state,
+                Some(&input.predecessor_state),
+            )
+        },
+    );
+    check_vector::<EconomicInitialStateContinuityVectorV1>(
+        vector(&fixture, "economic_initial_state_terminal_continuity"),
+        |input| {
+            input.target_state.validate()?;
+            input.predecessor_state.validate()
+        },
+        |input| {
+            derive_economic_initial_state_terminal_continuity_root_v1(
                 input.kind,
                 &input.target_state,
                 Some(&input.predecessor_state),

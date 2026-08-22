@@ -12,6 +12,7 @@ use zenodex_global_settlement_abi_v1::{
     derive_economic_initial_state_atom_occurrences_v1,
     derive_economic_initial_state_outbox_continuity_root_v1,
     derive_economic_initial_state_replay_continuity_root_v1,
+    derive_economic_initial_state_terminal_continuity_root_v1,
     economic_initial_state_atom_coverage_policy_binding_v1, EconomicAmountV1,
     EconomicInitialStateAtomClassificationV1, EconomicInitialStateAtomSourceV1,
     EconomicInitialStateJournalV1, EconomicInitialStateKindV1,
@@ -130,7 +131,12 @@ fn fixture() -> EconomicInitialStateGuestInputV1 {
             Some(&predecessor_state),
         )
         .unwrap(),
-        terminal_continuity_root: root(2_005),
+        terminal_continuity_root: derive_economic_initial_state_terminal_continuity_root_v1(
+            EconomicInitialStateKindV1::MIGRATION,
+            &state,
+            Some(&predecessor_state),
+        )
+        .unwrap(),
         outbox_continuity_root: derive_economic_initial_state_outbox_continuity_root_v1(
             EconomicInitialStateKindV1::MIGRATION,
             &state,
@@ -202,6 +208,8 @@ fn predecessor_substitution_or_absence_rejects_before_any_receipt_exists() {
     changed_replay_root.statement.replay_continuity_root = root(9_002);
     let mut changed_outbox_root = fixture();
     changed_outbox_root.statement.outbox_continuity_root = root(9_004);
+    let mut changed_terminal_root = fixture();
+    changed_terminal_root.statement.terminal_continuity_root = root(9_005);
     let mut deleted_replay = fixture();
     deleted_replay
         .predecessor_state
@@ -233,6 +241,10 @@ fn predecessor_substitution_or_absence_rejects_before_any_receipt_exists() {
     ));
     assert!(matches!(
         prepare_economic_initial_state_v1(changed_outbox_root),
+        Err(EconomicInitialStateGuestErrorV1::StatementBinding)
+    ));
+    assert!(matches!(
+        prepare_economic_initial_state_v1(changed_terminal_root),
         Err(EconomicInitialStateGuestErrorV1::StatementBinding)
     ));
     assert!(matches!(
