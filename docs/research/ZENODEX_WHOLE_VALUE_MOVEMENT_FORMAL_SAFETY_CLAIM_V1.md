@@ -503,10 +503,22 @@ explicit-row graph receives the same 4,096-row preflight ceiling as the target.
 
 This predecessor binding proves knowledge of the exact committed global-state
 preimage. It does not prove that the disclosed state was the finalized ledger
-head or that the target is a valid migration of it. Oracle, replay, history,
-terminal, outbox, and private lane contents are committed through the global
-state root, while their source-to-target continuity relations remain separate
-unimplemented obligations.
+head or that the target is a valid migration of it. Oracle, history, terminal,
+outbox, and private lane contents are committed through the global state root,
+while their source-to-target continuity relations remain separate unimplemented
+obligations.
+
+Commit `659cbc9ff24d9c261e8b78dd1b0de210dc747a87` adds one bounded replay
+relation. Genesis requires an empty replay table. Migration requires every
+predecessor replay row to occur unchanged in the target, and the public
+continuity root commits the complete predecessor and target replay tables.
+Deletion or occurrence-ID rewriting rejects before receipt verification. A
+shared generated Python/Rust vector fixes the expected canonical root; only the
+Python renderer has executed locally. This prevents replay-record resurrection
+within the disclosed global replay table. It does not authenticate target-only
+replay additions, prove private-lane nullifier continuity, or establish
+source-head finality. Target-only additions remain a release-blocking authority
+and availability obligation.
 
 A pinned RISC0 3.0.6 guest and host source use the same Rust statement checker
 over canonical bounded input and contain guards for development mode,
@@ -527,6 +539,8 @@ produced for this guest.
 
 The current manifest does not individually source-classify Oracle occurrences,
 replay rows, history, outbox rows, or objects hidden behind private lane roots.
+The replay-preservation relation permits target-only replay rows and does not
+establish their purpose or authorization.
 It also does not establish total predecessor-source classification for a
 migration, the semantic truth of a migration label, the objective authority
 represented by a source-authorization root, selection from the governed
@@ -580,8 +594,9 @@ remains excluded from GlobalSettlementABI V1.
 1. Freeze the exact complete M6 capability manifest and ZDEX semantic anchors,
    including buy-and-burn, hosting compensation, eight-decimal units,
    retained-supply hyperdeflation, recovery, and terminal behavior.
-2. Add separate invariant-owner certificates for Oracle, replay, history,
-   terminal, outbox, and private lane-object continuity and complete
+2. Add separate invariant-owner certificates for Oracle, history, terminal,
+   outbox, and private lane-object continuity; authenticate every target-only
+   replay addition and complete private nullifier continuity and
    predecessor-source migration classification. Select the genesis or migration
    release from committed profile state. Build and measure the predecessor-bound
    RISC0 guest, then generate and replay its real succinct receipt on the proof
@@ -684,3 +699,5 @@ Any false or missing conjunct keeps the claim disabled.
   liquidation and trading losses.
 - No assertion that a passing test suite alone establishes formal safety.
 - No assertion that a proof system repairs an incorrect or incomplete guest.
+- No assertion that replay-row preservation authenticates target-only replay
+  additions or proves complete nonce and private-nullifier continuity.
