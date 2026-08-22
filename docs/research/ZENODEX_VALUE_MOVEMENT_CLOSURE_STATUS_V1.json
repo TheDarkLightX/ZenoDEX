@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "df8d33ab14dddea1eda487f2451b62fae29a604d",
+    "commit": "00fb9fb9df830e0f916be35ad06b9455567857e2",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -183,13 +183,33 @@
         "keep denomination rescale outside ABI V1 routes",
         "complete the intended M6 capability manifest beyond the historical 81 plus 11 catalogue"
       ]
+    },
+    {
+      "id": "M6_COMPLETE_CAPABILITY_REQUIREMENTS",
+      "commit": "00fb9fb9df830e0f916be35ad06b9455567857e2",
+      "manifest_sha256": "34930be9d4d69c4c46c7c97f57fd492d4c95061f8960f936261a8a3415d5db95",
+      "checker_sha256": "48157fcce740eec9793082d112769089c62e85ab583e8e6f06411dfa95315401",
+      "status": [
+        "SPECIFIED_REQUIREMENTS",
+        "TESTED_MUTATION_KILLERS",
+        "INCOMPLETE",
+        "UNMOUNTED",
+        "UNPROVED"
+      ],
+      "closed_obligation": "A subset profile cannot erase a required lane, mandatory capability, cross-lane route, day-one exclusion, or the command-submission-only autonomous-governance boundary from the requirements contract.",
+      "remaining_obligations": [
+        "bind the manifest root into a release profile",
+        "map every capability to exact commands, transitions, effects, routes, terminal paths, adapters, and evidence",
+        "close sink-first writer discovery",
+        "resolve every required economic policy without fixture invention"
+      ]
     }
   ],
   "gate_status": [
     {
       "id": "VM-01",
       "status": "GAP",
-      "evidence": "Writer inventory reports 25 open coverage rows and 18 unmounted entrypoints; sink-first cross-language completeness is absent. The historical 18-workflow and 11-expansion catalogues still omit required whole-M6 capability families."
+      "evidence": "A closed research manifest now names 103 requirements across all 12 lanes and four cross-lane routes, preventing subset-profile omission. Writer inventory still reports 25 open coverage rows and 18 unmounted entrypoints; manifest-to-command/evidence mapping and sink-first cross-language completeness are absent."
     },
     {
       "id": "VM-02",
@@ -263,7 +283,7 @@
     }
   },
   "next_dependency_order": [
-    "Freeze and bind the complete intended M6 capability manifest and disabled-capability certificates.",
+    "Bind the complete intended M6 capability manifest into the profile and map each row to command, transition, effect, route, terminal, adapter, and evidence status.",
     "Bind certified initialization to a registered migration or genesis proof release, complete object classification, and real receipt replay.",
     "Discover writers from actual durable sinks and close VM-01 without name-pattern assumptions.",
     "Complete effect source, authorization, claimant, residue, terminal, and external-delivery bindings.",
