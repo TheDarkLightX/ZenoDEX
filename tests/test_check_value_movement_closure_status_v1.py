@@ -218,6 +218,7 @@ def test_checker_rejects_stale_durable_publisher_slice_evidence(
     publisher["commit"] = "0" * 40
     publisher["artifact_subject_commit"] = "1" * 40
     publisher["python_publisher_sha256"] = "0" * 64
+    publisher["python_verifier_deployment_sha256"] = "2" * 64
 
     report = check_value_movement_closure_status_v1(
         status_path=_write_status(tmp_path, mutated)
@@ -234,6 +235,11 @@ def test_checker_rejects_stale_durable_publisher_slice_evidence(
     )
     assert (
         "durable publisher slice artifact hash mismatch: python_publisher_sha256"
+        in _findings(report)
+    )
+    assert (
+        "durable publisher slice artifact hash mismatch: "
+        "python_verifier_deployment_sha256"
         in _findings(report)
     )
 

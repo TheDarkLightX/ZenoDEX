@@ -2,7 +2,7 @@
 
 Date: 2026-08-22
 
-Status: `DRAFT_REVISED_DURABLE_PUBLISHER_REVIEWED`
+Status: `DRAFT_REVISED_VERIFIER_RELEASE_BOUND`
 
 Claim authority: `NONE`
 
@@ -449,14 +449,24 @@ supply a verifier implementation that returns success and thereby obtain the
 otherwise opaque epoch witness. The authoritative path must select a measured
 verifier from committed profile state instead of accepting this argument.
 
-The implementation branch now distinguishes that research witness from a
+The implementation branch distinguishes that research witness from a
 publisher-bound witness. `GlobalEconomicCommitPortV1` retains its selected
 receipt backend, re-verifies the candidate through that backend, and rejects a
-caller-selected or different-publisher witness before mutation. This closes
-the reviewed per-call injection path in the in-memory reference model. VM-08
-remains open because Python same-process code is not an isolation boundary, the
-backend is not yet measured against a deployed verifier artifact, and verifier
-selection is not yet derived from durable committed profile state.
+caller-selected or different-publisher witness before mutation. Commit
+`369fe53f29184cd85a039459703d1b1f31d9b42f` further requires the durable
+publisher to receive an opaque verifier capability selected from the exact
+registry root and image committed by its active profile. The capability binds
+a content-derived release, evidence-manifest root, measured artifact bytes,
+deployment, backend-protocol root, purpose, and receipt/journal byte ceilings.
+Generic protocol-shaped verifier objects reject before backend use.
+
+This closes the reviewed caller-selected-verifier path for the unmounted
+durable publisher. VM-08 remains `PARTIAL`: evidence statuses are committed
+producer-supplied labels rather than checker-derived receipts, supplied
+artifact bytes are not proven to be the code executed by the injected backend,
+and Python same-process state is not an isolation boundary. Real RISC0 replay,
+executable attestation, revocation under a mounted write lock, and OS-separated
+writer authority remain absent.
 
 The reference publisher also now requires an
 `EconomicInitialStateAdmissionV1`; it no longer accepts a plain caller-supplied
@@ -702,15 +712,32 @@ passing tests. An independent maximum-reasoning review returned `GO` only for
 `UNMOUNTED`, `TESTED_DISCOVERY` use. The review confirmed exact source/profile
 checks and in-transaction CAS revalidation.
 
-This closes the reviewed two-operation crash window for the fixed-profile
-ordinary-epoch API. It does not establish a deployed release-selected verifier
-registry, process isolation, sole-writer enforcement, migration, outbox
-delivery and acknowledgment reconciliation, objective finality, hardware
-power-loss behavior, or Rust/RISC0 parity. The structural journal commit API
-and other legacy writers remain callable research paths and are inventoried as
-release-blocking. Python private construction is an engineering interlock, not
-a security boundary. VM-10 remains `PARTIAL`; the whole-value-movement claim
-remains `UNPROVED` and production authority remains `NONE`.
+Commit `369fe53f29184cd85a039459703d1b1f31d9b42f` removes the public ordinary
+epoch journal commit method from that API and gives the intended publisher path
+a separate journal-instance-bound write capability in addition to the CAS
+token. The same commit explicitly preserves and tests the
+underscore-prefixed `_commit_epoch_v1` same-interpreter bypass as negative
+evidence. The writer and sink ledgers retain this private structural writer as
+a release blocker, so the slice cannot acquire `NO_BYPASS` status by hiding it.
+
+The combined verifier-release, ABI, ordinary-journal, publisher,
+writer-inventory, and value-sink run has 162 passing tests. It includes
+zero/one/max/max+1 receipt and journal boundaries, active-profile selection,
+wrong registry/image/deployment/manifest/artifact rejection, generic-verifier
+rejection, forged and foreign capabilities, restart/retry, competing heads,
+and tested SQLite crash points. Ruff, mypy, diff checks, and the repository
+security red-flag scanner pass. An independent GPT-5.6 Sol source review
+returned `GO` only for `IMPLEMENTED_TESTED_DISCOVERY`, `UNMOUNTED` use and
+confirmed the retained same-process release blocker.
+
+This narrows the fixed-profile ordinary-epoch authority and crash window. It
+does not establish executable attestation, process isolation, sole-writer
+enforcement, migration, outbox delivery and acknowledgment reconciliation,
+objective finality, hardware power-loss behavior, or Rust/RISC0 parity. Other
+legacy writers remain callable research paths. Python private construction is
+an engineering interlock and not a security boundary. VM-10 remains `PARTIAL`;
+the whole-value-movement claim remains `UNPROVED` and production authority
+remains `NONE`.
 
 The eight-decimal anchor is now represented by the content-derived policy root
 `0xacfbd1be88e823fcdd1b094b8d2f0c8ee1bf19c826004e89752f27fd22aa49dd`.

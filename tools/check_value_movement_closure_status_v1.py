@@ -42,7 +42,7 @@ EXPECTED_BUY_AND_BURN = (
     "Atomically spend the governed quote-asset fee allocation through the "
     "selected authenticated Spot route and burn the exact ZDEX atoms received."
 )
-EXPECTED_CLAIM_STATUS = "DRAFT_REVISED_DURABLE_PUBLISHER_REVIEWED"
+EXPECTED_CLAIM_STATUS = "DRAFT_REVISED_VERIFIER_RELEASE_BOUND"
 EXPECTED_HYPERDEFLATION = (
     "No arbitrary fixed percentage of initial supply is required as a floor. "
     "Bind a retained-supply rule such as R(S)=ceil(p*S/q), 0<p<q, and "
@@ -128,7 +128,7 @@ DURABLE_ACTIVATION_SLICE_ARTIFACTS = {
     ),
 }
 DURABLE_EPOCH_SLICE_ID = "GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1"
-DURABLE_EPOCH_SLICE_COMMIT = "edd03093d3a4485c26bc73df231cb507094d2cf6"
+DURABLE_EPOCH_SLICE_COMMIT = "369fe53f29184cd85a039459703d1b1f31d9b42f"
 DURABLE_EPOCH_SLICE_ARTIFACTS = {
     "design_sha256": Path(
         "docs/research/GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1.md"
@@ -146,7 +146,7 @@ DURABLE_EPOCH_SLICE_ARTIFACTS = {
     "sink_test_sha256": Path("tests/test_check_m6_value_sinks_v1.py"),
 }
 DURABLE_PUBLISHER_SLICE_ID = "GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1"
-DURABLE_PUBLISHER_SLICE_COMMIT = "eb6bf17b1c0b210fc6d7bee8bb25c0f0aa2a7dae"
+DURABLE_PUBLISHER_SLICE_COMMIT = "369fe53f29184cd85a039459703d1b1f31d9b42f"
 DURABLE_PUBLISHER_SLICE_ARTIFACTS = {
     "design_sha256": Path(
         "docs/research/GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1.md"
@@ -154,11 +154,29 @@ DURABLE_PUBLISHER_SLICE_ARTIFACTS = {
     "python_publisher_sha256": Path(
         "src/integration/global_economic_durable_publisher_v1.py"
     ),
+    "verifier_design_sha256": Path(
+        "docs/research/GLOBAL_ECONOMIC_RECEIPT_VERIFIER_RELEASE_BINDING_V1.md"
+    ),
+    "python_verifier_registry_sha256": Path(
+        "src/core/economic_receipt_verifier_registry_v1.py"
+    ),
+    "python_verifier_evidence_sha256": Path(
+        "src/core/economic_receipt_verifier_evidence_v1.py"
+    ),
+    "python_verifier_deployment_sha256": Path(
+        "src/core/economic_receipt_verifier_deployment_v1.py"
+    ),
     "python_journal_sha256": Path(
         "src/integration/global_economic_epoch_journal_v1.py"
     ),
     "python_publisher_test_sha256": Path(
         "tests/integration/test_global_economic_durable_publisher_v1.py"
+    ),
+    "python_verifier_test_sha256": Path(
+        "tests/core/test_economic_receipt_verifier_release_v1.py"
+    ),
+    "python_abi_test_sha256": Path(
+        "tests/core/test_global_settlement_abi_v1.py"
     ),
     "python_journal_test_sha256": Path(
         "tests/integration/test_global_economic_epoch_journal_v1.py"
