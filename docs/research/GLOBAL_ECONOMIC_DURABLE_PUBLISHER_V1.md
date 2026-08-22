@@ -59,7 +59,8 @@ Mechanical guarantees:
   replacing the backend object's method cannot change receipt admission;
 - byte-identical activation reproduction on reopen;
 - exact create retry recovers an already committed, byte-identical activation
-  after a lost acknowledgement;
+  after a lost acknowledgement only while the stored head is the sequence-zero
+  activation head;
 - exact selected-profile comparison;
 - exact historical source resolution from one validated SQLite read snapshot;
 - verifier-instance, release, measured-binding-root, and publisher-token binding;
@@ -97,6 +98,7 @@ Staleness, aliasing, concurrency, and crash behavior:
 - a competing commit during verification yields exact retry or `STALE_HEAD`;
 - restart retry re-verifies the receipt and resolves the historical source;
 - activation create retry accepts only the exact already committed activation;
+- create retry rejects a matching activation with any ordinary-epoch history;
 - invalid stores are checked for the required journal mode and exact schema
   before persistent connection configuration;
 - lower-journal exception and abrupt-exit tests establish bounded PRE-or-POST
@@ -141,6 +143,8 @@ The focused tests use Arrange/Act/Assert structure and cover:
 - wrong activation on reopen;
 - exact activation-create recovery after commit-before-ack and wrong-activation
   rejection;
+- matching-activation, nonzero-history create recovery rejected without changing
+  the database or stored head;
 - rejected WAL/schema-mutant open leaves the tested database unchanged;
 - bool/int source-coordinate alias rejection;
 - direct constructor rejection;

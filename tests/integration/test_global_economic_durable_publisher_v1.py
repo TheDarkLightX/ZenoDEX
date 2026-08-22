@@ -184,6 +184,58 @@ def test_exact_create_retry_recovers_committed_activation_after_lost_ack(
     recovered.close()
 
 
+def test_create_retry_rejects_matching_activation_with_nonzero_history(
+    tmp_path: Path,
+) -> None:
+    # Arrange: one verifier commits an epoch under the matching activation.
+    admission, candidate, body = _publisher_fixture_v1()
+    path = tmp_path / "create-retry-nonzero-history.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    committed = publisher.publish_economic_epoch(
+        expected_source=publisher.head,
+        candidate=candidate,
+        body_and_state=body,
+    )
+    publisher.close()
+    before = path.read_bytes()
+
+    class RejectingHistoryBackend(_RecordingBackend):
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> object:
+            result = super().verify_succinct_receipt(
+                receipt_bytes,
+                expected_image_id=expected_image_id,
+                expected_journal_bytes=expected_journal_bytes,
+            )
+            if receipt_bytes == candidate.receipt_bytes:
+                raise ValueError("recovered history receipt rejected")
+            return result
+
+    backend = RejectingHistoryBackend()
+    verifier, _ = _bound_receipt_verifier_v1(candidate, backend)
+
+    # Act and assert: create recovery is restricted to the activation-only head.
+    with pytest.raises(ValueError, match="sequence-zero activation head"):
+        VerifiedDurableEconomicPublisherV1.create(
+            path,
+            admission,
+            verifier,
+        )
+    assert path.read_bytes() == before
+    assert len(backend.calls) == 1
+    with GlobalEconomicEpochJournalV1.open(path) as journal:
+        assert journal.head == committed.committed_epoch
+
+
 def test_fabricated_source_metadata_is_stale_before_receipt_verification(
     tmp_path: Path,
 ) -> None:
@@ -567,10 +619,10 @@ def test_direct_publisher_construction_is_rejected() -> None:
     with pytest.raises(TypeError, match="factory-constructed"):
         VerifiedDurableEconomicPublisherV1(
             foreign_mint,
-            object(),  # type: ignore[arg-type]
-            object(),  # type: ignore[arg-type]
             object(),
-            object(),  # type: ignore[arg-type]
+            object(),
+            object(),
+            object(),
             "0x" + "00" * 32,
         )
 

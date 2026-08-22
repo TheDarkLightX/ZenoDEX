@@ -178,10 +178,12 @@ class _SimulatedDurableEconomicEpochCrashV1(RuntimeError):
 def _normalize_path_v1(path: str | Path) -> Path:
     if type(path) is str:
         candidate = Path(path)
-    elif isinstance(path, Path):
-        candidate = path
+    elif type(path) is type(Path()):
+        candidate = Path(str(path))
     else:
-        raise TypeError("durable epoch journal path must be str or Path")
+        raise TypeError(
+            "durable epoch journal path must be exact str or platform Path"
+        )
     if not candidate.name:
         raise ValueError("durable epoch journal path must name a file")
     return candidate.absolute()
@@ -219,8 +221,9 @@ def _connect_v1(path: Path) -> sqlite3.Connection:
 def _connect_existing_for_validation_v1(path: Path) -> sqlite3.Connection:
     """Open an existing store without changing its persistent journal mode."""
 
+    _reject_wal_artifacts_v1(path)
     connection = sqlite3.connect(
-        f"{path.as_uri()}?mode=rw",
+        f"{path.as_uri()}?mode=ro&immutable=1",
         uri=True,
         timeout=5.0,
         isolation_level=None,
@@ -237,6 +240,29 @@ def _connect_existing_for_validation_v1(path: Path) -> sqlite3.Connection:
         connection.close()
         raise
     return connection
+
+
+def _reject_wal_artifacts_v1(path: Path) -> None:
+    """Reject crash-left WAL state before SQLite can checkpoint or unlink it."""
+
+    for suffix in ("-wal", "-shm"):
+        sidecar = Path(f"{path}{suffix}")
+        try:
+            sidecar.lstat()
+        except FileNotFoundError:
+            continue
+        raise RuntimeError("durable epoch journal rejects existing WAL artifacts")
+    try:
+        with path.open("rb") as store:
+            header = store.read(100)
+    except OSError as exc:
+        raise RuntimeError("durable epoch journal header cannot be read") from exc
+    if (
+        len(header) >= 20
+        and header[:16] == b"SQLite format 3\x00"
+        and (header[18] == 2 or header[19] == 2)
+    ):
+        raise RuntimeError("durable epoch journal rejects WAL artifacts or mode")
 
 
 def _rollback_v1(connection: sqlite3.Connection) -> None:
@@ -344,10 +370,16 @@ class GlobalEconomicEpochJournalV1:
             raise ValueError("durable epoch journal path must not be a symlink")
         if not normalized.is_file():
             raise FileNotFoundError("durable epoch journal file is absent")
-        journal = cls(normalized, _connect_existing_for_validation_v1(normalized))
+        validation = cls(
+            normalized,
+            _connect_existing_for_validation_v1(normalized),
+        )
         try:
-            journal._read_snapshot_v1()
-            _configure_connection_v1(journal._connection)
+            validation._read_snapshot_v1()
+        finally:
+            validation.close()
+        journal = cls(normalized, _connect_v1(normalized))
+        try:
             journal._read_snapshot_v1()
         except BaseException:
             journal.close()
@@ -808,6 +840,15 @@ def _create_epoch_journal_for_verified_publisher_v1(
             journal.close()
             raise ValueError(
                 "durable epoch journal existing activation bundle mismatch"
+            ) from None
+        expected_head = DurableEconomicPublicationHeadV1.from_activation(
+            owned_activation.head
+        )
+        if journal.head != expected_head:
+            journal.close()
+            raise ValueError(
+                "durable epoch journal create recovery requires sequence-zero "
+                "activation head"
             ) from None
     try:
         capability = _mint_write_capability_for_verified_publisher_v1(journal)

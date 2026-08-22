@@ -45,8 +45,11 @@ contiguous ordinary-epoch history with:
   an exact schema allowlist, and coherent transactional reads;
 - open-time validation checks the existing journal mode and exact store before
   applying persistent connection configuration;
+- open accepts only an exact string or exact platform `Path`, rejects WAL/SHM
+  sidecars and a WAL-mode database header before SQLite opens the store, then
+  performs immutable read-only validation before opening the writable handle;
 - the verified-publisher factory recovers an exact already committed activation
-  when create acknowledgement is lost;
+  at the sequence-zero activation head when create acknowledgement is lost;
 - complete store validation on create, open, read, and commit.
 
 ## Disaster-state evidence
@@ -64,9 +67,15 @@ The focused suite covers:
 - an executable negative witness preserving the underscore-prefixed
   same-interpreter structural-writer bypass as a release blocker;
 - schema expansion;
-- WAL plus schema-expansion rejection without changing the tested main database
-  bytes, journal mode, or stored rows;
+- ordinary WAL plus schema-expansion rejection without changing the tested main
+  database bytes, journal mode, or stored rows;
+- crash-left WAL/SHM rejection with byte-identical database, WAL, SHM, and
+  directory-entry observations;
+- behaviorful `Path` subclass rejection before either the decoy or redirected
+  store is accessed;
 - exact verified-publisher activation retry after commit-before-ack;
+- matching-activation create retry with nonzero history rejected without
+  changing the stored head or database bytes;
 - exception recovery and abrupt process exit after begin, insert, head update,
   and commit-before-ack.
 
@@ -75,6 +84,9 @@ post-commit epoch. Direct create remains strict, and failure before the initial
 SQLite transaction can leave an empty target; atomic temporary construction and
 no-replace installation remain open work. The tests do not model every
 filesystem, storage controller, kernel, or hardware power-loss behavior.
+The preflight checks do not establish safety against a concurrent process that
+changes the database or sidecars between validation and writable open. OS-level
+exclusive ownership remains required.
 
 ## Authority and nonclaims
 
@@ -100,6 +112,11 @@ artifact bytes are bound in process, while deployed executable loading,
 attestation, and real RISC0 receipt replay remain absent. Alternative value
 writers are not fenced, migrations and outbox delivery remain outside this
 publisher, and Rust/RISC0 runtime parity is incomplete.
+
+`open` validates structural history and does not replay every retained receipt
+through the newly supplied verifier. Production recovery requires authenticated
+store ownership or exact verifier replay in addition to the sequence-zero
+restriction applied to `create` recovery.
 
 Passing this slice narrows VM-10 durable-publication risk. It does not close
 VM-09 sole-authority mounting, VM-10 external delivery refinement, VM-11 full

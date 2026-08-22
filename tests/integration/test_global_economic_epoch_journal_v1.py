@@ -943,7 +943,7 @@ def test_given_wal_schema_mutant_when_open_rejects_then_store_is_unchanged(
     before = path.read_bytes()
 
     # Act and assert: open rejects before changing the persistent journal mode.
-    with pytest.raises(RuntimeError, match="requires DELETE journal mode"):
+    with pytest.raises(RuntimeError, match="WAL artifacts or mode"):
         GlobalEconomicEpochJournalV1.open(path)
     assert path.read_bytes() == before
     inspection = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)
@@ -952,6 +952,82 @@ def test_given_wal_schema_mutant_when_open_rejects_then_store_is_unchanged(
         assert inspection.execute("SELECT value FROM unexpected").fetchall() == [(7,)]
     finally:
         inspection.close()
+
+
+def test_given_crash_left_wal_when_open_rejects_then_file_family_is_unchanged(
+    tmp_path: Path,
+) -> None:
+    # Arrange: a crashed writer leaves committed bytes only in WAL sidecars.
+    path = tmp_path / "crash-left-wal.sqlite"
+    child_program = """
+import os
+import sqlite3
+import sys
+
+connection = sqlite3.connect(sys.argv[1])
+connection.execute("PRAGMA journal_mode = WAL")
+connection.execute("PRAGMA wal_autocheckpoint = 0")
+connection.execute("CREATE TABLE unexpected(value BLOB) STRICT")
+connection.execute("INSERT INTO unexpected(value) VALUES (zeroblob(65536))")
+connection.commit()
+os._exit(0)
+"""
+    child = subprocess.run(
+        [sys.executable, "-c", child_program, str(path)],
+        check=False,
+    )
+    assert child.returncode == 0
+
+    def store_family() -> dict[str, bytes]:
+        return {
+            candidate.name: candidate.read_bytes()
+            for candidate in sorted(tmp_path.iterdir())
+            if candidate.name.startswith(path.name)
+        }
+
+    before = store_family()
+    assert f"{path.name}-wal" in before
+    assert f"{path.name}-shm" in before
+
+    # Act and assert: rejection occurs before SQLite can checkpoint or unlink.
+    with pytest.raises(RuntimeError, match="WAL artifacts"):
+        GlobalEconomicEpochJournalV1.open(path)
+    assert store_family() == before
+
+
+def test_behaviorful_path_subclass_rejects_before_store_access(tmp_path: Path) -> None:
+    # Arrange: Mallory redirects a decoy Path's behavior to a valid target store.
+    activation, _, _ = _fixture_v1()
+    target = tmp_path / "path-target.sqlite"
+    journal = GlobalEconomicEpochJournalV1.create(target, activation)
+    journal.close()
+    before = target.read_bytes()
+    decoy = tmp_path / "path-decoy.sqlite"
+    platform_path_type = type(Path())
+
+    class RedirectingPath(platform_path_type):  # type: ignore[misc, valid-type]
+        def absolute(self) -> Path:
+            return cast(Any, self)
+
+        def exists(self) -> bool:
+            return True
+
+        def is_symlink(self) -> bool:
+            return False
+
+        def is_file(self) -> bool:
+            return True
+
+        def as_uri(self) -> str:
+            return target.as_uri()
+
+    hostile = RedirectingPath(str(decoy))
+
+    # Act and assert: untrusted behavior cannot redirect the journal capability.
+    with pytest.raises(TypeError, match="exact str or platform Path"):
+        GlobalEconomicEpochJournalV1.open(cast(Any, hostile))
+    assert not decoy.exists()
+    assert target.read_bytes() == before
 
 
 def test_given_zero_remaining_row_capacity_when_committing_then_typed_noop(
