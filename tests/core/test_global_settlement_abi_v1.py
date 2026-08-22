@@ -106,6 +106,7 @@ from src.core.global_settlement_abi_v1 import (
     canonical_economic_command_body_bytes_v1,
     compose_asset_lane_epoch_effect_plans_v1,
     derive_economic_initial_state_atom_occurrences_v1,
+    derive_economic_initial_state_replay_continuity_root_v1,
     economic_initial_state_atom_coverage_policy_binding_v1,
     economic_initial_state_atom_occurrence_v1,
     m6_asset_precision_policy_binding_v1,
@@ -515,7 +516,11 @@ def _initial_state_admission(
         source_height=source_height,
         state_atom_coverage_root=source_manifest.manifest_root,
         lane_object_coverage_root=_root(451),
-        replay_continuity_root=_root(452),
+        replay_continuity_root=derive_economic_initial_state_replay_continuity_root_v1(
+            kind,
+            state,
+            predecessor_state,
+        ),
         terminal_continuity_root=_root(453),
         outbox_continuity_root=_root(454),
         source_manifest_root=_root(455),
@@ -3008,6 +3013,39 @@ def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> 
     port = GlobalEconomicCommitPortV1(admission, _RecordingReceiptVerifier())
 
     assert port.state.state_root == migrated_state.state_root
+    preserved_source_state = replace(
+        source_state,
+        replay_state=migrated_state.replay_state,
+    )
+    preserved_admission = _initial_state_admission(
+        target_profile,
+        migrated_state,
+        kind=EconomicInitialStateKindV1.MIGRATION,
+        source_manifest=source_manifest,
+        source_profile_root=source_profile.profile_id,
+        source_state_root=preserved_source_state.state_root,
+        source_writer_epoch=preserved_source_state.writer_epoch,
+        source_height=preserved_source_state.height,
+        predecessor_state=preserved_source_state,
+    )
+    preserved_port = GlobalEconomicCommitPortV1(
+        preserved_admission,
+        _RecordingReceiptVerifier(),
+    )
+    assert preserved_port.state.state_root == migrated_state.state_root
+    replay_verifier = _RecordingReceiptVerifier()
+    with pytest.raises(ValueError, match="replay continuity root mismatch"):
+        GlobalEconomicCommitPortV1(
+            replace(
+                admission,
+                certificate=replace(
+                    admission.certificate,
+                    replay_continuity_root=_root(88_204),
+                ),
+            ),
+            replay_verifier,
+        )
+    assert replay_verifier.calls == []
     with pytest.raises(ValueError, match="writer epoch exactly once"):
         replace(
             migration_certificate,
@@ -3083,11 +3121,59 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
                 verifier,
             )
 
+    predecessor_with_unpreserved_replay = replace(
+        source_state,
+        replay_state=(ReplayStateV1("source-replay-1", _root(88_203)),),
+    )
+    replay_rebound_certificate = replace(
+        admission.certificate,
+        source_state_root=predecessor_with_unpreserved_replay.state_root,
+    )
+    with pytest.raises(ValueError, match="preserve every predecessor row"):
+        GlobalEconomicCommitPortV1(
+            replace(
+                admission,
+                predecessor_state=predecessor_with_unpreserved_replay,
+                certificate=replay_rebound_certificate,
+            ),
+            verifier,
+        )
+
+    target_replay_row = migrated_state.replay_state[0]
+    predecessor_with_rewritten_occurrence = replace(
+        source_state,
+        replay_state=(
+            replace(
+                target_replay_row,
+                occurrence_id=_root(88_204),
+            ),
+        ),
+    )
+    rewritten_occurrence_certificate = replace(
+        admission.certificate,
+        source_state_root=predecessor_with_rewritten_occurrence.state_root,
+    )
+    with pytest.raises(ValueError, match="preserve every predecessor row"):
+        GlobalEconomicCommitPortV1(
+            replace(
+                admission,
+                predecessor_state=predecessor_with_rewritten_occurrence,
+                certificate=rewritten_occurrence_certificate,
+            ),
+            verifier,
+        )
+
     genesis_profile, _ = _profile()
     genesis_state = _state(genesis_profile, height=0)
     genesis_admission = _initial_state_admission(genesis_profile, genesis_state)
     with pytest.raises(ValueError, match="must not include a predecessor state"):
         replace(genesis_admission, predecessor_state=source_state)
+    genesis_with_replay = replace(
+        genesis_state,
+        replay_state=(ReplayStateV1("genesis-replay-1", _root(88_205)),),
+    )
+    with pytest.raises(ValueError, match="genesis replay state must be empty"):
+        _initial_state_admission(genesis_profile, genesis_with_replay)
 
     oversized_predecessor = replace(
         source_state,

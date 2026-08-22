@@ -40,6 +40,7 @@ from src.core.global_settlement_abi_v1 import (
     EconomicAmountV1,
     EconomicEffectKindV1,
     EconomicEffectRowV1,
+    EconomicInitialStateKindV1,
     EconomicProfileSnapshotV1,
     EvidenceStatusV1,
     ExternalOutboxEnqueueV1,
@@ -55,10 +56,12 @@ from src.core.global_settlement_abi_v1 import (
     LaneWriteV1,
     ProfileStatusV1,
     ReleaseStatusV1,
+    ReplayStateV1,
     RouteRegistryV1,
     RouteReleaseV1,
     canonical_global_bytes_v1,
     compose_asset_lane_epoch_effect_plans_v1,
+    derive_economic_initial_state_replay_continuity_root_v1,
 )
 from src.core.route_composition_receipt_verification_v1 import (
     ROUTE_COMPOSITION_ASSUMPTION_SCHEMA_V1,
@@ -223,6 +226,32 @@ def _state(profile: EconomicProfileSnapshotV1) -> GlobalEconomicStateV1:
         balances=(EconomicAmountV1("alice", "USD", "accounts", _U64_NEIGHBOR_ATOMS),),
         supplies=(AssetSupplyV1("USD", _U64_NEIGHBOR_ATOMS),),
     )
+
+
+def _replay_continuity_vector(
+    state: GlobalEconomicStateV1,
+) -> tuple[dict[str, object], str]:
+    source_row = ReplayStateV1("replay-source", _root(1_501))
+    target_row = ReplayStateV1("replay-target", _root(1_502))
+    predecessor_state = replace(state, replay_state=(source_row,))
+    target_state = replace(
+        predecessor_state,
+        writer_epoch=predecessor_state.writer_epoch + 1,
+        height=predecessor_state.height + 1,
+        profile_root=_root(1_503),
+        replay_state=(source_row, target_row),
+    )
+    vector = {
+        "kind": EconomicInitialStateKindV1.MIGRATION,
+        "target_state": target_state,
+        "predecessor_state": predecessor_state,
+    }
+    expected_root = derive_economic_initial_state_replay_continuity_root_v1(
+        EconomicInitialStateKindV1.MIGRATION,
+        target_state,
+        predecessor_state,
+    )
+    return vector, expected_root
 
 
 def _effect_plan(lane_roots: tuple[LaneStateRootV1, ...]) -> GlobalEconomicEffectPlanV1:
@@ -547,6 +576,7 @@ def build_vectors_v1() -> dict[str, object]:
 
     profile, route = _profile()
     state = _state(profile)
+    replay_continuity, replay_continuity_root = _replay_continuity_vector(state)
     effect_plan = _effect_plan(state.lane_roots)
     epoch_route_effect_plans = _epoch_route_effect_plans()
     epoch_composed_effect_plan = compose_asset_lane_epoch_effect_plans_v1(
@@ -623,6 +653,10 @@ def build_vectors_v1() -> dict[str, object]:
         ),
         "economic_profile": _vector(profile, expected_root=profile.profile_id),
         "global_state": _vector(state, expected_root=state.state_root),
+        "economic_initial_state_replay_continuity": _vector(
+            replay_continuity,
+            expected_root=replay_continuity_root,
+        ),
         "effect_plan": _vector(effect_plan, expected_root=effect_plan.effect_plan_root),
         "epoch_route_effect_plan_1": _vector(
             epoch_route_effect_plans[0],

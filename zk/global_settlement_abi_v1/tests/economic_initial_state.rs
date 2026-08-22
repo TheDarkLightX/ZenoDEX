@@ -4,16 +4,18 @@ use std::path::PathBuf;
 use serde_json::Value;
 use zenodex_global_settlement_abi_v1::{
     derive_economic_initial_state_atom_occurrences_v1,
+    derive_economic_initial_state_replay_continuity_root_v1,
     economic_initial_state_atom_coverage_policy_binding_v1, hash_bytes_sha256_v1, hash_global_v1,
     validate_economic_initial_state_bindings_v1,
     validate_economic_initial_state_statement_bindings_v1, AbiErrorV1, EconomicAmountV1,
     EconomicInitialStateAtomClassificationV1, EconomicInitialStateAtomSourceV1,
     EconomicInitialStateCertificateV1, EconomicInitialStateKindV1,
     EconomicInitialStateSourceManifestV1, EconomicPolicyBindingV1, EconomicPolicyRegistryV1,
-    EconomicProfileSnapshotV1, GlobalEconomicStateV1, ProfileStatusV1, ReceiptKindV1, RootV1,
-    GLOBAL_SETTLEMENT_ABI_V1, M6_ASSET_PRECISION_POLICY_KIND_V1, M6_ASSET_PRECISION_POLICY_ROOT_V1,
-    M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1, M6_CAPABILITY_MANIFEST_ROOT_V1,
-    M6_CAPABILITY_POLICY_KIND_V1, M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
+    EconomicProfileSnapshotV1, GlobalEconomicStateV1, ProfileStatusV1, ReceiptKindV1,
+    ReplayStateV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1, M6_ASSET_PRECISION_POLICY_KIND_V1,
+    M6_ASSET_PRECISION_POLICY_ROOT_V1, M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1,
+    M6_CAPABILITY_MANIFEST_ROOT_V1, M6_CAPABILITY_POLICY_KIND_V1,
+    M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -143,7 +145,12 @@ fn migration_certificate(
         source_height: predecessor_state.height,
         state_atom_coverage_root: source_manifest.manifest_root().unwrap(),
         lane_object_coverage_root: root(33),
-        replay_continuity_root: root(34),
+        replay_continuity_root: derive_economic_initial_state_replay_continuity_root_v1(
+            EconomicInitialStateKindV1::MIGRATION,
+            state,
+            Some(predecessor_state),
+        )
+        .unwrap(),
         terminal_continuity_root: root(35),
         outbox_continuity_root: root(36),
         source_manifest_root: root(37),
@@ -248,6 +255,12 @@ fn genesis_predecessor_binding_requires_absence() {
     certificate.writer_epoch = state.writer_epoch;
     certificate.state_root = state.state_root().unwrap();
     certificate.state_atom_coverage_root = source_manifest.manifest_root().unwrap();
+    certificate.replay_continuity_root = derive_economic_initial_state_replay_continuity_root_v1(
+        EconomicInitialStateKindV1::GENESIS,
+        &state,
+        None,
+    )
+    .unwrap();
     certificate.root_image_id = profile.root_image_id.clone();
     let statement = certificate.journal();
 
@@ -272,6 +285,21 @@ fn genesis_predecessor_binding_requires_absence() {
         ),
         Err(AbiErrorV1::InvalidBinding(
             "genesis initial state predecessor"
+        ))
+    );
+    let mut genesis_with_replay = state.clone();
+    genesis_with_replay.replay_state = vec![ReplayStateV1 {
+        replay_id: "genesis-replay-1".to_owned(),
+        occurrence_id: root(8_102),
+    }];
+    assert_eq!(
+        derive_economic_initial_state_replay_continuity_root_v1(
+            EconomicInitialStateKindV1::GENESIS,
+            &genesis_with_replay,
+            None,
+        ),
+        Err(AbiErrorV1::InvalidBinding(
+            "genesis replay state must be empty"
         ))
     );
 }
@@ -341,6 +369,22 @@ fn initialization_statement_binds_exact_profile_state_and_manifest_without_recei
         &changed_statement,
     )
     .is_err());
+    let mut changed_replay_root = changed_statement;
+    changed_replay_root.state_atom_coverage_root = source_manifest.manifest_root().unwrap();
+    changed_replay_root.replay_continuity_root = root(8_002);
+    assert_eq!(
+        validate_economic_initial_state_statement_bindings_v1(
+            &profile,
+            &policy_registry,
+            &state,
+            Some(&predecessor_state),
+            &source_manifest,
+            &changed_replay_root,
+        ),
+        Err(AbiErrorV1::InvalidBinding(
+            "initial state replay continuity root"
+        ))
+    );
 }
 
 #[test]
@@ -370,6 +414,28 @@ fn migration_statement_rejects_missing_or_substituted_predecessor_state() {
         ),
         Err(AbiErrorV1::InvalidBinding(
             "migration initial state predecessor"
+        ))
+    );
+
+    let mut predecessor_with_unpreserved_replay = predecessor_state.clone();
+    predecessor_with_unpreserved_replay.replay_state = vec![ReplayStateV1 {
+        replay_id: "source-replay-1".to_owned(),
+        occurrence_id: root(8_203),
+    }];
+    let mut rebound_replay_statement = statement.clone();
+    rebound_replay_statement.source_state_root =
+        predecessor_with_unpreserved_replay.state_root().unwrap();
+    assert_eq!(
+        validate_economic_initial_state_statement_bindings_v1(
+            &profile,
+            &policy_registry,
+            &state,
+            Some(&predecessor_with_unpreserved_replay),
+            &source_manifest,
+            &rebound_replay_statement,
+        ),
+        Err(AbiErrorV1::InvalidBinding(
+            "migration replay predecessor preservation"
         ))
     );
     let mut changed_balance = predecessor_state.clone();

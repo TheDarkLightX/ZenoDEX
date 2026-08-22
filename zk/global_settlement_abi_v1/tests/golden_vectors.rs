@@ -7,14 +7,15 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use zenodex_global_settlement_abi_v1::{
     canonical_bytes_v1, compose_asset_lane_epoch_effect_plans_v1,
+    derive_economic_initial_state_replay_continuity_root_v1,
     derive_route_composition_assumption_root_v1, derive_verified_economic_epoch_commit_id_v1,
     hash_bytes_sha256_v1, AbiErrorV1, AbiResultV1, CommandAggregationJournalV1,
-    EconomicCommandOccurrenceV1, EconomicProfileSnapshotV1, GlobalEconomicEffectPlanV1,
-    GlobalEconomicEpochCertificateV1, GlobalEconomicStateV1, LaneCompositionJournalV1,
-    LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1, LaneIdV1, LaneModuleReleaseV1,
-    LaneModuleTransitionJournalV1, LaneRegistryV1, MigrationObjectClassV1, ReceiptKindV1, RootV1,
-    RouteCompositionJournalV1, RouteRegistryV1, RouteReleaseV1, StateMigrationCertificateV1,
-    ALL_LANE_IDS_V1, ROUTE_COMPOSITION_ASSUMPTION_SCHEMA_V1,
+    EconomicCommandOccurrenceV1, EconomicInitialStateKindV1, EconomicProfileSnapshotV1,
+    GlobalEconomicEffectPlanV1, GlobalEconomicEpochCertificateV1, GlobalEconomicStateV1,
+    LaneCompositionJournalV1, LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1, LaneIdV1,
+    LaneModuleReleaseV1, LaneModuleTransitionJournalV1, LaneRegistryV1, MigrationObjectClassV1,
+    ReceiptKindV1, RootV1, RouteCompositionJournalV1, RouteRegistryV1, RouteReleaseV1,
+    StateMigrationCertificateV1, ALL_LANE_IDS_V1, ROUTE_COMPOSITION_ASSUMPTION_SCHEMA_V1,
 };
 
 const FIXTURE_SCHEMA: &str = "zenodex/global-settlement-abi-v1-golden/v1";
@@ -59,6 +60,14 @@ struct RouteCompositionAssumptionVectorV1 {
     route_journal_root: RootV1,
     route_journal_digest: RootV1,
     expected_image_id: RootV1,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct EconomicInitialStateReplayContinuityVectorV1 {
+    kind: EconomicInitialStateKindV1,
+    target_state: GlobalEconomicStateV1,
+    predecessor_state: GlobalEconomicStateV1,
 }
 
 impl RouteCompositionAssumptionVectorV1 {
@@ -126,7 +135,7 @@ fn check_vector<T: DeserializeOwned + Serialize>(
 #[test]
 fn python_and_rust_recompute_identical_typed_roots_and_journal_bytes() {
     let fixture = load_fixture();
-    assert_eq!(fixture.vectors.len(), 21);
+    assert_eq!(fixture.vectors.len(), 22);
 
     check_vector::<LaneModuleReleaseV1>(
         vector(&fixture, "lane_module_release"),
@@ -174,6 +183,20 @@ fn python_and_rust_recompute_identical_typed_roots_and_journal_bytes() {
     state
         .validate_profile_registry(&profile, &lanes)
         .expect("golden state profile bindings must validate");
+    check_vector::<EconomicInitialStateReplayContinuityVectorV1>(
+        vector(&fixture, "economic_initial_state_replay_continuity"),
+        |input| {
+            input.target_state.validate()?;
+            input.predecessor_state.validate()
+        },
+        |input| {
+            derive_economic_initial_state_replay_continuity_root_v1(
+                input.kind,
+                &input.target_state,
+                Some(&input.predecessor_state),
+            )
+        },
+    );
     check_vector::<GlobalEconomicEffectPlanV1>(
         vector(&fixture, "effect_plan"),
         GlobalEconomicEffectPlanV1::validate,

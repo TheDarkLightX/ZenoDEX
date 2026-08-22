@@ -1,10 +1,11 @@
 # Economic Initial-State RISC0 Guest
 
 This workspace contains the bounded RISC0 3.0.6 guest and host verifier for an
-`EconomicInitialStateJournalV1`. The guest checks the canonical typed input and
-the exact explicit-row coverage statement, then commits the canonical journal.
-The host requires the measured method image, a Succinct receipt, the exact
-journal bytes, and successful receipt verification.
+`EconomicInitialStateJournalV1`. The guest checks the canonical typed input,
+the exact explicit-row coverage statement, predecessor-state binding, and the
+bounded replay-preservation relation, then commits the canonical journal. The
+host requires the measured method image, a Succinct receipt, the exact journal
+bytes, and successful receipt verification.
 
 ## Fast contract gate
 
@@ -54,8 +55,14 @@ state root and binds its chain, deployment, profile, writer epoch and height to
 the public journal. This is a predecessor-content commitment.
 
 The guest does not prove that the disclosed predecessor is the finalized ledger
-head. It also does not prove private lane-root contents, predecessor migration
+head. For replay state, genesis requires an empty replay table and migration
+preserves every disclosed predecessor replay row unchanged. The derived public
+root commits the complete predecessor and target replay tables. Target-only
+replay rows remain unauthenticated and can consume future identifiers, so this
+relation does not establish full nonce or nullifier continuity.
+
+The guest also does not prove private lane-root contents, predecessor migration
 classification totality, source authorization legitimacy, Oracle continuity,
-replay continuity, ledger-history continuity, terminal-obligation continuity,
-outbox continuity or delivery, mounted writer exclusivity, or whole-economy
-value-movement safety.
+private-lane nullifiers, ledger-history continuity, terminal-obligation
+continuity, outbox continuity or delivery, mounted writer exclusivity, or
+whole-economy value-movement safety.

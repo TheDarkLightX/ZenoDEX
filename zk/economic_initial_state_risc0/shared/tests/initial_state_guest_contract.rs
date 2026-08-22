@@ -10,12 +10,13 @@ use zenodex_economic_initial_state_risc0_shared::{
 };
 use zenodex_global_settlement_abi_v1::{
     derive_economic_initial_state_atom_occurrences_v1,
+    derive_economic_initial_state_replay_continuity_root_v1,
     economic_initial_state_atom_coverage_policy_binding_v1, EconomicAmountV1,
     EconomicInitialStateAtomClassificationV1, EconomicInitialStateAtomSourceV1,
     EconomicInitialStateJournalV1, EconomicInitialStateKindV1,
     EconomicInitialStateSourceManifestV1, EconomicPolicyBindingV1, EconomicPolicyRegistryV1,
-    EconomicProfileSnapshotV1, GlobalEconomicStateV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1,
-    M6_ASSET_PRECISION_POLICY_KIND_V1, M6_ASSET_PRECISION_POLICY_ROOT_V1,
+    EconomicProfileSnapshotV1, GlobalEconomicStateV1, ReplayStateV1, RootV1,
+    GLOBAL_SETTLEMENT_ABI_V1, M6_ASSET_PRECISION_POLICY_KIND_V1, M6_ASSET_PRECISION_POLICY_ROOT_V1,
     M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1, M6_CAPABILITY_MANIFEST_ROOT_V1,
     M6_CAPABILITY_POLICY_KIND_V1, M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
 };
@@ -121,7 +122,12 @@ fn fixture() -> EconomicInitialStateGuestInputV1 {
         source_height: predecessor_state.height,
         state_atom_coverage_root: source_manifest.manifest_root().unwrap(),
         lane_object_coverage_root: root(2_003),
-        replay_continuity_root: root(2_004),
+        replay_continuity_root: derive_economic_initial_state_replay_continuity_root_v1(
+            EconomicInitialStateKindV1::MIGRATION,
+            &state,
+            Some(&predecessor_state),
+        )
+        .unwrap(),
         terminal_continuity_root: root(2_005),
         outbox_continuity_root: root(2_006),
         source_manifest_root: root(2_007),
@@ -185,6 +191,23 @@ fn predecessor_substitution_or_absence_rejects_before_any_receipt_exists() {
         .amount_atoms += 1;
     let mut missing_predecessor = input;
     missing_predecessor.predecessor_state = None;
+    let mut changed_replay_root = fixture();
+    changed_replay_root.statement.replay_continuity_root = root(9_002);
+    let mut deleted_replay = fixture();
+    deleted_replay
+        .predecessor_state
+        .as_mut()
+        .unwrap()
+        .replay_state = vec![ReplayStateV1 {
+        replay_id: "source-replay-1".to_owned(),
+        occurrence_id: root(9_003),
+    }];
+    deleted_replay.statement.source_state_root = deleted_replay
+        .predecessor_state
+        .as_ref()
+        .unwrap()
+        .state_root()
+        .unwrap();
 
     // Act / Assert
     assert!(matches!(
@@ -193,6 +216,14 @@ fn predecessor_substitution_or_absence_rejects_before_any_receipt_exists() {
     ));
     assert!(matches!(
         prepare_economic_initial_state_v1(missing_predecessor),
+        Err(EconomicInitialStateGuestErrorV1::StatementBinding)
+    ));
+    assert!(matches!(
+        prepare_economic_initial_state_v1(changed_replay_root),
+        Err(EconomicInitialStateGuestErrorV1::StatementBinding)
+    ));
+    assert!(matches!(
+        prepare_economic_initial_state_v1(deleted_replay),
         Err(EconomicInitialStateGuestErrorV1::StatementBinding)
     ));
 }

@@ -11,6 +11,7 @@ use crate::economic_initial_state_atom_coverage::{
     validate_economic_initial_state_atom_coverage_v1,
     validate_economic_initial_state_explicit_row_count_v1, EconomicInitialStateSourceManifestV1,
 };
+use crate::economic_initial_state_replay_continuity::validate_economic_initial_state_replay_continuity_binding_v1;
 use crate::proof::ReceiptKindV1;
 use crate::release::{
     validate_m6_asset_precision_profile_binding_v1, validate_m6_capability_profile_binding_v1,
@@ -225,6 +226,12 @@ pub fn validate_economic_initial_state_statement_bindings_v1(
     )?;
     state.validate_profile(profile)?;
     validate_economic_initial_state_predecessor_binding_v1(state, predecessor_state, statement)?;
+    validate_economic_initial_state_replay_continuity_binding_v1(
+        statement.kind,
+        state,
+        predecessor_state,
+        &statement.replay_continuity_root,
+    )?;
     if statement.kind != source_manifest.kind {
         return Err(AbiErrorV1::InvalidBinding(
             "initial state statement source manifest kind",

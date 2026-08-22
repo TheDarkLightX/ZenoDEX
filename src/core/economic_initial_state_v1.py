@@ -13,6 +13,9 @@ from .economic_initial_state_atom_coverage_v1 import (
     validate_economic_initial_state_atom_coverage_v1,
     validate_economic_initial_state_explicit_row_count_v1,
 )
+from .economic_initial_state_replay_continuity_v1 import (
+    derive_economic_initial_state_replay_continuity_root_v1,
+)
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import ReceiptKindV1, SuccinctReceiptVerifierV1
 from .global_economic_refinement_snapshot_v1 import _snapshot_state_v1
@@ -338,6 +341,13 @@ def _validate_owned_economic_initial_state_admission_v1(
         owned.predecessor_state,
         certificate,
     )
+    replay_continuity_root = derive_economic_initial_state_replay_continuity_root_v1(
+        certificate.kind,
+        state,
+        owned.predecessor_state,
+    )
+    if certificate.replay_continuity_root != replay_continuity_root:
+        raise ValueError("initial state replay continuity root mismatch")
     if certificate.kind is not source_manifest.kind:
         raise ValueError("initial state certificate and source manifest kind mismatch")
     coverage_root = validate_economic_initial_state_atom_coverage_v1(
