@@ -42,6 +42,7 @@ EXPECTED_BUY_AND_BURN = (
     "Atomically spend the governed quote-asset fee allocation through the "
     "selected authenticated Spot route and burn the exact ZDEX atoms received."
 )
+EXPECTED_CLAIM_STATUS = "DRAFT_REVISED_REPLAY_REVIEW_PENDING"
 EXPECTED_HYPERDEFLATION = (
     "No arbitrary fixed percentage of initial supply is required as a floor. "
     "Bind a retained-supply rule such as R(S)=ceil(p*S/q), 0<p<q, and "
@@ -57,6 +58,43 @@ EXPECTED_KNOWN_SEMANTIC_CONFLICTS = {
     "ABI_V1_PRECISION_RESCALE": "RESEARCH_ONLY_ABI_V2_MIGRATION_REQUIRED",
     "LEGACY_FIXED_SUPPLY_FLOOR": "LEGACY_INCOMPATIBLE_MUST_NOT_MOUNT",
     "M6_CAPABILITY_CATALOG_OMISSIONS": "OPEN_ADDITIONAL_CAPABILITIES_REQUIRED",
+}
+REPLAY_SLICE_ID = "ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1"
+REPLAY_SLICE_ARTIFACTS = {
+    "design_sha256": Path(
+        "docs/research/ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1.md"
+    ),
+    "python_sha256": Path(
+        "src/core/economic_initial_state_replay_continuity_v1.py"
+    ),
+    "python_admission_sha256": Path("src/core/economic_initial_state_v1.py"),
+    "python_unit_test_sha256": Path(
+        "tests/core/test_economic_initial_state_replay_continuity_v1.py"
+    ),
+    "python_integration_test_sha256": Path(
+        "tests/core/test_global_settlement_abi_v1.py"
+    ),
+    "golden_fixture_sha256": Path(
+        "tests/data/global_settlement_abi_v1_golden.json"
+    ),
+    "golden_renderer_sha256": Path(
+        "tools/render_global_settlement_abi_v1_golden.py"
+    ),
+    "rust_sha256": Path(
+        "zk/global_settlement_abi_v1/src/"
+        "economic_initial_state_replay_continuity.rs"
+    ),
+    "rust_admission_sha256": Path(
+        "zk/global_settlement_abi_v1/src/economic_initial_state.rs"
+    ),
+    "rust_test_sha256": Path(
+        "zk/global_settlement_abi_v1/tests/"
+        "economic_initial_state_replay_continuity.rs"
+    ),
+    "risc0_shared_test_sha256": Path(
+        "zk/economic_initial_state_risc0/shared/tests/"
+        "initial_state_guest_contract.rs"
+    ),
 }
 
 
@@ -114,6 +152,57 @@ def validate_m6_zdex_semantic_anchor_v1(value: object) -> list[str]:
     return findings
 
 
+def _validate_replay_slice_evidence_v1(
+    root: Path,
+    status: Mapping[str, object],
+    subject_commit: object,
+    findings: list[str],
+) -> None:
+    slices = status.get("implemented_slices")
+    if type(slices) is not list or any(type(row) is not dict for row in slices):
+        findings.append("implemented slices must be a list of objects")
+        return
+    replay_rows = [row for row in slices if row.get("id") == REPLAY_SLICE_ID]
+    if len(replay_rows) != 1:
+        findings.append("replay slice evidence row must occur exactly once")
+        return
+    replay = replay_rows[0]
+    if replay.get("commit") != subject_commit:
+        findings.append("replay slice subject commit mismatch")
+    for field, relative_path in REPLAY_SLICE_ARTIFACTS.items():
+        artifact = root / relative_path
+        recorded = replay.get(field)
+        if (
+            type(recorded) is not str
+            or not artifact.is_file()
+            or _sha256(artifact) != recorded
+        ):
+            findings.append(f"replay slice artifact hash mismatch: {field}")
+
+    try:
+        fixture = _load_exact_json(
+            root / REPLAY_SLICE_ARTIFACTS["golden_fixture_sha256"]
+        )
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        findings.append("replay slice golden vector cannot be loaded")
+        return
+    vectors = fixture.get("vectors")
+    if type(vectors) is not dict:
+        findings.append("replay slice golden vectors must be an object")
+        return
+    vector = vectors.get("economic_initial_state_replay_continuity")
+    if type(vector) is not dict:
+        findings.append("replay slice golden vector must be an object")
+        return
+    expected_fields = {
+        "golden_continuity_root": vector.get("expected_root"),
+        "golden_canonical_bytes_sha256": vector.get("canonical_bytes_sha256"),
+    }
+    for field, expected in expected_fields.items():
+        if type(expected) is not str or replay.get(field) != expected:
+            findings.append(f"replay slice golden evidence mismatch: {field}")
+
+
 def check_value_movement_closure_status_v1(
     root: Path = REPO_ROOT,
     status_path: Path | None = None,
@@ -139,6 +228,8 @@ def check_value_movement_closure_status_v1(
     if subject.get("scoped_worktree_clean_before_this_ledger") is not True:
         findings.append("ledger subject was not recorded from a clean scoped worktree")
 
+    _validate_replay_slice_evidence_v1(root, status, commit, findings)
+
     authority = _mapping(status.get("authority"), "authority", findings)
     expected_authority: dict[str, object] = {
         "claim_authority": "NONE",
@@ -158,7 +249,7 @@ def check_value_movement_closure_status_v1(
         resolved_claim = root / claim_path
         if not resolved_claim.is_file() or _sha256(resolved_claim) != claim_sha:
             findings.append("claim contract hash mismatch")
-    if claim.get("status") != "DRAFT_REVISED_AFTER_MAX_REVIEW":
+    if claim.get("status") != EXPECTED_CLAIM_STATUS:
         findings.append("claim status drift")
     if claim.get("verdict") != "UNPROVED":
         findings.append("claim verdict must remain UNPROVED")

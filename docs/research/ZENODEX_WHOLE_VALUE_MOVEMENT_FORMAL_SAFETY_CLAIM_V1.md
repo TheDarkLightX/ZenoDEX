@@ -508,17 +508,18 @@ validity and payable paths, external-effect authorization and delivery, and
 private lane contents remain separate obligations beyond state-root content
 commitment.
 
-Commit `659cbc9ff24d9c261e8b78dd1b0de210dc747a87` adds one bounded replay
-relation. Genesis requires an empty replay table. Migration requires every
-predecessor replay row to occur unchanged in the target, and the public
-continuity root commits the complete predecessor and target replay tables.
-Deletion or occurrence-ID rewriting rejects before receipt verification. A
-shared generated Python/Rust vector fixes the expected canonical root; only the
-Python renderer has executed locally. This prevents replay-record resurrection
-within the disclosed global replay table. It does not authenticate target-only
-replay additions, prove private-lane nullifier continuity, or establish
-source-head finality. Target-only additions remain a release-blocking authority
-and availability obligation.
+Commit `0d29ea7286bd302cf3e2135a7fc7511d78ef5816` strengthens the bounded
+replay relation. Genesis requires an empty replay table. An isolated migration
+requires exact equality between the predecessor and target global replay
+tables, and the public continuity root commits both complete tables. Addition,
+deletion, replay-ID rewriting, occurrence-ID rewriting, noncanonical order and
+public-root substitution reject before receipt verification. A shared generated
+Python/Rust vector fixes the expected canonical root; only the Python renderer
+has executed locally. This excludes migration-time pre-consumption of a global
+replay identifier. It does not prove private-lane nullifier continuity,
+complete nonce continuity, or source-head finality. One bounded GPT-5.6 Sol max
+read-only review attempt returned no report, so independent review of this
+strengthening remains pending.
 
 Commit `1ea1303dd8509b34bf8278c54720fa9f458060fc` adds one bounded external-outbox
 relation. Genesis requires an empty outbox. Migration requires byte-equivalent
@@ -576,8 +577,9 @@ produced for this guest.
 
 The current manifest does not individually source-classify Oracle occurrences,
 replay rows, history, outbox rows, or objects hidden behind private lane roots.
-The replay-preservation relation permits target-only replay rows and does not
-establish their purpose or authorization.
+The replay-preservation relation now requires exact equality of predecessor and
+target global replay tables, excluding migration-time additions, deletions and
+rewrites. Private lane replay and nullifier state remains outside this result.
 It also does not establish total predecessor-source classification for a
 migration, the semantic truth of a migration label, the objective authority
 represented by a source-authorization root, selection from the governed
@@ -633,8 +635,8 @@ remains excluded from GlobalSettlementABI V1.
    retained-supply hyperdeflation, recovery, and terminal behavior.
 2. Add separate invariant-owner certificates for Oracle, history, terminal
    validity and payable-path completeness, and private lane-object continuity;
-   authenticate every target-only replay addition, complete private nullifier
-   continuity, prove outbox source authorization and delivery/acknowledgment
+   complete private nullifier continuity, prove outbox source authorization and
+   delivery/acknowledgment
    refinement, and complete predecessor-source migration classification.
    Select the genesis or migration release from committed profile state. Build
    and measure the predecessor-bound RISC0 guest, then generate and replay its
@@ -737,8 +739,8 @@ Any false or missing conjunct keeps the claim disabled.
   liquidation and trading losses.
 - No assertion that a passing test suite alone establishes formal safety.
 - No assertion that a proof system repairs an incorrect or incomplete guest.
-- No assertion that replay-row preservation authenticates target-only replay
-  additions or proves complete nonce and private-nullifier continuity.
+- No assertion that exact global replay-table preservation proves complete nonce
+  and private-nullifier continuity behind lane roots.
 - No assertion that outbox-table preservation proves authorized origin,
   external delivery, finality, acknowledgment authenticity or idempotency.
 - No assertion that terminal-table preservation proves obligation validity,

@@ -23,6 +23,14 @@ def _write_status(tmp_path: Path, value: dict[str, object]) -> Path:
     return path
 
 
+def _replay_slice(value: dict[str, object]) -> dict[str, object]:
+    return next(
+        row
+        for row in value["implemented_slices"]  # type: ignore[index]
+        if row["id"] == "ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1"
+    )
+
+
 def test_current_value_movement_closure_status_is_exact_and_fail_closed() -> None:
     report = check_value_movement_closure_status_v1()
 
@@ -39,6 +47,7 @@ def test_checker_rejects_authority_gate_and_semantic_promotion_drift(
     mutated["authority"]["production_authority"] = "GLOBAL_EPOCH"  # type: ignore[index]
     mutated["gate_status"] = mutated["gate_status"][:-1]  # type: ignore[index]
     mutated["semantic_anchors"]["buy_and_burn"] = "burn treasury ZDEX"  # type: ignore[index]
+    mutated["claim_contract"]["status"] = "PROVED"  # type: ignore[index]
 
     report = check_value_movement_closure_status_v1(
         status_path=_write_status(tmp_path, mutated)
@@ -48,6 +57,7 @@ def test_checker_rejects_authority_gate_and_semantic_promotion_drift(
     assert "authority or readiness nonclaim drift" in report["findings"]
     assert "VM gate IDs must be complete and ordered" in report["findings"]
     assert "buy-and-burn semantic anchor drift" in report["findings"]
+    assert "claim status drift" in report["findings"]
 
 
 def test_checker_rejects_stale_claim_hash_and_duplicate_json_key(tmp_path: Path) -> None:
@@ -67,6 +77,28 @@ def test_checker_rejects_stale_claim_hash_and_duplicate_json_key(tmp_path: Path)
     assert "claim contract hash mismatch" in stale_report["findings"]
     assert duplicate_report["ok"] is False
     assert "duplicate JSON key" in duplicate_report["findings"][0]
+
+
+def test_checker_rejects_stale_replay_slice_evidence(tmp_path: Path) -> None:
+    mutated = deepcopy(_status())
+    replay = _replay_slice(mutated)
+    replay["commit"] = "0" * 40
+    replay["python_sha256"] = "0" * 64
+    replay["golden_continuity_root"] = "0x" + "0" * 64
+
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    assert report["ok"] is False
+    assert "replay slice subject commit mismatch" in report["findings"]
+    assert (
+        "replay slice artifact hash mismatch: python_sha256" in report["findings"]
+    )
+    assert (
+        "replay slice golden evidence mismatch: golden_continuity_root"
+        in report["findings"]
+    )
 
 
 def test_checker_kills_fixed_floor_and_treasury_burn_semantic_mutants() -> None:
