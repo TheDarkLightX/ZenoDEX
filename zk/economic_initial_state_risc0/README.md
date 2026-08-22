@@ -46,9 +46,16 @@ PRODUCTION_AUTHORITY = NONE
 WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY = UNPROVED
 ```
 
-This guest covers the explicit global-state rows currently enumerated by the
-initial-state ABI: balances, supplies, accounting-control-domain rows,
-liabilities, reserves, and terminal obligations. It does not prove private lane
-root contents, predecessor migration totality, source authorization legitimacy,
-Oracle history, replay history, ledger history, outbox delivery, mounted writer
-exclusivity, or whole-economy value-movement safety.
+This guest covers the explicit target global-state rows currently enumerated by
+the initial-state ABI: balances, supplies, accounting-control-domain rows,
+liabilities, reserves, and terminal obligations. A migration input must also
+disclose the full predecessor `GlobalEconomicStateV1`; the guest recomputes its
+state root and binds its chain, deployment, profile, writer epoch and height to
+the public journal. This is a predecessor-content commitment.
+
+The guest does not prove that the disclosed predecessor is the finalized ledger
+head. It also does not prove private lane-root contents, predecessor migration
+classification totality, source authorization legitimacy, Oracle continuity,
+replay continuity, ledger-history continuity, terminal-obligation continuity,
+outbox continuity or delivery, mounted writer exclusivity, or whole-economy
+value-movement safety.

@@ -11,6 +11,7 @@ from .economic_initial_state_atom_coverage_v1 import (
     snapshot_economic_initial_state_source_manifest_v1,
     validate_economic_initial_state_atom_coverage_profile_binding_v1,
     validate_economic_initial_state_atom_coverage_v1,
+    validate_economic_initial_state_explicit_row_count_v1,
 )
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import ReceiptKindV1, SuccinctReceiptVerifierV1
@@ -198,6 +199,7 @@ class EconomicInitialStateAdmissionV1:
     profile: EconomicProfileSnapshotV1
     policy_registry: EconomicPolicyRegistryV1
     state: GlobalEconomicStateV1
+    predecessor_state: GlobalEconomicStateV1 | None
     source_manifest: EconomicInitialStateSourceManifestV1
     certificate: EconomicInitialStateCertificateV1
     receipt_bytes: bytes
@@ -209,10 +211,19 @@ class EconomicInitialStateAdmissionV1:
             raise TypeError("initial state admission policy registry type is not closed")
         if type(self.state) is not GlobalEconomicStateV1:
             raise TypeError("initial state admission state type is not closed")
+        if self.predecessor_state is not None and type(
+            self.predecessor_state
+        ) is not GlobalEconomicStateV1:
+            raise TypeError("initial state admission predecessor state type is not closed")
         if type(self.source_manifest) is not EconomicInitialStateSourceManifestV1:
             raise TypeError("initial state admission source manifest type is not closed")
         if type(self.certificate) is not EconomicInitialStateCertificateV1:
             raise TypeError("initial state admission certificate type is not closed")
+        if self.certificate.kind is EconomicInitialStateKindV1.GENESIS:
+            if self.predecessor_state is not None:
+                raise ValueError("genesis initial state must not include a predecessor state")
+        elif self.predecessor_state is None:
+            raise ValueError("migration initial state requires a predecessor state")
         if type(self.receipt_bytes) is not bytes or not self.receipt_bytes:
             raise TypeError("initial state admission receipt must be nonempty exact bytes")
 
@@ -224,22 +235,94 @@ class _VerifiedEconomicInitialStateV1:
     certificate_root: str
 
 
-def _verify_economic_initial_state_for_publisher_v1(
-    admission: EconomicInitialStateAdmissionV1,
-    receipt_verifier: SuccinctReceiptVerifierV1,
-) -> _VerifiedEconomicInitialStateV1:
-    """Verify and own the initial state before constructing a publisher."""
+@dataclass(frozen=True, slots=True)
+class _OwnedEconomicInitialStateAdmissionV1:
+    profile: EconomicProfileSnapshotV1
+    policy_registry: EconomicPolicyRegistryV1
+    state: GlobalEconomicStateV1
+    predecessor_state: GlobalEconomicStateV1 | None
+    source_manifest: EconomicInitialStateSourceManifestV1
+    certificate: EconomicInitialStateCertificateV1
+    receipt_bytes: bytes
 
+
+def _snapshot_economic_initial_state_admission_v1(
+    admission: EconomicInitialStateAdmissionV1,
+) -> _OwnedEconomicInitialStateAdmissionV1:
     if type(admission) is not EconomicInitialStateAdmissionV1:
         raise TypeError("commit port initial admission type is not closed")
-    profile = snapshot_economic_profile_v1(admission.profile)
-    policy_registry = snapshot_economic_policy_registry_v1(admission.policy_registry)
-    state = _snapshot_state_v1(admission.state)
-    source_manifest = snapshot_economic_initial_state_source_manifest_v1(
-        admission.source_manifest
+    validate_economic_initial_state_explicit_row_count_v1(admission.state)
+    if admission.predecessor_state is not None:
+        validate_economic_initial_state_explicit_row_count_v1(
+            admission.predecessor_state
+        )
+    return _OwnedEconomicInitialStateAdmissionV1(
+        profile=snapshot_economic_profile_v1(admission.profile),
+        policy_registry=snapshot_economic_policy_registry_v1(
+            admission.policy_registry
+        ),
+        state=_snapshot_state_v1(admission.state),
+        predecessor_state=(
+            None
+            if admission.predecessor_state is None
+            else _snapshot_state_v1(admission.predecessor_state)
+        ),
+        source_manifest=snapshot_economic_initial_state_source_manifest_v1(
+            admission.source_manifest
+        ),
+        certificate=replace(admission.certificate),
+        receipt_bytes=admission.receipt_bytes,
     )
-    certificate = replace(admission.certificate)
-    receipt_bytes = admission.receipt_bytes
+
+
+def _validate_economic_initial_state_predecessor_binding_v1(
+    target_state: GlobalEconomicStateV1,
+    predecessor_state: GlobalEconomicStateV1 | None,
+    certificate: EconomicInitialStateCertificateV1,
+) -> None:
+    if certificate.kind is EconomicInitialStateKindV1.GENESIS:
+        if predecessor_state is not None:
+            raise ValueError("genesis initial state must not include a predecessor state")
+        return
+    if predecessor_state is None:
+        raise ValueError("migration initial state requires a predecessor state")
+    bindings = (
+        (predecessor_state.chain_id, target_state.chain_id, "chain id"),
+        (
+            predecessor_state.deployment_root,
+            target_state.deployment_root,
+            "deployment root",
+        ),
+        (
+            predecessor_state.profile_root,
+            certificate.source_profile_root,
+            "profile root",
+        ),
+        (
+            predecessor_state.state_root,
+            certificate.source_state_root,
+            "state root",
+        ),
+        (
+            predecessor_state.writer_epoch,
+            certificate.source_writer_epoch,
+            "writer epoch",
+        ),
+        (predecessor_state.height, certificate.source_height, "height"),
+    )
+    for actual, expected, label in bindings:
+        if actual != expected:
+            raise ValueError(f"initial state predecessor {label} mismatch")
+
+
+def _validate_owned_economic_initial_state_admission_v1(
+    owned: _OwnedEconomicInitialStateAdmissionV1,
+) -> bytes:
+    profile = owned.profile
+    policy_registry = owned.policy_registry
+    state = owned.state
+    source_manifest = owned.source_manifest
+    certificate = owned.certificate
     if profile.status is not ProfileStatusV1.ACTIVE:
         raise ValueError("initial state admission requires an ACTIVE profile")
     validate_m6_capability_profile_binding_v1(profile, policy_registry)
@@ -250,6 +333,11 @@ def _verify_economic_initial_state_for_publisher_v1(
         source_manifest,
     )
     validate_global_state_profile_v1(state, profile)
+    _validate_economic_initial_state_predecessor_binding_v1(
+        state,
+        owned.predecessor_state,
+        certificate,
+    )
     if certificate.kind is not source_manifest.kind:
         raise ValueError("initial state certificate and source manifest kind mismatch")
     coverage_root = validate_economic_initial_state_atom_coverage_v1(
@@ -275,18 +363,29 @@ def _verify_economic_initial_state_for_publisher_v1(
     journal_bytes = certificate.canonical_journal_bytes
     if certificate.journal_bytes != len(journal_bytes):
         raise ValueError("initial state canonical journal byte count mismatch")
-    receipt_digest = "0x" + hashlib.sha256(receipt_bytes).hexdigest()
+    receipt_digest = "0x" + hashlib.sha256(owned.receipt_bytes).hexdigest()
     if certificate.receipt_root != receipt_digest:
         raise ValueError("initial state receipt root mismatch")
+    return journal_bytes
+
+
+def _verify_economic_initial_state_for_publisher_v1(
+    admission: EconomicInitialStateAdmissionV1,
+    receipt_verifier: SuccinctReceiptVerifierV1,
+) -> _VerifiedEconomicInitialStateV1:
+    """Verify and own the initial state before constructing a publisher."""
+
+    owned = _snapshot_economic_initial_state_admission_v1(admission)
+    journal_bytes = _validate_owned_economic_initial_state_admission_v1(owned)
     receipt_verifier.verify_succinct_receipt(
-        receipt_bytes,
-        expected_image_id=profile.root_image_id,
+        owned.receipt_bytes,
+        expected_image_id=owned.profile.root_image_id,
         expected_journal_bytes=journal_bytes,
     )
     return _VerifiedEconomicInitialStateV1(
-        profile=snapshot_economic_profile_v1(profile),
-        state=_snapshot_state_v1(state),
-        certificate_root=certificate.certificate_root,
+        profile=snapshot_economic_profile_v1(owned.profile),
+        state=_snapshot_state_v1(owned.state),
+        certificate_root=owned.certificate.certificate_root,
     )
 
 

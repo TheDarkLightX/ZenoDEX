@@ -1,9 +1,11 @@
 //! Canonical input and exact target-row coverage for initial-state proving.
 //!
 //! This guest contract proves only the supplied public statement over the
-//! explicit global-state tables. Private lane-root contents, predecessor-source
-//! migration totality, and source-authorization legitimacy remain external
-//! obligations.
+//! explicit global-state tables. Migration inputs also disclose the exact
+//! predecessor state whose root and coordinates are committed by the public
+//! journal. Private lane-root contents, predecessor-source classification
+//! totality, continuity relations, and source-authorization legitimacy remain
+//! external obligations.
 
 use core::fmt;
 
@@ -27,6 +29,7 @@ pub struct EconomicInitialStateGuestInputV1 {
     pub profile: EconomicProfileSnapshotV1,
     pub policy_registry: EconomicPolicyRegistryV1,
     pub state: GlobalEconomicStateV1,
+    pub predecessor_state: Option<GlobalEconomicStateV1>,
     pub source_manifest: EconomicInitialStateSourceManifestV1,
     pub statement: EconomicInitialStateJournalV1,
 }
@@ -38,6 +41,10 @@ impl EconomicInitialStateGuestInputV1 {
         }
         validate_economic_initial_state_explicit_row_count_v1(&self.state)
             .map_err(|_| EconomicInitialStateGuestErrorV1::ExplicitRowCount)?;
+        if let Some(predecessor) = &self.predecessor_state {
+            validate_economic_initial_state_explicit_row_count_v1(predecessor)
+                .map_err(|_| EconomicInitialStateGuestErrorV1::ExplicitRowCount)?;
+        }
         self.profile
             .validate()
             .map_err(|_| EconomicInitialStateGuestErrorV1::Abi)?;
@@ -47,6 +54,11 @@ impl EconomicInitialStateGuestInputV1 {
         self.state
             .validate()
             .map_err(|_| EconomicInitialStateGuestErrorV1::Abi)?;
+        if let Some(predecessor) = &self.predecessor_state {
+            predecessor
+                .validate()
+                .map_err(|_| EconomicInitialStateGuestErrorV1::Abi)?;
+        }
         self.source_manifest
             .validate()
             .map_err(|_| EconomicInitialStateGuestErrorV1::Abi)?;
@@ -150,6 +162,7 @@ pub fn prepare_economic_initial_state_v1(
         &input.profile,
         &input.policy_registry,
         &input.state,
+        input.predecessor_state.as_ref(),
         &input.source_manifest,
         &input.statement,
     )

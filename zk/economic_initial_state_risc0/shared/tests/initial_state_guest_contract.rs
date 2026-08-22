@@ -101,6 +101,10 @@ fn fixture() -> EconomicInitialStateGuestInputV1 {
         &profile_content,
     )
     .unwrap();
+    let mut predecessor_state = state.clone();
+    predecessor_state.profile_root = root(2_001);
+    predecessor_state.writer_epoch = state.writer_epoch.checked_sub(1).unwrap();
+    predecessor_state.height = state.height.checked_sub(1).unwrap();
     state.profile_root = profile.profile_id.clone();
     let statement = EconomicInitialStateJournalV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
@@ -112,9 +116,9 @@ fn fixture() -> EconomicInitialStateGuestInputV1 {
         height: state.height,
         state_root: state.state_root().unwrap(),
         source_profile_root: root(2_001),
-        source_state_root: root(2_002),
-        source_writer_epoch: state.writer_epoch - 1,
-        source_height: state.height - 1,
+        source_state_root: predecessor_state.state_root().unwrap(),
+        source_writer_epoch: predecessor_state.writer_epoch,
+        source_height: predecessor_state.height,
         state_atom_coverage_root: source_manifest.manifest_root().unwrap(),
         lane_object_coverage_root: root(2_003),
         replay_continuity_root: root(2_004),
@@ -129,6 +133,7 @@ fn fixture() -> EconomicInitialStateGuestInputV1 {
         profile,
         policy_registry,
         state,
+        predecessor_state: Some(predecessor_state),
         source_manifest,
         statement,
     }
@@ -168,6 +173,31 @@ fn state_or_source_substitution_rejects_before_any_receipt_exists() {
 }
 
 #[test]
+fn predecessor_substitution_or_absence_rejects_before_any_receipt_exists() {
+    // Arrange
+    let input = fixture();
+    let mut changed_predecessor = input.clone();
+    changed_predecessor
+        .predecessor_state
+        .as_mut()
+        .unwrap()
+        .balances[0]
+        .amount_atoms += 1;
+    let mut missing_predecessor = input;
+    missing_predecessor.predecessor_state = None;
+
+    // Act / Assert
+    assert!(matches!(
+        prepare_economic_initial_state_v1(changed_predecessor),
+        Err(EconomicInitialStateGuestErrorV1::StatementBinding)
+    ));
+    assert!(matches!(
+        prepare_economic_initial_state_v1(missing_predecessor),
+        Err(EconomicInitialStateGuestErrorV1::StatementBinding)
+    ));
+}
+
+#[test]
 fn noncanonical_wire_bytes_reject_before_statement_execution() {
     // Arrange
     let input = fixture();
@@ -195,6 +225,29 @@ fn guest_rejects_4097_rows_before_validating_the_hostile_first_row() {
         .collect();
     input.state.balances[0].owner = "invalid unicode ☃".to_owned();
     input.state.supplies.clear();
+
+    // Act / Assert
+    assert!(matches!(
+        prepare_economic_initial_state_v1(input),
+        Err(EconomicInitialStateGuestErrorV1::ExplicitRowCount)
+    ));
+}
+
+#[test]
+fn guest_rejects_4097_predecessor_rows_before_validating_the_hostile_first_row() {
+    // Arrange
+    let mut input = fixture();
+    let predecessor = input.predecessor_state.as_mut().unwrap();
+    predecessor.balances = (0..4_097)
+        .map(|index| EconomicAmountV1 {
+            owner: format!("owner-{index:04}"),
+            asset: "ZDEX".to_owned(),
+            custody_domain: "accounts".to_owned(),
+            amount_atoms: u128::try_from(index).unwrap(),
+        })
+        .collect();
+    predecessor.balances[0].owner = "invalid unicode ☃".to_owned();
+    predecessor.supplies.clear();
 
     // Act / Assert
     assert!(matches!(

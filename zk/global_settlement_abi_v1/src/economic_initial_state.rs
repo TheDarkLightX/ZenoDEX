@@ -202,10 +202,14 @@ pub fn validate_economic_initial_state_statement_bindings_v1(
     profile: &EconomicProfileSnapshotV1,
     policy_registry: &EconomicPolicyRegistryV1,
     state: &GlobalEconomicStateV1,
+    predecessor_state: Option<&GlobalEconomicStateV1>,
     source_manifest: &EconomicInitialStateSourceManifestV1,
     statement: &EconomicInitialStateJournalV1,
 ) -> AbiResultV1<()> {
     validate_economic_initial_state_explicit_row_count_v1(state)?;
+    if let Some(predecessor) = predecessor_state {
+        validate_economic_initial_state_explicit_row_count_v1(predecessor)?;
+    }
     profile.validate()?;
     if profile.status != ProfileStatusV1::ACTIVE {
         return Err(AbiErrorV1::InvalidBinding(
@@ -220,7 +224,7 @@ pub fn validate_economic_initial_state_statement_bindings_v1(
         source_manifest,
     )?;
     state.validate_profile(profile)?;
-    statement.validate()?;
+    validate_economic_initial_state_predecessor_binding_v1(state, predecessor_state, statement)?;
     if statement.kind != source_manifest.kind {
         return Err(AbiErrorV1::InvalidBinding(
             "initial state statement source manifest kind",
@@ -249,10 +253,43 @@ pub fn validate_economic_initial_state_statement_bindings_v1(
     Ok(())
 }
 
+fn validate_economic_initial_state_predecessor_binding_v1(
+    target_state: &GlobalEconomicStateV1,
+    predecessor_state: Option<&GlobalEconomicStateV1>,
+    statement: &EconomicInitialStateJournalV1,
+) -> AbiResultV1<()> {
+    statement.validate()?;
+    match (statement.kind, predecessor_state) {
+        (EconomicInitialStateKindV1::GENESIS, None) => Ok(()),
+        (EconomicInitialStateKindV1::GENESIS, Some(_)) => Err(AbiErrorV1::InvalidBinding(
+            "genesis initial state predecessor",
+        )),
+        (EconomicInitialStateKindV1::MIGRATION, None) => Err(AbiErrorV1::InvalidBinding(
+            "migration initial state predecessor",
+        )),
+        (EconomicInitialStateKindV1::MIGRATION, Some(predecessor)) => {
+            let predecessor_root = predecessor.state_root()?;
+            if predecessor.chain_id != target_state.chain_id
+                || predecessor.deployment_root != target_state.deployment_root
+                || predecessor.profile_root != statement.source_profile_root
+                || predecessor_root != statement.source_state_root
+                || predecessor.writer_epoch != statement.source_writer_epoch
+                || predecessor.height != statement.source_height
+            {
+                return Err(AbiErrorV1::InvalidBinding(
+                    "economic initial state predecessor content",
+                ));
+            }
+            Ok(())
+        }
+    }
+}
+
 pub fn validate_economic_initial_state_bindings_v1(
     profile: &EconomicProfileSnapshotV1,
     policy_registry: &EconomicPolicyRegistryV1,
     state: &GlobalEconomicStateV1,
+    predecessor_state: Option<&GlobalEconomicStateV1>,
     source_manifest: &EconomicInitialStateSourceManifestV1,
     certificate: &EconomicInitialStateCertificateV1,
     receipt_bytes: &[u8],
@@ -263,6 +300,7 @@ pub fn validate_economic_initial_state_bindings_v1(
         profile,
         policy_registry,
         state,
+        predecessor_state,
         source_manifest,
         &statement,
     )?;

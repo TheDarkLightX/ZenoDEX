@@ -497,6 +497,7 @@ def _initial_state_admission(
     source_state_root: str = ZERO_ROOT_V1,
     source_writer_epoch: int = 0,
     source_height: int = 0,
+    predecessor_state: GlobalEconomicStateV1 | None = None,
 ) -> EconomicInitialStateAdmissionV1:
     source_manifest = source_manifest or _source_manifest_for_state_v1(kind, state)
     receipt_root = "0x" + hashlib.sha256(receipt_bytes).hexdigest()
@@ -536,6 +537,7 @@ def _initial_state_admission(
             source_manifest,
         ),
         state=state,
+        predecessor_state=predecessor_state,
         source_manifest=source_manifest,
         certificate=certificate,
         receipt_bytes=receipt_bytes,
@@ -2999,6 +3001,7 @@ def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> 
         source_state_root=source_state.state_root,
         source_writer_epoch=source_profile.authority_epoch,
         source_height=source_state.height,
+        predecessor_state=source_state,
     )
     migration_certificate = admission.certificate
 
@@ -3012,6 +3015,104 @@ def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> 
         )
     with pytest.raises(ValueError, match="one transition height"):
         replace(migration_certificate, source_height=migrated_state.height)
+
+
+def test_migration_initial_state_rejects_predecessor_substitution_before_receipt() -> None:
+    # Arrange
+    source_profile, _ = _profile()
+    source_state = _state(source_profile, height=0)
+    provisional_target = _state(source_profile, height=1)
+    source_manifest = _source_manifest_for_state_v1(
+        EconomicInitialStateKindV1.MIGRATION,
+        provisional_target,
+    )
+    target_profile, _ = _profile(
+        source_manifest=source_manifest,
+        authority_epoch=source_profile.authority_epoch + 1,
+    )
+    migrated_state = _state(target_profile, height=1)
+    admission = _initial_state_admission(
+        target_profile,
+        migrated_state,
+        kind=EconomicInitialStateKindV1.MIGRATION,
+        source_manifest=source_manifest,
+        source_profile_root=source_profile.profile_id,
+        source_state_root=source_state.state_root,
+        source_writer_epoch=source_state.writer_epoch,
+        source_height=source_state.height,
+        predecessor_state=source_state,
+    )
+    substituted_balance = replace(
+        source_state.balances[0],
+        amount_atoms=source_state.balances[0].amount_atoms + 1,
+    )
+    substituted_state = replace(
+        source_state,
+        balances=(substituted_balance, *source_state.balances[1:]),
+    )
+    verifier = _RecordingReceiptVerifier()
+
+    # Act / Assert: the committed source root must be recomputed from the witness.
+    with pytest.raises(ValueError, match="predecessor state root mismatch"):
+        GlobalEconomicCommitPortV1(
+            replace(admission, predecessor_state=substituted_state),
+            verifier,
+        )
+    with pytest.raises(ValueError, match="requires a predecessor state"):
+        replace(admission, predecessor_state=None)
+
+    coordinate_substitutions = (
+        ("chain id", replace(source_state, chain_id="other-chain")),
+        ("deployment root", replace(source_state, deployment_root=_root(88_201))),
+        ("profile root", replace(source_state, profile_root=_root(88_202))),
+        ("writer epoch", replace(source_state, writer_epoch=source_state.writer_epoch + 1)),
+        ("height", replace(source_state, height=source_state.height + 1)),
+    )
+    for label, substituted_coordinate_state in coordinate_substitutions:
+        rebound_certificate = replace(
+            admission.certificate,
+            source_state_root=substituted_coordinate_state.state_root,
+        )
+        with pytest.raises(ValueError, match=rf"predecessor {label} mismatch"):
+            GlobalEconomicCommitPortV1(
+                replace(
+                    admission,
+                    predecessor_state=substituted_coordinate_state,
+                    certificate=rebound_certificate,
+                ),
+                verifier,
+            )
+
+    genesis_profile, _ = _profile()
+    genesis_state = _state(genesis_profile, height=0)
+    genesis_admission = _initial_state_admission(genesis_profile, genesis_state)
+    with pytest.raises(ValueError, match="must not include a predecessor state"):
+        replace(genesis_admission, predecessor_state=source_state)
+
+    oversized_predecessor = replace(
+        source_state,
+        balances=tuple(
+            EconomicAmountV1(
+                f"owner-{index:04}",
+                "ZDEX",
+                "accounts",
+                index,
+            )
+            for index in range(4_097)
+        ),
+        supplies=(),
+    )
+    object.__setattr__(
+        oversized_predecessor.balances[0],
+        "owner",
+        "invalid unicode ☃",
+    )
+    with pytest.raises(ValueError, match="explicit value rows exceed the coverage bound"):
+        GlobalEconomicCommitPortV1(
+            replace(admission, predecessor_state=oversized_predecessor),
+            verifier,
+        )
+    assert verifier.calls == []
 
 
 def test_commit_port_owns_and_revalidates_active_profile_graph() -> None:

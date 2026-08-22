@@ -6,7 +6,7 @@ use zenodex_global_settlement_abi_v1::{
     derive_economic_initial_state_atom_occurrences_v1,
     economic_initial_state_atom_coverage_policy_binding_v1, hash_bytes_sha256_v1, hash_global_v1,
     validate_economic_initial_state_bindings_v1,
-    validate_economic_initial_state_statement_bindings_v1,
+    validate_economic_initial_state_statement_bindings_v1, AbiErrorV1, EconomicAmountV1,
     EconomicInitialStateAtomClassificationV1, EconomicInitialStateAtomSourceV1,
     EconomicInitialStateCertificateV1, EconomicInitialStateKindV1,
     EconomicInitialStateSourceManifestV1, EconomicPolicyBindingV1, EconomicPolicyRegistryV1,
@@ -124,6 +124,7 @@ fn profile_and_state(
 fn migration_certificate(
     profile: &EconomicProfileSnapshotV1,
     state: &GlobalEconomicStateV1,
+    predecessor_state: &GlobalEconomicStateV1,
     source_manifest: &EconomicInitialStateSourceManifestV1,
     receipt_bytes: &[u8],
 ) -> EconomicInitialStateCertificateV1 {
@@ -136,10 +137,10 @@ fn migration_certificate(
         writer_epoch: state.writer_epoch,
         height: state.height,
         state_root: state.state_root().unwrap(),
-        source_profile_root: root(30),
-        source_state_root: root(31),
-        source_writer_epoch: state.writer_epoch - 1,
-        source_height: state.height - 1,
+        source_profile_root: predecessor_state.profile_root.clone(),
+        source_state_root: predecessor_state.state_root().unwrap(),
+        source_writer_epoch: predecessor_state.writer_epoch,
+        source_height: predecessor_state.height,
         state_atom_coverage_root: source_manifest.manifest_root().unwrap(),
         lane_object_coverage_root: root(33),
         replay_continuity_root: root(34),
@@ -161,6 +162,14 @@ fn migration_certificate(
     certificate.journal_bytes =
         u64::try_from(certificate.canonical_journal_bytes().unwrap().len()).unwrap();
     certificate
+}
+
+fn migration_predecessor(state: &GlobalEconomicStateV1) -> GlobalEconomicStateV1 {
+    let mut predecessor = state.clone();
+    predecessor.profile_root = root(30);
+    predecessor.writer_epoch = state.writer_epoch.checked_sub(1).unwrap();
+    predecessor.height = state.height.checked_sub(1).unwrap();
+    predecessor
 }
 
 fn genesis_certificate() -> EconomicInitialStateCertificateV1 {
@@ -227,16 +236,65 @@ fn genesis_certificate_matches_python_golden_roots() {
 }
 
 #[test]
+fn genesis_predecessor_binding_requires_absence() {
+    // Arrange
+    let (profile, policy_registry, mut state, source_manifest) =
+        profile_and_state(EconomicInitialStateKindV1::GENESIS);
+    state.height = 0;
+    let mut certificate = genesis_certificate();
+    certificate.chain_id = state.chain_id.clone();
+    certificate.deployment_root = state.deployment_root.clone();
+    certificate.profile_root = profile.profile_id.clone();
+    certificate.writer_epoch = state.writer_epoch;
+    certificate.state_root = state.state_root().unwrap();
+    certificate.state_atom_coverage_root = source_manifest.manifest_root().unwrap();
+    certificate.root_image_id = profile.root_image_id.clone();
+    let statement = certificate.journal();
+
+    // Act / Assert
+    validate_economic_initial_state_statement_bindings_v1(
+        &profile,
+        &policy_registry,
+        &state,
+        None,
+        &source_manifest,
+        &statement,
+    )
+    .unwrap();
+    assert_eq!(
+        validate_economic_initial_state_statement_bindings_v1(
+            &profile,
+            &policy_registry,
+            &state,
+            Some(&state),
+            &source_manifest,
+            &statement,
+        ),
+        Err(AbiErrorV1::InvalidBinding(
+            "genesis initial state predecessor"
+        ))
+    );
+}
+
+#[test]
 fn migration_certificate_binds_profile_state_lineage_and_receipt() {
     let (profile, policy_registry, state, source_manifest) =
         profile_and_state(EconomicInitialStateKindV1::MIGRATION);
+    let predecessor_state = migration_predecessor(&state);
     let receipt_bytes = b"economic-initial-state-receipt";
-    let certificate = migration_certificate(&profile, &state, &source_manifest, receipt_bytes);
+    let certificate = migration_certificate(
+        &profile,
+        &state,
+        &predecessor_state,
+        &source_manifest,
+        receipt_bytes,
+    );
 
     validate_economic_initial_state_bindings_v1(
         &profile,
         &policy_registry,
         &state,
+        Some(&predecessor_state),
         &source_manifest,
         &certificate,
         receipt_bytes,
@@ -250,9 +308,11 @@ fn initialization_statement_binds_exact_profile_state_and_manifest_without_recei
     // Arrange
     let (profile, policy_registry, state, source_manifest) =
         profile_and_state(EconomicInitialStateKindV1::MIGRATION);
+    let predecessor_state = migration_predecessor(&state);
     let certificate = migration_certificate(
         &profile,
         &state,
+        &predecessor_state,
         &source_manifest,
         b"statement-seam-receipt",
     );
@@ -263,6 +323,7 @@ fn initialization_statement_binds_exact_profile_state_and_manifest_without_recei
         &profile,
         &policy_registry,
         &state,
+        Some(&predecessor_state),
         &source_manifest,
         &statement,
     );
@@ -275,6 +336,7 @@ fn initialization_statement_binds_exact_profile_state_and_manifest_without_recei
         &profile,
         &policy_registry,
         &state,
+        Some(&predecessor_state),
         &source_manifest,
         &changed_statement,
     )
@@ -282,11 +344,152 @@ fn initialization_statement_binds_exact_profile_state_and_manifest_without_recei
 }
 
 #[test]
+fn migration_statement_rejects_missing_or_substituted_predecessor_state() {
+    // Arrange
+    let (profile, policy_registry, state, source_manifest) =
+        profile_and_state(EconomicInitialStateKindV1::MIGRATION);
+    let predecessor_state = migration_predecessor(&state);
+    let statement = migration_certificate(
+        &profile,
+        &state,
+        &predecessor_state,
+        &source_manifest,
+        b"predecessor-binding-receipt",
+    )
+    .journal();
+
+    // Act / Assert: removing the witness or changing covered content rejects.
+    assert_eq!(
+        validate_economic_initial_state_statement_bindings_v1(
+            &profile,
+            &policy_registry,
+            &state,
+            None,
+            &source_manifest,
+            &statement,
+        ),
+        Err(AbiErrorV1::InvalidBinding(
+            "migration initial state predecessor"
+        ))
+    );
+    let mut changed_balance = predecessor_state.clone();
+    changed_balance.balances[0].amount_atoms += 1;
+    assert_eq!(
+        validate_economic_initial_state_statement_bindings_v1(
+            &profile,
+            &policy_registry,
+            &state,
+            Some(&changed_balance),
+            &source_manifest,
+            &statement,
+        ),
+        Err(AbiErrorV1::InvalidBinding(
+            "economic initial state predecessor content"
+        ))
+    );
+
+    // Rebind the root while leaving each independently committed coordinate stale.
+    let substitutions = [
+        {
+            let mut value = predecessor_state.clone();
+            value.chain_id = "other-chain".to_owned();
+            value
+        },
+        {
+            let mut value = predecessor_state.clone();
+            value.deployment_root = root(8_201);
+            value
+        },
+        {
+            let mut value = predecessor_state.clone();
+            value.profile_root = root(8_202);
+            value
+        },
+        {
+            let mut value = predecessor_state.clone();
+            value.writer_epoch += 1;
+            value
+        },
+        {
+            let mut value = predecessor_state.clone();
+            value.height += 1;
+            value
+        },
+    ];
+    for substituted in substitutions {
+        let mut rebound_statement = statement.clone();
+        rebound_statement.source_state_root = substituted.state_root().unwrap();
+        assert_eq!(
+            validate_economic_initial_state_statement_bindings_v1(
+                &profile,
+                &policy_registry,
+                &state,
+                Some(&substituted),
+                &source_manifest,
+                &rebound_statement,
+            ),
+            Err(AbiErrorV1::InvalidBinding(
+                "economic initial state predecessor content"
+            ))
+        );
+    }
+}
+
+#[test]
+fn migration_statement_rejects_4097_predecessor_rows_before_row_validation() {
+    // Arrange
+    let (profile, policy_registry, state, source_manifest) =
+        profile_and_state(EconomicInitialStateKindV1::MIGRATION);
+    let predecessor_state = migration_predecessor(&state);
+    let statement = migration_certificate(
+        &profile,
+        &state,
+        &predecessor_state,
+        &source_manifest,
+        b"predecessor-row-bound-receipt",
+    )
+    .journal();
+    let mut oversized_predecessor = predecessor_state;
+    oversized_predecessor.balances = (0..4_097)
+        .map(|index| EconomicAmountV1 {
+            owner: format!("owner-{index:04}"),
+            asset: "ZDEX".to_owned(),
+            custody_domain: "accounts".to_owned(),
+            amount_atoms: u128::try_from(index).unwrap(),
+        })
+        .collect();
+    oversized_predecessor.balances[0].owner = "invalid unicode ☃".to_owned();
+    oversized_predecessor.supplies.clear();
+
+    // Act / Assert: the direct ABI guard runs before row validation or hashing.
+    assert_eq!(
+        validate_economic_initial_state_statement_bindings_v1(
+            &profile,
+            &policy_registry,
+            &state,
+            Some(&oversized_predecessor),
+            &source_manifest,
+            &statement,
+        ),
+        Err(AbiErrorV1::InvalidBounds(
+            "initial state explicit value rows"
+        ))
+    );
+}
+
+#[test]
 fn migration_certificate_rejects_skipped_lineage_and_crossed_state() {
     let (profile, policy_registry, state, source_manifest) =
         profile_and_state(EconomicInitialStateKindV1::MIGRATION);
+    let predecessor_state = migration_predecessor(&state);
     let receipt_bytes = b"economic-initial-state-receipt";
-    let certificate = migration_certificate(&profile, &state, &source_manifest, receipt_bytes);
+    let certificate = migration_certificate(
+        &profile,
+        &state,
+        &predecessor_state,
+        &source_manifest,
+        receipt_bytes,
+    );
 
     let mut skipped = certificate.clone();
     skipped.source_writer_epoch -= 1;
@@ -298,6 +501,7 @@ fn migration_certificate_rejects_skipped_lineage_and_crossed_state() {
         &profile,
         &policy_registry,
         &state,
+        Some(&predecessor_state),
         &source_manifest,
         &crossed,
         receipt_bytes,
@@ -310,14 +514,26 @@ fn migration_certificate_rejects_skipped_lineage_and_crossed_state() {
         &profile,
         &policy_registry,
         &state,
+        Some(&predecessor_state),
         &substituted_manifest,
-        &migration_certificate(&profile, &state, &substituted_manifest, receipt_bytes),
+        &migration_certificate(
+            &profile,
+            &state,
+            &predecessor_state,
+            &substituted_manifest,
+            receipt_bytes,
+        ),
         receipt_bytes,
     )
     .is_err());
 
-    let mut wrong_coverage_root =
-        migration_certificate(&profile, &state, &source_manifest, receipt_bytes);
+    let mut wrong_coverage_root = migration_certificate(
+        &profile,
+        &state,
+        &predecessor_state,
+        &source_manifest,
+        receipt_bytes,
+    );
     wrong_coverage_root.state_atom_coverage_root = root(97);
     wrong_coverage_root.journal_bytes =
         u64::try_from(wrong_coverage_root.canonical_journal_bytes().unwrap().len()).unwrap();
@@ -325,6 +541,7 @@ fn migration_certificate_rejects_skipped_lineage_and_crossed_state() {
         &profile,
         &policy_registry,
         &state,
+        Some(&predecessor_state),
         &source_manifest,
         &wrong_coverage_root,
         receipt_bytes,
@@ -337,8 +554,15 @@ fn migration_certificate_rejects_skipped_lineage_and_crossed_state() {
         &inactive,
         &policy_registry,
         &state,
+        Some(&predecessor_state),
         &source_manifest,
-        &migration_certificate(&inactive, &state, &source_manifest, receipt_bytes),
+        &migration_certificate(
+            &inactive,
+            &state,
+            &predecessor_state,
+            &source_manifest,
+            receipt_bytes,
+        ),
         receipt_bytes,
     )
     .is_err());

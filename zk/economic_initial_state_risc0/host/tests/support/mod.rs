@@ -146,13 +146,21 @@ pub fn guest_input(root_image_id: RootV1) -> EconomicInitialStateGuestInputV1 {
     let source_manifest = source_manifest(&state);
     let policy_registry = policy_registry(&source_manifest);
     bind_profile(&mut profile, &policy_registry, root_image_id);
+    let mut predecessor_state = state.clone();
+    predecessor_state.profile_root = root(2_001);
+    predecessor_state.writer_epoch = state.writer_epoch.checked_sub(1).unwrap();
+    predecessor_state.height = state.height.checked_sub(1).unwrap();
     state.profile_root = profile.profile_id.clone();
-    let statement = statement(&profile, &state, &source_manifest);
+    let mut statement = statement(&profile, &state, &source_manifest);
+    statement.source_state_root = predecessor_state.state_root().unwrap();
+    statement.source_writer_epoch = predecessor_state.writer_epoch;
+    statement.source_height = predecessor_state.height;
     EconomicInitialStateGuestInputV1 {
         schema: ECONOMIC_INITIAL_STATE_GUEST_INPUT_SCHEMA_V1.to_owned(),
         profile,
         policy_registry,
         state,
+        predecessor_state: Some(predecessor_state),
         source_manifest,
         statement,
     }

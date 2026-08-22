@@ -224,16 +224,7 @@ def derive_economic_initial_state_atom_occurrences_v1(
 ) -> tuple[EconomicInitialStateAtomOccurrenceV1, ...]:
     """Project every explicit value-bearing global-state row in ABI order."""
 
-    if type(state) is not GlobalEconomicStateV1:
-        raise TypeError("initial state atom coverage state type is not closed")
-    total_rows = 0
-    for _, field_name, _ in _ATOM_FIELDS_V1:
-        rows = getattr(state, field_name)
-        if type(rows) is not tuple:
-            raise TypeError(f"initial state {field_name} rows must be an exact tuple")
-        total_rows += len(rows)
-        if total_rows > MAX_INITIAL_STATE_ATOM_ROWS_V1:
-            raise ValueError("initial state explicit value rows exceed the coverage bound")
+    validate_economic_initial_state_explicit_row_count_v1(state)
     owned_state = _snapshot_state_v1(state)
     occurrences: list[EconomicInitialStateAtomOccurrenceV1] = []
     for atom_kind, field_name, _ in _ATOM_FIELDS_V1:
@@ -247,6 +238,24 @@ def derive_economic_initial_state_atom_occurrences_v1(
                 )
             )
     return tuple(occurrences)
+
+
+def validate_economic_initial_state_explicit_row_count_v1(
+    state: GlobalEconomicStateV1,
+) -> int:
+    """Reject an excessive explicit-row graph before copying or hashing rows."""
+
+    if type(state) is not GlobalEconomicStateV1:
+        raise TypeError("initial state atom coverage state type is not closed")
+    total_rows = 0
+    for _, field_name, _ in _ATOM_FIELDS_V1:
+        rows = getattr(state, field_name)
+        if type(rows) is not tuple:
+            raise TypeError(f"initial state {field_name} rows must be an exact tuple")
+        total_rows += len(rows)
+        if total_rows > MAX_INITIAL_STATE_ATOM_ROWS_V1:
+            raise ValueError("initial state explicit value rows exceed the coverage bound")
+    return total_rows
 
 
 def snapshot_economic_initial_state_source_manifest_v1(
@@ -328,6 +337,7 @@ __all__ = [
     "EconomicInitialStateSourceManifestV1",
     "economic_initial_state_atom_occurrence_v1",
     "derive_economic_initial_state_atom_occurrences_v1",
+    "validate_economic_initial_state_explicit_row_count_v1",
     "snapshot_economic_initial_state_source_manifest_v1",
     "validate_economic_initial_state_atom_coverage_v1",
     "economic_initial_state_atom_coverage_policy_binding_v1",
