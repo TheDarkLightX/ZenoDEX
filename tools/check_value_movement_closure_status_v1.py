@@ -10,6 +10,11 @@ import re
 from pathlib import Path
 from typing import Mapping
 
+if __package__:
+    from tools.check_m6_value_sinks_v1 import check_m6_value_sinks_v1
+else:
+    from check_m6_value_sinks_v1 import check_m6_value_sinks_v1
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_STATUS_PATH = Path(
     "docs/research/ZENODEX_VALUE_MOVEMENT_CLOSURE_STATUS_V1.json"
@@ -215,6 +220,24 @@ def check_value_movement_closure_status_v1(
     )
     if production_boundary.get("ok") is not False:
         findings.append("production boundary observation must remain failed")
+    value_sink_observation = _mapping(
+        observations.get("value_sink_inventory"),
+        "value sink inventory observation",
+        findings,
+    )
+    live_value_sinks = check_m6_value_sinks_v1(root)
+    expected_value_sink_observation = {
+        "exit_code": 0 if live_value_sinks["ok"] is True else 1,
+        "classified_identity_count": live_value_sinks["classified_identity_count"],
+        "observed_occurrence_count": live_value_sinks["observed_occurrence_count"],
+        "release_gap_count": len(live_value_sinks["release_gaps"]),
+        "release_ready": live_value_sinks["release_ready"],
+        "production_authority": live_value_sinks["production_authority"],
+    }
+    if dict(value_sink_observation) != expected_value_sink_observation:
+        findings.append("value sink inventory observation is stale or incomplete")
+    if live_value_sinks["ok"] is not True:
+        findings.append("live value sink inventory has findings")
 
     return {
         "schema": "zenodex/value-movement-closure-status-check/v1",

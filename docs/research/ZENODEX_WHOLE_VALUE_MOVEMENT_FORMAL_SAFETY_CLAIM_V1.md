@@ -491,6 +491,19 @@ and `release_eligible=false`: individual command semantics, disabled-writer
 certificates, implementation/evidence mappings, and economic policy decisions
 are still unresolved, so this binding grants no production authority.
 
+The operation-derived Python sink inventory now scans direct `os.replace`
+calls and literal SQL mutation calls throughout `src`, plus direct
+`self._state` publication assignments in `src/integration`. It classifies 12
+sink identities containing 14 current occurrences. Its negative evidence uses
+an arbitrarily named `persist_balance_patch()` function, demonstrating that a
+new literal SQL value mutation cannot evade this V1 scan by avoiding known
+writer names. Eleven authority-relevant sink groups remain without
+release-backed bindings. VM-01 therefore remains `PARTIAL`. Dynamic SQL, ORM
+mutation, indirect assignment, Rust, Tau, shell, generated code, native
+extensions, runtime loading, deployment wiring, and actual deployed
+reachability still require independent sink-first inventories and a composed
+complete-mediation gate.
+
 ## Recommended implementation order
 
 1. Freeze the exact complete M6 capability manifest and ZDEX semantic anchors,
@@ -498,9 +511,10 @@ are still unresolved, so this binding grants no production authority.
    retained-supply hyperdeflation, recovery, and terminal behavior.
 2. Freeze a clean candidate, a certified initial-state predecessor, checker
    sources, exact commands, and reviewed donor slices under one candidate root.
-3. Upgrade the writer inventory schema and scanner so it covers all deployed
-   languages and loading mechanisms and can express authoritative release
-   bindings, then close VM-01 with zero open rows.
+3. Extend the operation-derived sink inventory across dynamic Python, Rust,
+   Tau, shell, generated code, native extensions, runtime loading, deployment
+   wiring, and deployed entrypoints. Bind every discovered sink to an
+   authoritative release row and close VM-01 with zero open or unknown rows.
 4. Complete the typed Rust global state, canonical bytes, effect algebra,
    injective effect provenance, and Python/Rust parity required by VM-02 and
    VM-03.

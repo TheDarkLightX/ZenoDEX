@@ -114,3 +114,17 @@ def test_checker_rejects_erased_known_semantic_conflict(tmp_path: Path) -> None:
 
     assert report["ok"] is False
     assert "known semantic conflict IDs are incomplete or unordered" in report["findings"]
+
+
+def test_checker_rejects_stale_value_sink_observation(tmp_path: Path) -> None:
+    mutated = deepcopy(_status())
+    mutated["live_gate_observations"]["value_sink_inventory"][  # type: ignore[index]
+        "observed_occurrence_count"
+    ] = 0
+
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    assert report["ok"] is False
+    assert "value sink inventory observation is stale or incomplete" in report["findings"]

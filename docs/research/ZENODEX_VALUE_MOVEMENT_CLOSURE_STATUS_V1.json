@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "2440a72790291143d2c21b1424f368384250a787",
+    "commit": "1b23967d378a14ac42cecd5f83dfbff78159dcfc",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,7 +14,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "0182fc770688d018dcf6b7900b00e425e6653189ddd1ff3881e910163c874459",
+    "sha256": "c46c9f72dd66ef580b4cd38eb096b7eee4514a4918b3a7422330f55b4780ef89",
     "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
     "verdict": "UNPROVED"
   },
@@ -234,13 +234,33 @@
         "bind and check the capability root in real proof guests and durable profile activation",
         "replace the same-process verifier boundary"
       ]
+    },
+    {
+      "id": "PYTHON_VALUE_SINK_INVENTORY_V1",
+      "commit": "1b23967d378a14ac42cecd5f83dfbff78159dcfc",
+      "checker_sha256": "deb1298ec2ea7265afa9546e3810981ec007d54bdeb71f586ac1e31309ee96a0",
+      "manifest_sha256": "ebbb448099204a75fb6e6220f1b5c263f69482f7411ca8bf4cb5b9d3f9ed0f73",
+      "status": [
+        "IMPLEMENTED_PYTHON_SOURCE_CHECKER",
+        "TESTED_MUTATION_KILLERS",
+        "RESEARCH_ONLY",
+        "RELEASE_BLOCKED"
+      ],
+      "closed_obligation": "Within the V1 Python source scope, a direct atomic replacement, literal SQL mutation, or integration state publication cannot evade classification by choosing an unrecognized function name.",
+      "remaining_obligations": [
+        "dynamic SQL and ORM mutation discovery",
+        "indirect Python publication and runtime loading discovery",
+        "Rust, Tau, shell, generated-code, native-extension, and deployment sink inventories",
+        "deployed reachability and caller traversal",
+        "release bindings for all authority-relevant sinks"
+      ]
     }
   ],
   "gate_status": [
     {
       "id": "VM-01",
       "status": "PARTIAL",
-      "evidence": "A closed research manifest now names and profile-binds 103 requirements across all 12 lanes and four cross-lane routes, preventing subset-profile omission in the reference admission path. Writer inventory still reports 25 open coverage rows and 18 unmounted entrypoints; manifest-to-command/evidence mapping and sink-first cross-language completeness are absent."
+      "evidence": "A closed research manifest names and profile-binds 103 requirements across all 12 lanes and four cross-lane routes. An operation-derived Python V1 scan classifies 12 sink identities and 14 occurrences and kills an arbitrary-name literal-SQL mutation. Writer inventory still reports 25 open coverage rows and 18 unmounted entrypoints; 11 Python sink groups lack release bindings, and dynamic Python plus cross-language, generated-code, deployment, and reachability completeness remain absent."
     },
     {
       "id": "VM-02",
@@ -307,6 +327,14 @@
       "release_ready": false,
       "production_authority": false
     },
+    "value_sink_inventory": {
+      "exit_code": 0,
+      "classified_identity_count": 12,
+      "observed_occurrence_count": 14,
+      "release_gap_count": 11,
+      "release_ready": false,
+      "production_authority": false
+    },
     "production_boundary": {
       "exit_code": 1,
       "ok": false,
@@ -316,7 +344,7 @@
   "next_dependency_order": [
     "Bind the complete intended M6 capability manifest into the profile and map each row to command, transition, effect, route, terminal, adapter, and evidence status.",
     "Bind certified initialization to a registered migration or genesis proof release, complete object classification, and real receipt replay.",
-    "Discover writers from actual durable sinks and close VM-01 without name-pattern assumptions.",
+    "Extend operation-derived sink discovery across dynamic Python, Rust, Tau, shell, generated code, native extensions, deployment wiring, and deployed reachability, then close VM-01.",
     "Complete effect source, authorization, claimant, residue, terminal, and external-delivery bindings.",
     "Seal authoritative verification behind a measured release-selected verifier.",
     "Complete lane cores, governed routes, proof guests, durable publication, migration, and external reconciliation in dependency order."
