@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "9296579e23493ee606f16c880ae0fa6e9c1a62e6",
+    "commit": "408cf223723b001131c013cdb6382c70e56ad932",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,7 +14,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "7ea889f06c13b6a4e00c1a33c6ea51dc454c906433f92a7f5b4cb773ea1fc536",
+    "sha256": "ab83cdb24c023a3a0460490f1cdd118a07d68035248b47dfcd5c5f4f8be4f413",
     "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
     "verdict": "UNPROVED"
   },
@@ -97,6 +97,25 @@
         "BLOCKED_MISSING_TAU_SPECS"
       ],
       "closed_obligation": "A checker dependency failure emits a deterministic failed gate row instead of an uncaught traceback."
+    },
+    {
+      "id": "PUBLISHER_BOUND_EPOCH_VERIFICATION",
+      "commit": "408cf223723b001131c013cdb6382c70e56ad932",
+      "core_sha256": "ee346430be797b19427f52a5dff307965ce3f3983a2004cee950468ce9d67577",
+      "publisher_sha256": "5e6c977e204a220f5921110e735c20c146a1e4021561af098ab048e3c8ee65ae",
+      "status": [
+        "IMPLEMENTED_PYTHON_REFERENCE",
+        "TESTED",
+        "UNMOUNTED",
+        "UNMEASURED_BACKEND"
+      ],
+      "closed_obligation": "A caller-selected or different-publisher receipt witness cannot reach the in-memory reference publisher.",
+      "remaining_obligations": [
+        "measured verifier deployment artifact",
+        "durable profile-selected backend",
+        "hostile same-process isolation",
+        "Rust publisher parity"
+      ]
     }
   ],
   "gate_status": [
@@ -137,8 +156,8 @@
     },
     {
       "id": "VM-08",
-      "status": "GAP",
-      "evidence": "The public epoch verification boundary accepts a caller-selected receipt verifier; measured release-selected verifier authority is absent."
+      "status": "PARTIAL",
+      "evidence": "The in-memory publisher rejects caller-selected, replaced-backend, and cross-publisher witnesses. A measured durable profile-selected verifier and hostile same-process isolation remain absent."
     },
     {
       "id": "VM-09",
