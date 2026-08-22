@@ -101,6 +101,7 @@ from src.core.global_settlement_abi_v1 import (
     VerifiedEconomicEpochV1,
     canonical_economic_command_body_bytes_v1,
     compose_asset_lane_epoch_effect_plans_v1,
+    m6_capability_policy_binding_v1,
     validate_global_state_profile_v1,
     verify_economic_epoch_v1,
 )
@@ -215,6 +216,48 @@ def _signature_verifier_registry_v1() -> EconomicCommandSignatureVerifierRegistr
     )
 
 
+def _policy_registry_for_route_v1(route: RouteReleaseV1) -> EconomicPolicyRegistryV1:
+    authorization_registry = EconomicCommandAuthorizationRegistryV1(
+        (
+            EconomicCommandAuthorizationV1(
+                command_kind=route.command_kind,
+                subject_id="alice",
+                grant_root=_root(600),
+                route_release_id=route.route_release_id,
+                signer_key_id="alice-key-1",
+                signer_public_key="bls12-381-g2:alice-public-key",
+                signature_algorithm="BLS12_381_G2_BASIC_V1",
+                valid_from_height=0,
+                valid_through_height=(1 << 64) - 1,
+                min_nonce=0,
+                max_nonce=(1 << 64) - 1,
+                enabled=True,
+            ),
+        )
+    )
+    signature_verifier_registry = _signature_verifier_registry_v1()
+    return EconomicPolicyRegistryV1(
+        tuple(
+            sorted(
+                (
+                    EconomicPolicyBindingV1(
+                        ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+                        route.command_kind,
+                        authorization_registry.registry_root,
+                    ),
+                    EconomicPolicyBindingV1(
+                        ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
+                        route.command_kind,
+                        signature_verifier_registry.registry_root,
+                    ),
+                    m6_capability_policy_binding_v1(),
+                ),
+                key=lambda binding: (binding.policy_kind, binding.command_kind),
+            )
+        )
+    )
+
+
 def _module_release(lane_id: LaneIdV1, ordinal: int) -> LaneModuleReleaseV1:
     command = (
         ASSET_TRANSFER_COMMAND_KIND_V1
@@ -295,44 +338,7 @@ def _profile() -> tuple[EconomicProfileSnapshotV1, RouteReleaseV1]:
         accepts_new_objects=True,
         evidence_statuses=_active_evidence(),
     )
-    authorization_registry = EconomicCommandAuthorizationRegistryV1(
-        (
-            EconomicCommandAuthorizationV1(
-                command_kind=ASSET_TRANSFER_COMMAND_KIND_V1,
-                subject_id="alice",
-                grant_root=_root(600),
-                route_release_id=route.route_release_id,
-                signer_key_id="alice-key-1",
-                signer_public_key="bls12-381-g2:alice-public-key",
-                signature_algorithm="BLS12_381_G2_BASIC_V1",
-                valid_from_height=0,
-                valid_through_height=(1 << 64) - 1,
-                min_nonce=0,
-                max_nonce=(1 << 64) - 1,
-                enabled=True,
-            ),
-        )
-    )
-    signature_verifier_registry = _signature_verifier_registry_v1()
-    policy_registry = EconomicPolicyRegistryV1(
-        tuple(
-            sorted(
-                (
-                    EconomicPolicyBindingV1(
-                        ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
-                        ASSET_TRANSFER_COMMAND_KIND_V1,
-                        authorization_registry.registry_root,
-                    ),
-                    EconomicPolicyBindingV1(
-                        ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
-                        ASSET_TRANSFER_COMMAND_KIND_V1,
-                        signature_verifier_registry.registry_root,
-                    ),
-                ),
-                key=lambda binding: (binding.policy_kind, binding.command_kind),
-            )
-        )
-    )
+    policy_registry = _policy_registry_for_route_v1(route)
     profile = EconomicProfileSnapshotV1.build(
         authority_epoch=7,
         lane_registry=lane_registry,
@@ -408,6 +414,7 @@ def _initial_state_admission(
     )
     return EconomicInitialStateAdmissionV1(
         profile=profile,
+        policy_registry=_policy_registry_for_route_v1(profile.route_registry.routes[0]),
         state=state,
         certificate=certificate,
         receipt_bytes=receipt_bytes,
@@ -566,6 +573,7 @@ def _authenticate_occurrence_for_test(
                         occurrence.command_kind,
                         signature_verifier_registry.registry_root,
                     ),
+                    m6_capability_policy_binding_v1(),
                 ),
                 key=lambda binding: (binding.policy_kind, binding.command_kind),
             )
@@ -2094,12 +2102,12 @@ def test_epoch_two_route_state_evidence_has_stable_python_golden_roots() -> None
     verified = verify_economic_epoch_v1(candidate, _RecordingReceiptVerifier())
 
     assert verified.route_state_projection_roots == (
-        "0x68e00f07e0e441ceec08af280718214782eaccb7bbb61fdfd4ca0b4f803380a3",
-        "0xecb20ae1bbcb298d63e9484078dd2edcf44d76ccb9e419ac0212e09c9a207632",
+        "0x11ad9d26ae55aa4e5b910c4514d720618b79c3e0ba87e58e00521363d7dc435d",
+        "0x1d22eb2b356f957c878cfbe3eab560f08c0f85f9413f61c158ce2369f5db7c47",
     )
     assert verified.route_state_effect_refinement_roots == (
-        "0xea5877bb697497683944301fecc539f96dbf31e9f127f1343238461f6c2c3a46",
-        "0x7b4c0ca5e1bbc7c3bcf757ed43d06bcd64ebdaa4b62a506af7ff5cfeefff3ccd",
+        "0xc58c92d4e130ba425eaa48cba0270bdeac8334d32893d6ca228cde9eb479c92b",
+        "0x8b6ff2bdce7c1db4bee27fc16840b129daf98193f278e655986e42a4f3292eb8",
     )
 
 
@@ -2661,6 +2669,51 @@ def test_commit_port_rejects_plain_or_mismatched_initial_state_before_receipt() 
             replace(admission, profile=replace(profile, status=ProfileStatusV1.SHADOW)),
             verifier,
         )
+    without_capability = EconomicPolicyRegistryV1(
+        tuple(
+            binding
+            for binding in admission.policy_registry.bindings
+            if binding != m6_capability_policy_binding_v1()
+        )
+    )
+    with pytest.raises(ValueError, match="policy registry root mismatch"):
+        GlobalEconomicCommitPortV1(
+            replace(admission, policy_registry=without_capability),
+            verifier,
+        )
+    wrong_capability = EconomicPolicyRegistryV1(
+        tuple(
+            sorted(
+                (
+                    replace(binding, policy_root=_root(77_102))
+                    if binding == m6_capability_policy_binding_v1()
+                    else binding
+                    for binding in admission.policy_registry.bindings
+                ),
+                key=lambda binding: (binding.policy_kind, binding.command_kind),
+            )
+        )
+    )
+    wrong_profile = EconomicProfileSnapshotV1.build(
+        authority_epoch=profile.authority_epoch,
+        lane_registry=profile.lane_registry,
+        lane_coordinator_registry=profile.lane_coordinator_registry,
+        route_registry=profile.route_registry,
+        proof_shape_root=profile.proof_shape_root,
+        root_image_id=profile.root_image_id,
+        verifier_registry_root=profile.verifier_registry_root,
+        migration_registry_root=profile.migration_registry_root,
+        policy_registry_root=wrong_capability.registry_root,
+        terminal_registry_root=profile.terminal_registry_root,
+        status=profile.status,
+    )
+    wrong_state = _state(wrong_profile, height=0)
+    wrong_admission = replace(
+        _initial_state_admission(wrong_profile, wrong_state),
+        policy_registry=wrong_capability,
+    )
+    with pytest.raises(ValueError, match="capability manifest root mismatch"):
+        GlobalEconomicCommitPortV1(wrong_admission, verifier)
 
     assert verifier.calls == []
 
@@ -2710,6 +2763,7 @@ def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> 
     )
     admission = EconomicInitialStateAdmissionV1(
         profile,
+        genesis.policy_registry,
         migrated_state,
         migration_certificate,
         genesis.receipt_bytes,

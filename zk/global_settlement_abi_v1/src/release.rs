@@ -681,6 +681,11 @@ pub struct EconomicPolicyRegistryV1 {
     pub bindings: Vec<EconomicPolicyBindingV1>,
 }
 
+pub const M6_CAPABILITY_POLICY_KIND_V1: &str = "m6_capability_manifest_v1";
+pub const M6_CAPABILITY_PROFILE_COMMAND_KIND_V1: &str = "global_economic_profile_v1";
+pub const M6_CAPABILITY_MANIFEST_ROOT_V1: &str =
+    "0x21efc162df198e40a0aa942fcb69b7a5f5cc0f93907b11a3c6b25359e4a464bb";
+
 impl EconomicPolicyRegistryV1 {
     pub fn validate(&self) -> AbiResultV1<()> {
         validate_schema_v1(&self.schema)?;
@@ -725,6 +730,26 @@ impl EconomicPolicyRegistryV1 {
             ))?;
         Ok(binding)
     }
+}
+
+pub fn validate_m6_capability_profile_binding_v1(
+    profile: &EconomicProfileSnapshotV1,
+    policy_registry: &EconomicPolicyRegistryV1,
+) -> AbiResultV1<()> {
+    profile.validate()?;
+    if policy_registry.registry_root()? != profile.policy_registry_root {
+        return Err(AbiErrorV1::InvalidBinding(
+            "M6 capability policy registry root",
+        ));
+    }
+    let binding = policy_registry.require_binding(
+        M6_CAPABILITY_POLICY_KIND_V1,
+        M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
+    )?;
+    if binding.policy_root.as_str() != M6_CAPABILITY_MANIFEST_ROOT_V1 {
+        return Err(AbiErrorV1::InvalidBinding("M6 capability manifest root"));
+    }
+    Ok(())
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]

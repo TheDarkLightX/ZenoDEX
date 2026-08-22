@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
+from src.core.m6_capability_profile_binding_v1 import M6_CAPABILITY_MANIFEST_ROOT_V1
 from tools.check_m6_capability_manifest_v1 import (
     DEFAULT_MANIFEST,
     REPO_ROOT,
@@ -29,6 +30,7 @@ def test_manifest_closes_all_lane_names_without_promoting_authority() -> None:
         "ok": True,
         "lane_count": 12,
         "open_capability_count": 103,
+        "manifest_root": M6_CAPABILITY_MANIFEST_ROOT_V1,
         "manifest_complete": False,
         "release_eligible": False,
         "production_authority": "NONE",

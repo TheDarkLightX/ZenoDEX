@@ -14,6 +14,7 @@ from .global_settlement_types_v1 import (
     MAX_CYCLE_BUDGET_V1,
     MAX_JOURNAL_BYTES_V1,
     ZERO_ROOT_V1,
+    EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
     GlobalEconomicStateV1,
     ProfileStatusV1,
@@ -22,6 +23,10 @@ from .global_settlement_types_v1 import (
     canonical_global_bytes_v1,
     hash_global_v1,
     validate_global_state_profile_v1,
+)
+from .m6_capability_profile_binding_v1 import (
+    snapshot_economic_policy_registry_v1,
+    validate_m6_capability_profile_binding_v1,
 )
 
 
@@ -187,6 +192,7 @@ class EconomicInitialStateCertificateV1:
 @dataclass(frozen=True, slots=True)
 class EconomicInitialStateAdmissionV1:
     profile: EconomicProfileSnapshotV1
+    policy_registry: EconomicPolicyRegistryV1
     state: GlobalEconomicStateV1
     certificate: EconomicInitialStateCertificateV1
     receipt_bytes: bytes
@@ -194,6 +200,8 @@ class EconomicInitialStateAdmissionV1:
     def __post_init__(self) -> None:
         if type(self.profile) is not EconomicProfileSnapshotV1:
             raise TypeError("initial state admission profile type is not closed")
+        if type(self.policy_registry) is not EconomicPolicyRegistryV1:
+            raise TypeError("initial state admission policy registry type is not closed")
         if type(self.state) is not GlobalEconomicStateV1:
             raise TypeError("initial state admission state type is not closed")
         if type(self.certificate) is not EconomicInitialStateCertificateV1:
@@ -218,11 +226,13 @@ def _verify_economic_initial_state_for_publisher_v1(
     if type(admission) is not EconomicInitialStateAdmissionV1:
         raise TypeError("commit port initial admission type is not closed")
     profile = snapshot_economic_profile_v1(admission.profile)
+    policy_registry = snapshot_economic_policy_registry_v1(admission.policy_registry)
     state = _snapshot_state_v1(admission.state)
     certificate = replace(admission.certificate)
     receipt_bytes = admission.receipt_bytes
     if profile.status is not ProfileStatusV1.ACTIVE:
         raise ValueError("initial state admission requires an ACTIVE profile")
+    validate_m6_capability_profile_binding_v1(profile, policy_registry)
     validate_global_state_profile_v1(state, profile)
     bindings = (
         (certificate.chain_id, state.chain_id, "chain id"),
