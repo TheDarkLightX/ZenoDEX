@@ -74,6 +74,12 @@ Separate certificates retain ownership of:
 - source authorization behind target atom classifications;
 - migration registry selection and release compatibility.
 
+`ECONOMIC_INITIAL_STATE_SOURCE_HEAD_ACTIVATION_V1.md` now requires migration to
+activate against the exact current state of an existing in-memory publisher.
+That reference gate closes direct construction around a caller-selected
+predecessor. Objective consensus finality and durable activation remain
+separate obligations.
+
 The public journal fields for those roots remain structural declarations until
 their dedicated deterministic checkers and proof statements are implemented.
 

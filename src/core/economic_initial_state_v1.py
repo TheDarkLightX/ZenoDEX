@@ -24,7 +24,7 @@ from .economic_initial_state_terminal_continuity_v1 import (
     derive_economic_initial_state_terminal_continuity_root_v1,
 )
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
-from .global_economic_proof_v1 import ReceiptKindV1, SuccinctReceiptVerifierV1
+from .global_economic_proof_v1 import ReceiptKindV1
 from .global_economic_refinement_snapshot_v1 import _snapshot_state_v1
 from .global_settlement_types_v1 import (
     GLOBAL_SETTLEMENT_ABI_V1,
@@ -414,26 +414,6 @@ def _validate_owned_economic_initial_state_admission_v1(
     if certificate.receipt_root != receipt_digest:
         raise ValueError("initial state receipt root mismatch")
     return journal_bytes
-
-
-def _verify_economic_initial_state_for_publisher_v1(
-    admission: EconomicInitialStateAdmissionV1,
-    receipt_verifier: SuccinctReceiptVerifierV1,
-) -> _VerifiedEconomicInitialStateV1:
-    """Verify and own the initial state before constructing a publisher."""
-
-    owned = _snapshot_economic_initial_state_admission_v1(admission)
-    journal_bytes = _validate_owned_economic_initial_state_admission_v1(owned)
-    receipt_verifier.verify_succinct_receipt(
-        owned.receipt_bytes,
-        expected_image_id=owned.profile.root_image_id,
-        expected_journal_bytes=journal_bytes,
-    )
-    return _VerifiedEconomicInitialStateV1(
-        profile=snapshot_economic_profile_v1(owned.profile),
-        state=_snapshot_state_v1(owned.state),
-        certificate_root=owned.certificate.certificate_root,
-    )
 
 
 __all__ = [

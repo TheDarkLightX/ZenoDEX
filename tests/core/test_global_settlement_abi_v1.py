@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import FrozenInstanceError, dataclass, replace
 
@@ -51,6 +52,9 @@ from src.core.economic_command_signature_verifier_registry_v1 import (
     CommandSignatureVerifierEvidenceStatusV1,
     EconomicCommandSignatureVerifierRegistryV1,
     EconomicCommandSignatureVerifierReleaseV1,
+)
+from src.core.economic_initial_state_publisher_verification_v1 import (
+    _verify_economic_migration_for_publisher_v1,
 )
 from src.core.global_settlement_abi_v1 import (
     ALL_LANE_IDS_V1,
@@ -573,6 +577,60 @@ def _commit_port(
     verifier = receipt_verifier or _RecordingReceiptVerifier()
     return GlobalEconomicCommitPortV1(
         _initial_state_admission(profile, state),
+        verifier,
+    )
+
+
+def _migration_admission_for_source_head(
+    source_profile: EconomicProfileSnapshotV1,
+    source_state: GlobalEconomicStateV1,
+) -> tuple[
+    EconomicProfileSnapshotV1,
+    GlobalEconomicStateV1,
+    EconomicInitialStateAdmissionV1,
+]:
+    provisional_target = replace(
+        _state(source_profile, height=1),
+        replay_state=source_state.replay_state,
+        terminal_obligations=source_state.terminal_obligations,
+        outbox=source_state.outbox,
+    )
+    source_manifest = _source_manifest_for_state_v1(
+        EconomicInitialStateKindV1.MIGRATION,
+        provisional_target,
+    )
+    target_profile, _ = _profile(
+        source_manifest=source_manifest,
+        authority_epoch=source_profile.authority_epoch + 1,
+    )
+    migrated_state = replace(
+        _state(target_profile, height=1),
+        replay_state=source_state.replay_state,
+        terminal_obligations=source_state.terminal_obligations,
+        outbox=source_state.outbox,
+    )
+    admission = _initial_state_admission(
+        target_profile,
+        migrated_state,
+        kind=EconomicInitialStateKindV1.MIGRATION,
+        source_manifest=source_manifest,
+        source_profile_root=source_profile.profile_id,
+        source_state_root=source_state.state_root,
+        source_writer_epoch=source_state.writer_epoch,
+        source_height=source_state.height,
+        predecessor_state=source_state,
+    )
+    return target_profile, migrated_state, admission
+
+
+def _verify_migration_admission_for_test(
+    admission: EconomicInitialStateAdmissionV1,
+    expected_source_state: GlobalEconomicStateV1,
+    verifier: _RecordingReceiptVerifier,
+) -> None:
+    _verify_economic_migration_for_publisher_v1(
+        admission,
+        expected_source_state,
         verifier,
     )
 
@@ -3000,6 +3058,157 @@ def test_initial_state_callback_cannot_mutate_publisher_owned_state() -> None:
     assert port.initial_state_certificate_root == expected_certificate_root
 
 
+def test_commit_port_constructor_rejects_migration_without_owned_source_head() -> None:
+    # Arrange
+    source_profile, _ = _profile()
+    source_state = _state(source_profile, height=0)
+    _, _, migration_admission = _migration_admission_for_source_head(
+        source_profile,
+        source_state,
+    )
+    verifier = _RecordingReceiptVerifier()
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="construction requires a genesis admission"):
+        GlobalEconomicCommitPortV1(migration_admission, verifier)
+    assert verifier.calls == []
+
+
+def test_migration_activation_requires_exact_publisher_owned_source_head() -> None:
+    # Arrange
+    source_profile, _ = _profile()
+    source_state = _state(source_profile, height=0)
+    verifier = _RecordingReceiptVerifier()
+    port = _commit_port(source_profile, source_state, verifier)
+    initial_certificate_root = port.initial_state_certificate_root
+    foreign_source_state = replace(source_state, history_root=_root(88_200))
+    _, _, foreign_admission = _migration_admission_for_source_head(
+        source_profile,
+        foreign_source_state,
+    )
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="publisher-owned source head"):
+        port.activate_migration(
+            expected_head=source_state.state_root,
+            expected_profile=source_profile.profile_id,
+            migration_admission=foreign_admission,
+        )
+    assert port.state == source_state
+    assert port.profile == source_profile
+    assert port.initial_state_certificate_root == initial_certificate_root
+    assert len(verifier.calls) == 1
+
+
+def test_migration_activation_rechecks_head_and_profile_before_receipt() -> None:
+    # Arrange
+    source_profile, _ = _profile()
+    source_state = _state(source_profile, height=0)
+    target_profile, migrated_state, migration_admission = (
+        _migration_admission_for_source_head(source_profile, source_state)
+    )
+    verifier = _RecordingReceiptVerifier()
+    port = _commit_port(source_profile, source_state, verifier)
+    initial_certificate_root = port.initial_state_certificate_root
+
+    # Act / Assert
+    for expected_head, expected_profile, message in (
+        (_root(88_201), source_profile.profile_id, "expected source head is stale"),
+        (source_state.state_root, _root(88_202), "expected source profile is inactive"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            port.activate_migration(
+                expected_head=expected_head,
+                expected_profile=expected_profile,
+                migration_admission=migration_admission,
+            )
+    assert port.state == source_state
+    assert port.profile == source_profile
+    assert port.initial_state_certificate_root == initial_certificate_root
+    assert len(verifier.calls) == 1
+
+    port.activate_migration(
+        expected_head=source_state.state_root,
+        expected_profile=source_profile.profile_id,
+        migration_admission=migration_admission,
+    )
+
+    assert port.state == migrated_state
+    assert port.profile == target_profile
+    assert port.initial_state_certificate_root == (
+        migration_admission.certificate.certificate_root
+    )
+    assert len(verifier.calls) == 2
+
+
+def test_migration_activation_rechecks_source_head_after_receipt_callback() -> None:
+    # Arrange
+    source_profile, route = _profile()
+    source_state = _state(source_profile, height=0)
+    next_state = _state(source_profile, height=1)
+
+    class CallbackReceiptVerifier(_RecordingReceiptVerifier):
+        def __init__(self) -> None:
+            super().__init__()
+            self.callback: Callable[[], None] | None = None
+
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            super().verify_succinct_receipt(
+                receipt_bytes,
+                expected_image_id=expected_image_id,
+                expected_journal_bytes=expected_journal_bytes,
+            )
+            callback = self.callback
+            self.callback = None
+            if callback is not None:
+                callback()
+
+    verifier = CallbackReceiptVerifier()
+    port = _commit_port(source_profile, source_state, verifier)
+    verified_epoch, body, _, _, _ = _verified_epoch(
+        source_profile,
+        route,
+        source_state,
+        next_state,
+        publisher=port,
+        receipt_verifier=verifier,
+    )
+    _, _, migration_admission = _migration_admission_for_source_head(
+        source_profile,
+        source_state,
+    )
+    initial_certificate_root = port.initial_state_certificate_root
+
+    def advance_source_head() -> None:
+        committed = port.commit_verified_economic_epoch(
+            expected_head=source_state.state_root,
+            expected_profile=source_profile.profile_id,
+            verified_epoch=verified_epoch,
+            body_and_state=body,
+        )
+        assert committed.status is CommitOutcomeStatusV1.COMMITTED
+
+    verifier.callback = advance_source_head
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="source head changed during verification"):
+        port.activate_migration(
+            expected_head=source_state.state_root,
+            expected_profile=source_profile.profile_id,
+            migration_admission=migration_admission,
+        )
+    assert port.state == next_state
+    assert port.profile == source_profile
+    assert port.initial_state_certificate_root == initial_certificate_root
+    assert len(verifier.calls) == 3
+
+
 def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> None:
     source_profile, _ = _profile()
     source_state = _state(source_profile, height=0)
@@ -3032,12 +3241,19 @@ def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> 
     )
     migration_certificate = admission.certificate
 
-    port = GlobalEconomicCommitPortV1(admission, _RecordingReceiptVerifier())
+    verifier = _RecordingReceiptVerifier()
+    port = _commit_port(source_profile, source_state, verifier)
+    port.activate_migration(
+        expected_head=source_state.state_root,
+        expected_profile=source_profile.profile_id,
+        migration_admission=admission,
+    )
 
     assert port.state.state_root == migrated_state.state_root
+    assert len(verifier.calls) == 2
     replay_verifier = _RecordingReceiptVerifier()
     with pytest.raises(ValueError, match="replay continuity root mismatch"):
-        GlobalEconomicCommitPortV1(
+        _verify_migration_admission_for_test(
             replace(
                 admission,
                 certificate=replace(
@@ -3045,12 +3261,13 @@ def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> 
                     replay_continuity_root=_root(88_204),
                 ),
             ),
+            source_state,
             replay_verifier,
         )
     assert replay_verifier.calls == []
     outbox_verifier = _RecordingReceiptVerifier()
     with pytest.raises(ValueError, match="outbox continuity root mismatch"):
-        GlobalEconomicCommitPortV1(
+        _verify_migration_admission_for_test(
             replace(
                 admission,
                 certificate=replace(
@@ -3058,6 +3275,7 @@ def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> 
                     outbox_continuity_root=_root(88_206),
                 ),
             ),
+            source_state,
             outbox_verifier,
         )
     assert outbox_verifier.calls == []
@@ -3129,12 +3347,13 @@ def test_migration_rejects_target_only_replay_row_before_receipt() -> None:
         ValueError,
         match="preserve the exact predecessor replay state",
     ):
-        GlobalEconomicCommitPortV1(
+        _verify_migration_admission_for_test(
             replace(
                 exact_admission,
                 state=changed_target,
                 certificate=changed_certificate,
             ),
+            source_state,
             verifier,
         )
     assert verifier.calls == []
@@ -3183,8 +3402,9 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
 
     # Act / Assert: the committed source root must be recomputed from the witness.
     with pytest.raises(ValueError, match="predecessor state root mismatch"):
-        GlobalEconomicCommitPortV1(
+        _verify_migration_admission_for_test(
             replace(admission, predecessor_state=substituted_state),
+            substituted_state,
             verifier,
         )
     with pytest.raises(ValueError, match="requires a predecessor state"):
@@ -3203,12 +3423,13 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
             source_state_root=substituted_coordinate_state.state_root,
         )
         with pytest.raises(ValueError, match=rf"predecessor {label} mismatch"):
-            GlobalEconomicCommitPortV1(
+            _verify_migration_admission_for_test(
                 replace(
                     admission,
                     predecessor_state=substituted_coordinate_state,
                     certificate=rebound_certificate,
                 ),
+                substituted_coordinate_state,
                 verifier,
             )
 
@@ -3221,12 +3442,13 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
         source_state_root=predecessor_with_unpreserved_replay.state_root,
     )
     with pytest.raises(ValueError, match="preserve the exact predecessor replay state"):
-        GlobalEconomicCommitPortV1(
+        _verify_migration_admission_for_test(
             replace(
                 admission,
                 predecessor_state=predecessor_with_unpreserved_replay,
                 certificate=replay_rebound_certificate,
             ),
+            predecessor_with_unpreserved_replay,
             verifier,
         )
 
@@ -3245,12 +3467,13 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
         source_state_root=predecessor_with_rewritten_occurrence.state_root,
     )
     with pytest.raises(ValueError, match="preserve the exact predecessor replay state"):
-        GlobalEconomicCommitPortV1(
+        _verify_migration_admission_for_test(
             replace(
                 admission,
                 predecessor_state=predecessor_with_rewritten_occurrence,
                 certificate=rewritten_occurrence_certificate,
             ),
+            predecessor_with_rewritten_occurrence,
             verifier,
         )
 
@@ -3274,12 +3497,10 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
         source_height=predecessor_with_outbox.height,
         predecessor_state=predecessor_with_outbox,
     )
-    assert (
-        GlobalEconomicCommitPortV1(
-            exact_outbox_admission,
-            _RecordingReceiptVerifier(),
-        ).state.state_root
-        == migrated_with_outbox.state_root
+    _verify_migration_admission_for_test(
+        exact_outbox_admission,
+        predecessor_with_outbox,
+        _RecordingReceiptVerifier(),
     )
     acknowledged_target = replace(
         migrated_with_outbox,
@@ -3287,7 +3508,7 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
     )
     rewritten_outbox_verifier = _RecordingReceiptVerifier()
     with pytest.raises(ValueError, match="preserve the exact predecessor outbox"):
-        GlobalEconomicCommitPortV1(
+        _verify_migration_admission_for_test(
             replace(
                 exact_outbox_admission,
                 state=acknowledged_target,
@@ -3310,6 +3531,7 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
                     ),
                 ),
             ),
+            predecessor_with_outbox,
             rewritten_outbox_verifier,
         )
     assert rewritten_outbox_verifier.calls == []
@@ -3339,8 +3561,9 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
         tuple(pending_outbox for _ in range(4_097)),
     )
     with pytest.raises(ValueError, match="outbox exceeds the continuity row bound"):
-        GlobalEconomicCommitPortV1(
+        _verify_migration_admission_for_test(
             replace(admission, predecessor_state=oversized_outbox_predecessor),
+            oversized_outbox_predecessor,
             verifier,
         )
 
@@ -3363,8 +3586,9 @@ def test_migration_initial_state_rejects_predecessor_substitution_before_receipt
         "invalid unicode ☃",
     )
     with pytest.raises(ValueError, match="explicit value rows exceed the coverage bound"):
-        GlobalEconomicCommitPortV1(
+        _verify_migration_admission_for_test(
             replace(admission, predecessor_state=oversized_predecessor),
+            oversized_predecessor,
             verifier,
         )
     assert verifier.calls == []
@@ -3441,12 +3665,10 @@ def test_migration_initial_state_rejects_each_outbox_mutation_before_receipt() -
     )
 
     # Act / Assert
-    assert (
-        GlobalEconomicCommitPortV1(
-            exact_admission,
-            _RecordingReceiptVerifier(),
-        ).state.state_root
-        == exact_target.state_root
+    _verify_migration_admission_for_test(
+        exact_admission,
+        predecessor,
+        _RecordingReceiptVerifier(),
     )
     for label, changed_rows in mutation_rows:
         changed_target = replace(exact_target, outbox=changed_rows)
@@ -3473,12 +3695,13 @@ def test_migration_initial_state_rejects_each_outbox_mutation_before_receipt() -
             ValueError,
             match="preserve the exact predecessor outbox",
         ):
-            GlobalEconomicCommitPortV1(
+            _verify_migration_admission_for_test(
                 replace(
                     exact_admission,
                     state=changed_target,
                     certificate=changed_certificate,
                 ),
+                predecessor,
                 verifier,
             )
         assert verifier.calls == [], label
@@ -3487,8 +3710,9 @@ def test_migration_initial_state_rejects_each_outbox_mutation_before_receipt() -
     object.__setattr__(reordered_target, "outbox", (second, first))
     reorder_verifier = _RecordingReceiptVerifier()
     with pytest.raises(ValueError, match="outbox must be canonically ordered"):
-        GlobalEconomicCommitPortV1(
+        _verify_migration_admission_for_test(
             replace(exact_admission, state=reordered_target),
+            predecessor,
             reorder_verifier,
         )
     assert reorder_verifier.calls == []
@@ -3594,12 +3818,10 @@ def test_migration_rejects_each_terminal_mutation_before_receipt() -> None:
     )
 
     # Act / Assert
-    assert (
-        GlobalEconomicCommitPortV1(
-            exact_admission,
-            _RecordingReceiptVerifier(),
-        ).state.state_root
-        == exact_target.state_root
+    _verify_migration_admission_for_test(
+        exact_admission,
+        source_state,
+        _RecordingReceiptVerifier(),
     )
     for changed_rows in changed_tables:
         changed_target = replace(exact_target, terminal_obligations=changed_rows)
@@ -3626,12 +3848,13 @@ def test_migration_rejects_each_terminal_mutation_before_receipt() -> None:
             ValueError,
             match="preserve the exact predecessor terminal obligations",
         ):
-            GlobalEconomicCommitPortV1(
+            _verify_migration_admission_for_test(
                 replace(
                     exact_admission,
                     state=changed_target,
                     certificate=changed_certificate,
                 ),
+                source_state,
                 verifier,
             )
         assert verifier.calls == []

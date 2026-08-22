@@ -13,9 +13,12 @@ from enum import Enum
 from threading import Lock
 from typing import Mapping
 
+from ..core.economic_initial_state_publisher_verification_v1 import (
+    _verify_economic_initial_state_for_publisher_v1,
+    _verify_economic_migration_for_publisher_v1,
+)
 from ..core.economic_initial_state_v1 import (
     EconomicInitialStateAdmissionV1,
-    _verify_economic_initial_state_for_publisher_v1,
 )
 from ..core.global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from ..core.global_economic_proof_v1 import (
@@ -273,6 +276,65 @@ class GlobalEconomicCommitPortV1:
     def records(self) -> tuple[PublishedEconomicEpochV1, ...]:
         with self._lock:
             return tuple(replace(self._records[key]) for key in sorted(self._records))
+
+    def activate_migration(
+        self,
+        *,
+        expected_head: str,
+        expected_profile: str,
+        migration_admission: EconomicInitialStateAdmissionV1,
+    ) -> None:
+        """Atomically replace the current head with an exact proved migration."""
+
+        if type(expected_head) is not str:
+            raise TypeError("migration expected head must be exact str")
+        if type(expected_profile) is not str:
+            raise TypeError("migration expected profile must be exact str")
+        if type(migration_admission) is not EconomicInitialStateAdmissionV1:
+            raise TypeError("migration activation requires exact initial-state admission")
+        _require_root(expected_head, name="migration expected source head")
+        _require_root(expected_profile, name="migration expected source profile")
+
+        with self._lock:
+            source_profile = snapshot_economic_profile_v1(self._profile)
+            source_state = _snapshot_state_v1(self._state)
+            if expected_head != source_state.state_root:
+                raise ValueError("migration expected source head is stale")
+            if expected_profile != source_profile.profile_id:
+                raise ValueError("migration expected source profile is inactive")
+            receipt_verifier = self._receipt_verifier
+            publisher_binding_token = self.__publisher_binding_token
+
+        verified_migration = _verify_economic_migration_for_publisher_v1(
+            migration_admission,
+            source_state,
+            receipt_verifier,
+        )
+
+        with self._lock:
+            current_profile = snapshot_economic_profile_v1(self._profile)
+            current_state = _snapshot_state_v1(self._state)
+            if (
+                self._receipt_verifier is not receipt_verifier
+                or self.__publisher_binding_token is not publisher_binding_token
+            ):
+                raise ValueError("migration verifier selection changed during verification")
+            if (
+                expected_head != current_state.state_root
+                or current_state != source_state
+            ):
+                raise ValueError("migration source head changed during verification")
+            if (
+                expected_profile != current_profile.profile_id
+                or current_profile != source_profile
+            ):
+                raise ValueError("migration source profile changed during verification")
+            self._profile = verified_migration.profile
+            self._state = verified_migration.state
+            self._initial_state_certificate_root = (
+                verified_migration.certificate_root
+            )
+            self.__publisher_binding_token = object()
 
     def verify_economic_epoch(
         self,
