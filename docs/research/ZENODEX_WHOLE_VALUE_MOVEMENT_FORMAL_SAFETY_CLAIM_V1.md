@@ -470,8 +470,9 @@ closes the plain-snapshot constructor counterexample in the in-memory reference
 model. VM-11 remains open: the coverage roots are not yet established by a real
 initialization guest, migration releases are not yet selected from the
 committed migration registry, the existing object-classification certificate
-is not yet composed into admission, activation is not durable and atomic, and
-coexisting shared-asset releases lack their required theorems.
+is not yet composed into admission, the bounded durable activation journal is
+not mounted behind verifier-owned authority, and coexisting shared-asset
+releases lack their required theorems.
 
 The bounded initialization admission now derives a canonical occurrence for
 every explicit balance, supply, named accounting-location, liability, reserve,
@@ -528,10 +529,11 @@ deterministic regression that pauses activation inside the tuple update. The
 regression failed before the repair and passes afterward.
 
 This establishes publisher-current source-head authority only inside the
-in-memory conformance shell. It does not establish objective consensus
-finality, durable transactionality or recovery, committed migration-release
-selection, cross-process isolation, deployed writer fencing, or production
-activation.
+in-memory conformance shell. The separately reviewed SQLite journal provides a
+bounded durable candidate checkpoint, but the two components are not mounted
+as one verifier-owned publisher. Objective consensus finality, ordinary epoch
+transactionality, committed migration-release selection, cross-process
+isolation, deployed writer fencing, and production activation remain open.
 
 Commit `0d29ea7286bd302cf3e2135a7fc7511d78ef5816` strengthens the bounded
 replay relation. Genesis requires an empty replay table. An isolated migration
@@ -608,9 +610,9 @@ rewrites. Private lane replay and nullifier state remains outside this result.
 It also does not establish total predecessor-source classification for a
 migration, the semantic truth of a migration label, the objective authority
 represented by a source-authorization root, selection from the governed
-migration-release registry, durable atomic activation, objective source-head
-finality, writer rotation, or shared-asset coexistence. Those remain VM-11
-blockers.
+migration-release registry, verifier-owned durable activation mounting,
+objective source-head finality, writer rotation, or shared-asset coexistence.
+Those remain VM-11 blockers.
 
 The 18-workflow/81-scenario ATDD catalogue and its historical 11 Luna-required
 expansions are insufficient as a complete M6 capability manifest. The catalogue
@@ -632,16 +634,38 @@ are still unresolved, so this binding grants no production authority.
 
 The operation-derived Python sink inventory now scans direct `os.replace`
 calls and literal SQL mutation calls throughout `src`, plus direct
-`self._state` publication assignments in `src/integration`. It classifies 12
-sink identities containing 14 current occurrences. Its negative evidence uses
+`self._state` publication assignments in `src/integration`. It classifies 16
+sink identities containing 20 current occurrences. Its negative evidence uses
 an arbitrarily named `persist_balance_patch()` function, demonstrating that a
 new literal SQL value mutation cannot evade this V1 scan by avoiding known
-writer names. Eleven authority-relevant sink groups remain without
+writer names. Fifteen authority-relevant sink groups remain without
 release-backed bindings. VM-01 therefore remains `PARTIAL`. Dynamic SQL, ORM
 mutation, indirect assignment, Rust, Tau, shell, generated code, native
 extensions, runtime loading, deployment wiring, and actual deployed
 reachability still require independent sink-first inventories and a composed
 complete-mediation gate.
+
+Commit `7b5b142e32c505261fbcea68ebb915464b187acb` adds a bounded durable
+activation journal for complete genesis or migration candidate bundles. The
+journal redecodes caller bundles into newly validated owned snapshots, checks
+exact lineage and projected retention bounds under `BEGIN IMMEDIATE`, and
+commits the immutable candidate plus singleton head through one SQLite CAS.
+Exception and child-process crash tests establish exact `PRE` or `POST`
+recovery at the tested transaction boundaries; concurrent-reader, stale-CAS,
+lost-acknowledgment, historical-retry, schema-mutation, capacity BVA, hostile
+frozen-object mutation, and canonical-decoding regressions pass. The focused
+journal suite has 36 passing tests, and the shared ABI plus journal run has 104
+passing tests. GPT-5.6 Sol max returned `GO` only for `UNMOUNTED`,
+`TESTED_DISCOVERY` infrastructure after two earlier `NO-GO` reviews produced
+and then verified concrete repairs.
+
+This durable slice narrows VM-10 and VM-11. It does not verify retained receipt
+bytes, select a migration release, establish objective source-head finality,
+publish ordinary economic epochs, reconcile external acknowledgments, mount a
+sole writer, or retire legacy paths. Its process-local CAS token grants no
+writer authorization. VM-10 therefore advances from an absent durable
+activation checkpoint to `PARTIAL`; the whole-value-movement claim remains
+`UNPROVED` and production authority remains `NONE`.
 
 The eight-decimal anchor is now represented by the content-derived policy root
 `0xacfbd1be88e823fcdd1b094b8d2f0c8ee1bf19c826004e89752f27fd22aa49dd`.
@@ -666,7 +690,8 @@ remains excluded from GlobalSettlementABI V1.
    refinement, and complete predecessor-source migration classification.
    Select the genesis or migration release from committed profile state. Build
    and measure the predecessor-bound RISC0 guest, then generate and replay its
-   real succinct receipt on the proof machine.
+   real succinct receipt on the proof machine. Mount the reviewed durable
+   activation primitive only behind that verifier-owned admission boundary.
 3. Extend the operation-derived sink inventory across dynamic Python, Rust,
    Tau, shell, generated code, native extensions, runtime loading, deployment
    wiring, and deployed entrypoints. Bind every discovered sink to an

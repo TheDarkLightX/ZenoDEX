@@ -39,6 +39,14 @@ def _source_head_slice(value: dict[str, object]) -> dict[str, object]:
     )
 
 
+def _durable_activation_slice(value: dict[str, object]) -> dict[str, object]:
+    return next(
+        row
+        for row in value["implemented_slices"]  # type: ignore[index]
+        if row["id"] == "GLOBAL_ECONOMIC_DURABLE_ACTIVATION_JOURNAL_V1"
+    )
+
+
 def test_current_value_movement_closure_status_is_exact_and_fail_closed() -> None:
     report = check_value_movement_closure_status_v1()
 
@@ -123,6 +131,33 @@ def test_checker_rejects_stale_source_head_slice_evidence(tmp_path: Path) -> Non
     assert "source-head slice subject commit mismatch" in report["findings"]
     assert (
         "source-head slice artifact hash mismatch: python_commit_port_sha256"
+        in report["findings"]
+    )
+
+
+def test_checker_rejects_stale_durable_activation_slice_evidence(
+    tmp_path: Path,
+) -> None:
+    mutated = deepcopy(_status())
+    durable = _durable_activation_slice(mutated)
+    durable["commit"] = "0" * 40
+    durable["artifact_subject_commit"] = "1" * 40
+    durable["python_journal_sha256"] = "0" * 64
+
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    assert report["ok"] is False
+    assert (
+        "durable activation slice implementation commit mismatch" in report["findings"]
+    )
+    assert (
+        "durable activation slice artifact subject commit mismatch"
+        in report["findings"]
+    )
+    assert (
+        "durable activation slice artifact hash mismatch: python_journal_sha256"
         in report["findings"]
     )
 

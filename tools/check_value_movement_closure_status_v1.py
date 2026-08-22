@@ -42,7 +42,7 @@ EXPECTED_BUY_AND_BURN = (
     "Atomically spend the governed quote-asset fee allocation through the "
     "selected authenticated Spot route and burn the exact ZDEX atoms received."
 )
-EXPECTED_CLAIM_STATUS = "DRAFT_REVISED_SOURCE_HEAD_REVIEWED"
+EXPECTED_CLAIM_STATUS = "DRAFT_REVISED_DURABLE_ACTIVATION_REVIEWED"
 EXPECTED_HYPERDEFLATION = (
     "No arbitrary fixed percentage of initial supply is required as a floor. "
     "Bind a retained-supply rule such as R(S)=ceil(p*S/q), 0<p<q, and "
@@ -110,6 +110,22 @@ SOURCE_HEAD_SLICE_ARTIFACTS = {
         "src/integration/global_economic_commit_v1.py"
     ),
     "python_test_sha256": Path("tests/core/test_global_settlement_abi_v1.py"),
+}
+DURABLE_ACTIVATION_SLICE_ID = "GLOBAL_ECONOMIC_DURABLE_ACTIVATION_JOURNAL_V1"
+DURABLE_ACTIVATION_SLICE_COMMIT = "7b5b142e32c505261fbcea68ebb915464b187acb"
+DURABLE_ACTIVATION_SLICE_ARTIFACTS = {
+    "design_sha256": Path(
+        "docs/research/GLOBAL_ECONOMIC_DURABLE_ACTIVATION_JOURNAL_V1.md"
+    ),
+    "python_core_sha256": Path(
+        "src/core/global_economic_durable_activation_v1.py"
+    ),
+    "python_journal_sha256": Path(
+        "src/integration/global_economic_migration_journal_v1.py"
+    ),
+    "python_test_sha256": Path(
+        "tests/integration/test_global_economic_migration_journal_v1.py"
+    ),
 }
 
 
@@ -250,6 +266,38 @@ def _validate_source_head_slice_evidence_v1(
             findings.append(f"source-head slice artifact hash mismatch: {field}")
 
 
+def _validate_durable_activation_slice_evidence_v1(
+    root: Path,
+    status: Mapping[str, object],
+    subject_commit: object,
+    findings: list[str],
+) -> None:
+    slices = status.get("implemented_slices")
+    if type(slices) is not list or any(type(row) is not dict for row in slices):
+        findings.append("implemented slices must be a list of objects")
+        return
+    durable_rows = [
+        row for row in slices if row.get("id") == DURABLE_ACTIVATION_SLICE_ID
+    ]
+    if len(durable_rows) != 1:
+        findings.append("durable activation slice evidence row must occur exactly once")
+        return
+    durable = durable_rows[0]
+    if durable.get("commit") != DURABLE_ACTIVATION_SLICE_COMMIT:
+        findings.append("durable activation slice implementation commit mismatch")
+    if durable.get("artifact_subject_commit") != subject_commit:
+        findings.append("durable activation slice artifact subject commit mismatch")
+    for field, relative_path in DURABLE_ACTIVATION_SLICE_ARTIFACTS.items():
+        artifact = root / relative_path
+        recorded = durable.get(field)
+        if (
+            type(recorded) is not str
+            or not artifact.is_file()
+            or _sha256(artifact) != recorded
+        ):
+            findings.append(f"durable activation slice artifact hash mismatch: {field}")
+
+
 def check_value_movement_closure_status_v1(
     root: Path = REPO_ROOT,
     status_path: Path | None = None,
@@ -277,6 +325,7 @@ def check_value_movement_closure_status_v1(
 
     _validate_replay_slice_evidence_v1(root, status, commit, findings)
     _validate_source_head_slice_evidence_v1(root, status, commit, findings)
+    _validate_durable_activation_slice_evidence_v1(root, status, commit, findings)
 
     authority = _mapping(status.get("authority"), "authority", findings)
     expected_authority: dict[str, object] = {
