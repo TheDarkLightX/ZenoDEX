@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "cb3a6529f4bdcaf05510a8df4cea817da85bb64e",
+    "commit": "d3b0e38c872106940a0a8e7478d78481281a7c8a",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,7 +14,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "d5a1483ca6b7e6822f37600e0d709c097747ddf37a85b9fbb3e8f9f303eaeff7",
+    "sha256": "16eb26493dafe78b5f267474bc5b9aecde254953a833fdccaf4fed7c91864a6b",
     "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
     "verdict": "UNPROVED"
   },
@@ -141,6 +141,21 @@
         "no real succinct proof or independent receipt replay",
         "no production authority or whole-economy proof"
       ]
+    },
+    {
+      "reviewer": "GPT-5.6 Sol max initialization real-proof harness review",
+      "subject_commit": "d3b0e38c872106940a0a8e7478d78481281a7c8a",
+      "verdict": "PASS_STATIC_AFTER_REPAIR",
+      "scope": "Host proof metrics, canonical receipt byte replay, fake and malformed receipt admission, measured-image binding, and durable claim wording.",
+      "repaired_findings": [
+        "a corrupted Succinct seal now reaches and must fail cryptographic ReceiptVerification",
+        "the workspace README now states UNMOUNTED, PRODUCTION_AUTHORITY = NONE, and whole-value-movement safety UNPROVED"
+      ],
+      "residual_nonclaims": [
+        "the new Rust test targets are not compiled",
+        "no real ELF, measured image, cycle run, proof, or receipt replay exists",
+        "host SessionStats carry no receipt authority and do not enforce a release max_cycles ceiling"
+      ]
     }
   ],
   "implemented_slices": [
@@ -246,11 +261,15 @@
     },
     {
       "id": "ECONOMIC_INITIAL_STATE_RISC0_GUEST_SOURCE_V1",
-      "commit": "cb3a6529f4bdcaf05510a8df4cea817da85bb64e",
+      "commit": "d3b0e38c872106940a0a8e7478d78481281a7c8a",
       "abi_statement_sha256": "e2b7e921811cd84e99f54357b4edc6915ec20b414d8d1331d641d196bb064585",
       "shared_sha256": "2fea0ba53473951749df921ab7e29de0263f7ba99ca6b9f63bee48a452ff90ec",
       "guest_sha256": "c417ca6745ed5eed2a3ae9db8114f843212ce907ec1f06057296a64f91957b42",
-      "host_sha256": "42f9c65e9034bca287b55afcfe2eba91604e38c03b979f85e2f6e99b3a719081",
+      "host_sha256": "38a43e1c01470dffdb922feaea026b5077123ea3997c8378c2697cbf3780bd38",
+      "real_proof_test_sha256": "a35965788d892f351702478763a00196b18aa4cc39245759b66556798528647f",
+      "receipt_admission_test_sha256": "e416ce81f06e833529e92306507b8f30ff0914ef00b40ada3ab486c99d42bb3a",
+      "test_support_sha256": "dd1a72293916edfd8a4753211a6892ba37a3c37979cf63f527aa47b5b02689b8",
+      "rust_toolchain_sha256": "b542e162da076f0e9417ed5cdfd33c0328bbd8a60a5d21cf3d2a626fc271daa6",
       "cargo_lock_sha256": "f9a4f81080ed6fb709d5c399986a2ba20f1cd69f1dd372c60370ef9d6277a449",
       "status": [
         "GUEST_SOURCE_IMPLEMENTED",
@@ -258,6 +277,10 @@
         "RISC0_3_0_6_PINNED",
         "CANONICAL_INPUT_BOUND",
         "PLACEHOLDER_MODE_TESTED",
+        "REAL_PROOF_HARNESS_SOURCE_IMPLEMENTED",
+        "RECEIPT_ADMISSION_NEGATIVE_TEST_SOURCE_IMPLEMENTED",
+        "STATIC_MAX_REVIEW_PASS",
+        "NEW_TEST_TARGETS_UNCOMPILED",
         "REAL_ELF_UNBUILT",
         "REAL_RECEIPT_UNPROVED",
         "UNMOUNTED"
@@ -428,12 +451,12 @@
     {
       "id": "VM-11",
       "status": "PARTIAL",
-      "evidence": "For valid deeply owned states and one exact authority-selected profile-bound manifest, Python and Rust derive the same roots for every explicit balance, supply, accounting-control-domain, liability, reserve, and terminal-obligation target row, including all terminal statuses and u128 boundaries. The 4097 case rejects before row processing. Pinned RISC0 3.0.6 guest and host source compile and pass placeholder-mode tests over the same Rust statement checker. Oracle, replay, history, outbox, private lane-root objects, semantic migration labels, total predecessor-source classification, objective source authorization, a real measured ELF and receipt, migration-registry selection, durable atomic activation, and coexistence theorems remain absent."
+      "evidence": "For valid deeply owned states and one exact authority-selected profile-bound manifest, Python and Rust derive the same roots for every explicit balance, supply, accounting-control-domain, liability, reserve, and terminal-obligation target row, including all terminal statuses and u128 boundaries. The 4097 case rejects before row processing. Pinned RISC0 3.0.6 guest and host source compile and pass prior placeholder-mode tests over the same Rust statement checker. Commit d3b0e38c adds a real-proof and canonical byte-replay harness plus fake, noncanonical, resource-bound, cycle-budget, wrong-image, wrong-journal, and corrupted-Succinct-seal negative test source. The new test targets remain uncompiled and unrun. Oracle, replay, history, outbox, private lane-root objects, semantic migration labels, total predecessor-source classification, objective source authorization, a real measured ELF and receipt, migration-registry selection, durable atomic activation, and coexistence theorems remain absent."
     },
     {
       "id": "VM-12",
       "status": "GAP",
-      "evidence": "This ledger binds one clean scoped subject, but complete release evidence and independent replay on the final candidate are absent."
+      "evidence": "This ledger binds clean scoped subject d3b0e38c and a GPT-5.6 Sol max static review of its proof harness. Compilation, real proof replay, reproducible proof-machine artifacts, and complete release evidence remain absent."
     }
   ],
   "live_gate_observations": {

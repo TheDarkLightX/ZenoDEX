@@ -499,9 +499,16 @@ canonical bounded input and reject development mode, placeholder methods,
 non-succinct receipts, wrong journals, and wrong measured images. The source
 keeps the prepared statement opaque, recomputes its journal before certificate
 construction, and requires the journal's image field to equal the measured
-guest image. It compiles and passes tests with a placeholder method. No real
-ELF, image ID, cycle measurement, proof, or receipt replay has been produced
-for this guest.
+guest image. It compiles and passes tests with a placeholder method. Commit
+`d3b0e38c872106940a0a8e7478d78481281a7c8a` adds a real-proof harness that
+records non-authoritative host cycle diagnostics, canonically serializes and
+replays a Succinct receipt, kills removal of the cryptographic verification
+call, and retains explicit unmounted and no-production-authority wording. That
+new harness has not been compiled or run: the local workstation heat constraint
+excludes the several-gigabyte rebuild, and the previously authorized
+proof-machine endpoints are unavailable. No real ELF, image ID, cycle
+measurement, proof, or receipt replay has therefore been produced for this
+guest.
 
 The current manifest does not individually source-classify Oracle occurrences,
 replay rows, history, outbox rows, or objects hidden behind private lane roots.
