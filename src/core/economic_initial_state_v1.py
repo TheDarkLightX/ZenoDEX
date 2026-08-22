@@ -4,8 +4,14 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, replace
-from enum import Enum
 
+from .economic_initial_state_atom_coverage_v1 import (
+    EconomicInitialStateKindV1,
+    EconomicInitialStateSourceManifestV1,
+    snapshot_economic_initial_state_source_manifest_v1,
+    validate_economic_initial_state_atom_coverage_profile_binding_v1,
+    validate_economic_initial_state_atom_coverage_v1,
+)
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import ReceiptKindV1, SuccinctReceiptVerifierV1
 from .global_economic_refinement_snapshot_v1 import _snapshot_state_v1
@@ -31,11 +37,6 @@ from .m6_capability_profile_binding_v1 import (
     snapshot_economic_policy_registry_v1,
     validate_m6_capability_profile_binding_v1,
 )
-
-
-class EconomicInitialStateKindV1(str, Enum):
-    GENESIS = "GENESIS"
-    MIGRATION = "MIGRATION"
 
 
 def _require_exact_root(value: object, *, name: str, allow_zero: bool = False) -> str:
@@ -197,6 +198,7 @@ class EconomicInitialStateAdmissionV1:
     profile: EconomicProfileSnapshotV1
     policy_registry: EconomicPolicyRegistryV1
     state: GlobalEconomicStateV1
+    source_manifest: EconomicInitialStateSourceManifestV1
     certificate: EconomicInitialStateCertificateV1
     receipt_bytes: bytes
 
@@ -207,6 +209,8 @@ class EconomicInitialStateAdmissionV1:
             raise TypeError("initial state admission policy registry type is not closed")
         if type(self.state) is not GlobalEconomicStateV1:
             raise TypeError("initial state admission state type is not closed")
+        if type(self.source_manifest) is not EconomicInitialStateSourceManifestV1:
+            raise TypeError("initial state admission source manifest type is not closed")
         if type(self.certificate) is not EconomicInitialStateCertificateV1:
             raise TypeError("initial state admission certificate type is not closed")
         if type(self.receipt_bytes) is not bytes or not self.receipt_bytes:
@@ -231,13 +235,29 @@ def _verify_economic_initial_state_for_publisher_v1(
     profile = snapshot_economic_profile_v1(admission.profile)
     policy_registry = snapshot_economic_policy_registry_v1(admission.policy_registry)
     state = _snapshot_state_v1(admission.state)
+    source_manifest = snapshot_economic_initial_state_source_manifest_v1(
+        admission.source_manifest
+    )
     certificate = replace(admission.certificate)
     receipt_bytes = admission.receipt_bytes
     if profile.status is not ProfileStatusV1.ACTIVE:
         raise ValueError("initial state admission requires an ACTIVE profile")
     validate_m6_capability_profile_binding_v1(profile, policy_registry)
     validate_m6_asset_precision_profile_binding_v1(profile, policy_registry)
+    validate_economic_initial_state_atom_coverage_profile_binding_v1(
+        profile,
+        policy_registry,
+        source_manifest,
+    )
     validate_global_state_profile_v1(state, profile)
+    if certificate.kind is not source_manifest.kind:
+        raise ValueError("initial state certificate and source manifest kind mismatch")
+    coverage_root = validate_economic_initial_state_atom_coverage_v1(
+        state,
+        source_manifest,
+    )
+    if certificate.state_atom_coverage_root != coverage_root:
+        raise ValueError("initial state atom coverage root mismatch")
     bindings = (
         (certificate.chain_id, state.chain_id, "chain id"),
         (certificate.deployment_root, state.deployment_root, "deployment root"),

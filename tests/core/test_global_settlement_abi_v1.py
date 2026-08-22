@@ -67,8 +67,12 @@ from src.core.global_settlement_abi_v1 import (
     EconomicEpochReceiptCandidateV1,
     EconomicEpochRouteStateDisclosureV1,
     EconomicInitialStateAdmissionV1,
+    EconomicInitialStateAtomClassificationV1,
+    EconomicInitialStateAtomKindV1,
+    EconomicInitialStateAtomSourceV1,
     EconomicInitialStateCertificateV1,
     EconomicInitialStateKindV1,
+    EconomicInitialStateSourceManifestV1,
     EconomicPolicyBindingV1,
     EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
@@ -101,6 +105,9 @@ from src.core.global_settlement_abi_v1 import (
     VerifiedEconomicEpochV1,
     canonical_economic_command_body_bytes_v1,
     compose_asset_lane_epoch_effect_plans_v1,
+    derive_economic_initial_state_atom_occurrences_v1,
+    economic_initial_state_atom_coverage_policy_binding_v1,
+    economic_initial_state_atom_occurrence_v1,
     m6_asset_precision_policy_binding_v1,
     m6_capability_policy_binding_v1,
     validate_global_state_profile_v1,
@@ -217,7 +224,101 @@ def _signature_verifier_registry_v1() -> EconomicCommandSignatureVerifierRegistr
     )
 
 
-def _policy_registry_for_route_v1(route: RouteReleaseV1) -> EconomicPolicyRegistryV1:
+def _initial_asset_rows_v1(
+) -> tuple[tuple[EconomicAmountV1, ...], tuple[AssetSupplyV1, ...]]:
+    alice_atoms = MAX_EPOCH_COMMANDS_V1 * 32 + 100
+    balances = tuple(
+        sorted(
+            (
+                EconomicAmountV1("alice", "USD", "accounts", alice_atoms),
+                EconomicAmountV1("recipient", "USD", "accounts", 10),
+                EconomicAmountV1("treasury", "USD", "accounts", 5),
+            ),
+            key=lambda item: item.key,
+        )
+    )
+    return balances, (AssetSupplyV1("USD", alice_atoms + 15),)
+
+
+def _source_manifest_for_rows_v1(
+    kind: EconomicInitialStateKindV1,
+    balances: tuple[EconomicAmountV1, ...],
+    supplies: tuple[AssetSupplyV1, ...],
+) -> EconomicInitialStateSourceManifestV1:
+    classification = (
+        EconomicInitialStateAtomClassificationV1.GENESIS_ALLOCATION
+        if kind is EconomicInitialStateKindV1.GENESIS
+        else EconomicInitialStateAtomClassificationV1.MIGRATED_TARGET
+    )
+    occurrences = (
+        *(
+            economic_initial_state_atom_occurrence_v1(
+                EconomicInitialStateAtomKindV1.BALANCE,
+                index,
+                row,
+            )
+            for index, row in enumerate(balances)
+        ),
+        *(
+            economic_initial_state_atom_occurrence_v1(
+                EconomicInitialStateAtomKindV1.SUPPLY,
+                index,
+                row,
+            )
+            for index, row in enumerate(supplies)
+        ),
+    )
+    return EconomicInitialStateSourceManifestV1(
+        kind,
+        tuple(
+            EconomicInitialStateAtomSourceV1(
+                occurrence,
+                classification,
+                _root(700 + index),
+            )
+            for index, occurrence in enumerate(occurrences)
+        ),
+    )
+
+
+def _genesis_source_manifest_v1() -> EconomicInitialStateSourceManifestV1:
+    balances, supplies = _initial_asset_rows_v1()
+    return _source_manifest_for_rows_v1(
+        EconomicInitialStateKindV1.GENESIS,
+        balances,
+        supplies,
+    )
+
+
+def _source_manifest_for_state_v1(
+    kind: EconomicInitialStateKindV1,
+    state: GlobalEconomicStateV1,
+) -> EconomicInitialStateSourceManifestV1:
+    classification = (
+        EconomicInitialStateAtomClassificationV1.GENESIS_ALLOCATION
+        if kind is EconomicInitialStateKindV1.GENESIS
+        else EconomicInitialStateAtomClassificationV1.MIGRATED_TARGET
+    )
+    return EconomicInitialStateSourceManifestV1(
+        kind,
+        tuple(
+            EconomicInitialStateAtomSourceV1(
+                occurrence,
+                classification,
+                _root(700 + index),
+            )
+            for index, occurrence in enumerate(
+                derive_economic_initial_state_atom_occurrences_v1(state)
+            )
+        ),
+    )
+
+
+def _policy_registry_for_route_v1(
+    route: RouteReleaseV1,
+    source_manifest: EconomicInitialStateSourceManifestV1 | None = None,
+) -> EconomicPolicyRegistryV1:
+    source_manifest = source_manifest or _genesis_source_manifest_v1()
     authorization_registry = EconomicCommandAuthorizationRegistryV1(
         (
             EconomicCommandAuthorizationV1(
@@ -253,6 +354,9 @@ def _policy_registry_for_route_v1(route: RouteReleaseV1) -> EconomicPolicyRegist
                     ),
                     m6_asset_precision_policy_binding_v1(),
                     m6_capability_policy_binding_v1(),
+                    economic_initial_state_atom_coverage_policy_binding_v1(
+                        source_manifest
+                    ),
                 ),
                 key=lambda binding: (binding.policy_kind, binding.command_kind),
             )
@@ -308,7 +412,11 @@ def _coordinator_release(lane_id: LaneIdV1, ordinal: int) -> LaneCoordinatorRele
     )
 
 
-def _profile() -> tuple[EconomicProfileSnapshotV1, RouteReleaseV1]:
+def _profile(
+    *,
+    source_manifest: EconomicInitialStateSourceManifestV1 | None = None,
+    authority_epoch: int = 7,
+) -> tuple[EconomicProfileSnapshotV1, RouteReleaseV1]:
     releases = tuple(
         _module_release(lane_id, ordinal)
         for ordinal, lane_id in enumerate(ALL_LANE_IDS_V1, start=1)
@@ -340,9 +448,9 @@ def _profile() -> tuple[EconomicProfileSnapshotV1, RouteReleaseV1]:
         accepts_new_objects=True,
         evidence_statuses=_active_evidence(),
     )
-    policy_registry = _policy_registry_for_route_v1(route)
+    policy_registry = _policy_registry_for_route_v1(route, source_manifest)
     profile = EconomicProfileSnapshotV1.build(
-        authority_epoch=7,
+        authority_epoch=authority_epoch,
         lane_registry=lane_registry,
         lane_coordinator_registry=lane_coordinator_registry,
         route_registry=RouteRegistryV1((route,)),
@@ -383,21 +491,28 @@ def _initial_state_admission(
     state: GlobalEconomicStateV1,
     *,
     receipt_bytes: bytes = b"succinct-initial-state-receipt",
+    kind: EconomicInitialStateKindV1 = EconomicInitialStateKindV1.GENESIS,
+    source_manifest: EconomicInitialStateSourceManifestV1 | None = None,
+    source_profile_root: str = ZERO_ROOT_V1,
+    source_state_root: str = ZERO_ROOT_V1,
+    source_writer_epoch: int = 0,
+    source_height: int = 0,
 ) -> EconomicInitialStateAdmissionV1:
+    source_manifest = source_manifest or _source_manifest_for_state_v1(kind, state)
     receipt_root = "0x" + hashlib.sha256(receipt_bytes).hexdigest()
     certificate = EconomicInitialStateCertificateV1(
-        kind=EconomicInitialStateKindV1.GENESIS,
+        kind=kind,
         chain_id=state.chain_id,
         deployment_root=state.deployment_root,
         profile_root=profile.profile_id,
         writer_epoch=profile.authority_epoch,
         height=state.height,
         state_root=state.state_root,
-        source_profile_root=ZERO_ROOT_V1,
-        source_state_root=ZERO_ROOT_V1,
-        source_writer_epoch=0,
-        source_height=0,
-        state_atom_coverage_root=_root(450),
+        source_profile_root=source_profile_root,
+        source_state_root=source_state_root,
+        source_writer_epoch=source_writer_epoch,
+        source_height=source_height,
+        state_atom_coverage_root=source_manifest.manifest_root,
         lane_object_coverage_root=_root(451),
         replay_continuity_root=_root(452),
         terminal_continuity_root=_root(453),
@@ -416,8 +531,12 @@ def _initial_state_admission(
     )
     return EconomicInitialStateAdmissionV1(
         profile=profile,
-        policy_registry=_policy_registry_for_route_v1(profile.route_registry.routes[0]),
+        policy_registry=_policy_registry_for_route_v1(
+            profile.route_registry.routes[0],
+            source_manifest,
+        ),
         state=state,
+        source_manifest=source_manifest,
         certificate=certificate,
         receipt_bytes=receipt_bytes,
     )
@@ -577,6 +696,9 @@ def _authenticate_occurrence_for_test(
                     ),
                     m6_asset_precision_policy_binding_v1(),
                     m6_capability_policy_binding_v1(),
+                    economic_initial_state_atom_coverage_policy_binding_v1(
+                        _genesis_source_manifest_v1()
+                    ),
                 ),
                 key=lambda binding: (binding.policy_kind, binding.command_kind),
             )
@@ -1036,21 +1158,12 @@ def _epoch_candidate(
 
 def _epoch_asset_module_state(profile: EconomicProfileSnapshotV1) -> AssetTransferStateV1:
     release = profile.lane_registry.release_for(LaneIdV1.ASSET_TRANSFER)
-    alice_atoms = MAX_EPOCH_COMMANDS_V1 * 32 + 100
+    balances, supplies = _initial_asset_rows_v1()
     return AssetTransferStateV1(
         module_release_id=release.release_id,
         policies=(AssetTransferPolicyV1("USD", "treasury", 2, True),),
-        balances=tuple(
-            sorted(
-                (
-                    EconomicAmountV1("alice", "USD", "accounts", alice_atoms),
-                    EconomicAmountV1("recipient", "USD", "accounts", 10),
-                    EconomicAmountV1("treasury", "USD", "accounts", 5),
-                ),
-                key=lambda item: item.key,
-            )
-        ),
-        supplies=(AssetSupplyV1("USD", alice_atoms + 15),),
+        balances=balances,
+        supplies=supplies,
     )
 
 
@@ -2105,12 +2218,12 @@ def test_epoch_two_route_state_evidence_has_stable_python_golden_roots() -> None
     verified = verify_economic_epoch_v1(candidate, _RecordingReceiptVerifier())
 
     assert verified.route_state_projection_roots == (
-        "0xea8f2742bac0a6c2ee68e26c798be7be23de987176f13e9487026a9422d8d0c2",
-        "0x9ab5f3d4ee366e57d0165b4fec07dd47bbc119647c1020c59e72dfe934363186",
+        "0x78b7b302ab293d7bb992779182e08673f45c531fcffa9a4f5a19f4e621fdbe80",
+        "0x0dd8dd74f449f56fa991baaafc61b76115f953874d7f0fc50be78510017836bc",
     )
     assert verified.route_state_effect_refinement_roots == (
-        "0xcd277f00156ac2fbdd16b44a661cf026a973e8d8eea6a33c92f3cfebc3f077cf",
-        "0xc4cc1b537459821b4f22df4fed54122a9a8a1afbb33c973f1ab18cceb32a7773",
+        "0xf32bf976a6fd7a54a74054fa25cdd7364e7792fb6852eb480cf0ed60caf5a163",
+        "0xddb28263b51f66b4ee6a451a5301393ecd6c0afd5ea30fcb4ca8eee4b6f8a86e",
     )
 
 
@@ -2767,6 +2880,73 @@ def test_commit_port_rejects_plain_or_mismatched_initial_state_before_receipt() 
     assert verifier.calls == []
 
 
+def test_initial_state_atom_coverage_rejects_omission_before_receipt_verification() -> None:
+    provisional_profile, _ = _profile()
+    provisional_state = _state(provisional_profile, height=0)
+    complete = _source_manifest_for_state_v1(
+        EconomicInitialStateKindV1.GENESIS,
+        provisional_state,
+    )
+    omitted = replace(complete, rows=complete.rows[:-1])
+    profile, _ = _profile(source_manifest=omitted)
+    state = _state(profile, height=0)
+    admission = _initial_state_admission(
+        profile,
+        state,
+        source_manifest=omitted,
+    )
+    verifier = _RecordingReceiptVerifier()
+
+    with pytest.raises(ValueError, match="does not classify the exact target state"):
+        GlobalEconomicCommitPortV1(admission, verifier)
+
+    assert verifier.calls == []
+
+
+def test_initial_state_atom_manifest_substitution_rejects_before_receipt_verification() -> None:
+    profile, _ = _profile()
+    state = _state(profile, height=0)
+    admission = _initial_state_admission(profile, state)
+    substituted_row = replace(
+        admission.source_manifest.rows[0],
+        source_authorization_root=_root(77_104),
+    )
+    substituted = replace(
+        admission.source_manifest,
+        rows=(substituted_row, *admission.source_manifest.rows[1:]),
+    )
+    verifier = _RecordingReceiptVerifier()
+
+    with pytest.raises(ValueError, match="atom coverage manifest root mismatch"):
+        GlobalEconomicCommitPortV1(
+            replace(admission, source_manifest=substituted),
+            verifier,
+        )
+
+    assert verifier.calls == []
+
+
+def test_initial_state_certificate_coverage_root_mismatch_rejects_before_receipt() -> None:
+    profile, _ = _profile()
+    state = _state(profile, height=0)
+    admission = _initial_state_admission(profile, state)
+    verifier = _RecordingReceiptVerifier()
+
+    with pytest.raises(ValueError, match="atom coverage root mismatch"):
+        GlobalEconomicCommitPortV1(
+            replace(
+                admission,
+                certificate=replace(
+                    admission.certificate,
+                    state_atom_coverage_root=_root(77_105),
+                ),
+            ),
+            verifier,
+        )
+
+    assert verifier.calls == []
+
+
 def test_initial_state_callback_cannot_mutate_publisher_owned_state() -> None:
     profile, _ = _profile()
     initial_state = _state(profile, height=0)
@@ -2785,6 +2965,11 @@ def test_initial_state_callback_cannot_mutate_publisher_owned_state() -> None:
             del receipt_bytes, expected_image_id, expected_journal_bytes
             object.__setattr__(initial_state.balances[0], "amount_atoms", 99_999)
             object.__setattr__(admission.certificate, "state_root", _root(77_102))
+            object.__setattr__(
+                admission.source_manifest.rows[0].occurrence,
+                "row_root",
+                _root(77_106),
+            )
 
     port = GlobalEconomicCommitPortV1(admission, MutatingInitialStateVerifier())
 
@@ -2793,30 +2978,29 @@ def test_initial_state_callback_cannot_mutate_publisher_owned_state() -> None:
 
 
 def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> None:
-    profile, _ = _profile()
-    migrated_state = _state(profile, height=1)
-    genesis = _initial_state_admission(profile, _state(profile, height=0))
-    migration_certificate = replace(
-        genesis.certificate,
-        kind=EconomicInitialStateKindV1.MIGRATION,
-        height=migrated_state.height,
-        state_root=migrated_state.state_root,
-        source_profile_root=_root(77_110),
-        source_state_root=_root(77_111),
-        source_writer_epoch=profile.authority_epoch - 1,
-        source_height=migrated_state.height - 1,
+    source_profile, _ = _profile()
+    source_state = _state(source_profile, height=0)
+    provisional_target = _state(source_profile, height=1)
+    source_manifest = _source_manifest_for_state_v1(
+        EconomicInitialStateKindV1.MIGRATION,
+        provisional_target,
     )
-    migration_certificate = replace(
-        migration_certificate,
-        journal_bytes=len(migration_certificate.canonical_journal_bytes),
+    target_profile, _ = _profile(
+        source_manifest=source_manifest,
+        authority_epoch=source_profile.authority_epoch + 1,
     )
-    admission = EconomicInitialStateAdmissionV1(
-        profile,
-        genesis.policy_registry,
+    migrated_state = _state(target_profile, height=1)
+    admission = _initial_state_admission(
+        target_profile,
         migrated_state,
-        migration_certificate,
-        genesis.receipt_bytes,
+        kind=EconomicInitialStateKindV1.MIGRATION,
+        source_manifest=source_manifest,
+        source_profile_root=source_profile.profile_id,
+        source_state_root=source_state.state_root,
+        source_writer_epoch=source_profile.authority_epoch,
+        source_height=source_state.height,
     )
+    migration_certificate = admission.certificate
 
     port = GlobalEconomicCommitPortV1(admission, _RecordingReceiptVerifier())
 
@@ -2824,7 +3008,7 @@ def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> 
     with pytest.raises(ValueError, match="writer epoch exactly once"):
         replace(
             migration_certificate,
-            source_writer_epoch=profile.authority_epoch - 2,
+            source_writer_epoch=target_profile.authority_epoch - 2,
         )
     with pytest.raises(ValueError, match="one transition height"):
         replace(migration_certificate, source_height=migrated_state.height)

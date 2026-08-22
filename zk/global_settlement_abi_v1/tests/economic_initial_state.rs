@@ -3,9 +3,16 @@ use std::path::PathBuf;
 
 use serde_json::Value;
 use zenodex_global_settlement_abi_v1::{
-    hash_bytes_sha256_v1, validate_economic_initial_state_bindings_v1,
-    EconomicInitialStateCertificateV1, EconomicInitialStateKindV1, EconomicProfileSnapshotV1,
-    GlobalEconomicStateV1, ProfileStatusV1, ReceiptKindV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1,
+    derive_economic_initial_state_atom_occurrences_v1,
+    economic_initial_state_atom_coverage_policy_binding_v1, hash_bytes_sha256_v1, hash_global_v1,
+    validate_economic_initial_state_bindings_v1, EconomicInitialStateAtomClassificationV1,
+    EconomicInitialStateAtomSourceV1, EconomicInitialStateCertificateV1,
+    EconomicInitialStateKindV1, EconomicInitialStateSourceManifestV1, EconomicPolicyBindingV1,
+    EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, GlobalEconomicStateV1, ProfileStatusV1,
+    ReceiptKindV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1, M6_ASSET_PRECISION_POLICY_KIND_V1,
+    M6_ASSET_PRECISION_POLICY_ROOT_V1, M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1,
+    M6_CAPABILITY_MANIFEST_ROOT_V1, M6_CAPABILITY_POLICY_KIND_V1,
+    M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -20,16 +27,103 @@ fn fixture_vector(name: &str) -> Value {
     fixture["vectors"][name]["canonical"].clone()
 }
 
-fn profile_and_state() -> (EconomicProfileSnapshotV1, GlobalEconomicStateV1) {
-    (
-        serde_json::from_value(fixture_vector("economic_profile")).unwrap(),
-        serde_json::from_value(fixture_vector("global_state")).unwrap(),
-    )
+fn source_manifest(
+    state: &GlobalEconomicStateV1,
+    kind: EconomicInitialStateKindV1,
+) -> EconomicInitialStateSourceManifestV1 {
+    let classification = match kind {
+        EconomicInitialStateKindV1::GENESIS => {
+            EconomicInitialStateAtomClassificationV1::GenesisAllocation
+        }
+        EconomicInitialStateKindV1::MIGRATION => {
+            EconomicInitialStateAtomClassificationV1::MigratedTarget
+        }
+    };
+    EconomicInitialStateSourceManifestV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        kind,
+        rows: derive_economic_initial_state_atom_occurrences_v1(state)
+            .unwrap()
+            .into_iter()
+            .enumerate()
+            .map(|(index, occurrence)| EconomicInitialStateAtomSourceV1 {
+                occurrence,
+                classification,
+                source_authorization_root: root(1_000 + u64::try_from(index).unwrap()),
+            })
+            .collect(),
+    }
+}
+
+fn policy_registry(
+    source_manifest: &EconomicInitialStateSourceManifestV1,
+) -> EconomicPolicyRegistryV1 {
+    EconomicPolicyRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        bindings: vec![
+            EconomicPolicyBindingV1 {
+                policy_kind: M6_ASSET_PRECISION_POLICY_KIND_V1.to_owned(),
+                command_kind: M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1.to_owned(),
+                policy_root: RootV1::parse(
+                    M6_ASSET_PRECISION_POLICY_ROOT_V1,
+                    "precision policy root",
+                    false,
+                )
+                .unwrap(),
+            },
+            EconomicPolicyBindingV1 {
+                policy_kind: M6_CAPABILITY_POLICY_KIND_V1.to_owned(),
+                command_kind: M6_CAPABILITY_PROFILE_COMMAND_KIND_V1.to_owned(),
+                policy_root: RootV1::parse(
+                    M6_CAPABILITY_MANIFEST_ROOT_V1,
+                    "capability policy root",
+                    false,
+                )
+                .unwrap(),
+            },
+            economic_initial_state_atom_coverage_policy_binding_v1(source_manifest).unwrap(),
+        ],
+    }
+}
+
+fn profile_and_state(
+    kind: EconomicInitialStateKindV1,
+) -> (
+    EconomicProfileSnapshotV1,
+    EconomicPolicyRegistryV1,
+    GlobalEconomicStateV1,
+    EconomicInitialStateSourceManifestV1,
+) {
+    let mut profile: EconomicProfileSnapshotV1 =
+        serde_json::from_value(fixture_vector("economic_profile")).unwrap();
+    let mut state: GlobalEconomicStateV1 =
+        serde_json::from_value(fixture_vector("global_state")).unwrap();
+    let source_manifest = source_manifest(&state, kind);
+    let policy_registry = policy_registry(&source_manifest);
+    profile.policy_registry_root = policy_registry.registry_root().unwrap();
+    let profile_content = serde_json::json!({
+        "schema": GLOBAL_SETTLEMENT_ABI_V1,
+        "authority_epoch": profile.authority_epoch,
+        "lane_registry_root": profile.lane_registry_root,
+        "lane_coordinator_registry_root": profile.lane_coordinator_registry_root,
+        "route_registry_root": profile.route_registry_root,
+        "proof_shape_root": profile.proof_shape_root,
+        "root_image_id": profile.root_image_id,
+        "verifier_registry_root": profile.verifier_registry_root,
+        "migration_registry_root": profile.migration_registry_root,
+        "policy_registry_root": profile.policy_registry_root,
+        "terminal_registry_root": profile.terminal_registry_root,
+    });
+    profile.profile_id =
+        hash_global_v1("global-economic-profile-content-v1", &profile_content).unwrap();
+    state.profile_root = profile.profile_id.clone();
+    (profile, policy_registry, state, source_manifest)
 }
 
 fn migration_certificate(
     profile: &EconomicProfileSnapshotV1,
     state: &GlobalEconomicStateV1,
+    source_manifest: &EconomicInitialStateSourceManifestV1,
     receipt_bytes: &[u8],
 ) -> EconomicInitialStateCertificateV1 {
     let mut certificate = EconomicInitialStateCertificateV1 {
@@ -45,7 +139,7 @@ fn migration_certificate(
         source_state_root: root(31),
         source_writer_epoch: state.writer_epoch - 1,
         source_height: state.height - 1,
-        state_atom_coverage_root: root(32),
+        state_atom_coverage_root: source_manifest.manifest_root().unwrap(),
         lane_object_coverage_root: root(33),
         replay_continuity_root: root(34),
         terminal_continuity_root: root(35),
@@ -133,20 +227,29 @@ fn genesis_certificate_matches_python_golden_roots() {
 
 #[test]
 fn migration_certificate_binds_profile_state_lineage_and_receipt() {
-    let (profile, state) = profile_and_state();
+    let (profile, policy_registry, state, source_manifest) =
+        profile_and_state(EconomicInitialStateKindV1::MIGRATION);
     let receipt_bytes = b"economic-initial-state-receipt";
-    let certificate = migration_certificate(&profile, &state, receipt_bytes);
+    let certificate = migration_certificate(&profile, &state, &source_manifest, receipt_bytes);
 
-    validate_economic_initial_state_bindings_v1(&profile, &state, &certificate, receipt_bytes)
-        .unwrap();
+    validate_economic_initial_state_bindings_v1(
+        &profile,
+        &policy_registry,
+        &state,
+        &source_manifest,
+        &certificate,
+        receipt_bytes,
+    )
+    .unwrap();
     assert!(!certificate.certificate_root().unwrap().is_zero());
 }
 
 #[test]
 fn migration_certificate_rejects_skipped_lineage_and_crossed_state() {
-    let (profile, state) = profile_and_state();
+    let (profile, policy_registry, state, source_manifest) =
+        profile_and_state(EconomicInitialStateKindV1::MIGRATION);
     let receipt_bytes = b"economic-initial-state-receipt";
-    let certificate = migration_certificate(&profile, &state, receipt_bytes);
+    let certificate = migration_certificate(&profile, &state, &source_manifest, receipt_bytes);
 
     let mut skipped = certificate.clone();
     skipped.source_writer_epoch -= 1;
@@ -154,17 +257,51 @@ fn migration_certificate_rejects_skipped_lineage_and_crossed_state() {
 
     let mut crossed = certificate;
     crossed.state_root = root(99);
-    assert!(
-        validate_economic_initial_state_bindings_v1(&profile, &state, &crossed, receipt_bytes,)
-            .is_err()
-    );
+    assert!(validate_economic_initial_state_bindings_v1(
+        &profile,
+        &policy_registry,
+        &state,
+        &source_manifest,
+        &crossed,
+        receipt_bytes,
+    )
+    .is_err());
+
+    let mut substituted_manifest = source_manifest.clone();
+    substituted_manifest.rows[0].source_authorization_root = root(98);
+    assert!(validate_economic_initial_state_bindings_v1(
+        &profile,
+        &policy_registry,
+        &state,
+        &substituted_manifest,
+        &migration_certificate(&profile, &state, &substituted_manifest, receipt_bytes),
+        receipt_bytes,
+    )
+    .is_err());
+
+    let mut wrong_coverage_root =
+        migration_certificate(&profile, &state, &source_manifest, receipt_bytes);
+    wrong_coverage_root.state_atom_coverage_root = root(97);
+    wrong_coverage_root.journal_bytes =
+        u64::try_from(wrong_coverage_root.canonical_journal_bytes().unwrap().len()).unwrap();
+    assert!(validate_economic_initial_state_bindings_v1(
+        &profile,
+        &policy_registry,
+        &state,
+        &source_manifest,
+        &wrong_coverage_root,
+        receipt_bytes,
+    )
+    .is_err());
 
     let mut inactive = profile;
     inactive.status = ProfileStatusV1::SHADOW;
     assert!(validate_economic_initial_state_bindings_v1(
         &inactive,
+        &policy_registry,
         &state,
-        &migration_certificate(&inactive, &state, receipt_bytes),
+        &source_manifest,
+        &migration_certificate(&inactive, &state, &source_manifest, receipt_bytes),
         receipt_bytes,
     )
     .is_err());

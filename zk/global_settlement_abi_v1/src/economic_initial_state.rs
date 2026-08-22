@@ -7,8 +7,15 @@ use crate::canonical::{
     validate_token_v1, AbiErrorV1, AbiResultV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1,
     MAX_CYCLE_BUDGET_V1, MAX_JOURNAL_BYTES_V1,
 };
+use crate::economic_initial_state_atom_coverage::{
+    validate_economic_initial_state_atom_coverage_profile_binding_v1,
+    validate_economic_initial_state_atom_coverage_v1, EconomicInitialStateSourceManifestV1,
+};
 use crate::proof::ReceiptKindV1;
-use crate::release::{EconomicProfileSnapshotV1, ProfileStatusV1};
+use crate::release::{
+    validate_m6_asset_precision_profile_binding_v1, validate_m6_capability_profile_binding_v1,
+    EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, ProfileStatusV1,
+};
 use crate::state::GlobalEconomicStateV1;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -179,7 +186,9 @@ impl EconomicInitialStateCertificateV1 {
 
 pub fn validate_economic_initial_state_bindings_v1(
     profile: &EconomicProfileSnapshotV1,
+    policy_registry: &EconomicPolicyRegistryV1,
     state: &GlobalEconomicStateV1,
+    source_manifest: &EconomicInitialStateSourceManifestV1,
     certificate: &EconomicInitialStateCertificateV1,
     receipt_bytes: &[u8],
 ) -> AbiResultV1<()> {
@@ -189,8 +198,27 @@ pub fn validate_economic_initial_state_bindings_v1(
             "economic initial state active profile",
         ));
     }
+    validate_m6_capability_profile_binding_v1(profile, policy_registry)?;
+    validate_m6_asset_precision_profile_binding_v1(profile, policy_registry)?;
+    validate_economic_initial_state_atom_coverage_profile_binding_v1(
+        profile,
+        policy_registry,
+        source_manifest,
+    )?;
     state.validate_profile(profile)?;
     certificate.validate()?;
+    if certificate.kind != source_manifest.kind {
+        return Err(AbiErrorV1::InvalidBinding(
+            "initial state certificate source manifest kind",
+        ));
+    }
+    let state_atom_coverage_root =
+        validate_economic_initial_state_atom_coverage_v1(state, source_manifest)?;
+    if certificate.state_atom_coverage_root != state_atom_coverage_root {
+        return Err(AbiErrorV1::InvalidBinding(
+            "initial state atom coverage root",
+        ));
+    }
     let state_root = state.state_root()?;
     if certificate.chain_id != state.chain_id
         || certificate.deployment_root != state.deployment_root
