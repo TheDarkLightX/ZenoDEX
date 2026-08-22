@@ -1,0 +1,229 @@
+{
+  "schema": "zenodex/m6-capability-manifest/v1",
+  "status": "RESEARCH_ONLY_INCOMPLETE",
+  "production_promotion": false,
+  "manifest_complete": false,
+  "release_eligible": false,
+  "semantic_contract": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
+  "lanes": [
+    {
+      "lane_id": "ASSET_TRANSFER",
+      "disposition": "REQUIRED_UNRESOLVED",
+      "capabilities": [
+        "account_lifecycle",
+        "native_asset_accounting",
+        "generic_transfer",
+        "managed_issue",
+        "managed_burn",
+        "transaction_fee",
+        "tau_originated_asset_registration"
+      ]
+    },
+    {
+      "lane_id": "SPOT_LIQUIDITY",
+      "disposition": "REQUIRED_UNRESOLVED",
+      "capabilities": [
+        "pool_create",
+        "exact_in_swap",
+        "exact_out_swap",
+        "governed_route",
+        "atomic_batch",
+        "lp_issue",
+        "lp_burn",
+        "pool_close",
+        "fee_allocation",
+        "residue_terminal_disposition"
+      ]
+    },
+    {
+      "lane_id": "FARM_INCENTIVES",
+      "disposition": "REQUIRED_UNRESOLVED",
+      "capabilities": [
+        "lp_stake",
+        "stake_activation",
+        "emission_accrual",
+        "emission_claim",
+        "farm_cancellation",
+        "farm_terminal_drain"
+      ]
+    },
+    {
+      "lane_id": "ZDEX_TOKENOMICS",
+      "disposition": "REQUIRED_UNRESOLVED",
+      "capabilities": [
+        "fee_routing",
+        "staking_claim",
+        "host_compensation_claim",
+        "treasury_claim",
+        "reserve_lifecycle",
+        "atomic_purchase_and_burn",
+        "retained_supply_hyperdeflation"
+      ]
+    },
+    {
+      "lane_id": "ZUSD_MONETARY",
+      "disposition": "REQUIRED_UNRESOLVED",
+      "capabilities": [
+        "vault_open",
+        "collateral_deposit",
+        "collateral_withdraw",
+        "zusd_mint",
+        "zusd_repay",
+        "vault_owner_close",
+        "multi_vault_redemption",
+        "stability_pool_deposit",
+        "stability_pool_withdraw",
+        "stability_pool_claim",
+        "liquidation",
+        "recovery_mode",
+        "all_claims_terminal_drain"
+      ]
+    },
+    {
+      "lane_id": "PERPS_MARKET",
+      "disposition": "REQUIRED_UNRESOLVED",
+      "capabilities": [
+        "margin_deposit",
+        "margin_withdraw",
+        "position_open",
+        "position_adjust",
+        "funding_accrual",
+        "fee_allocation",
+        "liquidation",
+        "insurance_reserve",
+        "auto_deleveraging",
+        "bankruptcy_resolution",
+        "terminal_closeout"
+      ]
+    },
+    {
+      "lane_id": "ORACLE_MARKET",
+      "disposition": "REQUIRED_UNRESOLVED",
+      "capabilities": [
+        "query_create",
+        "tip_escrow",
+        "reporter_bond",
+        "report_submit",
+        "report_finality",
+        "reporter_reward",
+        "report_dispute",
+        "reward_clawback",
+        "reporter_slash",
+        "oracle_terminal_drain"
+      ]
+    },
+    {
+      "lane_id": "SEALED_AUCTION",
+      "disposition": "REQUIRED_UNRESOLVED",
+      "capabilities": [
+        "bid_commitment",
+        "bond_accounting_location",
+        "bid_reveal",
+        "deterministic_clearing",
+        "payment_settlement",
+        "inventory_settlement",
+        "refund",
+        "slash",
+        "auction_cancel",
+        "auction_expiry"
+      ]
+    },
+    {
+      "lane_id": "STRATEGY_ESCROW",
+      "disposition": "REQUIRED_UNRESOLVED",
+      "capabilities": [
+        "value_reservation",
+        "strategy_activation",
+        "strategy_trigger",
+        "strategy_replace",
+        "strategy_cancel",
+        "strategy_expiry",
+        "strategy_recovery"
+      ]
+    },
+    {
+      "lane_id": "PROOF_REWARDS",
+      "disposition": "REQUIRED_UNRESOLVED",
+      "capabilities": [
+        "reward_reserve",
+        "verified_result_binding",
+        "claimant_binding",
+        "claim_nullifier",
+        "reward_payout",
+        "task_terminal_state"
+      ]
+    },
+    {
+      "lane_id": "EXTERNAL_CUSTODY",
+      "disposition": "DISABLED_PENDING_COMPLETE_PROFILE",
+      "capabilities": [
+        "registered_external_lock",
+        "registered_external_burn",
+        "registered_external_release",
+        "registered_external_mint",
+        "external_finality",
+        "external_timeout",
+        "external_refund",
+        "outbox_acknowledgment",
+        "destination_idempotency"
+      ]
+    },
+    {
+      "lane_id": "GOVERNANCE_MIGRATION",
+      "disposition": "REQUIRED_UNRESOLVED",
+      "capabilities": [
+        "asset_registry_change",
+        "parameter_change",
+        "release_activation",
+        "treasury_action",
+        "schema_migration",
+        "writer_epoch_rotation",
+        "autonomous_governance_command_submission"
+      ]
+    }
+  ],
+  "required_cross_lane_routes": [
+    "fee_funded_zdex_purchase_and_burn",
+    "zusd_liquidation_settlement",
+    "perps_epoch_settlement",
+    "strategy_triggered_spot_swap"
+  ],
+  "explicit_exclusions": [
+    {
+      "capability": "zusd_emergency_shutdown",
+      "disposition": "EXCLUDED_DAY_ONE_PROVE_NO_WRITER"
+    },
+    {
+      "capability": "unregistered_external_destination",
+      "disposition": "REJECT_WITHOUT_MUTATION"
+    },
+    {
+      "capability": "autonomous_governance_publication_authority",
+      "disposition": "FORBIDDEN_COMMAND_SUBMISSION_ONLY"
+    },
+    {
+      "capability": "caller_selected_route_or_proof_profile",
+      "disposition": "FORBIDDEN_GOVERNED_SELECTION_ONLY"
+    }
+  ],
+  "semantic_anchors": {
+    "amount_scale": "eight_decimal_integer_atoms",
+    "denomination_rescale": "excluded_from_global_settlement_abi_v1",
+    "practical_custody": "determined_by_key_control",
+    "same_ledger_model": "accounting_location_control_domain_and_claimant",
+    "zdex_burn": "spend_governed_quote_fee_through_selected_spot_route_then_burn_exact_output",
+    "zdex_supply": "per_occurrence_retained_supply_no_fixed_initial_percentage_floor"
+  },
+  "historical_requirements": {
+    "workflow_count": 18,
+    "scenario_count": 81,
+    "required_spec_expansion_count": 11,
+    "status": "REQUIRED_BUT_NOT_CAPABILITY_COMPLETE"
+  },
+  "nonclaims": [
+    "This manifest freezes required capability names and exclusions; it does not define unresolved economics.",
+    "No capability is implemented, proved, mounted, or release-backed by appearing here.",
+    "The EXTERNAL_CUSTODY lane ID is a stable protocol identifier and is not a legal characterization of key control.",
+    "Production authority remains NONE until every required row is closed or has a proved disabled-no-writer certificate."
+  ]
+}
