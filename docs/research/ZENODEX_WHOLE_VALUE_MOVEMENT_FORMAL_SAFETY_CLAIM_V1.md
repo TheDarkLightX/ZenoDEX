@@ -720,12 +720,45 @@ underscore-prefixed `_commit_epoch_v1` same-interpreter bypass as negative
 evidence. The writer and sink ledgers retain this private structural writer as
 a release blocker, so the slice cannot acquire `NO_BYPASS` status by hiding it.
 
+Commit `a34f11ff50cb6615bc68ffaa240c7e215ad4a379` preserves four minimized
+composition counterexamples and their repairs:
+
+- replacing a verifier backend method after binding cannot change the exact
+  callable retained by the capability;
+- a privately constructed authority shape must still name the registry-selected
+  release and its exact implementation, evidence, backend, image, and resource
+  coordinates;
+- opening a WAL/schema-mutant store rejects before persistent journal-mode
+  configuration in the tested case;
+- verified-publisher create retry recovers only a byte-identical committed
+  activation after acknowledgement loss.
+
+The callable guarantee is process-local. Mutable callable behavior, globals,
+closure state, and the executing binary remain unattested. A first-wave
+adversarial review also demonstrated two unresolved lifecycle histories: an old
+profile can publish from a separately retained old store after migration, and
+an in-flight old-profile verification can reach publication after profile or
+verifier rotation. Closure requires one durable current-authority head that
+commits profile, writer epoch, verifier release, deployment, and revocation
+generation; migration must advance that head atomically, and publication must
+recheck it inside the durable CAS transaction.
+
+The closure-status checker now treats the Git object database as the exact
+subject oracle for mapped evidence. It requires each recorded artifact hash to
+equal both the scoped live file and the blob at the declared 40-hex subject.
+The durable publisher map includes `global_economic_proof_v1.py`, and the older
+publisher-bound verification row is now independently checked. This prevents a
+later worktree edit plus refreshed hash from representing an earlier commit.
+The checker itself still requires release packaging, independent replay, and
+authenticated distribution before it can contribute production authority.
+
 The combined verifier-release, ABI, ordinary-journal, publisher,
-writer-inventory, and value-sink run has 162 passing tests. It includes
+writer-inventory, and value-sink run has 167 passing tests. It includes
 zero/one/max/max+1 receipt and journal boundaries, active-profile selection,
 wrong registry/image/deployment/manifest/artifact rejection, generic-verifier
-rejection, forged and foreign capabilities, restart/retry, competing heads,
-and tested SQLite crash points. Ruff, mypy, diff checks, and the repository
+rejection, forged and foreign capabilities, retained-callable mutation killing,
+exact activation create recovery, rejected-open nonmutation, restart/retry,
+competing heads, and tested SQLite crash points. Ruff, mypy, diff checks, and the repository
 security red-flag scanner pass. An independent GPT-5.6 Sol source review
 returned `GO` only for `IMPLEMENTED_TESTED_DISCOVERY`, `UNMOUNTED` use and
 confirmed the retained same-process release blocker.

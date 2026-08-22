@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 from pathlib import Path
 from typing import Mapping
 
@@ -58,6 +59,12 @@ EXPECTED_KNOWN_SEMANTIC_CONFLICTS = {
     "ABI_V1_PRECISION_RESCALE": "RESEARCH_ONLY_ABI_V2_MIGRATION_REQUIRED",
     "LEGACY_FIXED_SUPPLY_FLOOR": "LEGACY_INCOMPATIBLE_MUST_NOT_MOUNT",
     "M6_CAPABILITY_CATALOG_OMISSIONS": "OPEN_ADDITIONAL_CAPABILITIES_REQUIRED",
+}
+PUBLISHER_BOUND_SLICE_ID = "PUBLISHER_BOUND_EPOCH_VERIFICATION"
+PUBLISHER_BOUND_SLICE_COMMIT = "408cf223723b001131c013cdb6382c70e56ad932"
+PUBLISHER_BOUND_SLICE_ARTIFACTS = {
+    "core_sha256": Path("src/core/global_economic_proof_v1.py"),
+    "publisher_sha256": Path("src/integration/global_economic_commit_v1.py"),
 }
 REPLAY_SLICE_ID = "ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1"
 REPLAY_SLICE_COMMIT = "0d29ea7286bd302cf3e2135a7fc7511d78ef5816"
@@ -128,7 +135,7 @@ DURABLE_ACTIVATION_SLICE_ARTIFACTS = {
     ),
 }
 DURABLE_EPOCH_SLICE_ID = "GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1"
-DURABLE_EPOCH_SLICE_COMMIT = "369fe53f29184cd85a039459703d1b1f31d9b42f"
+DURABLE_EPOCH_SLICE_COMMIT = "a34f11ff50cb6615bc68ffaa240c7e215ad4a379"
 DURABLE_EPOCH_SLICE_ARTIFACTS = {
     "design_sha256": Path(
         "docs/research/GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1.md"
@@ -146,7 +153,7 @@ DURABLE_EPOCH_SLICE_ARTIFACTS = {
     "sink_test_sha256": Path("tests/test_check_m6_value_sinks_v1.py"),
 }
 DURABLE_PUBLISHER_SLICE_ID = "GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1"
-DURABLE_PUBLISHER_SLICE_COMMIT = "369fe53f29184cd85a039459703d1b1f31d9b42f"
+DURABLE_PUBLISHER_SLICE_COMMIT = "a34f11ff50cb6615bc68ffaa240c7e215ad4a379"
 DURABLE_PUBLISHER_SLICE_ARTIFACTS = {
     "design_sha256": Path(
         "docs/research/GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1.md"
@@ -154,6 +161,7 @@ DURABLE_PUBLISHER_SLICE_ARTIFACTS = {
     "python_publisher_sha256": Path(
         "src/integration/global_economic_durable_publisher_v1.py"
     ),
+    "python_proof_sha256": Path("src/core/global_economic_proof_v1.py"),
     "verifier_design_sha256": Path(
         "docs/research/GLOBAL_ECONOMIC_RECEIPT_VERIFIER_RELEASE_BINDING_V1.md"
     ),
@@ -220,6 +228,65 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _git_blob_sha256_v1(
+    root: Path,
+    commit: object,
+    relative_path: Path,
+) -> str | None:
+    """Hash one exact committed blob without invoking a shell."""
+
+    if type(commit) is not str or re.fullmatch(r"[0-9a-f]{40}", commit) is None:
+        return None
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "cat-file",
+                "blob",
+                f"{commit}:{relative_path.as_posix()}",
+            ],
+            check=False,
+            capture_output=True,
+        )
+    except OSError:
+        return None
+    if result.returncode != 0:
+        return None
+    return hashlib.sha256(result.stdout).hexdigest()
+
+
+def _validate_artifact_map_v1(
+    root: Path,
+    row: Mapping[str, object],
+    subject_commit: object,
+    artifacts: Mapping[str, Path],
+    label: str,
+    findings: list[str],
+) -> None:
+    """Bind recorded hashes to both the scoped checkout and exact subject tree."""
+
+    for field, relative_path in artifacts.items():
+        recorded = row.get(field)
+        artifact = root / relative_path
+        recorded_is_hash = (
+            type(recorded) is str
+            and re.fullmatch(r"[0-9a-f]{64}", recorded) is not None
+        )
+        if (
+            not recorded_is_hash
+            or not artifact.is_file()
+            or _sha256(artifact) != recorded
+        ):
+            findings.append(f"{label} artifact hash mismatch: {field}")
+        if (
+            not recorded_is_hash
+            or _git_blob_sha256_v1(root, subject_commit, relative_path) != recorded
+        ):
+            findings.append(f"{label} subject-tree artifact mismatch: {field}")
+
+
 def validate_m6_zdex_semantic_anchor_v1(value: object) -> list[str]:
     """Reject the historical fixed-floor or shortcut-burn M6 semantics."""
 
@@ -261,15 +328,14 @@ def _validate_replay_slice_evidence_v1(
         findings.append("replay slice implementation commit mismatch")
     if replay.get("artifact_subject_commit") != subject_commit:
         findings.append("replay slice artifact subject commit mismatch")
-    for field, relative_path in REPLAY_SLICE_ARTIFACTS.items():
-        artifact = root / relative_path
-        recorded = replay.get(field)
-        if (
-            type(recorded) is not str
-            or not artifact.is_file()
-            or _sha256(artifact) != recorded
-        ):
-            findings.append(f"replay slice artifact hash mismatch: {field}")
+    _validate_artifact_map_v1(
+        root,
+        replay,
+        subject_commit,
+        REPLAY_SLICE_ARTIFACTS,
+        "replay slice",
+        findings,
+    )
 
     try:
         fixture = _load_exact_json(
@@ -314,15 +380,14 @@ def _validate_source_head_slice_evidence_v1(
     source_head = source_head_rows[0]
     if source_head.get("commit") != subject_commit:
         findings.append("source-head slice subject commit mismatch")
-    for field, relative_path in SOURCE_HEAD_SLICE_ARTIFACTS.items():
-        artifact = root / relative_path
-        recorded = source_head.get(field)
-        if (
-            type(recorded) is not str
-            or not artifact.is_file()
-            or _sha256(artifact) != recorded
-        ):
-            findings.append(f"source-head slice artifact hash mismatch: {field}")
+    _validate_artifact_map_v1(
+        root,
+        source_head,
+        subject_commit,
+        SOURCE_HEAD_SLICE_ARTIFACTS,
+        "source-head slice",
+        findings,
+    )
 
 
 def _validate_durable_activation_slice_evidence_v1(
@@ -346,15 +411,14 @@ def _validate_durable_activation_slice_evidence_v1(
         findings.append("durable activation slice implementation commit mismatch")
     if durable.get("artifact_subject_commit") != subject_commit:
         findings.append("durable activation slice artifact subject commit mismatch")
-    for field, relative_path in DURABLE_ACTIVATION_SLICE_ARTIFACTS.items():
-        artifact = root / relative_path
-        recorded = durable.get(field)
-        if (
-            type(recorded) is not str
-            or not artifact.is_file()
-            or _sha256(artifact) != recorded
-        ):
-            findings.append(f"durable activation slice artifact hash mismatch: {field}")
+    _validate_artifact_map_v1(
+        root,
+        durable,
+        subject_commit,
+        DURABLE_ACTIVATION_SLICE_ARTIFACTS,
+        "durable activation slice",
+        findings,
+    )
 
 
 def _validate_durable_epoch_slice_evidence_v1(
@@ -376,15 +440,14 @@ def _validate_durable_epoch_slice_evidence_v1(
         findings.append("durable epoch slice implementation commit mismatch")
     if durable.get("artifact_subject_commit") != subject_commit:
         findings.append("durable epoch slice artifact subject commit mismatch")
-    for field, relative_path in DURABLE_EPOCH_SLICE_ARTIFACTS.items():
-        artifact = root / relative_path
-        recorded = durable.get(field)
-        if (
-            type(recorded) is not str
-            or not artifact.is_file()
-            or _sha256(artifact) != recorded
-        ):
-            findings.append(f"durable epoch slice artifact hash mismatch: {field}")
+    _validate_artifact_map_v1(
+        root,
+        durable,
+        subject_commit,
+        DURABLE_EPOCH_SLICE_ARTIFACTS,
+        "durable epoch slice",
+        findings,
+    )
 
 
 def _validate_durable_publisher_slice_evidence_v1(
@@ -408,15 +471,43 @@ def _validate_durable_publisher_slice_evidence_v1(
         findings.append("durable publisher slice implementation commit mismatch")
     if publisher.get("artifact_subject_commit") != subject_commit:
         findings.append("durable publisher slice artifact subject commit mismatch")
-    for field, relative_path in DURABLE_PUBLISHER_SLICE_ARTIFACTS.items():
-        artifact = root / relative_path
-        recorded = publisher.get(field)
-        if (
-            type(recorded) is not str
-            or not artifact.is_file()
-            or _sha256(artifact) != recorded
-        ):
-            findings.append(f"durable publisher slice artifact hash mismatch: {field}")
+    _validate_artifact_map_v1(
+        root,
+        publisher,
+        subject_commit,
+        DURABLE_PUBLISHER_SLICE_ARTIFACTS,
+        "durable publisher slice",
+        findings,
+    )
+
+
+def _validate_publisher_bound_slice_evidence_v1(
+    root: Path,
+    status: Mapping[str, object],
+    subject_commit: object,
+    findings: list[str],
+) -> None:
+    slices = status.get("implemented_slices")
+    if type(slices) is not list or any(type(row) is not dict for row in slices):
+        findings.append("implemented slices must be a list of objects")
+        return
+    rows = [row for row in slices if row.get("id") == PUBLISHER_BOUND_SLICE_ID]
+    if len(rows) != 1:
+        findings.append("publisher-bound slice evidence row must occur exactly once")
+        return
+    publisher_bound = rows[0]
+    if publisher_bound.get("commit") != PUBLISHER_BOUND_SLICE_COMMIT:
+        findings.append("publisher-bound slice implementation commit mismatch")
+    if publisher_bound.get("artifact_subject_commit") != subject_commit:
+        findings.append("publisher-bound slice artifact subject commit mismatch")
+    _validate_artifact_map_v1(
+        root,
+        publisher_bound,
+        subject_commit,
+        PUBLISHER_BOUND_SLICE_ARTIFACTS,
+        "publisher-bound slice",
+        findings,
+    )
 
 
 def check_value_movement_closure_status_v1(
@@ -449,6 +540,7 @@ def check_value_movement_closure_status_v1(
     _validate_durable_activation_slice_evidence_v1(root, status, commit, findings)
     _validate_durable_epoch_slice_evidence_v1(root, status, commit, findings)
     _validate_durable_publisher_slice_evidence_v1(root, status, commit, findings)
+    _validate_publisher_bound_slice_evidence_v1(root, status, commit, findings)
 
     authority = _mapping(status.get("authority"), "authority", findings)
     expected_authority: dict[str, object] = {

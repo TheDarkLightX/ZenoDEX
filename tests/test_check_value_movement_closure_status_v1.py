@@ -72,6 +72,14 @@ def _durable_publisher_slice(value: dict[str, object]) -> dict[str, object]:
     )
 
 
+def _publisher_bound_slice(value: dict[str, object]) -> dict[str, object]:
+    return next(
+        row
+        for row in _implemented_slices(value)
+        if row["id"] == "PUBLISHER_BOUND_EPOCH_VERIFICATION"
+    )
+
+
 def test_current_value_movement_closure_status_is_exact_and_fail_closed() -> None:
     report = check_value_movement_closure_status_v1()
 
@@ -240,6 +248,52 @@ def test_checker_rejects_stale_durable_publisher_slice_evidence(
     assert (
         "durable publisher slice artifact hash mismatch: "
         "python_verifier_deployment_sha256"
+        in _findings(report)
+    )
+
+
+def test_checker_binds_artifacts_to_exact_subject_tree(tmp_path: Path) -> None:
+    # Arrange: Mallory retains current hashes while claiming the parent subject.
+    mutated = deepcopy(_status())
+    mutated["subject"]["commit"] = "d064088b851311a72c879daa608e80fdee23e0d3"  # type: ignore[index]
+    publisher = _durable_publisher_slice(mutated)
+    publisher["artifact_subject_commit"] = mutated["subject"]["commit"]  # type: ignore[index]
+
+    # Act: validate the forged exact-subject evidence packet.
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    # Assert: live-file equality cannot substitute for equality to the Git blob.
+    assert report["ok"] is False
+    assert (
+        "durable publisher slice subject-tree artifact mismatch: "
+        "python_verifier_deployment_sha256"
+        in _findings(report)
+    )
+
+
+def test_checker_requires_proof_admission_artifacts(tmp_path: Path) -> None:
+    # Arrange: erase both proof-admission bindings from an otherwise exact ledger.
+    mutated = deepcopy(_status())
+    publisher = _durable_publisher_slice(mutated)
+    publisher["python_proof_sha256"] = "0" * 64
+    publisher_bound = _publisher_bound_slice(mutated)
+    publisher_bound["core_sha256"] = "0" * 64
+
+    # Act: validate the evidence packet with unbound receipt-admission code.
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    # Assert: neither implemented-slice row can silently omit proof admission.
+    assert report["ok"] is False
+    assert (
+        "durable publisher slice artifact hash mismatch: python_proof_sha256"
+        in _findings(report)
+    )
+    assert (
+        "publisher-bound slice artifact hash mismatch: core_sha256"
         in _findings(report)
     )
 
