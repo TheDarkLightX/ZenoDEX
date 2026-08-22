@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
 
 from .economic_command_authorization_registry_v1 import (
     ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1,
@@ -140,23 +139,8 @@ class EconomicCommandAuthenticationCandidateV1:
                 raise TypeError(f"command authentication candidate {label} must be exactly typed")
 
 
-class EconomicCommandSignatureVerifierV1(Protocol):
-    @property
-    def verifier_release_id(self) -> str: ...
-
-    def verify_command_signature(
-        self,
-        *,
-        signature_algorithm: str,
-        signer_public_key: str,
-        message_bytes: bytes,
-        signature_bytes: bytes,
-    ) -> bool: ...
-
-
 __all__ = [
     "EconomicCommandAuthenticationCandidateV1",
     "EconomicCommandAuthenticationEnvelopeV1",
     "EconomicCommandIntentV1",
-    "EconomicCommandSignatureVerifierV1",
 ]

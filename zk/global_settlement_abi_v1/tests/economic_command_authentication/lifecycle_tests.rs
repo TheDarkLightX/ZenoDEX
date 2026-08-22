@@ -124,7 +124,6 @@ fn inactive_profile_and_rejecting_verifier_fail_closed() {
     let fixture = Fixture::new();
     let verifier = RecordingVerifier {
         result: false,
-        verifier_release_id: signature_verifier_registry().releases[0].release_id.clone(),
         calls: RefCell::new(Vec::new()),
     };
     assert!(matches!(

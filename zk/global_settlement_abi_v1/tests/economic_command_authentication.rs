@@ -4,6 +4,8 @@ use serde_json::json;
 use zenodex_global_settlement_abi_v1::*;
 
 const COMMAND_KIND: &str = "asset_transfer";
+const COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1: &[u8] =
+    b"economic-command-signature-verifier-auth-test-v1";
 type RecordedSignatureCallV1 = (String, String, Vec<u8>, Vec<u8>);
 
 fn root(value: u64) -> RootV1 {
@@ -39,25 +41,61 @@ fn active_verifier_evidence() -> Vec<CommandSignatureVerifierEvidenceStatusV1> {
     ]
 }
 
-fn signature_verifier_registry() -> EconomicCommandSignatureVerifierRegistryV1 {
-    let mut release = EconomicCommandSignatureVerifierReleaseV1 {
+fn signature_verifier_manifest() -> EconomicCommandSignatureVerifierEvidenceManifestV1 {
+    let evidence_artifacts = active_verifier_evidence()
+        .into_iter()
+        .enumerate()
+        .map(
+            |(index, status)| CommandSignatureVerifierEvidenceArtifactV1 {
+                status,
+                artifact_root: root(500 + u64::try_from(index).unwrap()),
+            },
+        )
+        .collect();
+    EconomicCommandSignatureVerifierEvidenceManifestV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
-        release_id: root(1),
-        semantic_version: "1.0.0-auth-test".to_owned(),
         signature_algorithm: "BLS12_381_G2_BASIC_V1".to_owned(),
-        implementation_root: root(310),
+        implementation_root: command_signature_verifier_implementation_root_v1(
+            COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1,
+        )
+        .unwrap(),
         public_key_schema_root: root(311),
         signature_schema_root: root(312),
         message_schema_root: root(313),
         specification_root: root(314),
         source_root: root(315),
         toolchain_root: root(316),
-        evidence_manifest_root: root(317),
+        backend_protocol_root: command_signature_verifier_backend_protocol_root_v1().unwrap(),
         max_public_key_bytes: 160,
         max_signature_bytes: 4_096,
+        evidence_artifacts,
+    }
+}
+
+fn signature_verifier_registry() -> EconomicCommandSignatureVerifierRegistryV1 {
+    let manifest = signature_verifier_manifest();
+    let mut release = EconomicCommandSignatureVerifierReleaseV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        release_id: root(1),
+        semantic_version: "1.0.0-auth-test".to_owned(),
+        signature_algorithm: "BLS12_381_G2_BASIC_V1".to_owned(),
+        implementation_root: manifest.implementation_root.clone(),
+        public_key_schema_root: manifest.public_key_schema_root.clone(),
+        signature_schema_root: manifest.signature_schema_root.clone(),
+        message_schema_root: manifest.message_schema_root.clone(),
+        specification_root: manifest.specification_root.clone(),
+        source_root: manifest.source_root.clone(),
+        toolchain_root: manifest.toolchain_root.clone(),
+        evidence_manifest_root: manifest.manifest_root().unwrap(),
+        max_public_key_bytes: manifest.max_public_key_bytes,
+        max_signature_bytes: manifest.max_signature_bytes,
         status: ReleaseStatusV1::ACTIVE_NEW,
         accepts_new_authentications: true,
-        evidence_statuses: active_verifier_evidence(),
+        evidence_statuses: manifest
+            .evidence_artifacts
+            .iter()
+            .map(|row| row.status)
+            .collect(),
     };
     release.release_id = release.derived_release_id().unwrap();
     let registry = EconomicCommandSignatureVerifierRegistryV1 {
@@ -184,7 +222,6 @@ fn profile(
 
 struct RecordingVerifier {
     result: bool,
-    verifier_release_id: RootV1,
     calls: RefCell<Vec<RecordedSignatureCallV1>>,
 }
 
@@ -192,17 +229,12 @@ impl RecordingVerifier {
     fn accepting() -> Self {
         Self {
             result: true,
-            verifier_release_id: signature_verifier_registry().releases[0].release_id.clone(),
             calls: RefCell::new(Vec::new()),
         }
     }
 }
 
-impl EconomicCommandSignatureVerifierV1 for RecordingVerifier {
-    fn verifier_release_id(&self) -> &RootV1 {
-        &self.verifier_release_id
-    }
-
+impl EconomicCommandSignatureVerifierBackendV1 for RecordingVerifier {
     fn verify_command_signature(
         &self,
         signature_algorithm: &str,
@@ -339,7 +371,15 @@ impl Fixture {
         &self,
         verifier: &RecordingVerifier,
     ) -> AbiResultV1<AuthenticatedEconomicCommandIntentV1> {
-        authenticate_economic_command_intent_v1(&self.candidate(), verifier)
+        let bound = bind_economic_command_signature_verifier_deployment_v1(
+            &self.signature_verifier_registry.releases[0],
+            &signature_verifier_manifest(),
+            COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1,
+            &self.intent.deployment_root,
+            &self.intent.profile_root,
+            verifier,
+        )?;
+        authenticate_economic_command_intent_v1(&self.candidate(), &bound)
     }
 
     fn authenticate(
@@ -369,21 +409,69 @@ fn exact_body_intent_and_policy_authenticate_then_bind_occurrence() {
 }
 
 #[test]
-fn backend_claiming_an_unselected_verifier_release_rejects_before_use() {
+fn bound_backend_for_an_unselected_verifier_release_rejects_before_use() {
     let fixture = Fixture::new();
-    let verifier = RecordingVerifier {
-        result: true,
-        verifier_release_id: root(999),
-        calls: RefCell::new(Vec::new()),
-    };
+    let verifier = RecordingVerifier::accepting();
+    let artifact = b"alternate-command-signature-verifier-v1";
+    let mut manifest = signature_verifier_manifest();
+    manifest.implementation_root =
+        command_signature_verifier_implementation_root_v1(artifact).unwrap();
+    let mut release = fixture.signature_verifier_registry.releases[0].clone();
+    release.implementation_root = manifest.implementation_root.clone();
+    release.evidence_manifest_root = manifest.manifest_root().unwrap();
+    release.release_id = release.derived_release_id().unwrap();
+    let bound = bind_economic_command_signature_verifier_deployment_v1(
+        &release,
+        &manifest,
+        artifact,
+        &fixture.intent.deployment_root,
+        &fixture.intent.profile_root,
+        &verifier,
+    )
+    .unwrap();
 
     assert!(matches!(
-        fixture.authenticate_intent(&verifier),
+        authenticate_economic_command_intent_v1(&fixture.candidate(), &bound),
         Err(AbiErrorV1::InvalidBinding(
-            "command signature verifier release"
+            "command signature verifier release binding"
         ))
     ));
     assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
+fn bound_backend_for_another_deployment_or_profile_rejects_before_use() {
+    let fixture = Fixture::new();
+    for (deployment_root, profile_root, expected) in [
+        (
+            root(999),
+            fixture.intent.profile_root.clone(),
+            AbiErrorV1::InvalidBinding("command signature verifier deployment binding"),
+        ),
+        (
+            fixture.intent.deployment_root.clone(),
+            root(998),
+            AbiErrorV1::InvalidBinding("command signature verifier profile binding"),
+        ),
+    ] {
+        let verifier = RecordingVerifier::accepting();
+        let bound = bind_economic_command_signature_verifier_deployment_v1(
+            &fixture.signature_verifier_registry.releases[0],
+            &signature_verifier_manifest(),
+            COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1,
+            &deployment_root,
+            &profile_root,
+            &verifier,
+        )
+        .unwrap();
+
+        let error = match authenticate_economic_command_intent_v1(&fixture.candidate(), &bound) {
+            Ok(_) => panic!("wrong verifier scope must reject"),
+            Err(error) => error,
+        };
+        assert_eq!(error, expected);
+        assert!(verifier.calls.borrow().is_empty());
+    }
 }
 
 #[path = "economic_command_authentication/lifecycle_tests.rs"]

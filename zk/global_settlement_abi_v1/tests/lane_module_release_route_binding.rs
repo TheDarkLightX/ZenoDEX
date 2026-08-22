@@ -1,57 +1,14 @@
 use std::cell::RefCell;
 
 use serde_json::json;
-use zenodex_global_settlement_abi_v1::{
-    authenticate_economic_command_intent_v1, bind_asset_transfer_lane_output_to_release_route_v1,
-    bind_authenticated_intent_to_occurrence_v1,
-    bind_managed_asset_lifecycle_lane_output_to_release_route_v1,
-    canonical_economic_command_body_bytes_v1, compose_asset_lane_epoch_effect_plans_v1,
-    compose_asset_lane_single_v1, compose_receipt_backed_asset_lane_single_v1,
-    derive_route_composition_assumption_root_v1, hash_bytes_sha256_v1, hash_global_v1,
-    project_asset_transfer_state_v1, transition_asset_transfer_lane_module_v1,
-    transition_managed_asset_lifecycle_lane_module_v1, verify_asset_lane_composition_receipt_v1,
-    verify_asset_transfer_lane_module_receipt_v1, verify_economic_epoch_receipt_v1,
-    verify_managed_asset_lifecycle_lane_module_receipt_v1, verify_route_composition_receipt_v1,
-    AbiErrorV1, AssetLaneCompositionResultV1, AssetLaneCoordinatorContextV1,
-    AssetLaneModuleCompatibilityV1, AssetSupplyV1, AssetTransferCommandV1, AssetTransferContextV1,
-    AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
-    AssetTransferLaneModuleReceiptCandidateV1, AssetTransferLaneModuleResultV1,
-    AssetTransferPolicyV1, AssetTransferStateV1, AuthenticatedEconomicCommandV1,
-    CommandSignatureVerifierEvidenceStatusV1, EconomicAmountV1,
-    EconomicCommandAuthenticationCandidateV1, EconomicCommandAuthenticationEnvelopeV1,
-    EconomicCommandAuthorizationRegistryV1, EconomicCommandAuthorizationV1,
-    EconomicCommandIntentV1, EconomicCommandOccurrenceV1,
-    EconomicCommandSignatureVerifierRegistryV1, EconomicCommandSignatureVerifierReleaseV1,
-    EconomicCommandSignatureVerifierV1, EconomicEffectKindV1, EconomicEpochReceiptCandidateV1,
-    EconomicEpochRouteStateDisclosureV1, EconomicEpochSuccinctReceiptVerifierV1,
-    EconomicPolicyBindingV1, EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, EvidenceStatusV1,
-    ExternalOutboxEnqueueV1, GlobalEconomicEffectPlanV1, GlobalEconomicEpochCertificateV1,
-    GlobalEconomicStateV1, LaneCompositionAuthorityLevelV1, LaneCompositionJournalV1,
-    LaneCompositionReceiptCandidateV1, LaneCompositionReceiptEnvelopeV1,
-    LaneCompositionSuccinctReceiptVerifierV1, LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1,
-    LaneIdV1, LaneModuleReceiptEnvelopeV1, LaneModuleReleaseV1,
-    LaneModuleSuccinctReceiptVerifierV1, LaneRegistryV1, LaneStateRootV1, ManagedAssetClassV1,
-    ManagedAssetLifecycleCommandV1, ManagedAssetLifecycleContextV1,
-    ManagedAssetLifecycleLaneModuleInputV1, ManagedAssetLifecycleLaneModuleReceiptCandidateV1,
-    ManagedAssetLifecycleLaneModuleResultV1, ManagedAssetLifecyclePolicyV1,
-    ManagedAssetLifecycleStateV1, ProfileStatusV1, ReceiptBackedAssetLaneCompositionCandidateV1,
-    ReceiptBackedAssetLaneCompositionV1, ReceiptKindV1, ReleaseStatusV1, ReplayStateV1, RootV1,
-    RouteCompositionJournalV1, RouteCompositionReceiptCandidateV1,
-    RouteCompositionReceiptEnvelopeV1, RouteCompositionSuccinctReceiptVerifierV1, RouteRegistryV1,
-    RouteReleaseV1, VerifiedLaneCompositionV1, VerifiedLaneModuleTransitionV1,
-    VerifiedRouteCompositionV1, ALL_LANE_IDS_V1, ASSET_TRANSFER_COMMAND_KIND_V1,
-    ASSET_TRANSFER_LANE_MODULE_INPUT_SCHEMA_V1, ASSET_TRANSFER_MODULE_SCHEMA_V1,
-    ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1, ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1,
-    ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1, GLOBAL_SETTLEMENT_ABI_V1,
-    MANAGED_ASSET_BURN_COMMAND_KIND_V1, MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
-    MANAGED_ASSET_LIFECYCLE_LANE_MODULE_INPUT_SCHEMA_V1, MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1,
-    ZERO_ROOT_V1,
-};
+use zenodex_global_settlement_abi_v1::*;
 
 type RecordedModuleReceiptVerifierCall = (Vec<u8>, RootV1, Vec<u8>);
 type RecordedCompositionReceiptVerifierCall = (Vec<u8>, RootV1, Vec<u8>);
 type RecordedRouteReceiptVerifierCall = (Vec<u8>, RootV1, Vec<u8>);
 type RecordedEpochReceiptVerifierCall = (Vec<u8>, RootV1, Vec<u8>);
+const COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1: &[u8] =
+    b"lane-binding-command-signature-verifier-test-artifact-v1";
 
 fn root(value: u64) -> RootV1 {
     RootV1::parse(format!("0x{value:064x}"), "test root", false).expect("test root must parse")
@@ -86,25 +43,61 @@ fn active_verifier_evidence() -> Vec<CommandSignatureVerifierEvidenceStatusV1> {
     ]
 }
 
-fn signature_verifier_registry() -> EconomicCommandSignatureVerifierRegistryV1 {
-    let mut release = EconomicCommandSignatureVerifierReleaseV1 {
+fn signature_verifier_manifest() -> EconomicCommandSignatureVerifierEvidenceManifestV1 {
+    let evidence_artifacts = active_verifier_evidence()
+        .into_iter()
+        .enumerate()
+        .map(
+            |(index, status)| CommandSignatureVerifierEvidenceArtifactV1 {
+                status,
+                artifact_root: root(540 + u64::try_from(index).unwrap()),
+            },
+        )
+        .collect();
+    EconomicCommandSignatureVerifierEvidenceManifestV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
-        release_id: root(1),
-        semantic_version: "1.0.0-lane-binding-test".to_owned(),
         signature_algorithm: "BLS12_381_G2_BASIC_V1".to_owned(),
-        implementation_root: root(526),
+        implementation_root: command_signature_verifier_implementation_root_v1(
+            COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1,
+        )
+        .unwrap(),
         public_key_schema_root: root(527),
         signature_schema_root: root(528),
         message_schema_root: root(529),
         specification_root: root(530),
         source_root: root(531),
         toolchain_root: root(532),
-        evidence_manifest_root: root(533),
+        backend_protocol_root: command_signature_verifier_backend_protocol_root_v1().unwrap(),
         max_public_key_bytes: 160,
         max_signature_bytes: 4_096,
+        evidence_artifacts,
+    }
+}
+
+fn signature_verifier_registry() -> EconomicCommandSignatureVerifierRegistryV1 {
+    let manifest = signature_verifier_manifest();
+    let mut release = EconomicCommandSignatureVerifierReleaseV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        release_id: root(1),
+        semantic_version: "1.0.0-lane-binding-test".to_owned(),
+        signature_algorithm: "BLS12_381_G2_BASIC_V1".to_owned(),
+        implementation_root: manifest.implementation_root.clone(),
+        public_key_schema_root: manifest.public_key_schema_root.clone(),
+        signature_schema_root: manifest.signature_schema_root.clone(),
+        message_schema_root: manifest.message_schema_root.clone(),
+        specification_root: manifest.specification_root.clone(),
+        source_root: manifest.source_root.clone(),
+        toolchain_root: manifest.toolchain_root.clone(),
+        evidence_manifest_root: manifest.manifest_root().unwrap(),
+        max_public_key_bytes: manifest.max_public_key_bytes,
+        max_signature_bytes: manifest.max_signature_bytes,
         status: ReleaseStatusV1::ACTIVE_NEW,
         accepts_new_authentications: true,
-        evidence_statuses: active_verifier_evidence(),
+        evidence_statuses: manifest
+            .evidence_artifacts
+            .iter()
+            .map(|row| row.status)
+            .collect(),
     };
     release.release_id = release.derived_release_id().unwrap();
     EconomicCommandSignatureVerifierRegistryV1 {
@@ -375,15 +368,9 @@ fn authentication_policy_registry(
     }
 }
 
-struct AcceptingCommandSignatureVerifierV1 {
-    verifier_release_id: RootV1,
-}
+struct AcceptingCommandSignatureVerifierV1;
 
-impl EconomicCommandSignatureVerifierV1 for AcceptingCommandSignatureVerifierV1 {
-    fn verifier_release_id(&self) -> &RootV1 {
-        &self.verifier_release_id
-    }
-
+impl EconomicCommandSignatureVerifierBackendV1 for AcceptingCommandSignatureVerifierV1 {
     fn verify_command_signature(
         &self,
         _signature_algorithm: &str,
@@ -440,9 +427,15 @@ fn authenticate_occurrence(
             intent: &intent,
             envelope: &envelope,
         },
-        &AcceptingCommandSignatureVerifierV1 {
-            verifier_release_id: signature_verifier_registry.releases[0].release_id.clone(),
-        },
+        &bind_economic_command_signature_verifier_deployment_v1(
+            &signature_verifier_registry.releases[0],
+            &signature_verifier_manifest(),
+            COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1,
+            &occurrence.deployment_root,
+            &occurrence.profile_root,
+            AcceptingCommandSignatureVerifierV1,
+        )
+        .unwrap(),
     )
     .unwrap();
     bind_authenticated_intent_to_occurrence_v1(&authenticated_intent, occurrence).unwrap()
@@ -760,7 +753,7 @@ fn asset_issue_and_burn_outputs_bind_to_exact_active_profile_routes() {
     );
     assert_eq!(
         bound.binding_root().unwrap().as_str(),
-        "0xfea5479806618421176428b9230e93bbdb1840afdde647a1057d1d6c016ba821"
+        "0xcff38651027da371035b33cb7173ba002b9b942e1dc11436485f69d25aebf9f7"
     );
 
     for (command_kind, subject_id, grant_root) in [
@@ -1369,11 +1362,11 @@ fn module_receipt_verification_uses_release_image_and_exact_journal() {
     );
     assert_eq!(
         authenticated.authentication_message_digest().as_str(),
-        "0x68282b1e035c6fd6b39120a958bf583a78382f929773513825dd6c3feac0ab37"
+        "0x3e13b70eb1e4ca23683d911dd5179575069d275c83575fcf1723cde0429ab723"
     );
     assert_eq!(
         authenticated.binding_root().unwrap().as_str(),
-        "0xb74104aca72cbb8332452bfb730e5386e439951b54b8f6de4436c8ba78b233b7"
+        "0xfe6a9ea24267f83b12ddfcd8c5ad87686d82c1ba148313f964b3ca534c81fb8a"
     );
 
     let verified = verify_asset_transfer_lane_module_receipt_v1(
@@ -1426,11 +1419,11 @@ fn module_receipt_verification_uses_release_image_and_exact_journal() {
     );
     assert_eq!(
         verified.binding_root().unwrap().as_str(),
-        "0x47eaf1621cfcae9ad2d8b54c505531f40b375195536a42b432791cd738f8113e"
+        "0x9ca1eb63ba22b9a214266eea3a3ee2b9b7f1d09c92b202fa063ab06e7bf2dbdb"
     );
     assert_eq!(
         verified.module_journal_digest().as_str(),
-        "0xdd302ecb41246d1ce2cacf22d8448c126a7e4aa8a65655a4da749eac0558d41b"
+        "0x29442191f6a152ce848ba7250210ee860e2c31d52988f81f3b9e5539ca1ece27"
     );
     assert_eq!(
         verified.receipt_digest().as_str(),
@@ -1666,7 +1659,7 @@ fn exact_verified_module_receipt_backs_structural_lane_composition() {
     );
     assert_eq!(
         composition.binding_root().unwrap().as_str(),
-        "0xe40452002819ee90df0638eb4eed83f1d2ee4add578bfe1813008e4b2c60b0cb"
+        "0x2b876b91b371e648dc5104f5641e58cc7990ef42be4121aed3ffac12bb2ebf19"
     );
 }
 
@@ -1882,11 +1875,11 @@ fn lane_composition_receipt_uses_governed_image_and_exact_journal() {
     assert_eq!(verified.receipt_kind(), ReceiptKindV1::SUCCINCT);
     assert_eq!(
         verified.lane_journal_digest().as_str(),
-        "0x72d63a4c5b039f23378bf0fd14f7440b80d9e3aade621c750cb8d1bb2dd50c70"
+        "0xa816ced98e9cc76f03db860e9c006abeb94e24af824cfabdaf8c34b9f2553887"
     );
     assert_eq!(
         verified.binding_root().unwrap().as_str(),
-        "0x77c12cbdb42c28fd2b7b8a6b90c0b87f34492392624f2ebf1328074c6cf6fb39"
+        "0x70363a4537639144d050cb091b67b04447e9615c2526eb70e110c76c112cf88a"
     );
 }
 
@@ -2160,11 +2153,11 @@ fn assert_verified_route_receipt(
     assert_eq!(verified.receipt_kind(), ReceiptKindV1::SUCCINCT);
     assert_eq!(
         verified.route_journal_digest().as_str(),
-        "0x3db06d641f1a600930ab3571a60b94269f481d455b9ce5550137df13a3946dd6"
+        "0xf2f76c6bb741756403a9e8f175ea45aaad7237564bb3d4abac9c7dd906fb4aa4"
     );
     assert_eq!(
         verified.binding_root().unwrap().as_str(),
-        "0xd5bbcd7759d24b2fa3f0e1466472513d278c757e6fbae6c319cc9bfb76803c70"
+        "0x2ad537543e4e87d7420cc0a2631855cf5565ada7c9798981e25697d44d7ea279"
     );
 }
 
@@ -2817,13 +2810,13 @@ fn economic_epoch_two_route_state_evidence_has_stable_rust_golden_roots() {
         verified.route_state_projection_roots().unwrap(),
         vec![
             RootV1::parse(
-                "0xd963b4b7af7a03d92400d0d413e95a91332d159b4b47d75d00fb14575bc81c59",
+                "0xa18197bd27c1df20b692235f53d72e890bb4b284036f9de364b32f5fcd33c01c",
                 "projection golden",
                 false,
             )
             .unwrap(),
             RootV1::parse(
-                "0x3207c24fc7caa50bda21eeec3b76bec32ea33f8e26ea476af8efa00a06f6c2d4",
+                "0x6c5cc40fc5f9e6695b0c837c0e6cc80bf3906fbb671638e60b5a21627d829b7a",
                 "projection golden",
                 false,
             )
@@ -2834,13 +2827,13 @@ fn economic_epoch_two_route_state_evidence_has_stable_rust_golden_roots() {
         verified.route_state_effect_refinement_roots().unwrap(),
         vec![
             RootV1::parse(
-                "0xfbdd6a45d4195cd8b11a711a30db711b7c6d6066aacfc002564fd91be5c5cf03",
+                "0x91f049eb44f4df45db533665d66ef600fb08e8290f8869a0dc1b3073181091a4",
                 "refinement golden",
                 false,
             )
             .unwrap(),
             RootV1::parse(
-                "0xaa7ede46433df1190564cade1b9a527bb1f68384764eb97de5ab3ef060fdee55",
+                "0x36352e46e8c04852f7189689d5e13a36fd05208954fedc8702e1534124217d04",
                 "refinement golden",
                 false,
             )

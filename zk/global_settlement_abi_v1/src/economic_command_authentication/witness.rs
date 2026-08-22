@@ -15,6 +15,7 @@ struct AuthenticatedEconomicCommandIntentBindingV1<'a> {
     verifier_registry_root: &'a RootV1,
     signature_verifier_registry_root: &'a RootV1,
     signature_verifier_release_id: &'a RootV1,
+    signature_verifier_deployment_binding_root: &'a RootV1,
     command_body_bytes_digest: &'a RootV1,
     authentication_message_digest: &'a RootV1,
     signature_digest: &'a RootV1,
@@ -29,6 +30,7 @@ pub(super) struct AuthenticatedEconomicCommandIntentFieldsV1 {
     pub(super) verifier_registry_root: RootV1,
     pub(super) signature_verifier_registry_root: RootV1,
     pub(super) signature_verifier_release_id: RootV1,
+    pub(super) signature_verifier_deployment_binding_root: RootV1,
     pub(super) command_body_bytes_digest: RootV1,
     pub(super) authentication_message_digest: RootV1,
     pub(super) signature_digest: RootV1,
@@ -68,6 +70,9 @@ impl AuthenticatedEconomicCommandIntentV1 {
                 verifier_registry_root: &self.fields.verifier_registry_root,
                 signature_verifier_registry_root: &self.fields.signature_verifier_registry_root,
                 signature_verifier_release_id: &self.fields.signature_verifier_release_id,
+                signature_verifier_deployment_binding_root: &self
+                    .fields
+                    .signature_verifier_deployment_binding_root,
                 command_body_bytes_digest: &self.fields.command_body_bytes_digest,
                 authentication_message_digest: &self.fields.authentication_message_digest,
                 signature_digest: &self.fields.signature_digest,

@@ -1,0 +1,302 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260822-command-signature-verifier-deployment",
+  "created_date": "2026-08-22",
+  "claim_scope": "Command authentication accepts only a process-local verifier capability bound to the profile-selected release, exact deployment and profile, canonical evidence manifest, fixed backend protocol, and measured artifact root, with Python and Rust commitment parity.",
+  "change_kind": "behavior_change",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "ECON-CMD-SIG-DEPLOYMENT-BOUND",
+    "ECON-CMD-SIG-MEASURED-IMPLEMENTATION",
+    "ECON-CMD-SIG-SCOPE-EXACT",
+    "ECON-CMD-SIG-REJECT-NO-WITNESS",
+    "ECON-CMD-SIG-PYTHON-RUST-PARITY"
+  ],
+  "failure_modes": [
+    "a raw or self-reporting backend acquires authentication authority",
+    "a verifier artifact or canonical evidence manifest is substituted",
+    "an unsupported backend protocol is committed and accepted",
+    "a bound verifier is replayed under another release, deployment, or profile",
+    "a symlink, replacement, truncation, growth, or oversized artifact bypasses measurement",
+    "post-construction mutation re-scopes a verifier or reroots authenticated authority",
+    "a backend mutates its capability during verification or raises after partial work",
+    "caller-owned release or manifest aliases change after validation and reroot authority",
+    "hostile Python string equality forges a release coordinate",
+    "Python and Rust derive different deployment or downstream witness roots"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/economic_command_authentication_types_v1.py",
+      "sha256": "a90511240e6ad992856d4384caf5ec5073d8630d00b3f545b075a56212b506cb"
+    },
+    {
+      "path": "src/core/economic_command_authentication_v1.py",
+      "sha256": "c66448fb090a687aebfa00b1fa31b01099e24087e8cbf50ce9763b5c03e0d8d0"
+    },
+    {
+      "path": "src/core/economic_command_authentication_witness_v1.py",
+      "sha256": "dc8024b5b33e234b94ab85b72718d94dfd3a01664acfffabc98fe4535d847b23"
+    },
+    {
+      "path": "src/core/economic_command_signature_verifier_capability_v1.py",
+      "sha256": "4dafd999f7b3e3afdfc0b9dc8f747708bd303d807c1c9c33805839a5dcd00517"
+    },
+    {
+      "path": "src/core/economic_command_signature_verifier_deployment_v1.py",
+      "sha256": "fee3a28c36530305fac79113cb8d9deadb0893dd41ee2bd7e5aaa3a4c8152673"
+    },
+    {
+      "path": "src/core/economic_command_signature_verifier_registry_v1.py",
+      "sha256": "4579eb3dac9ec631e98bf82127948483d4236bf91636e0c6c6e19a753b53275a"
+    },
+    {
+      "path": "src/integration/economic_command_signature_verifier_deployment_v1.py",
+      "sha256": "736a3552e169d588b73ae61a7689caef55e56c75a06243060ba3d32d07b0dc0d"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/README.md",
+      "sha256": "506f20eeaa5f79c617b51ea3372ff9ce4074df7c757e4eae4cd1b5c998aa578c"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/economic_command_authentication.rs",
+      "sha256": "db2a2006ce96aa3ca2ade4b2e5f06183b83df67c1eec537a26be889120a82735"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/economic_command_authentication/types.rs",
+      "sha256": "7a7386e2aa851ccd95e7819dd2453ce9cc5c838d22987bbcac2bbe353db8c49a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/economic_command_authentication/witness.rs",
+      "sha256": "966e2aab4039b391c3cb49fe7a0f33cf41098d78b0fffe16fa7b47cb4ceb4ec1"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/economic_command_signature_verifier_deployment.rs",
+      "sha256": "84ba7b592b59350d3d394aa2d063924df1024b2435b8d63921a536495efdd9fb"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "456caa272a8cbf340598164be7acc75c08f5d89142b69f1dceef51f973aad289"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/economic_command_authentication.rs",
+      "sha256": "30ca7cf8e4ac760cd08b8b6cb260c25f03287332c63ba00c96497f8a5a603292"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/economic_command_authentication/lifecycle_tests.rs",
+      "sha256": "6ec2a00d4b5ee3d0b46ee545c878edec5d0b50df3f89a71969472506b221069a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/economic_command_signature_verifier_deployment.rs",
+      "sha256": "fa8ed2d4cbc55f4dc43ea1a0e4df9fe6445719edc0ef70a39e03ba971f941d3c"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+      "sha256": "5f634524759eccc31fd5ad32f764db505b6f98a0b4db161dfef9cdafc47e1d70"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_economic_command_authentication_v1.py",
+      "sha256": "aae449eb0d17291f6028c9e60aae3d0b5fca18754f08b1edec6372ba0ff8aa50",
+      "node_ids": [
+        "tests/core/test_economic_command_authentication_v1.py::test_presequencing_intent_authenticates_then_binds_exact_occurrence",
+        "tests/core/test_economic_command_authentication_v1.py::test_raw_backend_rejects_before_use",
+        "tests/core/test_economic_command_authentication_v1.py::test_bound_backend_for_unselected_release_rejects_before_use",
+        "tests/core/test_economic_command_authentication_v1.py::test_wrong_deployment_or_profile_binding_rejects_before_use",
+        "tests/core/test_economic_command_authentication_v1.py::test_release_mutation_after_snapshot_cannot_substitute_selected_identity",
+        "tests/core/test_economic_command_authentication_v1.py::test_manifest_mutation_after_snapshot_cannot_reroot_bound_protocol",
+        "tests/core/test_economic_command_authentication_v1.py::test_backend_cannot_mutate_bound_capability_during_verification",
+        "tests/core/test_economic_command_authentication_v1.py::test_backend_exception_constructs_no_authenticated_witness",
+        "tests/core/test_economic_command_authentication_v1.py::test_only_exact_true_signature_result_is_accepted",
+        "tests/core/test_economic_command_authentication_v1.py::test_opaque_witnesses_reject_public_construction_and_mutation"
+      ]
+    },
+    {
+      "path": "tests/core/test_economic_command_signature_verifier_deployment_v1.py",
+      "sha256": "fd743f220f312224b9f7a7ec46785c07744bb6c279b96b8ec5e8ff0d3cb0a2b3",
+      "node_ids": [
+        "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_exact_manifest_measurement_and_scope_construct_opaque_binding",
+        "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_backend_release_self_report_is_removed_from_the_trusted_path",
+        "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_bound_capability_has_no_writable_authority_slot",
+        "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_wrong_artifact_bytes_reject_before_backend_use",
+        "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_each_manifest_coordinate_is_committed_by_its_root",
+        "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_evidence_artifacts_are_sorted_unique_and_exactly_typed",
+        "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_unsupported_backend_protocol_rejects_even_when_release_commits_manifest",
+        "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_measured_artifact_bytes_use_zero_one_maximum_neighbor_bva",
+        "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_binding_roots_match_cross_language_golden"
+      ]
+    },
+    {
+      "path": "tests/core/test_economic_command_signature_verifier_registry_v1.py",
+      "sha256": "17df684491c4d4eec87b003438834cd31987a94e880b937f0111ad4741f1c333",
+      "node_ids": [
+        "tests/core/test_economic_command_signature_verifier_registry_v1.py::test_release_and_registry_roots_match_cross_language_golden",
+        "tests/core/test_economic_command_signature_verifier_registry_v1.py::test_release_rejects_hostile_string_subclasses"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "de81171c6f8e041a397fb59005580768ac80d6ebcc34eb408a3106e515a4582d",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_two_route_state_evidence_has_stable_python_golden_roots"
+      ]
+    },
+    {
+      "path": "tests/core/test_lane_module_release_route_binding_v1.py",
+      "sha256": "cacecf67c1d90f6c8936aa8d6cea0a06dde3d4ed66d43599661360adc2054a24",
+      "node_ids": [
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_module_receipt_verification_uses_release_image_and_exact_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_lane_composition_receipt_uses_selected_image_and_exact_journal",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_route_composition_receipt_uses_selected_image_and_exact_lane_witness"
+      ]
+    },
+    {
+      "path": "tests/integration/test_economic_command_signature_verifier_artifact_loader_v1.py",
+      "sha256": "bb91f076e72f4f9c3ca9f2e9c8b2a4f1ebb034f5aa7ec9cd35a4afb70828e9c8",
+      "node_ids": [
+        "tests/integration/test_economic_command_signature_verifier_artifact_loader_v1.py::test_given_exact_regular_artifact_when_loaded_then_release_is_bound",
+        "tests/integration/test_economic_command_signature_verifier_artifact_loader_v1.py::test_given_symlink_artifact_when_loaded_then_measurement_rejects",
+        "tests/integration/test_economic_command_signature_verifier_artifact_loader_v1.py::test_given_oversized_sparse_artifact_when_loaded_then_rejects_before_read",
+        "tests/integration/test_economic_command_signature_verifier_artifact_loader_v1.py::test_given_empty_artifact_when_loaded_then_rejects_before_read",
+        "tests/integration/test_economic_command_signature_verifier_artifact_loader_v1.py::test_given_fifo_artifact_when_loaded_then_regular_file_check_rejects",
+        "tests/integration/test_economic_command_signature_verifier_artifact_loader_v1.py::test_given_replaced_artifact_after_manifest_when_loaded_then_rejects",
+        "tests/integration/test_economic_command_signature_verifier_artifact_loader_v1.py::test_given_artifact_mutation_during_read_when_loaded_then_rejects",
+        "tests/integration/test_economic_command_signature_verifier_artifact_loader_v1.py::test_loader_fails_closed_when_no_follow_is_unavailable"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests separate fixture and manifest construction, one bind or authentication action, and exact capability, backend-call, rejection, or canonical-root observations."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Binding and authentication are pure authority-witness constructors; every mismatch returns no witness, and pre-verifier rejection tests observe zero backend calls."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "measured artifact bytes",
+      "points": [
+        "0",
+        "1",
+        "16777216",
+        "16777217"
+      ]
+    },
+    {
+      "name": "manifest evidence artifact cardinality and order",
+      "points": [
+        "0",
+        "1-or-more-sorted-unique",
+        "duplicate",
+        "reordered"
+      ]
+    },
+    {
+      "name": "verifier scope relation",
+      "points": [
+        "exact",
+        "wrong-release",
+        "wrong-deployment",
+        "wrong-profile"
+      ]
+    },
+    {
+      "name": "artifact file admission",
+      "points": [
+        "regular",
+        "symlink",
+        "replaced",
+        "oversized",
+        "no-O_NOFOLLOW-support"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept a raw backend or trust its self-reported release identity",
+      "killed_by": "tests/core/test_economic_command_authentication_v1.py::test_raw_backend_rejects_before_use"
+    },
+    {
+      "description": "retain writable verifier authority fields on the public capability handle",
+      "killed_by": "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_bound_capability_has_no_writable_authority_slot"
+    },
+    {
+      "description": "allow a backend to mutate or re-scope its capability during verification",
+      "killed_by": "tests/core/test_economic_command_authentication_v1.py::test_backend_cannot_mutate_bound_capability_during_verification"
+    },
+    {
+      "description": "reread a caller-owned release after validation and accept a substituted release identity",
+      "killed_by": "tests/core/test_economic_command_authentication_v1.py::test_release_mutation_after_snapshot_cannot_substitute_selected_identity"
+    },
+    {
+      "description": "reread a caller-owned manifest after protocol validation and reroot the capability",
+      "killed_by": "tests/core/test_economic_command_authentication_v1.py::test_manifest_mutation_after_snapshot_cannot_reroot_bound_protocol"
+    },
+    {
+      "description": "retain writable authenticated-intent or authenticated-command authority fields",
+      "killed_by": "tests/core/test_economic_command_authentication_v1.py::test_opaque_witnesses_reject_public_construction_and_mutation"
+    },
+    {
+      "description": "construct an authenticated witness after a backend exception",
+      "killed_by": "tests/core/test_economic_command_authentication_v1.py::test_backend_exception_constructs_no_authenticated_witness"
+    },
+    {
+      "description": "remove exact artifact-byte implementation-root comparison",
+      "killed_by": "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_wrong_artifact_bytes_reject_before_backend_use"
+    },
+    {
+      "description": "omit a manifest coordinate from the canonical manifest root",
+      "killed_by": "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_each_manifest_coordinate_is_committed_by_its_root"
+    },
+    {
+      "description": "trust a post-construction mutated nested evidence artifact row",
+      "killed_by": "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_evidence_artifacts_are_sorted_unique_and_exactly_typed"
+    },
+    {
+      "description": "accept a release-committed unsupported backend protocol",
+      "killed_by": "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_unsupported_backend_protocol_rejects_even_when_release_commits_manifest"
+    },
+    {
+      "description": "omit release, deployment, or profile capability scope enforcement",
+      "killed_by": "tests/core/test_economic_command_authentication_v1.py::test_wrong_deployment_or_profile_binding_rejects_before_use"
+    },
+    {
+      "description": "follow a symlink instead of measuring one regular artifact descriptor",
+      "killed_by": "tests/integration/test_economic_command_signature_verifier_artifact_loader_v1.py::test_given_symlink_artifact_when_loaded_then_measurement_rejects"
+    },
+    {
+      "description": "use a check-then-open symlink fallback when O_NOFOLLOW is unavailable",
+      "killed_by": "tests/integration/test_economic_command_signature_verifier_artifact_loader_v1.py::test_loader_fails_closed_when_no_follow_is_unavailable"
+    },
+    {
+      "description": "accept an artifact whose bytes or metadata change during descriptor measurement",
+      "killed_by": "tests/integration/test_economic_command_signature_verifier_artifact_loader_v1.py::test_given_artifact_mutation_during_read_when_loaded_then_rejects"
+    },
+    {
+      "description": "dispatch equality on hostile release coordinate string subclasses",
+      "killed_by": "tests/core/test_economic_command_signature_verifier_registry_v1.py::test_release_rejects_hostile_string_subclasses"
+    },
+    {
+      "description": "change Python or Rust deployment canonicalization independently",
+      "killed_by": "tests/core/test_economic_command_signature_verifier_deployment_v1.py::test_binding_roots_match_cross_language_golden"
+    }
+  ],
+  "nonclaims": [
+    "No real BLS verifier implementation is introduced or verified.",
+    "The injected backend executing the measured artifact remains a trusted deployment-shell premise.",
+    "Evidence artifact roots commit declarations; this packet does not authenticate or replay their underlying evidence.",
+    "Python capability opacity is process-local structural hardening, not a same-process security boundary.",
+    "No production mount, settlement authority, writer rotation, value-moving authority, or whole-economy closure is established.",
+    "production_authority=NONE"
+  ]
+}

@@ -4,6 +4,7 @@ from dataclasses import dataclass, replace
 
 import pytest
 
+import src.core.economic_command_signature_verifier_deployment_v1 as verifier_deployment
 from src.core.asset_transfer_types_v1 import (
     ASSET_TRANSFER_COMMAND_KIND_V1,
     AssetTransferCommandV1,
@@ -20,6 +21,14 @@ from src.core.economic_command_authentication_v1 import (
     authenticate_economic_command_intent_v1,
     bind_authenticated_intent_to_occurrence_v1,
     economic_command_authentication_message_bytes_v1,
+)
+from src.core.economic_command_signature_verifier_deployment_v1 import (
+    BoundEconomicCommandSignatureVerifierV1,
+    CommandSignatureVerifierEvidenceArtifactV1,
+    EconomicCommandSignatureVerifierEvidenceManifestV1,
+    bind_economic_command_signature_verifier_deployment_v1,
+    command_signature_verifier_backend_protocol_root_v1,
+    command_signature_verifier_implementation_root_v1,
 )
 from src.core.economic_command_signature_verifier_registry_v1 import (
     ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
@@ -65,19 +74,13 @@ class _FixtureV1:
 
 
 class _RecordingVerifierV1:
-    def __init__(
-        self,
-        result: object = True,
-        *,
-        verifier_release_id: str | None = None,
-    ) -> None:
+    def __init__(self, result: object = True) -> None:
         self.result = result
-        self.verifier_release_id = verifier_release_id or (
-            _signature_verifier_registry()
-            .release_for_new_authentication("BLS12_381_G2_BASIC_V1")
-            .release_id
-        )
         self.calls: list[tuple[str, str, bytes, bytes]] = []
+
+    @property
+    def verifier_release_id(self) -> str:
+        raise AssertionError("backend release self-report must never be read")
 
     def verify_command_signature(
         self,
@@ -91,18 +94,43 @@ class _RecordingVerifierV1:
         return self.result  # type: ignore[return-value]
 
 
-class _AlwaysEqualV1:
-    def __eq__(self, other: object) -> bool:
-        return True
+class _CapabilityMutatingVerifierV1(_RecordingVerifierV1):
+    target: BoundEconomicCommandSignatureVerifierV1 | None = None
+
+    def verify_command_signature(
+        self,
+        *,
+        signature_algorithm: str,
+        signer_public_key: str,
+        message_bytes: bytes,
+        signature_bytes: bytes,
+    ) -> bool:
+        assert self.target is not None
+        object.__setattr__(self.target, "_fields", object())
+        return super().verify_command_signature(
+            signature_algorithm=signature_algorithm,
+            signer_public_key=signer_public_key,
+            message_bytes=message_bytes,
+            signature_bytes=signature_bytes,
+        )
 
 
-class _ExplodingEqualV1:
-    def __eq__(self, other: object) -> bool:
-        raise RuntimeError("hostile equality must not execute")
-
-
-class _RootSubclassV1(str):
-    pass
+class _ExplodingVerifierV1(_RecordingVerifierV1):
+    def verify_command_signature(
+        self,
+        *,
+        signature_algorithm: str,
+        signer_public_key: str,
+        message_bytes: bytes,
+        signature_bytes: bytes,
+    ) -> bool:
+        super().verify_command_signature(
+            signature_algorithm=signature_algorithm,
+            signer_public_key=signer_public_key,
+            message_bytes=message_bytes,
+            signature_bytes=signature_bytes,
+        )
+        raise RuntimeError("signature backend failed")
 
 
 def _rebuild_profile(
@@ -232,36 +260,91 @@ def _fixture(
 
 
 def _signature_verifier_registry() -> EconomicCommandSignatureVerifierRegistryV1:
-    release = EconomicCommandSignatureVerifierReleaseV1.build(
-        semantic_version="1.0.0-auth-test",
+    return EconomicCommandSignatureVerifierRegistryV1(
+        (_signature_verifier_release(_signature_verifier_manifest()),)
+    )
+
+
+def _signature_verifier_manifest(
+    *,
+    artifact_bytes: bytes = b"economic-command-signature-verifier-auth-test-v1",
+) -> EconomicCommandSignatureVerifierEvidenceManifestV1:
+    evidence_artifacts = tuple(
+        CommandSignatureVerifierEvidenceArtifactV1(status, _root(500 + index))
+        for index, status in enumerate(
+            sorted(CommandSignatureVerifierEvidenceStatusV1, key=lambda item: item.value)
+        )
+    )
+    return EconomicCommandSignatureVerifierEvidenceManifestV1(
         signature_algorithm="BLS12_381_G2_BASIC_V1",
-        implementation_root=_root(310),
+        implementation_root=command_signature_verifier_implementation_root_v1(artifact_bytes),
         public_key_schema_root=_root(311),
         signature_schema_root=_root(312),
         message_schema_root=_root(313),
         specification_root=_root(314),
         source_root=_root(315),
         toolchain_root=_root(316),
-        evidence_manifest_root=_root(317),
+        backend_protocol_root=command_signature_verifier_backend_protocol_root_v1(),
         max_public_key_bytes=160,
         max_signature_bytes=4_096,
+        evidence_artifacts=evidence_artifacts,
+    )
+
+
+def _signature_verifier_release(
+    manifest: EconomicCommandSignatureVerifierEvidenceManifestV1,
+) -> EconomicCommandSignatureVerifierReleaseV1:
+    return EconomicCommandSignatureVerifierReleaseV1.build(
+        semantic_version="1.0.0-auth-test",
+        signature_algorithm=manifest.signature_algorithm,
+        implementation_root=manifest.implementation_root,
+        public_key_schema_root=manifest.public_key_schema_root,
+        signature_schema_root=manifest.signature_schema_root,
+        message_schema_root=manifest.message_schema_root,
+        specification_root=manifest.specification_root,
+        source_root=manifest.source_root,
+        toolchain_root=manifest.toolchain_root,
+        evidence_manifest_root=manifest.manifest_root,
+        max_public_key_bytes=manifest.max_public_key_bytes,
+        max_signature_bytes=manifest.max_signature_bytes,
         status=ReleaseStatusV1.ACTIVE_NEW,
         accepts_new_authentications=True,
-        evidence_statuses=tuple(
-            sorted(
-                CommandSignatureVerifierEvidenceStatusV1,
-                key=lambda status: status.value,
-            )
-        ),
+        evidence_statuses=tuple(row.status for row in manifest.evidence_artifacts),
     )
-    return EconomicCommandSignatureVerifierRegistryV1((release,))
+
+
+def _bound_verifier(
+    fixture: _FixtureV1,
+    backend: _RecordingVerifierV1,
+    *,
+    manifest: EconomicCommandSignatureVerifierEvidenceManifestV1 | None = None,
+    release: EconomicCommandSignatureVerifierReleaseV1 | None = None,
+    artifact_bytes: bytes = b"economic-command-signature-verifier-auth-test-v1",
+    deployment_root: str | None = None,
+    profile_root: str | None = None,
+) -> BoundEconomicCommandSignatureVerifierV1:
+    selected_manifest = manifest or _signature_verifier_manifest(
+        artifact_bytes=artifact_bytes
+    )
+    selected_release = release or fixture.signature_verifier_registry.releases[0]
+    return bind_economic_command_signature_verifier_deployment_v1(
+        release=selected_release,
+        evidence_manifest=selected_manifest,
+        measured_artifact_bytes=artifact_bytes,
+        deployment_root=deployment_root or fixture.intent.deployment_root,
+        profile_root=profile_root or fixture.intent.profile_root,
+        backend=backend,
+    )
 
 
 def _authenticate_intent(
     fixture: _FixtureV1,
     verifier: _RecordingVerifierV1,
 ) -> AuthenticatedEconomicCommandIntentV1:
-    return authenticate_economic_command_intent_v1(fixture.candidate, verifier)
+    return authenticate_economic_command_intent_v1(
+        fixture.candidate,
+        _bound_verifier(fixture, verifier),
+    )
 
 
 def _authenticate_command(
@@ -299,31 +382,160 @@ def test_presequencing_intent_authenticates_then_binds_exact_occurrence() -> Non
     assert authenticated.occurrence is not fixture.occurrence
 
 
-def test_backend_claiming_an_unselected_verifier_release_rejects_before_use() -> None:
+def test_raw_backend_rejects_before_use() -> None:
     fixture = _fixture()
-    verifier = _RecordingVerifierV1(verifier_release_id=_root(999))
+    verifier = _RecordingVerifierV1()
 
-    with pytest.raises(ValueError, match="verifier release"):
-        _authenticate_intent(fixture, verifier)
+    with pytest.raises(TypeError, match="deployment binding"):
+        authenticate_economic_command_intent_v1(fixture.candidate, verifier)  # type: ignore[arg-type]
+
+    assert verifier.calls == []
+
+
+def test_bound_backend_for_unselected_release_rejects_before_use() -> None:
+    fixture = _fixture()
+    verifier = _RecordingVerifierV1()
+    artifact_bytes = b"alternate-command-signature-verifier-v1"
+    manifest = _signature_verifier_manifest(artifact_bytes=artifact_bytes)
+    release = _signature_verifier_release(manifest)
+    bound = _bound_verifier(
+        fixture,
+        verifier,
+        manifest=manifest,
+        release=release,
+        artifact_bytes=artifact_bytes,
+    )
+
+    with pytest.raises(ValueError, match="release binding"):
+        authenticate_economic_command_intent_v1(fixture.candidate, bound)
 
     assert verifier.calls == []
 
 
 @pytest.mark.parametrize(
-    "hostile_release_id",
-    (True, 1, _AlwaysEqualV1(), _ExplodingEqualV1(), _RootSubclassV1(_root(1))),
+    ("scope", "replacement", "message"),
+    (
+        ("deployment", _root(998), "deployment binding"),
+        ("profile", _root(999), "profile binding"),
+    ),
 )
-def test_hostile_backend_release_ids_reject_without_equality_dispatch(
-    hostile_release_id: object,
+def test_wrong_deployment_or_profile_binding_rejects_before_use(
+    scope: str,
+    replacement: str,
+    message: str,
 ) -> None:
     fixture = _fixture()
     verifier = _RecordingVerifierV1()
-    verifier.verifier_release_id = hostile_release_id  # type: ignore[assignment]
+    bound = _bound_verifier(
+        fixture,
+        verifier,
+        deployment_root=replacement if scope == "deployment" else None,
+        profile_root=replacement if scope == "profile" else None,
+    )
 
-    with pytest.raises(ValueError, match="verifier release"):
-        _authenticate_intent(fixture, verifier)
+    with pytest.raises(ValueError, match=message):
+        authenticate_economic_command_intent_v1(fixture.candidate, bound)
 
     assert verifier.calls == []
+
+
+def test_release_mutation_after_snapshot_cannot_substitute_selected_identity(monkeypatch) -> None:
+    fixture = _fixture()
+    backend = _RecordingVerifierV1()
+    artifact_bytes = b"alternate-command-signature-verifier-v1"
+    manifest = _signature_verifier_manifest(artifact_bytes=artifact_bytes)
+    release = _signature_verifier_release(manifest)
+    alternate_release_id = release.release_id
+    real_implementation_root = (
+        verifier_deployment.command_signature_verifier_implementation_root_v1
+    )
+
+    def mutate_source_after_snapshot(candidate_bytes: bytes) -> str:
+        object.__setattr__(
+            release,
+            "release_id",
+            fixture.signature_verifier_registry.releases[0].release_id,
+        )
+        return real_implementation_root(candidate_bytes)
+
+    monkeypatch.setattr(
+        verifier_deployment,
+        "command_signature_verifier_implementation_root_v1",
+        mutate_source_after_snapshot,
+    )
+    bound = bind_economic_command_signature_verifier_deployment_v1(
+        release=release,
+        evidence_manifest=manifest,
+        measured_artifact_bytes=artifact_bytes,
+        deployment_root=fixture.intent.deployment_root,
+        profile_root=fixture.intent.profile_root,
+        backend=backend,
+    )
+
+    assert bound.release_id == alternate_release_id
+    with pytest.raises(ValueError, match="release binding"):
+        authenticate_economic_command_intent_v1(fixture.candidate, bound)
+    assert backend.calls == []
+
+
+def test_manifest_mutation_after_snapshot_cannot_reroot_bound_protocol(monkeypatch) -> None:
+    fixture = _fixture()
+    manifest = _signature_verifier_manifest()
+    release = fixture.signature_verifier_registry.releases[0]
+    baseline = _bound_verifier(
+        fixture,
+        _RecordingVerifierV1(),
+        manifest=manifest,
+        release=release,
+    ).binding_root
+    real_implementation_root = (
+        verifier_deployment.command_signature_verifier_implementation_root_v1
+    )
+
+    def mutate_source_after_snapshot(candidate_bytes: bytes) -> str:
+        object.__setattr__(manifest, "backend_protocol_root", _root(999))
+        return real_implementation_root(candidate_bytes)
+
+    monkeypatch.setattr(
+        verifier_deployment,
+        "command_signature_verifier_implementation_root_v1",
+        mutate_source_after_snapshot,
+    )
+    backend = _RecordingVerifierV1()
+    bound = bind_economic_command_signature_verifier_deployment_v1(
+        release=release,
+        evidence_manifest=manifest,
+        measured_artifact_bytes=b"economic-command-signature-verifier-auth-test-v1",
+        deployment_root=fixture.intent.deployment_root,
+        profile_root=fixture.intent.profile_root,
+        backend=backend,
+    )
+
+    assert bound.binding_root == baseline
+    authenticate_economic_command_intent_v1(fixture.candidate, bound)
+    assert len(backend.calls) == 1
+
+
+def test_backend_cannot_mutate_bound_capability_during_verification() -> None:
+    fixture = _fixture()
+    verifier = _CapabilityMutatingVerifierV1()
+    bound = _bound_verifier(fixture, verifier)
+    verifier.target = bound
+
+    with pytest.raises(AttributeError):
+        authenticate_economic_command_intent_v1(fixture.candidate, bound)
+
+    assert verifier.calls == []
+
+
+def test_backend_exception_constructs_no_authenticated_witness() -> None:
+    fixture = _fixture()
+    verifier = _ExplodingVerifierV1()
+
+    with pytest.raises(RuntimeError, match="signature backend failed"):
+        _authenticate_intent(fixture, verifier)
+
+    assert len(verifier.calls) == 1
 
 
 def test_mutated_verifier_release_rejects_during_owned_snapshot() -> None:
@@ -539,7 +751,19 @@ def test_opaque_witnesses_reject_public_construction_and_mutation() -> None:
         AuthenticatedEconomicCommandIntentV1(object(), object())  # type: ignore[arg-type]
     with pytest.raises(TypeError, match="binder-constructed"):
         AuthenticatedEconomicCommandV1(object(), object())  # type: ignore[arg-type]
-    authenticated = _authenticate_command(_fixture(), _RecordingVerifierV1())
-    object.__setattr__(authenticated._fields.occurrence, "nonce", 10)  # noqa: SLF001
-    with pytest.raises(ValueError, match="occurrence was mutated"):
-        _ = authenticated.occurrence
+    fixture = _fixture()
+    authenticated_intent = _authenticate_intent(fixture, _RecordingVerifierV1())
+    intent_binding_root = authenticated_intent.binding_root
+    with pytest.raises(AttributeError):
+        object.__setattr__(authenticated_intent, "_fields", object())
+    with pytest.raises(AttributeError):
+        _ = authenticated_intent._fields  # type: ignore[attr-defined]  # noqa: SLF001
+    authenticated = bind_authenticated_intent_to_occurrence_v1(
+        authenticated_intent,
+        fixture.occurrence,
+    )
+    command_binding_root = authenticated.binding_root
+    with pytest.raises(AttributeError):
+        object.__setattr__(authenticated, "_fields", object())
+    assert authenticated_intent.binding_root == intent_binding_root
+    assert authenticated.binding_root == command_binding_root

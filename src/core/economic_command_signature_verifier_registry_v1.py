@@ -61,6 +61,21 @@ class EconomicCommandSignatureVerifierReleaseV1:
     evidence_statuses: tuple[CommandSignatureVerifierEvidenceStatusV1, ...]
 
     def __post_init__(self) -> None:
+        exact_string_fields = (
+            "release_id",
+            "semantic_version",
+            "signature_algorithm",
+            "implementation_root",
+            "public_key_schema_root",
+            "signature_schema_root",
+            "message_schema_root",
+            "specification_root",
+            "source_root",
+            "toolchain_root",
+            "evidence_manifest_root",
+        )
+        if any(type(getattr(self, field_name)) is not str for field_name in exact_string_fields):
+            raise TypeError("command signature verifier release strings must be exact strings")
         _require_root(self.release_id, name="command signature verifier release id")
         _require_token(self.semantic_version, name="command signature verifier version")
         _require_token(self.signature_algorithm, name="command signature algorithm")

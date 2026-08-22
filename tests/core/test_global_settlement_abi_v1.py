@@ -39,6 +39,13 @@ from src.core.economic_command_authentication_v1 import (
     authenticate_economic_command_intent_v1,
     bind_authenticated_intent_to_occurrence_v1,
 )
+from src.core.economic_command_signature_verifier_deployment_v1 import (
+    CommandSignatureVerifierEvidenceArtifactV1,
+    EconomicCommandSignatureVerifierEvidenceManifestV1,
+    bind_economic_command_signature_verifier_deployment_v1,
+    command_signature_verifier_backend_protocol_root_v1,
+    command_signature_verifier_implementation_root_v1,
+)
 from src.core.economic_command_signature_verifier_registry_v1 import (
     ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
     CommandSignatureVerifierEvidenceStatusV1,
@@ -150,30 +157,56 @@ def _active_evidence() -> tuple[EvidenceStatusV1, ...]:
     )
 
 
+_COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1 = (
+    b"global-abi-command-signature-verifier-test-artifact-v1"
+)
+
+
+def _signature_verifier_manifest_v1() -> EconomicCommandSignatureVerifierEvidenceManifestV1:
+    evidence_artifacts = tuple(
+        CommandSignatureVerifierEvidenceArtifactV1(status, _root(430 + index))
+        for index, status in enumerate(
+            sorted(CommandSignatureVerifierEvidenceStatusV1, key=lambda item: item.value)
+        )
+    )
+    return EconomicCommandSignatureVerifierEvidenceManifestV1(
+        signature_algorithm="BLS12_381_G2_BASIC_V1",
+        implementation_root=command_signature_verifier_implementation_root_v1(
+            _COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1
+        ),
+        public_key_schema_root=_root(417),
+        signature_schema_root=_root(418),
+        message_schema_root=_root(419),
+        specification_root=_root(420),
+        source_root=_root(421),
+        toolchain_root=_root(422),
+        backend_protocol_root=command_signature_verifier_backend_protocol_root_v1(),
+        max_public_key_bytes=160,
+        max_signature_bytes=4_096,
+        evidence_artifacts=evidence_artifacts,
+    )
+
+
 def _signature_verifier_registry_v1() -> EconomicCommandSignatureVerifierRegistryV1:
+    manifest = _signature_verifier_manifest_v1()
     return EconomicCommandSignatureVerifierRegistryV1(
         (
             EconomicCommandSignatureVerifierReleaseV1.build(
                 semantic_version="1.0.0-global-abi-test",
                 signature_algorithm="BLS12_381_G2_BASIC_V1",
-                implementation_root=_root(416),
-                public_key_schema_root=_root(417),
-                signature_schema_root=_root(418),
-                message_schema_root=_root(419),
-                specification_root=_root(420),
-                source_root=_root(421),
-                toolchain_root=_root(422),
-                evidence_manifest_root=_root(423),
-                max_public_key_bytes=160,
-                max_signature_bytes=4_096,
+                implementation_root=manifest.implementation_root,
+                public_key_schema_root=manifest.public_key_schema_root,
+                signature_schema_root=manifest.signature_schema_root,
+                message_schema_root=manifest.message_schema_root,
+                specification_root=manifest.specification_root,
+                source_root=manifest.source_root,
+                toolchain_root=manifest.toolchain_root,
+                evidence_manifest_root=manifest.manifest_root,
+                max_public_key_bytes=manifest.max_public_key_bytes,
+                max_signature_bytes=manifest.max_signature_bytes,
                 status=ReleaseStatusV1.ACTIVE_NEW,
                 accepts_new_authentications=True,
-                evidence_statuses=tuple(
-                    sorted(
-                        CommandSignatureVerifierEvidenceStatusV1,
-                        key=lambda status: status.value,
-                    )
-                ),
+                evidence_statuses=tuple(row.status for row in manifest.evidence_artifacts),
             ),
         )
     )
@@ -422,14 +455,6 @@ class _RecordingReceiptVerifier:
 
 
 class _AcceptingCommandSignatureVerifierV1:
-    @property
-    def verifier_release_id(self) -> str:
-        return (
-            _signature_verifier_registry_v1()
-            .release_for_new_authentication("BLS12_381_G2_BASIC_V1")
-            .release_id
-        )
-
     def verify_command_signature(
         self,
         *,
@@ -518,7 +543,14 @@ def _authenticate_occurrence_for_test(
                 signature_bytes=b"test-command-signature-v1",
             ),
         ),
-        _AcceptingCommandSignatureVerifierV1(),
+        bind_economic_command_signature_verifier_deployment_v1(
+            release=signature_verifier_registry.releases[0],
+            evidence_manifest=_signature_verifier_manifest_v1(),
+            measured_artifact_bytes=_COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1,
+            deployment_root=occurrence.deployment_root,
+            profile_root=occurrence.profile_root,
+            backend=_AcceptingCommandSignatureVerifierV1(),
+        ),
     )
     return bind_authenticated_intent_to_occurrence_v1(
         authenticated_intent,
@@ -1944,12 +1976,12 @@ def test_epoch_two_route_state_evidence_has_stable_python_golden_roots() -> None
     verified = verify_economic_epoch_v1(candidate, _RecordingReceiptVerifier())
 
     assert verified.route_state_projection_roots == (
-        "0x151c0104f1573e07f97e3d966592d50f895611f9a05d7ca18914a7001e7e19b5",
-        "0x7f10e6c04275c69b08d507c4ba844ddc82e2e8ccd8ea77c1783d458222db12d3",
+        "0x68e00f07e0e441ceec08af280718214782eaccb7bbb61fdfd4ca0b4f803380a3",
+        "0xecb20ae1bbcb298d63e9484078dd2edcf44d76ccb9e419ac0212e09c9a207632",
     )
     assert verified.route_state_effect_refinement_roots == (
-        "0xa01fa06d70bf1bb34fe3c710db156eb8caec6654b03cbcceba3a4b16e49616bd",
-        "0xdd923d9049445983e516f475220f2d5e0339c7eb2741e9ec9abded38e610bf10",
+        "0xea5877bb697497683944301fecc539f96dbf31e9f127f1343238461f6c2c3a46",
+        "0x7b4c0ca5e1bbc7c3bcf757ed43d06bcd64ebdaa4b62a506af7ff5cfeefff3ccd",
     )
 
 

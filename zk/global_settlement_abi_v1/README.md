@@ -174,11 +174,23 @@ layer must retain the canonical command bytes. A second profile-policy binding
 selects one content-derived command-signature verifier release for the exact
 algorithm. That release commits implementation, specification, source,
 toolchain, message, public-key and signature schema roots plus resource
-ceilings and an evidence-manifest root. Authentication rejects an injected
-backend whose claimed release ID differs from the selected release. Evidence
-status labels and the manifest root remain committed declarations until a
-deployment gate authenticates the manifest. Deployment must also establish
-that the loaded backend actually corresponds to the committed implementation root.
+ceilings and an evidence-manifest root. A canonical evidence manifest binds
+those release coordinates, a fixed request/response
+protocol root, and one artifact root for every declared evidence status. The
+deployment binder first reconstructs owned release and manifest values, then
+measures exact artifact bytes and checks their implementation
+root, and constructs a data-slot-free opaque capability backed by a separately
+owned process-local authority record scoped to the selected release,
+deployment, and profile. Authentication revalidates and accepts only that exact
+capability and
+commits its binding root into the authenticated-intent witness. The Python
+shell measures one bounded regular non-symlink file through a stable descriptor.
+The caller still must establish that the injected backend actually executes the
+measured artifact. The evidence artifact roots are committed declarations; this
+slice does not authenticate or replay their underlying evidence.
+Authenticated intent and occurrence-bound command handles use the same
+separately owned authority-record pattern, closing post-verification field
+rerooting through handle mutation.
 These reference checkers remain `IMPLEMENTED_UNMOUNTED`: there is no deployed
 route-composer guest, cryptographic verifier, external governed-profile anchor,
 durable writer, or production authority. `production_authority=NONE`.
@@ -190,8 +202,8 @@ deterministic contract behavior only. Historical Runpod evidence at donor
 commit `722882144` records real Succinct proofs for the asset module,
 release-aware lane, and structural recursion boundaries at `1`, `8`, `9`, and
 `64`; those source-pinned images predate this branch's full-state and
-authentication changes. Guest-backed release registration, deployment binding
-for the release-selected command-signature verifier, economic route receipts,
+authentication changes. A real release-selected signature implementation,
+backend construction tied to the measured artifact, economic route receipts,
 guest-proved effect aggregation, multi-lane and terminal composition, a fresh
 current-image boundary replay, and cross-release coexistence evidence remain
 open.

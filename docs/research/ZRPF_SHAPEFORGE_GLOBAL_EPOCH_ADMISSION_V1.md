@@ -392,6 +392,27 @@ immutable aggregate instead of a caller-managed parallel argument list. The
 candidate remains untrusted data; only complete verification constructs the
 opaque epoch witness.
 
+The command-signature deployment increment uses a separate immutable manifest
+aggregate and a data-slot-free process-local verifier capability backed by a
+separately owned authority record. Authenticated intent and occurrence-bound
+command handles use the same pattern. The domain relation
+is exact equality across the selected release, canonical manifest, measured
+implementation root, fixed backend protocol, deployment root, and profile root.
+The only constructors are the deterministic binder and the Python
+file-descriptor measurement shell. The binder reconstructs release, manifest,
+and nested evidence rows before validation and retains no caller-owned data
+alias. The authenticated-intent witness serializes
+the resulting deployment-binding root, so later module and route commitments
+cannot silently substitute a verifier scope. Rejection constructs no authority
+object and calls no backend when any release, manifest, artifact, deployment,
+or profile coordinate differs. This guarantees structural release and scope
+binding in Python and Rust. It does not guarantee that an injected backend
+executes the measured file, that the evidence artifacts are authentic, or that
+the capability has been mounted by a production deployment. A future mounted
+loader must make backend construction and artifact measurement one trusted
+operation; migration must preserve or explicitly replace the committed
+release, deployment, profile, and witness roots.
+
 ## Promoted claim
 
 The Python reference constructs `VerifiedEconomicEpochV1` only through
@@ -417,18 +438,25 @@ policy-registry root, and verifier-registry root into a pre-sequencing signed
 intent. A second profile-policy binding selects one active content-derived
 command-signature verifier release for the exact algorithm and commits its
 implementation, specification, source, toolchain and wire-schema roots plus
-an evidence-manifest root and resource ceilings. Authentication rejects a
-backend that claims another release ID. The evidence status labels and manifest
-root are committed declarations until a deployment gate authenticates that
-manifest. A separate deterministic step binds every signed intent field and its
+an evidence-manifest root and resource ceilings. The canonical manifest binds
+those exact release coordinates, a fixed backend protocol root, and one
+artifact root per declared evidence status. A deterministic binder checks the
+owned manifest and release snapshots plus exact measured artifact bytes, then
+constructs an opaque verifier
+capability with no writable data slots and a separately owned process-local
+authority record scoped to the selected release, deployment, and profile.
+Authentication accepts only that bound capability and commits its binding root
+into the authenticated-intent witness. A separate deterministic step binds every signed intent field and its
 height interval to one exact sequenced occurrence. Sequencer-assigned height,
 transaction index, operation index, and pre-state root require no second user
 signature. The verified module witness retains the resulting authentication
 binding root. Python and Rust share golden authentication-message and witness
-roots, and raw occurrences cannot construct module proof authority. The
-correspondence between the selected release and the actually loaded verifier
-binary, canonical command-byte retention, deployment, and production mounting
-remain outer premises. Python module-receipt verification exact-type checks and owns a
+roots, and raw occurrences cannot construct module proof authority. The Python
+shell measures one bounded regular non-symlink artifact through a stable file
+descriptor. The correspondence between the injected backend and execution of
+that measured artifact, authenticity of the manifest's evidence artifacts,
+canonical command-byte retention, deployment, and production mounting remain
+outer premises. Python module-receipt verification exact-type checks and owns a
 revalidated candidate snapshot before dereferencing authentication authority;
 negative tests reject both a duck-typed raw-occurrence carrier and a valid
 candidate mutated after construction. This is retained-alias hardening within
@@ -569,8 +597,10 @@ cargo test --locked -p zenodex-asset-lane-coordinator-risc0-host \
 - A fresh current-image `1`/`8`/`9`/`64` recursion replay and resource
   benchmark. Historical donor evidence at `722882144` covers those structural
   boundaries for older pinned images; it does not cover this branch.
-- An authenticated governed verifier implementation and deployment binding for
-  the structurally selected command-signature verifier release.
+- A real governed command-signature verifier implementation and backend loader
+  whose construction establishes execution of the measured release artifact.
+- Authenticated replay of the evidence artifacts committed by the verifier
+  manifest; their roots and status labels remain declarations in this slice.
 - Deployment-selected coordinator releases and verifier implementations with
   authenticated evidence rather than synthetic test-profile status labels.
 - Durable atomic publication with crash and reopen evidence.

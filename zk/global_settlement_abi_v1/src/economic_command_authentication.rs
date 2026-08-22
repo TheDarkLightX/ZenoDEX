@@ -8,6 +8,9 @@ use crate::economic_command_authorization_registry::{
     EconomicCommandAuthorizationV1, ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
     ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1,
 };
+use crate::economic_command_signature_verifier_deployment::{
+    BoundEconomicCommandSignatureVerifierV1, EconomicCommandSignatureVerifierBackendV1,
+};
 use crate::economic_command_signature_verifier_registry::{
     select_profile_governed_command_signature_verifier_release_v1,
     EconomicCommandSignatureVerifierReleaseV1,
@@ -79,9 +82,9 @@ fn authentication_message_bytes_for_release_v1(
     Ok(message)
 }
 
-pub fn authenticate_economic_command_intent_v1<V: EconomicCommandSignatureVerifierV1>(
+pub fn authenticate_economic_command_intent_v1<B: EconomicCommandSignatureVerifierBackendV1>(
     candidate: &EconomicCommandAuthenticationCandidateV1<'_>,
-    signature_verifier: &V,
+    signature_verifier: &BoundEconomicCommandSignatureVerifierV1<B>,
 ) -> AbiResultV1<AuthenticatedEconomicCommandIntentV1> {
     validate_candidate_v1(candidate)?;
     let intent = candidate.intent;
@@ -92,11 +95,11 @@ pub fn authenticate_economic_command_intent_v1<V: EconomicCommandSignatureVerifi
     let release = select_signature_verifier_release_v1(candidate)?;
     let message_bytes =
         authentication_message_bytes_for_release_v1(candidate, authorization, release)?;
-    if signature_verifier.verifier_release_id() != &release.release_id {
-        return Err(AbiErrorV1::InvalidBinding(
-            "command signature verifier release",
-        ));
-    }
+    signature_verifier.require_binding(
+        &release.release_id,
+        &intent.deployment_root,
+        &intent.profile_root,
+    )?;
     if !signature_verifier.verify_command_signature(
         &envelope.signature_algorithm,
         &envelope.signer_public_key,
@@ -119,6 +122,7 @@ pub fn authenticate_economic_command_intent_v1<V: EconomicCommandSignatureVerifi
                 .signature_verifier_registry
                 .registry_root()?,
             signature_verifier_release_id: release.release_id.clone(),
+            signature_verifier_deployment_binding_root: signature_verifier.binding_root()?,
             command_body_bytes_digest: sha256_root_v1(
                 &envelope.command_body_bytes,
                 "command authentication body bytes digest",

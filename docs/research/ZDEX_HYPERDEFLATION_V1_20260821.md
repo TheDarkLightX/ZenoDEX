@@ -622,15 +622,25 @@ exact design.
   sequencer-assigned transaction index, operation index, and pre-state root do
   not require another user signature. A second profile-policy binding now
   selects one active content-derived command-signature verifier release for the
-  exact algorithm; its content binds an evidence-manifest root, and
-  authentication rejects a backend that claims another release ID. The status
-  labels and manifest root are committed declarations until a deployment gate
-  authenticates the manifest. Replay-ID safety still depends on deployment
-  proving that the loaded verifier corresponds to the selected implementation root, one
-  canonical `subject_id` per principal, canonical command-byte
+  exact algorithm. Its content binds an evidence-manifest root. The canonical
+  manifest binds every release coordinate, a fixed backend protocol, and one
+  artifact root per declared evidence status. A deterministic deployment
+  binder reconstructs owned release, manifest, and evidence-row values before
+  checking exact measured artifact bytes, then constructs
+  a data-slot-free opaque capability backed by a separately owned process-local
+  authority record scoped to the selected release, deployment, and profile.
+  Authentication accepts only this capability and commits its binding root in
+  a similarly registry-backed authenticated-intent witness. The occurrence-bound
+  authenticated command also retains authority outside its public handle. The
+  Python shell measures a bounded regular
+  non-symlink file through one stable descriptor. Replay-ID safety still
+  depends on a trusted deployment shell establishing that the injected backend
+  executes the measured artifact, one canonical `subject_id` per principal,
+  canonical command-byte
   retention in the DA/archive layer, canonical chain identity, and migration
   rules that preserve deployment replay continuity. This slice does not deploy
-  those outer dependencies. Other module families must add the same
+  those outer dependencies or authenticate the evidence artifacts named by the
+  manifest. Other module families must add the same
   authenticated executed-command relation before authoritative route admission.
   Python module-receipt admission also exact-type checks and owns a revalidated
   candidate snapshot at use time; duck-typed and post-construction

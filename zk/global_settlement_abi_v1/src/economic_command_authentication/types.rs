@@ -116,15 +116,3 @@ pub struct EconomicCommandAuthenticationCandidateV1<'a> {
     pub intent: &'a EconomicCommandIntentV1,
     pub envelope: &'a EconomicCommandAuthenticationEnvelopeV1,
 }
-
-pub trait EconomicCommandSignatureVerifierV1 {
-    fn verifier_release_id(&self) -> &RootV1;
-
-    fn verify_command_signature(
-        &self,
-        signature_algorithm: &str,
-        signer_public_key: &str,
-        message_bytes: &[u8],
-        signature_bytes: &[u8],
-    ) -> AbiResultV1<bool>;
-}

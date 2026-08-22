@@ -36,6 +36,13 @@ from src.core.economic_command_authentication_v1 import (
     authenticate_economic_command_intent_v1,
     bind_authenticated_intent_to_occurrence_v1,
 )
+from src.core.economic_command_signature_verifier_deployment_v1 import (
+    CommandSignatureVerifierEvidenceArtifactV1,
+    EconomicCommandSignatureVerifierEvidenceManifestV1,
+    bind_economic_command_signature_verifier_deployment_v1,
+    command_signature_verifier_backend_protocol_root_v1,
+    command_signature_verifier_implementation_root_v1,
+)
 from src.core.economic_command_signature_verifier_registry_v1 import (
     ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
     CommandSignatureVerifierEvidenceStatusV1,
@@ -139,30 +146,56 @@ def _active_evidence() -> tuple[EvidenceStatusV1, ...]:
     )
 
 
+_COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1 = (
+    b"lane-binding-command-signature-verifier-test-artifact-v1"
+)
+
+
+def _signature_verifier_manifest_v1() -> EconomicCommandSignatureVerifierEvidenceManifestV1:
+    evidence_artifacts = tuple(
+        CommandSignatureVerifierEvidenceArtifactV1(status, _root(540 + index))
+        for index, status in enumerate(
+            sorted(CommandSignatureVerifierEvidenceStatusV1, key=lambda item: item.value)
+        )
+    )
+    return EconomicCommandSignatureVerifierEvidenceManifestV1(
+        signature_algorithm="BLS12_381_G2_BASIC_V1",
+        implementation_root=command_signature_verifier_implementation_root_v1(
+            _COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1
+        ),
+        public_key_schema_root=_root(527),
+        signature_schema_root=_root(528),
+        message_schema_root=_root(529),
+        specification_root=_root(530),
+        source_root=_root(531),
+        toolchain_root=_root(532),
+        backend_protocol_root=command_signature_verifier_backend_protocol_root_v1(),
+        max_public_key_bytes=160,
+        max_signature_bytes=4_096,
+        evidence_artifacts=evidence_artifacts,
+    )
+
+
 def _signature_verifier_registry_v1() -> EconomicCommandSignatureVerifierRegistryV1:
+    manifest = _signature_verifier_manifest_v1()
     return EconomicCommandSignatureVerifierRegistryV1(
         (
             EconomicCommandSignatureVerifierReleaseV1.build(
                 semantic_version="1.0.0-lane-binding-test",
-                signature_algorithm="BLS12_381_G2_BASIC_V1",
-                implementation_root=_root(526),
-                public_key_schema_root=_root(527),
-                signature_schema_root=_root(528),
-                message_schema_root=_root(529),
-                specification_root=_root(530),
-                source_root=_root(531),
-                toolchain_root=_root(532),
-                evidence_manifest_root=_root(533),
-                max_public_key_bytes=160,
-                max_signature_bytes=4_096,
+                signature_algorithm=manifest.signature_algorithm,
+                implementation_root=manifest.implementation_root,
+                public_key_schema_root=manifest.public_key_schema_root,
+                signature_schema_root=manifest.signature_schema_root,
+                message_schema_root=manifest.message_schema_root,
+                specification_root=manifest.specification_root,
+                source_root=manifest.source_root,
+                toolchain_root=manifest.toolchain_root,
+                evidence_manifest_root=manifest.manifest_root,
+                max_public_key_bytes=manifest.max_public_key_bytes,
+                max_signature_bytes=manifest.max_signature_bytes,
                 status=ReleaseStatusV1.ACTIVE_NEW,
                 accepts_new_authentications=True,
-                evidence_statuses=tuple(
-                    sorted(
-                        CommandSignatureVerifierEvidenceStatusV1,
-                        key=lambda status: status.value,
-                    )
-                ),
+                evidence_statuses=tuple(row.status for row in manifest.evidence_artifacts),
             ),
         )
     )
@@ -364,14 +397,6 @@ def _authentication_policy_registry_v1(
 
 
 class _AcceptingCommandSignatureVerifierV1:
-    @property
-    def verifier_release_id(self) -> str:
-        return (
-            _signature_verifier_registry_v1()
-            .release_for_new_authentication("BLS12_381_G2_BASIC_V1")
-            .release_id
-        )
-
     def verify_command_signature(
         self,
         *,
@@ -434,7 +459,14 @@ def _authenticate_occurrence_for_test(
                 signature_bytes=b"test-command-signature-v1",
             ),
         ),
-        _AcceptingCommandSignatureVerifierV1(),
+        bind_economic_command_signature_verifier_deployment_v1(
+            release=signature_verifier_registry.releases[0],
+            evidence_manifest=_signature_verifier_manifest_v1(),
+            measured_artifact_bytes=_COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1,
+            deployment_root=occurrence.deployment_root,
+            profile_root=occurrence.profile_root,
+            backend=_AcceptingCommandSignatureVerifierV1(),
+        ),
     )
     return bind_authenticated_intent_to_occurrence_v1(
         authenticated_intent,
@@ -604,7 +636,7 @@ def test_asset_output_gets_opaque_active_profile_release_route_binding() -> None
     assert bound.producer_module_schema == ASSET_TRANSFER_MODULE_SCHEMA_V1
     assert bound.route_lane_index == 0
     assert bound.port_schema_root == routes[ASSET_TRANSFER_COMMAND_KIND_V1].port_schema_roots[0]
-    assert bound.binding_root == "0xfea5479806618421176428b9230e93bbdb1840afdde647a1057d1d6c016ba821"
+    assert bound.binding_root == "0xcff38651027da371035b33cb7173ba002b9b942e1dc11436485f69d25aebf9f7"
     with pytest.raises(AttributeError, match="immutable"):
         bound._profile_id = _root(999)
 
@@ -1024,10 +1056,10 @@ def test_module_receipt_verification_uses_release_image_and_exact_journal() -> N
         module_input.command,
     )
     assert authenticated.authentication_message_digest == (
-        "0x68282b1e035c6fd6b39120a958bf583a78382f929773513825dd6c3feac0ab37"
+        "0x3e13b70eb1e4ca23683d911dd5179575069d275c83575fcf1723cde0429ab723"
     )
     assert authenticated.binding_root == (
-        "0xb74104aca72cbb8332452bfb730e5386e439951b54b8f6de4436c8ba78b233b7"
+        "0xfe6a9ea24267f83b12ddfcd8c5ad87686d82c1ba148313f964b3ca534c81fb8a"
     )
 
     verified = verify_asset_transfer_lane_module_receipt_v1(
@@ -1053,7 +1085,7 @@ def test_module_receipt_verification_uses_release_image_and_exact_journal() -> N
     assert verified.receipt_digest == "0x" + hashlib.sha256(receipt_bytes).hexdigest()
     assert verified.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified.receipt_digest != accepted.module_journal.receipt_root
-    assert verified.binding_root == "0x47eaf1621cfcae9ad2d8b54c505531f40b375195536a42b432791cd738f8113e"
+    assert verified.binding_root == "0x9ca1eb63ba22b9a214266eea3a3ee2b9b7f1d09c92b202fa063ab06e7bf2dbdb"
     with pytest.raises(AttributeError, match="immutable"):
         verified._receipt_digest = _root(999)
 
@@ -1625,7 +1657,7 @@ def test_verified_module_receipt_backs_only_exact_structural_lane_composition() 
     assert composition.module_receipt_digest == verified.receipt_digest
     assert composition.lane_journal_root != accepted.module_journal.journal_root
     assert composition.binding_root == (
-        "0xe40452002819ee90df0638eb4eed83f1d2ee4add578bfe1813008e4b2c60b0cb"
+        "0x2b876b91b371e648dc5104f5641e58cc7990ef42be4121aed3ffac12bb2ebf19"
     )
 
 
@@ -1698,7 +1730,7 @@ def test_lane_composition_receipt_uses_selected_image_and_exact_journal() -> Non
     )
     assert verified_composition.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified_composition.binding_root == (
-        "0x77c12cbdb42c28fd2b7b8a6b90c0b87f34492392624f2ebf1328074c6cf6fb39"
+        "0x70363a4537639144d050cb091b67b04447e9615c2526eb70e110c76c112cf88a"
     )
 
 
@@ -1924,7 +1956,7 @@ def test_route_composition_receipt_uses_selected_image_and_exact_lane_witness() 
     assert verified_route.receipt_digest == "0x" + hashlib.sha256(receipt_bytes).hexdigest()
     assert verified_route.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified_route.binding_root == (
-        "0xd5bbcd7759d24b2fa3f0e1466472513d278c757e6fbae6c319cc9bfb76803c70"
+        "0x2ad537543e4e87d7420cc0a2631855cf5565ada7c9798981e25697d44d7ea279"
     )
 
 

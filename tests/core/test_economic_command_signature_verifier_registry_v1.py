@@ -103,6 +103,16 @@ def test_release_and_registry_roots_match_cross_language_golden() -> None:
     )
 
 
+@pytest.mark.parametrize("field_name", ("signature_algorithm", "implementation_root"))
+def test_release_rejects_hostile_string_subclasses(field_name: str) -> None:
+    class AlwaysEqual(str):
+        def __eq__(self, other: object) -> bool:
+            return True
+
+    with pytest.raises(TypeError, match="release strings must be exact strings"):
+        replace(_release(), **{field_name: AlwaysEqual("mallory")})
+
+
 @pytest.mark.parametrize(
     ("signature_length", "accepted"),
     ((15, True), (16, True), (17, False)),
