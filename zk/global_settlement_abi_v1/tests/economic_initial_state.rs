@@ -5,14 +5,15 @@ use serde_json::Value;
 use zenodex_global_settlement_abi_v1::{
     derive_economic_initial_state_atom_occurrences_v1,
     economic_initial_state_atom_coverage_policy_binding_v1, hash_bytes_sha256_v1, hash_global_v1,
-    validate_economic_initial_state_bindings_v1, EconomicInitialStateAtomClassificationV1,
-    EconomicInitialStateAtomSourceV1, EconomicInitialStateCertificateV1,
-    EconomicInitialStateKindV1, EconomicInitialStateSourceManifestV1, EconomicPolicyBindingV1,
-    EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, GlobalEconomicStateV1, ProfileStatusV1,
-    ReceiptKindV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1, M6_ASSET_PRECISION_POLICY_KIND_V1,
-    M6_ASSET_PRECISION_POLICY_ROOT_V1, M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1,
-    M6_CAPABILITY_MANIFEST_ROOT_V1, M6_CAPABILITY_POLICY_KIND_V1,
-    M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
+    validate_economic_initial_state_bindings_v1,
+    validate_economic_initial_state_statement_bindings_v1,
+    EconomicInitialStateAtomClassificationV1, EconomicInitialStateAtomSourceV1,
+    EconomicInitialStateCertificateV1, EconomicInitialStateKindV1,
+    EconomicInitialStateSourceManifestV1, EconomicPolicyBindingV1, EconomicPolicyRegistryV1,
+    EconomicProfileSnapshotV1, GlobalEconomicStateV1, ProfileStatusV1, ReceiptKindV1, RootV1,
+    GLOBAL_SETTLEMENT_ABI_V1, M6_ASSET_PRECISION_POLICY_KIND_V1, M6_ASSET_PRECISION_POLICY_ROOT_V1,
+    M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1, M6_CAPABILITY_MANIFEST_ROOT_V1,
+    M6_CAPABILITY_POLICY_KIND_V1, M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -242,6 +243,42 @@ fn migration_certificate_binds_profile_state_lineage_and_receipt() {
     )
     .unwrap();
     assert!(!certificate.certificate_root().unwrap().is_zero());
+}
+
+#[test]
+fn initialization_statement_binds_exact_profile_state_and_manifest_without_receipt_metadata() {
+    // Arrange
+    let (profile, policy_registry, state, source_manifest) =
+        profile_and_state(EconomicInitialStateKindV1::MIGRATION);
+    let certificate = migration_certificate(
+        &profile,
+        &state,
+        &source_manifest,
+        b"statement-seam-receipt",
+    );
+    let statement = certificate.journal();
+
+    // Act
+    let accepted = validate_economic_initial_state_statement_bindings_v1(
+        &profile,
+        &policy_registry,
+        &state,
+        &source_manifest,
+        &statement,
+    );
+
+    // Assert
+    accepted.unwrap();
+    let mut changed_statement = statement;
+    changed_statement.state_atom_coverage_root = root(8_001);
+    assert!(validate_economic_initial_state_statement_bindings_v1(
+        &profile,
+        &policy_registry,
+        &state,
+        &source_manifest,
+        &changed_statement,
+    )
+    .is_err());
 }
 
 #[test]

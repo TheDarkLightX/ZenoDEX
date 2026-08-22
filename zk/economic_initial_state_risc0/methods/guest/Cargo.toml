@@ -1,0 +1,15 @@
+[package]
+name = "zenodex-economic-initial-state-guest"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+risc0-zkvm = { version = "=3.0.6", default-features = false, features = ["std"] }
+zenodex-economic-initial-state-risc0-shared = { path = "../../shared" }
+
+[[bin]]
+name = "zenodex-economic-initial-state-guest"
+path = "src/main.rs"
+test = false
+bench = false
