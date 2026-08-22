@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "0d29ea7286bd302cf3e2135a7fc7511d78ef5816",
+    "commit": "877ba86cf9b57df39667f3cbc5ca3a291bc1bb86",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,8 +14,8 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "b6b0830ea57770189e2f92af23db9760c07b997033d5643f75e8ed8ee039c70a",
-    "status": "DRAFT_REVISED_REPLAY_REVIEW_PENDING",
+    "sha256": "3fcf1bf6d330aa44e828710dd3cab5402a2d6eb619aace90754155966ec6386e",
+    "status": "DRAFT_REVISED_SOURCE_HEAD_REVIEWED",
     "verdict": "UNPROVED"
   },
   "tau_upstream": {
@@ -235,6 +235,20 @@
         "the changed Rust targets and shared golden vector are uncompiled and unrun in Rust",
         "no real ELF, measured image, proof, receipt replay, mount, or production authority exists"
       ]
+    },
+    {
+      "reviewer": "GPT-5.6 Sol xhigh source-head activation review",
+      "subject_commit": "93798a67a878b6e821e42fb6c8f40bd1f4fc18fd",
+      "verdict": "REVISE_P2_REPAIRED",
+      "scope": "Publisher-owned migration source-head binding, concurrent activation, public tuple readers, tests, and fail-closed authority checks.",
+      "first_counterexample": "A concurrent reader could observe the target profile with the source initialization-certificate root while migration was between tuple assignments.",
+      "repair_commit": "877ba86cf9b57df39667f3cbc5ca3a291bc1bb86",
+      "repair_evidence": "The profile and initialization-certificate getters now synchronize on the publisher lock; a deterministic paused-activation regression failed before repair and passes afterward.",
+      "residual_nonclaims": [
+        "separate getter calls can straddle a completed migration and are not a durable multi-field snapshot API",
+        "objective source-head finality and crash-atomic durable activation remain absent",
+        "no production authority or whole-value-movement proof exists"
+      ]
     }
   ],
   "implemented_slices": [
@@ -399,7 +413,7 @@
       ],
       "closed_obligation": "Genesis rejects a predecessor witness. Migration requires one exact GlobalEconomicStateV1 predecessor witness and binds its recomputed state root, chain, deployment, source profile root, writer epoch, and height before receipt verification; source and target explicit-row graphs reject above 4096 before row validation or hashing.",
       "remaining_obligations": [
-        "authenticate the predecessor as the finalized source head",
+        "prove objective consensus finality and durable source-head activation",
         "prove source-to-target Oracle, history, terminal validity and payable paths, external-effect authorization and delivery, and private lane continuity",
         "prove total predecessor-object migration classification and source authorization",
         "compile and run the changed Rust targets with exact locks",
@@ -411,11 +425,12 @@
     {
       "id": "ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1",
       "commit": "0d29ea7286bd302cf3e2135a7fc7511d78ef5816",
+      "artifact_subject_commit": "877ba86cf9b57df39667f3cbc5ca3a291bc1bb86",
       "design_sha256": "73d4269dc58b9fa9fe334bbb9d126b13589d1c02538f0f21c2a237dd6b481831",
       "python_sha256": "e4958644e482f867799601bb2b03b62a1aaf83c4a04e946efdb6309c46c54996",
-      "python_admission_sha256": "48c4cdb6ca2ab1fc71fb5ab9ef4be3079ffdcfbf7e7a50ed7b660b20437d7011",
+      "python_admission_sha256": "625338660a772404db772c03af3c227abf1b1603308ffb6028125c53b1f6fbbd",
       "python_unit_test_sha256": "e09e492db4fb3640697672db191ada45def1f1ad960634831ac25149b23293db",
-      "python_integration_test_sha256": "20fcdfbd798c6a66588e7f0475383f98b318f6826533cd2f893061559dfe09ec",
+      "python_integration_test_sha256": "b043da72817dd21d5092f3ac96c0060cbc7058f44c7bc8a6469b611c36f66b44",
       "golden_fixture_sha256": "9e2b233076a0724635dffb3d7f06f1cb26b7b4ac3c79b3ae4f02420e5877c9e4",
       "golden_renderer_sha256": "196235b39c880630edbbe52c698605cbf8f852cd14e93c7296c8392a39f863bf",
       "golden_continuity_root": "0x745187e4d961ba25a2e6db19aa8e339b314b90432944f479a6c672ad4730c127",
@@ -439,12 +454,39 @@
       "closed_obligation": "Genesis requires an empty global replay table. An isolated migration preserves the exact complete predecessor replay table, including count, order, replay ID and occurrence ID, and the derived public root commits both complete tables; addition, deletion, rewriting, noncanonical order and public-root substitution reject before receipt verification.",
       "remaining_obligations": [
         "prove private lane nullifier and complete nonce continuity",
-        "authenticate the predecessor as the finalized source head",
+        "prove objective consensus finality and durable source-head activation",
         "independently review the exact-equality replay hardening",
         "compile and run the changed Rust ABI, golden-vector, and RISC0 shared targets with exact locks",
         "build, measure, prove, and independently replay the new guest image",
         "select the image and migration through committed release registries",
         "mount durable atomic activation and writer rotation"
+      ]
+    },
+    {
+      "id": "ECONOMIC_INITIAL_STATE_SOURCE_HEAD_ACTIVATION_V1",
+      "commit": "877ba86cf9b57df39667f3cbc5ca3a291bc1bb86",
+      "design_sha256": "471ed937844a880269563ee3a83a04b13b030a41a57a29599546355a4462f6c4",
+      "python_initial_state_sha256": "625338660a772404db772c03af3c227abf1b1603308ffb6028125c53b1f6fbbd",
+      "python_publisher_verification_sha256": "172f92131cd3be3c9aa801bc77e1baccfffa2a21aa74b505687b4e1328e8375f",
+      "python_commit_port_sha256": "1f04d68afd70516de700fa39127815e7e328f922f7d7c64f4757598a32117839",
+      "python_test_sha256": "b043da72817dd21d5092f3ac96c0060cbc7058f44c7bc8a6469b611c36f66b44",
+      "status": [
+        "IMPLEMENTED_PYTHON_CORE",
+        "IMPLEMENTED_IN_MEMORY_CAS_SHELL",
+        "TESTED_PYTHON_AAA_STATEFUL_MUTATION_KILLERS",
+        "SOURCE_HEAD_AUTHORITY_IN_MEMORY_ONLY",
+        "INDEPENDENT_REVIEW_REVISE_P2_REPAIRED",
+        "DURABLE_FINALITY_UNIMPLEMENTED",
+        "UNMOUNTED"
+      ],
+      "closed_obligation": "The reference commit port can be constructed only from genesis. Migration must replace the exact canonical publisher-owned current state, with expected head, profile, retained verifier and publisher token checked before and after receipt verification under the port lock; self-consistent foreign predecessors, stale expectations and a head advance during the receipt callback reject without overwriting the winning head. Public profile and initialization-certificate readers cannot enter while the migration tuple is partially assigned.",
+      "remaining_obligations": [
+        "prove objective consensus or validator finality for the source head",
+        "implement crash-atomic durable migration and writer fencing",
+        "select the target profile and migration release from committed governance state",
+        "move verifier and publisher authority across a hardened process or capability boundary",
+        "fault-inject every durable activation boundary and restart point",
+        "mount the activation path and retire all legacy migration writers"
       ]
     },
     {
@@ -478,7 +520,7 @@
       "closed_obligation": "Genesis requires an empty global external-effect outbox. Migration preserves the exact complete predecessor outbox, including every row field, status, count and order, under a 4096-row preflight; mutation and public-root substitution reject before receipt verification.",
       "remaining_obligations": [
         "prove every source row originated from an authorized committed external effect",
-        "authenticate the predecessor as the finalized source head",
+        "prove objective consensus finality and durable source-head activation",
         "prove delivery, external finality, retry, acknowledgment authenticity, destination idempotency and durable reconciliation",
         "compile and run the changed Rust ABI, golden-vector and RISC0 shared targets with exact locks",
         "build, measure, prove and independently replay the new guest image",
@@ -522,7 +564,7 @@
         "prove obligation validity and funding",
         "prove claimant key control and payable terminal-route completeness",
         "prove correct drain and tombstone semantics through ordinary transitions",
-        "authenticate the predecessor as the finalized source head",
+        "prove objective consensus finality and durable source-head activation",
         "complete total predecessor-source migration classification",
         "obtain an independent critical review verdict",
         "compile and run the changed Rust ABI, golden-vector and RISC0 shared targets with exact locks",
@@ -637,7 +679,7 @@
     {
       "id": "VM-01",
       "status": "PARTIAL",
-      "evidence": "A closed research manifest names and profile-binds 103 requirements across all 12 lanes and four cross-lane routes. The exact eight-decimal policy is profile-bound in the Python initial admission path and has a Rust root-parity validator. An operation-derived Python V1 scan classifies 12 sink identities and 14 occurrences and kills an arbitrary-name literal-SQL mutation. Writer inventory still reports 25 open coverage rows and 18 unmounted entrypoints; 11 Python sink groups lack release bindings, and dynamic Python plus cross-language, generated-code, deployment, and reachability completeness remain absent."
+      "evidence": "A closed research manifest names and profile-binds 103 requirements across all 12 lanes and four cross-lane routes. The exact eight-decimal policy is profile-bound in the Python initial admission path and has a Rust root-parity validator. An operation-derived Python V1 scan classifies 13 sink identities and 15 occurrences, including the in-memory migration activation assignment, and kills an arbitrary-name literal-SQL mutation. Writer inventory still reports 25 open coverage rows and 18 unmounted entrypoints; 12 Python sink groups lack release bindings, and dynamic Python plus cross-language, generated-code, deployment, and reachability completeness remain absent."
     },
     {
       "id": "VM-02",
@@ -687,12 +729,12 @@
     {
       "id": "VM-11",
       "status": "PARTIAL",
-      "evidence": "For valid deeply owned states and one exact authority-selected profile-bound manifest, Python and Rust derive the same roots for every explicit balance, supply, named accounting-location, liability, reserve, and terminal-obligation target row, including all terminal statuses and u128 boundaries. Commit 8eea5cb80 requires a migration witness to disclose a full predecessor GlobalEconomicStateV1 and binds its recomputed root and coordinates. Commit 0d29ea728 requires empty genesis replay and exact equality of predecessor and target global replay tables during isolated migration; Python tests kill addition, deletion, replay-ID rewrite, occurrence-ID rewrite, order and public-root mutants before receipt verification. Commit 1ea1303dd requires an empty genesis outbox and exact migration preservation of every external-effect outbox row. Commit 348076a1d requires no genesis terminal predecessor and exact migration preservation of every terminal-obligation field, status, count and canonical order under the combined 4096-row explicit-value preflight. Generated Python/Rust vectors bind complete replay, outbox and terminal tables. The changed Rust targets and shared vectors remain uncompiled and unrun in Rust. Independent review of the exact replay hardening and terminal slice remains pending; one Sol max replay-review worker and four prior terminal-review workers spanning Sol, Terra, and Luna stalled without a report. Terminal obligation validity, funding, claimant key control, payable routes, and drain or tombstone semantics remain unproved. Outbox source authorization, delivery, finality, retry, acknowledgment authenticity, idempotency and durable reconciliation remain unproved. Predecessor finality, a valid complete migration relation, Oracle and history continuity, private-lane and private-nullifier continuity, semantic migration labels, total predecessor-source classification, objective source authorization, a real measured ELF and receipt, migration-registry selection, durable atomic activation, and coexistence theorems remain absent."
+      "evidence": "For valid deeply owned states and one exact authority-selected profile-bound manifest, Python and Rust derive the same roots for every explicit balance, supply, named accounting-location, liability, reserve, and terminal-obligation target row, including all terminal statuses and u128 boundaries. Commit 8eea5cb80 requires a migration witness to disclose a full predecessor GlobalEconomicStateV1 and binds its recomputed root and coordinates. Commit 0d29ea728 requires empty genesis replay and exact equality of predecessor and target global replay tables during isolated migration; Python tests kill addition, deletion, replay-ID rewrite, occurrence-ID rewrite, order and public-root mutants before receipt verification. Commit 1ea1303dd requires an empty genesis outbox and exact migration preservation of every external-effect outbox row. Commit 348076a1d requires no genesis terminal predecessor and exact migration preservation of every terminal-obligation field, status, count and canonical order under the combined 4096-row explicit-value preflight. Commit 93798a67a makes publisher construction genesis-only and requires migration to replace the exact publisher-owned current state under expected head/profile checks before and after receipt verification; fixed, stale, foreign-predecessor and callback-race tests pass. Independent review found a mixed-generation public-reader window, and commit 877ba86cf synchronizes those readers with migration while preserving a regression that failed before repair. This closes publisher-current source-head authority only in the in-memory reference. Generated Python/Rust vectors bind complete replay, outbox and terminal tables. The changed Rust targets and shared vectors remain uncompiled and unrun in Rust. Independent review of the replay and terminal slices remains pending. Terminal obligation validity, funding, claimant key control, payable routes, and drain or tombstone semantics remain unproved. Outbox source authorization, delivery, finality, retry, acknowledgment authenticity, idempotency and durable reconciliation remain unproved. Objective consensus finality, a valid complete migration relation, Oracle and history continuity, private-lane and private-nullifier continuity, semantic migration labels, total predecessor-source classification, objective source authorization, a real measured ELF and receipt, migration-registry selection, durable atomic activation, writer fencing, and coexistence theorems remain absent."
     },
     {
       "id": "VM-12",
       "status": "GAP",
-      "evidence": "This ledger binds clean scoped implementation subject 0d29ea728. The most recent completed independent result remains the GPT-5.6 Sol max static outbox-continuity PASS on 1ea1303dd. One Sol max review worker for the exact replay hardening returned no report, so that strengthening has no independent verdict. Four built-in max review workers spanning Sol, Terra, and Luna stalled without a report, so the terminal slice also has no independent verdict. Compilation of the changed Rust targets, Rust replay of the shared vector, real proof replay, reproducible proof-machine artifacts, and complete release evidence remain absent."
+      "evidence": "This ledger binds clean scoped implementation subject 877ba86cf. Ninety-four focused initialization, continuity and publisher tests pass; the touched Python source passes Ruff and targeted mypy. GPT-5.6 Sol xhigh independently reviewed source-head activation commit 93798a67a, reproduced one mixed-generation public-reader window, and the bounded repair is committed at 877ba86cf with a negative regression. Exact replay and terminal strengthenings still lack independent verdicts. Compilation of the changed Rust targets, Rust replay of the shared vector, real proof replay, reproducible proof-machine artifacts, durable activation evidence, and complete release evidence remain absent."
     }
   ],
   "live_gate_observations": {
@@ -706,9 +748,9 @@
     },
     "value_sink_inventory": {
       "exit_code": 0,
-      "classified_identity_count": 12,
-      "observed_occurrence_count": 14,
-      "release_gap_count": 11,
+      "classified_identity_count": 13,
+      "observed_occurrence_count": 15,
+      "release_gap_count": 12,
       "release_ready": false,
       "production_authority": false
     },
@@ -727,7 +769,7 @@
   },
   "next_dependency_order": [
     "Bind the complete intended M6 capability manifest into the profile and map each row to command, transition, effect, route, terminal, adapter, and evidence status.",
-    "Implement separate invariant-owner certificates for Oracle, history, terminal validity and payable-path completeness, and private lane-object continuity, source-head authority, complete private nullifier continuity, outbox source authorization and delivery/acknowledgment refinement, and total predecessor-source migration classification; then build, measure, register, prove, and replay the predecessor-bound initialization guest on the proof machine.",
+    "Implement separate invariant-owner certificates for Oracle, history, terminal validity and payable-path completeness, and private lane-object continuity, objective source-head finality, complete private nullifier continuity, outbox source authorization and delivery/acknowledgment refinement, and total predecessor-source migration classification; then implement durable migration activation and writer fencing and build, measure, register, prove, and replay the predecessor-bound initialization guest on the proof machine.",
     "Extend operation-derived sink discovery across dynamic Python, Rust, Tau, shell, generated code, native extensions, deployment wiring, and deployed reachability, then close VM-01.",
     "Complete effect source, authorization, claimant, residue, terminal, and external-delivery bindings.",
     "Seal authoritative verification behind a measured release-selected verifier.",
@@ -738,7 +780,7 @@
     "No whole-economy formal safety proof.",
     "No claim that tests alone establish safety.",
     "No real initialization guest ELF, measured image ID, proof, or receipt replay.",
-    "No claim that predecessor content commitment proves source-head finality or a valid source-to-target migration relation.",
+    "No claim that predecessor content commitment or in-memory publisher-current activation proves objective source-head finality, durable activation, or a valid complete source-to-target migration relation.",
     "No claim that exact global replay-table preservation proves complete nonce or private-lane nullifier continuity.",
     "No claim that outbox-table preservation proves authorized origin, external delivery, finality, acknowledgment authenticity, idempotency or durable reconciliation.",
     "No claim that terminal-table preservation proves obligation validity, funding, claimant key control, payable-path completeness, or correct drain and tombstone semantics.",

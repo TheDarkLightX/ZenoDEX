@@ -2,7 +2,7 @@
 
 Date: 2026-08-22
 
-Status: `DRAFT_REVISED_AFTER_MAX_REVIEW`
+Status: `DRAFT_REVISED_SOURCE_HEAD_REVIEWED`
 
 Claim authority: `NONE`
 
@@ -508,6 +508,31 @@ validity and payable paths, external-effect authorization and delivery, and
 private lane contents remain separate obligations beyond state-root content
 commitment.
 
+Commits `93798a67a878b6e821e42fb6c8f40bd1f4fc18fd` and
+`877ba86cf9b57df39667f3cbc5ca3a291bc1bb86` close one adjacent
+publisher-authority counterexample in the in-memory reference model. A commit
+port can now be constructed only from a genesis admission. Migration is an
+operation on an existing port: under the port lock it snapshots the exact
+current profile, state, retained receipt verifier, and publisher-binding token;
+the core requires byte-equivalent canonical equality between that owned state
+and the admission predecessor; after receipt verification the port rechecks
+the same head, profile, verifier, and token before atomically replacing its
+in-memory profile, state, initialization-certificate root, and epoch-witness
+token. Tests reject a self-consistent foreign predecessor, stale expected head
+or profile, and an activation whose source head advances during the receipt
+callback. Direct migration construction rejects before receipt verification.
+An independent GPT-5.6 Sol xhigh review found that the profile and
+initialization-certificate getters could read between tuple assignments. The
+follow-up commit synchronizes both getters with activation and preserves a
+deterministic regression that pauses activation inside the tuple update. The
+regression failed before the repair and passes afterward.
+
+This establishes publisher-current source-head authority only inside the
+in-memory conformance shell. It does not establish objective consensus
+finality, durable transactionality or recovery, committed migration-release
+selection, cross-process isolation, deployed writer fencing, or production
+activation.
+
 Commit `0d29ea7286bd302cf3e2135a7fc7511d78ef5816` strengthens the bounded
 replay relation. Genesis requires an empty replay table. An isolated migration
 requires exact equality between the predecessor and target global replay
@@ -583,8 +608,9 @@ rewrites. Private lane replay and nullifier state remains outside this result.
 It also does not establish total predecessor-source classification for a
 migration, the semantic truth of a migration label, the objective authority
 represented by a source-authorization root, selection from the governed
-migration-release registry, durable atomic activation, writer rotation, or
-shared-asset coexistence. Those remain VM-11 blockers.
+migration-release registry, durable atomic activation, objective source-head
+finality, writer rotation, or shared-asset coexistence. Those remain VM-11
+blockers.
 
 The 18-workflow/81-scenario ATDD catalogue and its historical 11 Luna-required
 expansions are insufficient as a complete M6 capability manifest. The catalogue

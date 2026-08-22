@@ -42,7 +42,7 @@ EXPECTED_BUY_AND_BURN = (
     "Atomically spend the governed quote-asset fee allocation through the "
     "selected authenticated Spot route and burn the exact ZDEX atoms received."
 )
-EXPECTED_CLAIM_STATUS = "DRAFT_REVISED_REPLAY_REVIEW_PENDING"
+EXPECTED_CLAIM_STATUS = "DRAFT_REVISED_SOURCE_HEAD_REVIEWED"
 EXPECTED_HYPERDEFLATION = (
     "No arbitrary fixed percentage of initial supply is required as a floor. "
     "Bind a retained-supply rule such as R(S)=ceil(p*S/q), 0<p<q, and "
@@ -60,6 +60,7 @@ EXPECTED_KNOWN_SEMANTIC_CONFLICTS = {
     "M6_CAPABILITY_CATALOG_OMISSIONS": "OPEN_ADDITIONAL_CAPABILITIES_REQUIRED",
 }
 REPLAY_SLICE_ID = "ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1"
+REPLAY_SLICE_COMMIT = "0d29ea7286bd302cf3e2135a7fc7511d78ef5816"
 REPLAY_SLICE_ARTIFACTS = {
     "design_sha256": Path(
         "docs/research/ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1.md"
@@ -95,6 +96,20 @@ REPLAY_SLICE_ARTIFACTS = {
         "zk/economic_initial_state_risc0/shared/tests/"
         "initial_state_guest_contract.rs"
     ),
+}
+SOURCE_HEAD_SLICE_ID = "ECONOMIC_INITIAL_STATE_SOURCE_HEAD_ACTIVATION_V1"
+SOURCE_HEAD_SLICE_ARTIFACTS = {
+    "design_sha256": Path(
+        "docs/research/ECONOMIC_INITIAL_STATE_SOURCE_HEAD_ACTIVATION_V1.md"
+    ),
+    "python_initial_state_sha256": Path("src/core/economic_initial_state_v1.py"),
+    "python_publisher_verification_sha256": Path(
+        "src/core/economic_initial_state_publisher_verification_v1.py"
+    ),
+    "python_commit_port_sha256": Path(
+        "src/integration/global_economic_commit_v1.py"
+    ),
+    "python_test_sha256": Path("tests/core/test_global_settlement_abi_v1.py"),
 }
 
 
@@ -167,8 +182,10 @@ def _validate_replay_slice_evidence_v1(
         findings.append("replay slice evidence row must occur exactly once")
         return
     replay = replay_rows[0]
-    if replay.get("commit") != subject_commit:
-        findings.append("replay slice subject commit mismatch")
+    if replay.get("commit") != REPLAY_SLICE_COMMIT:
+        findings.append("replay slice implementation commit mismatch")
+    if replay.get("artifact_subject_commit") != subject_commit:
+        findings.append("replay slice artifact subject commit mismatch")
     for field, relative_path in REPLAY_SLICE_ARTIFACTS.items():
         artifact = root / relative_path
         recorded = replay.get(field)
@@ -203,6 +220,36 @@ def _validate_replay_slice_evidence_v1(
             findings.append(f"replay slice golden evidence mismatch: {field}")
 
 
+def _validate_source_head_slice_evidence_v1(
+    root: Path,
+    status: Mapping[str, object],
+    subject_commit: object,
+    findings: list[str],
+) -> None:
+    slices = status.get("implemented_slices")
+    if type(slices) is not list or any(type(row) is not dict for row in slices):
+        findings.append("implemented slices must be a list of objects")
+        return
+    source_head_rows = [
+        row for row in slices if row.get("id") == SOURCE_HEAD_SLICE_ID
+    ]
+    if len(source_head_rows) != 1:
+        findings.append("source-head slice evidence row must occur exactly once")
+        return
+    source_head = source_head_rows[0]
+    if source_head.get("commit") != subject_commit:
+        findings.append("source-head slice subject commit mismatch")
+    for field, relative_path in SOURCE_HEAD_SLICE_ARTIFACTS.items():
+        artifact = root / relative_path
+        recorded = source_head.get(field)
+        if (
+            type(recorded) is not str
+            or not artifact.is_file()
+            or _sha256(artifact) != recorded
+        ):
+            findings.append(f"source-head slice artifact hash mismatch: {field}")
+
+
 def check_value_movement_closure_status_v1(
     root: Path = REPO_ROOT,
     status_path: Path | None = None,
@@ -229,6 +276,7 @@ def check_value_movement_closure_status_v1(
         findings.append("ledger subject was not recorded from a clean scoped worktree")
 
     _validate_replay_slice_evidence_v1(root, status, commit, findings)
+    _validate_source_head_slice_evidence_v1(root, status, commit, findings)
 
     authority = _mapping(status.get("authority"), "authority", findings)
     expected_authority: dict[str, object] = {

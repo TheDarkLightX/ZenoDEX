@@ -57,6 +57,20 @@
     },
     {
       "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "PUBLICATION_STATE",
+      "occurrence_count": 1,
+      "path": "src/integration/global_economic_commit_v1.py",
+      "rationale": "Replaces the research publisher head only after exact predecessor, expected head and profile, receipt, verifier-selection, and post-verification freshness checks.",
+      "release_binding": null,
+      "sink_id": "global_economic_migration_state_assignment",
+      "sink_kind": "STATE_ATTRIBUTE_ASSIGN",
+      "symbol": "GlobalEconomicCommitPortV1.activate_migration",
+      "writer_entrypoint_ids": [
+        "separate_global_economic_commit_port"
+      ]
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
       "classification": "INITIALIZATION_STATE",
       "occurrence_count": 1,
       "path": "src/integration/m6_commit_port_v1.py",

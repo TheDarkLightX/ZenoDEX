@@ -56,10 +56,11 @@ the public journal. This is a predecessor-content commitment.
 
 The guest does not prove that the disclosed predecessor is the finalized ledger
 head. For replay state, genesis requires an empty replay table and migration
-preserves every disclosed predecessor replay row unchanged. The derived public
-root commits the complete predecessor and target replay tables. Target-only
-replay rows remain unauthenticated and can consume future identifiers, so this
-relation does not establish full nonce or nullifier continuity.
+requires exact equality of the complete predecessor and target replay tables.
+The derived public root commits both complete tables. Target-only rows,
+deletions, replay-ID rewrites, occurrence-ID rewrites, and reordering reject.
+This relation does not establish private-lane nullifier or complete nonce
+continuity.
 
 For external-effect outbox state, genesis requires an empty table and migration
 requires exact preservation of every row, including delivery status, under a
@@ -80,5 +81,9 @@ The guest also does not prove private lane-root contents, predecessor migration
 classification totality, source authorization legitimacy, Oracle continuity,
 private-lane nullifiers, ledger-history continuity, terminal-obligation
 validity and payable-path completeness, external delivery, mounted writer
-exclusivity, or
-whole-economy value-movement safety.
+exclusivity, or whole-economy value-movement safety.
+
+The in-memory reference publisher separately requires migration to replace its
+exact current state under an expected-head and expected-profile lock. That
+activation gate is outside this guest. It does not establish durable atomic
+publication or objective consensus finality.
