@@ -24,5 +24,5 @@ pub fn main() {
         Ok(value) => value,
         Err(error) => abort(error.abort_message()),
     };
-    env::commit_slice(&prepared.journal_bytes);
+    env::commit_slice(prepared.journal_bytes());
 }

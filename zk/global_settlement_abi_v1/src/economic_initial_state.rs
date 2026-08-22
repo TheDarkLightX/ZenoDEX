@@ -8,7 +8,8 @@ use crate::canonical::{
 };
 use crate::economic_initial_state_atom_coverage::{
     validate_economic_initial_state_atom_coverage_profile_binding_v1,
-    validate_economic_initial_state_atom_coverage_v1, EconomicInitialStateSourceManifestV1,
+    validate_economic_initial_state_atom_coverage_v1,
+    validate_economic_initial_state_explicit_row_count_v1, EconomicInitialStateSourceManifestV1,
 };
 use crate::proof::ReceiptKindV1;
 use crate::release::{
@@ -204,6 +205,7 @@ pub fn validate_economic_initial_state_statement_bindings_v1(
     source_manifest: &EconomicInitialStateSourceManifestV1,
     statement: &EconomicInitialStateJournalV1,
 ) -> AbiResultV1<()> {
+    validate_economic_initial_state_explicit_row_count_v1(state)?;
     profile.validate()?;
     if profile.status != ProfileStatusV1::ACTIVE {
         return Err(AbiErrorV1::InvalidBinding(

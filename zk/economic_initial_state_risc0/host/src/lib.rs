@@ -10,8 +10,8 @@ use zenodex_economic_initial_state_risc0_shared::{
     PreparedEconomicInitialStateV1,
 };
 use zenodex_global_settlement_abi_v1::{
-    hash_bytes_sha256_v1, EconomicInitialStateCertificateV1, ReceiptKindV1, RootV1,
-    MAX_CYCLE_BUDGET_V1, MAX_JOURNAL_BYTES_V1,
+    hash_bytes_sha256_v1, EconomicInitialStateCertificateV1, EconomicInitialStateJournalV1,
+    ReceiptKindV1, RootV1, MAX_CYCLE_BUDGET_V1, MAX_JOURNAL_BYTES_V1,
 };
 
 pub const MAX_ECONOMIC_INITIAL_STATE_RECEIPT_BYTES_V1: usize = 16 * 1024 * 1024;
@@ -26,6 +26,8 @@ pub enum EconomicInitialStateHostErrorV1 {
     Proving,
     ReceiptKind,
     ReceiptJournal,
+    JournalEncoding,
+    JournalNonCanonical,
     ReceiptVerification,
     ReceiptEncoding,
     ReceiptNonCanonical,
@@ -84,7 +86,7 @@ pub fn prove_economic_initial_state_succinct_v1(
             &ProverOpts::succinct(),
         )
         .map_err(|_| EconomicInitialStateHostErrorV1::Proving)?;
-    verify_economic_initial_state_receipt_v1(&prove_info.receipt, &prepared.journal_bytes)?;
+    verify_economic_initial_state_receipt_v1(&prove_info.receipt, prepared.journal_bytes())?;
     Ok(prove_info.receipt)
 }
 
@@ -100,10 +102,29 @@ pub fn verify_economic_initial_state_receipt_v1(
     if receipt.journal.bytes != expected_journal_bytes {
         return Err(EconomicInitialStateHostErrorV1::ReceiptJournal);
     }
-    require_real_method_v1()?;
+    let journal = decode_canonical_economic_initial_state_journal_v1(expected_journal_bytes)?;
+    let actual_image = economic_initial_state_image_root_v1()?;
+    if journal.root_image_id != actual_image {
+        return Err(EconomicInitialStateHostErrorV1::MethodBinding);
+    }
     receipt
         .verify(ZENODEX_ECONOMIC_INITIAL_STATE_GUEST_ID)
         .map_err(|_| EconomicInitialStateHostErrorV1::ReceiptVerification)
+}
+
+pub fn decode_canonical_economic_initial_state_journal_v1(
+    journal_bytes: &[u8],
+) -> Result<EconomicInitialStateJournalV1, EconomicInitialStateHostErrorV1> {
+    require_expected_journal_bytes_v1(journal_bytes)?;
+    let journal: EconomicInitialStateJournalV1 = serde_json::from_slice(journal_bytes)
+        .map_err(|_| EconomicInitialStateHostErrorV1::JournalEncoding)?;
+    let canonical = journal
+        .canonical_bytes()
+        .map_err(|_| EconomicInitialStateHostErrorV1::JournalEncoding)?;
+    if canonical != journal_bytes {
+        return Err(EconomicInitialStateHostErrorV1::JournalNonCanonical);
+    }
+    Ok(journal)
 }
 
 pub fn economic_initial_state_image_root_v1() -> Result<RootV1, EconomicInitialStateHostErrorV1> {
@@ -151,17 +172,20 @@ pub fn certify_economic_initial_state_receipt_v1(
     if release_cycle_budget == 0 || release_cycle_budget > MAX_CYCLE_BUDGET_V1 {
         return Err(EconomicInitialStateHostErrorV1::Certificate);
     }
-    require_input_method_binding_v1(&prepared.input)?;
-    verify_economic_initial_state_receipt_v1(receipt, &prepared.journal_bytes)?;
+    prepared
+        .revalidate()
+        .map_err(EconomicInitialStateHostErrorV1::Guest)?;
+    require_input_method_binding_v1(prepared.input())?;
+    verify_economic_initial_state_receipt_v1(receipt, prepared.journal_bytes())?;
     let receipt_bytes = encode_economic_initial_state_receipt_v1(receipt)?;
-    let statement = &prepared.input.statement;
+    let statement = &prepared.input().statement;
     let receipt_root = RootV1::parse(
         format!("0x{}", hash_bytes_sha256_v1(&receipt_bytes)),
         "economic initial-state receipt root",
         false,
     )
     .map_err(|_| EconomicInitialStateHostErrorV1::Certificate)?;
-    let journal_bytes = u64::try_from(prepared.journal_bytes.len())
+    let journal_bytes = u64::try_from(prepared.journal_bytes().len())
         .map_err(|_| EconomicInitialStateHostErrorV1::Certificate)?;
     let certificate = EconomicInitialStateCertificateV1 {
         schema: statement.schema.clone(),

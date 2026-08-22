@@ -9,9 +9,10 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 use zenodex_global_settlement_abi_v1::{
-    canonical_bytes_v1, validate_economic_initial_state_statement_bindings_v1,
-    EconomicInitialStateJournalV1, EconomicInitialStateSourceManifestV1, EconomicPolicyRegistryV1,
-    EconomicProfileSnapshotV1, GlobalEconomicStateV1, MAX_JOURNAL_BYTES_V1,
+    canonical_bytes_v1, validate_economic_initial_state_explicit_row_count_v1,
+    validate_economic_initial_state_statement_bindings_v1, EconomicInitialStateJournalV1,
+    EconomicInitialStateSourceManifestV1, EconomicPolicyRegistryV1, EconomicProfileSnapshotV1,
+    GlobalEconomicStateV1, MAX_JOURNAL_BYTES_V1,
 };
 
 pub const ECONOMIC_INITIAL_STATE_GUEST_INPUT_SCHEMA_V1: &str =
@@ -35,6 +36,8 @@ impl EconomicInitialStateGuestInputV1 {
         if self.schema != ECONOMIC_INITIAL_STATE_GUEST_INPUT_SCHEMA_V1 {
             return Err(EconomicInitialStateGuestErrorV1::Schema);
         }
+        validate_economic_initial_state_explicit_row_count_v1(&self.state)
+            .map_err(|_| EconomicInitialStateGuestErrorV1::ExplicitRowCount)?;
         self.profile
             .validate()
             .map_err(|_| EconomicInitialStateGuestErrorV1::Abi)?;
@@ -60,6 +63,7 @@ pub enum EconomicInitialStateGuestErrorV1 {
     Decode,
     NonCanonicalInput,
     Schema,
+    ExplicitRowCount,
     Abi,
     StatementBinding,
     JournalTooLarge,
@@ -73,6 +77,9 @@ impl EconomicInitialStateGuestErrorV1 {
             Self::Decode => "economic initial-state guest input decode failed",
             Self::NonCanonicalInput => "economic initial-state guest input is noncanonical",
             Self::Schema => "economic initial-state guest input schema is unsupported",
+            Self::ExplicitRowCount => {
+                "economic initial-state explicit row count exceeds release bound"
+            }
             Self::Abi => "economic initial-state guest ABI validation failed",
             Self::StatementBinding => "economic initial-state statement binding rejected",
             Self::JournalTooLarge => "economic initial-state journal exceeds ABI bound",
@@ -90,8 +97,26 @@ impl std::error::Error for EconomicInitialStateGuestErrorV1 {}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PreparedEconomicInitialStateV1 {
-    pub input: EconomicInitialStateGuestInputV1,
-    pub journal_bytes: Vec<u8>,
+    input: EconomicInitialStateGuestInputV1,
+    journal_bytes: Vec<u8>,
+}
+
+impl PreparedEconomicInitialStateV1 {
+    pub fn input(&self) -> &EconomicInitialStateGuestInputV1 {
+        &self.input
+    }
+
+    pub fn journal_bytes(&self) -> &[u8] {
+        &self.journal_bytes
+    }
+
+    pub fn revalidate(&self) -> Result<(), EconomicInitialStateGuestErrorV1> {
+        let rebuilt = prepare_economic_initial_state_v1(self.input.clone())?;
+        if rebuilt.journal_bytes != self.journal_bytes {
+            return Err(EconomicInitialStateGuestErrorV1::StatementBinding);
+        }
+        Ok(())
+    }
 }
 
 pub fn canonical_economic_initial_state_guest_input_bytes_v1(

@@ -160,9 +160,9 @@ fn extend_occurrences_v1<T: Serialize>(
     Ok(())
 }
 
-pub fn derive_economic_initial_state_atom_occurrences_v1(
+pub fn validate_economic_initial_state_explicit_row_count_v1(
     state: &GlobalEconomicStateV1,
-) -> AbiResultV1<Vec<EconomicInitialStateAtomOccurrenceV1>> {
+) -> AbiResultV1<usize> {
     let explicit_row_count = [
         state.balances.len(),
         state.supplies.len(),
@@ -181,6 +181,13 @@ pub fn derive_economic_initial_state_atom_occurrences_v1(
             "initial state explicit value rows",
         ));
     }
+    Ok(explicit_row_count)
+}
+
+pub fn derive_economic_initial_state_atom_occurrences_v1(
+    state: &GlobalEconomicStateV1,
+) -> AbiResultV1<Vec<EconomicInitialStateAtomOccurrenceV1>> {
+    let explicit_row_count = validate_economic_initial_state_explicit_row_count_v1(state)?;
     state.validate()?;
     let mut occurrences = Vec::with_capacity(explicit_row_count);
     extend_occurrences_v1(

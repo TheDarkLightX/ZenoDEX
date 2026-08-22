@@ -10,7 +10,7 @@ use zenodex_economic_initial_state_risc0_shared::{
 };
 use zenodex_global_settlement_abi_v1::{
     derive_economic_initial_state_atom_occurrences_v1,
-    economic_initial_state_atom_coverage_policy_binding_v1,
+    economic_initial_state_atom_coverage_policy_binding_v1, EconomicAmountV1,
     EconomicInitialStateAtomClassificationV1, EconomicInitialStateAtomSourceV1,
     EconomicInitialStateJournalV1, EconomicInitialStateKindV1,
     EconomicInitialStateSourceManifestV1, EconomicPolicyBindingV1, EconomicPolicyRegistryV1,
@@ -144,7 +144,7 @@ fn exact_profile_state_manifest_statement_prepares_the_committed_journal() {
     let prepared = prepare_economic_initial_state_v1(input).unwrap();
 
     // Assert
-    assert_eq!(prepared.journal_bytes, expected_journal);
+    assert_eq!(prepared.journal_bytes(), expected_journal);
 }
 
 #[test]
@@ -178,5 +178,27 @@ fn noncanonical_wire_bytes_reject_before_statement_execution() {
     assert!(matches!(
         prepare_economic_initial_state_from_canonical_bytes_v1(&bytes),
         Err(EconomicInitialStateGuestErrorV1::NonCanonicalInput)
+    ));
+}
+
+#[test]
+fn guest_rejects_4097_rows_before_validating_the_hostile_first_row() {
+    // Arrange
+    let mut input = fixture();
+    input.state.balances = (0..4_097)
+        .map(|index| EconomicAmountV1 {
+            owner: format!("owner-{index:04}"),
+            asset: "ZDEX".to_owned(),
+            custody_domain: "accounts".to_owned(),
+            amount_atoms: u128::try_from(index).unwrap(),
+        })
+        .collect();
+    input.state.balances[0].owner = "invalid unicode ☃".to_owned();
+    input.state.supplies.clear();
+
+    // Act / Assert
+    assert!(matches!(
+        prepare_economic_initial_state_v1(input),
+        Err(EconomicInitialStateGuestErrorV1::ExplicitRowCount)
     ));
 }
