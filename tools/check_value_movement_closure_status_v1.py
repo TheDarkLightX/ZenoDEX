@@ -44,6 +44,11 @@ EXPECTED_M6_ZDEX_PRODUCTION_RULE = (
     "may burn. Each burn preserves R(S)=ceil(p*S/q), with 0<p<q and "
     "burn<=S-R(S); no fixed initial-supply percentage floor is authoritative."
 )
+EXPECTED_KNOWN_SEMANTIC_CONFLICTS = {
+    "ABI_V1_PRECISION_RESCALE": "RESEARCH_ONLY_ABI_V2_MIGRATION_REQUIRED",
+    "LEGACY_FIXED_SUPPLY_FLOOR": "LEGACY_INCOMPATIBLE_MUST_NOT_MOUNT",
+    "M6_CAPABILITY_CATALOG_OMISSIONS": "OPEN_ADDITIONAL_CAPABILITIES_REQUIRED",
+}
 
 
 def _object_without_duplicate_keys(
@@ -163,6 +168,22 @@ def check_value_movement_closure_status_v1(
         findings.append(f"M6 ATDD semantic source cannot be loaded: {type(exc).__name__}: {exc}")
     else:
         findings.extend(validate_m6_zdex_semantic_anchor_v1(m6_atdd))
+
+    conflict_rows = status.get("known_semantic_conflicts")
+    if type(conflict_rows) is not list or any(type(row) is not dict for row in conflict_rows):
+        findings.append("known semantic conflicts must be a list of objects")
+    else:
+        conflict_ids = [row.get("id") for row in conflict_rows]
+        if conflict_ids != sorted(EXPECTED_KNOWN_SEMANTIC_CONFLICTS):
+            findings.append("known semantic conflict IDs are incomplete or unordered")
+        for row in conflict_rows:
+            conflict_id = row.get("id")
+            expected_status = EXPECTED_KNOWN_SEMANTIC_CONFLICTS.get(conflict_id)
+            if row.get("status") != expected_status:
+                findings.append(f"known semantic conflict status drift: {conflict_id}")
+            paths = row.get("paths")
+            if type(paths) is not list or not paths or any(type(path) is not str for path in paths):
+                findings.append(f"known semantic conflict paths invalid: {conflict_id}")
 
     gate_rows = status.get("gate_status")
     if type(gate_rows) is not list or any(type(row) is not dict for row in gate_rows):

@@ -102,3 +102,15 @@ def test_checker_kills_fixed_floor_and_treasury_burn_semantic_mutants() -> None:
     assert zdex["production_rule"].endswith(
         "no fixed initial-supply percentage floor is authoritative."
     )
+
+
+def test_checker_rejects_erased_known_semantic_conflict(tmp_path: Path) -> None:
+    mutated = deepcopy(_status())
+    mutated["known_semantic_conflicts"] = mutated["known_semantic_conflicts"][1:]  # type: ignore[index]
+
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    assert report["ok"] is False
+    assert "known semantic conflict IDs are incomplete or unordered" in report["findings"]

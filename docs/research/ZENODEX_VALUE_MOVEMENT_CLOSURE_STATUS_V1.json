@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "7578fad9f5b5b81ca054d8c8c5437e8050f48cdb",
+    "commit": "df8d33ab14dddea1eda487f2451b62fae29a604d",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,7 +14,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "7c5f51649b8a9c1683eca65454389360464475fce31c761862244c2b70c68a90",
+    "sha256": "19a747abb789500f07df0444df03ae9f155add4ca869b61c010c7b532f79153d",
     "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
     "verdict": "UNPROVED"
   },
@@ -50,6 +50,34 @@
     "autonomous_governance": "Autonomous governance and LLM agents may submit authenticated typed commands only. They receive no independent publication capability.",
     "external_registry_default": "Empty until a complete registered external finality, timeout, refund, acknowledgment, and idempotency profile is approved."
   },
+  "known_semantic_conflicts": [
+    {
+      "id": "ABI_V1_PRECISION_RESCALE",
+      "paths": [
+        "src/core/zdex_hyperdeflation_types_v1.py",
+        "src/core/zdex_hyperdeflation_v1.py"
+      ],
+      "status": "RESEARCH_ONLY_ABI_V2_MIGRATION_REQUIRED"
+    },
+    {
+      "id": "LEGACY_FIXED_SUPPLY_FLOOR",
+      "paths": [
+        "src/integration/zeno_ledger_tokenomics.py",
+        "src/integration/tau_witness.py",
+        "tools/zeno_ledger_node.py",
+        "tools/dex-ui/src/components/TokenStats.jsx"
+      ],
+      "status": "LEGACY_INCOMPATIBLE_MUST_NOT_MOUNT"
+    },
+    {
+      "id": "M6_CAPABILITY_CATALOG_OMISSIONS",
+      "paths": [
+        "docs/research/m6_global_economic_core_atdd_bdd_v1.json",
+        "docs/research/m6_global_economic_core_luna_completeness_review_v1.json"
+      ],
+      "status": "OPEN_ADDITIONAL_CAPABILITIES_REQUIRED"
+    }
+  ],
   "independent_reviews": [
     {
       "reviewer": "maximum-reasoning hostile review",
@@ -138,13 +166,30 @@
         "durable atomic profile activation and writer rotation",
         "shared-asset coexistence theorems"
       ]
+    },
+    {
+      "id": "M6_ZDEX_SEMANTIC_DRIFT_GUARD",
+      "commit": "df8d33ab14dddea1eda487f2451b62fae29a604d",
+      "atdd_sha256": "c7a6b52b6167e0b899aacc233c6db7c6a9fe3235d6aa6918609267a9d030fcfc",
+      "status": [
+        "IMPLEMENTED_CHECKER",
+        "TESTED_MUTATION_KILLERS",
+        "UNMOUNTED",
+        "KNOWN_LEGACY_CONFLICTS"
+      ],
+      "closed_obligation": "The M6 managed-asset contract cannot silently revert ZDEX to a treasury shortcut burn or fixed initial-supply percentage floor.",
+      "remaining_obligations": [
+        "retire or migrate the legacy fixed-floor local-testnet path",
+        "keep denomination rescale outside ABI V1 routes",
+        "complete the intended M6 capability manifest beyond the historical 81 plus 11 catalogue"
+      ]
     }
   ],
   "gate_status": [
     {
       "id": "VM-01",
       "status": "GAP",
-      "evidence": "Writer inventory reports 25 open coverage rows and 18 unmounted entrypoints; sink-first cross-language completeness is absent."
+      "evidence": "Writer inventory reports 25 open coverage rows and 18 unmounted entrypoints; sink-first cross-language completeness is absent. The historical 18-workflow and 11-expansion catalogues still omit required whole-M6 capability families."
     },
     {
       "id": "VM-02",
@@ -159,7 +204,7 @@
     {
       "id": "VM-04",
       "status": "GAP",
-      "evidence": "Most enabled whole-economy lane lifecycles lack complete core, recovery, and terminal-drain evidence."
+      "evidence": "Most enabled whole-economy lane lifecycles lack complete core, recovery, and terminal-drain evidence, including farms, complete tokenomics, Oracle economics, strategy escrow, proof-task lifecycle, external finality, and autonomous-governance command semantics."
     },
     {
       "id": "VM-05",
