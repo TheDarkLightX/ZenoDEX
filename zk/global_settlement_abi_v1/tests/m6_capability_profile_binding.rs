@@ -3,10 +3,12 @@ use std::path::PathBuf;
 
 use serde_json::{json, Value};
 use zenodex_global_settlement_abi_v1::{
-    hash_global_v1, validate_m6_capability_profile_binding_v1, EconomicPolicyBindingV1,
-    EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1,
-    M6_CAPABILITY_MANIFEST_ROOT_V1, M6_CAPABILITY_POLICY_KIND_V1,
-    M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
+    hash_global_v1, m6_asset_precision_policy_root_v1,
+    validate_m6_asset_precision_profile_binding_v1, validate_m6_capability_profile_binding_v1,
+    EconomicPolicyBindingV1, EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, RootV1,
+    GLOBAL_SETTLEMENT_ABI_V1, M6_ASSET_PRECISION_POLICY_KIND_V1, M6_ASSET_PRECISION_POLICY_ROOT_V1,
+    M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1, M6_CAPABILITY_MANIFEST_ROOT_V1,
+    M6_CAPABILITY_POLICY_KIND_V1, M6_CAPABILITY_PROFILE_COMMAND_KIND_V1,
 };
 
 fn fixture_profile() -> EconomicProfileSnapshotV1 {
@@ -71,4 +73,42 @@ fn altered_or_missing_capability_manifest_rejects() {
     };
     let missing_profile = bind_registry(fixture_profile(), &missing);
     assert!(validate_m6_capability_profile_binding_v1(&missing_profile, &missing).is_err());
+}
+
+fn precision_registry(policy_root: &str) -> EconomicPolicyRegistryV1 {
+    EconomicPolicyRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        bindings: vec![EconomicPolicyBindingV1 {
+            policy_kind: M6_ASSET_PRECISION_POLICY_KIND_V1.to_owned(),
+            command_kind: M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1.to_owned(),
+            policy_root: RootV1::parse(policy_root, "M6 precision test root", false).unwrap(),
+        }],
+    }
+}
+
+#[test]
+fn exact_eight_decimal_policy_is_cross_language_rooted_and_profile_bound() {
+    assert_eq!(
+        m6_asset_precision_policy_root_v1().unwrap().as_str(),
+        M6_ASSET_PRECISION_POLICY_ROOT_V1
+    );
+    let registry = precision_registry(M6_ASSET_PRECISION_POLICY_ROOT_V1);
+    let profile = bind_registry(fixture_profile(), &registry);
+
+    validate_m6_asset_precision_profile_binding_v1(&profile, &registry).unwrap();
+}
+
+#[test]
+fn altered_or_missing_eight_decimal_policy_rejects() {
+    let altered =
+        precision_registry("0x0000000000000000000000000000000000000000000000000000000000000bad");
+    let altered_profile = bind_registry(fixture_profile(), &altered);
+    assert!(validate_m6_asset_precision_profile_binding_v1(&altered_profile, &altered).is_err());
+
+    let missing = EconomicPolicyRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        bindings: vec![],
+    };
+    let missing_profile = bind_registry(fixture_profile(), &missing);
+    assert!(validate_m6_asset_precision_profile_binding_v1(&missing_profile, &missing).is_err());
 }

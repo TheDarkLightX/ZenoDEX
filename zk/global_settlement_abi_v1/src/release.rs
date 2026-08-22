@@ -685,6 +685,66 @@ pub const M6_CAPABILITY_POLICY_KIND_V1: &str = "m6_capability_manifest_v1";
 pub const M6_CAPABILITY_PROFILE_COMMAND_KIND_V1: &str = "global_economic_profile_v1";
 pub const M6_CAPABILITY_MANIFEST_ROOT_V1: &str =
     "0x21efc162df198e40a0aa942fcb69b7a5f5cc0f93907b11a3c6b25359e4a464bb";
+pub const M6_ASSET_PRECISION_POLICY_SCHEMA_V1: &str = "zenodex/m6-asset-precision-policy/v1";
+pub const M6_ASSET_PRECISION_POLICY_DOMAIN_V1: &str = "m6-asset-precision-policy-v1";
+pub const M6_ASSET_PRECISION_POLICY_KIND_V1: &str = "m6_asset_precision_v1";
+pub const M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1: &str = "global_economic_profile_v1";
+pub const M6_ASSET_PRECISION_POLICY_ROOT_V1: &str =
+    "0xacfbd1be88e823fcdd1b094b8d2f0c8ee1bf19c826004e89752f27fd22aa49dd";
+pub const M6_ASSET_DECIMAL_PLACES_V1: u8 = 8;
+pub const M6_ATOMS_PER_DISPLAY_UNIT_V1: u64 = 100_000_000;
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct M6AssetPrecisionPolicyV1 {
+    pub schema: String,
+    pub decimal_places: u8,
+    pub atoms_per_display_unit: u64,
+    pub amount_representation: String,
+    pub conversion_rule: String,
+    pub rounding_rule: String,
+    pub rescale_rule: String,
+    pub floating_point_allowed: bool,
+}
+
+impl M6AssetPrecisionPolicyV1 {
+    pub fn exact_v1() -> Self {
+        Self {
+            schema: M6_ASSET_PRECISION_POLICY_SCHEMA_V1.to_owned(),
+            decimal_places: M6_ASSET_DECIMAL_PLACES_V1,
+            atoms_per_display_unit: M6_ATOMS_PER_DISPLAY_UNIT_V1,
+            amount_representation: "unsigned_integer_atoms".to_owned(),
+            conversion_rule: "exact_integer_atoms_only".to_owned(),
+            rounding_rule: "command_specific_explicit_integer_rounding".to_owned(),
+            rescale_rule: "global_settlement_abi_v2_migration_only".to_owned(),
+            floating_point_allowed: false,
+        }
+    }
+
+    pub fn validate(&self) -> AbiResultV1<()> {
+        if self != &Self::exact_v1() {
+            return Err(AbiErrorV1::InvalidBinding(
+                "M6 asset precision policy semantics",
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn policy_root(&self) -> AbiResultV1<RootV1> {
+        self.validate()?;
+        hash_global_v1(M6_ASSET_PRECISION_POLICY_DOMAIN_V1, self)
+    }
+}
+
+pub fn m6_asset_precision_policy_root_v1() -> AbiResultV1<RootV1> {
+    let root = M6AssetPrecisionPolicyV1::exact_v1().policy_root()?;
+    if root.as_str() != M6_ASSET_PRECISION_POLICY_ROOT_V1 {
+        return Err(AbiErrorV1::InvalidBinding(
+            "M6 asset precision policy cross-language root",
+        ));
+    }
+    Ok(root)
+}
 
 impl EconomicPolicyRegistryV1 {
     pub fn validate(&self) -> AbiResultV1<()> {
@@ -748,6 +808,26 @@ pub fn validate_m6_capability_profile_binding_v1(
     )?;
     if binding.policy_root.as_str() != M6_CAPABILITY_MANIFEST_ROOT_V1 {
         return Err(AbiErrorV1::InvalidBinding("M6 capability manifest root"));
+    }
+    Ok(())
+}
+
+pub fn validate_m6_asset_precision_profile_binding_v1(
+    profile: &EconomicProfileSnapshotV1,
+    policy_registry: &EconomicPolicyRegistryV1,
+) -> AbiResultV1<()> {
+    profile.validate()?;
+    if policy_registry.registry_root()? != profile.policy_registry_root {
+        return Err(AbiErrorV1::InvalidBinding(
+            "M6 asset precision policy registry root",
+        ));
+    }
+    let binding = policy_registry.require_binding(
+        M6_ASSET_PRECISION_POLICY_KIND_V1,
+        M6_ASSET_PRECISION_PROFILE_COMMAND_KIND_V1,
+    )?;
+    if binding.policy_root != m6_asset_precision_policy_root_v1()? {
+        return Err(AbiErrorV1::InvalidBinding("M6 asset precision policy root"));
     }
     Ok(())
 }

@@ -101,6 +101,7 @@ from src.core.global_settlement_abi_v1 import (
     VerifiedEconomicEpochV1,
     canonical_economic_command_body_bytes_v1,
     compose_asset_lane_epoch_effect_plans_v1,
+    m6_asset_precision_policy_binding_v1,
     m6_capability_policy_binding_v1,
     validate_global_state_profile_v1,
     verify_economic_epoch_v1,
@@ -250,6 +251,7 @@ def _policy_registry_for_route_v1(route: RouteReleaseV1) -> EconomicPolicyRegist
                         route.command_kind,
                         signature_verifier_registry.registry_root,
                     ),
+                    m6_asset_precision_policy_binding_v1(),
                     m6_capability_policy_binding_v1(),
                 ),
                 key=lambda binding: (binding.policy_kind, binding.command_kind),
@@ -573,6 +575,7 @@ def _authenticate_occurrence_for_test(
                         occurrence.command_kind,
                         signature_verifier_registry.registry_root,
                     ),
+                    m6_asset_precision_policy_binding_v1(),
                     m6_capability_policy_binding_v1(),
                 ),
                 key=lambda binding: (binding.policy_kind, binding.command_kind),
@@ -2102,12 +2105,12 @@ def test_epoch_two_route_state_evidence_has_stable_python_golden_roots() -> None
     verified = verify_economic_epoch_v1(candidate, _RecordingReceiptVerifier())
 
     assert verified.route_state_projection_roots == (
-        "0x11ad9d26ae55aa4e5b910c4514d720618b79c3e0ba87e58e00521363d7dc435d",
-        "0x1d22eb2b356f957c878cfbe3eab560f08c0f85f9413f61c158ce2369f5db7c47",
+        "0xea8f2742bac0a6c2ee68e26c798be7be23de987176f13e9487026a9422d8d0c2",
+        "0x9ab5f3d4ee366e57d0165b4fec07dd47bbc119647c1020c59e72dfe934363186",
     )
     assert verified.route_state_effect_refinement_roots == (
-        "0xc58c92d4e130ba425eaa48cba0270bdeac8334d32893d6ca228cde9eb479c92b",
-        "0x8b6ff2bdce7c1db4bee27fc16840b129daf98193f278e655986e42a4f3292eb8",
+        "0xcd277f00156ac2fbdd16b44a661cf026a973e8d8eea6a33c92f3cfebc3f077cf",
+        "0xc4cc1b537459821b4f22df4fed54122a9a8a1afbb33c973f1ab18cceb32a7773",
     )
 
 
@@ -2714,6 +2717,52 @@ def test_commit_port_rejects_plain_or_mismatched_initial_state_before_receipt() 
     )
     with pytest.raises(ValueError, match="capability manifest root mismatch"):
         GlobalEconomicCommitPortV1(wrong_admission, verifier)
+
+    without_precision = EconomicPolicyRegistryV1(
+        tuple(
+            binding
+            for binding in admission.policy_registry.bindings
+            if binding != m6_asset_precision_policy_binding_v1()
+        )
+    )
+    with pytest.raises(ValueError, match="policy registry root mismatch"):
+        GlobalEconomicCommitPortV1(
+            replace(admission, policy_registry=without_precision),
+            verifier,
+        )
+    wrong_precision = EconomicPolicyRegistryV1(
+        tuple(
+            sorted(
+                (
+                    replace(binding, policy_root=_root(77_103))
+                    if binding == m6_asset_precision_policy_binding_v1()
+                    else binding
+                    for binding in admission.policy_registry.bindings
+                ),
+                key=lambda binding: (binding.policy_kind, binding.command_kind),
+            )
+        )
+    )
+    wrong_precision_profile = EconomicProfileSnapshotV1.build(
+        authority_epoch=profile.authority_epoch,
+        lane_registry=profile.lane_registry,
+        lane_coordinator_registry=profile.lane_coordinator_registry,
+        route_registry=profile.route_registry,
+        proof_shape_root=profile.proof_shape_root,
+        root_image_id=profile.root_image_id,
+        verifier_registry_root=profile.verifier_registry_root,
+        migration_registry_root=profile.migration_registry_root,
+        policy_registry_root=wrong_precision.registry_root,
+        terminal_registry_root=profile.terminal_registry_root,
+        status=profile.status,
+    )
+    wrong_precision_state = _state(wrong_precision_profile, height=0)
+    wrong_precision_admission = replace(
+        _initial_state_admission(wrong_precision_profile, wrong_precision_state),
+        policy_registry=wrong_precision,
+    )
+    with pytest.raises(ValueError, match="asset precision policy root mismatch"):
+        GlobalEconomicCommitPortV1(wrong_precision_admission, verifier)
 
     assert verifier.calls == []
 

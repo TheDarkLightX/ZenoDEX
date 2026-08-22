@@ -1,0 +1,10 @@
+{
+  "amount_representation": "unsigned_integer_atoms",
+  "atoms_per_display_unit": 100000000,
+  "conversion_rule": "exact_integer_atoms_only",
+  "decimal_places": 8,
+  "floating_point_allowed": false,
+  "rescale_rule": "global_settlement_abi_v2_migration_only",
+  "rounding_rule": "command_specific_explicit_integer_rounding",
+  "schema": "zenodex/m6-asset-precision-policy/v1"
+}

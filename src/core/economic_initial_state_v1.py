@@ -24,6 +24,9 @@ from .global_settlement_types_v1 import (
     hash_global_v1,
     validate_global_state_profile_v1,
 )
+from .m6_asset_precision_policy_v1 import (
+    validate_m6_asset_precision_profile_binding_v1,
+)
 from .m6_capability_profile_binding_v1 import (
     snapshot_economic_policy_registry_v1,
     validate_m6_capability_profile_binding_v1,
@@ -233,6 +236,7 @@ def _verify_economic_initial_state_for_publisher_v1(
     if profile.status is not ProfileStatusV1.ACTIVE:
         raise ValueError("initial state admission requires an ACTIVE profile")
     validate_m6_capability_profile_binding_v1(profile, policy_registry)
+    validate_m6_asset_precision_profile_binding_v1(profile, policy_registry)
     validate_global_state_profile_v1(state, profile)
     bindings = (
         (certificate.chain_id, state.chain_id, "chain id"),
