@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "00fb9fb9df830e0f916be35ad06b9455567857e2",
+    "commit": "2440a72790291143d2c21b1424f368384250a787",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,7 +14,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "19a747abb789500f07df0444df03ae9f155add4ca869b61c010c7b532f79153d",
+    "sha256": "0182fc770688d018dcf6b7900b00e425e6653189ddd1ff3881e910163c874459",
     "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
     "verdict": "UNPROVED"
   },
@@ -92,6 +92,16 @@
       "additional_false_passes": [
         "A transition-defined Reach set can exclude bypass-writer states by definition.",
         "A profile enabling only a small subset of intended M6 capabilities can satisfy a vacuous claim."
+      ]
+    },
+    {
+      "reviewer": "GPT-5.6 Sol max exact-branch follow-up",
+      "subject_commit": "b066dbf05da8c0eae937be37dae676132234a6e0",
+      "verdict": "REVISE",
+      "first_counterexample": "Arbitrary initial balances and supply can be accepted when a same-process caller-provided verifier returns success without proving allocation coverage.",
+      "additional_false_passes": [
+        "The 18-workflow catalogue and historical 11 expansions do not independently define the complete required M6 capability universe.",
+        "Name-derived Python writer discovery cannot establish complete mediation across arbitrary names, languages, deployment wiring, or durable sinks."
       ]
     }
   ],
@@ -203,13 +213,34 @@
         "close sink-first writer discovery",
         "resolve every required economic policy without fixture invention"
       ]
+    },
+    {
+      "id": "M6_CAPABILITY_PROFILE_BINDING",
+      "commit": "4f01c2cce314375c064dba598bee51402ab9bb5d",
+      "python_sha256": "241e797fdbea90bf1dbd254f98e176add01c1dce74a3b68ad82edf62d4bc32af",
+      "initial_admission_sha256": "f928f1e14c74af9f50d61b1b6573aea33c1b94d7a8926f263db48fcc028f0e61",
+      "rust_sha256": "6946f6328f227131b7563901e568cdd8553b3cb909db975f68b29dfb04da3d6b",
+      "status": [
+        "IMPLEMENTED_PYTHON_REFERENCE",
+        "IMPLEMENTED_RUST_ABI",
+        "TESTED_MUTATION_KILLERS",
+        "UNMOUNTED",
+        "MANIFEST_INCOMPLETE"
+      ],
+      "closed_obligation": "The in-memory reference initial-state path requires the active profile policy-registry root to commit the exact independently derived M6 capability-manifest root; missing, foreign, and altered bindings reject before receipt verification.",
+      "remaining_obligations": [
+        "close all 103 manifest requirements or prove exact disabled-no-writer rows",
+        "derive release eligibility from objective evidence",
+        "bind and check the capability root in real proof guests and durable profile activation",
+        "replace the same-process verifier boundary"
+      ]
     }
   ],
   "gate_status": [
     {
       "id": "VM-01",
-      "status": "GAP",
-      "evidence": "A closed research manifest now names 103 requirements across all 12 lanes and four cross-lane routes, preventing subset-profile omission. Writer inventory still reports 25 open coverage rows and 18 unmounted entrypoints; manifest-to-command/evidence mapping and sink-first cross-language completeness are absent."
+      "status": "PARTIAL",
+      "evidence": "A closed research manifest now names and profile-binds 103 requirements across all 12 lanes and four cross-lane routes, preventing subset-profile omission in the reference admission path. Writer inventory still reports 25 open coverage rows and 18 unmounted entrypoints; manifest-to-command/evidence mapping and sink-first cross-language completeness are absent."
     },
     {
       "id": "VM-02",
