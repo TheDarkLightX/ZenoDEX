@@ -2,7 +2,7 @@
 
 Date: 2026-08-22
 
-Status: `DRAFT_REVISED_DURABLE_EPOCH_REVIEWED`
+Status: `DRAFT_REVISED_DURABLE_PUBLISHER_REVIEWED`
 
 Claim authority: `NONE`
 
@@ -681,11 +681,36 @@ infrastructure and preserved every authority and production nonclaim.
 These durable slices narrow VM-10 and VM-11. They do not verify retained
 receipt bytes, select a migration release, establish objective source-head
 finality, reconcile external acknowledgments, mount a sole writer, or retire
-legacy paths. Receipt verification and the ordinary-epoch SQLite commit remain
-two operations, so a crash can invalidate freshness between them. Their
-process-local CAS tokens grant no writer authorization. VM-10 remains
-`PARTIAL`; the whole-value-movement claim remains `UNPROVED` and production
-authority remains `NONE`.
+legacy paths.
+
+Commit `eb6bf17b1c0b210fc6d7bee8bb25c0f0aa2a7dae` joins the ordinary-epoch
+verification and durable-publication path behind one unmounted,
+factory-constructed Python API. The publisher fixes one genesis activation,
+profile, receipt-verifier instance, private binding token, and SQLite journal.
+It resolves the caller's expected source against validated durable history,
+captures the journal CAS token before receipt verification, rechecks the exact
+state, effect, body, profile, verifier, and source bindings, constructs the
+published record and complete durable bundle internally, and delegates the
+only durable linearization point to the journal's SQLite transaction. Exact
+historical retry re-verifies the receipt and covers a lost commit
+acknowledgment. Competing publications and a head change during verification
+cannot overwrite the winning head.
+
+The focused publisher suite has 11 passing AAA tests. The combined ABI,
+ordinary-journal, publisher, writer-inventory, and value-sink run has 136
+passing tests. An independent maximum-reasoning review returned `GO` only for
+`UNMOUNTED`, `TESTED_DISCOVERY` use. The review confirmed exact source/profile
+checks and in-transaction CAS revalidation.
+
+This closes the reviewed two-operation crash window for the fixed-profile
+ordinary-epoch API. It does not establish a deployed release-selected verifier
+registry, process isolation, sole-writer enforcement, migration, outbox
+delivery and acknowledgment reconciliation, objective finality, hardware
+power-loss behavior, or Rust/RISC0 parity. The structural journal commit API
+and other legacy writers remain callable research paths and are inventoried as
+release-blocking. Python private construction is an engineering interlock, not
+a security boundary. VM-10 remains `PARTIAL`; the whole-value-movement claim
+remains `UNPROVED` and production authority remains `NONE`.
 
 The eight-decimal anchor is now represented by the content-derived policy root
 `0xacfbd1be88e823fcdd1b094b8d2f0c8ee1bf19c826004e89752f27fd22aa49dd`.

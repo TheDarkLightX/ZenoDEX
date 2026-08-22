@@ -64,6 +64,14 @@ def _durable_epoch_slice(value: dict[str, object]) -> dict[str, object]:
     )
 
 
+def _durable_publisher_slice(value: dict[str, object]) -> dict[str, object]:
+    return next(
+        row
+        for row in _implemented_slices(value)
+        if row["id"] == "GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1"
+    )
+
+
 def test_current_value_movement_closure_status_is_exact_and_fail_closed() -> None:
     report = check_value_movement_closure_status_v1()
 
@@ -198,6 +206,34 @@ def test_checker_rejects_stale_durable_epoch_slice_evidence(
     assert "durable epoch slice artifact subject commit mismatch" in _findings(report)
     assert (
         "durable epoch slice artifact hash mismatch: python_journal_sha256"
+        in _findings(report)
+    )
+
+
+def test_checker_rejects_stale_durable_publisher_slice_evidence(
+    tmp_path: Path,
+) -> None:
+    mutated = deepcopy(_status())
+    publisher = _durable_publisher_slice(mutated)
+    publisher["commit"] = "0" * 40
+    publisher["artifact_subject_commit"] = "1" * 40
+    publisher["python_publisher_sha256"] = "0" * 64
+
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    assert report["ok"] is False
+    assert (
+        "durable publisher slice implementation commit mismatch"
+        in _findings(report)
+    )
+    assert (
+        "durable publisher slice artifact subject commit mismatch"
+        in _findings(report)
+    )
+    assert (
+        "durable publisher slice artifact hash mismatch: python_publisher_sha256"
         in _findings(report)
     )
 

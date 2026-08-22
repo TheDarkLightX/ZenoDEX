@@ -42,7 +42,7 @@ EXPECTED_BUY_AND_BURN = (
     "Atomically spend the governed quote-asset fee allocation through the "
     "selected authenticated Spot route and burn the exact ZDEX atoms received."
 )
-EXPECTED_CLAIM_STATUS = "DRAFT_REVISED_DURABLE_EPOCH_REVIEWED"
+EXPECTED_CLAIM_STATUS = "DRAFT_REVISED_DURABLE_PUBLISHER_REVIEWED"
 EXPECTED_HYPERDEFLATION = (
     "No arbitrary fixed percentage of initial supply is required as a floor. "
     "Bind a retained-supply rule such as R(S)=ceil(p*S/q), 0<p<q, and "
@@ -143,6 +143,29 @@ DURABLE_EPOCH_SLICE_ARTIFACTS = {
         "tests/integration/test_global_economic_epoch_journal_v1.py"
     ),
     "sink_manifest_sha256": Path("tools/m6_value_sink_manifest_v1.json"),
+    "sink_test_sha256": Path("tests/test_check_m6_value_sinks_v1.py"),
+}
+DURABLE_PUBLISHER_SLICE_ID = "GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1"
+DURABLE_PUBLISHER_SLICE_COMMIT = "eb6bf17b1c0b210fc6d7bee8bb25c0f0aa2a7dae"
+DURABLE_PUBLISHER_SLICE_ARTIFACTS = {
+    "design_sha256": Path(
+        "docs/research/GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1.md"
+    ),
+    "python_publisher_sha256": Path(
+        "src/integration/global_economic_durable_publisher_v1.py"
+    ),
+    "python_journal_sha256": Path(
+        "src/integration/global_economic_epoch_journal_v1.py"
+    ),
+    "python_publisher_test_sha256": Path(
+        "tests/integration/test_global_economic_durable_publisher_v1.py"
+    ),
+    "python_journal_test_sha256": Path(
+        "tests/integration/test_global_economic_epoch_journal_v1.py"
+    ),
+    "writer_manifest_sha256": Path("tools/m6_writer_inventory_manifest_v1.json"),
+    "sink_manifest_sha256": Path("tools/m6_value_sink_manifest_v1.json"),
+    "writer_test_sha256": Path("tests/test_check_m6_writer_inventory.py"),
     "sink_test_sha256": Path("tests/test_check_m6_value_sinks_v1.py"),
 }
 
@@ -346,6 +369,38 @@ def _validate_durable_epoch_slice_evidence_v1(
             findings.append(f"durable epoch slice artifact hash mismatch: {field}")
 
 
+def _validate_durable_publisher_slice_evidence_v1(
+    root: Path,
+    status: Mapping[str, object],
+    subject_commit: object,
+    findings: list[str],
+) -> None:
+    slices = status.get("implemented_slices")
+    if type(slices) is not list or any(type(row) is not dict for row in slices):
+        findings.append("implemented slices must be a list of objects")
+        return
+    publisher_rows = [
+        row for row in slices if row.get("id") == DURABLE_PUBLISHER_SLICE_ID
+    ]
+    if len(publisher_rows) != 1:
+        findings.append("durable publisher slice evidence row must occur exactly once")
+        return
+    publisher = publisher_rows[0]
+    if publisher.get("commit") != DURABLE_PUBLISHER_SLICE_COMMIT:
+        findings.append("durable publisher slice implementation commit mismatch")
+    if publisher.get("artifact_subject_commit") != subject_commit:
+        findings.append("durable publisher slice artifact subject commit mismatch")
+    for field, relative_path in DURABLE_PUBLISHER_SLICE_ARTIFACTS.items():
+        artifact = root / relative_path
+        recorded = publisher.get(field)
+        if (
+            type(recorded) is not str
+            or not artifact.is_file()
+            or _sha256(artifact) != recorded
+        ):
+            findings.append(f"durable publisher slice artifact hash mismatch: {field}")
+
+
 def check_value_movement_closure_status_v1(
     root: Path = REPO_ROOT,
     status_path: Path | None = None,
@@ -375,6 +430,7 @@ def check_value_movement_closure_status_v1(
     _validate_source_head_slice_evidence_v1(root, status, commit, findings)
     _validate_durable_activation_slice_evidence_v1(root, status, commit, findings)
     _validate_durable_epoch_slice_evidence_v1(root, status, commit, findings)
+    _validate_durable_publisher_slice_evidence_v1(root, status, commit, findings)
 
     authority = _mapping(status.get("authority"), "authority", findings)
     expected_authority: dict[str, object] = {
