@@ -497,8 +497,11 @@ reject hostile state values outside the shared `u128` domain. A pinned RISC0
 3.0.6 guest and host source execute the same Rust statement checker over
 canonical bounded input and reject development mode, placeholder methods,
 non-succinct receipts, wrong journals, and wrong measured images. The source
-compiles and passes tests with a placeholder method. No real ELF, image ID,
-cycle measurement, proof, or receipt replay has been produced for this guest.
+keeps the prepared statement opaque, recomputes its journal before certificate
+construction, and requires the journal's image field to equal the measured
+guest image. It compiles and passes tests with a placeholder method. No real
+ELF, image ID, cycle measurement, proof, or receipt replay has been produced
+for this guest.
 
 The current manifest does not individually source-classify Oracle occurrences,
 replay rows, history, outbox rows, or objects hidden behind private lane roots.

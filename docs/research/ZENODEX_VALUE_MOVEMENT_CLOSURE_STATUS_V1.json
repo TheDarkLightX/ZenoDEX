@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "45f33fc42a65c61169cd823ffac7b93f09250769",
+    "commit": "cb3a6529f4bdcaf05510a8df4cea817da85bb64e",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,7 +14,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "237dcad57639b300dfe9a2a82ae07d4e794647483b9b5f0d0c24321084052087",
+    "sha256": "d5a1483ca6b7e6822f37600e0d709c097747ddf37a85b9fbb3e8f9f303eaeff7",
     "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
     "verdict": "UNPROVED"
   },
@@ -116,8 +116,20 @@
       ],
       "repair_commits": [
         "b1bf06899",
-        "45f33fc42"
+        "45f33fc42",
+        "cb3a6529f"
       ]
+    },
+    {
+      "reviewer": "GPT-5.6 Sol max initialization-guest follow-up",
+      "subject_commit": "30c19b6168f64f15a46701067131f11572fcdd1e",
+      "verdict": "REVISE",
+      "first_counterexample": "A caller-constructed prepared object could pair input statement B with proved journal A, allowing certificate construction to claim an unproved statement.",
+      "additional_false_passes": [
+        "the standalone receipt verifier authenticated the measured guest image without requiring the journal root_image_id to name that image",
+        "the guest wrapper validated rows before reaching the 4097 coverage preflight"
+      ],
+      "repair_commit": "cb3a6529f4bdcaf05510a8df4cea817da85bb64e"
     }
   ],
   "implemented_slices": [
@@ -195,12 +207,12 @@
     },
     {
       "id": "INITIAL_STATE_ATOM_COVERAGE_V1",
-      "commit": "b1bf068995648e34b2d880c2b8eade8eeaedcb37",
+      "commit": "cb3a6529f4bdcaf05510a8df4cea817da85bb64e",
       "manifest_root_golden": "0x8fb2073a85c1b563f09860071e0d3ebd2508be80a111c95fcf585eebc90187ba",
       "python_sha256": "13179e21776d3940d9dec09085963e98bcb389c02508ced989f2fb3045a0908e",
       "python_admission_sha256": "2eb8db9cf2563e2c82983a9c80a15c1381fe7c2c797c8e160f3399feffe8256f",
-      "rust_sha256": "4ddf17498493fa8d8e38718d83e190af1c8dcd2e426f8526b3a5c7b82634ece1",
-      "rust_admission_sha256": "7b5c15080ef36e144785b666ca39a88d2c4a74e73a9e9e88c204f6c99777b5f5",
+      "rust_sha256": "67d0b1081d493be8959fe3aaf35cb91c859a4461ff6c5dad866909125039fb5b",
+      "rust_admission_sha256": "e2b7e921811cd84e99f54357b4edc6915ec20b414d8d1331d641d196bb064585",
       "status": [
         "IMPLEMENTED_PYTHON_REFERENCE",
         "IMPLEMENTED_RUST_ABI",
@@ -223,11 +235,11 @@
     },
     {
       "id": "ECONOMIC_INITIAL_STATE_RISC0_GUEST_SOURCE_V1",
-      "commit": "45f33fc42a65c61169cd823ffac7b93f09250769",
-      "abi_statement_sha256": "7b5c15080ef36e144785b666ca39a88d2c4a74e73a9e9e88c204f6c99777b5f5",
-      "shared_sha256": "8ccb61157afed7c3f72634c45ae981d9322e31a8ea030c2ac6e0d7c2c7a91025",
-      "guest_sha256": "e73271a81c5656ea83e3c7589a88ea998dcaf077a0dd330931619c9f8a2e4c57",
-      "host_sha256": "419b2c028e35ae1c5f5beb750809a9bc30242af0404a6aacbf1a81c3b4747f7d",
+      "commit": "cb3a6529f4bdcaf05510a8df4cea817da85bb64e",
+      "abi_statement_sha256": "e2b7e921811cd84e99f54357b4edc6915ec20b414d8d1331d641d196bb064585",
+      "shared_sha256": "2fea0ba53473951749df921ab7e29de0263f7ba99ca6b9f63bee48a452ff90ec",
+      "guest_sha256": "c417ca6745ed5eed2a3ae9db8114f843212ce907ec1f06057296a64f91957b42",
+      "host_sha256": "42f9c65e9034bca287b55afcfe2eba91604e38c03b979f85e2f6e99b3a719081",
       "cargo_lock_sha256": "f9a4f81080ed6fb709d5c399986a2ba20f1cd69f1dd372c60370ef9d6277a449",
       "status": [
         "GUEST_SOURCE_IMPLEMENTED",
@@ -239,7 +251,7 @@
         "REAL_RECEIPT_UNPROVED",
         "UNMOUNTED"
       ],
-      "closed_obligation": "The initialization proof source executes the same Rust profile, explicit-target-coverage, state, and statement binding under an 8 MiB predecode ceiling and commits only the canonical public journal; the host rejects development mode, placeholder methods, non-succinct receipts, journal substitution, and profile or statement image mismatch.",
+      "closed_obligation": "The initialization proof source executes the same Rust profile, explicit-target-coverage, state, and statement binding under an 8 MiB predecode ceiling and commits only the canonical public journal; opaque prepared statements are recomputed before certificate construction, and the host rejects development mode, placeholder methods, non-succinct receipts, journal substitution, and profile, statement, or journal image mismatch.",
       "remaining_obligations": [
         "build and record the exact guest ELF and image ID with the pinned toolchain",
         "measure cycle and memory bounds at 4095 and 4096 rows",
