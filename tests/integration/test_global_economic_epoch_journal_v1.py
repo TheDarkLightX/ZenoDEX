@@ -6,6 +6,7 @@ import json
 import sqlite3
 import subprocess
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -14,9 +15,15 @@ import src.integration.global_economic_epoch_journal_v1 as journal_module
 from src.core.global_economic_durable_activation_v1 import (
     prepare_durable_economic_initial_state_bundle_v1,
 )
-from src.core.global_settlement_types_v1 import canonical_global_bytes_v1, hash_global_v1
+from src.core.global_settlement_types_v1 import (
+    MAX_CYCLE_BUDGET_V1,
+    MAX_JOURNAL_BYTES_V1,
+    canonical_global_bytes_v1,
+    hash_global_v1,
+)
 from src.integration.global_economic_commit_v1 import CommitOutcomeStatusV1
 from src.integration.global_economic_durable_epoch_v1 import (
+    _BUNDLE_MAGIC_V1,
     DURABLE_ECONOMIC_EPOCH_SCHEMA_V1,
     DurableEconomicEpochBundleV1,
     DurableEconomicEpochMaterialV1,
@@ -168,6 +175,82 @@ def _two_epoch_chain_v1(*, reuse_commit_id: bool = False):
     return activation, first, second
 
 
+def _fully_rehashed_epoch_v1(
+    epoch: DurableEconomicEpochBundleV1,
+    mutate: Callable[[dict[str, object]], None],
+) -> bytes:
+    """Apply a semantic mutant and rebuild every dependent public commitment."""
+
+    payload = json.loads(epoch.payload)
+    assert type(payload) is dict
+    mutate(payload)
+    body = payload["body_and_state"]
+    effect_plan = payload["effect_plan"]
+    certificate = payload["certificate"]
+    published = payload["published_epoch"]
+    assert type(body) is dict
+    assert type(effect_plan) is dict
+    assert type(certificate) is dict
+    assert type(published) is dict
+    state = body["post_state"]
+    assert type(state) is dict
+
+    post_state_root = hash_global_v1("global-economic-state-root-v1", state)
+    effect_plan_root = hash_global_v1(
+        "global-economic-effect-plan-v1",
+        effect_plan,
+    )
+    body_commitment = hash_global_v1(
+        "global-economic-epoch-body-v1",
+        {
+            "pre_state_root": body["pre_state_root"],
+            "post_state_root": post_state_root,
+            "ordered_command_body_hashes": body["ordered_command_body_hashes"],
+            "receipt_archive_root": body["receipt_archive_root"],
+            "outbox": state["outbox"],
+        },
+    )
+    certificate["post_state_root"] = post_state_root
+    certificate["effect_plan_root"] = effect_plan_root
+    certificate["body_commitment"] = body_commitment
+    certificate_root = hash_global_v1(
+        "global-economic-epoch-certificate-v1",
+        certificate,
+    )
+    published["certificate_root"] = certificate_root
+    published["post_state_root"] = post_state_root
+    published["effect_plan_root"] = effect_plan_root
+    published["body_commitment"] = body_commitment
+
+    payload_bytes = canonical_global_bytes_v1(payload)
+    record_body = epoch.record.to_canonical()
+    for field in ("schema", "global_settlement_abi", "publication_id"):
+        del record_body[field]
+    record_body.update(
+        {
+            "post_state_root": post_state_root,
+            "certificate_root": certificate_root,
+            "effect_plan_root": effect_plan_root,
+            "body_commitment": body_commitment,
+            "payload_byte_count": len(payload_bytes),
+            "payload_root": _payload_root_v1(payload_bytes),
+        }
+    )
+    record = DurableEconomicEpochRecordV1.build(**record_body)
+    record_bytes = canonical_global_bytes_v1(record)
+    return b"".join(
+        (
+            _BUNDLE_MAGIC_V1,
+            len(record_bytes).to_bytes(4, "big"),
+            record_bytes,
+            len(payload_bytes).to_bytes(8, "big"),
+            payload_bytes,
+            len(epoch.receipt_bytes).to_bytes(8, "big"),
+            epoch.receipt_bytes,
+        )
+    )
+
+
 def test_given_complete_epoch_when_encoded_then_roundtrip_preserves_every_body() -> None:
     # Arrange: Alice has one publisher-admitted epoch and its exact receipt bytes.
     _, source_head, epoch = _fixture_v1()
@@ -185,29 +268,105 @@ def test_given_complete_epoch_when_encoded_then_roundtrip_preserves_every_body()
 def test_distinct_occurrences_may_repeat_the_same_command_body_hash() -> None:
     # Arrange: two occurrences intentionally carry byte-identical command bodies.
     _, _, epoch = _fixture_v1()
-    sections = _decode_payload_sections_v1(epoch.payload)
-    command_hash = sections.body["ordered_command_body_hashes"][0]
-    sections.body["ordered_command_body_hashes"] = [command_hash, command_hash]
-    for field, domain in (
-        ("ordered_occurrence_ids", "test-second-occurrence-v1"),
-        ("ordered_route_journal_roots", "test-second-route-journal-v1"),
-        ("ordered_route_assumption_roots", "test-second-route-assumption-v1"),
-    ):
-        sections.certificate[field].append(hash_global_v1(domain, {"index": 2}))
-    for field, domain in (
-        ("route_state_projection_roots", "test-second-route-projection-v1"),
-        (
-            "route_state_effect_refinement_roots",
-            "test-second-route-refinement-v1",
-        ),
-    ):
-        sections.published[field].append(hash_global_v1(domain, {"index": 2}))
+    second_occurrence = hash_global_v1("test-second-occurrence-v1", {"index": 2})
 
-    # Act: validate semantic ordering without assuming command-body uniqueness.
-    command_count = _validate_ordered_roots_v1(sections)
+    def repeat_command(payload: dict[str, object]) -> None:
+        body = payload["body_and_state"]
+        certificate = payload["certificate"]
+        effect_plan = payload["effect_plan"]
+        published = payload["published_epoch"]
+        assert type(body) is dict
+        assert type(certificate) is dict
+        assert type(effect_plan) is dict
+        assert type(published) is dict
+        command_hashes = body["ordered_command_body_hashes"]
+        assert type(command_hashes) is list
+        command_hashes.append(command_hashes[0])
+        for field, value in (
+            ("ordered_occurrence_ids", second_occurrence),
+            (
+                "ordered_route_journal_roots",
+                hash_global_v1("test-second-route-journal-v1", {"index": 2}),
+            ),
+            (
+                "ordered_route_assumption_roots",
+                hash_global_v1("test-second-route-assumption-v1", {"index": 2}),
+            ),
+        ):
+            roots = certificate[field]
+            assert type(roots) is list
+            roots.append(value)
+        certificate["module_leaf_occurrences"] = 2
+        consumptions = effect_plan["occurrence_consumptions"]
+        assert type(consumptions) is list
+        consumptions.append(second_occurrence)
+        for field, domain in (
+            ("route_state_projection_roots", "test-second-route-projection-v1"),
+            (
+                "route_state_effect_refinement_roots",
+                "test-second-route-refinement-v1",
+            ),
+        ):
+            roots = published[field]
+            assert type(roots) is list
+            roots.append(hash_global_v1(domain, {"index": 2}))
+
+    # Act: rebuild and decode one complete, internally bound epoch bundle.
+    rebuilt = _fully_rehashed_epoch_v1(epoch, repeat_command)
+    decoded = decode_durable_economic_epoch_bundle_v1(rebuilt)
+    sections = _decode_payload_sections_v1(decoded.payload)
 
     # Assert: replay uniqueness belongs to occurrences, while body hashes may repeat.
-    assert command_count == 2
+    assert _validate_ordered_roots_v1(sections) == 2
+
+
+def test_fully_rehashed_effect_consuming_foreign_occurrence_is_rejected() -> None:
+    # Arrange: Mallory replaces only the consumed occurrence and rehashes every layer.
+    _, _, epoch = _fixture_v1()
+
+    def replace_consumption(payload: dict[str, object]) -> None:
+        effect_plan = payload["effect_plan"]
+        assert type(effect_plan) is dict
+        consumptions = effect_plan["occurrence_consumptions"]
+        assert type(consumptions) is list
+        consumptions[0] = hash_global_v1("foreign-occurrence-v1", {"index": 1})
+
+    tampered = _fully_rehashed_epoch_v1(epoch, replace_consumption)
+
+    # Act and assert: effect consumption must equal certificate occurrence order.
+    with pytest.raises(ValueError, match="occurrence consumption mismatch"):
+        decode_durable_economic_epoch_bundle_v1(tampered)
+
+
+@pytest.mark.parametrize(
+    ("field", "limit"),
+    (
+        ("journal_bytes", MAX_JOURNAL_BYTES_V1),
+        ("cycle_budget", MAX_CYCLE_BUDGET_V1),
+    ),
+)
+def test_proof_resource_ceiling_accepts_exact_limit_and_rejects_one_over(
+    field: str,
+    limit: int,
+) -> None:
+    # Arrange: rebuild otherwise identical epochs at both ABI boundary neighbors.
+    _, _, epoch = _fixture_v1()
+
+    def set_resource(value: int) -> Callable[[dict[str, object]], None]:
+        def mutate(payload: dict[str, object]) -> None:
+            certificate = payload["certificate"]
+            assert type(certificate) is dict
+            certificate[field] = value
+
+        return mutate
+
+    exact = _fully_rehashed_epoch_v1(epoch, set_resource(limit))
+    excessive = _fully_rehashed_epoch_v1(epoch, set_resource(limit + 1))
+
+    # Act and assert: exact ABI maxima survive; one unit above fails closed.
+    assert decode_durable_economic_epoch_bundle_v1(exact).canonical_bytes == exact
+    with pytest.raises(ValueError, match="proof resources exceed the ABI ceiling"):
+        decode_durable_economic_epoch_bundle_v1(excessive)
 
 
 @pytest.mark.parametrize(
@@ -539,3 +698,48 @@ def test_given_zero_remaining_row_capacity_when_committing_then_typed_noop(
     assert outcome.head == source_head
     assert journal.head == source_head
     journal.close()
+
+
+def test_open_accepts_history_at_exact_byte_capacity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: one committed epoch consumes exactly the configured byte capacity.
+    activation, _, epoch = _fixture_v1()
+    path = tmp_path / "exact-byte-capacity.sqlite"
+    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    journal.commit_epoch(epoch, journal.acquire_cas_head_token())
+    journal.close()
+    monkeypatch.setattr(
+        journal_module,
+        "_MAX_EPOCH_STORE_BYTES_V1",
+        len(epoch.canonical_bytes),
+    )
+
+    # Act: recovery validates all stored bundle bytes at the exact limit.
+    reopened = GlobalEconomicEpochJournalV1.open(path)
+
+    # Assert: equality is admitted and the complete head is retained.
+    assert reopened.head == epoch.head
+    reopened.close()
+
+
+def test_open_rejects_history_one_byte_over_capacity(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: the stored history exceeds the configured byte ceiling by one byte.
+    activation, _, epoch = _fixture_v1()
+    path = tmp_path / "one-over-byte-capacity.sqlite"
+    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    journal.commit_epoch(epoch, journal.acquire_cas_head_token())
+    journal.close()
+    monkeypatch.setattr(
+        journal_module,
+        "_MAX_EPOCH_STORE_BYTES_V1",
+        len(epoch.canonical_bytes) - 1,
+    )
+
+    # Act and assert: open fails closed before exposing a durable head.
+    with pytest.raises(ValueError, match="history exceeds byte capacity"):
+        GlobalEconomicEpochJournalV1.open(path)

@@ -452,7 +452,7 @@ class GlobalEconomicEpochJournalV1:
         ).fetchall()
         if len(rows) > _MAX_EPOCH_HISTORY_V1:
             raise ValueError("durable epoch history exceeds row capacity")
-        if sum(len(row[2]) for row in rows if type(row[2]) is bytes) > _MAX_EPOCH_STORE_BYTES_V1:
+        if sum(len(row[3]) for row in rows if type(row[3]) is bytes) > _MAX_EPOCH_STORE_BYTES_V1:
             raise ValueError("durable epoch history exceeds byte capacity")
         return tuple(self._decode_epoch_row_v1(row) for row in rows)
 

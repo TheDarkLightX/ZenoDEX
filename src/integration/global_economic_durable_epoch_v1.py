@@ -21,6 +21,8 @@ from ..core.global_economic_refinement_snapshot_v1 import (
 )
 from ..core.global_settlement_types_v1 import (
     GLOBAL_SETTLEMENT_ABI_V1,
+    MAX_CYCLE_BUDGET_V1,
+    MAX_JOURNAL_BYTES_V1,
     ZERO_ROOT_V1,
     EconomicProfileSnapshotV1,
     GlobalEconomicEffectPlanV1,
@@ -551,6 +553,11 @@ def _validate_array_shapes_v1(sections: _PayloadSectionsV1) -> None:
         if type(sections.state[field]) is not list:
             raise TypeError(f"durable epoch state {field} must be an exact array")
 
+    occurrences = sections.certificate["ordered_occurrence_ids"]
+    consumed = sections.effect_plan["occurrence_consumptions"]
+    if consumed != occurrences:
+        raise ValueError("durable epoch effect occurrence consumption mismatch")
+
 
 def _validate_proof_shape_v1(sections: _PayloadSectionsV1, command_count: int) -> None:
     certificate = sections.certificate
@@ -565,6 +572,8 @@ def _validate_proof_shape_v1(sections: _PayloadSectionsV1, command_count: int) -
         raise ValueError("durable epoch aggregation shape is outside the ABI bound")
     if journal_bytes <= 0 or cycle_budget <= 0:
         raise ValueError("durable epoch proof resource declarations must be positive")
+    if journal_bytes > MAX_JOURNAL_BYTES_V1 or cycle_budget > MAX_CYCLE_BUDGET_V1:
+        raise ValueError("durable epoch proof resources exceed the ABI ceiling")
     if certificate["receipt_kind"] != "SUCCINCT":
         raise ValueError("durable epoch receipt kind must be succinct")
 
