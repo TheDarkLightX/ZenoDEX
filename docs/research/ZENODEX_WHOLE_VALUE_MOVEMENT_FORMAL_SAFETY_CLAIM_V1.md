@@ -481,16 +481,31 @@ manifest classifies every target occurrence exactly once as a genesis
 allocation, migrated target, or retained drain target and binds a nonzero
 source-authorization root. The manifest root is committed both by the active
 profile policy registry and by the initialization certificate. Python and Rust
-derive the same roots. Omitted, duplicated, reordered, stale, wrongly
-classified, or source-substituted rows reject before receipt verification; the
-bounded row-count boundary is tested at 4,096 and 4,097.
+derive the same roots for all six kinds and every terminal status. Relative to
+one exact authority-selected profile-bound manifest, omitted, duplicated,
+reordered, stale, source-substituted, or illegal-for-kind classification rows
+reject before receipt verification. A coherently substituted profile or a
+different allowed migration label requires separate authority and predecessor
+evidence; this structural checker does not decide either question. The checked
+row-count boundary accepts 4,095 and 4,096 and rejects 4,097 before row copying,
+validation, or hashing. The future guest wire boundary rejects inputs larger
+than 8 MiB before deserialization.
 
-This closes exact target-row coverage for the six explicit tables in the
-deterministic reference and Rust ABI checker. It does not establish the
-contents of private lane roots, total predecessor-source classification for a
-migration, the objective authority represented by a source-authorization root,
-selection from the governed migration-release registry, a real RISC0
-initialization receipt, durable atomic activation, writer rotation, or
+This closes fixed-profile exact target-row coverage for valid, deeply owned
+states in the six explicit tables. The standalone Python and Rust checkers now
+reject hostile state values outside the shared `u128` domain. A pinned RISC0
+3.0.6 guest and host source execute the same Rust statement checker over
+canonical bounded input and reject development mode, placeholder methods,
+non-succinct receipts, wrong journals, and wrong measured images. The source
+compiles and passes tests with a placeholder method. No real ELF, image ID,
+cycle measurement, proof, or receipt replay has been produced for this guest.
+
+The current manifest does not individually source-classify Oracle occurrences,
+replay rows, history, outbox rows, or objects hidden behind private lane roots.
+It also does not establish total predecessor-source classification for a
+migration, the semantic truth of a migration label, the objective authority
+represented by a source-authorization root, selection from the governed
+migration-release registry, durable atomic activation, writer rotation, or
 shared-asset coexistence. Those remain VM-11 blockers.
 
 The 18-workflow/81-scenario ATDD catalogue and its historical 11 Luna-required
@@ -540,10 +555,11 @@ remains excluded from GlobalSettlementABI V1.
 1. Freeze the exact complete M6 capability manifest and ZDEX semantic anchors,
    including buy-and-burn, hosting compensation, eight-decimal units,
    retained-supply hyperdeflation, recovery, and terminal behavior.
-2. Extend the exact target-row initialization manifest to private lane objects
-   and complete predecessor-source migration classification. Select the
-   genesis or migration release from committed profile state, then execute this
-   same checker in the real RISC0 initialization guest.
+2. Extend the exact target-row initialization manifest to Oracle, replay,
+   history, outbox, and private lane objects and complete predecessor-source
+   migration classification. Select the genesis or migration release from
+   committed profile state. Build and measure the existing RISC0 guest, then
+   generate and replay its real succinct receipt on the proof machine.
 3. Extend the operation-derived sink inventory across dynamic Python, Rust,
    Tau, shell, generated code, native extensions, runtime loading, deployment
    wiring, and deployed entrypoints. Bind every discovered sink to an

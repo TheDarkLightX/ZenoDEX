@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "88d5d21fbb1815f67e6dc5c86a2ed2d306817555",
+    "commit": "45f33fc42a65c61169cd823ffac7b93f09250769",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "authority": {
@@ -14,7 +14,7 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "a90587c9015ba81465be34a30ba02695b9461d634172e1e6b4b8a5a4c26a986a",
+    "sha256": "237dcad57639b300dfe9a2a82ae07d4e794647483b9b5f0d0c24321084052087",
     "status": "DRAFT_REVISED_AFTER_MAX_REVIEW",
     "verdict": "UNPROVED"
   },
@@ -103,6 +103,21 @@
         "The 18-workflow catalogue and historical 11 expansions do not independently define the complete required M6 capability universe.",
         "Name-derived Python writer discovery cannot establish complete mediation across arbitrary names, languages, deployment wiring, or durable sinks."
       ]
+    },
+    {
+      "reviewer": "GPT-5.6 Sol max initialization-coverage review",
+      "subject_commit": "22de8c4f06c42c3e188d51e5eeafa7edcbd7b19c",
+      "verdict": "REVISE",
+      "first_counterexample": "The standalone Python coverage checker accepted a frozen amount row corrupted to 2^128 while Rust rejected the value as outside u128.",
+      "additional_findings": [
+        "migration labels and source roots are structural declarations until predecessor and authority evidence exists",
+        "the 4096 rule originally rejected only after hashing every explicit target row",
+        "cross-language row-root vectors originally covered only balance and supply"
+      ],
+      "repair_commits": [
+        "b1bf06899",
+        "45f33fc42"
+      ]
     }
   ],
   "implemented_slices": [
@@ -180,12 +195,12 @@
     },
     {
       "id": "INITIAL_STATE_ATOM_COVERAGE_V1",
-      "commit": "88d5d21fbb1815f67e6dc5c86a2ed2d306817555",
+      "commit": "b1bf068995648e34b2d880c2b8eade8eeaedcb37",
       "manifest_root_golden": "0x8fb2073a85c1b563f09860071e0d3ebd2508be80a111c95fcf585eebc90187ba",
-      "python_sha256": "c1d35941d5733928e71fcda3324d4789967f41e62048888de929185b9f9231d3",
+      "python_sha256": "13179e21776d3940d9dec09085963e98bcb389c02508ced989f2fb3045a0908e",
       "python_admission_sha256": "2eb8db9cf2563e2c82983a9c80a15c1381fe7c2c797c8e160f3399feffe8256f",
-      "rust_sha256": "466b0cf93e0c5e7e6716ed2b23b8843b68f83e8d60b1c1795ef9cab4d6e54447",
-      "rust_admission_sha256": "543cfb1e24dc687ba773ee448a829cf23c4998148c7cb3501282765a552fb847",
+      "rust_sha256": "4ddf17498493fa8d8e38718d83e190af1c8dcd2e426f8526b3a5c7b82634ece1",
+      "rust_admission_sha256": "7b5c15080ef36e144785b666ca39a88d2c4a74e73a9e9e88c204f6c99777b5f5",
       "status": [
         "IMPLEMENTED_PYTHON_REFERENCE",
         "IMPLEMENTED_RUST_ABI",
@@ -195,7 +210,7 @@
         "UNMOUNTED",
         "UNPROVED_PRIVATE_LANE_STATE"
       ],
-      "closed_obligation": "Every explicit initial balance, supply, accounting-control-domain, liability, reserve, and terminal-obligation target row is classified exactly once by kind, canonical index, and canonical row root under the profile-bound manifest; omission, duplication, reordering, stale data, wrong classification, and source substitution reject before receipt verification.",
+      "closed_obligation": "For valid deeply owned states and one exact authority-selected profile-bound manifest, every explicit initial balance, supply, accounting-control-domain, liability, reserve, and terminal-obligation target row is classified exactly once by kind, canonical index, and canonical row root; omission, duplication, reordering, stale data, illegal-for-kind classification, and relative source substitution reject before receipt verification.",
       "remaining_obligations": [
         "private lane-root object coverage",
         "total predecessor-source migration classification including closed and tombstoned objects",
@@ -204,6 +219,34 @@
         "real initialization guest and receipt replay",
         "durable atomic activation and writer rotation",
         "shared-asset coexistence theorems"
+      ]
+    },
+    {
+      "id": "ECONOMIC_INITIAL_STATE_RISC0_GUEST_SOURCE_V1",
+      "commit": "45f33fc42a65c61169cd823ffac7b93f09250769",
+      "abi_statement_sha256": "7b5c15080ef36e144785b666ca39a88d2c4a74e73a9e9e88c204f6c99777b5f5",
+      "shared_sha256": "8ccb61157afed7c3f72634c45ae981d9322e31a8ea030c2ac6e0d7c2c7a91025",
+      "guest_sha256": "e73271a81c5656ea83e3c7589a88ea998dcaf077a0dd330931619c9f8a2e4c57",
+      "host_sha256": "419b2c028e35ae1c5f5beb750809a9bc30242af0404a6aacbf1a81c3b4747f7d",
+      "cargo_lock_sha256": "f9a4f81080ed6fb709d5c399986a2ba20f1cd69f1dd372c60370ef9d6277a449",
+      "status": [
+        "GUEST_SOURCE_IMPLEMENTED",
+        "HOST_VERIFIER_SOURCE_IMPLEMENTED",
+        "RISC0_3_0_6_PINNED",
+        "CANONICAL_INPUT_BOUND",
+        "PLACEHOLDER_MODE_TESTED",
+        "REAL_ELF_UNBUILT",
+        "REAL_RECEIPT_UNPROVED",
+        "UNMOUNTED"
+      ],
+      "closed_obligation": "The initialization proof source executes the same Rust profile, explicit-target-coverage, state, and statement binding under an 8 MiB predecode ceiling and commits only the canonical public journal; the host rejects development mode, placeholder methods, non-succinct receipts, journal substitution, and profile or statement image mismatch.",
+      "remaining_obligations": [
+        "build and record the exact guest ELF and image ID with the pinned toolchain",
+        "measure cycle and memory bounds at 4095 and 4096 rows",
+        "produce and independently replay a real succinct receipt",
+        "select the measured image through committed release and verifier registries",
+        "mount verified admission in durable atomic activation",
+        "extend coverage beyond the six explicit target tables"
       ]
     },
     {
@@ -362,7 +405,7 @@
     {
       "id": "VM-11",
       "status": "PARTIAL",
-      "evidence": "Python and Rust define exact receipt-bound genesis or adjacent-migration certificate bindings and derive the same profile-bound manifest root over every explicit balance, supply, accounting-control-domain, liability, reserve, and terminal-obligation target row. Mutation tests reject omission, duplication, reordering, stale rows, wrong classification, and source substitution before receipt verification. Private lane-root objects, total predecessor-source migration classification, objective source authorization, real proof coverage, migration-registry selection, durable atomic activation, and coexistence theorems remain absent."
+      "evidence": "For valid deeply owned states and one exact authority-selected profile-bound manifest, Python and Rust derive the same roots for every explicit balance, supply, accounting-control-domain, liability, reserve, and terminal-obligation target row, including all terminal statuses and u128 boundaries. The 4097 case rejects before row processing. Pinned RISC0 3.0.6 guest and host source compile and pass placeholder-mode tests over the same Rust statement checker. Oracle, replay, history, outbox, private lane-root objects, semantic migration labels, total predecessor-source classification, objective source authorization, a real measured ELF and receipt, migration-registry selection, durable atomic activation, and coexistence theorems remain absent."
     },
     {
       "id": "VM-12",
@@ -402,7 +445,7 @@
   },
   "next_dependency_order": [
     "Bind the complete intended M6 capability manifest into the profile and map each row to command, transition, effect, route, terminal, adapter, and evidence status.",
-    "Extend certified initialization from exact explicit target rows to private lane objects and total predecessor-source migration classification, then bind a registered genesis or migration proof release and real receipt replay.",
+    "Extend certified initialization from six explicit target tables to Oracle, replay, history, outbox, private lane objects, and total predecessor-source migration classification; then build, measure, register, prove, and replay the new initialization guest on the proof machine.",
     "Extend operation-derived sink discovery across dynamic Python, Rust, Tau, shell, generated code, native extensions, deployment wiring, and deployed reachability, then close VM-01.",
     "Complete effect source, authorization, claimant, residue, terminal, and external-delivery bindings.",
     "Seal authoritative verification behind a measured release-selected verifier.",
@@ -412,6 +455,7 @@
     "No production readiness, production authority, settlement authority, writer rotation, or value-moving authority.",
     "No whole-economy formal safety proof.",
     "No claim that tests alone establish safety.",
+    "No real initialization guest ELF, measured image ID, proof, or receipt replay.",
     "No claim that the latest Tau main is production-stable or integration-compatible.",
     "No claim that existing proof compression establishes omitted economic semantics."
   ]
