@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import replace
+from types import SimpleNamespace
 
 import pytest
 
@@ -24,6 +25,17 @@ from src.core.asset_transfer_types_v1 import (
     AssetTransferPolicyV1,
     AssetTransferStateV1,
 )
+from src.core.economic_command_authentication_v1 import (
+    ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+    AuthenticatedEconomicCommandV1,
+    EconomicCommandAuthenticationCandidateV1,
+    EconomicCommandAuthenticationEnvelopeV1,
+    EconomicCommandAuthorizationRegistryV1,
+    EconomicCommandAuthorizationV1,
+    EconomicCommandIntentV1,
+    authenticate_economic_command_intent_v1,
+    bind_authenticated_intent_to_occurrence_v1,
+)
 from src.core.global_economic_proof_v1 import (
     EconomicCommandOccurrenceV1,
     LaneCompositionJournalV1,
@@ -34,6 +46,8 @@ from src.core.global_settlement_types_v1 import (
     ALL_LANE_IDS_V1,
     AssetSupplyV1,
     EconomicAmountV1,
+    EconomicPolicyBindingV1,
+    EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
     EvidenceStatusV1,
     LaneCoordinatorRegistryV1,
@@ -45,6 +59,7 @@ from src.core.global_settlement_types_v1 import (
     ReleaseStatusV1,
     RouteRegistryV1,
     RouteReleaseV1,
+    canonical_economic_command_body_bytes_v1,
     canonical_global_bytes_v1,
 )
 from src.core.lane_composition_receipt_verification_v1 import (
@@ -224,6 +239,8 @@ def _profile() -> tuple[EconomicProfileSnapshotV1, dict[str, RouteReleaseV1]]:
         )
     )
     route_registry = RouteRegistryV1(routes)
+    authorization_registry = _authorization_registry_v1(route_registry)
+    policy_registry = _authentication_policy_registry_v1(authorization_registry)
     profile = EconomicProfileSnapshotV1.build(
         authority_epoch=7,
         lane_registry=lane_registry,
@@ -233,11 +250,130 @@ def _profile() -> tuple[EconomicProfileSnapshotV1, dict[str, RouteReleaseV1]]:
         root_image_id=_root(521),
         verifier_registry_root=_root(522),
         migration_registry_root=_root(523),
-        policy_registry_root=_root(524),
+        policy_registry_root=policy_registry.registry_root,
         terminal_registry_root=_root(525),
         status=ProfileStatusV1.ACTIVE,
     )
     return profile, {route.command_kind: route for route in routes}
+
+
+def _authorization_registry_v1(
+    routes: RouteRegistryV1,
+) -> EconomicCommandAuthorizationRegistryV1:
+    identities = {
+        ASSET_TRANSFER_COMMAND_KIND_V1: ("alice", _root(7)),
+        MANAGED_ASSET_BURN_COMMAND_KIND_V1: ("alice", _root(6)),
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1: ("issuer", _root(5)),
+    }
+    authorizations = tuple(
+        sorted(
+            (
+                EconomicCommandAuthorizationV1(
+                    command_kind=route.command_kind,
+                    subject_id=identities[route.command_kind][0],
+                    grant_root=identities[route.command_kind][1],
+                    route_release_id=route.route_release_id,
+                    signer_key_id=f"{identities[route.command_kind][0]}-key-1",
+                    signer_public_key=(
+                        f"bls12-381-g2:{identities[route.command_kind][0]}-public-key"
+                    ),
+                    signature_algorithm="BLS12_381_G2_BASIC_V1",
+                    valid_from_height=0,
+                    valid_through_height=(1 << 64) - 1,
+                    min_nonce=0,
+                    max_nonce=(1 << 64) - 1,
+                    enabled=True,
+                )
+                for route in routes.routes
+            ),
+            key=lambda item: item.key,
+        )
+    )
+    return EconomicCommandAuthorizationRegistryV1(authorizations)
+
+
+def _authentication_policy_registry_v1(
+    authorizations: EconomicCommandAuthorizationRegistryV1,
+) -> EconomicPolicyRegistryV1:
+    return EconomicPolicyRegistryV1(
+        tuple(
+            EconomicPolicyBindingV1(
+                ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+                command_kind,
+                authorizations.registry_root,
+            )
+            for command_kind in sorted(
+                authorization.command_kind
+                for authorization in authorizations.authorizations
+            )
+        )
+    )
+
+
+class _AcceptingCommandSignatureVerifierV1:
+    def verify_command_signature(
+        self,
+        *,
+        signature_algorithm: str,
+        signer_public_key: str,
+        message_bytes: bytes,
+        signature_bytes: bytes,
+    ) -> bool:
+        return bool(
+            signature_algorithm
+            and signer_public_key
+            and message_bytes
+            and signature_bytes
+        )
+
+
+def _authenticate_occurrence_for_test(
+    profile: EconomicProfileSnapshotV1,
+    occurrence: EconomicCommandOccurrenceV1,
+    command: AssetTransferCommandV1 | ManagedAssetLifecycleCommandV1,
+) -> AuthenticatedEconomicCommandV1:
+    authorization_registry = _authorization_registry_v1(profile.route_registry)
+    policy_registry = _authentication_policy_registry_v1(authorization_registry)
+    authorization = authorization_registry.authorization_for(
+        occurrence,
+        signer_key_id=f"{occurrence.subject_id}-key-1",
+    )
+    authenticated_intent = authenticate_economic_command_intent_v1(
+        EconomicCommandAuthenticationCandidateV1(
+            profile=profile,
+            policy_registry=policy_registry,
+            authorization_registry=authorization_registry,
+            intent=EconomicCommandIntentV1(
+                chain_id=occurrence.chain_id,
+                deployment_root=occurrence.deployment_root,
+                profile_root=occurrence.profile_root,
+                command_kind=occurrence.command_kind,
+                command_body_hash=occurrence.command_body_hash,
+                route_release_id=occurrence.route_release_id,
+                subject_id=occurrence.subject_id,
+                grant_root=occurrence.grant_root,
+                nonce=occurrence.nonce,
+                consumed_object_ids=occurrence.consumed_object_ids,
+                valid_from_height=0,
+                valid_through_height=(1 << 64) - 1,
+            ),
+            envelope=EconomicCommandAuthenticationEnvelopeV1(
+                command_body_bytes=canonical_economic_command_body_bytes_v1(
+                    occurrence.command_kind,
+                    command,
+                ),
+                signer_key_id=authorization.signer_key_id,
+                signer_public_key=authorization.signer_public_key,
+                signature_algorithm=authorization.signature_algorithm,
+                signature_bytes=b"test-command-signature-v1",
+            ),
+        ),
+        _AcceptingCommandSignatureVerifierV1(),
+    )
+    return bind_authenticated_intent_to_occurrence_v1(
+        authenticated_intent,
+        occurrence,
+    )
 
 
 def _occurrence(
@@ -402,7 +538,7 @@ def test_asset_output_gets_opaque_active_profile_release_route_binding() -> None
     assert bound.producer_module_schema == ASSET_TRANSFER_MODULE_SCHEMA_V1
     assert bound.route_lane_index == 0
     assert bound.port_schema_root == routes[ASSET_TRANSFER_COMMAND_KIND_V1].port_schema_roots[0]
-    assert bound.binding_root == "0xae8da5b98eb050274008340bad2f012f2497fa74975838dc298285cd0022a16f"
+    assert bound.binding_root == "0x8edeb241f6ca42b975c8347761b58d213d1b12dec4dc20a0f802d09fa99f912a"
     with pytest.raises(AttributeError, match="immutable"):
         bound._profile_id = _root(999)
 
@@ -816,11 +952,22 @@ def test_module_receipt_verification_uses_release_image_and_exact_journal() -> N
     profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
     receipt_bytes = b"succinct-asset-transfer-module-receipt-v1"
     verifier = _RecordingModuleReceiptVerifier()
+    authenticated = _authenticate_occurrence_for_test(
+        profile,
+        occurrence,
+        module_input.command,
+    )
+    assert authenticated.authentication_message_digest == (
+        "0xcfeeeee4af7a196cbb6918370780eb1cbc6dd957ba80d96190691b75bd52ecc2"
+    )
+    assert authenticated.binding_root == (
+        "0x8a17ef2b8084ac0ace96549258e05f6fd115582a9bc3cd3d4ba0d439568461b9"
+    )
 
     verified = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1(
             profile,
-            occurrence,
+            authenticated,
             module_input,
             accepted,
             bound,
@@ -832,6 +979,7 @@ def test_module_receipt_verification_uses_release_image_and_exact_journal() -> N
     release = profile.lane_registry.release_for(LaneIdV1.ASSET_TRANSFER)
     journal_bytes = canonical_global_bytes_v1(accepted.module_journal)
     assert verifier.calls == [(receipt_bytes, release.guest_image_id, journal_bytes)]
+    assert verified.authenticated_command_binding_root == authenticated.binding_root
     assert verified.release_route_binding_root == bound.binding_root
     assert verified.expected_image_id == release.guest_image_id
     assert verified.module_journal_root == accepted.module_journal.journal_root
@@ -839,7 +987,7 @@ def test_module_receipt_verification_uses_release_image_and_exact_journal() -> N
     assert verified.receipt_digest == "0x" + hashlib.sha256(receipt_bytes).hexdigest()
     assert verified.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified.receipt_digest != accepted.module_journal.receipt_root
-    assert verified.binding_root == "0x6ae20472ca9c27befc6707cdbae18c97b1dc5c220145b6c022849d32b72b828d"
+    assert verified.binding_root == "0x35f7cd5f8776d582be0eb137598b616e7f7335ee82b5e16483adbf4d8b34cc54"
     with pytest.raises(AttributeError, match="immutable"):
         verified._receipt_digest = _root(999)
 
@@ -877,7 +1025,7 @@ def test_managed_module_receipts_gain_only_release_image_bound_authority(
     verified = verify_managed_asset_lifecycle_lane_module_receipt_v1(
         ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
             profile,
-            occurrence,
+            _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
             module_input,
             accepted,
             bound,
@@ -906,7 +1054,11 @@ def test_module_receipt_rejects_empty_nonsuccinct_and_verifier_failure() -> None
             verify_asset_transfer_lane_module_receipt_v1(
                 AssetTransferLaneModuleReceiptCandidateV1(
                     profile,
-                    occurrence,
+                    _authenticate_occurrence_for_test(
+                        profile,
+                        occurrence,
+                        module_input.command,
+                    ),
                     module_input,
                     accepted,
                     bound,
@@ -921,7 +1073,11 @@ def test_module_receipt_rejects_empty_nonsuccinct_and_verifier_failure() -> None
         verify_asset_transfer_lane_module_receipt_v1(
             AssetTransferLaneModuleReceiptCandidateV1(
                 profile,
-                occurrence,
+                _authenticate_occurrence_for_test(
+                    profile,
+                    occurrence,
+                    module_input.command,
+                ),
                 module_input,
                 accepted,
                 bound,
@@ -954,7 +1110,11 @@ def test_structural_binding_cannot_authorize_a_mutated_module_journal() -> None:
         verify_asset_transfer_lane_module_receipt_v1(
             AssetTransferLaneModuleReceiptCandidateV1(
                 profile,
-                occurrence,
+                _authenticate_occurrence_for_test(
+                    profile,
+                    occurrence,
+                    module_input.command,
+                ),
                 substituted_input,
                 substituted,
                 bound,
@@ -1039,7 +1199,7 @@ def test_transfer_candidate_revalidates_retained_accepted_output_before_verifier
     profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
     candidate = AssetTransferLaneModuleReceiptCandidateV1(
         profile,
-        occurrence,
+        _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
         module_input,
         accepted,
         bound,
@@ -1062,7 +1222,7 @@ def test_managed_candidate_revalidates_retained_accepted_output_before_verifier(
     profile, occurrence, module_input, accepted, bound = _accepted_managed_issue_with_binding()
     candidate = ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
         profile,
-        occurrence,
+        _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
         module_input,
         accepted,
         bound,
@@ -1089,7 +1249,7 @@ def test_transfer_receipt_rejects_retained_command_subclass_before_verifier() ->
 
     candidate = AssetTransferLaneModuleReceiptCandidateV1(
         profile,
-        occurrence,
+        _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
         module_input,
         accepted,
         bound,
@@ -1146,7 +1306,7 @@ def test_managed_receipt_rejects_retained_command_subclass_before_verifier() -> 
 
     candidate = ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
         profile,
-        occurrence,
+        _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
         module_input,
         accepted,
         bound,
@@ -1178,6 +1338,98 @@ def test_verified_module_witness_rejects_public_construction() -> None:
         )
 
 
+def test_raw_occurrence_cannot_enter_module_receipt_authority() -> None:
+    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    with pytest.raises(TypeError, match="authenticated economic command"):
+        AssetTransferLaneModuleReceiptCandidateV1(
+            profile,
+            occurrence,  # type: ignore[arg-type]
+            module_input,
+            accepted,
+            bound,
+            LaneModuleReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"raw-occurrence"),
+        )
+
+
+def test_duck_typed_candidate_cannot_inject_authentication_root_at_verification() -> None:
+    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    forged_authentication = SimpleNamespace(
+        occurrence=occurrence,
+        binding_root=_root(98_001),
+    )
+    candidate = SimpleNamespace(
+        profile=profile,
+        authenticated_command=forged_authentication,
+        module_input=module_input,
+        accepted=accepted,
+        release_route_binding=bound,
+        receipt=LaneModuleReceiptEnvelopeV1(
+            ReceiptKindV1.SUCCINCT,
+            b"duck-typed-authentication",
+        ),
+    )
+    verifier = _RecordingModuleReceiptVerifier()
+
+    with pytest.raises(TypeError, match="candidate must have the exact type"):
+        verify_asset_transfer_lane_module_receipt_v1(
+            candidate,  # type: ignore[arg-type]
+            verifier,
+        )
+    assert verifier.calls == []
+
+
+def test_mutated_candidate_cannot_inject_authentication_root_at_verification() -> None:
+    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    candidate = AssetTransferLaneModuleReceiptCandidateV1(
+        profile,
+        _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
+        module_input,
+        accepted,
+        bound,
+        LaneModuleReceiptEnvelopeV1(
+            ReceiptKindV1.SUCCINCT,
+            b"mutated-authentication",
+        ),
+    )
+    object.__setattr__(
+        candidate,
+        "authenticated_command",
+        SimpleNamespace(occurrence=occurrence, binding_root=_root(98_002)),
+    )
+    verifier = _RecordingModuleReceiptVerifier()
+
+    with pytest.raises(TypeError, match="authenticated economic command"):
+        verify_asset_transfer_lane_module_receipt_v1(candidate, verifier)
+    assert verifier.calls == []
+
+
+def test_managed_candidate_cannot_inject_authentication_root_at_verification() -> None:
+    profile, occurrence, module_input, accepted, bound = (
+        _accepted_managed_issue_with_binding()
+    )
+    candidate = ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
+        profile,
+        _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
+        module_input,
+        accepted,
+        bound,
+        LaneModuleReceiptEnvelopeV1(
+            ReceiptKindV1.SUCCINCT,
+            b"mutated-managed-authentication",
+        ),
+    )
+    object.__setattr__(
+        candidate,
+        "authenticated_command",
+        SimpleNamespace(occurrence=occurrence, binding_root=_root(98_003)),
+    )
+    verifier = _RecordingModuleReceiptVerifier()
+
+    with pytest.raises(TypeError, match="authenticated economic command"):
+        verify_managed_asset_lifecycle_lane_module_receipt_v1(candidate, verifier)
+    assert verifier.calls == []
+
+
 def _verified_transfer_and_coordinator_context() -> tuple[
     EconomicProfileSnapshotV1,
     EconomicCommandOccurrenceV1,
@@ -1193,7 +1445,7 @@ def _verified_transfer_and_coordinator_context() -> tuple[
     verified = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1(
             profile,
-            occurrence,
+            _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
             module_input,
             accepted,
             bound,
@@ -1307,7 +1559,7 @@ def test_verified_module_receipt_backs_only_exact_structural_lane_composition() 
     assert composition.module_receipt_digest == verified.receipt_digest
     assert composition.lane_journal_root != accepted.module_journal.journal_root
     assert composition.binding_root == (
-        "0xe0d5116ef8420b6193f82a548e63d1cb7b51ea848fddc528d14e348c3833aa50"
+        "0x9d909a3011bbad17ea421f26d9d3a7b1015db77a6ce1e5fd93a2b38a062a93f4"
     )
 
 
@@ -1380,7 +1632,7 @@ def test_lane_composition_receipt_uses_selected_image_and_exact_journal() -> Non
     )
     assert verified_composition.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified_composition.binding_root == (
-        "0x2690590f3fe2401292c5322d052bf203295f8a55d7651221bdcf61655fcf32a1"
+        "0x45f6cae3aefa5e254eef00be549e4f89237b9cfba85491658da1ce31a6b703bb"
     )
 
 
@@ -1483,7 +1735,11 @@ def test_valid_module_receipt_cannot_back_a_different_lane_journal() -> None:
     substituted_verified = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1(
             profile,
-            occurrence,
+            _authenticate_occurrence_for_test(
+                profile,
+                occurrence,
+                substituted_input.command,
+            ),
             substituted_input,
             substituted,
             substituted_bound,
@@ -1602,7 +1858,7 @@ def test_route_composition_receipt_uses_selected_image_and_exact_lane_witness() 
     assert verified_route.receipt_digest == "0x" + hashlib.sha256(receipt_bytes).hexdigest()
     assert verified_route.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified_route.binding_root == (
-        "0x193c8b0d56b5c34291fc62ff6bd7ebda2d2cbbb861df21c599a9e2cd8a324e6e"
+        "0xe0aa0a203b6efd91fb29d732fa1719a50cdf53c3d2249fc9004c175517d7cf8d"
     )
 
 

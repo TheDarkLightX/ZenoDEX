@@ -2,21 +2,26 @@ use std::cell::RefCell;
 
 use serde_json::json;
 use zenodex_global_settlement_abi_v1::{
-    bind_asset_transfer_lane_output_to_release_route_v1,
+    authenticate_economic_command_intent_v1, bind_asset_transfer_lane_output_to_release_route_v1,
+    bind_authenticated_intent_to_occurrence_v1,
     bind_managed_asset_lifecycle_lane_output_to_release_route_v1,
-    compose_asset_lane_epoch_effect_plans_v1, compose_asset_lane_single_v1,
-    compose_receipt_backed_asset_lane_single_v1, derive_route_composition_assumption_root_v1,
-    hash_bytes_sha256_v1, hash_global_v1, project_asset_transfer_state_v1,
-    transition_asset_transfer_lane_module_v1, transition_managed_asset_lifecycle_lane_module_v1,
-    verify_asset_lane_composition_receipt_v1, verify_asset_transfer_lane_module_receipt_v1,
-    verify_economic_epoch_receipt_v1, verify_managed_asset_lifecycle_lane_module_receipt_v1,
-    verify_route_composition_receipt_v1, AbiErrorV1, AssetLaneCompositionResultV1,
-    AssetLaneCoordinatorContextV1, AssetLaneModuleCompatibilityV1, AssetSupplyV1,
-    AssetTransferCommandV1, AssetTransferContextV1, AssetTransferLaneModuleAcceptedV1,
-    AssetTransferLaneModuleInputV1, AssetTransferLaneModuleReceiptCandidateV1,
-    AssetTransferLaneModuleResultV1, AssetTransferPolicyV1, AssetTransferStateV1, EconomicAmountV1,
-    EconomicCommandOccurrenceV1, EconomicEffectKindV1, EconomicEpochReceiptCandidateV1,
-    EconomicEpochRouteStateDisclosureV1, EconomicEpochSuccinctReceiptVerifierV1,
+    canonical_economic_command_body_bytes_v1, compose_asset_lane_epoch_effect_plans_v1,
+    compose_asset_lane_single_v1, compose_receipt_backed_asset_lane_single_v1,
+    derive_route_composition_assumption_root_v1, hash_bytes_sha256_v1, hash_global_v1,
+    project_asset_transfer_state_v1, transition_asset_transfer_lane_module_v1,
+    transition_managed_asset_lifecycle_lane_module_v1, verify_asset_lane_composition_receipt_v1,
+    verify_asset_transfer_lane_module_receipt_v1, verify_economic_epoch_receipt_v1,
+    verify_managed_asset_lifecycle_lane_module_receipt_v1, verify_route_composition_receipt_v1,
+    AbiErrorV1, AssetLaneCompositionResultV1, AssetLaneCoordinatorContextV1,
+    AssetLaneModuleCompatibilityV1, AssetSupplyV1, AssetTransferCommandV1, AssetTransferContextV1,
+    AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
+    AssetTransferLaneModuleReceiptCandidateV1, AssetTransferLaneModuleResultV1,
+    AssetTransferPolicyV1, AssetTransferStateV1, AuthenticatedEconomicCommandV1, EconomicAmountV1,
+    EconomicCommandAuthenticationCandidateV1, EconomicCommandAuthenticationEnvelopeV1,
+    EconomicCommandAuthorizationRegistryV1, EconomicCommandAuthorizationV1,
+    EconomicCommandIntentV1, EconomicCommandOccurrenceV1, EconomicCommandSignatureVerifierV1,
+    EconomicEffectKindV1, EconomicEpochReceiptCandidateV1, EconomicEpochRouteStateDisclosureV1,
+    EconomicEpochSuccinctReceiptVerifierV1, EconomicPolicyBindingV1, EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1, EvidenceStatusV1, ExternalOutboxEnqueueV1,
     GlobalEconomicEffectPlanV1, GlobalEconomicEpochCertificateV1, GlobalEconomicStateV1,
     LaneCompositionAuthorityLevelV1, LaneCompositionJournalV1, LaneCompositionReceiptCandidateV1,
@@ -33,6 +38,7 @@ use zenodex_global_settlement_abi_v1::{
     RouteReleaseV1, VerifiedLaneCompositionV1, VerifiedLaneModuleTransitionV1,
     VerifiedRouteCompositionV1, ALL_LANE_IDS_V1, ASSET_TRANSFER_COMMAND_KIND_V1,
     ASSET_TRANSFER_LANE_MODULE_INPUT_SCHEMA_V1, ASSET_TRANSFER_MODULE_SCHEMA_V1,
+    ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1, ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1,
     GLOBAL_SETTLEMENT_ABI_V1, MANAGED_ASSET_BURN_COMMAND_KIND_V1,
     MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, MANAGED_ASSET_LIFECYCLE_LANE_MODULE_INPUT_SCHEMA_V1,
     MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1, ZERO_ROOT_V1,
@@ -237,6 +243,140 @@ fn route(command_kind: &str, index: u64, release_id: &RootV1) -> RouteReleaseV1 
     route
 }
 
+fn authorization_registry(routes: &RouteRegistryV1) -> EconomicCommandAuthorizationRegistryV1 {
+    let mut authorizations = routes
+        .routes
+        .iter()
+        .map(|route| {
+            let (subject_id, grant_root) = match route.command_kind.as_str() {
+                ASSET_TRANSFER_COMMAND_KIND_V1 => ("alice", root(7)),
+                MANAGED_ASSET_BURN_COMMAND_KIND_V1 => ("alice", root(6)),
+                MANAGED_ASSET_ISSUE_COMMAND_KIND_V1 => ("issuer", root(5)),
+                _ => panic!("unsupported authentication test route"),
+            };
+            EconomicCommandAuthorizationV1 {
+                schema: ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1.to_owned(),
+                command_kind: route.command_kind.clone(),
+                subject_id: subject_id.to_owned(),
+                grant_root,
+                route_release_id: route.route_release_id.clone(),
+                signer_key_id: format!("{subject_id}-key-1"),
+                signer_public_key: format!("bls12-381-g2:{subject_id}-public-key"),
+                signature_algorithm: "BLS12_381_G2_BASIC_V1".to_owned(),
+                valid_from_height: 0,
+                valid_through_height: u64::MAX,
+                min_nonce: 0,
+                max_nonce: u64::MAX,
+                enabled: true,
+            }
+        })
+        .collect::<Vec<_>>();
+    authorizations.sort_by(|left, right| {
+        (
+            &left.command_kind,
+            &left.subject_id,
+            &left.grant_root,
+            &left.route_release_id,
+            &left.signer_key_id,
+        )
+            .cmp(&(
+                &right.command_kind,
+                &right.subject_id,
+                &right.grant_root,
+                &right.route_release_id,
+                &right.signer_key_id,
+            ))
+    });
+    EconomicCommandAuthorizationRegistryV1 {
+        schema: ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1.to_owned(),
+        authorizations,
+    }
+}
+
+fn authentication_policy_registry(
+    authorizations: &EconomicCommandAuthorizationRegistryV1,
+) -> EconomicPolicyRegistryV1 {
+    let mut command_kinds = authorizations
+        .authorizations
+        .iter()
+        .map(|authorization| authorization.command_kind.clone())
+        .collect::<Vec<_>>();
+    command_kinds.sort();
+    EconomicPolicyRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        bindings: command_kinds
+            .into_iter()
+            .map(|command_kind| EconomicPolicyBindingV1 {
+                policy_kind: ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1.to_owned(),
+                command_kind,
+                policy_root: authorizations.registry_root().unwrap(),
+            })
+            .collect(),
+    }
+}
+
+struct AcceptingCommandSignatureVerifierV1;
+
+impl EconomicCommandSignatureVerifierV1 for AcceptingCommandSignatureVerifierV1 {
+    fn verify_command_signature(
+        &self,
+        _signature_algorithm: &str,
+        _signer_public_key: &str,
+        message_bytes: &[u8],
+        signature_bytes: &[u8],
+    ) -> Result<bool, AbiErrorV1> {
+        Ok(!message_bytes.is_empty() && !signature_bytes.is_empty())
+    }
+}
+
+fn authenticate_occurrence(
+    profile: &EconomicProfileSnapshotV1,
+    routes: &RouteRegistryV1,
+    occurrence: &EconomicCommandOccurrenceV1,
+    command_body_bytes: Vec<u8>,
+) -> AuthenticatedEconomicCommandV1 {
+    let authorization_registry = authorization_registry(routes);
+    let policy_registry = authentication_policy_registry(&authorization_registry);
+    let authorization = authorization_registry
+        .authorization_for(occurrence, &format!("{}-key-1", occurrence.subject_id))
+        .unwrap();
+    let intent = EconomicCommandIntentV1 {
+        schema: ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1.to_owned(),
+        chain_id: occurrence.chain_id.clone(),
+        deployment_root: occurrence.deployment_root.clone(),
+        profile_root: occurrence.profile_root.clone(),
+        command_kind: occurrence.command_kind.clone(),
+        command_body_hash: occurrence.command_body_hash.clone(),
+        route_release_id: occurrence.route_release_id.clone(),
+        subject_id: occurrence.subject_id.clone(),
+        grant_root: occurrence.grant_root.clone(),
+        nonce: occurrence.nonce,
+        consumed_object_ids: occurrence.consumed_object_ids.clone(),
+        valid_from_height: 0,
+        valid_through_height: u64::MAX,
+    };
+    let envelope = EconomicCommandAuthenticationEnvelopeV1 {
+        command_body_bytes,
+        signer_key_id: authorization.signer_key_id.clone(),
+        signer_public_key: authorization.signer_public_key.clone(),
+        signature_algorithm: authorization.signature_algorithm.clone(),
+        signature_bytes: b"test-command-signature-v1".to_vec(),
+    };
+    let authenticated_intent = authenticate_economic_command_intent_v1(
+        &EconomicCommandAuthenticationCandidateV1 {
+            profile,
+            routes,
+            policy_registry: &policy_registry,
+            authorization_registry: &authorization_registry,
+            intent: &intent,
+            envelope: &envelope,
+        },
+        &AcceptingCommandSignatureVerifierV1,
+    )
+    .unwrap();
+    bind_authenticated_intent_to_occurrence_v1(&authenticated_intent, occurrence).unwrap()
+}
+
 fn profile() -> (
     EconomicProfileSnapshotV1,
     LaneRegistryV1,
@@ -283,7 +423,10 @@ fn profile() -> (
     let root_image_id = root(521);
     let verifier_registry_root = root(522);
     let migration_registry_root = root(523);
-    let policy_registry_root = root(524);
+    let authorizations = authorization_registry(&routes);
+    let policy_registry_root = authentication_policy_registry(&authorizations)
+        .registry_root()
+        .unwrap();
     let terminal_registry_root = root(525);
     let content = json!({
         "schema": GLOBAL_SETTLEMENT_ABI_V1,
@@ -544,7 +687,7 @@ fn asset_issue_and_burn_outputs_bind_to_exact_active_profile_routes() {
     );
     assert_eq!(
         bound.binding_root().unwrap().as_str(),
-        "0xae8da5b98eb050274008340bad2f012f2497fa74975838dc298285cd0022a16f"
+        "0x8edeb241f6ca42b975c8347761b58d213d1b12dec4dc20a0f802d09fa99f912a"
     );
 
     for (command_kind, subject_id, grant_root) in [
@@ -996,13 +1139,20 @@ fn verified_asset_lane_fixture_with_state_at(
         &accepted,
     )
     .unwrap();
+    let authenticated = authenticate_occurrence(
+        &profile,
+        &routes,
+        &occurrence,
+        canonical_economic_command_body_bytes_v1(&input.command.command_kind, &input.command)
+            .unwrap(),
+    );
     let verified = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1 {
             profile: &profile,
             lanes: &lanes,
             coordinators: &coordinators,
             routes: &routes,
-            occurrence: &occurrence,
+            authenticated_command: &authenticated,
             module_input: &input,
             accepted: &accepted,
             release_route_binding: &bound,
@@ -1137,6 +1287,21 @@ fn module_receipt_verification_uses_release_image_and_exact_journal() {
     .unwrap();
     let verifier = RecordingModuleReceiptVerifier::default();
     let receipt_bytes = b"succinct-asset-transfer-module-receipt-v1";
+    let authenticated = authenticate_occurrence(
+        &profile,
+        &routes,
+        &occurrence,
+        canonical_economic_command_body_bytes_v1(&input.command.command_kind, &input.command)
+            .unwrap(),
+    );
+    assert_eq!(
+        authenticated.authentication_message_digest().as_str(),
+        "0xcfeeeee4af7a196cbb6918370780eb1cbc6dd957ba80d96190691b75bd52ecc2"
+    );
+    assert_eq!(
+        authenticated.binding_root().unwrap().as_str(),
+        "0x8a17ef2b8084ac0ace96549258e05f6fd115582a9bc3cd3d4ba0d439568461b9"
+    );
 
     let verified = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1 {
@@ -1144,7 +1309,7 @@ fn module_receipt_verification_uses_release_image_and_exact_journal() {
             lanes: &lanes,
             coordinators: &coordinators,
             routes: &routes,
-            occurrence: &occurrence,
+            authenticated_command: &authenticated,
             module_input: &input,
             accepted: &accepted,
             release_route_binding: &bound,
@@ -1172,6 +1337,10 @@ fn module_receipt_verification_uses_release_image_and_exact_journal() {
         verified.release_route_binding_root(),
         &bound.binding_root().unwrap()
     );
+    assert_eq!(
+        verified.authenticated_command_binding_root(),
+        &authenticated.binding_root().unwrap()
+    );
     assert_eq!(verified.expected_image_id(), &release.guest_image_id);
     assert_eq!(
         verified.module_journal_root(),
@@ -1184,11 +1353,11 @@ fn module_receipt_verification_uses_release_image_and_exact_journal() {
     );
     assert_eq!(
         verified.binding_root().unwrap().as_str(),
-        "0x6ae20472ca9c27befc6707cdbae18c97b1dc5c220145b6c022849d32b72b828d"
+        "0x35f7cd5f8776d582be0eb137598b616e7f7335ee82b5e16483adbf4d8b34cc54"
     );
     assert_eq!(
         verified.module_journal_digest().as_str(),
-        "0x94fc7afb4670d96de4e0aab2d6468a23fad28677103757c077a9af76d9201774"
+        "0x513e682dfaf961867085dccaaf9f959e0b5d322d8832115182882266f063e168"
     );
     assert_eq!(
         verified.receipt_digest().as_str(),
@@ -1221,6 +1390,13 @@ fn managed_module_receipts_gain_release_image_bound_authority() {
         )
         .unwrap();
         let verifier = RecordingModuleReceiptVerifier::default();
+        let authenticated = authenticate_occurrence(
+            &profile,
+            &routes,
+            &occurrence,
+            canonical_economic_command_body_bytes_v1(&input.command.command_kind, &input.command)
+                .unwrap(),
+        );
 
         let verified = verify_managed_asset_lifecycle_lane_module_receipt_v1(
             ManagedAssetLifecycleLaneModuleReceiptCandidateV1 {
@@ -1228,7 +1404,7 @@ fn managed_module_receipts_gain_release_image_bound_authority() {
                 lanes: &lanes,
                 coordinators: &coordinators,
                 routes: &routes,
-                occurrence: &occurrence,
+                authenticated_command: &authenticated,
                 module_input: &input,
                 accepted: &accepted,
                 release_route_binding: &bound,
@@ -1276,6 +1452,13 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
         &accepted,
     )
     .unwrap();
+    let authenticated = authenticate_occurrence(
+        &profile,
+        &routes,
+        &occurrence,
+        canonical_economic_command_body_bytes_v1(&input.command.command_kind, &input.command)
+            .unwrap(),
+    );
 
     for (kind, bytes, expected_error) in [
         (
@@ -1297,7 +1480,7 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
                     lanes: &lanes,
                     coordinators: &coordinators,
                     routes: &routes,
-                    occurrence: &occurrence,
+                    authenticated_command: &authenticated,
                     module_input: &input,
                     accepted: &accepted,
                     release_route_binding: &bound,
@@ -1329,7 +1512,7 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
                 lanes: &lanes,
                 coordinators: &coordinators,
                 routes: &routes,
-                occurrence: &occurrence,
+                authenticated_command: &authenticated,
                 module_input: &substituted_input,
                 accepted: &substituted,
                 release_route_binding: &bound,
@@ -1356,7 +1539,7 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
                 lanes: &lanes,
                 coordinators: &coordinators,
                 routes: &routes,
-                occurrence: &occurrence,
+                authenticated_command: &authenticated,
                 module_input: &input,
                 accepted: &accepted,
                 release_route_binding: &bound,
@@ -1410,7 +1593,7 @@ fn exact_verified_module_receipt_backs_structural_lane_composition() {
     );
     assert_eq!(
         composition.binding_root().unwrap().as_str(),
-        "0xe0d5116ef8420b6193f82a548e63d1cb7b51ea848fddc528d14e348c3833aa50"
+        "0x9d909a3011bbad17ea421f26d9d3a7b1015db77a6ce1e5fd93a2b38a062a93f4"
     );
 }
 
@@ -1434,13 +1617,23 @@ fn valid_module_receipt_for_another_journal_rejects() {
         &substituted,
     )
     .unwrap();
+    let substituted_authenticated = authenticate_occurrence(
+        &fixture.profile,
+        &fixture.routes,
+        &fixture.occurrence,
+        canonical_economic_command_body_bytes_v1(
+            &substituted_input.command.command_kind,
+            &substituted_input.command,
+        )
+        .unwrap(),
+    );
     let substituted_verified = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1 {
             profile: &fixture.profile,
             lanes: &fixture.lanes,
             coordinators: &fixture.coordinators,
             routes: &fixture.routes,
-            occurrence: &fixture.occurrence,
+            authenticated_command: &substituted_authenticated,
             module_input: &substituted_input,
             accepted: &substituted,
             release_route_binding: &substituted_bound,
@@ -1616,11 +1809,11 @@ fn lane_composition_receipt_uses_governed_image_and_exact_journal() {
     assert_eq!(verified.receipt_kind(), ReceiptKindV1::SUCCINCT);
     assert_eq!(
         verified.lane_journal_digest().as_str(),
-        "0x60d852dca79ac715476ae04b7b5789186437120eabc7f15ec2321377956fa750"
+        "0xc1192b2ba22d387e6541eb5c4f5d9a2786170037f9f49b3e5138dde6f7ba98b1"
     );
     assert_eq!(
         verified.binding_root().unwrap().as_str(),
-        "0x2690590f3fe2401292c5322d052bf203295f8a55d7651221bdcf61655fcf32a1"
+        "0x45f6cae3aefa5e254eef00be549e4f89237b9cfba85491658da1ce31a6b703bb"
     );
 }
 
@@ -1894,11 +2087,11 @@ fn assert_verified_route_receipt(
     assert_eq!(verified.receipt_kind(), ReceiptKindV1::SUCCINCT);
     assert_eq!(
         verified.route_journal_digest().as_str(),
-        "0xb3394c15b174fc81883fe075e0a1f12323bba49f0c5bf5b512d0d1ff76264324"
+        "0xc84cecede8e6bfa0c8fec1d2a3c2726d2ec969f6545451e6f9ac8f67c843d448"
     );
     assert_eq!(
         verified.binding_root().unwrap().as_str(),
-        "0x193c8b0d56b5c34291fc62ff6bd7ebda2d2cbbb861df21c599a9e2cd8a324e6e"
+        "0xe0aa0a203b6efd91fb29d732fa1719a50cdf53c3d2249fc9004c175517d7cf8d"
     );
 }
 
@@ -2551,13 +2744,13 @@ fn economic_epoch_two_route_state_evidence_has_stable_rust_golden_roots() {
         verified.route_state_projection_roots().unwrap(),
         vec![
             RootV1::parse(
-                "0x7926202c57d13785f9fc5e2041e8fc510c59fe0a31ad7a010481723717013014",
+                "0xb4ec05412326971999e33d2e76243112d027490de9d7742e3bbfb967deaa988d",
                 "projection golden",
                 false,
             )
             .unwrap(),
             RootV1::parse(
-                "0xb2c33e50cc5f581f02ef766e4c8ac34ae6999f381e3b1ec2b8c3b1d46afc5958",
+                "0xf98a8d86d567e896842b5b3e23fb0d68d6f1fbc78c6541be4908b62117ac0734",
                 "projection golden",
                 false,
             )
@@ -2568,13 +2761,13 @@ fn economic_epoch_two_route_state_evidence_has_stable_rust_golden_roots() {
         verified.route_state_effect_refinement_roots().unwrap(),
         vec![
             RootV1::parse(
-                "0xbdd1153663d031e3ac6800593ab2f63244c1a8b96d691124566008fbdf8eeb0d",
+                "0x59b9e3b230d42d2880b24fec7d4868c0ea577c1e73c74337bbacfd07d162d5c8",
                 "refinement golden",
                 false,
             )
             .unwrap(),
             RootV1::parse(
-                "0x4a2507056edd9659491d6fe865969026824bd767cedda7f4fdaf685e966d13e7",
+                "0x263107babf34804ceb3ccd32ac6770ff2ce3fbba67ee80a3be97b844b52dd56e",
                 "refinement golden",
                 false,
             )

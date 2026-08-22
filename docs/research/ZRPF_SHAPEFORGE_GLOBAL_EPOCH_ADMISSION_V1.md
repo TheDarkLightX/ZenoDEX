@@ -408,8 +408,25 @@ The pre-release ABI now includes the canonical command-body hash in each
 occurrence identity. Implemented asset transfer and managed issue/burn binders
 derive that hash from the exact command in the module statement, while epoch
 verification and commit require the exact ordered body-hash sequence. This is
-structural reference evidence; authenticated ingress and canonical-byte
-availability remain outer premises.
+structural reference evidence. The bounded transfer and managed issue/burn
+admission path now also requires an opaque authenticated-command witness in
+Python and Rust. Its governed authorization registry binds command kind,
+subject, economic-policy grant, route, signer key and public key, algorithm,
+height interval, nonce interval, exact canonical command bytes, active profile,
+policy-registry root, and verifier-registry root into a pre-sequencing signed
+intent. A separate deterministic step binds every signed intent field and its
+height interval to one exact sequenced occurrence. Sequencer-assigned height,
+transaction index, operation index, and pre-state root require no second user
+signature. The verified module witness retains the resulting authentication
+binding root. Python and Rust share golden authentication-message and witness
+roots, and raw occurrences cannot construct module proof authority. The
+release-selected signature-verifier implementation and its governed selection,
+canonical command-byte retention, deployment, and production mounting remain
+outer premises. Python module-receipt verification exact-type checks and owns a
+revalidated candidate snapshot before dereferencing authentication authority;
+negative tests reject both a duck-typed raw-occurrence carrier and a valid
+candidate mutated after construction. This is retained-alias hardening within
+one process, not a cryptographic same-process boundary.
 
 This reaches evidence class `contract`. The existing settlement
 strong-validation slice retains its scoped `proved` status. The sibling RISC0

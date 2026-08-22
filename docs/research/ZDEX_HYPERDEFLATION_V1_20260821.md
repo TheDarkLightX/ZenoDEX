@@ -614,14 +614,23 @@ exact design.
   authority registry plus a data-slot-free opaque handle rejects coherent
   private-field injection at commit and exact retry. This narrows Python alias risk;
   it does not create a same-process security boundary;
-- Replay-ID safety assumes authenticated ingress supplies one canonical
-  `subject_id` per principal, verifies authorization over the exact occurrence,
-  preserves the canonical command bytes in the DA/archive layer, supplies
-  canonical chain identity, and applies migration rules that preserve
-  deployment replay continuity. This checker does not establish those external
-  identity, authentication, or availability premises. Other module families
-  must add the same executed-command/body-hash relation before authoritative
-  route admission;
+- The bounded transfer and managed issue/burn path now has typed authenticated
+  ingress in Python and Rust. A profile-committed authorization registry binds
+  canonical command bytes, subject, economic-policy grant, route, signer,
+  validity interval, and nonce into a pre-sequencing signed intent. A separate
+  deterministic binder matches every signed field to the sequenced occurrence;
+  sequencer-assigned transaction index, operation index, and pre-state root do
+  not require another user signature. Replay-ID safety still depends on the
+  release-selected signature-verifier implementation and governed verifier
+  selection, one canonical `subject_id` per principal, canonical command-byte
+  retention in the DA/archive layer, canonical chain identity, and migration
+  rules that preserve deployment replay continuity. This slice does not deploy
+  those outer dependencies. Other module families must add the same
+  authenticated executed-command relation before authoritative route admission.
+  Python module-receipt admission also exact-type checks and owns a revalidated
+  candidate snapshot at use time; duck-typed and post-construction
+  authentication-root injection tests reject before the receipt verifier. This
+  remains process-local hardening;
 - `zk/zdex_tokenomics_lane_coordinator_risc0`: unmounted RISC0 3.0.6 recursive
   coordinator source, exact governed module-release preflight, guest-side
   `env::verify` over the child image and canonical burn or fee journal, host-side

@@ -19,9 +19,12 @@ from .asset_transfer_lane_module_v1 import (
     AssetTransferLaneModuleAcceptedV1,
     AssetTransferLaneModuleInputV1,
     _recompute_asset_transfer_lane_module_accepted_v1,
+    _snapshot_asset_transfer_lane_module_accepted_v1,
+    _snapshot_asset_transfer_lane_module_input_v1,
 )
+from .economic_command_authentication_v1 import AuthenticatedEconomicCommandV1
+from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import (
-    EconomicCommandOccurrenceV1,
     LaneModuleTransitionJournalV1,
     ReceiptKindV1,
     SuccinctReceiptVerifierV1,
@@ -41,6 +44,8 @@ from .managed_asset_lifecycle_lane_module_v1 import (
     ManagedAssetLifecycleLaneModuleAcceptedV1,
     ManagedAssetLifecycleLaneModuleInputV1,
     _recompute_managed_asset_lifecycle_lane_module_accepted_v1,
+    _snapshot_managed_asset_lifecycle_lane_module_accepted_v1,
+    _snapshot_managed_asset_lifecycle_lane_module_input_v1,
 )
 
 VERIFIED_LANE_MODULE_TRANSITION_SCHEMA_V1: Final = (
@@ -64,7 +69,7 @@ class LaneModuleReceiptEnvelopeV1:
 @dataclass(frozen=True, slots=True)
 class AssetTransferLaneModuleReceiptCandidateV1:
     profile: EconomicProfileSnapshotV1
-    occurrence: EconomicCommandOccurrenceV1
+    authenticated_command: AuthenticatedEconomicCommandV1
     module_input: AssetTransferLaneModuleInputV1
     accepted: AssetTransferLaneModuleAcceptedV1
     release_route_binding: ReleaseRouteBoundLaneTransitionV1
@@ -73,7 +78,11 @@ class AssetTransferLaneModuleReceiptCandidateV1:
     def __post_init__(self) -> None:
         expected_types = (
             (self.profile, EconomicProfileSnapshotV1, "economic profile"),
-            (self.occurrence, EconomicCommandOccurrenceV1, "economic command occurrence"),
+            (
+                self.authenticated_command,
+                AuthenticatedEconomicCommandV1,
+                "authenticated economic command",
+            ),
             (self.module_input, AssetTransferLaneModuleInputV1, "asset transfer input"),
             (self.accepted, AssetTransferLaneModuleAcceptedV1, "asset transfer output"),
             (
@@ -84,14 +93,14 @@ class AssetTransferLaneModuleReceiptCandidateV1:
             (self.receipt, LaneModuleReceiptEnvelopeV1, "receipt envelope"),
         )
         for value, expected_type, label in expected_types:
-            if not isinstance(value, expected_type):
+            if type(value) is not expected_type:
                 raise TypeError(f"lane module {label} must be typed")
 
 
 @dataclass(frozen=True, slots=True)
 class ManagedAssetLifecycleLaneModuleReceiptCandidateV1:
     profile: EconomicProfileSnapshotV1
-    occurrence: EconomicCommandOccurrenceV1
+    authenticated_command: AuthenticatedEconomicCommandV1
     module_input: ManagedAssetLifecycleLaneModuleInputV1
     accepted: ManagedAssetLifecycleLaneModuleAcceptedV1
     release_route_binding: ReleaseRouteBoundLaneTransitionV1
@@ -100,7 +109,11 @@ class ManagedAssetLifecycleLaneModuleReceiptCandidateV1:
     def __post_init__(self) -> None:
         expected_types = (
             (self.profile, EconomicProfileSnapshotV1, "economic profile"),
-            (self.occurrence, EconomicCommandOccurrenceV1, "economic command occurrence"),
+            (
+                self.authenticated_command,
+                AuthenticatedEconomicCommandV1,
+                "authenticated economic command",
+            ),
             (
                 self.module_input,
                 ManagedAssetLifecycleLaneModuleInputV1,
@@ -119,12 +132,13 @@ class ManagedAssetLifecycleLaneModuleReceiptCandidateV1:
             (self.receipt, LaneModuleReceiptEnvelopeV1, "receipt envelope"),
         )
         for value, expected_type, label in expected_types:
-            if not isinstance(value, expected_type):
+            if type(value) is not expected_type:
                 raise TypeError(f"lane module {label} must be typed")
 
 
 @dataclass(frozen=True, slots=True)
 class _VerifiedLaneModuleTransitionFieldsV1:
+    authenticated_command_binding_root: str
     release_route_binding_root: str
     expected_image_id: str
     module_journal_root: str
@@ -152,6 +166,10 @@ class VerifiedLaneModuleTransitionV1:
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("VerifiedLaneModuleTransitionV1 is immutable")
+
+    @property
+    def authenticated_command_binding_root(self) -> str:
+        return self._fields.authenticated_command_binding_root
 
     @property
     def release_route_binding_root(self) -> str:
@@ -191,6 +209,9 @@ class VerifiedLaneModuleTransitionV1:
             "verified-lane-module-transition-v1",
             {
                 "schema": VERIFIED_LANE_MODULE_TRANSITION_SCHEMA_V1,
+                "authenticated_command_binding_root": (
+                    self.authenticated_command_binding_root
+                ),
                 "release_route_binding_root": self.release_route_binding_root,
                 "expected_image_id": self.expected_image_id,
                 "module_journal_root": self.module_journal_root,
@@ -210,6 +231,7 @@ def _sha256_root_v1(value: bytes) -> str:
 @dataclass(frozen=True, slots=True)
 class _ReboundLaneModuleReceiptCandidateV1:
     profile: EconomicProfileSnapshotV1
+    authenticated_command_binding_root: str
     module_journal: LaneModuleTransitionJournalV1
     release_route_binding: ReleaseRouteBoundLaneTransitionV1
     rebound: ReleaseRouteBoundLaneTransitionV1
@@ -246,6 +268,7 @@ def _verify_rebound_module_receipt_v1(
     return VerifiedLaneModuleTransitionV1(
         _VERIFIED_LANE_MODULE_TRANSITION_TOKEN,
         _VerifiedLaneModuleTransitionFieldsV1(
+            candidate.authenticated_command_binding_root,
             candidate.rebound.binding_root,
             release.guest_image_id,
             candidate.rebound.module_journal_root,
@@ -264,23 +287,26 @@ def verify_asset_transfer_lane_module_receipt_v1(
 ) -> VerifiedLaneModuleTransitionV1:
     """Verify one transfer receipt under its active release image and journal."""
 
+    owned = _snapshot_asset_transfer_receipt_candidate_v1(candidate)
+    occurrence = owned.authenticated_command.occurrence
     rebound = bind_asset_transfer_lane_output_to_release_route_v1(
-        candidate.profile,
-        candidate.occurrence,
-        candidate.module_input,
-        candidate.accepted,
+        owned.profile,
+        occurrence,
+        owned.module_input,
+        owned.accepted,
     )
     _, expected = _recompute_asset_transfer_lane_module_accepted_v1(
-        candidate.module_input,
-        candidate.accepted,
+        owned.module_input,
+        owned.accepted,
     )
     return _verify_rebound_module_receipt_v1(
         _ReboundLaneModuleReceiptCandidateV1(
-            candidate.profile,
+            owned.profile,
+            owned.authenticated_command.binding_root,
             expected.module_journal,
-            candidate.release_route_binding,
+            owned.release_route_binding,
             rebound,
-            candidate.receipt,
+            owned.receipt,
         ),
         receipt_verifier,
     )
@@ -292,26 +318,73 @@ def verify_managed_asset_lifecycle_lane_module_receipt_v1(
 ) -> VerifiedLaneModuleTransitionV1:
     """Verify one ordinary-token issue or burn receipt under its release image."""
 
+    owned = _snapshot_managed_lifecycle_receipt_candidate_v1(candidate)
+    occurrence = owned.authenticated_command.occurrence
     rebound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-        candidate.profile,
-        candidate.occurrence,
-        candidate.module_input,
-        candidate.accepted,
+        owned.profile,
+        occurrence,
+        owned.module_input,
+        owned.accepted,
     )
     _, expected = _recompute_managed_asset_lifecycle_lane_module_accepted_v1(
-        candidate.module_input,
-        candidate.accepted,
+        owned.module_input,
+        owned.accepted,
     )
     return _verify_rebound_module_receipt_v1(
         _ReboundLaneModuleReceiptCandidateV1(
-            candidate.profile,
+            owned.profile,
+            owned.authenticated_command.binding_root,
             expected.module_journal,
-            candidate.release_route_binding,
+            owned.release_route_binding,
             rebound,
-            candidate.receipt,
+            owned.receipt,
         ),
         receipt_verifier,
     )
+
+
+def _snapshot_asset_transfer_receipt_candidate_v1(
+    candidate: AssetTransferLaneModuleReceiptCandidateV1,
+) -> AssetTransferLaneModuleReceiptCandidateV1:
+    if type(candidate) is not AssetTransferLaneModuleReceiptCandidateV1:
+        raise TypeError("asset transfer receipt candidate must have the exact type")
+    return AssetTransferLaneModuleReceiptCandidateV1(
+        profile=snapshot_economic_profile_v1(candidate.profile),
+        authenticated_command=candidate.authenticated_command,
+        module_input=_snapshot_asset_transfer_lane_module_input_v1(
+            candidate.module_input
+        ),
+        accepted=_snapshot_asset_transfer_lane_module_accepted_v1(candidate.accepted),
+        release_route_binding=candidate.release_route_binding,
+        receipt=_snapshot_lane_module_receipt_envelope_v1(candidate.receipt),
+    )
+
+
+def _snapshot_managed_lifecycle_receipt_candidate_v1(
+    candidate: ManagedAssetLifecycleLaneModuleReceiptCandidateV1,
+) -> ManagedAssetLifecycleLaneModuleReceiptCandidateV1:
+    if type(candidate) is not ManagedAssetLifecycleLaneModuleReceiptCandidateV1:
+        raise TypeError("managed lifecycle receipt candidate must have the exact type")
+    return ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
+        profile=snapshot_economic_profile_v1(candidate.profile),
+        authenticated_command=candidate.authenticated_command,
+        module_input=_snapshot_managed_asset_lifecycle_lane_module_input_v1(
+            candidate.module_input
+        ),
+        accepted=_snapshot_managed_asset_lifecycle_lane_module_accepted_v1(
+            candidate.accepted
+        ),
+        release_route_binding=candidate.release_route_binding,
+        receipt=_snapshot_lane_module_receipt_envelope_v1(candidate.receipt),
+    )
+
+
+def _snapshot_lane_module_receipt_envelope_v1(
+    receipt: LaneModuleReceiptEnvelopeV1,
+) -> LaneModuleReceiptEnvelopeV1:
+    if type(receipt) is not LaneModuleReceiptEnvelopeV1:
+        raise TypeError("lane module receipt envelope must have the exact type")
+    return LaneModuleReceiptEnvelopeV1(receipt.receipt_kind, receipt.receipt_bytes)
 
 
 __all__ = [

@@ -185,18 +185,41 @@ struct EconomicCommandBodyContentV1<'a, T: Serialize> {
     command: &'a T,
 }
 
+pub fn canonical_economic_command_body_bytes_v1<T: Serialize>(
+    command_kind: &str,
+    command: &T,
+) -> AbiResultV1<Vec<u8>> {
+    validate_token_v1(command_kind, "economic command body kind")?;
+    canonical_bytes_v1(&EconomicCommandBodyContentV1 {
+        command_kind,
+        command,
+    })
+}
+
+pub fn hash_economic_command_body_bytes_v1(command_body_bytes: &[u8]) -> AbiResultV1<RootV1> {
+    if command_body_bytes.is_empty() {
+        return Err(AbiErrorV1::InvalidBounds("economic command body bytes"));
+    }
+    let mut digest = Sha256::new();
+    digest.update(b"zenodex:");
+    digest.update(b"authenticated-economic-command-body-v1");
+    digest.update(b":v1\0");
+    digest.update(command_body_bytes);
+    RootV1::parse(
+        format!("0x{}", hex::encode(digest.finalize())),
+        "economic command body hash",
+        false,
+    )
+}
+
 pub fn hash_economic_command_body_v1<T: Serialize>(
     command_kind: &str,
     command: &T,
 ) -> AbiResultV1<RootV1> {
-    validate_token_v1(command_kind, "economic command body kind")?;
-    hash_global_v1(
-        "authenticated-economic-command-body-v1",
-        &EconomicCommandBodyContentV1 {
-            command_kind,
-            command,
-        },
-    )
+    hash_economic_command_body_bytes_v1(&canonical_economic_command_body_bytes_v1(
+        command_kind,
+        command,
+    )?)
 }
 
 pub fn hash_bytes_sha256_v1(bytes: &[u8]) -> String {

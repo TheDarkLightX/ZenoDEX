@@ -6,6 +6,7 @@ use crate::asset_transfer_lane_module::{
 use crate::canonical::{
     canonical_bytes_v1, hash_bytes_sha256_v1, hash_global_v1, AbiErrorV1, AbiResultV1, RootV1,
 };
+use crate::economic_command_authentication::AuthenticatedEconomicCommandV1;
 use crate::lane_module_release_route_binding::{
     bind_asset_transfer_lane_output_to_release_route_v1,
     bind_managed_asset_lifecycle_lane_output_to_release_route_v1,
@@ -14,7 +15,7 @@ use crate::lane_module_release_route_binding::{
 use crate::managed_asset_lifecycle_lane_module::{
     ManagedAssetLifecycleLaneModuleAcceptedV1, ManagedAssetLifecycleLaneModuleInputV1,
 };
-use crate::proof::{EconomicCommandOccurrenceV1, LaneModuleTransitionJournalV1, ReceiptKindV1};
+use crate::proof::{LaneModuleTransitionJournalV1, ReceiptKindV1};
 use crate::release::{
     EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1, LaneRegistryV1, ReleaseStatusV1,
     RouteRegistryV1,
@@ -42,26 +43,24 @@ pub struct LaneModuleReceiptEnvelopeV1<'a> {
     pub receipt_bytes: &'a [u8],
 }
 
-#[derive(Clone, Copy, Debug)]
 pub struct AssetTransferLaneModuleReceiptCandidateV1<'a> {
     pub profile: &'a EconomicProfileSnapshotV1,
     pub lanes: &'a LaneRegistryV1,
     pub coordinators: &'a LaneCoordinatorRegistryV1,
     pub routes: &'a RouteRegistryV1,
-    pub occurrence: &'a EconomicCommandOccurrenceV1,
+    pub authenticated_command: &'a AuthenticatedEconomicCommandV1,
     pub module_input: &'a AssetTransferLaneModuleInputV1,
     pub accepted: &'a AssetTransferLaneModuleAcceptedV1,
     pub release_route_binding: &'a ReleaseRouteBoundLaneTransitionV1,
     pub receipt: LaneModuleReceiptEnvelopeV1<'a>,
 }
 
-#[derive(Clone, Copy, Debug)]
 pub struct ManagedAssetLifecycleLaneModuleReceiptCandidateV1<'a> {
     pub profile: &'a EconomicProfileSnapshotV1,
     pub lanes: &'a LaneRegistryV1,
     pub coordinators: &'a LaneCoordinatorRegistryV1,
     pub routes: &'a RouteRegistryV1,
-    pub occurrence: &'a EconomicCommandOccurrenceV1,
+    pub authenticated_command: &'a AuthenticatedEconomicCommandV1,
     pub module_input: &'a ManagedAssetLifecycleLaneModuleInputV1,
     pub accepted: &'a ManagedAssetLifecycleLaneModuleAcceptedV1,
     pub release_route_binding: &'a ReleaseRouteBoundLaneTransitionV1,
@@ -70,6 +69,7 @@ pub struct ManagedAssetLifecycleLaneModuleReceiptCandidateV1<'a> {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifiedLaneModuleTransitionV1 {
+    authenticated_command_binding_root: RootV1,
     release_route_binding_root: RootV1,
     expected_image_id: RootV1,
     module_journal_root: RootV1,
@@ -83,6 +83,7 @@ pub struct VerifiedLaneModuleTransitionV1 {
 #[derive(Serialize)]
 struct VerifiedLaneModuleTransitionContentV1<'a> {
     schema: &'static str,
+    authenticated_command_binding_root: &'a RootV1,
     release_route_binding_root: &'a RootV1,
     expected_image_id: &'a RootV1,
     module_journal_root: &'a RootV1,
@@ -94,6 +95,10 @@ struct VerifiedLaneModuleTransitionContentV1<'a> {
 }
 
 impl VerifiedLaneModuleTransitionV1 {
+    pub fn authenticated_command_binding_root(&self) -> &RootV1 {
+        &self.authenticated_command_binding_root
+    }
+
     pub fn release_route_binding_root(&self) -> &RootV1 {
         &self.release_route_binding_root
     }
@@ -131,6 +136,7 @@ impl VerifiedLaneModuleTransitionV1 {
             "verified-lane-module-transition-v1",
             &VerifiedLaneModuleTransitionContentV1 {
                 schema: VERIFIED_LANE_MODULE_TRANSITION_SCHEMA_V1,
+                authenticated_command_binding_root: &self.authenticated_command_binding_root,
                 release_route_binding_root: &self.release_route_binding_root,
                 expected_image_id: &self.expected_image_id,
                 module_journal_root: &self.module_journal_root,
@@ -150,6 +156,7 @@ fn sha256_root_v1(bytes: &[u8], field: &'static str) -> AbiResultV1<RootV1> {
 
 struct ReboundLaneModuleReceiptCandidateV1<'a> {
     lanes: &'a LaneRegistryV1,
+    authenticated_command_binding_root: RootV1,
     module_journal: &'a LaneModuleTransitionJournalV1,
     release_route_binding: &'a ReleaseRouteBoundLaneTransitionV1,
     rebound: ReleaseRouteBoundLaneTransitionV1,
@@ -205,6 +212,7 @@ fn verify_rebound_module_receipt_v1(
     )?;
 
     Ok(VerifiedLaneModuleTransitionV1 {
+        authenticated_command_binding_root: candidate.authenticated_command_binding_root,
         release_route_binding_root: candidate.rebound.binding_root()?,
         expected_image_id: release.guest_image_id.clone(),
         module_journal_root: candidate.rebound.module_journal_root().clone(),
@@ -220,18 +228,20 @@ pub fn verify_asset_transfer_lane_module_receipt_v1(
     candidate: AssetTransferLaneModuleReceiptCandidateV1<'_>,
     receipt_verifier: &dyn LaneModuleSuccinctReceiptVerifierV1,
 ) -> AbiResultV1<VerifiedLaneModuleTransitionV1> {
+    let occurrence = candidate.authenticated_command.occurrence();
     let rebound = bind_asset_transfer_lane_output_to_release_route_v1(
         candidate.profile,
         candidate.lanes,
         candidate.coordinators,
         candidate.routes,
-        candidate.occurrence,
+        occurrence,
         candidate.module_input,
         candidate.accepted,
     )?;
     verify_rebound_module_receipt_v1(
         ReboundLaneModuleReceiptCandidateV1 {
             lanes: candidate.lanes,
+            authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
             module_journal: &candidate.accepted.module_journal,
             release_route_binding: candidate.release_route_binding,
             rebound,
@@ -245,18 +255,20 @@ pub fn verify_managed_asset_lifecycle_lane_module_receipt_v1(
     candidate: ManagedAssetLifecycleLaneModuleReceiptCandidateV1<'_>,
     receipt_verifier: &dyn LaneModuleSuccinctReceiptVerifierV1,
 ) -> AbiResultV1<VerifiedLaneModuleTransitionV1> {
+    let occurrence = candidate.authenticated_command.occurrence();
     let rebound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
         candidate.profile,
         candidate.lanes,
         candidate.coordinators,
         candidate.routes,
-        candidate.occurrence,
+        occurrence,
         candidate.module_input,
         candidate.accepted,
     )?;
     verify_rebound_module_receipt_v1(
         ReboundLaneModuleReceiptCandidateV1 {
             lanes: candidate.lanes,
+            authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
             module_journal: &candidate.accepted.module_journal,
             release_route_binding: candidate.release_route_binding,
             rebound,

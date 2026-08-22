@@ -28,6 +28,17 @@ from src.core.asset_transfer_types_v1 import (
     AssetTransferPolicyV1,
     AssetTransferStateV1,
 )
+from src.core.economic_command_authentication_v1 import (
+    ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+    AuthenticatedEconomicCommandV1,
+    EconomicCommandAuthenticationCandidateV1,
+    EconomicCommandAuthenticationEnvelopeV1,
+    EconomicCommandAuthorizationRegistryV1,
+    EconomicCommandAuthorizationV1,
+    EconomicCommandIntentV1,
+    authenticate_economic_command_intent_v1,
+    bind_authenticated_intent_to_occurrence_v1,
+)
 from src.core.global_settlement_abi_v1 import (
     ALL_LANE_IDS_V1,
     MAX_DELTA_ATOMS_V1,
@@ -42,6 +53,8 @@ from src.core.global_settlement_abi_v1 import (
     EconomicEffectRowV1,
     EconomicEpochReceiptCandidateV1,
     EconomicEpochRouteStateDisclosureV1,
+    EconomicPolicyBindingV1,
+    EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
     EvidenceStatusV1,
     ExternalOutboxEnqueueV1,
@@ -70,6 +83,7 @@ from src.core.global_settlement_abi_v1 import (
     RouteReleaseV1,
     StateMigrationCertificateV1,
     VerifiedEconomicEpochV1,
+    canonical_economic_command_body_bytes_v1,
     compose_asset_lane_epoch_effect_plans_v1,
     validate_global_state_profile_v1,
     verify_economic_epoch_v1,
@@ -210,6 +224,33 @@ def _profile() -> tuple[EconomicProfileSnapshotV1, RouteReleaseV1]:
         accepts_new_objects=True,
         evidence_statuses=_active_evidence(),
     )
+    authorization_registry = EconomicCommandAuthorizationRegistryV1(
+        (
+            EconomicCommandAuthorizationV1(
+                command_kind=ASSET_TRANSFER_COMMAND_KIND_V1,
+                subject_id="alice",
+                grant_root=_root(600),
+                route_release_id=route.route_release_id,
+                signer_key_id="alice-key-1",
+                signer_public_key="bls12-381-g2:alice-public-key",
+                signature_algorithm="BLS12_381_G2_BASIC_V1",
+                valid_from_height=0,
+                valid_through_height=(1 << 64) - 1,
+                min_nonce=0,
+                max_nonce=(1 << 64) - 1,
+                enabled=True,
+            ),
+        )
+    )
+    policy_registry = EconomicPolicyRegistryV1(
+        (
+            EconomicPolicyBindingV1(
+                ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+                ASSET_TRANSFER_COMMAND_KIND_V1,
+                authorization_registry.registry_root,
+            ),
+        )
+    )
     profile = EconomicProfileSnapshotV1.build(
         authority_epoch=7,
         lane_registry=lane_registry,
@@ -219,7 +260,7 @@ def _profile() -> tuple[EconomicProfileSnapshotV1, RouteReleaseV1]:
         root_image_id=_root(411),
         verifier_registry_root=_root(412),
         migration_registry_root=_root(413),
-        policy_registry_root=_root(414),
+        policy_registry_root=policy_registry.registry_root,
         terminal_registry_root=_root(415),
         status=ProfileStatusV1.ACTIVE,
     )
@@ -334,6 +375,91 @@ class _RecordingReceiptVerifier:
         self.calls.append((receipt_bytes, expected_image_id, expected_journal_bytes))
 
 
+class _AcceptingCommandSignatureVerifierV1:
+    def verify_command_signature(
+        self,
+        *,
+        signature_algorithm: str,
+        signer_public_key: str,
+        message_bytes: bytes,
+        signature_bytes: bytes,
+    ) -> bool:
+        return bool(
+            signature_algorithm
+            and signer_public_key
+            and message_bytes
+            and signature_bytes
+        )
+
+
+def _authenticate_occurrence_for_test(
+    profile: EconomicProfileSnapshotV1,
+    occurrence: EconomicCommandOccurrenceV1,
+    command: AssetTransferCommandV1,
+) -> AuthenticatedEconomicCommandV1:
+    route = profile.route_registry.route_for_command(occurrence.command_kind)
+    authorization = EconomicCommandAuthorizationV1(
+        command_kind=occurrence.command_kind,
+        subject_id=occurrence.subject_id,
+        grant_root=occurrence.grant_root,
+        route_release_id=route.route_release_id,
+        signer_key_id="alice-key-1",
+        signer_public_key="bls12-381-g2:alice-public-key",
+        signature_algorithm="BLS12_381_G2_BASIC_V1",
+        valid_from_height=0,
+        valid_through_height=(1 << 64) - 1,
+        min_nonce=0,
+        max_nonce=(1 << 64) - 1,
+        enabled=True,
+    )
+    authorization_registry = EconomicCommandAuthorizationRegistryV1((authorization,))
+    policy_registry = EconomicPolicyRegistryV1(
+        (
+            EconomicPolicyBindingV1(
+                ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+                occurrence.command_kind,
+                authorization_registry.registry_root,
+            ),
+        )
+    )
+    authenticated_intent = authenticate_economic_command_intent_v1(
+        EconomicCommandAuthenticationCandidateV1(
+            profile=profile,
+            policy_registry=policy_registry,
+            authorization_registry=authorization_registry,
+            intent=EconomicCommandIntentV1(
+                chain_id=occurrence.chain_id,
+                deployment_root=occurrence.deployment_root,
+                profile_root=occurrence.profile_root,
+                command_kind=occurrence.command_kind,
+                command_body_hash=occurrence.command_body_hash,
+                route_release_id=occurrence.route_release_id,
+                subject_id=occurrence.subject_id,
+                grant_root=occurrence.grant_root,
+                nonce=occurrence.nonce,
+                consumed_object_ids=occurrence.consumed_object_ids,
+                valid_from_height=0,
+                valid_through_height=(1 << 64) - 1,
+            ),
+            envelope=EconomicCommandAuthenticationEnvelopeV1(
+                command_body_bytes=canonical_economic_command_body_bytes_v1(
+                    occurrence.command_kind,
+                    command,
+                ),
+                signer_key_id=authorization.signer_key_id,
+                signer_public_key=authorization.signer_public_key,
+                signature_algorithm=authorization.signature_algorithm,
+                signature_bytes=b"test-command-signature-v1",
+            ),
+        ),
+        _AcceptingCommandSignatureVerifierV1(),
+    )
+    return bind_authenticated_intent_to_occurrence_v1(
+        authenticated_intent,
+        occurrence,
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class _VerifiedRouteEffectFixture:
     route_journal: RouteCompositionJournalV1
@@ -423,7 +549,11 @@ def _verified_asset_module_for_occurrence(
     verified_module = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1(
             profile,
-            occurrence,
+            _authenticate_occurrence_for_test(
+                profile,
+                occurrence,
+                module_input.command,
+            ),
             module_input,
             accepted,
             release_binding,
@@ -1748,12 +1878,12 @@ def test_epoch_two_route_state_evidence_has_stable_python_golden_roots() -> None
     verified = verify_economic_epoch_v1(candidate, _RecordingReceiptVerifier())
 
     assert verified.route_state_projection_roots == (
-        "0xa34cb59bb2e3f93e209b7424c863654c1a74f3160f9b071c6fa02be0032e5661",
-        "0x22e70a982dbff34dff29cd6e020d67a444c4c8cfb16f4db74f974cbfa1f274ca",
+        "0x59cc536b20695ccc8cb5930e9584c2bad13ab5f17a0a14f1a7be63f4a77fad9c",
+        "0xcd51d8a6a5e2eca8c13609f27017589b10f5cd536331a6c186df30d1d3516aa7",
     )
     assert verified.route_state_effect_refinement_roots == (
-        "0xde1871141e7fb7f89eab118c7771494b400a87f969cd7bc1d7a72e83ba086906",
-        "0xf1d22c9d76743e53f0a91dfa645028f05361001a2f4795397fcee4de57a30977",
+        "0xaf0db58675fbd68f8c6575f6b425ac43d4dad82ffc979cad589ab865cda85336",
+        "0xc99b0e7acb592632d410ef008b4af912bc29991e344e07c4988db40b76aae7bc",
     )
 
 
@@ -1805,16 +1935,7 @@ def test_epoch_rejects_missing_foreign_and_journal_substituted_route_witnesses()
     route_journal = candidate.route_journals[0]
     foreign_occurrence = replace(
         occurrence,
-        subject_id="mallory",
         nonce=occurrence.nonce + 1,
-        command_body_hash=AssetTransferCommandV1(
-            command_kind=ASSET_TRANSFER_COMMAND_KIND_V1,
-            asset="USD",
-            sender="mallory",
-            recipient="recipient",
-            amount_atoms=30,
-            max_fee_atoms=2,
-        ).command_body_hash,
     )
     _, foreign_verified_route = _verified_route_for_occurrence(
         candidate.profile,

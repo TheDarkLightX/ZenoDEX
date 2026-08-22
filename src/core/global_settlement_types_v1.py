@@ -133,16 +133,39 @@ def hash_global_v1(domain: str, value: object) -> str:
     return "0x" + digest.hexdigest()
 
 
-def hash_economic_command_body_v1(command_kind: str, command: object) -> str:
-    """Commit one exact canonical typed command payload under the ABI domain."""
+def canonical_economic_command_body_bytes_v1(
+    command_kind: str,
+    command: object,
+) -> bytes:
+    """Encode the exact typed command body signed and retained by ingress."""
 
     _require_token(command_kind, name="economic command body kind")
-    return hash_global_v1(
-        "authenticated-economic-command-body-v1",
+    return canonical_global_bytes_v1(
         {
             "command_kind": command_kind,
             "command": command,
-        },
+        }
+    )
+
+
+def hash_economic_command_body_bytes_v1(command_body_bytes: bytes) -> str:
+    """Hash exact canonical command bytes under the authenticated-body domain."""
+
+    if type(command_body_bytes) is not bytes:
+        raise TypeError("economic command body bytes must be exact bytes")
+    if not command_body_bytes:
+        raise ValueError("economic command body bytes must not be empty")
+    digest = hashlib.sha256()
+    digest.update(domain_sep_bytes("authenticated-economic-command-body-v1", version=1))
+    digest.update(command_body_bytes)
+    return "0x" + digest.hexdigest()
+
+
+def hash_economic_command_body_v1(command_kind: str, command: object) -> str:
+    """Commit one exact canonical typed command payload under the ABI domain."""
+
+    return hash_economic_command_body_bytes_v1(
+        canonical_economic_command_body_bytes_v1(command_kind, command)
     )
 
 
@@ -1814,5 +1837,7 @@ __all__ = [
     "LaneTransitionAcceptedV1",
     "LaneTransitionRejectedV1",
     "canonical_global_bytes_v1",
+    "canonical_economic_command_body_bytes_v1",
+    "hash_economic_command_body_bytes_v1",
     "hash_global_v1",
 ]

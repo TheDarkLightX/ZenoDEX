@@ -167,9 +167,11 @@ process-local hardening creates no same-process security or cryptographic
 boundary.
 Identical economic payloads may have identical body hashes; canonical
 occurrence coordinates, subject, grant, nonce, and replay identity disambiguate
-their authorization and ordering. Authenticated ingress must still verify the
-signature or grant over the exact occurrence, and the DA/archive layer must
-retain the canonical bytes. Those outer premises are unimplemented here.
+their authorization and ordering. Authenticated ingress verifies a
+pre-sequencing signed intent over the exact economic fields and validity
+interval, then deterministically binds it to an occurrence. The DA/archive
+layer must retain the canonical command bytes. Selection and deployment of the
+profile-governed signature verifier remain outer premises.
 These reference checkers remain `IMPLEMENTED_UNMOUNTED`: there is no deployed
 route-composer guest, cryptographic verifier, external governed-profile anchor,
 durable writer, or production authority. `production_authority=NONE`.
@@ -180,11 +182,17 @@ implementation, so its legacy fixtures and module-owned outputs establish
 deterministic contract behavior only. The sibling pinned RISC0 3.0.6 crate has
 one real direct-recursion test, yet that test consumes a quarantined structural
 child which proves no economics. Guest-backed release registration,
-authenticated verifier selection, economic route receipts, guest-proved effect
-aggregation, multi-lane and terminal composition, the full 64-command replay,
-and cross-release coexistence evidence remain open. The deterministic host-side
-composer grants no proof, settlement, commit, or publication authority by
-itself.
+deployment of the release-selected command-signature verifier, economic route
+receipts, guest-proved effect aggregation, multi-lane and terminal composition,
+the full 64-command replay, and cross-release coexistence evidence remain open.
+The ABI now exposes typed profile-governed pre-sequencing intent
+authentication, exact occurrence binding, and an opaque witness required at
+transfer and managed issue/burn module receipt admission. That deterministic
+host-side boundary grants no proof, settlement, commit, or publication
+authority by itself. The Python mirror exact-type checks and snapshots each
+candidate again at verification time, closing duck-typed and
+post-construction authentication-root injection at that boundary. Python
+object opacity remains process-local hardening.
 
 ## Dependency decision
 

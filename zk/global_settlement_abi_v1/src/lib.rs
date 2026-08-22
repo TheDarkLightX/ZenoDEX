@@ -10,6 +10,8 @@ mod asset_transfer;
 mod asset_transfer_lane_module;
 mod asset_transfer_types;
 mod canonical;
+mod economic_command_authentication;
+mod economic_command_authorization_registry;
 mod economic_epoch_receipt_verification;
 mod effects;
 mod epoch_effect_composition;
@@ -57,11 +59,14 @@ pub use asset_transfer::*;
 pub use asset_transfer_lane_module::*;
 pub use asset_transfer_types::*;
 pub use canonical::{
-    canonical_bytes_v1, hash_bytes_sha256_v1, hash_global_v1, AbiErrorV1, AbiResultV1, RootV1,
+    canonical_bytes_v1, canonical_economic_command_body_bytes_v1, hash_bytes_sha256_v1,
+    hash_economic_command_body_bytes_v1, hash_global_v1, AbiErrorV1, AbiResultV1, RootV1,
     GLOBAL_SETTLEMENT_ABI_V1, MAX_ATOMS_V1, MAX_CYCLE_BUDGET_V1, MAX_EPOCH_COMMANDS_V1,
     MAX_EPOCH_LEAF_OCCURRENCES_V1, MAX_JOURNAL_BYTES_V1, MAX_POLICY_BINDINGS_V1,
     MAX_ROUTE_MODULES_V1, MAX_TOKEN_BYTES_V1, ZERO_ROOT_V1,
 };
+pub use economic_command_authentication::*;
+pub use economic_command_authorization_registry::*;
 pub use economic_epoch_receipt_verification::*;
 pub use effects::*;
 pub use epoch_effect_composition::*;
