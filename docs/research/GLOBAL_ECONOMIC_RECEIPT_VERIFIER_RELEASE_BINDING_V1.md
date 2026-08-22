@@ -73,16 +73,24 @@ the capability identity, release ID, and binding root across each backend call.
 - receipt, journal, and image boundaries are checked before backend execution;
 - backend success is exactly `None`; truthy or other return values reject;
 - verifier authority coordinates are rechecked after backend execution;
+- binding snapshots the complete verifier registry, reselects the release from
+  that owned snapshot, and rechecks every selected release coordinate before
+  backend execution;
+- the backend verification callable is resolved once at binding and retained;
+  replacing the backend object's method after binding cannot change the
+  callable used by the capability;
 - the durable publisher accepts only the opaque bound-verifier type;
 - the journal commit additionally requires an instance-bound write capability.
 
 ## Non-guarantees and trusted premises
 
 The backend object and artifact bytes are supplied by the integration caller.
-V1 does not securely open a deployed executable, bind a process image, attest a
-remote verifier service, or replay a real RISC0 receipt. Python process privacy,
-weak registries, and underscore-prefixed functions do not form a security
-boundary against code executing in the same interpreter.
+Retaining one callable object does not attest its implementation, closure,
+globals, mutable backend state, or executing binary. V1 does not securely open
+a deployed executable, bind a process image, attest a remote verifier service,
+or replay a real RISC0 receipt. Python process privacy, weak registries, and
+underscore-prefixed functions do not form a security boundary against code
+executing in the same interpreter.
 
 Evidence statuses and artifact roots are exact committed data in this slice;
 they are not derived from independently replayed checker receipts. A production
@@ -102,6 +110,11 @@ fencing.
 - multiple releases eligible for one purpose reject as ambiguous;
 - wrong image, deployment, manifest, artifact, byte ceiling, or backend
   protocol rejects;
+- a private authority-shaped value with a release absent from the retained
+  registry, or with coordinates different from the selected release, rejects
+  before backend execution;
+- replacing the backend object's verifier method after binding cannot turn a
+  rejecting verifier into an accepting verifier;
 - hostile mutation of a frozen release is detected by reconstruction;
 - generic verifier objects reject before their backend method is called;
 - a foreign journal write capability rejects before SQLite mutation;
@@ -121,8 +134,9 @@ The focused deterministic tests use Arrange/Act/Assert structure and cover
 unique selection, evidence-state closure, registry and image mismatch, measured
 artifact mismatch, manifest-coordinate mutation, receipt byte BVA at 0/1/max/
 max+1, wrong backend return shape, generic-verifier rejection, reflective
-release mutation, capability construction denial, absent public journal commit,
-and cross-journal write-capability rejection.
+release mutation, selected-release and coordinate revalidation, post-bind
+method replacement, capability construction denial, absent public journal
+commit, and cross-journal write-capability rejection.
 
 Rust enforcement and Python/Rust/RISC0 differential replay are absent. This
 document records implementation evidence only. It does not establish

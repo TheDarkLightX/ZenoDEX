@@ -216,6 +216,29 @@ def _connect_v1(path: Path) -> sqlite3.Connection:
     return connection
 
 
+def _connect_existing_for_validation_v1(path: Path) -> sqlite3.Connection:
+    """Open an existing store without changing its persistent journal mode."""
+
+    connection = sqlite3.connect(
+        f"{path.as_uri()}?mode=rw",
+        uri=True,
+        timeout=5.0,
+        isolation_level=None,
+        check_same_thread=False,
+    )
+    try:
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA trusted_schema = OFF")
+        connection.execute("PRAGMA busy_timeout = 5000")
+        mode = connection.execute("PRAGMA journal_mode").fetchone()
+        if mode is None or str(mode[0]).lower() != "delete":
+            raise RuntimeError("durable epoch journal requires DELETE journal mode")
+    except BaseException:
+        connection.close()
+        raise
+    return connection
+
+
 def _rollback_v1(connection: sqlite3.Connection) -> None:
     if connection.in_transaction:
         connection.execute("ROLLBACK")
@@ -321,8 +344,10 @@ class GlobalEconomicEpochJournalV1:
             raise ValueError("durable epoch journal path must not be a symlink")
         if not normalized.is_file():
             raise FileNotFoundError("durable epoch journal file is absent")
-        journal = cls(normalized, _connect_v1(normalized))
+        journal = cls(normalized, _connect_existing_for_validation_v1(normalized))
         try:
+            journal._read_snapshot_v1()
+            _configure_connection_v1(journal._connection)
             journal._read_snapshot_v1()
         except BaseException:
             journal.close()
@@ -772,9 +797,18 @@ def _create_epoch_journal_for_verified_publisher_v1(
     path: str | Path,
     activation: DurableEconomicInitialStateBundleV1,
 ) -> tuple[GlobalEconomicEpochJournalV1, DurableEconomicEpochWriteCapabilityV1]:
-    """Create one journal and its instance-bound publisher capability."""
+    """Create or recover one exact journal and its publisher capability."""
 
-    journal = GlobalEconomicEpochJournalV1.create(path, activation)
+    owned_activation = _snapshot_activation_v1(activation)
+    try:
+        journal = GlobalEconomicEpochJournalV1.create(path, owned_activation)
+    except FileExistsError:
+        journal = GlobalEconomicEpochJournalV1.open(path)
+        if journal.activation_bundle.canonical_bytes != owned_activation.canonical_bytes:
+            journal.close()
+            raise ValueError(
+                "durable epoch journal existing activation bundle mismatch"
+            ) from None
     try:
         capability = _mint_write_capability_for_verified_publisher_v1(journal)
     except BaseException:

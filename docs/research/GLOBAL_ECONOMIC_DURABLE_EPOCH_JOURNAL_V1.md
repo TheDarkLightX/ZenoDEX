@@ -43,6 +43,10 @@ contiguous ordinary-epoch history with:
 - one transaction for epoch insertion and singleton-head update;
 - `DELETE` journal mode, `synchronous=FULL`, strict tables, trusted schema off,
   an exact schema allowlist, and coherent transactional reads;
+- open-time validation checks the existing journal mode and exact store before
+  applying persistent connection configuration;
+- the verified-publisher factory recovers an exact already committed activation
+  when create acknowledgement is lost;
 - complete store validation on create, open, read, and commit.
 
 ## Disaster-state evidence
@@ -60,12 +64,17 @@ The focused suite covers:
 - an executable negative witness preserving the underscore-prefixed
   same-interpreter structural-writer bypass as a release blocker;
 - schema expansion;
+- WAL plus schema-expansion rejection without changing the tested main database
+  bytes, journal mode, or stored rows;
+- exact verified-publisher activation retry after commit-before-ack;
 - exception recovery and abrupt process exit after begin, insert, head update,
   and commit-before-ack.
 
 Recovery yields the complete pre-commit activation/head or the complete
-post-commit epoch. The tests do not model every filesystem, storage controller,
-kernel, or hardware power-loss behavior.
+post-commit epoch. Direct create remains strict, and failure before the initial
+SQLite transaction can leave an empty target; atomic temporary construction and
+no-replace installation remain open work. The tests do not model every
+filesystem, storage controller, kernel, or hardware power-loss behavior.
 
 ## Authority and nonclaims
 

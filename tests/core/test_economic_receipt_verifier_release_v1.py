@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import pytest
 
+import src.core.economic_receipt_verifier_deployment_v1 as deployment_module
 from src.core.economic_receipt_verifier_deployment_v1 import (
     BoundEconomicReceiptVerifierV1,
     EconomicReceiptVerifierBackendV1,
@@ -428,6 +429,47 @@ def test_truthy_backend_result_is_not_cryptographic_success() -> None:
     assert len(backend.calls) == 1
 
 
+def test_bound_verifier_pins_backend_callable_against_method_replacement() -> None:
+    # Arrange: Mallory binds a rejecting backend, then replaces its method in place.
+    class RejectingBackend:
+        def __init__(self) -> None:
+            self.original_calls = 0
+            self.replacement_calls = 0
+
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            self.original_calls += 1
+            raise ValueError("pinned backend rejected receipt")
+
+    backend = RejectingBackend()
+    bound, _ = _bound(backend=cast(Any, backend))
+
+    def accept_replacement(
+        receipt_bytes: bytes,
+        *,
+        expected_image_id: str,
+        expected_journal_bytes: bytes,
+    ) -> None:
+        backend.replacement_calls += 1
+
+    cast(Any, backend).verify_succinct_receipt = accept_replacement
+
+    # Act and assert: verifier authority stays with the callable pinned at binding.
+    with pytest.raises(ValueError, match="pinned backend rejected receipt"):
+        bound.verify_succinct_receipt(
+            b"receipt",
+            expected_image_id=_root(411),
+            expected_journal_bytes=b"journal",
+        )
+    assert backend.original_calls == 1
+    assert backend.replacement_calls == 0
+
+
 def test_bound_capability_is_loader_constructed_and_has_no_data_slots() -> None:
     # Arrange: a valid capability has a stable release/profile binding root.
     bound, _ = _bound()
@@ -439,6 +481,51 @@ def test_bound_capability_is_loader_constructed_and_has_no_data_slots() -> None:
     with pytest.raises((AttributeError, TypeError)):
         object.__setattr__(bound, "release_id", _root(999))
     assert bound.binding_root == baseline
+
+
+def test_private_mint_rechecks_selected_release_and_coordinates() -> None:
+    # Arrange: Mallory imports private mint state and forges release coordinates.
+    manifest = _manifest()
+    release = _release(manifest)
+    registry = EconomicReceiptVerifierRegistryV1((release,))
+    profile, _ = _profile(verifier_registry_root=registry.registry_root)
+    backend = _RecordingBackend()
+    authority = deployment_module._BoundEconomicReceiptVerifierAuthorityV1(
+        release_id=_root(999),
+        verifier_registry_root=registry.registry_root,
+        verifier_registry=registry,
+        deployment_root=_root(7),
+        profile_root=profile.profile_id,
+        implementation_root=release.implementation_root,
+        evidence_manifest_root=release.evidence_manifest_root,
+        backend_protocol_root=release.backend_protocol_root,
+        root_image_id=release.root_image_id,
+        max_receipt_bytes=release.max_receipt_bytes,
+        max_journal_bytes=release.max_journal_bytes,
+        selection_purpose=(
+            EconomicReceiptVerifierSelectionPurposeV1.RESEARCH_SHADOW
+        ),
+        backend=backend,
+        verify_call=backend.verify_succinct_receipt,
+    )
+
+    # Act and assert: private construction still enforces registry membership.
+    with pytest.raises(ValueError, match="release is not selected by registry"):
+        BoundEconomicReceiptVerifierV1(
+            deployment_module._BOUND_RECEIPT_VERIFIER_TOKEN_V1,
+            authority,
+        )
+    mismatched = replace(
+        authority,
+        release_id=release.release_id,
+        implementation_root=_root(998),
+    )
+    with pytest.raises(ValueError, match="release coordinates mismatch"):
+        BoundEconomicReceiptVerifierV1(
+            deployment_module._BOUND_RECEIPT_VERIFIER_TOKEN_V1,
+            mismatched,
+        )
+    assert backend.calls == []
 
 
 def test_mutated_release_is_revalidated_before_registry_hashing() -> None:

@@ -7,6 +7,7 @@ import inspect
 from dataclasses import replace
 from pathlib import Path
 from threading import Event, Thread
+from typing import Any, cast
 
 import pytest
 
@@ -157,6 +158,32 @@ def test_create_publish_reopen_and_exact_retry_are_one_durable_history(
     reopened.close()
 
 
+def test_exact_create_retry_recovers_committed_activation_after_lost_ack(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Alice creates the exact verified activation, then loses the handle.
+    admission, candidate, _ = _publisher_fixture_v1()
+    path = tmp_path / "activation-create-retry.sqlite"
+    first = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    expected_head = first.head
+    first.close()
+
+    # Act: the operator retries create because the original acknowledgment was lost.
+    recovered = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+
+    # Assert: exact activation bytes recover one sequence-zero durable history.
+    assert recovered.head == expected_head
+    recovered.close()
+
+
 def test_fabricated_source_metadata_is_stale_before_receipt_verification(
     tmp_path: Path,
 ) -> None:
@@ -275,6 +302,64 @@ def test_selected_verifier_rejection_is_noop(
         )
     assert publisher.head == source
     assert len(backend.calls) == 2
+    publisher.close()
+
+
+def test_backend_method_replacement_cannot_turn_rejection_into_publication(
+    tmp_path: Path,
+) -> None:
+    # Arrange: genesis passes, but the callable pinned at binding rejects the epoch.
+    admission, candidate, body = _publisher_fixture_v1()
+
+    class RejectingEpochBackend(_RecordingBackend):
+        def __init__(self) -> None:
+            super().__init__()
+            self.replacement_calls = 0
+
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> object:
+            result = super().verify_succinct_receipt(
+                receipt_bytes,
+                expected_image_id=expected_image_id,
+                expected_journal_bytes=expected_journal_bytes,
+            )
+            if receipt_bytes == candidate.receipt_bytes:
+                raise ValueError("pinned epoch verifier rejected receipt")
+            return result
+
+    backend = RejectingEpochBackend()
+    verifier, _ = _bound_receipt_verifier_v1(candidate, backend)
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        tmp_path / "replaced-backend-method.sqlite",
+        admission,
+        verifier,
+    )
+    source = publisher.head
+
+    def accept_replacement(
+        receipt_bytes: bytes,
+        *,
+        expected_image_id: str,
+        expected_journal_bytes: bytes,
+    ) -> None:
+        backend.replacement_calls += 1
+
+    cast(Any, backend).verify_succinct_receipt = accept_replacement
+
+    # Act and assert: in-place method replacement cannot forge durable acceptance.
+    with pytest.raises(ValueError, match="pinned epoch verifier rejected receipt"):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=body,
+        )
+    assert publisher.head == source
+    assert backend.replacement_calls == 0
     publisher.close()
 
 

@@ -929,6 +929,31 @@ def test_given_extra_schema_object_when_opened_then_exact_schema_gate_rejects(
         GlobalEconomicEpochJournalV1.open(path)
 
 
+def test_given_wal_schema_mutant_when_open_rejects_then_store_is_unchanged(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Mallory supplies a WAL-mode database outside the closed schema.
+    path = tmp_path / "wal-schema-mutant.sqlite"
+    connection = sqlite3.connect(path)
+    assert connection.execute("PRAGMA journal_mode = WAL").fetchone() == ("wal",)
+    connection.execute("CREATE TABLE unexpected(value INTEGER) STRICT")
+    connection.execute("INSERT INTO unexpected(value) VALUES (7)")
+    connection.commit()
+    connection.close()
+    before = path.read_bytes()
+
+    # Act and assert: open rejects before changing the persistent journal mode.
+    with pytest.raises(RuntimeError, match="requires DELETE journal mode"):
+        GlobalEconomicEpochJournalV1.open(path)
+    assert path.read_bytes() == before
+    inspection = sqlite3.connect(f"{path.as_uri()}?mode=ro", uri=True)
+    try:
+        assert inspection.execute("PRAGMA journal_mode").fetchone() == ("wal",)
+        assert inspection.execute("SELECT value FROM unexpected").fetchall() == [(7,)]
+    finally:
+        inspection.close()
+
+
 def test_given_zero_remaining_row_capacity_when_committing_then_typed_noop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

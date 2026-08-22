@@ -53,7 +53,13 @@ Mechanical guarantees:
   activation evidence exists;
 - exact evidence-manifest, implementation-artifact, backend-protocol, profile,
   deployment, receipt-size, and journal-size binding;
+- owned registry reselection and exact release-coordinate revalidation before
+  each backend call;
+- one verifier callable resolved at binding and retained across publication, so
+  replacing the backend object's method cannot change receipt admission;
 - byte-identical activation reproduction on reopen;
+- exact create retry recovers an already committed, byte-identical activation
+  after a lost acknowledgement;
 - exact selected-profile comparison;
 - exact historical source resolution from one validated SQLite read snapshot;
 - verifier-instance, release, measured-binding-root, and publisher-token binding;
@@ -65,7 +71,9 @@ Mechanical guarantees:
 Explicit non-guarantees: Python process privacy and module-private names are not
 cryptographic capability boundaries. The backend object is an injected
 process-local premise, and artifact bytes are supplied to the binding function;
-this slice does not load and attest a deployed verifier executable. It provides
+callable retention does not attest callable behavior, closure state, process
+globals, or the executing binary. This slice does not load and attest a deployed
+verifier executable. It provides
 no real RISC0 receipt replay, active production verifier release, objective data
 availability or finality, migration activation, outbox delivery, destination
 acknowledgement, OS-level writer fencing, consensus mount, or production release
@@ -88,6 +96,9 @@ Staleness, aliasing, concurrency, and crash behavior:
 - the CAS token is captured before receipt verification;
 - a competing commit during verification yields exact retry or `STALE_HEAD`;
 - restart retry re-verifies the receipt and resolves the historical source;
+- activation create retry accepts only the exact already committed activation;
+- invalid stores are checked for the required journal mode and exact schema
+  before persistent connection configuration;
 - lower-journal exception and abrupt-exit tests establish bounded PRE-or-POST
   recovery at each SQLite fault point.
 
@@ -119,6 +130,8 @@ The focused tests use Arrange/Act/Assert structure and cover:
 - generic caller-selected verifier rejection before backend use;
 - wrong registry, image, deployment, evidence manifest, implementation artifact,
   byte bound, and backend success-shape rejection;
+- private authority-shape release/coordinate forgery and post-bind backend
+  method replacement rejected before publication;
 - shadow/active release evidence and unique-selection checks;
 - absent public journal commit method, forged write capability rejection, and
   cross-journal capability rejection;
@@ -126,6 +139,9 @@ The focused tests use Arrange/Act/Assert structure and cover:
   remains callable in the same interpreter and blocks `NO_BYPASS`;
 - two valid competing publishers and a head change during receipt verification;
 - wrong activation on reopen;
+- exact activation-create recovery after commit-before-ack and wrong-activation
+  rejection;
+- rejected WAL/schema-mutant open leaves the tested database unchanged;
 - bool/int source-coordinate alias rejection;
 - direct constructor rejection;
 - exact publication API shape with no caller-supplied witness, record, bundle,

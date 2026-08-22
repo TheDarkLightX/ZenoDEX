@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from threading import Lock
-from typing import Final, Protocol
+from typing import Final, Protocol, cast
 from weakref import WeakKeyDictionary
 
 from .economic_receipt_verifier_evidence_v1 import (
@@ -48,10 +48,23 @@ class EconomicReceiptVerifierBackendV1(Protocol):
     ) -> object: ...
 
 
+class _EconomicReceiptVerifierCallV1(Protocol):
+    """Exact callable retained when one backend deployment is bound."""
+
+    def __call__(
+        self,
+        receipt_bytes: bytes,
+        *,
+        expected_image_id: str,
+        expected_journal_bytes: bytes,
+    ) -> object: ...
+
+
 @dataclass(frozen=True, slots=True)
 class _BoundEconomicReceiptVerifierAuthorityV1:
     release_id: str
     verifier_registry_root: str
+    verifier_registry: EconomicReceiptVerifierRegistryV1
     deployment_root: str
     profile_root: str
     implementation_root: str
@@ -62,6 +75,7 @@ class _BoundEconomicReceiptVerifierAuthorityV1:
     max_journal_bytes: int
     selection_purpose: EconomicReceiptVerifierSelectionPurposeV1
     backend: EconomicReceiptVerifierBackendV1
+    verify_call: _EconomicReceiptVerifierCallV1
 
 
 _BOUND_RECEIPT_VERIFIER_TOKEN_V1: Final = object()
@@ -154,7 +168,8 @@ class BoundEconomicReceiptVerifierV1:
             raise ValueError("economic receipt verifier journal byte length is out of bounds")
         baseline = _bound_receipt_verifier_authority_baseline_v1(authority)
         backend = authority.backend
-        result = backend.verify_succinct_receipt(
+        verify_call = authority.verify_call
+        result = verify_call(
             receipt_bytes,
             expected_image_id=expected_image_id,
             expected_journal_bytes=expected_journal_bytes,
@@ -162,8 +177,10 @@ class BoundEconomicReceiptVerifierV1:
         retained = _snapshot_bound_receipt_verifier_authority_v1(
             _bound_receipt_verifier_authority_v1(self)
         )
-        if retained.backend is not backend or (
-            _bound_receipt_verifier_authority_baseline_v1(retained) != baseline
+        if (
+            retained.backend is not backend
+            or retained.verify_call is not verify_call
+            or _bound_receipt_verifier_authority_baseline_v1(retained) != baseline
         ):
             raise ValueError("economic receipt verifier authority changed during verification")
         if result is not None:
@@ -183,9 +200,12 @@ def bind_economic_receipt_verifier_deployment_v1(
     """Construct one measured capability from profile-selected release data."""
 
     owned_profile = snapshot_economic_profile_v1(profile)
+    owned_registry = _snapshot_economic_receipt_verifier_registry_v1(
+        verifier_registry
+    )
     release = select_profile_governed_economic_receipt_verifier_release_v1(
         profile=owned_profile,
-        verifier_registry=verifier_registry,
+        verifier_registry=owned_registry,
         selection_purpose=selection_purpose,
     )
     owned_release = _snapshot_economic_receipt_verifier_release_v1(release)
@@ -214,7 +234,8 @@ def bind_economic_receipt_verifier_deployment_v1(
         _BOUND_RECEIPT_VERIFIER_TOKEN_V1,
         _BoundEconomicReceiptVerifierAuthorityV1(
             release_id=owned_release.release_id,
-            verifier_registry_root=verifier_registry.registry_root,
+            verifier_registry_root=owned_registry.registry_root,
+            verifier_registry=owned_registry,
             deployment_root=deployment_root,
             profile_root=owned_profile.profile_id,
             implementation_root=owned_release.implementation_root,
@@ -225,6 +246,7 @@ def bind_economic_receipt_verifier_deployment_v1(
             max_journal_bytes=owned_release.max_journal_bytes,
             selection_purpose=selection_purpose,
             backend=backend,
+            verify_call=cast(_EconomicReceiptVerifierCallV1, verify_method),
         ),
     )
 
@@ -257,6 +279,9 @@ def _snapshot_bound_receipt_verifier_authority_v1(
 ) -> _BoundEconomicReceiptVerifierAuthorityV1:
     if type(authority) is not _BoundEconomicReceiptVerifierAuthorityV1:
         raise TypeError("economic receipt verifier authority is not closed")
+    owned_registry = _snapshot_economic_receipt_verifier_registry_v1(
+        authority.verifier_registry
+    )
     string_fields = (
         authority.release_id,
         authority.verifier_registry_root,
@@ -281,12 +306,31 @@ def _snapshot_bound_receipt_verifier_authority_v1(
     )
     if type(authority.selection_purpose) is not EconomicReceiptVerifierSelectionPurposeV1:
         raise TypeError("economic receipt verifier authority purpose is not closed")
-    verify_method = getattr(authority.backend, "verify_succinct_receipt", None)
-    if not callable(verify_method):
-        raise TypeError("economic receipt verifier authority backend is invalid")
+    if owned_registry.registry_root != authority.verifier_registry_root:
+        raise ValueError("economic receipt verifier authority registry root mismatch")
+    selected_release = owned_registry.release_for(authority.selection_purpose)
+    if selected_release.release_id != authority.release_id:
+        raise ValueError(
+            "economic receipt verifier authority release is not selected by registry"
+        )
+    release_coordinates = (
+        (selected_release.implementation_root, authority.implementation_root),
+        (selected_release.evidence_manifest_root, authority.evidence_manifest_root),
+        (selected_release.backend_protocol_root, authority.backend_protocol_root),
+        (selected_release.root_image_id, authority.root_image_id),
+        (selected_release.max_receipt_bytes, authority.max_receipt_bytes),
+        (selected_release.max_journal_bytes, authority.max_journal_bytes),
+    )
+    if any(actual != expected for actual, expected in release_coordinates):
+        raise ValueError(
+            "economic receipt verifier authority release coordinates mismatch"
+        )
+    if not callable(authority.verify_call):
+        raise TypeError("economic receipt verifier authority callable is invalid")
     return _BoundEconomicReceiptVerifierAuthorityV1(
         release_id=authority.release_id,
         verifier_registry_root=authority.verifier_registry_root,
+        verifier_registry=owned_registry,
         deployment_root=authority.deployment_root,
         profile_root=authority.profile_root,
         implementation_root=authority.implementation_root,
@@ -297,6 +341,7 @@ def _snapshot_bound_receipt_verifier_authority_v1(
         max_journal_bytes=authority.max_journal_bytes,
         selection_purpose=authority.selection_purpose,
         backend=authority.backend,
+        verify_call=authority.verify_call,
     )
 
 
@@ -364,6 +409,19 @@ def _snapshot_economic_receipt_verifier_release_v1(
         status=release.status,
         accepts_new_receipts=release.accepts_new_receipts,
         evidence_statuses=tuple(release.evidence_statuses),
+    )
+
+
+def _snapshot_economic_receipt_verifier_registry_v1(
+    registry: EconomicReceiptVerifierRegistryV1,
+) -> EconomicReceiptVerifierRegistryV1:
+    if type(registry) is not EconomicReceiptVerifierRegistryV1:
+        raise TypeError("economic receipt verifier registry must be exactly typed")
+    return EconomicReceiptVerifierRegistryV1(
+        tuple(
+            _snapshot_economic_receipt_verifier_release_v1(release)
+            for release in registry.releases
+        )
     )
 
 
