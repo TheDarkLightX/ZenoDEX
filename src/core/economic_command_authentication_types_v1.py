@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Final, Protocol
+from typing import Protocol
 
 from .economic_command_authorization_registry_v1 import (
     ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1,
     EconomicCommandAuthorizationRegistryV1,
+)
+from .economic_command_signature_verifier_registry_v1 import (
+    MAX_COMMAND_SIGNATURE_BYTES_V1,
+    EconomicCommandSignatureVerifierRegistryV1,
 )
 from .global_settlement_types_v1 import (
     MAX_JOURNAL_BYTES_V1,
@@ -19,8 +23,6 @@ from .global_settlement_types_v1 import (
     _require_token,
     hash_global_v1,
 )
-
-MAX_COMMAND_SIGNATURE_BYTES_V1: Final = 4_096
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +114,7 @@ class EconomicCommandAuthenticationCandidateV1:
     profile: EconomicProfileSnapshotV1
     policy_registry: EconomicPolicyRegistryV1
     authorization_registry: EconomicCommandAuthorizationRegistryV1
+    signature_verifier_registry: EconomicCommandSignatureVerifierRegistryV1
     intent: EconomicCommandIntentV1
     envelope: EconomicCommandAuthenticationEnvelopeV1
 
@@ -124,17 +127,23 @@ class EconomicCommandAuthenticationCandidateV1:
                 EconomicCommandAuthorizationRegistryV1,
                 "authorization registry",
             ),
+            (
+                self.signature_verifier_registry,
+                EconomicCommandSignatureVerifierRegistryV1,
+                "signature verifier registry",
+            ),
             (self.intent, EconomicCommandIntentV1, "intent"),
             (self.envelope, EconomicCommandAuthenticationEnvelopeV1, "envelope"),
         )
         for value, expected_type, label in expected_types:
             if type(value) is not expected_type:
-                raise TypeError(
-                    f"command authentication candidate {label} must be exactly typed"
-                )
+                raise TypeError(f"command authentication candidate {label} must be exactly typed")
 
 
 class EconomicCommandSignatureVerifierV1(Protocol):
+    @property
+    def verifier_release_id(self) -> str: ...
+
     def verify_command_signature(
         self,
         *,

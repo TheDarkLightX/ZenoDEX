@@ -620,9 +620,14 @@ exact design.
   validity interval, and nonce into a pre-sequencing signed intent. A separate
   deterministic binder matches every signed field to the sequenced occurrence;
   sequencer-assigned transaction index, operation index, and pre-state root do
-  not require another user signature. Replay-ID safety still depends on the
-  release-selected signature-verifier implementation and governed verifier
-  selection, one canonical `subject_id` per principal, canonical command-byte
+  not require another user signature. A second profile-policy binding now
+  selects one active content-derived command-signature verifier release for the
+  exact algorithm; its content binds an evidence-manifest root, and
+  authentication rejects a backend that claims another release ID. The status
+  labels and manifest root are committed declarations until a deployment gate
+  authenticates the manifest. Replay-ID safety still depends on deployment
+  proving that the loaded verifier corresponds to the selected implementation root, one
+  canonical `subject_id` per principal, canonical command-byte
   retention in the DA/archive layer, canonical chain identity, and migration
   rules that preserve deployment replay continuity. This slice does not deploy
   those outer dependencies. Other module families must add the same

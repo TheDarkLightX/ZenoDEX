@@ -24,6 +24,50 @@ fn active_evidence() -> Vec<EvidenceStatusV1> {
     ]
 }
 
+fn active_verifier_evidence() -> Vec<CommandSignatureVerifierEvidenceStatusV1> {
+    vec![
+        CommandSignatureVerifierEvidenceStatusV1::DEPLOYMENT_BOUND,
+        CommandSignatureVerifierEvidenceStatusV1::IMPLEMENTATION_REPLAYED,
+        CommandSignatureVerifierEvidenceStatusV1::IMPLEMENTED,
+        CommandSignatureVerifierEvidenceStatusV1::INDEPENDENTLY_REVIEWED,
+        CommandSignatureVerifierEvidenceStatusV1::NO_BYPASS,
+        CommandSignatureVerifierEvidenceStatusV1::RELEASE_BACKED,
+        CommandSignatureVerifierEvidenceStatusV1::SOURCE_PINNED,
+        CommandSignatureVerifierEvidenceStatusV1::SPECIFIED,
+        CommandSignatureVerifierEvidenceStatusV1::TESTED,
+        CommandSignatureVerifierEvidenceStatusV1::TOOLCHAIN_PINNED,
+    ]
+}
+
+fn signature_verifier_registry() -> EconomicCommandSignatureVerifierRegistryV1 {
+    let mut release = EconomicCommandSignatureVerifierReleaseV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        release_id: root(1),
+        semantic_version: "1.0.0-auth-test".to_owned(),
+        signature_algorithm: "BLS12_381_G2_BASIC_V1".to_owned(),
+        implementation_root: root(310),
+        public_key_schema_root: root(311),
+        signature_schema_root: root(312),
+        message_schema_root: root(313),
+        specification_root: root(314),
+        source_root: root(315),
+        toolchain_root: root(316),
+        evidence_manifest_root: root(317),
+        max_public_key_bytes: 160,
+        max_signature_bytes: 4_096,
+        status: ReleaseStatusV1::ACTIVE_NEW,
+        accepts_new_authentications: true,
+        evidence_statuses: active_verifier_evidence(),
+    };
+    release.release_id = release.derived_release_id().unwrap();
+    let registry = EconomicCommandSignatureVerifierRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        releases: vec![release],
+    };
+    registry.validate().unwrap();
+    registry
+}
+
 fn route() -> RouteReleaseV1 {
     let ordered_lanes = vec![LaneIdV1::ASSET_TRANSFER];
     let module_release_ids = vec![root(101)];
@@ -140,6 +184,7 @@ fn profile(
 
 struct RecordingVerifier {
     result: bool,
+    verifier_release_id: RootV1,
     calls: RefCell<Vec<RecordedSignatureCallV1>>,
 }
 
@@ -147,12 +192,17 @@ impl RecordingVerifier {
     fn accepting() -> Self {
         Self {
             result: true,
+            verifier_release_id: signature_verifier_registry().releases[0].release_id.clone(),
             calls: RefCell::new(Vec::new()),
         }
     }
 }
 
 impl EconomicCommandSignatureVerifierV1 for RecordingVerifier {
+    fn verifier_release_id(&self) -> &RootV1 {
+        &self.verifier_release_id
+    }
+
     fn verify_command_signature(
         &self,
         signature_algorithm: &str,
@@ -175,6 +225,7 @@ struct Fixture {
     routes: RouteRegistryV1,
     policy_registry: EconomicPolicyRegistryV1,
     authorization_registry: EconomicCommandAuthorizationRegistryV1,
+    signature_verifier_registry: EconomicCommandSignatureVerifierRegistryV1,
     intent: EconomicCommandIntentV1,
     occurrence: EconomicCommandOccurrenceV1,
     envelope: EconomicCommandAuthenticationEnvelopeV1,
@@ -191,13 +242,25 @@ impl Fixture {
             schema: ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1.to_owned(),
             authorizations: vec![authorization(&route)],
         };
-        let policy_registry = EconomicPolicyRegistryV1 {
-            schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
-            bindings: vec![EconomicPolicyBindingV1 {
+        let signature_verifier_registry = signature_verifier_registry();
+        let mut bindings = vec![
+            EconomicPolicyBindingV1 {
                 policy_kind: ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1.to_owned(),
                 command_kind: COMMAND_KIND.to_owned(),
                 policy_root: authorization_registry.registry_root().unwrap(),
-            }],
+            },
+            EconomicPolicyBindingV1 {
+                policy_kind: ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1.to_owned(),
+                command_kind: COMMAND_KIND.to_owned(),
+                policy_root: signature_verifier_registry.registry_root().unwrap(),
+            },
+        ];
+        bindings.sort_by(|left, right| {
+            (&left.policy_kind, &left.command_kind).cmp(&(&right.policy_kind, &right.command_kind))
+        });
+        let policy_registry = EconomicPolicyRegistryV1 {
+            schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+            bindings,
         };
         let profile = profile(&routes, &policy_registry, ProfileStatusV1::ACTIVE);
         let command = AssetTransferCommandV1 {
@@ -253,6 +316,7 @@ impl Fixture {
             routes,
             policy_registry,
             authorization_registry,
+            signature_verifier_registry,
             intent,
             occurrence,
             envelope,
@@ -265,6 +329,7 @@ impl Fixture {
             routes: &self.routes,
             policy_registry: &self.policy_registry,
             authorization_registry: &self.authorization_registry,
+            signature_verifier_registry: &self.signature_verifier_registry,
             intent: &self.intent,
             envelope: &self.envelope,
         }
@@ -304,160 +369,22 @@ fn exact_body_intent_and_policy_authenticate_then_bind_occurrence() {
 }
 
 #[test]
-fn sequencer_fields_do_not_require_a_second_signature() {
-    let fixture = Fixture::new();
-    let verifier = RecordingVerifier::accepting();
-    let authenticated_intent = fixture.authenticate_intent(&verifier).unwrap();
-    bind_authenticated_intent_to_occurrence_v1(&authenticated_intent, &fixture.occurrence).unwrap();
-    let mut resequenced = fixture.occurrence.clone();
-    resequenced.tx_index = 99;
-    resequenced.op_index = 17;
-    resequenced.pre_state_root = root(999);
-    bind_authenticated_intent_to_occurrence_v1(&authenticated_intent, &resequenced).unwrap();
-    assert_eq!(verifier.calls.borrow().len(), 1);
-}
-
-#[test]
-fn signed_intent_substitution_rejects_during_occurrence_binding() {
-    let fixture = Fixture::new();
-    let verifier = RecordingVerifier::accepting();
-    let authenticated_intent = fixture.authenticate_intent(&verifier).unwrap();
-    let mut substituted = fixture.occurrence.clone();
-    substituted.grant_root = root(999);
-    assert!(matches!(
-        bind_authenticated_intent_to_occurrence_v1(&authenticated_intent, &substituted),
-        Err(AbiErrorV1::InvalidBinding("grant"))
-    ));
-}
-
-#[test]
-fn body_substitution_rejects_before_signature_verifier() {
-    let mut fixture = Fixture::new();
-    fixture.envelope.command_body_bytes.push(b' ');
-    let verifier = RecordingVerifier::accepting();
-
-    assert!(matches!(
-        fixture.authenticate(&verifier),
-        Err(AbiErrorV1::InvalidBinding(
-            "command authentication body hash"
-        ))
-    ));
-    assert!(verifier.calls.borrow().is_empty());
-}
-
-#[test]
-fn signer_algorithm_and_disabled_policy_reject_before_verifier() {
-    let mut fixture = Fixture::new();
-    fixture.envelope.signature_algorithm = "FORGED_V1".to_owned();
-    let verifier = RecordingVerifier::accepting();
-    assert!(matches!(
-        fixture.authenticate(&verifier),
-        Err(AbiErrorV1::InvalidBinding(
-            "command authentication signature algorithm"
-        ))
-    ));
-    assert!(verifier.calls.borrow().is_empty());
-
-    let mut fixture = Fixture::new();
-    fixture.authorization_registry.authorizations[0].enabled = false;
-    fixture.policy_registry.bindings[0].policy_root =
-        fixture.authorization_registry.registry_root().unwrap();
-    fixture.profile = profile(
-        &fixture.routes,
-        &fixture.policy_registry,
-        ProfileStatusV1::ACTIVE,
-    );
-    fixture.intent.profile_root = fixture.profile.profile_id.clone();
-    fixture.occurrence.profile_root = fixture.profile.profile_id.clone();
-    let verifier = RecordingVerifier::accepting();
-    assert!(matches!(
-        fixture.authenticate(&verifier),
-        Err(AbiErrorV1::InvalidBinding("command authorization disabled"))
-    ));
-    assert!(verifier.calls.borrow().is_empty());
-}
-
-#[test]
-fn height_and_nonce_intervals_use_closed_boundary_semantics() {
-    for (height, accepted) in [(9, false), (10, true), (12, true), (13, false)] {
-        let mut fixture = Fixture::new();
-        fixture.occurrence.height = height;
-        let verifier = RecordingVerifier::accepting();
-        assert_eq!(fixture.authenticate(&verifier).is_ok(), accepted);
-    }
-    for (nonce, accepted) in [(7, false), (8, true), (10, true), (11, false)] {
-        let mut fixture = Fixture::new();
-        fixture.intent.nonce = nonce;
-        fixture.occurrence.nonce = nonce;
-        let verifier = RecordingVerifier::accepting();
-        assert_eq!(fixture.authenticate(&verifier).is_ok(), accepted);
-    }
-}
-
-#[test]
-fn intent_validity_must_fit_inside_authorization_interval() {
-    for (valid_from_height, valid_through_height) in [(9, 12), (10, 13)] {
-        let mut fixture = Fixture::new();
-        fixture.intent.valid_from_height = valid_from_height;
-        fixture.intent.valid_through_height = valid_through_height;
-        let verifier = RecordingVerifier::accepting();
-        assert!(matches!(
-            fixture.authenticate_intent(&verifier),
-            Err(AbiErrorV1::InvalidBinding(
-                "command intent validity exceeds authorization interval"
-            ))
-        ));
-        assert!(verifier.calls.borrow().is_empty());
-    }
-}
-
-#[test]
-fn inactive_profile_and_rejecting_verifier_fail_closed() {
-    let mut fixture = Fixture::new();
-    fixture.profile.status = ProfileStatusV1::SHADOW;
-    let verifier = RecordingVerifier::accepting();
-    assert!(matches!(
-        fixture.authenticate(&verifier),
-        Err(AbiErrorV1::InvalidBinding(
-            "command authentication requires active profile"
-        ))
-    ));
-    assert!(verifier.calls.borrow().is_empty());
-
+fn backend_claiming_an_unselected_verifier_release_rejects_before_use() {
     let fixture = Fixture::new();
     let verifier = RecordingVerifier {
-        result: false,
+        result: true,
+        verifier_release_id: root(999),
         calls: RefCell::new(Vec::new()),
     };
+
     assert!(matches!(
-        fixture.authenticate(&verifier),
+        fixture.authenticate_intent(&verifier),
         Err(AbiErrorV1::InvalidBinding(
-            "command authentication signature"
+            "command signature verifier release"
         ))
     ));
-    assert_eq!(verifier.calls.borrow().len(), 1);
+    assert!(verifier.calls.borrow().is_empty());
 }
 
-#[test]
-fn authorization_registry_rejects_duplicate_and_inverted_intervals() {
-    let route = route();
-    let authorization = authorization(&route);
-    let duplicate = EconomicCommandAuthorizationRegistryV1 {
-        schema: ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1.to_owned(),
-        authorizations: vec![authorization.clone(), authorization.clone()],
-    };
-    assert!(matches!(
-        duplicate.validate(),
-        Err(AbiErrorV1::InvalidOrder("command authorization registry"))
-    ));
-
-    let mut inverted = authorization;
-    inverted.min_nonce = 11;
-    inverted.max_nonce = 10;
-    assert!(matches!(
-        inverted.validate(),
-        Err(AbiErrorV1::InvalidBounds(
-            "command authorization nonce interval"
-        ))
-    ));
-}
+#[path = "economic_command_authentication/lifecycle_tests.rs"]
+mod lifecycle_tests;

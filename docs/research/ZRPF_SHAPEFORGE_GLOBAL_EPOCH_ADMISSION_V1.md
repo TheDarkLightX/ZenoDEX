@@ -414,15 +414,21 @@ Python and Rust. Its governed authorization registry binds command kind,
 subject, economic-policy grant, route, signer key and public key, algorithm,
 height interval, nonce interval, exact canonical command bytes, active profile,
 policy-registry root, and verifier-registry root into a pre-sequencing signed
-intent. A separate deterministic step binds every signed intent field and its
+intent. A second profile-policy binding selects one active content-derived
+command-signature verifier release for the exact algorithm and commits its
+implementation, specification, source, toolchain and wire-schema roots plus
+an evidence-manifest root and resource ceilings. Authentication rejects a
+backend that claims another release ID. The evidence status labels and manifest
+root are committed declarations until a deployment gate authenticates that
+manifest. A separate deterministic step binds every signed intent field and its
 height interval to one exact sequenced occurrence. Sequencer-assigned height,
 transaction index, operation index, and pre-state root require no second user
 signature. The verified module witness retains the resulting authentication
 binding root. Python and Rust share golden authentication-message and witness
 roots, and raw occurrences cannot construct module proof authority. The
-release-selected signature-verifier implementation and its governed selection,
-canonical command-byte retention, deployment, and production mounting remain
-outer premises. Python module-receipt verification exact-type checks and owns a
+correspondence between the selected release and the actually loaded verifier
+binary, canonical command-byte retention, deployment, and production mounting
+remain outer premises. Python module-receipt verification exact-type checks and owns a
 revalidated candidate snapshot before dereferencing authentication authority;
 negative tests reject both a duck-typed raw-occurrence carrier and a valid
 candidate mutated after construction. This is retained-alias hardening within
@@ -560,9 +566,11 @@ cargo test --locked -p zenodex-asset-lane-coordinator-risc0-host \
   the stable release-aware lane verifier, followed by a real economic route
   guest that consumes the resulting `VerifiedLaneCompositionV1`. Managed
   lifecycle and every other module family still lack a real module guest.
-- A full real 64-command recursion replay and resource benchmark; typed BVA
-  and fail-closed partition evidence already cover the boundary.
-- An authenticated governed verifier implementation and registry selection.
+- A fresh current-image `1`/`8`/`9`/`64` recursion replay and resource
+  benchmark. Historical donor evidence at `722882144` covers those structural
+  boundaries for older pinned images; it does not cover this branch.
+- An authenticated governed verifier implementation and deployment binding for
+  the structurally selected command-signature verifier release.
 - Deployment-selected coordinator releases and verifier implementations with
   authenticated evidence rather than synthetic test-profile status labels.
 - Durable atomic publication with crash and reopen evidence.
@@ -599,8 +607,11 @@ of eight and rejects zero, 65, reordered groups, split drift, wrong images, and
 module-leaf drift. A real 9-command run generated nine structural route
 receipts, `8+1` same-image command aggregations, and one exact epoch root in
 985.82 seconds. The economic lane receipt is not one of those route children.
-The full 64-command replay, economic route recursion, release registry,
-publisher, migration, and production authority remain open.
+The fresh current-image 64-command replay, economic route recursion, release
+registry, publisher, migration, and production authority remain open. The
+source-pinned donor evidence at `722882144` records a successful historical
+64-command structural-topology replay; its quarantined route leaves prove no
+economics and its older images cannot authorize this branch.
 
 The asset-transfer operator increment replaces host-owned fixture rebinding
 with a module-owned accepted result in the deterministic Python and Rust cores.

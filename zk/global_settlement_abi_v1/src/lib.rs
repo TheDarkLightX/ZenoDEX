@@ -12,6 +12,7 @@ mod asset_transfer_types;
 mod canonical;
 mod economic_command_authentication;
 mod economic_command_authorization_registry;
+mod economic_command_signature_verifier_registry;
 mod economic_epoch_receipt_verification;
 mod effects;
 mod epoch_effect_composition;
@@ -67,6 +68,7 @@ pub use canonical::{
 };
 pub use economic_command_authentication::*;
 pub use economic_command_authorization_registry::*;
+pub use economic_command_signature_verifier_registry::*;
 pub use economic_epoch_receipt_verification::*;
 pub use effects::*;
 pub use epoch_effect_composition::*;

@@ -36,6 +36,12 @@ from src.core.economic_command_authentication_v1 import (
     authenticate_economic_command_intent_v1,
     bind_authenticated_intent_to_occurrence_v1,
 )
+from src.core.economic_command_signature_verifier_registry_v1 import (
+    ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
+    CommandSignatureVerifierEvidenceStatusV1,
+    EconomicCommandSignatureVerifierRegistryV1,
+    EconomicCommandSignatureVerifierReleaseV1,
+)
 from src.core.global_economic_proof_v1 import (
     EconomicCommandOccurrenceV1,
     LaneCompositionJournalV1,
@@ -133,6 +139,35 @@ def _active_evidence() -> tuple[EvidenceStatusV1, ...]:
     )
 
 
+def _signature_verifier_registry_v1() -> EconomicCommandSignatureVerifierRegistryV1:
+    return EconomicCommandSignatureVerifierRegistryV1(
+        (
+            EconomicCommandSignatureVerifierReleaseV1.build(
+                semantic_version="1.0.0-lane-binding-test",
+                signature_algorithm="BLS12_381_G2_BASIC_V1",
+                implementation_root=_root(526),
+                public_key_schema_root=_root(527),
+                signature_schema_root=_root(528),
+                message_schema_root=_root(529),
+                specification_root=_root(530),
+                source_root=_root(531),
+                toolchain_root=_root(532),
+                evidence_manifest_root=_root(533),
+                max_public_key_bytes=160,
+                max_signature_bytes=4_096,
+                status=ReleaseStatusV1.ACTIVE_NEW,
+                accepts_new_authentications=True,
+                evidence_statuses=tuple(
+                    sorted(
+                        CommandSignatureVerifierEvidenceStatusV1,
+                        key=lambda status: status.value,
+                    )
+                ),
+            ),
+        )
+    )
+
+
 def _lane_release(lane_id: LaneIdV1, ordinal: int) -> LaneModuleReleaseV1:
     is_asset_lane = lane_id is LaneIdV1.ASSET_TRANSFER
     command_variants = (
@@ -161,7 +196,9 @@ def _lane_release(lane_id: LaneIdV1, ordinal: int) -> LaneModuleReleaseV1:
         migration_compatibility_root=_root(106 + offset),
         max_cycles=1_000_000,
         max_journal_bytes=65_536,
-        status=ReleaseStatusV1.ACTIVE_NEW if is_asset_lane else ReleaseStatusV1.SHADOW,
+        status=ReleaseStatusV1.ACTIVE_NEW
+        if is_asset_lane
+        else ReleaseStatusV1.SHADOW,
         accepts_new_objects=is_asset_lane,
         evidence_statuses=(
             _active_evidence()
@@ -184,14 +221,10 @@ def _coordinator_release(lane_id: LaneIdV1, ordinal: int) -> LaneCoordinatorRele
         toolchain_root=_root(304 + offset),
         max_cycles=1_000_000,
         max_journal_bytes=65_536,
-        status=ReleaseStatusV1.ACTIVE_NEW
-        if is_asset_lane
-        else ReleaseStatusV1.SHADOW,
+        status=ReleaseStatusV1.ACTIVE_NEW if is_asset_lane else ReleaseStatusV1.SHADOW,
         accepts_new_objects=is_asset_lane,
         evidence_statuses=(
-            _active_evidence()
-            if is_asset_lane
-            else (EvidenceStatusV1.DISABLED_PROVED_NO_WRITER,)
+            _active_evidence() if is_asset_lane else (EvidenceStatusV1.DISABLED_PROVED_NO_WRITER,)
         ),
     )
 
@@ -240,7 +273,11 @@ def _profile() -> tuple[EconomicProfileSnapshotV1, dict[str, RouteReleaseV1]]:
     )
     route_registry = RouteRegistryV1(routes)
     authorization_registry = _authorization_registry_v1(route_registry)
-    policy_registry = _authentication_policy_registry_v1(authorization_registry)
+    signature_verifier_registry = _signature_verifier_registry_v1()
+    policy_registry = _authentication_policy_registry_v1(
+        authorization_registry,
+        signature_verifier_registry,
+    )
     profile = EconomicProfileSnapshotV1.build(
         authority_epoch=7,
         lane_registry=lane_registry,
@@ -294,23 +331,47 @@ def _authorization_registry_v1(
 
 def _authentication_policy_registry_v1(
     authorizations: EconomicCommandAuthorizationRegistryV1,
+    signature_verifiers: EconomicCommandSignatureVerifierRegistryV1,
 ) -> EconomicPolicyRegistryV1:
     return EconomicPolicyRegistryV1(
         tuple(
-            EconomicPolicyBindingV1(
-                ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
-                command_kind,
-                authorizations.registry_root,
-            )
-            for command_kind in sorted(
-                authorization.command_kind
-                for authorization in authorizations.authorizations
+            sorted(
+                (
+                    EconomicPolicyBindingV1(
+                        policy_kind,
+                        command_kind,
+                        policy_root,
+                    )
+                    for command_kind in sorted(
+                        authorization.command_kind
+                        for authorization in authorizations.authorizations
+                    )
+                    for policy_kind, policy_root in (
+                        (
+                            ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+                            authorizations.registry_root,
+                        ),
+                        (
+                            ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
+                            signature_verifiers.registry_root,
+                        ),
+                    )
+                ),
+                key=lambda binding: (binding.policy_kind, binding.command_kind),
             )
         )
     )
 
 
 class _AcceptingCommandSignatureVerifierV1:
+    @property
+    def verifier_release_id(self) -> str:
+        return (
+            _signature_verifier_registry_v1()
+            .release_for_new_authentication("BLS12_381_G2_BASIC_V1")
+            .release_id
+        )
+
     def verify_command_signature(
         self,
         *,
@@ -333,7 +394,11 @@ def _authenticate_occurrence_for_test(
     command: AssetTransferCommandV1 | ManagedAssetLifecycleCommandV1,
 ) -> AuthenticatedEconomicCommandV1:
     authorization_registry = _authorization_registry_v1(profile.route_registry)
-    policy_registry = _authentication_policy_registry_v1(authorization_registry)
+    signature_verifier_registry = _signature_verifier_registry_v1()
+    policy_registry = _authentication_policy_registry_v1(
+        authorization_registry,
+        signature_verifier_registry,
+    )
     authorization = authorization_registry.authorization_for(
         occurrence,
         signer_key_id=f"{occurrence.subject_id}-key-1",
@@ -343,6 +408,7 @@ def _authenticate_occurrence_for_test(
             profile=profile,
             policy_registry=policy_registry,
             authorization_registry=authorization_registry,
+            signature_verifier_registry=signature_verifier_registry,
             intent=EconomicCommandIntentV1(
                 chain_id=occurrence.chain_id,
                 deployment_root=occurrence.deployment_root,
@@ -538,7 +604,7 @@ def test_asset_output_gets_opaque_active_profile_release_route_binding() -> None
     assert bound.producer_module_schema == ASSET_TRANSFER_MODULE_SCHEMA_V1
     assert bound.route_lane_index == 0
     assert bound.port_schema_root == routes[ASSET_TRANSFER_COMMAND_KIND_V1].port_schema_roots[0]
-    assert bound.binding_root == "0x8edeb241f6ca42b975c8347761b58d213d1b12dec4dc20a0f802d09fa99f912a"
+    assert bound.binding_root == "0xfea5479806618421176428b9230e93bbdb1840afdde647a1057d1d6c016ba821"
     with pytest.raises(AttributeError, match="immutable"):
         bound._profile_id = _root(999)
 
@@ -958,10 +1024,10 @@ def test_module_receipt_verification_uses_release_image_and_exact_journal() -> N
         module_input.command,
     )
     assert authenticated.authentication_message_digest == (
-        "0xcfeeeee4af7a196cbb6918370780eb1cbc6dd957ba80d96190691b75bd52ecc2"
+        "0x68282b1e035c6fd6b39120a958bf583a78382f929773513825dd6c3feac0ab37"
     )
     assert authenticated.binding_root == (
-        "0x8a17ef2b8084ac0ace96549258e05f6fd115582a9bc3cd3d4ba0d439568461b9"
+        "0xb74104aca72cbb8332452bfb730e5386e439951b54b8f6de4436c8ba78b233b7"
     )
 
     verified = verify_asset_transfer_lane_module_receipt_v1(
@@ -987,7 +1053,7 @@ def test_module_receipt_verification_uses_release_image_and_exact_journal() -> N
     assert verified.receipt_digest == "0x" + hashlib.sha256(receipt_bytes).hexdigest()
     assert verified.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified.receipt_digest != accepted.module_journal.receipt_root
-    assert verified.binding_root == "0x35f7cd5f8776d582be0eb137598b616e7f7335ee82b5e16483adbf4d8b34cc54"
+    assert verified.binding_root == "0x47eaf1621cfcae9ad2d8b54c505531f40b375195536a42b432791cd738f8113e"
     with pytest.raises(AttributeError, match="immutable"):
         verified._receipt_digest = _root(999)
 
@@ -1219,7 +1285,9 @@ def test_managed_candidate_revalidates_retained_accepted_output_before_verifier(
     mutation: str,
 ) -> None:
     # Arrange
-    profile, occurrence, module_input, accepted, bound = _accepted_managed_issue_with_binding()
+    profile, occurrence, module_input, accepted, bound = (
+        _accepted_managed_issue_with_binding()
+    )
     candidate = ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
         profile,
         _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
@@ -1404,9 +1472,7 @@ def test_mutated_candidate_cannot_inject_authentication_root_at_verification() -
 
 
 def test_managed_candidate_cannot_inject_authentication_root_at_verification() -> None:
-    profile, occurrence, module_input, accepted, bound = (
-        _accepted_managed_issue_with_binding()
-    )
+    profile, occurrence, module_input, accepted, bound = _accepted_managed_issue_with_binding()
     candidate = ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
         profile,
         _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
@@ -1559,7 +1625,7 @@ def test_verified_module_receipt_backs_only_exact_structural_lane_composition() 
     assert composition.module_receipt_digest == verified.receipt_digest
     assert composition.lane_journal_root != accepted.module_journal.journal_root
     assert composition.binding_root == (
-        "0x9d909a3011bbad17ea421f26d9d3a7b1015db77a6ce1e5fd93a2b38a062a93f4"
+        "0xe40452002819ee90df0638eb4eed83f1d2ee4add578bfe1813008e4b2c60b0cb"
     )
 
 
@@ -1632,7 +1698,7 @@ def test_lane_composition_receipt_uses_selected_image_and_exact_journal() -> Non
     )
     assert verified_composition.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified_composition.binding_root == (
-        "0x45f6cae3aefa5e254eef00be549e4f89237b9cfba85491658da1ce31a6b703bb"
+        "0x77c12cbdb42c28fd2b7b8a6b90c0b87f34492392624f2ebf1328074c6cf6fb39"
     )
 
 
@@ -1858,7 +1924,7 @@ def test_route_composition_receipt_uses_selected_image_and_exact_lane_witness() 
     assert verified_route.receipt_digest == "0x" + hashlib.sha256(receipt_bytes).hexdigest()
     assert verified_route.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified_route.binding_root == (
-        "0xe0aa0a203b6efd91fb29d732fa1719a50cdf53c3d2249fc9004c175517d7cf8d"
+        "0xd5bbcd7759d24b2fa3f0e1466472513d278c757e6fbae6c319cc9bfb76803c70"
     )
 
 

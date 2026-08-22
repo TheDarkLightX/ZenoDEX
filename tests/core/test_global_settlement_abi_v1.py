@@ -39,6 +39,12 @@ from src.core.economic_command_authentication_v1 import (
     authenticate_economic_command_intent_v1,
     bind_authenticated_intent_to_occurrence_v1,
 )
+from src.core.economic_command_signature_verifier_registry_v1 import (
+    ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
+    CommandSignatureVerifierEvidenceStatusV1,
+    EconomicCommandSignatureVerifierRegistryV1,
+    EconomicCommandSignatureVerifierReleaseV1,
+)
 from src.core.global_settlement_abi_v1 import (
     ALL_LANE_IDS_V1,
     MAX_DELTA_ATOMS_V1,
@@ -144,6 +150,35 @@ def _active_evidence() -> tuple[EvidenceStatusV1, ...]:
     )
 
 
+def _signature_verifier_registry_v1() -> EconomicCommandSignatureVerifierRegistryV1:
+    return EconomicCommandSignatureVerifierRegistryV1(
+        (
+            EconomicCommandSignatureVerifierReleaseV1.build(
+                semantic_version="1.0.0-global-abi-test",
+                signature_algorithm="BLS12_381_G2_BASIC_V1",
+                implementation_root=_root(416),
+                public_key_schema_root=_root(417),
+                signature_schema_root=_root(418),
+                message_schema_root=_root(419),
+                specification_root=_root(420),
+                source_root=_root(421),
+                toolchain_root=_root(422),
+                evidence_manifest_root=_root(423),
+                max_public_key_bytes=160,
+                max_signature_bytes=4_096,
+                status=ReleaseStatusV1.ACTIVE_NEW,
+                accepts_new_authentications=True,
+                evidence_statuses=tuple(
+                    sorted(
+                        CommandSignatureVerifierEvidenceStatusV1,
+                        key=lambda status: status.value,
+                    )
+                ),
+            ),
+        )
+    )
+
+
 def _module_release(lane_id: LaneIdV1, ordinal: int) -> LaneModuleReleaseV1:
     command = (
         ASSET_TRANSFER_COMMAND_KIND_V1
@@ -242,13 +277,24 @@ def _profile() -> tuple[EconomicProfileSnapshotV1, RouteReleaseV1]:
             ),
         )
     )
+    signature_verifier_registry = _signature_verifier_registry_v1()
     policy_registry = EconomicPolicyRegistryV1(
-        (
-            EconomicPolicyBindingV1(
-                ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
-                ASSET_TRANSFER_COMMAND_KIND_V1,
-                authorization_registry.registry_root,
-            ),
+        tuple(
+            sorted(
+                (
+                    EconomicPolicyBindingV1(
+                        ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+                        ASSET_TRANSFER_COMMAND_KIND_V1,
+                        authorization_registry.registry_root,
+                    ),
+                    EconomicPolicyBindingV1(
+                        ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
+                        ASSET_TRANSFER_COMMAND_KIND_V1,
+                        signature_verifier_registry.registry_root,
+                    ),
+                ),
+                key=lambda binding: (binding.policy_kind, binding.command_kind),
+            )
         )
     )
     profile = EconomicProfileSnapshotV1.build(
@@ -376,6 +422,14 @@ class _RecordingReceiptVerifier:
 
 
 class _AcceptingCommandSignatureVerifierV1:
+    @property
+    def verifier_release_id(self) -> str:
+        return (
+            _signature_verifier_registry_v1()
+            .release_for_new_authentication("BLS12_381_G2_BASIC_V1")
+            .release_id
+        )
+
     def verify_command_signature(
         self,
         *,
@@ -413,13 +467,24 @@ def _authenticate_occurrence_for_test(
         enabled=True,
     )
     authorization_registry = EconomicCommandAuthorizationRegistryV1((authorization,))
+    signature_verifier_registry = _signature_verifier_registry_v1()
     policy_registry = EconomicPolicyRegistryV1(
-        (
-            EconomicPolicyBindingV1(
-                ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
-                occurrence.command_kind,
-                authorization_registry.registry_root,
-            ),
+        tuple(
+            sorted(
+                (
+                    EconomicPolicyBindingV1(
+                        ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+                        occurrence.command_kind,
+                        authorization_registry.registry_root,
+                    ),
+                    EconomicPolicyBindingV1(
+                        ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
+                        occurrence.command_kind,
+                        signature_verifier_registry.registry_root,
+                    ),
+                ),
+                key=lambda binding: (binding.policy_kind, binding.command_kind),
+            )
         )
     )
     authenticated_intent = authenticate_economic_command_intent_v1(
@@ -427,6 +492,7 @@ def _authenticate_occurrence_for_test(
             profile=profile,
             policy_registry=policy_registry,
             authorization_registry=authorization_registry,
+            signature_verifier_registry=signature_verifier_registry,
             intent=EconomicCommandIntentV1(
                 chain_id=occurrence.chain_id,
                 deployment_root=occurrence.deployment_root,
@@ -1878,12 +1944,12 @@ def test_epoch_two_route_state_evidence_has_stable_python_golden_roots() -> None
     verified = verify_economic_epoch_v1(candidate, _RecordingReceiptVerifier())
 
     assert verified.route_state_projection_roots == (
-        "0x59cc536b20695ccc8cb5930e9584c2bad13ab5f17a0a14f1a7be63f4a77fad9c",
-        "0xcd51d8a6a5e2eca8c13609f27017589b10f5cd536331a6c186df30d1d3516aa7",
+        "0x151c0104f1573e07f97e3d966592d50f895611f9a05d7ca18914a7001e7e19b5",
+        "0x7f10e6c04275c69b08d507c4ba844ddc82e2e8ccd8ea77c1783d458222db12d3",
     )
     assert verified.route_state_effect_refinement_roots == (
-        "0xaf0db58675fbd68f8c6575f6b425ac43d4dad82ffc979cad589ab865cda85336",
-        "0xc99b0e7acb592632d410ef008b4af912bc29991e344e07c4988db40b76aae7bc",
+        "0xa01fa06d70bf1bb34fe3c710db156eb8caec6654b03cbcceba3a4b16e49616bd",
+        "0xdd923d9049445983e516f475220f2d5e0339c7eb2741e9ec9abded38e610bf10",
     )
 
 

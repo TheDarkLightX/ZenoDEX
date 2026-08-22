@@ -21,6 +21,12 @@ from src.core.economic_command_authentication_v1 import (
     bind_authenticated_intent_to_occurrence_v1,
     economic_command_authentication_message_bytes_v1,
 )
+from src.core.economic_command_signature_verifier_registry_v1 import (
+    ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
+    CommandSignatureVerifierEvidenceStatusV1,
+    EconomicCommandSignatureVerifierRegistryV1,
+    EconomicCommandSignatureVerifierReleaseV1,
+)
 from src.core.global_economic_proof_v1 import EconomicCommandOccurrenceV1
 from src.core.global_settlement_types_v1 import (
     MAX_U64_V1,
@@ -28,6 +34,7 @@ from src.core.global_settlement_types_v1 import (
     EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
     ProfileStatusV1,
+    ReleaseStatusV1,
     canonical_economic_command_body_bytes_v1,
     hash_economic_command_body_bytes_v1,
 )
@@ -39,6 +46,7 @@ class _FixtureV1:
     profile: EconomicProfileSnapshotV1
     policy_registry: EconomicPolicyRegistryV1
     authorization_registry: EconomicCommandAuthorizationRegistryV1
+    signature_verifier_registry: EconomicCommandSignatureVerifierRegistryV1
     authorization: EconomicCommandAuthorizationV1
     intent: EconomicCommandIntentV1
     occurrence: EconomicCommandOccurrenceV1
@@ -50,14 +58,25 @@ class _FixtureV1:
             self.profile,
             self.policy_registry,
             self.authorization_registry,
+            self.signature_verifier_registry,
             self.intent,
             self.envelope,
         )
 
 
 class _RecordingVerifierV1:
-    def __init__(self, result: object = True) -> None:
+    def __init__(
+        self,
+        result: object = True,
+        *,
+        verifier_release_id: str | None = None,
+    ) -> None:
         self.result = result
+        self.verifier_release_id = verifier_release_id or (
+            _signature_verifier_registry()
+            .release_for_new_authentication("BLS12_381_G2_BASIC_V1")
+            .release_id
+        )
         self.calls: list[tuple[str, str, bytes, bytes]] = []
 
     def verify_command_signature(
@@ -68,10 +87,22 @@ class _RecordingVerifierV1:
         message_bytes: bytes,
         signature_bytes: bytes,
     ) -> bool:
-        self.calls.append(
-            (signature_algorithm, signer_public_key, message_bytes, signature_bytes)
-        )
+        self.calls.append((signature_algorithm, signer_public_key, message_bytes, signature_bytes))
         return self.result  # type: ignore[return-value]
+
+
+class _AlwaysEqualV1:
+    def __eq__(self, other: object) -> bool:
+        return True
+
+
+class _ExplodingEqualV1:
+    def __eq__(self, other: object) -> bool:
+        raise RuntimeError("hostile equality must not execute")
+
+
+class _RootSubclassV1(str):
+    pass
 
 
 def _rebuild_profile(
@@ -130,13 +161,24 @@ def _fixture(
         enabled=enabled,
     )
     authorization_registry = EconomicCommandAuthorizationRegistryV1((authorization,))
+    signature_verifier_registry = _signature_verifier_registry()
     policy_registry = EconomicPolicyRegistryV1(
-        (
-            EconomicPolicyBindingV1(
-                ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
-                ASSET_TRANSFER_COMMAND_KIND_V1,
-                authorization_registry.registry_root,
-            ),
+        tuple(
+            sorted(
+                (
+                    EconomicPolicyBindingV1(
+                        ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+                        ASSET_TRANSFER_COMMAND_KIND_V1,
+                        authorization_registry.registry_root,
+                    ),
+                    EconomicPolicyBindingV1(
+                        ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
+                        ASSET_TRANSFER_COMMAND_KIND_V1,
+                        signature_verifier_registry.registry_root,
+                    ),
+                ),
+                key=lambda binding: (binding.policy_kind, binding.command_kind),
+            )
         )
     )
     profile = _rebuild_profile(base_profile, policy_registry.registry_root)
@@ -181,11 +223,38 @@ def _fixture(
         profile,
         policy_registry,
         authorization_registry,
+        signature_verifier_registry,
         authorization,
         intent,
         occurrence,
         envelope,
     )
+
+
+def _signature_verifier_registry() -> EconomicCommandSignatureVerifierRegistryV1:
+    release = EconomicCommandSignatureVerifierReleaseV1.build(
+        semantic_version="1.0.0-auth-test",
+        signature_algorithm="BLS12_381_G2_BASIC_V1",
+        implementation_root=_root(310),
+        public_key_schema_root=_root(311),
+        signature_schema_root=_root(312),
+        message_schema_root=_root(313),
+        specification_root=_root(314),
+        source_root=_root(315),
+        toolchain_root=_root(316),
+        evidence_manifest_root=_root(317),
+        max_public_key_bytes=160,
+        max_signature_bytes=4_096,
+        status=ReleaseStatusV1.ACTIVE_NEW,
+        accepts_new_authentications=True,
+        evidence_statuses=tuple(
+            sorted(
+                CommandSignatureVerifierEvidenceStatusV1,
+                key=lambda status: status.value,
+            )
+        ),
+    )
+    return EconomicCommandSignatureVerifierRegistryV1((release,))
 
 
 def _authenticate_intent(
@@ -228,6 +297,63 @@ def test_presequencing_intent_authenticates_then_binds_exact_occurrence() -> Non
     assert authenticated_intent.intent == fixture.intent
     assert authenticated.occurrence == fixture.occurrence
     assert authenticated.occurrence is not fixture.occurrence
+
+
+def test_backend_claiming_an_unselected_verifier_release_rejects_before_use() -> None:
+    fixture = _fixture()
+    verifier = _RecordingVerifierV1(verifier_release_id=_root(999))
+
+    with pytest.raises(ValueError, match="verifier release"):
+        _authenticate_intent(fixture, verifier)
+
+    assert verifier.calls == []
+
+
+@pytest.mark.parametrize(
+    "hostile_release_id",
+    (True, 1, _AlwaysEqualV1(), _ExplodingEqualV1(), _RootSubclassV1(_root(1))),
+)
+def test_hostile_backend_release_ids_reject_without_equality_dispatch(
+    hostile_release_id: object,
+) -> None:
+    fixture = _fixture()
+    verifier = _RecordingVerifierV1()
+    verifier.verifier_release_id = hostile_release_id  # type: ignore[assignment]
+
+    with pytest.raises(ValueError, match="verifier release"):
+        _authenticate_intent(fixture, verifier)
+
+    assert verifier.calls == []
+
+
+def test_mutated_verifier_release_rejects_during_owned_snapshot() -> None:
+    fixture = _fixture()
+    release = fixture.signature_verifier_registry.releases[0]
+    object.__setattr__(release, "implementation_root", _root(999))
+    verifier = _RecordingVerifierV1()
+
+    with pytest.raises(ValueError, match="content-derived"):
+        _authenticate_intent(fixture, verifier)
+
+    assert verifier.calls == []
+
+
+@pytest.mark.parametrize(
+    ("signature_length", "accepted"),
+    ((0, False), (1, True), (4_096, True), (4_097, False)),
+)
+def test_authentication_envelope_signature_bytes_use_global_closed_boundary_bva(
+    signature_length: int,
+    accepted: bool,
+) -> None:
+    fixture = _fixture()
+    signature_bytes = b"s" * signature_length
+    if accepted:
+        envelope = replace(fixture.envelope, signature_bytes=signature_bytes)
+        assert len(envelope.signature_bytes) == signature_length
+    else:
+        with pytest.raises(ValueError, match="signature byte length"):
+            replace(fixture.envelope, signature_bytes=signature_bytes)
 
 
 def test_sequencer_fields_do_not_require_a_second_signature() -> None:
@@ -370,9 +496,10 @@ def test_canonical_body_hash_and_u64_endpoint_remain_exact() -> None:
         min_nonce=MAX_U64_V1,
         max_nonce=MAX_U64_V1,
     )
-    assert hash_economic_command_body_bytes_v1(
-        fixture.envelope.command_body_bytes
-    ) == fixture.intent.command_body_hash
+    assert (
+        hash_economic_command_body_bytes_v1(fixture.envelope.command_body_bytes)
+        == fixture.intent.command_body_hash
+    )
     _authenticate_command(fixture, _RecordingVerifierV1())
 
 

@@ -11,6 +11,10 @@ from .economic_command_authorization_registry_v1 import (
     EconomicCommandAuthorizationRegistryV1,
     EconomicCommandAuthorizationV1,
 )
+from .economic_command_signature_verifier_registry_v1 import (
+    EconomicCommandSignatureVerifierRegistryV1,
+    EconomicCommandSignatureVerifierReleaseV1,
+)
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_settlement_types_v1 import (
     EconomicPolicyBindingV1,
@@ -28,6 +32,9 @@ def snapshot_command_authentication_candidate_v1(
         policy_registry=_snapshot_policy_registry_v1(candidate.policy_registry),
         authorization_registry=_snapshot_authorization_registry_v1(
             candidate.authorization_registry
+        ),
+        signature_verifier_registry=_snapshot_signature_verifier_registry_v1(
+            candidate.signature_verifier_registry
         ),
         intent=snapshot_economic_command_intent_v1(candidate.intent),
         envelope=_snapshot_envelope_v1(candidate.envelope),
@@ -147,13 +154,73 @@ def _snapshot_authorization_v1(
 def _snapshot_authorization_registry_v1(
     registry: EconomicCommandAuthorizationRegistryV1,
 ) -> EconomicCommandAuthorizationRegistryV1:
-    if type(registry) is not EconomicCommandAuthorizationRegistryV1 or type(
-        registry.authorizations
-    ) is not tuple:
+    if (
+        type(registry) is not EconomicCommandAuthorizationRegistryV1
+        or type(registry.authorizations) is not tuple
+    ):
         raise TypeError("command authorization registry must have the exact typed value")
     return EconomicCommandAuthorizationRegistryV1(
         tuple(_snapshot_authorization_v1(item) for item in registry.authorizations)
     )
+
+
+def _snapshot_signature_verifier_registry_v1(
+    registry: EconomicCommandSignatureVerifierRegistryV1,
+) -> EconomicCommandSignatureVerifierRegistryV1:
+    if (
+        type(registry) is not EconomicCommandSignatureVerifierRegistryV1
+        or type(registry.releases) is not tuple
+    ):
+        raise TypeError("command signature verifier registry must be exactly typed")
+    releases: list[EconomicCommandSignatureVerifierReleaseV1] = []
+    for release in registry.releases:
+        if type(release) is not EconomicCommandSignatureVerifierReleaseV1:
+            raise TypeError("command signature verifier release must be exactly typed")
+        string_fields = (
+            release.release_id,
+            release.semantic_version,
+            release.signature_algorithm,
+            release.implementation_root,
+            release.public_key_schema_root,
+            release.signature_schema_root,
+            release.message_schema_root,
+            release.specification_root,
+            release.source_root,
+            release.toolchain_root,
+            release.evidence_manifest_root,
+        )
+        if any(type(value) is not str for value in string_fields):
+            raise TypeError("command signature verifier string fields must be exact")
+        if (
+            type(release.max_public_key_bytes) is not int
+            or type(release.max_signature_bytes) is not int
+        ):
+            raise TypeError("command signature verifier ceilings must be exact integers")
+        if type(release.accepts_new_authentications) is not bool:
+            raise TypeError("command signature verifier active flag must be exact bool")
+        if type(release.evidence_statuses) is not tuple:
+            raise TypeError("command signature verifier evidence must be an exact tuple")
+        releases.append(
+            EconomicCommandSignatureVerifierReleaseV1(
+                release_id=release.release_id,
+                semantic_version=release.semantic_version,
+                signature_algorithm=release.signature_algorithm,
+                implementation_root=release.implementation_root,
+                public_key_schema_root=release.public_key_schema_root,
+                signature_schema_root=release.signature_schema_root,
+                message_schema_root=release.message_schema_root,
+                specification_root=release.specification_root,
+                source_root=release.source_root,
+                toolchain_root=release.toolchain_root,
+                evidence_manifest_root=release.evidence_manifest_root,
+                max_public_key_bytes=release.max_public_key_bytes,
+                max_signature_bytes=release.max_signature_bytes,
+                status=release.status,
+                accepts_new_authentications=release.accepts_new_authentications,
+                evidence_statuses=tuple(release.evidence_statuses),
+            )
+        )
+    return EconomicCommandSignatureVerifierRegistryV1(tuple(releases))
 
 
 def _snapshot_envelope_v1(
@@ -161,9 +228,10 @@ def _snapshot_envelope_v1(
 ) -> EconomicCommandAuthenticationEnvelopeV1:
     if type(envelope) is not EconomicCommandAuthenticationEnvelopeV1:
         raise TypeError("command authentication envelope must have the exact typed value")
-    if type(envelope.command_body_bytes) is not bytes or type(
-        envelope.signature_bytes
-    ) is not bytes:
+    if (
+        type(envelope.command_body_bytes) is not bytes
+        or type(envelope.signature_bytes) is not bytes
+    ):
         raise TypeError("command authentication envelope byte fields must be exact bytes")
     if any(
         type(value) is not str

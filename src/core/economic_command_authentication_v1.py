@@ -28,6 +28,10 @@ from .economic_command_authorization_registry_v1 import (
     EconomicCommandAuthorizationRegistryV1,
     EconomicCommandAuthorizationV1,
 )
+from .economic_command_signature_verifier_registry_v1 import (
+    EconomicCommandSignatureVerifierReleaseV1,
+    select_profile_governed_command_signature_verifier_release_v1,
+)
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1
 from .global_economic_refinement_snapshot_v1 import _snapshot_occurrence_v1
 from .global_settlement_types_v1 import (
@@ -49,6 +53,8 @@ class _AuthenticatedIntentFieldsV1:
     authorization_registry_root: str
     authorization_id: str
     verifier_registry_root: str
+    signature_verifier_registry_root: str
+    signature_verifier_release_id: str
     command_body_bytes_digest: str
     authentication_message_digest: str
     signature_digest: str
@@ -88,6 +94,8 @@ class AuthenticatedEconomicCommandIntentV1:
                 "authorization_registry_root": self._fields.authorization_registry_root,
                 "authorization_id": self._fields.authorization_id,
                 "verifier_registry_root": self._fields.verifier_registry_root,
+                "signature_verifier_registry_root": (self._fields.signature_verifier_registry_root),
+                "signature_verifier_release_id": (self._fields.signature_verifier_release_id),
                 "command_body_bytes_digest": self._fields.command_body_bytes_digest,
                 "authentication_message_digest": self._fields.authentication_message_digest,
                 "signature_digest": self._fields.signature_digest,
@@ -148,16 +156,25 @@ def economic_command_authentication_message_bytes_v1(
     candidate: EconomicCommandAuthenticationCandidateV1,
     authorization: EconomicCommandAuthorizationV1,
 ) -> bytes:
+    release = _select_signature_verifier_release_v1(candidate)
+    return _authentication_message_bytes_v1(candidate, authorization, release)
+
+
+def _authentication_message_bytes_v1(
+    candidate: EconomicCommandAuthenticationCandidateV1,
+    authorization: EconomicCommandAuthorizationV1,
+    release: EconomicCommandSignatureVerifierReleaseV1,
+) -> bytes:
     body = {
         "schema": ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1,
         "policy_registry_root": candidate.policy_registry.registry_root,
         "authorization_registry_root": candidate.authorization_registry.registry_root,
         "authorization_id": authorization.authorization_id,
         "verifier_registry_root": candidate.profile.verifier_registry_root,
+        "signature_verifier_registry_root": (candidate.signature_verifier_registry.registry_root),
+        "signature_verifier_release_id": release.release_id,
         "intent": candidate.intent,
-        "command_body_bytes_digest": _sha256_root(
-            candidate.envelope.command_body_bytes
-        ),
+        "command_body_bytes_digest": _sha256_root(candidate.envelope.command_body_bytes),
         "signature_algorithm": candidate.envelope.signature_algorithm,
         "signer_key_id": candidate.envelope.signer_key_id,
         "signer_public_key": candidate.envelope.signer_public_key,
@@ -175,10 +192,15 @@ def authenticate_economic_command_intent_v1(
     owned = snapshot_command_authentication_candidate_v1(candidate)
     authorization = _select_authorization_v1(owned)
     _validate_authorization_for_intent_v1(owned.intent, owned.envelope, authorization)
-    message_bytes = economic_command_authentication_message_bytes_v1(
+    release = _select_signature_verifier_release_v1(owned)
+    message_bytes = _authentication_message_bytes_v1(
         owned,
         authorization,
+        release,
     )
+    claimed_release_id = signature_verifier.verifier_release_id
+    if type(claimed_release_id) is not str or claimed_release_id != release.release_id:
+        raise ValueError("command signature verifier release mismatch")
     verified = signature_verifier.verify_command_signature(
         signature_algorithm=owned.envelope.signature_algorithm,
         signer_public_key=owned.envelope.signer_public_key,
@@ -187,7 +209,7 @@ def authenticate_economic_command_intent_v1(
     )
     if verified is not True:
         raise ValueError("command authentication signature rejected")
-    return _authenticated_intent_v1(owned, authorization, message_bytes)
+    return _authenticated_intent_v1(owned, authorization, release, message_bytes)
 
 
 def bind_authenticated_intent_to_occurrence_v1(
@@ -213,9 +235,7 @@ def bind_authenticated_intent_to_occurrence_v1(
     for label, expected, actual in signed_fields:
         if type(expected) is not type(actual) or expected != actual:
             raise ValueError(f"authenticated intent occurrence {label} mismatch")
-    if not intent.valid_from_height <= owned_occurrence.height <= (
-        intent.valid_through_height
-    ):
+    if not intent.valid_from_height <= owned_occurrence.height <= (intent.valid_through_height):
         raise ValueError("authenticated intent occurrence height is outside validity")
     return AuthenticatedEconomicCommandV1(
         _AUTHENTICATED_COMMAND_TOKEN,
@@ -223,9 +243,7 @@ def bind_authenticated_intent_to_occurrence_v1(
             occurrence=owned_occurrence,
             occurrence_id=owned_occurrence.occurrence_id,
             authenticated_intent_binding_root=authenticated_intent.binding_root,
-            authentication_message_digest=(
-                authenticated_intent.authentication_message_digest
-            ),
+            authentication_message_digest=(authenticated_intent.authentication_message_digest),
         ),
     )
 
@@ -233,6 +251,7 @@ def bind_authenticated_intent_to_occurrence_v1(
 def _authenticated_intent_v1(
     candidate: EconomicCommandAuthenticationCandidateV1,
     authorization: EconomicCommandAuthorizationV1,
+    release: EconomicCommandSignatureVerifierReleaseV1,
     message_bytes: bytes,
 ) -> AuthenticatedEconomicCommandIntentV1:
     intent = candidate.intent
@@ -246,6 +265,8 @@ def _authenticated_intent_v1(
             authorization_registry_root=candidate.authorization_registry.registry_root,
             authorization_id=authorization.authorization_id,
             verifier_registry_root=candidate.profile.verifier_registry_root,
+            signature_verifier_registry_root=(candidate.signature_verifier_registry.registry_root),
+            signature_verifier_release_id=release.release_id,
             command_body_bytes_digest=_sha256_root(envelope.command_body_bytes),
             authentication_message_digest=_sha256_root(message_bytes),
             signature_digest=_sha256_root(envelope.signature_bytes),
@@ -304,6 +325,19 @@ def _select_authorization_v1(
         subject_id=intent.subject_id,
         grant_root=intent.grant_root,
         signer_key_id=candidate.envelope.signer_key_id,
+    )
+
+
+def _select_signature_verifier_release_v1(
+    candidate: EconomicCommandAuthenticationCandidateV1,
+) -> EconomicCommandSignatureVerifierReleaseV1:
+    return select_profile_governed_command_signature_verifier_release_v1(
+        policy_registry=candidate.policy_registry,
+        verifier_registry=candidate.signature_verifier_registry,
+        command_kind=candidate.intent.command_kind,
+        signature_algorithm=candidate.envelope.signature_algorithm,
+        signer_public_key=candidate.envelope.signer_public_key,
+        signature_bytes=candidate.envelope.signature_bytes,
     )
 
 

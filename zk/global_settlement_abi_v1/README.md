@@ -170,8 +170,15 @@ occurrence coordinates, subject, grant, nonce, and replay identity disambiguate
 their authorization and ordering. Authenticated ingress verifies a
 pre-sequencing signed intent over the exact economic fields and validity
 interval, then deterministically binds it to an occurrence. The DA/archive
-layer must retain the canonical command bytes. Selection and deployment of the
-profile-governed signature verifier remain outer premises.
+layer must retain the canonical command bytes. A second profile-policy binding
+selects one content-derived command-signature verifier release for the exact
+algorithm. That release commits implementation, specification, source,
+toolchain, message, public-key and signature schema roots plus resource
+ceilings and an evidence-manifest root. Authentication rejects an injected
+backend whose claimed release ID differs from the selected release. Evidence
+status labels and the manifest root remain committed declarations until a
+deployment gate authenticates the manifest. Deployment must also establish
+that the loaded backend actually corresponds to the committed implementation root.
 These reference checkers remain `IMPLEMENTED_UNMOUNTED`: there is no deployed
 route-composer guest, cryptographic verifier, external governed-profile anchor,
 durable writer, or production authority. `production_authority=NONE`.
@@ -179,12 +186,15 @@ durable writer, or production authority. `production_authority=NONE`.
 The deterministic receipt roots are statement commitments, not cryptographic
 proof receipts. This ABI crate contains no guest or cryptographic verifier
 implementation, so its legacy fixtures and module-owned outputs establish
-deterministic contract behavior only. The sibling pinned RISC0 3.0.6 crate has
-one real direct-recursion test, yet that test consumes a quarantined structural
-child which proves no economics. Guest-backed release registration,
-deployment of the release-selected command-signature verifier, economic route
-receipts, guest-proved effect aggregation, multi-lane and terminal composition,
-the full 64-command replay, and cross-release coexistence evidence remain open.
+deterministic contract behavior only. Historical Runpod evidence at donor
+commit `722882144` records real Succinct proofs for the asset module,
+release-aware lane, and structural recursion boundaries at `1`, `8`, `9`, and
+`64`; those source-pinned images predate this branch's full-state and
+authentication changes. Guest-backed release registration, deployment binding
+for the release-selected command-signature verifier, economic route receipts,
+guest-proved effect aggregation, multi-lane and terminal composition, a fresh
+current-image boundary replay, and cross-release coexistence evidence remain
+open.
 The ABI now exposes typed profile-governed pre-sequencing intent
 authentication, exact occurrence binding, and an opaque witness required at
 transfer and managed issue/burn module receipt admission. That deterministic
