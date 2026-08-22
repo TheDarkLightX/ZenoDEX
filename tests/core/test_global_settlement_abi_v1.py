@@ -816,6 +816,8 @@ def _verified_epoch(
     post_state: GlobalEconomicStateV1,
     *,
     receipt_bytes: bytes = b"succinct-receipt-one",
+    publisher: GlobalEconomicCommitPortV1 | None = None,
+    receipt_verifier: _RecordingReceiptVerifier | None = None,
 ) -> tuple[
     VerifiedEconomicEpochV1,
     EconomicEpochBodyAndStateV1,
@@ -871,29 +873,60 @@ def _verified_epoch(
         cycle_budget=1_000_000,
     )
     certificate = replace(certificate, journal_bytes=len(certificate.canonical_journal_bytes))
-    verifier = _RecordingReceiptVerifier()
-    verified = verify_economic_epoch_v1(
-        _epoch_candidate(
-            profile,
-            certificate,
-            pre_state,
-            post_state,
-            (occurrence,),
-            (route_journal,),
-            (
-                EconomicEpochRouteStateDisclosureV1(
-                    route_fixture.lane_journals,
-                    post_state,
-                ),
+    verifier = receipt_verifier or _RecordingReceiptVerifier()
+    candidate = _epoch_candidate(
+        profile,
+        certificate,
+        pre_state,
+        post_state,
+        (occurrence,),
+        (route_journal,),
+        (
+            EconomicEpochRouteStateDisclosureV1(
+                route_fixture.lane_journals,
+                post_state,
             ),
-            (verified_route,),
-            route_effect_plans,
-            effects,
-            receipt_bytes,
         ),
-        verifier,
+        (verified_route,),
+        route_effect_plans,
+        effects,
+        receipt_bytes,
+    )
+    verified = (
+        publisher.verify_economic_epoch(candidate)
+        if publisher is not None
+        else verify_economic_epoch_v1(candidate, verifier)
     )
     return verified, body, verifier, occurrence, route_journal
+
+
+def _publisher_verified_epoch(
+    profile: EconomicProfileSnapshotV1,
+    route: RouteReleaseV1,
+    pre_state: GlobalEconomicStateV1,
+    post_state: GlobalEconomicStateV1,
+    *,
+    receipt_bytes: bytes = b"succinct-receipt-one",
+) -> tuple[
+    GlobalEconomicCommitPortV1,
+    VerifiedEconomicEpochV1,
+    EconomicEpochBodyAndStateV1,
+    _RecordingReceiptVerifier,
+    EconomicCommandOccurrenceV1,
+    RouteCompositionJournalV1,
+]:
+    verifier = _RecordingReceiptVerifier()
+    publisher = GlobalEconomicCommitPortV1(profile, pre_state, verifier)
+    verified, body, _, occurrence, journal = _verified_epoch(
+        profile,
+        route,
+        pre_state,
+        post_state,
+        receipt_bytes=receipt_bytes,
+        publisher=publisher,
+        receipt_verifier=verifier,
+    )
+    return publisher, verified, body, verifier, occurrence, journal
 
 
 def _epoch_candidate(
@@ -1459,7 +1492,11 @@ def test_epoch_verifier_binds_profile_image_receipt_journal_and_opaque_handle() 
     forged = object.__new__(VerifiedEconomicEpochV1)
     with pytest.raises(TypeError, match="not verifier-registered"):
         _ = forged.commit_id
-    forged_port = GlobalEconomicCommitPortV1(profile, pre_state)
+    forged_port = GlobalEconomicCommitPortV1(
+        profile,
+        pre_state,
+        _RecordingReceiptVerifier(),
+    )
     with pytest.raises(TypeError, match="not verifier-registered"):
         forged_port.commit_verified_economic_epoch(
             expected_head=pre_state.state_root,
@@ -2183,8 +2220,12 @@ def test_atomic_commit_is_idempotent_and_binding_rejects_are_noops() -> None:
     profile, route = _profile()
     pre_state = _state(profile, height=0)
     post_state = _state(profile, height=1)
-    verified, body, _, _, _ = _verified_epoch(profile, route, pre_state, post_state)
-    port = GlobalEconomicCommitPortV1(profile, pre_state)
+    port, verified, body, _, _, _ = _publisher_verified_epoch(
+        profile,
+        route,
+        pre_state,
+        post_state,
+    )
     bad_body = replace(body, finality_root=_root(50_000))
     rejected = port.commit_verified_economic_epoch(
         expected_head=pre_state.state_root,
@@ -2280,7 +2321,12 @@ def test_commit_rebinds_refinement_against_post_return_certificate_mutation() ->
     profile, route = _profile()
     pre_state = _state(profile, height=0)
     post_state = _state(profile, height=1)
-    verified, body, _, _, _ = _verified_epoch(profile, route, pre_state, post_state)
+    port, verified, body, _, _, _ = _publisher_verified_epoch(
+        profile,
+        route,
+        pre_state,
+        post_state,
+    )
     original_commit_id = verified.commit_id
     first_balance = post_state.balances[0]
     unbalanced_state = replace(
@@ -2298,8 +2344,6 @@ def test_commit_rebinds_refinement_against_post_return_certificate_mutation() ->
         with pytest.raises(AttributeError):
             object.__setattr__(verified, field_name, value)
     assert verified.commit_id == original_commit_id
-    port = GlobalEconomicCommitPortV1(profile, pre_state)
-
     # Act
     result = port.commit_verified_economic_epoch(
         expected_head=pre_state.state_root,
@@ -2321,7 +2365,12 @@ def test_opaque_handle_blocks_route_disclosure_replacement_before_commit() -> No
     profile, route = _profile()
     pre_state = _state(profile, height=0)
     post_state = _state(profile, height=1)
-    verified, body, _, _, _ = _verified_epoch(profile, route, pre_state, post_state)
+    port, verified, body, _, _, _ = _publisher_verified_epoch(
+        profile,
+        route,
+        pre_state,
+        post_state,
+    )
     projection_roots = verified.route_state_projection_roots
     with pytest.raises(AttributeError):
         object.__setattr__(verified, "_route_state_disclosures", ())
@@ -2329,8 +2378,6 @@ def test_opaque_handle_blocks_route_disclosure_replacement_before_commit() -> No
         pre_state=pre_state,
         post_state=post_state,
     ) == projection_roots
-    port = GlobalEconomicCommitPortV1(profile, pre_state)
-
     # Act
     result = port.commit_verified_economic_epoch(
         expected_head=pre_state.state_root,
@@ -2354,7 +2401,7 @@ def test_opaque_handle_blocks_route_disclosure_replacement_before_commit() -> No
     assert retry.record == result.record
 
 
-def test_coherent_private_witness_replacement_cannot_rebind_original_receipt() -> None:
+def test_caller_selected_verifier_witness_cannot_reach_the_publisher() -> None:
     def verified_epoch_and_body(
         count: int,
     ) -> tuple[
@@ -2428,29 +2475,72 @@ def test_coherent_private_witness_replacement_cannot_rebind_original_receipt() -
     port = GlobalEconomicCommitPortV1(
         foreign_candidate.profile,
         _epoch_admission_fixture(1).pre_state,
+        _RecordingReceiptVerifier(),
     )
     before = (port.state, port.records)
 
-    # Act
-    result = port.commit_verified_economic_epoch(
-        expected_head=foreign_body.pre_state_root,
-        expected_profile=foreign_candidate.profile.profile_id,
-        verified_epoch=original,
-        body_and_state=foreign_body,
+    # Act and assert: caller-selected receipt acceptance cannot mint publication authority.
+    with pytest.raises(TypeError, match="verified by this exact commit port"):
+        port.commit_verified_economic_epoch(
+            expected_head=foreign_body.pre_state_root,
+            expected_profile=foreign_candidate.profile.profile_id,
+            verified_epoch=original,
+            body_and_state=foreign_body,
+        )
+    assert (port.state, port.records) == before
+
+
+def test_release_selected_witness_is_bound_to_one_exact_publisher() -> None:
+    profile, route = _profile()
+    pre_state = _state(profile, height=0)
+    post_state = _state(profile, height=1)
+    first_port, verified, body, _, _, _ = _publisher_verified_epoch(
+        profile,
+        route,
+        pre_state,
+        post_state,
+    )
+    second_port = GlobalEconomicCommitPortV1(
+        profile,
+        pre_state,
+        _RecordingReceiptVerifier(),
     )
 
-    # Assert: the verifier-owned record preserves the original one-command witness.
-    assert result.status is CommitOutcomeStatusV1.BINDING_REJECTED
-    assert result.reason is not None
-    assert (port.state, port.records) == before
+    with pytest.raises(TypeError, match="verified by this exact commit port"):
+        second_port.commit_verified_economic_epoch(
+            expected_head=pre_state.state_root,
+            expected_profile=profile.profile_id,
+            verified_epoch=verified,
+            body_and_state=body,
+        )
+    object.__setattr__(
+        first_port,
+        "_receipt_verifier",
+        _RecordingReceiptVerifier(),
+    )
+    with pytest.raises(TypeError, match="verified by this exact commit port"):
+        first_port.commit_verified_economic_epoch(
+            expected_head=pre_state.state_root,
+            expected_profile=profile.profile_id,
+            verified_epoch=verified,
+            body_and_state=body,
+        )
+
+    assert first_port.state == pre_state
+    assert second_port.state == pre_state
+    assert first_port.records == second_port.records == ()
 
 
 def test_commit_owns_published_state_against_retained_body_alias() -> None:
     profile, route = _profile()
     pre_state = _state(profile, height=0)
     post_state = _state(profile, height=1)
-    verified, body, _, _, _ = _verified_epoch(profile, route, pre_state, post_state)
-    port = GlobalEconomicCommitPortV1(profile, pre_state)
+    port, verified, body, _, _, _ = _publisher_verified_epoch(
+        profile,
+        route,
+        pre_state,
+        post_state,
+    )
     committed = port.commit_verified_economic_epoch(
         expected_head=pre_state.state_root,
         expected_profile=profile.profile_id,
@@ -2473,7 +2563,11 @@ def test_commit_port_owns_initial_state_before_validation_returns() -> None:
     profile, _ = _profile()
     initial_state = _state(profile, height=0)
     expected_root = initial_state.state_root
-    port = GlobalEconomicCommitPortV1(profile, initial_state)
+    port = GlobalEconomicCommitPortV1(
+        profile,
+        initial_state,
+        _RecordingReceiptVerifier(),
+    )
 
     object.__setattr__(initial_state.balances[0], "amount_atoms", 99_999)
 
@@ -2484,8 +2578,12 @@ def test_commit_port_owns_and_revalidates_active_profile_graph() -> None:
     profile, route = _profile()
     pre_state = _state(profile, height=0)
     post_state = _state(profile, height=1)
-    verified, body, _, _, _ = _verified_epoch(profile, route, pre_state, post_state)
-    port = GlobalEconomicCommitPortV1(profile, pre_state)
+    port, verified, body, _, _, _ = _publisher_verified_epoch(
+        profile,
+        route,
+        pre_state,
+        post_state,
+    )
     expected_profile_id = profile.profile_id
     expected_image_id = profile.root_image_id
     expected_lane_root = profile.lane_registry.registry_root
@@ -2542,12 +2640,27 @@ def test_commit_port_owns_and_revalidates_active_profile_graph() -> None:
     )
     assert committed.status is CommitOutcomeStatusV1.COMMITTED
 
-    poisoned_port = GlobalEconomicCommitPortV1(port.profile, pre_state)
+    poisoned_profile = port.profile
+    poisoned_route = poisoned_profile.route_registry.routes[0]
+    poisoned_verifier = _RecordingReceiptVerifier()
+    poisoned_port = GlobalEconomicCommitPortV1(
+        poisoned_profile,
+        pre_state,
+        poisoned_verifier,
+    )
+    poisoned_verified, _, _, _, _ = _verified_epoch(
+        poisoned_profile,
+        poisoned_route,
+        pre_state,
+        post_state,
+        publisher=poisoned_port,
+        receipt_verifier=poisoned_verifier,
+    )
     object.__setattr__(poisoned_port._profile, "root_image_id", _root(77_028))
     rejected = poisoned_port.commit_verified_economic_epoch(
         expected_head=pre_state.state_root,
         expected_profile=expected_profile_id,
-        verified_epoch=verified,
+        verified_epoch=poisoned_verified,
         body_and_state=body,
     )
     assert rejected.status is CommitOutcomeStatusV1.BINDING_REJECTED
@@ -2569,8 +2682,12 @@ def test_commit_rejects_hostile_expected_root_subclasses_before_lock() -> None:
     profile, route = _profile()
     pre_state = _state(profile, height=0)
     post_state = _state(profile, height=1)
-    verified, body, _, _, _ = _verified_epoch(profile, route, pre_state, post_state)
-    port = GlobalEconomicCommitPortV1(profile, pre_state)
+    port, verified, body, _, _, _ = _publisher_verified_epoch(
+        profile,
+        route,
+        pre_state,
+        post_state,
+    )
 
     with pytest.raises(TypeError, match="expected head must be exact str"):
         port.commit_verified_economic_epoch(
@@ -2608,7 +2725,11 @@ def test_epoch_verifier_rejects_chain_and_deployment_drift_before_commit() -> No
         ("deployment_root", _root(88_001), "pre-state deployment mismatch"),
     )
     for field_name, foreign_value, expected_reason in substitutions:
-        port = GlobalEconomicCommitPortV1(profile, pre_state)
+        port = GlobalEconomicCommitPortV1(
+            profile,
+            pre_state,
+            _RecordingReceiptVerifier(),
+        )
         foreign_occurrence = replace(occurrence, **{field_name: foreign_value})
         foreign_route = _verified_route_effect_fixture(
             profile,
@@ -2669,8 +2790,12 @@ def test_committed_replay_requires_exact_context_and_binding_tuple() -> None:
     profile, route = _profile()
     pre_state = _state(profile, height=0)
     post_state = _state(profile, height=1)
-    verified, body, _, _, _ = _verified_epoch(profile, route, pre_state, post_state)
-    port = GlobalEconomicCommitPortV1(profile, pre_state)
+    port, verified, body, _, _, _ = _publisher_verified_epoch(
+        profile,
+        route,
+        pre_state,
+        post_state,
+    )
 
     committed = port.commit_verified_economic_epoch(
         expected_head=pre_state.state_root,
@@ -2768,12 +2893,16 @@ def test_concurrent_roots_have_one_atomic_winner_and_one_stale_noop() -> None:
     profile, route = _profile()
     pre_state = _state(profile, height=0)
     post_state = _state(profile, height=1)
+    verifier = _RecordingReceiptVerifier()
+    port = GlobalEconomicCommitPortV1(profile, pre_state, verifier)
     first, body, _, _, _ = _verified_epoch(
         profile,
         route,
         pre_state,
         post_state,
         receipt_bytes=b"succinct-receipt-first",
+        publisher=port,
+        receipt_verifier=verifier,
     )
     second, _, _, _, _ = _verified_epoch(
         profile,
@@ -2781,8 +2910,9 @@ def test_concurrent_roots_have_one_atomic_winner_and_one_stale_noop() -> None:
         pre_state,
         post_state,
         receipt_bytes=b"succinct-receipt-second",
+        publisher=port,
+        receipt_verifier=verifier,
     )
-    port = GlobalEconomicCommitPortV1(profile, pre_state)
 
     def publish(verified: VerifiedEconomicEpochV1) -> CommitOutcomeStatusV1:
         return port.commit_verified_economic_epoch(

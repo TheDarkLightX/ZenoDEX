@@ -438,6 +438,15 @@ supply a verifier implementation that returns success and thereby obtain the
 otherwise opaque epoch witness. The authoritative path must select a measured
 verifier from committed profile state instead of accepting this argument.
 
+The implementation branch now distinguishes that research witness from a
+publisher-bound witness. `GlobalEconomicCommitPortV1` retains its selected
+receipt backend, re-verifies the candidate through that backend, and rejects a
+caller-selected or different-publisher witness before mutation. This closes
+the reviewed per-call injection path in the in-memory reference model. VM-08
+remains open because Python same-process code is not an isolation boundary, the
+backend is not yet measured against a deployed verifier artifact, and verifier
+selection is not yet derived from durable committed profile state.
+
 ## Recommended implementation order
 
 1. Freeze the exact complete M6 capability manifest and ZDEX semantic anchors,

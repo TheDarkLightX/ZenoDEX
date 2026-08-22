@@ -15,8 +15,12 @@ from typing import Mapping
 
 from ..core.global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from ..core.global_economic_proof_v1 import (
+    EconomicEpochReceiptCandidateV1,
+    SuccinctReceiptVerifierV1,
     VerifiedEconomicEpochV1,
     _snapshot_verified_economic_epoch_v1,
+    _verified_economic_epoch_is_bound_to_publisher_v1,
+    _verify_economic_epoch_for_publisher_v1,
 )
 from ..core.global_economic_refinement_snapshot_v1 import (
     _require_exact_tuple_items,
@@ -230,6 +234,7 @@ class GlobalEconomicCommitPortV1:
         self,
         profile: EconomicProfileSnapshotV1,
         initial_state: GlobalEconomicStateV1,
+        receipt_verifier: SuccinctReceiptVerifierV1,
     ) -> None:
         if type(profile) is not EconomicProfileSnapshotV1:
             raise TypeError("commit port profile must have the exact typed value")
@@ -240,8 +245,13 @@ class GlobalEconomicCommitPortV1:
             raise ValueError("commit port requires an ACTIVE economic profile")
         owned_initial_state = _snapshot_state_v1(initial_state)
         validate_global_state_profile_v1(owned_initial_state, owned_profile)
+        verify_method = getattr(receipt_verifier, "verify_succinct_receipt", None)
+        if not callable(verify_method):
+            raise TypeError("commit port receipt verifier is invalid")
         self._profile = owned_profile
         self._state = owned_initial_state
+        self._receipt_verifier = receipt_verifier
+        self.__publisher_binding_token = object()
         self._records: dict[str, PublishedEconomicEpochV1] = {}
         self._lock = Lock()
 
@@ -258,6 +268,38 @@ class GlobalEconomicCommitPortV1:
     def records(self) -> tuple[PublishedEconomicEpochV1, ...]:
         with self._lock:
             return tuple(replace(self._records[key]) for key in sorted(self._records))
+
+    def verify_economic_epoch(
+        self,
+        candidate: EconomicEpochReceiptCandidateV1,
+    ) -> VerifiedEconomicEpochV1:
+        """Verify with the receipt backend retained by this publisher instance."""
+
+        if type(candidate) is not EconomicEpochReceiptCandidateV1:
+            raise TypeError("commit port epoch candidate type is not closed")
+        with self._lock:
+            selected_profile = snapshot_economic_profile_v1(self._profile)
+            if selected_profile.status is not ProfileStatusV1.ACTIVE:
+                raise ValueError("commit port profile is not active")
+            if candidate.profile.profile_id != selected_profile.profile_id:
+                raise ValueError("commit port candidate profile is not selected")
+            receipt_verifier = self._receipt_verifier
+            publisher_binding_token = self.__publisher_binding_token
+        verified = _verify_economic_epoch_for_publisher_v1(
+            candidate,
+            receipt_verifier,
+            publisher_binding_token,
+        )
+        with self._lock:
+            current_profile = snapshot_economic_profile_v1(self._profile)
+            if (
+                current_profile.status is not ProfileStatusV1.ACTIVE
+                or current_profile.profile_id != selected_profile.profile_id
+                or self._receipt_verifier is not receipt_verifier
+                or self.__publisher_binding_token is not publisher_binding_token
+            ):
+                raise ValueError("commit port verifier selection changed during verification")
+        return verified
 
     def commit_verified_economic_epoch(
         self,
@@ -277,6 +319,14 @@ class GlobalEconomicCommitPortV1:
         _require_root(expected_profile, name="commit expected profile")
         if type(verified_epoch) is not VerifiedEconomicEpochV1:
             raise TypeError("commit requires VerifiedEconomicEpochV1")
+        if not _verified_economic_epoch_is_bound_to_publisher_v1(
+            verified_epoch,
+            self.__publisher_binding_token,
+            self._receipt_verifier,
+        ):
+            raise TypeError(
+                "commit requires an epoch verified by this exact commit port"
+            )
         owned_verified_epoch = _snapshot_verified_economic_epoch_v1(verified_epoch)
         if type(body_and_state) is not EconomicEpochBodyAndStateV1:
             raise TypeError("commit body_and_state is invalid")

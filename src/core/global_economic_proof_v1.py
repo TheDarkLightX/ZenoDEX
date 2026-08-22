@@ -972,6 +972,8 @@ class _VerifiedEconomicEpochAuthorityRecordV1:
     route_state_projection_roots: tuple[str, ...]
     state_effect_refinement: GlobalEconomicStateEffectRefinementV1
     state_effect_refinement_root: str
+    publisher_binding_token: object | None
+    publisher_verifier_identity: object | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -1139,6 +1141,8 @@ def _snapshot_verified_economic_epoch_authority_record_v1(
         route_state_projection_roots=route_evidence.route_state_projection_roots,
         state_effect_refinement=refinement,
         state_effect_refinement_root=computed_roots[2],
+        publisher_binding_token=authority.publisher_binding_token,
+        publisher_verifier_identity=authority.publisher_verifier_identity,
     )
 
 
@@ -1370,16 +1374,66 @@ def _snapshot_verified_economic_epoch_v1(
     )
 
 
+def _verified_economic_epoch_is_bound_to_publisher_v1(
+    witness: VerifiedEconomicEpochV1,
+    publisher_binding_token: object,
+    receipt_verifier: SuccinctReceiptVerifierV1,
+) -> bool:
+    """Return whether a witness was verified by this exact publisher instance."""
+
+    if type(publisher_binding_token) is not object:
+        raise TypeError("publisher binding token must be an exact opaque object")
+    authority = _verified_economic_epoch_authority_v1(witness)
+    return (
+        authority.publisher_binding_token is publisher_binding_token
+        and authority.publisher_verifier_identity is receipt_verifier
+    )
+
+
 def verify_economic_epoch_v1(
     candidate: EconomicEpochReceiptCandidateV1,
     receipt_verifier: SuccinctReceiptVerifierV1,
 ) -> VerifiedEconomicEpochV1:
-    """Verify release bindings and a succinct receipt for one epoch.
+    """Verify one epoch for research, replay, and differential inspection.
 
-    The supplied verifier owns cryptographic acceptance.  This function owns
-    profile, exact opaque route witness, journal, body, full-state/effect,
-    replay, count, and canonical-byte binding.
+    The caller supplies the cryptographic verifier, so this witness carries no
+    publication binding. A GlobalEconomicCommitPortV1 rejects it. Production
+    admission must use the verifier retained by the publisher instance.
     """
+
+    return _verify_economic_epoch_with_publisher_binding_v1(
+        candidate,
+        receipt_verifier,
+        publisher_binding_token=None,
+        publisher_verifier_identity=None,
+    )
+
+
+def _verify_economic_epoch_for_publisher_v1(
+    candidate: EconomicEpochReceiptCandidateV1,
+    receipt_verifier: SuccinctReceiptVerifierV1,
+    publisher_binding_token: object,
+) -> VerifiedEconomicEpochV1:
+    """Verify one epoch with the backend selected by an exact publisher."""
+
+    if type(publisher_binding_token) is not object:
+        raise TypeError("publisher binding token must be an exact opaque object")
+    return _verify_economic_epoch_with_publisher_binding_v1(
+        candidate,
+        receipt_verifier,
+        publisher_binding_token=publisher_binding_token,
+        publisher_verifier_identity=receipt_verifier,
+    )
+
+
+def _verify_economic_epoch_with_publisher_binding_v1(
+    candidate: EconomicEpochReceiptCandidateV1,
+    receipt_verifier: SuccinctReceiptVerifierV1,
+    *,
+    publisher_binding_token: object | None,
+    publisher_verifier_identity: object | None,
+) -> VerifiedEconomicEpochV1:
+    """Own structural verification and optional publisher-instance binding."""
 
     if type(candidate) is not EconomicEpochReceiptCandidateV1:
         raise TypeError("economic epoch candidate type is not closed")
@@ -1434,6 +1488,8 @@ def verify_economic_epoch_v1(
             route_state_projection_roots=route_state_projection_roots,
             state_effect_refinement=state_effect_refinement,
             state_effect_refinement_root=state_effect_refinement.refinement_root,
+            publisher_binding_token=publisher_binding_token,
+            publisher_verifier_identity=publisher_verifier_identity,
         ),
     )
 
