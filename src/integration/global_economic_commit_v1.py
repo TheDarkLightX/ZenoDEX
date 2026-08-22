@@ -261,11 +261,13 @@ class GlobalEconomicCommitPortV1:
 
     @property
     def profile(self) -> EconomicProfileSnapshotV1:
-        return snapshot_economic_profile_v1(self._profile)
+        with self._lock:
+            return snapshot_economic_profile_v1(self._profile)
 
     @property
     def initial_state_certificate_root(self) -> str:
-        return self._initial_state_certificate_root
+        with self._lock:
+            return self._initial_state_certificate_root
 
     @property
     def state(self) -> GlobalEconomicStateV1:

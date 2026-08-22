@@ -4,11 +4,13 @@ import hashlib
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import FrozenInstanceError, dataclass, replace
+from threading import Event
 
 import pytest
 
 import src.core.global_economic_state_effect_refinement_v1 as refinement_module
 import src.core.route_global_state_projection_v1 as route_projection_module
+import src.integration.global_economic_commit_v1 as commit_module
 from src.core.asset_lane_coordinator_v1 import compose_asset_lane_single_v1
 from src.core.asset_lane_projection_v1 import (
     AssetLaneCompositionAcceptedV1,
@@ -3207,6 +3209,68 @@ def test_migration_activation_rechecks_source_head_after_receipt_callback() -> N
     assert port.profile == source_profile
     assert port.initial_state_certificate_root == initial_certificate_root
     assert len(verifier.calls) == 3
+
+
+def test_migration_activation_hides_partial_publisher_tuple_from_readers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    source_profile, _ = _profile()
+    source_state = _state(source_profile, height=0)
+    target_profile, migrated_state, migration_admission = _migration_admission_for_source_head(
+        source_profile, source_state
+    )
+    verifier = _RecordingReceiptVerifier()
+    port = _commit_port(source_profile, source_state, verifier)
+    source_certificate_root = port.initial_state_certificate_root
+    target_certificate_root = migration_admission.certificate.certificate_root
+    assert source_certificate_root != target_certificate_root
+    migration_paused, release_migration = Event(), Event()
+    reader_started, reader_finished = Event(), Event()
+    class PausingVerifiedMigration:
+        profile = target_profile
+        certificate_root = target_certificate_root
+
+        @property
+        def state(self) -> GlobalEconomicStateV1:
+            migration_paused.set()
+            if not release_migration.wait(timeout=5):
+                raise RuntimeError("migration tuple test timed out")
+            return migrated_state
+
+    monkeypatch.setattr(
+        commit_module,
+        "_verify_economic_migration_for_publisher_v1",
+        lambda *_args: PausingVerifiedMigration(),
+    )
+
+    def read_publisher_tuple() -> tuple[EconomicProfileSnapshotV1, str]:
+        reader_started.set()
+        observed = (port.profile, port.initial_state_certificate_root)
+        reader_finished.set()
+        return observed
+
+    # Act
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        activation = executor.submit(
+            port.activate_migration,
+            expected_head=source_state.state_root,
+            expected_profile=source_profile.profile_id,
+            migration_admission=migration_admission,
+        )
+        assert migration_paused.wait(timeout=5)
+        reader = executor.submit(read_publisher_tuple)
+        try:
+            assert reader_started.wait(timeout=5)
+            reader_finished_while_migration_paused = reader_finished.wait(timeout=0.1)
+        finally:
+            release_migration.set()
+        activation.result(timeout=5)
+        observed = reader.result(timeout=5)
+
+    # Assert
+    assert reader_finished_while_migration_paused is False
+    assert observed == (target_profile, target_certificate_root)
 
 
 def test_migration_initial_state_requires_adjacent_writer_epoch_and_height() -> None:
