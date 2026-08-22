@@ -528,6 +528,13 @@ def _validate_ordered_roots_v1(sections: _PayloadSectionsV1) -> int:
 
 
 def _validate_array_shapes_v1(sections: _PayloadSectionsV1) -> None:
+    for label, section in (
+        ("certificate", sections.certificate),
+        ("effect plan", sections.effect_plan),
+        ("state", sections.state),
+    ):
+        if section["schema"] != GLOBAL_SETTLEMENT_ABI_V1:
+            raise ValueError(f"durable epoch {label} schema mismatch")
     for field in (
         "rows",
         "asset_conservation",
@@ -555,7 +562,11 @@ def _validate_array_shapes_v1(sections: _PayloadSectionsV1) -> None:
 
     occurrences = sections.certificate["ordered_occurrence_ids"]
     consumed = sections.effect_plan["occurrence_consumptions"]
-    if consumed != occurrences:
+    if type(occurrences) is not list or any(type(item) is not str for item in occurrences):
+        raise TypeError("durable epoch certificate occurrences must be exact strings")
+    if type(consumed) is not list or any(type(item) is not str for item in consumed):
+        raise TypeError("durable epoch effect consumptions must be exact strings")
+    if consumed != sorted(occurrences):
         raise ValueError("durable epoch effect occurrence consumption mismatch")
 
 
@@ -574,6 +585,11 @@ def _validate_proof_shape_v1(sections: _PayloadSectionsV1, command_count: int) -
         raise ValueError("durable epoch proof resource declarations must be positive")
     if journal_bytes > MAX_JOURNAL_BYTES_V1 or cycle_budget > MAX_CYCLE_BUDGET_V1:
         raise ValueError("durable epoch proof resources exceed the ABI ceiling")
+    journal = dict(certificate)
+    for field in ("receipt_root", "receipt_kind", "journal_bytes", "cycle_budget"):
+        del journal[field]
+    if journal_bytes != len(canonical_global_bytes_v1(journal)):
+        raise ValueError("durable epoch journal byte declaration mismatch")
     if certificate["receipt_kind"] != "SUCCINCT":
         raise ValueError("durable epoch receipt kind must be succinct")
 
