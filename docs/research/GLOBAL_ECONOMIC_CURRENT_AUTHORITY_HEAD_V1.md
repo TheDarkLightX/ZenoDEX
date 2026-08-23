@@ -213,7 +213,11 @@ anchor acknowledgment. Post-commit local projection failure is typed as
 indeterminate while retaining the exact predecessor. If external CAS installed
 the sole valid successor before its confirming read failed, the next exact
 retry reconciles that successor in-process. Any other changed external anchor
-rejects before receipt verification. Exact-u64 exhaustion of the anchor or
+rejects before receipt verification unless it is a current forward
+same-authority epoch tip whose complete coordinates equal current local durable
+heads. Every successful local result arms recovery before projection, and a
+lost lower-journal commit acknowledgment arms recovery only after the durable
+heads prove the exact one-step relation. Exact-u64 exhaustion of the anchor or
 height counter rejects before proof work or SQLite mutation. The inode-
 replacement and separate-migration traces remain open because no authenticated
 deployed anchor or atomic migration retirement protocol exists.

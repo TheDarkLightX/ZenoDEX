@@ -61,12 +61,16 @@ compare_and_set_anchor(namespace_root, expected_root, successor_bytes)
   -> exact bool
 ```
 
-Successful CAS is independently followed by a current read. A truthy integer,
-malformed bytes, wrong namespace, chain or deployment, a false success
-acknowledgment, backend exception, or stale CAS fails closed. The backend
-release shape records that authenticated source, current monotonic read, and
-linearizable CAS are required. Those labels are requirements, not evidence
-that a supplied Python object satisfies them.
+Successful CAS is independently followed by a current read. The read may equal
+the submitted successor or a later same-authority epoch tip when another valid
+writer linearizes after this CAS. The publisher adopts a later observation only
+when its complete authority and publication coordinates equal the validated
+local durable heads. An unchanged predecessor after a true acknowledgment,
+truthy integer, malformed bytes, wrong namespace, chain or deployment, backend
+exception, or stale CAS fails closed. The backend release shape records that
+authenticated source, current monotonic read, and linearizable CAS are
+required. Those labels are requirements, not evidence that a supplied Python
+object satisfies them.
 
 A local file in the same filesystem, snapshot, backup, service account, or
 rollback domain as the economic journals cannot satisfy this port's external
@@ -88,12 +92,17 @@ For the optional anchored publisher profile:
 7. compare-and-set the external source, then reread it before returning
    success.
 
-If step 5 commits and steps 6 or 7 are unavailable or conflicting, the caller
-receives `GlobalEconomicAnchorAdvanceIndeterminateV1`. The in-process publisher
-enters the same one-epoch recovery state. Restart also recognizes only that
-direct predecessor relation. Exact retry performs no second local insertion
-and advances the external checkpoint. Any other command, source, skip,
-authority change, rollback, or divergence rejects.
+If step 5 commits but its journal acknowledgment is lost, the publisher reads
+the durable authority, tip, and direct predecessor. It arms recovery only when
+those heads prove the exact one-epoch relation from the supplied source. If
+steps 6 or 7 are unavailable or conflicting, the caller receives
+`GlobalEconomicAnchorAdvanceIndeterminateV1`. `COMMITTED` and
+`ALREADY_COMMITTED` outcomes arm recovery before any fallible projection. The
+in-process publisher therefore retains the same one-epoch recovery state after
+either result. Restart also recognizes only that direct predecessor relation.
+Exact retry performs no second local insertion and advances the external
+checkpoint. Any other command, source, skip, authority change, rollback, or
+divergence rejects.
 
 ## Pattern and preflight record
 
@@ -129,6 +138,13 @@ The focused portfolio includes:
 - normal local commit followed by external CAS;
 - backend outage after local commit followed by restart and exact retry; and
 - stale external CAS followed by same-process exact retry, with one local row.
+- lower-journal commit-before-ack followed by typed same-process exact retry;
+- concurrent `ALREADY_COMMITTED` followed by a projection fault and exact
+  retry; and
+- a successful CAS whose confirmation read observes a later same-authority
+  epoch, plus stable-binding and counter-delta mutation killers; and
+- fail-closed rejection when that forward external tip lacks exact matching
+  local durable authority and publication coordinates.
 
 These are bounded Python tests. They do not prove the backend's external
 currentness or the whole application.
@@ -151,6 +167,9 @@ currentness or the whole application.
   solve arbitrary multi-store transactions.
 - A malicious or stale backend can replay an old checkpoint. Production safety
   depends on an independently enforced currentness and monotonicity contract.
+- Forward-observation adoption assumes all accepted external updates obey the
+  same adjacent-CAS protocol and requires exact current local-head agreement.
+  Arbitrary external forks and independently named stores remain rejected.
 - No production readiness, settlement authority, finality, or whole-value-
   movement guarantee follows.
 

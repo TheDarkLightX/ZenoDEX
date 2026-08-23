@@ -283,11 +283,57 @@ def require_global_economic_monotonic_anchor_can_advance_v1(
             )
 
 
+def require_global_economic_epoch_anchor_forward_observation_v1(
+    installed: GlobalEconomicMonotonicAnchorV1,
+    observed: GlobalEconomicMonotonicAnchorV1,
+) -> None:
+    """Require the installed epoch anchor or a later same-authority epoch tip.
+
+    A later observation relies on the external source's declared monotonic,
+    linearizable CAS contract. Exact local-head matching remains the integration
+    shell's responsibility before it adopts that observation.
+    """
+
+    if type(installed) is not GlobalEconomicMonotonicAnchorV1:
+        raise TypeError("installed global economic monotonic anchor type is not closed")
+    if type(observed) is not GlobalEconomicMonotonicAnchorV1:
+        raise TypeError("observed global economic monotonic anchor type is not closed")
+    if observed == installed:
+        return
+    stable_bindings = (
+        (observed.anchor_namespace_root, installed.anchor_namespace_root),
+        (observed.authority_root, installed.authority_root),
+        (observed.authority_generation, installed.authority_generation),
+        (observed.activation_id, installed.activation_id),
+        (observed.chain_id, installed.chain_id),
+        (observed.deployment_root, installed.deployment_root),
+        (observed.epoch_store_root, installed.epoch_store_root),
+        (observed.profile_root, installed.profile_root),
+        (observed.writer_epoch, installed.writer_epoch),
+    )
+    if any(actual != expected for actual, expected in stable_bindings):
+        raise ValueError("forward epoch anchor observation changed a stable binding")
+    anchor_delta = observed.anchor_sequence - installed.anchor_sequence
+    publication_delta = (
+        observed.publication_sequence - installed.publication_sequence
+    )
+    height_delta = observed.height - installed.height
+    if anchor_delta <= 0 or not (
+        anchor_delta == publication_delta == height_delta
+    ):
+        raise ValueError("forward epoch anchor observation is not monotonic epoch progress")
+    if observed.publication_id == installed.publication_id:
+        raise ValueError("forward epoch anchor observation reused a publication id")
+    if anchor_delta == 1 and observed.previous_anchor_root != installed.anchor_root:
+        raise ValueError("forward epoch anchor observation previous root mismatch")
+
+
 __all__ = [
     "GLOBAL_ECONOMIC_MONOTONIC_ANCHOR_SCHEMA_V1",
     "MAX_GLOBAL_ECONOMIC_MONOTONIC_ANCHOR_BYTES_V1",
     "GlobalEconomicMonotonicAnchorV1",
     "decode_global_economic_monotonic_anchor_v1",
+    "require_global_economic_epoch_anchor_forward_observation_v1",
     "require_global_economic_monotonic_anchor_can_advance_v1",
     "require_global_economic_epoch_anchor_successor_v1",
 ]

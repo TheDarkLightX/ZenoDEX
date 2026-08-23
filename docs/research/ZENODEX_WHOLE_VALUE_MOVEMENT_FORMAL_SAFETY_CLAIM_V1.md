@@ -833,6 +833,19 @@ work, and exhausted successor coordinates reject before local mutation. The
 source-pinned ledger and execution receipt remain release-blocking until they
 are regenerated against the repaired implementation commit.
 
+A second exact-code GPT-5.6 Sol review of `1d8b4e1c5` returned `REVISE` with
+three temporal counterexamples. A valid concurrent advance could be mislabeled
+as a false CAS acknowledgment; a concurrent `ALREADY_COMMITTED` result could
+lose its recovery source before projection; and the lower journal's
+commit-before-ack fault escaped the publisher recovery protocol. The repaired
+slice now returns the current forward observation from a successful CAS, adopts
+a later observation only when complete local heads agree, arms every successful
+local result before projection, and classifies an unknown journal outcome from
+durable heads before permitting exact retry. Minimized concurrent, stateful,
+fault-injection, BVA, and mutation tests cover these schedules. This remains a
+bounded SHADOW result under the declared external monotonicity premise; a final
+exact-code rereview and regenerated source-pinned evidence remain required.
+
 Atomic no-replace install prevents the creator from opening a pre-existing
 final pathname writable. Advisory locking coordinates participating installers.
 A noncooperating same-UID process can still race the namespace, and an open
@@ -851,21 +864,29 @@ later worktree edit plus refreshed hash from representing an earlier commit.
 The checker itself still requires release packaging, independent replay, and
 authenticated distribution before it can contribute production authority.
 
-The local unattested execution receipt records 245 passing tests in two
-post-commit runs against implementation subject `8725fa0ad`: 236 adjacent
-settlement ABI, verifier release, activation, authority, epoch, publisher, and
-migration tests plus nine exhaustive value-sink tests. The ephemeral JUnit
-outputs are hash-recorded and are not committed or independently replayed. The
-portfolio includes
+Before the final subject freeze, the local unattested execution run records 283
+passing tests in two bounded suites: 274 adjacent monotonic-anchor, settlement
+ABI, verifier release,
+activation, authority, epoch, publisher, and migration tests plus nine
+exhaustive value-sink tests. Final receipt promotion requires rerunning these
+suites against the exact committed subject and hash-recording their ephemeral
+JUnit outputs. The portfolio includes
 zero/one/max/max+1 receipt and journal boundaries, active-profile selection,
 wrong registry/image/deployment/manifest/artifact rejection, generic-verifier
 rejection, forged and foreign capabilities, retained-callable mutation killing,
 exact activation create recovery, rejected-open nonmutation, restart/retry,
 competing heads, typed first-create contention, pre-existing-namespace
 rejection, no-replace install, post-link descriptor recovery, typed legacy-mode
-rejection, prefetch resource bounds, exact post-revocation retry, and tested
-SQLite crash points. Ruff, mypy, diff checks, and the repository security
-red-flag scanner pass. Independent max review returned a conditional
+rejection, prefetch resource bounds, exact post-revocation retry, external-CAS
+lost acknowledgment, post-commit local projection failure, divergent external
+anchor, unmatched forward external tip, exact-u64 exhaustion, and tested SQLite
+crash points. Ruff, targeted mypy, and diff checks pass. The security scanner
+reports no High finding, one Medium broad-exception advisory at the lower-
+journal uncertain-commit boundary, and five Low findings. The broad catch is
+deliberately scoped around one commit call because any backend exception can
+occur before or after durable mutation; durable-head classification and the
+commit-before-ack negative test constrain its behavior. Independent max review
+returned a conditional
 fresh-install research-only `GO` for `d606affe4`, confirmed its four precursor
 repairs, and identified the post-link crash wedge plus legacy-mode compatibility
 as medium operational gaps. Review of `3812518d6` confirmed those repairs and

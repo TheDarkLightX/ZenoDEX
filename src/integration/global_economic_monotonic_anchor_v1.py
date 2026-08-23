@@ -19,6 +19,7 @@ from ..core.global_economic_authority_head_v1 import GlobalEconomicAuthorityHead
 from ..core.global_economic_monotonic_anchor_v1 import (
     GlobalEconomicMonotonicAnchorV1,
     decode_global_economic_monotonic_anchor_v1,
+    require_global_economic_epoch_anchor_forward_observation_v1,
     require_global_economic_epoch_anchor_successor_v1,
     require_global_economic_monotonic_anchor_can_advance_v1,
 )
@@ -275,7 +276,7 @@ class BoundGlobalEconomicMonotonicAnchorBackendV1:
         self,
         expected: GlobalEconomicMonotonicAnchorV1,
         successor: GlobalEconomicMonotonicAnchorV1,
-    ) -> bool:
+    ) -> GlobalEconomicMonotonicAnchorV1 | None:
         authority = _bound_anchor_backend_authority_v1(self)
         require_global_economic_epoch_anchor_successor_v1(expected, successor)
         for anchor in (expected, successor):
@@ -300,12 +301,19 @@ class BoundGlobalEconomicMonotonicAnchorBackendV1:
                 "external monotonic anchor CAS must return exact bool"
             )
         if not result:
-            return False
-        if self._read_current_for_publisher_v1() != successor:
-            raise GlobalEconomicMonotonicAnchorProtocolViolationV1(
-                "external monotonic anchor CAS acknowledgment is false"
+            return None
+        observed = self._read_current_for_publisher_v1()
+        try:
+            require_global_economic_epoch_anchor_forward_observation_v1(
+                successor,
+                observed,
             )
-        return True
+        except (TypeError, ValueError) as exc:
+            raise GlobalEconomicMonotonicAnchorProtocolViolationV1(
+                "external monotonic anchor CAS acknowledgment is not a current "
+                "forward observation"
+            ) from exc
+        return observed
 
 
 _BOUND_ANCHOR_BACKEND_LOCK_V1 = Lock()

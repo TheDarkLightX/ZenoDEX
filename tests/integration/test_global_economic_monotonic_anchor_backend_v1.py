@@ -76,6 +76,7 @@ class _MemoryAnchorBackend:
         self.read_result: object | None = None
         self.raise_on_read = False
         self.ack_without_write = False
+        self.advance_after_successful_cas: bytes | None = None
 
     def read_current_anchor(self, anchor_namespace_root: str) -> object:
         if self.raise_on_read:
@@ -96,6 +97,8 @@ class _MemoryAnchorBackend:
         if current.anchor_root != expected_anchor_root:
             return False
         self.current = successor_anchor_bytes
+        if self.advance_after_successful_cas is not None:
+            self.current = self.advance_after_successful_cas
         return True
 
 
@@ -157,7 +160,7 @@ def test_bound_backend_reads_and_cas_advances_one_exact_epoch_anchor() -> None:
 
     # Assert
     assert observed == current
-    assert advanced is True
+    assert advanced == successor
     assert bound._read_current_for_publisher_v1() == successor
 
 
@@ -217,7 +220,7 @@ def test_bound_backend_stale_cas_is_a_no_effect_false_result() -> None:
     advanced = bound._compare_and_set_for_publisher_v1(current, successor)
 
     # Assert
-    assert advanced is False
+    assert advanced is None
     assert decode_global_economic_monotonic_anchor_v1(backend.current) == current
 
 
@@ -240,3 +243,30 @@ def test_bound_backend_kills_false_cas_acknowledgment_mutant() -> None:
     ):
         bound._compare_and_set_for_publisher_v1(current, successor)
     assert decode_global_economic_monotonic_anchor_v1(backend.current) == current
+
+
+def test_bound_backend_accepts_a_current_forward_observation_after_its_cas() -> None:
+    # Arrange: Alice installs epoch one, then Bob validly installs epoch two
+    # before Alice's independent confirmation read linearizes.
+    current = _genesis_anchor()
+    successor = build_global_economic_epoch_anchor_successor_v1(
+        current,
+        authority=_authority(),
+        publication=_head(sequence=1),
+    )
+    observed_after_concurrent_advance = build_global_economic_epoch_anchor_successor_v1(
+        successor,
+        authority=_authority(),
+        publication=_head(sequence=2),
+    )
+    backend = _MemoryAnchorBackend(current)
+    backend.advance_after_successful_cas = (
+        observed_after_concurrent_advance.canonical_bytes
+    )
+    bound = _bound_backend(backend)
+
+    # Act
+    observed = bound._compare_and_set_for_publisher_v1(current, successor)
+
+    # Assert: linearizable progress after Alice's CAS is not a false acknowledgment.
+    assert observed == observed_after_concurrent_advance
