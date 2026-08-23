@@ -83,6 +83,14 @@ def _current_authority_slice(value: dict[str, object]) -> dict[str, object]:
     )
 
 
+def _monotonic_anchor_slice(value: dict[str, object]) -> dict[str, object]:
+    return next(
+        row
+        for row in _implemented_slices(value)
+        if row["id"] == "GLOBAL_ECONOMIC_MONOTONIC_ANCHOR_V1"
+    )
+
+
 def _publisher_bound_slice(value: dict[str, object]) -> dict[str, object]:
     return next(
         row
@@ -286,6 +294,31 @@ def test_checker_rejects_stale_current_authority_slice_evidence(
     assert (
         "current authority slice artifact hash mismatch: python_core_sha256"
         in findings
+    )
+
+
+def test_checker_rejects_stale_monotonic_anchor_slice_evidence(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Mallory retargets the anchor slice and substitutes its core hash.
+    mutated = deepcopy(_status())
+    anchor = _monotonic_anchor_slice(mutated)
+    anchor["commit"] = "0" * 40
+    anchor["artifact_subject_commit"] = "1" * 40
+    anchor["python_core_sha256"] = "2" * 64
+
+    # Act
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    # Assert: release, subject tree, and exact code all remain checker-owned.
+    findings = _findings(report)
+    assert report["ok"] is False
+    assert "monotonic anchor slice implementation commit mismatch" in findings
+    assert "monotonic anchor slice artifact subject commit mismatch" in findings
+    assert "monotonic anchor slice artifact hash mismatch: python_core_sha256" in (
+        findings
     )
 
 

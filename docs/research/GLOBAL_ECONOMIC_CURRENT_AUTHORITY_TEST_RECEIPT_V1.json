@@ -1,7 +1,7 @@
 {
   "schema": "zenodex/global-economic-current-authority-test-receipt/v1",
-  "recorded_at": "2026-08-22",
-  "implementation_subject_commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
+  "recorded_at": "2026-08-23",
+  "implementation_subject_commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
   "environment": {
     "platform": "linux",
     "python": "3.12.3",
@@ -11,26 +11,30 @@
   },
   "runs": [
     {
-      "id": "adjacent_authority_portfolio",
+      "id": "adjacent_monotonic_authority_portfolio",
       "argv": [
         "python3",
         "-m",
         "pytest",
         "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/core/test_global_economic_monotonic_anchor_v1.py",
+        "tests/integration/test_global_economic_monotonic_anchor_backend_v1.py",
         "tests/core/test_global_settlement_abi_v1.py",
         "tests/core/test_economic_receipt_verifier_release_v1.py",
         "tests/integration/test_global_economic_migration_journal_v1.py",
         "tests/integration/test_global_economic_authority_journal_v1.py",
         "tests/integration/test_global_economic_epoch_journal_v1.py",
         "tests/integration/test_global_economic_durable_publisher_v1.py",
-        "--junitxml=/tmp/zenodex-authority-8725fa0-adjacent.xml"
+        "--junitxml=/dev/shm/zenodex-anchor-69ff811b-adjacent.xml"
       ],
       "exit_code": 0,
-      "tests": 236,
+      "tests": 287,
       "errors": 0,
       "failures": 0,
       "skipped": 0,
-      "junit_sha256": "ac08c1cee6db540a6388e5485f39e1abe1d14994fbfcb2b6a1551dd93b9336cf",
+      "junit_sha256": "6b6682ccc42beafa1d8edba2e76134851c0f5445a5d963990ad4f92ac05d3e4e",
       "junit_artifact_committed": false
     },
     {
@@ -40,19 +44,21 @@
         "-m",
         "pytest",
         "-q",
+        "-p",
+        "no:cacheprovider",
         "tests/test_check_m6_value_sinks_v1.py",
-        "--junitxml=/tmp/zenodex-authority-8725fa0-sinks.xml"
+        "--junitxml=/dev/shm/zenodex-anchor-69ff811b-sinks.xml"
       ],
       "exit_code": 0,
       "tests": 9,
       "errors": 0,
       "failures": 0,
       "skipped": 0,
-      "junit_sha256": "bc64788c79ed48bc9b8b29b320542b885a508aabaac06a163954efe0e8a84c5e",
+      "junit_sha256": "2de6f6cae95098d5bc52fbb288e41b0a6e6b0c5f0d12c7f7c0b824979e25f458",
       "junit_artifact_committed": false
     }
   ],
-  "total_tests": 245,
+  "total_tests": 296,
   "evidence_authority": "LOCAL_EXECUTION_RECORD_UNATTESTED",
   "nonclaims": [
     "The ephemeral JUnit artifacts are not committed or independently attested.",

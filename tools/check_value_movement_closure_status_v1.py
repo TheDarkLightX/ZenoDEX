@@ -19,9 +19,9 @@ DEFAULT_STATUS_PATH = Path(
 M6_ATDD_PATH = Path("docs/research/m6_global_economic_core_atdd_bdd_v1.json")
 EXPECTED_GATE_IDS = tuple(f"VM-{index:02d}" for index in range(1, 13))
 EXPECTED_GATE_EVIDENCE_ROOT = (
-    "1827e5d74a52bfe3abd675407a3a909f9b1930218e4e55b0932a44229ff8f4a0"
+    "ba6c1d6ec9c2cfa249f4f9882bf6c0511e11f1259846e7f07771dc8b75d43042"
 )
-EXPECTED_SUBJECT_COMMIT = "8725fa0ad9e9a177c19c4dd10434aec8a566237d"
+EXPECTED_SUBJECT_COMMIT = "69ff811b785a80eec91ee3512f856e6fd33e4a3a"
 EXPECTED_TOP_LEVEL_FIELDS = frozenset(
     {
         "authority",
@@ -99,6 +99,7 @@ EXPECTED_IMPLEMENTED_SLICE_IDS = (
     "GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1",
     "GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1",
     "GLOBAL_ECONOMIC_CURRENT_AUTHORITY_HEAD_V1",
+    "GLOBAL_ECONOMIC_MONOTONIC_ANCHOR_V1",
     "ECONOMIC_INITIAL_STATE_OUTBOX_CONTINUITY_V1",
     "ECONOMIC_INITIAL_STATE_TERMINAL_CONTINUITY_V1",
     "M6_ZDEX_SEMANTIC_DRIFT_GUARD",
@@ -108,7 +109,7 @@ EXPECTED_IMPLEMENTED_SLICE_IDS = (
     "M6_ASSET_PRECISION_PROFILE_BINDING_V1",
 )
 EXPECTED_IMPLEMENTED_SLICE_FIELD_SET_ROOT = (
-    "cf298bbf6039db3d8948e99005373575603c8f2863d32104bfbf7c8219539c83"
+    "7dcaa9e134c6f2c0ec4cfe75b7eb56db88bba319cad0f58f0924b5ba190b1433"
 )
 EXPECTED_CLAIM_PATH = Path(
     "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md"
@@ -116,33 +117,35 @@ EXPECTED_CLAIM_PATH = Path(
 EXPECTED_CAMPAIGN_PATH = Path(
     "docs/research/GLOBAL_ECONOMIC_COMPOSITION_DISASTER_CAMPAIGN_V1.md"
 )
-EXPECTED_CLAIM_SHA256 = "5d5e4ad1076637b5ae9b3f3e668d00386c80717e2e7b40873d1aceb2aec827cb"
-EXPECTED_CAMPAIGN_SHA256 = "26b1baea95475643a62cde3e1daac71b896418e20c9f27ad765580985dd3a50f"
+EXPECTED_CLAIM_SHA256 = "32985ee88b0b15a0b6ef1408e60ac1767f93e20eade434090011e144ecd56990"
+EXPECTED_CAMPAIGN_SHA256 = "f8e3df0d83d62ecec035f6861ddefa0f979cf7a66a9ba928e9011e169856fc15"
 EXPECTED_TEST_RECEIPT_PATH = Path(
     "docs/research/GLOBAL_ECONOMIC_CURRENT_AUTHORITY_TEST_RECEIPT_V1.json"
 )
 EXPECTED_TEST_RECEIPT_SHA256 = (
-    "dd502086053416b6497640c8c8bc7c4105c56c0d1a0eefc9c64ef8541acf42f8"
+    "41437aca047f4abe3fa1485a69ca717b4e9dc8e618496e44631c26d955ea4f9d"
 )
 EXPECTED_VM12_EVIDENCE = (
     "This ledger binds clean scoped implementation subject "
-    "8725fa0ad9e9a177c19c4dd10434aec8a566237d. The current-authority campaign "
-    "preserves minimized second-store, in-flight revocation, revocation-capacity, "
-    "historical-retry, decoder-nesting, authority rollback, epoch-only rollback, "
-    "inode replacement, crash-left bootstrap, paired-special-file, unsupported-procfs, "
-    "and non-atomic migration histories. A local unattested execution receipt records "
-    "245 passing post-commit tests: 236 adjacent settlement ABI, verifier release, "
-    "activation, authority, epoch, "
-    "publisher, and migration tests plus nine exhaustive value-sink tests; its "
-    "ephemeral JUnit outputs are hash-recorded but uncommitted and independently "
-    "unreplayed. Touched Python passes Ruff and targeted mypy; the security scanner "
-    "reported zero advisory findings. Final max review found no High or Medium defect "
-    "and returned GO only for the declared bounded Linux/procfs, same-UID, unmounted "
-    "research ceiling. Anti-rollback authority and epoch anchoring, authenticated "
-    "install provenance, persistent descriptor fencing, atomic migration retirement, "
+    "69ff811b785a80eec91ee3512f856e6fd33e4a3a. The current-authority campaign "
+    "preserves minimized rollback, revocation, inode-replacement, migration, "
+    "forward-tip, lower-journal commit-before-ack, process-control interruption, "
+    "and pre-commit fault histories. A local unattested execution receipt records "
+    "296 passing exact-subject tests: 287 adjacent monotonic-anchor, settlement ABI, "
+    "verifier release, activation, authority, epoch, publisher, and migration tests "
+    "plus nine exhaustive value-sink tests; its ephemeral JUnit outputs are "
+    "hash-recorded but uncommitted and independently unreplayed. Touched Python "
+    "passes Ruff and targeted mypy; the security scan reported zero High or Medium "
+    "and five Low advisory findings. Exact-code max review of 8b3dc4268 found no "
+    "High, Medium, or Low defect and returned GO only for the bounded synchronous "
+    "SHADOW assumptions. The positive schedule remains deterministic reentrancy, "
+    "several control-flow exception variants remain untested, and one asynchronous "
+    "interruption window requires reopen classification. A concrete authenticated "
+    "monotonic backend, genesis and successor anchoring, authenticated install "
+    "provenance, persistent descriptor fencing, atomic migration retirement, "
     "authenticated successor admission, isolated executable attestation, sole-writer "
-    "fencing, real Rust/RISC0 replay, objective finality, and complete release evidence "
-    "remain absent."
+    "fencing, real Rust/RISC0 replay, objective finality, and complete release "
+    "evidence remain absent."
 )
 CHECKER_DEPENDENCY_ARTIFACTS = {
     "asset_precision_checker_sha256": Path(
@@ -329,6 +332,36 @@ CURRENT_AUTHORITY_SLICE_ARTIFACTS = {
     ),
     "sink_manifest_sha256": Path("tools/m6_value_sink_manifest_v1.json"),
     "sink_test_sha256": Path("tests/test_check_m6_value_sinks_v1.py"),
+}
+MONOTONIC_ANCHOR_SLICE_ID = "GLOBAL_ECONOMIC_MONOTONIC_ANCHOR_V1"
+MONOTONIC_ANCHOR_SLICE_COMMIT = EXPECTED_SUBJECT_COMMIT
+MONOTONIC_ANCHOR_SLICE_ARTIFACTS = {
+    "authority_design_sha256": Path(
+        "docs/research/GLOBAL_ECONOMIC_CURRENT_AUTHORITY_HEAD_V1.md"
+    ),
+    "campaign_sha256": EXPECTED_CAMPAIGN_PATH,
+    "claim_sha256": EXPECTED_CLAIM_PATH,
+    "python_core_sha256": Path(
+        "src/core/global_economic_monotonic_anchor_v1.py"
+    ),
+    "python_backend_sha256": Path(
+        "src/integration/global_economic_monotonic_anchor_v1.py"
+    ),
+    "python_publisher_sha256": Path(
+        "src/integration/global_economic_durable_publisher_v1.py"
+    ),
+    "python_epoch_journal_sha256": Path(
+        "src/integration/global_economic_epoch_journal_v1.py"
+    ),
+    "python_core_test_sha256": Path(
+        "tests/core/test_global_economic_monotonic_anchor_v1.py"
+    ),
+    "python_backend_test_sha256": Path(
+        "tests/integration/test_global_economic_monotonic_anchor_backend_v1.py"
+    ),
+    "python_publisher_test_sha256": Path(
+        "tests/integration/test_global_economic_durable_publisher_v1.py"
+    ),
 }
 
 
@@ -668,6 +701,35 @@ def _validate_current_authority_slice_evidence_v1(
     )
 
 
+def _validate_monotonic_anchor_slice_evidence_v1(
+    root: Path,
+    status: Mapping[str, object],
+    subject_commit: object,
+    findings: list[str],
+) -> None:
+    slices = status.get("implemented_slices")
+    if type(slices) is not list or any(type(row) is not dict for row in slices):
+        findings.append("implemented slices must be a list of objects")
+        return
+    rows = [row for row in slices if row.get("id") == MONOTONIC_ANCHOR_SLICE_ID]
+    if len(rows) != 1:
+        findings.append("monotonic anchor slice evidence row must occur exactly once")
+        return
+    anchor = rows[0]
+    if anchor.get("commit") != MONOTONIC_ANCHOR_SLICE_COMMIT:
+        findings.append("monotonic anchor slice implementation commit mismatch")
+    if anchor.get("artifact_subject_commit") != subject_commit:
+        findings.append("monotonic anchor slice artifact subject commit mismatch")
+    _validate_artifact_map_v1(
+        root,
+        anchor,
+        subject_commit,
+        MONOTONIC_ANCHOR_SLICE_ARTIFACTS,
+        "monotonic anchor slice",
+        findings,
+    )
+
+
 def _validate_publisher_bound_slice_evidence_v1(
     root: Path,
     status: Mapping[str, object],
@@ -775,6 +837,7 @@ def check_value_movement_closure_status_v1(
     _validate_durable_epoch_slice_evidence_v1(root, status, commit, findings)
     _validate_durable_publisher_slice_evidence_v1(root, status, commit, findings)
     _validate_current_authority_slice_evidence_v1(root, status, commit, findings)
+    _validate_monotonic_anchor_slice_evidence_v1(root, status, commit, findings)
     _validate_publisher_bound_slice_evidence_v1(root, status, commit, findings)
 
     authority = _mapping(status.get("authority"), "authority", findings)
@@ -863,19 +926,19 @@ def check_value_movement_closure_status_v1(
         findings.append("test execution receipt subject mismatch")
     if receipt.get("evidence_authority") != "LOCAL_EXECUTION_RECORD_UNATTESTED":
         findings.append("test execution receipt authority exceeds evidence")
-    if receipt.get("total_tests") != 245:
+    if receipt.get("total_tests") != 296:
         findings.append("test execution receipt total drift")
     runs = receipt.get("runs")
     expected_runs = (
         (
-            "adjacent_authority_portfolio",
-            236,
-            "ac08c1cee6db540a6388e5485f39e1abe1d14994fbfcb2b6a1551dd93b9336cf",
+            "adjacent_monotonic_authority_portfolio",
+            287,
+            "6b6682ccc42beafa1d8edba2e76134851c0f5445a5d963990ad4f92ac05d3e4e",
         ),
         (
             "exhaustive_python_value_sinks",
             9,
-            "bc64788c79ed48bc9b8b29b320542b885a508aabaac06a163954efe0e8a84c5e",
+            "2de6f6cae95098d5bc52fbb288e41b0a6e6b0c5f0d12c7f7c0b824979e25f458",
         ),
     )
     if type(runs) is not list or len(runs) != len(expected_runs):
