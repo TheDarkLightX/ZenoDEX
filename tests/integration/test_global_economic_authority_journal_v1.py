@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
+import stat
 from dataclasses import replace
 from pathlib import Path
-from threading import Barrier, Lock, Thread
+from threading import Event, Thread
 
 import pytest
 
@@ -18,6 +20,7 @@ from src.core.global_economic_authority_head_v1 import (
     require_global_economic_authority_successor_v1,
 )
 from src.integration.global_economic_authority_journal_v1 import (
+    GlobalEconomicAuthorityBootstrapBusyV1,
     GlobalEconomicAuthorityCommitStatusV1,
     GlobalEconomicAuthorityJournalV1,
     _attach_authority_store_v1,
@@ -176,33 +179,30 @@ def test_journal_commit_reopen_and_exact_retry_preserve_one_authority_tip(
     reopened.close()
 
 
-def test_concurrent_authority_bootstrap_has_one_winner_and_one_typed_existing(
+def test_concurrent_authority_bootstrap_has_one_winner_and_one_typed_busy(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Arrange: force two creators to open the same absent path before either
-    # bootstrap transaction can inspect sqlite_master.
+    # Arrange: hold the first installer after it owns the directory lock.
     path = tmp_path / "concurrent-authority-create.sqlite"
     active = _head()
-    original_connect = authority_journal_module._connect_v1
-    connected = Barrier(2)
-    count_lock = Lock()
-    connection_count = 0
+    original_initialize = authority_journal_module._initialize_authority_candidate_v1
+    entered = Event()
+    release = Event()
 
-    def synchronized_connect(target: Path) -> sqlite3.Connection:
-        nonlocal connection_count
-        connection = original_connect(target)
-        with count_lock:
-            connection_count += 1
-            ordinal = connection_count
-        if ordinal <= 2:
-            connected.wait(timeout=10)
-        return connection
+    def blocking_initialize(
+        candidate_path: Path,
+        initial_head: GlobalEconomicAuthorityHeadV1,
+    ) -> None:
+        entered.set()
+        if not release.wait(timeout=10):
+            raise RuntimeError("test authority bootstrap release timed out")
+        original_initialize(candidate_path, initial_head)
 
     monkeypatch.setattr(
         authority_journal_module,
-        "_connect_v1",
-        synchronized_connect,
+        "_initialize_authority_candidate_v1",
+        blocking_initialize,
     )
     journals: list[GlobalEconomicAuthorityJournalV1] = []
     errors: list[BaseException] = []
@@ -216,23 +216,106 @@ def test_concurrent_authority_bootstrap_has_one_winner_and_one_typed_existing(
     first = Thread(target=create)
     second = Thread(target=create)
 
-    # Act: both creators race from the same filesystem observation.
+    # Act: the second creator reaches the same directory while install is live.
     first.start()
+    assert entered.wait(timeout=10)
     second.start()
-    first.join(timeout=15)
     second.join(timeout=15)
+    release.set()
+    first.join(timeout=15)
 
-    # Assert: SQLite bootstrap serialization yields one complete store and one
-    # stable API rejection; no raw table-exists OperationalError escapes.
+    # Assert: no SQLite lock timeout leaks and only one complete store installs.
     assert not first.is_alive()
     assert not second.is_alive()
     assert len(journals) == 1
     assert len(errors) == 1
-    assert type(errors[0]) is FileExistsError
+    assert type(errors[0]) is GlobalEconomicAuthorityBootstrapBusyV1
     assert journals[0].head == active
     journals[0].close()
     with GlobalEconomicAuthorityJournalV1.open(path) as reopened:
         assert reopened.head == active
+
+
+def test_authority_create_never_adopts_preexisting_namespace_entries(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Mallory places empty, SQLite, malformed, hardlinked, and FIFO
+    # entries at paths an authority installer may be asked to use.
+    active = _head()
+    zero = tmp_path / "preexisting-zero.sqlite"
+    zero.write_bytes(b"")
+    empty_sqlite = tmp_path / "preexisting-empty-sqlite.sqlite"
+    with sqlite3.connect(empty_sqlite) as connection:
+        connection.execute("VACUUM")
+    malformed = tmp_path / "preexisting-malformed.sqlite"
+    malformed.write_bytes(b"not a sqlite database")
+    hardlink_source = tmp_path / "preexisting-hardlink-source"
+    hardlink_source.write_bytes(b"")
+    hardlink = tmp_path / "preexisting-hardlink.sqlite"
+    os.link(hardlink_source, hardlink)
+    symlink = tmp_path / "preexisting-symlink.sqlite"
+    symlink.symlink_to(zero)
+    directory = tmp_path / "preexisting-directory.sqlite"
+    directory.mkdir()
+    fifo = tmp_path / "preexisting-fifo.sqlite"
+    os.mkfifo(fifo)
+    before = {
+        zero: zero.read_bytes(),
+        empty_sqlite: empty_sqlite.read_bytes(),
+        malformed: malformed.read_bytes(),
+        hardlink: hardlink.read_bytes(),
+    }
+
+    # Act and assert: every existing namespace entry gets one stable rejection;
+    # no file is opened writable, initialized, truncated, or followed.
+    for target in (
+        zero,
+        empty_sqlite,
+        malformed,
+        hardlink,
+        symlink,
+        directory,
+        fifo,
+    ):
+        with pytest.raises(FileExistsError, match="already exists"):
+            GlobalEconomicAuthorityJournalV1.create(target, active)
+    assert {path: path.read_bytes() for path in before} == before
+    assert stat.S_ISFIFO(fifo.lstat().st_mode)
+
+
+def test_authority_open_rejects_alias_and_mode_mismatch(tmp_path: Path) -> None:
+    # Arrange: one valid store gains a hardlink alias, then a second valid store
+    # receives a broader mode than the exact private-store contract.
+    active = _head()
+    linked = tmp_path / "linked-authority.sqlite"
+    journal = GlobalEconomicAuthorityJournalV1.create(linked, active)
+    journal.close()
+    os.link(linked, tmp_path / "linked-authority-alias.sqlite")
+    broad = tmp_path / "broad-mode-authority.sqlite"
+    broad_journal = GlobalEconomicAuthorityJournalV1.create(broad, active)
+    broad_journal.close()
+    broad.chmod(0o640)
+
+    # Act and assert: aliases and mode drift cannot become authority handles.
+    with pytest.raises(PermissionError, match="exactly one filesystem link"):
+        GlobalEconomicAuthorityJournalV1.open(linked)
+    with pytest.raises(PermissionError, match="mode must be exactly 0600"):
+        GlobalEconomicAuthorityJournalV1.open(broad)
+
+
+def test_authority_crash_left_bootstrap_candidate_fails_closed(
+    tmp_path: Path,
+) -> None:
+    # Arrange: a prior failed installer left the reserved private candidate.
+    candidate = tmp_path / ".global-economic-authority-bootstrap-v1.sqlite"
+    candidate.write_bytes(b"crash-left")
+    target = tmp_path / "authority-after-crash.sqlite"
+
+    # Act and assert: recovery never deletes or adopts an unverified candidate.
+    with pytest.raises(RuntimeError, match="crash-left bootstrap candidate"):
+        GlobalEconomicAuthorityJournalV1.create(target, _head())
+    assert not target.exists()
+    assert candidate.read_bytes() == b"crash-left"
 
 
 def test_historical_retry_after_a_later_generation_is_a_stale_noop(

@@ -4,16 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import inspect
-import sqlite3
 from dataclasses import replace
 from pathlib import Path
-from threading import Barrier, Event, Lock, Thread
+from threading import Event, Thread
 from typing import Any, cast
 
 import pytest
 
 import src.integration.global_economic_authority_journal_v1 as authority_journal_module
-import src.integration.global_economic_epoch_journal_v1 as epoch_journal_module
 from src.core.economic_receipt_verifier_deployment_v1 import (
     BoundEconomicReceiptVerifierV1,
     EconomicReceiptVerifierEvidenceManifestV1,
@@ -29,6 +27,7 @@ from src.core.global_economic_durable_activation_v1 import (
 from src.core.global_economic_proof_v1 import EconomicEpochReceiptCandidateV1
 from src.core.global_settlement_types_v1 import hash_global_v1
 from src.integration.global_economic_authority_journal_v1 import (
+    GlobalEconomicAuthorityBootstrapBusyV1,
     GlobalEconomicAuthorityCommitStatusV1,
     GlobalEconomicAuthorityJournalV1,
     authority_journal_path_for_epoch_v1,
@@ -200,56 +199,29 @@ def test_exact_create_retry_recovers_committed_activation_after_lost_ack(
     recovered.close()
 
 
-def test_concurrent_verified_publisher_create_recovers_one_sequence_zero_store(
+def test_concurrent_verified_publisher_create_has_one_install_and_typed_busy(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Arrange: synchronize both authority and epoch connections after preflight,
-    # reproducing the first-install race at each durable bootstrap boundary.
+    # Arrange: pause one publisher while it owns the shared directory bootstrap.
     admission, candidate, _ = _publisher_fixture_v1(
         receipt_bytes=b"concurrent-publisher-create"
     )
     path = tmp_path / "concurrent-publisher-create.sqlite"
-    authority_connect = authority_journal_module._connect_v1
-    epoch_connect = epoch_journal_module._connect_v1
-    authority_barrier = Barrier(2)
-    epoch_barrier = Barrier(2)
-    count_lock = Lock()
-    authority_count = 0
-    epoch_count = 0
+    original_initialize = authority_journal_module._initialize_authority_candidate_v1
+    entered = Event()
+    release = Event()
 
-    def synchronized_authority_connect(target: Path) -> sqlite3.Connection:
-        nonlocal authority_count
-        connection = authority_connect(target)
-        with count_lock:
-            authority_count += 1
-            ordinal = authority_count
-        if ordinal <= 2:
-            authority_barrier.wait(timeout=10)
-        return connection
-
-    def synchronized_epoch_connect(
-        target: Path,
-        authority_path: Path | None = None,
-    ) -> sqlite3.Connection:
-        nonlocal epoch_count
-        connection = epoch_connect(target, authority_path)
-        with count_lock:
-            epoch_count += 1
-            ordinal = epoch_count
-        if ordinal <= 2:
-            epoch_barrier.wait(timeout=10)
-        return connection
+    def blocking_initialize(candidate_path: Path, initial_head: Any) -> None:
+        entered.set()
+        if not release.wait(timeout=10):
+            raise RuntimeError("test publisher bootstrap release timed out")
+        original_initialize(candidate_path, initial_head)
 
     monkeypatch.setattr(
         authority_journal_module,
-        "_connect_v1",
-        synchronized_authority_connect,
-    )
-    monkeypatch.setattr(
-        epoch_journal_module,
-        "_connect_v1",
-        synchronized_epoch_connect,
+        "_initialize_authority_candidate_v1",
+        blocking_initialize,
     )
     publishers: list[VerifiedDurableEconomicPublisherV1] = []
     errors: list[BaseException] = []
@@ -269,18 +241,20 @@ def test_concurrent_verified_publisher_create_recovers_one_sequence_zero_store(
     first = Thread(target=create)
     second = Thread(target=create)
 
-    # Act: two same-profile installers race the exact same named publisher.
+    # Act: a second same-profile installer contests the live bootstrap.
     first.start()
+    assert entered.wait(timeout=10)
     second.start()
-    first.join(timeout=20)
     second.join(timeout=20)
+    release.set()
+    first.join(timeout=20)
 
-    # Assert: one install and one exact recovery converge without raw SQLite faults.
+    # Assert: one install succeeds and contention has one closed exception type.
     assert not first.is_alive()
     assert not second.is_alive()
-    assert errors == []
-    assert len(publishers) == 2
-    assert publishers[0].head == publishers[1].head
+    assert len(errors) == 1
+    assert type(errors[0]) is GlobalEconomicAuthorityBootstrapBusyV1
+    assert len(publishers) == 1
     assert publishers[0].head.sequence == 0
     for publisher in publishers:
         publisher.close()
@@ -773,6 +747,58 @@ def test_restored_pre_revocation_authority_remains_a_release_blocker(
     assert revoked.status is GlobalEconomicAuthorityCommitStatusV1.COMMITTED
     assert published.status is DurableEconomicEpochCommitStatusV1.COMMITTED
     resurrected.close()
+
+
+def test_replaced_authority_inode_remains_open_publisher_release_blocker(
+    tmp_path: Path,
+) -> None:
+    # Arrange: one publisher retains the ACTIVE authority inode, while governance
+    # prepares an exact REVOKED successor database in another directory.
+    import os
+
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"authority-inode-replacement-blocker"
+    )
+    path = tmp_path / "authority-inode-replacement.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    source = publisher.head
+    authority_path = authority_journal_path_for_epoch_v1(path)
+    with GlobalEconomicAuthorityJournalV1.open(authority_path) as current_journal:
+        current = current_journal.head
+    replacement_dir = tmp_path / "revoked-authority-replacement"
+    replacement_dir.mkdir()
+    replacement_path = authority_journal_path_for_epoch_v1(
+        replacement_dir / "epoch.sqlite"
+    )
+    replacement = GlobalEconomicAuthorityJournalV1.create(
+        replacement_path,
+        current,
+    )
+    revoked = replacement._commit_successor_for_unmounted_control_plane_v1(
+        current.revoked_successor(),
+        replacement._acquire_cas_head_token_for_unmounted_control_plane_v1(),
+    )
+    replacement.close()
+
+    # Act: replace the pathname atomically, then publish through the connection
+    # that still has the detached ACTIVE authority inode attached.
+    os.replace(replacement_path, authority_path)
+    with GlobalEconomicAuthorityJournalV1.open(authority_path) as path_reader:
+        assert path_reader.head.status.value == "REVOKED"
+    published = publisher.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: the split view is reproducible and blocks any production claim.
+    assert revoked.status is GlobalEconomicAuthorityCommitStatusV1.COMMITTED
+    assert published.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    publisher.close()
 
 
 def test_separate_migration_commit_leaves_old_publisher_active_release_blocker(

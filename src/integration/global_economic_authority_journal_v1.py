@@ -8,7 +8,11 @@ governance or migration decisions and therefore grants no production authority.
 
 from __future__ import annotations
 
+import errno
+import fcntl
+import os
 import sqlite3
+import stat
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -88,8 +92,8 @@ class GlobalEconomicAuthorityCommitStatusV1(str, Enum):
     CAPACITY_EXCEEDED = "CAPACITY_EXCEEDED"
 
 
-class _ExistingGlobalEconomicAuthorityStoreV1(RuntimeError):
-    """Internal signal emitted only after bootstrap obtains the write lock."""
+class GlobalEconomicAuthorityBootstrapBusyV1(RuntimeError):
+    """Another cooperating installer owns the directory bootstrap lock."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,6 +170,47 @@ def _normalize_path_v1(path: str | Path, *, name: str) -> Path:
     if not candidate.name:
         raise ValueError(f"{name} must name a file")
     return candidate.absolute()
+
+
+def _require_owned_regular_store_v1(path: Path, *, name: str) -> None:
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        raise FileNotFoundError(f"{name} file is absent") from None
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError(f"{name} must be a regular file")
+    if metadata.st_uid != os.geteuid():
+        raise PermissionError(f"{name} owner does not match the current process")
+    if stat.S_IMODE(metadata.st_mode) != 0o600:
+        raise PermissionError(f"{name} mode must be exactly 0600")
+    if metadata.st_nlink != 1:
+        raise PermissionError(f"{name} must have exactly one filesystem link")
+
+
+def _acquire_authority_bootstrap_lock_v1(path: Path) -> int:
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
+    directory_fd = os.open(path.parent, flags)
+    try:
+        fcntl.flock(directory_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        os.close(directory_fd)
+        if exc.errno in {errno.EACCES, errno.EAGAIN}:
+            raise GlobalEconomicAuthorityBootstrapBusyV1(
+                "global economic authority bootstrap is busy"
+            ) from exc
+        raise
+    return directory_fd
+
+
+def _release_authority_bootstrap_lock_v1(directory_fd: int) -> None:
+    try:
+        fcntl.flock(directory_fd, fcntl.LOCK_UN)
+    finally:
+        os.close(directory_fd)
+
+
+def _authority_bootstrap_candidate_path_v1(path: Path) -> Path:
+    return path.parent / ".global-economic-authority-bootstrap-v1.sqlite"
 
 
 def _reject_wal_artifacts_v1(path: Path) -> None:
@@ -526,8 +571,10 @@ def _attach_authority_store_v1(
     *,
     immutable: bool,
 ) -> None:
-    if authority_path.is_symlink() or not authority_path.is_file():
-        raise FileNotFoundError("global economic authority journal file is absent")
+    _require_owned_regular_store_v1(
+        authority_path,
+        name="global economic authority journal",
+    )
     _reject_wal_artifacts_v1(authority_path)
     target = (
         f"{authority_path.as_uri()}?mode=ro&immutable=1"
@@ -579,35 +626,18 @@ class GlobalEconomicAuthorityJournalV1:
             raise ValueError("global economic authority journal must begin at generation zero")
         if owned.status.value != "ACTIVE":
             raise ValueError("global economic authority journal must begin active")
-        if normalized.is_symlink():
-            raise ValueError("global economic authority path must not be a symlink")
         if not normalized.parent.is_dir():
             raise FileNotFoundError("global economic authority parent directory is absent")
-        if normalized.exists():
-            _reject_wal_artifacts_v1(normalized)
-        journal = cls(normalized, _connect_v1(normalized))
-        try:
-            journal._create_store_v1(owned)
-            journal._read_snapshot_v1()
-        except _ExistingGlobalEconomicAuthorityStoreV1:
-            journal.close()
-            validation = cls.open(normalized)
-            validation.close()
-            raise FileExistsError(
-                "global economic authority journal path already exists"
-            ) from None
-        except BaseException:
-            journal.close()
-            raise
-        return journal
+        _install_authority_store_no_replace_v1(normalized, owned)
+        return cls.open(normalized)
 
     @classmethod
     def open(cls, path: str | Path) -> GlobalEconomicAuthorityJournalV1:
         normalized = _normalize_path_v1(path, name="global economic authority path")
-        if normalized.is_symlink():
-            raise ValueError("global economic authority path must not be a symlink")
-        if not normalized.is_file():
-            raise FileNotFoundError("global economic authority journal file is absent")
+        _require_owned_regular_store_v1(
+            normalized,
+            name="global economic authority journal",
+        )
         validation = cls(normalized, _connect_existing_for_validation_v1(normalized))
         try:
             validation._read_snapshot_v1()
@@ -696,15 +726,13 @@ class GlobalEconomicAuthorityJournalV1:
 
     def _create_store_v1(self, initial_head: GlobalEconomicAuthorityHeadV1) -> None:
         connection = self._connection
-        connection.execute("BEGIN IMMEDIATE")
         try:
+            connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1"
             ).fetchone()
             if existing is not None:
-                raise _ExistingGlobalEconomicAuthorityStoreV1(
-                    "global economic authority store already initialized"
-                )
+                raise RuntimeError("authority bootstrap candidate is not empty")
             connection.execute(_CREATE_METADATA_SQL_V1)
             connection.execute(_CREATE_HISTORY_SQL_V1)
             connection.execute(_CREATE_CURRENT_SQL_V1)
@@ -804,6 +832,80 @@ class GlobalEconomicAuthorityJournalV1:
             raise
 
 
+def _path_entry_exists_v1(path: Path) -> bool:
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def _initialize_authority_candidate_v1(
+    candidate_path: Path,
+    initial_head: GlobalEconomicAuthorityHeadV1,
+) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW
+    try:
+        candidate_fd = os.open(candidate_path, flags, 0o600)
+    except FileExistsError:
+        raise RuntimeError(
+            "global economic authority crash-left bootstrap candidate exists"
+        ) from None
+    os.close(candidate_fd)
+    candidate = GlobalEconomicAuthorityJournalV1(
+        candidate_path,
+        _connect_v1(candidate_path),
+    )
+    try:
+        candidate._create_store_v1(initial_head)
+        candidate._read_snapshot_v1()
+    finally:
+        candidate.close()
+    _require_owned_regular_store_v1(
+        candidate_path,
+        name="global economic authority bootstrap candidate",
+    )
+    fsync_fd = os.open(
+        candidate_path,
+        os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+    )
+    try:
+        os.fsync(fsync_fd)
+    finally:
+        os.close(fsync_fd)
+
+
+def _install_authority_store_no_replace_v1(
+    path: Path,
+    initial_head: GlobalEconomicAuthorityHeadV1,
+) -> None:
+    directory_fd = _acquire_authority_bootstrap_lock_v1(path)
+    try:
+        if _path_entry_exists_v1(path):
+            raise FileExistsError(
+                "global economic authority journal path already exists"
+            )
+        candidate_path = _authority_bootstrap_candidate_path_v1(path)
+        if candidate_path == path:
+            raise ValueError("global economic authority path uses a reserved name")
+        if _path_entry_exists_v1(candidate_path):
+            raise RuntimeError(
+                "global economic authority crash-left bootstrap candidate exists"
+            )
+        _initialize_authority_candidate_v1(candidate_path, initial_head)
+        try:
+            os.link(candidate_path, path, follow_symlinks=False)
+        except FileExistsError:
+            raise FileExistsError(
+                "global economic authority journal path already exists"
+            ) from None
+        os.fsync(directory_fd)
+        os.unlink(candidate_path)
+        os.fsync(directory_fd)
+    finally:
+        _release_authority_bootstrap_lock_v1(directory_fd)
+
+
 def _create_or_recover_authority_for_publisher_v1(
     authority_path: Path,
     expected_head: GlobalEconomicAuthorityHeadV1,
@@ -826,6 +928,7 @@ def _create_or_recover_authority_for_publisher_v1(
 
 
 __all__ = [
+    "GlobalEconomicAuthorityBootstrapBusyV1",
     "GlobalEconomicAuthorityCasTokenV1",
     "GlobalEconomicAuthorityCommitOutcomeV1",
     "GlobalEconomicAuthorityCommitStatusV1",

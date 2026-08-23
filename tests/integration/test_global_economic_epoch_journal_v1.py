@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
+import stat
 import subprocess
 import sys
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from threading import Event, Thread
 from typing import Any, cast
 
 import pytest
@@ -50,6 +53,7 @@ from src.integration.global_economic_durable_epoch_v1 import (
     prepare_durable_economic_epoch_bundle_v1,
 )
 from src.integration.global_economic_epoch_journal_v1 import (
+    DurableEconomicEpochBootstrapBusyV1,
     DurableEconomicEpochCasTokenV1,
     DurableEconomicEpochCommitOutcomeV1,
     DurableEconomicEpochCommitStatusV1,
@@ -632,6 +636,160 @@ def test_journal_resolves_owned_activation_and_exact_historical_heads(
     journal.close()
 
 
+def test_concurrent_epoch_bootstrap_has_one_writer_and_one_typed_busy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: install the shared authority, then pause one epoch candidate while
+    # it owns the nonblocking directory bootstrap lock.
+    activation, source_head, _ = _fixture_v1()
+    path = tmp_path / "concurrent-epoch-create.sqlite"
+    authority_path = authority_journal_path_for_epoch_v1(path)
+    authority = _test_authority_v1(activation)
+    _create_or_recover_authority_for_publisher_v1(authority_path, authority)
+    original_initialize = journal_module._initialize_epoch_candidate_v1
+    entered = Event()
+    release = Event()
+
+    def blocking_initialize(
+        candidate_path: Path,
+        candidate_activation: DurableEconomicInitialStateBundleV1,
+        *,
+        authority_path: Path | None,
+        expected_authority: GlobalEconomicAuthorityHeadV1 | None,
+    ) -> None:
+        entered.set()
+        if not release.wait(timeout=10):
+            raise RuntimeError("test epoch bootstrap release timed out")
+        original_initialize(
+            candidate_path,
+            candidate_activation,
+            authority_path=authority_path,
+            expected_authority=expected_authority,
+        )
+
+    monkeypatch.setattr(
+        journal_module,
+        "_initialize_epoch_candidate_v1",
+        blocking_initialize,
+    )
+    writers: list[
+        tuple[GlobalEconomicEpochJournalV1, DurableEconomicEpochWriteCapabilityV1]
+    ] = []
+    errors: list[BaseException] = []
+
+    def create() -> None:
+        try:
+            writers.append(
+                _create_epoch_journal_for_verified_publisher_v1(
+                    path,
+                    activation,
+                    authority_path,
+                    authority,
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = Thread(target=create)
+    second = Thread(target=create)
+
+    # Act: the second installer contests the same directory lock.
+    first.start()
+    assert entered.wait(timeout=10)
+    second.start()
+    second.join(timeout=15)
+    release.set()
+    first.join(timeout=15)
+
+    # Assert: one exact sequence-zero store installs and contention is typed.
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert len(writers) == 1
+    assert len(errors) == 1
+    assert type(errors[0]) is DurableEconomicEpochBootstrapBusyV1
+    assert writers[0][0].head == source_head
+    writers[0][0].close()
+
+
+def test_epoch_create_never_adopts_preexisting_namespace_entries(
+    tmp_path: Path,
+) -> None:
+    # Arrange: hostile entries occupy candidate final paths before create.
+    activation, _, _ = _fixture_v1()
+    zero = tmp_path / "preexisting-epoch-zero.sqlite"
+    zero.write_bytes(b"")
+    empty_sqlite = tmp_path / "preexisting-epoch-empty.sqlite"
+    with sqlite3.connect(empty_sqlite) as connection:
+        connection.execute("VACUUM")
+    malformed = tmp_path / "preexisting-epoch-malformed.sqlite"
+    malformed.write_bytes(b"not a sqlite database")
+    source = tmp_path / "preexisting-epoch-hardlink-source"
+    source.write_bytes(b"")
+    hardlink = tmp_path / "preexisting-epoch-hardlink.sqlite"
+    os.link(source, hardlink)
+    symlink = tmp_path / "preexisting-epoch-symlink.sqlite"
+    symlink.symlink_to(zero)
+    directory = tmp_path / "preexisting-epoch-directory.sqlite"
+    directory.mkdir()
+    fifo = tmp_path / "preexisting-epoch-fifo.sqlite"
+    os.mkfifo(fifo)
+    before = {
+        zero: zero.read_bytes(),
+        empty_sqlite: empty_sqlite.read_bytes(),
+        malformed: malformed.read_bytes(),
+        hardlink: hardlink.read_bytes(),
+    }
+
+    # Act and assert: no pre-existing inode is opened writable or initialized.
+    for target in (
+        zero,
+        empty_sqlite,
+        malformed,
+        hardlink,
+        symlink,
+        directory,
+        fifo,
+    ):
+        with pytest.raises(FileExistsError, match="already exists"):
+            GlobalEconomicEpochJournalV1.create(target, activation)
+    assert {path: path.read_bytes() for path in before} == before
+    assert stat.S_ISFIFO(fifo.lstat().st_mode)
+
+
+def test_epoch_open_rejects_alias_and_mode_mismatch(tmp_path: Path) -> None:
+    # Arrange: create two valid structural stores, then violate link and mode.
+    activation, _, _ = _fixture_v1()
+    linked = tmp_path / "linked-epoch.sqlite"
+    journal = GlobalEconomicEpochJournalV1.create(linked, activation)
+    journal.close()
+    os.link(linked, tmp_path / "linked-epoch-alias.sqlite")
+    broad = tmp_path / "broad-mode-epoch.sqlite"
+    broad_journal = GlobalEconomicEpochJournalV1.create(broad, activation)
+    broad_journal.close()
+    broad.chmod(0o640)
+
+    # Act and assert: aliased or broadly writable stores cannot be reopened.
+    with pytest.raises(PermissionError, match="exactly one filesystem link"):
+        GlobalEconomicEpochJournalV1.open(linked)
+    with pytest.raises(PermissionError, match="mode must be exactly 0600"):
+        GlobalEconomicEpochJournalV1.open(broad)
+
+
+def test_epoch_crash_left_bootstrap_candidate_fails_closed(tmp_path: Path) -> None:
+    # Arrange: a prior failed install left the reserved epoch candidate name.
+    activation, _, _ = _fixture_v1()
+    candidate = tmp_path / ".global-economic-epoch-bootstrap-v1.sqlite"
+    candidate.write_bytes(b"crash-left")
+    target = tmp_path / "epoch-after-crash.sqlite"
+
+    # Act and assert: no candidate deletion, adoption, or final publication occurs.
+    with pytest.raises(RuntimeError, match="crash-left bootstrap candidate"):
+        GlobalEconomicEpochJournalV1.create(target, activation)
+    assert not target.exists()
+    assert candidate.read_bytes() == b"crash-left"
+
+
 def test_given_lost_ack_when_exact_epoch_retries_then_no_duplicate_is_created(
     tmp_path: Path,
 ) -> None:
@@ -1001,6 +1159,7 @@ def test_given_wal_schema_mutant_when_open_rejects_then_store_is_unchanged(
     connection.execute("INSERT INTO unexpected(value) VALUES (7)")
     connection.commit()
     connection.close()
+    path.chmod(0o600)
     before = path.read_bytes()
 
     # Act and assert: open rejects before changing the persistent journal mode.
@@ -1038,6 +1197,7 @@ os._exit(0)
         check=False,
     )
     assert child.returncode == 0
+    path.chmod(0o600)
 
     def store_family() -> dict[str, bytes]:
         return {

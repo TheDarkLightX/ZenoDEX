@@ -7,7 +7,11 @@ settlement, finality, consensus, or production writer authority.
 
 from __future__ import annotations
 
+import errno
+import fcntl
+import os
 import sqlite3
+import stat
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -208,8 +212,8 @@ class _SimulatedDurableEconomicEpochCrashV1(RuntimeError):
     pass
 
 
-class _ExistingDurableEconomicEpochStoreV1(RuntimeError):
-    """Internal signal emitted only after bootstrap obtains the write lock."""
+class DurableEconomicEpochBootstrapBusyV1(RuntimeError):
+    """Another cooperating installer owns the directory bootstrap lock."""
 
 
 def _normalize_path_v1(path: str | Path) -> Path:
@@ -224,6 +228,47 @@ def _normalize_path_v1(path: str | Path) -> Path:
     if not candidate.name:
         raise ValueError("durable epoch journal path must name a file")
     return candidate.absolute()
+
+
+def _require_owned_regular_epoch_store_v1(path: Path, *, name: str) -> None:
+    try:
+        metadata = path.lstat()
+    except FileNotFoundError:
+        raise FileNotFoundError(f"{name} file is absent") from None
+    if not stat.S_ISREG(metadata.st_mode):
+        raise ValueError(f"{name} must be a regular file")
+    if metadata.st_uid != os.geteuid():
+        raise PermissionError(f"{name} owner does not match the current process")
+    if stat.S_IMODE(metadata.st_mode) != 0o600:
+        raise PermissionError(f"{name} mode must be exactly 0600")
+    if metadata.st_nlink != 1:
+        raise PermissionError(f"{name} must have exactly one filesystem link")
+
+
+def _acquire_epoch_bootstrap_lock_v1(path: Path) -> int:
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
+    directory_fd = os.open(path.parent, flags)
+    try:
+        fcntl.flock(directory_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError as exc:
+        os.close(directory_fd)
+        if exc.errno in {errno.EACCES, errno.EAGAIN}:
+            raise DurableEconomicEpochBootstrapBusyV1(
+                "durable epoch bootstrap is busy"
+            ) from exc
+        raise
+    return directory_fd
+
+
+def _release_epoch_bootstrap_lock_v1(directory_fd: int) -> None:
+    try:
+        fcntl.flock(directory_fd, fcntl.LOCK_UN)
+    finally:
+        os.close(directory_fd)
+
+
+def _epoch_bootstrap_candidate_path_v1(path: Path) -> Path:
+    return path.parent / ".global-economic-epoch-bootstrap-v1.sqlite"
 
 
 def _configure_connection_v1(connection: sqlite3.Connection) -> None:
@@ -412,35 +457,23 @@ class GlobalEconomicEpochJournalV1:
     ) -> GlobalEconomicEpochJournalV1:
         normalized = _normalize_path_v1(path)
         owned_activation = _snapshot_activation_v1(activation)
-        if normalized.is_symlink():
-            raise ValueError("durable epoch journal path must not be a symlink")
         if not normalized.parent.is_dir():
             raise FileNotFoundError("durable epoch journal parent directory is absent")
-        if normalized.exists():
-            _reject_wal_artifacts_v1(normalized)
-        journal = cls(normalized, _connect_v1(normalized))
-        try:
-            journal._create_store_v1(owned_activation)
-            journal._read_snapshot_v1()
-        except _ExistingDurableEconomicEpochStoreV1:
-            journal.close()
-            validation = cls.open(normalized)
-            validation.close()
-            raise FileExistsError(
-                "durable epoch journal path already exists"
-            ) from None
-        except BaseException:
-            journal.close()
-            raise
-        return journal
+        _install_epoch_store_no_replace_v1(
+            normalized,
+            owned_activation,
+            authority_path=None,
+            expected_authority=None,
+        )
+        return cls.open(normalized)
 
     @classmethod
     def open(cls, path: str | Path) -> GlobalEconomicEpochJournalV1:
         normalized = _normalize_path_v1(path)
-        if normalized.is_symlink():
-            raise ValueError("durable epoch journal path must not be a symlink")
-        if not normalized.is_file():
-            raise FileNotFoundError("durable epoch journal file is absent")
+        _require_owned_regular_epoch_store_v1(
+            normalized,
+            name="durable epoch journal",
+        )
         validation = cls(
             normalized,
             _connect_existing_for_validation_v1(normalized),
@@ -588,15 +621,13 @@ class GlobalEconomicEpochJournalV1:
         activation: DurableEconomicInitialStateBundleV1,
     ) -> None:
         connection = self._connection
-        connection.execute("BEGIN IMMEDIATE")
         try:
+            connection.execute("BEGIN IMMEDIATE")
             existing = connection.execute(
                 "SELECT 1 FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1"
             ).fetchone()
             if existing is not None:
-                raise _ExistingDurableEconomicEpochStoreV1(
-                    "durable epoch store already initialized"
-                )
+                raise RuntimeError("epoch bootstrap candidate is not empty")
             connection.execute(_CREATE_METADATA_SQL_V1)
             connection.execute(_CREATE_EPOCHS_SQL_V1)
             connection.execute(_CREATE_CURRENT_HEAD_SQL_V1)
@@ -971,6 +1002,88 @@ class GlobalEconomicEpochJournalV1:
         return row[0], row[1]
 
 
+def _path_entry_exists_v1(path: Path) -> bool:
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def _initialize_epoch_candidate_v1(
+    candidate_path: Path,
+    activation: DurableEconomicInitialStateBundleV1,
+    *,
+    authority_path: Path | None,
+    expected_authority: GlobalEconomicAuthorityHeadV1 | None,
+) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | os.O_NOFOLLOW
+    try:
+        candidate_fd = os.open(candidate_path, flags, 0o600)
+    except FileExistsError:
+        raise RuntimeError(
+            "durable epoch crash-left bootstrap candidate exists"
+        ) from None
+    os.close(candidate_fd)
+    candidate = GlobalEconomicEpochJournalV1(
+        candidate_path,
+        _connect_v1(candidate_path, authority_path),
+        expected_authority=expected_authority,
+    )
+    try:
+        candidate._create_store_v1(activation)
+        candidate._read_snapshot_v1()
+        if expected_authority is not None:
+            candidate._require_current_authority_v1()
+    finally:
+        candidate.close()
+    _require_owned_regular_epoch_store_v1(
+        candidate_path,
+        name="durable epoch bootstrap candidate",
+    )
+    fsync_fd = os.open(
+        candidate_path,
+        os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW,
+    )
+    try:
+        os.fsync(fsync_fd)
+    finally:
+        os.close(fsync_fd)
+
+
+def _install_epoch_store_no_replace_v1(
+    path: Path,
+    activation: DurableEconomicInitialStateBundleV1,
+    *,
+    authority_path: Path | None,
+    expected_authority: GlobalEconomicAuthorityHeadV1 | None,
+) -> None:
+    directory_fd = _acquire_epoch_bootstrap_lock_v1(path)
+    try:
+        if _path_entry_exists_v1(path):
+            raise FileExistsError("durable epoch journal path already exists")
+        candidate_path = _epoch_bootstrap_candidate_path_v1(path)
+        if candidate_path == path:
+            raise ValueError("durable epoch path uses a reserved name")
+        if _path_entry_exists_v1(candidate_path):
+            raise RuntimeError("durable epoch crash-left bootstrap candidate exists")
+        _initialize_epoch_candidate_v1(
+            candidate_path,
+            activation,
+            authority_path=authority_path,
+            expected_authority=expected_authority,
+        )
+        try:
+            os.link(candidate_path, path, follow_symlinks=False)
+        except FileExistsError:
+            raise FileExistsError("durable epoch journal path already exists") from None
+        os.fsync(directory_fd)
+        os.unlink(candidate_path)
+        os.fsync(directory_fd)
+    finally:
+        _release_epoch_bootstrap_lock_v1(directory_fd)
+
+
 def _create_epoch_journal_for_verified_publisher_v1(
     path: str | Path,
     activation: DurableEconomicInitialStateBundleV1,
@@ -982,29 +1095,19 @@ def _create_epoch_journal_for_verified_publisher_v1(
     owned_activation = _snapshot_activation_v1(activation)
     try:
         normalized = _normalize_path_v1(path)
-        if normalized.is_symlink():
-            raise ValueError("durable epoch journal path must not be a symlink")
         if not normalized.parent.is_dir():
             raise FileNotFoundError("durable epoch journal parent directory is absent")
-        if normalized.exists():
-            _reject_wal_artifacts_v1(normalized)
-        journal = GlobalEconomicEpochJournalV1(
+        _install_epoch_store_no_replace_v1(
             normalized,
-            _connect_v1(normalized, authority_path),
+            owned_activation,
+            authority_path=authority_path,
             expected_authority=expected_authority,
         )
-        try:
-            journal._create_store_v1(owned_activation)
-            journal._read_snapshot_v1()
-            journal._require_current_authority_v1()
-        except _ExistingDurableEconomicEpochStoreV1:
-            journal.close()
-            raise FileExistsError(
-                "durable epoch journal path already exists"
-            ) from None
-        except BaseException:
-            journal.close()
-            raise
+        journal = _open_epoch_journal_with_authority_v1(
+            normalized,
+            authority_path,
+            expected_authority,
+        )
     except FileExistsError:
         journal = _open_epoch_journal_with_authority_v1(
             path,
@@ -1060,10 +1163,10 @@ def _open_epoch_journal_with_authority_v1(
     expected_authority: GlobalEconomicAuthorityHeadV1,
 ) -> GlobalEconomicEpochJournalV1:
     normalized = _normalize_path_v1(path)
-    if normalized.is_symlink():
-        raise ValueError("durable epoch journal path must not be a symlink")
-    if not normalized.is_file():
-        raise FileNotFoundError("durable epoch journal file is absent")
+    _require_owned_regular_epoch_store_v1(
+        normalized,
+        name="durable epoch journal",
+    )
     validation = GlobalEconomicEpochJournalV1(
         normalized,
         _connect_existing_for_validation_v1(normalized, authority_path),
@@ -1102,6 +1205,7 @@ def _mint_write_capability_for_verified_publisher_v1(
 
 
 __all__ = [
+    "DurableEconomicEpochBootstrapBusyV1",
     "DurableEconomicEpochCasTokenV1",
     "DurableEconomicEpochCommitOutcomeV1",
     "DurableEconomicEpochCommitStatusV1",

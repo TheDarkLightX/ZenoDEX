@@ -61,10 +61,15 @@ path:
 The verifier-owned publisher constructs the expected generation-zero authority
 from the verified activation, active profile, bound verifier capability, and a
 migration-stable root of the epoch file name. Create recovers only an exact
-current authority. A differently
-named second epoch file derives a different epoch-store root and fails before
-its database is created. Open checks the exact activation bundle and current
-authority.
+current authority. First installation builds and validates a private
+same-directory SQLite candidate, fsyncs it, links it to the final name with
+atomic no-replace semantics, fsyncs the directory, and removes the candidate.
+A cooperating concurrent installer receives a typed bootstrap-busy exception.
+Pre-existing empty, malformed, SQLite, hardlinked, directory, symlink, and FIFO
+entries are never adopted. Final stores require current-process ownership,
+mode `0600`, and one filesystem link. A differently named second epoch file
+derives a different epoch-store root and fails before its database is created.
+Open checks the exact activation bundle and current authority.
 
 The epoch journal attaches the authority database to the same SQLite connection.
 Its CAS token snapshots both the economic publication head and authority
@@ -97,9 +102,10 @@ check and epoch commit.
 - CAS key: economic publication ID and sequence plus authority root and
   generation.
 - Crash semantics: SQLite DELETE journal mode and FULL synchronization retain
-  PRE or POST. Concurrent first installation is serialized by a bootstrap
-  `BEGIN IMMEDIATE` transaction. Process and power-loss installation recovery
-  remains separately open.
+  PRE or POST. A nonblocking advisory directory lock serializes cooperating
+  installers, and the final pathname is installed without replacement. A
+  crash-left private candidate rejects and requires explicit recovery;
+  process-kill and power-loss install matrices remain open.
 - Retry: an exact epoch already present in validated durable history returns
   `ALREADY_COMMITTED` without mutation even after authority revocation. An
   unpublished epoch under stale or revoked authority returns
@@ -130,8 +136,12 @@ individual functions reviewable.
 - rejection of mixed revocation, verifier-only rotation, and epoch-store
   switching;
 - durable commit, reopen, and exact retry;
-- deterministic concurrent authority and verified-publisher creation, with one
-  complete install plus typed exact recovery and no raw table-exists fault;
+- deterministic concurrent authority, epoch, and verified-publisher creation,
+  with one complete install plus typed bootstrap-busy rejection;
+- no-replace rejection of pre-existing empty, valid-empty-SQLite, malformed,
+  hardlinked, directory, and FIFO entries without mutation;
+- exact owner, `0600` mode, and single-link enforcement on reopen;
+- crash-left private bootstrap-candidate rejection without deletion or adoption;
 - stale historical-authority retry;
 - one-row emergency-revocation reserve at the capacity boundary;
 - pre-decode byte bounds;
@@ -154,13 +164,15 @@ Removing the shared authority comparison or moving it outside the attached CAS
 transaction causes these tests to expose an unauthorized epoch. Mutation
 tooling was not run for this slice.
 
-Three passing tests intentionally preserve open disaster states as executable
+Four passing tests intentionally preserve open disaster states as executable
 release blockers:
 
 - restoring pre-revocation authority-file bytes reopens and publishes through
   the old writer;
 - restoring only the epoch database to sequence zero under the unchanged active
-  authority permits the same epoch publication to commit again; and
+  authority permits the same epoch publication to commit again;
+- replacing the authority pathname with a revoked database leaves an already-
+  open publisher attached to the detached active inode and able to publish; and
 - committing the current separate migration journal leaves the old publisher
   able to publish.
 
@@ -181,10 +193,11 @@ Their passing result records reproducibility. It supplies no safety claim.
 - Same-process private writer access remains a demonstrated release blocker.
 - No OS-isolated sole writer, executable attestation, objective finality, real
   RISC0 replay, Rust parity, or production mount is established.
-- SQLite process/power-loss install recovery, symlink replacement races,
-  database file ownership, directory durability, backup/restore, and disaster
-  recovery remain deployment obligations. The tested same-path concurrent
-  create race is closed by transactional bootstrap classification.
+- SQLite process/power-loss install recovery, hostile same-UID namespace races,
+  directory ownership and durability, backup/restore, and disaster recovery
+  remain deployment obligations. The tested cooperating same-path race is
+  closed by advisory directory locking, private-candidate validation, and
+  atomic no-replace install.
 - The tests are bounded evidence. They are not a proof of whole-economy value
   movement safety.
 
