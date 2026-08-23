@@ -1,6 +1,8 @@
 import json
 import sys
 
+import pytest
+
 
 def _intent_signing_dict_from_tx_intent(intent_dict: dict) -> dict:
     from src.integration.operations import parse_intents
@@ -1545,6 +1547,45 @@ def test_apply_proof_mining_op_rejects_malformed_claim_shapes_without_crashing(m
         )
         assert ok is False
         assert err == expected_err
+
+
+def test_apply_proof_mining_op_rejects_reward_pool_recipient_without_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from src.core.dex import DexState
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.state import BalanceTable, LPTable
+    from src.state.balances import NATIVE_ASSET
+
+    reward_pool = "0x" + "99" * 48
+    monkeypatch.setenv("TAU_DEX_PROOF_MINING_POOL_PUBKEY", reward_pool)
+    balances = BalanceTable()
+    balances.set(reward_pool, NATIVE_ASSET, 20)
+    state = DexState(balances=balances, pools={}, lp_balances=LPTable())
+
+    def fail_if_manager_called(**_kwargs):
+        raise AssertionError("recipient alias must reject before manager application")
+
+    monkeypatch.setattr(plugin, "apply_proof_mining_claim", fail_if_manager_called)
+
+    ok, next_state, next_runtime, err = plugin._apply_proof_mining_op(
+        state=state,
+        proof_mining_state=None,
+        proof_mining_op={
+            "module": "ZenoProofMining",
+            "action": "submit_proof",
+            "claim": {},
+        },
+        proof_mining_context=object(),
+        tx_sender_pubkey=reward_pool,
+        chain_balances={reward_pool: 20},
+    )
+
+    assert ok is False
+    assert err == "proof mining reward pool cannot receive its own payout"
+    assert next_state is state
+    assert next_runtime is None
+    assert state.balances.get(reward_pool, NATIVE_ASSET) == 20
 
 
 def test_apply_app_tx_proof_mining_rejects_claim_context_mismatch(monkeypatch):
