@@ -74,8 +74,10 @@ from src.core.zdex_purchase_burn_route_types_v1 import (
     zdex_burn_port_schema_root_v1,
 )
 from src.core.zdex_purchase_burn_route_v1 import (
+    GovernedZDEXPurchaseBurnRouteV1,
     ZDEXPurchaseBurnRouteCandidateV1,
     ZDEXPurchaseBurnRouteRejectedV1,
+    bind_zdex_purchase_burn_shadow_profile_v1,
     compose_zdex_purchase_burn_route_v1,
 )
 from src.core.zdex_tokenomics_fee_lane_coordinator_v1 import (
@@ -737,7 +739,13 @@ def _verified_fixture(
         ),
         verifier,
     )
+    governed_route = bind_zdex_purchase_burn_shadow_profile_v1(
+        expected_profile_id=profile.profile_id,
+        expected_authority_epoch=profile.authority_epoch,
+        profile=profile,
+    )
     return ZDEXPurchaseBurnRouteCandidateV1(
+        governed_route,
         route,
         spot_release,
         burn_release,
@@ -803,6 +811,132 @@ def _assert_no_effect_reject(
     assert isinstance(result, ZDEXPurchaseBurnRouteRejectedV1)
     assert result.code is code
     assert result.effects.is_empty
+
+
+def test_governed_purchase_burn_route_cannot_be_constructed_by_a_caller() -> None:
+    with pytest.raises(TypeError, match="verifier-constructed"):
+        GovernedZDEXPurchaseBurnRouteV1(object(), object())
+
+
+def _alternative_buyback_profile(
+    candidate: ZDEXPurchaseBurnRouteCandidateV1,
+) -> EconomicProfileSnapshotV1:
+    fields = candidate.governed_profile._fields
+    route = fields.route_release
+    alternative_route = RouteReleaseV1.build(
+        semantic_version=route.semantic_version,
+        command_kind=route.command_kind,
+        ordered_lanes=route.ordered_lanes,
+        module_release_ids=route.module_release_ids,
+        dependency_roles=route.dependency_roles,
+        port_schema_roots=route.port_schema_roots,
+        guest_image_id=_root(98_100),
+        specification_root=route.specification_root,
+        source_root=route.source_root,
+        toolchain_root=route.toolchain_root,
+        oracle_policy_root=route.oracle_policy_root,
+        issue_burn_policy_root=route.issue_burn_policy_root,
+        max_cycles=route.max_cycles,
+        max_journal_bytes=route.max_journal_bytes,
+        status=route.status,
+        accepts_new_objects=route.accepts_new_objects,
+        evidence_statuses=route.evidence_statuses,
+    )
+    allocation_route = next(
+        registered
+        for registered in fields.profile.route_registry.routes
+        if registered.command_kind == PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1
+    )
+    route_registry = RouteRegistryV1(
+        tuple(
+            sorted(
+                (allocation_route, alternative_route),
+                key=lambda registered: registered.command_kind,
+            )
+        )
+    )
+    return EconomicProfileSnapshotV1.build(
+        authority_epoch=fields.profile.authority_epoch,
+        lane_registry=fields.profile.lane_registry,
+        lane_coordinator_registry=fields.profile.lane_coordinator_registry,
+        route_registry=route_registry,
+        proof_shape_root=fields.profile.proof_shape_root,
+        root_image_id=fields.profile.root_image_id,
+        verifier_registry_root=fields.profile.verifier_registry_root,
+        migration_registry_root=fields.profile.migration_registry_root,
+        policy_registry_root=fields.profile.policy_registry_root,
+        terminal_registry_root=fields.profile.terminal_registry_root,
+        status=ProfileStatusV1.SHADOW,
+    )
+
+
+def test_self_consistent_alternative_buyback_profile_rejects_trusted_anchor() -> None:
+    # Arrange
+    candidate = _verified_fixture()
+    fields = candidate.governed_profile._fields
+    profile = _alternative_buyback_profile(candidate)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="expected profile mismatch"):
+        bind_zdex_purchase_burn_shadow_profile_v1(
+            expected_profile_id=fields.profile.profile_id,
+            expected_authority_epoch=fields.profile.authority_epoch,
+            profile=profile,
+        )
+
+
+def test_alternative_governed_route_rejects_without_effects() -> None:
+    # Arrange
+    candidate = _verified_fixture()
+    profile = _alternative_buyback_profile(candidate)
+    foreign = bind_zdex_purchase_burn_shadow_profile_v1(
+        expected_profile_id=profile.profile_id,
+        expected_authority_epoch=profile.authority_epoch,
+        profile=profile,
+    )
+
+    # Act
+    result = compose_zdex_purchase_burn_route_v1(
+        replace(candidate, governed_profile=foreign)
+    )
+
+    # Assert
+    _assert_no_effect_reject(
+        result,
+        ZDEXPurchaseBurnRouteRejectCodeV1.GOVERNED_PROFILE_MISMATCH,
+    )
+
+
+def test_governed_route_epoch_rejects_boolean_alias() -> None:
+    candidate = _verified_fixture()
+    fields = candidate.governed_profile._fields
+
+    with pytest.raises(ValueError, match="expected authority epoch mismatch"):
+        bind_zdex_purchase_burn_shadow_profile_v1(
+            expected_profile_id=fields.profile.profile_id,
+            expected_authority_epoch=True,
+            profile=fields.profile,
+        )
+
+
+def test_governed_route_owns_profile_and_selected_release_graph() -> None:
+    candidate = _verified_fixture()
+    fields = candidate.governed_profile._fields
+
+    assert fields.route_release is not candidate.route_release
+    assert fields.purchase_module_release is not candidate.purchase_module_release
+    assert fields.burn_module_release is not candidate.burn_module_release
+
+
+def test_hostile_governed_profile_is_rejected_before_attribute_access() -> None:
+    # Arrange
+    candidate = _verified_fixture()
+    fields = candidate.governed_profile._fields
+    object.__setattr__(fields, "profile", object())
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="profile must be exact typed data"):
+        compose_zdex_purchase_burn_route_v1(candidate)
 
 
 def test_verified_leaves_compose_shadow_effects_with_open_coordinator_obligation() -> None:
@@ -1738,7 +1872,7 @@ def test_foreign_module_release_record_rejects_without_effects(
     # Assert
     _assert_no_effect_reject(
         result,
-        ZDEXPurchaseBurnRouteRejectCodeV1.ROUTE_BINDING_MISMATCH,
+        ZDEXPurchaseBurnRouteRejectCodeV1.GOVERNED_PROFILE_MISMATCH,
     )
 
 

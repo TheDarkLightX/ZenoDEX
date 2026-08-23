@@ -1,6 +1,6 @@
 use serde_json::json;
 use zenodex_global_settlement_abi_v1::{
-    bind_zdex_fee_allocation_shadow_profile_v1,
+    bind_zdex_fee_allocation_shadow_profile_v1, bind_zdex_purchase_burn_shadow_profile_v1,
     build_zdex_tokenomics_fee_allocation_module_journal_v1,
     build_zdex_tokenomics_fee_allocation_private_port_v1, candidate_zdex_fee_allocation_policy_v1,
     canonical_bytes_v1, compose_zdex_purchase_burn_route_v1,
@@ -21,8 +21,8 @@ use zenodex_global_settlement_abi_v1::{
     ZDEXFeeAllocationProfileRegistriesV1, ZDEXFeeAllocationReceiptCandidateV1,
     ZDEXFeeAllocationResultV1, ZDEXFeeDestinationAmountV1, ZDEXFeeStateV1,
     ZDEXLaneReceiptEnvelopeV1, ZDEXLaneSuccinctReceiptVerifierV1, ZDEXPurchaseBurnRouteCandidateV1,
-    ZDEXPurchaseBurnRouteRejectCodeV1, ZDEXPurchaseBurnRouteResultV1,
-    ZDEXPurchaseReceiptCandidateV1, ZDEXSupplyStateV1,
+    ZDEXPurchaseBurnRouteProfileRegistriesV1, ZDEXPurchaseBurnRouteRejectCodeV1,
+    ZDEXPurchaseBurnRouteResultV1, ZDEXPurchaseReceiptCandidateV1, ZDEXSupplyStateV1,
     ZDEXTokenomicsFeeAllocationCoordinatorContextV1, ZDEXTokenomicsFeeAllocationLaneCandidateV1,
     ZDEXTokenomicsFeeLaneReceiptCandidateV1, ZDEXTokenomicsLaneCompositionResultV1,
     ZDEXTokenomicsLaneStateV1, ALL_LANE_IDS_V1, AMM_POOL_CUSTODY_DOMAIN_V1,
@@ -793,7 +793,19 @@ fn fixture() -> Fixture {
 }
 
 fn compose(fixture: &Fixture) -> ZDEXPurchaseBurnRouteResultV1 {
+    let governed_profile = bind_zdex_purchase_burn_shadow_profile_v1(
+        &fixture.profile.profile_id,
+        fixture.profile.authority_epoch,
+        ZDEXPurchaseBurnRouteProfileRegistriesV1 {
+            profile: &fixture.profile,
+            lanes: &fixture.lanes,
+            coordinators: &fixture.coordinators,
+            routes: &fixture.routes,
+        },
+    )
+    .expect("purchase-burn profile must bind");
     compose_zdex_purchase_burn_route_v1(ZDEXPurchaseBurnRouteCandidateV1 {
+        governed_profile,
         route_release: &fixture.route,
         occurrence: &fixture.occurrence,
         buyback_budget_occurrence: &fixture.buyback_budget_occurrence,
@@ -928,6 +940,49 @@ fn rust_matches_python_golden_composition_root_and_effects() {
 }
 
 #[test]
+fn foreign_route_rejects_governed_profile_without_effects() {
+    let fixture = fixture();
+    let foreign_tokenomics = lane_release(LaneIdV1::ZDEX_TOKENOMICS, 98);
+    let foreign_route = route_release(&fixture.spot_release, &foreign_tokenomics);
+    let governed_profile = bind_zdex_purchase_burn_shadow_profile_v1(
+        &fixture.profile.profile_id,
+        fixture.profile.authority_epoch,
+        ZDEXPurchaseBurnRouteProfileRegistriesV1 {
+            profile: &fixture.profile,
+            lanes: &fixture.lanes,
+            coordinators: &fixture.coordinators,
+            routes: &fixture.routes,
+        },
+    )
+    .expect("fixture purchase-burn profile must bind");
+
+    let result = compose_zdex_purchase_burn_route_v1(ZDEXPurchaseBurnRouteCandidateV1 {
+        governed_profile,
+        route_release: &foreign_route,
+        occurrence: &fixture.occurrence,
+        buyback_budget_occurrence: &fixture.buyback_budget_occurrence,
+        verified_buyback_budget: &fixture.verified_buyback_budget,
+        purchase_journal: &fixture.purchase,
+        purchase_effects: &fixture.purchase_effects,
+        verified_purchase: &fixture.verified_purchase,
+        burn_journal: &fixture.burn,
+        burn_effects: &fixture.burn_effects,
+        verified_burn: &fixture.verified_burn,
+    })
+    .expect("foreign route must produce a typed result");
+
+    let ZDEXPurchaseBurnRouteResultV1::Rejected(rejected) = result else {
+        panic!("foreign route must reject")
+    };
+    assert_eq!(
+        rejected.code,
+        ZDEXPurchaseBurnRouteRejectCodeV1::GOVERNED_PROFILE_MISMATCH
+    );
+    assert!(rejected.effects.rows.is_empty());
+    assert!(rejected.effects.occurrence_consumptions.is_empty());
+}
+
+#[test]
 fn shifted_fee_allocation_rejects_before_receipt_verification() {
     let fixture = fixture();
     let governed = governed_fee_profile(&fixture);
@@ -992,6 +1047,21 @@ fn self_consistent_alternative_release_graph_rejects_trusted_profile_anchor() {
     .expect("alternative release graph must reject");
 
     assert!(error.to_string().contains("expected profile"));
+
+    let route_error = bind_zdex_purchase_burn_shadow_profile_v1(
+        &fixture.profile.profile_id,
+        fixture.profile.authority_epoch,
+        ZDEXPurchaseBurnRouteProfileRegistriesV1 {
+            profile: &profile,
+            lanes: &lanes,
+            coordinators: &coordinators,
+            routes: &routes,
+        },
+    )
+    .err()
+    .expect("alternative buyback route graph must reject");
+
+    assert!(route_error.to_string().contains("expected profile"));
 }
 
 #[test]

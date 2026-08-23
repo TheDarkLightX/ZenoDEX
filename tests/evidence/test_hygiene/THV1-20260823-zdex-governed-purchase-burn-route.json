@@ -1,0 +1,133 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-zdex-governed-purchase-burn-route",
+  "created_date": "2026-08-23",
+  "claim_scope": "The Python and Rust SHADOW ZDEX purchase-burn composers bind their accepted route, module releases, coordinator releases, profile root, authority epoch, and guest-image expectations to one profile-selected release graph; a coherent alternate graph or hostile Python profile payload cannot authorize composition.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZDEX-ROUTE-TRUSTED-PROFILE-ANCHOR",
+    "ZDEX-ROUTE-GOVERNED-RELEASE-SELECTION",
+    "ZDEX-ROUTE-GOVERNED-IMAGE-BINDING",
+    "ZDEX-ROUTE-REJECT-WITHOUT-EFFECTS",
+    "ZDEX-ROUTE-PYTHON-RUST-PARITY"
+  ],
+  "failure_modes": [
+    "a coherent alternate SHADOW profile and route graph authorizes composition",
+    "a valid foreign route or module release is accepted in place of the profile-selected release",
+    "a wrong command, profile root, or authority epoch reaches composition",
+    "a verification marker names a release or guest image absent from the selected profile graph",
+    "a hostile Python profile payload triggers attribute behavior before exact-type rejection",
+    "governance hardening changes the ordinary Python and Rust composition root or effects"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/zdex_purchase_burn_route_types_v1.py",
+      "sha256": "5e759e9d4f1e21d0883239312283df9ddb57a6435ea6d30744b1bd1468e89911"
+    },
+    {
+      "path": "src/core/zdex_purchase_burn_route_v1.py",
+      "sha256": "873544c9864e13c8cc99685eeefcd65f27b9ac9dd2a9d16c730532f69bef83f4"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_purchase_burn_route.rs",
+      "sha256": "cd2c36f814c93600420cff71300ea0e1da7e3d660288786d917bf8c4fd0ae9d9"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/zdex_purchase_burn_route.rs",
+      "sha256": "bebeca3b5ec0820a5ca0fba7062a7ab390ab32f301e8c5eb31519c7194682729"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_purchase_burn_route_v1.py",
+      "sha256": "4b754faec306385c957c1192a8fecfd9285394b7ee3c590e8e804b3a8fa1ed47",
+      "node_ids": [
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_governed_purchase_burn_route_cannot_be_constructed_by_a_caller",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_self_consistent_alternative_buyback_profile_rejects_trusted_anchor",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_alternative_governed_route_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_governed_route_epoch_rejects_boolean_alias",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_governed_route_owns_profile_and_selected_release_graph",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_hostile_governed_profile_is_rejected_before_attribute_access",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_foreign_module_release_record_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_python_rust_golden_composition_root_is_stable"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "replay",
+    "differential"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each regression arranges one alternate release graph, hostile profile payload, or governed coordinate, acts through the public binder or pure composer, and asserts the exact typed failure and empty effects; the golden replay observes unchanged Python and Rust roots."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Composed governance mismatches return the canonical empty effect plan, while malformed verifier markers fail before composition or external effects."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "trusted_profile_anchor",
+      "points": [
+        "exact_expected_profile_and_epoch_accept",
+        "self_consistent_alternate_profile_rejects"
+      ]
+    },
+    {
+      "name": "authority_epoch_type",
+      "points": [
+        "exact_integer_epoch_accepts",
+        "boolean_integer_alias_rejects"
+      ]
+    },
+    {
+      "name": "governed_profile_payload",
+      "points": [
+        "exact_owned_profile_accepts",
+        "hostile_replacement_rejects_before_attribute_access"
+      ]
+    },
+    {
+      "name": "ordinary_composition",
+      "points": [
+        "frozen_python_root_and_effects",
+        "matching_frozen_rust_root_and_effects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept a self-consistent alternate profile without checking the trusted profile identifier",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_self_consistent_alternative_buyback_profile_rejects_trusted_anchor"
+    },
+    {
+      "description": "compose with any caller-supplied governed route graph",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_alternative_governed_route_rejects_without_effects"
+    },
+    {
+      "description": "read a hostile replacement profile before checking its exact type",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_hostile_governed_profile_is_rejected_before_attribute_access"
+    },
+    {
+      "description": "treat a boolean as an integer authority epoch",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_governed_route_epoch_rejects_boolean_alias"
+    },
+    {
+      "description": "accept a valid same-lane module release absent from the profile-selected route",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_foreign_module_release_record_rejects_without_effects"
+    }
+  ],
+  "nonclaims": [
+    "The profile and route remain SHADOW and unmounted, and production authority remains NONE.",
+    "The Python governed marker is process-local and depends on a trusted imperative shell supplying the expected profile identifier and authority epoch.",
+    "This packet proves no real RISC0 route receipt, atomic ZenoLedger publication, durable nullifier consumption, migration, outbox reconciliation, or terminal-lifecycle closure.",
+    "The Rust tests are enforced by Cargo gates outside this Python evidence-packet schema; the packet itself does not elevate them into a machine-checked theorem.",
+    "Bounded regressions and one golden differential replay do not prove the whole economy or guarantee all value movement."
+  ]
+}

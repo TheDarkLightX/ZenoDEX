@@ -8,18 +8,27 @@ use crate::effects::{
     LaneWriteV1,
 };
 use crate::proof::EconomicCommandOccurrenceV1;
-use crate::release::{LaneIdV1, RouteReleaseV1};
+use crate::release::{
+    EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1, LaneIdV1,
+    LaneModuleReleaseV1, LaneRegistryV1, ProfileStatusV1, ReleaseStatusV1, RouteRegistryV1,
+    RouteReleaseV1,
+};
 use crate::zdex_fee_allocation_receipt_verification::VerifiedZDEXFeeAllocationV1;
 use crate::zdex_fee_allocation_types::{ZDEXFeeAllocationOccurrenceV1, FEE_BUYBACK_PRINCIPAL_V1};
 use crate::zdex_purchase_burn_receipt_verification::{
     VerifiedZDEXAMMPurchaseV1, VerifiedZDEXBurnV1, ZDEXVerifiedLaneExpectationV1,
 };
-use crate::zdex_purchase_burn_types::{ZDEXAMMPurchaseJournalV1, ZDEXBurnJournalV1};
+use crate::zdex_purchase_burn_types::{
+    zdex_amm_purchase_port_schema_root_v1, zdex_burn_port_schema_root_v1, ZDEXAMMPurchaseJournalV1,
+    ZDEXBurnJournalV1, AMM_PURCHASE_OUTPUT_ROLE_V1, PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+    ZDEX_BURN_INPUT_ROLE_V1,
+};
 use crate::zdex_tokenomics_lane_types::zdex_tokenomics_complete_lane_obligation_root_v1;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 #[allow(non_camel_case_types)]
 pub enum ZDEXPurchaseBurnRouteRejectCodeV1 {
+    GOVERNED_PROFILE_MISMATCH,
     ROUTE_BINDING_MISMATCH,
     OCCURRENCE_MISMATCH,
     PROFILE_OR_EPOCH_MISMATCH,
@@ -33,7 +42,148 @@ pub enum ZDEXPurchaseBurnRouteRejectCodeV1 {
     CONSERVATION_HISTORY_DISCONNECTED,
 }
 
+pub struct ZDEXPurchaseBurnRouteProfileRegistriesV1<'a> {
+    pub profile: &'a EconomicProfileSnapshotV1,
+    pub lanes: &'a LaneRegistryV1,
+    pub coordinators: &'a LaneCoordinatorRegistryV1,
+    pub routes: &'a RouteRegistryV1,
+}
+
+pub struct GovernedZDEXPurchaseBurnRouteV1<'a> {
+    profile: &'a EconomicProfileSnapshotV1,
+    route_release: &'a RouteReleaseV1,
+    purchase_module_release: &'a LaneModuleReleaseV1,
+    burn_module_release: &'a LaneModuleReleaseV1,
+    purchase_coordinator_release: &'a LaneCoordinatorReleaseV1,
+    burn_coordinator_release: &'a LaneCoordinatorReleaseV1,
+}
+
+fn registered_buyback_route_v1(routes: &RouteRegistryV1) -> AbiResultV1<&RouteReleaseV1> {
+    routes
+        .routes
+        .iter()
+        .find(|route| route.command_kind == PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1)
+        .ok_or(AbiErrorV1::InvalidBinding(
+            "ZDEX purchase-burn governed route absent",
+        ))
+}
+
+fn require_governed_route_shapes_v1(
+    governed: &GovernedZDEXPurchaseBurnRouteV1<'_>,
+) -> AbiResultV1<()> {
+    let route = governed.route_release;
+    let purchase = governed.purchase_module_release;
+    let burn = governed.burn_module_release;
+    let purchase_coordinator = governed.purchase_coordinator_release;
+    let burn_coordinator = governed.burn_coordinator_release;
+    route.validate()?;
+    purchase.validate()?;
+    burn.validate()?;
+    purchase_coordinator.validate()?;
+    burn_coordinator.validate()?;
+    if route.status != ReleaseStatusV1::SHADOW
+        || route.accepts_new_objects
+        || route.command_kind != PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1
+        || route.ordered_lanes != [LaneIdV1::SPOT_LIQUIDITY, LaneIdV1::ZDEX_TOKENOMICS]
+        || route.module_release_ids != [purchase.release_id.clone(), burn.release_id.clone()]
+        || route.dependency_roles
+            != [
+                AMM_PURCHASE_OUTPUT_ROLE_V1.to_owned(),
+                ZDEX_BURN_INPUT_ROLE_V1.to_owned(),
+            ]
+        || route.port_schema_roots
+            != [
+                zdex_amm_purchase_port_schema_root_v1()?,
+                zdex_burn_port_schema_root_v1()?,
+            ]
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX purchase-burn governed route shape",
+        ));
+    }
+    for (release, lane_id) in [
+        (purchase, LaneIdV1::SPOT_LIQUIDITY),
+        (burn, LaneIdV1::ZDEX_TOKENOMICS),
+    ] {
+        if release.status != ReleaseStatusV1::SHADOW
+            || release.accepts_new_objects
+            || release.lane_id != lane_id
+            || !release
+                .command_variants
+                .iter()
+                .any(|command| command == PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1)
+        {
+            return Err(AbiErrorV1::InvalidBinding(
+                "ZDEX purchase-burn governed module release shape",
+            ));
+        }
+    }
+    for (coordinator, lane_id) in [
+        (purchase_coordinator, LaneIdV1::SPOT_LIQUIDITY),
+        (burn_coordinator, LaneIdV1::ZDEX_TOKENOMICS),
+    ] {
+        if coordinator.status != ReleaseStatusV1::SHADOW
+            || coordinator.accepts_new_objects
+            || coordinator.lane_id != lane_id
+        {
+            return Err(AbiErrorV1::InvalidBinding(
+                "ZDEX purchase-burn governed coordinator shape",
+            ));
+        }
+    }
+    Ok(())
+}
+
+pub fn bind_zdex_purchase_burn_shadow_profile_v1<'a>(
+    expected_profile_id: &RootV1,
+    expected_authority_epoch: u64,
+    registries: ZDEXPurchaseBurnRouteProfileRegistriesV1<'a>,
+) -> AbiResultV1<GovernedZDEXPurchaseBurnRouteV1<'a>> {
+    let ZDEXPurchaseBurnRouteProfileRegistriesV1 {
+        profile,
+        lanes,
+        coordinators,
+        routes,
+    } = registries;
+    profile.validate()?;
+    if &profile.profile_id != expected_profile_id {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX purchase-burn expected profile",
+        ));
+    }
+    if profile.authority_epoch != expected_authority_epoch {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX purchase-burn expected authority epoch",
+        ));
+    }
+    if profile.status != ProfileStatusV1::SHADOW {
+        return Err(AbiErrorV1::InvalidBinding(
+            "ZDEX purchase-burn profile status",
+        ));
+    }
+    profile.validate_registries(lanes, coordinators, routes)?;
+    let governed = GovernedZDEXPurchaseBurnRouteV1 {
+        profile,
+        route_release: registered_buyback_route_v1(routes)?,
+        purchase_module_release: lanes.release_for(LaneIdV1::SPOT_LIQUIDITY).ok_or(
+            AbiErrorV1::InvalidBinding("ZDEX purchase-burn purchase release absent"),
+        )?,
+        burn_module_release: lanes.release_for(LaneIdV1::ZDEX_TOKENOMICS).ok_or(
+            AbiErrorV1::InvalidBinding("ZDEX purchase-burn burn release absent"),
+        )?,
+        purchase_coordinator_release: coordinators.release_for(LaneIdV1::SPOT_LIQUIDITY).ok_or(
+            AbiErrorV1::InvalidBinding("ZDEX purchase-burn purchase coordinator absent"),
+        )?,
+        burn_coordinator_release: coordinators.release_for(LaneIdV1::ZDEX_TOKENOMICS).ok_or(
+            AbiErrorV1::InvalidBinding("ZDEX purchase-burn burn coordinator absent"),
+        )?,
+    };
+    require_governed_route_shapes_v1(&governed)?;
+    Ok(governed)
+}
+
 pub struct ZDEXPurchaseBurnRouteCandidateV1<'a> {
+    pub governed_profile: GovernedZDEXPurchaseBurnRouteV1<'a>,
     pub route_release: &'a RouteReleaseV1,
     pub occurrence: &'a EconomicCommandOccurrenceV1,
     pub buyback_budget_occurrence: &'a ZDEXFeeAllocationOccurrenceV1,
@@ -259,25 +409,50 @@ fn basic_binding_reject_code_v1(
     None
 }
 
+fn governed_profile_reject_code_v1(
+    candidate: &ZDEXPurchaseBurnRouteCandidateV1<'_>,
+) -> Option<ZDEXPurchaseBurnRouteRejectCodeV1> {
+    let governed = &candidate.governed_profile;
+    if candidate.route_release != governed.route_release
+        || candidate.occurrence.profile_root != governed.profile.profile_id
+        || candidate.occurrence.route_release_id != governed.route_release.route_release_id
+        || candidate.occurrence.command_kind != governed.route_release.command_kind
+        || candidate.purchase_journal.writer_epoch != governed.profile.authority_epoch
+        || candidate.purchase_journal.spot_module_release_id
+            != governed.purchase_module_release.release_id
+        || candidate.burn_journal.tokenomics_module_release_id
+            != governed.burn_module_release.release_id
+    {
+        return Some(ZDEXPurchaseBurnRouteRejectCodeV1::GOVERNED_PROFILE_MISMATCH);
+    }
+    None
+}
+
 fn witness_reject_code_v1(
     candidate: &ZDEXPurchaseBurnRouteCandidateV1<'_>,
     occurrence_id: &RootV1,
 ) -> AbiResultV1<Option<ZDEXPurchaseBurnRouteRejectCodeV1>> {
     let route_id = &candidate.route_release.route_release_id;
+    let governed = &candidate.governed_profile;
     let purchase = candidate.purchase_journal;
     let purchase_root = purchase.journal_root()?;
     let purchase_effect_plan_root = candidate.purchase_effects.effect_plan_root()?;
-    if !candidate.verified_purchase.matches_route_input(
-        purchase,
-        ZDEXVerifiedLaneExpectationV1 {
-            route_release_id: route_id,
-            occurrence_id,
-            profile_root: &candidate.occurrence.profile_root,
-            writer_epoch: purchase.writer_epoch,
-            journal_root: &purchase_root,
-            effect_plan_root: &purchase_effect_plan_root,
-        },
-    )? {
+    if candidate.verified_purchase.module_release_id()
+        != &governed.purchase_module_release.release_id
+        || candidate.verified_purchase.expected_image_id()
+            != &governed.purchase_module_release.guest_image_id
+        || !candidate.verified_purchase.matches_route_input(
+            purchase,
+            ZDEXVerifiedLaneExpectationV1 {
+                route_release_id: route_id,
+                occurrence_id,
+                profile_root: &candidate.occurrence.profile_root,
+                writer_epoch: purchase.writer_epoch,
+                journal_root: &purchase_root,
+                effect_plan_root: &purchase_effect_plan_root,
+            },
+        )?
+    {
         return Ok(Some(
             ZDEXPurchaseBurnRouteRejectCodeV1::PURCHASE_WITNESS_MISMATCH,
         ));
@@ -285,24 +460,32 @@ fn witness_reject_code_v1(
     let burn = candidate.burn_journal;
     let burn_root = burn.journal_root()?;
     let burn_effect_plan_root = candidate.burn_effects.effect_plan_root()?;
-    if !candidate.verified_burn.matches_route_input(
-        burn,
-        ZDEXVerifiedLaneExpectationV1 {
-            route_release_id: route_id,
-            occurrence_id,
-            profile_root: &candidate.occurrence.profile_root,
-            writer_epoch: burn.writer_epoch,
-            journal_root: &burn_root,
-            effect_plan_root: &burn_effect_plan_root,
-        },
-    )? {
+    if candidate.verified_burn.module_release_id() != &governed.burn_module_release.release_id
+        || candidate.verified_burn.expected_image_id()
+            != &governed.burn_module_release.guest_image_id
+        || !candidate.verified_burn.matches_route_input(
+            burn,
+            ZDEXVerifiedLaneExpectationV1 {
+                route_release_id: route_id,
+                occurrence_id,
+                profile_root: &candidate.occurrence.profile_root,
+                writer_epoch: burn.writer_epoch,
+                journal_root: &burn_root,
+                effect_plan_root: &burn_effect_plan_root,
+            },
+        )?
+    {
         return Ok(Some(
             ZDEXPurchaseBurnRouteRejectCodeV1::BURN_WITNESS_MISMATCH,
         ));
     }
-    if !candidate
-        .verified_buyback_budget
-        .matches_route_input(route_id, candidate.buyback_budget_occurrence)?
+    if candidate.verified_buyback_budget.module_release_id()
+        != &governed.burn_module_release.release_id
+        || candidate.verified_buyback_budget.expected_image_id()
+            != &governed.burn_module_release.guest_image_id
+        || !candidate
+            .verified_buyback_budget
+            .matches_route_input(route_id, candidate.buyback_budget_occurrence)?
     {
         return Ok(Some(
             ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_BUDGET_MISMATCH,
@@ -369,6 +552,9 @@ pub fn compose_zdex_purchase_burn_route_v1(
     candidate.purchase_effects.validate()?;
     candidate.burn_effects.validate()?;
     let occurrence_id = candidate.occurrence.occurrence_id()?;
+    if let Some(code) = governed_profile_reject_code_v1(&candidate) {
+        return Ok(reject_v1(code));
+    }
     if let Some(code) = basic_binding_reject_code_v1(&candidate, &occurrence_id) {
         return Ok(reject_v1(code));
     }

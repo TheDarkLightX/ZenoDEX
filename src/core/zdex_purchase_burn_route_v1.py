@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from .global_economic_profile_snapshot_v1 import (
     _snapshot_lane_release_v1,
     _snapshot_route_release_v1,
+    snapshot_economic_profile_v1,
 )
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
 from .global_economic_refinement_snapshot_v1 import (
@@ -21,10 +22,14 @@ from .global_settlement_types_v1 import (
     MIN_DELTA_ATOMS_V1,
     AssetConservationRowV1,
     EconomicEffectRowV1,
+    EconomicProfileSnapshotV1,
     GlobalEconomicEffectPlanV1,
+    LaneCoordinatorReleaseV1,
     LaneIdV1,
     LaneModuleReleaseV1,
     LaneWriteV1,
+    ProfileStatusV1,
+    ReleaseStatusV1,
     RouteReleaseV1,
     canonical_global_bytes_v1,
     hash_global_v1,
@@ -55,9 +60,14 @@ from .zdex_purchase_burn_receipt_verification_v1 import (
     _VerifiedZDEXLaneFieldsV1,
 )
 from .zdex_purchase_burn_route_types_v1 import (
+    AMM_PURCHASE_OUTPUT_ROLE_V1,
+    PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+    ZDEX_BURN_INPUT_ROLE_V1,
     ZDEXAMMPurchaseJournalV1,
     ZDEXBurnJournalV1,
     ZDEXPurchaseBurnRouteRejectCodeV1,
+    zdex_amm_purchase_port_schema_root_v1,
+    zdex_burn_port_schema_root_v1,
 )
 from .zdex_tokenomics_lane_v1 import (
     zdex_tokenomics_complete_lane_obligation_root_v1,
@@ -65,7 +75,153 @@ from .zdex_tokenomics_lane_v1 import (
 
 
 @dataclass(frozen=True, slots=True)
+class _GovernedZDEXPurchaseBurnRouteFieldsV1:
+    profile: EconomicProfileSnapshotV1
+    route_release: RouteReleaseV1
+    purchase_module_release: LaneModuleReleaseV1
+    burn_module_release: LaneModuleReleaseV1
+    purchase_coordinator_release: LaneCoordinatorReleaseV1
+    burn_coordinator_release: LaneCoordinatorReleaseV1
+
+
+class GovernedZDEXPurchaseBurnRouteV1:
+    """Profile-selected SHADOW releases with no publication authority."""
+
+    __slots__ = ("_fields",)
+    _fields: _GovernedZDEXPurchaseBurnRouteFieldsV1
+
+    def __init__(
+        self,
+        token: object,
+        fields: _GovernedZDEXPurchaseBurnRouteFieldsV1,
+    ) -> None:
+        if token is not _GOVERNED_PURCHASE_BURN_ROUTE_TOKEN:
+            raise TypeError("governed ZDEX purchase-burn route is verifier-constructed")
+        object.__setattr__(self, "_fields", fields)
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("governed ZDEX purchase-burn route is immutable")
+
+
+_GOVERNED_PURCHASE_BURN_ROUTE_TOKEN = object()
+
+
+def _registered_buyback_route_v1(
+    profile: EconomicProfileSnapshotV1,
+) -> RouteReleaseV1:
+    for route in profile.route_registry.routes:
+        if route.command_kind == PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1:
+            return route
+    raise ValueError("ZDEX purchase-burn governed route is absent")
+
+
+def _require_governed_route_shapes_v1(
+    fields: _GovernedZDEXPurchaseBurnRouteFieldsV1,
+) -> None:
+    route = fields.route_release
+    purchase = fields.purchase_module_release
+    burn = fields.burn_module_release
+    purchase_coordinator = fields.purchase_coordinator_release
+    burn_coordinator = fields.burn_coordinator_release
+    if route.status is not ReleaseStatusV1.SHADOW or route.accepts_new_objects:
+        raise ValueError("ZDEX purchase-burn route must remain SHADOW")
+    if (
+        route.command_kind != PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1
+        or route.ordered_lanes
+        != (LaneIdV1.SPOT_LIQUIDITY, LaneIdV1.ZDEX_TOKENOMICS)
+        or route.module_release_ids != (purchase.release_id, burn.release_id)
+        or route.dependency_roles
+        != (AMM_PURCHASE_OUTPUT_ROLE_V1, ZDEX_BURN_INPUT_ROLE_V1)
+        or route.port_schema_roots
+        != (
+            zdex_amm_purchase_port_schema_root_v1(),
+            zdex_burn_port_schema_root_v1(),
+        )
+    ):
+        raise ValueError("ZDEX purchase-burn governed route shape mismatch")
+    expected_releases = (
+        (purchase, LaneIdV1.SPOT_LIQUIDITY),
+        (burn, LaneIdV1.ZDEX_TOKENOMICS),
+    )
+    if any(
+        release.status is not ReleaseStatusV1.SHADOW
+        or release.accepts_new_objects
+        or release.lane_id is not lane_id
+        or PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1 not in release.command_variants
+        for release, lane_id in expected_releases
+    ):
+        raise ValueError("ZDEX purchase-burn governed module release shape mismatch")
+    expected_coordinators = (
+        (purchase_coordinator, LaneIdV1.SPOT_LIQUIDITY),
+        (burn_coordinator, LaneIdV1.ZDEX_TOKENOMICS),
+    )
+    if any(
+        coordinator.status is not ReleaseStatusV1.SHADOW
+        or coordinator.accepts_new_objects
+        or coordinator.lane_id is not lane_id
+        for coordinator, lane_id in expected_coordinators
+    ):
+        raise ValueError("ZDEX purchase-burn governed coordinator shape mismatch")
+
+
+def bind_zdex_purchase_burn_shadow_profile_v1(
+    *,
+    expected_profile_id: str,
+    expected_authority_epoch: int,
+    profile: EconomicProfileSnapshotV1,
+) -> GovernedZDEXPurchaseBurnRouteV1:
+    """Own and select the exact SHADOW route graph from a trusted anchor."""
+
+    if type(expected_profile_id) is not str:
+        raise ValueError("ZDEX purchase-burn expected profile mismatch")
+    if type(expected_authority_epoch) is not int:
+        raise ValueError("ZDEX purchase-burn expected authority epoch mismatch")
+    owned_profile = snapshot_economic_profile_v1(profile)
+    if expected_profile_id != owned_profile.profile_id:
+        raise ValueError("ZDEX purchase-burn expected profile mismatch")
+    if expected_authority_epoch != owned_profile.authority_epoch:
+        raise ValueError("ZDEX purchase-burn expected authority epoch mismatch")
+    if owned_profile.status is not ProfileStatusV1.SHADOW:
+        raise ValueError("ZDEX purchase-burn profile must remain SHADOW")
+    fields = _GovernedZDEXPurchaseBurnRouteFieldsV1(
+        owned_profile,
+        _registered_buyback_route_v1(owned_profile),
+        owned_profile.lane_registry.release_for(LaneIdV1.SPOT_LIQUIDITY),
+        owned_profile.lane_registry.release_for(LaneIdV1.ZDEX_TOKENOMICS),
+        owned_profile.lane_coordinator_registry.release_for(
+            LaneIdV1.SPOT_LIQUIDITY
+        ),
+        owned_profile.lane_coordinator_registry.release_for(
+            LaneIdV1.ZDEX_TOKENOMICS
+        ),
+    )
+    _require_governed_route_shapes_v1(fields)
+    return GovernedZDEXPurchaseBurnRouteV1(
+        _GOVERNED_PURCHASE_BURN_ROUTE_TOKEN,
+        fields,
+    )
+
+
+def _snapshot_governed_route_v1(
+    governed: GovernedZDEXPurchaseBurnRouteV1,
+) -> GovernedZDEXPurchaseBurnRouteV1:
+    if type(governed) is not GovernedZDEXPurchaseBurnRouteV1:
+        raise TypeError("ZDEX purchase-burn governed route must be verifier-constructed")
+    fields = governed._fields
+    if type(fields) is not _GovernedZDEXPurchaseBurnRouteFieldsV1:
+        raise TypeError("ZDEX purchase-burn governed fields must be exact typed data")
+    if type(fields.profile) is not EconomicProfileSnapshotV1:
+        raise TypeError("ZDEX purchase-burn governed profile must be exact typed data")
+    return bind_zdex_purchase_burn_shadow_profile_v1(
+        expected_profile_id=fields.profile.profile_id,
+        expected_authority_epoch=fields.profile.authority_epoch,
+        profile=fields.profile,
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class ZDEXPurchaseBurnRouteCandidateV1:
+    governed_profile: GovernedZDEXPurchaseBurnRouteV1
     route_release: RouteReleaseV1
     purchase_module_release: LaneModuleReleaseV1
     burn_module_release: LaneModuleReleaseV1
@@ -83,6 +239,11 @@ class ZDEXPurchaseBurnRouteCandidateV1:
 
     def __post_init__(self) -> None:
         expected = (
+            (
+                self.governed_profile,
+                GovernedZDEXPurchaseBurnRouteV1,
+                "governed profile",
+            ),
             (self.route_release, RouteReleaseV1, "route release"),
             (
                 self.purchase_module_release,
@@ -166,6 +327,7 @@ def _snapshot_route_candidate_v1(
     )
     return replace(
         candidate,
+        governed_profile=_snapshot_governed_route_v1(candidate.governed_profile),
         route_release=_snapshot_route_release_v1(candidate.route_release),
         purchase_module_release=_snapshot_lane_release_v1(
             candidate.purchase_module_release
@@ -519,6 +681,26 @@ def _binding_reject_code(
     return None
 
 
+def _governed_profile_reject_code(
+    candidate: ZDEXPurchaseBurnRouteCandidateV1,
+) -> ZDEXPurchaseBurnRouteRejectCodeV1 | None:
+    fields = candidate.governed_profile._fields
+    profile = fields.profile
+    occurrence = candidate.occurrence
+    purchase = candidate.purchase_journal
+    if (
+        candidate.route_release != fields.route_release
+        or candidate.purchase_module_release != fields.purchase_module_release
+        or candidate.burn_module_release != fields.burn_module_release
+        or occurrence.profile_root != profile.profile_id
+        or occurrence.route_release_id != fields.route_release.route_release_id
+        or occurrence.command_kind != fields.route_release.command_kind
+        or purchase.writer_epoch != profile.authority_epoch
+    ):
+        return ZDEXPurchaseBurnRouteRejectCodeV1.GOVERNED_PROFILE_MISMATCH
+    return None
+
+
 def _economic_reject_code(
     candidate: ZDEXPurchaseBurnRouteCandidateV1,
 ) -> ZDEXPurchaseBurnRouteRejectCodeV1 | None:
@@ -564,6 +746,9 @@ def compose_zdex_purchase_burn_route_v1(
     occurrence = candidate.occurrence
     purchase = candidate.purchase_journal
     occurrence_id = occurrence.occurrence_id
+    reject_code = _governed_profile_reject_code(candidate)
+    if reject_code is not None:
+        return _reject(reject_code)
     reject_code = _binding_reject_code(
         candidate,
         occurrence_id,
@@ -596,9 +781,11 @@ def compose_zdex_purchase_burn_route_v1(
 
 
 __all__ = [
+    "GovernedZDEXPurchaseBurnRouteV1",
     "ZDEXPurchaseBurnRouteAcceptedV1",
     "ZDEXPurchaseBurnRouteCandidateV1",
     "ZDEXPurchaseBurnRouteRejectedV1",
     "ZDEXPurchaseBurnRouteResultV1",
+    "bind_zdex_purchase_burn_shadow_profile_v1",
     "compose_zdex_purchase_burn_route_v1",
 ]
