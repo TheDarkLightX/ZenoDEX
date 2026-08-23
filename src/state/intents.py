@@ -104,6 +104,18 @@ class _FrozenIntentObject(Mapping[str, Any]):
             return False
 
 
+class IntentFieldsNotOwnedError(TypeError):
+    """Raised when an intent no longer carries its constructor-owned fields."""
+
+
+def _require_owned_intent_fields(value: object) -> _FrozenIntentObject:
+    if type(value) is not _FrozenIntentObject:
+        raise IntentFieldsNotOwnedError(
+            "intent.fields must be an exact owned intent snapshot"
+        )
+    return value
+
+
 def _validate_text(
     value: str,
     *,
@@ -362,7 +374,9 @@ class Intent:
 
         if type(key) is not str:
             raise TypeError("intent field key must be exactly str")
-        fields = cast(Mapping[str, Any], self.fields)
+        fields = _require_owned_intent_fields(
+            object.__getattribute__(self, "fields")
+        )
         return fields.get(key, default)
 
     def with_field(self: _IntentT, key: str, value: object) -> _IntentT:
@@ -370,7 +384,11 @@ class Intent:
 
         if type(key) is not str or not key:
             raise TypeError("intent field key must be a non-empty string")
-        fields = thaw_intent_fields(cast(Mapping[str, Any], self.fields))
+        fields = thaw_intent_fields(
+            _require_owned_intent_fields(
+                object.__getattribute__(self, "fields")
+            )
+        )
         fields[key] = value
         return replace(self, fields=fields)
 
@@ -379,7 +397,9 @@ class Intent:
 
         if type(key) is not str or not key:
             raise TypeError("intent field key must be a non-empty string")
-        current_fields = cast(Mapping[str, Any], self.fields)
+        current_fields = _require_owned_intent_fields(
+            object.__getattribute__(self, "fields")
+        )
         if key not in current_fields:
             return self
         fields = thaw_intent_fields(current_fields)
@@ -389,7 +409,11 @@ class Intent:
     def to_wire_fields(self) -> dict[str, Any]:
         """Return a recursively detached mutable object for JSON encoding."""
 
-        return thaw_intent_fields(cast(Mapping[str, Any], self.fields))
+        return thaw_intent_fields(
+            _require_owned_intent_fields(
+                object.__getattribute__(self, "fields")
+            )
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -468,7 +492,9 @@ def require_exact_intent(value: object) -> Intent:
 
     if type(value) not in (Intent, SwapIntent, CreatePoolIntent):
         raise TypeError("intent must be an exact ZenoDEX intent value")
-    return cast(Intent, value)
+    intent = cast(Intent, value)
+    _require_owned_intent_fields(object.__getattribute__(intent, "fields"))
+    return intent
 
 
 @dataclass(frozen=True, slots=True)
@@ -481,8 +507,7 @@ class SignedIntent:
     signature: str
 
     def __post_init__(self) -> None:
-        if not isinstance(self.intent, Intent):
-            raise TypeError("intent must be an Intent")
+        require_exact_intent(self.intent)
         if type(self.signature) is not str:
             raise TypeError("signature must be a string")
         if not self.signature.startswith("0x"):

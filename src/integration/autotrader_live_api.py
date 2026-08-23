@@ -19,6 +19,7 @@ from ..core.liquidity import create_pool
 from ..core.quote_receipts import make_route_quote_receipt
 from ..core.routing import best_route_exact_in_2hop
 from ..state.canonical import canonical_hex_fixed_allow_0x
+from ..state.intents import Intent, require_exact_intent
 from ..state.pools import PoolState, PoolStatus
 from .autotrader_controller import AutoTraderControllerState
 from .autotrader_live import AutoTraderLiveReport, prepare_autotrader_live_quote_receipt
@@ -623,7 +624,8 @@ def _default_fixture(*, signer_privkey: int, chain_id: str) -> dict[str, Any]:
     }
 
 
-def _intent_to_obj(intent: Any) -> dict[str, Any]:
+def _intent_to_obj(intent: Intent) -> dict[str, Any]:
+    intent = require_exact_intent(intent)
     return {
         "module": str(intent.module),
         "version": str(intent.version),
@@ -632,7 +634,7 @@ def _intent_to_obj(intent: Any) -> dict[str, Any]:
         "sender_pubkey": str(intent.sender_pubkey),
         "deadline": int(intent.deadline),
         "salt": intent.salt,
-        "fields": dict(intent.fields or {}),
+        "fields": intent.to_wire_fields(),
     }
 
 
@@ -1753,15 +1755,14 @@ def _build_execute_once_response(
                 },
             }
 
-        submitted = _build_submit_response(body)
-        if submitted.get("ok") is not True:
-            return submitted
-
         _consume_execution_id(
             execution_keys,
             execution_id,
             surface="autotrader_live_execute_once",
         )
+        submitted = _build_submit_response(body)
+        if submitted.get("ok") is not True:
+            return submitted
 
     return {
         **submitted,

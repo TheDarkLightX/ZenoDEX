@@ -16,7 +16,7 @@ from ..core.settlement import (
     ReserveDelta,
     Settlement,
 )
-from ..state.intents import Intent, IntentKind
+from ..state.intents import Intent, IntentKind, require_exact_intent
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
@@ -592,6 +592,8 @@ def create_intent_operation(intents: List[Intent]) -> Dict[str, Any]:
 
     intents_data = []
     for intent in intents:
+        intent = require_exact_intent(intent)
+        wire_fields = intent.to_wire_fields()
         intent_dict = {
             "module": intent.module,
             "version": intent.version,
@@ -604,8 +606,8 @@ def create_intent_operation(intents: List[Intent]) -> Dict[str, Any]:
         if intent.salt:
             intent_dict["salt"] = intent.salt
         
-        if intent.fields:
-            for k, v in intent.fields.items():
+        if wire_fields:
+            for k, v in wire_fields.items():
                 if k in reserved_keys:
                     raise ValueError(f"intent.fields contains reserved key: {k}")
                 intent_dict[k] = v

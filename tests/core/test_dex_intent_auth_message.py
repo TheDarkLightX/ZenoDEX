@@ -145,7 +145,7 @@ def test_build_dex_intent_signing_dict_v1_rejects_forged_intent_fields() -> None
     )
     object.__setattr__(intent, "fields", [])
 
-    with pytest.raises(TypeError, match="intent.fields must be a dict"):
+    with pytest.raises(TypeError, match="exact owned intent snapshot"):
         build_dex_intent_signing_dict_v1(intent)
 
 

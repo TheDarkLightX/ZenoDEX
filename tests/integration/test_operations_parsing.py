@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import json
+from collections.abc import Iterator, Mapping
+
 import pytest
 
+from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
 from src.core.settlement import Fill, FillAction, Settlement
 from src.integration.operations import (
     _parse_intent,
@@ -13,6 +17,7 @@ from src.integration.operations import (
     parse_settlement_envelope,
     parse_signed_intents,
 )
+from src.state.canonical import canonical_json_bytes
 from src.state.intents import Intent, IntentKind
 from src.state.nonces import NonceTable, validate_and_apply_intent_nonce_batch
 
@@ -311,6 +316,88 @@ def test_nonce_validation_rejects_behavior_changing_intent_subclass() -> None:
             intents=[intent],
             require_all_nonces=True,
         )
+
+
+def test_nonce_validation_rejects_hostile_forged_fields_without_observation_or_mutation() -> None:
+    class HostileFields(Mapping[str, object]):
+        calls = 0
+
+        def __getitem__(self, key: str) -> object:
+            del key
+            self.calls += 1
+            raise AssertionError("hostile fields were observed")
+
+        def __iter__(self) -> Iterator[str]:
+            self.calls += 1
+            raise AssertionError("hostile fields were iterated")
+
+        def __len__(self) -> int:
+            self.calls += 1
+            raise AssertionError("hostile fields length was observed")
+
+        def get(self, key: str, default: object = None) -> object:
+            del key, default
+            self.calls += 1
+            return 8
+
+    sender = "0x" + "35" * 48
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id="0x" + "35" * 32,
+        sender_pubkey=sender,
+        deadline=1,
+        fields={"nonce": 8},
+    )
+    hostile_fields = HostileFields()
+    object.__setattr__(intent, "fields", hostile_fields)
+    nonces = NonceTable()
+    nonces.set_last(sender, 7)
+    before = nonces.get_all()
+
+    ok, error, updated = validate_and_apply_intent_nonce_batch(
+        nonces=nonces,
+        intents=[intent],
+        require_all_nonces=True,
+    )
+
+    assert ok is False
+    assert error == "invalid intent fields snapshot"
+    assert updated is None
+    assert nonces.get_all() == before
+    assert hostile_fields.calls == 0
+
+
+def test_create_intent_operation_has_nested_signing_and_json_parity() -> None:
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id="0x" + "36" * 32,
+        sender_pubkey="0x" + "36" * 48,
+        deadline=9,
+        fields={
+            "nonce": 1,
+            "route": {
+                "assets": ["asset-a", "asset-b"],
+                "limits": {"amount_in": 7, "min_amount_out": 6},
+            },
+        },
+    )
+
+    operations = create_intent_operation([intent])
+    reparsed = parse_intents(operations)[0]
+    original_signing = build_dex_intent_signing_dict_v1(intent)
+    reparsed_signing = build_dex_intent_signing_dict_v1(reparsed)
+
+    json.dumps(operations, sort_keys=True)
+    assert canonical_json_bytes(reparsed_signing) == canonical_json_bytes(
+        original_signing
+    )
+    route = operations["2"][0]["route"]
+    assert type(route) is dict
+    assert type(route["assets"]) is list
 
 
 def test_parse_settlement_envelope_extracts_proof() -> None:

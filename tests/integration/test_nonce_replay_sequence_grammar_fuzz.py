@@ -69,7 +69,7 @@ def test_nonce_replay_sequence_grammar_fuzz_cli_emits_expected_schema() -> None:
 def test_nonce_replay_sequence_minimizer_removes_dead_tail_without_changing_path() -> None:
     witness = minimize_case("nonce_replay_sequence", "Seq->CrossBatchReplayWithDeadTail")
     assert witness.outcome_label == "reject:step=1:nonce sequence invalid"
-    assert witness.path_id == "86f985a0a75b6573"
+    assert witness.path_id == "142e25ff95b1243b"
     assert witness.original_size > witness.minimized_size
     assert isinstance(witness.payload, dict)
     steps = witness.payload["steps"]
@@ -99,5 +99,5 @@ def test_nonce_replay_sequence_minimizer_cli_emits_expected_schema() -> None:
     assert witness["target"] == "nonce_replay_sequence"
     assert witness["derivation"] == "Seq->CrossBatchReplayWithDeadTail"
     assert witness["outcome_label"] == "reject:step=1:nonce sequence invalid"
-    assert witness["path_id"] == "86f985a0a75b6573"
+    assert witness["path_id"] == "142e25ff95b1243b"
     assert witness["original_size"] > witness["minimized_size"]

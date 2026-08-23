@@ -6,15 +6,48 @@ import threading
 import pytest
 
 import src.integration.autotrader_live_api as autotrader_live_api
-from src.integration.autotrader_live_api import handle_autotrader_live_request
-from src.integration.operations import SignedIntentEnvelope, create_signed_intent_operation, parse_intents
-from src.integration.autotrader_supervisor_profile import build_autotrader_supervisor_profile_v1
-from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 from src.agents.intent_signer import sign_intent
-
+from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
+from src.integration.autotrader_live_api import handle_autotrader_live_request
+from src.integration.autotrader_supervisor_profile import build_autotrader_supervisor_profile_v1
+from src.integration.operations import (
+    SignedIntentEnvelope,
+    create_signed_intent_operation,
+    parse_intents,
+)
+from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
+from src.state.canonical import canonical_json_bytes
+from src.state.intents import Intent, IntentKind
 
 _STAGE_CERT_HASH = "0x" + "5a" * 32
 _RELEASE_CERT_HASH = "0x" + "98" * 32
+
+
+def test_intent_to_obj_has_nested_signing_and_json_parity() -> None:
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id="0x" + "37" * 32,
+        sender_pubkey="0x" + "37" * 48,
+        deadline=10,
+        fields={
+            "nonce": 1,
+            "route": {
+                "assets": ["asset-a", "asset-b"],
+                "limits": {"amount_in": 7, "min_amount_out": 6},
+            },
+        },
+    )
+
+    rendered = autotrader_live_api._intent_to_obj(intent)
+
+    json.dumps(rendered, sort_keys=True)
+    assert canonical_json_bytes(
+        build_dex_intent_signing_dict_v1(rendered)
+    ) == canonical_json_bytes(build_dex_intent_signing_dict_v1(intent))
+    assert type(rendered["fields"]["route"]) is dict
+    assert type(rendered["fields"]["route"]["assets"]) is list
 
 
 def _balance(payload: str, *, pubkey: str, asset: str) -> int:

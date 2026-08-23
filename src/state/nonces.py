@@ -13,7 +13,7 @@ from typing import Dict, Mapping, Sequence
 
 from .balances import PubKey
 from .canonical import canonical_hex_fixed_allow_0x
-from .intents import Intent, require_exact_intent
+from .intents import Intent, IntentFieldsNotOwnedError, require_exact_intent
 
 _U32_MAX = 0xFFFFFFFF
 
@@ -98,9 +98,11 @@ def validate_and_apply_intent_nonce_batch(
     saw_missing = False
 
     for intent in intents:
-        require_exact_intent(intent)
-        fields = intent.fields or {}
-        nonce_raw = fields.get("nonce") if isinstance(fields, Mapping) else None
+        try:
+            intent = require_exact_intent(intent)
+            nonce_raw = intent.to_wire_fields().get("nonce")
+        except IntentFieldsNotOwnedError:
+            return False, "invalid intent fields snapshot", None
         if nonce_raw is None:
             saw_missing = True
             if require_all_nonces:

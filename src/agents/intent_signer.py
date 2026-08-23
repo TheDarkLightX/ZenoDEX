@@ -3,10 +3,14 @@
 import hashlib
 from typing import Any, Dict, Optional
 
+from ..core.dex_intent_auth_message import (
+    build_dex_intent_signing_dict_v1,
+    hash_dex_intent_auth_message_v1,
+)
 from ..core.quote_receipts import pool_state_fingerprint
 from ..integration.tau_net_client import sign_dex_intent_for_engine
 from ..state.balances import Amount, AssetId, PubKey
-from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes, domain_sep_bytes
+from ..state.canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
 from ..state.intents import Intent, IntentKind, SignedIntent
 
 # For BLS12-381 signing (same as tau-testnet)
@@ -630,37 +634,7 @@ def _generate_intent_id(
 
 
 def _intent_signing_dict(intent: Intent) -> dict[str, Any]:
-    fields = intent.fields or {}
-    if not isinstance(fields, dict):
-        raise TypeError("intent.fields must be a dict")
-    out: dict[str, Any] = {
-        "module": intent.module,
-        "version": intent.version,
-        "kind": intent.kind.value,
-        "intent_id": intent.intent_id,
-        "sender_pubkey": intent.sender_pubkey,
-        "deadline": int(intent.deadline),
-        "fields": dict(fields),
-    }
-    if intent.salt is not None:
-        out["salt"] = intent.salt
-    return out
-
-
-def _intent_transport_dict(intent: Intent) -> dict[str, Any]:
-    out: dict[str, Any] = {
-        "module": intent.module,
-        "version": intent.version,
-        "kind": intent.kind.value,
-        "intent_id": intent.intent_id,
-        "sender_pubkey": intent.sender_pubkey,
-        "deadline": int(intent.deadline),
-    }
-    if intent.salt is not None:
-        out["salt"] = intent.salt
-    if intent.fields:
-        out.update(dict(intent.fields))
-    return out
+    return build_dex_intent_signing_dict_v1(intent)
 
 
 def sign_intent(
@@ -690,7 +664,7 @@ def sign_intent(
         )
 
     signature = sign_dex_intent_for_engine(
-        _intent_transport_dict(intent),
+        _intent_signing_dict(intent),
         privkey=private_key,
         chain_id=chain_id,
     )
@@ -746,9 +720,10 @@ def verify_intent_signature(
             nbytes=96,
             name="signature",
         )
-        signing_payload = _create_canonical_message(signed_intent.intent)
-        msg = domain_sep_bytes(f"dex_intent_sig:{chain_id}", version=1) + signing_payload
-        msg_hash = hashlib.sha256(msg).digest()
+        msg_hash = hash_dex_intent_auth_message_v1(
+            signed_intent.intent,
+            chain_id=chain_id,
+        )
         pubkey_bytes = bytes.fromhex(sender_pubkey[2:])
         signature_bytes = bytes.fromhex(signature[2:])
     except (TypeError, ValueError):

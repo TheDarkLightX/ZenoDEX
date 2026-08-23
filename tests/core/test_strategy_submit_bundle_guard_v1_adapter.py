@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from src.agents.intent_signer import create_swap_intent, sign_intent
@@ -7,6 +9,7 @@ from src.integration.operations import SignedIntentEnvelope, create_signed_inten
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
 from src.kernels.python import strategy_submit_bundle_guard_v1_adapter
 from src.kernels.python.strategy_submit_bundle_guard_v1_adapter import check_strategy_submit_bundle
+from src.state.intents import Intent, IntentKind
 
 
 def _signed_bundle(*, privkey: int = 7) -> tuple[str, tuple[SignedIntentEnvelope, ...], dict[str, object]]:
@@ -70,6 +73,68 @@ def test_check_strategy_submit_bundle_accepts_signed_bundle_with_tx() -> None:
     )
     assert result.ok is True
     assert result.tx_payload_ok is True
+
+
+def test_check_strategy_submit_bundle_preserves_nested_signing_parity_and_rejects_mutation() -> None:
+    privkey = 11
+    signer_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id="0x" + "39" * 32,
+        sender_pubkey=signer_pubkey,
+        deadline=99,
+        fields={
+            "nonce": 1,
+            "route": {
+                "assets": ["A", "B"],
+                "limits": {"amount_in": 7, "min_amount_out": 6},
+            },
+        },
+    )
+    signature = sign_intent(intent, privkey, chain_id="tau-local").signature
+    envelope = SignedIntentEnvelope(
+        intent=intent,
+        signature=signature,
+        quote_receipt={"body": {}, "receipt_hash": "hash.nested"},
+    )
+    operations = create_signed_intent_operation([envelope])
+
+    accepted = check_strategy_submit_bundle(
+        emit_requested=True,
+        signed_intents=(envelope,),
+        operations=operations,
+        chain_id="tau-local",
+        signer_pubkey=signer_pubkey,
+        tx_requested=False,
+    )
+    mutated = intent.with_field(
+        "route",
+        {
+            "assets": ["A", "B"],
+            "limits": {"amount_in": 8, "min_amount_out": 6},
+        },
+    )
+    mutated_envelope = SignedIntentEnvelope(
+        intent=mutated,
+        signature=signature,
+        quote_receipt=envelope.quote_receipt,
+    )
+    rejected = check_strategy_submit_bundle(
+        emit_requested=True,
+        signed_intents=(mutated_envelope,),
+        operations=create_signed_intent_operation([mutated_envelope]),
+        chain_id="tau-local",
+        signer_pubkey=signer_pubkey,
+        tx_requested=False,
+    )
+
+    json.dumps(operations, sort_keys=True)
+    assert accepted.ok is True
+    assert accepted.error is None
+    assert rejected.ok is False
+    assert rejected.error == "submit_bundle_signature_invalid"
 
 
 @pytest.mark.parametrize(
