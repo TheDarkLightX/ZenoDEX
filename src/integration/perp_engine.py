@@ -6117,6 +6117,27 @@ def _partial_liquidate_tau_source_binding_error(
         or root_expected
         or membership_required
     )
+    root_binding = binding.source_state_root_binding
+    root_supplied = root_binding is not None
+    membership_supplied = (
+        root_binding is not None
+        and root_binding.source_membership_proof is not None
+    )
+    authority_supplied = (
+        root_binding is not None
+        and (
+            root_binding.source_root_authority is not None
+            or root_binding.source_root_authority_binding is not None
+        )
+    )
+    envelope_supplied = binding.source_admission_envelope is not None
+    if (
+        root_supplied
+        and ctx.config.isolated_partial_liquidate_tau_source_state_root_hash is None
+        and not authority_supplied
+        and not envelope_supplied
+    ):
+        return "tau_source_binding source state root anchor expected but not configured"
     if (
         ctx.config.require_tau_source_state_root_binding_for_isolated_partial_liquidate
         and ctx.config.isolated_partial_liquidate_tau_source_state_root_hash is None
@@ -6137,7 +6158,6 @@ def _partial_liquidate_tau_source_binding_error(
         ),
     )
     if root_reason is not None:
-        root_supplied = binding.source_state_root_binding is not None
         if (
             root_reason == "missing_source_state_root_binding"
             and not root_required
@@ -6145,22 +6165,10 @@ def _partial_liquidate_tau_source_binding_error(
             return None
         if root_supplied or root_required:
             return f"tau_source_binding rejects: {root_reason}"
-    membership_supplied = (
-        binding.source_state_root_binding is not None
-        and binding.source_state_root_binding.source_membership_proof is not None
-    )
     if membership_required or membership_supplied:
         membership_reason = source_membership_proof_reject_reason(binding)
         if membership_reason is not None:
             return f"tau_source_binding rejects: {membership_reason}"
-    authority_supplied = (
-        binding.source_state_root_binding is not None
-        and (
-            binding.source_state_root_binding.source_root_authority is not None
-            or binding.source_state_root_binding.source_root_authority_binding
-            is not None
-        )
-    )
     authority_required = (
         ctx.config.require_tau_source_root_authority_for_isolated_partial_liquidate
     )
@@ -6192,7 +6200,6 @@ def _partial_liquidate_tau_source_binding_error(
         )
         if authority_reason is not None:
             return f"tau_source_binding rejects: {authority_reason}"
-    envelope_supplied = binding.source_admission_envelope is not None
     envelope_required = (
         ctx.config.require_tau_source_admission_envelope_for_isolated_partial_liquidate
     )

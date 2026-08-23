@@ -26,7 +26,7 @@ except ImportError:  # pragma: no cover - exercised in no-BLS environments
 G2Basic: Any | None = _PyEccG2Basic
 
 PARTIAL_LIQUIDATE_ACTION = "partial_liquidate"
-JMT_SOURCE_STATE_ROOT_KIND = "typed_app_root_jmt_v1"
+JMT_SOURCE_STATE_ROOT_KIND = "perp_liquidation_source_facts_jmt_v1"
 SOURCE_ROOT_AUTHORITY_SCHEMA = "zenodex.perp_liquidation_tau_source_root_authority.v1"
 SOURCE_ROOT_AUTHORITY_BINDING_SCHEMA = "zenodex.perp_liquidation_tau_source_root_authority_binding.v1"
 SOURCE_ADMISSION_ENVELOPE_SCHEMA = "zenodex.perp_liquidation_tau_source_admission_envelope.v1"

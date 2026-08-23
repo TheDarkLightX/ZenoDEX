@@ -1,0 +1,104 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-perp-source-root-anchor",
+  "created_date": "2026-08-23",
+  "claim_scope": "The Python isolated partial-liquidation adapter rejects a supplied Tau source-state JMT root and membership proof unless the root is anchored by exact configuration or proceeds through the separately verified authority or admission-envelope path. The perps source-facts tree uses a distinct root-kind identifier from the top-level typed application root.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "PERP-LIQUIDATION-SOURCE-ROOT-MUST-BE-ANCHORED",
+    "PERP-LIQUIDATION-ROOT-SCHEMA-MUST-BE-EXACT",
+    "PERP-LIQUIDATION-REJECT-IS-NO-EFFECT"
+  ],
+  "failure_modes": [
+    "a caller supplies both a JMT root and its own matching membership proof and reaches a value-changing liquidation without an independent root anchor",
+    "a perps source-facts tree is mislabeled as the top-level typed application root",
+    "a missing-root-anchor rejection runs the liquidation kernel or returns economic effects",
+    "the root-anchor repair rejects an exact configured root and matching proof"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/perp_liquidation_tau_source_binding.py",
+      "sha256": "a5005c82d9773c46eb2e3aab578c7c00378b65462bc13cd8a9c54d026fe3dd79"
+    },
+    {
+      "path": "src/integration/perp_engine.py",
+      "sha256": "ba1b0adfd52cdd575bd20a84ef4903aea85483ce70031e6a04fc99ee9dce6fea"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_perp_engine_partial_liquidate.py",
+      "sha256": "6d991d4e895997058a3a8358bb2bffdb6607e0a8ff0759ec0af5029a0043dd9a",
+      "node_ids": [
+        "tests/integration/test_perp_engine_partial_liquidate.py::test_partial_liquidate_rejects_caller_anchored_membership_root",
+        "tests/integration/test_perp_engine_partial_liquidate.py::test_partial_liquidate_accepts_membership_root_bound_by_configuration",
+        "tests/integration/test_perp_engine_partial_liquidate.py::test_partial_liquidate_rejects_configured_root_mismatch_without_effects",
+        "tests/integration/test_perp_engine_partial_liquidate.py::test_perp_liquidation_facts_tree_has_a_distinct_root_kind"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The regressions arrange an under-maintenance account and a valid one-leaf source-facts JMT proof, act through the mounted partial-liquidation adapter, and assert exact rejection with no successor/effects or exact acceptance under a configured root."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The unanchored-root case asserts a false result, the exact typed error, no returned state, no effects, and an unchanged pre-state position of 100000; the mocked liquidation transition would otherwise move it to 75000."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "source_root_anchor",
+      "points": [
+        "caller_carried_root_and_proof_without_anchor_reject",
+        "exact_configured_root_and_kind_accept",
+        "configured_root_mismatch_rejects_without_effects"
+      ]
+    },
+    {
+      "name": "root_schema",
+      "points": [
+        "perp_liquidation_source_facts_jmt_v1",
+        "typed_app_root_jmt_v1_is_reserved_for_the_top_level_application_root"
+      ]
+    },
+    {
+      "name": "economic_observation",
+      "points": [
+        "rejection_preserves_position_100000_and_emits_no_effects",
+        "anchored_acceptance_moves_position_to_75000"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "verify a supplied membership proof against the root carried in the same untrusted binding without requiring an independent anchor",
+      "killed_by": "tests/integration/test_perp_engine_partial_liquidate.py::test_partial_liquidate_rejects_caller_anchored_membership_root"
+    },
+    {
+      "description": "reject every supplied source root, including the exact root and kind selected by configuration",
+      "killed_by": "tests/integration/test_perp_engine_partial_liquidate.py::test_partial_liquidate_accepts_membership_root_bound_by_configuration"
+    },
+    {
+      "description": "treat any well-formed configured root as sufficient without exact equality to the proof root",
+      "killed_by": "tests/integration/test_perp_engine_partial_liquidate.py::test_partial_liquidate_rejects_configured_root_mismatch_without_effects"
+    },
+    {
+      "description": "reuse typed_app_root_jmt_v1 for a JMT whose leaves are perps source-facts keys and values",
+      "killed_by": "tests/integration/test_perp_engine_partial_liquidate.py::test_perp_liquidation_facts_tree_has_a_distinct_root_kind"
+    }
+  ],
+  "nonclaims": [
+    "This packet covers the Python isolated partial-liquidation source-root admission path; it does not establish all perps, Oracle, Tau, or application-root refinement obligations.",
+    "The authority and admission-envelope alternatives remain subject to their existing signer, policy, epoch, and receipt checks.",
+    "No proof guest, release profile, settlement mount, migration, writer rotation, or production authority is granted; production_authority remains NONE."
+  ]
+}
