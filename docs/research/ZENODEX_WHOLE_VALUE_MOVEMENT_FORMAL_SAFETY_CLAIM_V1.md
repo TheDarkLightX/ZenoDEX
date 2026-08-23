@@ -644,11 +644,11 @@ are still unresolved, so this binding grants no production authority.
 
 The operation-derived Python sink inventory now scans direct `os.replace`
 calls and literal SQL mutation calls throughout `src`, plus direct
-`self._state` publication assignments in `src/integration`. It classifies 18
-sink identities containing 24 current occurrences. Its negative evidence uses
+`self._state` publication assignments in `src/integration`. It classifies 20
+sink identities containing 29 current occurrences. Its negative evidence uses
 an arbitrarily named `persist_balance_patch()` function, demonstrating that a
 new literal SQL value mutation cannot evade this V1 scan by avoiding known
-writer names. Seventeen authority-relevant sink groups remain without
+writer names. Nineteen authority-relevant sink groups remain without
 release-backed bindings. VM-01 therefore remains `PARTIAL`. Dynamic SQL, ORM
 mutation, indirect assignment, Rust, Tau, shell, generated code, native
 extensions, runtime loading, deployment wiring, and actual deployed
@@ -742,14 +742,25 @@ the exact platform `Path` type, preventing method-overriding path subclasses
 from redirecting a publisher capability.
 
 The callable guarantee is process-local. Mutable callable behavior, globals,
-closure state, and the executing binary remain unattested. A first-wave
-adversarial review also demonstrated two unresolved lifecycle histories: an old
-profile can publish from a separately retained old store after migration, and
-an in-flight old-profile verification can reach publication after profile or
-verifier rotation. Closure requires one durable current-authority head that
-commits profile, writer epoch, verifier release, deployment, and revocation
-generation; migration must advance that head atomically, and publication must
-recheck it inside the durable CAS transaction.
+closure state, and the executing binary remain unattested. Commits
+`44fd5ca175f812c72906b0bac7ac41af2046a04e` and
+`84d702fbad7d8f8c81a44bb4aed0d3b300f5474c` add and inventory a bounded
+directory-local current-authority head. The canonical head binds activation,
+profile, writer epoch, verifier coordinates, root image, deployment, one named
+epoch store, adjacent generation, and active or revoked status. The epoch CAS
+token snapshots that authority, and publication rechecks the complete active
+head inside one `BEGIN IMMEDIATE` transaction with the authority database
+attached. A differently named second publisher rejects, in-flight explicit
+revocation returns `AUTHORITY_STALE`, active rotations reserve revocation
+capacity, and historical authority retry returns `STALE_HEAD`.
+
+The same evidence preserves two executable release blockers. Restoring old
+authority-file bytes resurrects a revoked publisher, and committing the
+separate migration journal leaves the old publisher able to commit. Authority
+successor admission remains an unauthenticated private same-process hook. A
+production closure therefore requires one anti-rollback authority anchor and
+one atomic migration transaction that installs the new activation, matching
+authority successor, profile, writer epoch, and old-writer retirement.
 
 The SQLite preflight cannot fence a different process that changes the store
 between immutable validation and writable open. `open` validates structural
@@ -767,18 +778,21 @@ later worktree edit plus refreshed hash from representing an earlier commit.
 The checker itself still requires release packaging, independent replay, and
 authenticated distribution before it can contribute production authority.
 
-The focused closure portfolio has 194 passing tests: a 193-test combined run
-plus the final lifecycle-gate evidence mutation test. It includes
+The current authority portfolio has 176 passing tests in two runs: 167 adjacent
+initialization, verifier, activation, authority, epoch, publisher, and migration
+tests plus nine exhaustive value-sink tests. It includes
 zero/one/max/max+1 receipt and journal boundaries, active-profile selection,
 wrong registry/image/deployment/manifest/artifact rejection, generic-verifier
 rejection, forged and foreign capabilities, retained-callable mutation killing,
 exact activation create recovery, rejected-open nonmutation, restart/retry,
 competing heads, and tested SQLite crash points. Ruff, mypy, diff checks, and the repository
-security red-flag scanner pass. An independent GPT-5.6 Sol source review
-returned `GO` only for `IMPLEMENTED_TESTED_DISCOVERY`, `UNMOUNTED` use and
-confirmed the retained same-process release blocker.
+security red-flag scanner pass. An independent GPT-5.6 Sol max review returned
+`GO` only for the research-only commit and retained production authority
+`NONE`. It confirmed rollback, non-atomic migration, private same-process
+writers, SQLite availability bounds, and sole-writer enforcement remain open.
 
-This narrows the fixed-profile ordinary-epoch authority and crash window. It
+This narrows the directory-local fixed-profile ordinary-epoch authority and
+revocation race. It
 does not establish executable attestation, process isolation, sole-writer
 enforcement, migration, outbox delivery and acknowledgment reconciliation,
 objective finality, hardware power-loss behavior, or Rust/RISC0 parity. Other

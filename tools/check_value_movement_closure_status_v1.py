@@ -19,9 +19,9 @@ DEFAULT_STATUS_PATH = Path(
 M6_ATDD_PATH = Path("docs/research/m6_global_economic_core_atdd_bdd_v1.json")
 EXPECTED_GATE_IDS = tuple(f"VM-{index:02d}" for index in range(1, 13))
 EXPECTED_GATE_EVIDENCE_ROOT = (
-    "bda76e927917ec74be78744acbbe41d65ab9d60e63d6dc45e76b2ce167268ca7"
+    "ec9e8f9fb9f1b0cd83ef7c55b4f617a0cea4f85a41952b41f6600f775b998690"
 )
-EXPECTED_SUBJECT_COMMIT = "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64"
+EXPECTED_SUBJECT_COMMIT = "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c"
 EXPECTED_TOP_LEVEL_FIELDS = frozenset(
     {
         "authority",
@@ -97,6 +97,7 @@ EXPECTED_IMPLEMENTED_SLICE_IDS = (
     "GLOBAL_ECONOMIC_DURABLE_ACTIVATION_JOURNAL_V1",
     "GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1",
     "GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1",
+    "GLOBAL_ECONOMIC_CURRENT_AUTHORITY_HEAD_V1",
     "ECONOMIC_INITIAL_STATE_OUTBOX_CONTINUITY_V1",
     "ECONOMIC_INITIAL_STATE_TERMINAL_CONTINUITY_V1",
     "M6_ZDEX_SEMANTIC_DRIFT_GUARD",
@@ -106,7 +107,7 @@ EXPECTED_IMPLEMENTED_SLICE_IDS = (
     "M6_ASSET_PRECISION_PROFILE_BINDING_V1",
 )
 EXPECTED_IMPLEMENTED_SLICE_FIELD_SET_ROOT = (
-    "74e362d8ab5b7522b8306d8cd6356a09b0244d90eedc9da90ffac1c0d69b6726"
+    "cf298bbf6039db3d8948e99005373575603c8f2863d32104bfbf7c8219539c83"
 )
 EXPECTED_CLAIM_PATH = Path(
     "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md"
@@ -114,19 +115,22 @@ EXPECTED_CLAIM_PATH = Path(
 EXPECTED_CAMPAIGN_PATH = Path(
     "docs/research/GLOBAL_ECONOMIC_COMPOSITION_DISASTER_CAMPAIGN_V1.md"
 )
-EXPECTED_CLAIM_SHA256 = "48dcdcb59be547f8563c97d44d5dab244988e47c571b93cf284b9bb538aeac03"
-EXPECTED_CAMPAIGN_SHA256 = "20bf0a5b69dbd9a58ab54068cc902445787e2de8ee6e09b028a9fb4db831d8b8"
+EXPECTED_CLAIM_SHA256 = "bdfc9d04065dd58699b075292d168e8215a362271beab1aa85c0851fa48fd0e3"
+EXPECTED_CAMPAIGN_SHA256 = "f15740a45c7f6b4ad2531b343ba9ac60ec21550abff2ae2cfb7ae346b9f35fe8"
 EXPECTED_VM12_EVIDENCE = (
     "This ledger binds clean scoped implementation subject "
-    "0b0d93cdd5df08a8a0a8a6d591c13659ec8f6d64. The second max-review wave "
-    "found and preserved minimized create-recovery, crash-left WAL, behaviorful "
-    "Path, exact-subject, contract-path, semantic-anchor, and dependency-binding "
-    "counterexamples. The focused closure portfolio has 194 passing tests: a "
-    "193-test combined run plus the final lifecycle-gate evidence mutation test. "
-    "Touched Python passes Ruff and targeted mypy. The review remains REVISE "
-    "because unified migration/revocation authority, isolated executable "
-    "attestation, sole-writer fencing, real Rust/RISC0 replay, objective finality, "
-    "and complete release evidence are absent."
+    "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c. The current-authority campaign "
+    "preserves minimized second-store, in-flight revocation, revocation-capacity, "
+    "historical-retry, decoder-nesting, authority rollback, and non-atomic "
+    "migration histories. Two recorded runs have 176 passing tests: 167 adjacent "
+    "initialization, verifier, activation, authority, epoch, publisher, and "
+    "migration tests plus nine exhaustive value-sink tests. Touched Python passes "
+    "Ruff and targeted mypy; the security scanner reported zero advisory "
+    "findings. Independent max review returned GO for a research-only commit and "
+    "production NO-GO. Anti-rollback authority, atomic migration retirement, "
+    "authenticated successor admission, isolated executable attestation, "
+    "sole-writer fencing, real Rust/RISC0 replay, objective finality, and complete "
+    "release evidence remain absent."
 )
 CHECKER_DEPENDENCY_ARTIFACTS = {
     "asset_precision_checker_sha256": Path(
@@ -282,6 +286,36 @@ DURABLE_PUBLISHER_SLICE_ARTIFACTS = {
     "writer_manifest_sha256": Path("tools/m6_writer_inventory_manifest_v1.json"),
     "sink_manifest_sha256": Path("tools/m6_value_sink_manifest_v1.json"),
     "writer_test_sha256": Path("tests/test_check_m6_writer_inventory.py"),
+    "sink_test_sha256": Path("tests/test_check_m6_value_sinks_v1.py"),
+}
+CURRENT_AUTHORITY_SLICE_ID = "GLOBAL_ECONOMIC_CURRENT_AUTHORITY_HEAD_V1"
+CURRENT_AUTHORITY_SLICE_COMMIT = EXPECTED_SUBJECT_COMMIT
+CURRENT_AUTHORITY_SLICE_ARTIFACTS = {
+    "design_sha256": Path(
+        "docs/research/GLOBAL_ECONOMIC_CURRENT_AUTHORITY_HEAD_V1.md"
+    ),
+    "python_core_sha256": Path(
+        "src/core/global_economic_authority_head_v1.py"
+    ),
+    "python_authority_journal_sha256": Path(
+        "src/integration/global_economic_authority_journal_v1.py"
+    ),
+    "python_publisher_sha256": Path(
+        "src/integration/global_economic_durable_publisher_v1.py"
+    ),
+    "python_epoch_journal_sha256": Path(
+        "src/integration/global_economic_epoch_journal_v1.py"
+    ),
+    "python_authority_test_sha256": Path(
+        "tests/integration/test_global_economic_authority_journal_v1.py"
+    ),
+    "python_publisher_test_sha256": Path(
+        "tests/integration/test_global_economic_durable_publisher_v1.py"
+    ),
+    "python_epoch_test_sha256": Path(
+        "tests/integration/test_global_economic_epoch_journal_v1.py"
+    ),
+    "sink_manifest_sha256": Path("tools/m6_value_sink_manifest_v1.json"),
     "sink_test_sha256": Path("tests/test_check_m6_value_sinks_v1.py"),
 }
 
@@ -593,6 +627,35 @@ def _validate_durable_publisher_slice_evidence_v1(
     )
 
 
+def _validate_current_authority_slice_evidence_v1(
+    root: Path,
+    status: Mapping[str, object],
+    subject_commit: object,
+    findings: list[str],
+) -> None:
+    slices = status.get("implemented_slices")
+    if type(slices) is not list or any(type(row) is not dict for row in slices):
+        findings.append("implemented slices must be a list of objects")
+        return
+    rows = [row for row in slices if row.get("id") == CURRENT_AUTHORITY_SLICE_ID]
+    if len(rows) != 1:
+        findings.append("current authority slice evidence row must occur exactly once")
+        return
+    authority = rows[0]
+    if authority.get("commit") != CURRENT_AUTHORITY_SLICE_COMMIT:
+        findings.append("current authority slice implementation commit mismatch")
+    if authority.get("artifact_subject_commit") != subject_commit:
+        findings.append("current authority slice artifact subject commit mismatch")
+    _validate_artifact_map_v1(
+        root,
+        authority,
+        subject_commit,
+        CURRENT_AUTHORITY_SLICE_ARTIFACTS,
+        "current authority slice",
+        findings,
+    )
+
+
 def _validate_publisher_bound_slice_evidence_v1(
     root: Path,
     status: Mapping[str, object],
@@ -699,6 +762,7 @@ def check_value_movement_closure_status_v1(
     _validate_durable_activation_slice_evidence_v1(root, status, commit, findings)
     _validate_durable_epoch_slice_evidence_v1(root, status, commit, findings)
     _validate_durable_publisher_slice_evidence_v1(root, status, commit, findings)
+    _validate_current_authority_slice_evidence_v1(root, status, commit, findings)
     _validate_publisher_bound_slice_evidence_v1(root, status, commit, findings)
 
     authority = _mapping(status.get("authority"), "authority", findings)

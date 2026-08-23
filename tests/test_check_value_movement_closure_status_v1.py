@@ -75,6 +75,14 @@ def _durable_publisher_slice(value: dict[str, object]) -> dict[str, object]:
     )
 
 
+def _current_authority_slice(value: dict[str, object]) -> dict[str, object]:
+    return next(
+        row
+        for row in _implemented_slices(value)
+        if row["id"] == "GLOBAL_ECONOMIC_CURRENT_AUTHORITY_HEAD_V1"
+    )
+
+
 def _publisher_bound_slice(value: dict[str, object]) -> dict[str, object]:
     return next(
         row
@@ -252,6 +260,32 @@ def test_checker_rejects_stale_durable_publisher_slice_evidence(
         "durable publisher slice artifact hash mismatch: "
         "python_verifier_deployment_sha256"
         in _findings(report)
+    )
+
+
+def test_checker_rejects_stale_current_authority_slice_evidence(
+    tmp_path: Path,
+) -> None:
+    # Arrange: the authority row claims a foreign commit and stale core artifact.
+    mutated = deepcopy(_status())
+    authority = _current_authority_slice(mutated)
+    authority["commit"] = "0" * 40
+    authority["artifact_subject_commit"] = "1" * 40
+    authority["python_core_sha256"] = "2" * 64
+
+    # Act: check the forged authority evidence row.
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    # Assert: commit, subject, and content bindings all fail closed.
+    findings = _findings(report)
+    assert report["ok"] is False
+    assert "current authority slice implementation commit mismatch" in findings
+    assert "current authority slice artifact subject commit mismatch" in findings
+    assert (
+        "current authority slice artifact hash mismatch: python_core_sha256"
+        in findings
     )
 
 

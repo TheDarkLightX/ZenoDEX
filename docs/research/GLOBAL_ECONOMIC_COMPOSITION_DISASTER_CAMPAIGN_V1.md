@@ -21,7 +21,8 @@ bad     = durable head advance without the exact currently authorized relation
 The independent actors were a hostile deployment operator, a stale publisher,
 a crash/retry operator, an evidence producer, and a hostile object supplier.
 Each accepted finding required a concrete history, named invariant, exact
-no-effect observables, and a mutation-killing regression.
+no-effect observables, and a negative regression. Mutation tooling was not run
+for the current-authority slice.
 
 ## Results
 
@@ -40,8 +41,14 @@ no-effect observables, and a mutation-killing regression.
 | Claim path escapes the repository or campaign/semantic anchors drift | `CLOSED_BOUNDED` | Pin exact contract paths, bind campaign and claim hashes, and compare all semantic anchors by exact type and value. |
 | Unknown implemented-slice row or dirty live-gate dependency is accepted | `CLOSED_BOUNDED` | Enforce an ordered closed slice registry and bind every executed helper and consumed policy source to the exact subject before lazy import. |
 | Proof-admission source changes outside the durable publisher evidence map | `CLOSED_BOUNDED` | Bind `global_economic_proof_v1.py` in the durable publisher and publisher-bound evidence rows. |
-| Old profile/store publishes after a separately committed migration | `OPEN_ARCHITECTURAL` | One durable current-authority head must fence profile, writer epoch, verifier release, deployment, and revocation generation. |
-| In-flight old-profile verification publishes after rotation or revocation | `OPEN_ARCHITECTURAL` | Recheck the unified authority head after verification and inside the publication CAS transaction. |
+| Two differently named epoch databases publish independent sequence-one heads through one directory authority | `CLOSED_BOUNDED` | Bind the current authority to one migration-stable epoch-file root; the second verified publisher rejects before its database is created. |
+| Active profile rotation consumes the final history slot and prevents emergency revocation | `CLOSED_BOUNDED` | Every active successor reserves one row and enough bytes for its exact coordinate-preserving revocation. |
+| Historical authority generation is reported as a current exact retry | `CLOSED_BOUNDED` | `ALREADY_COMMITTED` requires the successor to remain the current head; older history returns `STALE_HEAD`. |
+| In-flight old-profile verification publishes after explicit same-file rotation or revocation | `CLOSED_BOUNDED_DIRECTORY_LOCAL` | Snapshot the authority in the epoch CAS token and recheck the complete active head inside the attached SQLite publication transaction. |
+| Old profile/store publishes after a separately committed migration | `OPEN_ARCHITECTURAL` | Commit migration activation, matching authority successor, writer epoch, and old-writer retirement in one authoritative transaction. The executable blocker currently produces two successful commits. |
+| Restoring pre-revocation authority bytes resurrects the old publisher | `OPEN_ARCHITECTURAL` | Anchor authority monotonicity outside rollbackable local files and bind recovery to that anchor. |
+| An already-open publisher keeps the replaced authority inode | `OPEN_DEPLOYMENT` | Use exclusive service ownership, stable file handles, authenticated storage, and recovery fencing. |
+| Same-process code invokes the private unauthenticated authority-successor hook | `OPEN_ARCHITECTURAL` | Construct successors only from proved governance or migration admission inside the sole publisher service. |
 | Caller supplies a same-process backend whose behavior is unrelated to claimed artifact bytes | `OPEN_DEPLOYMENT` | Use an OS-isolated measured verifier service with authenticated release selection and executable attestation. |
 | Retained callable object, closure, globals, or backend state changes semantics without changing identity | `OPEN_DEPLOYMENT` | Execute an immutable measured verifier artifact in an isolated service; Python identity checks remain defense in depth. |
 | Same-process code calls the private structural writer or mutates SQLite directly | `OPEN_DEPLOYMENT` | Give one isolated service exclusive database ownership; remove raw database access from command and worker processes. |
