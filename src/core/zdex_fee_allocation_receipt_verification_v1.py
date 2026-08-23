@@ -11,7 +11,6 @@ import hashlib
 from dataclasses import dataclass, replace
 from typing import Final
 
-from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
 from .global_economic_refinement_snapshot_v1 import (
     _require_exact_dataclass_scalars_v1,
@@ -19,8 +18,6 @@ from .global_economic_refinement_snapshot_v1 import (
     _snapshot_occurrence_v1,
 )
 from .global_settlement_types_v1 import (
-    EconomicPolicyBindingV1,
-    EconomicPolicyRegistryV1,
     GlobalEconomicEffectPlanV1,
     LaneIdV1,
     ReleaseStatusV1,
@@ -29,7 +26,7 @@ from .global_settlement_types_v1 import (
 )
 from .zdex_fee_allocation_profile_binding_v1 import (
     GovernedZDEXFeeAllocationProfileV1,
-    _GovernedZDEXFeeAllocationProfileFieldsV1,
+    _revalidate_governed_fee_profile,
     bind_zdex_fee_allocation_shadow_profile_v1,
 )
 from .zdex_fee_allocation_types_v1 import (
@@ -189,48 +186,12 @@ def _snapshot_fee_receipt_candidate_v1(
     )
 
 
-def _snapshot_policy_registry_v1(
-    registry: EconomicPolicyRegistryV1,
-) -> EconomicPolicyRegistryV1:
-    if type(registry) is not EconomicPolicyRegistryV1:
-        raise TypeError("ZDEX fee-allocation policy registry must be exact typed data")
-    _require_exact_dataclass_scalars_v1(
-        registry,
-        name="ZDEX fee-allocation policy registry",
-        tuple_fields=frozenset({"bindings"}),
-    )
-    if type(registry.bindings) is not tuple or any(
-        type(binding) is not EconomicPolicyBindingV1 for binding in registry.bindings
-    ):
-        raise TypeError("ZDEX fee-allocation policy bindings must be exact typed data")
-    bindings = []
-    for binding in registry.bindings:
-        _require_exact_dataclass_scalars_v1(
-            binding,
-            name="ZDEX fee-allocation policy binding",
-        )
-        bindings.append(replace(binding))
-    return EconomicPolicyRegistryV1(tuple(bindings))
-
-
 def _snapshot_governed_fee_profile_v1(
     governed: GovernedZDEXFeeAllocationProfileV1,
 ) -> GovernedZDEXFeeAllocationProfileV1:
     """Own the profile graph and its selected releases before the callback."""
 
-    if type(governed) is not GovernedZDEXFeeAllocationProfileV1:
-        raise TypeError("ZDEX fee-allocation governed profile must be verifier-constructed")
-    fields = governed._fields
-    if type(fields) is not _GovernedZDEXFeeAllocationProfileFieldsV1:
-        raise TypeError("ZDEX fee-allocation governed fields must be exact typed data")
-    profile = snapshot_economic_profile_v1(fields.profile)
-    policy_registry = _snapshot_policy_registry_v1(fields.policy_registry)
-    return bind_zdex_fee_allocation_shadow_profile_v1(
-        expected_profile_id=profile.profile_id,
-        expected_authority_epoch=profile.authority_epoch,
-        profile=profile,
-        policy_registry=policy_registry,
-    )
+    return _revalidate_governed_fee_profile(governed)
 
 
 @dataclass(frozen=True, slots=True)

@@ -142,6 +142,7 @@ def _route_release(
     burn_release: LaneModuleReleaseV1,
     *,
     dependency_roles: tuple[str, str] = ("AMM_PURCHASE_OUTPUT", "ZDEX_BURN_INPUT"),
+    guest_image_id: str = _root(500),
 ) -> RouteReleaseV1:
     return RouteReleaseV1.build(
         semantic_version="1.0.0-shadow-test",
@@ -153,7 +154,7 @@ def _route_release(
             zdex_amm_purchase_port_schema_root_v1(),
             zdex_burn_port_schema_root_v1(),
         ),
-        guest_image_id=_root(500),
+        guest_image_id=guest_image_id,
         specification_root=_root(501),
         source_root=_root(502),
         toolchain_root=_root(503),
@@ -631,10 +632,15 @@ def _verified_fixture(
     burn_overrides: dict[str, object] | None = None,
     budget_overrides: dict[str, object] | None = None,
     consumed_object_ids_override: tuple[str, ...] | None = None,
+    buyback_route_guest_image_id: str = _root(500),
 ) -> ZDEXPurchaseBurnRouteCandidateV1:
     spot_release = _lane_release(LaneIdV1.SPOT_LIQUIDITY, 1)
     burn_release = _lane_release(LaneIdV1.ZDEX_TOKENOMICS, 2)
-    route = _route_release(spot_release, burn_release)
+    route = _route_release(
+        spot_release,
+        burn_release,
+        guest_image_id=buyback_route_guest_image_id,
+    )
     policy = candidate_zdex_fee_allocation_policy_v1()
     allocation_route = _allocation_route_release(burn_release)
     profile, policy_registry = _governed_shadow_profile(
@@ -763,13 +769,20 @@ def _verified_fixture(
     )
 
 
-def _fee_receipt_candidate_fixture() -> tuple[
+def _fee_receipt_candidate_fixture(
+    *,
+    buyback_route_guest_image_id: str = _root(500),
+) -> tuple[
     ZDEXFeeAllocationReceiptCandidateV1,
     GovernedZDEXFeeAllocationProfileV1,
 ]:
     spot_release = _lane_release(LaneIdV1.SPOT_LIQUIDITY, 1)
     burn_release = _lane_release(LaneIdV1.ZDEX_TOKENOMICS, 2)
-    route = _route_release(spot_release, burn_release)
+    route = _route_release(
+        spot_release,
+        burn_release,
+        guest_image_id=buyback_route_guest_image_id,
+    )
     policy = candidate_zdex_fee_allocation_policy_v1()
     allocation_route = _allocation_route_release(burn_release)
     profile, policy_registry = _governed_shadow_profile(
@@ -815,7 +828,7 @@ def _assert_no_effect_reject(
 
 def test_governed_purchase_burn_route_cannot_be_constructed_by_a_caller() -> None:
     with pytest.raises(TypeError, match="verifier-constructed"):
-        GovernedZDEXPurchaseBurnRouteV1(object(), object())
+        GovernedZDEXPurchaseBurnRouteV1(object(), object(), _root(1), 1)
 
 
 def _alternative_buyback_profile(
@@ -898,6 +911,34 @@ def test_alternative_governed_route_rejects_without_effects() -> None:
     # Act
     result = compose_zdex_purchase_burn_route_v1(
         replace(candidate, governed_profile=foreign)
+    )
+
+    # Assert
+    _assert_no_effect_reject(
+        result,
+        ZDEXPurchaseBurnRouteRejectCodeV1.GOVERNED_PROFILE_MISMATCH,
+    )
+
+
+def test_retained_route_anchor_rejects_generation_swap_without_effects() -> None:
+    # Arrange: retain the honestly anchored wrapper, then replace its graph.
+    honest = _verified_fixture()
+    alternate = _verified_fixture(
+        buyback_route_guest_image_id=_root(98_100),
+    )
+    assert (
+        honest.governed_profile._fields.profile.profile_id
+        != alternate.governed_profile._fields.profile.profile_id
+    )
+    object.__setattr__(
+        honest.governed_profile,
+        "_fields",
+        alternate.governed_profile._fields,
+    )
+
+    # Act
+    result = compose_zdex_purchase_burn_route_v1(
+        replace(alternate, governed_profile=honest.governed_profile)
     )
 
     # Assert
@@ -1045,6 +1086,8 @@ def test_governed_fee_profile_cannot_be_constructed_by_a_caller() -> None:
         GovernedZDEXFeeAllocationProfileV1(
             object(),
             object(),
+            _root(1),
+            1,
         )
 
 
@@ -1073,6 +1116,26 @@ def test_self_consistent_alternative_profile_rejects_trusted_profile_anchor() ->
             profile=alternative,
             policy_registry=fields.policy_registry,
         )
+
+
+def test_retained_fee_anchor_rejects_generation_swap_before_callback() -> None:
+    # Arrange
+    _, honest = _fee_receipt_candidate_fixture()
+    alternate_candidate, alternate = _fee_receipt_candidate_fixture(
+        buyback_route_guest_image_id=_root(98_100),
+    )
+    assert honest._fields.profile.profile_id != alternate._fields.profile.profile_id
+    object.__setattr__(honest, "_fields", alternate._fields)
+    verifier = _Verifier()
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="trusted profile anchor"):
+        verify_zdex_fee_allocation_receipt_v1(
+            alternate_candidate,
+            honest,
+            verifier,
+        )
+    assert verifier.calls == []
 
 
 def test_profile_status_substitution_rejects_with_same_profile_id() -> None:
@@ -2059,11 +2122,16 @@ def _fee_lane_state(fee_state: ZDEXFeeStateV1) -> ZDEXTokenomicsLaneStateV1:
     )
 
 
-def _fee_lane_receipt_fixture() -> tuple[
+def _fee_lane_receipt_fixture(
+    *,
+    buyback_route_guest_image_id: str = _root(500),
+) -> tuple[
     ZDEXTokenomicsFeeLaneReceiptCandidateV1,
     GovernedZDEXFeeAllocationProfileV1,
 ]:
-    leaf, governed = _fee_receipt_candidate_fixture()
+    leaf, governed = _fee_receipt_candidate_fixture(
+        buyback_route_guest_image_id=buyback_route_guest_image_id,
+    )
     allocation = ZDEXFeeAllocationAcceptedV1(
         leaf.pre_state,
         leaf.post_state,
@@ -2164,6 +2232,26 @@ def test_profile_selected_fee_leaf_and_coordinator_bind_complete_lane() -> None:
             canonical_global_bytes_v1(composed.lane_journal),
         )
     ]
+
+
+def test_retained_fee_lane_anchor_rejects_generation_swap_before_callback() -> None:
+    # Arrange
+    _, honest = _fee_lane_receipt_fixture()
+    alternate_candidate, alternate = _fee_lane_receipt_fixture(
+        buyback_route_guest_image_id=_root(98_100),
+    )
+    assert honest._fields.profile.profile_id != alternate._fields.profile.profile_id
+    object.__setattr__(honest, "_fields", alternate._fields)
+    verifier = _Verifier()
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="trusted profile anchor"):
+        verify_zdex_tokenomics_fee_lane_receipt_v1(
+            alternate_candidate,
+            honest,
+            verifier,
+        )
+    assert verifier.calls == []
 
 
 def test_fee_coordinator_callback_cannot_mutate_owned_witness_bindings() -> None:

@@ -11,7 +11,17 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, replace
 
+from .global_economic_profile_snapshot_v1 import (
+    _snapshot_coordinator_release_v1,
+    _snapshot_lane_release_v1,
+    _snapshot_route_release_v1,
+    snapshot_economic_profile_v1,
+)
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
+from .global_economic_refinement_snapshot_v1 import (
+    _require_exact_dataclass_scalars_v1,
+    _snapshot_occurrence_v1,
+)
 from .global_settlement_types_v1 import (
     EconomicProfileSnapshotV1,
     LaneCoordinatorReleaseV1,
@@ -26,6 +36,7 @@ from .zdex_purchase_burn_receipt_verification_v1 import (
     VerifiedZDEXBurnV1,
     ZDEXLaneReceiptEnvelopeV1,
     ZDEXLaneSuccinctReceiptVerifierV1,
+    _VerifiedZDEXLaneFieldsV1,
 )
 from .zdex_purchase_burn_route_types_v1 import (
     AMM_PURCHASE_OUTPUT_ROLE_V1,
@@ -36,6 +47,7 @@ from .zdex_purchase_burn_route_types_v1 import (
 )
 from .zdex_tokenomics_lane_coordinator_v1 import (
     ZDEXTokenomicsBurnLaneCandidateV1,
+    _snapshot_zdex_tokenomics_burn_lane_candidate_v1,
     compose_zdex_tokenomics_burn_lane_v1,
 )
 from .zdex_tokenomics_lane_receipt_common_v1 import (
@@ -86,17 +98,28 @@ class _GovernedZDEXTokenomicsProfileFieldsV1:
 class GovernedZDEXTokenomicsProfileV1:
     """Verifier-selected SHADOW releases for tokenomics lane admission."""
 
-    __slots__ = ("_fields",)
+    __slots__ = ("_fields", "_trusted_profile_id", "_trusted_authority_epoch")
     _fields: _GovernedZDEXTokenomicsProfileFieldsV1
+    _trusted_profile_id: str
+    _trusted_authority_epoch: int
 
     def __init__(
         self,
         token: object,
         fields: _GovernedZDEXTokenomicsProfileFieldsV1,
+        trusted_profile_id: str,
+        trusted_authority_epoch: int,
     ) -> None:
         if token is not _GOVERNED_TOKENOMICS_PROFILE_TOKEN:
             raise TypeError("governed ZDEX tokenomics profile is verifier-constructed")
+        if type(trusted_profile_id) is not str or type(trusted_authority_epoch) is not int:
+            raise TypeError(
+                "governed ZDEX tokenomics trusted profile anchor "
+                "must be exact typed data"
+            )
         object.__setattr__(self, "_fields", fields)
+        object.__setattr__(self, "_trusted_profile_id", trusted_profile_id)
+        object.__setattr__(self, "_trusted_authority_epoch", trusted_authority_epoch)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("governed ZDEX tokenomics profile is immutable")
@@ -169,6 +192,53 @@ def _revalidate_governed_profile(
     _require_release_shapes(fields)
 
 
+def _trusted_tokenomics_profile_anchor_v1(
+    governed: GovernedZDEXTokenomicsProfileV1,
+) -> tuple[str, int]:
+    if type(governed) is not GovernedZDEXTokenomicsProfileV1:
+        raise TypeError("ZDEX tokenomics governed profile must be verifier-constructed")
+    profile_id = governed._trusted_profile_id
+    authority_epoch = governed._trusted_authority_epoch
+    if type(profile_id) is not str or type(authority_epoch) is not int:
+        raise TypeError("ZDEX tokenomics trusted profile anchor must be exact typed data")
+    return profile_id, authority_epoch
+
+
+def _snapshot_governed_profile_v1(
+    governed: GovernedZDEXTokenomicsProfileV1,
+) -> GovernedZDEXTokenomicsProfileV1:
+    trusted_profile_id, trusted_authority_epoch = (
+        _trusted_tokenomics_profile_anchor_v1(governed)
+    )
+    fields = governed._fields
+    if type(fields) is not _GovernedZDEXTokenomicsProfileFieldsV1:
+        raise TypeError("ZDEX tokenomics governed fields must be exact typed data")
+    if type(fields.profile) is not EconomicProfileSnapshotV1:
+        raise TypeError("ZDEX tokenomics governed profile must be exact typed data")
+    owned_profile = snapshot_economic_profile_v1(fields.profile)
+    if (
+        owned_profile.profile_id != trusted_profile_id
+        or owned_profile.authority_epoch != trusted_authority_epoch
+    ):
+        raise ValueError("ZDEX tokenomics trusted profile anchor changed")
+    owned = bind_zdex_tokenomics_shadow_profile_v1(
+        expected_profile_id=trusted_profile_id,
+        expected_authority_epoch=trusted_authority_epoch,
+        profile=owned_profile,
+    )
+    owned_fields = owned._fields
+    if (
+        _snapshot_route_release_v1(fields.route_release)
+        != owned_fields.route_release
+        or _snapshot_lane_release_v1(fields.module_release)
+        != owned_fields.module_release
+        or _snapshot_coordinator_release_v1(fields.coordinator_release)
+        != owned_fields.coordinator_release
+    ):
+        raise ValueError("ZDEX tokenomics governed release selection changed")
+    return owned
+
+
 def bind_zdex_tokenomics_shadow_profile_v1(
     *,
     expected_profile_id: str,
@@ -177,25 +247,31 @@ def bind_zdex_tokenomics_shadow_profile_v1(
 ) -> GovernedZDEXTokenomicsProfileV1:
     if type(profile) is not EconomicProfileSnapshotV1:
         raise TypeError("ZDEX tokenomics profile must be exact typed data")
-    if type(expected_profile_id) is not str or expected_profile_id != profile.profile_id:
+    if type(expected_profile_id) is not str:
         raise ValueError("ZDEX tokenomics expected profile mismatch")
-    if (
-        type(expected_authority_epoch) is not int
-        or expected_authority_epoch != profile.authority_epoch
-    ):
+    if type(expected_authority_epoch) is not int:
         raise ValueError("ZDEX tokenomics expected authority epoch mismatch")
-    if profile.status is not ProfileStatusV1.SHADOW:
+    owned_profile = snapshot_economic_profile_v1(profile)
+    if expected_profile_id != owned_profile.profile_id:
+        raise ValueError("ZDEX tokenomics expected profile mismatch")
+    if expected_authority_epoch != owned_profile.authority_epoch:
+        raise ValueError("ZDEX tokenomics expected authority epoch mismatch")
+    if owned_profile.status is not ProfileStatusV1.SHADOW:
         raise ValueError("ZDEX tokenomics profile must remain SHADOW")
     fields = _GovernedZDEXTokenomicsProfileFieldsV1(
-        profile,
-        _registered_buyback_route(profile),
-        profile.lane_registry.release_for(LaneIdV1.ZDEX_TOKENOMICS),
-        profile.lane_coordinator_registry.release_for(LaneIdV1.ZDEX_TOKENOMICS),
+        owned_profile,
+        _registered_buyback_route(owned_profile),
+        owned_profile.lane_registry.release_for(LaneIdV1.ZDEX_TOKENOMICS),
+        owned_profile.lane_coordinator_registry.release_for(
+            LaneIdV1.ZDEX_TOKENOMICS
+        ),
     )
     _revalidate_governed_profile(fields)
     return GovernedZDEXTokenomicsProfileV1(
         _GOVERNED_TOKENOMICS_PROFILE_TOKEN,
         fields,
+        expected_profile_id,
+        expected_authority_epoch,
     )
 
 
@@ -251,15 +327,28 @@ def verify_zdex_tokenomics_lane_receipt_v1(
 
     if type(candidate) is not ZDEXTokenomicsLaneReceiptCandidateV1:
         raise TypeError("ZDEX tokenomics lane receipt candidate must be exact")
-    if type(governed) is not GovernedZDEXTokenomicsProfileV1:
-        raise TypeError("ZDEX tokenomics governed profile must be verifier-constructed")
-    fields = governed._fields
-    _revalidate_governed_profile(fields)
-    _require_candidate_bindings(candidate, fields)
-    recomputed = compose_zdex_tokenomics_burn_lane_v1(candidate.lane_candidate)
+    candidate.__post_init__()
+    owned_governed = _snapshot_governed_profile_v1(governed)
+    fields = owned_governed._fields
+    witness_fields = candidate.verified_burn._fields
+    if type(witness_fields) is not _VerifiedZDEXLaneFieldsV1:
+        raise TypeError("ZDEX tokenomics burn witness fields must be exact typed data")
+    _require_exact_dataclass_scalars_v1(
+        witness_fields,
+        name="ZDEX tokenomics burn witness",
+    )
+    owned_candidate = replace(
+        candidate,
+        occurrence=_snapshot_occurrence_v1(candidate.occurrence),
+        lane_candidate=_snapshot_zdex_tokenomics_burn_lane_candidate_v1(
+            candidate.lane_candidate
+        ),
+    )
+    _require_candidate_bindings(owned_candidate, fields)
+    recomputed = compose_zdex_tokenomics_burn_lane_v1(owned_candidate.lane_candidate)
     if type(recomputed) is not ZDEXTokenomicsLaneCompositionAcceptedV1:
         raise ValueError("ZDEX tokenomics lane composition rejected")
-    receipt = candidate.receipt
+    receipt = owned_candidate.receipt
     journal = recomputed.lane_journal
     return _verify_and_build_zdex_tokenomics_lane_v1(
         receipt,
@@ -272,9 +361,9 @@ def verify_zdex_tokenomics_lane_receipt_v1(
             fields.profile.profile_id,
             fields.route_release.route_release_id,
             fields.module_release.release_id,
-            candidate.occurrence.occurrence_id,
+            owned_candidate.occurrence.occurrence_id,
             fields.profile.authority_epoch,
-            candidate.lane_candidate.module_journal.journal_root,
+            owned_candidate.lane_candidate.module_journal.journal_root,
             fields.module_release.guest_image_id,
         ),
         receipt_verifier,

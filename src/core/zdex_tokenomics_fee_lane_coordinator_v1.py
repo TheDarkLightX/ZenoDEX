@@ -19,6 +19,14 @@ from .zdex_fee_allocation_types_v1 import (
     ZDEXFeeAllocationPolicyV1,
 )
 from .zdex_fee_allocation_v1 import fee_allocation_effects_v1
+from .zdex_tokenomics_composition_snapshot_v1 import (
+    snapshot_zdex_tokenomics_fee_allocation_v1,
+    snapshot_zdex_tokenomics_fee_context_v1,
+    snapshot_zdex_tokenomics_fee_policy_v1,
+    snapshot_zdex_tokenomics_fee_port_v1,
+    snapshot_zdex_tokenomics_lane_state_v1,
+    snapshot_zdex_tokenomics_module_journal_v1,
+)
 from .zdex_tokenomics_fee_lane_v1 import (
     ZDEXTokenomicsFeeAllocationCoordinatorContextV1,
     ZDEXTokenomicsFeeAllocationPrivatePortV1,
@@ -62,13 +70,33 @@ class ZDEXTokenomicsFeeAllocationLaneCandidateV1:
                 raise TypeError(
                     f"ZDEX tokenomics fee coordinator {name} must be exact typed data"
                 )
-        self.context.validate()
-        self.module_journal.validate()
-        self.private_port.validate()
-        self.pre_state.validate()
-        self.post_state.validate()
-        self.allocation.validate()
-        self.policy.validate()
+        snapshot_zdex_tokenomics_fee_context_v1(self.context)
+        snapshot_zdex_tokenomics_module_journal_v1(self.module_journal)
+        snapshot_zdex_tokenomics_fee_port_v1(self.private_port)
+        snapshot_zdex_tokenomics_lane_state_v1(self.pre_state)
+        snapshot_zdex_tokenomics_lane_state_v1(self.post_state)
+        snapshot_zdex_tokenomics_fee_allocation_v1(self.allocation)
+        snapshot_zdex_tokenomics_fee_policy_v1(self.policy)
+
+
+def _snapshot_zdex_tokenomics_fee_lane_candidate_v1(
+    candidate: object,
+) -> ZDEXTokenomicsFeeAllocationLaneCandidateV1:
+    if type(candidate) is not ZDEXTokenomicsFeeAllocationLaneCandidateV1:
+        raise TypeError("ZDEX tokenomics fee candidate must be exact typed data")
+    return ZDEXTokenomicsFeeAllocationLaneCandidateV1(
+        context=snapshot_zdex_tokenomics_fee_context_v1(candidate.context),
+        module_journal=snapshot_zdex_tokenomics_module_journal_v1(
+            candidate.module_journal
+        ),
+        private_port=snapshot_zdex_tokenomics_fee_port_v1(candidate.private_port),
+        pre_state=snapshot_zdex_tokenomics_lane_state_v1(candidate.pre_state),
+        post_state=snapshot_zdex_tokenomics_lane_state_v1(candidate.post_state),
+        allocation=snapshot_zdex_tokenomics_fee_allocation_v1(
+            candidate.allocation
+        ),
+        policy=snapshot_zdex_tokenomics_fee_policy_v1(candidate.policy),
+    )
 
 
 def _reject(
@@ -268,9 +296,7 @@ def _normalize_effects(
 def compose_zdex_tokenomics_fee_allocation_lane_v1(
     candidate: ZDEXTokenomicsFeeAllocationLaneCandidateV1,
 ) -> ZDEXTokenomicsLaneCompositionResultV1:
-    if type(candidate) is not ZDEXTokenomicsFeeAllocationLaneCandidateV1:
-        raise TypeError("ZDEX tokenomics fee candidate must be exact typed data")
-    candidate.validate()
+    candidate = _snapshot_zdex_tokenomics_fee_lane_candidate_v1(candidate)
     if code := _context_reject(candidate):
         return _reject(code, candidate.pre_state)
     if code := _port_reject(candidate):

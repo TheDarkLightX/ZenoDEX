@@ -16,6 +16,14 @@ from .global_settlement_types_v1 import (
 )
 from .zdex_purchase_burn_effects_v1 import burn_effects_v1
 from .zdex_purchase_burn_route_types_v1 import ZDEXBurnJournalV1
+from .zdex_tokenomics_composition_snapshot_v1 import (
+    snapshot_zdex_tokenomics_burn_context_v1,
+    snapshot_zdex_tokenomics_burn_journal_v1,
+    snapshot_zdex_tokenomics_burn_port_v1,
+    snapshot_zdex_tokenomics_effect_plan_v1,
+    snapshot_zdex_tokenomics_lane_state_v1,
+    snapshot_zdex_tokenomics_module_journal_v1,
+)
 from .zdex_tokenomics_lane_v1 import (
     ZDEXTokenomicsBurnCoordinatorContextV1,
     ZDEXTokenomicsBurnPrivatePortV1,
@@ -61,13 +69,35 @@ class ZDEXTokenomicsBurnLaneCandidateV1:
                 raise TypeError(
                     f"ZDEX tokenomics coordinator {name} must be exact typed data"
                 )
-        self.context.validate()
-        self.module_journal.validate()
-        self.private_port.validate()
-        self.pre_state.validate()
-        self.post_state.validate()
-        self.burn_journal.validate()
-        self.module_effects.validate()
+        snapshot_zdex_tokenomics_burn_context_v1(self.context)
+        snapshot_zdex_tokenomics_module_journal_v1(self.module_journal)
+        snapshot_zdex_tokenomics_burn_port_v1(self.private_port)
+        snapshot_zdex_tokenomics_lane_state_v1(self.pre_state)
+        snapshot_zdex_tokenomics_lane_state_v1(self.post_state)
+        snapshot_zdex_tokenomics_burn_journal_v1(self.burn_journal)
+        snapshot_zdex_tokenomics_effect_plan_v1(self.module_effects)
+
+
+def _snapshot_zdex_tokenomics_burn_lane_candidate_v1(
+    candidate: object,
+) -> ZDEXTokenomicsBurnLaneCandidateV1:
+    if type(candidate) is not ZDEXTokenomicsBurnLaneCandidateV1:
+        raise TypeError("ZDEX tokenomics composition candidate must be exact typed data")
+    return ZDEXTokenomicsBurnLaneCandidateV1(
+        context=snapshot_zdex_tokenomics_burn_context_v1(candidate.context),
+        module_journal=snapshot_zdex_tokenomics_module_journal_v1(
+            candidate.module_journal
+        ),
+        private_port=snapshot_zdex_tokenomics_burn_port_v1(candidate.private_port),
+        pre_state=snapshot_zdex_tokenomics_lane_state_v1(candidate.pre_state),
+        post_state=snapshot_zdex_tokenomics_lane_state_v1(candidate.post_state),
+        burn_journal=snapshot_zdex_tokenomics_burn_journal_v1(
+            candidate.burn_journal
+        ),
+        module_effects=snapshot_zdex_tokenomics_effect_plan_v1(
+            candidate.module_effects
+        ),
+    )
 
 
 def _reject(
@@ -225,9 +255,7 @@ def compose_zdex_tokenomics_burn_lane_v1(
 ) -> ZDEXTokenomicsLaneCompositionResultV1:
     """Embed one checked burn transition while preserving unrelated state."""
 
-    if type(candidate) is not ZDEXTokenomicsBurnLaneCandidateV1:
-        raise TypeError("ZDEX tokenomics composition candidate must be exact typed data")
-    candidate.validate()
+    candidate = _snapshot_zdex_tokenomics_burn_lane_candidate_v1(candidate)
     if code := _context_reject(candidate):
         return _reject(code, candidate.pre_state)
     if code := _port_reject(candidate):

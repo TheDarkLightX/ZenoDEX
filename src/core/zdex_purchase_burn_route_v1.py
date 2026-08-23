@@ -6,6 +6,7 @@ import hashlib
 from dataclasses import dataclass, replace
 
 from .global_economic_profile_snapshot_v1 import (
+    _snapshot_coordinator_release_v1,
     _snapshot_lane_release_v1,
     _snapshot_route_release_v1,
     snapshot_economic_profile_v1,
@@ -87,23 +88,52 @@ class _GovernedZDEXPurchaseBurnRouteFieldsV1:
 class GovernedZDEXPurchaseBurnRouteV1:
     """Profile-selected SHADOW releases with no publication authority."""
 
-    __slots__ = ("_fields",)
+    __slots__ = ("_fields", "_trusted_profile_id", "_trusted_authority_epoch")
     _fields: _GovernedZDEXPurchaseBurnRouteFieldsV1
+    _trusted_profile_id: str
+    _trusted_authority_epoch: int
 
     def __init__(
         self,
         token: object,
         fields: _GovernedZDEXPurchaseBurnRouteFieldsV1,
+        trusted_profile_id: str,
+        trusted_authority_epoch: int,
     ) -> None:
         if token is not _GOVERNED_PURCHASE_BURN_ROUTE_TOKEN:
             raise TypeError("governed ZDEX purchase-burn route is verifier-constructed")
+        if type(trusted_profile_id) is not str or type(trusted_authority_epoch) is not int:
+            raise TypeError(
+                "governed ZDEX purchase-burn trusted profile anchor "
+                "must be exact typed data"
+            )
         object.__setattr__(self, "_fields", fields)
+        object.__setattr__(self, "_trusted_profile_id", trusted_profile_id)
+        object.__setattr__(self, "_trusted_authority_epoch", trusted_authority_epoch)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("governed ZDEX purchase-burn route is immutable")
 
 
 _GOVERNED_PURCHASE_BURN_ROUTE_TOKEN = object()
+
+
+class _GovernedZDEXPurchaseBurnAnchorMismatchV1(ValueError):
+    """Internal signal for a retained wrapper whose trusted graph changed."""
+
+
+def _trusted_purchase_burn_anchor_v1(
+    governed: GovernedZDEXPurchaseBurnRouteV1,
+) -> tuple[str, int]:
+    if type(governed) is not GovernedZDEXPurchaseBurnRouteV1:
+        raise TypeError("ZDEX purchase-burn governed route must be verifier-constructed")
+    profile_id = governed._trusted_profile_id
+    authority_epoch = governed._trusted_authority_epoch
+    if type(profile_id) is not str or type(authority_epoch) is not int:
+        raise TypeError(
+            "ZDEX purchase-burn trusted profile anchor must be exact typed data"
+        )
+    return profile_id, authority_epoch
 
 
 def _registered_buyback_route_v1(
@@ -199,6 +229,8 @@ def bind_zdex_purchase_burn_shadow_profile_v1(
     return GovernedZDEXPurchaseBurnRouteV1(
         _GOVERNED_PURCHASE_BURN_ROUTE_TOKEN,
         fields,
+        expected_profile_id,
+        expected_authority_epoch,
     )
 
 
@@ -212,11 +244,39 @@ def _snapshot_governed_route_v1(
         raise TypeError("ZDEX purchase-burn governed fields must be exact typed data")
     if type(fields.profile) is not EconomicProfileSnapshotV1:
         raise TypeError("ZDEX purchase-burn governed profile must be exact typed data")
-    return bind_zdex_purchase_burn_shadow_profile_v1(
-        expected_profile_id=fields.profile.profile_id,
-        expected_authority_epoch=fields.profile.authority_epoch,
-        profile=fields.profile,
+    trusted_profile_id, trusted_authority_epoch = _trusted_purchase_burn_anchor_v1(
+        governed
     )
+    owned_profile = snapshot_economic_profile_v1(fields.profile)
+    if (
+        owned_profile.profile_id != trusted_profile_id
+        or owned_profile.authority_epoch != trusted_authority_epoch
+    ):
+        raise _GovernedZDEXPurchaseBurnAnchorMismatchV1(
+            "ZDEX purchase-burn trusted profile anchor changed"
+        )
+    owned = bind_zdex_purchase_burn_shadow_profile_v1(
+        expected_profile_id=trusted_profile_id,
+        expected_authority_epoch=trusted_authority_epoch,
+        profile=owned_profile,
+    )
+    owned_fields = owned._fields
+    if (
+        _snapshot_route_release_v1(fields.route_release)
+        != owned_fields.route_release
+        or _snapshot_lane_release_v1(fields.purchase_module_release)
+        != owned_fields.purchase_module_release
+        or _snapshot_lane_release_v1(fields.burn_module_release)
+        != owned_fields.burn_module_release
+        or _snapshot_coordinator_release_v1(fields.purchase_coordinator_release)
+        != owned_fields.purchase_coordinator_release
+        or _snapshot_coordinator_release_v1(fields.burn_coordinator_release)
+        != owned_fields.burn_coordinator_release
+    ):
+        raise _GovernedZDEXPurchaseBurnAnchorMismatchV1(
+            "ZDEX purchase-burn governed selection changed"
+        )
+    return owned
 
 
 @dataclass(frozen=True, slots=True)
@@ -739,7 +799,10 @@ def compose_zdex_purchase_burn_route_v1(
 ) -> ZDEXPurchaseBurnRouteResultV1:
     """Pair two verified leaf outputs and derive one exact route effect plan."""
 
-    candidate = _snapshot_route_candidate_v1(candidate)
+    try:
+        candidate = _snapshot_route_candidate_v1(candidate)
+    except _GovernedZDEXPurchaseBurnAnchorMismatchV1:
+        return _reject(ZDEXPurchaseBurnRouteRejectCodeV1.GOVERNED_PROFILE_MISMATCH)
     route = candidate.route_release
     purchase_release = candidate.purchase_module_release
     burn_release = candidate.burn_module_release

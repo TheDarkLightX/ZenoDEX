@@ -1,0 +1,171 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-zdex-governed-owned-snapshots",
+  "created_date": "2026-08-23",
+  "claim_scope": "The Python SHADOW ZDEX fee, purchase-burn, and tokenomics-lane wrappers retain their exact bind-time profile ID and authority epoch outside the replaceable release graph, deep-own all governed and coordinator inputs before comparison or callback, reject complete alternate-generation substitution before authority callbacks, and return coordinator state and effects that do not alias caller-owned inputs.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZDEX-GOVERNED-RETAINED-PROFILE-ANCHOR",
+    "ZDEX-GOVERNED-OWNED-RELEASE-GRAPH",
+    "ZDEX-COORDINATOR-HOSTILE-INPUT-ORDER",
+    "ZDEX-COORDINATOR-OWNED-OUTPUT",
+    "ZDEX-RECEIPT-CALLBACK-FAIL-CLOSED",
+    "ZDEX-ROUTE-REJECT-WITHOUT-EFFECTS"
+  ],
+  "failure_modes": [
+    "an already-bound wrapper replaces its full release graph and re-derives the expected profile anchor from the replacement",
+    "a complete alternate profile generation reaches a receipt-verifier callback",
+    "a hostile str subclass executes equality, inequality, or hashing behavior before exact-type rejection",
+    "a hostile tuple subclass executes iteration before exact-tuple rejection",
+    "a caller mutates accepted coordinator state or effects through aliases retained by the result",
+    "the ownership and anchor repair changes the frozen ordinary purchase-burn composition root"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/zdex_fee_allocation_profile_binding_v1.py",
+      "sha256": "eff98cf56f5067cfc6c474bbef2b49ee0b99c5ea6c3ec2586c98f895584a7d23"
+    },
+    {
+      "path": "src/core/zdex_fee_allocation_receipt_verification_v1.py",
+      "sha256": "704dc0e08cb154cde69e4781711903f7c4a8891a7631f5b637346d4f37a271b1"
+    },
+    {
+      "path": "src/core/zdex_purchase_burn_route_v1.py",
+      "sha256": "4180aef70b640dae582a9f8f94528f17cc01a80658d121165eaefab1e004685b"
+    },
+    {
+      "path": "src/core/zdex_tokenomics_composition_snapshot_v1.py",
+      "sha256": "a2d571d87b37b4d970ce0eaac1da40d5885e3409622ee416a792006648818b6f"
+    },
+    {
+      "path": "src/core/zdex_tokenomics_lane_coordinator_v1.py",
+      "sha256": "5a9a3c34a037fd1284bc8ea0a7f5bd18e878776825633a53a36e8857ba66bd49"
+    },
+    {
+      "path": "src/core/zdex_tokenomics_fee_lane_coordinator_v1.py",
+      "sha256": "21dffe31860b6d9a7dbfe0bf4b5700269fc1d63791b3d086583c91200202586d"
+    },
+    {
+      "path": "src/core/zdex_tokenomics_lane_receipt_verification_v1.py",
+      "sha256": "739f2efe4d6b9e4ffdb9c51290ffb42bd416fb631e15eff6aadbc7c7953849c7"
+    },
+    {
+      "path": "src/core/zdex_tokenomics_fee_lane_receipt_verification_v1.py",
+      "sha256": "e6428f3a1705a052054f2e7f270eccc2fd288ad93fa47dd337fd656939c761b5"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_purchase_burn_route_v1.py",
+      "sha256": "db6d75c1952bb333fda745c3e8ee15775a0ff3a41f0e6252d7ce4ee01aea273b",
+      "node_ids": [
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_retained_route_anchor_rejects_generation_swap_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_retained_fee_anchor_rejects_generation_swap_before_callback",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_retained_fee_lane_anchor_rejects_generation_swap_before_callback",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_python_rust_golden_composition_root_is_stable"
+      ]
+    },
+    {
+      "path": "tests/core/test_zdex_tokenomics_lane_coordinator_v1.py",
+      "sha256": "311ffdc21195428ca62ea2b7fc092fe375526dfc7a37cbda18e9a7aa338a90aa",
+      "node_ids": [
+        "tests/core/test_zdex_tokenomics_lane_coordinator_v1.py::test_governed_tokenomics_profile_cannot_be_constructed_by_a_caller",
+        "tests/core/test_zdex_tokenomics_lane_coordinator_v1.py::test_retained_burn_lane_anchor_rejects_generation_swap_before_callback"
+      ]
+    },
+    {
+      "path": "tests/core/test_zdex_tokenomics_hostile_boundaries_v1.py",
+      "sha256": "47bd1bf1c67f14dd93db6ab7095148662861c4340fed9d2260f2c6b9cd76caa5",
+      "node_ids": [
+        "tests/core/test_zdex_tokenomics_hostile_boundaries_v1.py::test_profile_binder_rejects_hostile_route_tuple_without_behavior",
+        "tests/core/test_zdex_tokenomics_hostile_boundaries_v1.py::test_receipt_rejects_hostile_governed_fields_before_attribute_or_callback",
+        "tests/core/test_zdex_tokenomics_hostile_boundaries_v1.py::test_receipt_rejects_hostile_context_scalar_before_behavior_or_callback",
+        "tests/core/test_zdex_tokenomics_hostile_boundaries_v1.py::test_composer_rejects_hostile_effect_tuple_without_behavior",
+        "tests/core/test_zdex_tokenomics_hostile_boundaries_v1.py::test_composer_owns_accepted_state_and_effects"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "mutation",
+    "differential",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each retained-anchor regression arranges an honestly bound wrapper and a complete alternate profile generation, acts through the public composer or receipt admission function, then asserts a typed no-effect rejection or callback_count zero. Hostile-boundary cases separately arrange one behavior-bearing value, act at one ingress, and assert exact-type rejection before its behavior hook executes."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The purchase-burn generation swap returns GOVERNED_PROFILE_MISMATCH with the canonical empty effect plan; receipt and coordinator boundary failures occur before any verifier callback or externally visible effect."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "retained_wrapper_generation",
+      "points": [
+        "exact bind-time profile and epoch accept",
+        "complete alternate fee generation rejects",
+        "complete alternate purchase-route generation rejects",
+        "complete alternate burn-lane generation rejects"
+      ]
+    },
+    {
+      "name": "untrusted_python_shape",
+      "points": [
+        "exact owned dataclass and tuple accept",
+        "hostile fields object rejects before attribute access",
+        "str subclass rejects before comparison",
+        "tuple subclass rejects before iteration"
+      ]
+    },
+    {
+      "name": "ownership_after_acceptance",
+      "points": [
+        "caller mutates burn input state and effects",
+        "caller mutates fee input state and effects",
+        "accepted snapshots remain unchanged"
+      ]
+    },
+    {
+      "name": "ordinary_semantics",
+      "points": [
+        "frozen Python purchase-burn composition root",
+        "matching frozen Rust composition root"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "derive the expected profile ID and epoch from the currently attached replacement graph",
+      "killed_by": "tests/core/test_zdex_tokenomics_lane_coordinator_v1.py::test_retained_burn_lane_anchor_rejects_generation_swap_before_callback"
+    },
+    {
+      "description": "allow a complete replacement graph to reach fee receipt verification",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_retained_fee_anchor_rejects_generation_swap_before_callback"
+    },
+    {
+      "description": "allow a complete replacement graph to emit route effects",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_retained_route_anchor_rejects_generation_swap_without_effects"
+    },
+    {
+      "description": "compare or iterate untrusted subclass values before exact-type normalization",
+      "killed_by": "tests/core/test_zdex_tokenomics_hostile_boundaries_v1.py::test_receipt_rejects_hostile_context_scalar_before_behavior_or_callback"
+    },
+    {
+      "description": "return accepted coordinator state or effects by reference to caller-owned input objects",
+      "killed_by": "tests/core/test_zdex_tokenomics_hostile_boundaries_v1.py::test_composer_owns_accepted_state_and_effects"
+    }
+  ],
+  "nonclaims": [
+    "All affected profiles and routes remain SHADOW and unmounted, and production authority remains NONE.",
+    "Python private slots and witnesses are process-local defenses; a caller with arbitrary in-process mutation can replace both the graph and retained anchor, so mounted authority requires an external host-owned anchor and cryptographic verifier boundary.",
+    "This packet proves no thread-safety, durable nullifier, migration fencing, outbox idempotency, terminal-lifecycle closure, or whole-economy safety property.",
+    "No Rust or RISC0 source changed in this stage, no guest image was rebuilt, and no real receipt or release was promoted.",
+    "The bounded hostile cases and frozen root replay do not guarantee all ZenoDEX value movement."
+  ]
+}

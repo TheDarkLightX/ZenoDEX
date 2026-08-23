@@ -488,6 +488,13 @@ def _receipt_fixture(
         governed,
         profile,
     )
+
+
+def test_governed_tokenomics_profile_cannot_be_constructed_by_a_caller() -> None:
+    with pytest.raises(TypeError, match="verifier-constructed"):
+        GovernedZDEXTokenomicsProfileV1(object(), object(), _root(1), 1)
+
+
 def test_burn_substate_is_embedded_in_one_complete_tokenomics_lane_write() -> None:
     # Arrange
     candidate, _ = _candidate()
@@ -767,6 +774,26 @@ def test_burn_coordinator_callback_cannot_mutate_owned_witness_bindings() -> Non
         verified.receipt_digest,
         verified.receipt_kind,
     ) == expected
+
+
+def test_retained_burn_lane_anchor_rejects_generation_swap_before_callback() -> None:
+    # Arrange
+    _, honest, _ = _receipt_fixture()
+    alternate_candidate, alternate, _ = _receipt_fixture(
+        tokenomics_guest_image_id=_root(98_100),
+    )
+    assert honest._fields.profile.profile_id != alternate._fields.profile.profile_id
+    object.__setattr__(honest, "_fields", alternate._fields)
+    verifier = _Verifier()
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="trusted profile anchor"):
+        verify_zdex_tokenomics_lane_receipt_v1(
+            alternate_candidate,
+            honest,
+            verifier,
+        )
+    assert verifier.calls == []
 
 
 def test_burn_coordinator_rejects_hostile_release_scalar_before_callback() -> None:
