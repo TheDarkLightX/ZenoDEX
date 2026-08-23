@@ -244,7 +244,6 @@ fn require_occurrence_set_v1(
     }
     let mut positions = Vec::with_capacity(occurrences.len());
     let mut replay_keys = BTreeSet::new();
-    let mut consumed_objects = BTreeSet::new();
     for (index, occurrence) in occurrences.iter().enumerate() {
         occurrence.validate()?;
         if occurrence.command_body_hash != ordered_command_body_hashes[index] {
@@ -263,12 +262,10 @@ fn require_occurrence_set_v1(
                 "economic epoch subject nonce replay",
             ));
         }
-        for object_id in &occurrence.consumed_object_ids {
-            if !consumed_objects.insert(object_id.as_str()) {
-                return Err(AbiErrorV1::InvalidBinding(
-                    "economic epoch duplicate object consumption",
-                ));
-            }
+        if !occurrence.consumed_object_ids.is_empty() {
+            return Err(AbiErrorV1::InvalidBinding(
+                "economic epoch V1 object consumption lacks durable nullifier state",
+            ));
         }
     }
     if positions.windows(2).any(|pair| pair[0] >= pair[1]) {

@@ -1,0 +1,111 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-global-economic-v1-object-nullifier-quarantine",
+  "created_date": "2026-08-23",
+  "claim_scope": "The Python and Rust GlobalSettlementABI V1 epoch verifiers quarantine every candidate that declares one or more consumed object IDs because V1 has no durable object-nullifier state; zero consumed object IDs remain admissible, and the durable publisher rejects before epoch receipt verification with its head and SQLite bytes unchanged.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GLOBAL-EPOCH-V1-NO-UNREMEMBERED-OBJECT-CONSUMPTION",
+    "GLOBAL-EPOCH-V1-OBJECT-QUARANTINE-BEFORE-RECEIPT",
+    "GLOBAL-EPOCH-V1-OBJECT-QUARANTINE-NO-DURABLE-EFFECT",
+    "GLOBAL-EPOCH-V1-OBJECT-QUARANTINE-PYTHON-RUST-PARITY"
+  ],
+  "failure_modes": [
+    "an epoch consumes an object that V1 cannot remember and a later epoch consumes it again",
+    "the Python verifier quarantines object consumption while the Rust verifier admits it",
+    "receipt verification runs before the unsupported object-consumption shape rejects",
+    "a rejected object-consumption epoch changes the durable head or SQLite store"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_economic_proof_v1.py",
+      "sha256": "f9ff27f3d346c2099ab3678ae87961cbc09653b6c641650ea0db0bf3bac23a50"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs",
+      "sha256": "d7b526cf48809ad2544e65e356e5894f6b342cda606a660f6d054f86061505ec"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+      "sha256": "992caaf014e98c2bf0f6f27017d7eef9ccb855b7ce991067b0a9587bb57e9056"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_settlement_abi_v1.py",
+      "sha256": "4300f87b71a7c9d192ac1b2a5b5fbf62bb7bcb791dd1f824964d9214176c69aa",
+      "node_ids": [
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_v1_quarantines_single_object_consumption_before_receipt",
+        "tests/core/test_global_settlement_abi_v1.py::test_epoch_route_witness_boundary_counts_are_admitted"
+      ]
+    },
+    {
+      "path": "tests/integration/test_global_economic_durable_publisher_v1.py",
+      "sha256": "6156a7ebab7f26697844be8d059d6ee375d9d431bb189fe0fc33ff7f7e1f4d3c",
+      "node_ids": [
+        "tests/integration/test_global_economic_durable_publisher_v1.py::test_publisher_v1_quarantines_object_consumption_without_durable_effect"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "differential",
+    "stateful",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The regressions arrange coherent authenticated one-command epochs at the supported zero-object point and immediate one-object neighbor, act through the public Python/Rust epoch verifiers and durable publisher, then assert ordinary acceptance or the exact pre-receipt rejection and complete durable no-effect observation."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The verifier records no epoch receipt call, constructs no verified epoch witness, and the durable publisher preserves the exact source head and byte-for-byte SQLite store."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "consumed_object_id_count",
+      "points": [
+        "0 remains admissible",
+        "1 rejects because durable nullifier state is unavailable"
+      ]
+    },
+    {
+      "name": "acceptance_layer",
+      "points": [
+        "Python epoch verifier",
+        "Rust epoch verifier",
+        "durable publisher"
+      ]
+    },
+    {
+      "name": "observable_effect",
+      "points": [
+        "no cryptographic epoch receipt call",
+        "no verified epoch witness",
+        "unchanged durable head and store bytes"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "remove the Python nonempty consumed-object guard",
+      "killed_by": "tests/core/test_global_settlement_abi_v1.py::test_epoch_v1_quarantines_single_object_consumption_before_receipt"
+    },
+    {
+      "description": "move the quarantine after receipt verification or durable publication",
+      "killed_by": "tests/integration/test_global_economic_durable_publisher_v1.py::test_publisher_v1_quarantines_object_consumption_without_durable_effect"
+    }
+  ],
+  "nonclaims": [
+    "ABI V1 does not implement durable object nullifiers or permanent single-use object consumption.",
+    "Any ZDEX purchase-burn route requiring consumed-object semantics remains quarantined at global epoch admission.",
+    "The repair does not close migration-mediated replay, writer rotation, outbox delivery, terminal lifecycle, or whole-economy value-movement safety.",
+    "The Rust source change requires a new governed image and release record before any mounted proof profile could use it; no RISC0 guest image or real receipt was rebuilt here.",
+    "The release remains SHADOW and unmounted, production authority remains NONE, and no settlement or readiness claim is promoted."
+  ]
+}

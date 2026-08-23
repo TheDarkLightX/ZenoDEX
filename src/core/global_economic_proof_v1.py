@@ -1739,12 +1739,11 @@ def _validate_command_occurrences(
     replay_keys = tuple((item.subject_id, item.nonce) for item in command_occurrences)
     if len(replay_keys) != len(set(replay_keys)):
         raise ValueError("economic epoch repeats a subject nonce")
-    consumed: set[str] = set()
     for occurrence in command_occurrences:
-        overlap = consumed.intersection(occurrence.consumed_object_ids)
-        if overlap:
-            raise ValueError("economic epoch consumes one object more than once")
-        consumed.update(occurrence.consumed_object_ids)
+        if occurrence.consumed_object_ids:
+            raise ValueError(
+                "economic epoch V1 object consumption lacks durable nullifier state"
+            )
 
 
 def _validate_route_journal_pair(

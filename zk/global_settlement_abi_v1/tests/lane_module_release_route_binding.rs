@@ -2760,6 +2760,38 @@ fn economic_epoch_admits_exact_route_witnesses_at_one_eight_nine_and_sixty_four(
 }
 
 #[test]
+fn economic_epoch_v1_quarantines_single_object_consumption_before_receipt() {
+    // Arrange: retain a coherent occurrence/certificate identity while adding
+    // one consumed object. ABI V1 cannot remember its nullifier across epochs.
+    let fixture = verified_economic_epoch_fixture(1);
+    let mut occurrences = fixture.occurrences.clone();
+    occurrences[0].consumed_object_ids = vec![root(48_700).to_string()];
+    let mut certificate = fixture.certificate.clone();
+    certificate.ordered_occurrence_ids = occurrences
+        .iter()
+        .map(EconomicCommandOccurrenceV1::occurrence_id)
+        .collect::<Result<Vec<_>, _>>()
+        .expect("test occurrence must hash");
+    certificate.journal_bytes = certificate
+        .canonical_journal_bytes()
+        .expect("test epoch journal must encode")
+        .len() as u64;
+    let verifier = RecordingEpochReceiptVerifier::default();
+    let mut candidate = fixture.candidate();
+    candidate.certificate = &certificate;
+    candidate.command_occurrences = &occurrences;
+
+    // Act / Assert: no receipt verification can mint an epoch witness.
+    assert_eq!(
+        verify_economic_epoch_receipt_v1(candidate, &verifier).unwrap_err(),
+        AbiErrorV1::InvalidBinding(
+            "economic epoch V1 object consumption lacks durable nullifier state"
+        )
+    );
+    assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
 fn economic_occurrence_identity_binds_exact_command_body_hash() {
     // Arrange
     let fixture = verified_economic_epoch_fixture(1);

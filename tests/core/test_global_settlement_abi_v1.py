@@ -2563,6 +2563,33 @@ def test_epoch_shape_rejects_zero_65_and_route_width_9() -> None:
         )
 
 
+def test_epoch_v1_quarantines_single_object_consumption_before_receipt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: build an otherwise coherent epoch whose authenticated occurrence
+    # consumes one object. ABI V1 has no durable object-nullifier state.
+    original_occurrence = _occurrence
+
+    def occurrence_with_consumed_object(
+        profile: EconomicProfileSnapshotV1,
+        route: RouteReleaseV1,
+        state: GlobalEconomicStateV1,
+    ) -> EconomicCommandOccurrenceV1:
+        return replace(
+            original_occurrence(profile, route, state),
+            consumed_object_ids=(_root(48_700),),
+        )
+
+    monkeypatch.setitem(globals(), "_occurrence", occurrence_with_consumed_object)
+    candidate = _epoch_admission_fixture(1)
+    verifier = _RecordingReceiptVerifier()
+
+    # Act / Assert: fail closed before cryptographic work can mint a witness.
+    with pytest.raises(ValueError, match="lacks durable nullifier state"):
+        verify_economic_epoch_v1(candidate, verifier)
+    assert verifier.calls == []
+
+
 @pytest.mark.parametrize("count", (1, 8, 9, 64))
 def test_epoch_route_witness_boundary_counts_are_admitted(count: int) -> None:
     # Arrange

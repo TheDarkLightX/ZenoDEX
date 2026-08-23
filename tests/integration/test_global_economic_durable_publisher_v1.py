@@ -13,6 +13,7 @@ from typing import Any, cast
 import pytest
 
 import src.integration.global_economic_authority_journal_v1 as authority_journal_module
+import tests.core.test_global_settlement_abi_v1 as abi_fixture_module
 from src.core.economic_receipt_verifier_deployment_v1 import (
     BoundEconomicReceiptVerifierV1,
     EconomicReceiptVerifierEvidenceManifestV1,
@@ -320,6 +321,53 @@ def test_create_publish_reopen_and_exact_retry_are_one_durable_history(
     assert len(first_backend.calls) == 2
     assert len(retry_backend.calls) == 2
     reopened.close()
+
+
+def test_publisher_v1_quarantines_object_consumption_without_durable_effect(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: Mallory submits an otherwise coherent epoch that claims one
+    # single-use object. V1 cannot persist that object's nullifier across epochs.
+    original_occurrence = abi_fixture_module._occurrence
+
+    def occurrence_with_consumed_object(
+        profile: Any,
+        route: Any,
+        state: Any,
+    ) -> Any:
+        return replace(
+            original_occurrence(profile, route, state),
+            consumed_object_ids=(_root(48_700),),
+        )
+
+    monkeypatch.setattr(
+        abi_fixture_module,
+        "_occurrence",
+        occurrence_with_consumed_object,
+    )
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"durable-object-consumption-quarantine"
+    )
+    verifier, backend = _bound_receipt_verifier_v1(candidate)
+    path = tmp_path / "object-consumption-quarantine.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(path, admission, verifier)
+    source = publisher.head
+    calls_before = tuple(backend.calls)
+    bytes_before = path.read_bytes()
+
+    # Act / Assert: the epoch is rejected before receipt verification and the
+    # complete durable store remains byte-for-byte unchanged.
+    with pytest.raises(ValueError, match="lacks durable nullifier state"):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=body,
+        )
+    assert tuple(backend.calls) == calls_before
+    assert publisher.head == source
+    assert path.read_bytes() == bytes_before
+    publisher.close()
 
 
 def test_exact_create_retry_recovers_committed_activation_after_lost_ack(
