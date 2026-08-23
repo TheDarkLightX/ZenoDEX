@@ -101,6 +101,13 @@ def _root(value: int) -> str:
     return f"0x{value:064x}"
 
 
+class _HostileRoot(str):
+    """Valid-looking scalar with attacker-controlled canonical behavior."""
+
+    def to_canonical(self) -> str:
+        return str(self)
+
+
 def _lane_release(lane_id: LaneIdV1, ordinal: int) -> LaneModuleReleaseV1:
     offset = ordinal * 16
     command_variants: tuple[str, ...] = (PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,)
@@ -1003,6 +1010,112 @@ def test_profile_coordinate_substitution_rejects_before_receipt_verification(
     assert verifier.calls == []
 
 
+def test_fee_receipt_callback_cannot_rebind_verified_bytes() -> None:
+    # Arrange
+    candidate, governed = _fee_receipt_candidate_fixture()
+    authenticated_receipt = candidate.receipt.receipt_bytes
+
+    class _MutatingVerifier:
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            del expected_image_id, expected_journal_bytes
+            assert receipt_bytes == authenticated_receipt
+            object.__setattr__(candidate.receipt, "receipt_bytes", b"unauthenticated")
+
+    # Act
+    verified = verify_zdex_fee_allocation_receipt_v1(
+        candidate,
+        governed,
+        _MutatingVerifier(),
+    )
+
+    # Assert
+    assert verified.receipt_digest == (
+        "0x" + hashlib.sha256(authenticated_receipt).hexdigest()
+    )
+    assert verified.receipt_digest != (
+        "0x" + hashlib.sha256(candidate.receipt.receipt_bytes).hexdigest()
+    )
+
+
+def test_fee_receipt_callback_cannot_mutate_owned_witness_bindings() -> None:
+    # Arrange
+    candidate, governed = _fee_receipt_candidate_fixture()
+    fields = governed._fields
+    expected = (
+        fields.allocation_route.route_release_id,
+        fields.buyback_route.route_release_id,
+        fields.module_release.release_id,
+        candidate.occurrence.occurrence_id,
+        candidate.occurrence.profile_root,
+        candidate.journal.occurrence_root,
+        candidate.effects.effect_plan_root,
+        fields.module_release.guest_image_id,
+        candidate.policy.policy_root,
+        candidate.journal.fee_asset_id,
+    )
+
+    class _MutatingVerifier:
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            del receipt_bytes, expected_image_id, expected_journal_bytes
+            object.__setattr__(fields.allocation_route, "route_release_id", _root(97_001))
+            object.__setattr__(fields.buyback_route, "route_release_id", _root(97_002))
+            object.__setattr__(fields.module_release, "release_id", _root(97_003))
+            object.__setattr__(fields.module_release, "guest_image_id", _root(97_004))
+            object.__setattr__(candidate.journal, "fee_asset_id", _root(97_005))
+            object.__setattr__(candidate, "effects", GlobalEconomicEffectPlanV1.empty())
+
+    # Act
+    verified = verify_zdex_fee_allocation_receipt_v1(
+        candidate,
+        governed,
+        _MutatingVerifier(),
+    )
+
+    # Assert
+    assert (
+        verified.allocation_route_release_id,
+        verified.authorized_buyback_route_release_id,
+        verified.module_release_id,
+        verified.command_occurrence_id,
+        verified.profile_root,
+        verified.journal_root,
+        verified.effect_plan_root,
+        verified.expected_image_id,
+        verified.policy_root,
+        verified.fee_asset_id,
+    ) == expected
+
+
+def test_fee_receipt_rejects_hostile_scalar_before_callback() -> None:
+    # Arrange
+    candidate, governed = _fee_receipt_candidate_fixture()
+    candidate = replace(
+        candidate,
+        journal=replace(
+            candidate.journal,
+            fee_asset_id=_HostileRoot(candidate.journal.fee_asset_id),
+        ),
+    )
+    verifier = _Verifier()
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="exact primitive"):
+        verify_zdex_fee_allocation_receipt_v1(candidate, governed, verifier)
+    assert verifier.calls == []
+
+
 def test_policy_registry_root_matches_rust_golden_vector() -> None:
     _, governed = _fee_receipt_candidate_fixture()
     policy_registry = governed._fields.policy_registry
@@ -1218,6 +1331,138 @@ def test_receipt_verifier_sees_exact_release_image_and_canonical_journal() -> No
     assert verifier.calls[0][2] == canonical_global_bytes_v1(
         candidate.purchase_journal
     )
+
+
+def test_purchase_receipt_callback_cannot_redirect_authenticated_effects() -> None:
+    # Arrange
+    route_candidate = _verified_fixture()
+    receipt_candidate = ZDEXPurchaseReceiptCandidateV1(
+        route_candidate.route_release,
+        _lane_release(LaneIdV1.SPOT_LIQUIDITY, 1),
+        route_candidate.occurrence,
+        route_candidate.purchase_journal,
+        route_candidate.purchase_effects,
+        ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"alias-attack"),
+    )
+    authenticated_effect_root = receipt_candidate.journal.effect_plan_root
+
+    class _RedirectingVerifier:
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            del expected_image_id, expected_journal_bytes
+            assert receipt_bytes == b"alias-attack"
+            rows = list(receipt_candidate.effects.rows)
+            pool_index = next(
+                index
+                for index, row in enumerate(rows)
+                if row.principal == receipt_candidate.journal.quote_pool_bucket_id
+            )
+            rows[pool_index] = replace(rows[pool_index], principal="attacker")
+            object.__setattr__(
+                receipt_candidate.effects,
+                "rows",
+                tuple(sorted(rows, key=lambda row: row.key)),
+            )
+
+    # Act
+    verified = verify_zdex_amm_purchase_receipt_v1(
+        receipt_candidate,
+        _RedirectingVerifier(),
+    )
+    result = compose_zdex_purchase_burn_route_v1(
+        replace(
+            route_candidate,
+            purchase_effects=receipt_candidate.effects,
+            verified_purchase=verified,
+        )
+    )
+
+    # Assert
+    assert receipt_candidate.effects.effect_plan_root != authenticated_effect_root
+    _assert_no_effect_reject(
+        result,
+        ZDEXPurchaseBurnRouteRejectCodeV1.PURCHASE_WITNESS_MISMATCH,
+    )
+    assert verified.effect_plan_root == authenticated_effect_root
+
+
+def test_burn_receipt_callback_cannot_mutate_owned_witness_bindings() -> None:
+    # Arrange
+    fixture = _verified_fixture()
+    candidate = ZDEXBurnReceiptCandidateV1(
+        fixture.route_release,
+        _lane_release(LaneIdV1.ZDEX_TOKENOMICS, 2),
+        fixture.occurrence,
+        fixture.burn_journal,
+        fixture.burn_effects,
+        ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"burn-alias-attack"),
+    )
+    expected = (
+        candidate.route_release.route_release_id,
+        candidate.module_release.release_id,
+        candidate.occurrence.occurrence_id,
+        candidate.journal.journal_root,
+        candidate.effects.effect_plan_root,
+        candidate.module_release.guest_image_id,
+        "0x" + hashlib.sha256(candidate.receipt.receipt_bytes).hexdigest(),
+    )
+
+    class _MutatingVerifier:
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            del receipt_bytes, expected_image_id, expected_journal_bytes
+            object.__setattr__(candidate.route_release, "route_release_id", _root(98_001))
+            object.__setattr__(candidate.module_release, "release_id", _root(98_002))
+            object.__setattr__(candidate.journal, "writer_epoch", 98_003)
+            object.__setattr__(candidate, "effects", GlobalEconomicEffectPlanV1.empty())
+            object.__setattr__(candidate.module_release, "guest_image_id", _root(98_004))
+            object.__setattr__(candidate.receipt, "receipt_bytes", b"mutated-burn")
+
+    # Act
+    verified = verify_zdex_burn_receipt_v1(candidate, _MutatingVerifier())
+
+    # Assert
+    assert (
+        verified.route_release_id,
+        verified.module_release_id,
+        verified.command_occurrence_id,
+        verified.journal_root,
+        verified.effect_plan_root,
+        verified.expected_image_id,
+        verified.receipt_digest,
+    ) == expected
+
+
+def test_burn_receipt_rejects_hostile_route_scalar_before_callback() -> None:
+    # Arrange
+    fixture = _verified_fixture()
+    candidate = ZDEXBurnReceiptCandidateV1(
+        fixture.route_release,
+        _lane_release(LaneIdV1.ZDEX_TOKENOMICS, 2),
+        fixture.occurrence,
+        replace(
+            fixture.burn_journal,
+            route_release_id=_HostileRoot(fixture.burn_journal.route_release_id),
+        ),
+        fixture.burn_effects,
+        ZDEXLaneReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, b"hostile-scalar"),
+    )
+    verifier = _Verifier()
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="exact primitive"):
+        verify_zdex_burn_receipt_v1(candidate, verifier)
+    assert verifier.calls == []
 
 
 def test_verifier_rejection_produces_no_authenticated_purchase_witness() -> None:
@@ -1632,6 +1877,76 @@ def test_profile_selected_fee_leaf_and_coordinator_bind_complete_lane() -> None:
             canonical_global_bytes_v1(composed.lane_journal),
         )
     ]
+
+
+def test_fee_coordinator_callback_cannot_mutate_owned_witness_bindings() -> None:
+    # Arrange
+    candidate, governed = _fee_lane_receipt_fixture()
+    fields = governed._fields
+    expected = (
+        fields.coordinator_release.coordinator_release_id,
+        fields.coordinator_release.guest_image_id,
+        "0x" + hashlib.sha256(candidate.receipt.receipt_bytes).hexdigest(),
+        candidate.receipt.receipt_kind,
+    )
+
+    class _MutatingVerifier:
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            del receipt_bytes, expected_image_id, expected_journal_bytes
+            object.__setattr__(
+                fields.coordinator_release,
+                "coordinator_release_id",
+                _root(99_001),
+            )
+            object.__setattr__(
+                fields.coordinator_release,
+                "guest_image_id",
+                _root(99_002),
+            )
+            object.__setattr__(candidate.receipt, "receipt_bytes", b"mutated-lane")
+            object.__setattr__(candidate.receipt, "receipt_kind", ReceiptKindV1.FAKE)
+
+    # Act
+    verified = verify_zdex_tokenomics_fee_lane_receipt_v1(
+        candidate,
+        governed,
+        _MutatingVerifier(),
+    )
+
+    # Assert
+    assert (
+        verified.coordinator_release_id,
+        verified.expected_image_id,
+        verified.receipt_digest,
+        verified.receipt_kind,
+    ) == expected
+
+
+def test_fee_coordinator_rejects_hostile_release_scalar_before_callback() -> None:
+    # Arrange
+    candidate, governed = _fee_lane_receipt_fixture()
+    fields = governed._fields
+    object.__setattr__(
+        fields.coordinator_release,
+        "guest_image_id",
+        _HostileRoot(fields.coordinator_release.guest_image_id),
+    )
+    verifier = _Verifier()
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="exact primitive"):
+        verify_zdex_tokenomics_fee_lane_receipt_v1(
+            candidate,
+            governed,
+            verifier,
+        )
+    assert verifier.calls == []
 
 
 def test_unrelated_lane_root_substitution_requires_a_new_exact_receipt() -> None:

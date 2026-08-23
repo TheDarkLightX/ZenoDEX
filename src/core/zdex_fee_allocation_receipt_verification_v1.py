@@ -8,11 +8,19 @@ shadow boundary because no production RISC0 image is mounted here.
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Final
 
+from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
+from .global_economic_refinement_snapshot_v1 import (
+    _require_exact_dataclass_scalars_v1,
+    _snapshot_effect_plan_v1,
+    _snapshot_occurrence_v1,
+)
 from .global_settlement_types_v1 import (
+    EconomicPolicyBindingV1,
+    EconomicPolicyRegistryV1,
     GlobalEconomicEffectPlanV1,
     LaneIdV1,
     ReleaseStatusV1,
@@ -21,7 +29,6 @@ from .global_settlement_types_v1 import (
 )
 from .zdex_fee_allocation_profile_binding_v1 import (
     GovernedZDEXFeeAllocationProfileV1,
-    _revalidate_governed_fee_profile,
     bind_zdex_fee_allocation_shadow_profile_v1,
 )
 from .zdex_fee_allocation_types_v1 import (
@@ -31,6 +38,9 @@ from .zdex_fee_allocation_types_v1 import (
     ZDEXFeeAllocationContextV1,
     ZDEXFeeAllocationOccurrenceV1,
     ZDEXFeeAllocationPolicyV1,
+    ZDEXFeeDestinationAmountV1,
+    ZDEXFeeDestinationV1,
+    ZDEXFeeShareV1,
     ZDEXFeeStateV1,
     candidate_zdex_fee_allocation_policy_v1,
 )
@@ -71,6 +81,153 @@ class ZDEXFeeAllocationReceiptCandidateV1:
                 raise TypeError(
                     f"ZDEX fee-allocation receipt {label} must be exact typed data"
                 )
+
+
+def _snapshot_fee_destination_amounts_v1(
+    values: object,
+    *,
+    name: str,
+) -> tuple[ZDEXFeeDestinationAmountV1, ...]:
+    if type(values) is not tuple or any(
+        type(value) is not ZDEXFeeDestinationAmountV1 for value in values
+    ):
+        raise TypeError(f"ZDEX fee-allocation {name} must be exact typed tuple data")
+    snapshots = []
+    for value in values:
+        if (
+            type(value.destination) is not ZDEXFeeDestinationV1
+            or type(value.allocation_atoms) is not int
+        ):
+            raise TypeError(
+                f"ZDEX fee-allocation {name} must contain exact scalar data"
+            )
+        snapshots.append(replace(value))
+    return tuple(snapshots)
+
+
+def _snapshot_fee_policy_v1(
+    policy: ZDEXFeeAllocationPolicyV1,
+) -> ZDEXFeeAllocationPolicyV1:
+    if type(policy) is not ZDEXFeeAllocationPolicyV1:
+        raise TypeError("ZDEX fee-allocation policy must be exact typed data")
+    _require_exact_dataclass_scalars_v1(
+        policy,
+        name="ZDEX fee-allocation policy",
+        tuple_fields=frozenset({"shares"}),
+    )
+    if type(policy.shares) is not tuple or any(
+        type(share) is not ZDEXFeeShareV1 for share in policy.shares
+    ):
+        raise TypeError("ZDEX fee-allocation shares must be exact typed data")
+    shares = []
+    for share in policy.shares:
+        if (
+            type(share.destination) is not ZDEXFeeDestinationV1
+            or type(share.share_bps) is not int
+        ):
+            raise TypeError("ZDEX fee-allocation shares must contain exact scalar data")
+        shares.append(replace(share))
+    return replace(policy, shares=tuple(shares))
+
+
+def _snapshot_fee_state_v1(state: ZDEXFeeStateV1) -> ZDEXFeeStateV1:
+    if type(state) is not ZDEXFeeStateV1:
+        raise TypeError("ZDEX fee-allocation state must be exact typed data")
+    _require_exact_dataclass_scalars_v1(
+        state,
+        name="ZDEX fee-allocation state",
+        tuple_fields=frozenset({"destination_balances"}),
+    )
+    return replace(
+        state,
+        destination_balances=_snapshot_fee_destination_amounts_v1(
+            state.destination_balances,
+            name="state destination balances",
+        ),
+    )
+
+
+def _snapshot_fee_journal_v1(
+    journal: ZDEXFeeAllocationOccurrenceV1,
+) -> ZDEXFeeAllocationOccurrenceV1:
+    if type(journal) is not ZDEXFeeAllocationOccurrenceV1:
+        raise TypeError("ZDEX fee-allocation journal must be exact typed data")
+    _require_exact_dataclass_scalars_v1(
+        journal,
+        name="ZDEX fee-allocation journal",
+        tuple_fields=frozenset({"allocations"}),
+    )
+    return replace(
+        journal,
+        allocations=_snapshot_fee_destination_amounts_v1(
+            journal.allocations,
+            name="journal allocations",
+        ),
+    )
+
+
+def _snapshot_fee_receipt_candidate_v1(
+    candidate: ZDEXFeeAllocationReceiptCandidateV1,
+) -> ZDEXFeeAllocationReceiptCandidateV1:
+    """Own and exact-check every candidate value before the callback."""
+
+    if type(candidate) is not ZDEXFeeAllocationReceiptCandidateV1:
+        raise TypeError("ZDEX fee-allocation receipt candidate must be exact typed data")
+    candidate.__post_init__()
+    return ZDEXFeeAllocationReceiptCandidateV1(
+        occurrence=_snapshot_occurrence_v1(candidate.occurrence),
+        policy=_snapshot_fee_policy_v1(candidate.policy),
+        pre_state=_snapshot_fee_state_v1(candidate.pre_state),
+        post_state=_snapshot_fee_state_v1(candidate.post_state),
+        journal=_snapshot_fee_journal_v1(candidate.journal),
+        effects=_snapshot_effect_plan_v1(candidate.effects),
+        receipt=ZDEXLaneReceiptEnvelopeV1(
+            candidate.receipt.receipt_kind,
+            candidate.receipt.receipt_bytes,
+        ),
+    )
+
+
+def _snapshot_policy_registry_v1(
+    registry: EconomicPolicyRegistryV1,
+) -> EconomicPolicyRegistryV1:
+    if type(registry) is not EconomicPolicyRegistryV1:
+        raise TypeError("ZDEX fee-allocation policy registry must be exact typed data")
+    _require_exact_dataclass_scalars_v1(
+        registry,
+        name="ZDEX fee-allocation policy registry",
+        tuple_fields=frozenset({"bindings"}),
+    )
+    if type(registry.bindings) is not tuple or any(
+        type(binding) is not EconomicPolicyBindingV1 for binding in registry.bindings
+    ):
+        raise TypeError("ZDEX fee-allocation policy bindings must be exact typed data")
+    bindings = []
+    for binding in registry.bindings:
+        _require_exact_dataclass_scalars_v1(
+            binding,
+            name="ZDEX fee-allocation policy binding",
+        )
+        bindings.append(replace(binding))
+    return EconomicPolicyRegistryV1(tuple(bindings))
+
+
+def _snapshot_governed_fee_profile_v1(
+    governed: GovernedZDEXFeeAllocationProfileV1,
+) -> GovernedZDEXFeeAllocationProfileV1:
+    """Own the profile graph and its selected releases before the callback."""
+
+    if type(governed) is not GovernedZDEXFeeAllocationProfileV1:
+        raise TypeError("ZDEX fee-allocation governed profile must be verifier-constructed")
+    fields = governed._fields
+    profile = snapshot_economic_profile_v1(fields.profile)
+    policy_registry = _snapshot_policy_registry_v1(fields.policy_registry)
+    return bind_zdex_fee_allocation_shadow_profile_v1(
+        expected_profile_id=profile.profile_id,
+        expected_authority_epoch=profile.authority_epoch,
+        profile=profile,
+        policy_registry=policy_registry,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -296,55 +453,53 @@ def verify_zdex_fee_allocation_receipt_v1(
 ) -> VerifiedZDEXFeeAllocationV1:
     """Authenticate one exact allocation under its release-selected image."""
 
-    if type(candidate) is not ZDEXFeeAllocationReceiptCandidateV1:
-        raise TypeError("ZDEX fee-allocation receipt candidate must be exact typed data")
-    if type(governed) is not GovernedZDEXFeeAllocationProfileV1:
-        raise TypeError("ZDEX fee-allocation governed profile must be verifier-constructed")
-    fields = governed._fields
-    _revalidate_governed_fee_profile(governed)
-    _require_candidate_profile_binding(candidate, governed)
-    _require_release_and_occurrence(candidate, governed)
-    _recompute(candidate, governed)
-    receipt = candidate.receipt
+    owned_candidate = _snapshot_fee_receipt_candidate_v1(candidate)
+    owned_governed = _snapshot_governed_fee_profile_v1(governed)
+    fields = owned_governed._fields
+    _require_candidate_profile_binding(owned_candidate, owned_governed)
+    _require_release_and_occurrence(owned_candidate, owned_governed)
+    _recompute(owned_candidate, owned_governed)
+    receipt = owned_candidate.receipt
     if receipt.receipt_kind is not ReceiptKindV1.SUCCINCT:
         raise ValueError("ZDEX fee-allocation verification requires a succinct receipt")
     if not receipt.receipt_bytes:
         raise ValueError("ZDEX fee-allocation receipt bytes must be nonempty")
-    journal_bytes = canonical_global_bytes_v1(candidate.journal)
+    journal_bytes = canonical_global_bytes_v1(owned_candidate.journal)
     if len(journal_bytes) > min(
         fields.module_release.max_journal_bytes,
         fields.allocation_route.max_journal_bytes,
     ):
         raise ValueError("ZDEX fee-allocation journal exceeds release byte ceiling")
+    journal_digest = "0x" + hashlib.sha256(journal_bytes).hexdigest()
+    receipt_digest = "0x" + hashlib.sha256(receipt.receipt_bytes).hexdigest()
+    journal = owned_candidate.journal
+    verified_fields = _VerifiedZDEXFeeAllocationFieldsV1(
+        fields.allocation_route.route_release_id,
+        fields.buyback_route.route_release_id,
+        fields.module_release.release_id,
+        owned_candidate.occurrence.occurrence_id,
+        owned_candidate.occurrence.profile_root,
+        journal.writer_epoch,
+        journal.occurrence_root,
+        journal_digest,
+        owned_candidate.effects.effect_plan_root,
+        fields.module_release.guest_image_id,
+        receipt_digest,
+        receipt.receipt_kind,
+        owned_candidate.policy.policy_root,
+        journal.fee_asset_id,
+        journal.buyback_quote_atoms,
+        journal.pre_lane_root,
+        journal.post_lane_root,
+    )
     receipt_verifier.verify_succinct_receipt(
         receipt.receipt_bytes,
         expected_image_id=fields.module_release.guest_image_id,
         expected_journal_bytes=journal_bytes,
     )
-    journal_digest = "0x" + hashlib.sha256(journal_bytes).hexdigest()
-    receipt_digest = "0x" + hashlib.sha256(receipt.receipt_bytes).hexdigest()
-    journal = candidate.journal
     return VerifiedZDEXFeeAllocationV1(
         _VERIFIED_FEE_ALLOCATION_TOKEN,
-        _VerifiedZDEXFeeAllocationFieldsV1(
-            fields.allocation_route.route_release_id,
-            fields.buyback_route.route_release_id,
-            fields.module_release.release_id,
-            candidate.occurrence.occurrence_id,
-            candidate.occurrence.profile_root,
-            journal.writer_epoch,
-            journal.occurrence_root,
-            journal_digest,
-            candidate.effects.effect_plan_root,
-            fields.module_release.guest_image_id,
-            receipt_digest,
-            receipt.receipt_kind,
-            candidate.policy.policy_root,
-            journal.fee_asset_id,
-            journal.buyback_quote_atoms,
-            journal.pre_lane_root,
-            journal.post_lane_root,
-        ),
+        verified_fields,
     )
 
 

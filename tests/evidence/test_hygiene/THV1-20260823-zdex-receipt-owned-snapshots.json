@@ -1,0 +1,127 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-zdex-receipt-owned-snapshots",
+  "created_date": "2026-08-23",
+  "claim_scope": "ZDEX purchase, burn, fee-allocation, and tokenomics-lane receipt verifiers construct authority witnesses only from exact owned snapshots established before an untrusted receipt-verifier callback.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZDEX-RECEIPT-EXACT-PRIMITIVES",
+    "ZDEX-RECEIPT-PRECALLBACK-SNAPSHOT",
+    "ZDEX-RECEIPT-AUTHENTICATED-BYTES",
+    "ZDEX-RECEIPT-WITNESS-NONALIASING",
+    "ZDEX-REJECT-BEFORE-CALLBACK"
+  ],
+  "failure_modes": [
+    "a caller mutates aliased receipt bytes during verification so the witness names unauthenticated bytes",
+    "a callback mutates aliased route, release, occurrence, journal, effect, or policy fields after their checks",
+    "a hostile scalar subclass controls equality or canonicalization during authority binding",
+    "a rejected hostile scalar reaches the external receipt verifier",
+    "a purchase witness remains usable after its authenticated effects are redirected"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/zdex_fee_allocation_receipt_verification_v1.py",
+      "sha256": "687fe8bb3aedd5da8a256ff642d6d92744c57b8246e984889366429b9d16739e"
+    },
+    {
+      "path": "src/core/zdex_purchase_burn_receipt_verification_v1.py",
+      "sha256": "7a4ad5e698f68168bc038ea653444281d3d9d8b068fd37e28e1044e934c6a803"
+    },
+    {
+      "path": "src/core/zdex_tokenomics_lane_receipt_common_v1.py",
+      "sha256": "e3086b63c379baf3e3db6f1e68e462a62050fa7af75b0b1ebf80b0f8474c8320"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_purchase_burn_route_v1.py",
+      "sha256": "3bf0069179a462259e1c7782cb8a619536766df9e6b3580cd064f1e9e621a10c",
+      "node_ids": [
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_callback_cannot_rebind_verified_bytes",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_callback_cannot_mutate_owned_witness_bindings",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_rejects_hostile_scalar_before_callback",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_purchase_receipt_callback_cannot_redirect_authenticated_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_burn_receipt_callback_cannot_mutate_owned_witness_bindings",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_burn_receipt_rejects_hostile_route_scalar_before_callback",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_coordinator_callback_cannot_mutate_owned_witness_bindings",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_coordinator_rejects_hostile_release_scalar_before_callback"
+      ]
+    },
+    {
+      "path": "tests/core/test_zdex_tokenomics_lane_coordinator_v1.py",
+      "sha256": "bb4861b96450f9c24a4abf669207fdfad2924dbcc92ab2ccf4346aa3179b8722",
+      "node_ids": [
+        "tests/core/test_zdex_tokenomics_lane_coordinator_v1.py::test_burn_coordinator_callback_cannot_mutate_owned_witness_bindings",
+        "tests/core/test_zdex_tokenomics_lane_coordinator_v1.py::test_burn_coordinator_rejects_hostile_release_scalar_before_callback"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each regression arranges one hostile alias or scalar, acts through one public verifier boundary, and asserts the exact owned witness or the exact pre-callback rejection with no verifier call."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The receipt boundaries are pure. Exact-type rejection produces no authority witness or economic effect and the tests assert that the external receipt verifier is not called."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "scalar_runtime_type",
+      "points": [
+        "exact_builtin_accepts",
+        "value_equal_subclass_rejects_before_callback"
+      ]
+    },
+    {
+      "name": "callback_alias_timing",
+      "points": [
+        "precallback_owned_snapshot_remains_authoritative",
+        "postcallback_caller_mutation_cannot_rebind_witness"
+      ]
+    },
+    {
+      "name": "effect_binding",
+      "points": [
+        "authenticated_effect_root_accepts",
+        "redirected_postverification_effect_root_rejects_without_effect"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "derive a receipt digest from the caller-owned envelope after the callback",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_callback_cannot_rebind_verified_bytes"
+    },
+    {
+      "description": "construct fee witness fields from caller-owned governed and candidate objects after verification",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_callback_cannot_mutate_owned_witness_bindings"
+    },
+    {
+      "description": "construct burn coordinator witness fields from aliased release and receipt objects",
+      "killed_by": "tests/core/test_zdex_tokenomics_lane_coordinator_v1.py::test_burn_coordinator_callback_cannot_mutate_owned_witness_bindings"
+    },
+    {
+      "description": "allow a value-equal string subclass into canonical receipt bindings",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_burn_receipt_rejects_hostile_route_scalar_before_callback"
+    },
+    {
+      "description": "allow a verified purchase witness to authorize effects redirected after receipt verification",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_purchase_receipt_callback_cannot_redirect_authenticated_effects"
+    }
+  ],
+  "nonclaims": [
+    "This packet proves no cryptographic receipt, guest image, recursive composition, or deployed verifier correctness.",
+    "The tests close scoped same-process aliasing and hostile-scalar attacks at three Python receipt boundaries; they do not prove all economic semantics or all value movement.",
+    "Named mutation killers are reviewed semantic mutants; no automated mutation score is claimed.",
+    "This change grants no settlement, publication, migration, writer-rotation, or production authority.",
+    "Production authority remains NONE and whole-economy safety remains unproved."
+  ]
+}

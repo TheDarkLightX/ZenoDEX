@@ -6,7 +6,15 @@ import hashlib
 from dataclasses import dataclass
 from typing import Final
 
+from .global_economic_profile_snapshot_v1 import (
+    _snapshot_coordinator_release_v1,
+    _snapshot_route_release_v1,
+)
 from .global_economic_proof_v1 import LaneCompositionJournalV1, ReceiptKindV1
+from .global_economic_refinement_snapshot_v1 import (
+    _require_exact_dataclass_scalars_v1,
+    _snapshot_lane_journal_v1,
+)
 from .global_settlement_types_v1 import (
     LaneCoordinatorReleaseV1,
     LaneIdV1,
@@ -177,52 +185,85 @@ def _verify_and_build_zdex_tokenomics_lane_v1(
     binding: _ZDEXTokenomicsLaneBindingV1,
     receipt_verifier: ZDEXLaneSuccinctReceiptVerifierV1,
 ) -> VerifiedZDEXTokenomicsLaneV1:
+    if type(receipt) is not ZDEXLaneReceiptEnvelopeV1:
+        raise TypeError("ZDEX tokenomics lane receipt must be exact typed data")
+    if type(journal) is not LaneCompositionJournalV1:
+        raise TypeError("ZDEX tokenomics lane journal must be exact typed data")
+    if type(expectation) is not _ZDEXTokenomicsCoordinatorReceiptExpectationV1:
+        raise TypeError("ZDEX tokenomics lane expectation must be exact typed data")
+    if type(binding) is not _ZDEXTokenomicsLaneBindingV1:
+        raise TypeError("ZDEX tokenomics lane binding must be exact typed data")
+    _require_exact_dataclass_scalars_v1(
+        binding,
+        name="ZDEX tokenomics lane binding",
+    )
+    owned_receipt = ZDEXLaneReceiptEnvelopeV1(
+        receipt.receipt_kind,
+        receipt.receipt_bytes,
+    )
+    owned_journal = _snapshot_lane_journal_v1(journal)
+    owned_expectation = _ZDEXTokenomicsCoordinatorReceiptExpectationV1(
+        _snapshot_route_release_v1(expectation.route_release),
+        _snapshot_coordinator_release_v1(expectation.coordinator_release),
+    )
+    owned_binding = _ZDEXTokenomicsLaneBindingV1(
+        binding.profile_root,
+        binding.route_release_id,
+        binding.module_release_id,
+        binding.command_occurrence_id,
+        binding.writer_epoch,
+        binding.module_journal_root,
+        binding.module_image_id,
+    )
     if (
-        journal.profile_root != binding.profile_root
-        or journal.writer_epoch != binding.writer_epoch
-        or journal.lane_id is not LaneIdV1.ZDEX_TOKENOMICS
-        or journal.coordinator_release_id
-        != expectation.coordinator_release.coordinator_release_id
-        or journal.command_occurrence_id != binding.command_occurrence_id
-        or journal.ordered_module_journal_roots != (binding.module_journal_root,)
-        or expectation.route_release.route_release_id != binding.route_release_id
+        owned_journal.profile_root != owned_binding.profile_root
+        or owned_journal.writer_epoch != owned_binding.writer_epoch
+        or owned_journal.lane_id is not LaneIdV1.ZDEX_TOKENOMICS
+        or owned_journal.coordinator_release_id
+        != owned_expectation.coordinator_release.coordinator_release_id
+        or owned_journal.command_occurrence_id != owned_binding.command_occurrence_id
+        or owned_journal.ordered_module_journal_roots
+        != (owned_binding.module_journal_root,)
+        or owned_expectation.route_release.route_release_id
+        != owned_binding.route_release_id
     ):
         raise ValueError("ZDEX tokenomics verified-lane binding mismatch")
-    if receipt.receipt_kind is not ReceiptKindV1.SUCCINCT:
+    if owned_receipt.receipt_kind is not ReceiptKindV1.SUCCINCT:
         raise ValueError("ZDEX tokenomics lane verification requires a succinct receipt")
-    if not receipt.receipt_bytes:
+    if not owned_receipt.receipt_bytes:
         raise ValueError("ZDEX tokenomics lane receipt bytes must be nonempty")
-    journal_bytes = canonical_global_bytes_v1(journal)
+    journal_bytes = canonical_global_bytes_v1(owned_journal)
     if len(journal_bytes) > min(
-        expectation.route_release.max_journal_bytes,
-        expectation.coordinator_release.max_journal_bytes,
+        owned_expectation.route_release.max_journal_bytes,
+        owned_expectation.coordinator_release.max_journal_bytes,
     ):
         raise ValueError("ZDEX tokenomics lane journal exceeds release byte ceiling")
+    verified_fields = _VerifiedZDEXTokenomicsLaneFieldsV1(
+        owned_binding.profile_root,
+        owned_binding.route_release_id,
+        owned_binding.module_release_id,
+        owned_expectation.coordinator_release.coordinator_release_id,
+        owned_binding.command_occurrence_id,
+        owned_binding.writer_epoch,
+        owned_binding.module_journal_root,
+        owned_journal.journal_root,
+        "0x" + hashlib.sha256(journal_bytes).hexdigest(),
+        owned_journal.pre_lane_root,
+        owned_journal.post_lane_root,
+        owned_journal.effect_plan_root,
+        owned_binding.module_image_id,
+        owned_expectation.coordinator_release.guest_image_id,
+        "0x" + hashlib.sha256(owned_receipt.receipt_bytes).hexdigest(),
+        owned_receipt.receipt_kind,
+    )
     receipt_verifier.verify_succinct_receipt(
-        receipt.receipt_bytes,
-        expected_image_id=expectation.coordinator_release.guest_image_id,
+        owned_receipt.receipt_bytes,
+        expected_image_id=owned_expectation.coordinator_release.guest_image_id,
         expected_journal_bytes=journal_bytes,
     )
     return VerifiedZDEXTokenomicsLaneV1(
         _VERIFIED_TOKENOMICS_LANE_TOKEN,
-        _VerifiedZDEXTokenomicsLaneFieldsV1(
-            binding.profile_root,
-            binding.route_release_id,
-            binding.module_release_id,
-            expectation.coordinator_release.coordinator_release_id,
-            binding.command_occurrence_id,
-            binding.writer_epoch,
-            binding.module_journal_root,
-            journal.journal_root,
-            "0x" + hashlib.sha256(journal_bytes).hexdigest(),
-            journal.pre_lane_root,
-            journal.post_lane_root,
-            journal.effect_plan_root,
-            binding.module_image_id,
-            expectation.coordinator_release.guest_image_id,
-            "0x" + hashlib.sha256(receipt.receipt_bytes).hexdigest(),
-            receipt.receipt_kind,
-        ),
+        verified_fields,
     )
 
 

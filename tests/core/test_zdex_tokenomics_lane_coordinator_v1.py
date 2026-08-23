@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from dataclasses import replace
 
 import pytest
@@ -83,6 +84,13 @@ from src.core.zdex_tokenomics_lane_v1 import (
 
 def _root(value: int) -> str:
     return f"0x{value:064x}"
+
+
+class _HostileRoot(str):
+    __hash__ = str.__hash__
+
+    def to_canonical(self) -> str:
+        return str(self)
 
 
 def _burn_projection() -> ZDEXBurnLeafProjectionV1:
@@ -710,6 +718,72 @@ def test_release_selected_coordinator_receipt_binds_exact_lane_journal() -> None
     )
     with pytest.raises(AttributeError, match="immutable"):
         verified._fields = object()
+
+
+def test_burn_coordinator_callback_cannot_mutate_owned_witness_bindings() -> None:
+    # Arrange
+    candidate, governed, _ = _receipt_fixture()
+    fields = governed._fields
+    expected = (
+        fields.coordinator_release.coordinator_release_id,
+        fields.coordinator_release.guest_image_id,
+        "0x" + hashlib.sha256(candidate.receipt.receipt_bytes).hexdigest(),
+        candidate.receipt.receipt_kind,
+    )
+
+    class _MutatingVerifier:
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            del receipt_bytes, expected_image_id, expected_journal_bytes
+            object.__setattr__(
+                fields.coordinator_release,
+                "coordinator_release_id",
+                _root(78_501),
+            )
+            object.__setattr__(
+                fields.coordinator_release,
+                "guest_image_id",
+                _root(78_502),
+            )
+            object.__setattr__(candidate.receipt, "receipt_bytes", b"mutated-lane")
+            object.__setattr__(candidate.receipt, "receipt_kind", ReceiptKindV1.FAKE)
+
+    # Act
+    verified = verify_zdex_tokenomics_lane_receipt_v1(
+        candidate,
+        governed,
+        _MutatingVerifier(),
+    )
+
+    # Assert
+    assert (
+        verified.coordinator_release_id,
+        verified.expected_image_id,
+        verified.receipt_digest,
+        verified.receipt_kind,
+    ) == expected
+
+
+def test_burn_coordinator_rejects_hostile_release_scalar_before_callback() -> None:
+    # Arrange
+    candidate, governed, _ = _receipt_fixture()
+    fields = governed._fields
+    object.__setattr__(
+        fields.module_release,
+        "guest_image_id",
+        _HostileRoot(fields.module_release.guest_image_id),
+    )
+    verifier = _Verifier()
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="exact primitive"):
+        verify_zdex_tokenomics_lane_receipt_v1(candidate, governed, verifier)
+    assert verifier.calls == []
 
 
 def test_burn_lane_unrelated_root_substitution_requires_new_exact_receipt() -> None:

@@ -3,10 +3,19 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Final, Protocol
 
+from .global_economic_profile_snapshot_v1 import (
+    _snapshot_lane_release_v1,
+    _snapshot_route_release_v1,
+)
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
+from .global_economic_refinement_snapshot_v1 import (
+    _require_exact_dataclass_scalars_v1,
+    _snapshot_effect_plan_v1,
+    _snapshot_occurrence_v1,
+)
 from .global_settlement_types_v1 import (
     GlobalEconomicEffectPlanV1,
     LaneIdV1,
@@ -97,6 +106,26 @@ class ZDEXBurnReceiptCandidateV1:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class _ZDEXPurchaseReceiptSnapshotV1:
+    route_release: RouteReleaseV1
+    module_release: LaneModuleReleaseV1
+    occurrence: EconomicCommandOccurrenceV1
+    journal: ZDEXAMMPurchaseJournalV1
+    effects: GlobalEconomicEffectPlanV1
+    receipt: ZDEXLaneReceiptEnvelopeV1
+
+
+@dataclass(frozen=True, slots=True)
+class _ZDEXBurnReceiptSnapshotV1:
+    route_release: RouteReleaseV1
+    module_release: LaneModuleReleaseV1
+    occurrence: EconomicCommandOccurrenceV1
+    journal: ZDEXBurnJournalV1
+    effects: GlobalEconomicEffectPlanV1
+    receipt: ZDEXLaneReceiptEnvelopeV1
+
+
 def _require_candidate_types(
     route_release: object,
     module_release: object,
@@ -118,6 +147,64 @@ def _require_candidate_types(
     for value, expected_type, label in expected:
         if type(value) is not expected_type:
             raise TypeError(f"ZDEX lane receipt {label} must be exact typed data")
+
+
+def _snapshot_purchase_journal_v1(
+    journal: ZDEXAMMPurchaseJournalV1,
+) -> ZDEXAMMPurchaseJournalV1:
+    if type(journal) is not ZDEXAMMPurchaseJournalV1:
+        raise TypeError("ZDEX purchase journal must be exact typed data")
+    _require_exact_dataclass_scalars_v1(journal, name="ZDEX purchase journal")
+    return replace(journal)
+
+
+def _snapshot_burn_journal_v1(journal: ZDEXBurnJournalV1) -> ZDEXBurnJournalV1:
+    if type(journal) is not ZDEXBurnJournalV1:
+        raise TypeError("ZDEX burn journal must be exact typed data")
+    _require_exact_dataclass_scalars_v1(journal, name="ZDEX burn journal")
+    return replace(journal)
+
+
+def _snapshot_purchase_candidate_v1(
+    candidate: ZDEXPurchaseReceiptCandidateV1,
+) -> _ZDEXPurchaseReceiptSnapshotV1:
+    """Own and revalidate every purchase value read across the callback."""
+
+    if type(candidate) is not ZDEXPurchaseReceiptCandidateV1:
+        raise TypeError("ZDEX purchase receipt candidate must be exact typed data")
+    candidate.__post_init__()
+    return _ZDEXPurchaseReceiptSnapshotV1(
+        route_release=_snapshot_route_release_v1(candidate.route_release),
+        module_release=_snapshot_lane_release_v1(candidate.module_release),
+        occurrence=_snapshot_occurrence_v1(candidate.occurrence),
+        journal=_snapshot_purchase_journal_v1(candidate.journal),
+        effects=_snapshot_effect_plan_v1(candidate.effects),
+        receipt=ZDEXLaneReceiptEnvelopeV1(
+            candidate.receipt.receipt_kind,
+            candidate.receipt.receipt_bytes,
+        ),
+    )
+
+
+def _snapshot_burn_candidate_v1(
+    candidate: ZDEXBurnReceiptCandidateV1,
+) -> _ZDEXBurnReceiptSnapshotV1:
+    """Own and revalidate every burn value read across the callback."""
+
+    if type(candidate) is not ZDEXBurnReceiptCandidateV1:
+        raise TypeError("ZDEX burn receipt candidate must be exact typed data")
+    candidate.__post_init__()
+    return _ZDEXBurnReceiptSnapshotV1(
+        route_release=_snapshot_route_release_v1(candidate.route_release),
+        module_release=_snapshot_lane_release_v1(candidate.module_release),
+        occurrence=_snapshot_occurrence_v1(candidate.occurrence),
+        journal=_snapshot_burn_journal_v1(candidate.journal),
+        effects=_snapshot_effect_plan_v1(candidate.effects),
+        receipt=ZDEXLaneReceiptEnvelopeV1(
+            candidate.receipt.receipt_kind,
+            candidate.receipt.receipt_bytes,
+        ),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -290,61 +377,60 @@ def verify_zdex_amm_purchase_receipt_v1(
 ) -> VerifiedZDEXAMMPurchaseV1:
     """Authenticate exact AMM output under its release-selected shadow image."""
 
-    if type(candidate) is not ZDEXPurchaseReceiptCandidateV1:
-        raise TypeError("ZDEX purchase receipt candidate must be exact typed data")
+    owned = _snapshot_purchase_candidate_v1(candidate)
     _require_release_and_occurrence(
-        candidate.route_release,
-        candidate.module_release,
-        candidate.occurrence,
+        owned.route_release,
+        owned.module_release,
+        owned.occurrence,
         lane_id=LaneIdV1.SPOT_LIQUIDITY,
         route_index=0,
     )
-    journal = candidate.journal
-    occurrence = candidate.occurrence
+    journal = owned.journal
+    occurrence = owned.occurrence
     bindings = (
         (journal.chain_id, occurrence.chain_id, "chain"),
         (journal.deployment_root, occurrence.deployment_root, "deployment"),
         (journal.profile_root, occurrence.profile_root, "profile"),
-        (journal.route_release_id, candidate.route_release.route_release_id, "route"),
+        (journal.route_release_id, owned.route_release.route_release_id, "route"),
         (journal.command_occurrence_id, occurrence.occurrence_id, "occurrence"),
-        (journal.spot_module_release_id, candidate.module_release.release_id, "module release"),
+        (journal.spot_module_release_id, owned.module_release.release_id, "module release"),
         (
             journal.issue_burn_policy_root,
-            candidate.route_release.issue_burn_policy_root,
+            owned.route_release.issue_burn_policy_root,
             "issue/burn policy",
         ),
-        (journal.effect_plan_root, candidate.effects.effect_plan_root, "effect plan"),
+        (journal.effect_plan_root, owned.effects.effect_plan_root, "effect plan"),
     )
     for actual, expected, label in bindings:
         if actual != expected:
             raise ValueError(f"ZDEX purchase {label} mismatch")
-    if candidate.effects != purchase_effects_v1(journal):
+    if owned.effects != purchase_effects_v1(journal):
         raise ValueError("ZDEX purchase effect rows or conservation mismatch")
     journal_bytes, journal_digest, receipt_digest = _receipt_digests(
         journal,
-        candidate.receipt,
+        owned.receipt,
     )
-    if len(journal_bytes) > candidate.module_release.max_journal_bytes:
+    if len(journal_bytes) > owned.module_release.max_journal_bytes:
         raise ValueError("ZDEX purchase journal exceeds release byte ceiling")
     receipt_verifier.verify_succinct_receipt(
-        candidate.receipt.receipt_bytes,
-        expected_image_id=candidate.module_release.guest_image_id,
+        owned.receipt.receipt_bytes,
+        expected_image_id=owned.module_release.guest_image_id,
         expected_journal_bytes=journal_bytes,
     )
     return VerifiedZDEXAMMPurchaseV1(
         _VERIFIED_PURCHASE_TOKEN,
         _VerifiedZDEXLaneFieldsV1(
-            candidate.route_release.route_release_id,
-            candidate.module_release.release_id,
+            owned.route_release.route_release_id,
+            owned.module_release.release_id,
             occurrence.occurrence_id,
             occurrence.profile_root,
             journal.writer_epoch,
             journal.journal_root,
             journal_digest,
-            candidate.effects.effect_plan_root,
-            candidate.module_release.guest_image_id,
+            owned.effects.effect_plan_root,
+            owned.module_release.guest_image_id,
             receipt_digest,
-            candidate.receipt.receipt_kind,
+            owned.receipt.receipt_kind,
         ),
     )
 
@@ -355,65 +441,64 @@ def verify_zdex_burn_receipt_v1(
 ) -> VerifiedZDEXBurnV1:
     """Authenticate exact burn output under its release-selected shadow image."""
 
-    if type(candidate) is not ZDEXBurnReceiptCandidateV1:
-        raise TypeError("ZDEX burn receipt candidate must be exact typed data")
+    owned = _snapshot_burn_candidate_v1(candidate)
     _require_release_and_occurrence(
-        candidate.route_release,
-        candidate.module_release,
-        candidate.occurrence,
+        owned.route_release,
+        owned.module_release,
+        owned.occurrence,
         lane_id=LaneIdV1.ZDEX_TOKENOMICS,
         route_index=1,
     )
-    journal = candidate.journal
-    occurrence = candidate.occurrence
+    journal = owned.journal
+    occurrence = owned.occurrence
     bindings = (
         (journal.chain_id, occurrence.chain_id, "chain"),
         (journal.deployment_root, occurrence.deployment_root, "deployment"),
         (journal.profile_root, occurrence.profile_root, "profile"),
-        (journal.route_release_id, candidate.route_release.route_release_id, "route"),
+        (journal.route_release_id, owned.route_release.route_release_id, "route"),
         (journal.command_occurrence_id, occurrence.occurrence_id, "occurrence"),
         (
             journal.tokenomics_module_release_id,
-            candidate.module_release.release_id,
+            owned.module_release.release_id,
             "module release",
         ),
         (
             journal.issue_burn_policy_root,
-            candidate.route_release.issue_burn_policy_root,
+            owned.route_release.issue_burn_policy_root,
             "issue/burn policy",
         ),
-        (journal.effect_plan_root, candidate.effects.effect_plan_root, "effect plan"),
+        (journal.effect_plan_root, owned.effects.effect_plan_root, "effect plan"),
     )
     for actual, expected, label in bindings:
         if actual != expected:
             raise ValueError(f"ZDEX burn {label} mismatch")
-    if candidate.effects != burn_effects_v1(journal):
+    if owned.effects != burn_effects_v1(journal):
         raise ValueError("ZDEX burn effect rows or conservation mismatch")
     journal_bytes, journal_digest, receipt_digest = _receipt_digests(
         journal,
-        candidate.receipt,
+        owned.receipt,
     )
-    if len(journal_bytes) > candidate.module_release.max_journal_bytes:
+    if len(journal_bytes) > owned.module_release.max_journal_bytes:
         raise ValueError("ZDEX burn journal exceeds release byte ceiling")
     receipt_verifier.verify_succinct_receipt(
-        candidate.receipt.receipt_bytes,
-        expected_image_id=candidate.module_release.guest_image_id,
+        owned.receipt.receipt_bytes,
+        expected_image_id=owned.module_release.guest_image_id,
         expected_journal_bytes=journal_bytes,
     )
     return VerifiedZDEXBurnV1(
         _VERIFIED_BURN_TOKEN,
         _VerifiedZDEXLaneFieldsV1(
-            candidate.route_release.route_release_id,
-            candidate.module_release.release_id,
+            owned.route_release.route_release_id,
+            owned.module_release.release_id,
             occurrence.occurrence_id,
             occurrence.profile_root,
             journal.writer_epoch,
             journal.journal_root,
             journal_digest,
-            candidate.effects.effect_plan_root,
-            candidate.module_release.guest_image_id,
+            owned.effects.effect_plan_root,
+            owned.module_release.guest_image_id,
             receipt_digest,
-            candidate.receipt.receipt_kind,
+            owned.receipt.receipt_kind,
         ),
     )
 
