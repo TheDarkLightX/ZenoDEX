@@ -316,7 +316,11 @@ class TauNetTcpClient:
         if not isinstance(cmd, str) or not cmd.strip():
             raise ValueError("cmd must be a non-empty string")
         wire = cmd.strip().removesuffix("\r\n") + "\r\n"
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        try:
+            rpc_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        except OSError as exc:
+            raise TauNetRpcError(f"rpc socket creation failed: {exc}") from exc
+        with rpc_socket as sock:
             sock.settimeout(self._cfg.timeout_s)
             try:
                 sock.connect((self._cfg.host, self._cfg.port))

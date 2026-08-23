@@ -1,0 +1,179 @@
+"""Crash-conservative execution journal for AutoTrader value submission.
+
+The journal reserves an execution ID durably before the first network send.
+Any recorded state blocks replay. ``PENDING`` means the external outcome needs
+operator reconciliation; this module deliberately provides no automatic
+release transition.
+"""
+
+from __future__ import annotations
+
+import fcntl
+import json
+import os
+from collections.abc import Mapping
+from dataclasses import dataclass
+from enum import Enum
+from typing import TextIO
+
+EXECUTION_JOURNAL_SCHEMA_V1 = "zenodex/autotrader-execution-journal/v1"
+EXECUTION_JOURNAL_SCHEMA_V2 = "zenodex/autotrader-execution-journal/v2"
+
+
+class ExecutionJournalStateV2(str, Enum):
+    PENDING = "PENDING"
+    SENT = "SENT"
+
+
+@dataclass(frozen=True, slots=True)
+class ExecutionJournalEntryV2:
+    state: ExecutionJournalStateV2
+    surface: str
+
+
+def _parse_execution_journal(handle: TextIO) -> dict[str, ExecutionJournalEntryV2]:
+    handle.seek(0)
+    entries: dict[str, ExecutionJournalEntryV2] = {}
+    for line_number, line in enumerate(handle, start=1):
+        text = line.strip()
+        if not text:
+            continue
+        try:
+            row = json.loads(text)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"execution journal row {line_number} is not valid JSON"
+            ) from exc
+        if type(row) is not dict:
+            raise ValueError("execution journal row must be an object")
+        schema = row.get("schema")
+        execution_id = row.get("execution_id")
+        surface = row.get("surface")
+        if type(execution_id) is not str or not execution_id.strip():
+            raise ValueError("execution journal row missing execution_id")
+        if execution_id != execution_id.strip():
+            raise ValueError("execution journal execution_id must be canonical")
+        if type(surface) is not str or not surface:
+            raise ValueError("execution journal row missing surface")
+        if schema == EXECUTION_JOURNAL_SCHEMA_V1:
+            state = ExecutionJournalStateV2.SENT
+        elif schema == EXECUTION_JOURNAL_SCHEMA_V2:
+            if set(row) != {"schema", "execution_id", "surface", "state"}:
+                raise ValueError("execution journal v2 row has unexpected fields")
+            try:
+                state = ExecutionJournalStateV2(row.get("state"))
+            except (TypeError, ValueError) as exc:
+                raise ValueError("execution journal v2 row has invalid state") from exc
+        else:
+            raise ValueError("execution journal row has unsupported schema")
+        previous = entries.get(execution_id)
+        if previous is None:
+            if schema == EXECUTION_JOURNAL_SCHEMA_V2 and state is not ExecutionJournalStateV2.PENDING:
+                raise ValueError("execution journal v2 execution must start PENDING")
+        else:
+            if previous.surface != surface:
+                raise ValueError("execution journal surface changed within execution")
+            if (
+                previous.state is not ExecutionJournalStateV2.PENDING
+                or state is not ExecutionJournalStateV2.SENT
+            ):
+                raise ValueError("execution journal has invalid state transition")
+        entries[execution_id] = ExecutionJournalEntryV2(
+            state=state,
+            surface=surface,
+        )
+    return entries
+
+
+def execution_journal_ids(path: str) -> set[str]:
+    if not path or not os.path.exists(path):
+        return set()
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_SH)
+            try:
+                return set(_parse_execution_journal(handle))
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError as exc:
+        raise ValueError(f"execution_journal_read_failed:{type(exc).__name__}") from exc
+
+
+def _fsync_parent_directory(path: str) -> None:
+    parent = os.path.dirname(path) or "."
+    directory_fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _append_execution_journal_row(handle: TextIO, row: Mapping[str, str]) -> None:
+    handle.seek(0, os.SEEK_END)
+    handle.write(json.dumps(dict(row), sort_keys=True, separators=(",", ":")) + "\n")
+    handle.flush()
+    os.fsync(handle.fileno())
+
+
+def reserve_execution_id(
+    *,
+    path: str,
+    execution_keys: set[str],
+    execution_id: str,
+    surface: str,
+) -> None:
+    if not path:
+        raise ValueError("execution_journal_path_required")
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    file_existed = os.path.exists(path)
+    row = {
+        "schema": EXECUTION_JOURNAL_SCHEMA_V2,
+        "execution_id": execution_id,
+        "surface": surface,
+        "state": ExecutionJournalStateV2.PENDING.value,
+    }
+    try:
+        with open(path, "a+", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                if execution_id in _parse_execution_journal(handle):
+                    raise ValueError("execution_replay")
+                _append_execution_journal_row(handle, row)
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        if not file_existed:
+            _fsync_parent_directory(path)
+    except OSError as exc:
+        raise ValueError(f"execution_journal_write_failed:{type(exc).__name__}") from exc
+    execution_keys.add(execution_id)
+
+
+def mark_execution_sent(*, path: str, execution_id: str, surface: str) -> None:
+    if not path:
+        raise ValueError("execution_journal_path_required")
+    row = {
+        "schema": EXECUTION_JOURNAL_SCHEMA_V2,
+        "execution_id": execution_id,
+        "surface": surface,
+        "state": ExecutionJournalStateV2.SENT.value,
+    }
+    try:
+        with open(path, "r+", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                entry = _parse_execution_journal(handle).get(execution_id)
+                if entry is None:
+                    raise ValueError("execution_journal_pending_reservation_missing")
+                if entry.surface != surface:
+                    raise ValueError("execution_journal_surface_mismatch")
+                if entry.state is ExecutionJournalStateV2.SENT:
+                    return
+                if entry.state is not ExecutionJournalStateV2.PENDING:
+                    raise ValueError("execution_journal_pending_reservation_missing")
+                _append_execution_journal_row(handle, row)
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    except OSError as exc:
+        raise ValueError(f"execution_journal_write_failed:{type(exc).__name__}") from exc

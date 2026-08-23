@@ -194,6 +194,15 @@ class _FakeSocket:
 
 
 def test_tau_net_tcp_client_rpc_socket_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        tau_net_client.socket,
+        "socket",
+        lambda *args, **kwargs: (_ for _ in ()).throw(PermissionError("denied")),
+    )
+    constructor_client = tau_net_client.TauNetTcpClient()
+    with pytest.raises(tau_net_client.TauNetRpcError, match="rpc socket creation failed"):
+        constructor_client.rpc("getappstate full")
+
     newline_sock = _FakeSocket([b"BALANCE: 7\nignored"])
     monkeypatch.setattr(tau_net_client.socket, "socket", lambda *args, **kwargs: newline_sock)
     client = tau_net_client.TauNetTcpClient()

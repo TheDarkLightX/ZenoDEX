@@ -11,6 +11,7 @@ import json
 import os
 import threading
 import time
+from collections.abc import Callable
 from typing import Any, Dict, Mapping, Optional, Tuple
 from urllib.parse import urlsplit
 
@@ -22,6 +23,12 @@ from ..state.canonical import canonical_hex_fixed_allow_0x
 from ..state.intents import Intent, require_exact_intent
 from ..state.pools import PoolState, PoolStatus
 from .autotrader_controller import AutoTraderControllerState
+from .autotrader_execution_journal import (
+    ExecutionJournalStateV2,
+    execution_journal_ids,
+    mark_execution_sent,
+    reserve_execution_id,
+)
 from .autotrader_live import AutoTraderLiveReport, prepare_autotrader_live_quote_receipt
 from .autotrader_risk_disclosure import build_autotrader_risk_disclosure
 from .autotrader_supervisor_profile import evaluate_autotrader_supervisor_profile_v1
@@ -46,12 +53,15 @@ _AUTOTRADER_LIVE_NOT_CLAIMED = [
     "unattended_production_strategy_execution",
     "production_wallet_key_management",
     "production_chain_submission",
+    "automated_pending_submission_reconciliation",
 ]
 _AUTOTRADER_SUPERVISOR_PREFLIGHT_SCHEMA = "zenodex/autotrader-supervisor-preflight/v1"
 _SUPERVISOR_RUN_COUNTERS: dict[str, int] = {}
 _SUPERVISOR_EXECUTION_LOCK = threading.Lock()
 _PREPARE_BUDGET_LOCK = threading.Lock()
 _PREPARE_IN_FLIGHT = 0
+_EXECUTION_PENDING = ExecutionJournalStateV2.PENDING.value
+_EXECUTION_SENT = ExecutionJournalStateV2.SENT.value
 
 
 def _env_str(name: str, default: str) -> str:
@@ -126,28 +136,7 @@ def _execution_journal_path() -> str:
 
 
 def _execution_journal_ids() -> set[str]:
-    path = _execution_journal_path()
-    if not path:
-        return set()
-    if not os.path.exists(path):
-        return set()
-    out: set[str] = set()
-    try:
-        with open(path, "r", encoding="utf-8") as handle:
-            for line in handle:
-                text = line.strip()
-                if not text:
-                    continue
-                row = json.loads(text)
-                if not isinstance(row, Mapping):
-                    raise ValueError("execution journal row must be an object")
-                execution_id = row.get("execution_id")
-                if not isinstance(execution_id, str) or not execution_id.strip():
-                    raise ValueError("execution journal row missing execution_id")
-                out.add(execution_id.strip())
-    except OSError as exc:
-        raise ValueError(f"execution_journal_read_failed:{type(exc).__name__}") from exc
-    return out
+    return execution_journal_ids(_execution_journal_path())
 
 
 def _execution_already_consumed(execution_keys: set[str], execution_id: str) -> bool:
@@ -156,26 +145,21 @@ def _execution_already_consumed(execution_keys: set[str], execution_id: str) -> 
     return execution_id in _execution_journal_ids()
 
 
-def _consume_execution_id(execution_keys: set[str], execution_id: str, *, surface: str) -> None:
-    path = _execution_journal_path()
-    if not path:
-        execution_keys.add(execution_id)
-        return
-    parent = os.path.dirname(path)
-    if parent:
-        os.makedirs(parent, exist_ok=True)
-    row = {
-        "schema": "zenodex/autotrader-execution-journal/v1",
-        "execution_id": execution_id,
-        "surface": surface,
-        "consumed_at_unix_s": int(time.time()),
-    }
-    try:
-        with open(path, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(row, sort_keys=True, separators=(",", ":")) + "\n")
-    except OSError as exc:
-        raise ValueError(f"execution_journal_write_failed:{type(exc).__name__}") from exc
-    execution_keys.add(execution_id)
+def _reserve_execution_id(execution_keys: set[str], execution_id: str, *, surface: str) -> None:
+    reserve_execution_id(
+        path=_execution_journal_path(),
+        execution_keys=execution_keys,
+        execution_id=execution_id,
+        surface=surface,
+    )
+
+
+def _mark_execution_sent(execution_id: str, *, surface: str) -> None:
+    mark_execution_sent(
+        path=_execution_journal_path(),
+        execution_id=execution_id,
+        surface=surface,
+    )
 
 
 def _allow_signing() -> bool:
@@ -1192,6 +1176,8 @@ def _build_external_prepared_submit_response(
     body: Mapping[str, Any],
     *,
     prepared: Mapping[str, Any],
+    before_send: Callable[[], None] | None = None,
+    after_send_accepted: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     if not _allow_testnet_submission():
         return {
@@ -1254,6 +1240,8 @@ def _build_external_prepared_submit_response(
     }
     prepared_payload = {**dict(prepared), "report": prepared_report}
     initial_app_hash = _observe_app_hash(client)
+    if before_send is not None:
+        before_send()
     send_response = client.sendtx(tau_tx_payload)
     submission: dict[str, Any] = {"sendtx_response": send_response, "signing_mode": "external_signed_payload"}
     if not _tx_send_ok(send_response):
@@ -1265,6 +1253,8 @@ def _build_external_prepared_submit_response(
             "error": "sendtx_failed",
             "submission": submission,
         }
+    if after_send_accepted is not None:
+        after_send_accepted()
     if _auto_mine():
         if not _mine_or_observe_sequence_advance(
             client=client,
@@ -1291,7 +1281,12 @@ def _build_external_prepared_submit_response(
     }
 
 
-def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
+def _build_submit_response(
+    body: Mapping[str, Any],
+    *,
+    before_send: Callable[[], None] | None = None,
+    after_send_accepted: Callable[[], None] | None = None,
+) -> dict[str, Any]:
     if not _allow_testnet_submission():
         return {
             "ok": False,
@@ -1388,6 +1383,8 @@ def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
         )
 
     initial_app_hash = _observe_app_hash(client)
+    if before_send is not None:
+        before_send()
     send_response = client.sendtx(wire_tau_tx_payload)
     submission: dict[str, Any] = {
         "sendtx_response": send_response,
@@ -1436,6 +1433,8 @@ def _build_submit_response(body: Mapping[str, Any]) -> dict[str, Any]:
                 "error": "sendtx_failed",
                 "submission": submission,
             }
+    if after_send_accepted is not None:
+        after_send_accepted()
     if _auto_mine():
         if not _mine_or_observe_sequence_advance(
             client=client,
@@ -1697,16 +1696,62 @@ def _build_supervisor_execute_response(
                 "supervisor": preflight_payload.get("supervisor"),
                 "preflight": preflight_payload.get("preflight"),
             }
-        _consume_execution_id(
-            execution_keys,
-            execution_id,
-            surface="autotrader_live_supervisor_execute",
-        )
-        if _request_prepared_report(body) is not None:
-            submitted = _build_external_prepared_submit_response(body, prepared=preflight_payload)
-        else:
-            submitted = _build_submit_response(body)
+        execution_surface = "autotrader_live_supervisor_execute"
+        reserved = False
+        sent = False
+
+        def reserve_before_send() -> None:
+            nonlocal reserved
+            _reserve_execution_id(
+                execution_keys,
+                execution_id,
+                surface=execution_surface,
+            )
+            reserved = True
+
+        def mark_sent_after_acceptance() -> None:
+            nonlocal sent
+            _mark_execution_sent(execution_id, surface=execution_surface)
+            sent = True
+
+        try:
+            if _request_prepared_report(body) is not None:
+                submitted = _build_external_prepared_submit_response(
+                    body,
+                    prepared=preflight_payload,
+                    before_send=reserve_before_send,
+                    after_send_accepted=mark_sent_after_acceptance,
+                )
+            else:
+                submitted = _build_submit_response(
+                    body,
+                    before_send=reserve_before_send,
+                    after_send_accepted=mark_sent_after_acceptance,
+                )
+        except (TypeError, ValueError) as exc:
+            if not reserved:
+                raise
+            return {
+                "ok": False,
+                "error": str(exc),
+                "execution": {
+                    "execution_id": execution_id,
+                    "state": _EXECUTION_PENDING,
+                    "reconciliation_required": True,
+                    "mode": "supervised_manual_tick",
+                },
+            }
         if submitted.get("ok") is not True:
+            if reserved:
+                return {
+                    **submitted,
+                    "execution": {
+                        "execution_id": execution_id,
+                        "state": _EXECUTION_SENT if sent else _EXECUTION_PENDING,
+                        "reconciliation_required": True,
+                        "mode": "supervised_manual_tick",
+                    },
+                }
             return submitted
         consumed_runs_in_process = consumed_before + 1
         supervisor_runs[run_scope_id] = consumed_runs_in_process
@@ -1755,13 +1800,52 @@ def _build_execute_once_response(
                 },
             }
 
-        _consume_execution_id(
-            execution_keys,
-            execution_id,
-            surface="autotrader_live_execute_once",
-        )
-        submitted = _build_submit_response(body)
+        execution_surface = "autotrader_live_execute_once"
+        reserved = False
+        sent = False
+
+        def reserve_before_send() -> None:
+            nonlocal reserved
+            _reserve_execution_id(
+                execution_keys,
+                execution_id,
+                surface=execution_surface,
+            )
+            reserved = True
+
+        def mark_sent_after_acceptance() -> None:
+            nonlocal sent
+            _mark_execution_sent(execution_id, surface=execution_surface)
+            sent = True
+
+        try:
+            submitted = _build_submit_response(
+                body,
+                before_send=reserve_before_send,
+                after_send_accepted=mark_sent_after_acceptance,
+            )
+        except (TypeError, ValueError) as exc:
+            if not reserved:
+                raise
+            return {
+                "ok": False,
+                "error": str(exc),
+                "execution": {
+                    "execution_id": execution_id,
+                    "state": _EXECUTION_PENDING,
+                    "reconciliation_required": True,
+                },
+            }
         if submitted.get("ok") is not True:
+            if reserved:
+                return {
+                    **submitted,
+                    "execution": {
+                        "execution_id": execution_id,
+                        "state": _EXECUTION_SENT if sent else _EXECUTION_PENDING,
+                        "reconciliation_required": True,
+                    },
+                }
             return submitted
 
     return {

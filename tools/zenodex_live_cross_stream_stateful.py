@@ -23,6 +23,7 @@ import json
 import os
 import random
 import sys
+import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Mapping
@@ -36,6 +37,11 @@ from src.core.confidential_extension_live_admission import (
 )
 from src.core.confidential_extension_receipts import (
     make_confidential_extension_receipt,  # noqa: E402
+)
+from src.core.consensus_time import (  # noqa: E402
+    clock_policy_schedule_hash_v1,
+    default_height_only_clock_schedule_v1,
+    verify_execution_clock_v1,
 )
 from src.core.zusd import E8  # noqa: E402
 from src.integration import autotrader_live_api  # noqa: E402
@@ -99,6 +105,9 @@ def _base_env(*, require_oracle_adapter: bool = False) -> dict[str, str]:
     env = {
         "TAU_DEX_CHAIN_ID": CHAIN_ID,
         "TAU_DEX_ZUSD_ORACLE_PUBKEY": ORACLE,
+        "TAU_DEX_ZUSD_ORACLE_EVIDENCE_PROFILE": (
+            "zenodex/zusd-oracle-evidence/configured-signer-dev-v0"
+        ),
         "TAU_DEX_TOKEN_OPERATOR_PUBKEY": OPERATOR,
         "TAU_DEX_PERP_ORACLE_PUBKEY": ORACLE,
         "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH": "0",
@@ -166,12 +175,20 @@ def _apply(
     block_timestamp: int,
     chain_balances: Mapping[str, int] | None = None,
 ) -> tuple[bool, str, str | None]:
+    schedule = default_height_only_clock_schedule_v1(chain_id=CHAIN_ID)
+    execution_clock = verify_execution_clock_v1(
+        chain_id=CHAIN_ID,
+        height=int(block_timestamp),
+        schedule=schedule,
+        expected_schedule_hash=clock_policy_schedule_hash_v1(schedule),
+    )
     ok, next_json, _hash, _patch, err = plugin.apply_app_tx(
         app_state_json=app_state_json,
         chain_balances={} if chain_balances is None else dict(chain_balances),
         operations=dict(operations),
         tx_sender_pubkey=sender,
         block_timestamp=int(block_timestamp),
+        execution_clock=execution_clock,
     )
     return bool(ok), str(next_json), err
 
@@ -272,7 +289,18 @@ def _seed_minted_state() -> tuple[str, dict[str, int]]:
     app = ""
     app = _expect_ok(
         app,
-        operations={"11": [{"module": "ZUSDFinance", "action": "bootstrap_oracle", "price_e8": 100 * E8, "nonce": 1, "deadline": DEADLINE}]},
+        operations={
+            "11": [
+                {
+                    "module": "ZUSDFinance",
+                    "action": "bootstrap_oracle",
+                    "price_e8": 100 * E8,
+                    "oracle_observed_epoch": 1,
+                    "nonce": 1,
+                    "deadline": DEADLINE,
+                }
+            ]
+        },
         sender=ORACLE,
         block_timestamp=1,
         chain_balances=chain_balances,
@@ -484,6 +512,7 @@ def _scenario_cross_stream_atomicity() -> dict[str, Any]:
                     "module": "ZUSDFinance",
                     "action": "bootstrap_oracle",
                     "price_e8": 100 * E8,
+                    "oracle_observed_epoch": 1,
                     "nonce": 1,
                     "deadline": DEADLINE,
                 }
@@ -515,6 +544,7 @@ def _scenario_expired_zusd_deadline() -> dict[str, Any]:
                     "module": "ZUSDFinance",
                     "action": "bootstrap_oracle",
                     "price_e8": 100 * E8,
+                    "oracle_observed_epoch": 2,
                     "nonce": 1,
                     "deadline": 1,
                 }
@@ -670,7 +700,7 @@ def _scenario_confidential_runtime_execute_replay() -> dict[str, Any]:
         approved_measurements_hash=CONF_ALLOWLIST_HASH,
         external_verifier_binding_hash=CONF_VERIFIER_BINDING_HASH,
     )
-    request_table.mark_used(
+    request_table = request_table.consume(
         ConfidentialRequestKey(
             extension_id="route-premium-v1",
             provider_id="provider-1",
@@ -735,12 +765,15 @@ def _scenario_autotrader_execute_once_replay() -> dict[str, Any]:
     _FakeTauClient.sequence = 9
     _FakeTauClient.fail_next_send = True
 
-    with _patched_env(
+    with tempfile.TemporaryDirectory(prefix="zenodex-autotrader-replay-") as journal_dir, _patched_env(
         {
             "AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING": "true",
             "AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION": "true",
             "AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED": "true",
             "AUTOTRADER_LIVE_CHAIN_ID": CHAIN_ID,
+            "AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH": str(
+                Path(journal_dir) / "execution-journal.jsonl"
+            ),
         }
     ):
         autotrader_live_api.TauNetTcpClient = _FakeTauClient  # type: ignore[assignment]
@@ -753,42 +786,27 @@ def _scenario_autotrader_execute_once_replay() -> dict[str, Any]:
             )
             if failed_status != 400 or failed.get("error") != "sendtx_failed":
                 raise AssertionError(f"unexpected AutoTrader first failure: {failed_status} {failed!r}")
-            if execution_keys:
-                raise AssertionError("AutoTrader execute-once key was consumed after failed send")
+            if execution_keys != {"stateful-exec-1"}:
+                raise AssertionError("AutoTrader ambiguous send was not durably quarantined")
             if _FakeTauClient.sent:
                 raise AssertionError("AutoTrader failed send recorded a queued payload")
 
-            accepted_status, accepted = autotrader_live_api.handle_autotrader_live_request(
-                "POST",
-                "/api/strategy/autotrader/execute-once",
-                json.dumps(body).encode("utf-8"),
-                execution_keys=execution_keys,
-            )
-            if accepted_status != 200 or accepted.get("ok") is not True:
-                raise AssertionError(f"unexpected AutoTrader acceptance: {accepted_status} {accepted!r}")
-            if execution_keys != {"stateful-exec-1"}:
-                raise AssertionError("AutoTrader execute-once key was not consumed after success")
-            if len(_FakeTauClient.sent) != 1:
-                raise AssertionError("AutoTrader successful execute-once did not send exactly once")
-
-            replay_body = {**body, "tx_sequence_number": 10}
             replay_status, replay = autotrader_live_api.handle_autotrader_live_request(
                 "POST",
                 "/api/strategy/autotrader/execute-once",
-                json.dumps(replay_body).encode("utf-8"),
-                execution_keys=execution_keys,
+                json.dumps(body).encode("utf-8"),
+                execution_keys=set(),
             )
             if replay_status != 400 or replay.get("error") != "execution_replay":
                 raise AssertionError(f"unexpected AutoTrader replay response: {replay_status} {replay!r}")
-            if len(_FakeTauClient.sent) != 1:
+            if _FakeTauClient.sent:
                 raise AssertionError("AutoTrader replay sent a second transaction")
         finally:
             autotrader_live_api.TauNetTcpClient = old_client  # type: ignore[assignment]
 
     return {
         "first_failure": failed["error"],
-        "key_count_after_failed_send": 0,
-        "success_status": accepted["status"],
+        "state_after_ambiguous_send": failed["execution"]["state"],
         "replay_rejection": replay["error"],
         "sent_count": len(_FakeTauClient.sent),
     }
@@ -844,8 +862,8 @@ SCENARIOS: tuple[tuple[str, str, Callable[[], dict[str, Any]], bool], ...] = (
         False,
     ),
     (
-        "autotrader_execute_once_replay_rejected_without_second_send",
-        "autotrader_execute_once_replay_or_failure_key_burn",
+        "autotrader_ambiguous_send_quarantined_without_retry",
+        "autotrader_ambiguous_send_replayed_or_silently_released",
         _scenario_autotrader_execute_once_replay,
         False,
     ),
@@ -1151,6 +1169,7 @@ def run_campaign() -> dict[str, Any]:
             "live_tau_fee_market_model",
             "exhaustive_cross_stream_state_space",
             "production_oracle_truth",
+            "automated_pending_submission_reconciliation",
         ],
     }
 

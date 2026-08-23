@@ -137,6 +137,63 @@ def test_check_strategy_submit_bundle_preserves_nested_signing_parity_and_reject
     assert rejected.error == "submit_bundle_signature_invalid"
 
 
+def test_check_strategy_submit_bundle_rejects_independently_mutated_nested_operations() -> None:
+    """RIPR: signed envelope and emitted operations must bind the same full intent."""
+
+    privkey = 13
+    signer_pubkey = "0x" + bls_pubkey_hex_from_privkey(privkey)
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id="0x" + "4a" * 32,
+        sender_pubkey=signer_pubkey,
+        deadline=99,
+        fields={
+            "nonce": 1,
+            "route": {
+                "assets": ["A", "B"],
+                "limits": {"amount_in": 7, "min_amount_out": 6},
+            },
+        },
+    )
+    signature = sign_intent(intent, privkey, chain_id="tau-local").signature
+    envelope = SignedIntentEnvelope(
+        intent=intent,
+        signature=signature,
+        quote_receipt={"body": {}, "receipt_hash": "hash.nested-independent"},
+    )
+    mutated_intent = intent.with_field(
+        "route",
+        {
+            "assets": ["A", "B"],
+            "limits": {"amount_in": 8, "min_amount_out": 6},
+        },
+    )
+    mutated_operations = create_signed_intent_operation(
+        [
+            SignedIntentEnvelope(
+                intent=mutated_intent,
+                signature=signature,
+                quote_receipt=envelope.quote_receipt,
+            )
+        ]
+    )
+
+    result = check_strategy_submit_bundle(
+        emit_requested=True,
+        signed_intents=(envelope,),
+        operations=mutated_operations,
+        chain_id="tau-local",
+        signer_pubkey=signer_pubkey,
+        tx_requested=False,
+    )
+
+    assert result.ok is False
+    assert result.operations_roundtrip_ok is False
+    assert result.error == "submit_bundle_operations_roundtrip_rejected"
+
+
 @pytest.mark.parametrize(
     ("signed_intents", "operations", "signer_pubkey", "tx_requested", "tau_tx_payload", "error"),
     [

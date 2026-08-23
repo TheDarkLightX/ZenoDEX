@@ -2,10 +2,10 @@
 Intent batching and relay for autonomous agents.
 """
 
-from typing import List, Dict, Any
 from collections import defaultdict
+from typing import Any, Dict, List
 
-from ..state.intents import SignedIntent, Intent
+from ..state.intents import Intent, SignedIntent, require_exact_intent
 
 
 def batch_intents(
@@ -39,7 +39,7 @@ def batch_intents(
     batches: List[List[SignedIntent]] = []
     
     # Add pool-specific batches
-    for pool_id, pool_intents in intents_by_pool.items():
+    for _pool_id, pool_intents in intents_by_pool.items():
         # Split large pools into multiple batches
         for i in range(0, len(pool_intents), max_batch_size):
             batches.append(pool_intents[i:i + max_batch_size])
@@ -91,6 +91,7 @@ def _intent_to_dict(intent: Intent) -> Dict[str, Any]:
     Returns:
         Dictionary representation
     """
+    intent = require_exact_intent(intent)
     intent_dict = {
         "module": intent.module,
         "version": intent.version,
@@ -103,8 +104,8 @@ def _intent_to_dict(intent: Intent) -> Dict[str, Any]:
     if intent.salt:
         intent_dict["salt"] = intent.salt
     
-    if intent.fields:
-        intent_dict.update(intent.fields)
+    wire_fields = intent.to_wire_fields()
+    if wire_fields:
+        intent_dict.update(wire_fields)
     
     return intent_dict
-
