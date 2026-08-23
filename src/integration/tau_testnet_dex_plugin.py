@@ -571,12 +571,12 @@ def _generic_token_admission_error(
         return f"token op[{op_index}] canonical zUSD burn requires the monetary authority"
     if recipient_class is CanonicalZUSDCustodyClass.STABILITY_POOL_ESCROW:
         return (
-            f"token op[{op_index}] canonical zUSD transfer to reserved Stability Pool "
-            "custody requires the monetary authority"
+            f"token op[{op_index}] canonical zUSD transfer to the reserved Stability "
+            "Pool address requires the monetary authority"
         )
     return (
-        f"token op[{op_index}] canonical zUSD transfer to reserved internal custody "
-        "requires the monetary authority"
+        f"token op[{op_index}] canonical zUSD transfer to a reserved monetary-module "
+        "address requires the monetary authority"
     )
 
 
