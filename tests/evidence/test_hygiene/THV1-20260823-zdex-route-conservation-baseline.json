@@ -1,0 +1,108 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-zdex-route-conservation-baseline",
+  "created_date": "2026-08-23",
+  "claim_scope": "The Python and Rust SHADOW ZDEX purchase-burn composers require the declared quote and ZDEX owned-and-custodied pre-state totals to equal their corresponding supply totals; equality accepts, either one-atom supply deficit rejects as CONSERVATION_HISTORY_DISCONNECTED, and rejection emits the canonical empty effect plan.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZDEX-ROUTE-QUOTE-OWNED-EQUALS-SUPPLY",
+    "ZDEX-ROUTE-ZDEX-OWNED-EQUALS-SUPPLY",
+    "ZDEX-ROUTE-CONSERVATION-REJECT-WITHOUT-EFFECTS",
+    "ZDEX-ROUTE-PYTHON-RUST-PARITY"
+  ],
+  "failure_modes": [
+    "verified leaves with a quote owned total different from quote supply compose nonempty route effects",
+    "verified leaves with a ZDEX owned total different from ZDEX supply compose nonempty route effects",
+    "the new conservation branch differs between Python and Rust",
+    "the conservation guard changes the ordinary purchase-burn composition root"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/zdex_purchase_burn_route_v1.py",
+      "sha256": "a1cb11c8d8132fe9de43a8dbc4af2c17ee569f978da4cd7c78bd93cf2a0f91d9"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_purchase_burn_route.rs",
+      "sha256": "d0474986d132e34b355a2529c7e3ca92b5a75e8e365285fdeeabc59c67654fc2"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/zdex_purchase_burn_route.rs",
+      "sha256": "79c6441f4ca38b66bed1f75e21a8ca61c988c57ae2257d84164e0cc0dc426eea"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_purchase_burn_route_v1.py",
+      "sha256": "43ba19d7e979067514666cfa391baae9354c8d201b9af19afed8443757a84eb5",
+      "node_ids": [
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_route_rejects_owned_supply_baseline_neighbor_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_python_rust_golden_composition_root_is_stable"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "differential",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The regressions arrange valid authenticated route fixtures at equality and with one quote or ZDEX supply atom removed, act through the public composer, then assert acceptance at equality and the exact typed empty-effect rejection at each immediate invalid neighbor."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Both implementations return CONSERVATION_HISTORY_DISCONNECTED with no effect rows, conservation rows, lane writes, occurrence consumptions, or outbox entries."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "quote_owned_minus_supply",
+      "points": [
+        "0 accepts",
+        "1 rejects"
+      ]
+    },
+    {
+      "name": "zdex_owned_minus_supply",
+      "points": [
+        "0 accepts",
+        "1 rejects"
+      ]
+    },
+    {
+      "name": "language_implementation",
+      "points": [
+        "Python equality and one-atom neighbors",
+        "Rust equality and one-atom neighbors"
+      ]
+    },
+    {
+      "name": "ordinary_composition",
+      "points": [
+        "frozen Python composition root",
+        "matching frozen Rust composition root"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "omit the quote owned-equals-supply baseline guard",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_route_rejects_owned_supply_baseline_neighbor_without_effects"
+    },
+    {
+      "description": "omit the ZDEX owned-equals-supply baseline guard",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_route_rejects_owned_supply_baseline_neighbor_without_effects"
+    }
+  ],
+  "nonclaims": [
+    "The route remains SHADOW and unmounted, and production authority remains NONE.",
+    "This stage does not add fee-allocation baseline semantics or a new fee reject code; that precedence-sensitive issue remains deferred.",
+    "The scoped route guard does not prove global custody, liabilities, replay continuity, terminal lifecycle, migration, outbox delivery, or whole-economy conservation.",
+    "No RISC0 guest image or real receipt was rebuilt in this stage, and no release or proof profile is promoted.",
+    "Two immediate invalid neighbors and a frozen differential root do not guarantee all ZenoDEX value movement."
+  ]
+}

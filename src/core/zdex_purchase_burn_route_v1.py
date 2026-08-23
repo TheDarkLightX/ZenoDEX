@@ -789,6 +789,8 @@ def _economic_reject_code(
     if (
         purchase.zdex_owned_atoms != burn.zdex_owned_pre_atoms
         or purchase.zdex_supply_atoms != burn.zdex_supply_pre_atoms
+        or purchase.quote_owned_atoms != purchase.quote_supply_atoms
+        or purchase.zdex_owned_atoms != purchase.zdex_supply_atoms
     ):
         return ZDEXPurchaseBurnRouteRejectCodeV1.CONSERVATION_HISTORY_DISCONNECTED
     return None

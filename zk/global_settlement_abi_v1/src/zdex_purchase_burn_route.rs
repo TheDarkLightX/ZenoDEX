@@ -533,6 +533,8 @@ fn economic_reject_code_v1(
     }
     if purchase.zdex_owned_atoms != burn.zdex_owned_pre_atoms
         || purchase.zdex_supply_atoms != burn.zdex_supply_pre_atoms
+        || purchase.quote_owned_atoms != purchase.quote_supply_atoms
+        || purchase.zdex_owned_atoms != purchase.zdex_supply_atoms
     {
         return Ok(Some(
             ZDEXPurchaseBurnRouteRejectCodeV1::CONSERVATION_HISTORY_DISCONNECTED,

@@ -2046,6 +2046,30 @@ def test_bva_positive_amounts_preserve_route_conservation(
     assert result.effects.asset_conservation[-1].supply_post_atoms == 100
 
 
+@pytest.mark.parametrize(
+    "purchase_overrides",
+    (
+        {"quote_owned_atoms": 10_000, "quote_supply_atoms": 9_999},
+        {"zdex_owned_atoms": 1_000, "zdex_supply_atoms": 999},
+    ),
+    ids=("quote-supply-minus-one", "zdex-supply-minus-one"),
+)
+def test_route_rejects_owned_supply_baseline_neighbor_without_effects(
+    purchase_overrides: dict[str, object],
+) -> None:
+    # Arrange
+    candidate = _verified_fixture(purchase_overrides=purchase_overrides)
+
+    # Act
+    result = compose_zdex_purchase_burn_route_v1(candidate)
+
+    # Assert
+    _assert_no_effect_reject(
+        result,
+        ZDEXPurchaseBurnRouteRejectCodeV1.CONSERVATION_HISTORY_DISCONNECTED,
+    )
+
+
 def test_python_rust_golden_composition_root_is_stable() -> None:
     result = compose_zdex_purchase_burn_route_v1(_verified_fixture())
 

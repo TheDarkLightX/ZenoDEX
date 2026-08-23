@@ -940,6 +940,34 @@ fn rust_matches_python_golden_composition_root_and_effects() {
 }
 
 #[test]
+fn owned_supply_baseline_equality_accepts_and_neighbors_reject_without_effects() {
+    let control = fixture();
+    assert!(matches!(
+        compose(&control),
+        ZDEXPurchaseBurnRouteResultV1::Accepted(_)
+    ));
+
+    for quote_mismatch in [true, false] {
+        let mut fixture = fixture();
+        if quote_mismatch {
+            fixture.purchase.quote_supply_atoms -= 1;
+        } else {
+            fixture.purchase.zdex_supply_atoms -= 1;
+        }
+        reauthenticate_buyback_leaves(&mut fixture);
+
+        let ZDEXPurchaseBurnRouteResultV1::Rejected(rejected) = compose(&fixture) else {
+            panic!("owned/supply baseline mismatch must reject")
+        };
+        assert_eq!(
+            rejected.code,
+            ZDEXPurchaseBurnRouteRejectCodeV1::CONSERVATION_HISTORY_DISCONNECTED
+        );
+        assert!(rejected.effects.is_empty());
+    }
+}
+
+#[test]
 fn foreign_route_rejects_governed_profile_without_effects() {
     let fixture = fixture();
     let foreign_tokenomics = lane_release(LaneIdV1::ZDEX_TOKENOMICS, 98);
