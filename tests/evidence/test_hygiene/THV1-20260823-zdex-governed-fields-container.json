@@ -1,0 +1,70 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-zdex-governed-fields-container",
+  "created_date": "2026-08-23",
+  "claim_scope": "The governed ZDEX fee-profile snapshot rejects a replaced private-fields container before attribute access. The earlier packet phrase authority witnesses is narrowed here to non-authoritative process-local verification markers and grants no publication authority.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZDEX-GOVERNED-FIELDS-EXACT-CONTAINER",
+    "ZDEX-REJECT-BEFORE-ATTRIBUTE-HOOK",
+    "ZDEX-REJECT-BEFORE-CALLBACK"
+  ],
+  "failure_modes": [
+    "a caller replaces governed private fields after construction",
+    "a hostile private-fields container executes __getattribute__ before exact-type validation",
+    "the hostile container reaches canonicalization or the external receipt verifier"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/zdex_fee_allocation_receipt_verification_v1.py",
+      "sha256": "54980f0b1dd46e6561ff1f3060dfe10c35543145a82d834ca3a5b50246063e3a"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_purchase_burn_route_v1.py",
+      "sha256": "e8e5b13a2ba8237ac3e449e4c87facbbe094db1fe715a557705a60ae3809e7fe",
+      "node_ids": [
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_rejects_hostile_governed_fields_before_attribute_access"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The regression arranges one hostile replacement container, acts through the public fee receipt verifier, and asserts exact TypeError, zero hostile attribute events, and zero receipt-verifier calls."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "This pure verifier boundary returns no process-local verification marker or economic effect, performs no hostile attribute access, and never invokes the external verifier."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "governed_private_fields_container",
+      "points": [
+        "exact_internal_fields_accept",
+        "replacement_container_rejects_before_attribute_access"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "read profile data from a caller-replaced governed private-fields container before checking its exact type",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_fee_receipt_rejects_hostile_governed_fields_before_attribute_access"
+    }
+  ],
+  "nonclaims": [
+    "The phrase authority witnesses in THV1-20260823-zdex-receipt-owned-snapshots means non-authoritative process-local verification markers; neither packet grants settlement or publication authority.",
+    "This packet closes one deterministic Python object-replacement attack and proves no cryptographic receipt or deployed verifier correctness.",
+    "It does not prove concurrent mutation safety, all economic semantics, complete mediation, or all value movement.",
+    "Named mutation evidence is bounded and no automated mutation score is claimed.",
+    "Production authority remains NONE and whole-economy safety remains unproved."
+  ]
+}

@@ -29,6 +29,7 @@ from .global_settlement_types_v1 import (
 )
 from .zdex_fee_allocation_profile_binding_v1 import (
     GovernedZDEXFeeAllocationProfileV1,
+    _GovernedZDEXFeeAllocationProfileFieldsV1,
     bind_zdex_fee_allocation_shadow_profile_v1,
 )
 from .zdex_fee_allocation_types_v1 import (
@@ -220,6 +221,8 @@ def _snapshot_governed_fee_profile_v1(
     if type(governed) is not GovernedZDEXFeeAllocationProfileV1:
         raise TypeError("ZDEX fee-allocation governed profile must be verifier-constructed")
     fields = governed._fields
+    if type(fields) is not _GovernedZDEXFeeAllocationProfileFieldsV1:
+        raise TypeError("ZDEX fee-allocation governed fields must be exact typed data")
     profile = snapshot_economic_profile_v1(fields.profile)
     policy_registry = _snapshot_policy_registry_v1(fields.policy_registry)
     return bind_zdex_fee_allocation_shadow_profile_v1(

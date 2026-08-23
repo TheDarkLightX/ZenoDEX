@@ -1116,6 +1116,32 @@ def test_fee_receipt_rejects_hostile_scalar_before_callback() -> None:
     assert verifier.calls == []
 
 
+def test_fee_receipt_rejects_hostile_governed_fields_before_attribute_access() -> None:
+    # Arrange
+    candidate, governed = _fee_receipt_candidate_fixture()
+
+    class _HostileFields:
+        def __init__(self) -> None:
+            object.__setattr__(self, "events", [])
+
+        def __getattribute__(self, name: str) -> object:
+            if name == "events":
+                return object.__getattribute__(self, name)
+            events = object.__getattribute__(self, "events")
+            events.append(name)
+            raise AssertionError("hostile governed fields attribute access ran")
+
+    hostile_fields = _HostileFields()
+    object.__setattr__(governed, "_fields", hostile_fields)
+    verifier = _Verifier()
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="fields must be exact typed data"):
+        verify_zdex_fee_allocation_receipt_v1(candidate, governed, verifier)
+    assert hostile_fields.events == []
+    assert verifier.calls == []
+
+
 def test_policy_registry_root_matches_rust_golden_vector() -> None:
     _, governed = _fee_receipt_candidate_fixture()
     policy_registry = governed._fields.policy_registry
