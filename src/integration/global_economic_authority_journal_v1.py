@@ -240,10 +240,15 @@ def _open_identity_descriptor_v1(path: Path) -> int:
 
 
 def _open_readable_identity_descriptor_v1(identity_fd: int) -> int:
-    readable_fd = os.open(
-        Path(f"/proc/self/fd/{identity_fd}"),
-        os.O_RDONLY | os.O_CLOEXEC,
-    )
+    try:
+        readable_fd = os.open(
+            Path(f"/proc/self/fd/{identity_fd}"),
+            os.O_RDONLY | os.O_CLOEXEC,
+        )
+    except OSError as exc:
+        raise GlobalEconomicAuthorityBootstrapPlatformUnsupportedV1(
+            "global economic authority cannot reopen its procfs descriptor"
+        ) from exc
     if not _same_inode_v1(os.fstat(identity_fd), os.fstat(readable_fd)):
         os.close(readable_fd)
         raise RuntimeError(
@@ -291,13 +296,18 @@ def _connect_descriptor_for_validation_v1(
 ) -> sqlite3.Connection:
     _require_descriptor_recovery_platform_v1()
     descriptor_path = Path(f"/proc/self/fd/{file_descriptor}")
-    connection = sqlite3.connect(
-        f"{descriptor_path.as_uri()}?mode=ro&immutable=1",
-        uri=True,
-        timeout=5.0,
-        isolation_level=None,
-        check_same_thread=False,
-    )
+    try:
+        connection = sqlite3.connect(
+            f"{descriptor_path.as_uri()}?mode=ro&immutable=1",
+            uri=True,
+            timeout=5.0,
+            isolation_level=None,
+            check_same_thread=False,
+        )
+    except (OSError, sqlite3.Error) as exc:
+        raise GlobalEconomicAuthorityBootstrapPlatformUnsupportedV1(
+            "global economic authority cannot open SQLite through procfs"
+        ) from exc
     try:
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA trusted_schema = OFF")

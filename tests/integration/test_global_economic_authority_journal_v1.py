@@ -488,8 +488,50 @@ def test_authority_linked_recovery_has_explicit_shared_uid_and_platform_ceiling(
 
     # Act and assert: without Linux O_PATH support recovery rejects with one
     # typed platform boundary and does not alter either name.
+    original_o_path = authority_journal_module.os.O_PATH
     monkeypatch.delattr(authority_journal_module.os, "O_PATH")
     with pytest.raises(GlobalEconomicAuthorityBootstrapPlatformUnsupportedV1):
+        GlobalEconomicAuthorityJournalV1.create(unsupported_target, active)
+    monkeypatch.setattr(
+        authority_journal_module.os,
+        "O_PATH",
+        original_o_path,
+        raising=False,
+    )
+
+    # Act and assert: an existing but inaccessible procfs descriptor and a
+    # SQLite procfs-open failure map to the same typed platform boundary.
+    original_open = authority_journal_module.os.open
+
+    def deny_proc_open(path: object, *args: object, **kwargs: object) -> int:
+        if str(path).startswith("/proc/self/fd/"):
+            raise PermissionError("simulated inaccessible procfs")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(authority_journal_module.os, "open", deny_proc_open)
+    with pytest.raises(
+        GlobalEconomicAuthorityBootstrapPlatformUnsupportedV1,
+        match="cannot reopen",
+    ):
+        GlobalEconomicAuthorityJournalV1.create(unsupported_target, active)
+    monkeypatch.setattr(authority_journal_module.os, "open", original_open)
+
+    original_connect = authority_journal_module.sqlite3.connect
+
+    def deny_proc_sqlite(target: object, *args: object, **kwargs: object) -> object:
+        if "/proc/self/fd/" in str(target):
+            raise sqlite3.OperationalError("simulated SQLite procfs denial")
+        return original_connect(target, *args, **kwargs)
+
+    monkeypatch.setattr(
+        authority_journal_module.sqlite3,
+        "connect",
+        deny_proc_sqlite,
+    )
+    with pytest.raises(
+        GlobalEconomicAuthorityBootstrapPlatformUnsupportedV1,
+        match="cannot open SQLite",
+    ):
         GlobalEconomicAuthorityJournalV1.create(unsupported_target, active)
     assert candidate.exists()
     assert unsupported_target.exists()

@@ -298,10 +298,15 @@ def _open_epoch_identity_descriptor_v1(path: Path) -> int:
 
 
 def _open_readable_epoch_identity_descriptor_v1(identity_fd: int) -> int:
-    readable_fd = os.open(
-        Path(f"/proc/self/fd/{identity_fd}"),
-        os.O_RDONLY | os.O_CLOEXEC,
-    )
+    try:
+        readable_fd = os.open(
+            Path(f"/proc/self/fd/{identity_fd}"),
+            os.O_RDONLY | os.O_CLOEXEC,
+        )
+    except OSError as exc:
+        raise DurableEconomicEpochBootstrapPlatformUnsupportedV1(
+            "durable epoch cannot reopen its procfs descriptor"
+        ) from exc
     if not _same_epoch_inode_v1(os.fstat(identity_fd), os.fstat(readable_fd)):
         os.close(readable_fd)
         raise RuntimeError("durable epoch readable recovery descriptor changed inode")
@@ -348,13 +353,18 @@ def _connect_epoch_descriptor_for_validation_v1(
 ) -> sqlite3.Connection:
     _require_epoch_descriptor_recovery_platform_v1()
     descriptor_path = Path(f"/proc/self/fd/{file_descriptor}")
-    connection = sqlite3.connect(
-        f"{descriptor_path.as_uri()}?mode=ro&immutable=1",
-        uri=True,
-        timeout=5.0,
-        isolation_level=None,
-        check_same_thread=False,
-    )
+    try:
+        connection = sqlite3.connect(
+            f"{descriptor_path.as_uri()}?mode=ro&immutable=1",
+            uri=True,
+            timeout=5.0,
+            isolation_level=None,
+            check_same_thread=False,
+        )
+    except (OSError, sqlite3.Error) as exc:
+        raise DurableEconomicEpochBootstrapPlatformUnsupportedV1(
+            "durable epoch cannot open SQLite through procfs"
+        ) from exc
     try:
         connection.execute("PRAGMA foreign_keys = ON")
         connection.execute("PRAGMA trusted_schema = OFF")

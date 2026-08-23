@@ -988,8 +988,44 @@ def test_epoch_linked_recovery_has_explicit_shared_uid_and_platform_ceiling(
 
     # Act and assert: unsupported descriptor recovery is typed and preserves
     # both names rather than falling back to path-based adoption.
+    original_o_path = journal_module.os.O_PATH
     monkeypatch.delattr(journal_module.os, "O_PATH")
     with pytest.raises(DurableEconomicEpochBootstrapPlatformUnsupportedV1):
+        GlobalEconomicEpochJournalV1.create(unsupported_target, activation)
+    monkeypatch.setattr(
+        journal_module.os,
+        "O_PATH",
+        original_o_path,
+        raising=False,
+    )
+
+    original_open = journal_module.os.open
+
+    def deny_proc_open(path: object, *args: object, **kwargs: object) -> int:
+        if str(path).startswith("/proc/self/fd/"):
+            raise PermissionError("simulated inaccessible procfs")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(journal_module.os, "open", deny_proc_open)
+    with pytest.raises(
+        DurableEconomicEpochBootstrapPlatformUnsupportedV1,
+        match="cannot reopen",
+    ):
+        GlobalEconomicEpochJournalV1.create(unsupported_target, activation)
+    monkeypatch.setattr(journal_module.os, "open", original_open)
+
+    original_connect = journal_module.sqlite3.connect
+
+    def deny_proc_sqlite(target: object, *args: object, **kwargs: object) -> object:
+        if "/proc/self/fd/" in str(target):
+            raise sqlite3.OperationalError("simulated SQLite procfs denial")
+        return original_connect(target, *args, **kwargs)
+
+    monkeypatch.setattr(journal_module.sqlite3, "connect", deny_proc_sqlite)
+    with pytest.raises(
+        DurableEconomicEpochBootstrapPlatformUnsupportedV1,
+        match="cannot open SQLite",
+    ):
         GlobalEconomicEpochJournalV1.create(unsupported_target, activation)
     assert candidate.exists()
     assert unsupported_target.exists()

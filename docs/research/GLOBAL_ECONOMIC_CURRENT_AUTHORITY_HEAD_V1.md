@@ -161,7 +161,8 @@ individual functions reviewable.
 - rejection without mutation of byte-identical separate inodes, wrong authority
   heads, and wrong activation bundles during linked-name recovery;
 - prompt nonblocking rejection of paired FIFO recovery names;
-- typed non-mutating rejection when Linux `O_PATH` recovery is unavailable;
+- typed non-mutating rejection when Linux `O_PATH`, proc-descriptor reopen, or
+  SQLite-through-procfs recovery is unavailable;
 - explicit evidence that an exact current-UID prebuilt hardlink pair is
   recoverable at the cooperative research ceiling;
 - stale historical-authority retry;
