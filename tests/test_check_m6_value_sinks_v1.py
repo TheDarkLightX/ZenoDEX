@@ -22,11 +22,11 @@ def test_current_python_value_sinks_are_exhaustively_classified_for_v1() -> None
 
     assert report["ok"] is True
     assert report["findings"] == []
-    assert report["classified_identity_count"] == 18
-    assert report["observed_occurrence_count"] == 24
+    assert report["classified_identity_count"] == 20
+    assert report["observed_occurrence_count"] == 29
     assert report["release_ready"] is False
     assert report["production_authority"] is False
-    assert len(report["release_gaps"]) == 17
+    assert len(report["release_gaps"]) == 19
 
 
 def test_arbitrary_function_name_cannot_hide_literal_sql_value_mutation(tmp_path: Path) -> None:

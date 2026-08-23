@@ -29,6 +29,30 @@
     },
     {
       "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "AUTHORITY_CONTROL_STATE",
+      "occurrence_count": 3,
+      "path": "src/integration/global_economic_authority_journal_v1.py",
+      "rationale": "Creates one bounded directory-local research authority history and current pointer. The authority is unmounted, filename-scoped, rollbackable, and grants no production authority.",
+      "release_binding": null,
+      "sink_id": "global_economic_current_authority_base_sql",
+      "sink_kind": "SQL_DML",
+      "symbol": "GlobalEconomicAuthorityJournalV1._create_store_v1",
+      "writer_entrypoint_ids": []
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
+      "classification": "AUTHORITY_CONTROL_STATE",
+      "occurrence_count": 2,
+      "path": "src/integration/global_economic_authority_journal_v1.py",
+      "rationale": "Inserts and advances one syntactically valid authority successor behind a private unmounted CAS hook. Governance and migration authentication, anti-rollback storage, and atomic migration retirement remain release blockers.",
+      "release_binding": null,
+      "sink_id": "global_economic_current_authority_successor_sql",
+      "sink_kind": "SQL_DML",
+      "symbol": "_insert_authority_successor_v1",
+      "writer_entrypoint_ids": []
+    },
+    {
+      "authority_status": "M6_RESEARCH_ONLY",
       "classification": "INITIALIZATION_STATE",
       "occurrence_count": 1,
       "path": "src/integration/global_economic_commit_v1.py",
