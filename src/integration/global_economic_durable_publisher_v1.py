@@ -26,6 +26,10 @@ from ..core.economic_receipt_verifier_deployment_v1 import (
 from ..core.economic_receipt_verifier_registry_v1 import (
     EconomicReceiptVerifierSelectionPurposeV1,
 )
+from ..core.global_economic_authority_head_v1 import (
+    GlobalEconomicAuthorityHeadV1,
+    GlobalEconomicAuthorityStatusV1,
+)
 from ..core.global_economic_durable_activation_v1 import (
     DurableEconomicInitialStateBundleV1,
     prepare_durable_economic_initial_state_bundle_v1,
@@ -44,6 +48,11 @@ from ..core.global_settlement_types_v1 import (
     GlobalEconomicStateV1,
     ProfileStatusV1,
     canonical_global_bytes_v1,
+)
+from .global_economic_authority_journal_v1 import (
+    _create_or_recover_authority_for_publisher_v1,
+    authority_journal_path_for_epoch_v1,
+    economic_epoch_store_root_v1,
 )
 from .global_economic_commit_v1 import (
     EconomicEpochBodyAndStateV1,
@@ -219,6 +228,29 @@ def _prepare_verified_activation_v1(
     )
 
 
+def _build_initial_authority_v1(
+    bundle: DurableEconomicInitialStateBundleV1,
+    profile: EconomicProfileSnapshotV1,
+    state: GlobalEconomicStateV1,
+    receipt_verifier: BoundEconomicReceiptVerifierV1,
+    epoch_path: str | Path,
+) -> GlobalEconomicAuthorityHeadV1:
+    return GlobalEconomicAuthorityHeadV1(
+        generation=bundle.record.generation,
+        activation_id=bundle.record.activation_id,
+        chain_id=state.chain_id,
+        deployment_root=state.deployment_root,
+        epoch_store_root=economic_epoch_store_root_v1(epoch_path),
+        profile_root=profile.profile_id,
+        writer_epoch=state.writer_epoch,
+        verifier_registry_root=profile.verifier_registry_root,
+        verifier_release_id=receipt_verifier.release_id,
+        verifier_binding_root=receipt_verifier.binding_root,
+        root_image_id=profile.root_image_id,
+        status=GlobalEconomicAuthorityStatusV1.ACTIVE,
+    )
+
+
 def _require_candidate_source_v1(
     *,
     source: DurableEconomicPublicationHeadV1,
@@ -355,8 +387,25 @@ class VerifiedDurableEconomicPublisherV1:
             initial_state_admission,
             receipt_verifier,
         )
+        authority = _build_initial_authority_v1(
+            verified.bundle,
+            verified.profile,
+            verified.state,
+            receipt_verifier,
+            path,
+        )
+        authority_path = authority_journal_path_for_epoch_v1(path)
+        _create_or_recover_authority_for_publisher_v1(
+            authority_path,
+            authority,
+        )
         journal, write_capability = (
-            _create_epoch_journal_for_verified_publisher_v1(path, verified.bundle)
+            _create_epoch_journal_for_verified_publisher_v1(
+                path,
+                verified.bundle,
+                authority_path,
+                authority,
+            )
         )
         return cls(
             _DURABLE_PUBLISHER_MINT_V1,
@@ -378,8 +427,18 @@ class VerifiedDurableEconomicPublisherV1:
             initial_state_admission,
             receipt_verifier,
         )
+        authority = _build_initial_authority_v1(
+            verified.bundle,
+            verified.profile,
+            verified.state,
+            receipt_verifier,
+            path,
+        )
+        authority_path = authority_journal_path_for_epoch_v1(path)
         journal, write_capability = _open_epoch_journal_for_verified_publisher_v1(
-            path
+            path,
+            authority_path,
+            authority,
         )
         try:
             if (
@@ -387,6 +446,7 @@ class VerifiedDurableEconomicPublisherV1:
                 != verified.bundle.canonical_bytes
             ):
                 raise ValueError("durable publisher activation bundle mismatch")
+            journal._require_current_authority_v1()
             return cls(
                 _DURABLE_PUBLISHER_MINT_V1,
                 journal,

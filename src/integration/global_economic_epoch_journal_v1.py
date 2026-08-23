@@ -15,6 +15,10 @@ from threading import Lock
 from typing import Final
 from weakref import WeakKeyDictionary
 
+from ..core.global_economic_authority_head_v1 import (
+    GlobalEconomicAuthorityHeadV1,
+    GlobalEconomicAuthorityStatusV1,
+)
 from ..core.global_economic_durable_activation_v1 import (
     DurableEconomicComponentKindV1,
     DurableEconomicInitialStateBundleV1,
@@ -22,6 +26,10 @@ from ..core.global_economic_durable_activation_v1 import (
     decode_durable_economic_initial_state_bundle_v1,
 )
 from ..core.global_settlement_types_v1 import _require_root, hash_global_v1
+from .global_economic_authority_journal_v1 import (
+    _attach_authority_store_v1,
+    _validate_authority_store_on_connection_v1,
+)
 from .global_economic_durable_epoch_v1 import (
     DURABLE_ECONOMIC_EPOCH_SCHEMA_V1,
     DurableEconomicEpochBundleV1,
@@ -68,6 +76,7 @@ class DurableEconomicEpochCommitStatusV1(str, Enum):
     ALREADY_COMMITTED = "ALREADY_COMMITTED"
     STALE_HEAD = "STALE_HEAD"
     CAPACITY_EXCEEDED = "CAPACITY_EXCEEDED"
+    AUTHORITY_STALE = "AUTHORITY_STALE"
 
 
 @dataclass(frozen=True, slots=True)
@@ -95,16 +104,40 @@ class DurableEconomicEpochCommitOutcomeV1:
 class DurableEconomicEpochCasTokenV1:
     """Process-local source snapshot; it grants no writer authorization."""
 
-    __slots__ = ("__publication_id", "__sequence", "__sealed", "__weakref__")
+    __slots__ = (
+        "__authority_generation",
+        "__authority_root",
+        "__publication_id",
+        "__sequence",
+        "__sealed",
+        "__weakref__",
+    )
     __publication_id: str
     __sequence: int
     __sealed: bool
 
-    def __init__(self, mint: object, publication_id: str, sequence: int) -> None:
+    def __init__(
+        self,
+        mint: object,
+        publication_id: str,
+        sequence: int,
+        authority_root: str | None,
+        authority_generation: int | None,
+    ) -> None:
         if mint is not _CAS_TOKEN_MINT_V1:
             raise TypeError("durable epoch CAS tokens are journal-minted")
         object.__setattr__(self, "_DurableEconomicEpochCasTokenV1__publication_id", publication_id)
         object.__setattr__(self, "_DurableEconomicEpochCasTokenV1__sequence", sequence)
+        object.__setattr__(
+            self,
+            "_DurableEconomicEpochCasTokenV1__authority_root",
+            authority_root,
+        )
+        object.__setattr__(
+            self,
+            "_DurableEconomicEpochCasTokenV1__authority_generation",
+            authority_generation,
+        )
         object.__setattr__(self, "_DurableEconomicEpochCasTokenV1__sealed", True)
 
     def __setattr__(self, name: str, value: object) -> None:
@@ -203,7 +236,10 @@ def _configure_connection_v1(connection: sqlite3.Connection) -> None:
     connection.execute("PRAGMA busy_timeout = 5000")
 
 
-def _connect_v1(path: Path) -> sqlite3.Connection:
+def _connect_v1(
+    path: Path,
+    authority_path: Path | None = None,
+) -> sqlite3.Connection:
     connection = sqlite3.connect(
         path,
         timeout=5.0,
@@ -212,13 +248,22 @@ def _connect_v1(path: Path) -> sqlite3.Connection:
     )
     try:
         _configure_connection_v1(connection)
+        if authority_path is not None:
+            _attach_authority_store_v1(
+                connection,
+                authority_path,
+                immutable=False,
+            )
     except BaseException:
         connection.close()
         raise
     return connection
 
 
-def _connect_existing_for_validation_v1(path: Path) -> sqlite3.Connection:
+def _connect_existing_for_validation_v1(
+    path: Path,
+    authority_path: Path | None = None,
+) -> sqlite3.Connection:
     """Open an existing store without changing its persistent journal mode."""
 
     _reject_wal_artifacts_v1(path)
@@ -236,6 +281,12 @@ def _connect_existing_for_validation_v1(path: Path) -> sqlite3.Connection:
         mode = connection.execute("PRAGMA journal_mode").fetchone()
         if mode is None or str(mode[0]).lower() != "delete":
             raise RuntimeError("durable epoch journal requires DELETE journal mode")
+        if authority_path is not None:
+            _attach_authority_store_v1(
+                connection,
+                authority_path,
+                immutable=True,
+            )
     except BaseException:
         connection.close()
         raise
@@ -331,14 +382,21 @@ def _activation_release_observation_root_v1(
 class GlobalEconomicEpochJournalV1:
     """Bounded atomic history for one activation and its ordinary epochs."""
 
-    def __init__(self, path: Path, connection: sqlite3.Connection) -> None:
+    def __init__(
+        self,
+        path: Path,
+        connection: sqlite3.Connection,
+        *,
+        expected_authority: GlobalEconomicAuthorityHeadV1 | None = None,
+    ) -> None:
         self._path = path
         self._connection = connection
         self._lock = Lock()
         self._instance_token = object()
+        self._expected_authority = expected_authority
         self._cas_tokens: WeakKeyDictionary[
             DurableEconomicEpochCasTokenV1,
-            tuple[object, str, int],
+            tuple[object, str, int, str | None, int | None],
         ] = WeakKeyDictionary()
         self._closed = False
 
@@ -467,17 +525,50 @@ class GlobalEconomicEpochJournalV1:
         with self._lock:
             self._require_open_v1()
             head = self._read_snapshot_v1()
+            authority_coordinates = self._authority_coordinates_v1()
             token = DurableEconomicEpochCasTokenV1(
                 _CAS_TOKEN_MINT_V1,
                 head.publication_id,
                 head.sequence,
+                *authority_coordinates,
             )
             self._cas_tokens[token] = (
                 self._instance_token,
                 head.publication_id,
                 head.sequence,
+                *authority_coordinates,
             )
             return token
+
+    def _authority_coordinates_v1(self) -> tuple[str | None, int | None]:
+        expected = self._expected_authority
+        if expected is None:
+            return None, None
+        if self._connection.in_transaction:
+            current = _validate_authority_store_on_connection_v1(
+                self._connection,
+                database="economic_authority",
+            )
+            return current.authority_root, current.generation
+        self._connection.execute("BEGIN")
+        try:
+            current = _validate_authority_store_on_connection_v1(
+                self._connection,
+                database="economic_authority",
+            )
+            self._connection.execute("COMMIT")
+            return current.authority_root, current.generation
+        except BaseException:
+            _rollback_v1(self._connection)
+            raise
+
+    def _require_current_authority_v1(self) -> None:
+        expected = self._expected_authority
+        if expected is None:
+            raise ValueError("durable epoch journal lacks an authority fence")
+        coordinates = self._authority_coordinates_v1()
+        if coordinates != (expected.authority_root, expected.generation):
+            raise ValueError("durable epoch journal current authority mismatch")
 
     def _create_store_v1(
         self,
@@ -697,6 +788,8 @@ class GlobalEconomicEpochJournalV1:
                 owned,
                 expected_publication_id=binding[1],
                 expected_sequence=binding[2],
+                expected_authority_root=binding[3],
+                expected_authority_generation=binding[4],
                 fault=fault,
             )
 
@@ -706,6 +799,8 @@ class GlobalEconomicEpochJournalV1:
         *,
         expected_publication_id: str,
         expected_sequence: int,
+        expected_authority_root: str | None,
+        expected_authority_generation: int | None,
         fault: _DurableEconomicEpochCommitFaultV1 | None,
     ) -> DurableEconomicEpochCommitOutcomeV1:
         connection = self._connection
@@ -716,6 +811,15 @@ class GlobalEconomicEpochJournalV1:
             if fault is _DurableEconomicEpochCommitFaultV1.AFTER_BEGIN:
                 raise _SimulatedDurableEconomicEpochCrashV1(fault.value)
             current = self._validate_store_v1()
+            if not self._authority_is_current_v1(
+                expected_authority_root,
+                expected_authority_generation,
+            ):
+                connection.execute("ROLLBACK")
+                return DurableEconomicEpochCommitOutcomeV1(
+                    DurableEconomicEpochCommitStatusV1.AUTHORITY_STALE,
+                    current,
+                )
             retry = self._exact_retry_v1(epoch, target_bytes)
             if retry is not None:
                 connection.execute("COMMIT")
@@ -799,6 +903,25 @@ class GlobalEconomicEpochJournalV1:
                 _rollback_v1(connection)
             raise
 
+    def _authority_is_current_v1(
+        self,
+        expected_authority_root: str | None,
+        expected_authority_generation: int | None,
+    ) -> bool:
+        authority = self._expected_authority
+        if authority is None:
+            return False
+        current = _validate_authority_store_on_connection_v1(
+            self._connection,
+            database="economic_authority",
+        )
+        return (
+            current.status is GlobalEconomicAuthorityStatusV1.ACTIVE
+            and current == authority
+            and current.authority_root == expected_authority_root
+            and current.generation == expected_authority_generation
+        )
+
     def _exact_retry_v1(
         self,
         epoch: DurableEconomicEpochBundleV1,
@@ -828,14 +951,36 @@ class GlobalEconomicEpochJournalV1:
 def _create_epoch_journal_for_verified_publisher_v1(
     path: str | Path,
     activation: DurableEconomicInitialStateBundleV1,
+    authority_path: Path,
+    expected_authority: GlobalEconomicAuthorityHeadV1,
 ) -> tuple[GlobalEconomicEpochJournalV1, DurableEconomicEpochWriteCapabilityV1]:
     """Create or recover one exact journal and its publisher capability."""
 
     owned_activation = _snapshot_activation_v1(activation)
     try:
-        journal = GlobalEconomicEpochJournalV1.create(path, owned_activation)
+        normalized = _normalize_path_v1(path)
+        if normalized.exists() or normalized.is_symlink():
+            raise FileExistsError("durable epoch journal path already exists")
+        if not normalized.parent.is_dir():
+            raise FileNotFoundError("durable epoch journal parent directory is absent")
+        journal = GlobalEconomicEpochJournalV1(
+            normalized,
+            _connect_v1(normalized, authority_path),
+            expected_authority=expected_authority,
+        )
+        try:
+            journal._create_store_v1(owned_activation)
+            journal._read_snapshot_v1()
+            journal._require_current_authority_v1()
+        except BaseException:
+            journal.close()
+            raise
     except FileExistsError:
-        journal = GlobalEconomicEpochJournalV1.open(path)
+        journal = _open_epoch_journal_with_authority_v1(
+            path,
+            authority_path,
+            expected_authority,
+        )
         if journal.activation_bundle.canonical_bytes != owned_activation.canonical_bytes:
             journal.close()
             raise ValueError(
@@ -851,6 +996,7 @@ def _create_epoch_journal_for_verified_publisher_v1(
                 "activation head"
             ) from None
     try:
+        journal._require_current_authority_v1()
         capability = _mint_write_capability_for_verified_publisher_v1(journal)
     except BaseException:
         journal.close()
@@ -860,16 +1006,54 @@ def _create_epoch_journal_for_verified_publisher_v1(
 
 def _open_epoch_journal_for_verified_publisher_v1(
     path: str | Path,
+    authority_path: Path,
+    expected_authority: GlobalEconomicAuthorityHeadV1,
 ) -> tuple[GlobalEconomicEpochJournalV1, DurableEconomicEpochWriteCapabilityV1]:
     """Open one journal and mint a fresh instance-bound publisher capability."""
 
-    journal = GlobalEconomicEpochJournalV1.open(path)
+    journal = _open_epoch_journal_with_authority_v1(
+        path,
+        authority_path,
+        expected_authority,
+    )
     try:
         capability = _mint_write_capability_for_verified_publisher_v1(journal)
     except BaseException:
         journal.close()
         raise
     return journal, capability
+
+
+def _open_epoch_journal_with_authority_v1(
+    path: str | Path,
+    authority_path: Path,
+    expected_authority: GlobalEconomicAuthorityHeadV1,
+) -> GlobalEconomicEpochJournalV1:
+    normalized = _normalize_path_v1(path)
+    if normalized.is_symlink():
+        raise ValueError("durable epoch journal path must not be a symlink")
+    if not normalized.is_file():
+        raise FileNotFoundError("durable epoch journal file is absent")
+    validation = GlobalEconomicEpochJournalV1(
+        normalized,
+        _connect_existing_for_validation_v1(normalized, authority_path),
+        expected_authority=expected_authority,
+    )
+    try:
+        validation._read_snapshot_v1()
+    finally:
+        validation.close()
+    journal = GlobalEconomicEpochJournalV1(
+        normalized,
+        _connect_v1(normalized, authority_path),
+        expected_authority=expected_authority,
+    )
+    try:
+        journal._read_snapshot_v1()
+    except BaseException:
+        journal.close()
+        raise
+    return journal
 
 
 def _mint_write_capability_for_verified_publisher_v1(
@@ -879,6 +1063,8 @@ def _mint_write_capability_for_verified_publisher_v1(
 
     if type(journal) is not GlobalEconomicEpochJournalV1:
         raise TypeError("durable epoch write capability journal type is not closed")
+    if journal._expected_authority is None:
+        raise ValueError("durable epoch writer requires a current-authority fence")
     return DurableEconomicEpochWriteCapabilityV1(
         _WRITE_CAPABILITY_MINT_V1,
         journal,

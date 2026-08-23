@@ -20,8 +20,16 @@ from src.core.economic_receipt_verifier_registry_v1 import (
     EconomicReceiptVerifierRegistryV1,
     EconomicReceiptVerifierSelectionPurposeV1,
 )
+from src.core.global_economic_durable_activation_v1 import (
+    prepare_durable_economic_initial_state_bundle_v1,
+)
 from src.core.global_economic_proof_v1 import EconomicEpochReceiptCandidateV1
 from src.core.global_settlement_types_v1 import hash_global_v1
+from src.integration.global_economic_authority_journal_v1 import (
+    GlobalEconomicAuthorityCommitStatusV1,
+    GlobalEconomicAuthorityJournalV1,
+    authority_journal_path_for_epoch_v1,
+)
 from src.integration.global_economic_commit_v1 import EconomicEpochBodyAndStateV1
 from src.integration.global_economic_durable_publisher_v1 import (
     VerifiedDurableEconomicPublisherV1,
@@ -30,6 +38,10 @@ from src.integration.global_economic_durable_publisher_v1 import (
 from src.integration.global_economic_epoch_journal_v1 import (
     DurableEconomicEpochCommitStatusV1,
     GlobalEconomicEpochJournalV1,
+)
+from src.integration.global_economic_migration_journal_v1 import (
+    DurableEconomicCommitStatusV1,
+    GlobalEconomicMigrationJournalV1,
 )
 from tests.core.test_economic_receipt_verifier_release_v1 import (
     _ARTIFACT_BYTES,
@@ -40,6 +52,7 @@ from tests.core.test_economic_receipt_verifier_release_v1 import (
 from tests.core.test_global_settlement_abi_v1 import (
     _epoch_admission_fixture,
     _initial_state_admission,
+    _migration_admission_for_source_head,
     _RecordingReceiptVerifier,
     _root,
 )
@@ -557,6 +570,287 @@ def test_head_change_during_receipt_verification_returns_stale_noop(
     fast.close()
 
 
+def test_old_store_cannot_reopen_after_shared_authority_revocation(
+    tmp_path: Path,
+) -> None:
+    # Arrange: an old-profile publisher closes while its shared authority is active.
+    admission, candidate, _ = _publisher_fixture_v1()
+    path = tmp_path / "old-profile.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    expected_head = publisher.head
+    publisher.close()
+    epoch_bytes = path.read_bytes()
+    authority = GlobalEconomicAuthorityJournalV1.open(
+        authority_journal_path_for_epoch_v1(path)
+    )
+
+    # Act: governance durably revokes the current authority generation.
+    outcome = authority._commit_successor_for_unmounted_control_plane_v1(
+        authority.head.revoked_successor(),
+        authority._acquire_cas_head_token_for_unmounted_control_plane_v1(),
+    )
+    authority.close()
+
+    # Assert: reopening the retained store fails closed and changes no epoch bytes.
+    assert outcome.status is GlobalEconomicAuthorityCommitStatusV1.COMMITTED
+    with pytest.raises(ValueError, match="current authority mismatch"):
+        VerifiedDurableEconomicPublisherV1.open(
+            path,
+            admission,
+            _bound_receipt_verifier_v1(candidate)[0],
+        )
+    assert path.read_bytes() == epoch_bytes
+    with GlobalEconomicEpochJournalV1.open(path) as structural_reader:
+        assert structural_reader.head == expected_head
+
+
+def test_two_named_epoch_stores_cannot_share_one_authority_head(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Alice creates the one authorized epoch store in this directory.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"single-store-authority"
+    )
+    first_path = tmp_path / "epoch-a.sqlite"
+    second_path = tmp_path / "epoch-b.sqlite"
+    first = VerifiedDurableEconomicPublisherV1.create(
+        first_path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    source = first.head
+
+    # Act: Mallory tries to create an independent sequence-zero head beside it.
+    with pytest.raises(ValueError, match="current authority mismatch"):
+        VerifiedDurableEconomicPublisherV1.create(
+            second_path,
+            admission,
+            _bound_receipt_verifier_v1(candidate)[0],
+        )
+    committed = first.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: only the store named by the authority can publish or be created.
+    assert not second_path.exists()
+    assert committed.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    assert first.head == committed.committed_epoch
+    first.close()
+
+
+def test_restored_pre_revocation_authority_remains_a_release_blocker(
+    tmp_path: Path,
+) -> None:
+    # Arrange: an old publisher and a recoverable copy of its active authority.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"rollback-resurrection-blocker"
+    )
+    path = tmp_path / "rollback-resurrection.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    publisher.close()
+    authority_path = authority_journal_path_for_epoch_v1(path)
+    active_authority_bytes = authority_path.read_bytes()
+    authority = GlobalEconomicAuthorityJournalV1.open(authority_path)
+    revoked = authority._commit_successor_for_unmounted_control_plane_v1(
+        authority.head.revoked_successor(),
+        authority._acquire_cas_head_token_for_unmounted_control_plane_v1(),
+    )
+    authority.close()
+
+    # Act: restoring both authority bytes and the old publisher resurrects it.
+    authority_path.write_bytes(active_authority_bytes)
+    resurrected = VerifiedDurableEconomicPublisherV1.open(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    published = resurrected.publish_economic_epoch(
+        expected_source=resurrected.head,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: this reproducible disaster state keeps rollback resistance open.
+    assert revoked.status is GlobalEconomicAuthorityCommitStatusV1.COMMITTED
+    assert published.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    resurrected.close()
+
+
+def test_separate_migration_commit_leaves_old_publisher_active_release_blocker(
+    tmp_path: Path,
+) -> None:
+    # Arrange: one old publisher and a migration bundle derived from its genesis.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"migration-atomicity-blocker"
+    )
+    publisher_path = tmp_path / "old-publisher-after-migration.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        publisher_path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    genesis = prepare_durable_economic_initial_state_bundle_v1(
+        admission,
+        source_head=None,
+    )
+    _, _, migration_admission = _migration_admission_for_source_head(
+        candidate.profile,
+        candidate.pre_state,
+    )
+    migration = prepare_durable_economic_initial_state_bundle_v1(
+        migration_admission,
+        source_head=genesis.head,
+    )
+    migration_journal = GlobalEconomicMigrationJournalV1.create(
+        tmp_path / "separate-migration.sqlite",
+        genesis,
+    )
+
+    # Act: migration commits in its separate store, then the old writer publishes.
+    migrated = migration_journal.commit_migration(
+        migration,
+        migration_journal.acquire_cas_head_token(),
+    )
+    published = publisher.publish_economic_epoch(
+        expected_source=publisher.head,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: both commits succeed, proving atomic migration retirement is open.
+    assert migrated.status is DurableEconomicCommitStatusV1.COMMITTED
+    assert published.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    migration_journal.close()
+    publisher.close()
+
+
+def test_old_store_cannot_reopen_after_shared_profile_rotation(
+    tmp_path: Path,
+) -> None:
+    # Arrange: one retained profile-P0 epoch store and its shared authority head.
+    admission, candidate, _ = _publisher_fixture_v1()
+    path = tmp_path / "old-profile-after-rotation.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    publisher.close()
+    authority = GlobalEconomicAuthorityJournalV1.open(
+        authority_journal_path_for_epoch_v1(path)
+    )
+    current = authority.head
+    rotated = replace(
+        current,
+        generation=current.generation + 1,
+        activation_id="0x" + "a1" * 32,
+        profile_root="0x" + "a2" * 32,
+        writer_epoch=current.writer_epoch + 1,
+    )
+
+    # Act: the shared control head advances to a distinct profile generation.
+    outcome = authority._commit_successor_for_unmounted_control_plane_v1(
+        rotated,
+        authority._acquire_cas_head_token_for_unmounted_control_plane_v1(),
+    )
+    authority.close()
+
+    # Assert: P0 cannot reopen even though its own epoch bytes are intact.
+    assert outcome.status is GlobalEconomicAuthorityCommitStatusV1.COMMITTED
+    with pytest.raises(ValueError, match="current authority mismatch"):
+        VerifiedDurableEconomicPublisherV1.open(
+            path,
+            admission,
+            _bound_receipt_verifier_v1(candidate)[0],
+        )
+
+
+def test_inflight_verification_cannot_publish_after_authority_revocation(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Mallory's epoch verification pauses after the authority snapshot.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"inflight-before-revocation"
+    )
+    entered = Event()
+    release = Event()
+
+    class BlockingEpochVerifier(_RecordingBackend):
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> object:
+            result = super().verify_succinct_receipt(
+                receipt_bytes,
+                expected_image_id=expected_image_id,
+                expected_journal_bytes=expected_journal_bytes,
+            )
+            if receipt_bytes == candidate.receipt_bytes:
+                entered.set()
+                if not release.wait(timeout=10):
+                    raise RuntimeError("test verifier release timed out")
+            return result
+
+    path = tmp_path / "inflight-revocation.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(
+            candidate,
+            BlockingEpochVerifier(),
+        )[0],
+    )
+    source = publisher.head
+    outcomes: list[VerifiedDurableEconomicPublishOutcomeV1] = []
+
+    def publish_inflight() -> None:
+        outcomes.append(
+            publisher.publish_economic_epoch(
+                expected_source=source,
+                candidate=candidate,
+                body_and_state=body,
+            )
+        )
+
+    thread = Thread(target=publish_inflight)
+    thread.start()
+    assert entered.wait(timeout=10)
+
+    # Act: a separate control connection revokes authority before verification returns.
+    authority = GlobalEconomicAuthorityJournalV1.open(
+        authority_journal_path_for_epoch_v1(path)
+    )
+    revoked = authority._commit_successor_for_unmounted_control_plane_v1(
+        authority.head.revoked_successor(),
+        authority._acquire_cas_head_token_for_unmounted_control_plane_v1(),
+    )
+    authority.close()
+    release.set()
+    thread.join(timeout=10)
+
+    # Assert: the inner durable CAS observes revocation and publishes no epoch.
+    assert not thread.is_alive()
+    assert revoked.status is GlobalEconomicAuthorityCommitStatusV1.COMMITTED
+    assert len(outcomes) == 1
+    assert outcomes[0].status is DurableEconomicEpochCommitStatusV1.AUTHORITY_STALE
+    assert outcomes[0].published_epoch is None
+    assert publisher.head == source
+    publisher.close()
+
+
 def test_open_rejects_a_different_verified_activation(
     tmp_path: Path,
 ) -> None:
@@ -649,3 +943,11 @@ def test_publication_api_has_no_caller_supplied_authority_objects() -> None:
     assert "commit_verified_economic_epoch" not in (
         VerifiedDurableEconomicPublisherV1.__dict__
     )
+
+    # Assert: create/open derive the shared authority path and expected head.
+    assert tuple(
+        inspect.signature(VerifiedDurableEconomicPublisherV1.create).parameters
+    ) == ("path", "initial_state_admission", "receipt_verifier")
+    assert tuple(
+        inspect.signature(VerifiedDurableEconomicPublisherV1.open).parameters
+    ) == ("path", "initial_state_admission", "receipt_verifier")

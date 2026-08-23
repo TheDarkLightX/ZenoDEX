@@ -14,6 +14,10 @@ from typing import Any, cast
 import pytest
 
 import src.integration.global_economic_epoch_journal_v1 as journal_module
+from src.core.global_economic_authority_head_v1 import (
+    GlobalEconomicAuthorityHeadV1,
+    GlobalEconomicAuthorityStatusV1,
+)
 from src.core.global_economic_durable_activation_v1 import (
     DurableEconomicInitialStateBundleV1,
     prepare_durable_economic_initial_state_bundle_v1,
@@ -23,6 +27,11 @@ from src.core.global_settlement_types_v1 import (
     MAX_JOURNAL_BYTES_V1,
     canonical_global_bytes_v1,
     hash_global_v1,
+)
+from src.integration.global_economic_authority_journal_v1 import (
+    GlobalEconomicAuthorityJournalV1,
+    _create_or_recover_authority_for_publisher_v1,
+    authority_journal_path_for_epoch_v1,
 )
 from src.integration.global_economic_commit_v1 import (
     CommitOutcomeStatusV1,
@@ -104,13 +113,65 @@ def _create_writer_v1(
     path: Path,
     activation: DurableEconomicInitialStateBundleV1,
 ) -> tuple[GlobalEconomicEpochJournalV1, DurableEconomicEpochWriteCapabilityV1]:
-    return _create_epoch_journal_for_verified_publisher_v1(path, activation)
+    authority_path = authority_journal_path_for_epoch_v1(path)
+    authority = _test_authority_v1(activation)
+    _create_or_recover_authority_for_publisher_v1(authority_path, authority)
+    return _create_epoch_journal_for_verified_publisher_v1(
+        path,
+        activation,
+        authority_path,
+        authority,
+    )
 
 
 def _open_writer_v1(
     path: Path,
 ) -> tuple[GlobalEconomicEpochJournalV1, DurableEconomicEpochWriteCapabilityV1]:
-    return _open_epoch_journal_for_verified_publisher_v1(path)
+    authority_path = authority_journal_path_for_epoch_v1(path)
+    with GlobalEconomicAuthorityJournalV1.open(authority_path) as authority_journal:
+        authority = authority_journal.head
+    return _open_epoch_journal_for_verified_publisher_v1(
+        path,
+        authority_path,
+        authority,
+    )
+
+
+def _test_authority_v1(
+    activation: DurableEconomicInitialStateBundleV1,
+) -> GlobalEconomicAuthorityHeadV1:
+    """Build a closed test-only authority for structural journal evidence."""
+
+    record = activation.record
+    return GlobalEconomicAuthorityHeadV1(
+        generation=record.generation,
+        activation_id=record.activation_id,
+        chain_id=record.chain_id,
+        deployment_root=record.deployment_root,
+        epoch_store_root=hash_global_v1(
+            "test-economic-epoch-store-v1",
+            {"activation_id": record.activation_id},
+        ),
+        profile_root=record.profile_root,
+        writer_epoch=record.writer_epoch,
+        verifier_registry_root=hash_global_v1(
+            "test-economic-authority-registry-v1",
+            {"profile_root": record.profile_root},
+        ),
+        verifier_release_id=hash_global_v1(
+            "test-economic-authority-release-v1",
+            {"profile_root": record.profile_root},
+        ),
+        verifier_binding_root=hash_global_v1(
+            "test-economic-authority-binding-v1",
+            {"activation_id": record.activation_id},
+        ),
+        root_image_id=hash_global_v1(
+            "test-economic-authority-image-v1",
+            {"profile_root": record.profile_root},
+        ),
+        status=GlobalEconomicAuthorityStatusV1.ACTIVE,
+    )
 
 
 def _commit_v1(
@@ -798,12 +859,12 @@ import os
 import sys
 
 import src.integration.global_economic_epoch_journal_v1 as journal_module
-from tests.integration.test_global_economic_epoch_journal_v1 import _fixture_v1
+from tests.integration.test_global_economic_epoch_journal_v1 import _fixture_v1, _open_writer_v1
 
 path = sys.argv[1]
 fault = journal_module._DurableEconomicEpochCommitFaultV1(sys.argv[2])
 _, _, epoch = _fixture_v1()
-journal, write_capability = journal_module._open_epoch_journal_for_verified_publisher_v1(path)
+journal, write_capability = _open_writer_v1(path)
 token = journal.acquire_cas_head_token()
 journal_module._SimulatedDurableEconomicEpochCrashV1 = lambda _message: os._exit(97)
 journal._commit_epoch_with_fault_for_test_v1(epoch, token, fault, write_capability)
@@ -873,7 +934,7 @@ def test_private_structural_writer_remains_a_same_process_release_blocker(
 ) -> None:
     # Arrange: same-interpreter code opens the unmounted structural journal.
     activation, _, epoch = _fixture_v1()
-    journal = GlobalEconomicEpochJournalV1.create(
+    journal, _ = _create_writer_v1(
         tmp_path / "private-writer-blocker.sqlite",
         activation,
     )
