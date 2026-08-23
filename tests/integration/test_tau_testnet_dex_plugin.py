@@ -5,19 +5,31 @@ import pytest
 
 
 def _intent_signing_dict_from_tx_intent(intent_dict: dict) -> dict:
+    from src.core.dex_intent_auth_message import build_dex_intent_signing_dict_v1
     from src.integration.operations import parse_intents
 
     intent = parse_intents({"2": [intent_dict]})[0]
-    return {
-        "module": intent.module,
-        "version": intent.version,
-        "kind": intent.kind.value,
-        "intent_id": intent.intent_id,
-        "sender_pubkey": intent.sender_pubkey,
-        "deadline": intent.deadline,
-        "fields": intent.fields or {},
-        **({"salt": intent.salt} if intent.salt is not None else {}),
-    }
+    return build_dex_intent_signing_dict_v1(intent)
+
+
+def _clocked_app_tx(plugin, *, chain_id: str, **kwargs):
+    from src.core.consensus_time import (
+        clock_policy_schedule_hash_v1,
+        default_height_only_clock_schedule_v1,
+        verify_execution_clock_v1,
+    )
+
+    height = kwargs["block_timestamp"]
+    schedule = default_height_only_clock_schedule_v1(chain_id=chain_id)
+    return plugin.apply_app_tx(
+        **kwargs,
+        execution_clock=verify_execution_clock_v1(
+            chain_id=chain_id,
+            height=height,
+            schedule=schedule,
+            expected_schedule_hash=clock_policy_schedule_hash_v1(schedule),
+        ),
+    )
 
 
 def _parse_single_intent(intent_dict: dict):
@@ -682,26 +694,22 @@ def test_apply_app_tx_token_ops_reject_native_and_expired(monkeypatch):
     assert err2 == "token op[0].deadline expired"
 
 
-def test_apply_app_tx_perps_accepts_zusd_token_as_quote_collateral(monkeypatch):
+def test_apply_app_tx_rejects_direct_zusd_token_mint_without_monetary_authority(
+    monkeypatch,
+):
     from src.integration import tau_testnet_dex_plugin as plugin
-    from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, sign_perp_op_for_engine
+    from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
     from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 
     chain_id = "tau-local-perps-zusd"
-    operator_privkey = 71
-    alice_privkey = 72
-    bob_privkey = 73
-    operator = "0x" + bls_pubkey_hex_from_privkey(operator_privkey)
-    alice = "0x" + bls_pubkey_hex_from_privkey(alice_privkey)
-    bob = "0x" + bls_pubkey_hex_from_privkey(bob_privkey)
+    operator = "0x" + bls_pubkey_hex_from_privkey(71)
+    alice = "0x" + bls_pubkey_hex_from_privkey(72)
     zusd_asset = derive_zusd_tau_asset_id(chain_id=chain_id)
-    market_id = "perp:ch2p:zusd-collateral"
-    deadline = 999_999_999
 
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_TOKEN_OPERATOR_PUBKEY", operator)
 
-    ok0, app_state_json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
+    ok, app_state_json, app_hash, patch, err = plugin.apply_app_tx(
         app_state_json="",
         chain_balances={},
         operations={
@@ -713,110 +721,61 @@ def test_apply_app_tx_perps_accepts_zusd_token_as_quote_collateral(monkeypatch):
                     "to_pubkey": alice,
                     "amount": 1_000,
                     "nonce": 1,
-                    "deadline": deadline,
+                    "deadline": 999_999_999,
                     "operator_pubkey": operator,
-                },
-                {
-                    "module": "TauToken",
-                    "action": "mint",
-                    "asset": zusd_asset,
-                    "to_pubkey": bob,
-                    "amount": 1_000,
-                    "nonce": 2,
-                    "deadline": deadline,
-                    "operator_pubkey": operator,
-                },
+                }
             ]
         },
         tx_sender_pubkey=operator,
         block_timestamp=1,
     )
-    assert ok0 is True, err0
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash == ""
+    assert patch is None
+    assert err == "token op[0] canonical zUSD mint requires the monetary authority"
 
-    init_market = {
-        "module": "TauPerp",
-        "version": "1.0",
-        "market_id": market_id,
-        "action": "init_market_2p",
-        "quote_asset": zusd_asset,
-        "account_a_pubkey": alice,
-        "account_b_pubkey": bob,
-        "deadline": deadline,
-        "nonce_a": 1,
-        "nonce_b": 1,
-    }
-    init_market["sig_a"] = sign_perp_op_for_engine(
-        init_market,
-        privkey=alice_privkey,
-        chain_id=chain_id,
-        signer_pubkey=alice,
-        nonce=1,
-    )
-    init_market["sig_b"] = sign_perp_op_for_engine(
-        init_market,
-        privkey=bob_privkey,
-        chain_id=chain_id,
-        signer_pubkey=bob,
-        nonce=1,
-    )
-    ok1, app_state_json1, _hash1, _patch1, err1 = plugin.apply_app_tx(
-        app_state_json=app_state_json0,
-        chain_balances={},
-        operations={"8": [init_market]},
-        tx_sender_pubkey=operator,
-        block_timestamp=2,
-    )
-    assert ok1 is True, err1
 
-    ok2, app_state_json2, _hash2, _patch2, err2 = plugin.apply_app_tx(
-        app_state_json=app_state_json1,
+def test_apply_app_tx_default_zusd_profile_rejects_unfinalized_oracle_ingress(
+    monkeypatch,
+):
+    from src.core.zusd import E8
+    from src.integration import tau_testnet_dex_plugin as plugin
+    from src.integration.tau_net_client import bls_pubkey_hex_from_privkey
+
+    chain_id = "tau-local-zusd-finalized-default"
+    oracle = "0x" + bls_pubkey_hex_from_privkey(80)
+    monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
+    monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", oracle)
+
+    ok, app_state_json, app_hash, patch, err = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
+        app_state_json="",
         chain_balances={},
         operations={
-            "8": [
+            "11": [
                 {
-                    "module": "TauPerp",
-                    "version": "1.0",
-                    "market_id": market_id,
-                    "action": "deposit_collateral",
-                    "account_pubkey": alice,
-                    "amount": 250,
+                    "module": "ZUSDFinance",
+                    "action": "bootstrap_oracle",
+                    "price_e8": 100 * E8,
+                    "oracle_observed_epoch": 1,
+                    "nonce": 1,
+                    "deadline": 999_999_999,
                 }
             ]
         },
-        tx_sender_pubkey=alice,
-        block_timestamp=3,
+        tx_sender_pubkey=oracle,
+        block_timestamp=1,
     )
-    assert ok2 is True, err2
 
-    ok3, app_state_json3, _hash3, _patch3, err3 = plugin.apply_app_tx(
-        app_state_json=app_state_json2,
-        chain_balances={},
-        operations={
-            "8": [
-                {
-                    "module": "TauPerp",
-                    "version": "1.0",
-                    "market_id": market_id,
-                    "action": "deposit_collateral",
-                    "account_pubkey": bob,
-                    "amount": 300,
-                }
-            ]
-        },
-        tx_sender_pubkey=bob,
-        block_timestamp=4,
-    )
-    assert ok3 is True, err3
-
-    parsed = json.loads(app_state_json3)
-    balances = {(b["pubkey"], b["asset"]): int(b["amount"]) for b in parsed.get("balances", [])}
-    assert balances[(alice, zusd_asset)] == 750
-    assert balances[(bob, zusd_asset)] == 700
-
-    market = next(entry for entry in parsed["perps"]["markets"] if entry["market_id"] == market_id)
-    assert market["quote_asset"] == zusd_asset
-    assert market["state"]["collateral_e8_a"] == 250 * 100_000_000
-    assert market["state"]["collateral_e8_b"] == 300 * 100_000_000
+    assert ok is False
+    assert app_state_json == ""
+    assert app_hash == ""
+    assert patch is None
+    assert err is not None
+    assert "finalized_context_required" in err
+    assert "aggregate_proposal_required" in err
 
 
 def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(monkeypatch):
@@ -840,8 +799,14 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
 
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", oracle)
+    monkeypatch.setenv(
+        "TAU_DEX_ZUSD_ORACLE_EVIDENCE_PROFILE",
+        "zenodex/zusd-oracle-evidence/configured-signer-dev-v0",
+    )
 
-    ok0, app_state_json0, _hash0, _patch0, err0 = plugin.apply_app_tx(
+    ok0, app_state_json0, _hash0, _patch0, err0 = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
         app_state_json="",
         chain_balances=chain_balances,
         operations={
@@ -850,6 +815,7 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
                     "module": "ZUSDFinance",
                     "action": "bootstrap_oracle",
                     "price_e8": 100 * E8,
+                    "oracle_observed_epoch": 1,
                     "nonce": 1,
                     "deadline": deadline,
                 }
@@ -860,7 +826,9 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     )
     assert ok0 is True, err0
 
-    ok1, app_state_json1, _hash1, patch1, err1 = plugin.apply_app_tx(
+    ok1, app_state_json1, _hash1, patch1, err1 = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
         app_state_json=app_state_json0,
         chain_balances=chain_balances,
         operations={
@@ -882,7 +850,9 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     assert patch1 == {alice: 0}
     chain_balances = {alice: 0}
 
-    ok2, app_state_json2, _hash2, _patch2, err2 = plugin.apply_app_tx(
+    ok2, app_state_json2, _hash2, _patch2, err2 = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
         app_state_json=app_state_json1,
         chain_balances=chain_balances,
         operations={
@@ -902,7 +872,9 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     )
     assert ok2 is True, err2
 
-    ok3, app_state_json3, _hash3, _patch3, err3 = plugin.apply_app_tx(
+    ok3, app_state_json3, _hash3, _patch3, err3 = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
         app_state_json=app_state_json2,
         chain_balances=chain_balances,
         operations={
@@ -951,7 +923,9 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
         nonce=1,
     )
 
-    ok4, app_state_json4, _hash4, _patch4, err4 = plugin.apply_app_tx(
+    ok4, app_state_json4, _hash4, _patch4, err4 = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
         app_state_json=app_state_json3,
         chain_balances=chain_balances,
         operations={"8": [init_market]},
@@ -960,7 +934,9 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     )
     assert ok4 is True, err4
 
-    ok5, app_state_json5, _hash5, _patch5, err5 = plugin.apply_app_tx(
+    ok5, app_state_json5, _hash5, _patch5, err5 = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
         app_state_json=app_state_json4,
         chain_balances=chain_balances,
         operations={
@@ -980,7 +956,9 @@ def test_apply_app_tx_zusd_monetary_mint_feeds_transferable_perps_collateral(mon
     )
     assert ok5 is True, err5
 
-    ok6, app_state_json6, _hash6, _patch6, err6 = plugin.apply_app_tx(
+    ok6, app_state_json6, _hash6, _patch6, err6 = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
         app_state_json=app_state_json5,
         chain_balances=chain_balances,
         operations={
@@ -1024,17 +1002,24 @@ def test_apply_app_tx_zusd_monetary_accepts_tau_raw_sender_native_balance(monkey
 
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", alice)
+    monkeypatch.setenv(
+        "TAU_DEX_ZUSD_ORACLE_EVIDENCE_PROFILE",
+        "zenodex/zusd-oracle-evidence/configured-signer-dev-v0",
+    )
 
-    ok, app_state_json, _hash, patch, err = plugin.apply_app_tx(
+    ok, app_state_json, _hash, patch, err = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
         app_state_json="",
         chain_balances={alice_raw: 1000},
         operations={
             "11": [
-                {
-                    "module": "ZUSDFinance",
-                    "action": "bootstrap_oracle",
-                    "price_e8": 20_000_000 * E8,
-                    "nonce": 1,
+                    {
+                        "module": "ZUSDFinance",
+                        "action": "bootstrap_oracle",
+                        "price_e8": 20_000_000 * E8,
+                        "oracle_observed_epoch": 1,
+                        "nonce": 1,
                     "deadline": deadline,
                 },
                 {
@@ -1079,8 +1064,14 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
 
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", oracle)
+    monkeypatch.setenv(
+        "TAU_DEX_ZUSD_ORACLE_EVIDENCE_PROFILE",
+        "zenodex/zusd-oracle-evidence/configured-signer-dev-v0",
+    )
 
-    ok0, app_state_json, _hash0, _patch0, err0 = plugin.apply_app_tx(
+    ok0, app_state_json, _hash0, _patch0, err0 = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
         app_state_json="",
         chain_balances=chain_balances,
         operations={
@@ -1088,7 +1079,8 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
                 {
                     "module": "ZUSDFinance",
                     "action": "bootstrap_oracle",
-                    "price_e8": 100 * E8,
+                    "price_e8": 150 * E8,
+                    "oracle_observed_epoch": 1,
                     "nonce": 1,
                     "deadline": deadline,
                 }
@@ -1115,7 +1107,9 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
             body["owner_pubkey"] = alice
         else:
             body["account_pubkey"] = alice
-        ok, next_json, _hash, patch, err = plugin.apply_app_tx(
+        ok, next_json, _hash, patch, err = _clocked_app_tx(
+            plugin,
+            chain_id=chain_id,
             app_state_json=app_state_json,
             chain_balances=chain_balances,
             operations={"11": [body]},
@@ -1135,7 +1129,9 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
     assert balances_after_sp[(sp_account, zusd_asset)] == 150
     assert parsed_after_sp["zusd_monetary"]["core"]["sp_debt_e8"] == 150 * E8
 
-    ok4, app_state_json4, _hash4, _patch4, err4 = plugin.apply_app_tx(
+    ok4, app_state_json4, _hash4, _patch4, err4 = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
         app_state_json=app_state_json,
         chain_balances=chain_balances,
         operations={
@@ -1143,7 +1139,8 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
                 {
                     "module": "ZUSDFinance",
                     "action": "oracle_report",
-                    "price_e8": 70 * E8,
+                    "price_e8": 80 * E8,
+                    "oracle_observed_epoch": 5,
                     "nonce": 2,
                     "deadline": deadline,
                 }
@@ -1154,8 +1151,32 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
     )
     assert ok4 is True, err4
 
-    ok5, app_state_json5, _hash5, _patch5, err5 = plugin.apply_app_tx(
-        app_state_json=app_state_json4,
+    ok_commit, app_state_json_commit, _hash_commit, _patch_commit, err_commit = (
+        _clocked_app_tx(
+            plugin,
+            chain_id=chain_id,
+            app_state_json=app_state_json4,
+            chain_balances=chain_balances,
+            operations={
+                "11": [
+                    {
+                        "module": "ZUSDFinance",
+                        "action": "oracle_commit",
+                        "nonce": 3,
+                        "deadline": deadline,
+                    }
+                ]
+            },
+            tx_sender_pubkey=oracle,
+            block_timestamp=6,
+        )
+    )
+    assert ok_commit is True, err_commit
+
+    ok5, app_state_json5, _hash5, _patch5, err5 = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
+        app_state_json=app_state_json_commit,
         chain_balances=chain_balances,
         operations={
             "11": [
@@ -1168,7 +1189,7 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
             ]
         },
         tx_sender_pubkey=keeper,
-        block_timestamp=6,
+        block_timestamp=7,
     )
     assert ok5 is True, err5
     parsed_after_liq = json.loads(app_state_json5)
@@ -1182,7 +1203,9 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
         {"amount_e8": 2 * E8, "pubkey": alice}
     ]
 
-    ok6, app_state_json6, _hash6, patch6, err6 = plugin.apply_app_tx(
+    ok6, app_state_json6, _hash6, patch6, err6 = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
         app_state_json=app_state_json5,
         chain_balances=chain_balances,
         operations={
@@ -1198,7 +1221,7 @@ def test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim(monkeyp
             ]
         },
         tx_sender_pubkey=alice,
-        block_timestamp=7,
+        block_timestamp=8,
     )
     assert ok6 is True, err6
     assert patch6 == {alice: 2 * E8}
@@ -1250,6 +1273,10 @@ def test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper(monkeyp
 
     monkeypatch.setenv("TAU_DEX_CHAIN_ID", chain_id)
     monkeypatch.setenv("TAU_DEX_ZUSD_ORACLE_PUBKEY", oracle)
+    monkeypatch.setenv(
+        "TAU_DEX_ZUSD_ORACLE_EVIDENCE_PROFILE",
+        "zenodex/zusd-oracle-evidence/configured-signer-dev-v0",
+    )
     monkeypatch.setenv("TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8", str(fixed_comp))
     monkeypatch.setenv("TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS", "0")
 
@@ -1261,7 +1288,8 @@ def test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper(monkeyp
             {
                 "module": "ZUSDFinance",
                 "action": "bootstrap_oracle",
-                "price_e8": 100 * E8,
+                "price_e8": 150 * E8,
+                "oracle_observed_epoch": 1,
                 "nonce": 1,
                 "deadline": deadline,
             },
@@ -1305,16 +1333,29 @@ def test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper(monkeyp
         (
             5,
             oracle,
-            {
-                "module": "ZUSDFinance",
-                "action": "oracle_report",
-                "price_e8": 70 * E8,
+                {
+                    "module": "ZUSDFinance",
+                    "action": "oracle_report",
+                    "price_e8": 80 * E8,
+                "oracle_observed_epoch": 5,
                 "nonce": 2,
                 "deadline": deadline,
             },
         ),
+        (
+            6,
+            oracle,
+            {
+                "module": "ZUSDFinance",
+                "action": "oracle_commit",
+                "nonce": 3,
+                "deadline": deadline,
+            },
+        ),
     ):
-        ok, next_json, _hash, patch, err = plugin.apply_app_tx(
+        ok, next_json, _hash, patch, err = _clocked_app_tx(
+            plugin,
+            chain_id=chain_id,
             app_state_json=app_state_json,
             chain_balances=chain_balances,
             operations={"11": [body]},
@@ -1326,7 +1367,9 @@ def test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper(monkeyp
         for pk, amount in (patch or {}).items():
             chain_balances[pk] = int(amount)
 
-    ok, app_state_json, _hash, patch, err = plugin.apply_app_tx(
+    ok, app_state_json, _hash, patch, err = _clocked_app_tx(
+        plugin,
+        chain_id=chain_id,
         app_state_json=app_state_json,
         chain_balances=chain_balances,
         operations={
@@ -1340,7 +1383,7 @@ def test_apply_app_tx_zusd_monetary_liquidation_compensation_pays_keeper(monkeyp
             ]
         },
         tx_sender_pubkey=keeper,
-        block_timestamp=6,
+        block_timestamp=7,
     )
 
     assert ok is True, err
