@@ -5,6 +5,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import replace
 from pathlib import Path
+from threading import Barrier, Lock, Thread
 
 import pytest
 
@@ -173,6 +174,65 @@ def test_journal_commit_reopen_and_exact_retry_preserve_one_authority_tip(
     )
     assert reopened.head == revoked
     reopened.close()
+
+
+def test_concurrent_authority_bootstrap_has_one_winner_and_one_typed_existing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: force two creators to open the same absent path before either
+    # bootstrap transaction can inspect sqlite_master.
+    path = tmp_path / "concurrent-authority-create.sqlite"
+    active = _head()
+    original_connect = authority_journal_module._connect_v1
+    connected = Barrier(2)
+    count_lock = Lock()
+    connection_count = 0
+
+    def synchronized_connect(target: Path) -> sqlite3.Connection:
+        nonlocal connection_count
+        connection = original_connect(target)
+        with count_lock:
+            connection_count += 1
+            ordinal = connection_count
+        if ordinal <= 2:
+            connected.wait(timeout=10)
+        return connection
+
+    monkeypatch.setattr(
+        authority_journal_module,
+        "_connect_v1",
+        synchronized_connect,
+    )
+    journals: list[GlobalEconomicAuthorityJournalV1] = []
+    errors: list[BaseException] = []
+
+    def create() -> None:
+        try:
+            journals.append(GlobalEconomicAuthorityJournalV1.create(path, active))
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = Thread(target=create)
+    second = Thread(target=create)
+
+    # Act: both creators race from the same filesystem observation.
+    first.start()
+    second.start()
+    first.join(timeout=15)
+    second.join(timeout=15)
+
+    # Assert: SQLite bootstrap serialization yields one complete store and one
+    # stable API rejection; no raw table-exists OperationalError escapes.
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert len(journals) == 1
+    assert len(errors) == 1
+    assert type(errors[0]) is FileExistsError
+    assert journals[0].head == active
+    journals[0].close()
+    with GlobalEconomicAuthorityJournalV1.open(path) as reopened:
+        assert reopened.head == active
 
 
 def test_historical_retry_after_a_later_generation_is_a_stale_noop(

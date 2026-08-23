@@ -208,6 +208,10 @@ class _SimulatedDurableEconomicEpochCrashV1(RuntimeError):
     pass
 
 
+class _ExistingDurableEconomicEpochStoreV1(RuntimeError):
+    """Internal signal emitted only after bootstrap obtains the write lock."""
+
+
 def _normalize_path_v1(path: str | Path) -> Path:
     if type(path) is str:
         candidate = Path(path)
@@ -408,14 +412,23 @@ class GlobalEconomicEpochJournalV1:
     ) -> GlobalEconomicEpochJournalV1:
         normalized = _normalize_path_v1(path)
         owned_activation = _snapshot_activation_v1(activation)
-        if normalized.exists() or normalized.is_symlink():
-            raise FileExistsError("durable epoch journal path already exists")
+        if normalized.is_symlink():
+            raise ValueError("durable epoch journal path must not be a symlink")
         if not normalized.parent.is_dir():
             raise FileNotFoundError("durable epoch journal parent directory is absent")
+        if normalized.exists():
+            _reject_wal_artifacts_v1(normalized)
         journal = cls(normalized, _connect_v1(normalized))
         try:
             journal._create_store_v1(owned_activation)
             journal._read_snapshot_v1()
+        except _ExistingDurableEconomicEpochStoreV1:
+            journal.close()
+            validation = cls.open(normalized)
+            validation.close()
+            raise FileExistsError(
+                "durable epoch journal path already exists"
+            ) from None
         except BaseException:
             journal.close()
             raise
@@ -577,6 +590,13 @@ class GlobalEconomicEpochJournalV1:
         connection = self._connection
         connection.execute("BEGIN IMMEDIATE")
         try:
+            existing = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1"
+            ).fetchone()
+            if existing is not None:
+                raise _ExistingDurableEconomicEpochStoreV1(
+                    "durable epoch store already initialized"
+                )
             connection.execute(_CREATE_METADATA_SQL_V1)
             connection.execute(_CREATE_EPOCHS_SQL_V1)
             connection.execute(_CREATE_CURRENT_HEAD_SQL_V1)
@@ -690,14 +710,17 @@ class GlobalEconomicEpochJournalV1:
         return epoch
 
     def _read_epochs_v1(self) -> tuple[DurableEconomicEpochBundleV1, ...]:
+        row_count, byte_count = self._history_bounds_v1()
+        if row_count > _MAX_EPOCH_HISTORY_V1:
+            raise ValueError("durable epoch history exceeds row capacity")
+        if byte_count > _MAX_EPOCH_STORE_BYTES_V1:
+            raise ValueError("durable epoch history exceeds byte capacity")
         rows = self._connection.execute(
             "SELECT publication_id, commit_id, sequence_decimal, bundle_bytes "
             "FROM economic_epochs ORDER BY length(sequence_decimal), sequence_decimal"
         ).fetchall()
-        if len(rows) > _MAX_EPOCH_HISTORY_V1:
-            raise ValueError("durable epoch history exceeds row capacity")
-        if sum(len(row[3]) for row in rows if type(row[3]) is bytes) > _MAX_EPOCH_STORE_BYTES_V1:
-            raise ValueError("durable epoch history exceeds byte capacity")
+        if len(rows) != row_count:
+            raise RuntimeError("durable epoch history count changed")
         return tuple(self._decode_epoch_row_v1(row) for row in rows)
 
     def _validate_store_v1(self) -> DurableEconomicPublicationHeadV1:
@@ -811,15 +834,6 @@ class GlobalEconomicEpochJournalV1:
             if fault is _DurableEconomicEpochCommitFaultV1.AFTER_BEGIN:
                 raise _SimulatedDurableEconomicEpochCrashV1(fault.value)
             current = self._validate_store_v1()
-            if not self._authority_is_current_v1(
-                expected_authority_root,
-                expected_authority_generation,
-            ):
-                connection.execute("ROLLBACK")
-                return DurableEconomicEpochCommitOutcomeV1(
-                    DurableEconomicEpochCommitStatusV1.AUTHORITY_STALE,
-                    current,
-                )
             retry = self._exact_retry_v1(epoch, target_bytes)
             if retry is not None:
                 connection.execute("COMMIT")
@@ -828,6 +842,15 @@ class GlobalEconomicEpochJournalV1:
                     DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED,
                     current,
                     retry.head,
+                )
+            if not self._authority_is_current_v1(
+                expected_authority_root,
+                expected_authority_generation,
+            ):
+                connection.execute("ROLLBACK")
+                return DurableEconomicEpochCommitOutcomeV1(
+                    DurableEconomicEpochCommitStatusV1.AUTHORITY_STALE,
+                    current,
                 )
             record = epoch.record
             source_matches = (
@@ -959,10 +982,12 @@ def _create_epoch_journal_for_verified_publisher_v1(
     owned_activation = _snapshot_activation_v1(activation)
     try:
         normalized = _normalize_path_v1(path)
-        if normalized.exists() or normalized.is_symlink():
-            raise FileExistsError("durable epoch journal path already exists")
+        if normalized.is_symlink():
+            raise ValueError("durable epoch journal path must not be a symlink")
         if not normalized.parent.is_dir():
             raise FileNotFoundError("durable epoch journal parent directory is absent")
+        if normalized.exists():
+            _reject_wal_artifacts_v1(normalized)
         journal = GlobalEconomicEpochJournalV1(
             normalized,
             _connect_v1(normalized, authority_path),
@@ -972,6 +997,11 @@ def _create_epoch_journal_for_verified_publisher_v1(
             journal._create_store_v1(owned_activation)
             journal._read_snapshot_v1()
             journal._require_current_authority_v1()
+        except _ExistingDurableEconomicEpochStoreV1:
+            journal.close()
+            raise FileExistsError(
+                "durable epoch journal path already exists"
+            ) from None
         except BaseException:
             journal.close()
             raise

@@ -88,6 +88,10 @@ class GlobalEconomicAuthorityCommitStatusV1(str, Enum):
     CAPACITY_EXCEEDED = "CAPACITY_EXCEEDED"
 
 
+class _ExistingGlobalEconomicAuthorityStoreV1(RuntimeError):
+    """Internal signal emitted only after bootstrap obtains the write lock."""
+
+
 @dataclass(frozen=True, slots=True)
 class GlobalEconomicAuthorityCommitOutcomeV1:
     status: GlobalEconomicAuthorityCommitStatusV1
@@ -575,14 +579,23 @@ class GlobalEconomicAuthorityJournalV1:
             raise ValueError("global economic authority journal must begin at generation zero")
         if owned.status.value != "ACTIVE":
             raise ValueError("global economic authority journal must begin active")
-        if normalized.exists() or normalized.is_symlink():
-            raise FileExistsError("global economic authority journal path already exists")
+        if normalized.is_symlink():
+            raise ValueError("global economic authority path must not be a symlink")
         if not normalized.parent.is_dir():
             raise FileNotFoundError("global economic authority parent directory is absent")
+        if normalized.exists():
+            _reject_wal_artifacts_v1(normalized)
         journal = cls(normalized, _connect_v1(normalized))
         try:
             journal._create_store_v1(owned)
             journal._read_snapshot_v1()
+        except _ExistingGlobalEconomicAuthorityStoreV1:
+            journal.close()
+            validation = cls.open(normalized)
+            validation.close()
+            raise FileExistsError(
+                "global economic authority journal path already exists"
+            ) from None
         except BaseException:
             journal.close()
             raise
@@ -685,6 +698,13 @@ class GlobalEconomicAuthorityJournalV1:
         connection = self._connection
         connection.execute("BEGIN IMMEDIATE")
         try:
+            existing = connection.execute(
+                "SELECT 1 FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1"
+            ).fetchone()
+            if existing is not None:
+                raise _ExistingGlobalEconomicAuthorityStoreV1(
+                    "global economic authority store already initialized"
+                )
             connection.execute(_CREATE_METADATA_SQL_V1)
             connection.execute(_CREATE_HISTORY_SQL_V1)
             connection.execute(_CREATE_CURRENT_SQL_V1)

@@ -97,11 +97,15 @@ check and epoch commit.
 - CAS key: economic publication ID and sequence plus authority root and
   generation.
 - Crash semantics: SQLite DELETE journal mode and FULL synchronization retain
-  PRE or POST. Authority installation crash safety remains separately open.
-- Retry: an exact epoch retry under a stale or revoked authority returns
-  `AUTHORITY_STALE`; historical bytes remain readable through the structural
-  journal. An authority successor retry reports `ALREADY_COMMITTED` only when
-  that successor is still current; older generations report `STALE_HEAD`.
+  PRE or POST. Concurrent first installation is serialized by a bootstrap
+  `BEGIN IMMEDIATE` transaction. Process and power-loss installation recovery
+  remains separately open.
+- Retry: an exact epoch already present in validated durable history returns
+  `ALREADY_COMMITTED` without mutation even after authority revocation. An
+  unpublished epoch under stale or revoked authority returns
+  `AUTHORITY_STALE`. An authority successor retry reports
+  `ALREADY_COMMITTED` only when that successor is still current; older
+  generations report `STALE_HEAD`.
 - Representation: frozen typed authority values, canonical bytes, strict SQLite
   tables, exact schemas, closed transition classes, bounded history, and
   content-derived roots.
@@ -126,6 +130,8 @@ individual functions reviewable.
 - rejection of mixed revocation, verifier-only rotation, and epoch-store
   switching;
 - durable commit, reopen, and exact retry;
+- deterministic concurrent authority and verified-publisher creation, with one
+  complete install plus typed exact recovery and no raw table-exists fault;
 - stale historical-authority retry;
 - one-row emergency-revocation reserve at the capacity boundary;
 - pre-decode byte bounds;
@@ -136,6 +142,9 @@ individual functions reviewable.
 - rejection of a second named epoch store under one authority file;
 - retained old-store reopen rejection after revocation;
 - revocation during receipt verification returning `AUTHORITY_STALE`;
+- exact committed-epoch retry after revocation returning historical success
+  without changing epoch bytes;
+- aggregate epoch-history byte rejection before bundle BLOB rows are fetched;
 - unchanged epoch head and absent published record on rejection;
 - existing epoch crash, retry, CAS, capacity, schema, and private-writer
   counterexamples.
@@ -145,11 +154,13 @@ Removing the shared authority comparison or moving it outside the attached CAS
 transaction causes these tests to expose an unauthorized epoch. Mutation
 tooling was not run for this slice.
 
-Two passing tests intentionally preserve open disaster states as executable
+Three passing tests intentionally preserve open disaster states as executable
 release blockers:
 
 - restoring pre-revocation authority-file bytes reopens and publishes through
-  the old writer; and
+  the old writer;
+- restoring only the epoch database to sequence zero under the unchanged active
+  authority permits the same epoch publication to commit again; and
 - committing the current separate migration journal leaves the old publisher
   able to publish.
 
@@ -170,9 +181,10 @@ Their passing result records reproducibility. It supplies no safety claim.
 - Same-process private writer access remains a demonstrated release blocker.
 - No OS-isolated sole writer, executable attestation, objective finality, real
   RISC0 replay, Rust parity, or production mount is established.
-- SQLite create/install crash safety, symlink replacement races, database file
-  ownership, directory durability, backup/restore, and disaster recovery remain
-  deployment obligations.
+- SQLite process/power-loss install recovery, symlink replacement races,
+  database file ownership, directory durability, backup/restore, and disaster
+  recovery remain deployment obligations. The tested same-path concurrent
+  create race is closed by transactional bootstrap classification.
 - The tests are bounded evidence. They are not a proof of whole-economy value
   movement safety.
 

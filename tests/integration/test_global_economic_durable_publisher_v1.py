@@ -4,13 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import sqlite3
 from dataclasses import replace
 from pathlib import Path
-from threading import Event, Thread
+from threading import Barrier, Event, Lock, Thread
 from typing import Any, cast
 
 import pytest
 
+import src.integration.global_economic_authority_journal_v1 as authority_journal_module
+import src.integration.global_economic_epoch_journal_v1 as epoch_journal_module
 from src.core.economic_receipt_verifier_deployment_v1 import (
     BoundEconomicReceiptVerifierV1,
     EconomicReceiptVerifierEvidenceManifestV1,
@@ -195,6 +198,92 @@ def test_exact_create_retry_recovers_committed_activation_after_lost_ack(
     # Assert: exact activation bytes recover one sequence-zero durable history.
     assert recovered.head == expected_head
     recovered.close()
+
+
+def test_concurrent_verified_publisher_create_recovers_one_sequence_zero_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: synchronize both authority and epoch connections after preflight,
+    # reproducing the first-install race at each durable bootstrap boundary.
+    admission, candidate, _ = _publisher_fixture_v1(
+        receipt_bytes=b"concurrent-publisher-create"
+    )
+    path = tmp_path / "concurrent-publisher-create.sqlite"
+    authority_connect = authority_journal_module._connect_v1
+    epoch_connect = epoch_journal_module._connect_v1
+    authority_barrier = Barrier(2)
+    epoch_barrier = Barrier(2)
+    count_lock = Lock()
+    authority_count = 0
+    epoch_count = 0
+
+    def synchronized_authority_connect(target: Path) -> sqlite3.Connection:
+        nonlocal authority_count
+        connection = authority_connect(target)
+        with count_lock:
+            authority_count += 1
+            ordinal = authority_count
+        if ordinal <= 2:
+            authority_barrier.wait(timeout=10)
+        return connection
+
+    def synchronized_epoch_connect(
+        target: Path,
+        authority_path: Path | None = None,
+    ) -> sqlite3.Connection:
+        nonlocal epoch_count
+        connection = epoch_connect(target, authority_path)
+        with count_lock:
+            epoch_count += 1
+            ordinal = epoch_count
+        if ordinal <= 2:
+            epoch_barrier.wait(timeout=10)
+        return connection
+
+    monkeypatch.setattr(
+        authority_journal_module,
+        "_connect_v1",
+        synchronized_authority_connect,
+    )
+    monkeypatch.setattr(
+        epoch_journal_module,
+        "_connect_v1",
+        synchronized_epoch_connect,
+    )
+    publishers: list[VerifiedDurableEconomicPublisherV1] = []
+    errors: list[BaseException] = []
+
+    def create() -> None:
+        try:
+            publishers.append(
+                VerifiedDurableEconomicPublisherV1.create(
+                    path,
+                    admission,
+                    _bound_receipt_verifier_v1(candidate)[0],
+                )
+            )
+        except BaseException as exc:
+            errors.append(exc)
+
+    first = Thread(target=create)
+    second = Thread(target=create)
+
+    # Act: two same-profile installers race the exact same named publisher.
+    first.start()
+    second.start()
+    first.join(timeout=20)
+    second.join(timeout=20)
+
+    # Assert: one install and one exact recovery converge without raw SQLite faults.
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    assert len(publishers) == 2
+    assert publishers[0].head == publishers[1].head
+    assert publishers[0].head.sequence == 0
+    for publisher in publishers:
+        publisher.close()
 
 
 def test_create_retry_rejects_matching_activation_with_nonzero_history(
@@ -849,6 +938,97 @@ def test_inflight_verification_cannot_publish_after_authority_revocation(
     assert outcomes[0].published_epoch is None
     assert publisher.head == source
     publisher.close()
+
+
+def test_exact_committed_retry_after_revocation_returns_history_without_mutation(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Alice commits one verified epoch before governance revokes its writer.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"committed-before-revocation"
+    )
+    path = tmp_path / "committed-retry-after-revocation.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    source = publisher.head
+    committed = publisher.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+    epoch_bytes = path.read_bytes()
+    authority = GlobalEconomicAuthorityJournalV1.open(
+        authority_journal_path_for_epoch_v1(path)
+    )
+    revoked = authority._commit_successor_for_unmounted_control_plane_v1(
+        authority.head.revoked_successor(),
+        authority._acquire_cas_head_token_for_unmounted_control_plane_v1(),
+    )
+    authority.close()
+
+    # Act: a lost-ack retry submits the exact publication already in history.
+    retried = publisher.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: historical truth is returned, while revocation admits no new write.
+    assert committed.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    assert revoked.status is GlobalEconomicAuthorityCommitStatusV1.COMMITTED
+    assert retried.status is DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED
+    assert retried.committed_epoch == committed.committed_epoch
+    assert retried.published_epoch == committed.published_epoch
+    assert publisher.head == committed.committed_epoch
+    assert path.read_bytes() == epoch_bytes
+    publisher.close()
+
+
+def test_epoch_only_sequence_zero_restore_allows_duplicate_release_blocker(
+    tmp_path: Path,
+) -> None:
+    # Arrange: preserve only the sequence-zero epoch file while authority remains
+    # active, then commit one value-bearing publication under that authority.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"epoch-only-rollback-blocker"
+    )
+    path = tmp_path / "epoch-only-rollback-blocker.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    sequence_zero_bytes = path.read_bytes()
+    source = publisher.head
+    first = publisher.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+    publisher.close()
+
+    # Act: an operator restores only the epoch DB, then reopens under the unchanged
+    # active authority and submits the identical publication again.
+    path.write_bytes(sequence_zero_bytes)
+    restored = VerifiedDurableEconomicPublisherV1.open(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    duplicate = restored.publish_economic_epoch(
+        expected_source=restored.head,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: this reproducible duplicate keeps anti-rollback publication open.
+    assert first.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    assert duplicate.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    assert duplicate.committed_epoch == first.committed_epoch
+    restored.close()
 
 
 def test_open_rejects_a_different_verified_activation(

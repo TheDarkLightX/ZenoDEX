@@ -1165,3 +1165,32 @@ def test_open_rejects_history_one_byte_over_capacity(
     # Act and assert: open fails closed before exposing a durable head.
     with pytest.raises(ValueError, match="history exceeds byte capacity"):
         GlobalEconomicEpochJournalV1.open(path)
+
+
+def test_history_byte_bound_rejects_before_bundle_row_fetch() -> None:
+    # Arrange: a hostile store reports one byte beyond the aggregate budget.
+    class BoundsCursor:
+        @staticmethod
+        def fetchone() -> tuple[int, int]:
+            return (1, journal_module._MAX_EPOCH_STORE_BYTES_V1 + 1)
+
+    class BoundsOnlyConnection:
+        def __init__(self) -> None:
+            self.queries: list[str] = []
+
+        def execute(self, query: str) -> BoundsCursor:
+            self.queries.append(query)
+            if query.startswith("SELECT COUNT(*)"):
+                return BoundsCursor()
+            raise AssertionError("epoch BLOB rows were fetched before aggregate rejection")
+
+    connection = BoundsOnlyConnection()
+    journal = object.__new__(GlobalEconomicEpochJournalV1)
+    journal._connection = cast(Any, connection)
+
+    # Act and assert: the scalar prequery rejects without loading any bundle BLOB.
+    with pytest.raises(ValueError, match="history exceeds byte capacity"):
+        journal._read_epochs_v1()
+    assert connection.queries == [
+        "SELECT COUNT(*), COALESCE(SUM(length(bundle_bytes)), 0) FROM economic_epochs"
+    ]
