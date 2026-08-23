@@ -1,0 +1,105 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-jmt-hostile-proof-boundary",
+  "created_date": "2026-08-23",
+  "claim_scope": "The Python JMT direct proof-object and canonical-wire boundaries snapshot actual byte buffers, rebuild exact owned proof values before encoding or verification, reject constructor-forged incoherent fields, and return false without mutation for malformed in-process proof objects.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "JMT-RAW-BYTE-BUFFER-AUTHENTICATION",
+    "JMT-PROOF-TRANSITIVE-OWNERSHIP",
+    "JMT-ENCODER-CONSTRUCTOR-REVALIDATION",
+    "JMT-VERIFIER-MALFORMED-OBJECT-FAIL-CLOSED"
+  ],
+  "failure_modes": [
+    "a bytes subclass substitutes different key, value, hash, or proof bytes through its __bytes__ hook",
+    "a constructor-forged membership proof authenticates an absent key through hostile equality",
+    "a constructor-forged absence proof authenticates absence of a present key through hostile equality",
+    "an encoder serializes a forged proof that its own decoder rejects or interprets as different values",
+    "a malformed forged sibling escapes as an exception instead of a false verifier result"
+  ],
+  "source_pins": [
+    {
+      "path": "src/state/jmt.py",
+      "sha256": "11eed521b2b3fdcce8820f6eea8203b32771a312330950c8fa400d450e6ec58f"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/state/test_jmt.py",
+      "sha256": "e12295e197d225652ea695db2589ceef66a93630ef20d440161d73379e927d36",
+      "node_ids": [
+        "tests/state/test_jmt.py::test_jmt_payload_and_key_bytes_subclasses_use_raw_buffers",
+        "tests/state/test_jmt.py::test_jmt_verifiers_reject_constructor_forged_incoherent_bytes",
+        "tests/state/test_jmt.py::test_jmt_verifiers_reject_malformed_forged_fields_without_raising",
+        "tests/state/test_jmt.py::test_jmt_encoders_revalidate_constructor_forged_proofs"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "metamorphic",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each regression arranges one minimized hostile byte or forged proof object, acts once through a public JMT root, encoder, decoder, or verifier boundary, and asserts the raw-buffer-derived root, exact typed rejection, or false verifier result."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The proof decoders, encoders, and verifiers are pure. Malformed forged inputs produce a typed exception at construction/encoding or false at verification and cannot change the root, proof, or caller state."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "byte_source",
+      "points": [
+        "exact_bytes_use_their_immutable_buffer",
+        "bytes_subclass_uses_its_raw_buffer_instead_of___bytes___replacement"
+      ]
+    },
+    {
+      "name": "proof_construction",
+      "points": [
+        "ordinary_constructor_proof_accepts_when_bound",
+        "object_new_forged_incoherent_membership_rejects",
+        "object_new_forged_incoherent_absence_rejects"
+      ]
+    },
+    {
+      "name": "malformed_internal_field",
+      "points": [
+        "exact_owned_sibling_tuple_verifies",
+        "non_sibling_field_returns_false_without_raising",
+        "inconsistent_absence_fields_fail_revalidation"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "copy byte subclasses with bytes(value), dispatching attacker-controlled __bytes__",
+      "killed_by": "tests/state/test_jmt.py::test_jmt_payload_and_key_bytes_subclasses_use_raw_buffers"
+    },
+    {
+      "description": "trust dataclass identity and compare hostile proof fields before rebuilding exact owned bytes",
+      "killed_by": "tests/state/test_jmt.py::test_jmt_verifiers_reject_constructor_forged_incoherent_bytes"
+    },
+    {
+      "description": "use forged sibling fields directly and let malformed internals raise from the verifier",
+      "killed_by": "tests/state/test_jmt.py::test_jmt_verifiers_reject_malformed_forged_fields_without_raising"
+    },
+    {
+      "description": "encode outer-class-matching forged proofs without transitively revalidating their fields",
+      "killed_by": "tests/state/test_jmt.py::test_jmt_encoders_revalidate_constructor_forged_proofs"
+    }
+  ],
+  "nonclaims": [
+    "This packet closes the reproduced Python in-process hostile-object boundary failures; it is not a cryptographic proof of JMT soundness.",
+    "Canonical wire decoding already rejected ordinary malformed and duplicate-field JSON; this change adds raw-buffer and direct-object defenses.",
+    "No authenticated batch update, multiproof, durable version store, pruning, migration, RISC0 refinement, or atomic publication is implemented.",
+    "The JMT value and payload resource ceilings remain unspecified and unpromoted.",
+    "No runtime, release, settlement, migration, writer-rotation, or production authority is granted; production_authority remains NONE."
+  ]
+}

@@ -10,8 +10,8 @@ from src.state.canonical import domain_sep_bytes, encode_bytes, encode_uvarint
 from src.state.jmt import (
     EMPTY_ROOT_BYTES,
     EMPTY_ROOT_HEX,
-    JMT_KEY_BYTES,
     JMT_KEY_BITS,
+    JMT_KEY_BYTES,
     JmtAbsenceProof,
     JmtMembershipProof,
     JmtSibling,
@@ -28,7 +28,6 @@ from src.state.jmt import (
     verify_jmt_absence,
     verify_jmt_membership,
 )
-
 
 _REF_EMPTY_PREFIX = domain_sep_bytes("jmt_empty", version=1)
 _REF_LEAF_PREFIX = domain_sep_bytes("jmt_leaf", version=1)
@@ -162,6 +161,37 @@ class _HostilePayload(bytes):
 
     def decode(self, *args, **kwargs):  # type: ignore[no-untyped-def]
         return self._spoofed_text
+
+
+class _BytesProtocolSpoof(bytes):
+    def __new__(
+        cls,
+        raw: bytes,
+        replacement: bytes,
+    ) -> "_BytesProtocolSpoof":
+        obj = bytes.__new__(cls, raw)
+        obj._replacement = replacement
+        return obj
+
+    def __bytes__(self) -> bytes:
+        return self._replacement
+
+
+class _IncoherentEqualityBytes(bytes):
+    def __eq__(self, other):  # type: ignore[no-untyped-def]
+        return False
+
+    def __ne__(self, other):  # type: ignore[no-untyped-def]
+        return False
+
+    __hash__ = bytes.__hash__
+
+
+def _forge_frozen_dataclass(cls, **fields):  # type: ignore[no-untyped-def]
+    value = object.__new__(cls)
+    for name, field_value in fields.items():
+        object.__setattr__(value, name, field_value)
+    return value
 
 
 def _wire(value: object) -> bytes:
@@ -452,6 +482,103 @@ def test_jmt_proof_serialization_rejects_spoofed_payload_subclasses_and_noncanon
             + b"11" * 32
             + b'","sibling_on_left":false}],"value":"0x","version":1}'
         )
+
+
+def test_jmt_payload_and_key_bytes_subclasses_use_raw_buffers() -> None:
+    # Arrange
+    key_one = _key(1)
+    key_two = _key(2)
+    proof = JmtMembershipProof(key=key_one, value=b"one", siblings=())
+    spoofed_payload = _BytesProtocolSpoof(
+        b"not-json",
+        encode_jmt_membership_proof(proof),
+    )
+    spoofed_key = _BytesProtocolSpoof(key_two, key_one)
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="JMT proof payload must be JSON"):
+        decode_jmt_membership_proof(spoofed_payload)
+    assert compute_jmt_root([(spoofed_key, b"two")]) == compute_jmt_root(
+        [(key_two, b"two")]
+    )
+
+
+def test_jmt_verifiers_reject_constructor_forged_incoherent_bytes() -> None:
+    # Arrange
+    key_one = _key(1)
+    root = compute_jmt_root([(key_one, b"one")])
+    forged_membership = _forge_frozen_dataclass(
+        JmtMembershipProof,
+        key=_IncoherentEqualityBytes(key_one),
+        value=b"one",
+        siblings=(),
+    )
+    forged_absence = _forge_frozen_dataclass(
+        JmtAbsenceProof,
+        query_key=key_one,
+        witness_key=_IncoherentEqualityBytes(key_one),
+        witness_value=b"one",
+        siblings=(),
+    )
+
+    # Act
+    membership_accepted = verify_jmt_membership(
+        root,
+        _key(2),
+        b"one",
+        forged_membership,
+    )
+    absence_accepted = verify_jmt_absence(root, key_one, forged_absence)
+
+    # Assert
+    assert not membership_accepted
+    assert not absence_accepted
+
+
+def test_jmt_verifiers_reject_malformed_forged_fields_without_raising() -> None:
+    # Arrange
+    key = _key(1)
+    root = compute_jmt_root([(key, b"one")])
+    malformed_membership = _forge_frozen_dataclass(
+        JmtMembershipProof,
+        key=key,
+        value=b"one",
+        siblings=(object(),),
+    )
+    malformed_absence = _forge_frozen_dataclass(
+        JmtAbsenceProof,
+        query_key=key,
+        witness_key=None,
+        witness_value=b"forged",
+        siblings=(),
+    )
+
+    # Act / Assert
+    assert not verify_jmt_membership(root, key, b"one", malformed_membership)
+    assert not verify_jmt_absence(root, key, malformed_absence)
+
+
+def test_jmt_encoders_revalidate_constructor_forged_proofs() -> None:
+    # Arrange
+    malformed_membership = _forge_frozen_dataclass(
+        JmtMembershipProof,
+        key=32,
+        value=3,
+        siblings=(),
+    )
+    malformed_absence = _forge_frozen_dataclass(
+        JmtAbsenceProof,
+        query_key=_key(1),
+        witness_key=None,
+        witness_value=b"forged",
+        siblings=(),
+    )
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="JMT key must be bytes"):
+        encode_jmt_membership_proof(malformed_membership)
+    with pytest.raises(ValueError, match="witness_value must be None"):
+        encode_jmt_absence_proof(malformed_absence)
 
 
 def test_jmt_proof_serialization_rejects_malformed_payloads() -> None:

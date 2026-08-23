@@ -36,6 +36,15 @@ def _sha256(data: bytes) -> bytes:
     return hashlib.sha256(data).digest()
 
 
+def _snapshot_bytes(value: object, *, name: str) -> bytes:
+    if not isinstance(value, bytes):
+        raise TypeError(f"{name} must be bytes")
+    # ``bytes(value)`` dispatches a bytes-subclass ``__bytes__`` hook. Read the
+    # actual immutable buffer so hostile protocol methods cannot substitute the
+    # key, value, hash, or proof payload being authenticated.
+    return value if type(value) is bytes else memoryview(value).tobytes()
+
+
 def empty_hash(depth: int) -> bytes:
     if not isinstance(depth, int) or isinstance(depth, bool) or depth < 0 or depth > JMT_KEY_BITS:
         raise ValueError("JMT empty depth must be in [0, 256]")
@@ -47,24 +56,18 @@ EMPTY_ROOT_HEX = "0x" + EMPTY_ROOT_BYTES.hex()
 
 
 def _validate_key(key: bytes) -> bytes:
-    if not isinstance(key, bytes):
-        raise TypeError("JMT key must be bytes")
-    key_bytes = bytes(key)
+    key_bytes = _snapshot_bytes(key, name="JMT key")
     if len(key_bytes) != JMT_KEY_BYTES:
         raise ValueError(f"JMT key must be exactly {JMT_KEY_BYTES} bytes")
     return key_bytes
 
 
 def _validate_value(value: bytes) -> bytes:
-    if not isinstance(value, bytes):
-        raise TypeError("JMT value must be bytes")
-    return bytes(value)
+    return _snapshot_bytes(value, name="JMT value")
 
 
 def _validate_hash(value: bytes, *, name: str) -> bytes:
-    if not isinstance(value, bytes):
-        raise TypeError(f"{name} must be bytes")
-    value_bytes = bytes(value)
+    value_bytes = _snapshot_bytes(value, name=name)
     if len(value_bytes) != JMT_HASH_BYTES:
         raise ValueError(f"{name} must be exactly {JMT_HASH_BYTES} bytes")
     return value_bytes
@@ -136,14 +139,27 @@ class JmtSibling:
             raise TypeError("sibling_on_left must be bool")
 
 
-def _validate_siblings(siblings: Iterable[JmtSibling]) -> tuple[JmtSibling, ...]:
-    out = tuple(siblings)
-    if len(out) > JMT_KEY_BITS:
+def _validate_siblings(siblings: object) -> tuple[JmtSibling, ...]:
+    if type(siblings) is not tuple:
+        raise TypeError("JMT proof siblings must be an exact tuple")
+    if len(siblings) > JMT_KEY_BITS:
         raise ValueError("JMT proof path exceeds key depth")
-    for sibling in out:
-        if not isinstance(sibling, JmtSibling):
+    out: list[JmtSibling] = []
+    for sibling in siblings:
+        if type(sibling) is not JmtSibling:
             raise TypeError("JMT proof siblings must be JmtSibling values")
-    return out
+        try:
+            sibling_hash = sibling.sibling_hash
+            sibling_on_left = sibling.sibling_on_left
+        except AttributeError as exc:
+            raise TypeError("JMT proof sibling fields are missing") from exc
+        out.append(
+            JmtSibling(
+                sibling_hash=sibling_hash,
+                sibling_on_left=sibling_on_left,
+            )
+        )
+    return tuple(out)
 
 
 @dataclass(frozen=True)
@@ -176,6 +192,36 @@ class JmtAbsenceProof:
                 raise ValueError("witness_value is required when witness_key is present")
             object.__setattr__(self, "witness_value", _validate_value(self.witness_value))
         object.__setattr__(self, "siblings", _validate_siblings(self.siblings))
+
+
+def _snapshot_membership_proof(proof: object) -> JmtMembershipProof:
+    if type(proof) is not JmtMembershipProof:
+        raise TypeError("proof must be a JmtMembershipProof")
+    try:
+        key = proof.key
+        value = proof.value
+        siblings = proof.siblings
+    except AttributeError as exc:
+        raise TypeError("JMT membership proof fields are missing") from exc
+    return JmtMembershipProof(key=key, value=value, siblings=siblings)
+
+
+def _snapshot_absence_proof(proof: object) -> JmtAbsenceProof:
+    if type(proof) is not JmtAbsenceProof:
+        raise TypeError("proof must be a JmtAbsenceProof")
+    try:
+        query_key = proof.query_key
+        witness_key = proof.witness_key
+        witness_value = proof.witness_value
+        siblings = proof.siblings
+    except AttributeError as exc:
+        raise TypeError("JMT absence proof fields are missing") from exc
+    return JmtAbsenceProof(
+        query_key=query_key,
+        witness_key=witness_key,
+        witness_value=witness_value,
+        siblings=siblings,
+    )
 
 
 @dataclass(frozen=True)
@@ -308,9 +354,11 @@ def _siblings_to_wire(siblings: tuple[JmtSibling, ...]) -> list[dict[str, object
 
 
 def _siblings_from_wire(value: object) -> tuple[JmtSibling, ...]:
-    if not isinstance(value, list):
+    if type(value) is not list:
         raise TypeError("JMT siblings must be a list")
-    return _validate_siblings(_sibling_from_wire(item) for item in value)
+    if len(value) > JMT_KEY_BITS:
+        raise ValueError("JMT proof path exceeds key depth")
+    return _validate_siblings(tuple(_sibling_from_wire(item) for item in value))
 
 
 def _reject_duplicate_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -323,9 +371,7 @@ def _reject_duplicate_json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any
 
 
 def _load_proof_payload(payload: bytes) -> tuple[bytes, dict[str, Any]]:
-    if not isinstance(payload, bytes):
-        raise TypeError("JMT proof payload must be bytes")
-    payload_bytes = bytes(payload)
+    payload_bytes = _snapshot_bytes(payload, name="JMT proof payload")
     try:
         decoded = json.loads(payload_bytes.decode("utf-8"), object_pairs_hook=_reject_duplicate_json_object)
     except UnicodeDecodeError as exc:
@@ -336,8 +382,7 @@ def _load_proof_payload(payload: bytes) -> tuple[bytes, dict[str, Any]]:
 
 
 def encode_jmt_membership_proof(proof: JmtMembershipProof) -> bytes:
-    if not isinstance(proof, JmtMembershipProof):
-        raise TypeError("proof must be a JmtMembershipProof")
+    proof = _snapshot_membership_proof(proof)
     return canonical_json_bytes(
         {
             "kind": "membership",
@@ -366,8 +411,7 @@ def decode_jmt_membership_proof(payload: bytes) -> JmtMembershipProof:
 
 
 def encode_jmt_absence_proof(proof: JmtAbsenceProof) -> bytes:
-    if not isinstance(proof, JmtAbsenceProof):
-        raise TypeError("proof must be a JmtAbsenceProof")
+    proof = _snapshot_absence_proof(proof)
     return canonical_json_bytes(
         {
             "kind": "absence",
@@ -454,15 +498,20 @@ def verify_jmt_membership(
         root_bytes = _root_bytes(root)
         key_bytes = _validate_key(key)
         value_bytes = _validate_value(value)
-    except (TypeError, ValueError):
+        owned_proof = _snapshot_membership_proof(proof)
+    except (AttributeError, TypeError, ValueError):
         return False
-    if not isinstance(proof, JmtMembershipProof):
+    if owned_proof.key != key_bytes or owned_proof.value != value_bytes:
         return False
-    if proof.key != key_bytes or proof.value != value_bytes:
+    if not _siblings_follow_key(owned_proof.siblings, key_bytes):
         return False
-    if not _siblings_follow_key(proof.siblings, key_bytes):
-        return False
-    return _fold_root(leaf_hash(proof.key, proof.value), proof.siblings) == root_bytes
+    return (
+        _fold_root(
+            leaf_hash(owned_proof.key, owned_proof.value),
+            owned_proof.siblings,
+        )
+        == root_bytes
+    )
 
 
 def prove_jmt_absence(
@@ -514,21 +563,30 @@ def verify_jmt_absence(
     try:
         root_bytes = _root_bytes(root)
         query_key_bytes = _validate_key(query_key)
-    except (TypeError, ValueError):
+        owned_proof = _snapshot_absence_proof(proof)
+    except (AttributeError, TypeError, ValueError):
         return False
-    if not isinstance(proof, JmtAbsenceProof):
+    if owned_proof.query_key != query_key_bytes:
         return False
-    if proof.query_key != query_key_bytes:
-        return False
-    if not _siblings_follow_key(proof.siblings, query_key_bytes):
+    if not _siblings_follow_key(owned_proof.siblings, query_key_bytes):
         return False
 
-    if proof.witness_key is None:
-        witness_root = empty_hash(len(proof.siblings))
+    if owned_proof.witness_key is None:
+        witness_root = empty_hash(len(owned_proof.siblings))
     else:
-        if proof.witness_key == query_key_bytes or proof.witness_value is None:
+        if (
+            owned_proof.witness_key == query_key_bytes
+            or owned_proof.witness_value is None
+        ):
             return False
-        if not _same_prefix(proof.witness_key, query_key_bytes, len(proof.siblings)):
+        if not _same_prefix(
+            owned_proof.witness_key,
+            query_key_bytes,
+            len(owned_proof.siblings),
+        ):
             return False
-        witness_root = leaf_hash(proof.witness_key, proof.witness_value)
-    return _fold_root(witness_root, proof.siblings) == root_bytes
+        witness_root = leaf_hash(
+            owned_proof.witness_key,
+            owned_proof.witness_value,
+        )
+    return _fold_root(witness_root, owned_proof.siblings) == root_bytes
