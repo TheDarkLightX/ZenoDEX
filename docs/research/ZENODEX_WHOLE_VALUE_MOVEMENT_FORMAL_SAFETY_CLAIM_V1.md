@@ -821,6 +821,18 @@ production release selection, genesis initialization, authority-successor
 anchor protocol, atomic migration retirement, or sole-writer mount. The formal
 whole-value-movement claim therefore remains `UNPROVED`.
 
+Independent GPT-5.6 Sol review of initial anchor subject `0d2f759cb` returned
+`REVISE`. It found three reachable recovery defects in addition to the expected
+stale-evidence gate: post-commit projection failures escaped without a retained
+recovery source, an external-CAS lost acknowledgment could not reconcile its
+exact successor in-process, and an exhausted u64 anchor committed locally
+before successor construction failed. Minimized stateful and boundary tests now
+cover all three. Post-commit failures are typed indeterminate, only the derived
+byte-exact successor reconciles, divergent external state rejects before proof
+work, and exhausted successor coordinates reject before local mutation. The
+source-pinned ledger and execution receipt remain release-blocking until they
+are regenerated against the repaired implementation commit.
+
 Atomic no-replace install prevents the creator from opening a pre-existing
 final pathname writable. Advisory locking coordinates participating installers.
 A noncooperating same-UID process can still race the namespace, and an open

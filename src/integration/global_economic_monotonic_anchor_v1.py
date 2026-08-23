@@ -20,6 +20,7 @@ from ..core.global_economic_monotonic_anchor_v1 import (
     GlobalEconomicMonotonicAnchorV1,
     decode_global_economic_monotonic_anchor_v1,
     require_global_economic_epoch_anchor_successor_v1,
+    require_global_economic_monotonic_anchor_can_advance_v1,
 )
 from ..core.global_settlement_types_v1 import (
     _require_root,
@@ -473,6 +474,7 @@ def build_global_economic_epoch_anchor_successor_v1(
 ) -> GlobalEconomicMonotonicAnchorV1:
     if type(current) is not GlobalEconomicMonotonicAnchorV1:
         raise TypeError("current monotonic anchor type is not closed")
+    require_global_economic_monotonic_anchor_can_advance_v1(current)
     successor = build_global_economic_monotonic_anchor_v1(
         anchor_namespace_root=current.anchor_namespace_root,
         anchor_sequence=current.anchor_sequence + 1,

@@ -10,6 +10,7 @@ from src.core.global_economic_monotonic_anchor_v1 import (
     GlobalEconomicMonotonicAnchorV1,
     decode_global_economic_monotonic_anchor_v1,
     require_global_economic_epoch_anchor_successor_v1,
+    require_global_economic_monotonic_anchor_can_advance_v1,
 )
 
 
@@ -131,5 +132,9 @@ def test_anchor_u64_boundaries_reject_overflow_and_forbid_successor_at_maximum()
 
     with pytest.raises(ValueError, match="cannot advance"):
         require_global_economic_epoch_anchor_successor_v1(current, current)
+    with pytest.raises(ValueError, match="height cannot advance"):
+        require_global_economic_monotonic_anchor_can_advance_v1(
+            replace(_anchor(), height=maximum)
+        )
     with pytest.raises(ValueError, match="unsigned 64-bit"):
         replace(_anchor(), anchor_sequence=maximum + 1)

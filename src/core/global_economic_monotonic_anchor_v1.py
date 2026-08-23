@@ -243,8 +243,7 @@ def require_global_economic_epoch_anchor_successor_v1(
         raise TypeError("current global economic monotonic anchor type is not closed")
     if type(successor) is not GlobalEconomicMonotonicAnchorV1:
         raise TypeError("successor global economic monotonic anchor type is not closed")
-    if current.anchor_sequence == _U64_MAX_V1:
-        raise ValueError("global economic monotonic anchor cannot advance")
+    require_global_economic_monotonic_anchor_can_advance_v1(current)
     if successor.anchor_sequence != current.anchor_sequence + 1:
         raise ValueError("global economic monotonic anchor sequence is not adjacent")
     if successor.previous_anchor_root != current.anchor_root:
@@ -262,8 +261,6 @@ def require_global_economic_epoch_anchor_successor_v1(
     )
     if any(actual != expected for actual, expected in stable_bindings):
         raise ValueError("global economic epoch anchor changed a stable binding")
-    if current.publication_sequence == _U64_MAX_V1:
-        raise ValueError("global economic publication sequence cannot advance")
     if successor.publication_sequence != current.publication_sequence + 1:
         raise ValueError("global economic publication sequence is not adjacent")
     if successor.height != current.height + 1:
@@ -272,10 +269,25 @@ def require_global_economic_epoch_anchor_successor_v1(
         raise ValueError("global economic epoch anchor reused a publication id")
 
 
+def require_global_economic_monotonic_anchor_can_advance_v1(
+    current: GlobalEconomicMonotonicAnchorV1,
+) -> None:
+    """Reject before mutation when an adjacent V1 epoch is unrepresentable."""
+
+    if type(current) is not GlobalEconomicMonotonicAnchorV1:
+        raise TypeError("current global economic monotonic anchor type is not closed")
+    for field_name in ("anchor_sequence", "publication_sequence", "height"):
+        if getattr(current, field_name) == _U64_MAX_V1:
+            raise ValueError(
+                f"global economic monotonic anchor {field_name} cannot advance"
+            )
+
+
 __all__ = [
     "GLOBAL_ECONOMIC_MONOTONIC_ANCHOR_SCHEMA_V1",
     "MAX_GLOBAL_ECONOMIC_MONOTONIC_ANCHOR_BYTES_V1",
     "GlobalEconomicMonotonicAnchorV1",
     "decode_global_economic_monotonic_anchor_v1",
+    "require_global_economic_monotonic_anchor_can_advance_v1",
     "require_global_economic_epoch_anchor_successor_v1",
 ]

@@ -39,11 +39,13 @@ from src.integration.global_economic_authority_journal_v1 import (
 from src.integration.global_economic_commit_v1 import EconomicEpochBodyAndStateV1
 from src.integration.global_economic_durable_publisher_v1 import (
     GlobalEconomicAnchorAdvanceIndeterminateV1,
+    GlobalEconomicRollbackDetectedV1,
     VerifiedDurableEconomicPublisherV1,
     VerifiedDurableEconomicPublishOutcomeV1,
 )
 from src.integration.global_economic_epoch_journal_v1 import (
     DurableEconomicEpochCommitStatusV1,
+    DurableEconomicEpochWriteCapabilityV1,
     GlobalEconomicEpochJournalV1,
 )
 from src.integration.global_economic_migration_journal_v1 import (
@@ -170,6 +172,33 @@ class _MemoryMonotonicAnchorBackendV1:
             return False
         self.current = successor_anchor_bytes
         return True
+
+
+class _LostAckMonotonicAnchorBackendV1(_MemoryMonotonicAnchorBackendV1):
+    def __init__(self, anchor: GlobalEconomicMonotonicAnchorV1) -> None:
+        super().__init__(anchor)
+        self.fail_post_cas_read = False
+
+    def read_current_anchor(self, anchor_namespace_root: str) -> bytes:
+        if self.fail_post_cas_read:
+            self.fail_post_cas_read = False
+            raise OSError("simulated lost acknowledgment after external anchor write")
+        return super().read_current_anchor(anchor_namespace_root)
+
+    def compare_and_set_anchor(
+        self,
+        anchor_namespace_root: str,
+        expected_anchor_root: str,
+        successor_anchor_bytes: bytes,
+    ) -> bool:
+        advanced = super().compare_and_set_anchor(
+            anchor_namespace_root,
+            expected_anchor_root,
+            successor_anchor_bytes,
+        )
+        if advanced:
+            self.fail_post_cas_read = True
+        return advanced
 
 
 def _bound_monotonic_anchor_backend_v1(
@@ -1152,6 +1181,229 @@ def test_post_commit_stale_anchor_cas_is_typed_indeterminate_and_no_double_commi
     # Assert: retry observes one committed row and advances only the anchor.
     observed = decode_global_economic_monotonic_anchor_v1(backend.current)
     assert recovered.status is DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED
+    assert publisher.head.sequence == observed.publication_sequence == 1
+    assert publisher.head.publication_id == observed.publication_id
+    publisher.close()
+
+
+def test_post_commit_anchor_lost_ack_reconciles_the_exact_successor_on_retry(
+    tmp_path: Path,
+) -> None:
+    # Arrange: the external CAS writes its successor, then its confirming read fails.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"anchored-post-commit-lost-ack"
+    )
+    path = tmp_path / "anchored-post-commit-lost-ack.sqlite"
+    created = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    created.close()
+    genesis_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=0,
+        previous_anchor_root=ZERO_ROOT_V1,
+    )
+    backend = _LostAckMonotonicAnchorBackendV1(genesis_anchor)
+    bound_anchor = _bound_monotonic_anchor_backend_v1(genesis_anchor, backend)
+    publisher = VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+        bound_anchor,
+    )
+    source = publisher.head
+
+    # Act: the first call loses its acknowledgment after both durable writes;
+    # Alice submits only the byte-identical epoch from the exact predecessor.
+    with pytest.raises(GlobalEconomicAnchorAdvanceIndeterminateV1):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=body,
+        )
+    retried = publisher.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: the observed sole successor reconciles without another value write.
+    observed = decode_global_economic_monotonic_anchor_v1(backend.current)
+    assert retried.status is DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED
+    assert publisher.head.sequence == observed.publication_sequence == 1
+    assert publisher.head.publication_id == observed.publication_id
+    publisher.close()
+
+
+def test_changed_external_anchor_rejects_unless_it_is_the_exact_local_successor(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Mallory advances only the external sequence while local durable
+    # state remains at genesis, creating no valid local successor relation.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"anchored-divergent-external-successor"
+    )
+    path = tmp_path / "anchored-divergent-external-successor.sqlite"
+    created = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    created.close()
+    genesis_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=0,
+        previous_anchor_root=ZERO_ROOT_V1,
+    )
+    backend = _MemoryMonotonicAnchorBackendV1(genesis_anchor)
+    bound_anchor = _bound_monotonic_anchor_backend_v1(genesis_anchor, backend)
+    receipt_verifier, receipt_backend = _bound_receipt_verifier_v1(candidate)
+    publisher = VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+        path,
+        admission,
+        receipt_verifier,
+        bound_anchor,
+    )
+    calls_before = tuple(receipt_backend.calls)
+    source = publisher.head
+    local_bytes = path.read_bytes()
+    divergent = replace(
+        genesis_anchor,
+        anchor_sequence=1,
+        previous_anchor_root=genesis_anchor.anchor_root,
+    )
+    backend.current = divergent.canonical_bytes
+
+    # Act / Assert: divergence rejects before proof work or local publication.
+    with pytest.raises(GlobalEconomicRollbackDetectedV1):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=body,
+        )
+    assert tuple(receipt_backend.calls) == calls_before
+    assert publisher.head == source
+    assert path.read_bytes() == local_bytes
+    publisher.close()
+
+
+def test_exhausted_anchor_sequence_rejects_before_proof_or_local_commit(
+    tmp_path: Path,
+) -> None:
+    # Arrange: V1 has no representable anchor after the exact u64 maximum.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"anchored-exhausted-sequence"
+    )
+    path = tmp_path / "anchored-exhausted-sequence.sqlite"
+    created = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    created.close()
+    exhausted_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=(1 << 64) - 1,
+        previous_anchor_root=_root(934),
+    )
+    backend = _MemoryMonotonicAnchorBackendV1(exhausted_anchor)
+    bound_anchor = _bound_monotonic_anchor_backend_v1(exhausted_anchor, backend)
+    receipt_verifier, receipt_backend = _bound_receipt_verifier_v1(candidate)
+    publisher = VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+        path,
+        admission,
+        receipt_verifier,
+        bound_anchor,
+    )
+    calls_before = tuple(receipt_backend.calls)
+    source = publisher.head
+    local_bytes = path.read_bytes()
+
+    # Act / Assert: capacity rejects before proof verification or value mutation.
+    with pytest.raises(ValueError, match="cannot advance"):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=body,
+        )
+    assert tuple(receipt_backend.calls) == calls_before
+    assert publisher.head == source
+    assert path.read_bytes() == local_bytes
+    assert decode_global_economic_monotonic_anchor_v1(backend.current) == (
+        exhausted_anchor
+    )
+    publisher.close()
+
+
+def test_post_commit_local_anchor_projection_fault_is_indeterminate_and_retryable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: the local commit succeeds, then the first post-commit projection
+    # of authority, tip, and predecessor fails before the external CAS.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"anchored-post-commit-local-projection-fault"
+    )
+    path = tmp_path / "anchored-post-commit-local-projection-fault.sqlite"
+    created = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    created.close()
+    genesis_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=0,
+        previous_anchor_root=ZERO_ROOT_V1,
+    )
+    backend = _MemoryMonotonicAnchorBackendV1(genesis_anchor)
+    bound_anchor = _bound_monotonic_anchor_backend_v1(genesis_anchor, backend)
+    publisher = VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+        bound_anchor,
+    )
+    source = publisher.head
+    original = GlobalEconomicEpochJournalV1._anchor_heads_for_verified_publisher_v1
+    fail_once = True
+
+    def fail_first_post_commit_projection(
+        journal: GlobalEconomicEpochJournalV1,
+        write_capability: DurableEconomicEpochWriteCapabilityV1,
+    ):
+        nonlocal fail_once
+        heads = original(journal, write_capability)
+        if fail_once and heads[1].sequence == 1:
+            fail_once = False
+            raise RuntimeError("simulated post-commit local anchor projection fault")
+        return heads
+
+    monkeypatch.setattr(
+        GlobalEconomicEpochJournalV1,
+        "_anchor_heads_for_verified_publisher_v1",
+        fail_first_post_commit_projection,
+    )
+
+    # Act: one local row commits before the projection fault, then Alice retries
+    # the byte-identical epoch from the exact predecessor.
+    with pytest.raises(GlobalEconomicAnchorAdvanceIndeterminateV1):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=body,
+        )
+    retried = publisher.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: the retry advances only the anchor and cannot double-publish value.
+    observed = decode_global_economic_monotonic_anchor_v1(backend.current)
+    assert retried.status is DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED
     assert publisher.head.sequence == observed.publication_sequence == 1
     assert publisher.head.publication_id == observed.publication_id
     publisher.close()

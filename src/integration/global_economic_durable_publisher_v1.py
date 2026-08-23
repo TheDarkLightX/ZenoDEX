@@ -36,6 +36,7 @@ from ..core.global_economic_durable_activation_v1 import (
 )
 from ..core.global_economic_monotonic_anchor_v1 import (
     GlobalEconomicMonotonicAnchorV1,
+    require_global_economic_monotonic_anchor_can_advance_v1,
 )
 from ..core.global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from ..core.global_economic_proof_v1 import (
@@ -80,8 +81,6 @@ from .global_economic_epoch_journal_v1 import (
 )
 from .global_economic_monotonic_anchor_v1 import (
     BoundGlobalEconomicMonotonicAnchorBackendV1,
-    GlobalEconomicMonotonicAnchorProtocolViolationV1,
-    GlobalEconomicMonotonicAnchorUnavailableV1,
     build_global_economic_epoch_anchor_successor_v1,
     global_economic_monotonic_anchor_publication_head_v1,
     require_global_economic_monotonic_anchor_matches_local_v1,
@@ -652,9 +651,9 @@ class VerifiedDurableEconomicPublisherV1:
         if anchor is None:
             raise RuntimeError("durable publisher monotonic anchor is absent")
         observed = backend._read_current_for_publisher_v1()
-        if self.__monotonic_anchor_backend is not backend or observed != anchor:
+        if self.__monotonic_anchor_backend is not backend:
             raise GlobalEconomicRollbackDetectedV1(
-                "durable publisher external monotonic anchor changed"
+                "durable publisher monotonic anchor backend changed"
             )
         authority, publication, predecessor = (
             self.__journal._anchor_heads_for_verified_publisher_v1(
@@ -679,10 +678,96 @@ class VerifiedDurableEconomicPublisherV1:
             raise GlobalEconomicRollbackDetectedV1(
                 "durable publisher anchor recovery permits only the exact predecessor retry"
             )
+        self._reconcile_monotonic_anchor_observation_v1(
+            observed=observed,
+            authority=authority,
+            publication=publication,
+            expected_recovery=expected_recovery,
+        )
+        current_anchor = self.__monotonic_anchor
+        if (
+            expected_recovery is None
+            and current_anchor is not None
+            and _same_publication_head_v1(
+                source,
+                global_economic_monotonic_anchor_publication_head_v1(
+                    current_anchor
+                ),
+            )
+        ):
+            require_global_economic_monotonic_anchor_can_advance_v1(current_anchor)
+
+    def _reconcile_monotonic_anchor_observation_v1(
+        self,
+        *,
+        observed: GlobalEconomicMonotonicAnchorV1,
+        authority: GlobalEconomicAuthorityHeadV1,
+        publication: DurableEconomicPublicationHeadV1,
+        expected_recovery: DurableEconomicPublicationHeadV1 | None,
+    ) -> None:
+        anchor = self.__monotonic_anchor
+        if anchor is None or observed == anchor:
+            return
+        try:
+            successor = build_global_economic_epoch_anchor_successor_v1(
+                anchor,
+                authority=authority,
+                publication=publication,
+            )
+        except (TypeError, ValueError) as exc:
+            raise GlobalEconomicRollbackDetectedV1(
+                "durable publisher external monotonic anchor changed"
+            ) from exc
+        if expected_recovery is None or observed != successor:
+            raise GlobalEconomicRollbackDetectedV1(
+                "durable publisher external monotonic anchor changed"
+            )
+        object.__setattr__(
+            self,
+            "_VerifiedDurableEconomicPublisherV1__monotonic_anchor",
+            observed,
+        )
+        object.__setattr__(
+            self,
+            "_VerifiedDurableEconomicPublisherV1__monotonic_anchor_recovery_source",
+            None,
+        )
+
+    def _prepare_monotonic_anchor_successor_after_publish_v1(
+        self,
+        anchor: GlobalEconomicMonotonicAnchorV1,
+        committed: DurableEconomicPublicationHeadV1,
+    ) -> tuple[
+        DurableEconomicPublicationHeadV1,
+        GlobalEconomicMonotonicAnchorV1,
+    ]:
+        authority, local_head, predecessor = (
+            self.__journal._anchor_heads_for_verified_publisher_v1(
+                self.__write_capability
+            )
+        )
+        anchored_head = global_economic_monotonic_anchor_publication_head_v1(
+            anchor
+        )
+        if (
+            predecessor is None
+            or not _same_publication_head_v1(committed, local_head)
+            or not _same_publication_head_v1(predecessor, anchored_head)
+        ):
+            raise GlobalEconomicRollbackDetectedV1(
+                "durable publisher anchor advance is not one exact local epoch"
+            )
+        successor = build_global_economic_epoch_anchor_successor_v1(
+            anchor,
+            authority=authority,
+            publication=committed,
+        )
+        return predecessor, successor
 
     def _advance_monotonic_anchor_after_publish_v1(
         self,
         outcome: VerifiedDurableEconomicPublishOutcomeV1,
+        source: DurableEconomicPublicationHeadV1,
     ) -> None:
         backend = self.__monotonic_anchor_backend
         anchor = self.__monotonic_anchor
@@ -702,33 +787,24 @@ class VerifiedDurableEconomicPublisherV1:
                     "durable publisher committed history conflicts with its anchor"
                 )
             return
-        authority, local_head, predecessor = (
-            self.__journal._anchor_heads_for_verified_publisher_v1(
-                self.__write_capability
+        if outcome.status is DurableEconomicEpochCommitStatusV1.COMMITTED:
+            object.__setattr__(
+                self,
+                "_VerifiedDurableEconomicPublisherV1__monotonic_anchor_recovery_source",
+                source,
             )
-        )
-        if (
-            predecessor is None
-            or not _same_publication_head_v1(committed, local_head)
-            or not _same_publication_head_v1(
-                predecessor,
-                global_economic_monotonic_anchor_publication_head_v1(anchor),
-            )
-        ):
-            raise GlobalEconomicRollbackDetectedV1(
-                "durable publisher anchor advance is not one exact local epoch"
-            )
-        successor = build_global_economic_epoch_anchor_successor_v1(
-            anchor,
-            authority=authority,
-            publication=committed,
-        )
-        object.__setattr__(
-            self,
-            "_VerifiedDurableEconomicPublisherV1__monotonic_anchor_recovery_source",
-            predecessor,
-        )
         try:
+            predecessor, successor = (
+                self._prepare_monotonic_anchor_successor_after_publish_v1(
+                    anchor,
+                    committed,
+                )
+            )
+            object.__setattr__(
+                self,
+                "_VerifiedDurableEconomicPublisherV1__monotonic_anchor_recovery_source",
+                predecessor,
+            )
             advanced = backend._compare_and_set_for_publisher_v1(
                 anchor,
                 successor,
@@ -737,12 +813,11 @@ class VerifiedDurableEconomicPublisherV1:
                 raise GlobalEconomicAnchorAdvanceIndeterminateV1(
                     "local epoch committed while external monotonic anchor CAS conflicted"
                 )
-        except (
-            GlobalEconomicMonotonicAnchorProtocolViolationV1,
-            GlobalEconomicMonotonicAnchorUnavailableV1,
-        ) as exc:
+        except GlobalEconomicAnchorAdvanceIndeterminateV1:
+            raise
+        except Exception as exc:
             raise GlobalEconomicAnchorAdvanceIndeterminateV1(
-                "local epoch committed before external monotonic anchor acknowledgment"
+                "local epoch committed before monotonic anchor advancement completed"
             ) from exc
         if self.__monotonic_anchor_backend is not backend:
             raise GlobalEconomicAnchorAdvanceIndeterminateV1(
@@ -868,7 +943,7 @@ class VerifiedDurableEconomicPublisherV1:
                 DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED,
             }
             if outcome.status in successful:
-                self._advance_monotonic_anchor_after_publish_v1(outcome)
+                self._advance_monotonic_anchor_after_publish_v1(outcome, source)
             return outcome
 
     @staticmethod

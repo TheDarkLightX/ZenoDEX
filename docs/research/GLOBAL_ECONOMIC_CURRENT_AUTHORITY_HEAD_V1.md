@@ -209,9 +209,14 @@ executable release blockers:
 Their passing result records reproducibility. It supplies no safety claim.
 The anchored shadow profile adds negative regressions for the first two traces
 and one-step exact-retry recovery after a local epoch commit precedes external
-anchor acknowledgment. The inode-replacement and separate-migration traces
-remain open because no authenticated deployed anchor or atomic migration
-retirement protocol exists.
+anchor acknowledgment. Post-commit local projection failure is typed as
+indeterminate while retaining the exact predecessor. If external CAS installed
+the sole valid successor before its confirming read failed, the next exact
+retry reconciles that successor in-process. Any other changed external anchor
+rejects before receipt verification. Exact-u64 exhaustion of the anchor or
+height counter rejects before proof work or SQLite mutation. The inode-
+replacement and separate-migration traces remain open because no authenticated
+deployed anchor or atomic migration retirement protocol exists.
 
 ## Nonclaims and remaining gaps
 
