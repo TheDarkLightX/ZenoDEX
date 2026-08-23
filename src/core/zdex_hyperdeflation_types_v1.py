@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Final
 
 from .global_settlement_types_v1 import (
+    MAX_DELTA_ATOMS_V1,
     _require_atoms_u128,
     _require_nonnegative_int,
     _require_root,
@@ -28,6 +29,7 @@ class ZDEXBurnRejectCodeV1(str, Enum):
     PURCHASE_BINDING_MISMATCH = "PURCHASE_BINDING_MISMATCH"
     SOURCE_BUCKET_UNKNOWN = "SOURCE_BUCKET_UNKNOWN"
     ZERO_PURCHASE = "ZERO_PURCHASE"
+    EFFECT_WIDTH_EXCEEDED = "EFFECT_WIDTH_EXCEEDED"
     PRECISION_RESCALE_REQUIRED = "PRECISION_RESCALE_REQUIRED"
     SOURCE_RESERVE_FLOOR_REACHED = "SOURCE_RESERVE_FLOOR_REACHED"
     EPOCH_BURN_CAP_REACHED = "EPOCH_BURN_CAP_REACHED"
@@ -342,6 +344,8 @@ class ZDEXBurnEffectV1:
         _require_atoms_u128(self.authorized_issue_atoms, name="ZDEX authorized issue")
         if self.source_debit_atoms == 0:
             raise ValueError("ZDEX accepted burn effect must be nonzero")
+        if self.source_debit_atoms > MAX_DELTA_ATOMS_V1:
+            raise ValueError("ZDEX burn effect must fit signed effect atoms")
         if self.source_debit_atoms != self.authorized_burn_atoms:
             raise ValueError("ZDEX purchase debit must equal authorized burn")
         if self.authorized_issue_atoms != 0:

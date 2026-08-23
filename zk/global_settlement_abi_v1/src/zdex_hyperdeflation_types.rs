@@ -21,6 +21,7 @@ pub enum ZDEXBurnRejectCodeV1 {
     PURCHASE_BINDING_MISMATCH,
     SOURCE_BUCKET_UNKNOWN,
     ZERO_PURCHASE,
+    EFFECT_WIDTH_EXCEEDED,
     PRECISION_RESCALE_REQUIRED,
     SOURCE_RESERVE_FLOOR_REACHED,
     EPOCH_BURN_CAP_REACHED,
@@ -239,6 +240,7 @@ impl ZDEXBurnEffectV1 {
             .validate("ZDEX burn effect purchase occurrence", false)?;
         validate_token_v1(&self.source_bucket_id, "ZDEX burn effect source bucket")?;
         if self.source_debit_atoms == 0
+            || self.source_debit_atoms > i128::MAX.unsigned_abs()
             || self.source_debit_atoms != self.authorized_burn_atoms
             || self.authorized_issue_atoms != 0
         {

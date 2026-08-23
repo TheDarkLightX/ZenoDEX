@@ -1,0 +1,94 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-zdex-signed-effect-width",
+  "created_date": "2026-08-23",
+  "claim_scope": "The Python and Rust SHADOW ZDEX hyperdeflation cores accept a burn at the canonical signed i128 effect limit and reject the next u128 atom before constructing an economic effect; the rejection preserves the exact pre-state and emits no effects.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZDEX-BURN-SIGNED-EFFECT-WIDTH",
+    "ZDEX-BURN-REJECT-WITHOUT-EFFECTS",
+    "ZDEX-BURN-PYTHON-RUST-PARITY"
+  ],
+  "failure_modes": [
+    "a u128 burn above 2^127 - 1 is accepted even though its negative canonical economic delta cannot fit i128",
+    "an oversized burn constructs an effect before width admission",
+    "an oversized burn mutates supply state or emits a partial effect",
+    "Python and Rust disagree at the signed-effect boundary"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/zdex_hyperdeflation_types_v1.py",
+      "sha256": "0d6a25c0d2d3bfcdce69365f2167461531ac7fef36663bfab7c9d3b9ec01d30b"
+    },
+    {
+      "path": "src/core/zdex_hyperdeflation_v1.py",
+      "sha256": "43ec2159da9513d28ac40f126652b1ed75fc0cf4ad90f0b321e78a6f88d8ed46"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_hyperdeflation_types.rs",
+      "sha256": "2d20801e81d86ea8f5eff0b1ea221ba0cbc5d7d3a8241bc84522498b73cfb47e"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_hyperdeflation.rs",
+      "sha256": "1c39714716d1d6ebea8bd667e1571f7681c7b0807c1d8849c1ba3a20e197ef31"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/zdex_hyperdeflation.rs",
+      "sha256": "eaf1c3720c45dbe1dc16f9bb4bce41f0c4a8d4a9aa2c1ffadc70a8fcc80d5454"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_hyperdeflation_v1.py",
+      "sha256": "dce288f36d66ac4dad6168432641cbcc721dbb2a546d10fb336608a920a2534a",
+      "node_ids": [
+        "tests/core/test_zdex_hyperdeflation_v1.py::test_burn_signed_effect_width_accepts_maximum_and_rejects_next_atom"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The regression arranges a state with enough supply and burn capacity, acts at 2^127 - 1 and its immediate successor, then asserts acceptance at the limit and the exact typed no-effect rejection above it."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The oversized transition returns EFFECT_WIDTH_EXCEEDED with identical pre/post state and an empty effect sequence; direct oversized effect construction also fails."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "canonical_signed_effect_width",
+      "points": [
+        "2^127 - 1 accepts",
+        "2^127 rejects"
+      ]
+    },
+    {
+      "name": "language_implementation",
+      "points": [
+        "Python transition and effect constructor",
+        "Rust transition and effect validator"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "remove the signed i128 width guard while retaining u128 input admission",
+      "killed_by": "tests/core/test_zdex_hyperdeflation_v1.py::test_burn_signed_effect_width_accepts_maximum_and_rejects_next_atom"
+    }
+  ],
+  "nonclaims": [
+    "The profile remains SHADOW and unmounted, and production authority remains NONE.",
+    "This packet proves no AMM pricing, slippage, market-demand, or whole-economy conservation property.",
+    "No RISC0 guest was rebuilt, no image ID or real receipt was produced, and no release or proof profile is promoted.",
+    "The Rust boundary tests are enforced by Cargo gates outside this Python evidence-packet schema; this packet does not elevate them into a machine-checked theorem.",
+    "Bounded arithmetic regressions do not guarantee all ZenoDEX value movement."
+  ]
+}

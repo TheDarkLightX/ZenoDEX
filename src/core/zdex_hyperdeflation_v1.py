@@ -10,7 +10,11 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from .global_settlement_types_v1 import MAX_ATOMS_V1, MAX_U64_V1
+from .global_settlement_types_v1 import (
+    MAX_ATOMS_V1,
+    MAX_DELTA_ATOMS_V1,
+    MAX_U64_V1,
+)
 from .zdex_hyperdeflation_math_v1 import (
     burned_bucket_projection_v1,
     compute_zdex_burn_capacity_v1,
@@ -98,6 +102,8 @@ def _burn_admission(
         return ZDEXBurnRejectCodeV1.BURN_BUDGET_EPOCH_MISMATCH, None
     if command.purchased_zdex_atoms == 0:
         return ZDEXBurnRejectCodeV1.ZERO_PURCHASE, None
+    if command.purchased_zdex_atoms > MAX_DELTA_ATOMS_V1:
+        return ZDEXBurnRejectCodeV1.EFFECT_WIDTH_EXCEEDED, None
     if not _purchase_binding_matches(context, command):
         return ZDEXBurnRejectCodeV1.PURCHASE_BINDING_MISMATCH, None
     capacity = compute_zdex_burn_capacity_v1(

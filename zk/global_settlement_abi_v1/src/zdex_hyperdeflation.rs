@@ -122,6 +122,9 @@ pub fn transition_zdex_purchase_and_burn_v1(
     if command.purchased_zdex_atoms == 0 {
         return burn_reject_v1(ZDEXBurnRejectCodeV1::ZERO_PURCHASE, state);
     }
+    if command.purchased_zdex_atoms > i128::MAX.unsigned_abs() {
+        return burn_reject_v1(ZDEXBurnRejectCodeV1::EFFECT_WIDTH_EXCEEDED, state);
+    }
     if command.expected_purchase_occurrence_root != context.purchase_occurrence_root
         || command.source_bucket_id != context.burn_source_bucket_id
         || command.purchased_zdex_atoms != context.purchased_zdex_atoms

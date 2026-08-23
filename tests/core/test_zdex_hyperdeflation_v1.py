@@ -6,7 +6,11 @@ from typing import TypedDict, cast
 
 import pytest
 
-from src.core.global_settlement_types_v1 import MAX_ATOMS_V1, MAX_U64_V1
+from src.core.global_settlement_types_v1 import (
+    MAX_ATOMS_V1,
+    MAX_DELTA_ATOMS_V1,
+    MAX_U64_V1,
+)
 from src.core.zdex_hyperdeflation_v1 import (
     ZDEXAmountBucketV1,
     ZDEXBucketScaleV1,
@@ -520,6 +524,41 @@ def test_retained_supply_intermediate_is_safe_at_u128_u64_boundary() -> None:
     assert state.state_root == (
         "0x9083fedb16da97f36e8c097322bfced6519e2dd4419607f1134f9f93cc2054ed"
     )
+
+
+def test_burn_signed_effect_width_accepts_maximum_and_rejects_next_atom() -> None:
+    policy = _policy(retained_numerator=1, retained_denominator=3)
+    state = _state(
+        policy,
+        source_atoms=MAX_ATOMS_V1,
+        remaining_epoch_burn_cap_atoms=MAX_ATOMS_V1,
+    )
+
+    accepted = transition_zdex_purchase_and_burn_v1(
+        policy,
+        state,
+        _context(policy, purchased_atoms=MAX_DELTA_ATOMS_V1),
+        _burn_command(state, MAX_DELTA_ATOMS_V1),
+    )
+    rejected = transition_zdex_purchase_and_burn_v1(
+        policy,
+        state,
+        _context(policy, purchased_atoms=MAX_DELTA_ATOMS_V1 + 1),
+        _burn_command(state, MAX_DELTA_ATOMS_V1 + 1),
+    )
+
+    assert isinstance(accepted, ZDEXPurchaseAndBurnAcceptedV1)
+    assert accepted.effect.authorized_burn_atoms == MAX_DELTA_ATOMS_V1
+    assert isinstance(rejected, ZDEXPurchaseAndBurnRejectedV1)
+    assert rejected.code is ZDEXBurnRejectCodeV1.EFFECT_WIDTH_EXCEEDED
+    _assert_no_effect_reject(rejected, state)
+    with pytest.raises(ValueError, match="signed effect atoms"):
+        ZDEXBurnEffectV1(
+            purchase_occurrence_root=_root(3),
+            source_bucket_id="route:buyburn:source",
+            source_debit_atoms=MAX_DELTA_ATOMS_V1 + 1,
+            authorized_burn_atoms=MAX_DELTA_ATOMS_V1 + 1,
+        )
 
 
 def test_precision_rescale_preserves_each_normalized_bucket_and_total_exactly() -> None:

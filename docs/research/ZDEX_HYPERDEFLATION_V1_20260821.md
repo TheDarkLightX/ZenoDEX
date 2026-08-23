@@ -120,6 +120,10 @@ For a burn amount `b`, the ratio guard is:
 0 < b <= S - R(S)
 ```
 
+The signed bound is required by the canonical economic-effect ABI. A larger
+u128 debit cannot be represented as one negative i128 effect and therefore
+rejects as `EFFECT_WIDTH_EXCEEDED` before any state or effect is produced.
+
 The full implemented burn capacity is:
 
 ```text
@@ -130,6 +134,8 @@ B_max = min(
   route_epoch_burn_ceiling_atoms,
   route_safe_output_cap_atoms
 )
+
+0 < b <= min(B_max, 2^127 - 1)
 ```
 
 Every accepted burn satisfies:
@@ -437,6 +443,7 @@ receipt consumer, API, client, and historical decoder.
 | Test faucet mints protocol ZDEX | Source guard and authored exact no-state-change scenario reject the canonical protocol-token asset | Dependency-closed integration replay; this branch lacks the tracked consensus-time donor required to import the plugin |
 | Partial denomination migration | All supplied projection buckets and the remaining burn budget scale exactly or transition rejects | Complete global ZDEX bucket registry and atomic migration |
 | Multiplication or epoch overflow | Python pre-multiplication guard, Rust widened quotient/remainder retention, checked rescale, and u64 epoch exhaustion | Guest execution and independent arithmetic review |
+| Burn exceeds signed effect width | Python and Rust reject `b > 2^127 - 1` with exact no effect; boundary tests accept `2^127 - 1` and reject its successor | Generated guest execution and runtime refinement |
 | Oversized serialized input exhausts decoding resources | Supply-state decoding rejects more than 1,024 projection rows; the burn guest and host enforce a 1 MiB canonical-input ceiling before decoding; receipt admission enforces a 16 MiB ceiling and the ABI journal ceiling | Apply equivalent pre-decode bounds to every remaining guest and mounted adapter; parsed string allocation elsewhere remains outside this leaf |
 | Old receipt is replayed after rescale | Precision epoch and pre-state root binding | Global nonce/nullifier and profile binding |
 | Buy-and-burn has no market demand | No mathematical closure claimed | Economic and liquidity analysis |

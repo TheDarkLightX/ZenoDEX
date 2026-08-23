@@ -1,11 +1,11 @@
 use serde_json::json;
 use zenodex_global_settlement_abi_v1::{
     compute_zdex_burn_capacity_v1, retained_supply_atoms_v1, transition_zdex_precision_rescale_v1,
-    transition_zdex_purchase_and_burn_v1, RootV1, ZDEXAmountBucketV1, ZDEXBurnRejectCodeV1,
-    ZDEXBurnRouteContextV1, ZDEXHyperdeflationPolicyV1, ZDEXPrecisionRejectCodeV1,
-    ZDEXPrecisionRescaleCommandV1, ZDEXPrecisionRescaleResultV1, ZDEXPurchaseAndBurnCommandV1,
-    ZDEXPurchaseAndBurnResultV1, ZDEXSupplyStateV1, MAX_DECIMAL_SCALE_STEP_V1,
-    MAX_ZDEX_PROJECTION_BUCKETS_V1,
+    transition_zdex_purchase_and_burn_v1, RootV1, ZDEXAmountBucketV1, ZDEXBurnEffectV1,
+    ZDEXBurnRejectCodeV1, ZDEXBurnRouteContextV1, ZDEXHyperdeflationPolicyV1,
+    ZDEXPrecisionRejectCodeV1, ZDEXPrecisionRescaleCommandV1, ZDEXPrecisionRescaleResultV1,
+    ZDEXPurchaseAndBurnCommandV1, ZDEXPurchaseAndBurnResultV1, ZDEXSupplyStateV1,
+    MAX_DECIMAL_SCALE_STEP_V1, MAX_ZDEX_PROJECTION_BUCKETS_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -178,6 +178,54 @@ fn ceil_retention_and_widened_u128_u64_arithmetic_match_independent_oracles() {
         boundary_state.state_root().unwrap().as_str(),
         "0x9083fedb16da97f36e8c097322bfced6519e2dd4419607f1134f9f93cc2054ed"
     );
+}
+
+#[test]
+fn burn_signed_effect_width_accepts_maximum_and_rejects_next_atom() {
+    let policy = policy(1, 3);
+    let state = state(&policy, u128::MAX, 0);
+    let maximum = i128::MAX.unsigned_abs();
+
+    let accepted = transition_zdex_purchase_and_burn_v1(
+        &policy,
+        &state,
+        &context(&policy, maximum),
+        &burn_command(&state, maximum),
+    )
+    .unwrap();
+    let rejected = transition_zdex_purchase_and_burn_v1(
+        &policy,
+        &state,
+        &context(&policy, maximum + 1),
+        &burn_command(&state, maximum + 1),
+    )
+    .unwrap();
+
+    let ZDEXPurchaseAndBurnResultV1::Accepted(accepted) = accepted else {
+        panic!("maximum signed-effect burn must accept")
+    };
+    assert_eq!(accepted.effect().authorized_burn_atoms, maximum);
+    let ZDEXPurchaseAndBurnResultV1::Rejected(rejected) = rejected else {
+        panic!("oversized signed-effect burn must reject")
+    };
+    assert_eq!(rejected.code(), ZDEXBurnRejectCodeV1::EFFECT_WIDTH_EXCEEDED);
+    assert_eq!(rejected.pre_state(), rejected.post_state());
+    assert!(rejected.effects().is_empty());
+
+    let maximum_effect = ZDEXBurnEffectV1 {
+        purchase_occurrence_root: root(3),
+        source_bucket_id: "route:buyburn:source".to_owned(),
+        source_debit_atoms: maximum,
+        authorized_burn_atoms: maximum,
+        authorized_issue_atoms: 0,
+    };
+    assert!(maximum_effect.validate().is_ok());
+    let oversized_effect = ZDEXBurnEffectV1 {
+        source_debit_atoms: maximum + 1,
+        authorized_burn_atoms: maximum + 1,
+        ..maximum_effect
+    };
+    assert!(oversized_effect.validate().is_err());
 }
 
 #[test]
@@ -389,6 +437,17 @@ fn every_burn_reject_code_has_exact_noop_evidence() {
         &context(&state_policy, 1),
         &command,
         ZDEXBurnRejectCodeV1::ZERO_PURCHASE,
+    );
+
+    let wide_policy = policy(1, 3);
+    let wide_state = state(&wide_policy, u128::MAX, 0);
+    let oversized = i128::MAX.unsigned_abs() + 1;
+    assert_burn_reject(
+        &wide_policy,
+        &wide_state,
+        &context(&wide_policy, oversized),
+        &burn_command(&wide_state, oversized),
+        ZDEXBurnRejectCodeV1::EFFECT_WIDTH_EXCEEDED,
     );
 
     let half = policy(1, 2);
