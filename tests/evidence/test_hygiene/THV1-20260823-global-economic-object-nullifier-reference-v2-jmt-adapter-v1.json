@@ -1,0 +1,163 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-global-economic-object-nullifier-reference-v2-jmt-adapter-v1",
+  "created_date": "2026-08-23",
+  "claim_scope": "A four-file experimental adapter projects each validated V2 object-nullifier archive row bijectively to raw 32-byte JMT key/value pairs, computes a deterministic candidate root, and exposes bounded canonical membership and absence witness bytes for differential testing while remaining excluded from authority surfaces.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "NULLIFIER-JMT-RAW-ID-BIJECTION",
+    "NULLIFIER-JMT-ACCEPTED-SUCCESSOR-REFINEMENT",
+    "NULLIFIER-JMT-REJECTION-NO-SUCCESSOR",
+    "NULLIFIER-JMT-CANONICAL-WIRE-ONLY",
+    "NULLIFIER-JMT-WITNESS-BYTE-BOUND",
+    "NULLIFIER-JMT-ONE-WAY-EXPERIMENT-ISOLATION"
+  ],
+  "failure_modes": [
+    "object and first-occurrence identifiers are projected in the wrong order or encoding",
+    "an accepted reference step loses an old binding or adds a binding different from the canonical successor archive",
+    "a rejected reference step is treated as if it had a candidate successor root",
+    "a malformed, noncanonical, oversized, wrong-root, wrong-key, or wrong-value witness verifies",
+    "a direct JMT proof object crosses the adapter boundary",
+    "the adapter is imported, re-exported, bundled, mounted, or represented as production authority",
+    "a 256-sibling adversarial witness exceeds the frozen 32 KiB experimental envelope"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/GLOBAL_ECONOMIC_OBJECT_NULLIFIER_REFERENCE_V2_JMT_ADAPTER_V1.md",
+      "sha256": "bb08bf25aa99582e62fd7c4fc7d5fe377b352340a0398f188abb76557555de1e"
+    },
+    {
+      "path": "experiments/global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py",
+      "sha256": "197c3c05127884796ed3cf9550a31e7a17f59a6e3ab97e43c3bb90132f54f95a"
+    },
+    {
+      "path": "experiments/global_economic_object_nullifier_reference_v2.py",
+      "sha256": "9ca0b1383466bd6c631715a3f81f5b15afa7ef4ff9e1fafb45a6ade5b6507b3a"
+    },
+    {
+      "path": "src/state/jmt.py",
+      "sha256": "11eed521b2b3fdcce8820f6eea8203b32771a312330950c8fa400d450e6ec58f"
+    },
+    {
+      "path": "src/state/canonical.py",
+      "sha256": "00852842b0e83dd5f3e5ce2018677af16937d0576b69d4362b49beb104194e82"
+    },
+    {
+      "path": "docs/research/GLOBAL_ECONOMIC_OBJECT_NULLIFIER_REFERENCE_V2.md",
+      "sha256": "ed11bcd7207c0498a3673aa4fdc08f4d4c7fca5219086a73a87c3bb9275af5c1"
+    },
+    {
+      "path": "docs/research/GLOBAL_ECONOMIC_COMPOSITION_DISASTER_CAMPAIGN_V1.md",
+      "sha256": "f8e3df0d83d62ecec035f6861ddefa0f979cf7a66a9ba928e9011e169856fc15"
+    },
+    {
+      "path": "tools/build_operator_release_bundle.py",
+      "sha256": "02ef6b3a3f3189993b7e3b649700ee83aa2986fd4f4e0f91bb6f4e9c21b35ec5"
+    },
+    {
+      "path": ".dockerignore",
+      "sha256": "c6c132d6204a7effb27044a9861904adc801c7a7b9c5de067b65abe261bcefb3"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py",
+      "sha256": "9d844cd2d5f6e947ca78072f2eb158f83b0ee4c225b0628fbc26bc0a25b4a9d9",
+      "node_ids": [
+        "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_projection_fixed_roots_and_bijection",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_accepted_steps_refine_map_and_proofs",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_rejections_have_no_successor_and_preserve_pre_root",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_empty_and_permuted_steps_are_root_invariant",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_bounded_stateful_traces_match_independent_map",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_exhaustive_six_id_subsets_and_permutations_refine_one_root_per_subset",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_claim_count_boundaries",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_archive_capacity_boundaries_4095_4096_and_attempted_4097",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_canonical_witness_payloads_tamper_fail_closed",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_adapter_snapshots_aliases_and_rejects_forged_values",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_adjacent_nonzero_ids_record_256_sibling_negative_frontier",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_adapter_is_one_way_unmounted_and_release_excluded"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "metamorphic",
+    "stateful",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each obligation arranges exact immutable reference values and one named perturbation or history, acts through the reference transition or opaque-wire adapter, and asserts exact maps, roots, witnesses, reject codes, no-successor behavior, or isolation outcomes."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Rejected oracle results expose no post_archive, and tests recompute the exact pre candidate root after rejection. Adapter verification is pure and returns false for malformed inputs."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "claims_per_step",
+      "points": ["0", "1", "63", "64", "65_rejects"]
+    },
+    {
+      "name": "archive_capacity",
+      "points": ["4095", "4096", "attempted_4097_rejects"]
+    },
+    {
+      "name": "witness_wire",
+      "points": [
+        "canonical_passes",
+        "trailing_byte_rejects",
+        "one_bit_sibling_mutation_rejects",
+        "over_32768_bytes_rejects"
+      ]
+    },
+    {
+      "name": "key_shape",
+      "points": [
+        "ordinary_nonzero_ids",
+        "adjacent_ids_with_256_siblings",
+        "wrong_key_rejects",
+        "wrong_occurrence_value_rejects"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "swap the raw object-ID key and first-occurrence value projection",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_projection_fixed_roots_and_bijection"
+    },
+    {
+      "description": "drop old bindings or preserve caller claim order in an accepted successor",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_accepted_steps_refine_map_and_proofs"
+    },
+    {
+      "description": "construct a successor candidate root after a typed reference rejection",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_rejections_have_no_successor_and_preserve_pre_root"
+    },
+    {
+      "description": "accept a one-bit sibling hash mutation or noncanonical trailing bytes",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_canonical_witness_payloads_tamper_fail_closed"
+    },
+    {
+      "description": "remove the 32 KiB witness envelope or ignore the 256-sibling frontier",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_adjacent_nonzero_ids_record_256_sibling_negative_frontier"
+    },
+    {
+      "description": "import or bundle the experimental adapter into runtime or operator-release surfaces",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2_jmt_adapter_v1.py::test_adapter_is_one_way_unmounted_and_release_excluded"
+    }
+  ],
+  "nonclaims": [
+    "The candidate root lacks object-nullifier schema and version binding and is not a GlobalSettlementABI root.",
+    "The adapter proves no object provenance, alias resistance, authenticated incremental update, persistence, rollback resistance, migration continuity, or atomic publication.",
+    "No Rust or RISC0 adapter parity, machine-checked refinement theorem, guest cycle ceiling, storage ceiling, or production scalability result is claimed.",
+    "No release, proof image, receipt, state-root mount, settlement authority, writer rotation, governance action, or value-moving authority is added.",
+    "The adapter is implemented only as an experimental differential harness; production_authority remains NONE and global production readiness remains false."
+  ]
+}
