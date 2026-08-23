@@ -854,9 +854,21 @@ only recovery after a post-commit `BaseException`. The follow-up patch adds a
 two-writer positive schedule with exactly two durable epoch rows, arms recovery
 across process-control exceptions while preserving the original exception, and
 adds a three-point pre-commit publisher fault matrix. Stable-binding mutation
-coverage now changes every forward-observation authority coordinate. Because
-these follow-up changes postdate `d7cc5def3`, one final exact-code rereview and
-exact-subject execution receipt remain required.
+coverage now changes every forward-observation authority coordinate.
+
+The final exact-code GPT-5.6 Sol review of `8b3dc4268` returned `GO`: no High,
+Medium, or Low defect survived the bounded review. It confirmed that the
+deterministic nested two-writer schedule is a valid overlapping linearizable
+history and that no publisher-journal or backend-registry lock remains held
+while the second writer publishes. It also confirmed exact durable-head
+classification and original process-control-exception preservation at the
+lower-journal boundary. Residual evidence limits remain explicit: the positive
+schedule is reentrant rather than a real two-thread backend test; `SystemExit`,
+`GeneratorExit`, cancellation, exact exception-object identity, and
+classification failure are not separate cases; and an asynchronous interruption
+after the journal call returns but before anchor advancement requires reopen
+classification rather than guaranteed same-process recovery. These limits do
+not authorize a production or whole-value-movement claim.
 
 Atomic no-replace install prevents the creator from opening a pre-existing
 final pathname writable. Advisory locking coordinates participating installers.
@@ -876,13 +888,12 @@ later worktree edit plus refreshed hash from representing an earlier commit.
 The checker itself still requires release packaging, independent replay, and
 authenticated distribution before it can contribute production authority.
 
-Before the final subject freeze, the local unattested execution run records 296
-passing tests in two bounded suites: 287 adjacent monotonic-anchor, settlement
-ABI, verifier release,
+The local unattested execution portfolio records 296 passing tests in two
+bounded suites: 287 adjacent monotonic-anchor, settlement ABI, verifier release,
 activation, authority, epoch, publisher, and migration tests plus nine
-exhaustive value-sink tests. Final receipt promotion requires rerunning these
-suites against the exact committed subject and hash-recording their ephemeral
-JUnit outputs. The portfolio includes
+exhaustive value-sink tests. Any promoted execution receipt must name one exact
+committed subject and hash-record its ephemeral JUnit outputs; this claim
+document does not grant that evidence authority. The portfolio includes
 zero/one/max/max+1 receipt and journal boundaries, active-profile selection,
 wrong registry/image/deployment/manifest/artifact rejection, generic-verifier
 rejection, forged and foreign capabilities, retained-callable mutation killing,
