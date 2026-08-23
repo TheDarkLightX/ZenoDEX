@@ -25,7 +25,7 @@ from typing import Any, Callable, Mapping, Sequence
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.integration.production_promotion_evidence import (  # noqa: E402
-    attach_production_app_root_jmt_hash_v1,
+    attach_production_app_root_jmt_hash_v2,
     attach_production_autotrader_hash_v1,
     attach_production_confidential_runtime_hash_v1,
     attach_production_hardware_wallet_hash_v1,
@@ -50,7 +50,7 @@ _ATTACHERS: Mapping[str, Callable[[Mapping[str, Any]], dict[str, Any]]] = {
     "zk_wrapping": attach_production_zk_wrapping_hash_v1,
     "autotrader": attach_production_autotrader_hash_v1,
     "confidential_runtime": attach_production_confidential_runtime_hash_v1,
-    "app_root_jmt": attach_production_app_root_jmt_hash_v1,
+    "app_root_jmt": attach_production_app_root_jmt_hash_v2,
 }
 
 

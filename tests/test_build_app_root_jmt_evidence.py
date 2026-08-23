@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from src.integration.production_promotion_evidence import attach_production_app_root_jmt_hash_v2
 from tools import build_app_root_jmt_evidence as builder
 from tools.check_production_promotion_evidence_manifest import main as check_manifest
 
@@ -43,6 +44,8 @@ def test_builder_output_has_teeth_against_root_drift(capsys, tmp_path: Path) -> 
 
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     evidence["live_root_checks"][0]["observed_root"] = "ff" * 32
+    evidence.pop("evidence_hash")
+    evidence = attach_production_app_root_jmt_hash_v2(evidence)
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(
         json.dumps(

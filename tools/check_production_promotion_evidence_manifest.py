@@ -226,7 +226,7 @@ _LANE_REQUIREMENTS: Mapping[str, Mapping[str, Any]] = {
             "lane-tamper negative check showing root mismatch rejection",
         ],
         "producer_tool": "tools/build_app_root_jmt_evidence.py",
-        "validator": "evaluate_production_app_root_jmt_evidence_v1",
+        "validator": "evaluate_production_app_root_jmt_evidence_v2",
     },
 }
 

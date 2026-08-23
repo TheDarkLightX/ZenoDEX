@@ -1,0 +1,168 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-app-root-evidence-v2-rederivation",
+  "created_date": "2026-08-23",
+  "claim_scope": "The Python app_root_jmt promotion lane requires V2 replay evidence, bounds and hashes each source payload, independently re-derives every typed application root through a closed mode-to-derivation registry, and independently replays the lane-tamper negative check across all nine registered lane kinds.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "APP-ROOT-EVIDENCE-SOURCE-PAYLOAD-BINDING",
+    "APP-ROOT-EVIDENCE-INDEPENDENT-ROOT-DERIVATION",
+    "APP-ROOT-EVIDENCE-CLOSED-DERIVATION-REGISTRY",
+    "APP-ROOT-EVIDENCE-V1-RETIRED",
+    "APP-ROOT-EVIDENCE-ALL-LANE-COVERAGE",
+    "APP-ROOT-EVIDENCE-NEGATIVE-REPLAY"
+  ],
+  "failure_modes": [
+    "self-consistent filler observed and recomputed roots clear the lane without source-state re-derivation",
+    "the Tau wrapper check compares an opaque canonical JSON hash to the typed application root",
+    "the evidence fixture omits the cross_shard lane and claims eight-lane coverage while the runtime registry has nine lanes",
+    "source payload drift is hidden behind an asserted source_state_hash",
+    "an unbounded source payload reaches canonical hashing or typed root construction",
+    "a negative lane-tamper result is accepted as a caller-provided boolean without replaying both payloads",
+    "retired V1 consistency-only evidence remains promotion eligible"
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/production_promotion_evidence.py",
+      "sha256": "5cb1a5abfe1d4acb11462ccbbc1b5838207b72fefb595d11a69d0caa85b695d1"
+    },
+    {
+      "path": "tools/build_app_root_jmt_evidence.py",
+      "sha256": "9976edea5b429c3bc0079a7c019622bfeb49404c4350841f436054d12aafd0c0"
+    },
+    {
+      "path": "tools/build_production_promotion_evidence_manifest.py",
+      "sha256": "8828f0f090ee141516d3d2a99bb001ce248a302596b6a85ab62d442d19faa4a4"
+    },
+    {
+      "path": "tools/check_production_promotion_evidence_manifest.py",
+      "sha256": "be86f9109a48835d4bacd11ee1d3de2d5d116ca0a9783a706a626e1e25fc6c8b"
+    },
+    {
+      "path": "docs/APP_ROOT_JMT_EVALUATOR_HARDENING_PROPOSAL.md",
+      "sha256": "d0e291fc7189919dc49d9556a81841ae0e959fb77e20cadfb1f5c042946582dd"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_app_root_jmt_promotion_lane.py",
+      "sha256": "07293ff9c386acffc29bea78c7d0b13d559ea3fc9ff7520edb4e646152b72b6e",
+      "node_ids": [
+        "tests/integration/test_app_root_jmt_promotion_lane.py::test_build_evidence_produces_real_replay_unified_all_lane_root",
+        "tests/integration/test_app_root_jmt_promotion_lane.py::test_lane_evaluator_accepts_the_real_replay_evidence",
+        "tests/integration/test_app_root_jmt_promotion_lane.py::test_lane_evaluator_rejects_self_consistent_forged_roots",
+        "tests/integration/test_app_root_jmt_promotion_lane.py::test_lane_evaluator_rejects_source_payload_hash_drift",
+        "tests/integration/test_app_root_jmt_promotion_lane.py::test_lane_evaluator_rejects_missing_source_payload",
+        "tests/integration/test_app_root_jmt_promotion_lane.py::test_lane_evaluator_rejects_source_payload_over_byte_budget",
+        "tests/integration/test_app_root_jmt_promotion_lane.py::test_lane_evaluator_rejects_retired_v1_schema",
+        "tests/integration/test_app_root_jmt_promotion_lane.py::test_six_lane_bundle_still_blocks_on_the_five_external_lanes"
+      ]
+    },
+    {
+      "path": "tests/test_build_app_root_jmt_evidence.py",
+      "sha256": "2c06d663ff69817ef4fcc021e4f22ca5652b7554088a1a081814afe38bcbaf10",
+      "node_ids": [
+        "tests/test_build_app_root_jmt_evidence.py::test_builder_output_clears_app_root_jmt_lane",
+        "tests/test_build_app_root_jmt_evidence.py::test_builder_output_has_teeth_against_root_drift"
+      ]
+    },
+    {
+      "path": "tests/test_build_production_promotion_evidence_manifest.py",
+      "sha256": "1a2fc78025681702bae23c49875d736a7e7775fdcda7e2058074fc05941edd99",
+      "node_ids": [
+        "tests/test_build_production_promotion_evidence_manifest.py::test_builder_hashes_app_root_jmt_lane_and_lane_check_passes"
+      ]
+    },
+    {
+      "path": "tests/test_check_production_promotion_evidence_manifest.py",
+      "sha256": "d794e0ac254470ec67bc3fa46215d3f21051219dc8f8a35e5cf57ba89a4a4b80",
+      "node_ids": [
+        "tests/test_check_production_promotion_evidence_manifest.py::test_manifest_checker_app_root_jmt_selected_lane_passes",
+        "tests/test_check_production_promotion_evidence_manifest.py::test_manifest_checker_rejects_fixture_app_root_jmt_evidence"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "metamorphic",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The tests arrange source-bound replay evidence and one minimized mutation at a time, act through the producer, V2 evaluator, manifest builder, or manifest checker, and assert exact lane acceptance or named fail-closed gaps."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The evaluator and manifest checker are pure claim gates. Forged roots, missing or oversized payloads, source-hash drift, and V1 evidence return blocked statuses and cannot mutate application state or grant global promotion."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "evidence_schema",
+      "points": [
+        "v1_consistency_only_record_rejects",
+        "v2_source_bound_record_can_pass"
+      ]
+    },
+    {
+      "name": "source_payload",
+      "points": [
+        "missing_rejects",
+        "ordinary_bounded_replay_passes",
+        "over_1000000_byte_budget_rejects_before_root_derivation"
+      ]
+    },
+    {
+      "name": "root_binding",
+      "points": [
+        "exact_observed_recomputed_and_evaluator_derived_roots_match",
+        "self_consistent_filler_roots_reject",
+        "source_hash_drift_rejects"
+      ]
+    },
+    {
+      "name": "lane_coverage",
+      "points": [
+        "all_nine_registered_lane_kinds_required",
+        "cross_shard_included"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept observed_root equal to submitted recomputed_root without deriving either from source_payload",
+      "killed_by": "tests/integration/test_app_root_jmt_promotion_lane.py::test_lane_evaluator_rejects_self_consistent_forged_roots"
+    },
+    {
+      "description": "trust submitted source_state_hash without hashing source_payload",
+      "killed_by": "tests/integration/test_app_root_jmt_promotion_lane.py::test_lane_evaluator_rejects_source_payload_hash_drift"
+    },
+    {
+      "description": "allow V2 checks without replayable source material",
+      "killed_by": "tests/integration/test_app_root_jmt_promotion_lane.py::test_lane_evaluator_rejects_missing_source_payload"
+    },
+    {
+      "description": "remove the pre-derivation source-payload byte ceiling",
+      "killed_by": "tests/integration/test_app_root_jmt_promotion_lane.py::test_lane_evaluator_rejects_source_payload_over_byte_budget"
+    },
+    {
+      "description": "continue accepting V1 consistency-only evidence",
+      "killed_by": "tests/integration/test_app_root_jmt_promotion_lane.py::test_lane_evaluator_rejects_retired_v1_schema"
+    },
+    {
+      "description": "use the Tau proposal opaque app_hash as the typed application root",
+      "killed_by": "tests/integration/test_app_root_jmt_promotion_lane.py::test_build_evidence_produces_real_replay_unified_all_lane_root"
+    }
+  ],
+  "nonclaims": [
+    "This packet authenticates bounded local replay evidence for one promotion lane; it does not establish external finality, proof authority, or whole-economy value-movement safety.",
+    "The local replay producer cannot prove that an external deployment used the same path without separately authenticated deployment evidence.",
+    "Five external promotion lanes remain independently required by the aggregate gate.",
+    "No release mount, settlement authority, migration, writer rotation, or global production readiness is granted; production_authority remains NONE."
+  ]
+}

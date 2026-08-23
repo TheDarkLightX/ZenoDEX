@@ -30,8 +30,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from src.core.dex import DexState  # noqa: E402
 from src.integration.dex_snapshot import snapshot_from_state  # noqa: E402
 from src.integration.production_promotion_evidence import (  # noqa: E402
-    APP_ROOT_JMT_EVIDENCE_SCHEMA_V1,
-    attach_production_app_root_jmt_hash_v1,
+    APP_ROOT_JMT_EVIDENCE_SCHEMA_V2,
+    attach_production_app_root_jmt_hash_v2,
 )
 from src.integration.tau_testnet_dex_plugin import _canonical_state_and_hash  # noqa: E402
 from src.integration.zeno_ledger_v0 import (  # noqa: E402
@@ -122,32 +122,43 @@ def _plain_snapshot_check(*, checked_at: int) -> dict[str, Any]:
         "check_id": "plain-dex-snapshot",
         "mode": "plain_dex_snapshot_live_root",
         "source_kind": "release_replay",
+        "source_payload": snapshot,
         "observed_root": observed_root,
         "recomputed_root": recomputed_root,
         "source_state_hash": _source_hash(snapshot),
         "required_lane_kinds": sorted(APP_ROOT_LANE_KINDS),
         "live_path": "tools/zeno_ledger_node.py:_state_root_for_state_file_obj_v0",
+        "derivation_path": (
+            "src/integration/zeno_ledger_v0.py:compute_dex_snapshot_app_root_v0"
+        ),
         "checked_at": checked_at,
     }
 
 
 def _tau_wrapper_check(*, checked_at: int) -> dict[str, Any]:
-    canonical, app_hash = _canonical_state_and_hash(
+    canonical, _opaque_app_hash = _canonical_state_and_hash(
         _base_state(),
         zusd_monetary_state=init_monetary_state(),
     )
     wrapper = json.loads(canonical)
-    observed_root = _bare_root(app_hash)
+    observed_root = _bare_root(_state_root_for_state_file_obj_v0(wrapper))
     recomputed_root = _bare_root(compute_tau_app_state_app_root_v0(wrapper))
     return {
         "check_id": "tau-app-state-wrapper",
         "mode": "tau_app_state_wrapper_live_root",
         "source_kind": "release_replay",
+        "source_payload": wrapper,
         "observed_root": observed_root,
         "recomputed_root": recomputed_root,
         "source_state_hash": _source_hash(wrapper),
         "required_lane_kinds": sorted(APP_ROOT_LANE_KINDS),
-        "live_path": "src/integration/tau_testnet_dex_plugin.py:_canonical_state_and_hash",
+        "live_path": (
+            "src/integration/tau_testnet_dex_plugin.py:_canonical_state_and_hash -> "
+            "tools/zeno_ledger_node.py:_state_root_for_state_file_obj_v0"
+        ),
+        "derivation_path": (
+            "src/integration/zeno_ledger_v0.py:compute_tau_app_state_app_root_v0"
+        ),
         "checked_at": checked_at,
     }
 
@@ -180,25 +191,38 @@ def _local_pre_snapshot_header_check(*, checked_at: int) -> dict[str, Any]:
         "check_id": "local-block-pre-snapshot",
         "mode": "local_block_pre_snapshot_header",
         "source_kind": "release_replay",
+        "source_payload": snapshot,
         "observed_root": observed_root,
         "recomputed_root": recomputed_root,
         "source_state_hash": _source_hash(snapshot),
         "required_lane_kinds": sorted(APP_ROOT_LANE_KINDS),
         "live_path": "tools/zeno_ledger_run_local.py:build_local_block_v0",
+        "derivation_path": (
+            "src/integration/zeno_ledger_v0.py:compute_dex_snapshot_app_root_v0"
+        ),
         "checked_at": checked_at,
     }
 
 
 def _lane_tamper_negative(*, checked_at: int) -> dict[str, Any]:
     snapshot = _base_snapshot()
-    baseline = _state_root_for_state_file_obj_v0(snapshot)
+    baseline = _bare_root(_state_root_for_state_file_obj_v0(snapshot))
     tampered = deepcopy(snapshot)
     tampered["oracle"] = {"price_timestamp": 18, "max_staleness_seconds": 300}
-    tampered_root = _state_root_for_state_file_obj_v0(tampered)
+    tampered_root = _bare_root(_state_root_for_state_file_obj_v0(tampered))
     return {
         "check_id": "lane-tamper",
         "mutation": "lane_tamper_rejected",
+        "mode": "plain_dex_snapshot_live_root",
         "source_kind": "release_replay",
+        "baseline_payload": snapshot,
+        "mutated_payload": tampered,
+        "baseline_root": baseline,
+        "mutated_root": tampered_root,
+        "required_lane_kinds": sorted(APP_ROOT_LANE_KINDS),
+        "derivation_path": (
+            "src/integration/zeno_ledger_v0.py:compute_dex_snapshot_app_root_v0"
+        ),
         "rejected": tampered_root != baseline,
         "checked_at": checked_at,
     }
@@ -207,7 +231,7 @@ def _lane_tamper_negative(*, checked_at: int) -> dict[str, Any]:
 def build_evidence(*, now: int | None = None) -> dict[str, Any]:
     checked_at = int(time.time() if now is None else now)
     body: Mapping[str, Any] = {
-        "schema": APP_ROOT_JMT_EVIDENCE_SCHEMA_V1,
+        "schema": APP_ROOT_JMT_EVIDENCE_SCHEMA_V2,
         "evidence_kind": "live_replay",
         "root_system": "typed_app_root_jmt_v1",
         "required_lane_kinds": sorted(APP_ROOT_LANE_KINDS),
@@ -219,7 +243,7 @@ def build_evidence(*, now: int | None = None) -> dict[str, Any]:
         "negative_checks": [_lane_tamper_negative(checked_at=checked_at)],
         "issued_at": checked_at,
     }
-    return attach_production_app_root_jmt_hash_v1(body)
+    return attach_production_app_root_jmt_hash_v2(body)
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:

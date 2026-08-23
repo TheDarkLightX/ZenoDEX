@@ -9,18 +9,17 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from src.integration import production_promotion_evidence as promotion_evidence
 from src.integration.production_promotion_evidence import (
-    APP_ROOT_JMT_EVIDENCE_SCHEMA_V1,
     AUTOTRADER_EVIDENCE_SCHEMA_V1,
     ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
     _oracle_authority_attestation_message,
-    attach_production_app_root_jmt_hash_v1,
+    attach_production_app_root_jmt_hash_v2,
     attach_production_autotrader_hash_v1,
     attach_production_oracle_authority_hash_v1,
     production_autotrader_run_approval_hash_v1,
     production_autotrader_run_approval_message_v1,
 )
-from src.state.app_root import APP_ROOT_LANE_KINDS
 from tools import check_production_promotion_evidence_manifest as checker
+from tools.build_app_root_jmt_evidence import build_evidence as build_app_root_evidence
 from tools.check_production_promotion_evidence_manifest import main
 
 NOW = 1747878000
@@ -154,60 +153,12 @@ def _oracle_evidence(*, chain_id: str = "tau-test-prod") -> dict[str, object]:
 
 
 def _app_root_evidence(*, evidence_kind: str = "live_replay") -> dict[str, object]:
-    lane_kinds = sorted(APP_ROOT_LANE_KINDS)
-    return attach_production_app_root_jmt_hash_v1(
-        {
-            "schema": APP_ROOT_JMT_EVIDENCE_SCHEMA_V1,
-            "evidence_kind": evidence_kind,
-            "root_system": "typed_app_root_jmt_v1",
-            "required_lane_kinds": lane_kinds,
-            "live_root_checks": [
-                {
-                    "check_id": "plain-dex-snapshot",
-                    "mode": "plain_dex_snapshot_live_root",
-                    "source_kind": "live_local_replay",
-                    "observed_root": "11" * 32,
-                    "recomputed_root": "11" * 32,
-                    "source_state_hash": "21" * 32,
-                    "required_lane_kinds": lane_kinds,
-                    "live_path": "tools/zeno_ledger_node.py:_state_root_for_state_file_obj_v0",
-                    "checked_at": NOW - 30,
-                },
-                {
-                    "check_id": "tau-wrapper",
-                    "mode": "tau_app_state_wrapper_live_root",
-                    "source_kind": "live_node",
-                    "observed_root": "12" * 32,
-                    "recomputed_root": "12" * 32,
-                    "source_state_hash": "22" * 32,
-                    "required_lane_kinds": lane_kinds,
-                    "live_path": "src/integration/tau_testnet_dex_plugin.py:_canonical_state_and_hash",
-                    "checked_at": NOW - 30,
-                },
-                {
-                    "check_id": "pre-snapshot-header",
-                    "mode": "local_block_pre_snapshot_header",
-                    "source_kind": "release_replay",
-                    "observed_root": "13" * 32,
-                    "recomputed_root": "13" * 32,
-                    "source_state_hash": "23" * 32,
-                    "required_lane_kinds": lane_kinds,
-                    "live_path": "tools/zeno_ledger_run_local.py:pre_snapshot_path",
-                    "checked_at": NOW - 30,
-                },
-            ],
-            "negative_checks": [
-                {
-                    "check_id": "lane-tamper",
-                    "mutation": "lane_tamper_rejected",
-                    "source_kind": "release_replay",
-                    "rejected": True,
-                    "checked_at": NOW - 30,
-                }
-            ],
-            "issued_at": NOW - 20,
-        }
-    )
+    evidence = build_app_root_evidence(now=NOW)
+    if evidence_kind == "live_replay":
+        return evidence
+    evidence.pop("evidence_hash")
+    evidence["evidence_kind"] = evidence_kind
+    return attach_production_app_root_jmt_hash_v2(evidence)
 
 
 def test_manifest_checker_lane_output_matches_selected_lane_exit(capsys, tmp_path: Path) -> None:

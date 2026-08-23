@@ -1,5 +1,5 @@
 # [TESTER] v1
-"""App-root/JMT production-promotion lane: what is and is NOT assured.
+"""App-root/JMT production-promotion lane: replay and fail-closed grading.
 
 Of the six production-promotion lanes, five require external evidence
 (public-testnet broadcasts, hardware-device attestations, TEE attestations, a
@@ -10,49 +10,52 @@ a gate-integrity limitation worth hardening.
 
 What IS true (genuine):
 - ``tools/build_app_root_jmt_evidence.py::build_evidence`` exercises the REAL
-  replay paths (plain Dex snapshot root, Tau app-state wrapper root, local block
-  pre-snapshot header root) and binds the unified ``typed_app_root_jmt_v1`` root
-  over all eight lane kinds — not a spot-only or fixture root.
-- The authoritative lane evaluator accepts that real evidence.
+  replay paths and binds the unified ``typed_app_root_jmt_v1`` root over every
+  registered lane kind.
+- The V2 evaluator independently hashes each source payload and re-derives its
+  typed root through the exact registered derivation.
 - The aggregate six-lane gate still blocks on the five external lanes (no
   bundle-level fail-green).
 
-What is NOT assured (the finding — documented, not hidden):
-- ``evaluate_production_app_root_jmt_evidence_v1`` validates structure, schema,
-  ``root_system``, lane kinds, freshness, the self-binding hash, and that each
-  check's ``observed_root == recomputed_root`` — but it does NOT independently
-  re-derive the roots from source state. So a well-formed record with arbitrary
-  matching roots also passes (see ``test_..._evaluator_is_consistency_only``,
-  matching the repo's own ``_valid_app_root_jmt_evidence`` fixture which uses
-  ``11/12/13``-filler roots). Therefore passing this lane reflects the
-  PRODUCER's real replay, not gate-enforced root authenticity. Hardening
-  recommendation: bind each live check to replayable source material and
-  re-derive the three roots inside the evaluator (then forged-root evidence
-  fails). Recorded as a finding; the gate evaluator is not changed here.
+Claim ceiling: this lane authenticates bounded local replay artifacts. It does
+not grant global production authority, external finality, or release mounting.
 """
 
 from __future__ import annotations
 
+from copy import deepcopy
+
 from src.integration.production_promotion_evidence import (
     APP_ROOT_JMT_EVIDENCE_SCHEMA_V1,
-    attach_production_app_root_jmt_hash_v1,
-    evaluate_production_app_root_jmt_evidence_v1,
+    APP_ROOT_JMT_EVIDENCE_SCHEMA_V2,
+    attach_production_app_root_jmt_hash_v2,
+    evaluate_production_app_root_jmt_evidence_v2,
     evaluate_production_promotion_bundle_v1,
 )
 from src.state.app_root import APP_ROOT_LANE_KINDS
 from tools.build_app_root_jmt_evidence import build_evidence
 
 _PINNED_NOW = 1_781_395_200
-_ALL_LANES = {"clob", "governance", "oracle", "perps", "proof_mining",
-              "spot", "vault", "zusd"}
+_ALL_LANES = {
+    "clob",
+    "cross_shard",
+    "governance",
+    "oracle",
+    "perps",
+    "proof_mining",
+    "spot",
+    "vault",
+    "zusd",
+}
 
 
 def test_build_evidence_produces_real_replay_unified_all_lane_root() -> None:
     """The PRODUCER genuinely exercises the real replay paths and binds the
-    unified typed app-root JMT over all eight lane kinds (not spot-only/fixture).
+    unified typed app-root JMT over all registered lane kinds (not spot-only/fixture).
     This is the real, local, autonomously-producible part — distinct from the
     five external lanes."""
     ev = build_evidence(now=_PINNED_NOW)
+    assert ev["schema"] == APP_ROOT_JMT_EVIDENCE_SCHEMA_V2
     assert ev["root_system"] == "typed_app_root_jmt_v1"
     assert ev["evidence_kind"] == "live_replay"
     assert set(ev["required_lane_kinds"]) == set(APP_ROOT_LANE_KINDS) == _ALL_LANES
@@ -70,49 +73,90 @@ def test_lane_evaluator_accepts_the_real_replay_evidence() -> None:
     evidence (ok, no gaps). So app_root_jmt is the one lane whose gate-acceptable
     evidence is autonomously producible."""
     ev = build_evidence(now=_PINNED_NOW)
-    result = evaluate_production_app_root_jmt_evidence_v1(ev, now=_PINNED_NOW)
+    result = evaluate_production_app_root_jmt_evidence_v2(ev, now=_PINNED_NOW)
     assert result["ok"] is True, result.get("gaps")
     assert result["gaps"] == []
     assert "lane_tamper_rejected" in result.get("negative_mutations", [])
 
 
-def test_lane_evaluator_is_consistency_only_not_root_reauthentication() -> None:
-    """FINDING (documented, not hidden): the lane evaluator does NOT re-derive
-    roots from source — a well-formed record with ARBITRARY matching roots also
-    passes. So gate acceptance is consistency-only; root authenticity rests on the
-    producer. If the evaluator is later hardened to re-derive roots, this test
-    should be updated to assert such forged evidence FAILS."""
-    lane_kinds = sorted(APP_ROOT_LANE_KINDS)
+def test_lane_evaluator_rejects_self_consistent_forged_roots() -> None:
+    # Arrange
+    forged = deepcopy(build_evidence(now=_PINNED_NOW))
+    forged.pop("evidence_hash")
+    for index, check in enumerate(forged["live_root_checks"], start=1):
+        filler = f"{index:02x}" * 32
+        check["observed_root"] = filler
+        check["recomputed_root"] = filler
+    forged = attach_production_app_root_jmt_hash_v2(forged)
 
-    def _check(check_id: str, mode: str, root: str, src: str, path: str) -> dict:
-        return {
-            "check_id": check_id, "mode": mode, "source_kind": "release_replay",
-            "observed_root": root, "recomputed_root": root,      # self-consistent, NOT re-derived
-            "source_state_hash": src, "required_lane_kinds": lane_kinds,
-            "live_path": path, "checked_at": _PINNED_NOW - 30,
-        }
+    # Act
+    result = evaluate_production_app_root_jmt_evidence_v2(forged, now=_PINNED_NOW)
 
-    forged = attach_production_app_root_jmt_hash_v1({
-        "schema": APP_ROOT_JMT_EVIDENCE_SCHEMA_V1,
-        "evidence_kind": "live_replay",
-        "root_system": "typed_app_root_jmt_v1",
-        "required_lane_kinds": lane_kinds,
-        "live_root_checks": [
-            _check("plain-dex-snapshot", "plain_dex_snapshot_live_root", "11" * 32, "21" * 32, "p"),
-            _check("tau-wrapper", "tau_app_state_wrapper_live_root", "12" * 32, "22" * 32, "t"),
-            _check("pre-snapshot-header", "local_block_pre_snapshot_header", "13" * 32, "23" * 32, "h"),
-        ],
-        "negative_checks": [{
-            "check_id": "lane-tamper", "mutation": "lane_tamper_rejected",
-            "source_kind": "release_replay", "rejected": True, "checked_at": _PINNED_NOW - 30,
-        }],
-        "issued_at": _PINNED_NOW - 20,
-    })
-    result = evaluate_production_app_root_jmt_evidence_v1(forged, now=_PINNED_NOW)
-    # Current behavior: forged-but-well-formed evidence is accepted -> the gap.
-    assert result["ok"] is True
-    # The roots are pure filler, proving the evaluator did not re-derive them.
-    assert forged["live_root_checks"][0]["observed_root"] == "11" * 32
+    # Assert
+    assert result["ok"] is False
+    assert any("evaluator-derived root" in gap for gap in result["gaps"])
+
+
+def test_lane_evaluator_rejects_source_payload_hash_drift() -> None:
+    # Arrange
+    evidence = deepcopy(build_evidence(now=_PINNED_NOW))
+    evidence.pop("evidence_hash")
+    evidence["live_root_checks"][0]["source_payload"]["oracle"]["price_timestamp"] = 18
+    evidence = attach_production_app_root_jmt_hash_v2(evidence)
+
+    # Act
+    result = evaluate_production_app_root_jmt_evidence_v2(evidence, now=_PINNED_NOW)
+
+    # Assert
+    assert result["ok"] is False
+    assert any("source_state_hash" in gap for gap in result["gaps"])
+
+
+def test_lane_evaluator_rejects_missing_source_payload() -> None:
+    # Arrange
+    evidence = deepcopy(build_evidence(now=_PINNED_NOW))
+    evidence.pop("evidence_hash")
+    evidence["live_root_checks"][0].pop("source_payload")
+    evidence = attach_production_app_root_jmt_hash_v2(evidence)
+
+    # Act
+    result = evaluate_production_app_root_jmt_evidence_v2(evidence, now=_PINNED_NOW)
+
+    # Assert
+    assert result["ok"] is False
+    assert any("source_payload" in gap for gap in result["gaps"])
+
+
+def test_lane_evaluator_rejects_source_payload_over_byte_budget() -> None:
+    # Arrange
+    evidence = deepcopy(build_evidence(now=_PINNED_NOW))
+    evidence.pop("evidence_hash")
+    evidence["live_root_checks"][0]["source_payload"]["governance"] = {
+        "padding": "x" * 1_000_000
+    }
+    evidence = attach_production_app_root_jmt_hash_v2(evidence)
+
+    # Act
+    result = evaluate_production_app_root_jmt_evidence_v2(evidence, now=_PINNED_NOW)
+
+    # Assert
+    assert result["ok"] is False
+    assert any("cannot re-derive app root: ValueError" in gap for gap in result["gaps"])
+
+
+def test_lane_evaluator_rejects_retired_v1_schema() -> None:
+    # Arrange
+    evidence = deepcopy(build_evidence(now=_PINNED_NOW))
+    evidence["schema"] = APP_ROOT_JMT_EVIDENCE_SCHEMA_V1
+    evidence.pop("evidence_hash")
+    evidence = attach_production_app_root_jmt_hash_v2(evidence)
+
+    # Act
+    result = evaluate_production_app_root_jmt_evidence_v2(evidence, now=_PINNED_NOW)
+
+    # Assert
+    assert result["ok"] is False
+    assert any("schema mismatch" in gap for gap in result["gaps"])
 
 
 def test_six_lane_bundle_still_blocks_on_the_five_external_lanes() -> None:

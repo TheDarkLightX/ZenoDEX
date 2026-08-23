@@ -47,6 +47,8 @@ from __future__ import annotations
 import ipaddress
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from dataclasses import replace as dataclass_replace
 from typing import Any, ClassVar, Final, Mapping, Sequence
 from urllib.parse import urlparse
 
@@ -55,9 +57,19 @@ from src.integration.confidential_runtime_receipts import (
     confidential_runtime_execution_receipt_hash_v1,
 )
 from src.integration.live_proof_wrapper import LIVE_PROOF_WRAPPER_ARTIFACT_BINDING_HASH_DOMAIN
-from src.integration.zeno_ledger_v0 import canonical_json_bytes_v0, hash_v0
+from src.integration.zeno_ledger_v0 import (
+    canonical_json_bytes_v0,
+    compute_dex_snapshot_app_root_v0,
+    compute_tau_app_state_app_root_v0,
+    hash_v0,
+)
 from src.state.app_root import APP_ROOT_LANE_KINDS
-from src.state.canonical import canonical_json_bytes, domain_sep_bytes, sha256_hex
+from src.state.canonical import (
+    bounded_json_utf8_size,
+    canonical_json_bytes,
+    domain_sep_bytes,
+    sha256_hex,
+)
 
 try:
     from cryptography.exceptions import InvalidSignature
@@ -79,6 +91,7 @@ ZK_WRAPPING_EVIDENCE_SCHEMA_V1: Final = "zenodex/production-zk-wrapping-evidence
 AUTOTRADER_EVIDENCE_SCHEMA_V1: Final = "zenodex/production-autotrader-evidence/v1"
 CONFIDENTIAL_RUNTIME_EVIDENCE_SCHEMA_V1: Final = "zenodex/production-confidential-runtime-evidence/v1"
 APP_ROOT_JMT_EVIDENCE_SCHEMA_V1: Final = "zenodex/production-app-root-jmt-evidence/v1"
+APP_ROOT_JMT_EVIDENCE_SCHEMA_V2: Final = "zenodex/production-app-root-jmt-evidence/v2"
 
 PRODUCTION_PROMOTION_STATUS_SCHEMA_V1: Final = "zenodex/production-promotion-status/v1"
 PRODUCTION_PROMOTION_BUNDLE_STATUS_SCHEMA_V1: Final = "zenodex/production-promotion-bundle-status/v1"
@@ -127,6 +140,7 @@ _MAX_TICKS_PER_PROCESS_HARD_CAP: Final = 1_000_000
 _MAX_APPROVED_MEASUREMENTS: Final = 1000
 _MAX_APP_ROOT_CHECKS: Final = 100
 _MAX_APP_ROOT_NEGATIVE_CHECKS: Final = 50
+_MAX_APP_ROOT_SOURCE_PAYLOAD_BYTES: Final = 1_000_000
 
 _APP_ROOT_REQUIRED_POSITIVE_MODES: Final = frozenset(
     {
@@ -136,6 +150,17 @@ _APP_ROOT_REQUIRED_POSITIVE_MODES: Final = frozenset(
     }
 )
 _APP_ROOT_REQUIRED_NEGATIVE_MUTATIONS: Final = frozenset({"lane_tamper_rejected"})
+_APP_ROOT_DERIVATION_PATHS: Final[Mapping[str, str]] = {
+    "plain_dex_snapshot_live_root": (
+        "src/integration/zeno_ledger_v0.py:compute_dex_snapshot_app_root_v0"
+    ),
+    "tau_app_state_wrapper_live_root": (
+        "src/integration/zeno_ledger_v0.py:compute_tau_app_state_app_root_v0"
+    ),
+    "local_block_pre_snapshot_header": (
+        "src/integration/zeno_ledger_v0.py:compute_dex_snapshot_app_root_v0"
+    ),
+}
 
 _INT_BOUND_HI: Final = (1 << 63) - 1
 
@@ -3475,11 +3500,13 @@ _APP_ROOT_LIVE_CHECK_FIELDS = frozenset(
         "check_id",
         "mode",
         "source_kind",
+        "source_payload",
         "observed_root",
         "recomputed_root",
         "source_state_hash",
         "required_lane_kinds",
         "live_path",
+        "derivation_path",
         "checked_at",
     }
 )
@@ -3487,7 +3514,14 @@ _APP_ROOT_NEGATIVE_CHECK_FIELDS = frozenset(
     {
         "check_id",
         "mutation",
+        "mode",
         "source_kind",
+        "baseline_payload",
+        "mutated_payload",
+        "baseline_root",
+        "mutated_root",
+        "required_lane_kinds",
+        "derivation_path",
         "rejected",
         "checked_at",
     }
@@ -3497,10 +3531,40 @@ _APP_ROOT_ALLOWED_ROOT_SYSTEM = "typed_app_root_jmt_v1"
 _APP_ROOT_ALLOWED_SOURCE_KINDS = frozenset({"live_node", "live_local_replay", "release_replay"})
 
 
+@dataclass(frozen=True)
+class _ParsedAppRootLiveCheck:
+    mode: str | None
+    source_kind: str | None
+    observed_root: str | None
+    recomputed_root: str | None
+    source_state_hash: str | None
+    lane_kinds: frozenset[str] | None
+    live_path: str | None
+    derivation_path: str | None
+    checked_at: int | None
+    derived_source_hash: str | None
+    derived_root: str | None
+
+
+@dataclass(frozen=True)
+class _ParsedAppRootNegativeCheck:
+    mutation: str | None
+    mode: str | None
+    source_kind: str | None
+    baseline_root: str | None
+    mutated_root: str | None
+    lane_kinds: frozenset[str] | None
+    derivation_path: str | None
+    rejected: bool | None
+    checked_at: int | None
+    derived_baseline_root: str | None
+    derived_mutated_root: str | None
+
+
 class _AppRootJmtLane(Lane):
     LANE_ID = LANE_APP_ROOT_JMT
-    SCHEMA = APP_ROOT_JMT_EVIDENCE_SCHEMA_V1
-    DOMAIN = "production_app_root_jmt_evidence_v1"
+    SCHEMA = APP_ROOT_JMT_EVIDENCE_SCHEMA_V2
+    DOMAIN = "production_app_root_jmt_evidence_v2"
     ALLOWED_FIELDS = _APP_ROOT_JMT_FIELDS
     MISSING_MESSAGE = "app-root/JMT live-root evidence is missing"
 
@@ -3622,6 +3686,140 @@ def _validate_app_root_required_lane_set(
         gaps.at(path, "unsupported lane kind(s): " + ", ".join(extra))
 
 
+def _app_root_source_payload_hash(payload: Mapping[str, Any]) -> str:
+    return hash_v0("app_root_jmt_evidence_source_v1", payload).removeprefix("0x")
+
+
+def _rederive_app_root_from_source_payload(
+    *,
+    mode: str | None,
+    payload: object,
+    path: str,
+    gaps: _Gaps,
+) -> tuple[str | None, str | None]:
+    source_payload = _P.mapping(payload, path=path, gaps=gaps)
+    if source_payload is None or mode is None:
+        return None, None
+    try:
+        bounded_json_utf8_size(
+            source_payload,
+            max_bytes=_MAX_APP_ROOT_SOURCE_PAYLOAD_BYTES,
+        )
+        source_hash = _app_root_source_payload_hash(source_payload)
+        if mode == "tau_app_state_wrapper_live_root":
+            root = compute_tau_app_state_app_root_v0(source_payload)
+        elif mode in {
+            "plain_dex_snapshot_live_root",
+            "local_block_pre_snapshot_header",
+        }:
+            root = compute_dex_snapshot_app_root_v0(source_payload)
+        else:
+            gaps.at(path, "cannot re-derive unsupported app-root mode")
+            return source_hash, None
+    except (RecursionError, TypeError, ValueError) as exc:
+        gaps.at(path, f"cannot re-derive app root: {type(exc).__name__}")
+        return None, None
+    return source_hash, root.removeprefix("0x").lower()
+
+
+def _validate_app_root_derivation_path(
+    *,
+    mode: str | None,
+    derivation_path: str | None,
+    path: str,
+    gaps: _Gaps,
+) -> None:
+    if mode is None or derivation_path is None:
+        return
+    expected = _APP_ROOT_DERIVATION_PATHS.get(mode)
+    if expected is None or derivation_path != expected:
+        gaps.at(path, "does not match the selected app-root derivation")
+
+
+def _parse_app_root_live_check(
+    check: Mapping[str, Any],
+    *,
+    index: int,
+    gaps: _Gaps,
+) -> _ParsedAppRootLiveCheck:
+    prefix = f"live_root_checks[{index}]"
+    _check_unknown_fields(check, allowed=_APP_ROOT_LIVE_CHECK_FIELDS, gaps=gaps)
+    mode = _P.nonempty_str(check.get("mode"), path=f"{prefix}.mode", gaps=gaps)
+    _P.safe_token(check.get("check_id"), path=f"{prefix}.check_id", gaps=gaps)
+    parsed = _ParsedAppRootLiveCheck(
+        mode=mode,
+        source_kind=_P.nonempty_str(check.get("source_kind"), path=f"{prefix}.source_kind", gaps=gaps),
+        observed_root=_P.hex_token(
+            check.get("observed_root"), path=f"{prefix}.observed_root", gaps=gaps, exact_len=_HASH_HEX_LEN
+        ),
+        recomputed_root=_P.hex_token(
+            check.get("recomputed_root"), path=f"{prefix}.recomputed_root", gaps=gaps, exact_len=_HASH_HEX_LEN
+        ),
+        source_state_hash=_P.hex_token(
+            check.get("source_state_hash"), path=f"{prefix}.source_state_hash", gaps=gaps, exact_len=_HASH_HEX_LEN
+        ),
+        lane_kinds=_parse_app_root_lane_kind_set(
+            check.get("required_lane_kinds"), path=f"{prefix}.required_lane_kinds", gaps=gaps
+        ),
+        live_path=_P.nonempty_str(check.get("live_path"), path=f"{prefix}.live_path", gaps=gaps),
+        derivation_path=_P.nonempty_str(
+            check.get("derivation_path"), path=f"{prefix}.derivation_path", gaps=gaps
+        ),
+        checked_at=_P.positive_int(check.get("checked_at"), path=f"{prefix}.checked_at", gaps=gaps),
+        derived_source_hash=None,
+        derived_root=None,
+    )
+    derived_hash, derived_root = _rederive_app_root_from_source_payload(
+        mode=mode,
+        payload=check.get("source_payload"),
+        path=f"{prefix}.source_payload",
+        gaps=gaps,
+    )
+    return dataclass_replace(
+        parsed,
+        derived_source_hash=derived_hash,
+        derived_root=derived_root,
+    )
+
+
+def _validate_app_root_live_check(
+    parsed: _ParsedAppRootLiveCheck,
+    *,
+    index: int,
+    now: int,
+    gaps: _Gaps,
+) -> None:
+    prefix = f"live_root_checks[{index}]"
+    if parsed.mode not in _APP_ROOT_REQUIRED_POSITIVE_MODES:
+        gaps.at(f"{prefix}.mode", "unsupported app-root live-root mode")
+    _validate_app_root_source_kind(parsed.source_kind, path=f"{prefix}.source_kind", gaps=gaps)
+    if parsed.observed_root is not None and parsed.recomputed_root != parsed.observed_root:
+        gaps.at(f"{prefix}.observed_root", "does not match recomputed_root")
+    if parsed.source_state_hash is not None and parsed.derived_source_hash != parsed.source_state_hash:
+        gaps.at(f"{prefix}.source_state_hash", "does not match source_payload")
+    if parsed.derived_root is not None and parsed.observed_root != parsed.derived_root:
+        gaps.at(f"{prefix}.observed_root", "does not match evaluator-derived root")
+    if parsed.derived_root is not None and parsed.recomputed_root != parsed.derived_root:
+        gaps.at(f"{prefix}.recomputed_root", "does not match evaluator-derived root")
+    if parsed.lane_kinds is not None:
+        _validate_app_root_required_lane_set(parsed.lane_kinds, path=f"{prefix}.required_lane_kinds", gaps=gaps)
+    _validate_app_root_live_path(parsed.live_path, path=f"{prefix}.live_path", gaps=gaps)
+    _validate_app_root_derivation_path(
+        mode=parsed.mode,
+        derivation_path=parsed.derivation_path,
+        path=f"{prefix}.derivation_path",
+        gaps=gaps,
+    )
+    if parsed.checked_at is not None:
+        _check_freshness(
+            parsed.checked_at,
+            now=now,
+            max_age_s=_MAX_EVIDENCE_AGE_SECONDS,
+            label=f"app-root/JMT {prefix}",
+            gaps=gaps,
+        )
+
+
 def _validate_app_root_live_checks(
     checks: Sequence[Mapping[str, Any]],
     *,
@@ -3630,67 +3828,95 @@ def _validate_app_root_live_checks(
 ) -> set[str]:
     seen_modes: set[str] = set()
     for index, check in enumerate(checks):
-        _check_unknown_fields(check, allowed=_APP_ROOT_LIVE_CHECK_FIELDS, gaps=gaps)
-        mode = _P.nonempty_str(check.get("mode"), path=f"live_root_checks[{index}].mode", gaps=gaps)
-        source_kind = _P.nonempty_str(
-            check.get("source_kind"),
-            path=f"live_root_checks[{index}].source_kind",
-            gaps=gaps,
-        )
-        _P.safe_token(check.get("check_id"), path=f"live_root_checks[{index}].check_id", gaps=gaps)
-        observed_root = _P.hex_token(
-            check.get("observed_root"),
-            path=f"live_root_checks[{index}].observed_root",
-            gaps=gaps,
-            exact_len=_HASH_HEX_LEN,
-        )
-        recomputed_root = _P.hex_token(
-            check.get("recomputed_root"),
-            path=f"live_root_checks[{index}].recomputed_root",
-            gaps=gaps,
-            exact_len=_HASH_HEX_LEN,
-        )
-        _P.hex_token(
-            check.get("source_state_hash"),
-            path=f"live_root_checks[{index}].source_state_hash",
-            gaps=gaps,
-            exact_len=_HASH_HEX_LEN,
-        )
-        lane_kinds = _parse_app_root_lane_kind_set(
-            check.get("required_lane_kinds"),
-            path=f"live_root_checks[{index}].required_lane_kinds",
-            gaps=gaps,
-        )
-        live_path = _P.nonempty_str(check.get("live_path"), path=f"live_root_checks[{index}].live_path", gaps=gaps)
-        checked_at = _P.positive_int(check.get("checked_at"), path=f"live_root_checks[{index}].checked_at", gaps=gaps)
-
-        if mode is not None:
-            if mode in _APP_ROOT_REQUIRED_POSITIVE_MODES:
-                seen_modes.add(mode)
-            else:
-                gaps.at(f"live_root_checks[{index}].mode", "unsupported app-root live-root mode")
-        _validate_app_root_source_kind(source_kind, path=f"live_root_checks[{index}].source_kind", gaps=gaps)
-        if observed_root is not None and recomputed_root is not None and observed_root != recomputed_root:
-            gaps.at(f"live_root_checks[{index}].observed_root", "does not match recomputed_root")
-        if lane_kinds is not None:
-            _validate_app_root_required_lane_set(
-                lane_kinds,
-                path=f"live_root_checks[{index}].required_lane_kinds",
-                gaps=gaps,
-            )
-        _validate_app_root_live_path(live_path, path=f"live_root_checks[{index}].live_path", gaps=gaps)
-        if checked_at is not None:
-            _check_freshness(
-                checked_at,
-                now=ctx.now,
-                max_age_s=_MAX_EVIDENCE_AGE_SECONDS,
-                label=f"app-root/JMT live_root_checks[{index}]",
-                gaps=gaps,
-            )
+        parsed = _parse_app_root_live_check(check, index=index, gaps=gaps)
+        _validate_app_root_live_check(parsed, index=index, now=ctx.now, gaps=gaps)
+        if parsed.mode in _APP_ROOT_REQUIRED_POSITIVE_MODES:
+            seen_modes.add(parsed.mode)
     missing_modes = sorted(_APP_ROOT_REQUIRED_POSITIVE_MODES - seen_modes)
     if missing_modes:
         gaps.add("app-root/JMT live_root_checks missing mode(s): " + ", ".join(missing_modes))
     return seen_modes
+
+
+def _parse_app_root_negative_check(
+    check: Mapping[str, Any],
+    *,
+    index: int,
+    gaps: _Gaps,
+) -> _ParsedAppRootNegativeCheck:
+    prefix = f"negative_checks[{index}]"
+    _check_unknown_fields(check, allowed=_APP_ROOT_NEGATIVE_CHECK_FIELDS, gaps=gaps)
+    _P.safe_token(check.get("check_id"), path=f"{prefix}.check_id", gaps=gaps)
+    mode = _P.nonempty_str(check.get("mode"), path=f"{prefix}.mode", gaps=gaps)
+    _baseline_hash, derived_baseline = _rederive_app_root_from_source_payload(
+        mode=mode, payload=check.get("baseline_payload"), path=f"{prefix}.baseline_payload", gaps=gaps
+    )
+    _mutated_hash, derived_mutated = _rederive_app_root_from_source_payload(
+        mode=mode, payload=check.get("mutated_payload"), path=f"{prefix}.mutated_payload", gaps=gaps
+    )
+    return _ParsedAppRootNegativeCheck(
+        mutation=_P.nonempty_str(check.get("mutation"), path=f"{prefix}.mutation", gaps=gaps),
+        mode=mode,
+        source_kind=_P.nonempty_str(check.get("source_kind"), path=f"{prefix}.source_kind", gaps=gaps),
+        baseline_root=_P.hex_token(
+            check.get("baseline_root"), path=f"{prefix}.baseline_root", gaps=gaps, exact_len=_HASH_HEX_LEN
+        ),
+        mutated_root=_P.hex_token(
+            check.get("mutated_root"), path=f"{prefix}.mutated_root", gaps=gaps, exact_len=_HASH_HEX_LEN
+        ),
+        lane_kinds=_parse_app_root_lane_kind_set(
+            check.get("required_lane_kinds"), path=f"{prefix}.required_lane_kinds", gaps=gaps
+        ),
+        derivation_path=_P.nonempty_str(
+            check.get("derivation_path"), path=f"{prefix}.derivation_path", gaps=gaps
+        ),
+        rejected=_P.bool_strict(check.get("rejected"), path=f"{prefix}.rejected", gaps=gaps),
+        checked_at=_P.positive_int(check.get("checked_at"), path=f"{prefix}.checked_at", gaps=gaps),
+        derived_baseline_root=derived_baseline,
+        derived_mutated_root=derived_mutated,
+    )
+
+
+def _validate_app_root_negative_check(
+    parsed: _ParsedAppRootNegativeCheck,
+    *,
+    index: int,
+    now: int,
+    gaps: _Gaps,
+) -> None:
+    prefix = f"negative_checks[{index}]"
+    if parsed.mutation not in _APP_ROOT_REQUIRED_NEGATIVE_MUTATIONS:
+        gaps.at(f"{prefix}.mutation", "unsupported app-root negative mutation")
+    if parsed.mode not in _APP_ROOT_REQUIRED_POSITIVE_MODES:
+        gaps.at(f"{prefix}.mode", "unsupported app-root live-root mode")
+    _validate_app_root_source_kind(parsed.source_kind, path=f"{prefix}.source_kind", gaps=gaps)
+    if parsed.lane_kinds is not None:
+        _validate_app_root_required_lane_set(parsed.lane_kinds, path=f"{prefix}.required_lane_kinds", gaps=gaps)
+    _validate_app_root_derivation_path(
+        mode=parsed.mode,
+        derivation_path=parsed.derivation_path,
+        path=f"{prefix}.derivation_path",
+        gaps=gaps,
+    )
+    if parsed.derived_baseline_root is not None and parsed.baseline_root != parsed.derived_baseline_root:
+        gaps.at(f"{prefix}.baseline_root", "does not match evaluator-derived root")
+    if parsed.derived_mutated_root is not None and parsed.mutated_root != parsed.derived_mutated_root:
+        gaps.at(f"{prefix}.mutated_root", "does not match evaluator-derived root")
+    derived_rejected = (
+        parsed.derived_baseline_root is not None
+        and parsed.derived_mutated_root is not None
+        and parsed.derived_baseline_root != parsed.derived_mutated_root
+    )
+    if parsed.rejected is not None and parsed.rejected != derived_rejected:
+        gaps.at(f"{prefix}.rejected", "does not match evaluator-derived mutation result")
+    if parsed.checked_at is not None:
+        _check_freshness(
+            parsed.checked_at,
+            now=now,
+            max_age_s=_MAX_EVIDENCE_AGE_SECONDS,
+            label=f"app-root/JMT {prefix}",
+            gaps=gaps,
+        )
 
 
 def _validate_app_root_negative_checks(
@@ -3701,29 +3927,10 @@ def _validate_app_root_negative_checks(
 ) -> set[str]:
     seen_mutations: set[str] = set()
     for index, check in enumerate(checks):
-        _check_unknown_fields(check, allowed=_APP_ROOT_NEGATIVE_CHECK_FIELDS, gaps=gaps)
-        _P.safe_token(check.get("check_id"), path=f"negative_checks[{index}].check_id", gaps=gaps)
-        mutation = _P.nonempty_str(check.get("mutation"), path=f"negative_checks[{index}].mutation", gaps=gaps)
-        source_kind = _P.nonempty_str(check.get("source_kind"), path=f"negative_checks[{index}].source_kind", gaps=gaps)
-        rejected = _P.bool_strict(check.get("rejected"), path=f"negative_checks[{index}].rejected", gaps=gaps)
-        checked_at = _P.positive_int(check.get("checked_at"), path=f"negative_checks[{index}].checked_at", gaps=gaps)
-
-        if mutation is not None:
-            if mutation in _APP_ROOT_REQUIRED_NEGATIVE_MUTATIONS:
-                seen_mutations.add(mutation)
-            else:
-                gaps.at(f"negative_checks[{index}].mutation", "unsupported app-root negative mutation")
-        _validate_app_root_source_kind(source_kind, path=f"negative_checks[{index}].source_kind", gaps=gaps)
-        if rejected is False:
-            gaps.at(f"negative_checks[{index}].rejected", "must be true")
-        if checked_at is not None:
-            _check_freshness(
-                checked_at,
-                now=ctx.now,
-                max_age_s=_MAX_EVIDENCE_AGE_SECONDS,
-                label=f"app-root/JMT negative_checks[{index}]",
-                gaps=gaps,
-            )
+        parsed = _parse_app_root_negative_check(check, index=index, gaps=gaps)
+        _validate_app_root_negative_check(parsed, index=index, now=ctx.now, gaps=gaps)
+        if parsed.mutation in _APP_ROOT_REQUIRED_NEGATIVE_MUTATIONS:
+            seen_mutations.add(parsed.mutation)
     missing_mutations = sorted(_APP_ROOT_REQUIRED_NEGATIVE_MUTATIONS - seen_mutations)
     if missing_mutations:
         gaps.add("app-root/JMT negative_checks missing mutation(s): " + ", ".join(missing_mutations))
@@ -3861,13 +4068,23 @@ def evaluate_production_confidential_runtime_evidence_v1(
     return _evaluate_lane(_CONFIDENTIAL_RUNTIME_LANE, evidence, ctx)
 
 
-def evaluate_production_app_root_jmt_evidence_v1(
+def evaluate_production_app_root_jmt_evidence_v2(
     evidence: Mapping[str, Any] | None,
     *,
     now: int | None = None,
 ) -> dict[str, Any]:
     ctx = _AppRootJmtContext(now=_now_seconds(now))
     return _evaluate_lane(_APP_ROOT_JMT_LANE, evidence, ctx)
+
+
+def evaluate_production_app_root_jmt_evidence_v1(
+    evidence: Mapping[str, Any] | None,
+    *,
+    now: int | None = None,
+) -> dict[str, Any]:
+    """Compatibility entrypoint that applies the fail-closed V2 evaluator."""
+
+    return evaluate_production_app_root_jmt_evidence_v2(evidence, now=now)
 
 
 # -----------------------------------------------------------------------------
@@ -4027,4 +4244,8 @@ def attach_production_confidential_runtime_hash_v1(evidence: Mapping[str, Any]) 
 
 
 def attach_production_app_root_jmt_hash_v1(evidence: Mapping[str, Any]) -> dict[str, Any]:
+    return attach_evidence_hash(evidence, domain="production_app_root_jmt_evidence_v1")
+
+
+def attach_production_app_root_jmt_hash_v2(evidence: Mapping[str, Any]) -> dict[str, Any]:
     return attach_evidence_hash(evidence, domain=_APP_ROOT_JMT_LANE.DOMAIN)

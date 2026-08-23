@@ -1,8 +1,9 @@
-# Proposal: harden the `app_root_jmt` promotion-lane evaluator to re-derive roots
+# App-root JMT V2 evaluator hardening
 
-Status: **proposal for review** (not implemented). Owner: the production-promotion
-/ JMT-keystone (J6) program. Raised by the autonomous Phase-3 review; the finding
-is backed by `tests/integration/test_app_root_jmt_promotion_lane.py` and PopperPad
+Status: **implemented and locally verified on 2026-08-23**. Owner: the
+production-promotion / JMT-keystone (J6) program. The original finding was
+raised by the autonomous Phase-3 review and is backed by
+`tests/integration/test_app_root_jmt_promotion_lane.py` and PopperPad
 `K86ebdc24`.
 
 ## Finding (the gap)
@@ -26,12 +27,12 @@ real replay paths), not on the gate. The five other lanes are gated on external
 evidence; this lane is the one whose evidence is locally producible, which makes
 closing this gap worthwhile.
 
-## Proposed hardening
+## Implemented hardening
 
 Bind each live-root check to **replayable source material** and re-derive inside
 the evaluator, so forged-but-well-formed evidence fails closed.
 
-1. **Evidence schema (`APP_ROOT_JMT_EVIDENCE_SCHEMA_V1` → v2).** Add to each
+1. **Evidence schema (`APP_ROOT_JMT_EVIDENCE_SCHEMA_V1` → v2).** Each
    `live_root_checks[i]` a canonical, self-describing `source_payload` (the exact
    input the named `live_path` consumes) — e.g. the canonical Dex snapshot object
    for `plain_dex_snapshot_live_root`, the canonical Tau app-state object for
@@ -39,11 +40,11 @@ the evaluator, so forged-but-well-formed evidence fails closed.
    `local_block_pre_snapshot_header`. Keep `source_state_hash` as the canonical
    hash of `source_payload` (now verifiable, not just asserted).
 
-2. **Producer (`build_evidence`).** It already computes each root from a real
+2. **Producer (`build_evidence`).** It computes each root from a real
    source object; attach that object as `source_payload` and set
    `source_state_hash = canonical_hash(source_payload)`.
 
-3. **Evaluator.** For each check: (a) verify `source_state_hash ==
+3. **Evaluator.** For each check it: (a) verifies `source_state_hash ==
    canonical_hash(source_payload)`; (b) re-derive the root by calling the SAME
    real function named in `live_path` (`_state_root_for_state_file_obj_v0` /
    `compute_tau_app_state_app_root_v0` / the local-block header path) on
@@ -55,17 +56,14 @@ the evaluator, so forged-but-well-formed evidence fails closed.
    through a small `src/`-level adapter (or move the canonical root helpers into
    `src/`) so the evaluator depends only on `src/` code.
 
-## Migration (the cascade — why this is deliberate, not autonomous)
+## Migration
 
-- Bump the evidence schema version; gate the re-derivation behind v2 and
-  **require** v2 for promotion (v1 records no longer satisfy the lane).
-- Update `_valid_app_root_jmt_evidence` and the app-root mutation tests in
-  `tests/integration/test_production_promotion_evidence.py` to carry real
-  `source_payload`s (the `11/12/13` filler roots must go).
-- Update `tests/integration/test_app_root_jmt_promotion_lane.py`: the
-  `..._evaluator_is_consistency_only...` characterization test should flip to
-  assert the forged record now **FAILS**, renamed to a positive
-  `..._rejects_forged_roots` test.
+- V2 is required for promotion. V1 records fail closed.
+- Manifest fixtures now use the real replay producer instead of filler roots.
+- The former consistency-only characterization is a negative regression that
+  requires self-consistent forged roots to fail evaluator re-derivation.
+- Negative lane-tamper evidence now carries baseline and mutated payloads, and
+  the evaluator independently derives both roots and the rejection result.
 
 ## Test plan (acceptance)
 
@@ -78,12 +76,9 @@ the evaluator, so forged-but-well-formed evidence fails closed.
 - Regression: the five external lanes and the aggregate bundle gate behavior are
   unchanged.
 
-## Why it is deferred to review
+## Claim boundary
 
-This changes the shared production-promotion **authority** (evidence schema +
-evaluator) and migrates its fixtures, and the lane is owned by the JMT-keystone
-J6 program. Per the CBC promotion discipline, a change to the gate that decides
-production-readiness claims should be deliberate and human-reviewed, not made
-autonomously. Codex concurred. This document is the actionable spec for that
-review; the producer already emits real roots, so the lift is the schema/evaluator
-re-derivation and the fixture migration above.
+This change hardens one local replay evidence lane. It does not establish
+external finality, mounted proof authority, whole-economy value-movement safety,
+or global production readiness. Independent review of the V2 schema and gate
+remains required before a release claim.

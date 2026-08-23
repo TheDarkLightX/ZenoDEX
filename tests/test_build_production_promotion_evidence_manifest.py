@@ -7,12 +7,11 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from src.integration.production_promotion_evidence import (
-    APP_ROOT_JMT_EVIDENCE_SCHEMA_V1,
     ORACLE_AUTHORITY_EVIDENCE_SCHEMA_V1,
     _oracle_authority_attestation_message,
 )
-from src.state.app_root import APP_ROOT_LANE_KINDS
 from tools import build_production_promotion_evidence_manifest as builder
+from tools.build_app_root_jmt_evidence import build_evidence as build_app_root_evidence
 
 NOW = 1747878000
 _ORACLE_AUTHORITY_PRIVATE_KEY = Ed25519PrivateKey.from_private_bytes(bytes.fromhex("45" * 32))
@@ -75,58 +74,9 @@ def _oracle_evidence_body() -> dict[str, object]:
 
 
 def _app_root_jmt_evidence_body() -> dict[str, object]:
-    lane_kinds = sorted(APP_ROOT_LANE_KINDS)
-    return {
-        "schema": APP_ROOT_JMT_EVIDENCE_SCHEMA_V1,
-        "evidence_kind": "live_replay",
-        "root_system": "typed_app_root_jmt_v1",
-        "required_lane_kinds": lane_kinds,
-        "live_root_checks": [
-            {
-                "check_id": "plain-dex-snapshot",
-                "mode": "plain_dex_snapshot_live_root",
-                "source_kind": "live_local_replay",
-                "observed_root": "11" * 32,
-                "recomputed_root": "11" * 32,
-                "source_state_hash": "21" * 32,
-                "required_lane_kinds": lane_kinds,
-                "live_path": "tools/zeno_ledger_node.py:_state_root_for_state_file_obj_v0",
-                "checked_at": NOW - 30,
-            },
-            {
-                "check_id": "tau-wrapper",
-                "mode": "tau_app_state_wrapper_live_root",
-                "source_kind": "live_node",
-                "observed_root": "12" * 32,
-                "recomputed_root": "12" * 32,
-                "source_state_hash": "22" * 32,
-                "required_lane_kinds": lane_kinds,
-                "live_path": "src/integration/tau_testnet_dex_plugin.py:_canonical_state_and_hash",
-                "checked_at": NOW - 30,
-            },
-            {
-                "check_id": "pre-snapshot-header",
-                "mode": "local_block_pre_snapshot_header",
-                "source_kind": "release_replay",
-                "observed_root": "13" * 32,
-                "recomputed_root": "13" * 32,
-                "source_state_hash": "23" * 32,
-                "required_lane_kinds": lane_kinds,
-                "live_path": "tools/zeno_ledger_run_local.py:pre_snapshot_path",
-                "checked_at": NOW - 30,
-            },
-        ],
-        "negative_checks": [
-            {
-                "check_id": "lane-tamper",
-                "mutation": "lane_tamper_rejected",
-                "source_kind": "release_replay",
-                "rejected": True,
-                "checked_at": NOW - 30,
-            }
-        ],
-        "issued_at": NOW - 20,
-    }
+    evidence = build_app_root_evidence(now=NOW)
+    evidence.pop("evidence_hash")
+    return evidence
 
 
 def test_builder_hashes_oracle_lane_and_lane_check_passes(capsys, tmp_path: Path) -> None:
