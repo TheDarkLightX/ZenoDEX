@@ -199,6 +199,69 @@ def test_exact_create_retry_recovers_committed_activation_after_lost_ack(
     recovered.close()
 
 
+@pytest.mark.parametrize(
+    "reserved_candidate_name",
+    (
+        ".global-economic-authority-bootstrap-v1.sqlite",
+        ".global-economic-epoch-bootstrap-v1.sqlite",
+    ),
+)
+def test_verified_publisher_create_recovers_post_link_bootstrap_crash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reserved_candidate_name: str,
+) -> None:
+    # Arrange: crash after either authority or epoch candidate has been linked
+    # to its final name but before the reserved candidate can be removed.
+    admission, candidate, _ = _publisher_fixture_v1(
+        receipt_bytes=reserved_candidate_name.encode("ascii")
+    )
+    path = tmp_path / "post-link-create-recovery.sqlite"
+    authority_path = authority_journal_path_for_epoch_v1(path)
+    reserved_candidate = tmp_path / reserved_candidate_name
+    final_path = (
+        authority_path
+        if "authority" in reserved_candidate_name
+        else path
+    )
+    original_unlink = authority_journal_module.os.unlink
+
+    def faulting_unlink(
+        target: str | bytes | Path,
+        *args: object,
+        **kwargs: object,
+    ) -> None:
+        if Path(target).name == reserved_candidate_name:
+            raise OSError("simulated publisher bootstrap crash after link")
+        original_unlink(target, *args, **kwargs)
+
+    monkeypatch.setattr(authority_journal_module.os, "unlink", faulting_unlink)
+
+    # Act: first construction loses progress at the linked-name boundary.
+    with pytest.raises(OSError, match="simulated publisher bootstrap crash"):
+        VerifiedDurableEconomicPublisherV1.create(
+            path,
+            admission,
+            _bound_receipt_verifier_v1(candidate)[0],
+        )
+    monkeypatch.setattr(authority_journal_module.os, "unlink", original_unlink)
+
+    # Assert: an exact verified retry validates the linked inode, completes its
+    # install, and returns the unique sequence-zero publisher.
+    assert final_path.exists()
+    assert reserved_candidate.exists()
+    assert final_path.stat().st_ino == reserved_candidate.stat().st_ino
+    recovered = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    assert recovered.head.sequence == 0
+    recovered.close()
+    assert not reserved_candidate.exists()
+    assert final_path.stat().st_nlink == 1
+
+
 def test_concurrent_verified_publisher_create_has_one_install_and_typed_busy(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

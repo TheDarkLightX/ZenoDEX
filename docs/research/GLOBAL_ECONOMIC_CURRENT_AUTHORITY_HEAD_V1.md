@@ -104,8 +104,11 @@ check and epoch commit.
 - Crash semantics: SQLite DELETE journal mode and FULL synchronization retain
   PRE or POST. A nonblocking advisory directory lock serializes cooperating
   installers, and the final pathname is installed without replacement. A
-  crash-left private candidate rejects and requires explicit recovery;
-  process-kill and power-loss install matrices remain open.
+  candidate with no final link rejects without mutation. When final and
+  candidate names are the same private inode, descriptor-bound validation of
+  the complete expected sequence-zero store precedes candidate unlink and
+  directory fsync. Lookalike inodes and semantic mismatches remain untouched.
+  Hardware power-loss and noncooperating same-UID race matrices remain open.
 - Retry: an exact epoch already present in validated durable history returns
   `ALREADY_COMMITTED` without mutation even after authority revocation. An
   unpublished epoch under stale or revoked authority returns
@@ -121,6 +124,11 @@ check and epoch commit.
 - Migration implication: a production migration publisher must atomically
   commit its verified activation and the matching authority successor. That
   publisher is not implemented here.
+- Compatibility implication: these constructors are fresh-install-only. A
+  single-link current-UID store using the parent implementation's possible
+  `0644` mode receives a typed migration-required rejection without `chmod` or
+  content mutation. A future migration must validate a held descriptor before
+  changing permissions; service-UID changes remain an operator migration.
 - Emergency stop: each accepted active successor reserves one history row and
   sufficient byte capacity for its coordinate-preserving revocation.
 
@@ -141,7 +149,12 @@ individual functions reviewable.
 - no-replace rejection of pre-existing empty, valid-empty-SQLite, malformed,
   hardlinked, directory, and FIFO entries without mutation;
 - exact owner, `0600` mode, and single-link enforcement on reopen;
-- crash-left private bootstrap-candidate rejection without deletion or adoption;
+- typed non-mutating rejection of legacy `0644` authority and epoch stores;
+- crash-left unlinked bootstrap-candidate rejection without deletion or adoption;
+- descriptor-bound recovery after the install link, first directory fsync,
+  candidate unlink, and second directory fsync boundaries;
+- rejection without mutation of byte-identical separate inodes, wrong authority
+  heads, and wrong activation bundles during linked-name recovery;
 - stale historical-authority retry;
 - one-row emergency-revocation reserve at the capacity boundary;
 - pre-decode byte bounds;
@@ -193,11 +206,12 @@ Their passing result records reproducibility. It supplies no safety claim.
 - Same-process private writer access remains a demonstrated release blocker.
 - No OS-isolated sole writer, executable attestation, objective finality, real
   RISC0 replay, Rust parity, or production mount is established.
-- SQLite process/power-loss install recovery, hostile same-UID namespace races,
-  directory ownership and durability, backup/restore, and disaster recovery
-  remain deployment obligations. The tested cooperating same-path race is
-  closed by advisory directory locking, private-candidate validation, and
-  atomic no-replace install.
+- Hardware power-loss install recovery, hostile same-UID namespace races,
+  directory ownership and durability, legacy permission migration,
+  backup/restore, and disaster recovery remain deployment obligations. The
+  tested cooperating same-path race and process-level post-link crash points
+  are bounded by advisory directory locking, descriptor-bound candidate
+  validation, and atomic no-replace install.
 - The tests are bounded evidence. They are not a proof of whole-economy value
   movement safety.
 

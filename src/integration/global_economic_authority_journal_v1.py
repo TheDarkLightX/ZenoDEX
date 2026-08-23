@@ -96,6 +96,10 @@ class GlobalEconomicAuthorityBootstrapBusyV1(RuntimeError):
     """Another cooperating installer owns the directory bootstrap lock."""
 
 
+class GlobalEconomicAuthorityLegacyStoreMigrationRequiredV1(PermissionError):
+    """A valid-looking legacy mode requires an explicit validated migration."""
+
+
 @dataclass(frozen=True, slots=True)
 class GlobalEconomicAuthorityCommitOutcomeV1:
     status: GlobalEconomicAuthorityCommitStatusV1
@@ -181,7 +185,12 @@ def _require_owned_regular_store_v1(path: Path, *, name: str) -> None:
         raise ValueError(f"{name} must be a regular file")
     if metadata.st_uid != os.geteuid():
         raise PermissionError(f"{name} owner does not match the current process")
-    if stat.S_IMODE(metadata.st_mode) != 0o600:
+    mode = stat.S_IMODE(metadata.st_mode)
+    if mode == 0o644 and metadata.st_nlink == 1:
+        raise GlobalEconomicAuthorityLegacyStoreMigrationRequiredV1(
+            f"{name} uses legacy mode 0644; explicit validated migration is required"
+        )
+    if mode != 0o600:
         raise PermissionError(f"{name} mode must be exactly 0600")
     if metadata.st_nlink != 1:
         raise PermissionError(f"{name} must have exactly one filesystem link")
@@ -211,6 +220,63 @@ def _release_authority_bootstrap_lock_v1(directory_fd: int) -> None:
 
 def _authority_bootstrap_candidate_path_v1(path: Path) -> Path:
     return path.parent / ".global-economic-authority-bootstrap-v1.sqlite"
+
+
+def _require_linked_private_inode_v1(
+    metadata: os.stat_result,
+    *,
+    name: str,
+) -> None:
+    if not stat.S_ISREG(metadata.st_mode):
+        raise RuntimeError(f"{name} is not a regular file")
+    if metadata.st_uid != os.geteuid():
+        raise RuntimeError(f"{name} owner does not match the current process")
+    if stat.S_IMODE(metadata.st_mode) != 0o600:
+        raise RuntimeError(f"{name} mode is not exactly 0600")
+    if metadata.st_nlink != 2:
+        raise RuntimeError(f"{name} does not have the exact post-link count")
+
+
+def _same_inode_v1(left: os.stat_result, right: os.stat_result) -> bool:
+    return left.st_dev == right.st_dev and left.st_ino == right.st_ino
+
+
+def _require_path_matches_fd_v1(
+    path: Path,
+    file_descriptor: int,
+    *,
+    name: str,
+) -> None:
+    try:
+        path_metadata = path.lstat()
+    except FileNotFoundError:
+        raise RuntimeError(f"{name} disappeared during bootstrap recovery") from None
+    descriptor_metadata = os.fstat(file_descriptor)
+    if not _same_inode_v1(path_metadata, descriptor_metadata):
+        raise RuntimeError(f"{name} changed inode during bootstrap recovery")
+
+
+def _connect_descriptor_for_validation_v1(
+    file_descriptor: int,
+) -> sqlite3.Connection:
+    descriptor_path = Path(f"/proc/self/fd/{file_descriptor}")
+    connection = sqlite3.connect(
+        f"{descriptor_path.as_uri()}?mode=ro&immutable=1",
+        uri=True,
+        timeout=5.0,
+        isolation_level=None,
+        check_same_thread=False,
+    )
+    try:
+        connection.execute("PRAGMA foreign_keys = ON")
+        connection.execute("PRAGMA trusted_schema = OFF")
+        mode = connection.execute("PRAGMA journal_mode").fetchone()
+        if mode is None or str(mode[0]).lower() != "delete":
+            raise RuntimeError("global economic authority requires DELETE journal mode")
+    except BaseException:
+        connection.close()
+        raise
+    return connection
 
 
 def _reject_wal_artifacts_v1(path: Path) -> None:
@@ -875,20 +941,97 @@ def _initialize_authority_candidate_v1(
         os.close(fsync_fd)
 
 
+def _recover_linked_authority_install_v1(
+    path: Path,
+    candidate_path: Path,
+    initial_head: GlobalEconomicAuthorityHeadV1,
+    directory_fd: int,
+) -> None:
+    """Complete only the exact validated two-name post-link crash state."""
+
+    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
+    final_fd = os.open(path, flags)
+    try:
+        candidate_fd = os.open(candidate_path, flags)
+        try:
+            final_metadata = os.fstat(final_fd)
+            candidate_metadata = os.fstat(candidate_fd)
+            _require_linked_private_inode_v1(
+                final_metadata,
+                name="global economic authority final store",
+            )
+            _require_linked_private_inode_v1(
+                candidate_metadata,
+                name="global economic authority bootstrap candidate",
+            )
+            if not _same_inode_v1(final_metadata, candidate_metadata):
+                raise RuntimeError(
+                    "global economic authority bootstrap names do not share one inode"
+                )
+            _reject_wal_artifacts_v1(path)
+            _reject_wal_artifacts_v1(candidate_path)
+            validation = GlobalEconomicAuthorityJournalV1(
+                path,
+                _connect_descriptor_for_validation_v1(final_fd),
+            )
+            try:
+                if validation._read_snapshot_v1() != initial_head:
+                    raise RuntimeError(
+                        "global economic authority bootstrap recovery head mismatch"
+                    )
+            finally:
+                validation.close()
+            _require_path_matches_fd_v1(
+                path,
+                final_fd,
+                name="global economic authority final store",
+            )
+            _require_path_matches_fd_v1(
+                candidate_path,
+                candidate_fd,
+                name="global economic authority bootstrap candidate",
+            )
+            os.unlink(candidate_path.name, dir_fd=directory_fd)
+            os.fsync(directory_fd)
+            _require_path_matches_fd_v1(
+                path,
+                final_fd,
+                name="global economic authority final store",
+            )
+            if os.fstat(final_fd).st_nlink != 1:
+                raise RuntimeError(
+                    "global economic authority recovery did not restore one link"
+                )
+        finally:
+            os.close(candidate_fd)
+    finally:
+        os.close(final_fd)
+
+
 def _install_authority_store_no_replace_v1(
     path: Path,
     initial_head: GlobalEconomicAuthorityHeadV1,
 ) -> None:
     directory_fd = _acquire_authority_bootstrap_lock_v1(path)
     try:
-        if _path_entry_exists_v1(path):
-            raise FileExistsError(
-                "global economic authority journal path already exists"
-            )
         candidate_path = _authority_bootstrap_candidate_path_v1(path)
         if candidate_path == path:
             raise ValueError("global economic authority path uses a reserved name")
-        if _path_entry_exists_v1(candidate_path):
+        final_exists = _path_entry_exists_v1(path)
+        candidate_exists = _path_entry_exists_v1(candidate_path)
+        if final_exists and candidate_exists:
+            _recover_linked_authority_install_v1(
+                path,
+                candidate_path,
+                initial_head,
+                directory_fd,
+            )
+            return
+        if final_exists:
+            raise FileExistsError(
+                "global economic authority journal path already exists"
+            )
+        if candidate_exists:
             raise RuntimeError(
                 "global economic authority crash-left bootstrap candidate exists"
             )
@@ -929,6 +1072,7 @@ def _create_or_recover_authority_for_publisher_v1(
 
 __all__ = [
     "GlobalEconomicAuthorityBootstrapBusyV1",
+    "GlobalEconomicAuthorityLegacyStoreMigrationRequiredV1",
     "GlobalEconomicAuthorityCasTokenV1",
     "GlobalEconomicAuthorityCommitOutcomeV1",
     "GlobalEconomicAuthorityCommitStatusV1",

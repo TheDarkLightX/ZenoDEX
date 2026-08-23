@@ -57,6 +57,7 @@ from src.integration.global_economic_epoch_journal_v1 import (
     DurableEconomicEpochCasTokenV1,
     DurableEconomicEpochCommitOutcomeV1,
     DurableEconomicEpochCommitStatusV1,
+    DurableEconomicEpochLegacyStoreMigrationRequiredV1,
     DurableEconomicEpochWriteCapabilityV1,
     GlobalEconomicEpochJournalV1,
     _create_epoch_journal_for_verified_publisher_v1,
@@ -768,12 +769,24 @@ def test_epoch_open_rejects_alias_and_mode_mismatch(tmp_path: Path) -> None:
     broad_journal = GlobalEconomicEpochJournalV1.create(broad, activation)
     broad_journal.close()
     broad.chmod(0o640)
+    legacy = tmp_path / "legacy-mode-epoch.sqlite"
+    legacy_journal = GlobalEconomicEpochJournalV1.create(legacy, activation)
+    legacy_journal.close()
+    legacy.chmod(0o644)
+    legacy_before = legacy.read_bytes()
 
     # Act and assert: aliased or broadly writable stores cannot be reopened.
     with pytest.raises(PermissionError, match="exactly one filesystem link"):
         GlobalEconomicEpochJournalV1.open(linked)
     with pytest.raises(PermissionError, match="mode must be exactly 0600"):
         GlobalEconomicEpochJournalV1.open(broad)
+    with pytest.raises(
+        DurableEconomicEpochLegacyStoreMigrationRequiredV1,
+        match="explicit validated migration",
+    ):
+        GlobalEconomicEpochJournalV1.open(legacy)
+    assert legacy.read_bytes() == legacy_before
+    assert stat.S_IMODE(legacy.stat().st_mode) == 0o644
 
 
 def test_epoch_crash_left_bootstrap_candidate_fails_closed(tmp_path: Path) -> None:
@@ -788,6 +801,122 @@ def test_epoch_crash_left_bootstrap_candidate_fails_closed(tmp_path: Path) -> No
         GlobalEconomicEpochJournalV1.create(target, activation)
     assert not target.exists()
     assert candidate.read_bytes() == b"crash-left"
+
+
+@pytest.mark.parametrize(
+    ("fault_boundary", "candidate_remains"),
+    (
+        ("FIRST_DIRECTORY_FSYNC", True),
+        ("CANDIDATE_UNLINK", True),
+        ("SECOND_DIRECTORY_FSYNC", False),
+    ),
+)
+def test_epoch_bootstrap_recovers_each_post_link_crash_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault_boundary: str,
+    candidate_remains: bool,
+) -> None:
+    # Arrange: inject one crash after the candidate-to-final hardlink. Candidate
+    # file fsync remains real so the recovery path must validate durable bytes.
+    activation, source_head, _ = _fixture_v1()
+    target = tmp_path / f"epoch-{fault_boundary.lower()}.sqlite"
+    candidate = tmp_path / ".global-economic-epoch-bootstrap-v1.sqlite"
+    original_fsync = journal_module.os.fsync
+    original_unlink = journal_module.os.unlink
+    directory_fsync_count = 0
+
+    def faulting_fsync(file_descriptor: int) -> None:
+        nonlocal directory_fsync_count
+        if stat.S_ISDIR(os.fstat(file_descriptor).st_mode):
+            directory_fsync_count += 1
+            if fault_boundary == "FIRST_DIRECTORY_FSYNC" and directory_fsync_count == 1:
+                raise OSError("simulated first directory fsync crash")
+            if fault_boundary == "SECOND_DIRECTORY_FSYNC" and directory_fsync_count == 2:
+                raise OSError("simulated second directory fsync crash")
+        original_fsync(file_descriptor)
+
+    def faulting_unlink(path: str | bytes | Path, *args: object, **kwargs: object) -> None:
+        if fault_boundary == "CANDIDATE_UNLINK" and Path(path) == candidate:
+            raise OSError("simulated candidate unlink crash")
+        original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(journal_module.os, "fsync", faulting_fsync)
+    monkeypatch.setattr(journal_module.os, "unlink", faulting_unlink)
+
+    # Act: first create crashes and an exact retry starts after syscall repair.
+    with pytest.raises(OSError, match="simulated"):
+        GlobalEconomicEpochJournalV1.create(target, activation)
+    monkeypatch.setattr(journal_module.os, "fsync", original_fsync)
+    monkeypatch.setattr(journal_module.os, "unlink", original_unlink)
+
+    # Assert: linked candidates recover by exact inode identity; post-unlink
+    # stores are already complete and reopen without candidate adoption.
+    assert target.exists()
+    assert candidate.exists() is candidate_remains
+    if candidate_remains:
+        assert target.stat().st_ino == candidate.stat().st_ino
+        assert target.stat().st_nlink == 2
+        recovered = GlobalEconomicEpochJournalV1.create(target, activation)
+    else:
+        recovered = GlobalEconomicEpochJournalV1.open(target)
+    assert recovered.head == source_head
+    recovered.close()
+    assert not candidate.exists()
+    assert target.stat().st_nlink == 1
+
+
+def test_epoch_bootstrap_recovery_rejects_lookalike_or_wrong_activation(
+    tmp_path: Path,
+) -> None:
+    # Arrange: one pair shares bytes only, while a second pair shares an inode
+    # but is retried with a different canonical activation.
+    activation, _, _ = _fixture_v1(receipt_bytes=b"installed-activation")
+    candidate = tmp_path / ".global-economic-epoch-bootstrap-v1.sqlite"
+    journal_module._initialize_epoch_candidate_v1(
+        candidate,
+        activation,
+        authority_path=None,
+        expected_authority=None,
+    )
+    lookalike = tmp_path / "lookalike-epoch.sqlite"
+    lookalike.write_bytes(candidate.read_bytes())
+    lookalike.chmod(0o600)
+    separate_before = (candidate.read_bytes(), lookalike.read_bytes())
+
+    # Act and assert: a byte-copy is not a recoverable post-link history.
+    with pytest.raises(RuntimeError, match="exact post-link count"):
+        GlobalEconomicEpochJournalV1.create(lookalike, activation)
+    assert (candidate.read_bytes(), lookalike.read_bytes()) == separate_before
+
+    # Arrange: make the exact hardlink state but change the expected activation.
+    candidate.unlink()
+    lookalike.unlink()
+    journal_module._initialize_epoch_candidate_v1(
+        candidate,
+        activation,
+        authority_path=None,
+        expected_authority=None,
+    )
+    linked = tmp_path / "wrong-activation-epoch.sqlite"
+    os.link(candidate, linked)
+    profile, _ = _profile()
+    other_activation = prepare_durable_economic_initial_state_bundle_v1(
+        _initial_state_admission(
+            profile,
+            _state(profile, height=0),
+            receipt_bytes=b"other-initial-state-receipt",
+        ),
+        source_head=None,
+    )
+
+    # Act and assert: semantic mismatch leaves both names untouched.
+    with pytest.raises(RuntimeError, match="recovery activation mismatch"):
+        GlobalEconomicEpochJournalV1.create(linked, other_activation)
+    assert candidate.exists()
+    assert linked.exists()
+    assert candidate.stat().st_ino == linked.stat().st_ino
+    assert candidate.stat().st_nlink == 2
 
 
 def test_given_lost_ack_when_exact_epoch_retries_then_no_duplicate_is_created(

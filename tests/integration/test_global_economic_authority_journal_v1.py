@@ -23,6 +23,7 @@ from src.integration.global_economic_authority_journal_v1 import (
     GlobalEconomicAuthorityBootstrapBusyV1,
     GlobalEconomicAuthorityCommitStatusV1,
     GlobalEconomicAuthorityJournalV1,
+    GlobalEconomicAuthorityLegacyStoreMigrationRequiredV1,
     _attach_authority_store_v1,
 )
 
@@ -295,12 +296,24 @@ def test_authority_open_rejects_alias_and_mode_mismatch(tmp_path: Path) -> None:
     broad_journal = GlobalEconomicAuthorityJournalV1.create(broad, active)
     broad_journal.close()
     broad.chmod(0o640)
+    legacy = tmp_path / "legacy-mode-authority.sqlite"
+    legacy_journal = GlobalEconomicAuthorityJournalV1.create(legacy, active)
+    legacy_journal.close()
+    legacy.chmod(0o644)
+    legacy_before = legacy.read_bytes()
 
     # Act and assert: aliases and mode drift cannot become authority handles.
     with pytest.raises(PermissionError, match="exactly one filesystem link"):
         GlobalEconomicAuthorityJournalV1.open(linked)
     with pytest.raises(PermissionError, match="mode must be exactly 0600"):
         GlobalEconomicAuthorityJournalV1.open(broad)
+    with pytest.raises(
+        GlobalEconomicAuthorityLegacyStoreMigrationRequiredV1,
+        match="explicit validated migration",
+    ):
+        GlobalEconomicAuthorityJournalV1.open(legacy)
+    assert legacy.read_bytes() == legacy_before
+    assert stat.S_IMODE(legacy.stat().st_mode) == 0o644
 
 
 def test_authority_crash_left_bootstrap_candidate_fails_closed(
@@ -316,6 +329,105 @@ def test_authority_crash_left_bootstrap_candidate_fails_closed(
         GlobalEconomicAuthorityJournalV1.create(target, _head())
     assert not target.exists()
     assert candidate.read_bytes() == b"crash-left"
+
+
+@pytest.mark.parametrize(
+    ("fault_boundary", "candidate_remains"),
+    (
+        ("FIRST_DIRECTORY_FSYNC", True),
+        ("CANDIDATE_UNLINK", True),
+        ("SECOND_DIRECTORY_FSYNC", False),
+    ),
+)
+def test_authority_bootstrap_recovers_each_post_link_crash_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault_boundary: str,
+    candidate_remains: bool,
+) -> None:
+    # Arrange: fail one persistence operation after the private candidate links
+    # to its final name. File fsync remains real; only directory boundaries fail.
+    target = tmp_path / f"authority-{fault_boundary.lower()}.sqlite"
+    candidate = tmp_path / ".global-economic-authority-bootstrap-v1.sqlite"
+    active = _head()
+    original_fsync = authority_journal_module.os.fsync
+    original_unlink = authority_journal_module.os.unlink
+    directory_fsync_count = 0
+
+    def faulting_fsync(file_descriptor: int) -> None:
+        nonlocal directory_fsync_count
+        if stat.S_ISDIR(os.fstat(file_descriptor).st_mode):
+            directory_fsync_count += 1
+            if fault_boundary == "FIRST_DIRECTORY_FSYNC" and directory_fsync_count == 1:
+                raise OSError("simulated first directory fsync crash")
+            if fault_boundary == "SECOND_DIRECTORY_FSYNC" and directory_fsync_count == 2:
+                raise OSError("simulated second directory fsync crash")
+        original_fsync(file_descriptor)
+
+    def faulting_unlink(path: str | bytes | Path, *args: object, **kwargs: object) -> None:
+        if fault_boundary == "CANDIDATE_UNLINK" and Path(path) == candidate:
+            raise OSError("simulated candidate unlink crash")
+        original_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(authority_journal_module.os, "fsync", faulting_fsync)
+    monkeypatch.setattr(authority_journal_module.os, "unlink", faulting_unlink)
+
+    # Act: installation crashes, then an exact retry runs with normal syscalls.
+    with pytest.raises(OSError, match="simulated"):
+        GlobalEconomicAuthorityJournalV1.create(target, active)
+    monkeypatch.setattr(authority_journal_module.os, "fsync", original_fsync)
+    monkeypatch.setattr(authority_journal_module.os, "unlink", original_unlink)
+
+    # Assert: two-name states recover only through the exact linked inode; a
+    # post-unlink state is already a complete one-name store.
+    assert target.exists()
+    assert candidate.exists() is candidate_remains
+    if candidate_remains:
+        assert target.stat().st_ino == candidate.stat().st_ino
+        assert target.stat().st_nlink == 2
+        recovered = GlobalEconomicAuthorityJournalV1.create(target, active)
+    else:
+        recovered = GlobalEconomicAuthorityJournalV1.open(target)
+    assert recovered.head == active
+    recovered.close()
+    assert not candidate.exists()
+    assert target.stat().st_nlink == 1
+
+
+def test_authority_bootstrap_recovery_rejects_lookalike_or_wrong_head(
+    tmp_path: Path,
+) -> None:
+    # Arrange: one case has identical bytes on separate inodes; the other has
+    # the exact linked inode but a caller expecting a different authority head.
+    active = _head()
+    candidate = tmp_path / ".global-economic-authority-bootstrap-v1.sqlite"
+    authority_journal_module._initialize_authority_candidate_v1(candidate, active)
+    lookalike = tmp_path / "lookalike-authority.sqlite"
+    lookalike.write_bytes(candidate.read_bytes())
+    lookalike.chmod(0o600)
+    separate_before = (candidate.read_bytes(), lookalike.read_bytes())
+
+    # Act and assert: byte equality cannot substitute for inode identity.
+    with pytest.raises(RuntimeError, match="exact post-link count"):
+        GlobalEconomicAuthorityJournalV1.create(lookalike, active)
+    assert (candidate.read_bytes(), lookalike.read_bytes()) == separate_before
+
+    # Arrange: rebuild the reserved pair as one inode, then change one expected
+    # semantic coordinate without changing the installed bytes.
+    candidate.unlink()
+    lookalike.unlink()
+    authority_journal_module._initialize_authority_candidate_v1(candidate, active)
+    linked = tmp_path / "wrong-head-authority.sqlite"
+    os.link(candidate, linked)
+    wrong_head = replace(active, profile_root=_root(99))
+
+    # Act and assert: semantic mismatch preserves both recovery names.
+    with pytest.raises(RuntimeError, match="recovery head mismatch"):
+        GlobalEconomicAuthorityJournalV1.create(linked, wrong_head)
+    assert candidate.exists()
+    assert linked.exists()
+    assert candidate.stat().st_ino == linked.stat().st_ino
+    assert candidate.stat().st_nlink == 2
 
 
 def test_historical_retry_after_a_later_generation_is_a_stale_noop(
