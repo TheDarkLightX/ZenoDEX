@@ -739,6 +739,8 @@ def _verified_fixture(
     )
     return ZDEXPurchaseBurnRouteCandidateV1(
         route,
+        spot_release,
+        burn_release,
         occurrence,
         budget,
         verified_budget,
@@ -1659,6 +1661,84 @@ def test_verified_leaf_for_another_journal_cannot_be_substituted() -> None:
     _assert_no_effect_reject(
         result,
         ZDEXPurchaseBurnRouteRejectCodeV1.BURN_WITNESS_MISMATCH,
+    )
+
+
+@pytest.mark.parametrize(
+    ("witness_name", "field_name", "expected"),
+    (
+        (
+            "verified_purchase",
+            "module_release_id",
+            ZDEXPurchaseBurnRouteRejectCodeV1.PURCHASE_WITNESS_MISMATCH,
+        ),
+        (
+            "verified_purchase",
+            "expected_image_id",
+            ZDEXPurchaseBurnRouteRejectCodeV1.PURCHASE_WITNESS_MISMATCH,
+        ),
+        (
+            "verified_burn",
+            "module_release_id",
+            ZDEXPurchaseBurnRouteRejectCodeV1.BURN_WITNESS_MISMATCH,
+        ),
+        (
+            "verified_burn",
+            "expected_image_id",
+            ZDEXPurchaseBurnRouteRejectCodeV1.BURN_WITNESS_MISMATCH,
+        ),
+        (
+            "verified_buyback_budget",
+            "module_release_id",
+            ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH,
+        ),
+        (
+            "verified_buyback_budget",
+            "expected_image_id",
+            ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH,
+        ),
+    ),
+)
+def test_mutated_verified_leaf_release_binding_rejects_without_effects(
+    witness_name: str,
+    field_name: str,
+    expected: ZDEXPurchaseBurnRouteRejectCodeV1,
+) -> None:
+    # Arrange
+    candidate = _verified_fixture()
+    witness = getattr(candidate, witness_name)
+    object.__setattr__(witness._fields, field_name, _root(97_500))
+
+    # Act
+    result = compose_zdex_purchase_burn_route_v1(candidate)
+
+    # Assert
+    _assert_no_effect_reject(result, expected)
+
+
+@pytest.mark.parametrize(
+    ("release_field", "lane_id"),
+    (
+        ("purchase_module_release", LaneIdV1.SPOT_LIQUIDITY),
+        ("burn_module_release", LaneIdV1.ZDEX_TOKENOMICS),
+    ),
+)
+def test_foreign_module_release_record_rejects_without_effects(
+    release_field: str,
+    lane_id: LaneIdV1,
+) -> None:
+    # Arrange
+    candidate = _verified_fixture()
+    foreign_release = _lane_release(lane_id, 97)
+    candidate = replace(candidate, **{release_field: foreign_release})
+
+    # Act
+    result = compose_zdex_purchase_burn_route_v1(candidate)
+
+    # Assert
+    _assert_no_effect_reject(
+        result,
+        ZDEXPurchaseBurnRouteRejectCodeV1.ROUTE_BINDING_MISMATCH,
     )
 
 

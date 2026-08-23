@@ -1,0 +1,98 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-zdex-route-release-image-binding",
+  "created_date": "2026-08-23",
+  "claim_scope": "The pure Python ZDEX purchase-burn composer accepts leaf and fee-budget verification markers only when their module release IDs and expected guest images match exact owned module releases selected by the ordered route.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZDEX-ROUTE-ORDERED-MODULE-RELEASES",
+    "ZDEX-LEAF-MODULE-IMAGE-BINDING",
+    "ZDEX-BUDGET-MODULE-IMAGE-BINDING",
+    "ZDEX-ROUTE-REJECT-WITHOUT-EFFECTS"
+  ],
+  "failure_modes": [
+    "a mutated purchase marker names an unselected module release or guest image",
+    "a mutated burn marker names an unselected module release or guest image",
+    "a mutated fee-budget marker names an unselected tokenomics release or guest image",
+    "a valid but foreign module release record is substituted into the route candidate",
+    "a release-binding rejection returns economic effects"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/zdex_purchase_burn_route_v1.py",
+      "sha256": "c88df13b5693a0ccba803840ae4df0f08fb802de2fcb7cca86e57e46ef51deb8"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_purchase_burn_route_v1.py",
+      "sha256": "03f661514372a7560e9564fbfbd2e2be62f9c876056c7ad3870e78737ddf54c7",
+      "node_ids": [
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_mutated_verified_leaf_release_binding_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_foreign_module_release_record_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_python_rust_golden_composition_root_is_stable"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The regressions arrange one mutated marker coordinate or one valid foreign release, act through the pure route composer, and assert the exact typed reject code plus an empty effect plan; the replay node pins the unchanged composition root."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Every release or image substitution returns a typed route rejection carrying the canonical empty effect plan."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "verified_marker_release_coordinate",
+      "points": [
+        "exact_selected_module_and_image_accept",
+        "one_coordinate_substitution_rejects_without_effects"
+      ]
+    },
+    {
+      "name": "module_release_record",
+      "points": [
+        "exact_route_selected_release_accepts",
+        "valid_foreign_same_lane_release_rejects_without_effects"
+      ]
+    },
+    {
+      "name": "ordinary_composition",
+      "points": [
+        "frozen_python_rust_root_before_repair",
+        "identical_frozen_root_after_repair"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "omit purchase and burn marker module-release and expected-image comparisons",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_mutated_verified_leaf_release_binding_rejects_without_effects"
+    },
+    {
+      "description": "omit fee-budget marker expected-image comparison",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_mutated_verified_leaf_release_binding_rejects_without_effects"
+    },
+    {
+      "description": "accept any same-lane module release supplied by the caller instead of the route-selected release",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_foreign_module_release_record_rejects_without_effects"
+    }
+  ],
+  "nonclaims": [
+    "These are non-authoritative process-local Python verification markers and grant no settlement or publication authority.",
+    "Rust marker fields are private and immutable; this packet does not claim a new Rust runtime theorem or a cryptographic receipt proof.",
+    "The frozen composition-root replay shows ordinary fixture parity and does not prove general tokenomics or AMM correctness.",
+    "This packet does not close public construction, fork inheritance, concurrent mutation, migration, outbox, complete mediation, or whole-economy safety.",
+    "Production authority remains NONE."
+  ]
+}

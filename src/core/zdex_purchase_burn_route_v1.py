@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass
 
+from .global_economic_profile_snapshot_v1 import _snapshot_lane_release_v1
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
 from .global_settlement_types_v1 import (
     GLOBAL_SETTLEMENT_ABI_V1,
@@ -14,6 +15,7 @@ from .global_settlement_types_v1 import (
     EconomicEffectRowV1,
     GlobalEconomicEffectPlanV1,
     LaneIdV1,
+    LaneModuleReleaseV1,
     LaneWriteV1,
     RouteReleaseV1,
     canonical_global_bytes_v1,
@@ -50,6 +52,8 @@ from .zdex_tokenomics_lane_v1 import (
 @dataclass(frozen=True, slots=True)
 class ZDEXPurchaseBurnRouteCandidateV1:
     route_release: RouteReleaseV1
+    purchase_module_release: LaneModuleReleaseV1
+    burn_module_release: LaneModuleReleaseV1
     occurrence: EconomicCommandOccurrenceV1
     buyback_budget_occurrence: ZDEXFeeAllocationOccurrenceV1
     verified_buyback_budget: VerifiedZDEXFeeAllocationV1
@@ -65,6 +69,16 @@ class ZDEXPurchaseBurnRouteCandidateV1:
     def __post_init__(self) -> None:
         expected = (
             (self.route_release, RouteReleaseV1, "route release"),
+            (
+                self.purchase_module_release,
+                LaneModuleReleaseV1,
+                "purchase module release",
+            ),
+            (
+                self.burn_module_release,
+                LaneModuleReleaseV1,
+                "burn module release",
+            ),
             (self.occurrence, EconomicCommandOccurrenceV1, "occurrence"),
             (
                 self.buyback_budget_occurrence,
@@ -149,6 +163,8 @@ ZDEXPurchaseBurnRouteResultV1 = (
 @dataclass(frozen=True, slots=True)
 class _WitnessExpectationV1:
     route_release_id: str
+    module_release_id: str
+    expected_image_id: str
     occurrence_id: str
     profile_root: str
     writer_epoch: int
@@ -168,6 +184,8 @@ def _witness_matches(
     journal_bytes = canonical_global_bytes_v1(journal)
     return (
         witness.route_release_id == expected.route_release_id
+        and witness.module_release_id == expected.module_release_id
+        and witness.expected_image_id == expected.expected_image_id
         and witness.command_occurrence_id == expected.occurrence_id
         and witness.profile_root == expected.profile_root
         and witness.writer_epoch == expected.writer_epoch
@@ -280,7 +298,10 @@ def _budget_bindings_match(
     )
 
 
-def _budget_witness_matches(candidate: ZDEXPurchaseBurnRouteCandidateV1) -> bool:
+def _budget_witness_matches(
+    candidate: ZDEXPurchaseBurnRouteCandidateV1,
+    tokenomics_release: LaneModuleReleaseV1,
+) -> bool:
     route = candidate.route_release
     occurrence = candidate.occurrence
     purchase = candidate.purchase_journal
@@ -296,6 +317,7 @@ def _budget_witness_matches(candidate: ZDEXPurchaseBurnRouteCandidateV1) -> bool
             witness.allocation_route_release_id
             != budget.allocation_route_release_id,
             witness.module_release_id != burn.tokenomics_module_release_id,
+            witness.expected_image_id != tokenomics_release.guest_image_id,
             witness.command_occurrence_id != budget.command_occurrence_id,
             witness.profile_root != occurrence.profile_root,
             witness.writer_epoch != purchase.writer_epoch,
@@ -347,13 +369,23 @@ def _budget_allocation_recomputes(
 def _binding_reject_code(
     candidate: ZDEXPurchaseBurnRouteCandidateV1,
     occurrence_id: str,
+    purchase_release: LaneModuleReleaseV1,
+    burn_release: LaneModuleReleaseV1,
 ) -> ZDEXPurchaseBurnRouteRejectCodeV1 | None:
     route = candidate.route_release
     occurrence = candidate.occurrence
     purchase = candidate.purchase_journal
     burn = candidate.burn_journal
     if (
-        route.route_release_id != occurrence.route_release_id
+        route.ordered_lanes
+        != (LaneIdV1.SPOT_LIQUIDITY, LaneIdV1.ZDEX_TOKENOMICS)
+        or route.module_release_ids
+        != (purchase_release.release_id, burn_release.release_id)
+        or purchase_release.lane_id is not LaneIdV1.SPOT_LIQUIDITY
+        or burn_release.lane_id is not LaneIdV1.ZDEX_TOKENOMICS
+        or purchase.spot_module_release_id != purchase_release.release_id
+        or burn.tokenomics_module_release_id != burn_release.release_id
+        or route.route_release_id != occurrence.route_release_id
         or route.route_release_id != purchase.route_release_id
         or route.route_release_id != burn.route_release_id
     ):
@@ -372,26 +404,36 @@ def _binding_reject_code(
         return ZDEXPurchaseBurnRouteRejectCodeV1.PROFILE_OR_EPOCH_MISMATCH
     if not _budget_bindings_match(candidate, occurrence_id):
         return ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH
-    if not _budget_witness_matches(candidate):
+    if not _budget_witness_matches(candidate, burn_release):
         return ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH
     if not _budget_allocation_recomputes(candidate):
         return ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_BUDGET_MISMATCH
-    expected = _WitnessExpectationV1(
+    purchase_expected = _WitnessExpectationV1(
         route.route_release_id,
+        purchase_release.release_id,
+        purchase_release.guest_image_id,
         occurrence_id,
         occurrence.profile_root,
         purchase.writer_epoch,
     )
     if not _witness_matches(
         candidate.verified_purchase,
-        expected=expected,
+        expected=purchase_expected,
         journal=purchase,
         effects=candidate.purchase_effects,
     ):
         return ZDEXPurchaseBurnRouteRejectCodeV1.PURCHASE_WITNESS_MISMATCH
+    burn_expected = _WitnessExpectationV1(
+        route.route_release_id,
+        burn_release.release_id,
+        burn_release.guest_image_id,
+        occurrence_id,
+        occurrence.profile_root,
+        purchase.writer_epoch,
+    )
     if not _witness_matches(
         candidate.verified_burn,
-        expected=expected,
+        expected=burn_expected,
         journal=burn,
         effects=candidate.burn_effects,
     ):
@@ -440,10 +482,17 @@ def compose_zdex_purchase_burn_route_v1(
     if type(candidate) is not ZDEXPurchaseBurnRouteCandidateV1:
         raise TypeError("ZDEX purchase-burn route candidate must be exact typed data")
     route = candidate.route_release
+    purchase_release = _snapshot_lane_release_v1(candidate.purchase_module_release)
+    burn_release = _snapshot_lane_release_v1(candidate.burn_module_release)
     occurrence = candidate.occurrence
     purchase = candidate.purchase_journal
     occurrence_id = occurrence.occurrence_id
-    reject_code = _binding_reject_code(candidate, occurrence_id)
+    reject_code = _binding_reject_code(
+        candidate,
+        occurrence_id,
+        purchase_release,
+        burn_release,
+    )
     if reject_code is not None:
         return _reject(reject_code)
     reject_code = _economic_reject_code(candidate)
