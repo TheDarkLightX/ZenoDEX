@@ -743,24 +743,30 @@ from redirecting a publisher capability.
 
 The callable guarantee is process-local. Mutable callable behavior, globals,
 closure state, and the executing binary remain unattested. Commits
-`44fd5ca175f812c72906b0bac7ac41af2046a04e` and
-`84d702fbad7d8f8c81a44bb4aed0d3b300f5474c` add and inventory a bounded
-directory-local current-authority head. The canonical head binds activation,
-profile, writer epoch, verifier coordinates, root image, deployment, one named
-epoch store, adjacent generation, and active or revoked status. The epoch CAS
-token snapshots that authority, and publication rechecks the complete active
-head inside one `BEGIN IMMEDIATE` transaction with the authority database
-attached. A differently named second publisher rejects, in-flight explicit
-revocation returns `AUTHORITY_STALE`, active rotations reserve revocation
-capacity, and historical authority retry returns `STALE_HEAD`.
+`44fd5ca175f812c72906b0bac7ac41af2046a04e`,
+`84d702fbad7d8f8c81a44bb4aed0d3b300f5474c`, and
+`a70a8f099c570b39dfd5c4a1ceb76aa686942ded` add, inventory, and race-harden a
+bounded directory-local current-authority head. The canonical head binds
+activation, profile, writer epoch, verifier coordinates, root image,
+deployment, one named epoch store, adjacent generation, and active or revoked
+status. The epoch CAS token snapshots that authority, and publication rechecks
+the complete active head inside one `BEGIN IMMEDIATE` transaction with the
+authority database attached. A differently named second publisher rejects,
+in-flight explicit revocation returns `AUTHORITY_STALE`, active rotations
+reserve revocation capacity, and historical authority retry returns
+`STALE_HEAD`. Concurrent exact bootstrap is serialized. An exact epoch already
+in validated history returns `ALREADY_COMMITTED` after revocation without
+mutating the epoch file; unpublished work remains fenced.
 
-The same evidence preserves two executable release blockers. Restoring old
-authority-file bytes resurrects a revoked publisher, and committing the
-separate migration journal leaves the old publisher able to commit. Authority
-successor admission remains an unauthenticated private same-process hook. A
-production closure therefore requires one anti-rollback authority anchor and
-one atomic migration transaction that installs the new activation, matching
-authority successor, profile, writer epoch, and old-writer retirement.
+The same evidence preserves three executable release blockers. Restoring old
+authority-file bytes resurrects a revoked publisher. Restoring only the epoch
+database to sequence zero under unchanged active authority permits the same
+epoch publication to commit again. Committing the separate migration journal
+leaves the old publisher able to commit. Authority successor admission remains
+an unauthenticated private same-process hook. A production closure therefore
+requires one anti-rollback authority and epoch anchor plus one atomic migration
+transaction that installs the new activation, matching authority successor,
+profile, writer epoch, and old-writer retirement.
 
 The SQLite preflight cannot fence a different process that changes the store
 between immutable validation and writable open. `open` validates structural
@@ -778,18 +784,20 @@ later worktree edit plus refreshed hash from representing an earlier commit.
 The checker itself still requires release packaging, independent replay, and
 authenticated distribution before it can contribute production authority.
 
-The current authority portfolio has 176 passing tests in two runs: 167 adjacent
-initialization, verifier, activation, authority, epoch, publisher, and migration
-tests plus nine exhaustive value-sink tests. It includes
+The current authority portfolio has 223 passing tests in two runs: 214 adjacent
+settlement ABI, verifier release, activation, authority, epoch, publisher, and
+migration tests plus nine exhaustive value-sink tests. It includes
 zero/one/max/max+1 receipt and journal boundaries, active-profile selection,
 wrong registry/image/deployment/manifest/artifact rejection, generic-verifier
 rejection, forged and foreign capabilities, retained-callable mutation killing,
 exact activation create recovery, rejected-open nonmutation, restart/retry,
-competing heads, and tested SQLite crash points. Ruff, mypy, diff checks, and the repository
-security red-flag scanner pass. An independent GPT-5.6 Sol max review returned
-`GO` only for the research-only commit and retained production authority
-`NONE`. It confirmed rollback, non-atomic migration, private same-process
-writers, SQLite availability bounds, and sole-writer enforcement remain open.
+competing heads, synchronized first-create races, prefetch resource bounds,
+exact post-revocation retry, and tested SQLite crash points. Ruff, mypy, diff
+checks, and the repository security red-flag scanner pass. Independent max
+review returned `GO` only for the earlier research-only commit and retained
+production authority `NONE`; its delayed findings caused this repair cycle.
+Rollback, non-atomic migration, private same-process writers, SQLite
+availability bounds, and sole-writer enforcement remain open.
 
 This narrows the directory-local fixed-profile ordinary-epoch authority and
 revocation race. It

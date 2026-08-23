@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c",
+    "commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "checker_dependencies": {
@@ -21,13 +21,13 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "bdfc9d04065dd58699b075292d168e8215a362271beab1aa85c0851fa48fd0e3",
+    "sha256": "fd782025d0a00a19e211c593b10ed131699c9b103da9052198d57bd0ce678067",
     "status": "DRAFT_REVISED_VERIFIER_RELEASE_BOUND",
     "verdict": "UNPROVED"
   },
   "disaster_campaign": {
     "path": "docs/research/GLOBAL_ECONOMIC_COMPOSITION_DISASTER_CAMPAIGN_V1.md",
-    "sha256": "f15740a45c7f6b4ad2531b343ba9ac60ec21550abff2ae2cfb7ae346b9f35fe8",
+    "sha256": "15845c30f58fae4e45025abb86e9a123bcf6b1f996cc7d135f01b90cf7145790",
     "status": "TESTED_DISCOVERY"
   },
   "tau_upstream": {
@@ -413,7 +413,7 @@
     {
       "id": "PUBLISHER_BOUND_EPOCH_VERIFICATION",
       "commit": "408cf223723b001131c013cdb6382c70e56ad932",
-      "artifact_subject_commit": "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c",
+      "artifact_subject_commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
       "core_sha256": "ee346430be797b19427f52a5dff307965ce3f3983a2004cee950468ce9d67577",
       "publisher_sha256": "7ed2e205fa72d59cfde97229cc4a5d7408e9c891983dfb6a9f425cccead12f47",
       "status": [
@@ -554,7 +554,7 @@
     {
       "id": "ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1",
       "commit": "0d29ea7286bd302cf3e2135a7fc7511d78ef5816",
-      "artifact_subject_commit": "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c",
+      "artifact_subject_commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
       "design_sha256": "73d4269dc58b9fa9fe334bbb9d126b13589d1c02538f0f21c2a237dd6b481831",
       "python_sha256": "e4958644e482f867799601bb2b03b62a1aaf83c4a04e946efdb6309c46c54996",
       "python_admission_sha256": "625338660a772404db772c03af3c227abf1b1603308ffb6028125c53b1f6fbbd",
@@ -593,7 +593,7 @@
     },
     {
       "id": "ECONOMIC_INITIAL_STATE_SOURCE_HEAD_ACTIVATION_V1",
-      "commit": "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c",
+      "commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
       "design_sha256": "471ed937844a880269563ee3a83a04b13b030a41a57a29599546355a4462f6c4",
       "python_initial_state_sha256": "625338660a772404db772c03af3c227abf1b1603308ffb6028125c53b1f6fbbd",
       "python_publisher_verification_sha256": "172f92131cd3be3c9aa801bc77e1baccfffa2a21aa74b505687b4e1328e8375f",
@@ -621,7 +621,7 @@
     {
       "id": "GLOBAL_ECONOMIC_DURABLE_ACTIVATION_JOURNAL_V1",
       "commit": "7b5b142e32c505261fbcea68ebb915464b187acb",
-      "artifact_subject_commit": "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c",
+      "artifact_subject_commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
       "design_sha256": "52a6898278b37465082776f7a8c35d1ca8a8d4f36eabb94c721d05b6e4b120cb",
       "python_core_sha256": "36ceffb91d70ea1fd750b250300707340cefd1bf7a9a06cdadce3a6953605d21",
       "python_journal_sha256": "089b2c06829f9f0398456873f41720f5f6be7ef3c4877e7c9b6253d12ff7bf28",
@@ -646,12 +646,12 @@
     },
     {
       "id": "GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1",
-      "commit": "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c",
-      "artifact_subject_commit": "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c",
+      "commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
+      "artifact_subject_commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
       "design_sha256": "1b4b6edd2dd17329e9a6460118c1ef4141eab5369fdfccee7acaabab27614a9d",
       "python_bundle_sha256": "d3500267964f84e05dcc278ab0843a4b8b46b7c4163e27691ad4bfd9c29299ba",
-      "python_journal_sha256": "0077589100db9f99412a66cd39932cdd845a392c83bd22ff0741403dcf869922",
-      "python_test_sha256": "4ee9a59113a379c73c755813a4e3bab465308e62bd48d58958116f3123469bcf",
+      "python_journal_sha256": "9748923fde203fbd96db5a4dcfbd2173626f8daf0e409624caad42cc359bf8e3",
+      "python_test_sha256": "4f82e8e2d5d546a770eef3eb124fd0220d17f7351dac7457b4e8d5350318d1c9",
       "sink_manifest_sha256": "48881c14d37bb4297ae35f2291eae64167c2dcf78ee53bcfba0a0f9d000fc8ba",
       "sink_test_sha256": "319764c65bdccc1acf4e0e35d82f7d0910435af4fe3e926a73007988fd747c61",
       "status": [
@@ -663,6 +663,9 @@
         "REJECTED_OPEN_NONMUTATING_TESTED",
         "CRASH_LEFT_WAL_FILE_FAMILY_PRESERVED",
         "BEHAVIORFUL_PATH_REJECTED",
+        "TRANSACTIONAL_BOOTSTRAP_RACE_SERIALIZED",
+        "HISTORY_BLOB_PREFETCH_BOUNDED",
+        "EXACT_COMMITTED_RETRY_PRECEDES_AUTHORITY_REJECT",
         "EXACT_ACTIVATION_CREATE_RECOVERY",
         "NONZERO_CREATE_RECOVERY_REJECTED",
         "TESTED_AAA_BVA_STATEFUL_CRASH_MUTATION_KILLERS",
@@ -670,7 +673,7 @@
         "TESTED_DISCOVERY",
         "UNMOUNTED"
       ],
-      "closed_obligation": "For one exact activation, one internally body-bound ordinary epoch bundle durably retains the complete post-state, certificate, effect plan, published record, release observation and raw receipt bytes. It binds canonically sorted effect occurrence consumption to the certificate occurrence set, requires the exact canonical journal byte declaration, enforces ABI proof-resource ceilings, and rejects foreign inner ABI schemas. The bounded journal advances insertion and head through one SQLite transaction, rejects stale CAS, duplicate commit identity, row or byte capacity excess, malformed canonical bodies and exact-schema drift, and recovers exact PRE or POST at tested exception and abrupt-process boundaries. Create recovery accepts only the sequence-zero activation head; crash-left WAL artifacts and behaviorful Path subclasses reject before SQLite or redirected-store access in the tested histories.",
+      "closed_obligation": "For one exact activation, one internally body-bound ordinary epoch bundle durably retains the complete post-state, certificate, effect plan, published record, release observation and raw receipt bytes. It binds canonically sorted effect occurrence consumption to the certificate occurrence set, requires the exact canonical journal byte declaration, enforces ABI proof-resource ceilings, and rejects foreign inner ABI schemas. The bounded journal advances insertion and head through one SQLite transaction, rejects stale CAS, duplicate commit identity, row or byte capacity excess, malformed canonical bodies and exact-schema drift, and recovers exact PRE or POST at tested exception and abrupt-process boundaries. Same-path bootstrap classification is serialized, aggregate history bounds reject before bundle BLOB fetch, and exact committed retry returns historical success without mutation before stale-authority rejection. Create recovery accepts only the sequence-zero activation head; crash-left WAL artifacts and behaviorful Path subclasses reject before SQLite or redirected-store access in the tested histories.",
       "remaining_obligations": [
         "remove or OS-fence the private same-interpreter structural writer",
         "bind measured verifier artifacts to the code actually executing in an isolated verifier service",
@@ -681,8 +684,8 @@
     },
     {
       "id": "GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1",
-      "commit": "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c",
-      "artifact_subject_commit": "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c",
+      "commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
+      "artifact_subject_commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
       "design_sha256": "4b354b00691e90759eac21df75b4edf646c75ba07e36089d5c1cc5dd6b04e33f",
       "verifier_design_sha256": "e996c317d5361597ae97d5e0efef0c505acbd6bdaf8a6e76c0eda3fc56ae6189",
       "python_verifier_registry_sha256": "04c1b791a0e9fb546a6f8138b1ff74c955666ece32c271ab024f04a8362f8bde",
@@ -690,11 +693,11 @@
       "python_verifier_deployment_sha256": "dc32a1e0abfaad182c6240cf951f0ee049aee19313b1dde87c5127b845179278",
       "python_publisher_sha256": "769d66b113a2c133b19456bef27ad443ad7f463e960129f9fb70dceba1aeb9b3",
       "python_proof_sha256": "ee346430be797b19427f52a5dff307965ce3f3983a2004cee950468ce9d67577",
-      "python_journal_sha256": "0077589100db9f99412a66cd39932cdd845a392c83bd22ff0741403dcf869922",
+      "python_journal_sha256": "9748923fde203fbd96db5a4dcfbd2173626f8daf0e409624caad42cc359bf8e3",
       "python_verifier_test_sha256": "cacc89e0245d61183d12779b8684dcbbbc417fc35bb98f727b64d8221e23842e",
       "python_abi_test_sha256": "744458522e0fdd7d4e752d154c225da76371455001b8e2160ba036028b46655b",
-      "python_publisher_test_sha256": "1eed473d82fc217fbee54c99fba6b4b214db5a3d7b3ed8fe70c82ded622f2d61",
-      "python_journal_test_sha256": "4ee9a59113a379c73c755813a4e3bab465308e62bd48d58958116f3123469bcf",
+      "python_publisher_test_sha256": "f8a34032806b79443f12f647f75437e95b84fbc3c9b51a1982d0c23f3011ea6b",
+      "python_journal_test_sha256": "4f82e8e2d5d546a770eef3eb124fd0220d17f7351dac7457b4e8d5350318d1c9",
       "writer_manifest_sha256": "a0f8bd4c11660aa4d614a089b252ac5403d7cee0d4cb73454afc121a4bfa0b9f",
       "sink_manifest_sha256": "48881c14d37bb4297ae35f2291eae64167c2dcf78ee53bcfba0a0f9d000fc8ba",
       "writer_test_sha256": "e030b1847b8e21d81035ef8acafbe38a56907bbc4dfa08e973fca9594bc55545",
@@ -706,6 +709,7 @@
         "RETAINED_EXACT_BACKEND_CALLABLE",
         "REGISTRY_RELEASE_COORDINATES_RESELECTED",
         "CREATE_RECOVERY_SEQUENCE_ZERO_ONLY",
+        "CONCURRENT_EXACT_CREATE_RECOVERY_SERIALIZED",
         "GENERIC_CALLER_VERIFIER_REJECTED",
         "EXACT_STORED_SOURCE_RESOLUTION",
         "PUBLIC_JOURNAL_COMMIT_ABSENT_PRIVATE_WRITER_RETAINED",
@@ -714,7 +718,7 @@
         "TESTED_DISCOVERY",
         "UNMOUNTED"
       ],
-      "closed_obligation": "For one fixed genesis activation and active profile, the unmounted durable publisher accepts only a process-local verifier capability selected from the profile-committed registry and root image. The capability binds the exact release, evidence manifest, measured artifact bytes, deployment, backend protocol, purpose and byte ceilings. Generic verifier objects reject. Ordinary epoch verification, exact state/effect/body/source rechecks, internal publication-record and complete-bundle construction, and SQLite CAS are joined behind one controlled API. SQLite is the sole durable linearization point for that API, and exact historical retry covers a lost acknowledgment.",
+      "closed_obligation": "For one fixed genesis activation and active profile, the unmounted durable publisher accepts only a process-local verifier capability selected from the profile-committed registry and root image. The capability binds the exact release, evidence manifest, measured artifact bytes, deployment, backend protocol, purpose and byte ceilings. Generic verifier objects reject. Ordinary epoch verification, exact state/effect/body/source rechecks, internal publication-record and complete-bundle construction, and SQLite CAS are joined behind one controlled API. SQLite is the sole durable linearization point for that API, concurrent exact first-create converges on one sequence-zero store, and exact historical retry covers a lost acknowledgment.",
       "remaining_obligations": [
         "derive evidence statuses from exact checker receipts and bind measured artifact bytes to the code actually executed by an isolated verifier backend",
         "remove or OS-fence the private same-interpreter structural journal writer and every alternative writer",
@@ -727,37 +731,39 @@
     },
     {
       "id": "GLOBAL_ECONOMIC_CURRENT_AUTHORITY_HEAD_V1",
-      "commit": "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c",
-      "artifact_subject_commit": "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c",
-      "design_sha256": "cea8fe479b2baf842b0b3cf581d86f0745a27fe5927d75baadf395ca7e2f1c98",
+      "commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
+      "artifact_subject_commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
+      "design_sha256": "ba61bff4ed45a3a91024134c52bd876321524b426e6518627440238e4e5e9e96",
       "python_core_sha256": "77d4f33f4fd353260154a146e5b7c270a2ca4eae46a13f0ce67da6b5b384896c",
-      "python_authority_journal_sha256": "81ab6ec81d1709a0b8640800157f8e211bcb0faeec73d821b5d8f21efaf49509",
+      "python_authority_journal_sha256": "3c8369391633fe7402d8d533c986556b879087e9cb6298b505ed23fb9d41e826",
       "python_publisher_sha256": "769d66b113a2c133b19456bef27ad443ad7f463e960129f9fb70dceba1aeb9b3",
-      "python_epoch_journal_sha256": "0077589100db9f99412a66cd39932cdd845a392c83bd22ff0741403dcf869922",
-      "python_authority_test_sha256": "bc0c2d1e04e77ab58990bfbeaafd975a06ba997a0ee71f354bf6bd4e89fd7a15",
-      "python_publisher_test_sha256": "1eed473d82fc217fbee54c99fba6b4b214db5a3d7b3ed8fe70c82ded622f2d61",
-      "python_epoch_test_sha256": "4ee9a59113a379c73c755813a4e3bab465308e62bd48d58958116f3123469bcf",
+      "python_epoch_journal_sha256": "9748923fde203fbd96db5a4dcfbd2173626f8daf0e409624caad42cc359bf8e3",
+      "python_authority_test_sha256": "68085a7f556cfd2dd42075e8e230bad376475355e75ff279358c96e18b37f65a",
+      "python_publisher_test_sha256": "f8a34032806b79443f12f647f75437e95b84fbc3c9b51a1982d0c23f3011ea6b",
+      "python_epoch_test_sha256": "4f82e8e2d5d546a770eef3eb124fd0220d17f7351dac7457b4e8d5350318d1c9",
       "sink_manifest_sha256": "48881c14d37bb4297ae35f2291eae64167c2dcf78ee53bcfba0a0f9d000fc8ba",
       "sink_test_sha256": "319764c65bdccc1acf4e0e35d82f7d0910435af4fe3e926a73007988fd747c61",
       "status": [
         "IMPLEMENTED_PYTHON_CANONICAL_AUTHORITY_HEAD",
         "IMPLEMENTED_DIRECTORY_LOCAL_SQLITE_CAS_FENCE",
         "ONE_NAMED_VERIFIED_PUBLISHER_STORE",
+        "CONCURRENT_BOOTSTRAP_RACE_SERIALIZED",
         "INFLIGHT_EXPLICIT_REVOCATION_FENCED",
+        "EXACT_COMMITTED_RETRY_AFTER_REVOCATION_NOOP",
         "EMERGENCY_REVOCATION_CAPACITY_RESERVED",
         "HISTORICAL_AUTHORITY_RETRY_STALE",
         "TESTED_AAA_BVA_STATEFUL_NEGATIVE_REGRESSIONS",
         "INDEPENDENT_MAX_REVIEW_GO_RESEARCH_ONLY",
-        "ROLLBACK_AND_MIGRATION_ATOMICITY_BLOCKERS_PRESERVED",
+        "AUTHORITY_EPOCH_ROLLBACK_AND_MIGRATION_BLOCKERS_PRESERVED",
         "UNMOUNTED"
       ],
-      "closed_obligation": "For the unmounted VerifiedDurableEconomicPublisherV1 path using one unchanged directory-local authority file, one canonical active authority head binds the named epoch store, activation, profile, writer epoch, deployment, verifier coordinates, root image and generation. Differently named stores reject; an explicit same-file revocation or profile generation observed after receipt verification returns AUTHORITY_STALE inside the attached SQLite publication transaction; active successors reserve exact revocation capacity; historical authority retries cannot report current success.",
+      "closed_obligation": "For the unmounted VerifiedDurableEconomicPublisherV1 path using one unchanged directory-local authority file, one canonical active authority head binds the named epoch store, activation, profile, writer epoch, deployment, verifier coordinates, root image and generation. Differently named stores reject; concurrent exact bootstrap is serialized; an explicit same-file revocation or profile generation observed after receipt verification returns AUTHORITY_STALE inside the attached SQLite publication transaction; active successors reserve exact revocation capacity; historical authority retries cannot report current success; and an exact epoch already in validated history can return ALREADY_COMMITTED after revocation without mutation.",
       "remaining_obligations": [
         "anchor authority monotonicity outside rollbackable local files and bind authenticated recovery to that anchor",
         "atomically commit migration activation, matching authority successor, profile, writer epoch and old-writer retirement",
         "authenticate authority successors through proved governance or migration admission",
         "remove or OS-fence private same-process writers and direct SQLite access",
-        "close file replacement, inode alias, filesystem race and SQLite availability bounds",
+        "close validation-to-open replacement, inode alias, filesystem namespace and SQLite availability bounds",
         "implement Rust/RISC0 parity, objective finality, production mount and release-backed evidence"
       ]
     },
@@ -987,7 +993,7 @@
     {
       "id": "VM-08",
       "status": "PARTIAL",
-      "evidence": "Commit 84d702fb retains an opaque process-local verifier capability selected from the active profile's exact verifier-registry root and root image and binds those declared coordinates into the directory-local authority head. The capability reselects the exact release coordinates and retains one callable identity; generic caller-selected verifier objects and post-bind method replacement reject. Authority successors remain unauthenticated private same-process inputs. Callable semantics, closure state, globals and the executing backend remain unattested, and evidence labels remain producer supplied. Same-process isolation, real RISC0 replay, executable attestation, production revocation and release-backed evidence remain absent."
+      "evidence": "Commit a70a8f099 retains an opaque process-local verifier capability selected from the active profile's exact verifier-registry root and root image and binds those declared coordinates into the directory-local authority head. The capability reselects the exact release coordinates and retains one callable identity; generic caller-selected verifier objects and post-bind method replacement reject. Authority successors remain unauthenticated private same-process inputs. Callable semantics, closure state, globals and the executing backend remain unattested, and evidence labels remain producer supplied. Same-process isolation, real RISC0 replay, executable attestation, production revocation and release-backed evidence remain absent."
     },
     {
       "id": "VM-09",
@@ -997,17 +1003,17 @@
     {
       "id": "VM-10",
       "status": "PARTIAL",
-      "evidence": "Commit 7b5b142e3 adds an unmounted bounded SQLite activation journal. Commits edd03093d and eb6bf17b1 add the complete ordinary-epoch bundle, journal, and verifier-owned publisher. Commit 84d702fb binds that publisher to one named directory-local authority head and rechecks its active generation inside the attached SQLite publication transaction. Differently named second stores reject, in-flight explicit revocation returns AUTHORITY_STALE, active successors reserve emergency-revocation capacity, and historical authority retry reports STALE_HEAD. Executable blockers prove restored authority bytes resurrect a revoked writer and the separate migration journal leaves the old writer active. Private writers and alternative paths remain callable. Anti-rollback authority storage, authenticated successor admission, atomic migration retirement, executable verifier attestation, outbox reconciliation, objective finality, hardware power-loss evidence, Rust/RISC0 parity, one mounted authoritative writer, and legacy-path retirement remain absent."
+      "evidence": "Commit 7b5b142e3 adds an unmounted bounded SQLite activation journal. Commits edd03093d and eb6bf17b1 add the complete ordinary-epoch bundle, journal, and verifier-owned publisher. Commit a70a8f099 binds that publisher to one named directory-local authority head, serializes concurrent exact bootstrap, bounds history before bundle BLOB fetch, and rechecks active generation inside the attached SQLite publication transaction. Differently named second stores reject, in-flight explicit revocation returns AUTHORITY_STALE, exact committed retry after revocation returns ALREADY_COMMITTED without mutation, active successors reserve emergency-revocation capacity, and historical authority retry reports STALE_HEAD. Executable blockers prove restored authority bytes resurrect a revoked writer, epoch-only sequence-zero restore permits duplicate publication, and the separate migration journal leaves the old writer active. Private writers and alternative paths remain callable. Anti-rollback authority and epoch storage, authenticated successor admission, atomic migration retirement, executable verifier attestation, outbox reconciliation, objective finality, hardware power-loss evidence, Rust/RISC0 parity, one mounted authoritative writer, and legacy-path retirement remain absent."
     },
     {
       "id": "VM-11",
       "status": "PARTIAL",
-      "evidence": "Python and Rust derive matching roots for every explicit balance, supply, named accounting-location, liability, reserve and terminal-obligation target row in the bounded vectors. Commits 8eea5cb80, 0d29ea728, 1ea1303dd and 348076a1d bind a full predecessor state and preserve complete global replay, outbox and terminal-obligation tables across isolated migration. Commits 93798a67a and 877ba86cf bind in-memory migration to the publisher-owned source head. Commit 7b5b142e3 checkpoints a complete genesis or migration candidate; commit 84d702fb binds ordinary publication to a directory-local authority generation. An executable blocker proves migration activation and authority retirement remain separate successful histories. This does not prove migration receipt validity, transition semantics, atomic authority rotation, anti-rollback recovery, terminal validity, funding, claimant key control, payable routes, source authorization, external delivery, objective finality, migration totality, coexistence, or verifier-owned durable activation. Changed Rust targets and shared vectors remain uncompiled and unrun in Rust, and independent review of replay and terminal slices remains pending."
+      "evidence": "Python and Rust derive matching roots for every explicit balance, supply, named accounting-location, liability, reserve and terminal-obligation target row in the bounded vectors. Commits 8eea5cb80, 0d29ea728, 1ea1303dd and 348076a1d bind a full predecessor state and preserve complete global replay, outbox and terminal-obligation tables across isolated migration. Commits 93798a67a and 877ba86cf bind in-memory migration to the publisher-owned source head. Commit 7b5b142e3 checkpoints a complete genesis or migration candidate; commit a70a8f099 binds ordinary publication to a directory-local authority generation and preserves executable authority-only, epoch-only, and migration-atomicity rollback blockers. This does not prove migration receipt validity, transition semantics, atomic authority rotation, anti-rollback recovery, terminal validity, funding, claimant key control, payable routes, source authorization, external delivery, objective finality, migration totality, coexistence, or verifier-owned durable activation. Changed Rust targets and shared vectors remain uncompiled and unrun in Rust, and independent review of replay and terminal slices remains pending."
     },
     {
       "id": "VM-12",
       "status": "GAP",
-      "evidence": "This ledger binds clean scoped implementation subject 84d702fbad7d8f8c81a44bb4aed0d3b300f5474c. The current-authority campaign preserves minimized second-store, in-flight revocation, revocation-capacity, historical-retry, decoder-nesting, authority rollback, and non-atomic migration histories. Two recorded runs have 176 passing tests: 167 adjacent initialization, verifier, activation, authority, epoch, publisher, and migration tests plus nine exhaustive value-sink tests. Touched Python passes Ruff and targeted mypy; the security scanner reported zero advisory findings. Independent max review returned GO for a research-only commit and production NO-GO. Anti-rollback authority, atomic migration retirement, authenticated successor admission, isolated executable attestation, sole-writer fencing, real Rust/RISC0 replay, objective finality, and complete release evidence remain absent."
+      "evidence": "This ledger binds clean scoped implementation subject a70a8f099c570b39dfd5c4a1ceb76aa686942ded. The current-authority campaign preserves minimized second-store, in-flight revocation, revocation-capacity, historical-retry, decoder-nesting, authority rollback, epoch-only rollback, and non-atomic migration histories. Two recorded runs have 223 passing tests: 214 adjacent settlement ABI, verifier release, activation, authority, epoch, publisher, and migration tests plus nine exhaustive value-sink tests. Touched Python passes Ruff and targeted mypy; the security scanner reported zero advisory findings. Independent max review returned GO for an earlier research-only commit and production NO-GO; delayed findings caused the bootstrap, retry-order, and prefetch repairs. Anti-rollback authority and epoch anchoring, atomic migration retirement, authenticated successor admission, isolated executable attestation, sole-writer fencing, real Rust/RISC0 replay, objective finality, and complete release evidence remain absent."
     }
   ],
   "live_gate_observations": {

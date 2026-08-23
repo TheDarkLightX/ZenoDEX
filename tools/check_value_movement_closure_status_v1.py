@@ -19,9 +19,9 @@ DEFAULT_STATUS_PATH = Path(
 M6_ATDD_PATH = Path("docs/research/m6_global_economic_core_atdd_bdd_v1.json")
 EXPECTED_GATE_IDS = tuple(f"VM-{index:02d}" for index in range(1, 13))
 EXPECTED_GATE_EVIDENCE_ROOT = (
-    "ec9e8f9fb9f1b0cd83ef7c55b4f617a0cea4f85a41952b41f6600f775b998690"
+    "4119e852ae5503c70ca61f63c11b53aadd6502e6e800878594fe952f12d63096"
 )
-EXPECTED_SUBJECT_COMMIT = "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c"
+EXPECTED_SUBJECT_COMMIT = "a70a8f099c570b39dfd5c4a1ceb76aa686942ded"
 EXPECTED_TOP_LEVEL_FIELDS = frozenset(
     {
         "authority",
@@ -115,22 +115,24 @@ EXPECTED_CLAIM_PATH = Path(
 EXPECTED_CAMPAIGN_PATH = Path(
     "docs/research/GLOBAL_ECONOMIC_COMPOSITION_DISASTER_CAMPAIGN_V1.md"
 )
-EXPECTED_CLAIM_SHA256 = "bdfc9d04065dd58699b075292d168e8215a362271beab1aa85c0851fa48fd0e3"
-EXPECTED_CAMPAIGN_SHA256 = "f15740a45c7f6b4ad2531b343ba9ac60ec21550abff2ae2cfb7ae346b9f35fe8"
+EXPECTED_CLAIM_SHA256 = "fd782025d0a00a19e211c593b10ed131699c9b103da9052198d57bd0ce678067"
+EXPECTED_CAMPAIGN_SHA256 = "15845c30f58fae4e45025abb86e9a123bcf6b1f996cc7d135f01b90cf7145790"
 EXPECTED_VM12_EVIDENCE = (
     "This ledger binds clean scoped implementation subject "
-    "84d702fbad7d8f8c81a44bb4aed0d3b300f5474c. The current-authority campaign "
+    "a70a8f099c570b39dfd5c4a1ceb76aa686942ded. The current-authority campaign "
     "preserves minimized second-store, in-flight revocation, revocation-capacity, "
-    "historical-retry, decoder-nesting, authority rollback, and non-atomic "
-    "migration histories. Two recorded runs have 176 passing tests: 167 adjacent "
-    "initialization, verifier, activation, authority, epoch, publisher, and "
-    "migration tests plus nine exhaustive value-sink tests. Touched Python passes "
-    "Ruff and targeted mypy; the security scanner reported zero advisory "
-    "findings. Independent max review returned GO for a research-only commit and "
-    "production NO-GO. Anti-rollback authority, atomic migration retirement, "
-    "authenticated successor admission, isolated executable attestation, "
-    "sole-writer fencing, real Rust/RISC0 replay, objective finality, and complete "
-    "release evidence remain absent."
+    "historical-retry, decoder-nesting, authority rollback, epoch-only rollback, "
+    "and non-atomic migration histories. Two recorded runs have 223 passing tests: "
+    "214 adjacent settlement ABI, verifier release, activation, authority, epoch, "
+    "publisher, and migration tests plus nine exhaustive value-sink tests. Touched "
+    "Python passes Ruff and targeted mypy; the security scanner reported zero "
+    "advisory findings. Independent max review returned GO for an earlier "
+    "research-only commit and production NO-GO; delayed findings caused the "
+    "bootstrap, retry-order, and prefetch repairs. Anti-rollback authority and "
+    "epoch anchoring, atomic migration retirement, authenticated successor "
+    "admission, isolated executable attestation, sole-writer fencing, real "
+    "Rust/RISC0 replay, objective finality, and complete release evidence remain "
+    "absent."
 )
 CHECKER_DEPENDENCY_ARTIFACTS = {
     "asset_precision_checker_sha256": Path(
