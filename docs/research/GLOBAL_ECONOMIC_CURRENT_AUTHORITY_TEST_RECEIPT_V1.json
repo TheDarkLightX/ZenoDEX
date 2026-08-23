@@ -1,0 +1,62 @@
+{
+  "schema": "zenodex/global-economic-current-authority-test-receipt/v1",
+  "recorded_at": "2026-08-22",
+  "implementation_subject_commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
+  "environment": {
+    "platform": "linux",
+    "python": "3.12.3",
+    "pytest": "7.4.4",
+    "sqlite": "3.45.1",
+    "tmpdir": "/dev/shm"
+  },
+  "runs": [
+    {
+      "id": "adjacent_authority_portfolio",
+      "argv": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/core/test_global_settlement_abi_v1.py",
+        "tests/core/test_economic_receipt_verifier_release_v1.py",
+        "tests/integration/test_global_economic_migration_journal_v1.py",
+        "tests/integration/test_global_economic_authority_journal_v1.py",
+        "tests/integration/test_global_economic_epoch_journal_v1.py",
+        "tests/integration/test_global_economic_durable_publisher_v1.py",
+        "--junitxml=/tmp/zenodex-authority-8725fa0-adjacent.xml"
+      ],
+      "exit_code": 0,
+      "tests": 236,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "junit_sha256": "ac08c1cee6db540a6388e5485f39e1abe1d14994fbfcb2b6a1551dd93b9336cf",
+      "junit_artifact_committed": false
+    },
+    {
+      "id": "exhaustive_python_value_sinks",
+      "argv": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_check_m6_value_sinks_v1.py",
+        "--junitxml=/tmp/zenodex-authority-8725fa0-sinks.xml"
+      ],
+      "exit_code": 0,
+      "tests": 9,
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "junit_sha256": "bc64788c79ed48bc9b8b29b320542b885a508aabaac06a163954efe0e8a84c5e",
+      "junit_artifact_committed": false
+    }
+  ],
+  "total_tests": 245,
+  "evidence_authority": "LOCAL_EXECUTION_RECORD_UNATTESTED",
+  "nonclaims": [
+    "The ephemeral JUnit artifacts are not committed or independently attested.",
+    "The receipt does not prove that another machine replayed either command.",
+    "Passing tests do not establish production authority or whole-value-movement safety."
+  ]
+}

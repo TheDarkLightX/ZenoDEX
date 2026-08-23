@@ -558,6 +558,25 @@ def test_checker_rejects_disaster_campaign_drift(tmp_path: Path) -> None:
     assert "disaster campaign status drift" in _findings(report)
 
 
+def test_checker_rejects_unattested_test_receipt_promotion_or_retarget(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Mallory retargets the receipt and upgrades its local evidence label.
+    mutated = deepcopy(_status())
+    receipt = cast(dict[str, object], mutated["test_execution_receipt"])
+    receipt["implementation_subject_commit"] = "0" * 40
+    receipt["evidence_authority"] = "INDEPENDENTLY_ATTESTED"
+
+    # Act: validate the promoted and foreign-subject receipt binding.
+    report = check_value_movement_closure_status_v1(
+        status_path=_write_status(tmp_path, mutated)
+    )
+
+    # Assert: exact subject and conservative authority remain checker-owned.
+    assert report["ok"] is False
+    assert "test execution receipt binding drift" in _findings(report)
+
+
 def test_checker_rejects_vm12_subject_and_test_receipt_drift(tmp_path: Path) -> None:
     # Arrange: stale review prose still carries a nonempty GAP evidence field.
     mutated = deepcopy(_status())

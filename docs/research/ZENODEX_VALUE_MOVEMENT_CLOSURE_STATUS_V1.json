@@ -3,7 +3,7 @@
   "observed_at": "2026-08-22",
   "subject": {
     "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
+    "commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "checker_dependencies": {
@@ -21,14 +21,20 @@
   },
   "claim_contract": {
     "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
-    "sha256": "fd782025d0a00a19e211c593b10ed131699c9b103da9052198d57bd0ce678067",
+    "sha256": "5d5e4ad1076637b5ae9b3f3e668d00386c80717e2e7b40873d1aceb2aec827cb",
     "status": "DRAFT_REVISED_VERIFIER_RELEASE_BOUND",
     "verdict": "UNPROVED"
   },
   "disaster_campaign": {
     "path": "docs/research/GLOBAL_ECONOMIC_COMPOSITION_DISASTER_CAMPAIGN_V1.md",
-    "sha256": "15845c30f58fae4e45025abb86e9a123bcf6b1f996cc7d135f01b90cf7145790",
+    "sha256": "26b1baea95475643a62cde3e1daac71b896418e20c9f27ad765580985dd3a50f",
     "status": "TESTED_DISCOVERY"
+  },
+  "test_execution_receipt": {
+    "path": "docs/research/GLOBAL_ECONOMIC_CURRENT_AUTHORITY_TEST_RECEIPT_V1.json",
+    "sha256": "dd502086053416b6497640c8c8bc7c4105c56c0d1a0eefc9c64ef8541acf42f8",
+    "implementation_subject_commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
+    "evidence_authority": "LOCAL_EXECUTION_RECORD_UNATTESTED"
   },
   "tau_upstream": {
     "official_repository": "https://github.com/IDNI/tau-lang",
@@ -377,6 +383,51 @@
         "SQLite file size, free-page, count and integrity-check availability bounds remain open",
         "no production authority, mount or whole-value-movement safety guarantee"
       ]
+    },
+    {
+      "reviewer": "GPT-5.6 Sol max authority-bootstrap follow-up review",
+      "subject_commit": "b5b5c881a239b403d51e635a1535fe2975e77ad4",
+      "verdict": "NO_GO_FINDINGS_REPAIRED_IN_D606_PENDING_REREVIEW",
+      "scope": "No-replace bootstrap race precursor, retry ordering, aggregate history prefetch, rollback blockers, exact-subject checker, and claim wording.",
+      "verification": [
+        "review found pre-existing empty and malformed paths could be adopted by the a70a8f099 bootstrap",
+        "review found SQLite lock timeout could escape the claimed typed race classification",
+        "review found test-count prose lacked a machine-readable execution receipt",
+        "review found inode replacement was disclosed without retained executable evidence",
+        "review found exact retry ordering, aggregate prefetch ordering, and exact-subject mapping sound in the inspected slice"
+      ],
+      "repair_observation": [
+        "d606affe4 installs validated private candidates with atomic no-replace semantics",
+        "d606affe4 returns typed nonblocking bootstrap-busy exceptions before SQLite setup",
+        "d606affe4 rejects pre-existing namespace entries and enforces owner, mode, regular-file type, and one link",
+        "d606affe4 adds the inode-replacement executable blocker",
+        "a local unattested JSON receipt now records exact post-commit commands, counts, versions, and ephemeral JUnit hashes"
+      ],
+      "residual_nonclaims": [
+        "the reviewer did not re-review d606affe4",
+        "the JUnit files are ephemeral, uncommitted, and independently unattested",
+        "noncooperating same-UID namespace races and replaced open inodes remain open",
+        "no production authority, mount or whole-value-movement safety guarantee"
+      ]
+    },
+    {
+      "reviewer": "GPT-5.6 Sol max authority-bootstrap final review chain",
+      "subject_commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
+      "verdict": "GO_BOUNDED_LINUX_PROCFS_SAME_UID_UNMOUNTED_PRODUCTION_NO_GO",
+      "scope": "No-replace authority and epoch bootstrap, descriptor-bound post-link recovery, special-file availability, legacy-mode compatibility boundary, procfs error typing, tests and claim wording.",
+      "verification": [
+        "review confirmed the d606 precursor findings were repaired",
+        "review confirmed 3812518d6 closes tested post-link process-crash wedges and declares fresh-install-only legacy compatibility",
+        "review found paired-FIFO blocking and overbroad non-adoption wording; 0535b90fc repairs both",
+        "review found raw procfs errors could escape; 8725fa0ad translates descriptor and SQLite-open failures before mutation",
+        "final exact-subject review found no remaining High or Medium defect within the declared bounded ceiling"
+      ],
+      "residual_nonclaims": [
+        "Linux O_PATH and usable procfs remain required for linked recovery",
+        "exact current-UID hardlink pairs are recoverable without authenticated install provenance",
+        "hardware power loss, hostile same-UID races, rollback, inode replacement, atomic migration and sole-writer isolation remain open",
+        "no production authority, mount or whole-value-movement safety guarantee"
+      ]
     }
   ],
   "implemented_slices": [
@@ -413,7 +464,7 @@
     {
       "id": "PUBLISHER_BOUND_EPOCH_VERIFICATION",
       "commit": "408cf223723b001131c013cdb6382c70e56ad932",
-      "artifact_subject_commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
+      "artifact_subject_commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
       "core_sha256": "ee346430be797b19427f52a5dff307965ce3f3983a2004cee950468ce9d67577",
       "publisher_sha256": "7ed2e205fa72d59cfde97229cc4a5d7408e9c891983dfb6a9f425cccead12f47",
       "status": [
@@ -554,7 +605,7 @@
     {
       "id": "ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1",
       "commit": "0d29ea7286bd302cf3e2135a7fc7511d78ef5816",
-      "artifact_subject_commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
+      "artifact_subject_commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
       "design_sha256": "73d4269dc58b9fa9fe334bbb9d126b13589d1c02538f0f21c2a237dd6b481831",
       "python_sha256": "e4958644e482f867799601bb2b03b62a1aaf83c4a04e946efdb6309c46c54996",
       "python_admission_sha256": "625338660a772404db772c03af3c227abf1b1603308ffb6028125c53b1f6fbbd",
@@ -593,7 +644,7 @@
     },
     {
       "id": "ECONOMIC_INITIAL_STATE_SOURCE_HEAD_ACTIVATION_V1",
-      "commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
+      "commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
       "design_sha256": "471ed937844a880269563ee3a83a04b13b030a41a57a29599546355a4462f6c4",
       "python_initial_state_sha256": "625338660a772404db772c03af3c227abf1b1603308ffb6028125c53b1f6fbbd",
       "python_publisher_verification_sha256": "172f92131cd3be3c9aa801bc77e1baccfffa2a21aa74b505687b4e1328e8375f",
@@ -621,7 +672,7 @@
     {
       "id": "GLOBAL_ECONOMIC_DURABLE_ACTIVATION_JOURNAL_V1",
       "commit": "7b5b142e32c505261fbcea68ebb915464b187acb",
-      "artifact_subject_commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
+      "artifact_subject_commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
       "design_sha256": "52a6898278b37465082776f7a8c35d1ca8a8d4f36eabb94c721d05b6e4b120cb",
       "python_core_sha256": "36ceffb91d70ea1fd750b250300707340cefd1bf7a9a06cdadce3a6953605d21",
       "python_journal_sha256": "089b2c06829f9f0398456873f41720f5f6be7ef3c4877e7c9b6253d12ff7bf28",
@@ -646,12 +697,12 @@
     },
     {
       "id": "GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1",
-      "commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
-      "artifact_subject_commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
+      "commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
+      "artifact_subject_commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
       "design_sha256": "1b4b6edd2dd17329e9a6460118c1ef4141eab5369fdfccee7acaabab27614a9d",
       "python_bundle_sha256": "d3500267964f84e05dcc278ab0843a4b8b46b7c4163e27691ad4bfd9c29299ba",
-      "python_journal_sha256": "9748923fde203fbd96db5a4dcfbd2173626f8daf0e409624caad42cc359bf8e3",
-      "python_test_sha256": "4f82e8e2d5d546a770eef3eb124fd0220d17f7351dac7457b4e8d5350318d1c9",
+      "python_journal_sha256": "878f9a66c5fba688e481ba815f7b7474275e4f21d068b5012cad60a8fc4449d0",
+      "python_test_sha256": "4b67d736f4adb9f8d5d9a42c649b1648919f31404daf8f0484f9fc6aa8768dd7",
       "sink_manifest_sha256": "48881c14d37bb4297ae35f2291eae64167c2dcf78ee53bcfba0a0f9d000fc8ba",
       "sink_test_sha256": "319764c65bdccc1acf4e0e35d82f7d0910435af4fe3e926a73007988fd747c61",
       "status": [
@@ -663,7 +714,14 @@
         "REJECTED_OPEN_NONMUTATING_TESTED",
         "CRASH_LEFT_WAL_FILE_FAMILY_PRESERVED",
         "BEHAVIORFUL_PATH_REJECTED",
-        "TRANSACTIONAL_BOOTSTRAP_RACE_SERIALIZED",
+        "ATOMIC_NO_REPLACE_BOOTSTRAP",
+        "POST_LINK_DESCRIPTOR_RECOVERY",
+        "PAIRED_SPECIAL_FILES_REJECT_PROMPTLY",
+        "PROCFS_FAILURES_TYPED_BEFORE_MUTATION",
+        "TYPED_NONBLOCKING_BOOTSTRAP_CONTENTION",
+        "PREEXISTING_NAMESPACE_ADOPTION_REJECTED",
+        "OWNER_MODE_AND_SINGLE_LINK_REQUIRED",
+        "LEGACY_0644_TYPED_MIGRATION_REQUIRED",
         "HISTORY_BLOB_PREFETCH_BOUNDED",
         "EXACT_COMMITTED_RETRY_PRECEDES_AUTHORITY_REJECT",
         "EXACT_ACTIVATION_CREATE_RECOVERY",
@@ -673,19 +731,20 @@
         "TESTED_DISCOVERY",
         "UNMOUNTED"
       ],
-      "closed_obligation": "For one exact activation, one internally body-bound ordinary epoch bundle durably retains the complete post-state, certificate, effect plan, published record, release observation and raw receipt bytes. It binds canonically sorted effect occurrence consumption to the certificate occurrence set, requires the exact canonical journal byte declaration, enforces ABI proof-resource ceilings, and rejects foreign inner ABI schemas. The bounded journal advances insertion and head through one SQLite transaction, rejects stale CAS, duplicate commit identity, row or byte capacity excess, malformed canonical bodies and exact-schema drift, and recovers exact PRE or POST at tested exception and abrupt-process boundaries. Same-path bootstrap classification is serialized, aggregate history bounds reject before bundle BLOB fetch, and exact committed retry returns historical success without mutation before stale-authority rejection. Create recovery accepts only the sequence-zero activation head; crash-left WAL artifacts and behaviorful Path subclasses reject before SQLite or redirected-store access in the tested histories.",
+      "closed_obligation": "For one exact activation, one internally body-bound ordinary epoch bundle durably retains the complete post-state, certificate, effect plan, published record, release observation and raw receipt bytes. It binds canonically sorted effect occurrence consumption to the certificate occurrence set, requires the exact canonical journal byte declaration, enforces ABI proof-resource ceilings, and rejects foreign inner ABI schemas. The bounded journal advances insertion and head through one SQLite transaction, rejects stale CAS, duplicate commit identity, row or byte capacity excess, malformed canonical bodies and exact-schema drift, and recovers exact PRE or POST at tested exception and abrupt-process boundaries. First install uses a validated private 0600 candidate, nonblocking advisory lock, fsync, atomic no-replace final link, exact owner/mode/type/link reopen checks, and typed contention. Exact post-link process-crash retry validates one two-name inode and the complete sequence-zero activation through a held descriptor before removing the reserved candidate. Separate inodes, wrong activations, pre-link candidates, and pre-existing final entries reject without mutation. Exact legacy 0644 stores receive typed migration-required rejection. Aggregate history bounds reject before bundle BLOB fetch, and exact committed retry returns historical success without mutation before stale-authority rejection. Crash-left WAL artifacts and behaviorful Path subclasses reject before SQLite or redirected-store access in the tested histories.",
       "remaining_obligations": [
         "remove or OS-fence the private same-interpreter structural writer",
         "bind measured verifier artifacts to the code actually executing in an isolated verifier service",
         "prove outbox source authorization, delivery, acknowledgment authenticity, destination idempotency and durable reconciliation",
         "establish objective finality and hardware power-loss evidence",
+        "implement descriptor-validated legacy permission and service-UID migration",
         "mount one sole publisher and retire every legacy writer"
       ]
     },
     {
       "id": "GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1",
-      "commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
-      "artifact_subject_commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
+      "commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
+      "artifact_subject_commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
       "design_sha256": "4b354b00691e90759eac21df75b4edf646c75ba07e36089d5c1cc5dd6b04e33f",
       "verifier_design_sha256": "e996c317d5361597ae97d5e0efef0c505acbd6bdaf8a6e76c0eda3fc56ae6189",
       "python_verifier_registry_sha256": "04c1b791a0e9fb546a6f8138b1ff74c955666ece32c271ab024f04a8362f8bde",
@@ -693,11 +752,11 @@
       "python_verifier_deployment_sha256": "dc32a1e0abfaad182c6240cf951f0ee049aee19313b1dde87c5127b845179278",
       "python_publisher_sha256": "769d66b113a2c133b19456bef27ad443ad7f463e960129f9fb70dceba1aeb9b3",
       "python_proof_sha256": "ee346430be797b19427f52a5dff307965ce3f3983a2004cee950468ce9d67577",
-      "python_journal_sha256": "9748923fde203fbd96db5a4dcfbd2173626f8daf0e409624caad42cc359bf8e3",
+      "python_journal_sha256": "878f9a66c5fba688e481ba815f7b7474275e4f21d068b5012cad60a8fc4449d0",
       "python_verifier_test_sha256": "cacc89e0245d61183d12779b8684dcbbbc417fc35bb98f727b64d8221e23842e",
       "python_abi_test_sha256": "744458522e0fdd7d4e752d154c225da76371455001b8e2160ba036028b46655b",
-      "python_publisher_test_sha256": "f8a34032806b79443f12f647f75437e95b84fbc3c9b51a1982d0c23f3011ea6b",
-      "python_journal_test_sha256": "4f82e8e2d5d546a770eef3eb124fd0220d17f7351dac7457b4e8d5350318d1c9",
+      "python_publisher_test_sha256": "898e93a232366e670fd2f08780df718784fa76fc79c8dce393e9c55c95972f85",
+      "python_journal_test_sha256": "4b67d736f4adb9f8d5d9a42c649b1648919f31404daf8f0484f9fc6aa8768dd7",
       "writer_manifest_sha256": "a0f8bd4c11660aa4d614a089b252ac5403d7cee0d4cb73454afc121a4bfa0b9f",
       "sink_manifest_sha256": "48881c14d37bb4297ae35f2291eae64167c2dcf78ee53bcfba0a0f9d000fc8ba",
       "writer_test_sha256": "e030b1847b8e21d81035ef8acafbe38a56907bbc4dfa08e973fca9594bc55545",
@@ -709,7 +768,13 @@
         "RETAINED_EXACT_BACKEND_CALLABLE",
         "REGISTRY_RELEASE_COORDINATES_RESELECTED",
         "CREATE_RECOVERY_SEQUENCE_ZERO_ONLY",
-        "CONCURRENT_EXACT_CREATE_RECOVERY_SERIALIZED",
+        "CONCURRENT_CREATE_TYPED_BUSY_AND_EXACT_LATER_RECOVERY",
+        "ATOMIC_NO_REPLACE_STORE_INSTALL",
+        "POST_LINK_DESCRIPTOR_RECOVERY",
+        "PAIRED_SPECIAL_FILES_REJECT_PROMPTLY",
+        "PROCFS_FAILURES_TYPED_BEFORE_MUTATION",
+        "PRIVATE_STORE_OWNER_MODE_AND_LINK_CHECKED",
+        "LEGACY_0644_TYPED_MIGRATION_REQUIRED",
         "GENERIC_CALLER_VERIFIER_REJECTED",
         "EXACT_STORED_SOURCE_RESOLUTION",
         "PUBLIC_JOURNAL_COMMIT_ABSENT_PRIVATE_WRITER_RETAINED",
@@ -718,52 +783,61 @@
         "TESTED_DISCOVERY",
         "UNMOUNTED"
       ],
-      "closed_obligation": "For one fixed genesis activation and active profile, the unmounted durable publisher accepts only a process-local verifier capability selected from the profile-committed registry and root image. The capability binds the exact release, evidence manifest, measured artifact bytes, deployment, backend protocol, purpose and byte ceilings. Generic verifier objects reject. Ordinary epoch verification, exact state/effect/body/source rechecks, internal publication-record and complete-bundle construction, and SQLite CAS are joined behind one controlled API. SQLite is the sole durable linearization point for that API, concurrent exact first-create converges on one sequence-zero store, and exact historical retry covers a lost acknowledgment.",
+      "closed_obligation": "For one fixed genesis activation and active profile, the unmounted durable publisher accepts only a process-local verifier capability selected from the profile-committed registry and root image. The capability binds the exact release, evidence manifest, measured artifact bytes, deployment, backend protocol, purpose and byte ceilings. Generic verifier objects reject. Ordinary epoch verification, exact state/effect/body/source rechecks, internal publication-record and complete-bundle construction, and SQLite CAS are joined behind one controlled API. SQLite is the sole durable linearization point for that API. First install is private-candidate plus atomic no-replace, concurrent contention is typed before SQLite setup, an exact post-link retry validates and completes the held two-name inode for both authority and epoch stores, and exact historical retry covers a lost acknowledgment. Legacy 0644 stores fail with typed migration-required rejection rather than implicit mutation.",
       "remaining_obligations": [
         "derive evidence statuses from exact checker receipts and bind measured artifact bytes to the code actually executed by an isolated verifier backend",
         "remove or OS-fence the private same-interpreter structural journal writer and every alternative writer",
         "implement proved migration and profile rotation through the same durable authority",
         "prove outbox source authorization, delivery, acknowledgment authenticity, destination idempotency and durable reconciliation",
         "establish objective finality and hardware power-loss evidence",
+        "implement descriptor-validated legacy permission and service-UID migration",
         "implement Rust/RISC0 parity and real receipt replay",
         "mount the sole publisher and retire every legacy writer"
       ]
     },
     {
       "id": "GLOBAL_ECONOMIC_CURRENT_AUTHORITY_HEAD_V1",
-      "commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
-      "artifact_subject_commit": "a70a8f099c570b39dfd5c4a1ceb76aa686942ded",
-      "design_sha256": "ba61bff4ed45a3a91024134c52bd876321524b426e6518627440238e4e5e9e96",
+      "commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
+      "artifact_subject_commit": "8725fa0ad9e9a177c19c4dd10434aec8a566237d",
+      "design_sha256": "21d6273747ed15b118f540b11a6fd1074b703126bc61ebd6f39be239f1810e37",
       "python_core_sha256": "77d4f33f4fd353260154a146e5b7c270a2ca4eae46a13f0ce67da6b5b384896c",
-      "python_authority_journal_sha256": "3c8369391633fe7402d8d533c986556b879087e9cb6298b505ed23fb9d41e826",
+      "python_authority_journal_sha256": "66b43e86cc1e024ce817044ac0b9515f64d0943a0bfdfd2148e0c8c0badcc4da",
       "python_publisher_sha256": "769d66b113a2c133b19456bef27ad443ad7f463e960129f9fb70dceba1aeb9b3",
-      "python_epoch_journal_sha256": "9748923fde203fbd96db5a4dcfbd2173626f8daf0e409624caad42cc359bf8e3",
-      "python_authority_test_sha256": "68085a7f556cfd2dd42075e8e230bad376475355e75ff279358c96e18b37f65a",
-      "python_publisher_test_sha256": "f8a34032806b79443f12f647f75437e95b84fbc3c9b51a1982d0c23f3011ea6b",
-      "python_epoch_test_sha256": "4f82e8e2d5d546a770eef3eb124fd0220d17f7351dac7457b4e8d5350318d1c9",
+      "python_epoch_journal_sha256": "878f9a66c5fba688e481ba815f7b7474275e4f21d068b5012cad60a8fc4449d0",
+      "python_authority_test_sha256": "79bffec932a4e5d0ea5328712c83d6c9b39eb253f0ff0d5d59e8c7705d853524",
+      "python_publisher_test_sha256": "898e93a232366e670fd2f08780df718784fa76fc79c8dce393e9c55c95972f85",
+      "python_epoch_test_sha256": "4b67d736f4adb9f8d5d9a42c649b1648919f31404daf8f0484f9fc6aa8768dd7",
       "sink_manifest_sha256": "48881c14d37bb4297ae35f2291eae64167c2dcf78ee53bcfba0a0f9d000fc8ba",
       "sink_test_sha256": "319764c65bdccc1acf4e0e35d82f7d0910435af4fe3e926a73007988fd747c61",
       "status": [
         "IMPLEMENTED_PYTHON_CANONICAL_AUTHORITY_HEAD",
         "IMPLEMENTED_DIRECTORY_LOCAL_SQLITE_CAS_FENCE",
         "ONE_NAMED_VERIFIED_PUBLISHER_STORE",
-        "CONCURRENT_BOOTSTRAP_RACE_SERIALIZED",
+        "ATOMIC_NO_REPLACE_BOOTSTRAP",
+        "POST_LINK_DESCRIPTOR_RECOVERY",
+        "PAIRED_SPECIAL_FILES_REJECT_PROMPTLY",
+        "PROCFS_FAILURES_TYPED_BEFORE_MUTATION",
+        "TYPED_NONBLOCKING_BOOTSTRAP_CONTENTION",
+        "PREEXISTING_NAMESPACE_ADOPTION_REJECTED",
+        "OWNER_MODE_TYPE_AND_SINGLE_LINK_REQUIRED",
+        "LEGACY_0644_TYPED_MIGRATION_REQUIRED",
         "INFLIGHT_EXPLICIT_REVOCATION_FENCED",
         "EXACT_COMMITTED_RETRY_AFTER_REVOCATION_NOOP",
         "EMERGENCY_REVOCATION_CAPACITY_RESERVED",
         "HISTORICAL_AUTHORITY_RETRY_STALE",
         "TESTED_AAA_BVA_STATEFUL_NEGATIVE_REGRESSIONS",
-        "INDEPENDENT_MAX_REVIEW_GO_RESEARCH_ONLY",
+        "INDEPENDENT_MAX_REVIEW_GO_BOUNDED_UNMOUNTED_ONLY",
         "AUTHORITY_EPOCH_ROLLBACK_AND_MIGRATION_BLOCKERS_PRESERVED",
         "UNMOUNTED"
       ],
-      "closed_obligation": "For the unmounted VerifiedDurableEconomicPublisherV1 path using one unchanged directory-local authority file, one canonical active authority head binds the named epoch store, activation, profile, writer epoch, deployment, verifier coordinates, root image and generation. Differently named stores reject; concurrent exact bootstrap is serialized; an explicit same-file revocation or profile generation observed after receipt verification returns AUTHORITY_STALE inside the attached SQLite publication transaction; active successors reserve exact revocation capacity; historical authority retries cannot report current success; and an exact epoch already in validated history can return ALREADY_COMMITTED after revocation without mutation.",
+      "closed_obligation": "For the unmounted VerifiedDurableEconomicPublisherV1 path using one unchanged directory-local authority file, one canonical active authority head binds the named epoch store, activation, profile, writer epoch, deployment, verifier coordinates, root image and generation. Differently named stores reject. First installation uses a validated private 0600 candidate, nonblocking advisory directory lock, fsync, atomic no-replace final link, and exact owner/mode/type/link reopen checks; pre-existing entries reject without mutation and concurrent contention is typed. Exact post-link retry requires final and reserved candidate to name one private two-link inode, validates the complete expected sequence-zero store through the held descriptor, removes the candidate, fsyncs the directory, and requires one final link. Lookalike inodes and semantic mismatches remain untouched. Legacy 0644 stores receive typed migration-required rejection. An explicit same-file revocation or profile generation observed after receipt verification returns AUTHORITY_STALE inside the attached SQLite publication transaction; active successors reserve exact revocation capacity; historical authority retries cannot report current success; and an exact epoch already in validated history can return ALREADY_COMMITTED after revocation without mutation.",
       "remaining_obligations": [
         "anchor authority monotonicity outside rollbackable local files and bind authenticated recovery to that anchor",
         "atomically commit migration activation, matching authority successor, profile, writer epoch and old-writer retirement",
         "authenticate authority successors through proved governance or migration admission",
         "remove or OS-fence private same-process writers and direct SQLite access",
         "close validation-to-open replacement, inode alias, filesystem namespace and SQLite availability bounds",
+        "implement descriptor-validated legacy permission and service-UID migration",
         "implement Rust/RISC0 parity, objective finality, production mount and release-backed evidence"
       ]
     },
@@ -993,7 +1067,7 @@
     {
       "id": "VM-08",
       "status": "PARTIAL",
-      "evidence": "Commit a70a8f099 retains an opaque process-local verifier capability selected from the active profile's exact verifier-registry root and root image and binds those declared coordinates into the directory-local authority head. The capability reselects the exact release coordinates and retains one callable identity; generic caller-selected verifier objects and post-bind method replacement reject. Authority successors remain unauthenticated private same-process inputs. Callable semantics, closure state, globals and the executing backend remain unattested, and evidence labels remain producer supplied. Same-process isolation, real RISC0 replay, executable attestation, production revocation and release-backed evidence remain absent."
+      "evidence": "Commit 8725fa0ad retains an opaque process-local verifier capability selected from the active profile's exact verifier-registry root and root image and binds those declared coordinates into the directory-local authority head. The capability reselects the exact release coordinates and retains one callable identity; generic caller-selected verifier objects and post-bind method replacement reject. Authority successors remain unauthenticated private same-process inputs. Callable semantics, closure state, globals and the executing backend remain unattested, and evidence labels remain producer supplied. Same-process isolation, real RISC0 replay, executable attestation, production revocation and release-backed evidence remain absent."
     },
     {
       "id": "VM-09",
@@ -1003,17 +1077,17 @@
     {
       "id": "VM-10",
       "status": "PARTIAL",
-      "evidence": "Commit 7b5b142e3 adds an unmounted bounded SQLite activation journal. Commits edd03093d and eb6bf17b1 add the complete ordinary-epoch bundle, journal, and verifier-owned publisher. Commit a70a8f099 binds that publisher to one named directory-local authority head, serializes concurrent exact bootstrap, bounds history before bundle BLOB fetch, and rechecks active generation inside the attached SQLite publication transaction. Differently named second stores reject, in-flight explicit revocation returns AUTHORITY_STALE, exact committed retry after revocation returns ALREADY_COMMITTED without mutation, active successors reserve emergency-revocation capacity, and historical authority retry reports STALE_HEAD. Executable blockers prove restored authority bytes resurrect a revoked writer, epoch-only sequence-zero restore permits duplicate publication, and the separate migration journal leaves the old writer active. Private writers and alternative paths remain callable. Anti-rollback authority and epoch storage, authenticated successor admission, atomic migration retirement, executable verifier attestation, outbox reconciliation, objective finality, hardware power-loss evidence, Rust/RISC0 parity, one mounted authoritative writer, and legacy-path retirement remain absent."
+      "evidence": "Commit 7b5b142e3 adds an unmounted bounded SQLite activation journal. Commits edd03093d and eb6bf17b1 add the complete ordinary-epoch bundle, journal, and verifier-owned publisher. Commit 8725fa0ad binds that publisher to one named directory-local authority head; installs validated private 0600 candidates with fsync and atomic no-replace; rejects occupied final entries without the exact recovery relation, aliases, owner or mode drift, unlinked crash-left candidates, and paired special files; recovers exact post-link process-crash states through Linux O_PATH and procfs; types unavailable-platform failures before mutation; returns typed nonblocking contention; bounds history before bundle BLOB fetch; and rechecks active generation inside the attached SQLite publication transaction. Exact current-UID hardlink pairs remain recoverable regardless of provenance at this research ceiling. Differently named second stores reject, in-flight explicit revocation returns AUTHORITY_STALE, exact committed retry after revocation returns ALREADY_COMMITTED without mutation, active successors reserve emergency-revocation capacity, and historical authority retry reports STALE_HEAD. Executable blockers prove restored authority bytes resurrect a revoked writer, epoch-only sequence-zero restore permits duplicate publication, authority-path inode replacement leaves an old open writer active, and the separate migration journal leaves the old writer active. Private writers and alternative paths remain callable. Anti-rollback authority and epoch storage, authenticated successor admission, atomic migration retirement, executable verifier attestation, persistent descriptor fencing, outbox reconciliation, objective finality, hardware power-loss evidence, Rust/RISC0 parity, one mounted authoritative writer, and legacy-path retirement remain absent."
     },
     {
       "id": "VM-11",
       "status": "PARTIAL",
-      "evidence": "Python and Rust derive matching roots for every explicit balance, supply, named accounting-location, liability, reserve and terminal-obligation target row in the bounded vectors. Commits 8eea5cb80, 0d29ea728, 1ea1303dd and 348076a1d bind a full predecessor state and preserve complete global replay, outbox and terminal-obligation tables across isolated migration. Commits 93798a67a and 877ba86cf bind in-memory migration to the publisher-owned source head. Commit 7b5b142e3 checkpoints a complete genesis or migration candidate; commit a70a8f099 binds ordinary publication to a directory-local authority generation and preserves executable authority-only, epoch-only, and migration-atomicity rollback blockers. This does not prove migration receipt validity, transition semantics, atomic authority rotation, anti-rollback recovery, terminal validity, funding, claimant key control, payable routes, source authorization, external delivery, objective finality, migration totality, coexistence, or verifier-owned durable activation. Changed Rust targets and shared vectors remain uncompiled and unrun in Rust, and independent review of replay and terminal slices remains pending."
+      "evidence": "Python and Rust derive matching roots for every explicit balance, supply, named accounting-location, liability, reserve and terminal-obligation target row in the bounded vectors. Commits 8eea5cb80, 0d29ea728, 1ea1303dd and 348076a1d bind a full predecessor state and preserve complete global replay, outbox and terminal-obligation tables across isolated migration. Commits 93798a67a and 877ba86cf bind in-memory migration to the publisher-owned source head. Commit 7b5b142e3 checkpoints a complete genesis or migration candidate; commit 8725fa0ad binds ordinary publication to a directory-local authority generation and preserves executable authority-only, epoch-only, inode-replacement, and migration-atomicity blockers. This does not prove migration receipt validity, transition semantics, atomic authority rotation, anti-rollback recovery, terminal validity, funding, claimant key control, payable routes, source authorization, external delivery, objective finality, migration totality, coexistence, or verifier-owned durable activation. Changed Rust targets and shared vectors remain uncompiled and unrun in Rust, and independent review of replay and terminal slices remains pending."
     },
     {
       "id": "VM-12",
       "status": "GAP",
-      "evidence": "This ledger binds clean scoped implementation subject a70a8f099c570b39dfd5c4a1ceb76aa686942ded. The current-authority campaign preserves minimized second-store, in-flight revocation, revocation-capacity, historical-retry, decoder-nesting, authority rollback, epoch-only rollback, and non-atomic migration histories. Two recorded runs have 223 passing tests: 214 adjacent settlement ABI, verifier release, activation, authority, epoch, publisher, and migration tests plus nine exhaustive value-sink tests. Touched Python passes Ruff and targeted mypy; the security scanner reported zero advisory findings. Independent max review returned GO for an earlier research-only commit and production NO-GO; delayed findings caused the bootstrap, retry-order, and prefetch repairs. Anti-rollback authority and epoch anchoring, atomic migration retirement, authenticated successor admission, isolated executable attestation, sole-writer fencing, real Rust/RISC0 replay, objective finality, and complete release evidence remain absent."
+      "evidence": "This ledger binds clean scoped implementation subject 8725fa0ad9e9a177c19c4dd10434aec8a566237d. The current-authority campaign preserves minimized second-store, in-flight revocation, revocation-capacity, historical-retry, decoder-nesting, authority rollback, epoch-only rollback, inode replacement, crash-left bootstrap, paired-special-file, unsupported-procfs, and non-atomic migration histories. A local unattested execution receipt records 245 passing post-commit tests: 236 adjacent settlement ABI, verifier release, activation, authority, epoch, publisher, and migration tests plus nine exhaustive value-sink tests; its ephemeral JUnit outputs are hash-recorded but uncommitted and independently unreplayed. Touched Python passes Ruff and targeted mypy; the security scanner reported zero advisory findings. Final max review found no High or Medium defect and returned GO only for the declared bounded Linux/procfs, same-UID, unmounted research ceiling. Anti-rollback authority and epoch anchoring, authenticated install provenance, persistent descriptor fencing, atomic migration retirement, authenticated successor admission, isolated executable attestation, sole-writer fencing, real Rust/RISC0 replay, objective finality, and complete release evidence remain absent."
     }
   ],
   "live_gate_observations": {

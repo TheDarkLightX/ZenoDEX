@@ -33,7 +33,8 @@ for the current-authority slice.
 | Invalid WAL/schema store changes persistent journal mode before rejection | `CLOSED_BOUNDED` | Inspect existing mode and exact schema before persistent connection configuration; regression checks bytes, mode, and rows. |
 | Activation commit succeeds and create acknowledgement is lost | `CLOSED_BOUNDED` | Verified-publisher create may recover only the exact canonical activation already stored. |
 | Matching activation already contains nonzero history not replayed by the new verifier | `CLOSED_BOUNDED` | Create recovery requires the exact sequence-zero activation head; nonzero history must use the separately reviewed open path. |
-| Two first-time creators race and leak a raw SQLite table-exists failure | `CLOSED_BOUNDED` | Serialize bootstrap classification with `BEGIN IMMEDIATE`; authority create has one typed `FileExistsError`, while two exact verified-publisher creates converge on one sequence-zero store. |
+| Two first-time creators race and leak raw SQLite table-exists or lock-timeout failures | `CLOSED_BOUNDED` | A nonblocking advisory directory lock admits one private candidate installer and gives the loser a closed bootstrap-busy exception before SQLite connection setup. |
+| First-create adopts a pre-existing final entry without the exact reserved recovery pair | `CLOSED_BOUNDED` | Build a private `0600` same-directory candidate, validate and fsync it, atomically link it to an absent final name, then require exact owner, mode, regular-file type, and one link on reopen. Occupied final names without the exact valid two-name recovery relation reject without mutation. |
 | Crash-left WAL/SHM is checkpointed or deleted while open rejects | `CLOSED_BOUNDED` | Reject sidecars or a WAL database header before SQLite opens the store; preserve the complete tested file family. |
 | Behaviorful `Path` subclass redirects recovery to another database | `CLOSED_BOUNDED` | Accept exact strings or the exact platform `Path` type and reconstruct an owned path before filesystem access. |
 | Live hashes are refreshed while evidence still names an older commit | `CLOSED_BOUNDED` | Compare each mapped artifact with both the live scoped file and the exact Git blob at the declared subject. |
@@ -51,24 +52,29 @@ for the current-authority slice.
 | Old profile/store publishes after a separately committed migration | `OPEN_ARCHITECTURAL` | Commit migration activation, matching authority successor, writer epoch, and old-writer retirement in one authoritative transaction. The executable blocker currently produces two successful commits. |
 | Restoring pre-revocation authority bytes resurrects the old publisher | `OPEN_ARCHITECTURAL` | Anchor authority monotonicity outside rollbackable local files and bind recovery to that anchor. |
 | Restoring only the epoch database to sequence zero permits duplicate publication under unchanged active authority | `OPEN_ARCHITECTURAL` | Bind epoch monotonicity to the same non-rollbackable authenticated anchor as authority, then prove recovery continuity before reopening a writer. The executable blocker commits the same epoch identity twice across the restore. |
-| An already-open publisher keeps the replaced authority inode | `OPEN_DEPLOYMENT` | Use exclusive service ownership, stable file handles, authenticated storage, and recovery fencing. |
+| An already-open publisher keeps the replaced authority inode | `OPEN_DEPLOYMENT` | A retained executable blocker replaces the pathname with a revoked database while the open publisher commits through its detached active inode. Use exclusive service ownership, descriptor/inode binding, authenticated storage, and recovery fencing. |
 | Same-process code invokes the private unauthenticated authority-successor hook | `OPEN_ARCHITECTURAL` | Construct successors only from proved governance or migration admission inside the sole publisher service. |
 | Caller supplies a same-process backend whose behavior is unrelated to claimed artifact bytes | `OPEN_DEPLOYMENT` | Use an OS-isolated measured verifier service with authenticated release selection and executable attestation. |
 | Retained callable object, closure, globals, or backend state changes semantics without changing identity | `OPEN_DEPLOYMENT` | Execute an immutable measured verifier artifact in an isolated service; Python identity checks remain defense in depth. |
 | Same-process code calls the private structural writer or mutates SQLite directly | `OPEN_DEPLOYMENT` | Give one isolated service exclusive database ownership; remove raw database access from command and worker processes. |
-| Failure before SQLite activation initialization leaves an empty final path | `OPEN_CRASH_INSTALL` | Build and validate in a same-directory temporary file, durably install with no-replace semantics, and test the full fault matrix. |
+| Process loss after link, first directory fsync, candidate unlink, or second directory fsync wedges a valid install | `CLOSED_BOUNDED` | Exact retry opens both names with Linux `O_PATH|O_NOFOLLOW`, requires one private two-link regular inode, reopens the held inode through procfs, validates the complete expected sequence-zero store, removes only the reserved candidate, fsyncs the directory, and requires the final descriptor to have one link. Paired FIFOs reject promptly; byte-identical separate inodes and wrong expected semantics remain untouched. |
+| Power loss or a candidate-only crash leaves an ambiguous recovery family | `OPEN_CRASH_INSTALL` | Candidate-only state rejects without deletion or adoption. Hardware/filesystem durability, storage-fault, and operator-recovery matrices remain absent. |
+| A parent-version `0644` store becomes unavailable after the private-store contract activates | `OPEN_DEPLOYMENT` | Exact single-link current-UID `0644` stores receive typed non-mutating migration-required rejection. This release is fresh-install-only until a descriptor-validated permission migration and service-UID transition procedure exist. |
+| Linked-install recovery runs without Linux `O_PATH` or usable `/proc/self/fd` | `OPEN_DEPLOYMENT` | Return a typed unsupported-platform rejection without path-based fallback or mutation. Portability requires an equivalent descriptor-bound primitive before activation on another platform. |
 
 The bounded closures reduce reachable disaster states in the unmounted Python
 reference. They establish no Rust/RISC0 parity, real receipt replay, migration
 authority, objective finality, outbox delivery, sole writer, or production
 mount.
 
-The same-path first-create race is transactionally serialized in the tested
-SQLite environment. WAL and path preflights still assume one non-hostile
-filesystem namespace during each operation. A concurrent process can race
-immutable validation and writable open or replace an already-open inode.
-Exclusive service ownership and filesystem-level fencing remain deployment
-requirements.
+The cooperating same-path first-create race is serialized before SQLite opens
+through a nonblocking advisory directory lock. Final installation uses a
+private candidate and atomic no-replace link. Exact linked-name process-crash
+states have descriptor-bound recovery. Candidate-only and hardware power-loss
+histories remain open. A noncooperating same-UID process can still race names,
+and an already-open inode can diverge from its pathname. Exclusive service
+ownership, persistent descriptor binding, legacy migration, and
+filesystem-level fencing remain deployment requirements.
 
 ## Scaled campaign design
 

@@ -745,35 +745,78 @@ The callable guarantee is process-local. Mutable callable behavior, globals,
 closure state, and the executing binary remain unattested. Commits
 `44fd5ca175f812c72906b0bac7ac41af2046a04e`,
 `84d702fbad7d8f8c81a44bb4aed0d3b300f5474c`, and
-`a70a8f099c570b39dfd5c4a1ceb76aa686942ded` add, inventory, and race-harden a
-bounded directory-local current-authority head. The canonical head binds
-activation, profile, writer epoch, verifier coordinates, root image,
-deployment, one named epoch store, adjacent generation, and active or revoked
-status. The epoch CAS token snapshots that authority, and publication rechecks
-the complete active head inside one `BEGIN IMMEDIATE` transaction with the
-authority database attached. A differently named second publisher rejects,
-in-flight explicit revocation returns `AUTHORITY_STALE`, active rotations
-reserve revocation capacity, and historical authority retry returns
-`STALE_HEAD`. Concurrent exact bootstrap is serialized. An exact epoch already
-in validated history returns `ALREADY_COMMITTED` after revocation without
-mutating the epoch file; unpublished work remains fenced.
+`a70a8f099c570b39dfd5c4a1ceb76aa686942ded` establish and review the bounded
+directory-local current-authority head. Commit
+`d606affe4aa53a82c849c385b656bf6cf90e7479` repairs the review findings by
+building a private `0600` same-directory SQLite candidate, validating and
+fsyncing it, installing it at an absent final name with atomic no-replace
+semantics, and returning a typed busy exception for cooperating contention.
+Reopen requires current-process ownership, exact `0600` mode, a regular file,
+and one link. The canonical head binds activation, profile, writer epoch,
+verifier coordinates, root image, deployment, one named epoch store, adjacent
+generation, and active or revoked status. The epoch CAS token snapshots that
+authority, and publication rechecks the complete active head inside one
+`BEGIN IMMEDIATE` transaction with the authority database attached. A
+differently named second publisher rejects, in-flight explicit revocation
+returns `AUTHORITY_STALE`, active rotations reserve revocation capacity, and
+historical authority retry returns `STALE_HEAD`. An exact epoch already in
+validated history returns `ALREADY_COMMITTED` after revocation without mutating
+the epoch file; unpublished work remains fenced.
 
-The same evidence preserves three executable release blockers. Restoring old
+Commit `3812518d60cc7fa8532850b43c0b6d18952afb26` closes the bounded
+post-link process-crash wedge. Exact retry opens final and candidate names
+without following symlinks, proves that both descriptors name one private
+two-link inode, validates the complete expected sequence-zero authority or
+epoch store through the held final descriptor, removes only the reserved
+candidate name, fsyncs the directory, and requires the final descriptor to
+have one link. Fault injection covers the first directory fsync, candidate
+unlink, and second directory fsync boundaries for both stores, plus the
+verified-publisher create route. Byte-identical separate inodes, wrong expected
+heads, and wrong activation bundles remain unchanged. Exact single-link
+current-UID `0644` stores receive typed migration-required rejection without
+automatic permission or content mutation. The release remains
+fresh-install-only until a descriptor-validated legacy migration exists.
+
+Commit `0535b90fc404e5785bb316ad30aa96a8631c4642` closes the paired
+special-file availability counterexample. Recovery first opens identity-only
+descriptors with Linux `O_PATH|O_NOFOLLOW`, rejects non-regular entries before
+any readable open, and reopens the held final inode through `/proc/self/fd`.
+Paired FIFOs therefore reject promptly while the directory lock is held. A
+missing `O_PATH` or unusable procfs produces a typed non-mutating
+unsupported-platform rejection. The accepted recovery relation intentionally
+includes an exact current-UID `0600` two-name hardlink pair regardless of
+install provenance; the shared-UID research model supplies no authenticated
+install-intent marker. Production requires exclusive directory ownership or
+an authenticated equivalent.
+
+Commit `8725fa0ad9e9a177c19c4dd10434aec8a566237d` completes the typed
+platform boundary. Raw proc-descriptor `os.open` failures and the initial
+SQLite connection failure through procfs now map to the store-specific
+unsupported-platform class before candidate unlink or any persistent
+mutation. Adversarial tests simulate both denial points and preserve both
+names plus the two-link recovery state.
+
+The same evidence preserves four executable release blockers. Restoring old
 authority-file bytes resurrects a revoked publisher. Restoring only the epoch
 database to sequence zero under unchanged active authority permits the same
-epoch publication to commit again. Committing the separate migration journal
+epoch publication to commit again. Replacing the authority pathname with a
+revoked database leaves an already-open publisher attached to the detached
+active inode and able to commit. Committing the separate migration journal
 leaves the old publisher able to commit. Authority successor admission remains
 an unauthenticated private same-process hook. A production closure therefore
-requires one anti-rollback authority and epoch anchor plus one atomic migration
-transaction that installs the new activation, matching authority successor,
-profile, writer epoch, and old-writer retirement.
+requires one anti-rollback authority and epoch anchor, descriptor/inode
+binding, plus one atomic migration transaction that installs the new
+activation, matching authority successor, profile, writer epoch, and old-writer
+retirement.
 
-The SQLite preflight cannot fence a different process that changes the store
-between immutable validation and writable open. `open` validates structural
+Atomic no-replace install prevents the creator from opening a pre-existing
+final pathname writable. Advisory locking coordinates participating installers.
+A noncooperating same-UID process can still race the namespace, and an open
+descriptor can diverge from a replaced pathname. `open` validates structural
 history and does not replay every retained receipt under a newly supplied
 verifier. Production recovery therefore requires exclusive authenticated store
-ownership, and a recovery design must specify exact receipt replay or equivalent
-authenticated provenance.
+ownership, descriptor binding, and an exact receipt-replay or equivalent
+authenticated-provenance design.
 
 The closure-status checker now treats the Git object database as the exact
 subject oracle for mapped evidence. It requires each recorded artifact hash to
@@ -784,19 +827,31 @@ later worktree edit plus refreshed hash from representing an earlier commit.
 The checker itself still requires release packaging, independent replay, and
 authenticated distribution before it can contribute production authority.
 
-The current authority portfolio has 223 passing tests in two runs: 214 adjacent
+The local unattested execution receipt records 245 passing tests in two
+post-commit runs against implementation subject `8725fa0ad`: 236 adjacent
 settlement ABI, verifier release, activation, authority, epoch, publisher, and
-migration tests plus nine exhaustive value-sink tests. It includes
+migration tests plus nine exhaustive value-sink tests. The ephemeral JUnit
+outputs are hash-recorded and are not committed or independently replayed. The
+portfolio includes
 zero/one/max/max+1 receipt and journal boundaries, active-profile selection,
 wrong registry/image/deployment/manifest/artifact rejection, generic-verifier
 rejection, forged and foreign capabilities, retained-callable mutation killing,
 exact activation create recovery, rejected-open nonmutation, restart/retry,
-competing heads, synchronized first-create races, prefetch resource bounds,
-exact post-revocation retry, and tested SQLite crash points. Ruff, mypy, diff
-checks, and the repository security red-flag scanner pass. Independent max
-review returned `GO` only for the earlier research-only commit and retained
-production authority `NONE`; its delayed findings caused this repair cycle.
-Rollback, non-atomic migration, private same-process writers, SQLite
+competing heads, typed first-create contention, pre-existing-namespace
+rejection, no-replace install, post-link descriptor recovery, typed legacy-mode
+rejection, prefetch resource bounds, exact post-revocation retry, and tested
+SQLite crash points. Ruff, mypy, diff checks, and the repository security
+red-flag scanner pass. Independent max review returned a conditional
+fresh-install research-only `GO` for `d606affe4`, confirmed its four precursor
+repairs, and identified the post-link crash wedge plus legacy-mode compatibility
+as medium operational gaps. Review of `3812518d6` confirmed those repairs and
+found paired-special-file blocking plus unconditional non-adoption wording.
+Commit `0535b90fc` uses nonblocking identity descriptors and narrows the
+accepted recovery relation. Review then found incomplete procfs error typing;
+`8725fa0ad` repairs it. Final max re-review found no High or Medium defect and
+returned `GO` only for the declared bounded Linux/procfs, same-UID, unmounted
+research ceiling. Rollback, non-atomic migration, legacy permission migration,
+shared-UID install provenance, private same-process writers, SQLite
 availability bounds, and sole-writer enforcement remain open.
 
 This narrows the directory-local fixed-profile ordinary-epoch authority and

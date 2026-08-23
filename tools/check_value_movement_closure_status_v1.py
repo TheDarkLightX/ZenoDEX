@@ -19,9 +19,9 @@ DEFAULT_STATUS_PATH = Path(
 M6_ATDD_PATH = Path("docs/research/m6_global_economic_core_atdd_bdd_v1.json")
 EXPECTED_GATE_IDS = tuple(f"VM-{index:02d}" for index in range(1, 13))
 EXPECTED_GATE_EVIDENCE_ROOT = (
-    "4119e852ae5503c70ca61f63c11b53aadd6502e6e800878594fe952f12d63096"
+    "1827e5d74a52bfe3abd675407a3a909f9b1930218e4e55b0932a44229ff8f4a0"
 )
-EXPECTED_SUBJECT_COMMIT = "a70a8f099c570b39dfd5c4a1ceb76aa686942ded"
+EXPECTED_SUBJECT_COMMIT = "8725fa0ad9e9a177c19c4dd10434aec8a566237d"
 EXPECTED_TOP_LEVEL_FIELDS = frozenset(
     {
         "authority",
@@ -40,6 +40,7 @@ EXPECTED_TOP_LEVEL_FIELDS = frozenset(
         "semantic_anchors",
         "subject",
         "tau_upstream",
+        "test_execution_receipt",
     }
 )
 EXPECTED_BUY_AND_BURN = (
@@ -115,24 +116,33 @@ EXPECTED_CLAIM_PATH = Path(
 EXPECTED_CAMPAIGN_PATH = Path(
     "docs/research/GLOBAL_ECONOMIC_COMPOSITION_DISASTER_CAMPAIGN_V1.md"
 )
-EXPECTED_CLAIM_SHA256 = "fd782025d0a00a19e211c593b10ed131699c9b103da9052198d57bd0ce678067"
-EXPECTED_CAMPAIGN_SHA256 = "15845c30f58fae4e45025abb86e9a123bcf6b1f996cc7d135f01b90cf7145790"
+EXPECTED_CLAIM_SHA256 = "5d5e4ad1076637b5ae9b3f3e668d00386c80717e2e7b40873d1aceb2aec827cb"
+EXPECTED_CAMPAIGN_SHA256 = "26b1baea95475643a62cde3e1daac71b896418e20c9f27ad765580985dd3a50f"
+EXPECTED_TEST_RECEIPT_PATH = Path(
+    "docs/research/GLOBAL_ECONOMIC_CURRENT_AUTHORITY_TEST_RECEIPT_V1.json"
+)
+EXPECTED_TEST_RECEIPT_SHA256 = (
+    "dd502086053416b6497640c8c8bc7c4105c56c0d1a0eefc9c64ef8541acf42f8"
+)
 EXPECTED_VM12_EVIDENCE = (
     "This ledger binds clean scoped implementation subject "
-    "a70a8f099c570b39dfd5c4a1ceb76aa686942ded. The current-authority campaign "
+    "8725fa0ad9e9a177c19c4dd10434aec8a566237d. The current-authority campaign "
     "preserves minimized second-store, in-flight revocation, revocation-capacity, "
     "historical-retry, decoder-nesting, authority rollback, epoch-only rollback, "
-    "and non-atomic migration histories. Two recorded runs have 223 passing tests: "
-    "214 adjacent settlement ABI, verifier release, activation, authority, epoch, "
-    "publisher, and migration tests plus nine exhaustive value-sink tests. Touched "
-    "Python passes Ruff and targeted mypy; the security scanner reported zero "
-    "advisory findings. Independent max review returned GO for an earlier "
-    "research-only commit and production NO-GO; delayed findings caused the "
-    "bootstrap, retry-order, and prefetch repairs. Anti-rollback authority and "
-    "epoch anchoring, atomic migration retirement, authenticated successor "
-    "admission, isolated executable attestation, sole-writer fencing, real "
-    "Rust/RISC0 replay, objective finality, and complete release evidence remain "
-    "absent."
+    "inode replacement, crash-left bootstrap, paired-special-file, unsupported-procfs, "
+    "and non-atomic migration histories. A local unattested execution receipt records "
+    "245 passing post-commit tests: 236 adjacent settlement ABI, verifier release, "
+    "activation, authority, epoch, "
+    "publisher, and migration tests plus nine exhaustive value-sink tests; its "
+    "ephemeral JUnit outputs are hash-recorded but uncommitted and independently "
+    "unreplayed. Touched Python passes Ruff and targeted mypy; the security scanner "
+    "reported zero advisory findings. Final max review found no High or Medium defect "
+    "and returned GO only for the declared bounded Linux/procfs, same-UID, unmounted "
+    "research ceiling. Anti-rollback authority and epoch anchoring, authenticated "
+    "install provenance, persistent descriptor fencing, atomic migration retirement, "
+    "authenticated successor admission, isolated executable attestation, sole-writer "
+    "fencing, real Rust/RISC0 replay, objective finality, and complete release evidence "
+    "remain absent."
 )
 CHECKER_DEPENDENCY_ARTIFACTS = {
     "asset_precision_checker_sha256": Path(
@@ -821,6 +831,78 @@ def check_value_movement_closure_status_v1(
         findings.append("disaster campaign must not be a symlink")
     if campaign.get("status") != "TESTED_DISCOVERY":
         findings.append("disaster campaign status drift")
+
+    receipt_binding = _mapping(
+        status.get("test_execution_receipt"),
+        "test execution receipt",
+        findings,
+    )
+    expected_receipt_binding = {
+        "path": EXPECTED_TEST_RECEIPT_PATH.as_posix(),
+        "sha256": EXPECTED_TEST_RECEIPT_SHA256,
+        "implementation_subject_commit": EXPECTED_SUBJECT_COMMIT,
+        "evidence_authority": "LOCAL_EXECUTION_RECORD_UNATTESTED",
+    }
+    if dict(receipt_binding) != expected_receipt_binding:
+        findings.append("test execution receipt binding drift")
+    receipt_path = root / EXPECTED_TEST_RECEIPT_PATH
+    if receipt_path.is_symlink():
+        findings.append("test execution receipt must not be a symlink")
+    try:
+        receipt = _load_exact_json(receipt_path)
+    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        findings.append(f"test execution receipt cannot be loaded: {type(exc).__name__}")
+        receipt = {}
+    if not receipt_path.is_file() or _sha256(receipt_path) != EXPECTED_TEST_RECEIPT_SHA256:
+        findings.append("test execution receipt hash mismatch")
+    if receipt.get("schema") != (
+        "zenodex/global-economic-current-authority-test-receipt/v1"
+    ):
+        findings.append("test execution receipt schema mismatch")
+    if receipt.get("implementation_subject_commit") != EXPECTED_SUBJECT_COMMIT:
+        findings.append("test execution receipt subject mismatch")
+    if receipt.get("evidence_authority") != "LOCAL_EXECUTION_RECORD_UNATTESTED":
+        findings.append("test execution receipt authority exceeds evidence")
+    if receipt.get("total_tests") != 245:
+        findings.append("test execution receipt total drift")
+    runs = receipt.get("runs")
+    expected_runs = (
+        (
+            "adjacent_authority_portfolio",
+            236,
+            "ac08c1cee6db540a6388e5485f39e1abe1d14994fbfcb2b6a1551dd93b9336cf",
+        ),
+        (
+            "exhaustive_python_value_sinks",
+            9,
+            "bc64788c79ed48bc9b8b29b320542b885a508aabaac06a163954efe0e8a84c5e",
+        ),
+    )
+    if type(runs) is not list or len(runs) != len(expected_runs):
+        findings.append("test execution receipt runs mismatch")
+    else:
+        observed_runs = tuple(
+            (
+                row.get("id") if type(row) is dict else None,
+                row.get("tests") if type(row) is dict else None,
+                row.get("junit_sha256") if type(row) is dict else None,
+            )
+            for row in runs
+        )
+        if observed_runs != expected_runs:
+            findings.append("test execution receipt run identity drift")
+        if any(
+            type(row) is not dict
+            or row.get("exit_code") != 0
+            or row.get("errors") != 0
+            or row.get("failures") != 0
+            or row.get("skipped") != 0
+            or row.get("junit_artifact_committed") is not False
+            or type(row.get("argv")) is not list
+            or not row["argv"]
+            for row in runs
+        ):
+            findings.append("test execution receipt result drift")
 
     semantics = _mapping(status.get("semantic_anchors"), "semantic anchors", findings)
     if frozenset(semantics) != frozenset(EXPECTED_SEMANTIC_ANCHORS):
