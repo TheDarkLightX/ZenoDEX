@@ -463,6 +463,14 @@ class CreatePoolIntent(Intent):
             raise ValueError("amount1 must be positive")
 
 
+def require_exact_intent(value: object) -> Intent:
+    """Reject behavior-changing subclasses at direct core API boundaries."""
+
+    if type(value) not in (Intent, SwapIntent, CreatePoolIntent):
+        raise TypeError("intent must be an exact ZenoDEX intent value")
+    return cast(Intent, value)
+
+
 @dataclass(frozen=True, slots=True)
 class SignedIntent:
     """Immutable intent plus a canonically owned hexadecimal signature."""

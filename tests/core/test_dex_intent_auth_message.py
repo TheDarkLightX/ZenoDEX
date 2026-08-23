@@ -120,7 +120,20 @@ def test_build_dex_intent_signing_dict_v1_rejects_transport_non_mapping_explicit
         build_dex_intent_signing_dict_v1(transport)
 
 
-def test_build_dex_intent_signing_dict_v1_rejects_intent_object_non_dict_fields() -> None:
+def test_intent_constructor_rejects_non_object_fields_before_auth() -> None:
+    with pytest.raises(TypeError, match="intent.fields must be a plain dict or None"):
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.CREATE_POOL,
+            intent_id="0x" + "ee" * 32,
+            sender_pubkey="0x" + "77" * 48,
+            deadline=1,
+            fields=[],
+        )
+
+
+def test_build_dex_intent_signing_dict_v1_rejects_forged_intent_fields() -> None:
     intent = Intent(
         module="TauSwap",
         version="0.1",
@@ -128,8 +141,51 @@ def test_build_dex_intent_signing_dict_v1_rejects_intent_object_non_dict_fields(
         intent_id="0x" + "ee" * 32,
         sender_pubkey="0x" + "77" * 48,
         deadline=1,
-        fields=[],
+        fields={},
     )
+    object.__setattr__(intent, "fields", [])
 
     with pytest.raises(TypeError, match="intent.fields must be a dict"):
+        build_dex_intent_signing_dict_v1(intent)
+
+
+def test_build_dex_intent_signing_dict_v1_thaws_nested_owned_fields() -> None:
+    nested_fields = {
+        "route": {
+            "assets": ["asset-a", "asset-b"],
+            "limits": {"amount_in": 7, "min_amount_out": 6},
+        }
+    }
+    intent = Intent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.SWAP_EXACT_IN,
+        intent_id="0x" + "ef" * 32,
+        sender_pubkey="0x" + "78" * 48,
+        deadline=2,
+        fields=nested_fields,
+    )
+
+    signing_dict = build_dex_intent_signing_dict_v1(intent)
+
+    assert signing_dict["fields"] == nested_fields
+    assert type(signing_dict["fields"]["route"]) is dict
+    assert type(signing_dict["fields"]["route"]["assets"]) is list
+
+
+def test_build_dex_intent_signing_dict_v1_rejects_behavior_changing_subclass() -> None:
+    class DerivedIntent(Intent):
+        pass
+
+    intent = DerivedIntent(
+        module="TauSwap",
+        version="0.1",
+        kind=IntentKind.CREATE_POOL,
+        intent_id="0x" + "f0" * 32,
+        sender_pubkey="0x" + "79" * 48,
+        deadline=3,
+        fields={},
+    )
+
+    with pytest.raises(TypeError, match="intent must be an exact ZenoDEX intent value"):
         build_dex_intent_signing_dict_v1(intent)

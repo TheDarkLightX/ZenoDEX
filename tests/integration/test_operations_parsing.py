@@ -279,17 +279,38 @@ def test_parse_signed_intents_output_rejects_invalid_sender_boundary_before_nonc
 
 
 def test_create_intent_operation_rejects_quote_receipt_reserved_key() -> None:
-    intent = Intent(
+    with pytest.raises(ValueError, match="reserved transport key: quote_receipt"):
+        Intent(
+            module="TauSwap",
+            version="0.1",
+            kind=IntentKind.SWAP_EXACT_IN,
+            intent_id="0x" + "33" * 32,
+            sender_pubkey="pk",
+            deadline=1,
+            fields={"quote_receipt": {"receipt_hash": "0xabc"}},
+        )
+
+
+def test_nonce_validation_rejects_behavior_changing_intent_subclass() -> None:
+    class DerivedIntent(Intent):
+        pass
+
+    intent = DerivedIntent(
         module="TauSwap",
         version="0.1",
         kind=IntentKind.SWAP_EXACT_IN,
-        intent_id="0x" + "33" * 32,
-        sender_pubkey="pk",
+        intent_id="0x" + "34" * 32,
+        sender_pubkey="0x" + "34" * 48,
         deadline=1,
-        fields={"quote_receipt": {"receipt_hash": "0xabc"}},
+        fields={"nonce": 1},
     )
-    with pytest.raises(ValueError, match="reserved key: quote_receipt"):
-        create_intent_operation([intent])
+
+    with pytest.raises(TypeError, match="exact ZenoDEX intent"):
+        validate_and_apply_intent_nonce_batch(
+            nonces=NonceTable(),
+            intents=[intent],
+            require_all_nonces=True,
+        )
 
 
 def test_parse_settlement_envelope_extracts_proof() -> None:

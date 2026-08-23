@@ -608,13 +608,15 @@ def test_validate_quote_receipt_witnesses_covers_missing_hash_invalid_hash_and_g
 
     calls = {"n": 0}
 
-    def _stateful_get_field(key: str, default: Any = None) -> Any:
+    original_get_field = Intent.get_field
+
+    def _stateful_get_field(self: Intent, key: str, default: Any = None) -> Any:
         if key == "quote_receipt_leg_index":
             calls["n"] += 1
             return 0 if calls["n"] == 1 else -1
-        return good_env.intent.fields.get(key, default) if good_env.intent.fields else default
+        return original_get_field(self, key, default)
 
-    good_env.intent.get_field = _stateful_get_field  # type: ignore[method-assign]
+    monkeypatch.setattr(Intent, "get_field", _stateful_get_field)
     object.__setattr__(good_env, "quote_receipt", _receipt())
     assert "missing quote_receipt_leg_index" in _validate_quote_receipt_witnesses(signed_intents=[good_env], pools={})  # type: ignore[arg-type]
 
@@ -625,13 +627,12 @@ def test_build_signing_payloads_rejects_invalid_or_oversized_signing_dicts() -> 
     signing_dicts, payloads = _build_signing_payloads([env], max_intent_bytes=4096, max_total_intent_bytes=4096)
     assert len(signing_dicts) == len(payloads) == 1
 
-    salted_intent = _swap_intent(intent_id=_iid(4))
-    salted_intent.salt = "salt"
+    salted_intent = replace(_swap_intent(intent_id=_iid(4)), salt="salt")
     signing_dicts, _payloads = _build_signing_payloads([SignedIntentEnvelope(intent=salted_intent)], max_intent_bytes=4096, max_total_intent_bytes=4096)
     assert signing_dicts[0]["salt"] == "salt"
 
     bad_fields_intent = _swap_intent(intent_id=_iid(2))
-    bad_fields_intent.fields = 7  # type: ignore[assignment]
+    object.__setattr__(bad_fields_intent, "fields", 7)
     with pytest.raises(TypeError, match="intent.fields must be a dict"):
         _build_signing_payloads([SignedIntentEnvelope(intent=bad_fields_intent)], max_intent_bytes=4096, max_total_intent_bytes=4096)
 
