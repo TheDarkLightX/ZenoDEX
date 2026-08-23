@@ -1028,6 +1028,38 @@ def _verified_route_effect_fixture(
 ) -> _VerifiedRouteEffectFixture:
     """Build the opaque module -> lane -> route chain and retain its effects."""
 
+    candidate, lane_effects, post_module_state = _route_receipt_candidate_fixture(
+        profile,
+        occurrence,
+        post_state_root=post_state_root,
+        pre_module_state=pre_module_state,
+    )
+    verified_route = verify_route_composition_receipt_v1(
+        candidate,
+        _RecordingReceiptVerifier(),
+    )
+    return _VerifiedRouteEffectFixture(
+        candidate.route_journal,
+        verified_route,
+        candidate.lane_journals,
+        lane_effects,
+        post_module_state,
+    )
+
+
+def _route_receipt_candidate_fixture(
+    profile: EconomicProfileSnapshotV1,
+    occurrence: EconomicCommandOccurrenceV1,
+    *,
+    post_state_root: str,
+    pre_module_state: AssetTransferStateV1 | None = None,
+) -> tuple[
+    RouteCompositionReceiptCandidateV1,
+    GlobalEconomicEffectPlanV1,
+    AssetTransferStateV1,
+]:
+    """Build one valid route candidate without verifying its final receipt."""
+
     module_state = pre_module_state or _default_asset_module_state(profile, occurrence)
     module_input = _asset_module_input_for_occurrence(profile, occurrence, module_state)
     accepted, verified_module = _verified_asset_module_for_occurrence(
@@ -1049,7 +1081,7 @@ def _verified_route_effect_fixture(
         effect_plan_root=lane_journal.effect_plan_root,
         terminal_obligations_root=lane_journal.terminal_obligations_root,
     )
-    verified_route = verify_route_composition_receipt_v1(
+    return (
         RouteCompositionReceiptCandidateV1(
             profile,
             occurrence,
@@ -1061,12 +1093,6 @@ def _verified_route_effect_fixture(
                 b"route:" + occurrence.occurrence_id.encode("ascii"),
             ),
         ),
-        _RecordingReceiptVerifier(),
-    )
-    return _VerifiedRouteEffectFixture(
-        route_journal,
-        verified_route,
-        (lane_journal,),
         lane_effects,
         accepted.post_state,
     )
@@ -1642,6 +1668,135 @@ def test_route_release_ids_bind_composer_image_and_source_manifests() -> None:
     ):
         with pytest.raises(ValueError, match="content-derived"):
             replace(route, **{field_name: _root(9_900)})
+
+
+def test_route_receipt_candidate_rejects_subclassed_envelope_before_verification() -> None:
+    """A caller-defined receipt type cannot cross the route authority boundary."""
+
+    profile, route = _profile()
+    pre_state = _state(profile, height=0)
+    occurrence = _occurrence(profile, route, pre_state)
+    candidate, _, _ = _route_receipt_candidate_fixture(
+        profile,
+        occurrence,
+        post_state_root=_state(profile, height=1).state_root,
+    )
+
+    class HostileReceiptEnvelope(RouteCompositionReceiptEnvelopeV1):
+        pass
+
+    hostile_receipt = HostileReceiptEnvelope(
+        candidate.receipt.receipt_kind,
+        candidate.receipt.receipt_bytes,
+    )
+
+    with pytest.raises(TypeError, match="receipt envelope must be exact typed data"):
+        RouteCompositionReceiptCandidateV1(
+            candidate.profile,
+            candidate.occurrence,
+            candidate.lane_journals,
+            candidate.verified_lanes,
+            candidate.route_journal,
+            hostile_receipt,
+        )
+
+
+def test_route_verifier_rechecks_post_construction_type_substitution() -> None:
+    """A frozen-candidate bypass still rejects before the verifier callback."""
+
+    # Arrange: construct an honest candidate, then bypass its frozen field guard.
+    profile, route = _profile()
+    pre_state = _state(profile, height=0)
+    occurrence = _occurrence(profile, route, pre_state)
+    candidate, _, _ = _route_receipt_candidate_fixture(
+        profile,
+        occurrence,
+        post_state_root=_state(profile, height=1).state_root,
+    )
+
+    class HostileReceiptEnvelope(RouteCompositionReceiptEnvelopeV1):
+        pass
+
+    object.__setattr__(
+        candidate,
+        "receipt",
+        HostileReceiptEnvelope(
+            candidate.receipt.receipt_kind,
+            candidate.receipt.receipt_bytes,
+        ),
+    )
+    verifier = _RecordingReceiptVerifier()
+
+    # Act / Assert: use-time ownership rejects before cryptographic admission.
+    with pytest.raises(TypeError, match="receipt envelope must be exact typed data"):
+        verify_route_composition_receipt_v1(candidate, verifier)
+    assert verifier.calls == []
+
+
+def test_route_verifier_owns_all_bindings_across_receipt_callback() -> None:
+    """Verifier-side alias mutation cannot change the authenticated route witness."""
+
+    # Arrange: retain every caller-owned object the route witness reads.
+    profile, route = _profile()
+    pre_state = _state(profile, height=0)
+    occurrence = _occurrence(profile, route, pre_state)
+    candidate, _, _ = _route_receipt_candidate_fixture(
+        profile,
+        occurrence,
+        post_state_root=_state(profile, height=1).state_root,
+    )
+    expected = {
+        "profile_id": candidate.profile.profile_id,
+        "command_occurrence_id": candidate.occurrence.occurrence_id,
+        "ordered_lane_binding_roots": tuple(
+            lane.binding_root for lane in candidate.verified_lanes
+        ),
+        "ordered_lane_journal_roots": tuple(
+            lane.journal_root for lane in candidate.lane_journals
+        ),
+        "route_journal_root": candidate.route_journal.journal_root,
+    }
+
+    class MutatingRouteReceiptVerifier:
+        def verify_succinct_receipt(
+            self,
+            receipt_bytes: bytes,
+            *,
+            expected_image_id: str,
+            expected_journal_bytes: bytes,
+        ) -> None:
+            del receipt_bytes, expected_image_id, expected_journal_bytes
+            object.__setattr__(candidate.profile, "profile_id", _root(78_001))
+            object.__setattr__(candidate.occurrence, "nonce", 78_002)
+            object.__setattr__(
+                candidate.lane_journals[0],
+                "post_lane_root",
+                _root(78_003),
+            )
+            object.__setattr__(
+                candidate.verified_lanes[0]._fields,
+                "receipt_digest",
+                _root(78_004),
+            )
+            object.__setattr__(
+                candidate.route_journal,
+                "post_state_root",
+                _root(78_005),
+            )
+            object.__setattr__(candidate.receipt, "receipt_bytes", b"mutated-after-check")
+
+    # Act
+    verified = verify_route_composition_receipt_v1(
+        candidate,
+        MutatingRouteReceiptVerifier(),
+    )
+
+    # Assert: every returned authority coordinate comes from one owned snapshot.
+    assert verified.profile_id == expected["profile_id"]
+    assert verified.command_occurrence_id == expected["command_occurrence_id"]
+    assert verified.ordered_lane_binding_roots == expected["ordered_lane_binding_roots"]
+    assert verified.ordered_lane_journal_roots == expected["ordered_lane_journal_roots"]
+    assert verified.route_journal_root == expected["route_journal_root"]
 
 
 def test_governed_route_rejects_unknown_disabled_and_caller_selected_routes() -> None:
