@@ -94,11 +94,11 @@ def _patched_env(values: Mapping[str, str]):
             os.environ[key] = value
         yield
     finally:
-        for key, value in old.items():
-            if value is None:
+        for key, old_value in old.items():
+            if old_value is None:
                 os.environ.pop(key, None)
             else:
-                os.environ[key] = value
+                os.environ[key] = old_value
 
 
 def _base_env(*, require_oracle_adapter: bool = False) -> dict[str, str]:
@@ -731,6 +731,7 @@ def _scenario_confidential_runtime_execute_replay() -> dict[str, Any]:
 def _scenario_autotrader_execute_once_replay() -> dict[str, Any]:
     class _FakeTauClient:
         sent: list[dict[str, object]] = []
+        attempts = 0
         sequence = 9
         fail_next_send = True
 
@@ -741,6 +742,7 @@ def _scenario_autotrader_execute_once_replay() -> dict[str, Any]:
             return type(self).sequence
 
         def sendtx(self, payload: object) -> str:
+            type(self).attempts += 1
             if type(self).fail_next_send:
                 type(self).fail_next_send = False
                 return "ERROR: temporary mempool outage"
@@ -762,6 +764,7 @@ def _scenario_autotrader_execute_once_replay() -> dict[str, Any]:
     execution_keys: set[str] = set()
     old_client = autotrader_live_api.TauNetTcpClient
     _FakeTauClient.sent = []
+    _FakeTauClient.attempts = 0
     _FakeTauClient.sequence = 9
     _FakeTauClient.fail_next_send = True
 
@@ -776,7 +779,7 @@ def _scenario_autotrader_execute_once_replay() -> dict[str, Any]:
             ),
         }
     ):
-        autotrader_live_api.TauNetTcpClient = _FakeTauClient  # type: ignore[assignment]
+        autotrader_live_api.TauNetTcpClient = _FakeTauClient
         try:
             failed_status, failed = autotrader_live_api.handle_autotrader_live_request(
                 "POST",
@@ -788,6 +791,8 @@ def _scenario_autotrader_execute_once_replay() -> dict[str, Any]:
                 raise AssertionError(f"unexpected AutoTrader first failure: {failed_status} {failed!r}")
             if execution_keys != {"stateful-exec-1"}:
                 raise AssertionError("AutoTrader ambiguous send was not durably quarantined")
+            if _FakeTauClient.attempts != 1:
+                raise AssertionError("AutoTrader ambiguous send did not make exactly one network attempt")
             if _FakeTauClient.sent:
                 raise AssertionError("AutoTrader failed send recorded a queued payload")
 
@@ -801,14 +806,17 @@ def _scenario_autotrader_execute_once_replay() -> dict[str, Any]:
                 raise AssertionError(f"unexpected AutoTrader replay response: {replay_status} {replay!r}")
             if _FakeTauClient.sent:
                 raise AssertionError("AutoTrader replay sent a second transaction")
+            if _FakeTauClient.attempts != 1:
+                raise AssertionError("AutoTrader replay made a second network attempt")
         finally:
-            autotrader_live_api.TauNetTcpClient = old_client  # type: ignore[assignment]
+            autotrader_live_api.TauNetTcpClient = old_client
 
     return {
         "first_failure": failed["error"],
         "state_after_ambiguous_send": failed["execution"]["state"],
         "replay_rejection": replay["error"],
-        "sent_count": len(_FakeTauClient.sent),
+        "send_attempt_count": _FakeTauClient.attempts,
+        "accepted_send_count": len(_FakeTauClient.sent),
     }
 
 

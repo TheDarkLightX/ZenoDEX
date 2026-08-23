@@ -298,7 +298,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "duplicate_side_effect_after_replay",
             "cross_stream_partial_mutation",
             "stale_or_missing_oracle_evidence_settles",
-            "autotrader_execute_once_replay_or_failure_key_burn",
+            "autotrader_ambiguous_send_replayed_or_silently_released",
         ),
     ),
     AnchorCheck(

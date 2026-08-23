@@ -16,6 +16,7 @@ from src.integration.operations import (
     parse_intents,
 )
 from src.integration.tau_net_client import bls_pubkey_hex_from_privkey, build_signed_tau_transaction
+from src.integration.zeno_ledger_v0 import hash_v0
 from src.state.canonical import canonical_json_bytes
 from src.state.intents import Intent, IntentKind
 
@@ -818,7 +819,14 @@ def test_autotrader_live_execute_once_consumes_execution_key_and_rejects_replay(
     assert accepted["ok"] is True
     assert accepted["status"] == "executed_once"
     assert accepted["surface"] == "autotrader_live_local_testnet_execute_once"
-    assert accepted["execution"] == {"execution_id": "strategy-exec-1", "replay_guard": "consumed"}
+    assert accepted["execution"] == {
+        "execution_id": "strategy-exec-1",
+        "replay_guard": "consumed",
+        "submission_root": hash_v0(
+            "autotrader_live_tau_submission_v1",
+            {"chain_id": "tau-local", "tau_tx_payload": _FakeTauClient.sent[0]},
+        ),
+    }
     assert execution_keys == {"strategy-exec-1"}
     assert len(_FakeTauClient.sent) == 1
     rows = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
@@ -874,6 +882,7 @@ def test_autotrader_live_execute_once_ambiguous_send_stays_pending_and_blocks_re
 ) -> None:
     class _FakeTauClient:
         attempts = 0
+        sent_payload: dict[str, object] | None = None
 
         def __init__(self, _cfg: object) -> None:
             pass
@@ -881,13 +890,16 @@ def test_autotrader_live_execute_once_ambiguous_send_stays_pending_and_blocks_re
         def get_sequence(self, _sender_pubkey_hex: str) -> int:
             return 9
 
-        def sendtx(self, _payload: object) -> str:
+        def sendtx(self, payload: object) -> str:
+            assert isinstance(payload, dict)
             type(self).attempts += 1
+            type(self).sent_payload = dict(payload)
             return "ERROR: transport outcome unknown"
 
     journal = tmp_path / "autotrader-execution-journal.jsonl"
     execution_keys: set[str] = set()
     _FakeTauClient.attempts = 0
+    _FakeTauClient.sent_payload = None
     monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
     monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", "true")
     monkeypatch.setenv("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", "true")
@@ -921,10 +933,249 @@ def test_autotrader_live_execute_once_ambiguous_send_stays_pending_and_blocks_re
     assert first["error"] == "sendtx_failed"
     assert first["execution"]["state"] == "PENDING"
     assert first["execution"]["reconciliation_required"] is True
+    assert first["execution"]["submission_root"] == hash_v0(
+        "autotrader_live_tau_submission_v1",
+        {
+            "chain_id": "tau-local",
+            "tau_tx_payload": _FakeTauClient.sent_payload,
+        },
+    )
+    assert rows[0]["schema"] == "zenodex/autotrader-execution-journal/v3"
+    assert rows[0]["submission_root"] == first["execution"]["submission_root"]
     assert [row["state"] for row in rows] == ["PENDING"]
     assert replay_status == 400
     assert replay["error"] == "execution_replay"
     assert _FakeTauClient.attempts == 1
+
+
+def test_autotrader_live_execute_once_invalid_sequence_never_submits_second_payload(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    # Arrange: model a race where another transaction advances the signer sequence
+    # after prepare but before Tau evaluates this exact payload.
+    class _FakeTauClient:
+        sent: list[dict[str, object]] = []
+
+        def __init__(self, _cfg: object) -> None:
+            pass
+
+        def get_sequence(self, _sender_pubkey_hex: str) -> int:
+            return 9
+
+        def sendtx(self, payload: object) -> str:
+            assert isinstance(payload, dict)
+            type(self).sent.append(dict(payload))
+            return "FAILURE: Invalid sequence number: expected 10, got 9."
+
+    journal = tmp_path / "autotrader-execution-journal.jsonl"
+    _FakeTauClient.sent = []
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH", str(journal))
+    monkeypatch.setattr(autotrader_live_api, "TauNetTcpClient", _FakeTauClient)
+
+    # Act: submit through the durable execute-once boundary.
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/execute-once",
+        json.dumps(
+            {
+                "execution_id": "sequence-race",
+                "acknowledge_experimental_live_risk": True,
+                "signer_privkey": 7,
+                "chain_id": "tau-local",
+                "tx_sequence_number": 9,
+                "tx_expiration_time": 999,
+                "last_used_nonce": 0,
+            }
+        ).encode("utf-8"),
+        execution_keys=set(),
+    )
+
+    # Assert: the reserved execution covers one exact attempt; no silently
+    # re-signed payload is sent under that reservation.
+    rows = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
+    assert status == 400
+    assert payload["error"] == "sendtx_failed"
+    assert payload["execution"]["state"] == "PENDING"
+    assert payload["execution"]["reconciliation_required"] is True
+    assert len(_FakeTauClient.sent) == 1
+    assert "retry_sendtx_response" not in payload["submission"]
+    assert [row["state"] for row in rows] == ["PENDING"]
+    assert rows[0]["submission_root"] == hash_v0(
+        "autotrader_live_tau_submission_v1",
+        {"chain_id": "tau-local", "tau_tx_payload": _FakeTauClient.sent[0]},
+    )
+
+
+def test_autotrader_live_execute_once_transport_exception_is_pending_and_replay_blocked(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    # Arrange: the network call can fail after Tau received all request bytes.
+    class _FakeTauClient:
+        attempts = 0
+
+        def __init__(self, _cfg: object) -> None:
+            pass
+
+        def get_sequence(self, _sender_pubkey_hex: str) -> int:
+            return 9
+
+        def sendtx(self, _payload: object) -> str:
+            type(self).attempts += 1
+            raise autotrader_live_api.TauNetRpcError("response lost")
+
+    journal = tmp_path / "autotrader-execution-journal.jsonl"
+    _FakeTauClient.attempts = 0
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH", str(journal))
+    monkeypatch.setattr(autotrader_live_api, "TauNetTcpClient", _FakeTauClient)
+    body = {
+        "execution_id": "transport-exception",
+        "acknowledge_experimental_live_risk": True,
+        "signer_privkey": 7,
+        "chain_id": "tau-local",
+        "tx_sequence_number": 9,
+        "tx_expiration_time": 999,
+        "last_used_nonce": 0,
+    }
+
+    # Act: lose the response, then try the same execution again.
+    first_status, first = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/execute-once",
+        json.dumps(body).encode("utf-8"),
+        execution_keys=set(),
+    )
+    replay_status, replay = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/execute-once",
+        json.dumps(body).encode("utf-8"),
+        execution_keys=set(),
+    )
+
+    # Assert: response loss is a typed ambiguous outcome and never authorizes retry.
+    rows = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
+    assert first_status == 400
+    assert first["error"] == "tau_submission_outcome_unknown"
+    assert first["execution"]["state"] == "PENDING"
+    assert first["execution"]["reconciliation_required"] is True
+    assert replay_status == 400
+    assert replay["error"] == "execution_replay"
+    assert _FakeTauClient.attempts == 1
+    assert [row["state"] for row in rows] == ["PENDING"]
+
+
+def test_autotrader_live_execute_once_pre_send_transport_exception_has_no_reservation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    # Arrange: fail before a signed transaction can be prepared or sent.
+    class _FakeTauClient:
+        attempts = 0
+
+        def __init__(self, _cfg: object) -> None:
+            pass
+
+        def get_sequence(self, _sender_pubkey_hex: str) -> int:
+            raise autotrader_live_api.TauNetRpcError("sequence unavailable")
+
+        def sendtx(self, _payload: object) -> str:
+            type(self).attempts += 1
+            return "SUCCESS: Transaction queued."
+
+    journal = tmp_path / "autotrader-execution-journal.jsonl"
+    _FakeTauClient.attempts = 0
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH", str(journal))
+    monkeypatch.setattr(autotrader_live_api, "TauNetTcpClient", _FakeTauClient)
+
+    # Act: execute while the read-only pre-send RPC is unavailable.
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/execute-once",
+        json.dumps(
+            {
+                "execution_id": "pre-send-transport-exception",
+                "acknowledge_experimental_live_risk": True,
+                "signer_privkey": 7,
+                "chain_id": "tau-local",
+                "last_used_nonce": 0,
+            }
+        ).encode("utf-8"),
+        execution_keys=set(),
+    )
+
+    # Assert: no value send and no false PENDING reservation occurred.
+    assert status == 400
+    assert payload == {"ok": False, "error": "tau_rpc_unavailable_before_submission"}
+    assert _FakeTauClient.attempts == 0
+    assert not journal.exists()
+
+
+def test_autotrader_live_execute_once_post_acceptance_transport_exception_stays_sent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    # Arrange: Tau accepts the exact transaction, then block observation fails.
+    class _FakeTauClient:
+        attempts = 0
+
+        def __init__(self, _cfg: object) -> None:
+            pass
+
+        def get_sequence(self, _sender_pubkey_hex: str) -> int:
+            return 9
+
+        def sendtx(self, _payload: object) -> str:
+            type(self).attempts += 1
+            return "SUCCESS: Transaction queued."
+
+        def createblock(self) -> str:
+            raise autotrader_live_api.TauNetRpcError("block response lost")
+
+    journal = tmp_path / "autotrader-execution-journal.jsonl"
+    _FakeTauClient.attempts = 0
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_AUTO_MINE", "true")
+    monkeypatch.setenv("AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH", str(journal))
+    monkeypatch.setattr(autotrader_live_api, "TauNetTcpClient", _FakeTauClient)
+
+    # Act: execute once through the accepted-send/failed-observation boundary.
+    status, payload = handle_autotrader_live_request(
+        "POST",
+        "/api/strategy/autotrader/execute-once",
+        json.dumps(
+            {
+                "execution_id": "post-acceptance-transport-exception",
+                "acknowledge_experimental_live_risk": True,
+                "signer_privkey": 7,
+                "chain_id": "tau-local",
+                "tx_sequence_number": 9,
+                "tx_expiration_time": 999,
+                "last_used_nonce": 0,
+            }
+        ).encode("utf-8"),
+        execution_keys=set(),
+    )
+
+    # Assert: the durable SENT fact is retained after a later transport failure.
+    rows = [json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
+    assert status == 400
+    assert payload["error"] == "tau_submission_observation_failed"
+    assert payload["execution"]["state"] == "SENT"
+    assert payload["execution"]["reconciliation_required"] is True
+    assert _FakeTauClient.attempts == 1
+    assert [row["state"] for row in rows] == ["PENDING", "SENT"]
 
 
 def test_autotrader_live_execute_once_fsync_failure_blocks_send(
@@ -1153,12 +1404,14 @@ def test_execution_journal_rejects_surface_change(monkeypatch: pytest.MonkeyPatc
         set(),
         "surface-bound",
         surface="autotrader_live_execute_once",
+        submission_root="0x" + "71" * 32,
     )
 
     with pytest.raises(ValueError, match="execution_journal_surface_mismatch"):
         autotrader_live_api._mark_execution_sent(
             "surface-bound",
             surface="autotrader_live_supervisor_execute",
+            submission_root="0x" + "71" * 32,
         )
 
 
@@ -1792,6 +2045,10 @@ def test_autotrader_live_supervisor_execute_consumes_execution_key_and_rejects_r
     assert accepted["execution"] == {
         "execution_id": "supervisor-exec-1",
         "replay_guard": "consumed",
+        "submission_root": hash_v0(
+            "autotrader_live_tau_submission_v1",
+            {"chain_id": "tau-local", "tau_tx_payload": _FakeTauClient.sent[0]},
+        ),
         "mode": "supervised_manual_tick",
         "run_scope_id": "tau-local:autotrader.supervisor.local.1",
         "consumed_runs_in_process": 1,

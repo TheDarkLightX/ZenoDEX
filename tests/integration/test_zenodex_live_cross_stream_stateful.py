@@ -37,7 +37,7 @@ def test_live_cross_stream_stateful_replay_accepts_all_scenarios() -> None:
         "stale_or_missing_oracle_evidence_settles",
         "duplicate_confidential_admission_after_replay",
         "duplicate_confidential_runtime_after_replay",
-        "autotrader_execute_once_replay_or_failure_key_burn",
+        "autotrader_ambiguous_send_replayed_or_silently_released",
     }
 
 
@@ -91,18 +91,25 @@ def test_live_cross_stream_stateful_replay_writes_receipt(tmp_path: Path) -> Non
         == "request_replay"
     )
     assert (
-        by_id["autotrader_execute_once_replay_rejected_without_second_send"]["evidence"]["first_failure"]
+        by_id["autotrader_ambiguous_send_quarantined_without_retry"]["evidence"]["first_failure"]
         == "sendtx_failed"
     )
     assert (
-        by_id["autotrader_execute_once_replay_rejected_without_second_send"]["evidence"]["success_status"]
-        == "executed_once"
+        by_id["autotrader_ambiguous_send_quarantined_without_retry"]["evidence"]["state_after_ambiguous_send"]
+        == "PENDING"
     )
     assert (
-        by_id["autotrader_execute_once_replay_rejected_without_second_send"]["evidence"]["replay_rejection"]
+        by_id["autotrader_ambiguous_send_quarantined_without_retry"]["evidence"]["replay_rejection"]
         == "execution_replay"
     )
-    assert by_id["autotrader_execute_once_replay_rejected_without_second_send"]["evidence"]["sent_count"] == 1
+    assert (
+        by_id["autotrader_ambiguous_send_quarantined_without_retry"]["evidence"]["send_attempt_count"]
+        == 1
+    )
+    assert (
+        by_id["autotrader_ambiguous_send_quarantined_without_retry"]["evidence"]["accepted_send_count"]
+        == 0
+    )
     assert receipt["fuzz_campaign"]["errors"] == []
     assert set(receipt["fuzz_campaign"]["disaster_states"]) == {
         "long_horizon_balance_drift",

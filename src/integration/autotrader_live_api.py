@@ -145,21 +145,65 @@ def _execution_already_consumed(execution_keys: set[str], execution_id: str) -> 
     return execution_id in _execution_journal_ids()
 
 
-def _reserve_execution_id(execution_keys: set[str], execution_id: str, *, surface: str) -> None:
+def _tau_submission_root(*, chain_id: str, tau_tx_payload: Mapping[str, Any]) -> str:
+    return hash_v0(
+        "autotrader_live_tau_submission_v1",
+        {
+            "chain_id": chain_id,
+            "tau_tx_payload": dict(tau_tx_payload),
+        },
+    )
+
+
+def _reserve_execution_id(
+    execution_keys: set[str],
+    execution_id: str,
+    *,
+    surface: str,
+    submission_root: str,
+) -> None:
     reserve_execution_id(
         path=_execution_journal_path(),
         execution_keys=execution_keys,
         execution_id=execution_id,
         surface=surface,
+        submission_root=submission_root,
     )
 
 
-def _mark_execution_sent(execution_id: str, *, surface: str) -> None:
+def _mark_execution_sent(execution_id: str, *, surface: str, submission_root: str) -> None:
     mark_execution_sent(
         path=_execution_journal_path(),
         execution_id=execution_id,
         surface=surface,
+        submission_root=submission_root,
     )
+
+
+def _execution_transport_failure(
+    *,
+    execution_id: str,
+    submission_root: str | None,
+    sent: bool,
+    mode: str | None = None,
+) -> dict[str, Any]:
+    execution = {
+        "execution_id": execution_id,
+        "state": _EXECUTION_SENT if sent else _EXECUTION_PENDING,
+        "submission_root": submission_root,
+        "reconciliation_required": True,
+    }
+    if mode is not None:
+        execution["mode"] = mode
+    return {
+        "ok": False,
+        "error": (
+            "tau_submission_observation_failed"
+            if sent
+            else "tau_submission_outcome_unknown"
+        ),
+        "execution": execution,
+    }
 
 
 def _allow_signing() -> bool:
@@ -1176,7 +1220,7 @@ def _build_external_prepared_submit_response(
     body: Mapping[str, Any],
     *,
     prepared: Mapping[str, Any],
-    before_send: Callable[[], None] | None = None,
+    before_send: Callable[[Mapping[str, Any]], None] | None = None,
     after_send_accepted: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     if not _allow_testnet_submission():
@@ -1241,7 +1285,7 @@ def _build_external_prepared_submit_response(
     prepared_payload = {**dict(prepared), "report": prepared_report}
     initial_app_hash = _observe_app_hash(client)
     if before_send is not None:
-        before_send()
+        before_send(tau_tx_payload)
     send_response = client.sendtx(tau_tx_payload)
     submission: dict[str, Any] = {"sendtx_response": send_response, "signing_mode": "external_signed_payload"}
     if not _tx_send_ok(send_response):
@@ -1284,7 +1328,7 @@ def _build_external_prepared_submit_response(
 def _build_submit_response(
     body: Mapping[str, Any],
     *,
-    before_send: Callable[[], None] | None = None,
+    before_send: Callable[[Mapping[str, Any]], None] | None = None,
     after_send_accepted: Callable[[], None] | None = None,
 ) -> dict[str, Any]:
     if not _allow_testnet_submission():
@@ -1384,7 +1428,7 @@ def _build_submit_response(
 
     initial_app_hash = _observe_app_hash(client)
     if before_send is not None:
-        before_send()
+        before_send(wire_tau_tx_payload)
     send_response = client.sendtx(wire_tau_tx_payload)
     submission: dict[str, Any] = {
         "sendtx_response": send_response,
@@ -1395,6 +1439,8 @@ def _build_submit_response(
     if not _tx_send_ok(send_response):
         invalid_sequence = tau_rpc_invalid_sequence_numbers(send_response)
         if (
+            before_send is None
+            and
             external_payload is None
             and invalid_sequence is not None
             and int(invalid_sequence[1]) == int(current_sequence)
@@ -1699,19 +1745,31 @@ def _build_supervisor_execute_response(
         execution_surface = "autotrader_live_supervisor_execute"
         reserved = False
         sent = False
+        submission_root: str | None = None
 
-        def reserve_before_send() -> None:
-            nonlocal reserved
+        def reserve_before_send(tau_tx_payload: Mapping[str, Any]) -> None:
+            nonlocal reserved, submission_root
+            submission_root = _tau_submission_root(
+                chain_id=chain_id,
+                tau_tx_payload=tau_tx_payload,
+            )
             _reserve_execution_id(
                 execution_keys,
                 execution_id,
                 surface=execution_surface,
+                submission_root=submission_root,
             )
             reserved = True
 
         def mark_sent_after_acceptance() -> None:
             nonlocal sent
-            _mark_execution_sent(execution_id, surface=execution_surface)
+            if submission_root is None:
+                raise ValueError("execution_journal_submission_root_unavailable")
+            _mark_execution_sent(
+                execution_id,
+                surface=execution_surface,
+                submission_root=submission_root,
+            )
             sent = True
 
         try:
@@ -1728,6 +1786,15 @@ def _build_supervisor_execute_response(
                     before_send=reserve_before_send,
                     after_send_accepted=mark_sent_after_acceptance,
                 )
+        except TauNetRpcError:
+            if not reserved:
+                return {"ok": False, "error": "tau_rpc_unavailable_before_submission"}
+            return _execution_transport_failure(
+                execution_id=execution_id,
+                submission_root=submission_root,
+                sent=sent,
+                mode="supervised_manual_tick",
+            )
         except (TypeError, ValueError) as exc:
             if not reserved:
                 raise
@@ -1736,7 +1803,8 @@ def _build_supervisor_execute_response(
                 "error": str(exc),
                 "execution": {
                     "execution_id": execution_id,
-                    "state": _EXECUTION_PENDING,
+                    "state": _EXECUTION_SENT if sent else _EXECUTION_PENDING,
+                    "submission_root": submission_root,
                     "reconciliation_required": True,
                     "mode": "supervised_manual_tick",
                 },
@@ -1748,6 +1816,7 @@ def _build_supervisor_execute_response(
                     "execution": {
                         "execution_id": execution_id,
                         "state": _EXECUTION_SENT if sent else _EXECUTION_PENDING,
+                        "submission_root": submission_root,
                         "reconciliation_required": True,
                         "mode": "supervised_manual_tick",
                     },
@@ -1765,6 +1834,7 @@ def _build_supervisor_execute_response(
         "execution": {
             "execution_id": execution_id,
             "replay_guard": "consumed",
+            "submission_root": submission_root,
             "mode": "supervised_manual_tick",
             "run_scope_id": run_scope_id,
             "consumed_runs_in_process": consumed_runs_in_process,
@@ -1803,19 +1873,32 @@ def _build_execute_once_response(
         execution_surface = "autotrader_live_execute_once"
         reserved = False
         sent = False
+        submission_root: str | None = None
+        chain_id = str(body.get("chain_id") or _env_str("AUTOTRADER_LIVE_CHAIN_ID", "tau-local"))
 
-        def reserve_before_send() -> None:
-            nonlocal reserved
+        def reserve_before_send(tau_tx_payload: Mapping[str, Any]) -> None:
+            nonlocal reserved, submission_root
+            submission_root = _tau_submission_root(
+                chain_id=chain_id,
+                tau_tx_payload=tau_tx_payload,
+            )
             _reserve_execution_id(
                 execution_keys,
                 execution_id,
                 surface=execution_surface,
+                submission_root=submission_root,
             )
             reserved = True
 
         def mark_sent_after_acceptance() -> None:
             nonlocal sent
-            _mark_execution_sent(execution_id, surface=execution_surface)
+            if submission_root is None:
+                raise ValueError("execution_journal_submission_root_unavailable")
+            _mark_execution_sent(
+                execution_id,
+                surface=execution_surface,
+                submission_root=submission_root,
+            )
             sent = True
 
         try:
@@ -1823,6 +1906,14 @@ def _build_execute_once_response(
                 body,
                 before_send=reserve_before_send,
                 after_send_accepted=mark_sent_after_acceptance,
+            )
+        except TauNetRpcError:
+            if not reserved:
+                return {"ok": False, "error": "tau_rpc_unavailable_before_submission"}
+            return _execution_transport_failure(
+                execution_id=execution_id,
+                submission_root=submission_root,
+                sent=sent,
             )
         except (TypeError, ValueError) as exc:
             if not reserved:
@@ -1832,7 +1923,8 @@ def _build_execute_once_response(
                 "error": str(exc),
                 "execution": {
                     "execution_id": execution_id,
-                    "state": _EXECUTION_PENDING,
+                    "state": _EXECUTION_SENT if sent else _EXECUTION_PENDING,
+                    "submission_root": submission_root,
                     "reconciliation_required": True,
                 },
             }
@@ -1843,6 +1935,7 @@ def _build_execute_once_response(
                     "execution": {
                         "execution_id": execution_id,
                         "state": _EXECUTION_SENT if sent else _EXECUTION_PENDING,
+                        "submission_root": submission_root,
                         "reconciliation_required": True,
                     },
                 }
@@ -1855,6 +1948,7 @@ def _build_execute_once_response(
         "execution": {
             "execution_id": execution_id,
             "replay_guard": "consumed",
+            "submission_root": submission_root,
         },
         "not_claimed": [
             *_AUTOTRADER_LIVE_NOT_CLAIMED,
