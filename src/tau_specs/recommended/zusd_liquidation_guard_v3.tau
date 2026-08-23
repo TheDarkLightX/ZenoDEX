@@ -1,0 +1,19 @@
+# zUSD Liquidation Guard v3 (committed-price parity, flag-driven)
+# i1 = committed_oracle_initialized (sbf)
+# i2 = no_uncommitted_report (sbf)
+# i3 = committed_oracle_fresh (sbf)
+# i4 = positive_debt (sbf)
+# i5 = under_mcr_at_committed_price (sbf)
+# i6 = stability_pool_can_absorb (sbf)
+# i7 = collateral_destinations_exact (sbf)
+# i8 = stability_pool_collateral_cap_ok (sbf)
+# i9 = state_delta_ok (sbf)
+# o4 = liquidation_allowed
+
+set charvar off
+
+oracle_context_ok(committed_oracle_initialized : sbf, no_uncommitted_report : sbf, committed_oracle_fresh : sbf) := (committed_oracle_initialized = 1:sbf) && (no_uncommitted_report = 1:sbf) && (committed_oracle_fresh = 1:sbf).
+position_and_pool_ok(positive_debt : sbf, under_mcr_at_committed_price : sbf, stability_pool_can_absorb : sbf) := (positive_debt = 1:sbf) && (under_mcr_at_committed_price = 1:sbf) && (stability_pool_can_absorb = 1:sbf).
+settlement_projection_ok(collateral_destinations_exact : sbf, stability_pool_collateral_cap_ok : sbf, state_delta_ok : sbf) := (collateral_destinations_exact = 1:sbf) && (stability_pool_collateral_cap_ok = 1:sbf) && (state_delta_ok = 1:sbf).
+liquidation_ok(committed_oracle_initialized : sbf, no_uncommitted_report : sbf, committed_oracle_fresh : sbf, positive_debt : sbf, under_mcr_at_committed_price : sbf, stability_pool_can_absorb : sbf, collateral_destinations_exact : sbf, stability_pool_collateral_cap_ok : sbf, state_delta_ok : sbf) := oracle_context_ok(committed_oracle_initialized, no_uncommitted_report, committed_oracle_fresh) && position_and_pool_ok(positive_debt, under_mcr_at_committed_price, stability_pool_can_absorb) && settlement_projection_ok(collateral_destinations_exact, stability_pool_collateral_cap_ok, state_delta_ok).
+always (o1[t]:sbf = 1:sbf <-> oracle_context_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> position_and_pool_ok(i4[t]:sbf, i5[t]:sbf, i6[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> settlement_projection_ok(i7[t]:sbf, i8[t]:sbf, i9[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> liquidation_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf, i6[t]:sbf, i7[t]:sbf, i8[t]:sbf, i9[t]:sbf)).

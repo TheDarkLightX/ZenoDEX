@@ -437,6 +437,12 @@
           "spec_path": "src/tau_specs/recommended/zusd_oracle_commit_guard_v2.tau"
         },
         {
+          "variant_id": "oracle_commit_guard_v3",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_oracle_commit_guard_v3.tau",
+          "runtime_semantics": "current_committed_state_parity"
+        },
+        {
           "variant_id": "liquidation_guard_v2",
           "profile": "tau_only_structural",
           "spec_path": "src/tau_specs/recommended/zusd_liquidation_guard_v2.tau",
@@ -447,6 +453,17 @@
           }
         },
         {
+          "variant_id": "liquidation_guard_v3",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_liquidation_guard_v3.tau",
+          "runtime_semantics": "current_committed_price_parity",
+          "latest_tau_stream_arithmetic": {
+            "status": "not_used_host_projected_flags",
+            "runtime_admission": true,
+            "reason": "all numeric comparisons and exact delta checks are projected as sbf flags; Tau combines the closed boolean contract"
+          }
+        },
+        {
           "variant_id": "supply_conservation_v2",
           "profile": "tau_only_structural",
           "spec_path": "src/tau_specs/recommended/zusd_supply_conservation_v2.tau",
@@ -454,6 +471,17 @@
             "status": "blocked_requires_host_proof_or_upstream_fix",
             "runtime_admission": false,
             "reason": "latest Tau 401d756b rejects stream add/sub, including helper predicates called on streams; require host proof flags or rewrite before runtime promotion"
+          }
+        },
+        {
+          "variant_id": "supply_conservation_v3",
+          "profile": "tau_only_structural",
+          "spec_path": "src/tau_specs/recommended/zusd_supply_conservation_v3.tau",
+          "runtime_semantics": "current_supply_conservation_parity",
+          "latest_tau_stream_arithmetic": {
+            "status": "not_used_host_projected_flags",
+            "runtime_admission": true,
+            "reason": "host projects exact endpoint and delta equalities; Tau combines the closed boolean contract"
           }
         },
         {

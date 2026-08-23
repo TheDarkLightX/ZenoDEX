@@ -8,7 +8,7 @@ allowing transition-level policy checks to run before accepting a state update.
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Dict, List, Mapping, Optional, Tuple
 
 from ..core.zusd import (
@@ -18,6 +18,8 @@ from ..core.zusd import (
     ZUSDMultiStepResult,
     ZUSDState,
     ZUSDStepResult,
+    check_invariants,
+    check_multi_invariants,
     in_multi_recovery_mode,
     in_recovery_mode,
 )
@@ -27,27 +29,26 @@ from ..core.zusd import (
 from ..core.zusd import (
     step_multi as zusd_step_multi,
 )
-from ..core.zusd_multi_oracle_commit_mcr import check_multi_oracle_commit_mcr
 from ..core.zusd_multi_redeem_selector import select_multi_redeem_vault
 from .tau_runner import find_tau_bin, run_tau_spec_steps
 from .tau_witness import (
     ZUSD_DEPOSIT_SP_GUARD_V1,
-    ZUSD_LIQUIDATION_GUARD_V2,
+    ZUSD_LIQUIDATION_GUARD_V3,
     ZUSD_MINT_GUARD_V1,
-    ZUSD_ORACLE_COMMIT_GUARD_V2,
+    ZUSD_ORACLE_COMMIT_GUARD_V3,
     ZUSD_REDEEM_GUARD_V1,
     ZUSD_REPAY_GUARD_V1,
-    ZUSD_SUPPLY_CONSERVATION_V2,
+    ZUSD_SUPPLY_CONSERVATION_V3,
     ZUSD_WITHDRAW_COLLATERAL_GUARD_V1,
     ZUSD_WITHDRAW_SP_GUARD_V1,
     TauSpecRef,
     build_zusd_deposit_sp_guard_v1_step,
-    build_zusd_liquidation_guard_v2_step,
+    build_zusd_liquidation_guard_v3_step,
     build_zusd_mint_guard_v1_step,
-    build_zusd_oracle_commit_guard_v2_step,
+    build_zusd_oracle_commit_guard_v3_step,
     build_zusd_redeem_guard_v1_step,
     build_zusd_repay_guard_v1_step,
-    build_zusd_supply_conservation_v2_step,
+    build_zusd_supply_conservation_v3_step,
     build_zusd_withdraw_collateral_guard_v1_step,
     build_zusd_withdraw_sp_guard_v1_step,
 )
@@ -75,6 +76,8 @@ def _is_oracle_fresh(*, now_epoch: int, last_update_epoch: int, max_staleness_ep
         return False
     if max_staleness_epochs < 0:
         return False
+    if last_update_epoch > now_epoch:
+        return False
     return (now_epoch - last_update_epoch) <= max_staleness_epochs
 
 
@@ -93,6 +96,8 @@ def _single_risky_ops_allowed(state: ZUSDState) -> bool:
         return False
     if state.price_pending_e8 != state.price_e8:
         return False
+    if state.oracle_pending_update_epoch != state.oracle_last_update_epoch:
+        return False
     if not _is_oracle_fresh(
         now_epoch=state.now_epoch,
         last_update_epoch=state.oracle_last_update_epoch,
@@ -109,6 +114,8 @@ def _multi_risky_ops_allowed(state: ZUSDMultiState) -> bool:
     if not state.oracle_seen or state.price_e8 <= 0 or state.price_pending_e8 <= 0:
         return False
     if state.price_pending_e8 != state.price_e8:
+        return False
+    if state.oracle_pending_update_epoch != state.oracle_last_update_epoch:
         return False
     if not _is_oracle_fresh(
         now_epoch=state.now_epoch,
@@ -127,6 +134,141 @@ def _require_pos_int_arg(args: Mapping[str, object], key: str) -> int:
     if not isinstance(v, int) or isinstance(v, bool) or v <= 0:
         raise ValueError(f"{key} must be a positive int")
     return int(v)
+
+
+def _single_oracle_commit_candidate_ok(
+    pre_state: ZUSDState,
+    post_state: ZUSDState,
+) -> bool:
+    expected = replace(
+        pre_state,
+        price_e8=pre_state.price_pending_e8,
+        oracle_last_update_epoch=pre_state.oracle_pending_update_epoch,
+    )
+    return post_state == expected and check_invariants(post_state) == []
+
+
+def _multi_oracle_commit_candidate_ok(
+    pre_state: ZUSDMultiState,
+    post_state: ZUSDMultiState,
+) -> bool:
+    expected = replace(
+        pre_state,
+        price_e8=pre_state.price_pending_e8,
+        oracle_last_update_epoch=pre_state.oracle_pending_update_epoch,
+    )
+    return post_state == expected and check_multi_invariants(post_state) == []
+
+
+def _liquidation_destination_amounts(
+    *,
+    collateral_e8: int,
+    fixed_compensation_e8: int,
+    variable_compensation_bps: int,
+) -> tuple[int, int]:
+    variable_compensation_e8 = (
+        (collateral_e8 * variable_compensation_bps) + 9_999
+    ) // 10_000
+    liquidator_compensation_e8 = min(
+        collateral_e8,
+        fixed_compensation_e8 + variable_compensation_e8,
+    )
+    return (
+        liquidator_compensation_e8,
+        collateral_e8 - liquidator_compensation_e8,
+    )
+
+
+def _single_liquidation_projection_flags(
+    pre_state: ZUSDState,
+    post_state: ZUSDState,
+) -> tuple[bool, bool, bool]:
+    expected_compensation_e8, expected_sp_gain_e8 = (
+        _liquidation_destination_amounts(
+            collateral_e8=pre_state.collateral_e8,
+            fixed_compensation_e8=(
+                pre_state.liquidation_gas_comp_fixed_collateral_e8
+            ),
+            variable_compensation_bps=pre_state.liquidation_gas_comp_bps,
+        )
+    )
+    collateral_destinations_exact = (
+        post_state.liquidator_compensation_collateral_cum_e8
+        - pre_state.liquidator_compensation_collateral_cum_e8
+        == expected_compensation_e8
+        and post_state.sp_coll_e8 - pre_state.sp_coll_e8
+        == expected_sp_gain_e8
+    )
+    stability_pool_collateral_cap_ok = (
+        post_state.sp_coll_e8 <= pre_state.max_sp_coll_e8
+    )
+    state_delta_ok = post_state == replace(
+        pre_state,
+        debt_e8=0,
+        collateral_e8=0,
+        sp_debt_e8=pre_state.sp_debt_e8 - pre_state.debt_e8,
+        sp_coll_e8=pre_state.sp_coll_e8 + expected_sp_gain_e8,
+        liquidator_compensation_collateral_cum_e8=(
+            pre_state.liquidator_compensation_collateral_cum_e8
+            + expected_compensation_e8
+        ),
+    )
+    return (
+        collateral_destinations_exact,
+        stability_pool_collateral_cap_ok,
+        state_delta_ok,
+    )
+
+
+def _multi_liquidation_projection_flags(
+    pre_state: ZUSDMultiState,
+    post_state: ZUSDMultiState,
+    cmd: ZUSDMultiCommand,
+) -> tuple[bool, bool, bool]:
+    raw_vault = cmd.args.get("vault")
+    if raw_vault == "a":
+        pre_vault = pre_state.vault_a
+        vault_update = {"vault_a": replace(pre_vault, collateral_e8=0, debt_e8=0)}
+    elif raw_vault == "b":
+        pre_vault = pre_state.vault_b
+        vault_update = {"vault_b": replace(pre_vault, collateral_e8=0, debt_e8=0)}
+    else:
+        raise ValueError("vault must be 'a' or 'b'")
+
+    expected_compensation_e8, expected_sp_gain_e8 = (
+        _liquidation_destination_amounts(
+            collateral_e8=pre_vault.collateral_e8,
+            fixed_compensation_e8=(
+                pre_state.liquidation_gas_comp_fixed_collateral_e8
+            ),
+            variable_compensation_bps=pre_state.liquidation_gas_comp_bps,
+        )
+    )
+    collateral_destinations_exact = (
+        post_state.liquidator_compensation_collateral_cum_e8
+        - pre_state.liquidator_compensation_collateral_cum_e8
+        == expected_compensation_e8
+        and post_state.sp_coll_e8 - pre_state.sp_coll_e8
+        == expected_sp_gain_e8
+    )
+    stability_pool_collateral_cap_ok = (
+        post_state.sp_coll_e8 <= pre_state.max_sp_coll_e8
+    )
+    state_delta_ok = post_state == replace(
+        pre_state,
+        **vault_update,
+        sp_debt_e8=pre_state.sp_debt_e8 - pre_vault.debt_e8,
+        sp_coll_e8=pre_state.sp_coll_e8 + expected_sp_gain_e8,
+        liquidator_compensation_collateral_cum_e8=(
+            pre_state.liquidator_compensation_collateral_cum_e8
+            + expected_compensation_e8
+        ),
+    )
+    return (
+        collateral_destinations_exact,
+        stability_pool_collateral_cap_ok,
+        state_delta_ok,
+    )
 
 
 def _resolve_tau_bin(config: ZUSDTauGateConfig) -> tuple[bool, Optional[str], Optional[str]]:
@@ -164,27 +306,25 @@ def _single_checks(
     if cmd.tag == "oracle_commit":
         checks.append(
             (
-                ZUSD_ORACLE_COMMIT_GUARD_V2,
-                build_zusd_oracle_commit_guard_v2_step(
+                ZUSD_ORACLE_COMMIT_GUARD_V3,
+                build_zusd_oracle_commit_guard_v3_step(
                     oracle_seen=1 if pre_state.oracle_seen else 0,
-                    pending_le_active=1
-                    if (pre_state.oracle_seen and pre_state.price_pending_e8 > 0 and pre_state.price_e8 > 0 and pre_state.price_pending_e8 <= pre_state.price_e8)
-                    else 0,
-                    fresh_ok=1
+                    pending_price_positive=(
+                        1 if pre_state.price_pending_e8 > 0 else 0
+                    ),
+                    pending_observation_fresh=1
                     if _is_oracle_fresh(
                         now_epoch=pre_state.now_epoch,
-                        last_update_epoch=pre_state.oracle_last_update_epoch,
+                        last_update_epoch=pre_state.oracle_pending_update_epoch,
                         max_staleness_epochs=pre_state.max_oracle_staleness_epochs,
                         oracle_seen=pre_state.oracle_seen,
                     )
                     else 0,
                     auth_ok=1 if _cmd_auth_ok(cmd.args) else 0,
-                    mcr_ok_at_pending=1
-                    if _mcr_ok(
-                        collateral_e8=pre_state.collateral_e8,
-                        debt_e8=pre_state.debt_e8,
-                        price_e8=pre_state.price_pending_e8,
-                        mcr_bps=pre_state.mcr_bps,
+                    commit_candidate_ok=1
+                    if _single_oracle_commit_candidate_ok(
+                        pre_state,
+                        post_state,
                     )
                     else 0,
                 ),
@@ -339,38 +479,86 @@ def _single_checks(
         )
 
     elif cmd.tag == "liquidate":
+        (
+            collateral_destinations_exact,
+            stability_pool_collateral_cap_ok,
+            state_delta_ok,
+        ) = _single_liquidation_projection_flags(pre_state, post_state)
         checks.append(
             (
-                ZUSD_LIQUIDATION_GUARD_V2,
-                build_zusd_liquidation_guard_v2_step(
-                    pending_init=1 if (pre_state.oracle_seen and pre_state.price_pending_e8 > 0) else 0,
-                    vault_debt=pre_state.debt_e8,
-                    under_mcr=1
+                ZUSD_LIQUIDATION_GUARD_V3,
+                build_zusd_liquidation_guard_v3_step(
+                    committed_oracle_initialized=(
+                        1
+                        if pre_state.oracle_seen and pre_state.price_e8 > 0
+                        else 0
+                    ),
+                    no_uncommitted_report=(
+                        1
+                        if (
+                            pre_state.price_pending_e8 == pre_state.price_e8
+                            and pre_state.oracle_pending_update_epoch
+                            == pre_state.oracle_last_update_epoch
+                        )
+                        else 0
+                    ),
+                    committed_oracle_fresh=1
+                    if _is_oracle_fresh(
+                        now_epoch=pre_state.now_epoch,
+                        last_update_epoch=pre_state.oracle_last_update_epoch,
+                        max_staleness_epochs=pre_state.max_oracle_staleness_epochs,
+                        oracle_seen=pre_state.oracle_seen,
+                    )
+                    else 0,
+                    positive_debt=1 if pre_state.debt_e8 > 0 else 0,
+                    under_mcr_at_committed_price=1
                     if not _mcr_ok(
                         collateral_e8=pre_state.collateral_e8,
                         debt_e8=pre_state.debt_e8,
-                        price_e8=pre_state.price_pending_e8,
+                        price_e8=pre_state.price_e8,
                         mcr_bps=pre_state.mcr_bps,
                     )
                     else 0,
-                    sp_debt=pre_state.sp_debt_e8,
-                    vault_coll=pre_state.collateral_e8,
-                    sp_coll_before=pre_state.sp_coll_e8,
-                    max_sp_coll=pre_state.max_sp_coll_e8,
+                    stability_pool_can_absorb=(
+                        1 if pre_state.sp_debt_e8 >= pre_state.debt_e8 else 0
+                    ),
+                    collateral_destinations_exact=(
+                        1 if collateral_destinations_exact else 0
+                    ),
+                    stability_pool_collateral_cap_ok=(
+                        1 if stability_pool_collateral_cap_ok else 0
+                    ),
+                    state_delta_ok=1 if state_delta_ok else 0,
                 ),
             )
         )
 
     checks.append(
         (
-            ZUSD_SUPPLY_CONSERVATION_V2,
-            build_zusd_supply_conservation_v2_step(
-                free_before=pre_state.free_debt_e8,
-                sp_before=pre_state.sp_debt_e8,
-                total_before=pre_state.debt_e8,
-                free_after=post_state.free_debt_e8,
-                sp_after=post_state.sp_debt_e8,
-                total_after=post_state.debt_e8,
+            ZUSD_SUPPLY_CONSERVATION_V3,
+            build_zusd_supply_conservation_v3_step(
+                pre_conservation_ok=1
+                if (
+                    pre_state.free_debt_e8 + pre_state.sp_debt_e8
+                    == pre_state.debt_e8
+                )
+                else 0,
+                post_conservation_ok=1
+                if (
+                    post_state.free_debt_e8 + post_state.sp_debt_e8
+                    == post_state.debt_e8
+                )
+                else 0,
+                transition_delta_ok=1
+                if (
+                    post_state.debt_e8 - pre_state.debt_e8
+                    == (
+                        post_state.free_debt_e8 - pre_state.free_debt_e8
+                        + post_state.sp_debt_e8
+                        - pre_state.sp_debt_e8
+                    )
+                )
+                else 0,
             ),
         )
     )
@@ -427,32 +615,29 @@ def _multi_checks(
     checks: List[Tuple[TauSpecRef, Dict[str, int]]] = []
 
     if cmd.tag == "oracle_commit":
-        mcr_pending = check_multi_oracle_commit_mcr(
-            price_pending_e8=pre_state.price_pending_e8,
-            mcr_bps=pre_state.mcr_bps,
-            vault_a_collateral_e8=pre_state.vault_a.collateral_e8,
-            vault_a_debt_e8=pre_state.vault_a.debt_e8,
-            vault_b_collateral_e8=pre_state.vault_b.collateral_e8,
-            vault_b_debt_e8=pre_state.vault_b.debt_e8,
-        )
         checks.append(
             (
-                ZUSD_ORACLE_COMMIT_GUARD_V2,
-                build_zusd_oracle_commit_guard_v2_step(
+                ZUSD_ORACLE_COMMIT_GUARD_V3,
+                build_zusd_oracle_commit_guard_v3_step(
                     oracle_seen=1 if pre_state.oracle_seen else 0,
-                    pending_le_active=1
-                    if (pre_state.oracle_seen and pre_state.price_pending_e8 > 0 and pre_state.price_e8 > 0 and pre_state.price_pending_e8 <= pre_state.price_e8)
-                    else 0,
-                    fresh_ok=1
+                    pending_price_positive=(
+                        1 if pre_state.price_pending_e8 > 0 else 0
+                    ),
+                    pending_observation_fresh=1
                     if _is_oracle_fresh(
                         now_epoch=pre_state.now_epoch,
-                        last_update_epoch=pre_state.oracle_last_update_epoch,
+                        last_update_epoch=pre_state.oracle_pending_update_epoch,
                         max_staleness_epochs=pre_state.max_oracle_staleness_epochs,
                         oracle_seen=pre_state.oracle_seen,
                     )
                     else 0,
                     auth_ok=1 if _cmd_auth_ok(cmd.args) else 0,
-                    mcr_ok_at_pending=1 if mcr_pending.mcr_ok_at_pending else 0,
+                    commit_candidate_ok=1
+                    if _multi_oracle_commit_candidate_ok(
+                        pre_state,
+                        post_state,
+                    )
+                    else 0,
                 ),
             )
         )
@@ -641,38 +826,87 @@ def _multi_checks(
 
     elif cmd.tag == "liquidate":
         pre_coll, pre_debt = _multi_vault_for_cmd(pre_state, cmd)
+        (
+            collateral_destinations_exact,
+            stability_pool_collateral_cap_ok,
+            state_delta_ok,
+        ) = _multi_liquidation_projection_flags(pre_state, post_state, cmd)
         checks.append(
             (
-                ZUSD_LIQUIDATION_GUARD_V2,
-                build_zusd_liquidation_guard_v2_step(
-                    pending_init=1 if (pre_state.oracle_seen and pre_state.price_pending_e8 > 0) else 0,
-                    vault_debt=pre_debt,
-                    under_mcr=1
+                ZUSD_LIQUIDATION_GUARD_V3,
+                build_zusd_liquidation_guard_v3_step(
+                    committed_oracle_initialized=(
+                        1
+                        if pre_state.oracle_seen and pre_state.price_e8 > 0
+                        else 0
+                    ),
+                    no_uncommitted_report=(
+                        1
+                        if (
+                            pre_state.price_pending_e8 == pre_state.price_e8
+                            and pre_state.oracle_pending_update_epoch
+                            == pre_state.oracle_last_update_epoch
+                        )
+                        else 0
+                    ),
+                    committed_oracle_fresh=1
+                    if _is_oracle_fresh(
+                        now_epoch=pre_state.now_epoch,
+                        last_update_epoch=pre_state.oracle_last_update_epoch,
+                        max_staleness_epochs=pre_state.max_oracle_staleness_epochs,
+                        oracle_seen=pre_state.oracle_seen,
+                    )
+                    else 0,
+                    positive_debt=1 if pre_debt > 0 else 0,
+                    under_mcr_at_committed_price=1
                     if not _mcr_ok(
                         collateral_e8=pre_coll,
                         debt_e8=pre_debt,
-                        price_e8=pre_state.price_pending_e8,
+                        price_e8=pre_state.price_e8,
                         mcr_bps=pre_state.mcr_bps,
                     )
                     else 0,
-                    sp_debt=pre_state.sp_debt_e8,
-                    vault_coll=pre_coll,
-                    sp_coll_before=pre_state.sp_coll_e8,
-                    max_sp_coll=pre_state.max_sp_coll_e8,
+                    stability_pool_can_absorb=(
+                        1 if pre_state.sp_debt_e8 >= pre_debt else 0
+                    ),
+                    collateral_destinations_exact=(
+                        1 if collateral_destinations_exact else 0
+                    ),
+                    stability_pool_collateral_cap_ok=(
+                        1 if stability_pool_collateral_cap_ok else 0
+                    ),
+                    state_delta_ok=1 if state_delta_ok else 0,
                 ),
             )
         )
 
     checks.append(
         (
-            ZUSD_SUPPLY_CONSERVATION_V2,
-            build_zusd_supply_conservation_v2_step(
-                free_before=pre_state.free_debt_e8,
-                sp_before=pre_state.sp_debt_e8,
-                total_before=_multi_total_debt(pre_state),
-                free_after=post_state.free_debt_e8,
-                sp_after=post_state.sp_debt_e8,
-                total_after=_multi_total_debt(post_state),
+            ZUSD_SUPPLY_CONSERVATION_V3,
+            build_zusd_supply_conservation_v3_step(
+                pre_conservation_ok=1
+                if (
+                    pre_state.free_debt_e8 + pre_state.sp_debt_e8
+                    == _multi_total_debt(pre_state)
+                )
+                else 0,
+                post_conservation_ok=1
+                if (
+                    post_state.free_debt_e8 + post_state.sp_debt_e8
+                    == _multi_total_debt(post_state)
+                )
+                else 0,
+                transition_delta_ok=1
+                if (
+                    _multi_total_debt(post_state)
+                    - _multi_total_debt(pre_state)
+                    == (
+                        post_state.free_debt_e8 - pre_state.free_debt_e8
+                        + post_state.sp_debt_e8
+                        - pre_state.sp_debt_e8
+                    )
+                )
+                else 0,
             ),
         )
     )

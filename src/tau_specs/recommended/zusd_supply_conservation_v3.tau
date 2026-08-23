@@ -1,0 +1,12 @@
+# zUSD Supply Conservation v3 (runtime-compatible, flag-driven)
+# i1 = pre_conservation_ok (sbf)
+# i2 = post_conservation_ok (sbf)
+# i3 = transition_delta_ok (sbf)
+# o4 = supply_conservation_ok
+
+set charvar off
+
+endpoints_ok(pre_conservation_ok : sbf, post_conservation_ok : sbf) := (pre_conservation_ok = 1:sbf) && (post_conservation_ok = 1:sbf).
+delta_ok(transition_delta_ok : sbf) := transition_delta_ok = 1:sbf.
+supply_conservation_ok(pre_conservation_ok : sbf, post_conservation_ok : sbf, transition_delta_ok : sbf) := endpoints_ok(pre_conservation_ok, post_conservation_ok) && delta_ok(transition_delta_ok).
+always (o1[t]:sbf = 1:sbf <-> endpoints_ok(i1[t]:sbf, i2[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> delta_ok(i3[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> supply_conservation_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> supply_conservation_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)).

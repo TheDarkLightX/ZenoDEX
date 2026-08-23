@@ -22,9 +22,24 @@ def _bootstrap(s: ZUSDState, *, price_e8: int = 100 * E8) -> ZUSDState:
     return _ok(s, "bootstrap_oracle", price_e8=price_e8, auth_ok=True)
 
 
+def _reject_noop(
+    s: ZUSDState,
+    tag: str,
+    *,
+    expected_error: str,
+    **kwargs,
+) -> None:
+    result = step(s, ZUSDCommand(tag=tag, args=kwargs))
+
+    assert result.ok is False
+    assert result.error == expected_error
+    assert result.state is None
+    assert result.effects is None
+
+
 def test_basic_mint_repay_and_conservation() -> None:
     s = init_state()
-    s = _bootstrap(s, price_e8=100 * E8)
+    s = _bootstrap(s, price_e8=150 * E8)
     s = _ok(s, "deposit_collateral", amount_e8=2 * E8)
     s = _ok(s, "mint_zusd", amount_e8=150 * E8)
     s = _ok(s, "deposit_sp", amount_e8=40 * E8)
@@ -52,16 +67,19 @@ def test_pending_price_freezes_risky_ops() -> None:
     assert "freeze" in (r_withdraw.error or "")
 
 
-def test_oracle_commit_requires_mcr_at_pending_price() -> None:
+def test_oracle_commit_rejects_bad_debt_at_pending_price_without_effects() -> None:
     s = init_state()
-    s = _bootstrap(s, price_e8=100 * E8)
+    s = _bootstrap(s, price_e8=150 * E8)
     s = _ok(s, "deposit_collateral", amount_e8=2 * E8)
     s = _ok(s, "mint_zusd", amount_e8=150 * E8)
     s = _ok(s, "oracle_report", price_e8=50 * E8, auth_ok=True)
 
-    r = step(s, ZUSDCommand(tag="oracle_commit", args={"auth_ok": True}))
-    assert not r.ok
-    assert "below MCR" in (r.error or "")
+    _reject_noop(
+        s,
+        "oracle_commit",
+        expected_error="invariant violation: inv_system_no_bad_debt",
+        auth_ok=True,
+    )
 
 
 def test_recovery_mode_blocks_mint_and_withdraw() -> None:
@@ -83,32 +101,30 @@ def test_recovery_mode_blocks_mint_and_withdraw() -> None:
     assert "recovery mode" in (r_withdraw.error or "")
 
 
-def test_liquidation_under_pending_price_moves_debt_to_sp() -> None:
+def test_liquidation_rejects_uncommitted_price_without_effects() -> None:
     s = init_state()
-    s = _bootstrap(s, price_e8=100 * E8)
+    s = _bootstrap(s, price_e8=150 * E8)
     s = _ok(s, "deposit_collateral", amount_e8=2 * E8)
     s = _ok(s, "mint_zusd", amount_e8=150 * E8)
     s = _ok(s, "deposit_sp", amount_e8=150 * E8)
-    s = _ok(s, "oracle_report", price_e8=70 * E8, auth_ok=True)
+    s = _ok(s, "oracle_report", price_e8=80 * E8, auth_ok=True)
 
-    r = step(s, ZUSDCommand(tag="liquidate", args={}))
-    assert r.ok, r.error
-    assert r.state is not None
-    ns = r.state
-    assert ns.debt_e8 == 0
-    assert ns.collateral_e8 == 0
-    assert ns.sp_debt_e8 == 0
-    assert ns.sp_coll_e8 == 2 * E8
-    assert ns.liquidator_compensation_collateral_cum_e8 == 0
+    _reject_noop(
+        s,
+        "liquidate",
+        expected_error="liquidation blocked by uncommitted oracle report",
+    )
+    assert check_invariants(s) == []
 
 
 def test_liquidation_at_107_percent_cr_uses_current_full_collateral_policy() -> None:
     s = init_state()
-    s = _bootstrap(s, price_e8=100 * E8)
+    s = _bootstrap(s, price_e8=2 * E8)
     s = _ok(s, "deposit_collateral", amount_e8=107 * E8)
     s = _ok(s, "mint_zusd", amount_e8=100 * E8)
     s = _ok(s, "deposit_sp", amount_e8=100 * E8)
     s = _ok(s, "oracle_report", price_e8=1 * E8, auth_ok=True)
+    s = _ok(s, "oracle_commit", auth_ok=True)
 
     r = step(s, ZUSDCommand(tag="liquidate", args={}))
     assert r.ok, r.error
@@ -137,7 +153,8 @@ def test_liquidation_gas_compensation_hook_pays_before_sp_gain() -> None:
     s = _ok(s, "deposit_collateral", amount_e8=10 * E8)
     s = _ok(s, "mint_zusd", amount_e8=500 * E8)
     s = _ok(s, "deposit_sp", amount_e8=500 * E8)
-    s = _ok(s, "oracle_report", price_e8=50 * E8, auth_ok=True)
+    s = _ok(s, "oracle_report", price_e8=54 * E8, auth_ok=True)
+    s = _ok(s, "oracle_commit", auth_ok=True)
 
     r = step(s, ZUSDCommand(tag="liquidate", args={}))
     assert r.ok, r.error
@@ -179,11 +196,12 @@ def test_repay_and_redemption_cannot_leave_sub_floor_debt() -> None:
     assert not redeem.ok
     assert "below min_debt_open_e8" in (redeem.error or "")
 
-    full = step(s, ZUSDCommand(tag="repay_zusd", args={"amount_e8": 150 * E8}))
-    assert full.ok, full.error
-    assert full.state is not None
-    assert full.state.debt_e8 == 0
-    assert check_invariants(full.state) == []
+    _reject_noop(
+        s,
+        "repay_zusd",
+        expected_error="exact_repay_requires_owner_close_route",
+        amount_e8=150 * E8,
+    )
 
 
 def test_invariant_detection_for_supply_conservation() -> None:
@@ -227,9 +245,53 @@ def test_debt_floor_sequence_grid_for_repay_and_redeem() -> None:
             post_debt = minted_e8 - amt
             repay = step(s, ZUSDCommand(tag="repay_zusd", args={"amount_e8": amt}))
             redeem = step(s, ZUSDCommand(tag="redeem_zusd", args={"amount_e8": amt}))
-            should_accept = post_debt == 0 or post_debt >= s.min_debt_open_e8
+            should_accept = post_debt >= s.min_debt_open_e8
             assert repay.ok is should_accept
             assert redeem.ok is should_accept
+            if post_debt == 0:
+                assert repay.error == "exact_repay_requires_owner_close_route"
+                assert redeem.error == "full_close_requires_prefix_surplus_route"
+                assert repay.state is None and repay.effects is None
+                assert redeem.state is None and redeem.effects is None
+
+
+def test_liquidation_mcr_boundary_is_closed_and_one_atom_below_is_open() -> None:
+    exact_mcr = init_state()
+    exact_mcr = _bootstrap(exact_mcr, price_e8=2 * E8)
+    exact_mcr = _ok(exact_mcr, "deposit_collateral", amount_e8=110 * E8)
+    exact_mcr = _ok(exact_mcr, "mint_zusd", amount_e8=100 * E8)
+    exact_mcr = _ok(exact_mcr, "deposit_sp", amount_e8=100 * E8)
+    exact_mcr = _ok(exact_mcr, "oracle_report", price_e8=1 * E8, auth_ok=True)
+    exact_mcr = _ok(exact_mcr, "oracle_commit", auth_ok=True)
+
+    _reject_noop(
+        exact_mcr,
+        "liquidate",
+        expected_error="vault not under MCR at committed price",
+    )
+
+    below_mcr = init_state()
+    below_mcr = _bootstrap(below_mcr, price_e8=2 * E8)
+    below_mcr = _ok(
+        below_mcr,
+        "deposit_collateral",
+        amount_e8=(110 * E8) - 1,
+    )
+    below_mcr = _ok(below_mcr, "mint_zusd", amount_e8=100 * E8)
+    below_mcr = _ok(below_mcr, "deposit_sp", amount_e8=100 * E8)
+    below_mcr = _ok(below_mcr, "oracle_report", price_e8=1 * E8, auth_ok=True)
+    below_mcr = _ok(below_mcr, "oracle_commit", auth_ok=True)
+
+    result = step(below_mcr, ZUSDCommand(tag="liquidate", args={}))
+
+    assert result.ok is True
+    assert result.error is None
+    assert result.state is not None
+    assert result.effects is not None
+    assert result.state.debt_e8 == 0
+    assert result.state.sp_coll_e8 == (110 * E8) - 1
+    assert result.effects["liquidated_debt_e8"] == 100 * E8
+    assert check_invariants(result.state) == []
 
 
 def test_borrow_fee_adds_debt_and_tracks_protocol_revenue() -> None:

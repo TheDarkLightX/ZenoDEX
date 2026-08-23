@@ -22,12 +22,18 @@ from src.integration.tau_witness import (
     SWAP_EXACT_IN_PROOF_GATE_V1,
     SWAP_EXACT_OUT_FEE_PROOF_GATE_V1,
     SWAP_EXACT_OUT_PROOF_GATE_V1,
+    ZUSD_LIQUIDATION_GUARD_V3,
+    ZUSD_ORACLE_COMMIT_GUARD_V3,
+    ZUSD_SUPPLY_CONSERVATION_V3,
     TauSpecRef,
     build_cpmm_v1_step,
     build_swap_exact_in_fee_proof_gate_v1_step,
     build_swap_exact_in_proof_gate_v1_step,
     build_swap_exact_out_fee_proof_gate_v1_step,
     build_swap_exact_out_proof_gate_v1_step,
+    build_zusd_liquidation_guard_v3_step,
+    build_zusd_oracle_commit_guard_v3_step,
+    build_zusd_supply_conservation_v3_step,
 )
 
 
@@ -100,6 +106,94 @@ def test_run_tau_spec_steps_minimal() -> None:
         timeout_s=20.0,
     )
     assert outputs[0]["o1"] == 1
+
+
+def test_zusd_v3_boolean_guards_reject_each_false_projection() -> None:
+    tau_bin = find_tau_bin()
+    if not tau_bin:
+        pytest.skip("tau not found")
+
+    oracle_accept = build_zusd_oracle_commit_guard_v3_step(
+        oracle_seen=1,
+        pending_price_positive=1,
+        pending_observation_fresh=1,
+        auth_ok=1,
+        commit_candidate_ok=1,
+    )
+    oracle_steps = [oracle_accept]
+    oracle_steps.extend(
+        {**oracle_accept, input_name: 0}
+        for input_name in sorted(oracle_accept)
+    )
+    oracle_outputs = run_tau_spec_steps(
+        tau_bin=tau_bin,
+        spec_path=ZUSD_ORACLE_COMMIT_GUARD_V3.path,
+        steps=oracle_steps,
+        timeout_s=30.0,
+    )
+
+    assert oracle_outputs[0] == {"o1": 1, "o2": 1, "o3": 1, "o4": 1}
+    assert all(
+        oracle_outputs[index]["o4"] == 0
+        for index in range(1, len(oracle_steps))
+    )
+
+    liquidation_accept = build_zusd_liquidation_guard_v3_step(
+        committed_oracle_initialized=1,
+        no_uncommitted_report=1,
+        committed_oracle_fresh=1,
+        positive_debt=1,
+        under_mcr_at_committed_price=1,
+        stability_pool_can_absorb=1,
+        collateral_destinations_exact=1,
+        stability_pool_collateral_cap_ok=1,
+        state_delta_ok=1,
+    )
+    liquidation_steps = [liquidation_accept]
+    liquidation_steps.extend(
+        {**liquidation_accept, input_name: 0}
+        for input_name in sorted(liquidation_accept)
+    )
+    liquidation_outputs = run_tau_spec_steps(
+        tau_bin=tau_bin,
+        spec_path=ZUSD_LIQUIDATION_GUARD_V3.path,
+        steps=liquidation_steps,
+        timeout_s=30.0,
+    )
+
+    assert liquidation_outputs[0] == {
+        "o1": 1,
+        "o2": 1,
+        "o3": 1,
+        "o4": 1,
+    }
+    assert all(
+        liquidation_outputs[index]["o4"] == 0
+        for index in range(1, len(liquidation_steps))
+    )
+
+    supply_accept = build_zusd_supply_conservation_v3_step(
+        pre_conservation_ok=1,
+        post_conservation_ok=1,
+        transition_delta_ok=1,
+    )
+    supply_steps = [supply_accept]
+    supply_steps.extend(
+        {**supply_accept, input_name: 0}
+        for input_name in sorted(supply_accept)
+    )
+    supply_outputs = run_tau_spec_steps(
+        tau_bin=tau_bin,
+        spec_path=ZUSD_SUPPLY_CONSERVATION_V3.path,
+        steps=supply_steps,
+        timeout_s=30.0,
+    )
+
+    assert supply_outputs[0] == {"o1": 1, "o2": 1, "o3": 1, "o4": 1}
+    assert all(
+        supply_outputs[index]["o4"] == 0
+        for index in range(1, len(supply_steps))
+    )
 
 
 @pytest.mark.parametrize(

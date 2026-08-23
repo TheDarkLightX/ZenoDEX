@@ -1,0 +1,15 @@
+# zUSD Oracle Commit Guard v3 (committed-state parity, flag-driven)
+# i1 = oracle_seen (sbf)
+# i2 = pending_price_positive (sbf)
+# i3 = pending_observation_fresh (sbf)
+# i4 = auth_ok (sbf)
+# i5 = commit_candidate_ok (sbf)
+# o4 = oracle_commit_allowed
+
+set charvar off
+
+environment_ok(oracle_seen : sbf, pending_price_positive : sbf, pending_observation_fresh : sbf) := (oracle_seen = 1:sbf) && (pending_price_positive = 1:sbf) && (pending_observation_fresh = 1:sbf).
+authorization_ok(auth_ok : sbf) := auth_ok = 1:sbf.
+candidate_ok(commit_candidate_ok : sbf) := commit_candidate_ok = 1:sbf.
+oracle_commit_ok(oracle_seen : sbf, pending_price_positive : sbf, pending_observation_fresh : sbf, auth_ok : sbf, commit_candidate_ok : sbf) := environment_ok(oracle_seen, pending_price_positive, pending_observation_fresh) && authorization_ok(auth_ok) && candidate_ok(commit_candidate_ok).
+always (o1[t]:sbf = 1:sbf <-> environment_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf)) && (o2[t]:sbf = 1:sbf <-> authorization_ok(i4[t]:sbf)) && (o3[t]:sbf = 1:sbf <-> candidate_ok(i5[t]:sbf)) && (o4[t]:sbf = 1:sbf <-> oracle_commit_ok(i1[t]:sbf, i2[t]:sbf, i3[t]:sbf, i4[t]:sbf, i5[t]:sbf)).

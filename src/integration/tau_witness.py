@@ -81,6 +81,12 @@ ZUSD_ORACLE_COMMIT_GUARD_V2 = TauSpecRef(
     gate_output="o4",
 )
 
+ZUSD_ORACLE_COMMIT_GUARD_V3 = TauSpecRef(
+    spec_id="zusd_oracle_commit_guard_v3",
+    path=RECOMMENDED_SPECS_DIR / "zusd_oracle_commit_guard_v3.tau",
+    gate_output="o4",
+)
+
 ZUSD_CROSS_MODULE_ORACLE_SYNC_GATE_V1 = TauSpecRef(
     spec_id="zusd_cross_module_oracle_sync_gate_v1",
     path=RECOMMENDED_SPECS_DIR / "zusd_cross_module_oracle_sync_gate_v1.tau",
@@ -99,9 +105,21 @@ ZUSD_LIQUIDATION_GUARD_V2 = TauSpecRef(
     gate_output="o4",
 )
 
+ZUSD_LIQUIDATION_GUARD_V3 = TauSpecRef(
+    spec_id="zusd_liquidation_guard_v3",
+    path=RECOMMENDED_SPECS_DIR / "zusd_liquidation_guard_v3.tau",
+    gate_output="o4",
+)
+
 ZUSD_SUPPLY_CONSERVATION_V2 = TauSpecRef(
     spec_id="zusd_supply_conservation_v2",
     path=RECOMMENDED_SPECS_DIR / "zusd_supply_conservation_v2.tau",
+    gate_output="o4",
+)
+
+ZUSD_SUPPLY_CONSERVATION_V3 = TauSpecRef(
+    spec_id="zusd_supply_conservation_v3",
+    path=RECOMMENDED_SPECS_DIR / "zusd_supply_conservation_v3.tau",
     gate_output="o4",
 )
 
@@ -1273,6 +1291,25 @@ def build_zusd_oracle_commit_guard_v2_step(
     }
 
 
+def build_zusd_oracle_commit_guard_v3_step(
+    *,
+    oracle_seen: int,
+    pending_price_positive: int,
+    pending_observation_fresh: int,
+    auth_ok: int,
+    commit_candidate_ok: int,
+) -> Dict[str, int]:
+    """Build one committed-state-parity Oracle commit witness."""
+
+    return {
+        "i1": _sbf("oracle_seen", oracle_seen),
+        "i2": _sbf("pending_price_positive", pending_price_positive),
+        "i3": _sbf("pending_observation_fresh", pending_observation_fresh),
+        "i4": _sbf("auth_ok", auth_ok),
+        "i5": _sbf("commit_candidate_ok", commit_candidate_ok),
+    }
+
+
 def build_zusd_cross_module_oracle_sync_gate_v1_step(
     *,
     sync_snapshot_available: int,
@@ -1335,6 +1372,39 @@ def build_zusd_liquidation_guard_v2_step(
     }
 
 
+def build_zusd_liquidation_guard_v3_step(
+    *,
+    committed_oracle_initialized: int,
+    no_uncommitted_report: int,
+    committed_oracle_fresh: int,
+    positive_debt: int,
+    under_mcr_at_committed_price: int,
+    stability_pool_can_absorb: int,
+    collateral_destinations_exact: int,
+    stability_pool_collateral_cap_ok: int,
+    state_delta_ok: int,
+) -> Dict[str, int]:
+    """Build one committed-price liquidation parity witness."""
+
+    return {
+        "i1": _sbf("committed_oracle_initialized", committed_oracle_initialized),
+        "i2": _sbf("no_uncommitted_report", no_uncommitted_report),
+        "i3": _sbf("committed_oracle_fresh", committed_oracle_fresh),
+        "i4": _sbf("positive_debt", positive_debt),
+        "i5": _sbf(
+            "under_mcr_at_committed_price",
+            under_mcr_at_committed_price,
+        ),
+        "i6": _sbf("stability_pool_can_absorb", stability_pool_can_absorb),
+        "i7": _sbf("collateral_destinations_exact", collateral_destinations_exact),
+        "i8": _sbf(
+            "stability_pool_collateral_cap_ok",
+            stability_pool_collateral_cap_ok,
+        ),
+        "i9": _sbf("state_delta_ok", state_delta_ok),
+    }
+
+
 def build_zusd_supply_conservation_v2_step(
     *,
     free_before: int,
@@ -1354,6 +1424,21 @@ def build_zusd_supply_conservation_v2_step(
         "i4": _u64("free_after", free_after),
         "i5": _u64("sp_after", sp_after),
         "i6": _u64("total_after", total_after),
+    }
+
+
+def build_zusd_supply_conservation_v3_step(
+    *,
+    pre_conservation_ok: int,
+    post_conservation_ok: int,
+    transition_delta_ok: int,
+) -> Dict[str, int]:
+    """Build one runtime-compatible zUSD conservation witness."""
+
+    return {
+        "i1": _sbf("pre_conservation_ok", pre_conservation_ok),
+        "i2": _sbf("post_conservation_ok", post_conservation_ok),
+        "i3": _sbf("transition_delta_ok", transition_delta_ok),
     }
 
 
