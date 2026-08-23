@@ -126,6 +126,28 @@ def test_varint_and_bytes_encoders_reject_invalid_types() -> None:
         encode_bytes("nope")  # type: ignore[arg-type]
 
 
+def test_encode_bytes_snapshots_raw_buffers_from_bytes_like_subclasses() -> None:
+    # Arrange
+    class _SpoofedBytes(bytes):
+        def __bytes__(self) -> bytes:
+            return b"forged-bytes"
+
+    class _SpoofedBytearray(bytearray):
+        def __bytes__(self) -> bytes:
+            return b"forged-bytearray"
+
+    bytes_value = _SpoofedBytes(b"A")
+    bytearray_value = _SpoofedBytearray(b"BC")
+
+    # Act
+    encoded_bytes = encode_bytes(bytes_value)
+    encoded_bytearray = encode_bytes(bytearray_value)
+
+    # Assert
+    assert encoded_bytes == b"\x01A"
+    assert encoded_bytearray == b"\x02BC"
+
+
 def test_hex_helpers_reject_bad_type_and_can_cover_defensive_fromhex_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(TypeError, match="x must be a str"):
         hex_to_bytes_fixed(7, nbytes=1, name="x")  # type: ignore[arg-type]

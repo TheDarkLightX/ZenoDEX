@@ -1,0 +1,81 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-canonical-byte-buffer-snapshot",
+  "created_date": "2026-08-23",
+  "claim_scope": "The shared Python canonical byte encoder derives both its length prefix and payload from one snapshot of the caller-supplied bytes or bytearray buffer, without dispatching a subclass __bytes__ hook.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "CANONICAL-BYTE-LENGTH-PAYLOAD-COHERENCE",
+    "CANONICAL-BYTE-RAW-BUFFER-AUTHENTICATION"
+  ],
+  "failure_modes": [
+    "a bytes subclass replaces the raw buffer through __bytes__ before hashing or signing",
+    "a bytearray subclass replaces the raw buffer through __bytes__ before hashing or signing",
+    "the canonical length prefix authenticates attacker-selected replacement bytes instead of the supplied buffer"
+  ],
+  "source_pins": [
+    {
+      "path": "src/state/canonical.py",
+      "sha256": "00852842b0e83dd5f3e5ce2018677af16937d0576b69d4362b49beb104194e82"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/state/test_canonical_size_bounds.py",
+      "sha256": "3ef418f61ad0d9a23d8791be6a020da4704361d63e90a6699257883db9bd6a90",
+      "node_ids": [
+        "tests/state/test_canonical_size_bounds.py::test_encode_bytes_snapshots_raw_buffers_from_bytes_like_subclasses"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "metamorphic",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The regression arranges bytes and bytearray subclasses whose raw buffers disagree with their hostile __bytes__ results, acts through encode_bytes, and asserts exact length-prefixed raw-buffer encodings."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "The reproduced defect concerns accepted bytes-like values and pure canonical output. Existing type rejection remains unchanged and the helper has no mutable state."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "accepted_bytes_like_type",
+      "points": [
+        "exact_bytes",
+        "exact_bytearray",
+        "bytes_subclass_with_hostile___bytes__",
+        "bytearray_subclass_with_hostile___bytes__"
+      ]
+    },
+    {
+      "name": "buffer_length",
+      "points": [
+        "one_byte",
+        "two_bytes"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "copy accepted bytes-like values with bytes(value), dispatching attacker-controlled __bytes__",
+      "killed_by": "tests/state/test_canonical_size_bounds.py::test_encode_bytes_snapshots_raw_buffers_from_bytes_like_subclasses"
+    },
+    {
+      "description": "derive the prefix or payload from the hostile replacement instead of the raw buffer",
+      "killed_by": "tests/state/test_canonical_size_bounds.py::test_encode_bytes_snapshots_raw_buffers_from_bytes_like_subclasses"
+    }
+  ],
+  "nonclaims": [
+    "This packet establishes one Python canonical-encoding boundary regression; it is not a proof of every caller or cross-language codec.",
+    "Canonical outputs for ordinary exact bytes and bytearray inputs remain unchanged.",
+    "No proof, release, runtime, settlement, migration, writer-rotation, or production authority is granted; production_authority remains NONE."
+  ]
+}

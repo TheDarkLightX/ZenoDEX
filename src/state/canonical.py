@@ -12,7 +12,6 @@ import json
 import re
 from typing import Any
 
-
 CANONICAL_ENCODING_VERSION = 1
 MAX_UVARINT_BITS = 256
 
@@ -228,10 +227,13 @@ def encode_uvarint(value: int) -> bytes:
     return bytes(out)
 
 
-def encode_bytes(value: bytes) -> bytes:
+def encode_bytes(value: bytes | bytearray) -> bytes:
     if not isinstance(value, (bytes, bytearray)):
         raise TypeError("value must be bytes")
-    value_bytes = bytes(value)
+    # ``bytes(value)`` dispatches a subclass ``__bytes__`` hook. Snapshot the
+    # actual buffer so the length prefix and authenticated payload describe the
+    # same caller-supplied bytes.
+    value_bytes = value if type(value) is bytes else memoryview(value).tobytes()
     return encode_uvarint(len(value_bytes)) + value_bytes
 
 
