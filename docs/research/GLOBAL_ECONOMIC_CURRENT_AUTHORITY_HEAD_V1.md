@@ -217,7 +217,11 @@ rejects before receipt verification unless it is a current forward
 same-authority epoch tip whose complete coordinates equal current local durable
 heads. Every successful local result arms recovery before projection, and a
 lost lower-journal commit acknowledgment arms recovery only after the durable
-heads prove the exact one-step relation. Exact-u64 exhaustion of the anchor or
+heads prove the exact one-step relation. Process-control exceptions retain their
+original semantics after an attempt to arm the same recovery state; restart
+reclassifies from durable heads if that attempt is unavailable. Pre-commit
+journal faults preserve their original error and leave both heads unchanged.
+Exact-u64 exhaustion of the anchor or
 height counter rejects before proof work or SQLite mutation. The inode-
 replacement and separate-migration traces remain open because no authenticated
 deployed anchor or atomic migration retirement protocol exists.

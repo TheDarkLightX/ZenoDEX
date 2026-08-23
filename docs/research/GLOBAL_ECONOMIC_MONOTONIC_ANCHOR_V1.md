@@ -144,7 +144,13 @@ The focused portfolio includes:
 - a successful CAS whose confirmation read observes a later same-authority
   epoch, plus stable-binding and counter-delta mutation killers; and
 - fail-closed rejection when that forward external tip lacks exact matching
-  local durable authority and publication coordinates.
+  local durable authority and publication coordinates;
+- positive adoption when a second valid writer advances both complete local and
+  external histories before the first writer's confirmation read;
+- same-process exact recovery arming after a post-commit process-control
+  interruption while preserving the original exception; and
+- original-error/no-effect behavior at all three tested pre-commit journal
+  fault boundaries.
 
 These are bounded Python tests. They do not prove the backend's external
 currentness or the whole application.
@@ -170,6 +176,9 @@ currentness or the whole application.
 - Forward-observation adoption assumes all accepted external updates obey the
   same adjacent-CAS protocol and requires exact current local-head agreement.
   Arbitrary external forks and independently named stores remain rejected.
+- If process-control recovery classification is itself unavailable, the current
+  process receives the original exception and restart must reconstruct recovery
+  from the durable one-step relation.
 - No production readiness, settlement authority, finality, or whole-value-
   movement guarantee follows.
 

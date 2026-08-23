@@ -846,6 +846,18 @@ fault-injection, BVA, and mutation tests cover these schedules. This remains a
 bounded SHADOW result under the declared external monotonicity premise; a final
 exact-code rereview and regenerated source-pinned evidence remain required.
 
+The exact-code GPT-5.6 Sol review of `d7cc5def3` returned bounded `GO`: no High
+or Medium defect survived review, and all three temporal counterexamples were
+closed under the synchronous SHADOW assumptions. It identified two Low evidence
+gaps: no publisher-level positive forward-tip adoption schedule, and restart-
+only recovery after a post-commit `BaseException`. The follow-up patch adds a
+two-writer positive schedule with exactly two durable epoch rows, arms recovery
+across process-control exceptions while preserving the original exception, and
+adds a three-point pre-commit publisher fault matrix. Stable-binding mutation
+coverage now changes every forward-observation authority coordinate. Because
+these follow-up changes postdate `d7cc5def3`, one final exact-code rereview and
+exact-subject execution receipt remain required.
+
 Atomic no-replace install prevents the creator from opening a pre-existing
 final pathname writable. Advisory locking coordinates participating installers.
 A noncooperating same-UID process can still race the namespace, and an open
@@ -864,8 +876,8 @@ later worktree edit plus refreshed hash from representing an earlier commit.
 The checker itself still requires release packaging, independent replay, and
 authenticated distribution before it can contribute production authority.
 
-Before the final subject freeze, the local unattested execution run records 283
-passing tests in two bounded suites: 274 adjacent monotonic-anchor, settlement
+Before the final subject freeze, the local unattested execution run records 296
+passing tests in two bounded suites: 287 adjacent monotonic-anchor, settlement
 ABI, verifier release,
 activation, authority, epoch, publisher, and migration tests plus nine
 exhaustive value-sink tests. Final receipt promotion requires rerunning these
@@ -881,11 +893,10 @@ rejection, prefetch resource bounds, exact post-revocation retry, external-CAS
 lost acknowledgment, post-commit local projection failure, divergent external
 anchor, unmatched forward external tip, exact-u64 exhaustion, and tested SQLite
 crash points. Ruff, targeted mypy, and diff checks pass. The security scanner
-reports no High finding, one Medium broad-exception advisory at the lower-
-journal uncertain-commit boundary, and five Low findings. The broad catch is
-deliberately scoped around one commit call because any backend exception can
-occur before or after durable mutation; durable-head classification and the
-commit-before-ack negative test constrain its behavior. Independent max review
+reports no High or Medium finding and five Low findings. The broad catches are
+deliberately scoped around uncertain post-commit classification and backend
+port normalization; durable-head classification, pre-commit fault-matrix, and
+commit-before-ack negative tests constrain their behavior. Independent max review
 returned a conditional
 fresh-install research-only `GO` for `d606affe4`, confirmed its four precursor
 repairs, and identified the post-link crash wedge plus legacy-mode compatibility

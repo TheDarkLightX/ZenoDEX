@@ -164,7 +164,15 @@ def test_forward_observation_accepts_same_or_later_same_authority_epoch_tip() ->
 @pytest.mark.parametrize(
     ("mutant", "message"),
     (
+        ({"anchor_namespace_root": _root(61)}, "stable binding"),
         ({"authority_root": _root(61)}, "stable binding"),
+        ({"authority_generation": 1}, "stable binding"),
+        ({"activation_id": _root(61)}, "stable binding"),
+        ({"chain_id": "other-testnet"}, "stable binding"),
+        ({"deployment_root": _root(61)}, "stable binding"),
+        ({"epoch_store_root": _root(61)}, "stable binding"),
+        ({"profile_root": _root(61)}, "stable binding"),
+        ({"writer_epoch": 8}, "stable binding"),
         ({"publication_sequence": 1}, "monotonic epoch progress"),
         ({"height": 11}, "monotonic epoch progress"),
         ({"publication_id": _root(3)}, "reused a publication id"),

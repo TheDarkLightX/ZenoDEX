@@ -1299,6 +1299,8 @@ def _epoch_route_fixture(
     pre_state: GlobalEconomicStateV1,
     count: int,
     *,
+    nonce_start: int = 1,
+    pre_module_state: AssetTransferStateV1 | None = None,
     hidden_balance_after: int | None = None,
     hidden_height_after: int | None = None,
 ) -> _EpochRouteFixture:
@@ -1307,13 +1309,13 @@ def _epoch_route_fixture(
     route_state_disclosures: list[EconomicEpochRouteStateDisclosureV1] = []
     verified_routes: list[VerifiedRouteCompositionV1] = []
     route_effect_plans: list[GlobalEconomicEffectPlanV1] = []
-    module_state = _epoch_asset_module_state(profile)
+    module_state = pre_module_state or _epoch_asset_module_state(profile)
     current_state = pre_state
     for index in range(count):
         occurrence = replace(
             _occurrence(profile, route, pre_state),
             tx_index=index,
-            nonce=index + 1,
+            nonce=nonce_start + index,
             pre_state_root=current_state.state_root,
         )
         module_input = _asset_module_input_for_occurrence(
@@ -1337,7 +1339,7 @@ def _epoch_route_fixture(
         next_state = _global_state_from_asset_module(
             profile,
             accepted.post_state,
-            height=1,
+            height=pre_state.height + 1,
             replay_state=tuple(
                 sorted(
                     (*current_state.replay_state, replay),
@@ -1406,29 +1408,42 @@ def _epoch_route_fixture(
 def _epoch_admission_fixture(
     count: int,
     *,
+    pre_state: GlobalEconomicStateV1 | None = None,
+    nonce_start: int = 1,
     hidden_balance_after: int | None = None,
     hidden_height_after: int | None = None,
     verifier_registry_root: str | None = None,
 ) -> EconomicEpochReceiptCandidateV1:
     profile, route = _profile(verifier_registry_root=verifier_registry_root)
-    pre_state = _state(profile, height=0)
+    selected_pre_state = pre_state or _state(profile, height=0)
+    if selected_pre_state.profile_root != profile.profile_id:
+        raise ValueError("epoch admission fixture pre-state profile mismatch")
+    module_state = _epoch_asset_module_state(profile)
+    if pre_state is not None:
+        module_state = replace(
+            module_state,
+            balances=selected_pre_state.balances,
+            supplies=selected_pre_state.supplies,
+        )
     routes = _epoch_route_fixture(
         profile,
         route,
-        pre_state,
+        selected_pre_state,
         count,
+        nonce_start=nonce_start,
+        pre_module_state=module_state,
         hidden_balance_after=hidden_balance_after,
         hidden_height_after=hidden_height_after,
     )
     effects = compose_asset_lane_epoch_effect_plans_v1(routes.route_effect_plans)
     receipt_bytes = f"succinct-epoch-receipt-{count}".encode("ascii")
     certificate = GlobalEconomicEpochCertificateV1(
-        chain_id=pre_state.chain_id,
-        deployment_root=pre_state.deployment_root,
+        chain_id=selected_pre_state.chain_id,
+        deployment_root=selected_pre_state.deployment_root,
         profile_root=profile.profile_id,
         writer_epoch=profile.authority_epoch,
-        height=1,
-        pre_state_root=pre_state.state_root,
+        height=selected_pre_state.height + 1,
+        pre_state_root=selected_pre_state.state_root,
         post_state_root=routes.post_state.state_root,
         ordered_occurrence_ids=tuple(item.occurrence_id for item in routes.occurrences),
         ordered_route_journal_roots=tuple(item.journal_root for item in routes.route_journals),

@@ -850,7 +850,7 @@ class VerifiedDurableEconomicPublisherV1:
     def _arm_monotonic_anchor_after_unknown_local_commit_v1(
         self,
         source: DurableEconomicPublicationHeadV1,
-        cause: Exception,
+        cause: BaseException,
     ) -> bool:
         """Arm exact recovery only when durable heads prove a committed successor."""
 
@@ -991,7 +991,18 @@ class VerifiedDurableEconomicPublisherV1:
                     cas_token,
                     self.__write_capability,
                 )
-            except Exception as exc:
+            except BaseException as exc:
+                if not isinstance(exc, Exception):
+                    try:
+                        self._arm_monotonic_anchor_after_unknown_local_commit_v1(
+                            source,
+                            exc,
+                        )
+                    except (GlobalEconomicRollbackDetectedV1, RuntimeError):
+                        # Preserve process-control semantics. Reopen performs the
+                        # same durable-head classification if arming is unavailable.
+                        pass
+                    raise
                 if self._arm_monotonic_anchor_after_unknown_local_commit_v1(
                     source,
                     exc,

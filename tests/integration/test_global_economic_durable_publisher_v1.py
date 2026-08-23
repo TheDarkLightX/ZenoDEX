@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import sqlite3
 from dataclasses import replace
 from pathlib import Path
 from threading import Event, Thread
@@ -29,7 +30,11 @@ from src.core.global_economic_monotonic_anchor_v1 import (
     decode_global_economic_monotonic_anchor_v1,
 )
 from src.core.global_economic_proof_v1 import EconomicEpochReceiptCandidateV1
-from src.core.global_settlement_types_v1 import ZERO_ROOT_V1, hash_global_v1
+from src.core.global_settlement_types_v1 import (
+    ZERO_ROOT_V1,
+    GlobalEconomicStateV1,
+    hash_global_v1,
+)
 from src.integration.global_economic_authority_journal_v1 import (
     GlobalEconomicAuthorityBootstrapBusyV1,
     GlobalEconomicAuthorityCommitStatusV1,
@@ -48,6 +53,7 @@ from src.integration.global_economic_epoch_journal_v1 import (
     DurableEconomicEpochWriteCapabilityV1,
     GlobalEconomicEpochJournalV1,
     _DurableEconomicEpochCommitFaultV1,
+    _SimulatedDurableEconomicEpochCrashV1,
 )
 from src.integration.global_economic_migration_journal_v1 import (
     DurableEconomicCommitStatusV1,
@@ -109,12 +115,18 @@ def _bound_receipt_verifier_v1(
     )
 
 
-def _publisher_fixture_v1(*, receipt_bytes: bytes = b"durable-publisher-epoch"):
-    manifest = _receipt_verifier_manifest_v1()
-    registry = EconomicReceiptVerifierRegistryV1((_release(manifest),))
+def _publisher_candidate_v1(
+    *,
+    receipt_bytes: bytes,
+    verifier_registry_root: str,
+    pre_state: GlobalEconomicStateV1 | None = None,
+    nonce_start: int = 1,
+) -> tuple[EconomicEpochReceiptCandidateV1, EconomicEpochBodyAndStateV1]:
     candidate = _epoch_admission_fixture(
         1,
-        verifier_registry_root=registry.registry_root,
+        verifier_registry_root=verifier_registry_root,
+        pre_state=pre_state,
+        nonce_start=nonce_start,
     )
     body = EconomicEpochBodyAndStateV1(
         pre_state_root=candidate.pre_state.state_root,
@@ -137,11 +149,23 @@ def _publisher_fixture_v1(*, receipt_bytes: bytes = b"durable-publisher-epoch"):
         certificate,
         journal_bytes=len(certificate.canonical_journal_bytes),
     )
-    candidate = replace(
-        candidate,
-        certificate=certificate,
+    return (
+        replace(
+            candidate,
+            certificate=certificate,
+            receipt_bytes=receipt_bytes,
+            expected_body_commitment=body.body_commitment,
+        ),
+        body,
+    )
+
+
+def _publisher_fixture_v1(*, receipt_bytes: bytes = b"durable-publisher-epoch"):
+    manifest = _receipt_verifier_manifest_v1()
+    registry = EconomicReceiptVerifierRegistryV1((_release(manifest),))
+    candidate, body = _publisher_candidate_v1(
         receipt_bytes=receipt_bytes,
-        expected_body_commitment=body.body_commitment,
+        verifier_registry_root=registry.registry_root,
     )
     admission = _initial_state_admission(candidate.profile, candidate.pre_state)
     return admission, candidate, body
@@ -1681,6 +1705,264 @@ def test_external_forward_tip_without_matching_local_history_fails_closed(
             candidate=candidate,
             body_and_state=body,
         )
+    publisher.close()
+
+
+def test_concurrent_forward_tip_with_matching_local_history_is_adopted(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Alice prepares epoch one. Bob's valid epoch two is derived from
+    # Alice's exact post-state and runs after Alice's external CAS linearizes.
+    admission, first_candidate, first_body = _publisher_fixture_v1(
+        receipt_bytes=b"anchored-positive-forward-epoch-one"
+    )
+    second_candidate, second_body = _publisher_candidate_v1(
+        receipt_bytes=b"anchored-positive-forward-epoch-two",
+        verifier_registry_root=first_candidate.profile.verifier_registry_root,
+        pre_state=first_candidate.post_state,
+        nonce_start=2,
+    )
+    path = tmp_path / "anchored-positive-forward-tip.sqlite"
+    created = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(first_candidate)[0],
+    )
+    created.close()
+    genesis_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=0,
+        previous_anchor_root=ZERO_ROOT_V1,
+    )
+
+    class ConcurrentForwardTipBackend(_MemoryMonotonicAnchorBackendV1):
+        def __init__(self, anchor: GlobalEconomicMonotonicAnchorV1) -> None:
+            super().__init__(anchor)
+            self.after_first_cas: Any = None
+            self.first_cas_completed = False
+
+        def compare_and_set_anchor(
+            self,
+            anchor_namespace_root: str,
+            expected_anchor_root: str,
+            successor_anchor_bytes: bytes,
+        ) -> bool:
+            advanced = super().compare_and_set_anchor(
+                anchor_namespace_root,
+                expected_anchor_root,
+                successor_anchor_bytes,
+            )
+            if advanced and not self.first_cas_completed:
+                self.first_cas_completed = True
+                if self.after_first_cas is None:
+                    raise RuntimeError("concurrent forward callback is absent")
+                self.after_first_cas()
+            return advanced
+
+    backend = ConcurrentForwardTipBackend(genesis_anchor)
+    bound_anchor = _bound_monotonic_anchor_backend_v1(genesis_anchor, backend)
+    second_outcomes: list[VerifiedDurableEconomicPublishOutcomeV1] = []
+
+    def publish_second_epoch() -> None:
+        bob = VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+            path,
+            admission,
+            _bound_receipt_verifier_v1(second_candidate)[0],
+            bound_anchor,
+        )
+        try:
+            second_outcomes.append(
+                bob.publish_economic_epoch(
+                    expected_source=bob.head,
+                    candidate=second_candidate,
+                    body_and_state=second_body,
+                )
+            )
+        finally:
+            bob.close()
+
+    backend.after_first_cas = publish_second_epoch
+    alice = VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(first_candidate)[0],
+        bound_anchor,
+    )
+
+    # Act: Alice confirms epoch one after Bob has advanced the same complete
+    # local and external histories to epoch two.
+    first_outcome = alice.publish_economic_epoch(
+        expected_source=alice.head,
+        candidate=first_candidate,
+        body_and_state=first_body,
+    )
+
+    # Assert: Alice adopts the exact current tip and the journal contains each
+    # canonical epoch bundle once.
+    observed = decode_global_economic_monotonic_anchor_v1(backend.current)
+    assert first_outcome.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    assert len(second_outcomes) == 1
+    assert second_outcomes[0].status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    assert alice.head.sequence == observed.publication_sequence == 2
+    with sqlite3.connect(path) as connection:
+        assert connection.execute("SELECT COUNT(*) FROM economic_epochs").fetchone() == (
+            2,
+        )
+    alice.close()
+
+
+def test_post_commit_control_flow_interruption_arms_same_process_recovery(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: SQLite commits one epoch, then a process-control exception crosses
+    # the lower journal acknowledgment boundary.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"anchored-post-commit-keyboard-interrupt"
+    )
+    path = tmp_path / "anchored-post-commit-keyboard-interrupt.sqlite"
+    created = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    created.close()
+    genesis_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=0,
+        previous_anchor_root=ZERO_ROOT_V1,
+    )
+    backend = _MemoryMonotonicAnchorBackendV1(genesis_anchor)
+    bound_anchor = _bound_monotonic_anchor_backend_v1(genesis_anchor, backend)
+    publisher = VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+        bound_anchor,
+    )
+    source = publisher.head
+
+    def commit_then_interrupt(
+        journal: GlobalEconomicEpochJournalV1,
+        epoch: Any,
+        cas_token: Any,
+        write_capability: DurableEconomicEpochWriteCapabilityV1,
+    ):
+        try:
+            journal._commit_epoch_with_fault_for_test_v1(
+                epoch,
+                cas_token,
+                _DurableEconomicEpochCommitFaultV1.AFTER_COMMIT_BEFORE_ACK,
+                write_capability,
+            )
+        except RuntimeError as committed_fault:
+            raise KeyboardInterrupt from committed_fault
+        raise RuntimeError("post-commit fault injection unexpectedly returned")
+
+    monkeypatch.setattr(
+        GlobalEconomicEpochJournalV1,
+        "_commit_epoch_from_verified_publisher_v1",
+        commit_then_interrupt,
+    )
+
+    # Act: preserve KeyboardInterrupt for the caller, then retry the exact epoch
+    # in the same publisher after removing the injected lower-journal fault.
+    with pytest.raises(KeyboardInterrupt):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=body,
+        )
+    monkeypatch.undo()
+    retried = publisher.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: the control-flow exception is not normalized, while exact recovery
+    # advances only the external anchor and inserts no duplicate epoch.
+    observed = decode_global_economic_monotonic_anchor_v1(backend.current)
+    assert retried.status is DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED
+    assert publisher.head.sequence == observed.publication_sequence == 1
+    publisher.close()
+
+
+@pytest.mark.parametrize(
+    "fault",
+    (
+        _DurableEconomicEpochCommitFaultV1.AFTER_BEGIN,
+        _DurableEconomicEpochCommitFaultV1.AFTER_INSERT,
+        _DurableEconomicEpochCommitFaultV1.AFTER_HEAD_UPDATE_BEFORE_COMMIT,
+    ),
+)
+def test_lower_journal_precommit_fault_preserves_error_and_no_effect(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    fault: _DurableEconomicEpochCommitFaultV1,
+) -> None:
+    # Arrange: inject each lower-journal crash boundary before SQLite commit.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=f"anchored-precommit-{fault.value}".encode("ascii")
+    )
+    path = tmp_path / f"anchored-precommit-{fault.value}.sqlite"
+    created = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    created.close()
+    genesis_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=0,
+        previous_anchor_root=ZERO_ROOT_V1,
+    )
+    backend = _MemoryMonotonicAnchorBackendV1(genesis_anchor)
+    bound_anchor = _bound_monotonic_anchor_backend_v1(genesis_anchor, backend)
+    publisher = VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+        bound_anchor,
+    )
+    source = publisher.head
+
+    def fail_before_commit(
+        journal: GlobalEconomicEpochJournalV1,
+        epoch: Any,
+        cas_token: Any,
+        write_capability: DurableEconomicEpochWriteCapabilityV1,
+    ):
+        return journal._commit_epoch_with_fault_for_test_v1(
+            epoch,
+            cas_token,
+            fault,
+            write_capability,
+        )
+
+    monkeypatch.setattr(
+        GlobalEconomicEpochJournalV1,
+        "_commit_epoch_from_verified_publisher_v1",
+        fail_before_commit,
+    )
+
+    # Act / Assert: no-commit faults preserve their original typed failure and
+    # leave both durable heads unchanged; a normal retry still commits once.
+    with pytest.raises(_SimulatedDurableEconomicEpochCrashV1, match=fault.value):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=body,
+        )
+    assert publisher.head == source
+    assert decode_global_economic_monotonic_anchor_v1(backend.current) == genesis_anchor
+    monkeypatch.undo()
+    committed = publisher.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+    assert committed.status is DurableEconomicEpochCommitStatusV1.COMMITTED
     publisher.close()
 
 
