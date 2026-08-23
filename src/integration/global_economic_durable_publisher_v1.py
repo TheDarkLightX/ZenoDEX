@@ -34,6 +34,9 @@ from ..core.global_economic_durable_activation_v1 import (
     DurableEconomicInitialStateBundleV1,
     prepare_durable_economic_initial_state_bundle_v1,
 )
+from ..core.global_economic_monotonic_anchor_v1 import (
+    GlobalEconomicMonotonicAnchorV1,
+)
 from ..core.global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from ..core.global_economic_proof_v1 import (
     EconomicEpochReceiptCandidateV1,
@@ -75,8 +78,24 @@ from .global_economic_epoch_journal_v1 import (
     _open_epoch_journal_for_verified_publisher_v1,
     _require_write_capability_v1,
 )
+from .global_economic_monotonic_anchor_v1 import (
+    BoundGlobalEconomicMonotonicAnchorBackendV1,
+    GlobalEconomicMonotonicAnchorProtocolViolationV1,
+    GlobalEconomicMonotonicAnchorUnavailableV1,
+    build_global_economic_epoch_anchor_successor_v1,
+    global_economic_monotonic_anchor_publication_head_v1,
+    require_global_economic_monotonic_anchor_matches_local_v1,
+)
 
 _DURABLE_PUBLISHER_MINT_V1 = object()
+
+
+class GlobalEconomicRollbackDetectedV1(ValueError):
+    """Local durable heads disagree with the external monotonic checkpoint."""
+
+
+class GlobalEconomicAnchorAdvanceIndeterminateV1(RuntimeError):
+    """The local epoch committed, while external anchor advancement is unknown."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -288,6 +307,45 @@ def _stale_outcome_v1(
     )
 
 
+def _classify_monotonic_anchor_open_v1(
+    anchor: GlobalEconomicMonotonicAnchorV1,
+    *,
+    authority: GlobalEconomicAuthorityHeadV1,
+    publication: DurableEconomicPublicationHeadV1,
+    predecessor: DurableEconomicPublicationHeadV1 | None,
+) -> DurableEconomicPublicationHeadV1 | None:
+    """Return the sole recovery source, or reject rollback/divergence."""
+
+    try:
+        require_global_economic_monotonic_anchor_matches_local_v1(
+            anchor,
+            authority=authority,
+            publication=publication,
+        )
+        return None
+    except ValueError as exact_mismatch:
+        if predecessor is None:
+            raise GlobalEconomicRollbackDetectedV1(
+                "durable publisher monotonic anchor/local head mismatch"
+            ) from exact_mismatch
+        try:
+            require_global_economic_monotonic_anchor_matches_local_v1(
+                anchor,
+                authority=authority,
+                publication=predecessor,
+            )
+            build_global_economic_epoch_anchor_successor_v1(
+                anchor,
+                authority=authority,
+                publication=publication,
+            )
+        except (TypeError, ValueError) as recovery_mismatch:
+            raise GlobalEconomicRollbackDetectedV1(
+                "durable publisher monotonic anchor rollback or divergence detected"
+            ) from recovery_mismatch
+        return predecessor
+
+
 class VerifiedDurableEconomicPublisherV1:
     """Sealed unmounted verifier-to-SQLite publication capability."""
 
@@ -296,6 +354,9 @@ class VerifiedDurableEconomicPublisherV1:
         "__binding_token",
         "__journal",
         "__lock",
+        "__monotonic_anchor",
+        "__monotonic_anchor_backend",
+        "__monotonic_anchor_recovery_source",
         "__profile",
         "__receipt_verifier",
         "__receipt_verifier_binding_root",
@@ -307,6 +368,9 @@ class VerifiedDurableEconomicPublisherV1:
     __binding_token: object
     __journal: GlobalEconomicEpochJournalV1
     __lock: Lock
+    __monotonic_anchor: GlobalEconomicMonotonicAnchorV1 | None
+    __monotonic_anchor_backend: BoundGlobalEconomicMonotonicAnchorBackendV1 | None
+    __monotonic_anchor_recovery_source: DurableEconomicPublicationHeadV1 | None
     __profile: EconomicProfileSnapshotV1
     __receipt_verifier: BoundEconomicReceiptVerifierV1
     __receipt_verifier_binding_root: str
@@ -322,12 +386,34 @@ class VerifiedDurableEconomicPublisherV1:
         profile: EconomicProfileSnapshotV1,
         receipt_verifier: BoundEconomicReceiptVerifierV1,
         activation_id: str,
+        monotonic_anchor_backend: BoundGlobalEconomicMonotonicAnchorBackendV1
+        | None = None,
+        monotonic_anchor: GlobalEconomicMonotonicAnchorV1 | None = None,
+        monotonic_anchor_recovery_source: DurableEconomicPublicationHeadV1
+        | None = None,
     ) -> None:
         if mint is not _DURABLE_PUBLISHER_MINT_V1:
             raise TypeError("durable publisher is factory-constructed")
         if type(journal) is not GlobalEconomicEpochJournalV1:
             raise TypeError("durable publisher journal type is not closed")
         _require_write_capability_v1(journal, write_capability)
+        anchor_values = (monotonic_anchor_backend, monotonic_anchor)
+        if (anchor_values[0] is None) != (anchor_values[1] is None):
+            raise ValueError("durable publisher monotonic anchor binding is incomplete")
+        if monotonic_anchor_backend is not None and type(
+            monotonic_anchor_backend
+        ) is not BoundGlobalEconomicMonotonicAnchorBackendV1:
+            raise TypeError("durable publisher monotonic anchor backend is not closed")
+        if monotonic_anchor is not None and type(
+            monotonic_anchor
+        ) is not GlobalEconomicMonotonicAnchorV1:
+            raise TypeError("durable publisher monotonic anchor is not closed")
+        if monotonic_anchor_recovery_source is not None and type(
+            monotonic_anchor_recovery_source
+        ) is not DurableEconomicPublicationHeadV1:
+            raise TypeError("durable publisher anchor recovery source is not closed")
+        if monotonic_anchor_recovery_source is not None and monotonic_anchor is None:
+            raise ValueError("durable publisher anchor recovery lacks a checkpoint")
         object.__setattr__(self, "_VerifiedDurableEconomicPublisherV1__journal", journal)
         object.__setattr__(
             self,
@@ -358,6 +444,21 @@ class VerifiedDurableEconomicPublisherV1:
             self,
             "_VerifiedDurableEconomicPublisherV1__activation_id",
             activation_id,
+        )
+        object.__setattr__(
+            self,
+            "_VerifiedDurableEconomicPublisherV1__monotonic_anchor_backend",
+            monotonic_anchor_backend,
+        )
+        object.__setattr__(
+            self,
+            "_VerifiedDurableEconomicPublisherV1__monotonic_anchor",
+            monotonic_anchor,
+        )
+        object.__setattr__(
+            self,
+            "_VerifiedDurableEconomicPublisherV1__monotonic_anchor_recovery_source",
+            monotonic_anchor_recovery_source,
         )
         object.__setattr__(
             self,
@@ -423,6 +524,44 @@ class VerifiedDurableEconomicPublisherV1:
         initial_state_admission: EconomicInitialStateAdmissionV1,
         receipt_verifier: BoundEconomicReceiptVerifierV1,
     ) -> VerifiedDurableEconomicPublisherV1:
+        return cls._open_v1(
+            path,
+            initial_state_admission,
+            receipt_verifier,
+            monotonic_anchor_backend=None,
+        )
+
+    @classmethod
+    def open_with_monotonic_anchor(
+        cls,
+        path: str | Path,
+        initial_state_admission: EconomicInitialStateAdmissionV1,
+        receipt_verifier: BoundEconomicReceiptVerifierV1,
+        monotonic_anchor_backend: BoundGlobalEconomicMonotonicAnchorBackendV1,
+    ) -> VerifiedDurableEconomicPublisherV1:
+        """Open only when an external current checkpoint matches or is one behind."""
+
+        if type(
+            monotonic_anchor_backend
+        ) is not BoundGlobalEconomicMonotonicAnchorBackendV1:
+            raise TypeError("durable publisher monotonic anchor backend is not closed")
+        return cls._open_v1(
+            path,
+            initial_state_admission,
+            receipt_verifier,
+            monotonic_anchor_backend=monotonic_anchor_backend,
+        )
+
+    @classmethod
+    def _open_v1(
+        cls,
+        path: str | Path,
+        initial_state_admission: EconomicInitialStateAdmissionV1,
+        receipt_verifier: BoundEconomicReceiptVerifierV1,
+        *,
+        monotonic_anchor_backend: BoundGlobalEconomicMonotonicAnchorBackendV1
+        | None,
+    ) -> VerifiedDurableEconomicPublisherV1:
         verified = _prepare_verified_activation_v1(
             initial_state_admission,
             receipt_verifier,
@@ -447,6 +586,23 @@ class VerifiedDurableEconomicPublisherV1:
             ):
                 raise ValueError("durable publisher activation bundle mismatch")
             journal._require_current_authority_v1()
+            monotonic_anchor = None
+            recovery_source = None
+            if monotonic_anchor_backend is not None:
+                monotonic_anchor = (
+                    monotonic_anchor_backend._read_current_for_publisher_v1()
+                )
+                authority_head, publication_head, predecessor = (
+                    journal._anchor_heads_for_verified_publisher_v1(
+                        write_capability
+                    )
+                )
+                recovery_source = _classify_monotonic_anchor_open_v1(
+                    monotonic_anchor,
+                    authority=authority_head,
+                    publication=publication_head,
+                    predecessor=predecessor,
+                )
             return cls(
                 _DURABLE_PUBLISHER_MINT_V1,
                 journal,
@@ -454,6 +610,9 @@ class VerifiedDurableEconomicPublisherV1:
                 verified.profile,
                 receipt_verifier,
                 verified.bundle.record.activation_id,
+                monotonic_anchor_backend,
+                monotonic_anchor,
+                recovery_source,
             )
         except BaseException:
             journal.close()
@@ -480,6 +639,126 @@ class VerifiedDurableEconomicPublisherV1:
         with self.__lock:
             self.__journal.close()
 
+    def _require_monotonic_anchor_session_v1(
+        self,
+        source: DurableEconomicPublicationHeadV1,
+    ) -> None:
+        backend = self.__monotonic_anchor_backend
+        anchor = self.__monotonic_anchor
+        if backend is None:
+            if anchor is not None or self.__monotonic_anchor_recovery_source is not None:
+                raise RuntimeError("durable publisher monotonic anchor state is inconsistent")
+            return
+        if anchor is None:
+            raise RuntimeError("durable publisher monotonic anchor is absent")
+        observed = backend._read_current_for_publisher_v1()
+        if self.__monotonic_anchor_backend is not backend or observed != anchor:
+            raise GlobalEconomicRollbackDetectedV1(
+                "durable publisher external monotonic anchor changed"
+            )
+        authority, publication, predecessor = (
+            self.__journal._anchor_heads_for_verified_publisher_v1(
+                self.__write_capability
+            )
+        )
+        classified_recovery = _classify_monotonic_anchor_open_v1(
+            anchor,
+            authority=authority,
+            publication=publication,
+            predecessor=predecessor,
+        )
+        expected_recovery = self.__monotonic_anchor_recovery_source
+        if classified_recovery != expected_recovery:
+            raise GlobalEconomicRollbackDetectedV1(
+                "durable publisher local head changed outside its anchor session"
+            )
+        if expected_recovery is not None and not _same_publication_head_v1(
+            source,
+            expected_recovery,
+        ):
+            raise GlobalEconomicRollbackDetectedV1(
+                "durable publisher anchor recovery permits only the exact predecessor retry"
+            )
+
+    def _advance_monotonic_anchor_after_publish_v1(
+        self,
+        outcome: VerifiedDurableEconomicPublishOutcomeV1,
+    ) -> None:
+        backend = self.__monotonic_anchor_backend
+        anchor = self.__monotonic_anchor
+        committed = outcome.committed_epoch
+        if backend is None:
+            return
+        if anchor is None or committed is None:
+            raise RuntimeError("anchored durable publication lacks committed coordinates")
+        if committed.sequence < anchor.publication_sequence:
+            return
+        if committed.sequence == anchor.publication_sequence:
+            anchored_head = global_economic_monotonic_anchor_publication_head_v1(
+                anchor
+            )
+            if not _same_publication_head_v1(committed, anchored_head):
+                raise GlobalEconomicRollbackDetectedV1(
+                    "durable publisher committed history conflicts with its anchor"
+                )
+            return
+        authority, local_head, predecessor = (
+            self.__journal._anchor_heads_for_verified_publisher_v1(
+                self.__write_capability
+            )
+        )
+        if (
+            predecessor is None
+            or not _same_publication_head_v1(committed, local_head)
+            or not _same_publication_head_v1(
+                predecessor,
+                global_economic_monotonic_anchor_publication_head_v1(anchor),
+            )
+        ):
+            raise GlobalEconomicRollbackDetectedV1(
+                "durable publisher anchor advance is not one exact local epoch"
+            )
+        successor = build_global_economic_epoch_anchor_successor_v1(
+            anchor,
+            authority=authority,
+            publication=committed,
+        )
+        object.__setattr__(
+            self,
+            "_VerifiedDurableEconomicPublisherV1__monotonic_anchor_recovery_source",
+            predecessor,
+        )
+        try:
+            advanced = backend._compare_and_set_for_publisher_v1(
+                anchor,
+                successor,
+            )
+            if not advanced and backend._read_current_for_publisher_v1() != successor:
+                raise GlobalEconomicAnchorAdvanceIndeterminateV1(
+                    "local epoch committed while external monotonic anchor CAS conflicted"
+                )
+        except (
+            GlobalEconomicMonotonicAnchorProtocolViolationV1,
+            GlobalEconomicMonotonicAnchorUnavailableV1,
+        ) as exc:
+            raise GlobalEconomicAnchorAdvanceIndeterminateV1(
+                "local epoch committed before external monotonic anchor acknowledgment"
+            ) from exc
+        if self.__monotonic_anchor_backend is not backend:
+            raise GlobalEconomicAnchorAdvanceIndeterminateV1(
+                "monotonic anchor backend changed during advancement"
+            )
+        object.__setattr__(
+            self,
+            "_VerifiedDurableEconomicPublisherV1__monotonic_anchor",
+            successor,
+        )
+        object.__setattr__(
+            self,
+            "_VerifiedDurableEconomicPublisherV1__monotonic_anchor_recovery_source",
+            None,
+        )
+
     def publish_economic_epoch(
         self,
         *,
@@ -496,6 +775,7 @@ class VerifiedDurableEconomicPublisherV1:
         owned_body = _snapshot_body_and_state_v1(body_and_state)
 
         with self.__lock:
+            self._require_monotonic_anchor_session_v1(source)
             selected_profile = snapshot_economic_profile_v1(self.__profile)
             if selected_profile.status is not ProfileStatusV1.ACTIVE:
                 raise ValueError("durable publisher profile is not active")
@@ -582,7 +862,14 @@ class VerifiedDurableEconomicPublisherV1:
                     self.__write_capability,
                 )
             )
-            return self._outcome_v1(journal_outcome, published)
+            outcome = self._outcome_v1(journal_outcome, published)
+            successful = {
+                DurableEconomicEpochCommitStatusV1.COMMITTED,
+                DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED,
+            }
+            if outcome.status in successful:
+                self._advance_monotonic_anchor_after_publish_v1(outcome)
+            return outcome
 
     @staticmethod
     def _outcome_v1(
@@ -602,6 +889,8 @@ class VerifiedDurableEconomicPublisherV1:
 
 
 __all__ = [
+    "GlobalEconomicAnchorAdvanceIndeterminateV1",
+    "GlobalEconomicRollbackDetectedV1",
     "VerifiedDurableEconomicPublishOutcomeV1",
     "VerifiedDurableEconomicPublisherV1",
 ]

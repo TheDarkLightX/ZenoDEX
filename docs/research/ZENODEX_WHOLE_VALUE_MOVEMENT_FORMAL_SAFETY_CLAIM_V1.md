@@ -809,6 +809,18 @@ binding, plus one atomic migration transaction that installs the new
 activation, matching authority successor, profile, writer epoch, and old-writer
 retirement.
 
+The `GlobalEconomicMonotonicAnchorV1` shadow slice now defines the complete
+authority/publication checkpoint and an optional publisher profile. It rejects
+restored authority bytes and an epoch tip behind the externally observed tip.
+If SQLite is exactly one ordinary epoch ahead, only byte-identical verified
+retry of that committed epoch may advance the external checkpoint. This closes
+the two saved-byte traces only under an independently authenticated, current,
+monotonic, linearizable backend assumption. The repository supplies a measured
+shadow port and in-memory test backend, with no concrete external service,
+production release selection, genesis initialization, authority-successor
+anchor protocol, atomic migration retirement, or sole-writer mount. The formal
+whole-value-movement claim therefore remains `UNPROVED`.
+
 Atomic no-replace install prevents the creator from opening a pre-existing
 final pathname writable. Advisory locking coordinates participating installers.
 A noncooperating same-UID process can still race the namespace, and an open

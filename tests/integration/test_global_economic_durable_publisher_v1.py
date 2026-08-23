@@ -24,8 +24,12 @@ from src.core.economic_receipt_verifier_registry_v1 import (
 from src.core.global_economic_durable_activation_v1 import (
     prepare_durable_economic_initial_state_bundle_v1,
 )
+from src.core.global_economic_monotonic_anchor_v1 import (
+    GlobalEconomicMonotonicAnchorV1,
+    decode_global_economic_monotonic_anchor_v1,
+)
 from src.core.global_economic_proof_v1 import EconomicEpochReceiptCandidateV1
-from src.core.global_settlement_types_v1 import hash_global_v1
+from src.core.global_settlement_types_v1 import ZERO_ROOT_V1, hash_global_v1
 from src.integration.global_economic_authority_journal_v1 import (
     GlobalEconomicAuthorityBootstrapBusyV1,
     GlobalEconomicAuthorityCommitStatusV1,
@@ -34,6 +38,7 @@ from src.integration.global_economic_authority_journal_v1 import (
 )
 from src.integration.global_economic_commit_v1 import EconomicEpochBodyAndStateV1
 from src.integration.global_economic_durable_publisher_v1 import (
+    GlobalEconomicAnchorAdvanceIndeterminateV1,
     VerifiedDurableEconomicPublisherV1,
     VerifiedDurableEconomicPublishOutcomeV1,
 )
@@ -44,6 +49,15 @@ from src.integration.global_economic_epoch_journal_v1 import (
 from src.integration.global_economic_migration_journal_v1 import (
     DurableEconomicCommitStatusV1,
     GlobalEconomicMigrationJournalV1,
+)
+from src.integration.global_economic_monotonic_anchor_v1 import (
+    GlobalEconomicMonotonicAnchorBackendEvidenceStatusV1,
+    GlobalEconomicMonotonicAnchorBackendReleaseV1,
+    GlobalEconomicMonotonicAnchorBackendStatusV1,
+    bind_global_economic_monotonic_anchor_backend_v1,
+    build_global_economic_monotonic_anchor_v1,
+    global_economic_monotonic_anchor_backend_implementation_root_v1,
+    global_economic_monotonic_anchor_backend_protocol_root_v1,
 )
 from tests.core.test_economic_receipt_verifier_release_v1 import (
     _ARTIFACT_BYTES,
@@ -128,6 +142,87 @@ def _publisher_fixture_v1(*, receipt_bytes: bytes = b"durable-publisher-epoch"):
     )
     admission = _initial_state_admission(candidate.profile, candidate.pre_state)
     return admission, candidate, body
+
+
+class _MemoryMonotonicAnchorBackendV1:
+    def __init__(self, anchor: GlobalEconomicMonotonicAnchorV1) -> None:
+        self.current = anchor.canonical_bytes
+        self.fail_next_cas = False
+        self.reject_next_cas = False
+
+    def read_current_anchor(self, anchor_namespace_root: str) -> bytes:
+        return self.current
+
+    def compare_and_set_anchor(
+        self,
+        anchor_namespace_root: str,
+        expected_anchor_root: str,
+        successor_anchor_bytes: bytes,
+    ) -> bool:
+        if self.fail_next_cas:
+            self.fail_next_cas = False
+            raise OSError("simulated external anchor outage after local commit")
+        if self.reject_next_cas:
+            self.reject_next_cas = False
+            return False
+        current = decode_global_economic_monotonic_anchor_v1(self.current)
+        if current.anchor_root != expected_anchor_root:
+            return False
+        self.current = successor_anchor_bytes
+        return True
+
+
+def _bound_monotonic_anchor_backend_v1(
+    anchor: GlobalEconomicMonotonicAnchorV1,
+    backend: _MemoryMonotonicAnchorBackendV1,
+):
+    artifact = b"publisher-monotonic-anchor-backend-v1"
+    release = GlobalEconomicMonotonicAnchorBackendReleaseV1.build(
+        semantic_version="1.0.0-shadow",
+        implementation_root=(
+            global_economic_monotonic_anchor_backend_implementation_root_v1(
+                artifact
+            )
+        ),
+        specification_root=_root(930),
+        source_root=_root(931),
+        toolchain_root=_root(932),
+        evidence_manifest_root=_root(933),
+        backend_protocol_root=(
+            global_economic_monotonic_anchor_backend_protocol_root_v1()
+        ),
+        status=GlobalEconomicMonotonicAnchorBackendStatusV1.SHADOW,
+        evidence_statuses=tuple(GlobalEconomicMonotonicAnchorBackendEvidenceStatusV1),
+    )
+    return bind_global_economic_monotonic_anchor_backend_v1(
+        release=release,
+        measured_artifact_bytes=artifact,
+        anchor_namespace_root=anchor.anchor_namespace_root,
+        chain_id=anchor.chain_id,
+        deployment_root=anchor.deployment_root,
+        backend=backend,
+    )
+
+
+def _anchor_for_path_v1(
+    path: Path,
+    *,
+    anchor_sequence: int,
+    previous_anchor_root: str,
+) -> GlobalEconomicMonotonicAnchorV1:
+    with GlobalEconomicAuthorityJournalV1.open(
+        authority_journal_path_for_epoch_v1(path)
+    ) as authority_journal:
+        authority = authority_journal.head
+    with GlobalEconomicEpochJournalV1.open(path) as epoch_journal:
+        publication = epoch_journal.head
+    return build_global_economic_monotonic_anchor_v1(
+        anchor_namespace_root=_root(929),
+        anchor_sequence=anchor_sequence,
+        previous_anchor_root=previous_anchor_root,
+        authority=authority,
+        publication=publication,
+    )
 
 
 def test_create_publish_reopen_and_exact_retry_are_one_durable_history(
@@ -810,6 +905,256 @@ def test_restored_pre_revocation_authority_remains_a_release_blocker(
     assert revoked.status is GlobalEconomicAuthorityCommitStatusV1.COMMITTED
     assert published.status is DurableEconomicEpochCommitStatusV1.COMMITTED
     resurrected.close()
+
+
+def test_monotonic_anchor_rejects_restored_pre_revocation_authority_bytes(
+    tmp_path: Path,
+) -> None:
+    # Arrange: an externally retained checkpoint advances to the revoked head.
+    admission, candidate, _ = _publisher_fixture_v1(
+        receipt_bytes=b"anchored-authority-rollback"
+    )
+    path = tmp_path / "anchored-authority-rollback.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    publisher.close()
+    authority_path = authority_journal_path_for_epoch_v1(path)
+    active_bytes = authority_path.read_bytes()
+    active_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=0,
+        previous_anchor_root=ZERO_ROOT_V1,
+    )
+    with GlobalEconomicAuthorityJournalV1.open(authority_path) as authority:
+        revoked = authority._commit_successor_for_unmounted_control_plane_v1(
+            authority.head.revoked_successor(),
+            authority._acquire_cas_head_token_for_unmounted_control_plane_v1(),
+        )
+    revoked_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=1,
+        previous_anchor_root=active_anchor.anchor_root,
+    )
+    backend = _MemoryMonotonicAnchorBackendV1(revoked_anchor)
+    bound_anchor = _bound_monotonic_anchor_backend_v1(revoked_anchor, backend)
+
+    # Act: Mallory restores the valid generation-zero authority database.
+    authority_path.write_bytes(active_bytes)
+    restored_bytes = authority_path.read_bytes()
+
+    # Assert: the external authority coordinates reject before a writer reopens.
+    assert revoked.status is GlobalEconomicAuthorityCommitStatusV1.COMMITTED
+    with pytest.raises(ValueError, match="monotonic anchor"):
+        VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+            path,
+            admission,
+            _bound_receipt_verifier_v1(candidate)[0],
+            bound_anchor,
+        )
+    assert authority_path.read_bytes() == restored_bytes
+
+
+def test_monotonic_anchor_rejects_epoch_only_rollback_without_mutation(
+    tmp_path: Path,
+) -> None:
+    # Arrange: the external checkpoint observes the first committed epoch.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"anchored-epoch-rollback"
+    )
+    path = tmp_path / "anchored-epoch-rollback.sqlite"
+    publisher = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    sequence_zero_bytes = path.read_bytes()
+    committed = publisher.publish_economic_epoch(
+        expected_source=publisher.head,
+        candidate=candidate,
+        body_and_state=body,
+    )
+    publisher.close()
+    committed_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=1,
+        previous_anchor_root=_root(934),
+    )
+    backend = _MemoryMonotonicAnchorBackendV1(committed_anchor)
+    bound_anchor = _bound_monotonic_anchor_backend_v1(committed_anchor, backend)
+
+    # Act: restore only the sequence-zero epoch bytes.
+    path.write_bytes(sequence_zero_bytes)
+    restored_bytes = path.read_bytes()
+
+    # Assert: no duplicate writer can reopen under the newer external checkpoint.
+    assert committed.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    with pytest.raises(ValueError, match="monotonic anchor"):
+        VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+            path,
+            admission,
+            _bound_receipt_verifier_v1(candidate)[0],
+            bound_anchor,
+        )
+    assert path.read_bytes() == restored_bytes
+
+
+def test_monotonic_anchor_advances_after_one_durable_epoch_commit(
+    tmp_path: Path,
+) -> None:
+    # Arrange: an independently stored checkpoint exactly matches genesis.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"anchored-normal-publication"
+    )
+    path = tmp_path / "anchored-normal-publication.sqlite"
+    created = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    created.close()
+    genesis_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=0,
+        previous_anchor_root=ZERO_ROOT_V1,
+    )
+    backend = _MemoryMonotonicAnchorBackendV1(genesis_anchor)
+    bound_anchor = _bound_monotonic_anchor_backend_v1(genesis_anchor, backend)
+    publisher = VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+        bound_anchor,
+    )
+
+    # Act
+    committed = publisher.publish_economic_epoch(
+        expected_source=publisher.head,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: success is returned only after the external CAS observes the tip.
+    observed = decode_global_economic_monotonic_anchor_v1(backend.current)
+    assert committed.status is DurableEconomicEpochCommitStatusV1.COMMITTED
+    assert observed.publication_id == committed.committed_epoch.publication_id
+    assert observed.publication_sequence == 1
+    assert observed.previous_anchor_root == genesis_anchor.anchor_root
+    publisher.close()
+
+
+def test_post_commit_anchor_outage_recovers_only_by_exact_epoch_retry(
+    tmp_path: Path,
+) -> None:
+    # Arrange: the backend fails once after the local epoch linearization point.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"anchored-post-commit-recovery"
+    )
+    path = tmp_path / "anchored-post-commit-recovery.sqlite"
+    created = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    created.close()
+    genesis_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=0,
+        previous_anchor_root=ZERO_ROOT_V1,
+    )
+    backend = _MemoryMonotonicAnchorBackendV1(genesis_anchor)
+    backend.fail_next_cas = True
+    bound_anchor = _bound_monotonic_anchor_backend_v1(genesis_anchor, backend)
+    first = VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+        bound_anchor,
+    )
+    source = first.head
+
+    # Act: local commit succeeds, external CAS is indeterminate, then exact retry.
+    with pytest.raises(GlobalEconomicAnchorAdvanceIndeterminateV1):
+        first.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=body,
+        )
+    assert first.head.sequence == 1
+    assert decode_global_economic_monotonic_anchor_v1(backend.current) == genesis_anchor
+    first.close()
+    recovering = VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+        bound_anchor,
+    )
+    retried = recovering.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: one history remains and the external checkpoint catches up exactly.
+    observed = decode_global_economic_monotonic_anchor_v1(backend.current)
+    assert retried.status is DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED
+    assert observed.publication_id == retried.committed_epoch.publication_id
+    assert observed.publication_sequence == 1
+    assert recovering.head == retried.committed_epoch
+    recovering.close()
+
+
+def test_post_commit_stale_anchor_cas_is_typed_indeterminate_and_no_double_commit(
+    tmp_path: Path,
+) -> None:
+    # Arrange: the external compare-and-set reports a stale expected root.
+    admission, candidate, body = _publisher_fixture_v1(
+        receipt_bytes=b"anchored-stale-cas-recovery"
+    )
+    path = tmp_path / "anchored-stale-cas-recovery.sqlite"
+    created = VerifiedDurableEconomicPublisherV1.create(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+    )
+    created.close()
+    genesis_anchor = _anchor_for_path_v1(
+        path,
+        anchor_sequence=0,
+        previous_anchor_root=ZERO_ROOT_V1,
+    )
+    backend = _MemoryMonotonicAnchorBackendV1(genesis_anchor)
+    backend.reject_next_cas = True
+    bound_anchor = _bound_monotonic_anchor_backend_v1(genesis_anchor, backend)
+    publisher = VerifiedDurableEconomicPublisherV1.open_with_monotonic_anchor(
+        path,
+        admission,
+        _bound_receipt_verifier_v1(candidate)[0],
+        bound_anchor,
+    )
+    source = publisher.head
+
+    # Act
+    with pytest.raises(GlobalEconomicAnchorAdvanceIndeterminateV1):
+        publisher.publish_economic_epoch(
+            expected_source=source,
+            candidate=candidate,
+            body_and_state=body,
+        )
+    recovered = publisher.publish_economic_epoch(
+        expected_source=source,
+        candidate=candidate,
+        body_and_state=body,
+    )
+
+    # Assert: retry observes one committed row and advances only the anchor.
+    observed = decode_global_economic_monotonic_anchor_v1(backend.current)
+    assert recovered.status is DurableEconomicEpochCommitStatusV1.ALREADY_COMMITTED
+    assert publisher.head.sequence == observed.publication_sequence == 1
+    assert publisher.head.publication_id == observed.publication_id
+    publisher.close()
 
 
 def test_replaced_authority_inode_remains_open_publisher_release_blocker(

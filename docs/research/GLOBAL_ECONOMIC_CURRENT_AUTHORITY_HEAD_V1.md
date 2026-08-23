@@ -19,6 +19,13 @@ authority update and publication use the same unchanged authority file and the
 verifier-owned durable publisher path. Actual migration, backup rollback,
 authority-file replacement, and copied deployment histories remain open.
 
+The optional `open_with_monotonic_anchor` shadow profile now binds this local
+authority and the epoch tip to `GlobalEconomicMonotonicAnchorV1`. Under the
+explicit assumption that its backend is independently durable, authenticated,
+current, monotonic, and linearizable, restored authority bytes and epoch-only
+rollback reject before another commit. A local file does not satisfy that
+assumption. The unanchored APIs and all production claims remain unchanged.
+
 ## Authority value
 
 `GlobalEconomicAuthorityHeadV1` commits:
@@ -187,8 +194,8 @@ Removing the shared authority comparison or moving it outside the attached CAS
 transaction causes these tests to expose an unauthorized epoch. Mutation
 tooling was not run for this slice.
 
-Four passing tests intentionally preserve open disaster states as executable
-release blockers:
+Four passing unanchored tests intentionally preserve open disaster states as
+executable release blockers:
 
 - restoring pre-revocation authority-file bytes reopens and publishes through
   the old writer;
@@ -200,6 +207,11 @@ release blockers:
   able to publish.
 
 Their passing result records reproducibility. It supplies no safety claim.
+The anchored shadow profile adds negative regressions for the first two traces
+and one-step exact-retry recovery after a local epoch commit precedes external
+anchor acknowledgment. The inode-replacement and separate-migration traces
+remain open because no authenticated deployed anchor or atomic migration
+retirement protocol exists.
 
 ## Nonclaims and remaining gaps
 
@@ -211,8 +223,10 @@ Their passing result records reproducibility. It supplies no safety claim.
   through an unchanged old authority file. No constructible successor publisher
   mounts the migrated generation.
 - Copying or restoring both databases, restoring old authority bytes, or
-  replacing an authority inode for an already-open process is not prevented by
-  this reference design.
+  replacing an authority inode remains possible through the unanchored research
+  APIs. The optional anchored profile rejects the first two only when its
+  external-currentness assumption is genuinely enforced. No such deployed
+  backend exists in this repository.
 - Same-process private writer access remains a demonstrated release blocker.
 - No OS-isolated sole writer, executable attestation, objective finality, real
   RISC0 replay, Rust parity, or production mount is established.

@@ -703,6 +703,64 @@ class GlobalEconomicEpochJournalV1:
                 _rollback_v1(self._connection)
                 raise
 
+    def _anchor_heads_for_verified_publisher_v1(
+        self,
+        write_capability: DurableEconomicEpochWriteCapabilityV1,
+    ) -> tuple[
+        GlobalEconomicAuthorityHeadV1,
+        DurableEconomicPublicationHeadV1,
+        DurableEconomicPublicationHeadV1 | None,
+    ]:
+        """Read authority, tip, and direct predecessor in one DB snapshot."""
+
+        _require_write_capability_v1(self, write_capability)
+        with self._lock:
+            self._require_open_v1()
+            self._connection.execute("BEGIN")
+            try:
+                current = self._validate_store_v1()
+                authority = _validate_authority_store_on_connection_v1(
+                    self._connection,
+                    database="economic_authority",
+                )
+                activation = self._read_activation_v1()
+                predecessor = self._direct_predecessor_under_transaction_v1(
+                    current,
+                    activation,
+                )
+                self._connection.execute("COMMIT")
+                return authority, current, predecessor
+            except BaseException:
+                _rollback_v1(self._connection)
+                raise
+
+    def _direct_predecessor_under_transaction_v1(
+        self,
+        current: DurableEconomicPublicationHeadV1,
+        activation: DurableEconomicInitialStateBundleV1,
+    ) -> DurableEconomicPublicationHeadV1 | None:
+        if current.sequence == 0:
+            return None
+        row = self._connection.execute(
+            "SELECT publication_id, commit_id, sequence_decimal, bundle_bytes "
+            "FROM economic_epochs WHERE publication_id = ?",
+            (current.publication_id,),
+        ).fetchone()
+        if row is None:
+            raise RuntimeError("durable epoch current publication row is absent")
+        epoch = self._decode_epoch_row_v1(row)
+        source_id = epoch.record.source_publication_id
+        if source_id == activation.record.activation_id:
+            return DurableEconomicPublicationHeadV1.from_activation(activation.head)
+        source_row = self._connection.execute(
+            "SELECT publication_id, commit_id, sequence_decimal, bundle_bytes "
+            "FROM economic_epochs WHERE publication_id = ?",
+            (source_id,),
+        ).fetchone()
+        if source_row is None:
+            raise RuntimeError("durable epoch predecessor row is absent")
+        return self._decode_epoch_row_v1(source_row).head
+
     def acquire_cas_head_token(self) -> DurableEconomicEpochCasTokenV1:
         with self._lock:
             self._require_open_v1()
