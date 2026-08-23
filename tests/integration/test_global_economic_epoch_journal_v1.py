@@ -54,6 +54,7 @@ from src.integration.global_economic_durable_epoch_v1 import (
 )
 from src.integration.global_economic_epoch_journal_v1 import (
     DurableEconomicEpochBootstrapBusyV1,
+    DurableEconomicEpochBootstrapPlatformUnsupportedV1,
     DurableEconomicEpochCasTokenV1,
     DurableEconomicEpochCommitOutcomeV1,
     DurableEconomicEpochCommitStatusV1,
@@ -916,6 +917,82 @@ def test_epoch_bootstrap_recovery_rejects_lookalike_or_wrong_activation(
     assert candidate.exists()
     assert linked.exists()
     assert candidate.stat().st_ino == linked.stat().st_ino
+    assert candidate.stat().st_nlink == 2
+
+
+def test_epoch_bootstrap_recovery_rejects_paired_fifos_promptly(
+    tmp_path: Path,
+) -> None:
+    # Arrange: both final and reserved names are private FIFOs, which would
+    # block a read-open before metadata validation.
+    activation, _, _ = _fixture_v1()
+    candidate = tmp_path / ".global-economic-epoch-bootstrap-v1.sqlite"
+    target = tmp_path / "paired-fifo-epoch.sqlite"
+    os.mkfifo(candidate, mode=0o600)
+    os.mkfifo(target, mode=0o600)
+    errors: list[BaseException] = []
+
+    def create() -> None:
+        try:
+            GlobalEconomicEpochJournalV1.create(target, activation)
+        except BaseException as exc:
+            errors.append(exc)
+
+    # Act: require a prompt result instead of allowing a directory-lock wedge.
+    worker = Thread(target=create, daemon=True)
+    worker.start()
+    worker.join(timeout=1)
+
+    # Assert: O_PATH metadata rejection is closed and non-mutating.
+    assert not worker.is_alive()
+    assert len(errors) == 1
+    assert type(errors[0]) is RuntimeError
+    assert "not a regular file" in str(errors[0])
+    assert stat.S_ISFIFO(candidate.lstat().st_mode)
+    assert stat.S_ISFIFO(target.lstat().st_mode)
+
+
+def test_epoch_linked_recovery_has_explicit_shared_uid_and_platform_ceiling(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: another current-UID process can construct an exact valid pair;
+    # provenance is outside this bounded cooperative recovery contract.
+    activation, _, _ = _fixture_v1()
+    candidate = tmp_path / ".global-economic-epoch-bootstrap-v1.sqlite"
+    target = tmp_path / "prebuilt-epoch-pair.sqlite"
+    journal_module._initialize_epoch_candidate_v1(
+        candidate,
+        activation,
+        authority_path=None,
+        expected_authority=None,
+    )
+    os.link(candidate, target)
+
+    # Act and assert: exact current-UID prebuilt state is recoverable at the
+    # declared cooperative ceiling, independent of install provenance.
+    recovered = GlobalEconomicEpochJournalV1.create(target, activation)
+    assert recovered.activation_bundle == activation
+    recovered.close()
+    assert not candidate.exists()
+
+    # Arrange: rebuild the pair and remove the required platform primitive.
+    unsupported_target = tmp_path / "unsupported-epoch-pair.sqlite"
+    journal_module._initialize_epoch_candidate_v1(
+        candidate,
+        activation,
+        authority_path=None,
+        expected_authority=None,
+    )
+    os.link(candidate, unsupported_target)
+
+    # Act and assert: unsupported descriptor recovery is typed and preserves
+    # both names rather than falling back to path-based adoption.
+    monkeypatch.delattr(journal_module.os, "O_PATH")
+    with pytest.raises(DurableEconomicEpochBootstrapPlatformUnsupportedV1):
+        GlobalEconomicEpochJournalV1.create(unsupported_target, activation)
+    assert candidate.exists()
+    assert unsupported_target.exists()
     assert candidate.stat().st_nlink == 2
 
 

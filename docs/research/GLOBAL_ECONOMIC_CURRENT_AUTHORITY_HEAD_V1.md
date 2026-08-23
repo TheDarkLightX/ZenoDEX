@@ -65,11 +65,15 @@ current authority. First installation builds and validates a private
 same-directory SQLite candidate, fsyncs it, links it to the final name with
 atomic no-replace semantics, fsyncs the directory, and removes the candidate.
 A cooperating concurrent installer receives a typed bootstrap-busy exception.
-Pre-existing empty, malformed, SQLite, hardlinked, directory, symlink, and FIFO
-entries are never adopted. Final stores require current-process ownership,
-mode `0600`, and one filesystem link. A differently named second epoch file
-derives a different epoch-store root and fails before its database is created.
-Open checks the exact activation bundle and current authority.
+An occupied final name without the exact reserved recovery pair is never
+adopted. An exact current-UID `0600` two-name hardlink pair with the complete
+expected sequence-zero store is recoverable regardless of its install
+provenance; exclusive directory ownership is outside this shared-UID model.
+Recovery requires Linux `O_PATH` and usable `/proc/self/fd`, otherwise it returns
+a typed unsupported-platform rejection. Final stores require current-process
+ownership, mode `0600`, and one filesystem link. A differently named second
+epoch file derives a different epoch-store root and fails before its database
+is created. Open checks the exact activation bundle and current authority.
 
 The epoch journal attaches the authority database to the same SQLite connection.
 Its CAS token snapshots both the economic publication head and authority
@@ -146,8 +150,9 @@ individual functions reviewable.
 - durable commit, reopen, and exact retry;
 - deterministic concurrent authority, epoch, and verified-publisher creation,
   with one complete install plus typed bootstrap-busy rejection;
-- no-replace rejection of pre-existing empty, valid-empty-SQLite, malformed,
-  hardlinked, directory, and FIFO entries without mutation;
+- no-replace rejection of occupied final names without an exact valid reserved
+  recovery pair, including empty, valid-empty-SQLite, malformed, hardlinked,
+  directory, and FIFO entries, without mutation;
 - exact owner, `0600` mode, and single-link enforcement on reopen;
 - typed non-mutating rejection of legacy `0644` authority and epoch stores;
 - crash-left unlinked bootstrap-candidate rejection without deletion or adoption;
@@ -155,6 +160,10 @@ individual functions reviewable.
   candidate unlink, and second directory fsync boundaries;
 - rejection without mutation of byte-identical separate inodes, wrong authority
   heads, and wrong activation bundles during linked-name recovery;
+- prompt nonblocking rejection of paired FIFO recovery names;
+- typed non-mutating rejection when Linux `O_PATH` recovery is unavailable;
+- explicit evidence that an exact current-UID prebuilt hardlink pair is
+  recoverable at the cooperative research ceiling;
 - stale historical-authority retry;
 - one-row emergency-revocation reserve at the capacity boundary;
 - pre-decode byte bounds;
@@ -212,6 +221,10 @@ Their passing result records reproducibility. It supplies no safety claim.
   tested cooperating same-path race and process-level post-link crash points
   are bounded by advisory directory locking, descriptor-bound candidate
   validation, and atomic no-replace install.
+- Descriptor-bound linked recovery is Linux/procfs-specific. A shared-UID peer
+  can prebuild an exact accepted pair because no authenticated install-intent
+  marker exists; production requires exclusive OS-level directory ownership or
+  an authenticated intent mechanism.
 - The tests are bounded evidence. They are not a proof of whole-economy value
   movement safety.
 

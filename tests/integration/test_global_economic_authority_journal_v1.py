@@ -21,6 +21,7 @@ from src.core.global_economic_authority_head_v1 import (
 )
 from src.integration.global_economic_authority_journal_v1 import (
     GlobalEconomicAuthorityBootstrapBusyV1,
+    GlobalEconomicAuthorityBootstrapPlatformUnsupportedV1,
     GlobalEconomicAuthorityCommitStatusV1,
     GlobalEconomicAuthorityJournalV1,
     GlobalEconomicAuthorityLegacyStoreMigrationRequiredV1,
@@ -427,6 +428,71 @@ def test_authority_bootstrap_recovery_rejects_lookalike_or_wrong_head(
     assert candidate.exists()
     assert linked.exists()
     assert candidate.stat().st_ino == linked.stat().st_ino
+    assert candidate.stat().st_nlink == 2
+
+
+def test_authority_bootstrap_recovery_rejects_paired_fifos_promptly(
+    tmp_path: Path,
+) -> None:
+    # Arrange: Mallory occupies both recovery names with private FIFOs. A
+    # blocking read-open would wedge while holding the directory lock.
+    candidate = tmp_path / ".global-economic-authority-bootstrap-v1.sqlite"
+    target = tmp_path / "paired-fifo-authority.sqlite"
+    os.mkfifo(candidate, mode=0o600)
+    os.mkfifo(target, mode=0o600)
+    errors: list[BaseException] = []
+
+    def create() -> None:
+        try:
+            GlobalEconomicAuthorityJournalV1.create(target, _head())
+        except BaseException as exc:
+            errors.append(exc)
+
+    # Act: bounded join distinguishes prompt rejection from a blocked open.
+    worker = Thread(target=create, daemon=True)
+    worker.start()
+    worker.join(timeout=1)
+
+    # Assert: type checking occurs through nonblocking identity descriptors and
+    # leaves both special files untouched.
+    assert not worker.is_alive()
+    assert len(errors) == 1
+    assert type(errors[0]) is RuntimeError
+    assert "not a regular file" in str(errors[0])
+    assert stat.S_ISFIFO(candidate.lstat().st_mode)
+    assert stat.S_ISFIFO(target.lstat().st_mode)
+
+
+def test_authority_linked_recovery_has_explicit_shared_uid_and_platform_ceiling(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: a current-UID process prebuilds the exact valid two-name pair.
+    active = _head()
+    candidate = tmp_path / ".global-economic-authority-bootstrap-v1.sqlite"
+    target = tmp_path / "prebuilt-authority-pair.sqlite"
+    authority_journal_module._initialize_authority_candidate_v1(candidate, active)
+    os.link(candidate, target)
+
+    # Act and assert: exact state is recoverable regardless of same-UID
+    # provenance; this is an explicit research-ceiling nonclaim.
+    recovered = GlobalEconomicAuthorityJournalV1.create(target, active)
+    assert recovered.head == active
+    recovered.close()
+    assert not candidate.exists()
+
+    # Arrange: rebuild the pair, then remove the required platform primitive.
+    unsupported_target = tmp_path / "unsupported-authority-pair.sqlite"
+    authority_journal_module._initialize_authority_candidate_v1(candidate, active)
+    os.link(candidate, unsupported_target)
+
+    # Act and assert: without Linux O_PATH support recovery rejects with one
+    # typed platform boundary and does not alter either name.
+    monkeypatch.delattr(authority_journal_module.os, "O_PATH")
+    with pytest.raises(GlobalEconomicAuthorityBootstrapPlatformUnsupportedV1):
+        GlobalEconomicAuthorityJournalV1.create(unsupported_target, active)
+    assert candidate.exists()
+    assert unsupported_target.exists()
     assert candidate.stat().st_nlink == 2
 
 

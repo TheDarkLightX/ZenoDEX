@@ -220,6 +220,10 @@ class DurableEconomicEpochLegacyStoreMigrationRequiredV1(PermissionError):
     """A valid-looking legacy mode requires an explicit validated migration."""
 
 
+class DurableEconomicEpochBootstrapPlatformUnsupportedV1(RuntimeError):
+    """Descriptor-bound recovery requires Linux O_PATH and usable procfs."""
+
+
 def _normalize_path_v1(path: str | Path) -> Path:
     if type(path) is str:
         candidate = Path(path)
@@ -280,6 +284,30 @@ def _epoch_bootstrap_candidate_path_v1(path: Path) -> Path:
     return path.parent / ".global-economic-epoch-bootstrap-v1.sqlite"
 
 
+def _require_epoch_descriptor_recovery_platform_v1() -> None:
+    if not hasattr(os, "O_PATH") or not Path("/proc/self/fd").is_dir():
+        raise DurableEconomicEpochBootstrapPlatformUnsupportedV1(
+            "durable epoch bootstrap recovery requires Linux O_PATH and "
+            "/proc/self/fd"
+        )
+
+
+def _open_epoch_identity_descriptor_v1(path: Path) -> int:
+    _require_epoch_descriptor_recovery_platform_v1()
+    return os.open(path, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC)
+
+
+def _open_readable_epoch_identity_descriptor_v1(identity_fd: int) -> int:
+    readable_fd = os.open(
+        Path(f"/proc/self/fd/{identity_fd}"),
+        os.O_RDONLY | os.O_CLOEXEC,
+    )
+    if not _same_epoch_inode_v1(os.fstat(identity_fd), os.fstat(readable_fd)):
+        os.close(readable_fd)
+        raise RuntimeError("durable epoch readable recovery descriptor changed inode")
+    return readable_fd
+
+
 def _require_linked_private_epoch_inode_v1(
     metadata: os.stat_result,
     *,
@@ -318,6 +346,7 @@ def _connect_epoch_descriptor_for_validation_v1(
     file_descriptor: int,
     authority_path: Path | None,
 ) -> sqlite3.Connection:
+    _require_epoch_descriptor_recovery_platform_v1()
     descriptor_path = Path(f"/proc/self/fd/{file_descriptor}")
     connection = sqlite3.connect(
         f"{descriptor_path.as_uri()}?mode=ro&immutable=1",
@@ -342,6 +371,30 @@ def _connect_epoch_descriptor_for_validation_v1(
         connection.close()
         raise
     return connection
+
+
+def _reject_epoch_recovery_wal_artifacts_v1(
+    final_path: Path,
+    candidate_path: Path,
+    readable_fd: int,
+) -> None:
+    for path in (final_path, candidate_path):
+        for suffix in ("-wal", "-shm"):
+            try:
+                Path(f"{path}{suffix}").lstat()
+            except FileNotFoundError:
+                continue
+            raise RuntimeError("durable epoch journal rejects WAL artifacts")
+    try:
+        header = os.pread(readable_fd, 100, 0)
+    except OSError as exc:
+        raise RuntimeError("durable epoch recovery header cannot be read") from exc
+    if (
+        len(header) >= 20
+        and header[:16] == b"SQLite format 3\x00"
+        and (header[18] == 2 or header[19] == 2)
+    ):
+        raise RuntimeError("durable epoch journal rejects WAL mode")
 
 
 def _configure_connection_v1(connection: sqlite3.Connection) -> None:
@@ -1135,10 +1188,9 @@ def _recover_linked_epoch_install_v1(
 ) -> None:
     """Complete only the exact validated two-name post-link crash state."""
 
-    flags = os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
-    final_fd = os.open(path, flags)
+    final_fd = _open_epoch_identity_descriptor_v1(path)
     try:
-        candidate_fd = os.open(candidate_path, flags)
+        candidate_fd = _open_epoch_identity_descriptor_v1(candidate_path)
         try:
             final_metadata = os.fstat(final_fd)
             candidate_metadata = os.fstat(candidate_fd)
@@ -1154,35 +1206,42 @@ def _recover_linked_epoch_install_v1(
                 raise RuntimeError(
                     "durable epoch bootstrap names do not share one inode"
                 )
-            _reject_wal_artifacts_v1(path)
-            _reject_wal_artifacts_v1(candidate_path)
-            validation = GlobalEconomicEpochJournalV1(
-                path,
-                _connect_epoch_descriptor_for_validation_v1(
-                    final_fd,
-                    authority_path,
-                ),
-                expected_authority=expected_authority,
-            )
+            readable_fd = _open_readable_epoch_identity_descriptor_v1(final_fd)
             try:
-                if (
-                    validation.activation_bundle.canonical_bytes
-                    != activation.canonical_bytes
-                ):
-                    raise RuntimeError(
-                        "durable epoch bootstrap recovery activation mismatch"
-                    )
-                expected_head = DurableEconomicPublicationHeadV1.from_activation(
-                    activation.head
+                _reject_epoch_recovery_wal_artifacts_v1(
+                    path,
+                    candidate_path,
+                    readable_fd,
                 )
-                if validation.head != expected_head:
-                    raise RuntimeError(
-                        "durable epoch bootstrap recovery requires sequence zero"
+                validation = GlobalEconomicEpochJournalV1(
+                    path,
+                    _connect_epoch_descriptor_for_validation_v1(
+                        readable_fd,
+                        authority_path,
+                    ),
+                    expected_authority=expected_authority,
+                )
+                try:
+                    if (
+                        validation.activation_bundle.canonical_bytes
+                        != activation.canonical_bytes
+                    ):
+                        raise RuntimeError(
+                            "durable epoch bootstrap recovery activation mismatch"
+                        )
+                    expected_head = DurableEconomicPublicationHeadV1.from_activation(
+                        activation.head
                     )
-                if expected_authority is not None:
-                    validation._require_current_authority_v1()
+                    if validation.head != expected_head:
+                        raise RuntimeError(
+                            "durable epoch bootstrap recovery requires sequence zero"
+                        )
+                    if expected_authority is not None:
+                        validation._require_current_authority_v1()
+                finally:
+                    validation.close()
             finally:
-                validation.close()
+                os.close(readable_fd)
             _require_epoch_path_matches_fd_v1(
                 path,
                 final_fd,
@@ -1375,6 +1434,7 @@ def _mint_write_capability_for_verified_publisher_v1(
 
 __all__ = [
     "DurableEconomicEpochBootstrapBusyV1",
+    "DurableEconomicEpochBootstrapPlatformUnsupportedV1",
     "DurableEconomicEpochLegacyStoreMigrationRequiredV1",
     "DurableEconomicEpochCasTokenV1",
     "DurableEconomicEpochCommitOutcomeV1",
