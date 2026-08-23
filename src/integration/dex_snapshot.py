@@ -95,9 +95,42 @@ class DexSnapshot:
         return sha256_hex(payload)
 
 
-def snapshot_from_state(state: DexState, *, version: int = DEX_SNAPSHOT_VERSION) -> DexSnapshot:
+def _validate_lp_supply_conservation(
+    *,
+    pools: Mapping[str, PoolState],
+    lp_balances: LPTable,
+) -> None:
+    totals = {pool_id: 0 for pool_id in pools}
+    for (_pubkey, pool_id), amount in lp_balances.get_all_balances().items():
+        if pool_id not in pools:
+            raise ValueError(f"LP balance references unknown pool: {pool_id}")
+        totals[pool_id] += amount
+
+    for pool_id in sorted(pools):
+        recorded_supply = pools[pool_id].lp_supply
+        balance_supply = totals[pool_id]
+        if balance_supply != recorded_supply:
+            raise ValueError(
+                "LP supply conservation mismatch for pool "
+                f"{pool_id}: balances={balance_supply}, pool.lp_supply={recorded_supply}"
+            )
+
+
+def snapshot_from_state(
+    state: DexState,
+    *,
+    version: int = DEX_SNAPSHOT_VERSION,
+    require_lp_supply_conservation: bool = False,
+) -> DexSnapshot:
     if not isinstance(version, int) or isinstance(version, bool) or version <= 0:
         raise ValueError("version must be a positive int")
+    if type(require_lp_supply_conservation) is not bool:
+        raise TypeError("require_lp_supply_conservation must be a bool")
+    if require_lp_supply_conservation:
+        _validate_lp_supply_conservation(
+            pools=state.pools,
+            lp_balances=state.lp_balances,
+        )
 
     balances_entries = [
         {"pubkey": pk, "asset": asset, "amount": int(amount)}
@@ -393,11 +426,14 @@ def state_from_snapshot(
     max_perp_accounts: int = 200_000,
     max_str_len: int = 4096,
     require_lp_mint_timestamps: bool = False,
+    require_lp_supply_conservation: bool = False,
 ) -> DexState:
     if not isinstance(snapshot, Mapping):
         raise TypeError("snapshot must be a mapping")
     if not isinstance(snapshot, dict):
         snapshot = dict(snapshot)
+    if type(require_lp_supply_conservation) is not bool:
+        raise TypeError("require_lp_supply_conservation must be a bool")
 
     for name, v in (
         ("max_snapshot_bytes", max_snapshot_bytes),
@@ -512,6 +548,12 @@ def state_from_snapshot(
             raise ValueError("duplicate lp entry (pubkey, pool_id)")
         seen_lp.add(key)
         lp_balances.set(pk_s, pool_id_s, amount)
+
+    if require_lp_supply_conservation:
+        _validate_lp_supply_conservation(
+            pools=pools,
+            lp_balances=lp_balances,
+        )
 
     lp_mint_timestamp_entries = snapshot.get("lp_mint_timestamps")
     if version >= 3 and lp_mint_timestamp_entries is None:
@@ -794,6 +836,7 @@ def state_from_snapshot(
                             ),
                         )
 
+                    pending_root_hashes: tuple[str, ...]
                     pending_root_entries = entry.get("pending_funding_closeout_root_hashes")
                     if pending_root_entries is None:
                         pending_root_hashes = ()
@@ -810,6 +853,7 @@ def state_from_snapshot(
                             for root_hash in pending_root_entries
                         )
 
+                    pending_source_root_hashes: tuple[str, ...]
                     pending_source_root_entries = entry.get(
                         "pending_funding_closeout_source_availability_hashes"
                     )
@@ -830,6 +874,7 @@ def state_from_snapshot(
                             for root_hash in pending_source_root_entries
                         )
 
+                    pending_carried_root_hashes: tuple[str, ...]
                     pending_carried_root_entries = entry.get(
                         "pending_funding_closeout_carried_liability_hashes"
                     )
@@ -850,6 +895,7 @@ def state_from_snapshot(
                             for root_hash in pending_carried_root_entries
                         )
 
+                    policy_ledger_hashes: tuple[str, ...]
                     policy_ledger_root_entries = entry.get(
                         "funding_closeout_policy_ledger_hashes"
                     )
@@ -870,6 +916,7 @@ def state_from_snapshot(
                             for root_hash in policy_ledger_root_entries
                         )
 
+                    sink_claimant_balances: tuple[tuple[str, int], ...]
                     sink_claimant_balance_entries = entry.get(
                         "funding_closeout_sink_claimant_balances_quote"
                     )
@@ -902,6 +949,7 @@ def state_from_snapshot(
                             )
                         sink_claimant_balances = tuple(sink_claimant_balances_list)
 
+                    receiver_claim_balances: tuple[tuple[str, int], ...]
                     receiver_claim_balance_entries = entry.get(
                         "funding_closeout_receiver_claim_balances_quote"
                     )
@@ -934,6 +982,7 @@ def state_from_snapshot(
                             )
                         receiver_claim_balances = tuple(receiver_claim_balances_list)
 
+                    receiver_claim_lots: tuple[tuple[str, str, int, int], ...]
                     receiver_claim_lot_entries = entry.get(
                         "funding_closeout_receiver_claim_lots_quote"
                     )

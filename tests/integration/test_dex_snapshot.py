@@ -21,6 +21,97 @@ from src.state.lp import LPTable
 from src.state.pools import PoolState, PoolStatus
 
 
+def _lp_conserving_state() -> DexState:
+    pool_id = "0x" + "aa" * 32
+    asset0 = "0x" + "11" * 32
+    asset1 = "0x" + "22" * 32
+    lp = LPTable()
+    lp.set("alice", pool_id, 7)
+    lp.set("0x" + "00" * 48, pool_id, 3)
+    return DexState(
+        balances=BalanceTable(),
+        pools={
+            pool_id: PoolState(
+                pool_id=pool_id,
+                asset0=asset0,
+                asset1=asset1,
+                reserve0=1_000,
+                reserve1=2_000,
+                fee_bps=30,
+                lp_supply=10,
+                status=PoolStatus.ACTIVE,
+                created_at=1,
+            )
+        },
+        lp_balances=lp,
+    )
+
+
+def test_strict_snapshot_roundtrip_enforces_lp_supply_conservation() -> None:
+    state = _lp_conserving_state()
+
+    snapshot = snapshot_from_state(
+        state,
+        require_lp_supply_conservation=True,
+    )
+    restored = state_from_snapshot(
+        snapshot.data,
+        require_lp_supply_conservation=True,
+    )
+
+    assert snapshot_from_state(
+        restored,
+        require_lp_supply_conservation=True,
+    ).canonical_bytes() == snapshot.canonical_bytes()
+
+
+def test_strict_snapshot_rejects_lp_supply_mismatch_in_both_directions() -> None:
+    state = _lp_conserving_state()
+    pool_id = next(iter(state.pools))
+    state.lp_balances.set("alice", pool_id, 6)
+
+    with pytest.raises(ValueError, match="LP supply conservation mismatch"):
+        snapshot_from_state(state, require_lp_supply_conservation=True)
+
+    snapshot = snapshot_from_state(state)
+    with pytest.raises(ValueError, match="LP supply conservation mismatch"):
+        state_from_snapshot(
+            snapshot.data,
+            require_lp_supply_conservation=True,
+        )
+
+
+def test_strict_snapshot_rejects_lp_balance_for_unknown_pool() -> None:
+    state = _lp_conserving_state()
+    state.lp_balances.set("mallory", "0x" + "bb" * 32, 1)
+
+    with pytest.raises(ValueError, match="LP balance references unknown pool"):
+        snapshot_from_state(state, require_lp_supply_conservation=True)
+
+    snapshot = snapshot_from_state(state)
+    with pytest.raises(ValueError, match="LP balance references unknown pool"):
+        state_from_snapshot(
+            snapshot.data,
+            require_lp_supply_conservation=True,
+        )
+
+
+@pytest.mark.parametrize("hostile", [0, 1, None, "true"])
+def test_strict_snapshot_rejects_non_bool_conservation_flag(hostile: object) -> None:
+    state = _lp_conserving_state()
+
+    with pytest.raises(TypeError, match="require_lp_supply_conservation must be a bool"):
+        snapshot_from_state(
+            state,
+            require_lp_supply_conservation=hostile,  # type: ignore[arg-type]
+        )
+    with pytest.raises(TypeError, match="require_lp_supply_conservation must be a bool"):
+        state_from_snapshot(
+            snapshot_from_state(state).data,
+            require_lp_supply_conservation=hostile,  # type: ignore[arg-type]
+        )
+
+
 def test_snapshot_roundtrip_is_deterministic() -> None:
     balances = BalanceTable()
     lp = LPTable()
