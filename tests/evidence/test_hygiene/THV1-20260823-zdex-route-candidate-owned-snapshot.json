@@ -1,0 +1,106 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-zdex-route-candidate-owned-snapshot",
+  "created_date": "2026-08-23",
+  "claim_scope": "The pure Python ZDEX purchase-burn composer exact-checks verification-marker fields and owns the complete structured route candidate before comparison, canonicalization, recomputation, or effect composition.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZDEX-ROUTE-COMPLETE-OWNED-CANDIDATE",
+    "ZDEX-ROUTE-EXACT-MARKER-FIELDS",
+    "ZDEX-ROUTE-EXACT-JOURNAL-SCALARS",
+    "ZDEX-ROUTE-EXACT-RELEASE-SCALARS",
+    "ZDEX-ROUTE-ORDINARY-ROOT-STABILITY"
+  ],
+  "failure_modes": [
+    "a value-equal marker image subclass reaches route comparison",
+    "a value-equal journal module-release subclass reaches canonicalization",
+    "a value-equal module-release image subclass reaches release validation",
+    "a caller-owned route, occurrence, budget, policy, state, journal, or effect graph remains aliased during composition",
+    "hardening changes the ordinary accepted effect plan or composition root"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/zdex_purchase_burn_route_v1.py",
+      "sha256": "13267ecd3f1cf8e3840fde5efc9433a1d5db5344968577eaa5dce8e862e55219"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_purchase_burn_route_v1.py",
+      "sha256": "6e9ac3f33dc895c2243837a7f574d3512b6414bd993c6204762d7f6e12a1619d",
+      "node_ids": [
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_hostile_release_binding_scalar_rejects_before_composition",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_route_release_snapshot_rejects_hostile_image_scalar",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_mutated_verified_leaf_release_binding_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_foreign_module_release_record_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_python_rust_golden_composition_root_is_stable"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each hostile-value regression arranges one value-equal scalar subclass, acts through the public composer, and asserts pre-composition TypeError; release and marker substitutions assert typed empty-effect rejection; replay asserts the frozen composition root."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Hostile exact-type failures occur before effect composition, while semantic release and marker substitutions return only the canonical empty effect plan."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "marker_or_journal_scalar_runtime_type",
+      "points": [
+        "exact_builtin_accepts",
+        "value_equal_subclass_rejects_before_composition"
+      ]
+    },
+    {
+      "name": "module_release_scalar_runtime_type",
+      "points": [
+        "exact_guest_image_string_accepts",
+        "value_equal_guest_image_subclass_rejects_before_composition"
+      ]
+    },
+    {
+      "name": "ordinary_composition",
+      "points": [
+        "frozen_python_rust_root_before_snapshot",
+        "identical_frozen_root_after_snapshot"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "use marker and journal scalars without exact-type validation",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_hostile_release_binding_scalar_rejects_before_composition"
+    },
+    {
+      "description": "use caller-owned module releases without an exact owned snapshot",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_route_release_snapshot_rejects_hostile_image_scalar"
+    },
+    {
+      "description": "omit marker module-release and expected-image comparisons after snapshotting",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_mutated_verified_leaf_release_binding_rejects_without_effects"
+    },
+    {
+      "description": "accept a valid foreign same-lane module release",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_foreign_module_release_record_rejects_without_effects"
+    }
+  ],
+  "nonclaims": [
+    "This packet closes deterministic pre-call hostile-value and retained-alias attacks for the scoped Python composer; it does not prove arbitrary concurrent mutation safety.",
+    "Verification markers remain non-authoritative process-local Python objects and grant no settlement or publication authority.",
+    "Safe Rust marker fields are private and immutable, but no general Python-Rust relational proof is claimed.",
+    "The frozen-root replay covers one ordinary fixture and does not prove general tokenomics, AMM pricing, or economic correctness.",
+    "This packet does not establish governed current-profile selection, cryptographic receipt correctness, complete mediation, migration, outbox recovery, or whole-economy safety.",
+    "Production authority remains NONE."
+  ]
+}

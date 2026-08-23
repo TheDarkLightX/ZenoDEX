@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
-from .global_economic_profile_snapshot_v1 import _snapshot_lane_release_v1
+from .global_economic_profile_snapshot_v1 import (
+    _snapshot_lane_release_v1,
+    _snapshot_route_release_v1,
+)
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1, ReceiptKindV1
+from .global_economic_refinement_snapshot_v1 import (
+    _require_exact_dataclass_scalars_v1,
+    _snapshot_effect_plan_v1,
+    _snapshot_occurrence_v1,
+)
 from .global_settlement_types_v1 import (
     GLOBAL_SETTLEMENT_ABI_V1,
     MAX_DELTA_ATOMS_V1,
@@ -23,6 +31,10 @@ from .global_settlement_types_v1 import (
 )
 from .zdex_fee_allocation_receipt_verification_v1 import (
     VerifiedZDEXFeeAllocationV1,
+    _snapshot_fee_journal_v1,
+    _snapshot_fee_policy_v1,
+    _snapshot_fee_state_v1,
+    _VerifiedZDEXFeeAllocationFieldsV1,
 )
 from .zdex_fee_allocation_v1 import (
     FEE_BUYBACK_PRINCIPAL_V1,
@@ -38,6 +50,9 @@ from .zdex_fee_allocation_v1 import (
 from .zdex_purchase_burn_receipt_verification_v1 import (
     VerifiedZDEXAMMPurchaseV1,
     VerifiedZDEXBurnV1,
+    _snapshot_burn_journal_v1,
+    _snapshot_purchase_journal_v1,
+    _VerifiedZDEXLaneFieldsV1,
 )
 from .zdex_purchase_burn_route_types_v1 import (
     ZDEXAMMPurchaseJournalV1,
@@ -110,6 +125,69 @@ class ZDEXPurchaseBurnRouteCandidateV1:
         for value, expected_type, label in expected:
             if type(value) is not expected_type:
                 raise TypeError(f"ZDEX route {label} must be exact typed data")
+
+
+def _require_exact_witness_fields_v1(
+    witness: VerifiedZDEXAMMPurchaseV1
+    | VerifiedZDEXBurnV1
+    | VerifiedZDEXFeeAllocationV1,
+    *,
+    expected_type: type[object],
+    name: str,
+) -> None:
+    fields = witness._fields
+    if type(fields) is not expected_type:
+        raise TypeError(f"ZDEX route {name} fields must be exact typed data")
+    _require_exact_dataclass_scalars_v1(fields, name=name)
+
+
+def _snapshot_route_candidate_v1(
+    candidate: ZDEXPurchaseBurnRouteCandidateV1,
+) -> ZDEXPurchaseBurnRouteCandidateV1:
+    """Own and exact-check every structured value consumed by the composer."""
+
+    if type(candidate) is not ZDEXPurchaseBurnRouteCandidateV1:
+        raise TypeError("ZDEX purchase-burn route candidate must be exact typed data")
+    candidate.__post_init__()
+    _require_exact_witness_fields_v1(
+        candidate.verified_purchase,
+        expected_type=_VerifiedZDEXLaneFieldsV1,
+        name="purchase witness",
+    )
+    _require_exact_witness_fields_v1(
+        candidate.verified_burn,
+        expected_type=_VerifiedZDEXLaneFieldsV1,
+        name="burn witness",
+    )
+    _require_exact_witness_fields_v1(
+        candidate.verified_buyback_budget,
+        expected_type=_VerifiedZDEXFeeAllocationFieldsV1,
+        name="buyback budget witness",
+    )
+    return replace(
+        candidate,
+        route_release=_snapshot_route_release_v1(candidate.route_release),
+        purchase_module_release=_snapshot_lane_release_v1(
+            candidate.purchase_module_release
+        ),
+        burn_module_release=_snapshot_lane_release_v1(candidate.burn_module_release),
+        occurrence=_snapshot_occurrence_v1(candidate.occurrence),
+        buyback_budget_occurrence=_snapshot_fee_journal_v1(
+            candidate.buyback_budget_occurrence
+        ),
+        buyback_budget_policy=_snapshot_fee_policy_v1(
+            candidate.buyback_budget_policy
+        ),
+        buyback_budget_pre_state=_snapshot_fee_state_v1(
+            candidate.buyback_budget_pre_state
+        ),
+        purchase_journal=_snapshot_purchase_journal_v1(
+            candidate.purchase_journal
+        ),
+        purchase_effects=_snapshot_effect_plan_v1(candidate.purchase_effects),
+        burn_journal=_snapshot_burn_journal_v1(candidate.burn_journal),
+        burn_effects=_snapshot_effect_plan_v1(candidate.burn_effects),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -479,11 +557,10 @@ def compose_zdex_purchase_burn_route_v1(
 ) -> ZDEXPurchaseBurnRouteResultV1:
     """Pair two verified leaf outputs and derive one exact route effect plan."""
 
-    if type(candidate) is not ZDEXPurchaseBurnRouteCandidateV1:
-        raise TypeError("ZDEX purchase-burn route candidate must be exact typed data")
+    candidate = _snapshot_route_candidate_v1(candidate)
     route = candidate.route_release
-    purchase_release = _snapshot_lane_release_v1(candidate.purchase_module_release)
-    burn_release = _snapshot_lane_release_v1(candidate.burn_module_release)
+    purchase_release = candidate.purchase_module_release
+    burn_release = candidate.burn_module_release
     occurrence = candidate.occurrence
     purchase = candidate.purchase_journal
     occurrence_id = occurrence.occurrence_id

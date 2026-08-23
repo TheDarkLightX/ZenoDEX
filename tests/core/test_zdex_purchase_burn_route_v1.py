@@ -1743,6 +1743,53 @@ def test_foreign_module_release_record_rejects_without_effects(
 
 
 @pytest.mark.parametrize(
+    ("target_name", "field_name"),
+    (
+        ("verified_purchase", "expected_image_id"),
+        ("verified_buyback_budget", "expected_image_id"),
+        ("purchase_journal", "spot_module_release_id"),
+        ("burn_journal", "tokenomics_module_release_id"),
+    ),
+)
+def test_hostile_release_binding_scalar_rejects_before_composition(
+    target_name: str,
+    field_name: str,
+) -> None:
+    # Arrange
+    candidate = _verified_fixture()
+    target = getattr(candidate, target_name)
+    if target_name.startswith("verified_"):
+        target = target._fields
+    value = getattr(target, field_name)
+    object.__setattr__(target, field_name, _HostileRoot(value))
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="exact primitive"):
+        compose_zdex_purchase_burn_route_v1(candidate)
+
+
+@pytest.mark.parametrize(
+    "release_field",
+    ("purchase_module_release", "burn_module_release"),
+)
+def test_route_release_snapshot_rejects_hostile_image_scalar(
+    release_field: str,
+) -> None:
+    # Arrange
+    candidate = _verified_fixture()
+    release = getattr(candidate, release_field)
+    object.__setattr__(
+        release,
+        "guest_image_id",
+        _HostileRoot(release.guest_image_id),
+    )
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="exact primitive"):
+        compose_zdex_purchase_burn_route_v1(candidate)
+
+
+@pytest.mark.parametrize(
     ("burn_overrides", "expected"),
     (
         (
