@@ -14,10 +14,15 @@ import hashlib
 from dataclasses import dataclass
 from typing import Final, Protocol
 
+from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import (
     EconomicCommandOccurrenceV1,
     LaneCompositionJournalV1,
     ReceiptKindV1,
+)
+from .global_economic_refinement_snapshot_v1 import (
+    _snapshot_lane_journal_v1,
+    _snapshot_occurrence_v1,
 )
 from .global_settlement_types_v1 import (
     EconomicProfileSnapshotV1,
@@ -54,7 +59,7 @@ class LaneCompositionReceiptEnvelopeV1:
     receipt_bytes: bytes
 
     def __post_init__(self) -> None:
-        if not isinstance(self.receipt_kind, ReceiptKindV1):
+        if type(self.receipt_kind) is not ReceiptKindV1:
             raise TypeError("lane composition receipt kind is not closed")
         if type(self.receipt_bytes) is not bytes:
             raise TypeError("lane composition receipt bytes must be exact bytes")
@@ -81,8 +86,32 @@ class LaneCompositionReceiptCandidateV1:
             (self.receipt, LaneCompositionReceiptEnvelopeV1, "receipt envelope"),
         )
         for value, expected_type, label in expected_types:
-            if not isinstance(value, expected_type):
-                raise TypeError(f"lane composition {label} must be typed")
+            if type(value) is not expected_type:
+                raise TypeError(f"lane composition {label} must be exact typed data")
+
+
+@dataclass(frozen=True, slots=True)
+class _StructuralLaneCompositionSnapshotV1:
+    profile_id: str
+    route_release_id: str
+    lane_id: LaneIdV1
+    declared_coordinator_release_id: str
+    command_occurrence_id: str
+    lane_journal_root: str
+    pre_lane_root: str
+    post_lane_root: str
+    effect_plan_root: str
+    terminal_obligations_root: str
+    binding_root: str
+
+
+@dataclass(frozen=True, slots=True)
+class _LaneCompositionReceiptSnapshotV1:
+    profile: EconomicProfileSnapshotV1
+    occurrence: EconomicCommandOccurrenceV1
+    structural_composition: _StructuralLaneCompositionSnapshotV1
+    lane_journal: LaneCompositionJournalV1
+    receipt: LaneCompositionReceiptEnvelopeV1
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,8 +222,50 @@ def _sha256_root_v1(value: bytes) -> str:
     return "0x" + hashlib.sha256(value).hexdigest()
 
 
-def _require_exact_lane_composition_binding_v1(
+def _snapshot_structural_composition_v1(
+    structural: ReceiptBackedAssetLaneCompositionV1,
+) -> _StructuralLaneCompositionSnapshotV1:
+    if type(structural) is not ReceiptBackedAssetLaneCompositionV1:
+        raise TypeError("lane composition structural composition must be exact typed data")
+    return _StructuralLaneCompositionSnapshotV1(
+        profile_id=structural.profile_id,
+        route_release_id=structural.route_release_id,
+        lane_id=structural.lane_id,
+        declared_coordinator_release_id=structural.declared_coordinator_release_id,
+        command_occurrence_id=structural.command_occurrence_id,
+        lane_journal_root=structural.lane_journal_root,
+        pre_lane_root=structural.pre_lane_root,
+        post_lane_root=structural.post_lane_root,
+        effect_plan_root=structural.effect_plan_root,
+        terminal_obligations_root=structural.terminal_obligations_root,
+        binding_root=structural.binding_root,
+    )
+
+
+def _snapshot_lane_composition_candidate_v1(
     candidate: LaneCompositionReceiptCandidateV1,
+) -> _LaneCompositionReceiptSnapshotV1:
+    """Own and revalidate every value read across the verifier callback."""
+
+    if type(candidate) is not LaneCompositionReceiptCandidateV1:
+        raise TypeError("lane composition receipt candidate must be exact typed data")
+    candidate.__post_init__()
+    return _LaneCompositionReceiptSnapshotV1(
+        profile=snapshot_economic_profile_v1(candidate.profile),
+        occurrence=_snapshot_occurrence_v1(candidate.occurrence),
+        structural_composition=_snapshot_structural_composition_v1(
+            candidate.structural_composition
+        ),
+        lane_journal=_snapshot_lane_journal_v1(candidate.lane_journal),
+        receipt=LaneCompositionReceiptEnvelopeV1(
+            candidate.receipt.receipt_kind,
+            candidate.receipt.receipt_bytes,
+        ),
+    )
+
+
+def _require_exact_lane_composition_binding_v1(
+    candidate: _LaneCompositionReceiptSnapshotV1,
 ) -> LaneCoordinatorReleaseV1:
     profile = candidate.profile
     occurrence = candidate.occurrence
@@ -206,9 +277,7 @@ def _require_exact_lane_composition_binding_v1(
     )
     if route.ordered_lanes != (LaneIdV1.ASSET_TRANSFER,):
         raise ValueError("lane composition receipt requires the single asset lane route")
-    coordinator_release = profile.lane_coordinator_registry.release_for(
-        LaneIdV1.ASSET_TRANSFER
-    )
+    coordinator_release = profile.lane_coordinator_registry.release_for(LaneIdV1.ASSET_TRANSFER)
     if (
         coordinator_release.status is not ReleaseStatusV1.ACTIVE_NEW
         or not coordinator_release.accepts_new_objects
@@ -223,7 +292,7 @@ def _require_exact_lane_composition_binding_v1(
 
 
 def _require_exact_lane_journal_bindings_v1(
-    candidate: LaneCompositionReceiptCandidateV1,
+    candidate: _LaneCompositionReceiptSnapshotV1,
     coordinator_release: LaneCoordinatorReleaseV1,
     route_release_id: str,
 ) -> None:
@@ -276,21 +345,20 @@ def verify_asset_lane_composition_receipt_v1(
 ) -> VerifiedLaneCompositionV1:
     """Verify an asset-lane coordinator receipt under the active profile image."""
 
-    if not isinstance(candidate, LaneCompositionReceiptCandidateV1):
-        raise TypeError("lane composition receipt candidate must be typed")
-    coordinator_release = _require_exact_lane_composition_binding_v1(candidate)
-    if candidate.receipt.receipt_kind is not ReceiptKindV1.SUCCINCT:
+    owned = _snapshot_lane_composition_candidate_v1(candidate)
+    coordinator_release = _require_exact_lane_composition_binding_v1(owned)
+    if owned.receipt.receipt_kind is not ReceiptKindV1.SUCCINCT:
         raise ValueError("lane composition verification requires a succinct receipt")
-    if not candidate.receipt.receipt_bytes:
+    if not owned.receipt.receipt_bytes:
         raise ValueError("lane composition receipt bytes must be non-empty bytes")
 
-    lane_journal_bytes = canonical_global_bytes_v1(candidate.lane_journal)
+    lane_journal_bytes = canonical_global_bytes_v1(owned.lane_journal)
     if len(lane_journal_bytes) > coordinator_release.max_journal_bytes:
         raise ValueError("lane composition canonical journal exceeds its release byte ceiling")
     lane_journal_digest = _sha256_root_v1(lane_journal_bytes)
-    receipt_digest = _sha256_root_v1(candidate.receipt.receipt_bytes)
+    receipt_digest = _sha256_root_v1(owned.receipt.receipt_bytes)
     receipt_verifier.verify_succinct_receipt(
-        candidate.receipt.receipt_bytes,
+        owned.receipt.receipt_bytes,
         expected_image_id=coordinator_release.guest_image_id,
         expected_journal_bytes=lane_journal_bytes,
     )
@@ -298,18 +366,18 @@ def verify_asset_lane_composition_receipt_v1(
     return VerifiedLaneCompositionV1(
         _VERIFIED_LANE_COMPOSITION_TOKEN,
         _VerifiedLaneCompositionFieldsV1(
-            candidate.profile.profile_id,
-            candidate.structural_composition.route_release_id,
+            owned.profile.profile_id,
+            owned.structural_composition.route_release_id,
             LaneIdV1.ASSET_TRANSFER,
             coordinator_release.coordinator_release_id,
-            candidate.occurrence.occurrence_id,
-            candidate.profile.authority_epoch,
-            candidate.structural_composition.binding_root,
-            candidate.lane_journal.journal_root,
+            owned.occurrence.occurrence_id,
+            owned.profile.authority_epoch,
+            owned.structural_composition.binding_root,
+            owned.lane_journal.journal_root,
             lane_journal_digest,
             coordinator_release.guest_image_id,
             receipt_digest,
-            candidate.receipt.receipt_kind,
+            owned.receipt.receipt_kind,
         ),
     )
 
