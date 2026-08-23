@@ -1,11 +1,17 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 
+from src.integration.zeno_oracle_authorization import (
+    ZUSD_COLLATERAL_QUERY_ID,
+    ZUSD_LIQUIDATE_VAULT_PROFILE_ID,
+    ZUSD_MINT_PROFILE_ID,
+)
 from src.integration.zeno_oracle_settlement_authorization import critical_settlement_profile_id
 from tests.integration.oracle_authorization_test_helpers import authorization_bundle
 from tools.check_oracle_authorization_semantic_binding import (
@@ -25,6 +31,40 @@ from tools.check_oracle_authorization_semantic_binding import (
 
 def _hash(domain: str, name: str) -> str:
     return semantic_hash(domain, {"name": name})
+
+
+def test_zusd_bridge_identifiers_match_canonical_oracle_policy_vectors() -> None:
+    expected_query_id = "sha256:" + hashlib.sha256(
+        b"zenodex.oracle.query.zusd.collateral_price_e8"
+    ).hexdigest()
+
+    def expected_profile_id(*, action_kind: str, freshness: int) -> str:
+        payload = {
+            "schema": "zenodex.oracle.consumer_profile.v1",
+            "consumer_module": "zenodex.zusd",
+            "action_kind": action_kind,
+            "query_id": expected_query_id,
+            "required_evidence_floor": "O3",
+            "max_freshness_window_epochs": freshness,
+            "critical": True,
+        }
+        encoded = json.dumps(
+            payload,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=False,
+        ).encode("utf-8")
+        return "sha256:" + hashlib.sha256(encoded).hexdigest()
+
+    assert ZUSD_COLLATERAL_QUERY_ID == expected_query_id
+    assert ZUSD_MINT_PROFILE_ID == expected_profile_id(
+        action_kind="mint",
+        freshness=2,
+    )
+    assert ZUSD_LIQUIDATE_VAULT_PROFILE_ID == expected_profile_id(
+        action_kind="liquidate_vault",
+        freshness=1,
+    )
 
 
 def _refresh_terminal_graph_roots(bundle: dict) -> None:

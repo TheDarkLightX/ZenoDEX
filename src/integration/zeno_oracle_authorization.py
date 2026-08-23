@@ -80,6 +80,13 @@ _TRIGGER_EXECUTE_PROFILE_ID = _consumer_profile_id(
     max_freshness_window_epochs=2,
 )
 
+# Stable identifiers consumed by value-moving adapters. These values describe
+# the verifier-selected Oracle policy; callers cannot use them to mint an
+# authorization.
+ZUSD_COLLATERAL_QUERY_ID = _ZUSD_COLLATERAL_QUERY_ID
+ZUSD_MINT_PROFILE_ID = _ZUSD_MINT_PROFILE_ID
+ZUSD_LIQUIDATE_VAULT_PROFILE_ID = _ZUSD_LIQUIDATE_VAULT_PROFILE_ID
+
 
 CRITICAL_CONSUMER_PROFILES: dict[tuple[str, str], str] = {
     ("zenodex.zusd", "bootstrap_oracle"): "critical-zusd-v1",
