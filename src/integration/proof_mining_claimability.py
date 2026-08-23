@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from types import MappingProxyType
 from typing import Any, Mapping, Optional
 
 from ..core.proof_mining_claimability_gate import (
@@ -34,6 +35,9 @@ class ProofMiningClaimabilityStatus:
     reward_pool_before: Optional[int]
     reward_pool_after: Optional[int]
     checks: Mapping[str, bool]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "checks", MappingProxyType(dict(self.checks)))
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -170,6 +174,7 @@ def evaluate_proof_mining_claimability(
         "sender_valid": False,
         "claim_valid": False,
         "winner_matches_sender": False,
+        "recipient_distinct_from_reward_pool": False,
         "proposal_hash_matches_context": False,
         "verified_context_present": False,
         "reward_pool_balance_non_negative": False,
@@ -188,6 +193,7 @@ def evaluate_proof_mining_claimability(
         gate = evaluate_proof_mining_claimability_gate(
             reward_pool_configured=False,
             winner_matches_sender=False,
+            recipient_distinct_from_reward_pool=False,
             proposal_hash_matches_context=False,
             reward_pool_balance_non_negative=False,
             runtime_state_present=False,
@@ -233,6 +239,7 @@ def evaluate_proof_mining_claimability(
     reward_pool_after = int(claim["reward_pool_after"])
     winner_pubkey = _canonical_pubkey(claim["winner"].get("miner_id"), name="claim winner.miner_id")
     checks["winner_matches_sender"] = bool(winner_pubkey == sender)
+    checks["recipient_distinct_from_reward_pool"] = bool(sender != canonical_pool)
     checks["proposal_hash_matches_context"] = bool(str(expected_proposal_hash) == proposal_hash)
     actual_pool_balance = _reward_pool_balance_from_chain(
         chain_balances,
@@ -257,9 +264,9 @@ def evaluate_proof_mining_claimability(
 
     manager_ok = False
     manager_error = None
-    gate = None
     if (
         checks["winner_matches_sender"]
+        and checks["recipient_distinct_from_reward_pool"]
         and checks["proposal_hash_matches_context"]
         and checks["verified_context_present"]
         and checks["reward_pool_balance_non_negative"]
@@ -295,6 +302,9 @@ def evaluate_proof_mining_claimability(
     gate = evaluate_proof_mining_claimability_gate(
         reward_pool_configured=checks["reward_pool_configured"],
         winner_matches_sender=checks["winner_matches_sender"],
+        recipient_distinct_from_reward_pool=checks[
+            "recipient_distinct_from_reward_pool"
+        ],
         proposal_hash_matches_context=checks["proposal_hash_matches_context"],
         reward_pool_balance_non_negative=checks["reward_pool_balance_non_negative"],
         runtime_state_present=runtime_state_present,

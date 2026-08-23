@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 
 import pytest
 
@@ -95,6 +95,42 @@ def test_claimability_accepts_initial_claim_without_existing_runtime_state() -> 
     assert status.checks["runtime_state_present"] is False
     assert status.checks["verified_context_present"] is True
     assert status.checks["runtime_apply_ok"] is True
+
+
+def test_claimability_rejects_reward_pool_as_recipient_before_manager_apply(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reward_pool = "0x" + "99" * 48
+    claim = _claim(miner_id=reward_pool, reward_pool_before=20)
+    context = _context_from_claim(claim)
+
+    def fail_if_manager_called(**_kwargs):
+        raise AssertionError("recipient alias must reject before manager application")
+
+    monkeypatch.setattr(
+        "src.integration.proof_mining_claimability.apply_proof_mining_claim",
+        fail_if_manager_called,
+    )
+
+    status = evaluate_proof_mining_claimability(
+        reward_pool_pubkey=reward_pool,
+        app_state_json="",
+        chain_balances={reward_pool: 20},
+        claim_artifact=claim,
+        tx_sender_pubkey=reward_pool,
+        expected_proposal_hash=str(claim["body"]["proposal_hash"]),
+        proof_mining_context_obj=proof_mining_context_to_obj(context),
+    )
+
+    assert status.enabled is True
+    assert status.claimable is False
+    assert status.error == "proof mining reward pool cannot receive its own payout"
+    assert status.checks["winner_matches_sender"] is True
+    assert status.checks["recipient_distinct_from_reward_pool"] is False
+    assert status.checks["runtime_apply_ok"] is False
+    assert type(status.checks) is MappingProxyType
+    with pytest.raises(TypeError):
+        status.checks["recipient_distinct_from_reward_pool"] = True  # type: ignore[index]
 
 
 def test_claimability_accepts_asset_scoped_reward_pool_balance() -> None:
