@@ -1,0 +1,224 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-global-economic-object-nullifier-reference-v2",
+  "created_date": "2026-08-23",
+  "claim_scope": "The unmounted Python and standalone Rust V2 reference oracles implement the same bounded canonical single-use-object semantics, reject duplicate or historical consumption in fixed precedence with no successor, match fixed vectors and an independent bounded set model, and remain mechanically isolated from runtime, release, proof, publication, and V1 authority surfaces.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GLOBAL-OBJECT-NULLIFIER-REFERENCE-V2-CANONICAL-ARCHIVE",
+    "GLOBAL-OBJECT-NULLIFIER-REFERENCE-V2-SINGLE-CONSUMPTION",
+    "GLOBAL-OBJECT-NULLIFIER-REFERENCE-V2-REJECT-PRECEDENCE",
+    "GLOBAL-OBJECT-NULLIFIER-REFERENCE-V2-REJECT-NO-SUCCESSOR",
+    "GLOBAL-OBJECT-NULLIFIER-REFERENCE-V2-PYTHON-RUST-PARITY",
+    "GLOBAL-OBJECT-NULLIFIER-REFERENCE-V2-AUTHORITY-ISOLATION",
+    "GLOBAL-OBJECT-NULLIFIER-REFERENCE-V2-V1-QUARANTINE-PRESERVATION"
+  ],
+  "failure_modes": [
+    "one opaque object identifier is accepted twice in one batch or across reference steps",
+    "claim order changes canonical bytes or the reference digest",
+    "a weaker capacity rejection masks duplicate or historical consumption",
+    "a rejection exposes a successor archive or changes the immutable pre-archive",
+    "Python and Rust disagree on bytes, digests, bounds, precedence, or stateful reuse",
+    "the research oracle is imported, re-exported, mounted, published, or consumed by a runtime, release, proof, or authority surface",
+    "the new oracle weakens or modifies the V1 object-consumption quarantine"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/research/GLOBAL_ECONOMIC_OBJECT_NULLIFIER_REFERENCE_V2.md",
+      "sha256": "ed11bcd7207c0498a3673aa4fdc08f4d4c7fca5219086a73a87c3bb9275af5c1"
+    },
+    {
+      "path": "experiments/global_economic_object_nullifier_reference_v2.py",
+      "sha256": "9ca0b1383466bd6c631715a3f81f5b15afa7ef4ff9e1fafb45a6ade5b6507b3a"
+    },
+    {
+      "path": "experiments/render_global_economic_object_nullifier_reference_v2_golden.py",
+      "sha256": "3fb5f23eb26854ea09c3e29540796356bdf88adb22ad5313f482b993f8ac7657"
+    },
+    {
+      "path": "tests/data/global_economic_object_nullifier_reference_v2_golden.json",
+      "sha256": "167abc6b27bcb902191cb60e09b4a60c61d3b0658e7f0cece62b6026588db22c"
+    },
+    {
+      "path": "zk/global_economic_object_nullifier_reference_v2/Cargo.toml",
+      "sha256": "fb860841bcfcfb2cdc31bfbbcdc906f61b894fc01ed3d5139aa080d218cefc0e"
+    },
+    {
+      "path": "zk/global_economic_object_nullifier_reference_v2/Cargo.lock",
+      "sha256": "cc77d923be5037b45cd485188e2b38de1982db74d3dc1fca2f9fe3c9fdcb1971"
+    },
+    {
+      "path": "zk/global_economic_object_nullifier_reference_v2/src/lib.rs",
+      "sha256": "8acdff7dc85141030f6935e34a5139f65fb89cc80e4e5d43c53e820b6566a8f8"
+    },
+    {
+      "path": "zk/global_economic_object_nullifier_reference_v2/tests/golden_vectors.rs",
+      "sha256": "9cb70846bab4cb3b340c0a2c6bfdbd17e4163c192875965e86bcb9887b116127"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_global_economic_object_nullifier_reference_v2.py",
+      "sha256": "28b383e8d1baf3da7f94e38f286e5450f250bf080b196cc672466ae330f018c9",
+      "node_ids": [
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_given_empty_claims_when_applied_then_reference_accepts_exact_value_noop",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_given_one_fresh_claim_when_applied_then_reference_inserts_one_owned_entry",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_claim_count_bva_0_1_63_64_65",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_archive_count_bva_4095_4096_4097",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_canonical_ids_reject_zero_uppercase_short_and_nonhex",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_step_limit_precedes_duplicate_historical_and_capacity",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_duplicate_in_batch_precedes_historical_and_capacity_with_exact_noop",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_already_consumed_precedes_capacity_with_exact_noop",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_capacity_rejection_is_exact_noop",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_claim_permutations_have_identical_bytes_digest_and_outcome",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_three_step_history_rejects_reuse_and_matches_independent_set_model",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_bounded_small_traces_match_independent_executable_model",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_reference_archive_bytes_stay_below_redundant_hard_byte_ceiling",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_rejection_projection_binds_every_reachable_code_digest_and_diagnostic",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_transition_snapshots_retained_aliases_and_checks_limit_before_elements",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_python_reference_matches_committed_golden_bytes_digests_and_outcomes",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_python_golden_consumer_rejects_unknown_nested_fields",
+        "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+      ]
+    },
+    {
+      "path": "tests/core/test_global_economic_object_nullifier_reference_v2_isolation.py",
+      "sha256": "c6d22ff043adddc560d79b026391864073a3df5fcd35d7b6199e2084c370541c",
+      "node_ids": [
+        "tests/core/test_global_economic_object_nullifier_reference_v2_isolation.py::test_reference_v2_is_absent_from_runtime_import_reexport_release_and_guest_surfaces",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_isolation.py::test_reference_v2_api_and_digest_expose_no_authority_effect_commit_receipt_or_verified_type",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_isolation.py::test_reference_v2_rust_crate_is_nonpublishable_unmounted_and_not_a_dependency",
+        "tests/core/test_global_economic_object_nullifier_reference_v2_isolation.py::test_reference_v2_leaves_v1_quarantine_artifacts_byte_identical"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "metamorphic",
+    "differential",
+    "stateful",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The public transition tests arrange validated immutable archives and claims, act once through the reference function, and assert the exact accepted successor or typed rejection, pre-reference digest, absence of a successor, and unchanged pre-archive."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Duplicate, historical, capacity, and step-limit cases assert the exact rejection and pre-reference digest; rejected values have no post_archive field, and canonical pre-archive bytes remain unchanged."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "claim_count",
+      "points": [
+        "0 exact value, bytes, and digest no-op with an owned snapshot",
+        "1 accepted",
+        "63 accepted",
+        "64 accepted maximum",
+        "65 exact step-limit rejection"
+      ]
+    },
+    {
+      "name": "archive_entry_count",
+      "points": [
+        "4095 plus one accepts",
+        "4096 plus zero accepts exact value, bytes, and digest identity",
+        "4096 plus one rejects attempted 4097"
+      ]
+    },
+    {
+      "name": "identifier_canonicality",
+      "points": [
+        "lowercase nonzero 32-byte hexadecimal accepts",
+        "zero, uppercase prefix or digits, short, nonhex, and missing prefix reject"
+      ]
+    },
+    {
+      "name": "reject_precedence",
+      "points": [
+        "step limit before duplicate, historical, and capacity",
+        "duplicate before historical and capacity",
+        "historical before capacity",
+        "capacity after all semantic reuse checks"
+      ]
+    },
+    {
+      "name": "oracle_independence",
+      "points": [
+        "fixed renderer imports no implementation under test",
+        "Python transition matches independent executable set model",
+        "standalone Rust implementation matches committed bytes and digests"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "M01 remove the 64-claim step limit",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    },
+    {
+      "description": "M02 silently deduplicate repeated batch object identifiers",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    },
+    {
+      "description": "M03 skip historical-consumption lookup",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    },
+    {
+      "description": "M04 reject the exact 4096-entry successor boundary",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    },
+    {
+      "description": "M05 check archive capacity before historical reuse",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    },
+    {
+      "description": "M06 create a successor archive on rejection",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    },
+    {
+      "description": "M07 preserve caller insertion order instead of canonical object order",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    },
+    {
+      "description": "M08 omit the first occurrence identifier from canonical digest bytes",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    },
+    {
+      "description": "M09 remove the V2 version component from digest domain separation",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    },
+    {
+      "description": "M10 accept uppercase noncanonical identifier digits",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    },
+    {
+      "description": "M11 drop the pre-archive during the empty value-identity step",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    },
+    {
+      "description": "M12 corrupt the rejection pre-reference digest",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    },
+    {
+      "description": "M13 corrupt the stable rejection diagnostic",
+      "killed_by": "tests/core/test_global_economic_object_nullifier_reference_v2.py::test_named_reference_semantic_source_mutants_are_killed"
+    }
+  ],
+  "nonclaims": [
+    "Status is IMPLEMENTED_REFERENCE, UNMOUNTED, UNPROVED, NOT_ABI, and NO_AUTHORITY; production_authority remains NONE.",
+    "The reference_archive_digest is not a nullifier-set root, state root, history root, receipt root, proof statement, or release commitment.",
+    "The slice does not authenticate object provenance, prevent aliases, select an authenticated set, or establish membership or nonmembership proofs.",
+    "The slice does not implement durable atomic publication, crash recovery, rollback resistance, migration continuity, historical import, writer retirement, or outbox delivery.",
+    "V1 object consumption and ZDEX purchase-burn routes requiring it remain quarantined and unmounted.",
+    "The 4096-entry, 64-claim, and 1-MiB limits are bounded oracle limits without scalability, liveness, storage, guest-cycle, production, or readiness claims.",
+    "The large Python test file deliberately keeps the independent model, fixed-vector parity, and M01-M13 executable witnesses adjacent; production functions remain outside that test-only complexity exception.",
+    "The recorded Python and locked offline Cargo outcomes are local replay evidence rather than a signed execution receipt or release observation.",
+    "No RISC0 guest image or real receipt was built, changed, or verified by this slice."
+  ]
+}

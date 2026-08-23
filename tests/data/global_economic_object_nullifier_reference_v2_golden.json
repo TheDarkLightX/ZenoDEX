@@ -1,0 +1,120 @@
+{
+  "digest_prefix_hex": "676c6f62616c2d65636f6e6f6d69632d6f626a6563742d6e756c6c69666965722d7265666572656e6365003200",
+  "limits": {
+    "max_archive_bytes": 1048576,
+    "max_claims_per_step": 64,
+    "max_nullifiers": 4096
+  },
+  "reference_schema": "zenodex/global-economic-object-nullifier-reference/v2",
+  "schema": "zenodex/global-economic-object-nullifier-reference-golden/v1",
+  "vectors": [
+    {
+      "claims": [],
+      "expected": {
+        "kind": "accepted",
+        "post_canonical_json": "{\"entries\":[],\"schema\":\"zenodex/global-economic-object-nullifier-reference/v2\"}",
+        "post_entries": [],
+        "post_reference_archive_digest": "0xf250b74f765770c9f1bfa98a8e63d570bc52fd4af0445c9e55b6519f2fd49fd0"
+      },
+      "name": "empty_identity",
+      "pre_canonical_json": "{\"entries\":[],\"schema\":\"zenodex/global-economic-object-nullifier-reference/v2\"}",
+      "pre_entries": [],
+      "pre_reference_archive_digest": "0xf250b74f765770c9f1bfa98a8e63d570bc52fd4af0445c9e55b6519f2fd49fd0"
+    },
+    {
+      "claims": [
+        {
+          "consumed_by_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000065",
+          "object_id": "0x0000000000000000000000000000000000000000000000000000000000000001"
+        }
+      ],
+      "expected": {
+        "kind": "accepted",
+        "post_canonical_json": "{\"entries\":[{\"first_consumed_by_occurrence_id\":\"0x0000000000000000000000000000000000000000000000000000000000000065\",\"object_id\":\"0x0000000000000000000000000000000000000000000000000000000000000001\"}],\"schema\":\"zenodex/global-economic-object-nullifier-reference/v2\"}",
+        "post_entries": [
+          {
+            "first_consumed_by_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000065",
+            "object_id": "0x0000000000000000000000000000000000000000000000000000000000000001"
+          }
+        ],
+        "post_reference_archive_digest": "0x7e33816e95c9d5239e9c5fb44846d2dc3a10b58f2119eaf1424f0d8080048d85"
+      },
+      "name": "insert_one",
+      "pre_canonical_json": "{\"entries\":[],\"schema\":\"zenodex/global-economic-object-nullifier-reference/v2\"}",
+      "pre_entries": [],
+      "pre_reference_archive_digest": "0xf250b74f765770c9f1bfa98a8e63d570bc52fd4af0445c9e55b6519f2fd49fd0"
+    },
+    {
+      "claims": [
+        {
+          "consumed_by_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000066",
+          "object_id": "0x0000000000000000000000000000000000000000000000000000000000000002"
+        },
+        {
+          "consumed_by_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000065",
+          "object_id": "0x0000000000000000000000000000000000000000000000000000000000000001"
+        }
+      ],
+      "expected": {
+        "kind": "accepted",
+        "post_canonical_json": "{\"entries\":[{\"first_consumed_by_occurrence_id\":\"0x0000000000000000000000000000000000000000000000000000000000000065\",\"object_id\":\"0x0000000000000000000000000000000000000000000000000000000000000001\"},{\"first_consumed_by_occurrence_id\":\"0x0000000000000000000000000000000000000000000000000000000000000066\",\"object_id\":\"0x0000000000000000000000000000000000000000000000000000000000000002\"}],\"schema\":\"zenodex/global-economic-object-nullifier-reference/v2\"}",
+        "post_entries": [
+          {
+            "first_consumed_by_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000065",
+            "object_id": "0x0000000000000000000000000000000000000000000000000000000000000001"
+          },
+          {
+            "first_consumed_by_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000066",
+            "object_id": "0x0000000000000000000000000000000000000000000000000000000000000002"
+          }
+        ],
+        "post_reference_archive_digest": "0xb52f83f8d9b07b67791a6c0a7a70c87a74ee9ce3930069b2be1ba33735581e71"
+      },
+      "name": "insert_two_reverse",
+      "pre_canonical_json": "{\"entries\":[],\"schema\":\"zenodex/global-economic-object-nullifier-reference/v2\"}",
+      "pre_entries": [],
+      "pre_reference_archive_digest": "0xf250b74f765770c9f1bfa98a8e63d570bc52fd4af0445c9e55b6519f2fd49fd0"
+    },
+    {
+      "claims": [
+        {
+          "consumed_by_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000065",
+          "object_id": "0x0000000000000000000000000000000000000000000000000000000000000001"
+        },
+        {
+          "consumed_by_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000066",
+          "object_id": "0x0000000000000000000000000000000000000000000000000000000000000001"
+        }
+      ],
+      "expected": {
+        "code": "REFERENCE_DUPLICATE_IN_BATCH",
+        "kind": "rejected"
+      },
+      "name": "duplicate_in_batch",
+      "pre_canonical_json": "{\"entries\":[],\"schema\":\"zenodex/global-economic-object-nullifier-reference/v2\"}",
+      "pre_entries": [],
+      "pre_reference_archive_digest": "0xf250b74f765770c9f1bfa98a8e63d570bc52fd4af0445c9e55b6519f2fd49fd0"
+    },
+    {
+      "claims": [
+        {
+          "consumed_by_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000066",
+          "object_id": "0x0000000000000000000000000000000000000000000000000000000000000001"
+        }
+      ],
+      "expected": {
+        "code": "REFERENCE_ALREADY_CONSUMED",
+        "kind": "rejected"
+      },
+      "name": "already_consumed",
+      "pre_canonical_json": "{\"entries\":[{\"first_consumed_by_occurrence_id\":\"0x0000000000000000000000000000000000000000000000000000000000000065\",\"object_id\":\"0x0000000000000000000000000000000000000000000000000000000000000001\"}],\"schema\":\"zenodex/global-economic-object-nullifier-reference/v2\"}",
+      "pre_entries": [
+        {
+          "first_consumed_by_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000065",
+          "object_id": "0x0000000000000000000000000000000000000000000000000000000000000001"
+        }
+      ],
+      "pre_reference_archive_digest": "0x7e33816e95c9d5239e9c5fb44846d2dc3a10b58f2119eaf1424f0d8080048d85"
+    }
+  ]
+}
