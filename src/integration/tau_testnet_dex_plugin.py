@@ -1059,6 +1059,9 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
     operator_pubkey = os.environ.get("TAU_DEX_OPERATOR_PUBKEY") or os.environ.get("TAU_DEX_PERP_OPERATOR_PUBKEY")
     oracle_pubkey = os.environ.get("TAU_DEX_PERP_ORACLE_PUBKEY") or os.environ.get("TAU_DEX_ORACLE_PUBKEY")
     allow_isolated = _bool_env("TAU_DEX_ALLOW_ISOLATED_PERPS", default=False)
+    oracle_authorization_root = (
+        _str_env("TAU_DEX_PERP_ORACLE_AUTHORIZATION_RECEIPT_GRAPH_ROOT") or None
+    )
 
     def _oracle_adapter_bridge_verifier(bridge):
         from tools.zenodex_oracle_aggregate_adapter import (  # pylint: disable=import-outside-toplevel
@@ -1089,6 +1092,10 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
         oracle_pubkey=(oracle_pubkey or "").strip() or None,
         allow_isolated_markets=bool(allow_isolated),
         oracle_adapter_bridge_verifier=_oracle_adapter_bridge_verifier,
+        require_oracle_adapter_for_isolated_settle_epoch=_bool_env(
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
+            default=True,
+        ),
         require_oracle_adapter_for_clearinghouse_settle_epoch=_bool_env(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
             default=True,
@@ -1097,6 +1104,15 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
             default=True,
         ),
+        require_oracle_authorization_for_isolated_settle=_bool_env(
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE",
+            default=False,
+        ),
+        require_oracle_authorization_for_clearinghouse_settle_epoch=_bool_env(
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+            default=False,
+        ),
+        oracle_authorization_receipt_graph_root=oracle_authorization_root,
         require_tau_source_binding_for_isolated_partial_liquidate=_bool_env(
             "TAU_DEX_REQUIRE_TAU_SOURCE_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
             default=False,

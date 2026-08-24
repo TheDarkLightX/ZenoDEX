@@ -92,6 +92,22 @@ for a different consumer, action, query, profile policy, market, market kind,
 participant set, epoch, clearing price, or oracle snapshot, or accepting a
 decorative bridge field that no runtime verifier checked.
 
+The wallet and Tau-testnet adapters can bind these controls through:
+
+```text
+TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH
+TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE
+TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH
+TAU_DEX_PERP_ORACLE_AUTHORIZATION_RECEIPT_GRAPH_ROOT
+```
+
+The wallet adapter copies a supplied `oracle_authorization` into an owned
+canonical JSON object before constructing the engine operation. Typed
+authorization remains disabled by default on these development adapters until
+an authorization producer and verifier-selected root are configured. The
+`zeno_oracle_fail_closed_perp_config` helper forces both typed-authorization
+controls on for fail-closed profiles.
+
 ## zUSD API Hook
 
 The zUSD development API now gates the critical `mint_zusd` and `liquidate`

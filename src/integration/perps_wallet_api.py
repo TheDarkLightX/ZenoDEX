@@ -1532,6 +1532,21 @@ def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any]
     return raw
 
 
+def _request_owned_json_object(body: Mapping[str, Any], *, name: str) -> dict[str, Any] | None:
+    if name not in body:
+        return None
+    raw = body.get(name)
+    if type(raw) is not dict:
+        raise ValueError(f"bad_{name}")
+    try:
+        owned = json.loads(canonical_json_bytes(raw))
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(f"bad_{name}") from exc
+    if type(owned) is not dict:
+        raise ValueError(f"bad_{name}")
+    return owned
+
+
 def _request_signed_tau_tx_payload(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
     for name in ("signed_tau_tx_payload", "tau_tx_payload"):
         value = _request_mapping(body, name=name)
@@ -1726,6 +1741,9 @@ def _build_operation_and_sender(
         bridge = _request_mapping(body, name="oracle_adapter_bridge")
         if bridge is not None:
             operation["oracle_adapter_bridge"] = dict(bridge)
+        authorization = _request_owned_json_object(body, name="oracle_authorization")
+        if authorization is not None:
+            operation["oracle_authorization"] = authorization
         tx_sender = _tx_sender_for_action(body, action=action, account_a_pubkey=None, account_pubkey=None)
         return operation, tx_sender, meta
 
@@ -1880,6 +1898,10 @@ def _build_perp_config(*, chain_id: str) -> PerpEngineConfig:
         oracle_pubkey=(oracle_pubkey or "").strip() or None,
         allow_isolated_markets=_env_bool("TAU_DEX_ALLOW_ISOLATED_PERPS", False),
         oracle_adapter_bridge_verifier=_default_oracle_adapter_bridge_verifier,
+        require_oracle_adapter_for_isolated_settle_epoch=_env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH",
+            True,
+        ),
         require_oracle_adapter_for_clearinghouse_settle_epoch=_env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
             True,
@@ -1887,6 +1909,21 @@ def _build_perp_config(*, chain_id: str) -> PerpEngineConfig:
         require_oracle_adapter_for_isolated_partial_liquidate=_env_bool(
             "TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_PARTIAL_LIQUIDATE",
             True,
+        ),
+        require_oracle_authorization_for_isolated_settle=_env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE",
+            False,
+        ),
+        require_oracle_authorization_for_clearinghouse_settle_epoch=_env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+            False,
+        ),
+        oracle_authorization_receipt_graph_root=(
+            _env_str(
+                "TAU_DEX_PERP_ORACLE_AUTHORIZATION_RECEIPT_GRAPH_ROOT",
+                "",
+            )
+            or None
         ),
         require_tau_source_binding_for_isolated_partial_liquidate=_env_bool(
             "TAU_DEX_REQUIRE_TAU_SOURCE_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
