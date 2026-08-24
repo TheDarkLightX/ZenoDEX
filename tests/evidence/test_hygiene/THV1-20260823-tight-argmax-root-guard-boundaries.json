@@ -1,0 +1,141 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260823-tight-argmax-root-guard-boundaries",
+  "created_date": "2026-08-23",
+  "claim_scope": "The research-only tight-argmax exact-interval and non-endpoint hybrid-root certificate checkers use exact rational replay, canonical byte packets, closed integer domains, exact bytes-only artifact resolution, and stable typed rejection before their reports may satisfy the no-production-authority boundary gate.",
+  "change_kind": "bug_fix",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "TIGHT-ARGMAX-RESEARCH-ONLY-AUTHORITY-BOUNDARY",
+    "TIGHT-ARGMAX-CANONICAL-BYTES",
+    "TIGHT-ARGMAX-EXACT-INTEGER-TYPES",
+    "TIGHT-ARGMAX-SOURCE-ARTIFACT-BINDING",
+    "TIGHT-ARGMAX-ROOT-RADIUS-CONTAINS-DISTANCE"
+  ],
+  "failure_modes": [
+    "an uncommitted hybrid-root dependency prevents deterministic replay of the research-promotion boundary",
+    "a Python boolean crosses an integer domain or production-value check because False equals zero",
+    "a bytearray is accepted as canonical certificate bytes",
+    "a malformed resolver value reaches hashing or nested certificate verification",
+    "a missing or hash-drifting m certificate influences an accepted radius",
+    "a research certificate is treated as routing, settlement, consensus, or production-security authority"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/check_nonendpoint_hybrid_root_guard_20260630.py",
+      "sha256": "96343cb93c30fbe2fbf7e5281025e0a3b22db64b948440385e459fff525058ac"
+    },
+    {
+      "path": "tools/check_tight_argmax_exact_interval_certificate_20260630.py",
+      "sha256": "9d7e163d3e33ad405e39d530bfe7ef9570658fb50080b3d5701a1b65c6a908ee"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/research/test_nonendpoint_hybrid_root_guard_20260630.py",
+      "sha256": "2c1ff5ff66c0f2baeade3e75ec89b841370dbc39d78c1591835d6f409ecb611f",
+      "node_ids": [
+        "tests/research/test_nonendpoint_hybrid_root_guard_20260630.py::test_nonendpoint_hybrid_root_guard_report_contract",
+        "tests/research/test_nonendpoint_hybrid_root_guard_20260630.py::test_unsafe_stationary_fixture_is_repaired_by_root_guard",
+        "tests/research/test_nonendpoint_hybrid_root_guard_20260630.py::test_corpus_replay_is_nonvacuous",
+        "tests/research/test_nonendpoint_hybrid_root_guard_20260630.py::test_nonendpoint_hybrid_root_guard_requires_resolved_m_artifact",
+        "tests/research/test_nonendpoint_hybrid_root_guard_20260630.py::test_boolean_values_do_not_cross_root_guard_integer_boundaries",
+        "tests/research/test_nonendpoint_hybrid_root_guard_20260630.py::test_root_guard_rejects_non_bytes_packets_and_resolver_values",
+        "tests/research/test_nonendpoint_hybrid_root_guard_20260630.py::test_negative_replay_keeps_stable_rejects",
+        "tests/research/test_nonendpoint_hybrid_root_guard_20260630.py::test_nonendpoint_hybrid_root_guard_cli"
+      ]
+    },
+    {
+      "path": "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py",
+      "sha256": "d8cbba74f787dfd1b10283c558954c1490bf3253b61f007966f082de5e911022",
+      "node_ids": [
+        "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py::test_valid_corpus_exercises_nonvacuous_interior_intervals",
+        "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py::test_boundary_certificates_keep_zero_width_endpoint_brackets",
+        "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py::test_accepted_certificate_has_exact_radius_obligation",
+        "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py::test_interval_m_backed_certificate_requires_referenced_artifact",
+        "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py::test_negative_replay_keeps_stable_reject_family",
+        "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py::test_domain_bound_is_fail_closed",
+        "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py::test_boolean_values_do_not_cross_integer_boundaries",
+        "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py::test_verifier_rejects_non_bytes_packets_and_resolver_values",
+        "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py::test_report_contract_records_non_claims_and_replay_surface",
+        "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py::test_exact_interval_cli_replay"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange exact pool domains and source artifacts, act through one builder or verifier boundary, and assert the exact accepted record, named rejection code, or immutable report contract."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Both checkers are pure research certificate validators. Rejected packets return immutable typed reject tuples and cannot route trades, settle value, mutate protocol state, or grant production authority."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "packet_representation",
+      "points": [
+        "exact canonical bytes accepted",
+        "bytearray rejected before decode",
+        "duplicate keys and noncanonical JSON rejected"
+      ]
+    },
+    {
+      "name": "integer_domain",
+      "points": [
+        "zero and one production outputs remain integers",
+        "boolean aliases rejected",
+        "D above 4096 rejected",
+        "step count maximum neighbors checked"
+      ]
+    },
+    {
+      "name": "source_artifact_resolution",
+      "points": [
+        "missing artifact rejected",
+        "hash-mismatched artifact rejected",
+        "non-bytes resolver value rejected",
+        "exact hash-bound bytes accepted"
+      ]
+    },
+    {
+      "name": "continuous_optimum_bracket",
+      "points": [
+        "left boundary zero-width bracket",
+        "interior nonzero-width bracket",
+        "right boundary zero-width bracket"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept bool pool fields, bool step counts, or bool production outputs as integers",
+      "killed_by": "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py::test_boolean_values_do_not_cross_integer_boundaries"
+    },
+    {
+      "description": "accept bytearray packets because bytes and bytearray compare equal",
+      "killed_by": "tests/research/test_nonendpoint_hybrid_root_guard_20260630.py::test_root_guard_rejects_non_bytes_packets_and_resolver_values"
+    },
+    {
+      "description": "allow non-bytes resolver values to reach artifact hashing and nested verification",
+      "killed_by": "tests/research/test_tight_argmax_exact_interval_certificate_20260630.py::test_verifier_rejects_non_bytes_packets_and_resolver_values"
+    },
+    {
+      "description": "trust a missing or tampered m-source artifact",
+      "killed_by": "tests/research/test_nonendpoint_hybrid_root_guard_20260630.py::test_nonendpoint_hybrid_root_guard_requires_resolved_m_artifact"
+    }
+  ],
+  "nonclaims": [
+    "These are bounded research replay checkers; they do not establish a theorem over every CPMM domain.",
+    "The exact root-side guard does not grant routing, settlement, consensus, release, or writer authority.",
+    "Passing this packet does not establish whole-economy value-movement safety or production readiness.",
+    "No release mount, migration, writer rotation, or value-moving production authority is granted; production_authority remains NONE."
+  ]
+}
