@@ -101,6 +101,9 @@ run_shell_assurance \
 
 echo "== runtime-shell: adapter regression net =="
 "$PY" -m pytest -q \
+  tests/core/test_perp_v2/test_oracle_equiv.py \
+  tests/core/test_perp_v2/test_parity_with_generated_ref.py \
+  tests/kernels/test_perp_epoch_isolated_v3_generated_ref_sync.py \
   tests/kernels/test_python_adapter_wrappers.py \
   tests/kernels/test_proof_mining_manager_v1_adapter.py \
   tests/kernels/test_runtime_shell_adapters.py

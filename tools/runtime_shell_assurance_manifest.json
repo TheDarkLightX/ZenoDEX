@@ -15,6 +15,10 @@
       "sha256": "1bf50a8693f7b83a846b9c6bacf918e604be3657e7138691b0a0aaf8fa3a8990"
     },
     {
+      "path": "generated/perp_python/perp_epoch_isolated_v3_ref.py",
+      "sha256": "508cf6d742be2fb82b1ea81d4f58b95c6fdae8fae31954cb4532cf59532b803f"
+    },
+    {
       "path": "src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml",
       "sha256": "ee330ff245a05147d6ec3a4c9c58b227c4eea55041118333313d8961aafe4b81"
     },
@@ -24,7 +28,7 @@
     },
     {
       "path": "src/kernels/dex/proof_mining_manager_v1.yaml",
-      "sha256": "6ce57b03de4493b7c171a32f77d7e1722d3935221d31544febd70d118b9963be"
+      "sha256": "8e28896e54cafdc435640708be5ca58cfa40da941422db094dfd2be1019afdfc"
     },
     {
       "path": "src/kernels/dex/dex_global_conservation_v1.yaml",
@@ -44,15 +48,27 @@
     },
     {
       "path": "src/kernels/python/proof_mining_manager_v1_adapter.py",
-      "sha256": "f2f67dc2d75e8ba3bf11584ec5bfc100b322798b88de5970f6514633e7768af3"
+      "sha256": "b200e4c1ec05abf4841a5b93555efb98292541186d8b17d6d499e70d43592091"
     },
     {
       "path": "src/kernels/python/dex_global_conservation_v1_adapter.py",
-      "sha256": "0c3f1ccbcb09e045b6b7672e4688724c052446ffc56865115a2db818cecfa68b"
+      "sha256": "a4a60455c5b2ed90c3d8f4673fc3439e33d13a166b5e44d00de61fa477e237d0"
     },
     {
       "path": "tests/kernels/test_python_adapter_wrappers.py",
-      "sha256": "e5ee01ddcf5eebcc4efb777e3ecaae136c54af97801aeec20110f4199fb6a802"
+      "sha256": "b7376e51344793b2dafdbb393562cd282506566eba724dc28c075d2dd068712f"
+    },
+    {
+      "path": "tests/core/test_perp_v2/test_oracle_equiv.py",
+      "sha256": "d77d2ae70bdde9a2f9a34a9c3f7980f336b1345259a9a7ce6f2e4385fda43982"
+    },
+    {
+      "path": "tests/core/test_perp_v2/test_parity_with_generated_ref.py",
+      "sha256": "05862613e74f5b9bbe7a450f24fc4bfa9acad9026ea145a7648fd66343345048"
+    },
+    {
+      "path": "tests/kernels/test_perp_epoch_isolated_v3_generated_ref_sync.py",
+      "sha256": "72e2c94b1786595e2034b6d620d59fa5d37f2f6075298ba471cd6e5b53761e8b"
     },
     {
       "path": "tests/kernels/test_proof_mining_manager_v1_adapter.py",
@@ -61,6 +77,10 @@
     {
       "path": "tests/kernels/test_runtime_shell_adapters.py",
       "sha256": "2c0bae9252425aaf413e4d595f30f0c51959fcf3ec02f136ccb946b7ce5c51f5"
+    },
+    {
+      "path": "tools/run_runtime_shell_assurance_gate.sh",
+      "sha256": "48ac5f4691c93d53c6a485cf3ea33484c2217b88e7bdade218dd48c66aa5442f"
     }
   ],
   "shell_lint": [
@@ -150,7 +170,7 @@
     {
       "report_path": "internal/esso_verify/runtime_shell_assurance/proof_mining_manager_v1/shell_lint.json",
       "adapter_spec": "src.kernels.python.proof_mining_manager_v1_adapter:make_adapter",
-      "ir_hash": "sha256:d7f4a186737212ed0673a5034f28286728a4aa914cf5bb7d8ff178f3342e1b9c",
+      "ir_hash": "sha256:6141f0e10bf9c1b621236279516cf3f77551f8e17a20a3d303c7573796b7c31e",
       "actions": [
         "advance_epoch",
         "submit_proof"
@@ -217,13 +237,13 @@
       "report_path": "internal/esso_verify/runtime_shell_assurance/proof_mining_manager_v1/verify_shell.json",
       "kernel_path": "src/kernels/dex/proof_mining_manager_v1.yaml",
       "adapter_spec": "src.kernels.python.proof_mining_manager_v1_adapter:make_adapter",
-      "ir_hash": "sha256:d7f4a186737212ed0673a5034f28286728a4aa914cf5bb7d8ff178f3342e1b9c",
+      "ir_hash": "sha256:6141f0e10bf9c1b621236279516cf3f77551f8e17a20a3d303c7573796b7c31e",
       "mode": "full",
       "seed": 0,
       "traces": 32,
       "max_steps": 16,
       "determinism_trials": 2,
-      "fingerprint": "sha256:2fbb319b4e931e120c618100cfa40b75f354617749b6d88724741c0555a6b0d9"
+      "fingerprint": "sha256:27eafd69bc2313870458b8494242ebbd8158d56820c99b99c55335f04fbba31a"
     },
     {
       "report_path": "internal/esso_verify/runtime_shell_assurance/dex_global_conservation_v1/verify_shell.json",
@@ -239,6 +259,9 @@
     }
   ],
   "adapter_regression_tests": [
+    "tests/core/test_perp_v2/test_oracle_equiv.py",
+    "tests/core/test_perp_v2/test_parity_with_generated_ref.py",
+    "tests/kernels/test_perp_epoch_isolated_v3_generated_ref_sync.py",
     "tests/kernels/test_python_adapter_wrappers.py",
     "tests/kernels/test_proof_mining_manager_v1_adapter.py",
     "tests/kernels/test_runtime_shell_adapters.py"
