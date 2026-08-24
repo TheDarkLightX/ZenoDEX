@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import argparse
+import contextlib
 import hashlib
 import json
 import socket
@@ -11,6 +13,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 CLI = ROOT / "tools" / "zenodex_oracle.py"
@@ -25,6 +28,179 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
         stderr=subprocess.PIPE,
         check=False,
     )
+
+
+def _run_json_ok(*args: str) -> dict[str, object]:
+    proc = _run(*args)
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(proc.stdout)
+    assert isinstance(payload, dict)
+    return payload
+
+
+def _prepare_authorization_dispute_fixture(home: Path) -> dict[str, str]:
+    query_id = "sha256:" + "8" * 64
+    _run_json_ok("--json", "init", "--home", str(home))
+    _run_json_ok("--json", "identity", "create", "--home", str(home))
+    _run_json_ok(
+        "--json",
+        "query",
+        "register",
+        "--home",
+        str(home),
+        "--base-asset",
+        "AGRS",
+        "--quote-asset",
+        "ZDEX",
+        "--query-id",
+        query_id,
+        "--min-reporters",
+        "1",
+        "--report-reward-e8",
+        "0",
+        "--freshness-window-epochs",
+        "3",
+    )
+    reporter = _run_json_ok(
+        "--json",
+        "reporter",
+        "register",
+        "--home",
+        str(home),
+        "--query-id",
+        query_id,
+        "--required-bond-e8",
+        "1",
+    )
+    _run_json_ok(
+        "--json",
+        "reporter",
+        "bond",
+        "--home",
+        str(home),
+        "--amount-e8",
+        "1",
+    )
+    report = _run_json_ok(
+        "--json",
+        "report",
+        "submit",
+        "--home",
+        str(home),
+        "--query-id",
+        query_id,
+        "--price-e8",
+        "123456789",
+        "--source-observed-epoch",
+        "10",
+        "--source-id",
+        "source:manual",
+    )
+    aggregate = _run_json_ok(
+        "--json",
+        "aggregate",
+        "build",
+        "--home",
+        str(home),
+        "--query-id",
+        query_id,
+        "--epoch",
+        "11",
+    )
+    accepted_read = _run_json_ok(
+        "--json",
+        "read",
+        "accept",
+        "--home",
+        str(home),
+        "--aggregate-id",
+        str(aggregate["aggregate_id"]),
+        "--consumer-module",
+        "zenodex.zusd",
+        "--profile-id",
+        "critical-zusd-v1",
+    )
+    return {
+        "query_id": query_id,
+        "reporter_id": str(reporter["reporter_id"]),
+        "report_id": str(report["report_id"]),
+        "read_id": str(accepted_read["read_id"]),
+    }
+
+
+def _authorization_build_args(home: Path, read_id: str) -> list[str]:
+    return [
+        "--json",
+        "authorization",
+        "build",
+        "--home",
+        str(home),
+        "--read-id",
+        read_id,
+        "--action-kind",
+        "mint",
+        "--action-id",
+        "sha256:" + "2" * 64,
+        "--action-facts-hash",
+        "sha256:" + "3" * 64,
+        "--pre-state-hash",
+        "sha256:" + "4" * 64,
+        "--now-epoch",
+        "12",
+    ]
+
+
+def _exact_economic_envelope(
+    runtime_action: dict[str, object],
+    *,
+    reporter_count: int = 1,
+    reporter_bond_required_e8: int = 1,
+) -> dict[str, object]:
+    runtime_notional = runtime_action.get("runtime_notional_value_e8")
+    notional_value_e8 = (
+        runtime_notional
+        if type(runtime_notional) is int
+        else runtime_action["runtime_value_e8"]
+    )
+    assert type(notional_value_e8) is int
+    max_extractable_value_e8 = min(1, notional_value_e8)
+    return {
+        "schema": "zenodex.oracle.economic_security_envelope.v1",
+        "query_id": runtime_action["query_id"],
+        "consumer_module": runtime_action["consumer_module"],
+        "action_kind": runtime_action["action_kind"],
+        "notional_value_e8": notional_value_e8,
+        "max_extractable_value_e8": max_extractable_value_e8,
+        "attack_cost_floor_e8": max_extractable_value_e8,
+        "required_attack_margin_bps": 0,
+        "reporter_count": reporter_count,
+        "reporter_reward_budget_e8": 0,
+        "reporter_reward_per_report_e8": 0,
+        "honest_reporter_cost_e8": 0,
+        "honest_reporter_risk_premium_e8": 0,
+        "reporter_bond_required_e8": reporter_bond_required_e8,
+        "slash_fraction_bps": 10_000,
+        "expected_cheat_gain_e8": max_extractable_value_e8,
+        "deterrence_margin_bps": 0,
+        "dispute_reward_e8": 0,
+        "dispute_budget_e8": 0,
+        "fee_paid_e8": 0,
+        "reporter_fee_share_e8": 0,
+        "treasury_fee_share_e8": 0,
+        "burn_fee_share_e8": 0,
+    }
+
+
+def _content_addressed_authorization_fixture(tag: str) -> dict[str, object]:
+    authorization: dict[str, object] = {"fixture_tag": tag}
+    return {
+        "authorization_id": _semantic_hash(
+            "zeno_oracle.oracle_authorization.v1",
+            authorization,
+        ),
+        "authorization": authorization,
+        "schema": "zeno_oracle.oracle_authorization_bundle.v1",
+    }
 
 
 def _canonical_bytes(payload: dict[str, object]) -> bytes:
@@ -64,6 +240,20 @@ def _http_post_json(url: str, payload: dict[str, object]) -> tuple[int, dict[str
         return exc.code, json.loads(exc.read().decode("utf-8"))
 
 
+def _http_post_raw_json(url: str, body: bytes) -> tuple[int, dict[str, object]]:
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return response.status, json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        return exc.code, json.loads(exc.read().decode("utf-8"))
+
+
 def _http_options_json(url: str) -> tuple[int, dict[str, str], dict[str, object]]:
     request = urllib.request.Request(url, method="OPTIONS")
     with urllib.request.urlopen(request, timeout=5) as response:
@@ -84,6 +274,838 @@ def test_version_reports_non_authoritative_pre_mvp_cli() -> None:
     assert "replay" in validator_help.stdout
     assert "receipt" in validator_help.stdout
     assert "authorization" in validator_help.stdout
+
+
+def test_authorization_runtime_request_is_exact_owned_and_closed() -> None:
+    from tools.zenodex_oracle import _authorization_runtime_from_args
+
+    # Arrange: the accepted read defines the four producer-side bindings.
+    read = {
+        "consumer_module": "zenodex.zusd",
+        "profile_id": "critical-zusd-v1",
+        "query_id": "sha256:" + "1" * 64,
+        "value_e8": 123_456_789,
+        "observed_epoch": 12,
+    }
+    runtime_action = {
+        "consumer_module": "zenodex.zusd",
+        "action_kind": "mint",
+        "action_id": "sha256:" + "2" * 64,
+        "action_facts_hash": "sha256:" + "3" * 64,
+        "pre_state_hash": "sha256:" + "4" * 64,
+        "profile_id": "critical-zusd-v1",
+        "query_id": read["query_id"],
+        "runtime_value_e8": read["value_e8"],
+        "now_epoch": 12,
+        "max_freshness_window_epochs": 2,
+    }
+
+    # Act: parse to an immutable owned value, then mutate the caller object.
+    runtime, source = _authorization_runtime_from_args(
+        argparse.Namespace(runtime_action=runtime_action),
+        read,
+    )
+    runtime_action["runtime_value_e8"] = 7
+
+    # Assert.
+    assert source == "consumer_runtime_exact"
+    assert runtime.runtime_value_e8 == 123_456_789
+    assert runtime.max_freshness_window_epochs == 2
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_error"),
+    [
+        ({"runtime_value_e8": True}, "runtime_value_e8 must be an int"),
+        ({"runtime_value_e8": 123_456_790}, "runtime_action runtime_value_e8 does not match accepted read"),
+        ({"unknown_authority": "caller"}, "runtime_action has unknown fields: unknown_authority"),
+    ],
+)
+def test_authorization_runtime_request_rejects_hostile_or_ambiguous_values(
+    mutation: dict[str, object],
+    expected_error: str,
+) -> None:
+    from tools.zenodex_oracle import _authorization_runtime_from_args
+
+    # Arrange.
+    read = {
+        "consumer_module": "zenodex.zusd",
+        "profile_id": "critical-zusd-v1",
+        "query_id": "sha256:" + "1" * 64,
+        "value_e8": 123_456_789,
+        "observed_epoch": 12,
+    }
+    runtime_action: dict[str, object] = {
+        "consumer_module": "zenodex.zusd",
+        "action_kind": "mint",
+        "action_id": "sha256:" + "2" * 64,
+        "action_facts_hash": "sha256:" + "3" * 64,
+        "pre_state_hash": "sha256:" + "4" * 64,
+        "profile_id": "critical-zusd-v1",
+        "query_id": read["query_id"],
+        "runtime_value_e8": read["value_e8"],
+        "now_epoch": 12,
+        "max_freshness_window_epochs": 2,
+    }
+    runtime_action.update(mutation)
+
+    # Act / Assert.
+    with pytest.raises((SystemExit, ValueError), match=expected_error):
+        _authorization_runtime_from_args(
+            argparse.Namespace(runtime_action=runtime_action),
+            read,
+        )
+
+
+def test_authorization_exact_retry_repairs_matching_orphan_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Arrange: the receipt write succeeds, then the append-only index write
+    # faults at the one recoverable persistence boundary.
+    home = tmp_path / "oracle-home"
+    bundle = _content_addressed_authorization_fixture("orphan-retry")
+    append_index_row = oracle_cli._append_authorization_index_row
+
+    def fail_append(_path: Path, _payload: dict[str, object]) -> None:
+        raise OSError("fault injection after receipt write")
+
+    monkeypatch.setattr(oracle_cli, "_append_authorization_index_row", fail_append)
+
+    # Act: the first attempt faults; an exact retry sees the matching canonical
+    # receipt and reconstructs the missing index row.
+    with pytest.raises(OSError, match="fault injection"):
+        oracle_cli._persist_authorization_bundle(home, bundle)
+    monkeypatch.setattr(
+        oracle_cli,
+        "_append_authorization_index_row",
+        append_index_row,
+    )
+    receipt_path, idempotent_replay, reconciled_orphan = (
+        oracle_cli._persist_authorization_bundle(home, bundle)
+    )
+
+    # Assert.
+    assert receipt_path.exists()
+    assert idempotent_replay is True
+    assert reconciled_orphan is True
+    rows = oracle_cli._iter_jsonl(oracle_cli._authorizations_log_path(home))
+    assert rows == [bundle]
+
+
+def test_authorization_receipt_write_uses_same_directory_atomic_replace_and_fsync(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Arrange.
+    receipt_path = tmp_path / "receipts" / "authorizations" / "sha256_a.json"
+    receipt_path.parent.mkdir(parents=True)
+    bundle = {
+        "authorization_id": "sha256:" + "a" * 64,
+        "schema": "zeno_oracle.oracle_authorization_bundle.v1",
+    }
+    events: list[tuple[str, Path | None]] = []
+    real_mkstemp = oracle_cli.tempfile.mkstemp
+    real_fsync = oracle_cli.os.fsync
+    real_replace = oracle_cli.os.replace
+
+    def tracked_mkstemp(*args: object, **kwargs: object) -> tuple[int, str]:
+        fd, raw_path = real_mkstemp(*args, **kwargs)
+        temp_path = Path(raw_path)
+        events.append(("temp", temp_path))
+        assert temp_path.parent == receipt_path.parent
+        return fd, raw_path
+
+    def tracked_fsync(fd: int) -> None:
+        events.append(("file_fsync", None))
+        real_fsync(fd)
+
+    def tracked_replace(source: str | Path, destination: str | Path) -> None:
+        source_path = Path(source)
+        destination_path = Path(destination)
+        events.append(("replace", destination_path))
+        assert source_path.parent == destination_path.parent == receipt_path.parent
+        real_replace(source, destination)
+
+    def tracked_directory_fsync(path: Path) -> None:
+        events.append(("directory_fsync", path))
+
+    monkeypatch.setattr(oracle_cli.tempfile, "mkstemp", tracked_mkstemp)
+    monkeypatch.setattr(oracle_cli.os, "fsync", tracked_fsync)
+    monkeypatch.setattr(oracle_cli.os, "replace", tracked_replace)
+    monkeypatch.setattr(oracle_cli, "_fsync_directory", tracked_directory_fsync)
+
+    # Act.
+    oracle_cli._write_authorization_receipt_atomic(receipt_path, bundle)
+
+    # Assert: the canonical path becomes visible only after the temp file is
+    # flushed, and the containing directory is synced after the rename.
+    event_names = [name for name, _path in events]
+    assert event_names == ["temp", "file_fsync", "replace", "directory_fsync"]
+    assert events[-1] == ("directory_fsync", receipt_path.parent)
+    assert oracle_cli._load_json(receipt_path) == bundle
+    assert list(receipt_path.parent.glob(f".{receipt_path.name}.*.tmp")) == []
+
+
+def test_authorization_crash_before_receipt_replace_publishes_nothing_then_retries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Arrange.
+    home = tmp_path / "oracle-home"
+    bundle = _content_addressed_authorization_fixture("before-replace")
+    receipt_path = oracle_cli._authorization_receipt_path(
+        home,
+        bundle["authorization_id"],
+    )
+    real_replace = oracle_cli.os.replace
+
+    def fail_receipt_replace(source: str | Path, destination: str | Path) -> None:
+        if Path(destination) == receipt_path:
+            raise OSError("fault injection before receipt replace")
+        real_replace(source, destination)
+
+    monkeypatch.setattr(oracle_cli.os, "replace", fail_receipt_replace)
+
+    # Act: the pre-linearization crash prefix publishes neither durable object.
+    with pytest.raises(OSError, match="before receipt replace"):
+        oracle_cli._persist_authorization_bundle(home, bundle)
+
+    # Assert, then retry with the fault removed.
+    assert not receipt_path.exists()
+    assert not oracle_cli._authorizations_log_path(home).exists()
+    assert list(receipt_path.parent.glob(f".{receipt_path.name}.*.tmp")) == []
+
+    monkeypatch.setattr(oracle_cli.os, "replace", real_replace)
+    result = oracle_cli._persist_authorization_bundle(home, bundle)
+    assert result == (receipt_path, False, False)
+    assert oracle_cli._load_json(receipt_path) == bundle
+    assert oracle_cli._authorization_rows(home) == [bundle]
+
+
+def test_authorization_retry_recovers_after_receipt_replace_directory_fsync_fault(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Arrange.
+    home = tmp_path / "oracle-home"
+    bundle = _content_addressed_authorization_fixture("after-replace")
+    receipt_path = oracle_cli._authorization_receipt_path(
+        home,
+        bundle["authorization_id"],
+    )
+    real_directory_fsync = oracle_cli._fsync_directory
+    faulted = False
+
+    def fail_once_after_receipt_replace(path: Path) -> None:
+        nonlocal faulted
+        if path == receipt_path.parent and receipt_path.exists() and not faulted:
+            faulted = True
+            raise OSError("fault injection after receipt replace")
+        real_directory_fsync(path)
+
+    monkeypatch.setattr(oracle_cli, "_fsync_directory", fail_once_after_receipt_replace)
+
+    # Act.
+    with pytest.raises(OSError, match="after receipt replace"):
+        oracle_cli._persist_authorization_bundle(home, bundle)
+
+    # Assert: the canonical receipt is the recoverable linearized prefix. An
+    # exact retry syncs it and reconstructs one index row.
+    assert receipt_path.exists()
+    assert not oracle_cli._authorizations_log_path(home).exists()
+    monkeypatch.setattr(oracle_cli, "_fsync_directory", real_directory_fsync)
+    result = oracle_cli._persist_authorization_bundle(home, bundle)
+    assert result == (receipt_path, True, True)
+    assert oracle_cli._authorization_rows(home) == [bundle]
+
+
+def test_authorization_retry_rebuilds_torn_trailing_index_from_receipt(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Arrange.
+    home = tmp_path / "oracle-home"
+    bundle = _content_addressed_authorization_fixture("torn-index")
+    index_path = oracle_cli._authorizations_log_path(home)
+    append_index_row = oracle_cli._append_authorization_index_row
+
+    def write_torn_prefix_then_fail(path: Path, payload: dict[str, object]) -> None:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        complete_line = oracle_cli._authorization_index_line_bytes(payload)
+        path.write_bytes(complete_line[: len(complete_line) // 2])
+        raise OSError("fault injection during index append")
+
+    monkeypatch.setattr(
+        oracle_cli,
+        "_append_authorization_index_row",
+        write_torn_prefix_then_fail,
+    )
+
+    # Act.
+    with pytest.raises(OSError, match="during index append"):
+        oracle_cli._persist_authorization_bundle(home, bundle)
+
+    # Assert the reader ignores only the unterminated tail. Exact retry rebuilds
+    # the derived index from the canonical receipt and leaves one complete row.
+    assert index_path.read_bytes()
+    assert not index_path.read_bytes().endswith(b"\n")
+    assert oracle_cli._authorization_rows(home) == []
+    verification_errors: list[str] = []
+    oracle_cli._verify_stored_receipt_files(home, verification_errors)
+    assert any(
+        "is not present in authorizations log" in error
+        for error in verification_errors
+    )
+    monkeypatch.setattr(
+        oracle_cli,
+        "_append_authorization_index_row",
+        append_index_row,
+    )
+    receipt_path = oracle_cli._authorization_receipt_path(
+        home,
+        bundle["authorization_id"],
+    )
+    result = oracle_cli._persist_authorization_bundle(home, bundle)
+    assert result == (receipt_path, True, True)
+    assert index_path.read_bytes().endswith(b"\n")
+    assert oracle_cli._authorization_rows(home) == [bundle]
+
+
+def test_authorization_index_is_explicitly_rebuildable_from_canonical_receipts(
+    tmp_path: Path,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Arrange: persist in reverse identity order, then lose the derived index.
+    home = tmp_path / "oracle-home"
+    fixtures = sorted(
+        (
+            _content_addressed_authorization_fixture("rebuild-one"),
+            _content_addressed_authorization_fixture("rebuild-two"),
+        ),
+        key=lambda bundle: str(bundle["authorization_id"]),
+    )
+    bundle_1, bundle_2 = fixtures
+    oracle_cli._persist_authorization_bundle(home, bundle_2)
+    oracle_cli._persist_authorization_bundle(home, bundle_1)
+    index_path = oracle_cli._authorizations_log_path(home)
+    index_path.unlink()
+
+    # Act.
+    rebuilt_rows = oracle_cli._rebuild_authorization_index(home)
+
+    # Assert: canonical receipts reconstruct one deterministic row per identity.
+    assert rebuilt_rows == [bundle_1, bundle_2]
+    assert oracle_cli._authorization_rows(home) == [bundle_1, bundle_2]
+    assert index_path.read_bytes().endswith(b"\n")
+
+
+def test_authorization_index_recovery_rejects_corruption_before_torn_tail(
+    tmp_path: Path,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Arrange: a canonical receipt exists, while the derived index contains a
+    # malformed completed first record followed by an unterminated tail.
+    home = tmp_path / "oracle-home"
+    bundle = _content_addressed_authorization_fixture("corrupt-before-tail")
+    receipt_path, _, _ = oracle_cli._persist_authorization_bundle(home, bundle)
+    index_path = oracle_cli._authorizations_log_path(home)
+    corrupted_bytes = b'{"authorization_id":}\n{"authorization_id":"sha256:'
+    index_path.write_bytes(corrupted_bytes)
+    receipt_bytes = receipt_path.read_bytes()
+
+    # Act / Assert: neither read-only validation nor recovery treats corruption
+    # in a newline-terminated record as a permissible final crash fragment.
+    with pytest.raises(SystemExit, match=r":1: invalid authorization index JSON"):
+        oracle_cli._authorization_rows(home)
+    assert index_path.read_bytes() == corrupted_bytes
+    with pytest.raises(SystemExit, match=r":1: invalid authorization index JSON"):
+        oracle_cli._persist_authorization_bundle(home, bundle)
+    assert index_path.read_bytes() == corrupted_bytes
+    assert receipt_path.read_bytes() == receipt_bytes
+
+
+def test_authorization_rows_reject_duplicate_completed_rows_without_repair(
+    tmp_path: Path,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Arrange.
+    home = tmp_path / "oracle-home"
+    bundle = _content_addressed_authorization_fixture("duplicate-index")
+    oracle_cli._persist_authorization_bundle(home, bundle)
+    index_path = oracle_cli._authorizations_log_path(home)
+    one_row = index_path.read_bytes()
+    duplicate_rows = one_row + one_row
+    index_path.write_bytes(duplicate_rows)
+
+    # Act / Assert.
+    with pytest.raises(SystemExit, match="duplicate index rows"):
+        oracle_cli._authorization_rows(home)
+    assert index_path.read_bytes() == duplicate_rows
+
+
+def test_authorization_rows_reject_completed_row_receipt_mismatch_without_repair(
+    tmp_path: Path,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Arrange.
+    home = tmp_path / "oracle-home"
+    bundle = _content_addressed_authorization_fixture("index-receipt-mismatch")
+    receipt_path, _, _ = oracle_cli._persist_authorization_bundle(home, bundle)
+    index_path = oracle_cli._authorizations_log_path(home)
+    tampered = dict(bundle)
+    tampered["schema"] = "zeno_oracle.oracle_authorization_bundle.v0"
+    tampered_bytes = oracle_cli._authorization_index_line_bytes(tampered)
+    index_path.write_bytes(tampered_bytes)
+    receipt_bytes = receipt_path.read_bytes()
+
+    # Act / Assert.
+    with pytest.raises(SystemExit, match="collision with different durable bundle"):
+        oracle_cli._authorization_rows(home)
+    assert index_path.read_bytes() == tampered_bytes
+    assert receipt_path.read_bytes() == receipt_bytes
+
+
+@pytest.mark.parametrize("surface", ["persist", "receipt"])
+def test_authorization_durable_state_rejects_content_address_mismatch(
+    tmp_path: Path,
+    surface: str,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    home = tmp_path / "oracle-home"
+    bundle = _content_addressed_authorization_fixture("content-address")
+    if surface == "receipt":
+        receipt_path, _, _ = oracle_cli._persist_authorization_bundle(home, bundle)
+    tampered = json.loads(json.dumps(bundle))
+    tampered["authorization"]["fixture_tag"] = "tampered"
+
+    if surface == "persist":
+        with pytest.raises(
+            SystemExit,
+            match="authorization_id does not match authorization content",
+        ):
+            oracle_cli._persist_authorization_bundle(home, tampered)
+        assert not (home / "data" / "oracle_authorizations.jsonl").exists()
+        assert list((home / "receipts" / "authorizations").glob("*.json")) == []
+    else:
+        receipt_path.write_bytes(oracle_cli._authorization_receipt_bytes(tampered))
+        with pytest.raises(
+            SystemExit,
+            match="authorization_id does not match authorization content",
+        ):
+            oracle_cli._authorization_rows(home)
+
+
+@pytest.mark.parametrize("corrupt_surface", ["index", "receipt"])
+def test_authorization_rows_reject_duplicate_json_keys(
+    tmp_path: Path,
+    corrupt_surface: str,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Arrange.
+    home = tmp_path / "oracle-home"
+    bundle = _content_addressed_authorization_fixture("duplicate-json-key")
+    authorization_id = str(bundle["authorization_id"])
+    receipt_path, _, _ = oracle_cli._persist_authorization_bundle(home, bundle)
+    index_path = oracle_cli._authorizations_log_path(home)
+    duplicate_key_bytes = (
+        "{"
+        f'"authorization_id":"{authorization_id}",'
+        f'"authorization_id":"{authorization_id}",'
+        '"schema":"zeno_oracle.oracle_authorization_bundle.v1"'
+        "}\n"
+    ).encode("ascii")
+    corrupt_path = index_path if corrupt_surface == "index" else receipt_path
+    corrupt_path.write_bytes(duplicate_key_bytes)
+
+    # Act / Assert.
+    expected = (
+        "duplicate authorization index JSON key"
+        if corrupt_surface == "index"
+        else "duplicate canonical authorization receipt JSON key"
+    )
+    with pytest.raises(SystemExit, match=expected):
+        oracle_cli._authorization_rows(home)
+    assert corrupt_path.read_bytes() == duplicate_key_bytes
+
+
+@pytest.mark.parametrize("corrupt_surface", ["index", "receipt"])
+def test_authorization_rows_reject_nonfinite_json_constants(
+    tmp_path: Path,
+    corrupt_surface: str,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    home = tmp_path / "oracle-home"
+    bundle = _content_addressed_authorization_fixture("nonfinite-json")
+    authorization_id = str(bundle["authorization_id"])
+    receipt_path, _, _ = oracle_cli._persist_authorization_bundle(home, bundle)
+    index_path = oracle_cli._authorizations_log_path(home)
+    nonfinite_bytes = (
+        "{"
+        f'"authorization_id":"{authorization_id}",'
+        '"schema":"zeno_oracle.oracle_authorization_bundle.v1",'
+        '"poison":NaN'
+        "}\n"
+    ).encode("ascii")
+    corrupt_path = index_path if corrupt_surface == "index" else receipt_path
+    corrupt_path.write_bytes(nonfinite_bytes)
+
+    expected = (
+        "non-finite authorization index JSON constant: NaN"
+        if corrupt_surface == "index"
+        else "non-finite canonical authorization receipt JSON constant: NaN"
+    )
+    with pytest.raises(SystemExit, match=expected):
+        oracle_cli._authorization_rows(home)
+    assert corrupt_path.read_bytes() == nonfinite_bytes
+
+
+def test_authorization_persistence_uses_exclusive_cross_process_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    calls: list[int] = []
+    real_flock = oracle_cli.fcntl.flock
+
+    def tracked_flock(fd: int, operation: int) -> None:
+        calls.append(operation)
+        real_flock(fd, operation)
+
+    monkeypatch.setattr(oracle_cli.fcntl, "flock", tracked_flock)
+    bundle = _content_addressed_authorization_fixture("exclusive-lock")
+
+    oracle_cli._persist_authorization_bundle(tmp_path, bundle)
+
+    assert calls == [oracle_cli.fcntl.LOCK_EX, oracle_cli.fcntl.LOCK_UN]
+    assert (tmp_path / "data" / "oracle_authorizations.lock").exists()
+
+
+def test_dispute_commit_before_authorization_rejects_without_authorization_write(
+    tmp_path: Path,
+) -> None:
+    # Arrange.
+    home = tmp_path / "oracle-home"
+    fixture = _prepare_authorization_dispute_fixture(home)
+    _run_json_ok(
+        "--json",
+        "dispute",
+        "open",
+        "--home",
+        str(home),
+        "--report-id",
+        fixture["report_id"],
+        "--reporter-id",
+        fixture["reporter_id"],
+        "--bond-e8",
+        "1",
+        "--reason",
+        "linearization-test",
+        "--epoch",
+        "12",
+    )
+
+    # Act.
+    authorization = _run(*_authorization_build_args(home, fixture["read_id"]))
+
+    # Assert: dispute-first ordering rejects before either authorization write.
+    assert authorization.returncode != 0
+    assert "disputed reports" in authorization.stderr
+    assert not (home / "data" / "oracle_authorizations.jsonl").exists()
+    assert list((home / "receipts" / "authorizations").glob("*.json")) == []
+
+
+def test_authorization_commit_before_later_dispute_remains_historical_artifact(
+    tmp_path: Path,
+) -> None:
+    # Arrange.
+    home = tmp_path / "oracle-home"
+    fixture = _prepare_authorization_dispute_fixture(home)
+    authorization = _run_json_ok(*_authorization_build_args(home, fixture["read_id"]))
+    receipt_path = Path(str(authorization["receipt_path"]))
+    index_path = home / "data" / "oracle_authorizations.jsonl"
+    receipt_bytes = receipt_path.read_bytes()
+    index_bytes = index_path.read_bytes()
+
+    # Act.
+    _run_json_ok(
+        "--json",
+        "dispute",
+        "open",
+        "--home",
+        str(home),
+        "--report-id",
+        fixture["report_id"],
+        "--reporter-id",
+        fixture["reporter_id"],
+        "--bond-e8",
+        "1",
+        "--reason",
+        "historical-artifact-test",
+        "--epoch",
+        "13",
+    )
+    retry = _run(*_authorization_build_args(home, fixture["read_id"]))
+
+    # Assert: authorization-first ordering keeps its historical bytes. The
+    # later dispute blocks new issuance; settlement revocation is separate.
+    assert retry.returncode != 0
+    assert "disputed reports" in retry.stderr
+    assert receipt_path.read_bytes() == receipt_bytes
+    assert index_path.read_bytes() == index_bytes
+
+
+def test_authorization_build_snapshots_and_persists_under_one_non_nested_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Arrange.
+    home = tmp_path / "oracle-home"
+    fixture = _prepare_authorization_dispute_fixture(home)
+    events: list[str] = []
+    lock_held = False
+    lock_depth = 0
+    real_lock = oracle_cli._authorization_persistence_lock
+    real_load_disputes = oracle_cli._load_disputes
+    real_persist_locked = oracle_cli._persist_authorization_bundle_locked
+
+    @contextlib.contextmanager
+    def tracked_lock(lock_home: Path):
+        nonlocal lock_depth, lock_held
+        assert lock_depth == 0
+        lock_depth += 1
+        with real_lock(lock_home):
+            lock_held = True
+            events.append("lock_enter")
+            try:
+                yield
+            finally:
+                lock_held = False
+        events.append("lock_exit")
+        lock_depth -= 1
+
+    def tracked_load_disputes(load_home: Path) -> dict[str, object]:
+        assert lock_held
+        events.append("dispute_snapshot")
+        return real_load_disputes(load_home)
+
+    def tracked_persist_locked(
+        persist_home: Path,
+        bundle: dict[str, object],
+    ) -> tuple[Path, bool, bool]:
+        assert lock_held
+        events.append("persist_locked")
+        return real_persist_locked(persist_home, bundle)
+
+    def reject_nested_persist(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("authorization build attempted nested lock acquisition")
+
+    monkeypatch.setattr(oracle_cli, "_authorization_persistence_lock", tracked_lock)
+    monkeypatch.setattr(oracle_cli, "_load_disputes", tracked_load_disputes)
+    monkeypatch.setattr(
+        oracle_cli,
+        "_persist_authorization_bundle_locked",
+        tracked_persist_locked,
+    )
+    monkeypatch.setattr(oracle_cli, "_persist_authorization_bundle", reject_nested_persist)
+    args = argparse.Namespace(
+        home=str(home),
+        read_id=fixture["read_id"],
+        action_kind="mint",
+        action_id="sha256:" + "2" * 64,
+        action_facts_hash="sha256:" + "3" * 64,
+        pre_state_hash="sha256:" + "4" * 64,
+        now_epoch=12,
+        min_evidence_class="O3",
+        economic_envelope_id="econ:local-dev-v1",
+        json=True,
+    )
+
+    # Act.
+    result = oracle_cli.cmd_authorization_build(args)
+    capsys.readouterr()
+
+    # Assert.
+    assert result == 0
+    assert events == ["lock_enter", "dispute_snapshot", "persist_locked", "lock_exit"]
+    assert lock_depth == 0
+    assert lock_held is False
+
+
+def test_dispute_open_and_resolve_share_authorization_linearization_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Arrange.
+    home = tmp_path / "oracle-home"
+    fixture = _prepare_authorization_dispute_fixture(home)
+    events: list[str] = []
+    lock_held = False
+    lock_depth = 0
+    real_lock = oracle_cli._authorization_persistence_lock
+    real_load_disputes = oracle_cli._load_disputes
+    real_write_registry = oracle_cli._write_dispute_registry_durable
+    real_append_jsonl = oracle_cli._append_jsonl
+
+    @contextlib.contextmanager
+    def tracked_lock(lock_home: Path):
+        nonlocal lock_depth, lock_held
+        assert lock_depth == 0
+        lock_depth += 1
+        with real_lock(lock_home):
+            lock_held = True
+            events.append("lock_enter")
+            try:
+                yield
+            finally:
+                lock_held = False
+        events.append("lock_exit")
+        lock_depth -= 1
+
+    def tracked_load_disputes(load_home: Path) -> dict[str, object]:
+        assert lock_held
+        events.append("dispute_snapshot")
+        return real_load_disputes(load_home)
+
+    def tracked_write_registry(
+        write_home: Path,
+        disputes: dict[str, object],
+    ) -> None:
+        assert lock_held
+        events.append("registry_commit")
+        real_write_registry(write_home, disputes)
+
+    def tracked_append(path: Path, payload: dict[str, object]) -> None:
+        if path == oracle_cli._disputes_log_path(home):
+            assert lock_held
+            events.append("dispute_log_append")
+        real_append_jsonl(path, payload)
+
+    monkeypatch.setattr(oracle_cli, "_authorization_persistence_lock", tracked_lock)
+    monkeypatch.setattr(oracle_cli, "_load_disputes", tracked_load_disputes)
+    monkeypatch.setattr(oracle_cli, "_write_dispute_registry_durable", tracked_write_registry)
+    monkeypatch.setattr(oracle_cli, "_append_jsonl", tracked_append)
+    open_args = argparse.Namespace(
+        home=str(home),
+        report_id=fixture["report_id"],
+        reporter_id=fixture["reporter_id"],
+        bond_e8="1",
+        reason="lock-order-test",
+        epoch=12,
+        dispute_id=None,
+        force=False,
+        json=True,
+    )
+
+    # Act / Assert: open mutation is fully enclosed by the shared lock.
+    assert oracle_cli.cmd_dispute_open(open_args) == 0
+    opened = json.loads(capsys.readouterr().out)
+    assert events == [
+        "lock_enter",
+        "dispute_snapshot",
+        "registry_commit",
+        "dispute_log_append",
+        "lock_exit",
+    ]
+
+    events.clear()
+    resolve_args = argparse.Namespace(
+        home=str(home),
+        dispute_id=opened["dispute_id"],
+        outcome="rejected",
+        slash_e8=None,
+        epoch=13,
+        force=False,
+        json=True,
+    )
+    assert oracle_cli.cmd_dispute_resolve(resolve_args) == 0
+    capsys.readouterr()
+    assert events == [
+        "lock_enter",
+        "dispute_snapshot",
+        "registry_commit",
+        "dispute_log_append",
+        "lock_exit",
+    ]
+    assert lock_depth == 0
+    assert lock_held is False
+
+
+def test_exact_authorization_api_rejects_unknown_request_fields(tmp_path: Path) -> None:
+    from tools.zenodex_oracle import _write_endpoint_payload
+
+    status, payload = _write_endpoint_payload(
+        tmp_path,
+        "/api/oracle/authorization/build-exact",
+        {
+            "read_id": "sha256:" + "1" * 64,
+            "caller_selected_root": "sha256:" + "2" * 64,
+        },
+    )
+
+    assert status == 400
+    assert payload["ok"] is False
+    assert payload["error"] == (
+        "exact authorization request has unknown fields: caller_selected_root"
+    )
+
+
+def test_authorization_runtime_request_rejects_mapping_subclass() -> None:
+    from tools.zenodex_oracle import _authorization_runtime_from_args
+
+    class HostileRuntime(dict[str, object]):
+        pass
+
+    # Arrange.
+    read = {
+        "consumer_module": "zenodex.zusd",
+        "profile_id": "critical-zusd-v1",
+        "query_id": "sha256:" + "1" * 64,
+        "value_e8": 123_456_789,
+        "observed_epoch": 12,
+    }
+    hostile = HostileRuntime(
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id="sha256:" + "2" * 64,
+        action_facts_hash="sha256:" + "3" * 64,
+        pre_state_hash="sha256:" + "4" * 64,
+        profile_id="critical-zusd-v1",
+        query_id=read["query_id"],
+        runtime_value_e8=read["value_e8"],
+        now_epoch=12,
+    )
+
+    # Act / Assert.
+    with pytest.raises(ValueError, match="runtime_action must be an exact object"):
+        _authorization_runtime_from_args(
+            argparse.Namespace(runtime_action=hostile),
+            read,
+        )
 
 
 def test_critical_profile_detection_accepts_namespaced_profile_ids() -> None:
@@ -1067,6 +2089,7 @@ def test_local_api_write_endpoints_are_explicitly_enabled(tmp_path: Path) -> Non
         assert "/api/oracle/aggregate/build" in ready["write_paths"]
         assert "/api/oracle/read/accept" in ready["write_paths"]
         assert "/api/oracle/authorization/build" in ready["write_paths"]
+        assert "/api/oracle/authorization/build-exact" in ready["write_paths"]
         assert "/api/oracle/dispute/open" in ready["write_paths"]
         assert "/api/oracle/dispute/resolve" in ready["write_paths"]
         assert "/api/oracle/query/fund" in ready["write_paths"]
@@ -1077,6 +2100,19 @@ def test_local_api_write_endpoints_are_explicitly_enabled(tmp_path: Path) -> Non
         assert status == 200
         assert options["ok"] is True
         assert "POST" in headers["Access-Control-Allow-Methods"]
+
+        status, duplicate_key = _http_post_raw_json(
+            f"{base}/api/oracle/identity/create",
+            b'{"force":false,"force":true}',
+        )
+        assert status == 400
+        assert "duplicate JSON key: force" in duplicate_key["error"]
+        status, nonfinite = _http_post_raw_json(
+            f"{base}/api/oracle/identity/create",
+            b'{"force":NaN}',
+        )
+        assert status == 400
+        assert "non-finite JSON constant: NaN" in nonfinite["error"]
 
         status, identity = _http_post_json(f"{base}/api/oracle/identity/create", {"force": True})
         assert status == 200
@@ -1179,26 +2215,193 @@ def test_local_api_write_endpoints_are_explicitly_enabled(tmp_path: Path) -> Non
         assert status == 200
         assert read["read"]["value_e8"] == 123456789
         assert read["read"]["expires_at_epoch"] == 14
-        status, authorization = _http_post_json(
-            f"{base}/api/oracle/authorization/build",
+        from tools.zenodex_oracle import _receipt_graph_from_read
+
+        expected_graph_root = _receipt_graph_from_read(home, read["read"])["receipt_graph_root"]
+        runtime_action = {
+            "consumer_module": "zenodex.zusd",
+            "action_kind": "mint",
+            "action_id": "sha256:" + "2" * 64,
+            "action_facts_hash": "sha256:" + "3" * 64,
+            "pre_state_hash": "sha256:" + "4" * 64,
+            "profile_id": "critical-zusd-v1",
+            "query_id": query_id,
+            "runtime_notional_value_e8": 123456789,
+            "runtime_value_e8": 123456789,
+            "now_epoch": 12,
+            "max_freshness_window_epochs": 2,
+        }
+        economic_envelope = _exact_economic_envelope(runtime_action)
+
+        status, missing_runtime = _http_post_json(
+            f"{base}/api/oracle/authorization/build-exact",
             {
                 "read_id": read["read_id"],
-                "action_kind": "mint",
-                "action_id": "sha256:" + "2" * 64,
-                "action_facts_hash": "sha256:" + "3" * 64,
-                "pre_state_hash": "sha256:" + "4" * 64,
-                "now_epoch": 12,
+                "expected_receipt_graph_root": expected_graph_root,
+                "economic_envelope": economic_envelope,
+            },
+        )
+        assert status == 400
+        assert missing_runtime["error"] == "runtime_action is required for API authorization build"
+
+        status, missing_root = _http_post_json(
+            f"{base}/api/oracle/authorization/build-exact",
+            {
+                "read_id": read["read_id"],
+                "runtime_action": runtime_action,
+                "economic_envelope": economic_envelope,
+            },
+        )
+        assert status == 400
+        assert missing_root["error"] == (
+            "expected_receipt_graph_root is required for API authorization build"
+        )
+
+        status, missing_envelope = _http_post_json(
+            f"{base}/api/oracle/authorization/build-exact",
+            {
+                "read_id": read["read_id"],
+                "runtime_action": runtime_action,
+                "expected_receipt_graph_root": expected_graph_root,
+            },
+        )
+        assert status == 400
+        assert missing_envelope["error"] == (
+            "economic_envelope is required for exact authorization build"
+        )
+
+        status, caller_selected_envelope_id = _http_post_json(
+            f"{base}/api/oracle/authorization/build-exact",
+            {
+                "read_id": read["read_id"],
+                "runtime_action": runtime_action,
+                "expected_receipt_graph_root": expected_graph_root,
+                "economic_envelope": economic_envelope,
+                "economic_envelope_id": "econ:caller-selected",
+            },
+        )
+        assert status == 400
+        assert caller_selected_envelope_id["error"] == (
+            "exact authorization request has unknown fields: economic_envelope_id"
+        )
+
+        # A one-atom runtime mismatch must fail before creating any durable
+        # authorization receipt or log row.
+        mismatched_runtime = dict(runtime_action)
+        mismatched_runtime["runtime_value_e8"] = 123456790
+        status, rejected = _http_post_json(
+            f"{base}/api/oracle/authorization/build-exact",
+            {
+                "read_id": read["read_id"],
+                "runtime_action": mismatched_runtime,
+                "expected_receipt_graph_root": expected_graph_root,
+                "economic_envelope": economic_envelope,
+            },
+        )
+        assert status == 400
+        assert rejected["error"] == "runtime_action runtime_value_e8 does not match accepted read"
+        assert not (home / "data" / "oracle_authorizations.jsonl").exists()
+        assert list((home / "receipts" / "authorizations").glob("*.json")) == []
+
+        weak_envelope = dict(economic_envelope)
+        weak_envelope["attack_cost_floor_e8"] = 0
+        status, rejected_envelope = _http_post_json(
+            f"{base}/api/oracle/authorization/build-exact",
+            {
+                "read_id": read["read_id"],
+                "runtime_action": runtime_action,
+                "expected_receipt_graph_root": expected_graph_root,
+                "economic_envelope": weak_envelope,
+            },
+        )
+        assert status == 400
+        assert "attack_cost_floor_below_required_margin" in rejected_envelope["error"]
+        assert not (home / "data" / "oracle_authorizations.jsonl").exists()
+        assert list((home / "receipts" / "authorizations").glob("*.json")) == []
+
+        understated_envelope = dict(economic_envelope)
+        understated_envelope["notional_value_e8"] = 123456788
+        status, rejected_understatement = _http_post_json(
+            f"{base}/api/oracle/authorization/build-exact",
+            {
+                "read_id": read["read_id"],
+                "runtime_action": runtime_action,
+                "expected_receipt_graph_root": expected_graph_root,
+                "economic_envelope": understated_envelope,
+            },
+        )
+        assert status == 400
+        assert rejected_understatement["error"] == (
+            "generated OracleAuthorization failed semantic binding check"
+        )
+        assert not (home / "data" / "oracle_authorizations.jsonl").exists()
+        assert list((home / "receipts" / "authorizations").glob("*.json")) == []
+
+        status, authorization = _http_post_json(
+            f"{base}/api/oracle/authorization/build-exact",
+            {
+                "read_id": read["read_id"],
+                "runtime_action": runtime_action,
+                "expected_receipt_graph_root": expected_graph_root,
+                "economic_envelope": economic_envelope,
             },
         )
         assert status == 200
         assert authorization["authorization"]["value_e8"] == 123456789
         assert authorization["receipt_graph"]["receipt_graph_root"].startswith("sha256:")
+        assert authorization["runtime_action"] == runtime_action
+        assert authorization["economic_envelope"] == economic_envelope
+        assert authorization["authorization"]["economic_envelope_id"] == _semantic_hash(
+            "zenodex.oracle.economic_envelope.v1",
+            economic_envelope,
+        )
+        assert authorization["runtime_binding_source"] == "consumer_runtime_exact"
+        assert authorization["idempotent_replay"] is False
+
+        authorization_log = home / "data" / "oracle_authorizations.jsonl"
+        authorization_log_before_rejections = authorization_log.read_bytes()
+        receipt_bytes_before_rejections = {
+            path.name: path.read_bytes()
+            for path in (home / "receipts" / "authorizations").glob("*.json")
+        }
+
+        status, rejected_root = _http_post_json(
+            f"{base}/api/oracle/authorization/build-exact",
+            {
+                "read_id": read["read_id"],
+                "runtime_action": runtime_action,
+                "expected_receipt_graph_root": "sha256:" + "0" * 64,
+                "economic_envelope": economic_envelope,
+            },
+        )
+        assert status == 400
+        assert rejected_root["error"] == "receipt_graph_root does not match expected root"
+        assert authorization_log.read_bytes() == authorization_log_before_rejections
+        assert {
+            path.name: path.read_bytes()
+            for path in (home / "receipts" / "authorizations").glob("*.json")
+        } == receipt_bytes_before_rejections
+
+        status, repeated_authorization = _http_post_json(
+            f"{base}/api/oracle/authorization/build-exact",
+            {
+                "read_id": read["read_id"],
+                "runtime_action": runtime_action,
+                "expected_receipt_graph_root": expected_graph_root,
+                "economic_envelope": economic_envelope,
+            },
+        )
+        assert status == 200
+        assert repeated_authorization["authorization_id"] == authorization["authorization_id"]
+        assert repeated_authorization["idempotent_replay"] is True
+        assert authorization_log.read_bytes() == authorization_log_before_rejections
         verified = _http_json(
             f"{base}/api/oracle/verify-receipt?id={urllib.parse.quote(authorization['authorization_id'])}"
         )
         assert verified["ok"] is True
         assert verified["receipt_check"]["receipt_kind"] == "oracle_authorization_bundle"
         assert verified["receipt_check"]["typed_ok"] is True
+        assert verified["receipt_check"]["economic_envelope_ok"] is True
 
         status, paid = _http_post_json(f"{base}/api/oracle/rewards/pay", {"amount_e8": 5})
         assert status == 200
@@ -2029,6 +3232,44 @@ def test_aggregate_build_uses_report_receipts_and_replay_rejects_tamper(tmp_path
         "receipt",
         str(bundle_with_mismatched_graph_path),
     )
+    bundle_with_ambiguous_bond = json.loads(json.dumps(authorization_bundle))
+    ambiguous_leaf = bundle_with_ambiguous_bond["receipt_graph"][
+        "report_leaf_commitments"
+    ][0]
+    if "bond_amount_e8" in ambiguous_leaf:
+        ambiguous_leaf["bond_e8"] = ambiguous_leaf["bond_amount_e8"]
+    else:
+        ambiguous_leaf["bond_amount_e8"] = ambiguous_leaf["bond_e8"]
+    bundle_with_ambiguous_bond["receipt_graph"]["report_leaf_root"] = _semantic_hash(
+        "zeno_oracle.report_leaf_root.v1",
+        {"reports": bundle_with_ambiguous_bond["receipt_graph"]["report_leaf_commitments"]},
+    )
+    bundle_with_ambiguous_bond["receipt_graph"]["receipt_graph_root"] = _semantic_hash(
+        "zeno_oracle.receipt_graph.v1",
+        {
+            key: value
+            for key, value in bundle_with_ambiguous_bond["receipt_graph"].items()
+            if key != "receipt_graph_root"
+        },
+    )
+    bundle_with_ambiguous_bond["authorization"]["receipt_graph_root"] = (
+        bundle_with_ambiguous_bond["receipt_graph"]["receipt_graph_root"]
+    )
+    bundle_with_ambiguous_bond["authorization_id"] = _semantic_hash(
+        "zeno_oracle.oracle_authorization.v1",
+        bundle_with_ambiguous_bond["authorization"],
+    )
+    bundle_with_ambiguous_bond_path = tmp_path / "authorization_bundle_ambiguous_bond.json"
+    bundle_with_ambiguous_bond_path.write_text(
+        json.dumps(bundle_with_ambiguous_bond),
+        encoding="utf-8",
+    )
+    bundle_with_ambiguous_bond_check = _run(
+        "--json",
+        "validator",
+        "receipt",
+        str(bundle_with_ambiguous_bond_path),
+    )
     graph_without_dispute_root = dict(receipt_graph)
     graph_without_dispute_root.pop("dispute_state_root")
     graph_without_dispute_root["receipt_graph_root"] = _semantic_hash(
@@ -2085,6 +3326,11 @@ def test_aggregate_build_uses_report_receipts_and_replay_rejects_tamper(tmp_path
     assert "authorization bundle query_policy_root does not match receipt_graph" in json.loads(
         bundle_with_mismatched_graph_check.stdout
     )["errors"]
+    assert bundle_with_ambiguous_bond_check.returncode == 2
+    assert any(
+        "must contain exactly one bond field" in error
+        for error in json.loads(bundle_with_ambiguous_bond_check.stdout)["errors"]
+    )
     assert graph_receipt_check.returncode == 0
     assert json.loads(graph_receipt_check.stdout)["receipt_kind"] == "receipt_graph"
     assert graph_without_dispute_root_check.returncode == 2
@@ -2199,7 +3445,11 @@ def test_aggregate_build_uses_report_receipts_and_replay_rejects_tamper(tmp_path
     auth_bad_data = json.loads(replay_auth_bad.stdout)
 
     assert replay_auth_bad.returncode == 2
-    assert any("receipt_graph_root does not match replay" in error for error in auth_bad_data["errors"])
+    assert any(
+        "authorization durable state invalid" in error
+        and "collision with different durable bundle" in error
+        for error in auth_bad_data["errors"]
+    )
 
     auth_log_path.write_text(original_auth_log, encoding="utf-8")
     tampered_auth = json.loads(original_auth_log.splitlines()[0])
@@ -2209,7 +3459,11 @@ def test_aggregate_build_uses_report_receipts_and_replay_rejects_tamper(tmp_path
     root_bad_data = json.loads(replay_root_bad.stdout)
 
     assert replay_root_bad.returncode == 2
-    assert any("feed_registry_root does not match replay" in error for error in root_bad_data["errors"])
+    assert any(
+        "authorization durable state invalid" in error
+        and "collision with different durable bundle" in error
+        for error in root_bad_data["errors"]
+    )
 
     auth_log_path.write_text(original_auth_log, encoding="utf-8")
     report_log_path = home / "data" / "reports.jsonl"

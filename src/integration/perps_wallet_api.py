@@ -163,6 +163,24 @@ def _tau_chain_id() -> str:
     return _env_str("PERPS_WALLET_CHAIN_ID", _env_str("TAU_DEX_CHAIN_ID", "tau-local"))
 
 
+def _configured_chain_id_for_authority_request(
+    parsed: Mapping[str, Any],
+    *,
+    surface: str,
+) -> str:
+    """Bind authority artifacts to the chain behind this wallet process."""
+
+    configured_chain_id = _tau_chain_id()
+    requested_chain_id = parsed.get("chain_id")
+    if requested_chain_id is None:
+        return configured_chain_id
+    if type(requested_chain_id) is not str or not requested_chain_id.strip():
+        raise ValueError(f"{surface} chain_id must be a non-empty string")
+    if requested_chain_id != configured_chain_id:
+        raise ValueError(f"{surface} chain_id does not match configured chain")
+    return configured_chain_id
+
+
 def _allow_signing() -> bool:
     return _env_bool("PERPS_WALLET_ALLOW_LOCAL_SIGNING", False)
 
@@ -843,16 +861,39 @@ def _pubkey_from_privkey(privkey: object) -> str:
     return "0x" + bls_pubkey_hex_from_privkey(cast(Any, privkey))
 
 
+def _strict_json_object_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    owned: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in owned:
+            raise ValueError(f"duplicate JSON key: {key}")
+        owned[key] = value
+    return owned
+
+
+def _reject_json_constant(token: str) -> None:
+    raise ValueError(f"non-finite JSON constant: {token}")
+
+
+def _strict_json_loads(raw: bytes | str) -> Any:
+    value = json.loads(
+        raw,
+        object_pairs_hook=_strict_json_object_pairs,
+        parse_constant=_reject_json_constant,
+    )
+    canonical_json_bytes(value)
+    return value
+
+
 def _parse_json_body(body: Optional[bytes]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     if body is None or len(body) == 0:
         return None, "empty_body"
     if len(body) > MAX_POST_BODY:
         return None, "body_too_large"
     try:
-        obj = json.loads(body)
-    except (json.JSONDecodeError, UnicodeDecodeError):
+        obj = _strict_json_loads(body)
+    except (json.JSONDecodeError, UnicodeDecodeError, TypeError, ValueError):
         return None, "invalid_json"
-    if not isinstance(obj, dict):
+    if type(obj) is not dict:
         return None, "expected_object"
     return obj, None
 
@@ -861,16 +902,19 @@ def _load_app_state(client: TauNetTcpClient) -> Tuple[Dict[str, Any], Optional[s
     raw = client.getappstate(full=True).strip()
     if not raw:
         raise TauNetRpcError("empty getappstate response")
-    obj = json.loads(raw)
-    if not isinstance(obj, dict):
+    try:
+        obj = _strict_json_loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError, TypeError, ValueError) as exc:
+        raise TauNetRpcError("invalid getappstate response") from exc
+    if type(obj) is not dict:
         raise TauNetRpcError("invalid getappstate response")
     app_state = obj.get("app_state")
     if app_state is None:
         app_state = {}
-    if not isinstance(app_state, dict):
+    if type(app_state) is not dict:
         raise TauNetRpcError("invalid app_state payload")
     app_hash = obj.get("app_hash")
-    return app_state, str(app_hash) if isinstance(app_hash, str) and app_hash else None
+    return app_state, app_hash if type(app_hash) is str and app_hash else None
 
 
 def _app_hash_wait_timeout_s() -> float:
@@ -1552,13 +1596,13 @@ def _request_mapping(body: Mapping[str, Any], *, name: str) -> Mapping[str, Any]
     if name not in body:
         return None
     raw = body.get(name)
-    if isinstance(raw, str):
+    if type(raw) is str:
         try:
-            parsed = json.loads(raw)
-        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            parsed = _strict_json_loads(raw)
+        except (json.JSONDecodeError, UnicodeDecodeError, TypeError, ValueError) as exc:
             raise ValueError(f"bad_{name}") from exc
         raw = parsed
-    if not isinstance(raw, Mapping):
+    if type(raw) is not dict:
         raise ValueError(f"bad_{name}")
     return raw
 
@@ -2134,6 +2178,7 @@ def _local_perps_oracle_bridge_fixture(
         profile_id = _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID
         freshness_window_epochs = 2
         action_epoch = int(market.state.get("now_epoch", 0))
+        runtime_value_e8 = int(market.state.get("clearing_price_e8", 0))
         action_id = _perps_clearinghouse_runtime_oracle_action_id(
             _ClearinghouseOracleRuntimeRequest(
                 config=config,
@@ -2157,6 +2202,7 @@ def _local_perps_oracle_bridge_fixture(
         profile_id = _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID
         freshness_window_epochs = 1
         action_epoch = int(market.global_state.get("now_epoch", 0))
+        runtime_value_e8 = int(market.global_state.get("index_price_e8", 0))
         action_id = _perps_liquidate_account_runtime_oracle_action_id(
             _LiquidateAccountOracleRuntimeRequest(
                 config=config,
@@ -2172,28 +2218,44 @@ def _local_perps_oracle_bridge_fixture(
     aggregate = sample_admitted_median3_aggregate(
         current_epoch=action_epoch,
         latest_observed_epoch=action_epoch,
+        center_value_e8=runtime_value_e8,
     )
     aggregate_result = verify_admitted_median3_aggregate(aggregate)
     if aggregate_result.status != "accepted":
         raise ValueError("local oracle aggregate fixture rejected")
     if aggregate_result.query_id != _ORACLE_PERPS_INDEX_QUERY_ID:
         raise ValueError("local oracle aggregate fixture query mismatch")
+    aggregate_value_e8 = aggregate_result.value_e8
+    aggregate_confidence_e8 = aggregate_result.confidence_e8
+    aggregate_deviation_bps = aggregate_result.deviation_bps
+    aggregate_observed_epoch = aggregate_result.observed_epoch
+    aggregate_report_count = aggregate_result.report_count
+    aggregate_admission_count = aggregate_result.admission_count
+    if (
+        type(aggregate_value_e8) is not int
+        or type(aggregate_confidence_e8) is not int
+        or type(aggregate_deviation_bps) is not int
+        or type(aggregate_observed_epoch) is not int
+        or type(aggregate_report_count) is not int
+        or type(aggregate_admission_count) is not int
+    ):
+        raise ValueError("local oracle aggregate fixture has malformed numeric result")
 
     value_hash = aggregate_read_value_hash(
         aggregate_id=str(aggregate_result.aggregate_id),
         query_id=str(aggregate_result.query_id),
-        value_e8=int(aggregate_result.value_e8),
-        confidence_e8=int(aggregate_result.confidence_e8),
-        deviation_bps=int(aggregate_result.deviation_bps),
-        observed_epoch=int(aggregate_result.observed_epoch),
-        report_count=int(aggregate_result.report_count),
-        admission_count=int(aggregate_result.admission_count),
+        value_e8=aggregate_value_e8,
+        confidence_e8=aggregate_confidence_e8,
+        deviation_bps=aggregate_deviation_bps,
+        observed_epoch=aggregate_observed_epoch,
+        report_count=aggregate_report_count,
+        admission_count=aggregate_admission_count,
     )
     bundle = _bundle_for_aggregate(
         aggregate_id=str(aggregate_result.aggregate_id),
         query_id=str(aggregate_result.query_id),
         value_hash=value_hash,
-        observed_epoch=int(aggregate_result.observed_epoch),
+        observed_epoch=aggregate_observed_epoch,
         freshness_window_epochs=freshness_window_epochs,
     )
     read_receipt_id = str(bundle["terminal"]["read_receipt_id"])
@@ -2283,6 +2345,95 @@ def _local_perps_oracle_bridge_fixture(
         },
         "bridge": bridge,
         "verify_result": verify_result,
+    }
+
+
+def _is_canonical_sha256_ref(value: object) -> bool:
+    if type(value) is not str or len(value) != 71 or not value.startswith("sha256:"):
+        return False
+    digest = value.removeprefix("sha256:")
+    return digest == digest.lower() and all(char in "0123456789abcdef" for char in digest)
+
+
+def _perps_oracle_authorization_request(
+    *,
+    app_state: Mapping[str, Any],
+    app_hash_before: str | None,
+    config: PerpEngineConfig,
+    market_id: str,
+    action: str,
+) -> dict[str, Any]:
+    if action != "settle_epoch":
+        raise ValueError("unsupported_oracle_authorization_action")
+    if not config.require_oracle_authorization_for_clearinghouse_settle_epoch:
+        raise ValueError("clearinghouse_settle_oracle_authorization_not_required")
+    expected_root = config.oracle_authorization_receipt_graph_root
+    if expected_root is None:
+        raise ValueError("oracle_authorization_receipt_graph_root_missing")
+    if not _is_canonical_sha256_ref(expected_root):
+        raise ValueError("oracle_authorization_receipt_graph_root_invalid")
+
+    state = _state_from_app_state(app_state)
+    if state.perps is None:
+        raise ValueError("missing_perps_state")
+    market = state.perps.get_market(market_id)
+    if not isinstance(market, PerpClearinghouse2pMarketState):
+        raise ValueError("oracle_authorization_request_supports_clearinghouse_2p_only")
+
+    from .perp_engine import (  # pylint: disable=import-outside-toplevel
+        _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        _perps_clearinghouse_settle_oracle_runtime_facts,
+    )
+
+    runtime_facts = _perps_clearinghouse_settle_oracle_runtime_facts(
+        config,
+        market_id=market_id,
+        market_kind="clearinghouse_2p_v1",
+        quote_asset=market.quote_asset,
+        state=market.state,
+        participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
+    )
+    runtime_value_e8 = runtime_facts.get("runtime_value_e8")
+    runtime_notional_value_e8 = runtime_facts.get("runtime_notional_value_e8")
+    now_epoch = runtime_facts.get("now_epoch")
+    if (
+        type(runtime_value_e8) is not int
+        or type(runtime_notional_value_e8) is not int
+        or runtime_notional_value_e8 < 0
+        or type(now_epoch) is not int
+    ):
+        raise ValueError("oracle_authorization_request_runtime_facts_malformed")
+    runtime_action = {
+        "consumer_module": "zenodex.perps",
+        "action_kind": "settle_epoch",
+        "action_id": str(runtime_facts["action_id"]),
+        "action_facts_hash": str(runtime_facts["action_facts_hash"]),
+        "pre_state_hash": str(runtime_facts["pre_state_hash"]),
+        "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        "query_id": str(runtime_facts["query_id"]),
+        "runtime_notional_value_e8": runtime_notional_value_e8,
+        "runtime_value_e8": runtime_value_e8,
+        "now_epoch": now_epoch,
+        "max_freshness_window_epochs": 2,
+    }
+    body: dict[str, Any] = {
+        "schema": "zenodex.perps_wallet.oracle_authorization_request.v1",
+        "ok": True,
+        "chain_id": config.chain_id,
+        "market_id": market_id,
+        "market_kind": "clearinghouse_2p_v1",
+        "quote_asset": market.quote_asset,
+        "app_hash_before": app_hash_before,
+        "expected_receipt_graph_root": expected_root,
+        "runtime_action": runtime_action,
+        "production_authority": False,
+    }
+    return {
+        **body,
+        "request_hash": _hash_payload(
+            "zenodex.perps_wallet.oracle_authorization_request/v1",
+            body,
+        ),
     }
 
 
@@ -3267,7 +3418,10 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
             action = str(parsed.get("action", "settle_epoch")).strip().lower()
             if action not in {"settle_epoch", "partial_liquidate"}:
                 return 400, {"ok": False, "error": "unsupported_oracle_bridge_action"}
-            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
+            chain_id = _configured_chain_id_for_authority_request(
+                parsed,
+                surface="oracle_bridge_template",
+            )
             client = _tau_client()
             app_state, _app_hash = _load_app_state(client)
             config = _build_perp_config(chain_id=chain_id)
@@ -3285,6 +3439,32 @@ def handle_perps_wallet_request(method: str, path: str, body: Optional[bytes]) -
                 action=action,
                 account_pubkey=account_pubkey,
                 fraction_bps=fraction_bps,
+            )
+        if rest == ["oracle-authorization-request"]:
+            unknown_fields = sorted(
+                key
+                for key in parsed
+                if key not in {"action", "chain_id", "market_id"}
+            )
+            if unknown_fields:
+                raise ValueError(
+                    "oracle_authorization_request has unknown fields: "
+                    + ", ".join(unknown_fields)
+                )
+            action = str(parsed.get("action", "settle_epoch")).strip().lower()
+            chain_id = _configured_chain_id_for_authority_request(
+                parsed,
+                surface="oracle_authorization_request",
+            )
+            client = _tau_client()
+            app_state, app_hash_before = _load_app_state(client)
+            config = _build_perp_config(chain_id=chain_id)
+            return 200, _perps_oracle_authorization_request(
+                app_state=app_state,
+                app_hash_before=app_hash_before,
+                config=config,
+                market_id=_market_id(parsed, action=action),
+                action=action,
             )
         if rest == ["oracle-bridge", "inspect"]:
             return 200, _inspect_oracle_adapter_bridge(parsed)

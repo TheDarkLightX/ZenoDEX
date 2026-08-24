@@ -188,7 +188,7 @@ def test_isolated_settle_rejects_oracle_bridge_semantic_drift(
         _ORACLE_PERPS_INDEX_QUERY_ID,
         _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
         PerpEngineConfig,
-        _perps_runtime_oracle_action_id,
+        _isolated_settle_oracle_runtime_facts,
         apply_perp_ops,
     )
 
@@ -219,18 +219,13 @@ def test_isolated_settle_rejects_oracle_bridge_semantic_drift(
     assert state.perps is not None
     market = state.perps.markets[market_id]
     assert hasattr(market, "global_state")
-    base_config = PerpEngineConfig(
-        operator_pubkey=operator,
-        allow_isolated_markets=True,
-    )
-    expected_action_id = _perps_runtime_oracle_action_id(
-        base_config,
+    runtime = _isolated_settle_oracle_runtime_facts(
         market_id=market_id,
-        action_kind="settle_epoch",
         market=market,
     )
-    expected_value_e8 = int(market.global_state["index_price_e8"])
-    expected_epoch = int(market.global_state["now_epoch"])
+    expected_action_id = str(runtime["action_id"])
+    expected_value_e8 = int(runtime["runtime_value_e8"])
+    expected_epoch = int(runtime["now_epoch"])
 
     def accepted_neighboring_bridge(_bridge: object) -> dict[str, object]:
         return {
@@ -869,6 +864,53 @@ def test_apply_perp_ops_rejects_pathological_int_widths() -> None:
     )
     assert res.ok is False
     assert res.error is not None and "int wider than 128 bits" in res.error
+
+
+def test_parse_perp_ops_rejects_integer_subclass_with_divergent_execution_value() -> None:
+    from src.integration.perp_engine import parse_perp_ops
+
+    class DivergentInt(int):
+        def __new__(cls, stored_value: int, execution_value: int):
+            obj = super().__new__(cls, stored_value)
+            obj.execution_value = execution_value
+            return obj
+
+        def __int__(self) -> int:
+            return self.execution_value
+
+    hostile_delta = DivergentInt(0, 1)
+    operation = _op("perp:hostile-int", "advance_epoch", delta=hostile_delta)
+
+    with pytest.raises(
+        ValueError,
+        match=r"perps op 0.*exact JSON primitive",
+    ):
+        parse_perp_ops(
+            {"5": [operation]},
+            max_int_bits=128,
+            max_op_bytes=64_000,
+        )
+
+
+def test_parse_perp_ops_rejects_hostile_outer_key_without_comparison() -> None:
+    from src.integration.perp_engine import parse_perp_ops
+
+    class ExplodingKey:
+        def __hash__(self) -> int:
+            return hash("5")
+
+        def __eq__(self, _other: object) -> bool:
+            raise AssertionError("hostile outer key was compared")
+
+    with pytest.raises(
+        ValueError,
+        match="operations contains a non-exact JSON object key",
+    ):
+        parse_perp_ops(
+            {ExplodingKey(): []},  # type: ignore[dict-item]
+            max_int_bits=128,
+            max_op_bytes=64_000,
+        )
 
 
 def test_breaker_reduce_only_and_clear() -> None:

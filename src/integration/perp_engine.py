@@ -35,6 +35,7 @@ not required at runtime.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import re
 import sys
@@ -1348,7 +1349,7 @@ class PerpTxResult:
 
 
 def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int = 4096) -> str:
-    if not isinstance(value, str):
+    if type(value) is not str:
         raise ValueError(f"{name} must be a string")
     if non_empty and not value:
         raise ValueError(f"{name} must be non-empty")
@@ -1358,11 +1359,11 @@ def _require_str(value: Any, *, name: str, non_empty: bool = True, max_len: int 
 
 
 def _require_int(value: Any, *, name: str, non_negative: bool = False) -> int:
-    if not isinstance(value, int) or isinstance(value, bool):
+    if type(value) is not int:
         raise ValueError(f"{name} must be an int")
     if non_negative and value < 0:
         raise ValueError(f"{name} must be non-negative")
-    return int(value)
+    return value
 
 
 def _ceil_div_nonnegative(numerator: int, denominator: int) -> int:
@@ -1423,8 +1424,31 @@ def _copy_nonce_table(nonces: NonceTable) -> NonceTable:
     return copied
 
 
-def _perps_settle_query_id(*, market_id: str) -> str:
-    return f"zenodex.perps.{market_id}.index_price_e8"
+def _perps_settle_query_id() -> str:
+    """Return the verifier-selected perps settlement query identity."""
+
+    return _ORACLE_PERPS_INDEX_QUERY_ID
+
+
+def _isolated_gross_notional_e8(
+    accounts: Mapping[str, PerpAccountState],
+    *,
+    settlement_price_e8: int,
+) -> int:
+    """Return gross isolated exposure in the Oracle envelope's quote-e8 units."""
+
+    if type(settlement_price_e8) is not int or settlement_price_e8 < 0:
+        raise ValueError("settlement_price_e8 must be a non-negative int")
+    total = 0
+    for account_pubkey in sorted(accounts):
+        position_base = accounts[account_pubkey].position_base
+        if type(position_base) is not int:
+            raise ValueError("isolated position_base values must be exact ints")
+        total += _isolated_position_notional_quote_ceil(
+            position_base=position_base,
+            index_price_e8=settlement_price_e8,
+        )
+    return total
 
 
 def _isolated_market_state_hash(*, market_id: str, market: PerpMarketState) -> str:
@@ -1445,6 +1469,13 @@ def _isolated_market_state_hash(*, market_id: str, market: PerpMarketState) -> s
 
 def _isolated_settle_oracle_runtime_facts(*, market_id: str, market: PerpMarketState) -> Dict[str, Any]:
     global_state = market.global_state
+    clearing_price_e8 = global_state.get("clearing_price_e8", 0)
+    if type(clearing_price_e8) is not int:
+        raise ValueError("clearing_price_e8 must be an exact int")
+    runtime_notional_value_e8 = _isolated_gross_notional_e8(
+        market.accounts,
+        settlement_price_e8=clearing_price_e8,
+    )
     pre_state_hash = _isolated_market_state_hash(market_id=market_id, market=market)
     facts_payload: Dict[str, Any] = {
         "action_kind": "settle_epoch",
@@ -1460,8 +1491,9 @@ def _isolated_settle_oracle_runtime_facts(*, market_id: str, market: PerpMarketS
         "oracle_last_update_epoch": int(global_state.get("oracle_last_update_epoch", 0)),
         "oracle_seen": bool(global_state.get("oracle_seen", False)),
         "pre_state_hash": pre_state_hash,
-        "query_id": _perps_settle_query_id(market_id=market_id),
+        "query_id": _perps_settle_query_id(),
         "quote_asset": str(market.quote_asset),
+        "runtime_notional_value_e8": runtime_notional_value_e8,
     }
     action_facts_hash = semantic_hash("zenodex.perps.settle_epoch.facts.v1", facts_payload)
     action_id = semantic_hash(
@@ -1476,8 +1508,9 @@ def _isolated_settle_oracle_runtime_facts(*, market_id: str, market: PerpMarketS
         "action_id": action_id,
         "now_epoch": int(global_state.get("now_epoch", 0)),
         "pre_state_hash": pre_state_hash,
-        "query_id": _perps_settle_query_id(market_id=market_id),
-        "runtime_value_e8": int(global_state.get("index_price_e8", 0)),
+        "query_id": _perps_settle_query_id(),
+        "runtime_notional_value_e8": runtime_notional_value_e8,
+        "runtime_value_e8": clearing_price_e8,
     }
 
 
@@ -1506,12 +1539,15 @@ def _check_isolated_settle_oracle_authorization(
 
     runtime = _isolated_settle_oracle_runtime_facts(market_id=op.market_id, market=market)
     runtime_value_e8 = runtime.get("runtime_value_e8")
+    runtime_notional_value_e8 = runtime.get("runtime_notional_value_e8")
     now_epoch = runtime.get("now_epoch")
     if (
         not isinstance(runtime_value_e8, int)
         or isinstance(runtime_value_e8, bool)
         or not isinstance(now_epoch, int)
         or isinstance(now_epoch, bool)
+        or type(runtime_notional_value_e8) is not int
+        or runtime_notional_value_e8 < 0
     ):
         return "oracle_authorization_rejected: malformed runtime facts"
     try:
@@ -1526,6 +1562,7 @@ def _check_isolated_settle_oracle_authorization(
             runtime_value_e8=runtime_value_e8,
             now_epoch=now_epoch,
             expected_receipt_graph_root=ctx.config.oracle_authorization_receipt_graph_root,
+            runtime_notional_value_e8=runtime_notional_value_e8,
         )
     except Exception as exc:
         return f"oracle_authorization_rejected: {_safe_error_str(exc)}"
@@ -1576,6 +1613,51 @@ def _select_perp_ops_stream(operations: Mapping[str, Any]) -> tuple[str, Any]:
     return selected_key, operations.get(selected_key)
 
 
+def _owned_exact_json_value(
+    value: Any,
+    *,
+    path: str,
+    depth: int = 0,
+    remaining_nodes: list[int] | None = None,
+) -> Any:
+    """Copy an untrusted value graph into exact, owned JSON primitives."""
+
+    if remaining_nodes is None:
+        remaining_nodes = [100_000]
+    remaining_nodes[0] -= 1
+    if remaining_nodes[0] < 0:
+        raise ValueError(f"{path} exceeds exact JSON node budget")
+    if depth > 64:
+        raise ValueError(f"{path} exceeds exact JSON depth budget")
+    if value is None or type(value) in (bool, int, str):
+        return value
+    if type(value) is list:
+        return [
+            _owned_exact_json_value(
+                item,
+                path=f"{path}[{index}]",
+                depth=depth + 1,
+                remaining_nodes=remaining_nodes,
+            )
+            for index, item in enumerate(value)
+        ]
+    if type(value) is dict:
+        owned: dict[str, Any] = {}
+        for key, item in value.items():
+            if type(key) is not str:
+                raise ValueError(f"{path} contains a non-exact JSON object key")
+            owned[key] = _owned_exact_json_value(
+                item,
+                path=f"{path}.{key}",
+                depth=depth + 1,
+                remaining_nodes=remaining_nodes,
+            )
+        return owned
+    raise ValueError(
+        f"{path} contains a non-exact JSON primitive: {type(value).__name__}"
+    )
+
+
 def _validated_perp_op_obj(
     entry: Any,
     *,
@@ -1583,9 +1665,9 @@ def _validated_perp_op_obj(
     max_op_bytes: int,
     max_int_bits: int,
 ) -> tuple[Dict[str, Any], int]:
-    if not isinstance(entry, Mapping):
+    if type(entry) is not dict:
         raise ValueError(f"perps op {index} must be an object")
-    op_obj = dict(entry)
+    op_obj = _owned_exact_json_value(entry, path=f"perps op {index}")
     _assert_ints_within_bits(op_obj, max_bits=max_int_bits, name=f"perps op {index}")
     try:
         op_bytes = bounded_json_utf8_size(op_obj, max_bytes=max_op_bytes)
@@ -1677,13 +1759,15 @@ def parse_perp_ops(
     max_total_ops_bytes: int = 512_000,
     max_int_bits: int = 256,
 ) -> List[PerpOp]:
-    if not isinstance(operations, Mapping):
+    if type(operations) is not dict:
         raise ValueError(f"operations must be an object, got {type(operations)}")
+    if any(type(key) is not str for key in operations):
+        raise ValueError("operations contains a non-exact JSON object key")
 
     selected_key, raw = _select_perp_ops_stream(operations)
     if raw is None:
         return []
-    if not isinstance(raw, list):
+    if type(raw) is not list:
         raise ValueError(f"operations[{selected_key!r}] must be a list")
     if len(raw) > max_ops:
         raise ValueError(f"too many perps ops: {len(raw)} > {max_ops}")
@@ -1796,6 +1880,7 @@ class _OracleAdapterBridgeRequirement:
     expected_query_id: Optional[str] = None
     expected_profile_id: Optional[str] = None
     expected_action_id: Optional[str] = None
+    expected_aggregate_id: Optional[str] = None
     expected_runtime_value_e8: Optional[int] = None
     expected_runtime_epoch: Optional[int] = None
     required: bool = False
@@ -1860,6 +1945,12 @@ def _check_oracle_adapter_bridge(
     result_action_id = _oracle_adapter_result_get(result, "action_id")
     if requirement.expected_action_id is not None and result_action_id != requirement.expected_action_id:
         return "oracle_adapter_bridge action_id mismatch", None
+    if requirement.expected_aggregate_id is not None:
+        result_aggregate_id = _oracle_adapter_result_get(result, "aggregate_id")
+        if type(result_aggregate_id) is not str:
+            return "oracle_adapter_bridge aggregate_id must be an exact string", None
+        if result_aggregate_id != requirement.expected_aggregate_id:
+            return "oracle_adapter_bridge aggregate_id mismatch", None
     if requirement.expected_runtime_value_e8 is not None:
         expected_value_e8 = requirement.expected_runtime_value_e8
         if not isinstance(expected_value_e8, int) or isinstance(expected_value_e8, bool):
@@ -1940,6 +2031,13 @@ def _perps_liquidate_account_runtime_oracle_action_id(
 def _perps_clearinghouse_runtime_oracle_action_id(
     request: _ClearinghouseOracleRuntimeRequest,
 ) -> str:
+    pre_state_hash = _perps_clearinghouse_oracle_pre_state_hash(
+        market_id=request.market_id,
+        market_kind=request.market_kind,
+        quote_asset=request.quote_asset,
+        state=request.state,
+        participant_pubkeys=request.participant_pubkeys,
+    )
     payload = {
         "schema": "zenodex.oracle.perps_clearinghouse_runtime_action_id.v1",
         "chain_id": request.config.chain_id,
@@ -1949,6 +2047,7 @@ def _perps_clearinghouse_runtime_oracle_action_id(
         "market_id": request.market_id,
         "quote_asset": request.quote_asset,
         "participant_pubkeys": list(request.participant_pubkeys),
+        "pre_state_hash": pre_state_hash,
         "now_epoch": int(request.state.get("now_epoch", 0)),
         "clearing_price_epoch": int(request.state.get("clearing_price_epoch", 0)),
         "clearing_price_e8": int(request.state.get("clearing_price_e8", 0)),
@@ -1977,6 +2076,107 @@ def _perps_clearinghouse_oracle_pre_state_hash(
     return "sha256:" + hashlib.sha256(canonical_json_bytes(payload)).hexdigest()
 
 
+def _clearinghouse_gross_notional_e8(
+    *,
+    market_kind: str,
+    state: Mapping[str, Any],
+) -> int:
+    """Return settlement-affected gross notional in quote-e8 ledger units.
+
+    Fixed clearinghouses settle one existing book. The NP epoch also matches a
+    pending book at the authorized price, so its bound covers both the existing
+    and deterministically matched post-epoch positions.
+    """
+
+    clearing_price_e8 = state.get("clearing_price_e8")
+    if type(clearing_price_e8) is not int or clearing_price_e8 < 0:
+        raise ValueError("clearing_price_e8 must be a non-negative int")
+
+    if market_kind == "clearinghouse_2p_v1":
+        position_keys = ("position_base_a", "position_base_b")
+        position_bases = tuple(state.get(key) for key in position_keys)
+    elif market_kind == "clearinghouse_3p_transfer_v1":
+        position_keys = ("position_base_a", "position_base_b", "position_base_c")
+        position_bases = tuple(state.get(key) for key in position_keys)
+    elif market_kind == PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1:
+        accounts = state.get("accounts")
+        if type(accounts) is not list:
+            raise ValueError("clearinghouse_np Oracle state must include exact accounts")
+        current_position_bases = tuple(
+            account.get("position_base") if type(account) is dict else None
+            for account in accounts
+        )
+        post_position_bases = _np_post_epoch_position_bases(state)
+        position_bases = current_position_bases + post_position_bases
+    else:
+        raise ValueError(f"unsupported clearinghouse market kind: {market_kind}")
+
+    if any(type(position_base) is not int for position_base in position_bases):
+        raise ValueError("clearinghouse position_base values must be exact ints")
+    return sum(abs(position_base) * clearing_price_e8 for position_base in position_bases)
+
+
+def _np_post_epoch_position_bases(state: Mapping[str, Any]) -> tuple[int, ...]:
+    """Replay the exact NP settle-then-match transition for exposure binding."""
+
+    accounts_obj = state.get("accounts")
+    pending_intents_obj = state.get("pending_intents")
+    clearing_price_e8 = state.get("clearing_price_e8")
+    if type(accounts_obj) is not list or type(pending_intents_obj) is not list:
+        raise ValueError("clearinghouse_np Oracle state must include exact account and intent lists")
+    if type(clearing_price_e8) is not int or clearing_price_e8 <= 0:
+        raise ValueError("clearinghouse_np clearing_price_e8 must be a positive int")
+    params = _np_core.MarketParams(
+        **{key: int(state[key]) for key in _CHNP_PARAM_KEYS}
+    )
+    accounts = tuple(
+        _np_core.Account(
+            pubkey=str(account["pubkey"]),
+            position_base=int(account["position_base"]),
+            entry_price_e8=int(account["entry_price_e8"]),
+            collateral_e8=int(account["collateral_e8"]),
+            funding_paid_cum_e8=int(account["funding_paid_cum_e8"]),
+            nonce=int(account["nonce"]),
+        )
+        for account in accounts_obj
+        if type(account) is dict
+    )
+    if len(accounts) != len(accounts_obj):
+        raise ValueError("clearinghouse_np Oracle accounts must be exact objects")
+    market_state = _np_core.MarketState(
+        index_price_e8=int(state["index_price_e8"]),
+        params=params,
+        accounts=accounts,
+        now_epoch=int(state["now_epoch"]),
+        fee_pool_e8=int(state["fee_pool_e8"]),
+        insurance_e8=int(state["insurance_e8"]),
+        insurance_ext_e8=int(state["insurance_ext_e8"]),
+        claims_paid_e8=int(state["claims_paid_e8"]),
+        net_deposited_e8=int(state["net_deposited_e8"]),
+    )
+    intents = tuple(
+        _NpIntent(
+            pubkey=str(intent["pubkey"]),
+            target_base=int(intent["target_base"]),
+            limit_price_e8=int(intent["limit_price_e8"]),
+            min_fill_base=int(intent["min_fill_base"]),
+            expiry_epoch=int(intent["expiry_epoch"]),
+            nonce=int(intent["nonce"]),
+        )
+        for intent in pending_intents_obj
+        if type(intent) is dict
+    )
+    if len(intents) != len(pending_intents_obj):
+        raise ValueError("clearinghouse_np Oracle intents must be exact objects")
+    post_state, _result = _np_core.run_epoch(
+        market_state,
+        clearing_price_e8,
+        0,
+        intents,
+    )
+    return tuple(account.position_base for account in post_state.accounts)
+
+
 def _perps_clearinghouse_settle_oracle_runtime_facts(
     config: PerpEngineConfig,
     *,
@@ -1986,6 +2186,10 @@ def _perps_clearinghouse_settle_oracle_runtime_facts(
     state: Mapping[str, Any],
     participant_pubkeys: tuple[str, ...],
 ) -> dict[str, object]:
+    runtime_notional_value_e8 = _clearinghouse_gross_notional_e8(
+        market_kind=market_kind,
+        state=state,
+    )
     action_id = _perps_clearinghouse_runtime_oracle_action_id(
         _ClearinghouseOracleRuntimeRequest(
             config=config,
@@ -2012,6 +2216,7 @@ def _perps_clearinghouse_settle_oracle_runtime_facts(
         "participant_count": len(participant_pubkeys),
         "pre_state_hash": pre_state_hash,
         "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+        "runtime_notional_value_e8": runtime_notional_value_e8,
     }
     return {
         "action_facts_hash": semantic_hash(
@@ -2022,6 +2227,7 @@ def _perps_clearinghouse_settle_oracle_runtime_facts(
         "now_epoch": int(state.get("now_epoch", 0)),
         "pre_state_hash": pre_state_hash,
         "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+        "runtime_notional_value_e8": runtime_notional_value_e8,
         "runtime_value_e8": int(state.get("clearing_price_e8", 0)),
     }
 
@@ -2051,6 +2257,9 @@ def _check_clearinghouse_typed_oracle_authorization(
     runtime_value_e8: int,
     now_epoch: int,
 ) -> Optional[str]:
+    runtime_notional_value_e8 = runtime.get("runtime_notional_value_e8")
+    if type(runtime_notional_value_e8) is not int or runtime_notional_value_e8 < 0:
+        return "clearinghouse_settle_oracle_authorization_rejected: malformed runtime facts"
     try:
         result = check_critical_consumer_authorization(
             authorization,
@@ -2065,6 +2274,7 @@ def _check_clearinghouse_typed_oracle_authorization(
             profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             max_freshness_window_epochs=2,
             expected_receipt_graph_root=config.oracle_authorization_receipt_graph_root,
+            runtime_notional_value_e8=runtime_notional_value_e8,
         )
     except Exception as exc:
         return f"clearinghouse_settle_oracle_authorization_rejected: {_safe_error_str(exc)}"
@@ -2147,6 +2357,19 @@ def _check_clearinghouse_settle_oracle_admission(
     if authorization_error is not None:
         return authorization_error
 
+    expected_aggregate_id: str | None = None
+    authorization = snapshot_request.data.get("oracle_authorization")
+    if authorization is not None:
+        if type(authorization) is not dict:
+            return "clearinghouse settle oracle_authorization must be an exact object"
+        receipt_graph = authorization.get("receipt_graph")
+        if type(receipt_graph) is not dict:
+            return "clearinghouse_settle_oracle_authorization_rejected: receipt_graph must be an exact object"
+        aggregate_id = receipt_graph.get("aggregate_id")
+        if type(aggregate_id) is not str:
+            return "clearinghouse_settle_oracle_authorization_rejected: receipt_graph aggregate_id must be an exact string"
+        expected_aggregate_id = aggregate_id
+
     runtime = _perps_clearinghouse_settle_oracle_runtime_facts(
         snapshot_request.config,
         market_id=snapshot_request.market_id,
@@ -2172,6 +2395,7 @@ def _check_clearinghouse_settle_oracle_admission(
             expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
             expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             expected_action_id=str(runtime["action_id"]),
+            expected_aggregate_id=expected_aggregate_id,
             expected_runtime_value_e8=runtime_value_e8,
             expected_runtime_epoch=now_epoch,
             required=snapshot_request.config.require_oracle_adapter_for_clearinghouse_settle_epoch,
@@ -5285,12 +5509,20 @@ def _isolated_settle_authorization_error(
     if gate_error is not None:
         return gate_error
 
-    index_price_e8 = market.global_state.get("index_price_e8")
-    now_epoch = market.global_state.get("now_epoch")
-    if type(index_price_e8) is not int:
-        return "oracle_adapter_bridge runtime value_e8 must be a non-bool int"
-    if type(now_epoch) is not int:
-        return "oracle_adapter_bridge runtime epoch must be a non-bool int"
+    runtime = _isolated_settle_oracle_runtime_facts(
+        market_id=op.market_id,
+        market=market,
+    )
+    clearing_price_e8 = runtime.get("runtime_value_e8")
+    now_epoch = runtime.get("now_epoch")
+    runtime_notional_value_e8 = runtime.get("runtime_notional_value_e8")
+    if (
+        type(clearing_price_e8) is not int
+        or type(now_epoch) is not int
+        or type(runtime_notional_value_e8) is not int
+        or runtime_notional_value_e8 < 0
+    ):
+        return "oracle_authorization_rejected: malformed runtime facts"
 
     err = _require_oracle_adapter_bridge(
         _OracleAdapterBridgeRequirement(
@@ -5300,13 +5532,8 @@ def _isolated_settle_authorization_error(
             action_kind="settle_epoch",
             expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
             expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            expected_action_id=_perps_runtime_oracle_action_id(
-                ctx.config,
-                market_id=op.market_id,
-                action_kind="settle_epoch",
-                market=market,
-            ),
-            expected_runtime_value_e8=index_price_e8,
+            expected_action_id=str(runtime["action_id"]),
+            expected_runtime_value_e8=clearing_price_e8,
             expected_runtime_epoch=now_epoch,
             required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch,
         )
@@ -6567,6 +6794,49 @@ def _chnp_pending_price_fields(market: _NpMarketState) -> dict[str, int]:
     }
 
 
+def _chnp_oracle_state(market: _NpMarketState) -> dict[str, Any]:
+    """Own the complete NP state consumed by one Oracle-authorized epoch."""
+
+    state: dict[str, Any] = dict(market.global_state)
+    state["accounts"] = [
+        {
+            "pubkey": account.pubkey,
+            "position_base": account.position_base,
+            "entry_price_e8": account.entry_price_e8,
+            "collateral_e8": account.collateral_e8,
+            "funding_paid_cum_e8": account.funding_paid_cum_e8,
+            "nonce": account.nonce,
+        }
+        for account in sorted(
+            market.accounts,
+            key=lambda account: _hex_to_bytes_allow_0x(
+                account.pubkey,
+                name="pubkey",
+                expected_nbytes=48,
+            ),
+        )
+    ]
+    state["pending_intents"] = [
+        {
+            "pubkey": intent.pubkey,
+            "target_base": intent.target_base,
+            "nonce": intent.nonce,
+            "limit_price_e8": intent.limit_price_e8,
+            "min_fill_base": intent.min_fill_base,
+            "expiry_epoch": intent.expiry_epoch,
+        }
+        for intent in sorted(
+            market.pending_intents,
+            key=lambda intent: _hex_to_bytes_allow_0x(
+                intent.pubkey,
+                name="pubkey",
+                expected_nbytes=48,
+            ),
+        )
+    ]
+    return state
+
+
 def _chnp_participant_pubkeys(market: _NpMarketState) -> tuple[str, ...]:
     return tuple(
         account.pubkey
@@ -6852,7 +7122,7 @@ def _apply_chnp_run_or_settle_epoch(
         data=data,
         market_id=market_id,
         market=chnp_market,
-        state_for_oracle=dict(chnp_market.global_state),
+        state_for_oracle=_chnp_oracle_state(chnp_market),
     )
     if err is not None:
         return err
@@ -7440,6 +7710,31 @@ def _perp_ops_batch_posture_error(config: PerpEngineConfig, ops: List[PerpOp]) -
     return None
 
 
+def _copy_perp_market_for_apply(market: PerpAnyMarketState) -> PerpAnyMarketState:
+    """Own every mutable market container before verifier or kernel callbacks."""
+
+    if type(market) is PerpMarketState:
+        owned = copy.copy(market)
+        object.__setattr__(owned, "global_state", dict(market.global_state))
+        object.__setattr__(owned, "accounts", dict(market.accounts))
+        return owned
+    if type(market) is PerpClearinghouse2pMarketState:
+        owned = copy.copy(market)
+        object.__setattr__(owned, "state", dict(market.state))
+        return owned
+    if type(market) is PerpClearinghouse3pTransferMarketState:
+        owned = copy.copy(market)
+        object.__setattr__(owned, "state", dict(market.state))
+        return owned
+    if type(market) is _NpMarketState:
+        owned = copy.copy(market)
+        object.__setattr__(owned, "global_state", dict(market.global_state))
+        object.__setattr__(owned, "accounts", tuple(market.accounts))
+        object.__setattr__(owned, "pending_intents", tuple(market.pending_intents))
+        return owned
+    raise TypeError("unsupported perps market state type")
+
+
 def _build_perp_apply_ctx(
     *,
     config: PerpEngineConfig,
@@ -7458,7 +7753,10 @@ def _build_perp_apply_ctx(
     else:
         perps_version = int(perps.version)
 
-    markets = dict(perps.markets)
+    markets = {
+        market_id: _copy_perp_market_for_apply(market)
+        for market_id, market in perps.markets.items()
+    }
     # Perps state v5 is a strict superset of v4 (adds per-market kind tags).
     if any(_is_clearinghouse_version(op.version) for op in ops):
         perps_version = max(perps_version, PERPS_STATE_VERSION_V5)

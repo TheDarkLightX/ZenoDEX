@@ -99,6 +99,23 @@ def test_admitted_median3_rebases_sample_to_low_runtime_epoch(tmp_path: Path) ->
     assert result["observed_epoch"] == 1
 
 
+def test_admitted_median3_centers_signed_reports_on_runtime_value(tmp_path: Path) -> None:
+    # Arrange / Act.
+    aggregate = sample_admitted_median3_aggregate(
+        current_epoch=5,
+        latest_observed_epoch=5,
+        center_value_e8=10_000_000_000,
+    )
+    code, result = _run_verify(tmp_path, aggregate)
+
+    # Assert.
+    assert code == 0
+    assert result["status"] == "accepted"
+    assert result["value_e8"] == 10_000_000_000
+    assert result["confidence_e8"] == 100_000_000
+    assert result["deviation_bps"] == 100
+
+
 def test_admitted_median3_rejects_aggregate_hash_forgery(tmp_path: Path) -> None:
     aggregate = sample_admitted_median3_aggregate()
     forged = sample_hash("forged-admitted-median3")

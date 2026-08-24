@@ -193,6 +193,7 @@ def sample_admitted_median3_aggregate(
     *,
     current_epoch: int = 104,
     latest_observed_epoch: int | None = None,
+    center_value_e8: int = 100_000_000,
 ) -> dict[str, Any]:
     if not isinstance(current_epoch, int) or isinstance(current_epoch, bool) or current_epoch < 0:
         raise ValueError("current_epoch must be a nonnegative int")
@@ -207,6 +208,17 @@ def sample_admitted_median3_aggregate(
         raise ValueError(
             "latest_observed_epoch must be a nonnegative int not exceeding current_epoch"
         )
+    if (
+        not isinstance(center_value_e8, int)
+        or isinstance(center_value_e8, bool)
+        or center_value_e8 < 2
+        or center_value_e8 > MAX_AMOUNT
+    ):
+        raise ValueError("center_value_e8 must be an int between 2 and MAX_AMOUNT")
+    upper_spread_e8 = max(1, center_value_e8 // 100)
+    lower_spread_e8 = max(1, center_value_e8 // 200)
+    if center_value_e8 + upper_spread_e8 > MAX_AMOUNT:
+        raise ValueError("center_value_e8 leaves no room for the sample upper report")
     source_diversity = sample_source_diversity()
     query_id = str(source_diversity["query_id"])
     source_ids = [str(source["source_id"]) for source in source_diversity["sources"]]
@@ -222,7 +234,7 @@ def sample_admitted_median3_aggregate(
             reporter_id="reporter.alpha",
             source_id=source_ids[0],
             query_id=query_id,
-            value_e8=100_000_000,
+            value_e8=center_value_e8,
             observed_epoch=observed_epochs[0],
             source_diversity=source_diversity,
             current_epoch=current_epoch,
@@ -233,7 +245,7 @@ def sample_admitted_median3_aggregate(
             reporter_id="reporter.beta",
             source_id=source_ids[1],
             query_id=query_id,
-            value_e8=101_000_000,
+            value_e8=center_value_e8 + upper_spread_e8,
             observed_epoch=observed_epochs[1],
             source_diversity=source_diversity,
             current_epoch=current_epoch,
@@ -244,7 +256,7 @@ def sample_admitted_median3_aggregate(
             reporter_id="reporter.gamma",
             source_id=source_ids[2],
             query_id=query_id,
-            value_e8=99_500_000,
+            value_e8=center_value_e8 - lower_spread_e8,
             observed_epoch=observed_epochs[2],
             source_diversity=source_diversity,
             current_epoch=current_epoch,

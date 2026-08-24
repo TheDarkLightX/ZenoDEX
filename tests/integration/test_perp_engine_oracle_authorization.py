@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import replace
 
 import pytest
 
@@ -17,7 +18,11 @@ from src.integration.perp_engine import (
     _isolated_settle_oracle_runtime_facts,
     apply_perp_ops,
 )
-from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
+from src.integration.zeno_oracle_authorization import (
+    economic_envelope_hash,
+    oracle_value_hash,
+    semantic_hash,
+)
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 from tests.integration.oracle_authorization_test_helpers import authorization_bundle
@@ -210,6 +215,7 @@ def _accepted_clearinghouse_bridge(
     runtime: dict[str, object],
     value_e8: int | None = None,
     action_epoch: int | None = None,
+    aggregate_id: str | None = None,
 ) -> Callable[[object], dict[str, object]]:
     def verify(_bridge: object) -> dict[str, object]:
         return {
@@ -221,6 +227,11 @@ def _accepted_clearinghouse_bridge(
             "action_id": runtime["action_id"],
             "value_e8": runtime["runtime_value_e8"] if value_e8 is None else value_e8,
             "action_epoch": runtime["now_epoch"] if action_epoch is None else action_epoch,
+            "aggregate_id": (
+                semantic_hash("test.oracle.aggregate", {"query_id": runtime["query_id"]})
+                if aggregate_id is None
+                else aggregate_id
+            ),
         }
 
     return verify
@@ -326,6 +337,179 @@ def test_fixed_clearinghouse_settle_accepts_exact_typed_oracle_admission(
     assert result.ok is True, result.error
     assert result.state is not None
     assert result.effects is not None
+
+
+@pytest.mark.parametrize(
+    "market_kind,version",
+    [
+        ("clearinghouse_2p_v1", "1.0"),
+        ("clearinghouse_3p_transfer_v1", "1.1"),
+    ],
+)
+def test_fixed_clearinghouse_settle_rejects_economically_invalid_envelope(
+    market_kind: str,
+    version: str,
+) -> None:
+    # Arrange: every identity and receipt binding is exact, while the economic
+    # envelope makes corruption profitable by declaring zero attack cost and
+    # zero slash deterrence for a positive extractable value.
+    state, market, market_id, participants = _ready_fixed_clearinghouse_market(
+        market_kind
+    )
+    base_config = PerpEngineConfig(operator_pubkey="00" * 48)
+    runtime = perp_engine._perps_clearinghouse_settle_oracle_runtime_facts(
+        base_config,
+        market_id=market_id,
+        market_kind=market_kind,
+        quote_asset=market.quote_asset,
+        state=market.state,
+        participant_pubkeys=participants,
+    )
+    authorization = _authorization_for(
+        runtime,
+        observed_epoch=int(runtime["now_epoch"]),
+        profile_id=perp_engine._ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+    )
+    envelope = authorization["economic_envelope"]
+    auth = authorization["authorization"]
+    assert type(envelope) is dict
+    assert type(auth) is dict
+    envelope["attack_cost_floor_e8"] = 0
+    envelope["slash_fraction_bps"] = 0
+    auth["economic_envelope_id"] = economic_envelope_hash(envelope)
+    config = PerpEngineConfig(
+        operator_pubkey="00" * 48,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+        require_oracle_authorization_for_clearinghouse_settle_epoch=True,
+        oracle_adapter_bridge_verifier=_accepted_clearinghouse_bridge(runtime=runtime),
+        oracle_authorization_receipt_graph_root=str(auth["receipt_graph_root"]),
+    )
+
+    # Act.
+    result = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    version=version,
+                    oracle_adapter_bridge={},
+                    oracle_authorization=authorization,
+                )
+            ]
+        },
+        tx_sender_pubkey="00" * 48,
+        block_timestamp=0,
+    )
+
+    # Assert: a hash-consistent but economically unsafe envelope cannot move
+    # collateral or publish effects.
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error is not None
+    assert "attack_cost_floor_below_required_margin" in result.error
+    assert "slash_deterrence_below_required_margin" in result.error
+
+
+def test_fixed_clearinghouse_settle_rejects_understated_runtime_notional() -> None:
+    # Arrange: create a matched one-base long/short position whose gross
+    # settlement exposure is 220_000_000 quote-e8 at the published price.
+    state, market, market_id, participants = _ready_fixed_clearinghouse_market(
+        "clearinghouse_2p_v1"
+    )
+    market_state, _ = perp_engine._ch2p_step(
+        market.state,
+        tag="settle_epoch",
+        args={},
+    )
+    for tag in ("deposit_collateral_a", "deposit_collateral_b"):
+        market_state, _ = perp_engine._ch2p_step(
+            market_state,
+            tag=tag,
+            args={"amount_e8": 100_000_000, "auth_ok": True},
+        )
+    market_state, _ = perp_engine._ch2p_step(
+        market_state,
+        tag="set_position_pair",
+        args={"new_position_base_a": 1, "auth_ok": True},
+    )
+    market_state, _ = perp_engine._ch2p_step(
+        market_state,
+        tag="advance_epoch",
+        args={"delta": 1},
+    )
+    market_state, _ = perp_engine._ch2p_step(
+        market_state,
+        tag="publish_clearing_price",
+        args={"price_e8": 110_000_000},
+    )
+    market = replace(market, state=market_state)
+    assert state.perps is not None
+    state = replace(
+        state,
+        perps=replace(state.perps, markets={market_id: market}),
+    )
+    base_config = PerpEngineConfig(operator_pubkey="00" * 48)
+    runtime = perp_engine._perps_clearinghouse_settle_oracle_runtime_facts(
+        base_config,
+        market_id=market_id,
+        market_kind="clearinghouse_2p_v1",
+        quote_asset=market.quote_asset,
+        state=market_state,
+        participant_pubkeys=participants,
+    )
+    assert runtime["runtime_notional_value_e8"] == 220_000_000
+    authorization = _authorization_for(
+        runtime,
+        observed_epoch=int(runtime["now_epoch"]),
+        profile_id=perp_engine._ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+    )
+    envelope = authorization["economic_envelope"]
+    auth = authorization["authorization"]
+    assert type(envelope) is dict
+    assert type(auth) is dict
+    envelope["notional_value_e8"] = 0
+    envelope["max_extractable_value_e8"] = 0
+    envelope["attack_cost_floor_e8"] = 0
+    envelope["expected_cheat_gain_e8"] = 0
+    auth["economic_envelope_id"] = economic_envelope_hash(envelope)
+    config = PerpEngineConfig(
+        operator_pubkey="00" * 48,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+        require_oracle_authorization_for_clearinghouse_settle_epoch=True,
+        oracle_adapter_bridge_verifier=_accepted_clearinghouse_bridge(runtime=runtime),
+        oracle_authorization_receipt_graph_root=str(auth["receipt_graph_root"]),
+    )
+
+    # Act.
+    result = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    version="1.0",
+                    oracle_adapter_bridge={},
+                    oracle_authorization=authorization,
+                )
+            ]
+        },
+        tx_sender_pubkey="00" * 48,
+        block_timestamp=0,
+    )
+
+    # Assert: the accepted envelope must cover the runtime-derived gross
+    # notional before collateral can move.
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error is not None
+    assert "runtime_notional_value_e8 exceeds economic envelope" in result.error
 
 
 @pytest.mark.parametrize(
@@ -471,6 +655,143 @@ def test_fixed_clearinghouse_settle_rejects_bridge_semantic_drift(
     assert result.error == expected_error
 
 
+@pytest.mark.parametrize(
+    "market_kind,version",
+    [
+        ("clearinghouse_2p_v1", "1.0"),
+        ("clearinghouse_3p_transfer_v1", "1.1"),
+    ],
+)
+def test_fixed_clearinghouse_settle_rejects_bridge_from_different_oracle_occurrence(
+    market_kind: str,
+    version: str,
+) -> None:
+    # Arrange: both artifacts are independently valid for the same action,
+    # value, and epoch, but they close over different Oracle aggregates.
+    state, market, market_id, participants = _ready_fixed_clearinghouse_market(
+        market_kind
+    )
+    base_config = PerpEngineConfig(operator_pubkey="00" * 48)
+    runtime = perp_engine._perps_clearinghouse_settle_oracle_runtime_facts(
+        base_config,
+        market_id=market_id,
+        market_kind=market_kind,
+        quote_asset=market.quote_asset,
+        state=market.state,
+        participant_pubkeys=participants,
+    )
+    authorization = _authorization_for(
+        runtime,
+        observed_epoch=int(runtime["now_epoch"]),
+        profile_id=perp_engine._ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+    )
+    config = PerpEngineConfig(
+        operator_pubkey="00" * 48,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+        require_oracle_authorization_for_clearinghouse_settle_epoch=True,
+        oracle_adapter_bridge_verifier=_accepted_clearinghouse_bridge(
+            runtime=runtime,
+            aggregate_id=semantic_hash(
+                "test.oracle.aggregate",
+                {"query_id": runtime["query_id"], "occurrence": "different"},
+            ),
+        ),
+        oracle_authorization_receipt_graph_root=str(
+            authorization["authorization"]["receipt_graph_root"]
+        ),
+    )
+
+    # Act.
+    result = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    version=version,
+                    oracle_adapter_bridge={},
+                    oracle_authorization=authorization,
+                )
+            ]
+        },
+        tx_sender_pubkey="00" * 48,
+        block_timestamp=0,
+    )
+
+    # Assert: composition must fail closed without a partial settlement.
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error == "oracle_adapter_bridge aggregate_id mismatch"
+
+
+def test_clearinghouse_settle_commits_owned_state_snapshot_across_bridge_callback() -> None:
+    # Arrange: model a faulty in-process verifier that mutates a captured
+    # caller-owned market after runtime authorization has been derived.
+    state, market, market_id, participants = _ready_fixed_clearinghouse_market(
+        "clearinghouse_2p_v1"
+    )
+    base_config = PerpEngineConfig(operator_pubkey="00" * 48)
+    runtime = perp_engine._perps_clearinghouse_settle_oracle_runtime_facts(
+        base_config,
+        market_id=market_id,
+        market_kind="clearinghouse_2p_v1",
+        quote_asset=market.quote_asset,
+        state=market.state,
+        participant_pubkeys=participants,
+    )
+    authorization = _authorization_for(
+        runtime,
+        observed_epoch=int(runtime["now_epoch"]),
+        profile_id=perp_engine._ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+    )
+    accepted_bridge = _accepted_clearinghouse_bridge(runtime=runtime)
+
+    def mutating_verifier(bridge: object) -> dict[str, object]:
+        market.state["clearing_price_e8"] = int(runtime["runtime_value_e8"]) + 1
+        return accepted_bridge(bridge)
+
+    config = PerpEngineConfig(
+        operator_pubkey="00" * 48,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+        require_oracle_authorization_for_clearinghouse_settle_epoch=True,
+        oracle_adapter_bridge_verifier=mutating_verifier,
+        oracle_authorization_receipt_graph_root=str(
+            authorization["authorization"]["receipt_graph_root"]
+        ),
+    )
+
+    # Act.
+    result = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    version="1.0",
+                    oracle_adapter_bridge={},
+                    oracle_authorization=authorization,
+                )
+            ]
+        },
+        tx_sender_pubkey="00" * 48,
+        block_timestamp=0,
+    )
+
+    # Assert: the published result consumes the same owned snapshot that was
+    # authorized, regardless of mutation to an external alias.
+    assert result.ok is True, result.error
+    assert result.state is not None
+    assert result.state.perps is not None
+    result_market = result.state.perps.markets[market_id]
+    assert isinstance(result_market, PerpClearinghouse2pMarketState)
+    assert result_market.state["clearing_price_e8"] == runtime["runtime_value_e8"]
+
+
 def test_isolated_settle_requires_oracle_authorization_when_configured() -> None:
     market_id = "perp:auth-required"
     operator = "00" * 48
@@ -597,6 +918,130 @@ def test_isolated_settle_rejects_authorization_for_different_oracle_value() -> N
     assert "runtime_value_e8 mismatch" in res.error
 
 
+def test_isolated_settle_rejects_authorization_bound_to_previous_index_price() -> None:
+    # Arrange: settlement will consume the newly published 95 price while the
+    # prior index remains 100. The action and pre-state hashes bind both values,
+    # so a self-consistent bundle can still carry the wrong price occurrence.
+    market_id = "perp:auth-prior-index"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator, price_e8=100_000_000)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    market.global_state["clearing_price_e8"] = 95_000_000
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    assert market.global_state["index_price_e8"] == 100_000_000
+    assert runtime["runtime_value_e8"] == 95_000_000
+    auth = _authorization_for(
+        runtime,
+        observed_epoch=int(market.global_state["oracle_last_update_epoch"]),
+        value_e8=int(market.global_state["index_price_e8"]),
+    )
+
+    # Act.
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
+        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+    )
+
+    # Assert: authorization for the previous index cannot authorize effects at
+    # the newly published clearing price.
+    assert res.ok is False
+    assert res.state is None
+    assert res.effects is None
+    assert res.error is not None
+    assert "runtime_value_e8 mismatch" in res.error
+
+
+def test_isolated_settle_rejects_understated_runtime_notional() -> None:
+    # Arrange: build a reachable matched one-base long/short market, then submit
+    # a hash-consistent envelope that declares zero settlement exposure.
+    market_id = "perp:auth-isolated-notional"
+    operator = "00" * 48
+    alice = "11" * 48
+    bob = "22" * 48
+    state = _ready_market(market_id=market_id, operator=operator, price_e8=100_000_000)
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "settle_epoch"), _op(market_id, "advance_epoch", delta=1)],
+    )
+    assert state.perps is not None
+    quote_asset = state.perps.markets[market_id].quote_asset
+    funded = BalanceTable()
+    for (pubkey, asset), amount in state.balances.get_all_balances().items():
+        funded.set(pubkey, asset, int(amount))
+    funded.set(alice, quote_asset, 1_000)
+    funded.set(bob, quote_asset, 1_000)
+    state = replace(state, balances=funded)
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=alice,
+        operator_pubkey=operator,
+        ops=[
+            _op(market_id, "deposit_collateral", account_pubkey=alice, amount=100),
+            _op(market_id, "set_position", account_pubkey=alice, new_position_base=1),
+        ],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=bob,
+        operator_pubkey=operator,
+        ops=[
+            _op(market_id, "deposit_collateral", account_pubkey=bob, amount=100),
+            _op(market_id, "set_position", account_pubkey=bob, new_position_base=-1),
+        ],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    # One base-e8 atom on each side at a 1.0 quote price is one quote-e8 atom
+    # per account. This catches accidental reuse of the unscaled 2P/3P/NP unit
+    # convention on the isolated market family.
+    assert runtime["runtime_notional_value_e8"] == 2
+    auth = _authorization_for(
+        runtime,
+        observed_epoch=int(market.global_state["oracle_last_update_epoch"]),
+    )
+    envelope = auth["economic_envelope"]
+    authorization = auth["authorization"]
+    assert type(envelope) is dict
+    assert type(authorization) is dict
+    envelope["notional_value_e8"] = 0
+    envelope["max_extractable_value_e8"] = 0
+    envelope["attack_cost_floor_e8"] = 0
+    envelope["expected_cheat_gain_e8"] = 0
+    authorization["economic_envelope_id"] = economic_envelope_hash(envelope)
+
+    # Act.
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        receipt_graph_root=str(authorization["receipt_graph_root"]),
+        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+    )
+
+    # Assert: the runtime-derived exposure must fit the economic envelope before
+    # settlement can move collateral or emit effects.
+    assert res.ok is False
+    assert res.state is None
+    assert res.effects is None
+    assert res.error is not None
+    assert "runtime_notional_value_e8 exceeds economic envelope" in res.error
+
+
 def test_isolated_settle_rejects_malformed_runtime_facts(monkeypatch) -> None:
     import src.integration.perp_engine as perp_engine
 
@@ -679,6 +1124,8 @@ def test_clearinghouse_settle_sanitizes_oracle_verifier_internal_error(monkeypat
                 "clearing_price_e8": 100_000_000,
                 "index_price_e8": 100_000_000,
                 "oracle_last_update_epoch": 1,
+                "position_base_a": 0,
+                "position_base_b": 0,
             },
             participant_pubkeys=("00" * 48, "11" * 48),
         )

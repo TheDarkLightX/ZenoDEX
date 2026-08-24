@@ -234,6 +234,27 @@ The live wallet API now also exposes
 locally built aggregate-adapter bridge, returns the verifier result, and
 summarizes the bridge ID, action kind, action ID, query ID, profile ID,
 evidence floor, value, observed epoch, and report count for the mounted UI.
+The backend-only
+`POST /api/perps/wallet/oracle-authorization-request` endpoint derives the
+exact `settle_epoch` runtime facts from the current two-party clearinghouse
+state when typed authorization is enabled and a canonical receipt-graph root
+is configured. The backend-only ZenoOracle
+`POST /api/oracle/authorization/build-exact` route accepts that exact owned
+runtime object only when the selected accepted read and expected graph root
+match. Rejections write no authorization receipt or log row. The legacy local
+research route remains separate for existing dashboard and testnet callers.
+Both exact endpoints report
+`production_authority: false`; verifier-selected root lifecycle and deployed
+Oracle authority remain release blockers. The binding scope is the exact
+market-local runtime action. The application-state diagnostic hash and request
+hash are not authorization fields. Any future settlement dependency outside
+that market projection requires an explicit application-state binding and a
+noninterference review. The authorization builder also does not synthesize the
+required economic-security envelope, so its current output remains
+research-only and is not directly admissible by the critical perps engine. A
+mounted producer must also derive the adapter bridge and authorization graph
+from the same accepted aggregate occurrence; independently generated local
+fixtures now reject at composition.
 The mounted UI also loads live ZenoOracle dashboard candidates from
 `VITE_ZENO_ORACLE_API_URL` or the runtime `zenoOracleApiBase`, then displays
 accepted reads, authorizations, aggregates, selected evidence, and

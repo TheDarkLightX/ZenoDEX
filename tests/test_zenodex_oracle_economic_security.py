@@ -4,12 +4,16 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-
+from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 
 from zenodex_oracle_economic_security import sample_envelope  # noqa: E402
+
+from src.core.oracle_economic_security import (  # noqa: E402
+    verify_economic_security_envelope,
+)
 
 
 def _run_verify(tmp_path: Path, envelope: dict) -> tuple[int, dict]:
@@ -126,6 +130,38 @@ def test_economic_security_rejects_wrong_schema(tmp_path: Path) -> None:
     code, result = _run_verify(tmp_path, envelope)
     assert code == 2
     assert "economic_security_schema_mismatch" in result["errors"]
+
+
+def test_economic_security_rejects_hostile_key_before_lookup() -> None:
+    class ExplodingKey:
+        def __hash__(self) -> int:
+            return hash("query_id")
+
+        def __eq__(self, _other: object) -> bool:
+            raise AssertionError("hostile envelope key was compared")
+
+    envelope: dict[Any, Any] = sample_envelope()
+    del envelope["query_id"]
+    envelope[ExplodingKey()] = "sha256:" + "1" * 64
+
+    result = verify_economic_security_envelope(envelope)
+
+    assert result.status == "rejected"
+    assert result.errors == ("economic_security_field_must_be_string",)
+
+
+def test_economic_security_rejects_hostile_schema_without_comparison() -> None:
+    class ExplodingEq:
+        def __eq__(self, _other: object) -> bool:
+            raise AssertionError("hostile schema value was compared")
+
+    envelope = sample_envelope()
+    envelope["schema"] = ExplodingEq()
+
+    result = verify_economic_security_envelope(envelope)
+
+    assert result.status == "rejected"
+    assert "economic_security_schema_mismatch" in result.errors
 
 
 def test_economic_security_verify_inconclusive_on_oversized_file(tmp_path: Path) -> None:

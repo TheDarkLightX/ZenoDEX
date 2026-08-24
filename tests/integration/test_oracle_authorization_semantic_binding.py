@@ -11,9 +11,11 @@ from pathlib import Path
 import pytest
 
 from src.integration.zeno_oracle_authorization import (
+    ECONOMIC_ENVELOPE_FIELDS,
     ZUSD_COLLATERAL_QUERY_ID,
     ZUSD_LIQUIDATE_VAULT_PROFILE_ID,
     ZUSD_MINT_PROFILE_ID,
+    runtime_from_obj,
 )
 from src.integration.zeno_oracle_settlement_authorization import critical_settlement_profile_id
 from tests.integration.oracle_authorization_test_helpers import authorization_bundle
@@ -82,7 +84,7 @@ def _refresh_terminal_graph_roots(bundle: dict) -> None:
 
 
 def _valid_pair() -> tuple[OracleAuthorization, RuntimeActionFacts]:
-    query_id = "query:AGRS/ZDEX"
+    query_id = _hash("zenodex.oracle.query.v1", "AGRS/ZDEX")
     value_e8 = 123_456_789
     observed_epoch = 42
     action_facts_hash = _hash("zenodex.action_facts.v1", "zusd-mint-vault-7")
@@ -148,10 +150,23 @@ def _economic_envelope_for(
         "action_kind": action_kind or authorization.action_kind,
         "notional_value_e8": notional_value_e8,
         "max_extractable_value_e8": max_extractable_value_e8,
+        "attack_cost_floor_e8": max_extractable_value_e8,
+        "required_attack_margin_bps": 0,
         "reporter_count": reporter_count,
+        "reporter_reward_budget_e8": 90_000_000,
+        "reporter_reward_per_report_e8": 30_000_000,
+        "honest_reporter_cost_e8": 20_000_000,
+        "honest_reporter_risk_premium_e8": 5_000_000,
         "reporter_bond_required_e8": reporter_bond_required_e8,
         "slash_fraction_bps": 10_000,
+        "expected_cheat_gain_e8": max_extractable_value_e8,
         "deterrence_margin_bps": 0,
+        "dispute_reward_e8": 10_000_000,
+        "dispute_budget_e8": 20_000_000,
+        "fee_paid_e8": 100_000_000,
+        "reporter_fee_share_e8": 30_000_000,
+        "treasury_fee_share_e8": 40_000_000,
+        "burn_fee_share_e8": 30_000_000,
     }
 
 
@@ -595,6 +610,50 @@ def test_critical_consumer_rejects_hostile_string_subclass_at_decode_boundary() 
         )
 
 
+def test_payload_checker_rejects_hostile_bundle_key_before_lookup() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["runtime_action"] = asdict(runtime)
+
+    class ExplodingKey:
+        def __hash__(self) -> int:
+            return hash("authorization")
+
+        def __eq__(self, _other: object) -> bool:
+            raise AssertionError("hostile authorization key was compared")
+
+    authorization_obj = bundle.pop("authorization")
+    bundle[ExplodingKey()] = authorization_obj
+
+    with pytest.raises(
+        ValueError,
+        match="authorization bundle field names must be exact strings",
+    ):
+        check_authorization_payload(bundle)
+
+
+def test_critical_consumer_rejects_unknown_authorization_bundle_fields() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["caller_selected_authority"] = True
+
+    with pytest.raises(
+        ValueError,
+        match="authorization bundle has unknown fields: caller_selected_authority",
+    ):
+        check_critical_consumer_authorization(
+            bundle,
+            consumer_module="zenodex.zusd",
+            action_kind="mint",
+            action_id=runtime.action_id,
+            action_facts_hash=runtime.action_facts_hash,
+            pre_state_hash=runtime.pre_state_hash,
+            query_id=runtime.query_id,
+            runtime_value_e8=runtime.runtime_value_e8,
+            now_epoch=runtime.now_epoch,
+        )
+
+
 def test_critical_consumer_rejects_split_view_receipt_graph_mapping() -> None:
     # Arrange: get() exposes a valid graph while iteration exposes a different
     # graph whose root is bound into the authorization.
@@ -823,6 +882,35 @@ def test_critical_consumer_rejects_bool_runtime_notional_without_envelope() -> N
     assert "runtime_notional_value_e8 must be an int when present" in result["typed_errors"]
 
 
+def test_critical_consumer_rejects_integer_subclass_runtime_fields() -> None:
+    authorization, runtime = _valid_pair()
+
+    class DivergentInt(int):
+        def __new__(cls, stored_value: int, comparison_value: int):
+            obj = super().__new__(cls, stored_value)
+            obj.comparison_value = comparison_value
+            return obj
+
+        def __int__(self) -> int:
+            return self.comparison_value
+
+    result = check_critical_consumer_authorization(
+        authorization_bundle(asdict(authorization)),
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=DivergentInt(0, runtime.runtime_value_e8),
+        now_epoch=DivergentInt(0, runtime.now_epoch),
+    )
+
+    assert result["typed_ok"] is False
+    assert "runtime_value_e8 must be an int" in result["typed_errors"]
+    assert "now_epoch must be an int" in result["typed_errors"]
+
+
 def test_critical_consumer_rejects_terminal_graph_value_mismatch() -> None:
     authorization, runtime = _valid_pair()
     bundle = authorization_bundle(asdict(authorization))
@@ -897,3 +985,184 @@ def test_critical_consumer_rejects_terminal_graph_fake_control_group_diversity()
         in result["receipt_graph_errors"]
     )
     assert "receipt_graph distinct control groups below min_reporters" in result["receipt_graph_errors"]
+
+
+def test_critical_consumer_rejects_unknown_authorization_field() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["authorization"]["caller_granted_authority"] = True
+
+    with pytest.raises(ValueError, match="authorization has unknown fields"):
+        _check_with_runtime(bundle, runtime)
+
+
+def test_runtime_parser_rejects_unknown_field() -> None:
+    authorization, runtime = _valid_pair()
+    runtime_obj = asdict(runtime)
+    runtime_obj["caller_selected_freshness"] = 1
+
+    with pytest.raises(ValueError, match="runtime_action has unknown fields"):
+        runtime_from_obj(runtime_obj)
+
+
+def test_critical_consumer_rejects_unknown_receipt_graph_field() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["receipt_graph"]["unverified_terminal_extension"] = "accepted"
+    _refresh_terminal_graph_roots(bundle)
+
+    result = _check_with_runtime(bundle, runtime)
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert "receipt_graph has unknown fields: unverified_terminal_extension" in result[
+        "receipt_graph_errors"
+    ]
+
+
+def test_critical_consumer_rejects_unknown_report_leaf_field() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["receipt_graph"]["report_leaf_commitments"][0]["private_weight"] = 7
+    _refresh_terminal_graph_roots(bundle)
+
+    result = _check_with_runtime(bundle, runtime)
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert any(
+        "has unknown fields: private_weight" in error
+        for error in result["receipt_graph_errors"]
+    )
+
+
+def test_critical_consumer_rejects_hostile_report_leaf_key_before_lookup() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    leaf = bundle["receipt_graph"]["report_leaf_commitments"][0]
+
+    class ExplodingKey:
+        def __hash__(self) -> int:
+            return hash("report_id")
+
+        def __eq__(self, _other: object) -> bool:
+            raise AssertionError("hostile report leaf key was compared")
+
+    report_id = leaf.pop("report_id")
+    leaf[ExplodingKey()] = report_id
+
+    result = _check_with_runtime(bundle, runtime)
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert any(
+        "contains a non-exact JSON object key" in error
+        for error in result["receipt_graph_errors"]
+    )
+
+
+def test_critical_consumer_rejects_hostile_graph_value_without_comparison() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+
+    class ExplodingEq:
+        def __eq__(self, _other: object) -> bool:
+            raise AssertionError("hostile receipt graph value was compared")
+
+    bundle["receipt_graph"]["schema"] = ExplodingEq()
+
+    result = _check_with_runtime(bundle, runtime)
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert any(
+        "contains a non-exact JSON primitive: ExplodingEq" in error
+        for error in result["receipt_graph_errors"]
+    )
+
+
+def test_critical_consumer_rejects_unknown_economic_envelope_field() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["economic_envelope"]["caller_selected_discount_bps"] = 10_000
+    bundle["authorization"]["economic_envelope_id"] = economic_envelope_hash(
+        bundle["economic_envelope"]
+    )
+
+    result = _check_with_runtime(bundle, runtime)
+
+    assert result["typed_ok"] is False
+    assert result["economic_envelope_ok"] is False
+    assert "economic_envelope has unknown fields: caller_selected_discount_bps" in result[
+        "economic_envelope_errors"
+    ]
+
+
+def test_authorization_economic_envelope_schema_matches_standalone_verifier() -> None:
+    from tools.zenodex_oracle_economic_security import ENVELOPE_KEYS
+
+    assert ECONOMIC_ENVELOPE_FIELDS == frozenset(ENVELOPE_KEYS)
+
+
+def test_critical_consumer_rejects_ambiguous_report_leaf_bond_fields() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    leaf = bundle["receipt_graph"]["report_leaf_commitments"][0]
+    leaf["bond_amount_e8"] = leaf["bond_e8"]
+    _refresh_terminal_graph_roots(bundle)
+
+    result = _check_with_runtime(bundle, runtime)
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert any(
+        "must contain exactly one bond field" in error
+        for error in result["receipt_graph_errors"]
+    )
+
+
+def test_payload_checker_verifies_present_terminal_graph() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["runtime_action"] = asdict(runtime)
+    bundle["receipt_graph"]["value_e8"] = authorization.value_e8 + 1
+    _refresh_terminal_graph_roots(bundle)
+
+    result = check_authorization_payload(bundle)
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert "receipt_graph value_e8 does not match authorization" in result[
+        "receipt_graph_errors"
+    ]
+
+
+def test_critical_consumer_rejects_unknown_nested_source_snapshot_field() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    bundle["receipt_graph"]["report_leaf_commitments"][0]["source_state_at_submit"] = {
+        "source_id": "source:test:0",
+        "source_kind": "manual",
+        "operator_id": "operator:test:0",
+        "source_control_group_id": "operator:test:0",
+        "venue_id": "venue:test:0",
+        "data_family_id": "price:spot",
+        "transport_id": "transport:test",
+        "jurisdiction": "global",
+        "asset_classes": ["crypto"],
+        "query_ids": [authorization.query_id],
+        "assurance_class": "S3",
+        "active": True,
+        "registered_epoch": 1,
+        "caller_weight": 1,
+    }
+    _refresh_terminal_graph_roots(bundle)
+
+    result = _check_with_runtime(bundle, runtime)
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert any(
+        "source_state_at_submit has unknown fields: caller_weight" in error
+        for error in result["receipt_graph_errors"]
+    )

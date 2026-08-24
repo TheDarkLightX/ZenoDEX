@@ -7,6 +7,13 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 
+from src.core.oracle_economic_security import (
+    ENVELOPE_KEYS as ECONOMIC_SECURITY_ENVELOPE_KEYS,
+)
+from src.core.oracle_economic_security import (
+    verify_economic_security_envelope,
+)
+
 SCHEMA = "zenodex/oracle-authorization-semantic-binding-check/v1"
 EVIDENCE_RANK = {"O0": 0, "O1": 1, "O2": 2, "O3": 3, "O4": 4, "O5": 5}
 
@@ -172,6 +179,160 @@ class RuntimeActionFacts:
     max_freshness_window_epochs: int | None = None
 
 
+AUTHORIZATION_FIELDS = frozenset(
+    {
+        "consumer_module",
+        "action_kind",
+        "action_id",
+        "action_facts_hash",
+        "pre_state_hash",
+        "profile_id",
+        "query_id",
+        "value_e8",
+        "value_hash",
+        "confidence_e8",
+        "deviation_bps",
+        "observed_epoch",
+        "expires_at_epoch",
+        "feed_id",
+        "feed_registry_root",
+        "query_policy_root",
+        "source_registry_root",
+        "reporter_registry_root",
+        "evidence_class",
+        "economic_envelope_id",
+        "receipt_graph_root",
+    }
+)
+AUTHORIZATION_BUNDLE_FIELDS = frozenset(
+    {
+        "schema",
+        "authorization",
+        "runtime_action",
+        "receipt_graph",
+        "economic_envelope",
+        "authorization_id",
+        "semantic_check",
+        "production_authority",
+    }
+)
+RUNTIME_ACTION_FIELDS = frozenset(
+    {
+        "consumer_module",
+        "action_kind",
+        "action_id",
+        "action_facts_hash",
+        "pre_state_hash",
+        "profile_id",
+        "query_id",
+        "runtime_value_e8",
+        "now_epoch",
+        "runtime_notional_value_e8",
+        "max_freshness_window_epochs",
+    }
+)
+RECEIPT_GRAPH_FIELDS = frozenset(
+    {
+        "schema",
+        "read_id",
+        "aggregate_id",
+        "query_id",
+        "value_hash",
+        "value_e8",
+        "confidence_e8",
+        "deviation_bps",
+        "observed_epoch",
+        "expires_at_epoch",
+        "read_evidence_class",
+        "aggregate_evidence_class",
+        "reporter_count",
+        "min_reporters",
+        "source_policy_id",
+        "source_count",
+        "reporter_control_group_count",
+        "included_source_ids",
+        "included_report_ids",
+        "report_leaf_commitments",
+        "report_leaf_root",
+        "dispute_state_root",
+        "disputed_report_ids",
+        "feed_registry_root",
+        "query_policy_root",
+        "source_registry_root",
+        "reporter_registry_root",
+        "receipt_graph_root",
+    }
+)
+REPORT_LEAF_FIELDS = frozenset(
+    {
+        "active",
+        "bond_e8",
+        "bond_amount_e8",
+        "control_group_id",
+        "price_e8",
+        "query_id",
+        "query_ids",
+        "report_id",
+        "reported_epoch",
+        "reporter_id",
+        "reporter_state_hash",
+        "required_bond_e8",
+        "sequence",
+        "signature",
+        "signing_payload_hash",
+        "slash_state",
+        "source_id",
+        "source_observed_epoch",
+        "source_state_hash",
+        "source_state_at_submit",
+    }
+)
+SOURCE_STATE_AT_SUBMIT_FIELDS = frozenset(
+    {
+        "source_id",
+        "source_kind",
+        "operator_id",
+        "source_control_group_id",
+        "venue_id",
+        "data_family_id",
+        "transport_id",
+        "jurisdiction",
+        "asset_classes",
+        "query_ids",
+        "assurance_class",
+        "active",
+        "registered_epoch",
+    }
+)
+ECONOMIC_ENVELOPE_FIELDS = ECONOMIC_SECURITY_ENVELOPE_KEYS
+
+
+def _unknown_field_errors(
+    obj: Mapping[Any, Any],
+    *,
+    allowed: frozenset[str],
+    label: str,
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    if any(type(key) is not str for key in obj):
+        errors.append(f"{label} field names must be exact strings")
+    unknown = sorted(key for key in obj if type(key) is str and key not in allowed)
+    if unknown:
+        errors.append(f"{label} has unknown fields: {', '.join(unknown)}")
+    return tuple(errors)
+
+
+def _require_closed_fields(
+    obj: Mapping[Any, Any],
+    *,
+    allowed: frozenset[str],
+    label: str,
+) -> None:
+    errors = _unknown_field_errors(obj, allowed=allowed, label=label)
+    if errors:
+        raise ValueError("; ".join(errors))
+
+
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
 
@@ -182,12 +343,18 @@ def semantic_hash(domain: str, payload: Mapping[str, Any]) -> str:
 
 
 def oracle_value_hash(*, query_id: str, value_e8: int, observed_epoch: int) -> str:
+    if type(query_id) is not str or not query_id:
+        raise ValueError("query_id must be a non-empty string")
+    if type(value_e8) is not int:
+        raise ValueError("value_e8 must be an int")
+    if type(observed_epoch) is not int:
+        raise ValueError("observed_epoch must be an int")
     return semantic_hash(
         "zenodex.oracle.value.v1",
         {
-            "observed_epoch": int(observed_epoch),
-            "query_id": str(query_id),
-            "value_e8": int(value_e8),
+            "observed_epoch": observed_epoch,
+            "query_id": query_id,
+            "value_e8": value_e8,
         },
     )
 
@@ -247,10 +414,10 @@ def _economic_envelope_obj_from_payload(payload: Mapping[str, Any]) -> Mapping[s
 
 def _non_negative_int_obj(obj: Mapping[str, Any], key: str, errors: list[str]) -> int | None:
     value = obj.get(key)
-    if isinstance(value, bool) or not isinstance(value, int):
+    if type(value) is not int:
         errors.append(f"economic_envelope {key} must be a non-negative int")
         return None
-    out = int(value)
+    out = value
     if out < 0:
         errors.append(f"economic_envelope {key} must be a non-negative int")
         return None
@@ -259,10 +426,10 @@ def _non_negative_int_obj(obj: Mapping[str, Any], key: str, errors: list[str]) -
 
 def _positive_int_obj(obj: Mapping[str, Any], key: str, errors: list[str]) -> int | None:
     value = obj.get(key)
-    if isinstance(value, bool) or not isinstance(value, int):
+    if type(value) is not int:
         errors.append(f"economic_envelope {key} must be a positive int")
         return None
-    out = int(value)
+    out = value
     if out <= 0:
         errors.append(f"economic_envelope {key} must be a positive int")
         return None
@@ -271,10 +438,10 @@ def _positive_int_obj(obj: Mapping[str, Any], key: str, errors: list[str]) -> in
 
 def _bps_int_obj(obj: Mapping[str, Any], key: str, errors: list[str]) -> int | None:
     value = obj.get(key)
-    if isinstance(value, bool) or not isinstance(value, int):
+    if type(value) is not int:
         errors.append(f"economic_envelope {key} must be in [0, 10000]")
         return None
-    out = int(value)
+    out = value
     if out < 0 or out > 10_000:
         errors.append(f"economic_envelope {key} must be in [0, 10000]")
         return None
@@ -320,6 +487,17 @@ def verify_economic_envelope_binding(
         if require_economic_envelope:
             return False, ("economic_envelope required",)
         return True, ()
+    errors.extend(
+        _unknown_field_errors(
+            economic_envelope,
+            allowed=ECONOMIC_ENVELOPE_FIELDS,
+            label="economic_envelope",
+        )
+    )
+    economic_security = verify_economic_security_envelope(economic_envelope)
+    errors.extend(
+        f"economic_envelope {error}" for error in economic_security.errors
+    )
     if economic_envelope.get("schema") != "zenodex.oracle.economic_security_envelope.v1":
         errors.append("economic_envelope schema must be zenodex.oracle.economic_security_envelope.v1")
     for key in ("query_id", "consumer_module", "action_kind"):
@@ -342,7 +520,7 @@ def verify_economic_envelope_binding(
     ):
         errors.append("economic_envelope max_extractable_value_e8 exceeds notional_value_e8")
     if runtime_notional_value_e8 is not None:
-        if isinstance(runtime_notional_value_e8, bool) or not isinstance(runtime_notional_value_e8, int):
+        if type(runtime_notional_value_e8) is not int:
             errors.append("runtime_notional_value_e8 must be a non-negative int")
         elif runtime_notional_value_e8 < 0:
             errors.append("runtime_notional_value_e8 must be a non-negative int")
@@ -366,10 +544,10 @@ def verify_economic_envelope_binding(
 
 def _non_negative_graph_int(graph: Mapping[str, Any], key: str, errors: list[str]) -> int:
     value = graph.get(key)
-    if isinstance(value, bool) or not isinstance(value, int):
+    if type(value) is not int:
         errors.append(f"receipt_graph {key} must be a non-negative int")
         return 0
-    out = int(value)
+    out = value
     if out < 0:
         errors.append(f"receipt_graph {key} must be a non-negative int")
         return 0
@@ -378,10 +556,10 @@ def _non_negative_graph_int(graph: Mapping[str, Any], key: str, errors: list[str
 
 def _non_negative_leaf_int(leaf: Mapping[str, Any], key: str, errors: list[str], *, report_id: str) -> int:
     value = leaf.get(key)
-    if isinstance(value, bool) or not isinstance(value, int):
+    if type(value) is not int:
         errors.append(f"receipt_graph report leaf {report_id} {key} must be a non-negative int")
         return 0
-    out = int(value)
+    out = value
     if out < 0:
         errors.append(f"receipt_graph report leaf {report_id} {key} must be a non-negative int")
         return 0
@@ -391,6 +569,49 @@ def _non_negative_leaf_int(leaf: Mapping[str, Any], key: str, errors: list[str],
 def _require_active_leaf_bool(leaf: Mapping[str, Any], errors: list[str], *, report_id: str) -> None:
     if leaf.get("active") is not True:
         errors.append(f"receipt_graph report leaf {report_id} active must be true")
+
+
+def _exact_json_tree_error(
+    value: Any,
+    *,
+    path: str,
+    depth: int = 0,
+    remaining_nodes: list[int] | None = None,
+) -> str | None:
+    if remaining_nodes is None:
+        remaining_nodes = [100_000]
+    remaining_nodes[0] -= 1
+    if remaining_nodes[0] < 0:
+        return f"{path} exceeds exact JSON node budget"
+    if depth > 64:
+        return f"{path} exceeds exact JSON depth budget"
+    if value is None or type(value) in (bool, int, str):
+        return None
+    if type(value) is list:
+        for index, item in enumerate(value):
+            error = _exact_json_tree_error(
+                item,
+                path=f"{path}[{index}]",
+                depth=depth + 1,
+                remaining_nodes=remaining_nodes,
+            )
+            if error is not None:
+                return error
+        return None
+    if type(value) is dict:
+        for key, item in value.items():
+            if type(key) is not str:
+                return f"{path} contains a non-exact JSON object key"
+            error = _exact_json_tree_error(
+                item,
+                path=f"{path}.{key}",
+                depth=depth + 1,
+                remaining_nodes=remaining_nodes,
+            )
+            if error is not None:
+                return error
+        return None
+    return f"{path} contains a non-exact JSON primitive: {type(value).__name__}"
 
 
 def verify_receipt_graph_binding(
@@ -409,6 +630,17 @@ def verify_receipt_graph_binding(
     errors: list[str] = []
     if receipt_graph is None:
         return False, ("receipt_graph required",)
+    if type(receipt_graph) is not dict:
+        return False, ("receipt_graph must be an exact object",)
+    exact_tree_error = _exact_json_tree_error(receipt_graph, path="receipt_graph")
+    if exact_tree_error is not None:
+        return False, (exact_tree_error,)
+    graph_field_errors = _unknown_field_errors(
+        receipt_graph,
+        allowed=RECEIPT_GRAPH_FIELDS,
+        label="receipt_graph",
+    )
+    errors.extend(graph_field_errors)
     if receipt_graph.get("schema") != "zeno_oracle.receipt_graph.v1":
         errors.append("receipt_graph schema must be zeno_oracle.receipt_graph.v1")
 
@@ -511,6 +743,29 @@ def verify_receipt_graph_binding(
             if type(leaf) is not dict:
                 errors.append(f"receipt_graph report_leaf_commitments[{index}] must be an exact object")
                 continue
+            leaf_field_errors = _unknown_field_errors(
+                leaf,
+                allowed=REPORT_LEAF_FIELDS,
+                label=f"receipt_graph report_leaf_commitments[{index}]",
+            )
+            errors.extend(leaf_field_errors)
+            source_state_at_submit = leaf.get("source_state_at_submit")
+            if source_state_at_submit is not None:
+                if type(source_state_at_submit) is not dict:
+                    errors.append(
+                        "receipt_graph report_leaf_commitments"
+                        f"[{index}] source_state_at_submit must be an exact object"
+                    )
+                else:
+                    source_field_errors = _unknown_field_errors(
+                        source_state_at_submit,
+                        allowed=SOURCE_STATE_AT_SUBMIT_FIELDS,
+                        label=(
+                            "receipt_graph report_leaf_commitments"
+                            f"[{index}] source_state_at_submit"
+                        ),
+                    )
+                    errors.extend(source_field_errors)
             report_id_obj = leaf.get("report_id")
             source_id_obj = leaf.get("source_id")
             control_group_id_obj = leaf.get("control_group_id", leaf.get("reporter_id"))
@@ -535,6 +790,10 @@ def verify_receipt_graph_binding(
             _require_active_leaf_bool(leaf, errors, report_id=report_id)
             if type(leaf.get("slash_state")) is not str or leaf.get("slash_state") != "clear":
                 errors.append(f"receipt_graph report leaf {report_id} slash_state not clear")
+            if ("bond_e8" in leaf) == ("bond_amount_e8" in leaf):
+                errors.append(
+                    f"receipt_graph report leaf {report_id} must contain exactly one bond field"
+                )
             bond_key = "bond_e8" if "bond_e8" in leaf else "bond_amount_e8"
             bond_e8 = _non_negative_leaf_int(leaf, bond_key, errors, report_id=report_id)
             required_bond_e8 = _non_negative_leaf_int(leaf, "required_bond_e8", errors, report_id=report_id)
@@ -572,10 +831,10 @@ def verify_receipt_graph_binding(
 
 
 def _strict_int_for_verifier(value: Any, *, name: str, errors: list[str]) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
+    if type(value) is not int:
         errors.append(f"{name} must be an int")
         return 0
-    return int(value)
+    return value
 
 
 def verify_opaque_authorization(
@@ -706,14 +965,15 @@ def _require_str(obj: Mapping[str, Any], key: str) -> str:
 
 def _require_int(obj: Mapping[str, Any], key: str) -> int:
     value = obj.get(key)
-    if isinstance(value, bool) or not isinstance(value, int):
+    if type(value) is not int:
         raise ValueError(f"{key} must be an int")
-    return int(value)
+    return value
 
 
 def authorization_from_obj(obj: Mapping[str, Any]) -> OracleAuthorization:
     if type(obj) is not dict:
         raise ValueError("authorization must be an exact object")
+    _require_closed_fields(obj, allowed=AUTHORIZATION_FIELDS, label="authorization")
     return OracleAuthorization(
         consumer_module=_require_str(obj, "consumer_module"),
         action_kind=_require_str(obj, "action_kind"),
@@ -742,16 +1002,15 @@ def authorization_from_obj(obj: Mapping[str, Any]) -> OracleAuthorization:
 def runtime_from_obj(obj: Mapping[str, Any]) -> RuntimeActionFacts:
     if type(obj) is not dict:
         raise ValueError("runtime_action must be an exact object")
+    _require_closed_fields(obj, allowed=RUNTIME_ACTION_FIELDS, label="runtime_action")
     runtime_notional_value = obj.get("runtime_notional_value_e8")
     if runtime_notional_value is not None:
-        if isinstance(runtime_notional_value, bool) or not isinstance(runtime_notional_value, int):
+        if type(runtime_notional_value) is not int:
             raise ValueError("runtime_notional_value_e8 must be an int when present")
-        runtime_notional_value = int(runtime_notional_value)
     max_freshness_window_epochs = obj.get("max_freshness_window_epochs")
     if max_freshness_window_epochs is not None:
-        if isinstance(max_freshness_window_epochs, bool) or not isinstance(max_freshness_window_epochs, int):
+        if type(max_freshness_window_epochs) is not int:
             raise ValueError("max_freshness_window_epochs must be an int when present")
-        max_freshness_window_epochs = int(max_freshness_window_epochs)
     consumer_module = _require_str(obj, "consumer_module")
     action_kind = _require_str(obj, "action_kind")
     profile_id = _require_str(obj, "profile_id")
@@ -801,6 +1060,14 @@ def check_authorization_for_runtime(
 
     if type(authorization_payload) is not dict:
         raise ValueError("authorization payload must be an exact object")
+    if any(type(key) is not str for key in authorization_payload):
+        raise ValueError("authorization payload field names must be exact strings")
+    if "authorization" in authorization_payload:
+        _require_closed_fields(
+            authorization_payload,
+            allowed=AUTHORIZATION_BUNDLE_FIELDS,
+            label="authorization bundle",
+        )
     authorization = authorization_from_obj(_authorization_obj_from_payload(authorization_payload))
     opaque_ok, opaque_errors = verify_opaque_authorization(authorization, runtime)
     typed_ok, typed_errors = verify_typed_authorization(authorization, runtime)
@@ -815,7 +1082,7 @@ def check_authorization_for_runtime(
     economic_ok, economic_errors = verify_economic_envelope_binding(
         authorization,
         economic_envelope,
-        receipt_graph=receipt_graph,
+        receipt_graph=receipt_graph if graph_ok else None,
         runtime_notional_value_e8=runtime.runtime_notional_value_e8,
         require_economic_envelope=require_economic_envelope,
     )
@@ -838,13 +1105,20 @@ def check_authorization_for_runtime(
 
 
 def check_authorization_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    if type(payload) is not dict:
+        raise ValueError("authorization payload must be an exact object")
+    _require_closed_fields(
+        payload,
+        allowed=AUTHORIZATION_BUNDLE_FIELDS,
+        label="authorization bundle",
+    )
     auth_obj = payload.get("authorization")
     runtime_obj = payload.get("runtime_action")
     if not isinstance(auth_obj, Mapping):
         raise ValueError("authorization must be an object")
     if not isinstance(runtime_obj, Mapping):
         raise ValueError("runtime_action must be an object")
-    return check_authorization_for_runtime(auth_obj, runtime_from_obj(runtime_obj))
+    return check_authorization_for_runtime(payload, runtime_from_obj(runtime_obj))
 
 
 def check_critical_consumer_authorization(
@@ -866,27 +1140,27 @@ def check_critical_consumer_authorization(
     require_economic_envelope: bool = True,
 ) -> dict[str, Any]:
     runtime_field_errors: list[str] = []
-    if isinstance(runtime_value_e8, bool) or not isinstance(runtime_value_e8, int):
+    if type(runtime_value_e8) is not int:
         runtime_field_errors.append("runtime_value_e8 must be an int")
         runtime_value_e8_int = 0
     else:
-        runtime_value_e8_int = int(runtime_value_e8)
-    if isinstance(now_epoch, bool) or not isinstance(now_epoch, int):
+        runtime_value_e8_int = runtime_value_e8
+    if type(now_epoch) is not int:
         runtime_field_errors.append("now_epoch must be an int")
         now_epoch_int = 0
     else:
-        now_epoch_int = int(now_epoch)
+        now_epoch_int = now_epoch
     runtime_notional_value_e8_int: int | None
     if runtime_notional_value_e8 is None:
         runtime_notional_value_e8_int = None
-    elif isinstance(runtime_notional_value_e8, bool) or not isinstance(runtime_notional_value_e8, int):
+    elif type(runtime_notional_value_e8) is not int:
         runtime_field_errors.append("runtime_notional_value_e8 must be an int when present")
         runtime_notional_value_e8_int = None
     elif runtime_notional_value_e8 < 0:
         runtime_field_errors.append("runtime_notional_value_e8 must be a non-negative int")
         runtime_notional_value_e8_int = None
     else:
-        runtime_notional_value_e8_int = int(runtime_notional_value_e8)
+        runtime_notional_value_e8_int = runtime_notional_value_e8
 
     configured_graph_errors: list[str] = []
     if expected_receipt_graph_root is not None and not _is_sha256_ref(expected_receipt_graph_root):

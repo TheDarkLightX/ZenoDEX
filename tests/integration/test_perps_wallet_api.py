@@ -3817,6 +3817,206 @@ def test_prepare_settle_epoch_reports_missing_required_typed_authorization(monke
     assert "typed oracle authorization is missing from operation" in exercise["readiness_gaps"]
 
 
+def test_oracle_authorization_request_binds_current_clearinghouse_runtime(monkeypatch) -> None:
+    # Arrange: the mounted consumer requires typed Oracle authorization and
+    # pins the graph root that a producer must match.
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    expected_root = "sha256:" + "44" * 32
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
+    monkeypatch.setenv(
+        "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+        "1",
+    )
+    monkeypatch.setenv(
+        "TAU_DEX_PERP_ORACLE_AUTHORIZATION_RECEIPT_GRAPH_ROOT",
+        expected_root,
+    )
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    # Act.
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-authorization-request",
+        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    )
+
+    # Assert: the request carries facts derived from the exact current market,
+    # while retaining zero settlement or publication authority.
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["production_authority"] is False
+    assert payload["app_hash_before"] == "sha256:" + "cd" * 32
+    assert payload["expected_receipt_graph_root"] == expected_root
+    runtime = payload["runtime_action"]
+    assert runtime["consumer_module"] == "zenodex.perps"
+    assert runtime["action_kind"] == "settle_epoch"
+    assert runtime["runtime_value_e8"] == 100_000_000
+    assert runtime["runtime_notional_value_e8"] == 0
+    assert runtime["now_epoch"] == 1
+    assert runtime["max_freshness_window_epochs"] == 2
+    assert str(runtime["action_id"]).startswith("sha256:")
+    assert str(runtime["action_facts_hash"]).startswith("sha256:")
+    assert str(runtime["pre_state_hash"]).startswith("sha256:")
+    assert str(payload["request_hash"]).startswith("0x")
+    assert _FakeClient.sent == []
+
+
+@pytest.mark.parametrize(
+    ("require_authorization", "receipt_graph_root", "expected_error"),
+    [
+        ("0", "sha256:" + "44" * 32, "clearinghouse_settle_oracle_authorization_not_required"),
+        ("1", "", "oracle_authorization_receipt_graph_root_missing"),
+        ("1", "sha256:xyz", "oracle_authorization_receipt_graph_root_invalid"),
+    ],
+)
+def test_oracle_authorization_request_rejects_unmounted_or_unpinned_authority(
+    monkeypatch,
+    require_authorization: str,
+    receipt_graph_root: str,
+    expected_error: str,
+) -> None:
+    # Arrange.
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+        require_authorization,
+    )
+    monkeypatch.setenv(
+        "TAU_DEX_PERP_ORACLE_AUTHORIZATION_RECEIPT_GRAPH_ROOT",
+        receipt_graph_root,
+    )
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    # Act.
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-authorization-request",
+        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    )
+
+    # Assert: no request is emitted for a disabled or unpinned authority lane.
+    assert status_code == 400
+    assert payload == {"ok": False, "error": expected_error}
+    assert _FakeClient.sent == []
+
+
+def test_oracle_authorization_request_rejects_caller_selected_authority_fields(
+    monkeypatch,
+) -> None:
+    # Arrange: authority is mounted, while the caller attempts to add a root
+    # selector that belongs exclusively to runtime configuration.
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+        "1",
+    )
+    monkeypatch.setenv(
+        "TAU_DEX_PERP_ORACLE_AUTHORIZATION_RECEIPT_GRAPH_ROOT",
+        "sha256:" + "44" * 32,
+    )
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    # Act.
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-authorization-request",
+        json.dumps(
+            {
+                "action": "settle_epoch",
+                "market_id": MARKET_ID,
+                "expected_receipt_graph_root": "sha256:" + "55" * 32,
+            }
+        ).encode("utf-8"),
+    )
+
+    # Assert.
+    assert status_code == 400
+    assert payload == {
+        "ok": False,
+        "error": "oracle_authorization_request has unknown fields: expected_receipt_graph_root",
+    }
+    assert _FakeClient.sent == []
+
+
+def test_oracle_authorization_request_rejects_caller_selected_chain_identity(
+    monkeypatch,
+) -> None:
+    # Arrange: the wallet is connected to one configured chain, while the
+    # caller attempts to relabel that chain's state as another deployment.
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv(
+        "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+        "1",
+    )
+    monkeypatch.setenv(
+        "TAU_DEX_PERP_ORACLE_AUTHORIZATION_RECEIPT_GRAPH_ROOT",
+        "sha256:" + "44" * 32,
+    )
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    # Act.
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-authorization-request",
+        json.dumps(
+            {
+                "action": "settle_epoch",
+                "market_id": MARKET_ID,
+                "chain_id": "different-chain",
+            }
+        ).encode("utf-8"),
+    )
+
+    # Assert: caller input cannot select the provenance domain for an
+    # authorization request derived from the configured Tau connection.
+    assert status_code == 400
+    assert payload == {
+        "ok": False,
+        "error": "oracle_authorization_request chain_id does not match configured chain",
+    }
+    assert _FakeClient.sent == []
+
+
+def test_oracle_bridge_template_rejects_caller_selected_chain_identity(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge-template",
+        json.dumps(
+            {
+                "action": "settle_epoch",
+                "market_id": MARKET_ID,
+                "chain_id": "different-chain",
+            }
+        ).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {
+        "ok": False,
+        "error": "oracle_bridge_template chain_id does not match configured chain",
+    }
+    assert _FakeClient.sent == []
+
+
 def test_oracle_bridge_template_preflights_required_settle_epoch(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
@@ -4037,6 +4237,47 @@ def test_oracle_bridge_inspector_summarizes_verified_settle_bridge(monkeypatch) 
     assert summary["required_evidence_floor"] == "O3"
     assert summary["value_e8"] == 100_000_000
     assert summary["report_count"] == 3
+
+
+def test_oracle_bridge_inspector_rejects_duplicate_keys_in_embedded_json(monkeypatch) -> None:
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+
+    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge-template",
+        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    )
+    assert status_code == 200
+    encoded_bridge = json.dumps(bridge_payload["bridge"], separators=(",", ":"))
+    duplicate_schema_bridge = encoded_bridge.replace(
+        "{",
+        '{"schema":"attacker-selected-schema",',
+        1,
+    )
+
+    status_code, inspection = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge/inspect",
+        json.dumps({"oracle_adapter_bridge": duplicate_schema_bridge}).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert inspection == {"ok": False, "error": "bad_oracle_adapter_bridge"}
+
+
+def test_wallet_rejects_duplicate_keys_in_tau_app_state_response() -> None:
+    class DuplicateStateClient:
+        def getappstate(self, *, full: bool) -> str:
+            assert full is True
+            return '{"app_state":{},"app_state":{"attacker":"selected"}}'
+
+    with pytest.raises(TauNetRpcError, match="invalid getappstate response"):
+        perps_wallet_api._load_app_state(DuplicateStateClient())  # type: ignore[arg-type]
 
 
 def test_oracle_bridge_inspector_rejects_tampered_action_id(monkeypatch) -> None:
@@ -4891,7 +5132,7 @@ def test_oracle_bridge_template_preflights_required_partial_liquidate(monkeypatc
 
     assert status_code == 200
     assert payload["ok"] is True
-    assert payload["report"]["preflight"]["ok"] is True
+    assert payload["report"]["preflight"]["ok"] is True, payload["report"]["preflight"]
     assert payload["report"]["operation"]["oracle_adapter_bridge"]["bridge_id"] == bridge_payload["bridge"]["bridge_id"]
 
 

@@ -10,22 +10,24 @@ under development.
 from __future__ import annotations
 
 import argparse
-import math
-import hashlib
 import contextlib
+import fcntl
+import hashlib
 import io
 import json
+import math
 import os
 import re
 import secrets
 import stat
 import subprocess
 import sys
+import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Sequence
-
+from typing import Any, Iterator, Mapping, Sequence
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_HOME = Path.home() / ".zenodex" / "oracle"
@@ -97,18 +99,75 @@ SOURCE_KINDS = (
     "other",
 )
 SOURCE_ASSURANCE_CLASSES = ("S0", "S1", "S2", "S3", "S4", "S5")
+AUTHORIZATION_RUNTIME_REQUIRED_KEYS = frozenset(
+    {
+        "consumer_module",
+        "action_kind",
+        "action_id",
+        "action_facts_hash",
+        "pre_state_hash",
+        "profile_id",
+        "query_id",
+        "runtime_value_e8",
+        "now_epoch",
+    }
+)
+AUTHORIZATION_RUNTIME_OPTIONAL_KEYS = frozenset(
+    {"runtime_notional_value_e8", "max_freshness_window_epochs"}
+)
+
+
+class _DuplicateJsonKeyError(ValueError):
+    def __init__(self, key: str) -> None:
+        self.key = key
+        super().__init__(f"duplicate JSON key: {key}")
+
+
+class _NonFiniteJsonConstantError(ValueError):
+    def __init__(self, value: str) -> None:
+        self.value = value
+        super().__init__(f"non-finite JSON constant: {value}")
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise _DuplicateJsonKeyError(key)
+        value[key] = item
+    return value
+
+
+def _reject_nonfinite_json_constant(value: str) -> None:
+    raise _NonFiniteJsonConstantError(value)
+
+
+def _strict_json_loads(text: str) -> Any:
+    return json.loads(
+        text,
+        object_pairs_hook=_reject_duplicate_json_keys,
+        parse_constant=_reject_nonfinite_json_constant,
+    )
+
 
 if getattr(sys, "frozen", False):
     ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
 sys.path.insert(0, str(ROOT))
 
+from src.integration.zeno_ledger_signature import (  # noqa: E402
+    build_bls_signed_artifact_envelope_v0,
+)
 from src.integration.zeno_oracle_authority import (  # noqa: E402
     build_oracle_authority_exercise_v1,
     build_oracle_authority_profile_v1,
     evaluate_oracle_authority_exercise_v1,
     evaluate_oracle_authority_profile_v1,
 )
-from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0  # noqa: E402
+from src.integration.zeno_oracle_authorization import (  # noqa: E402
+    RuntimeActionFacts,
+    economic_envelope_hash,
+    runtime_from_obj,
+)
 
 
 def _canonical_bytes(payload: Mapping[str, Any]) -> bytes:
@@ -624,8 +683,8 @@ def _load_receipt_bundle_json(path: Path) -> Mapping[str, Any]:
     if size > MAX_BUNDLE_BYTES:
         raise ValueError(f"bundle_file_too_large:{size}>{MAX_BUNDLE_BYTES}")
     with path.open("r", encoding="utf-8") as handle:
-        obj = json.load(handle)
-    if not isinstance(obj, Mapping):
+        obj = _strict_json_loads(handle.read())
+    if type(obj) is not dict:
         raise ValueError("bundle root must be a JSON object")
     return obj
 
@@ -661,7 +720,7 @@ def cmd_sample_bundle(args: argparse.Namespace) -> int:
 
 
 def _load_json(path: Path) -> Any:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return _strict_json_loads(path.read_text(encoding="utf-8"))
 
 
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
@@ -1538,8 +1597,7 @@ def _latest_read_for_query(home: Path, query_id: str) -> dict[str, Any] | None:
     return max(candidates, key=lambda item: int(item.get("expires_at_epoch", 0)))
 
 
-def _disputed_report_ids(home: Path) -> set[str]:
-    disputes = _load_disputes(home)
+def _disputed_report_ids_from_snapshot(disputes: Mapping[str, Any]) -> set[str]:
     disputed: set[str] = set()
     for entry in _dispute_entries(disputes).values():
         if isinstance(entry, dict) and entry.get("status") in {"open", "upheld"} and entry.get("report_id"):
@@ -1547,16 +1605,29 @@ def _disputed_report_ids(home: Path) -> set[str]:
     return disputed
 
 
-def _aggregate_has_disputed_reports(home: Path, aggregate: Mapping[str, Any] | None) -> bool:
+def _disputed_report_ids(home: Path) -> set[str]:
+    return _disputed_report_ids_from_snapshot(_load_disputes(home))
+
+
+def _aggregate_has_disputed_reports_in_snapshot(
+    disputes: Mapping[str, Any],
+    aggregate: Mapping[str, Any] | None,
+) -> bool:
     if aggregate is None:
         return False
-    disputed = _disputed_report_ids(home)
+    disputed = _disputed_report_ids_from_snapshot(disputes)
     return any(str(report_id) in disputed for report_id in aggregate.get("included_report_ids", []))
 
 
-def _dispute_state_for_report_ids(home: Path, report_ids: Sequence[str]) -> tuple[list[dict[str, Any]], str]:
+def _aggregate_has_disputed_reports(home: Path, aggregate: Mapping[str, Any] | None) -> bool:
+    return _aggregate_has_disputed_reports_in_snapshot(_load_disputes(home), aggregate)
+
+
+def _dispute_state_for_report_ids_from_snapshot(
+    disputes: Mapping[str, Any],
+    report_ids: Sequence[str],
+) -> tuple[list[dict[str, Any]], str]:
     wanted = {str(report_id) for report_id in report_ids}
-    disputes = _load_disputes(home)
     entries: list[dict[str, Any]] = []
     for entry in _dispute_entries(disputes).values():
         if not isinstance(entry, dict):
@@ -1575,6 +1646,10 @@ def _dispute_state_for_report_ids(home: Path, report_ids: Sequence[str]) -> tupl
         )
     entries.sort(key=lambda item: (item["report_id"], item["dispute_id"]))
     return entries, semantic_hash("zeno_oracle.dispute_state_root.v1", {"disputes": entries})
+
+
+def _dispute_state_for_report_ids(home: Path, report_ids: Sequence[str]) -> tuple[list[dict[str, Any]], str]:
+    return _dispute_state_for_report_ids_from_snapshot(_load_disputes(home), report_ids)
 
 
 def _query_status(home: Path, query: Mapping[str, Any], now_epoch: int) -> dict[str, Any]:
@@ -2116,7 +2191,12 @@ def _report_leaf_commitments(reports: list[Mapping[str, Any]]) -> list[dict[str,
     return leaves
 
 
-def _receipt_graph_from_read(home: Path, read: Mapping[str, Any]) -> dict[str, Any]:
+def _receipt_graph_from_read(
+    home: Path,
+    read: Mapping[str, Any],
+    *,
+    dispute_snapshot: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     aggregate = _aggregates_by_id(home).get(str(read.get("aggregate_id")))
     if not isinstance(aggregate, dict):
         raise SystemExit(f"accepted read references unknown aggregate_id: {read.get('aggregate_id')}")
@@ -2141,10 +2221,14 @@ def _receipt_graph_from_read(home: Path, read: Mapping[str, Any]) -> dict[str, A
     if aggregate.get("reporter_registry_root") != reporter_registry_root:
         raise SystemExit("accepted read aggregate reporter_registry_root does not match report inputs")
     report_leaf_commitments = _report_leaf_commitments(included_reports)
-    dispute_entries, dispute_state_root = _dispute_state_for_report_ids(
-        home,
-        [str(report_id) for report_id in aggregate.get("included_report_ids", [])],
-    )
+    report_ids = [str(report_id) for report_id in aggregate.get("included_report_ids", [])]
+    if dispute_snapshot is None:
+        dispute_entries, dispute_state_root = _dispute_state_for_report_ids(home, report_ids)
+    else:
+        dispute_entries, dispute_state_root = _dispute_state_for_report_ids_from_snapshot(
+            dispute_snapshot,
+            report_ids,
+        )
     disputed_report_ids = sorted(
         {
             entry["report_id"]
@@ -2428,23 +2512,25 @@ def _authorization_bundle_from_read(
     *,
     home: Path,
     read: Mapping[str, Any],
-    action_kind: str,
-    action_id: str,
-    action_facts_hash: str,
-    pre_state_hash: str,
-    now_epoch: int,
+    runtime: RuntimeActionFacts,
     economic_envelope_id: str,
+    dispute_snapshot: Mapping[str, Any],
+    economic_envelope: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     _registry, _queries, query = _find_local_query(home, str(read["query_id"]))
     if query is None:
         raise SystemExit(f"query_id not found: {read['query_id']}")
-    graph = _receipt_graph_from_read(home, read)
+    graph = _receipt_graph_from_read(
+        home,
+        read,
+        dispute_snapshot=dispute_snapshot,
+    )
     authorization = {
         "consumer_module": read["consumer_module"],
-        "action_kind": action_kind,
-        "action_id": action_id,
-        "action_facts_hash": action_facts_hash,
-        "pre_state_hash": pre_state_hash,
+        "action_kind": runtime.action_kind,
+        "action_id": runtime.action_id,
+        "action_facts_hash": runtime.action_facts_hash,
+        "pre_state_hash": runtime.pre_state_hash,
         "profile_id": read["profile_id"],
         "query_id": read["query_id"],
         "value_e8": int(read["value_e8"]),
@@ -2462,17 +2548,21 @@ def _authorization_bundle_from_read(
         "economic_envelope_id": economic_envelope_id,
         "receipt_graph_root": graph["receipt_graph_root"],
     }
-    runtime_action = {
-        "consumer_module": read["consumer_module"],
-        "action_kind": action_kind,
-        "action_id": action_id,
-        "action_facts_hash": action_facts_hash,
-        "pre_state_hash": pre_state_hash,
-        "profile_id": read["profile_id"],
-        "query_id": read["query_id"],
-        "runtime_value_e8": int(read["value_e8"]),
-        "now_epoch": int(now_epoch),
+    runtime_action: dict[str, Any] = {
+        "consumer_module": runtime.consumer_module,
+        "action_kind": runtime.action_kind,
+        "action_id": runtime.action_id,
+        "action_facts_hash": runtime.action_facts_hash,
+        "pre_state_hash": runtime.pre_state_hash,
+        "profile_id": runtime.profile_id,
+        "query_id": runtime.query_id,
+        "runtime_value_e8": runtime.runtime_value_e8,
+        "now_epoch": runtime.now_epoch,
     }
+    if runtime.runtime_notional_value_e8 is not None:
+        runtime_action["runtime_notional_value_e8"] = runtime.runtime_notional_value_e8
+    if runtime.max_freshness_window_epochs is not None:
+        runtime_action["max_freshness_window_epochs"] = runtime.max_freshness_window_epochs
     bundle = {
         "schema": "zeno_oracle.oracle_authorization_bundle.v1",
         "authorization": authorization,
@@ -2480,8 +2570,475 @@ def _authorization_bundle_from_read(
         "receipt_graph": graph,
         "production_authority": False,
     }
+    if economic_envelope is not None:
+        bundle["economic_envelope"] = dict(economic_envelope)
     bundle["authorization_id"] = semantic_hash("zeno_oracle.oracle_authorization.v1", authorization)
     return bundle
+
+
+def _verified_economic_envelope_from_args(
+    args: argparse.Namespace,
+) -> tuple[dict[str, Any] | None, str]:
+    raw_envelope = getattr(args, "economic_envelope", None)
+    require_envelope = bool(getattr(args, "require_economic_envelope", False))
+    if raw_envelope is None:
+        if require_envelope:
+            raise SystemExit("economic_envelope is required for exact authorization build")
+        return None, str(getattr(args, "economic_envelope_id", "econ:local-dev-v1"))
+    if type(raw_envelope) is not dict:
+        raise SystemExit("economic_envelope must be an exact object")
+
+    from src.core.oracle_economic_security import verify_economic_security_envelope
+
+    verification = verify_economic_security_envelope(raw_envelope)
+    if verification.status != "accepted":
+        raise SystemExit(
+            "economic_envelope rejected: " + ", ".join(verification.errors)
+        )
+    owned_envelope = dict(raw_envelope)
+    return owned_envelope, economic_envelope_hash(owned_envelope)
+
+
+def _authorization_runtime_from_args(
+    args: argparse.Namespace,
+    read: Mapping[str, Any],
+) -> tuple[RuntimeActionFacts, str]:
+    raw_runtime = getattr(args, "runtime_action", None)
+    binding_source = "consumer_runtime_exact"
+    if raw_runtime is None:
+        if getattr(args, "require_runtime_action", False):
+            raise SystemExit("runtime_action is required for API authorization build")
+        binding_source = "legacy_loose_fields"
+        raw_now_epoch = getattr(args, "now_epoch", None)
+        if raw_now_epoch is None:
+            raw_now_epoch = read["observed_epoch"]
+        raw_runtime = {
+            "consumer_module": read["consumer_module"],
+            "action_kind": args.action_kind,
+            "action_id": args.action_id,
+            "action_facts_hash": args.action_facts_hash,
+            "pre_state_hash": args.pre_state_hash,
+            "profile_id": read["profile_id"],
+            "query_id": read["query_id"],
+            "runtime_value_e8": read["value_e8"],
+            "now_epoch": raw_now_epoch,
+        }
+    if type(raw_runtime) is dict:
+        runtime_keys = frozenset(raw_runtime)
+        missing = sorted(AUTHORIZATION_RUNTIME_REQUIRED_KEYS - runtime_keys)
+        unknown = sorted(
+            runtime_keys
+            - AUTHORIZATION_RUNTIME_REQUIRED_KEYS
+            - AUTHORIZATION_RUNTIME_OPTIONAL_KEYS
+        )
+        if missing:
+            raise SystemExit(f"runtime_action missing fields: {', '.join(missing)}")
+        if unknown:
+            raise SystemExit(f"runtime_action has unknown fields: {', '.join(unknown)}")
+    runtime = runtime_from_obj(raw_runtime)
+    expected = {
+        "consumer_module": read.get("consumer_module"),
+        "profile_id": read.get("profile_id"),
+        "query_id": read.get("query_id"),
+        "runtime_value_e8": read.get("value_e8"),
+    }
+    actual = {
+        "consumer_module": runtime.consumer_module,
+        "profile_id": runtime.profile_id,
+        "query_id": runtime.query_id,
+        "runtime_value_e8": runtime.runtime_value_e8,
+    }
+    for field in ("consumer_module", "profile_id", "query_id", "runtime_value_e8"):
+        if type(actual[field]) is not type(expected[field]) or actual[field] != expected[field]:
+            raise SystemExit(f"runtime_action {field} does not match accepted read")
+    return runtime, binding_source
+
+
+@contextlib.contextmanager
+def _authorization_persistence_lock(home: Path) -> Iterator[None]:
+    """Linearize dispute-state publication with authorization commit.
+
+    A dispute registry commit that wins this lock prevents later authorization
+    issuance for its report. An authorization committed first remains a
+    historical artifact if a dispute is opened later. Settlement-time
+    revocation policy is outside this local pre-MVP boundary.
+    """
+
+    lock_path = home / "data" / "oracle_authorizations.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _fsync_directory(path: Path) -> None:
+    flags = os.O_RDONLY
+    if hasattr(os, "O_DIRECTORY"):
+        flags |= os.O_DIRECTORY
+    directory_fd = os.open(path, flags)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def _ensure_durable_directory(path: Path) -> None:
+    missing: list[Path] = []
+    cursor = path
+    while not cursor.exists():
+        missing.append(cursor)
+        if cursor.parent == cursor:
+            raise OSError(f"cannot create durable directory {path}")
+        cursor = cursor.parent
+    if not cursor.is_dir():
+        raise NotADirectoryError(cursor)
+    for directory in reversed(missing):
+        directory.mkdir(exist_ok=True)
+        _fsync_directory(directory.parent)
+    if not path.is_dir():
+        raise NotADirectoryError(path)
+
+
+def _write_all(fd: int, payload: bytes) -> None:
+    remaining = memoryview(payload)
+    while remaining:
+        written = os.write(fd, remaining)
+        if written <= 0:
+            raise OSError("durable write made no progress")
+        remaining = remaining[written:]
+
+
+def _atomic_replace_bytes(path: Path, payload: bytes) -> None:
+    """Publish bytes through one same-directory, fsynced rename."""
+
+    _ensure_durable_directory(path.parent)
+    fd, raw_temp_path = tempfile.mkstemp(
+        prefix=f".{path.name}.",
+        suffix=".tmp",
+        dir=path.parent,
+    )
+    temp_path = Path(raw_temp_path)
+    try:
+        try:
+            _write_all(fd, payload)
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(temp_path, path)
+        _fsync_directory(path.parent)
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            temp_path.unlink()
+
+
+def _write_dispute_registry_durable(
+    home: Path,
+    disputes: Mapping[str, Any],
+) -> None:
+    payload = (json.dumps(disputes, sort_keys=True, indent=2) + "\n").encode("utf-8")
+    _atomic_replace_bytes(_disputes_path(home), payload)
+
+
+def _sync_file_and_parent(path: Path) -> None:
+    with path.open("rb") as handle:
+        os.fsync(handle.fileno())
+    _fsync_directory(path.parent)
+
+
+def _authorization_receipt_path(home: Path, authorization_id: str) -> Path:
+    return (
+        home
+        / "receipts"
+        / "authorizations"
+        / f"{authorization_id.replace(':', '_')}.json"
+    )
+
+
+def _authorization_bundle_identity(
+    bundle: Mapping[str, Any],
+    *,
+    label: str,
+) -> str:
+    authorization_id = bundle.get("authorization_id")
+    if type(authorization_id) is not str or SHA256_RE.fullmatch(authorization_id) is None:
+        raise SystemExit(f"{label} has invalid authorization_id")
+    authorization = bundle.get("authorization")
+    if type(authorization) is not dict:
+        raise SystemExit(f"{label} must contain an exact authorization object")
+    expected_authorization_id = semantic_hash(
+        "zeno_oracle.oracle_authorization.v1",
+        authorization,
+    )
+    if authorization_id != expected_authorization_id:
+        raise SystemExit(f"{label} authorization_id does not match authorization content")
+    return authorization_id
+
+
+def _authorization_receipt_bytes(bundle: Mapping[str, Any]) -> bytes:
+    return (json.dumps(bundle, sort_keys=True, indent=2) + "\n").encode("utf-8")
+
+
+def _authorization_index_line_bytes(bundle: Mapping[str, Any]) -> bytes:
+    line = json.dumps(bundle, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return (line + "\n").encode("ascii")
+
+
+def _write_authorization_receipt_atomic(
+    receipt_path: Path,
+    bundle: Mapping[str, Any],
+) -> None:
+    _atomic_replace_bytes(receipt_path, _authorization_receipt_bytes(bundle))
+
+
+def _append_authorization_index_row(
+    index_path: Path,
+    bundle: Mapping[str, Any],
+) -> None:
+    _ensure_durable_directory(index_path.parent)
+    fd = os.open(index_path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+    try:
+        _write_all(fd, _authorization_index_line_bytes(bundle))
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    _fsync_directory(index_path.parent)
+
+
+def _read_authorization_index_prefix(
+    index_path: Path,
+) -> tuple[list[dict[str, Any]], bytes]:
+    """Return complete rows and one untrusted unterminated crash fragment."""
+
+    if not index_path.exists():
+        return [], b""
+    raw = index_path.read_bytes()
+    if raw.endswith(b"\n"):
+        complete = raw
+        trailing_fragment = b""
+    else:
+        complete_end = raw.rfind(b"\n") + 1
+        complete = raw[:complete_end]
+        trailing_fragment = raw[complete_end:]
+
+    rows: list[dict[str, Any]] = []
+    for line_no, raw_line in enumerate(complete.split(b"\n")[:-1], start=1):
+        if not raw_line.strip():
+            continue
+        try:
+            line = raw_line.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise SystemExit(
+                f"{index_path}:{line_no}: invalid authorization index UTF-8"
+            ) from exc
+        try:
+            value = _strict_json_loads(line)
+        except _DuplicateJsonKeyError as exc:
+            raise SystemExit(
+                f"{index_path}:{line_no}: "
+                f"duplicate authorization index JSON key: {exc.key}"
+            ) from exc
+        except _NonFiniteJsonConstantError as exc:
+            raise SystemExit(
+                f"{index_path}:{line_no}: "
+                f"non-finite authorization index JSON constant: {exc.value}"
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise SystemExit(
+                f"{index_path}:{line_no}: invalid authorization index JSON"
+            ) from exc
+        if type(value) is not dict:
+            raise SystemExit(
+                f"{index_path}:{line_no}: authorization index entry must be an object"
+            )
+        rows.append(value)
+    return rows, trailing_fragment
+
+
+def _load_canonical_authorization_receipt(
+    home: Path,
+    receipt_path: Path,
+) -> dict[str, Any]:
+    try:
+        text = receipt_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise SystemExit(
+            f"{receipt_path}: canonical authorization receipt could not be loaded"
+        ) from exc
+    try:
+        bundle = _strict_json_loads(text)
+    except _DuplicateJsonKeyError as exc:
+        raise SystemExit(
+            f"{receipt_path}: "
+            f"duplicate canonical authorization receipt JSON key: {exc.key}"
+        ) from exc
+    except _NonFiniteJsonConstantError as exc:
+        raise SystemExit(
+            f"{receipt_path}: non-finite canonical authorization receipt "
+            f"JSON constant: {exc.value}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise SystemExit(
+            f"{receipt_path}: canonical authorization receipt contains invalid JSON"
+        ) from exc
+    if type(bundle) is not dict:
+        raise SystemExit(f"{receipt_path}: canonical authorization receipt must be an object")
+    authorization_id = _authorization_bundle_identity(
+        bundle,
+        label=f"{receipt_path}: canonical authorization receipt",
+    )
+    expected_path = _authorization_receipt_path(home, authorization_id)
+    if receipt_path.name != expected_path.name:
+        raise SystemExit(
+            f"{receipt_path}: canonical authorization receipt filename does not match identity"
+        )
+    return bundle
+
+
+def _canonical_authorization_receipts(home: Path) -> dict[str, dict[str, Any]]:
+    receipt_dir = home / "receipts" / "authorizations"
+    if not receipt_dir.exists():
+        return {}
+    receipts: dict[str, dict[str, Any]] = {}
+    for receipt_path in sorted(receipt_dir.glob("*.json")):
+        bundle = _load_canonical_authorization_receipt(home, receipt_path)
+        authorization_id = str(bundle["authorization_id"])
+        if authorization_id in receipts:
+            raise SystemExit("authorization durable state has duplicate canonical receipts")
+        receipts[authorization_id] = bundle
+    return receipts
+
+
+def _validate_authorization_index_rows(
+    rows: Sequence[Mapping[str, Any]],
+    receipts: Mapping[str, Mapping[str, Any]],
+) -> list[str]:
+    ordered_ids: list[str] = []
+    seen: set[str] = set()
+    for row in rows:
+        authorization_id = row.get("authorization_id")
+        if type(authorization_id) is not str or SHA256_RE.fullmatch(authorization_id) is None:
+            raise SystemExit("authorization index row has invalid authorization_id")
+        if authorization_id in seen:
+            raise SystemExit("authorization durable state has duplicate index rows")
+        receipt = receipts.get(authorization_id)
+        if receipt is None:
+            raise SystemExit("authorization durable state has index row without canonical receipt")
+        if type(receipt) is not dict or receipt != row:
+            raise SystemExit("authorization_id collision with different durable bundle")
+        seen.add(authorization_id)
+        ordered_ids.append(authorization_id)
+    return ordered_ids
+
+
+def _rebuild_authorization_index_locked(
+    home: Path,
+    complete_rows: Sequence[Mapping[str, Any]],
+    receipts: Mapping[str, Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    ordered_ids = _validate_authorization_index_rows(complete_rows, receipts)
+    missing_ids = sorted(set(receipts) - set(ordered_ids))
+    rebuilt_rows = [dict(row) for row in complete_rows]
+    rebuilt_rows.extend(dict(receipts[authorization_id]) for authorization_id in missing_ids)
+    index_bytes = b"".join(_authorization_index_line_bytes(row) for row in rebuilt_rows)
+    _atomic_replace_bytes(_authorizations_log_path(home), index_bytes)
+    return rebuilt_rows
+
+
+def _authorization_index_rows_locked(home: Path) -> tuple[list[dict[str, Any]], bool]:
+    index_path = _authorizations_log_path(home)
+    complete_rows, trailing_fragment = _read_authorization_index_prefix(index_path)
+    receipts = _canonical_authorization_receipts(home)
+    ordered_ids = _validate_authorization_index_rows(complete_rows, receipts)
+    missing_receipts = set(receipts) - set(ordered_ids)
+    if trailing_fragment or missing_receipts:
+        rebuilt = _rebuild_authorization_index_locked(home, complete_rows, receipts)
+        return rebuilt, True
+    return complete_rows, False
+
+
+def _authorization_rows(home: Path) -> list[dict[str, Any]]:
+    """Validate complete index rows while ignoring one unterminated tail.
+
+    This read-only path never repairs durable state. Recovery remains an
+    explicit locked operation or part of an exact authorization retry.
+    """
+
+    rows, _trailing_fragment = _read_authorization_index_prefix(
+        _authorizations_log_path(home)
+    )
+    receipts = _canonical_authorization_receipts(home)
+    _validate_authorization_index_rows(rows, receipts)
+    return rows
+
+
+def _rebuild_authorization_index(home: Path) -> list[dict[str, Any]]:
+    """Explicitly rebuild the derived index from canonical receipt files."""
+
+    with _authorization_persistence_lock(home):
+        complete_rows, _trailing_fragment = _read_authorization_index_prefix(
+            _authorizations_log_path(home)
+        )
+        receipts = _canonical_authorization_receipts(home)
+        return _rebuild_authorization_index_locked(home, complete_rows, receipts)
+
+
+def _persist_authorization_bundle_locked(
+    home: Path,
+    bundle: dict[str, Any],
+) -> tuple[Path, bool, bool]:
+    authorization_id = _authorization_bundle_identity(
+        bundle,
+        label="authorization bundle",
+    )
+    receipt_path = _authorization_receipt_path(home, authorization_id)
+    authorization_index_path = _authorizations_log_path(home)
+    authorization_index, index_recovered = _authorization_index_rows_locked(home)
+    authorization_rows = [
+        row
+        for row in authorization_index
+        if row.get("authorization_id") == authorization_id
+    ]
+    if receipt_path.exists():
+        existing_receipt = _load_canonical_authorization_receipt(home, receipt_path)
+        if existing_receipt != bundle:
+            raise SystemExit("authorization_id collision with different durable bundle")
+        if len(authorization_rows) > 1:
+            raise SystemExit("authorization durable state has duplicate index rows")
+        if authorization_rows:
+            if authorization_rows[0] != bundle:
+                raise SystemExit("authorization_id collision with different durable bundle")
+            _sync_file_and_parent(receipt_path)
+            _sync_file_and_parent(authorization_index_path)
+            return receipt_path, True, index_recovered
+        _append_authorization_index_row(authorization_index_path, bundle)
+        return receipt_path, True, True
+    if authorization_rows:
+        raise SystemExit("authorization durable state has index row without canonical receipt")
+    _write_authorization_receipt_atomic(receipt_path, bundle)
+    _append_authorization_index_row(authorization_index_path, bundle)
+    return receipt_path, False, False
+
+
+def _persist_authorization_bundle(
+    home: Path,
+    bundle: dict[str, Any],
+) -> tuple[Path, bool, bool]:
+    """Persist or exactly replay one content-addressed authorization bundle.
+
+    A filesystem lock serializes CLI and server processes. The canonical
+    receipt is written before the append-only dashboard index. An exact retry
+    may repair the single recoverable crash state where that receipt exists and
+    its matching index row is absent. Any other split state rejects so a caller
+    cannot rewrite an existing authorization identity.
+    """
+
+    if type(bundle) is not dict:
+        raise SystemExit("authorization bundle must be an exact object")
+    with _authorization_persistence_lock(home):
+        return _persist_authorization_bundle_locked(home, bundle)
 
 
 def cmd_authorization_build(args: argparse.Namespace) -> int:
@@ -2490,42 +3047,65 @@ def cmd_authorization_build(args: argparse.Namespace) -> int:
     if not isinstance(read, dict):
         raise SystemExit(f"read_id not found: {args.read_id}")
     aggregate = _aggregates_by_id(home).get(str(read.get("aggregate_id")))
-    if _aggregate_has_disputed_reports(home, aggregate):
-        raise SystemExit("accepted read aggregate includes open or upheld disputed reports")
     _require_evidence_at_least(str(read.get("evidence_class", "")), args.min_evidence_class)
-    now_epoch = int(args.now_epoch if args.now_epoch is not None else read["observed_epoch"])
-    bundle = _authorization_bundle_from_read(
-        home=home,
-        read=read,
-        action_kind=args.action_kind,
-        action_id=args.action_id,
-        action_facts_hash=args.action_facts_hash,
-        pre_state_hash=args.pre_state_hash,
-        now_epoch=now_epoch,
-        economic_envelope_id=args.economic_envelope_id,
-    )
+    runtime, runtime_binding_source = _authorization_runtime_from_args(args, read)
+    economic_envelope, economic_envelope_id = _verified_economic_envelope_from_args(args)
+    expected_receipt_graph_root = getattr(args, "expected_receipt_graph_root", None)
+    if expected_receipt_graph_root is None and getattr(
+        args,
+        "require_expected_receipt_graph_root",
+        False,
+    ):
+        raise SystemExit("expected_receipt_graph_root is required for API authorization build")
+    if expected_receipt_graph_root is not None:
+        if type(expected_receipt_graph_root) is not str or SHA256_RE.fullmatch(expected_receipt_graph_root) is None:
+            raise SystemExit("expected_receipt_graph_root must be a canonical sha256 reference")
     from tools.check_oracle_authorization_semantic_binding import check_authorization_payload
 
-    semantic_check = check_authorization_payload(bundle)
-    bundle["semantic_check"] = semantic_check
-    if semantic_check.get("typed_ok") is not True:
-        raise SystemExit("generated OracleAuthorization failed semantic binding check")
-    receipt_path = home / "receipts" / "authorizations" / f"{bundle['authorization_id'].replace(':', '_')}.json"
-    _write_json(receipt_path, bundle)
-    _append_jsonl(_authorizations_log_path(home), bundle)
-    _emit(
-        {
-            "schema": SCHEMA,
-            "ok": True,
-            "home": str(home),
-            "authorization_id": bundle["authorization_id"],
-            "receipt_path": str(receipt_path),
-            "authorization": bundle["authorization"],
-            "receipt_graph": bundle["receipt_graph"],
-            "production_authority": False,
-        },
-        json_out=args.json,
-    )
+    with _authorization_persistence_lock(home):
+        dispute_snapshot = _load_disputes(home)
+        if _aggregate_has_disputed_reports_in_snapshot(dispute_snapshot, aggregate):
+            raise SystemExit(
+                "accepted read aggregate includes open or upheld disputed reports"
+            )
+        bundle = _authorization_bundle_from_read(
+            home=home,
+            read=read,
+            runtime=runtime,
+            economic_envelope_id=economic_envelope_id,
+            dispute_snapshot=dispute_snapshot,
+            economic_envelope=economic_envelope,
+        )
+        if (
+            expected_receipt_graph_root is not None
+            and bundle["receipt_graph"]["receipt_graph_root"]
+            != expected_receipt_graph_root
+        ):
+            raise SystemExit("receipt_graph_root does not match expected root")
+        semantic_check = check_authorization_payload(bundle)
+        bundle["semantic_check"] = semantic_check
+        if semantic_check.get("typed_ok") is not True:
+            raise SystemExit("generated OracleAuthorization failed semantic binding check")
+        receipt_path, idempotent_replay, reconciled_orphan = (
+            _persist_authorization_bundle_locked(home, bundle)
+        )
+    response = {
+        "schema": SCHEMA,
+        "ok": True,
+        "home": str(home),
+        "authorization_id": bundle["authorization_id"],
+        "receipt_path": str(receipt_path),
+        "authorization": bundle["authorization"],
+        "runtime_action": bundle["runtime_action"],
+        "runtime_binding_source": runtime_binding_source,
+        "receipt_graph": bundle["receipt_graph"],
+        "idempotent_replay": idempotent_replay,
+        "reconciled_orphan_receipt": reconciled_orphan,
+        "production_authority": False,
+    }
+    if economic_envelope is not None:
+        response["economic_envelope"] = economic_envelope
+    _emit(response, json_out=args.json)
     return 0
 
 
@@ -2655,8 +3235,6 @@ def cmd_dispute_open(args: argparse.Namespace) -> int:
     report_ids = _report_ids_from_log(home)
     if report_ids and args.report_id not in report_ids:
         raise SystemExit(f"report_id not found in local report log: {args.report_id}")
-    disputes = _load_disputes(home)
-    entries = _dispute_entries(disputes)
     body = {
         "schema": "zeno_oracle.local_dispute.v1",
         "report_id": args.report_id,
@@ -2667,12 +3245,17 @@ def cmd_dispute_open(args: argparse.Namespace) -> int:
         "status": "open",
     }
     dispute_id = args.dispute_id or semantic_hash("zeno_oracle.dispute.v1", body)
-    if dispute_id in entries and not args.force:
-        raise SystemExit(f"dispute already exists: {dispute_id}; pass --force to overwrite")
     entry = {**body, "dispute_id": dispute_id}
-    entries[dispute_id] = entry
-    _write_json(_disputes_path(home), disputes)
-    _append_jsonl(_disputes_log_path(home), {"event": "open", **entry})
+    with _authorization_persistence_lock(home):
+        disputes = _load_disputes(home)
+        entries = _dispute_entries(disputes)
+        if dispute_id in entries and not args.force:
+            raise SystemExit(
+                f"dispute already exists: {dispute_id}; pass --force to overwrite"
+            )
+        entries[dispute_id] = entry
+        _write_dispute_registry_durable(home, disputes)
+        _append_jsonl(_disputes_log_path(home), {"event": "open", **entry})
     _emit(
         {
             "schema": SCHEMA,
@@ -2787,60 +3370,61 @@ def _slash_reporter(
 
 def cmd_dispute_resolve(args: argparse.Namespace) -> int:
     home = _home(args)
-    disputes = _load_disputes(home)
-    entries = _dispute_entries(disputes)
-    entry = entries.get(args.dispute_id)
-    if not isinstance(entry, dict):
-        raise SystemExit(f"dispute not found: {args.dispute_id}")
-    if entry.get("status") != "open" and not args.force:
-        raise SystemExit(f"dispute is not open: {args.dispute_id}")
     slash_result: dict[str, Any] | None = None
     slash_receipt: dict[str, Any] | None = None
     slash_receipt_path: Path | None = None
     slash_e8 = int(args.slash_e8 if args.slash_e8 is not None else 0)
-    if args.outcome == "upheld":
-        if slash_e8 == 0:
-            slash_e8 = DEFAULT_SLASH_E8
-        if slash_e8 < 0:
-            raise SystemExit("slash-e8 must be non-negative")
-        slash_result = _slash_reporter(
-            home=home,
-            reporter_id=str(entry["reporter_id"]),
-            slash_e8=slash_e8,
+    with _authorization_persistence_lock(home):
+        disputes = _load_disputes(home)
+        entries = _dispute_entries(disputes)
+        entry = entries.get(args.dispute_id)
+        if not isinstance(entry, dict):
+            raise SystemExit(f"dispute not found: {args.dispute_id}")
+        if entry.get("status") != "open" and not args.force:
+            raise SystemExit(f"dispute is not open: {args.dispute_id}")
+        if args.outcome == "upheld":
+            if slash_e8 == 0:
+                slash_e8 = DEFAULT_SLASH_E8
+            if slash_e8 < 0:
+                raise SystemExit("slash-e8 must be non-negative")
+            slash_result = _slash_reporter(
+                home=home,
+                reporter_id=str(entry["reporter_id"]),
+                slash_e8=slash_e8,
+            )
+        elif slash_e8 != 0:
+            raise SystemExit("slash-e8 is only valid when outcome is upheld")
+        entry["status"] = args.outcome
+        entry["resolved_epoch"] = _now_epoch(args)
+        entry["slash_e8"] = slash_e8
+        entries[args.dispute_id] = entry
+        if slash_result is not None:
+            slash_receipt = _slash_settlement_receipt(
+                dispute_id=str(args.dispute_id),
+                reporter_id=str(entry["reporter_id"]),
+                slash_e8=slash_e8,
+                slash_result=slash_result,
+                resolved_epoch=int(entry["resolved_epoch"]),
+            )
+            slash_receipt_path = (
+                home
+                / "receipts"
+                / "slashes"
+                / f"{slash_receipt['slash_settlement_id'].replace(':', '_')}.json"
+            )
+            _write_json(slash_receipt_path, slash_receipt)
+        _write_dispute_registry_durable(home, disputes)
+        _append_jsonl(
+            _disputes_log_path(home),
+            {
+                "event": "resolve",
+                "dispute_id": args.dispute_id,
+                "outcome": args.outcome,
+                "slash_e8": slash_e8,
+                "slash_result": slash_result,
+                "resolved_epoch": entry["resolved_epoch"],
+            },
         )
-    elif slash_e8 != 0:
-        raise SystemExit("slash-e8 is only valid when outcome is upheld")
-    entry["status"] = args.outcome
-    entry["resolved_epoch"] = _now_epoch(args)
-    entry["slash_e8"] = slash_e8
-    entries[args.dispute_id] = entry
-    if slash_result is not None:
-        slash_receipt = _slash_settlement_receipt(
-            dispute_id=str(args.dispute_id),
-            reporter_id=str(entry["reporter_id"]),
-            slash_e8=slash_e8,
-            slash_result=slash_result,
-            resolved_epoch=int(entry["resolved_epoch"]),
-        )
-        slash_receipt_path = (
-            home
-            / "receipts"
-            / "slashes"
-            / f"{slash_receipt['slash_settlement_id'].replace(':', '_')}.json"
-        )
-        _write_json(slash_receipt_path, slash_receipt)
-    _write_json(_disputes_path(home), disputes)
-    _append_jsonl(
-        _disputes_log_path(home),
-        {
-            "event": "resolve",
-            "dispute_id": args.dispute_id,
-            "outcome": args.outcome,
-            "slash_e8": slash_e8,
-            "slash_result": slash_result,
-            "resolved_epoch": entry["resolved_epoch"],
-        },
-    )
     _emit(
         {
             "schema": SCHEMA,
@@ -2864,7 +3448,7 @@ def _iter_jsonl(path: Path) -> list[dict[str, Any]]:
     for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         if not line.strip():
             continue
-        value = json.loads(line)
+        value = _strict_json_loads(line)
         if not isinstance(value, dict):
             raise SystemExit(f"{path}:{line_no}: report log entry must be an object")
         items.append(value)
@@ -3103,11 +3687,16 @@ def _verify_accepted_reads(home: Path, queries: list[dict[str, Any]], errors: li
             errors.append(f"accepted read {read_id} expires before observed epoch")
 
 
-def _verify_authorization_bundles(home: Path, errors: list[str]) -> None:
+def _verify_authorization_bundles(
+    home: Path,
+    errors: list[str],
+    authorization_rows: Sequence[Mapping[str, Any]] | None = None,
+) -> None:
     from tools.check_oracle_authorization_semantic_binding import check_authorization_payload
 
     reads = _reads_by_id(home)
-    for bundle in _iter_jsonl(_authorizations_log_path(home)):
+    rows = _authorization_rows(home) if authorization_rows is None else authorization_rows
+    for bundle in rows:
         authorization_id = bundle.get("authorization_id")
         if not isinstance(authorization_id, str) or not authorization_id:
             errors.append("authorization bundle missing authorization_id")
@@ -3192,7 +3781,12 @@ def _receipt_id_from_check(payload: Mapping[str, Any], check: Mapping[str, Any])
     return None
 
 
-def _verify_stored_receipt_files(home: Path, errors: list[str]) -> None:
+def _verify_stored_receipt_files(
+    home: Path,
+    errors: list[str],
+    authorization_rows: Sequence[Mapping[str, Any]] | None = None,
+) -> None:
+    rows = _authorization_rows(home) if authorization_rows is None else authorization_rows
     logged_ids: dict[str, set[str]] = {
         "reports": {str(row.get("report_id")) for row in _iter_jsonl(_reports_log_path(home)) if row.get("report_id")},
         "aggregates": {
@@ -3201,7 +3795,7 @@ def _verify_stored_receipt_files(home: Path, errors: list[str]) -> None:
         "reads": {str(row.get("read_id")) for row in _iter_jsonl(_reads_log_path(home)) if row.get("read_id")},
         "authorizations": {
             str(row.get("authorization_id"))
-            for row in _iter_jsonl(_authorizations_log_path(home))
+            for row in rows
             if row.get("authorization_id")
         },
     }
@@ -3232,8 +3826,11 @@ def _verify_stored_receipt_files(home: Path, errors: list[str]) -> None:
         for path in sorted(receipt_dir.glob("*.json")):
             relative_path = path.relative_to(home)
             try:
-                payload = _load_json(path)
-            except Exception as exc:
+                if kind == "authorizations":
+                    payload = _load_canonical_authorization_receipt(home, path)
+                else:
+                    payload = _load_json(path)
+            except (Exception, SystemExit) as exc:
                 errors.append(f"stored receipt {relative_path} could not be loaded: {exc}")
                 continue
             if not isinstance(payload, Mapping):
@@ -3260,6 +3857,11 @@ def _verify_stored_receipt_files(home: Path, errors: list[str]) -> None:
 
 def _verify_report_log(home: Path) -> tuple[bool, list[str], dict[str, int], int]:
     errors: list[str] = []
+    try:
+        authorization_rows = _authorization_rows(home)
+    except SystemExit as exc:
+        errors.append(f"authorization durable state invalid: {exc}")
+        authorization_rows = []
     identity: dict[str, Any] | None = None
     if _key_path(home).exists():
         identity = _load_identity(home)
@@ -3409,9 +4011,9 @@ def _verify_report_log(home: Path) -> tuple[bool, list[str], dict[str, int], int
             errors.append(f"query {query_id} reward_spent_e8 exceeds reward_budget_e8")
     _verify_aggregates(home, reports, queries, errors)
     _verify_accepted_reads(home, queries, errors)
-    _verify_authorization_bundles(home, errors)
+    _verify_authorization_bundles(home, errors, authorization_rows)
     _verify_disputes(home, reports, errors)
-    _verify_stored_receipt_files(home, errors)
+    _verify_stored_receipt_files(home, errors, authorization_rows)
     return not errors, errors, sequences, len(reports)
 
 
@@ -3804,7 +4406,19 @@ def _verify_oracle_authorization_bundle_receipt(
         errors.append("authorization bundle receipt_graph must be an object")
         graph = {}
 
-    semantic = check_authorization_payload({"authorization": auth, "runtime_action": runtime})
+    semantic_payload: dict[str, Any] = {
+        "authorization": auth,
+        "runtime_action": runtime,
+        "receipt_graph": graph,
+    }
+    economic_envelope = payload.get("economic_envelope")
+    if economic_envelope is not None:
+        semantic_payload["economic_envelope"] = economic_envelope
+    try:
+        semantic = check_authorization_payload(semantic_payload)
+    except (TypeError, ValueError) as exc:
+        semantic = {"typed_ok": False, "typed_errors": []}
+        errors.append(f"authorization semantic check rejected: {exc}")
     errors.extend(str(error) for error in semantic.get("typed_errors", []))
     graph_details = _verify_receipt_graph(graph, errors)
 
@@ -3839,6 +4453,7 @@ def _verify_oracle_authorization_bundle_receipt(
         "expected_authorization_id": expected_authorization_id,
         "expected_receipt_graph_root": graph_details.get("expected_receipt_graph_root"),
         "typed_ok": semantic.get("typed_ok") is True,
+        "economic_envelope_ok": semantic.get("economic_envelope_ok") is True,
     }
 
 
@@ -4160,7 +4775,7 @@ def _dashboard_snapshot(home: Path, *, now_epoch: int, recent_limit: int = 50) -
     reports = _iter_jsonl(_reports_log_path(home))
     aggregates = _iter_jsonl(_aggregates_log_path(home))
     reads = _iter_jsonl(_reads_log_path(home))
-    authorizations = _iter_jsonl(_authorizations_log_path(home))
+    authorizations = _authorization_rows(home)
     reward_receipts = _iter_receipt_dir(home, "rewards")
     slash_receipts = _iter_receipt_dir(home, "slashes")
     replay = _safe_verify_report_log(home)
@@ -4230,7 +4845,10 @@ def _stored_receipt_by_id(home: Path, receipt_id: str) -> tuple[str, dict[str, A
     for kind in ("reports", "aggregates", "reads", "authorizations", "rewards", "slashes"):
         path = home / "receipts" / kind / f"{candidate_id.replace(':', '_')}.json"
         if path.exists():
-            payload = _load_json(path)
+            if kind == "authorizations":
+                payload = _load_canonical_authorization_receipt(home, path)
+            else:
+                payload = _load_json(path)
             if isinstance(payload, dict):
                 return kind, payload
 
@@ -4238,7 +4856,7 @@ def _stored_receipt_by_id(home: Path, receipt_id: str) -> tuple[str, dict[str, A
         ("report", _iter_jsonl(_reports_log_path(home)), "report_id"),
         ("aggregate", _iter_jsonl(_aggregates_log_path(home)), "aggregate_id"),
         ("accepted_read", _iter_jsonl(_reads_log_path(home)), "read_id"),
-        ("authorization", _iter_jsonl(_authorizations_log_path(home)), "authorization_id"),
+        ("authorization", _authorization_rows(home), "authorization_id"),
     )
     for kind, rows, id_key in log_sources:
         for row in rows:
@@ -4393,27 +5011,31 @@ def _dashboard_endpoint_payload(
     )
 
 
+def _api_command_error(message: str) -> tuple[int, dict[str, Any]]:
+    return (
+        400,
+        {
+            "schema": "zeno_oracle.api_command_error.v1",
+            "ok": False,
+            "error": message,
+            "production_authority": False,
+        },
+    )
+
+
 def _command_json(func: Any, namespace: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     stdout = io.StringIO()
     try:
         with contextlib.redirect_stdout(stdout):
             rc = int(func(namespace))
     except (SystemExit, argparse.ArgumentTypeError, ValueError, TypeError) as exc:
-        return (
-            400,
-            {
-                "schema": "zeno_oracle.api_command_error.v1",
-                "ok": False,
-                "error": str(exc),
-                "production_authority": False,
-            },
-        )
+        return _api_command_error(str(exc))
     text = stdout.getvalue().strip()
     if not text:
         payload: dict[str, Any] = {"schema": SCHEMA, "ok": rc == 0, "production_authority": False}
     else:
         try:
-            payload = json.loads(text)
+            payload = _strict_json_loads(text)
         except json.JSONDecodeError:
             payload = {
                 "schema": "zeno_oracle.api_command_result.v1",
@@ -4585,7 +5207,35 @@ def _write_endpoint_payload(home: Path, path: str, body: Mapping[str, Any]) -> t
                 json=True,
             ),
         )
-    if path == "/api/oracle/authorization/build":
+    if path in {
+        "/api/oracle/authorization/build",
+        "/api/oracle/authorization/build-exact",
+    }:
+        exact_runtime_required = path.endswith("/build-exact")
+        if exact_runtime_required:
+            if type(body) is not dict:
+                return _api_command_error("exact authorization request must be an exact object")
+            if any(type(key) is not str for key in body):
+                return _api_command_error(
+                    "exact authorization request field names must be exact strings"
+                )
+            allowed_exact_fields = {
+                "read_id",
+                "runtime_action",
+                "expected_receipt_graph_root",
+                "min_evidence_class",
+                "economic_envelope",
+            }
+            unknown_fields = sorted(set(body) - allowed_exact_fields)
+            if unknown_fields:
+                return _api_command_error(
+                    "exact authorization request has unknown fields: "
+                    + ", ".join(unknown_fields)
+                )
+            if "economic_envelope" not in body:
+                return _api_command_error(
+                    "economic_envelope is required for exact authorization build"
+                )
         return _command_json(
             cmd_authorization_build,
             argparse.Namespace(
@@ -4596,8 +5246,14 @@ def _write_endpoint_payload(home: Path, path: str, body: Mapping[str, Any]) -> t
                 action_facts_hash=str(body.get("action_facts_hash", "")),
                 pre_state_hash=str(body.get("pre_state_hash", "")),
                 now_epoch=body.get("now_epoch"),
+                runtime_action=body.get("runtime_action"),
+                require_runtime_action=exact_runtime_required,
+                expected_receipt_graph_root=body.get("expected_receipt_graph_root"),
+                require_expected_receipt_graph_root=exact_runtime_required,
                 min_evidence_class=str(body.get("min_evidence_class", "O3")),
                 economic_envelope_id=str(body.get("economic_envelope_id", "econ:local-dev-v1")),
+                economic_envelope=body.get("economic_envelope"),
+                require_economic_envelope=exact_runtime_required,
                 json=True,
             ),
         )
@@ -4636,6 +5292,7 @@ def _write_endpoint_payload(home: Path, path: str, body: Mapping[str, Any]) -> t
                 "/api/oracle/aggregate/build",
                 "/api/oracle/read/accept",
                 "/api/oracle/authorization/build",
+                "/api/oracle/authorization/build-exact",
                 "/api/oracle/report/submit",
             ],
             "production_authority": False,
@@ -4660,6 +5317,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
     home = _home(args)
     host = str(args.host)
     port = int(args.port)
+    state_lock = threading.RLock()
 
     class OracleHandler(BaseHTTPRequestHandler):
         server_version = "ZenoOracleLocal/0.1"
@@ -4688,12 +5346,13 @@ def cmd_serve(args: argparse.Namespace) -> int:
             parsed = urlparse(self.path)
             now_epoch = int(args.now_epoch if args.now_epoch is not None else time.time())
             try:
-                status, payload = _dashboard_endpoint_payload(
-                    home,
-                    parsed.path,
-                    now_epoch=now_epoch,
-                    query_params=parse_qs(parsed.query),
-                )
+                with state_lock:
+                    status, payload = _dashboard_endpoint_payload(
+                        home,
+                        parsed.path,
+                        now_epoch=now_epoch,
+                        query_params=parse_qs(parsed.query),
+                    )
             except Exception as exc:
                 status, payload = (
                     500,
@@ -4736,7 +5395,9 @@ def cmd_serve(args: argparse.Namespace) -> int:
                 )
                 return
             try:
-                body = json.loads(self.rfile.read(content_length).decode("utf-8"))
+                body = _strict_json_loads(
+                    self.rfile.read(content_length).decode("utf-8")
+                )
             except Exception as exc:
                 self._send_json(
                     400,
@@ -4760,7 +5421,8 @@ def cmd_serve(args: argparse.Namespace) -> int:
                 )
                 return
             try:
-                status, payload = _write_endpoint_payload(home, parsed.path, body)
+                with state_lock:
+                    status, payload = _write_endpoint_payload(home, parsed.path, body)
             except Exception as exc:
                 status, payload = (
                     500,
@@ -4810,6 +5472,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
             "/api/oracle/aggregate/build",
             "/api/oracle/read/accept",
             "/api/oracle/authorization/build",
+            "/api/oracle/authorization/build-exact",
             "/api/oracle/report/submit",
         ] if args.allow_writes else [],
         "authority_status": authority_status,
