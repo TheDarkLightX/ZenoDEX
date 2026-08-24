@@ -24,7 +24,7 @@ status = accepted
 
 | Consumer | Action | Runtime path | Required control |
 | --- | --- | --- | --- |
-| `zenodex.perps` | `settle_epoch` | `src/integration/perp_engine.py` | `require_oracle_adapter_for_isolated_settle_epoch`, `require_oracle_adapter_for_clearinghouse_settle_epoch` |
+| `zenodex.perps` | `settle_epoch` | `src/integration/perp_engine.py` | isolated/clearinghouse adapter controls plus isolated/clearinghouse typed-authorization controls |
 | `zenodex.perps` | `liquidate_account` | `src/integration/perp_engine.py` | `require_oracle_adapter_for_isolated_partial_liquidate` |
 | `zenodex.zusd` | `mint` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED`, `ZUSD_ORACLE_AUTHORIZATION_REQUIRED` |
 | `zenodex.zusd` | `liquidate_vault` | `src/integration/zusd_api.py` | `ZUSD_ORACLE_ADAPTER_REQUIRED`, `ZUSD_ORACLE_AUTHORIZATION_REQUIRED` |
@@ -34,10 +34,12 @@ status = accepted
 
 The checker verifies that each runtime-wired surface still agrees with the
 catalog query ID, catalog profile ID, expected consumer module, expected action
-kind, and runtime action-ID binding. For routing it checks both exact-in and
+kind, runtime action-ID binding, exact value and epoch binding, and the
+verifier-selected receipt graph root. For routing it checks both exact-in and
 exact-out guarded quote paths. For perps it checks isolated settlement, the two
-clearinghouse settlement variants, and isolated partial liquidation under the
-`liquidate_account` profile. For zUSD mint/liquidation it checks both the O3
+fixed clearinghouse settlement variants, N-party run/settlement, and isolated
+partial liquidation under the `liquidate_account` profile. For zUSD
+mint/liquidation it checks both the O3
 adapter bridge binding and the typed `OracleAuthorization` binding to the
 runtime action kind, per-action profile, action facts hash, pre-state hash, and
 runtime oracle price. For critical settlements it checks the typed

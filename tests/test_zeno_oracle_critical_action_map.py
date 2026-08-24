@@ -35,6 +35,18 @@ def test_zeno_oracle_critical_action_map_matches_runtime_wiring() -> None:
         "zenodex.trigger:execute_trigger",
     }
     surfaces_by_key = {surface["key"]: surface for surface in receipt["runtime_surfaces"]}
+    assert surfaces_by_key["zenodex.perps:settle_epoch"]["details"]["required_controls"] == [
+        "require_oracle_adapter_for_isolated_settle_epoch",
+        "require_oracle_adapter_for_clearinghouse_settle_epoch",
+        "require_oracle_authorization_for_isolated_settle",
+        "require_oracle_authorization_for_clearinghouse_settle_epoch",
+    ]
+    assert surfaces_by_key["zenodex.perps:settle_epoch"]["details"]["covered_runtime_actions"] == [
+        "isolated_settle_epoch",
+        "clearinghouse_2p_settle_epoch",
+        "clearinghouse_3p_transfer_settle_epoch",
+        "clearinghouse_np_run_or_settle_epoch",
+    ]
     assert surfaces_by_key["zenodex.zusd:mint"]["details"]["required_controls"] == [
         "ZUSD_ORACLE_ADAPTER_REQUIRED",
         "ZUSD_ORACLE_AUTHORIZATION_REQUIRED",

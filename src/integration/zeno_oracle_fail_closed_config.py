@@ -77,4 +77,5 @@ def zeno_oracle_fail_closed_perp_config(
         require_oracle_adapter_for_isolated_partial_liquidate=True,
         require_oracle_adapter_for_clearinghouse_settle_epoch=True,
         require_oracle_authorization_for_isolated_settle=True,
+        require_oracle_authorization_for_clearinghouse_settle_epoch=True,
     )

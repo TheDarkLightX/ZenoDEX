@@ -9,12 +9,16 @@ APIs.
 
 ## Perps Settlement Hook
 
-`PerpEngineConfig` exposes two Oracle bridge controls:
+`PerpEngineConfig` exposes separate adapter, typed-authorization, and
+verifier-selected-root controls for settlement:
 
 ```python
 oracle_adapter_bridge_verifier: Optional[Callable[[Mapping[str, Any]], Any]]
 require_oracle_adapter_for_isolated_settle_epoch: bool
 require_oracle_adapter_for_clearinghouse_settle_epoch: bool
+require_oracle_authorization_for_isolated_settle: bool
+require_oracle_authorization_for_clearinghouse_settle_epoch: bool
+oracle_authorization_receipt_graph_root: Optional[str]
 ```
 
 When a `settle_epoch` op carries `oracle_adapter_bridge`, the engine:
@@ -33,7 +37,12 @@ profile_id      = published O3 / 2-epoch perps settle profile
 ```
 
 6. requires the verified bridge `action_id` to equal the deterministic runtime
-   action ID for the exact settlement state.
+   action ID for the exact settlement state;
+7. requires the bridge value and action epoch to equal the exact price and
+   epoch consumed by settlement;
+8. when typed authorization is required, verifies the action facts, pre-state,
+   price, epoch, profile, query, and terminal receipt graph against the
+   configured root.
 
 For isolated perps, the runtime action ID is the SHA-256 content hash of:
 
@@ -72,9 +81,11 @@ oracle_last_update_epoch
 If `require_oracle_adapter_for_isolated_settle_epoch` is true, a settlement op
 without `oracle_adapter_bridge` is rejected on isolated perps. If
 `require_oracle_adapter_for_clearinghouse_settle_epoch` is true, a settlement op
-without `oracle_adapter_bridge` is rejected on 2-party and 3-party clearinghouse
-perps. If the bridge is present but no verifier is configured, settlement is
-rejected even when the requirement flag is false.
+without `oracle_adapter_bridge` is rejected on 2-party, 3-party, and N-party
+clearinghouse perps. The corresponding typed-authorization controls require
+`oracle_authorization`. A required authorization also requires a
+verifier-selected receipt graph root. If the bridge is present but no verifier
+is configured, settlement is rejected even when the requirement flag is false.
 
 This prevents the wired perps settlement paths from accepting a receipt minted
 for a different consumer, action, query, profile policy, market, market kind,
