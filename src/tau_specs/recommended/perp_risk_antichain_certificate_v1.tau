@@ -15,7 +15,7 @@
 # i5  = component_antichain_coverage_ok
 # i6  = containment_replay_ok
 # i7  = tau_risk_envelope_parity_ok
-# i8  = proof_dominates_stale_breaker_ok
+# i8  = stale_breaker_fail_closed_ok
 # i9  = resource_budget_ok
 # i10 = advisory_only
 # i11 = no_authority_effect
@@ -31,10 +31,10 @@ set charvar off
 
 is1(x : sbf) := (x = 1:sbf).
 lattice_replay_ok(enumerated : sbf, monotone : sbf, budget : sbf) := is1(enumerated) && is1(monotone) && is1(budget).
-antichain_certificate_ok(overall_minimal : sbf, component_cover : sbf, stale_breaker_dominated : sbf) := is1(overall_minimal) && is1(component_cover) && is1(stale_breaker_dominated).
+antichain_certificate_ok(overall_minimal : sbf, component_cover : sbf, stale_breaker_fail_closed : sbf) := is1(overall_minimal) && is1(component_cover) && is1(stale_breaker_fail_closed).
 containment_and_tau_ok(containment : sbf, tau_parity : sbf) := is1(containment) && is1(tau_parity).
 authority_boundary_ok(advisory_only : sbf, no_authority : sbf) := is1(advisory_only) && is1(no_authority).
-certificate_ok(active : sbf, enumerated : sbf, monotone : sbf, overall_minimal : sbf, component_cover : sbf, containment : sbf, tau_parity : sbf, stale_breaker_dominated : sbf, budget : sbf, advisory_only : sbf, no_authority : sbf) := is1(active) && lattice_replay_ok(enumerated, monotone, budget) && antichain_certificate_ok(overall_minimal, component_cover, stale_breaker_dominated) && containment_and_tau_ok(containment, tau_parity) && authority_boundary_ok(advisory_only, no_authority).
+certificate_ok(active : sbf, enumerated : sbf, monotone : sbf, overall_minimal : sbf, component_cover : sbf, containment : sbf, tau_parity : sbf, stale_breaker_fail_closed : sbf, budget : sbf, advisory_only : sbf, no_authority : sbf) := is1(active) && lattice_replay_ok(enumerated, monotone, budget) && antichain_certificate_ok(overall_minimal, component_cover, stale_breaker_fail_closed) && containment_and_tau_ok(containment, tau_parity) && authority_boundary_ok(advisory_only, no_authority).
 
 always
   (o1[t]:sbf = 1:sbf <-> lattice_replay_ok(i2[t]:sbf, i3[t]:sbf, i9[t]:sbf)) &&

@@ -20,7 +20,6 @@ from tools.check_perp_risk_envelope_containment_v1 import (  # noqa: E402
     check_perp_risk_envelope_containment_v1,
 )
 
-
 OUT_DIR = REPO_ROOT / "generated" / "zenodex_perp_risk_antichain_breakthrough_20260628"
 REPORT_JSON = OUT_DIR / "report.json"
 REPORT_MD = REPO_ROOT / "docs" / "research" / "ZENODEX_PERP_RISK_ANTICHAIN_BREAKTHROUGH_20260628.md"
@@ -51,6 +50,8 @@ OVERALL_MINIMAL_REJECT_AXES = (
     "funding_cap_bad",
     "liq_penalty_cap_bad",
     "insurance_floor_bad",
+    "stale_oracle_flag",
+    "breaker_active_flag",
     "margin_bad",
     "proof_missing",
     "binding_missing",
@@ -64,8 +65,8 @@ COMPONENT_BOUNDARY = {
     "o5_funding_cap": (("funding_cap_bad",),),
     "o6_liq_penalty_cap": (("liq_penalty_cap_bad",),),
     "o7_insurance_floor": (("insurance_floor_bad",),),
-    "o8_stale_guard": (("proof_missing", "stale_oracle_flag"),),
-    "o9_breaker_guard": (("breaker_active_flag", "proof_missing"),),
+    "o8_stale_guard": (("stale_oracle_flag",),),
+    "o9_breaker_guard": (("breaker_active_flag",),),
     "o10_margin_guard": (("margin_bad",),),
 }
 
@@ -93,8 +94,8 @@ def _risk_outputs(active_axes: frozenset[str]) -> dict[str, bool]:
     funding_cap_ok = "funding_cap_bad" not in active_axes
     liq_penalty_cap_ok = "liq_penalty_cap_bad" not in active_axes
     insurance_floor_ok = "insurance_floor_bad" not in active_axes
-    stale_guard_ok = ("stale_oracle_flag" not in active_axes) or proof_ok
-    breaker_guard_ok = ("breaker_active_flag" not in active_axes) or proof_ok
+    stale_guard_ok = "stale_oracle_flag" not in active_axes
+    breaker_guard_ok = "breaker_active_flag" not in active_axes
     margin_guard_ok = "margin_bad" not in active_axes
     risk_envelope_ok = bool(
         mark_oracle_gap_ok
@@ -178,13 +179,11 @@ def _lattice_report() -> dict[str, Any]:
             component_ok = component_ok and rejected
             component_rows.append({"output_id": output_id, "boundary": list(boundary), "rejects": rejected})
 
-    proof_dominates = (
-        ("stale_oracle_flag",) not in minimal_rejects
-        and ("breaker_active_flag",) not in minimal_rejects
-        and ("proof_missing",) in minimal_rejects
-        and _risk_outputs(frozenset({"stale_oracle_flag"}))["risk_envelope_ok"] is True
-        and _risk_outputs(frozenset({"breaker_active_flag"}))["risk_envelope_ok"] is True
-        and _risk_outputs(frozenset({"proof_missing"}))["risk_envelope_ok"] is False
+    stale_breaker_fail_closed = (
+        ("stale_oracle_flag",) in minimal_rejects
+        and ("breaker_active_flag",) in minimal_rejects
+        and _risk_outputs(frozenset({"stale_oracle_flag"}))["risk_envelope_ok"] is False
+        and _risk_outputs(frozenset({"breaker_active_flag"}))["risk_envelope_ok"] is False
     )
 
     return {
@@ -201,7 +200,7 @@ def _lattice_report() -> dict[str, Any]:
         "monotonicity_violations": monotonicity_violations[:10],
         "overall_antichain_minimal_ok": minimal_ok,
         "component_antichain_coverage_ok": component_ok,
-        "proof_dominates_stale_breaker_ok": proof_dominates,
+        "stale_breaker_fail_closed_ok": stale_breaker_fail_closed,
         "compression_ratio_dense_to_overall_antichain": f"{len(states)}:{len(minimal_rejects)}",
     }
 
@@ -317,7 +316,7 @@ def _antichain_tau_cases(facts: Mapping[str, int]) -> tuple[TauCase, ...]:
         "i5": int(facts["component_antichain_coverage_ok"]),
         "i6": int(facts["containment_replay_ok"]),
         "i7": int(facts["tau_risk_envelope_parity_ok"]),
-        "i8": int(facts["proof_dominates_stale_breaker_ok"]),
+        "i8": int(facts["stale_breaker_fail_closed_ok"]),
         "i9": int(facts["resource_budget_ok"]),
         "i10": 1,
         "i11": 1,
@@ -331,7 +330,7 @@ def _antichain_tau_cases(facts: Mapping[str, int]) -> tuple[TauCase, ...]:
         TauCase("component_coverage_reject", {**pass_step, "i5": 0}, {"o2": 0, "o5": 0}),
         TauCase("containment_replay_reject", {**pass_step, "i6": 0}, {"o3": 0, "o5": 0}),
         TauCase("tau_parity_reject", {**pass_step, "i7": 0}, {"o3": 0, "o5": 0}),
-        TauCase("proof_domination_reject", {**pass_step, "i8": 0}, {"o2": 0, "o5": 0}),
+        TauCase("stale_breaker_fail_closed_reject", {**pass_step, "i8": 0}, {"o2": 0, "o5": 0}),
         TauCase("authority_reject", {**pass_step, "i11": 0}, {"o4": 0, "o5": 0}),
         TauCase("inactive_safe", inactive, {"o5": 0, "o6": 1}),
     )
@@ -366,6 +365,8 @@ def _risk_envelope_tau_check(tau_bin: str | None) -> dict[str, Any]:
         TauCase("risk_envelope_pass", _step_from_witness(_base_witness()), {"o11": 1}),
         TauCase("mark_gap_reject", _step_from_witness(_witness_for_axis("mark_oracle_gap_bad")), {"o1": 0, "o11": 0}),
         TauCase("margin_reject", _step_from_witness(_witness_for_axis("margin_bad")), {"o10": 0, "o11": 0}),
+        TauCase("stale_oracle_reject", _step_from_witness(_witness_for_axis("stale_oracle_flag")), {"o8": 0, "o11": 0}),
+        TauCase("active_breaker_reject", _step_from_witness(_witness_for_axis("breaker_active_flag")), {"o9": 0, "o11": 0}),
         TauCase("binding_reject", _step_from_witness(_witness_for_axis("binding_missing")), {"o11": 0}),
     )
     return _run_tau_cases(tau_bin, RISK_ENVELOPE_SPEC, cases, timeout_s=20.0)
@@ -382,7 +383,7 @@ def _numeric_boundary_check() -> dict[str, Any]:
     stale_only = _evaluate_risk_envelope(**_witness_for_axis("stale_oracle_flag"))
     breaker_only = _evaluate_risk_envelope(**_witness_for_axis("breaker_active_flag"))
     return {
-        "ok": ok and stale_only["risk_envelope_ok"] is True and breaker_only["risk_envelope_ok"] is True,
+        "ok": ok and stale_only["risk_envelope_ok"] is False and breaker_only["risk_envelope_ok"] is False,
         "minimal_axis_rows": rows,
         "stale_only_risk_envelope_ok": stale_only["risk_envelope_ok"],
         "breaker_only_risk_envelope_ok": breaker_only["risk_envelope_ok"],
@@ -402,7 +403,7 @@ def build_report() -> dict[str, Any]:
         "component_antichain_coverage_ok": int(lattice["component_antichain_coverage_ok"]),
         "containment_replay_ok": int(containment["ok"]),
         "tau_risk_envelope_parity_ok": int(risk_tau["ok"]),
-        "proof_dominates_stale_breaker_ok": int(lattice["proof_dominates_stale_breaker_ok"]),
+        "stale_breaker_fail_closed_ok": int(lattice["stale_breaker_fail_closed_ok"]),
         "resource_budget_ok": int(lattice["dense_state_count"] <= 4096 and lattice["overall_minimal_reject_count"] <= 16),
     }
     antichain_tau = _run_tau_cases(tau_bin, ANTICHAIN_SPEC, _antichain_tau_cases(facts), timeout_s=20.0)
@@ -419,7 +420,7 @@ def build_report() -> dict[str, Any]:
         "ok": ok,
         "breakthrough": {
             "name": "Perps risk-antichain certificate",
-            "summary": "A bounded primitive perps risk lattice compresses from dense scenario replay to a minimal rejection antichain while Tau gates only the host-replayed certificate facts.",
+            "summary": "A bounded primitive perps risk lattice compresses dense scenario replay to a minimal rejection antichain while stale-Oracle and active-breaker states remain fail-closed.",
             "authority_boundary": "Research certificate only. Tau has no settlement, liquidation, oracle-update, or state-root authority.",
         },
         "tau": {
@@ -467,7 +468,7 @@ def _write_markdown(report: Mapping[str, Any]) -> None:
     for boundary in report["lattice"]["overall_minimal_rejects"]:
         lines.append(f"| `{boundary}` | Any one of these primitive failures rejects the overall risk envelope. |")
     lines.append("")
-    lines.append("Stale-oracle and breaker flags are component guard boundaries only when proof is missing; proof absence already dominates them for the overall envelope.")
+    lines.append("Stale-Oracle and active-breaker flags are independent minimal rejection boundaries. Proof availability cannot override either guard.")
     lines.append("")
     lines.append("## Tau Certificate Cases")
     lines.append("")

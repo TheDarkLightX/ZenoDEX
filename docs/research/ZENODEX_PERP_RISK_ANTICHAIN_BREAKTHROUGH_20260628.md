@@ -2,7 +2,7 @@
 
 ## Executive Result
 
-A bounded primitive perps risk lattice compresses from dense scenario replay to a minimal rejection antichain while Tau gates only the host-replayed certificate facts.
+A bounded primitive perps risk lattice compresses dense scenario replay to a minimal rejection antichain while stale-Oracle and active-breaker states remain fail-closed.
 
 Research certificate only. Tau has no settlement, liquidation, oracle-update, or state-root authority.
 
@@ -10,8 +10,8 @@ Research certificate only. Tau has no settlement, liquidation, oracle-update, or
 - Direct risk spec: `src/tau_specs/recommended/perp_risk_envelope_proof_gate_v1.tau`
 - Tau version: `Tau Language Framework version 0.7.0-alpha (401d756b)`
 - Dense risk states: `4096`
-- Minimal overall rejection antichain: `10`
-- Compression: `4096:10`
+- Minimal overall rejection antichain: `12`
+- Compression: `4096:12`
 - Certificate invalid accepts: `0`
 
 ## Minimal Overall Rejection Antichain
@@ -19,6 +19,7 @@ Research certificate only. Tau has no settlement, liquidation, oracle-update, or
 | boundary | reason |
 | --- | --- |
 | `['binding_missing']` | Any one of these primitive failures rejects the overall risk envelope. |
+| `['breaker_active_flag']` | Any one of these primitive failures rejects the overall risk envelope. |
 | `['funding_cap_bad']` | Any one of these primitive failures rejects the overall risk envelope. |
 | `['insurance_floor_bad']` | Any one of these primitive failures rejects the overall risk envelope. |
 | `['liq_penalty_cap_bad']` | Any one of these primitive failures rejects the overall risk envelope. |
@@ -28,8 +29,9 @@ Research certificate only. Tau has no settlement, liquidation, oracle-update, or
 | `['open_interest_cap_bad']` | Any one of these primitive failures rejects the overall risk envelope. |
 | `['oracle_drift_bad']` | Any one of these primitive failures rejects the overall risk envelope. |
 | `['proof_missing']` | Any one of these primitive failures rejects the overall risk envelope. |
+| `['stale_oracle_flag']` | Any one of these primitive failures rejects the overall risk envelope. |
 
-Stale-oracle and breaker flags are component guard boundaries only when proof is missing; proof absence already dominates them for the overall envelope.
+Stale-Oracle and active-breaker flags are independent minimal rejection boundaries. Proof availability cannot override either guard.
 
 ## Tau Certificate Cases
 
@@ -41,7 +43,7 @@ Stale-oracle and breaker flags are component guard boundaries only when proof is
 | `component_coverage_reject` | `True` | `0` |
 | `containment_replay_reject` | `True` | `0` |
 | `tau_parity_reject` | `True` | `0` |
-| `proof_domination_reject` | `True` | `0` |
+| `stale_breaker_fail_closed_reject` | `True` | `0` |
 | `authority_reject` | `True` | `0` |
 | `inactive_safe` | `True` | `0` |
 

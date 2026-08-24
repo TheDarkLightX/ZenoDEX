@@ -9,7 +9,6 @@ import pytest
 
 from src.integration.tau_runner import find_tau_bin
 
-
 ROOT = Path(__file__).resolve().parents[2]
 REPORT_JSON = ROOT / "generated" / "zenodex_perp_risk_antichain_breakthrough_20260628" / "report.json"
 
@@ -32,15 +31,15 @@ def test_perp_risk_antichain_breakthrough_replay() -> None:
     assert report["ok"] is True
     assert report["lattice"]["primitive_axis_count"] == 12
     assert report["lattice"]["dense_state_count"] == 4096
-    assert report["lattice"]["overall_minimal_reject_count"] == 10
-    assert report["lattice"]["compression_ratio_dense_to_overall_antichain"] == "4096:10"
+    assert report["lattice"]["overall_minimal_reject_count"] == 12
+    assert report["lattice"]["compression_ratio_dense_to_overall_antichain"] == "4096:12"
     assert report["lattice"]["monotonicity_ok"] is True
     assert report["lattice"]["overall_antichain_minimal_ok"] is True
     assert report["lattice"]["component_antichain_coverage_ok"] is True
-    assert report["lattice"]["proof_dominates_stale_breaker_ok"] is True
+    assert report["lattice"]["stale_breaker_fail_closed_ok"] is True
     assert report["numeric_boundary"]["ok"] is True
-    assert report["numeric_boundary"]["stale_only_risk_envelope_ok"] is True
-    assert report["numeric_boundary"]["breaker_only_risk_envelope_ok"] is True
+    assert report["numeric_boundary"]["stale_only_risk_envelope_ok"] is False
+    assert report["numeric_boundary"]["breaker_only_risk_envelope_ok"] is False
     assert report["containment_replay"]["ok"] is True
     assert report["tau"]["risk_envelope_direct"]["ok"] is True
     assert report["tau"]["antichain_certificate"]["ok"] is True
@@ -53,6 +52,6 @@ def test_perp_risk_antichain_breakthrough_replay() -> None:
     assert cases["component_coverage_reject"]["got"]["o5"] == 0
     assert cases["containment_replay_reject"]["got"]["o5"] == 0
     assert cases["tau_parity_reject"]["got"]["o5"] == 0
-    assert cases["proof_domination_reject"]["got"]["o5"] == 0
+    assert cases["stale_breaker_fail_closed_reject"]["got"]["o5"] == 0
     assert cases["authority_reject"]["got"]["o5"] == 0
     assert cases["inactive_safe"]["got"]["o6"] == 1
