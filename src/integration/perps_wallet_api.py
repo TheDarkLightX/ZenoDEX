@@ -1295,15 +1295,36 @@ def _oracle_authority_exercise_for_action(
     )
     bridge = operation.get("oracle_adapter_bridge")
     bridge_present = isinstance(bridge, Mapping)
+    authorization = operation.get("oracle_authorization")
+    authorization_present = type(authorization) is dict
+    market_id = str(operation.get("market_id") or "")
+    authorization_required = False
+    if action == "settle_epoch":
+        if market_id.startswith("perp:ch2p:"):
+            authorization_required = _env_bool(
+                "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+                False,
+            )
+        else:
+            authorization_required = _env_bool(
+                "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE",
+                False,
+            )
     readiness_gaps = list(oracle_authority.get("readiness_gaps") or [])
     if not bridge_present:
         readiness_gaps.append("oracle adapter bridge is missing from operation")
+    if authorization_required and not authorization_present:
+        readiness_gaps.append("typed oracle authorization is missing from operation")
 
     signature_quorum = oracle_authority.get("signature_quorum")
     if not isinstance(signature_quorum, Mapping):
         signature_quorum = {}
     authority_ready = bool(oracle_authority.get("production_authority"))
-    authority_exercised = bool(authority_ready and bridge_present)
+    authority_exercised = bool(
+        authority_ready
+        and bridge_present
+        and (authorization_present or not authorization_required)
+    )
     body: dict[str, Any] = {
         "schema": _ORACLE_AUTHORITY_EXERCISE_SCHEMA,
         "action": action,
@@ -1330,6 +1351,16 @@ def _oracle_authority_exercise_for_action(
         "oracle_adapter_bridge_hash": (
             _hash_payload("zenodex.perps_wallet.oracle_adapter_bridge/v1", bridge)
             if isinstance(bridge, Mapping)
+            else None
+        ),
+        "oracle_authorization_required": authorization_required,
+        "oracle_authorization_present": authorization_present,
+        "oracle_authorization_hash": (
+            _hash_payload(
+                "zenodex.perps_wallet.oracle_authorization/v1",
+                authorization,
+            )
+            if authorization_present
             else None
         ),
     }

@@ -3755,6 +3755,68 @@ def test_prepare_settle_epoch_can_fail_closed_on_missing_oracle_bridge(monkeypat
     assert payload["report"]["preflight"]["error"] == "settle_epoch requires oracle_adapter_bridge"
 
 
+def test_prepare_settle_epoch_reports_missing_required_typed_authorization(monkeypatch) -> None:
+    # Arrange: adapter evidence and a ready Oracle authority profile are
+    # present, while the separately required typed authorization is absent.
+    quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
+    _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
+    _FakeClient.sent = []
+    monkeypatch.setenv("PERPS_WALLET_CHAIN_ID", CHAIN_ID)
+    monkeypatch.setenv("TAU_DEX_OPERATOR_PUBKEY", OPERATOR)
+    monkeypatch.setenv("TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_CLEARINGHOUSE_SETTLE_EPOCH", "1")
+    monkeypatch.setenv(
+        "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+        "1",
+    )
+    monkeypatch.setenv(
+        "TAU_DEX_PERP_ORACLE_AUTHORIZATION_RECEIPT_GRAPH_ROOT",
+        "sha256:" + "44" * 32,
+    )
+    monkeypatch.setenv(
+        "PERPS_ORACLE_AUTHORITY_PROFILE_JSON",
+        json.dumps(_oracle_authority_profile(), sort_keys=True),
+    )
+    monkeypatch.setattr(perps_wallet_api, "TauNetTcpClient", _FakeClient)
+    status_code, bridge_payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/oracle-bridge-template",
+        json.dumps({"action": "settle_epoch", "market_id": MARKET_ID}).encode("utf-8"),
+    )
+    assert status_code == 200
+
+    # Act.
+    body = {
+        "action": "settle_epoch",
+        "market_id": MARKET_ID,
+        "operator_privkey": str(OPERATOR_PRIVKEY),
+        "oracle_adapter_bridge": bridge_payload["bridge"],
+        "deadline": FUTURE_DEADLINE,
+        "block_timestamp": 1,
+    }
+    status_code, payload = perps_wallet_api.handle_perps_wallet_request(
+        "POST",
+        "/api/perps/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    # Assert: preparation remains observable, but neither preflight nor the
+    # authority exercise can claim readiness.
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["report"]["preflight"]["ok"] is False
+    assert (
+        payload["report"]["preflight"]["error"]
+        == "clearinghouse_settle_oracle_authorization_required"
+    )
+    exercise = payload["proof"]["oracle_authority_exercise"]
+    assert exercise["authority_exercised"] is False
+    assert exercise["status"] == "blocked"
+    assert exercise["oracle_authorization_required"] is True
+    assert exercise["oracle_authorization_present"] is False
+    assert exercise["oracle_authorization_hash"] is None
+    assert "typed oracle authorization is missing from operation" in exercise["readiness_gaps"]
+
+
 def test_oracle_bridge_template_preflights_required_settle_epoch(monkeypatch) -> None:
     quote_asset = derive_zusd_tau_asset_id(chain_id=CHAIN_ID)
     _FakeClient.app_state = _wrapped_app_state(_state_ready_to_settle(quote_asset=quote_asset))
@@ -3847,6 +3909,9 @@ def test_submit_settle_epoch_binds_ready_oracle_authority_exercise(monkeypatch) 
     assert exercise["signature_quorum_threshold"] == 2
     assert exercise["oracle_adapter_bridge_id"] == bridge_payload["bridge"]["bridge_id"]
     assert str(exercise["oracle_adapter_bridge_hash"]).startswith("0x")
+    assert exercise["oracle_authorization_required"] is False
+    assert exercise["oracle_authorization_present"] is False
+    assert exercise["oracle_authorization_hash"] is None
     receipt = payload["proof"]["intent_receipt"]
     assert receipt["body"]["oracle_authority_exercised"] is True
     assert receipt["body"]["oracle_authority_exercise_hash"] == exercise["exercise_hash"]

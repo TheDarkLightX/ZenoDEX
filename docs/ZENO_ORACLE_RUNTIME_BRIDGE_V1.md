@@ -108,6 +108,11 @@ an authorization producer and verifier-selected root are configured. The
 `zeno_oracle_fail_closed_perp_config` helper forces both typed-authorization
 controls on for fail-closed profiles.
 
+The wallet proof-intent operation hash commits the authorization. Its Oracle
+authority exercise also records whether typed authorization was required,
+whether it was present, and its content hash. A missing required authorization
+keeps that exercise in `blocked` status even when adapter evidence is present.
+
 ## zUSD API Hook
 
 The zUSD development API now gates the critical `mint_zusd` and `liquidate`
