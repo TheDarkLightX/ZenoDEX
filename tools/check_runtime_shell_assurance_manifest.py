@@ -11,6 +11,80 @@ from typing import Any, Iterable, Mapping
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MANIFEST = REPO_ROOT / "tools" / "runtime_shell_assurance_manifest.json"
+MAX_JSON_BYTES = 4 * 1024 * 1024
+
+REQUIRED_SOLVERS = ("z3", "cvc5")
+REQUIRED_SOURCE_PATHS = (
+    "src/kernels/dex/perp_epoch_isolated_v3.yaml",
+    "generated/perp_python/perp_epoch_isolated_v3_ref.py",
+    "src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml",
+    "src/kernels/dex/perp_epoch_clearinghouse_3p_transfer_v0_1.yaml",
+    "src/kernels/dex/proof_mining_manager_v1.yaml",
+    "src/kernels/dex/dex_global_conservation_v1.yaml",
+    "src/kernels/python/perp_epoch_isolated_v3_adapter.py",
+    "src/kernels/python/perp_epoch_clearinghouse_2p_v0_1_adapter.py",
+    "src/kernels/python/perp_epoch_clearinghouse_3p_transfer_v0_1_adapter.py",
+    "src/kernels/python/proof_mining_manager_v1_adapter.py",
+    "src/kernels/python/dex_global_conservation_v1_adapter.py",
+    "src/integration/perp_engine.py",
+    "src/integration/zeno_oracle_authorization.py",
+    "tests/kernels/test_python_adapter_wrappers.py",
+    "tests/core/test_perp_v2/test_oracle_equiv.py",
+    "tests/core/test_perp_v2/test_parity_with_generated_ref.py",
+    "tests/kernels/test_perp_epoch_isolated_v3_generated_ref_sync.py",
+    "tests/kernels/test_proof_mining_manager_v1_adapter.py",
+    "tests/kernels/test_runtime_shell_adapters.py",
+    "tests/integration/test_oracle_authorization_semantic_binding.py",
+    "tests/integration/test_perp_engine.py",
+    "tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py",
+    "tests/integration/test_perp_engine_oracle_authorization.py",
+    "tests/integration/test_perp_engine_partial_liquidate.py",
+    "tools/zenodex_oracle_aggregate_adapter.py",
+    "tests/test_zenodex_oracle_aggregate_adapter.py",
+    "tools/run_runtime_shell_assurance_gate.sh",
+    "tools/check_runtime_shell_assurance_manifest.py",
+)
+REQUIRED_MODELS = (
+    (
+        "perp_epoch_isolated_v3",
+        "src/kernels/dex/perp_epoch_isolated_v3.yaml",
+        "src.kernels.python.perp_epoch_isolated_v3_adapter:make_adapter",
+    ),
+    (
+        "perp_epoch_clearinghouse_2p_v0_1",
+        "src/kernels/dex/perp_epoch_clearinghouse_2p_v0_1.yaml",
+        "src.kernels.python.perp_epoch_clearinghouse_2p_v0_1_adapter:make_adapter",
+    ),
+    (
+        "perp_epoch_clearinghouse_3p_transfer_v0_1",
+        "src/kernels/dex/perp_epoch_clearinghouse_3p_transfer_v0_1.yaml",
+        "src.kernels.python.perp_epoch_clearinghouse_3p_transfer_v0_1_adapter:make_adapter",
+    ),
+    (
+        "proof_mining_manager_v1",
+        "src/kernels/dex/proof_mining_manager_v1.yaml",
+        "src.kernels.python.proof_mining_manager_v1_adapter:make_adapter",
+    ),
+    (
+        "dex_global_conservation_v1",
+        "src/kernels/dex/dex_global_conservation_v1.yaml",
+        "src.kernels.python.dex_global_conservation_v1_adapter:make_adapter",
+    ),
+)
+REQUIRED_REGRESSION_TESTS = (
+    "tests/core/test_perp_v2/test_oracle_equiv.py",
+    "tests/core/test_perp_v2/test_parity_with_generated_ref.py",
+    "tests/kernels/test_perp_epoch_isolated_v3_generated_ref_sync.py",
+    "tests/kernels/test_python_adapter_wrappers.py",
+    "tests/kernels/test_proof_mining_manager_v1_adapter.py",
+    "tests/kernels/test_runtime_shell_adapters.py",
+    "tests/integration/test_oracle_authorization_semantic_binding.py",
+    "tests/integration/test_perp_engine.py",
+    "tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py",
+    "tests/integration/test_perp_engine_oracle_authorization.py",
+    "tests/integration/test_perp_engine_partial_liquidate.py",
+    "tests/test_zenodex_oracle_aggregate_adapter.py",
+)
 
 
 class ManifestError(RuntimeError):
@@ -23,7 +97,17 @@ def _require(condition: bool, message: str) -> None:
 
 
 def _as_dict(obj: Any, *, ctx: str) -> Mapping[str, Any]:
-    _require(isinstance(obj, dict), f"{ctx}: expected object")
+    _require(type(obj) is dict, f"{ctx}: expected exact object")
+    return obj
+
+
+def _as_list(obj: Any, *, ctx: str) -> list[Any]:
+    _require(type(obj) is list, f"{ctx}: expected array")
+    return obj
+
+
+def _as_str(obj: Any, *, ctx: str) -> str:
+    _require(type(obj) is str and bool(obj), f"{ctx}: expected non-empty string")
     return obj
 
 
@@ -43,11 +127,54 @@ def _require_true(value: object, *, ctx: str) -> None:
     _require(_require_json_bool(value, ctx=ctx) is True, f"{ctx}=false")
 
 
+def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ManifestError(f"duplicate JSON key: {key}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ManifestError(f"non-standard JSON constant: {value}")
+
+
 def _load_json(path: Path) -> Any:
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        size = path.stat().st_size
+        _require(size <= MAX_JSON_BYTES, f"JSON file too large: {path}: {size}>{MAX_JSON_BYTES}")
+        return json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_keys,
+            parse_constant=_reject_json_constant,
+        )
+    except ManifestError:
+        raise
     except Exception as exc:
         raise ManifestError(f"failed to read JSON {path}: {exc}") from exc
+
+
+def _repo_file(raw_path: Any, *, ctx: str) -> Path:
+    rel_text = _as_str(raw_path, ctx=ctx)
+    rel = Path(rel_text)
+    _require(not rel.is_absolute(), f"{ctx}: path must be repository-relative")
+    _require(
+        all(part not in {"", ".", ".."} for part in rel.parts),
+        f"{ctx}: path must be canonical and repository-relative",
+    )
+    root = REPO_ROOT.resolve()
+    current = root
+    for part in rel.parts:
+        current = current / part
+        _require(not current.is_symlink(), f"{ctx}: symlink path component rejected: {rel_text}")
+    resolved = current.resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError as exc:
+        raise ManifestError(f"{ctx}: path escapes repository: {rel_text}") from exc
+    _require(resolved.is_file(), f"{ctx}: missing file: {rel_text}")
+    return resolved
 
 
 def _sha256_file(path: Path) -> str:
@@ -117,17 +244,22 @@ def _solver_version(cmd: str) -> str:
 
 
 def _check_source_files(entries: list[Mapping[str, Any]]) -> None:
-    for entry in entries:
-        rel = str(entry["path"])
-        expected = str(entry["sha256"])
-        path = REPO_ROOT / rel
-        _require(path.is_file(), f"missing source/test file: {rel}")
+    for index, raw_entry in enumerate(entries):
+        entry = _as_dict(raw_entry, ctx=f"source_files[{index}]")
+        rel = _as_str(entry.get("path"), ctx=f"source_files[{index}].path")
+        expected = _as_str(entry.get("sha256"), ctx=f"source_files[{index}].sha256")
+        _require(len(expected) == 64, f"source_files[{index}].sha256: expected 64 hex characters")
+        try:
+            int(expected, 16)
+        except ValueError as exc:
+            raise ManifestError(f"source_files[{index}].sha256: expected lowercase hex") from exc
+        path = _repo_file(rel, ctx=f"source_files[{index}].path")
         actual = _sha256_file(path)
         _require(actual == expected, f"source hash mismatch for {rel}: {actual} != {expected}")
 
 
 def _check_shell_lint(entry: Mapping[str, Any]) -> None:
-    report_path = REPO_ROOT / str(entry["report_path"])
+    report_path = _repo_file(entry.get("report_path"), ctx="shell_lint.report_path")
     report = _as_dict(_load_json(report_path), ctx=str(report_path))
     _require_true(report.get("ok"), ctx=f"{report_path}: ok")
     _require(report.get("command") == "shell-lint", f"{report_path}: command mismatch")
@@ -146,7 +278,7 @@ def _check_shell_lint(entry: Mapping[str, Any]) -> None:
 
 
 def _check_verify_shell(entry: Mapping[str, Any]) -> None:
-    report_path = REPO_ROOT / str(entry["report_path"])
+    report_path = _repo_file(entry.get("report_path"), ctx="verify_shell.report_path")
     report = _as_dict(_load_json(report_path), ctx=str(report_path))
     _require_true(report.get("ok"), ctx=f"{report_path}: ok")
     _require(report.get("command") == "verify-shell", f"{report_path}: command mismatch")
@@ -176,17 +308,91 @@ def _check_verify_shell(entry: Mapping[str, Any]) -> None:
 
     adapter = _as_dict(report.get("adapter"), ctx=f"{report_path}: adapter")
     _require(adapter.get("spec") == entry["adapter_spec"], f"{report_path}: adapter spec mismatch")
-    _require(
-        Path(str(report.get("model", ""))).name == Path(str(entry["kernel_path"])).name,
-        f"{report_path}: model file mismatch",
-    )
+    report_model_raw = _as_str(report.get("model"), ctx=f"{report_path}: model")
+    expected_model_raw = _as_str(entry.get("kernel_path"), ctx=f"{report_path}: expected model")
+    report_model = Path(report_model_raw)
+    if not report_model.is_absolute():
+        report_model = REPO_ROOT / report_model
+    expected_model = REPO_ROOT / expected_model_raw
+    _require(report_model.resolve() == expected_model.resolve(), f"{report_path}: model file mismatch")
 
     determinism = _as_dict(report.get("determinism"), ctx=f"{report_path}: determinism")
     _require_true(determinism.get("ok"), ctx=f"{report_path}: determinism.ok")
-    fingerprints = list(determinism.get("fingerprints") or [])
-    _require(len(fingerprints) >= 2, f"{report_path}: fewer than 2 fingerprints")
+    fingerprints = _as_list(
+        determinism.get("fingerprints"),
+        ctx=f"{report_path}: determinism.fingerprints",
+    )
+    _require(
+        all(type(fingerprint) is str and fingerprint for fingerprint in fingerprints),
+        f"{report_path}: determinism.fingerprints must contain non-empty strings",
+    )
+    trials = _require_json_int(entry.get("determinism_trials"), ctx=f"{report_path}: expected trials")
+    _require(len(fingerprints) == trials, f"{report_path}: fingerprint count mismatch")
     _require(len(set(fingerprints)) == 1, f"{report_path}: fingerprints diverged")
     _require(fingerprints[0] == entry["fingerprint"], f"{report_path}: fingerprint mismatch")
+
+
+def _check_manifest_inventory(manifest: Mapping[str, Any]) -> None:
+    toolchain = _as_dict(manifest.get("toolchain"), ctx="toolchain")
+    solvers = _as_dict(toolchain.get("solvers"), ctx="toolchain.solvers")
+    _require(
+        tuple(solvers.keys()) == REQUIRED_SOLVERS,
+        "required inventory mismatch: toolchain.solvers",
+    )
+
+    source_entries = _as_list(manifest.get("source_files"), ctx="source_files")
+    source_paths = tuple(
+        _as_str(_as_dict(entry, ctx=f"source_files[{index}]").get("path"), ctx=f"source_files[{index}].path")
+        for index, entry in enumerate(source_entries)
+    )
+    _require(source_paths == REQUIRED_SOURCE_PATHS, "required inventory mismatch: source_files")
+
+    shell_entries = _as_list(manifest.get("shell_lint"), ctx="shell_lint")
+    shell_inventory = tuple(
+        (
+            _as_str(_as_dict(entry, ctx=f"shell_lint[{index}]").get("report_path"), ctx="report_path"),
+            _as_str(_as_dict(entry, ctx=f"shell_lint[{index}]").get("adapter_spec"), ctx="adapter_spec"),
+        )
+        for index, entry in enumerate(shell_entries)
+    )
+    required_shell_inventory = tuple(
+        (
+            f"internal/esso_verify/runtime_shell_assurance/{model_id}/shell_lint.json",
+            adapter_spec,
+        )
+        for model_id, _kernel_path, adapter_spec in REQUIRED_MODELS
+    )
+    _require(shell_inventory == required_shell_inventory, "required inventory mismatch: shell_lint")
+
+    verify_entries = _as_list(manifest.get("verify_shell"), ctx="verify_shell")
+    verify_inventory = tuple(
+        (
+            _as_str(_as_dict(entry, ctx=f"verify_shell[{index}]").get("report_path"), ctx="report_path"),
+            _as_str(_as_dict(entry, ctx=f"verify_shell[{index}]").get("kernel_path"), ctx="kernel_path"),
+            _as_str(_as_dict(entry, ctx=f"verify_shell[{index}]").get("adapter_spec"), ctx="adapter_spec"),
+        )
+        for index, entry in enumerate(verify_entries)
+    )
+    required_verify_inventory = tuple(
+        (
+            f"internal/esso_verify/runtime_shell_assurance/{model_id}/verify_shell.json",
+            kernel_path,
+            adapter_spec,
+        )
+        for model_id, kernel_path, adapter_spec in REQUIRED_MODELS
+    )
+    _require(verify_inventory == required_verify_inventory, "required inventory mismatch: verify_shell")
+
+    regression_tests = tuple(
+        _as_str(value, ctx=f"adapter_regression_tests[{index}]")
+        for index, value in enumerate(
+            _as_list(manifest.get("adapter_regression_tests"), ctx="adapter_regression_tests")
+        )
+    )
+    _require(
+        regression_tests == REQUIRED_REGRESSION_TESTS,
+        "required inventory mismatch: adapter_regression_tests",
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -201,6 +407,7 @@ def main(argv: list[str] | None = None) -> int:
         _require_json_int(manifest.get("manifest_version"), ctx="manifest_version") == 1,
         "unsupported runtime shell assurance manifest version",
     )
+    _check_manifest_inventory(manifest)
 
     toolchain = _as_dict(manifest.get("toolchain"), ctx="toolchain")
     esso_root = REPO_ROOT / "external" / "ESSO"
@@ -212,17 +419,20 @@ def main(argv: list[str] | None = None) -> int:
 
     expected_solvers = _as_dict(toolchain.get("solvers"), ctx="toolchain.solvers")
     for solver_name, expected_version in expected_solvers.items():
-        _require(_solver_version(str(solver_name)) == expected_version, f"solver version drift for {solver_name}")
+        solver = _as_str(solver_name, ctx="toolchain.solvers key")
+        version = _as_str(expected_version, ctx=f"toolchain.solvers.{solver}")
+        _require(_solver_version(solver) == version, f"solver version drift for {solver}")
 
-    _check_source_files(list(manifest.get("source_files") or []))
-    for entry in list(manifest.get("shell_lint") or []):
+    _check_source_files(_as_list(manifest.get("source_files"), ctx="source_files"))
+    for entry in _as_list(manifest.get("shell_lint"), ctx="shell_lint"):
         _check_shell_lint(_as_dict(entry, ctx="shell_lint entry"))
-    for entry in list(manifest.get("verify_shell") or []):
+    for entry in _as_list(manifest.get("verify_shell"), ctx="verify_shell"):
         _check_verify_shell(_as_dict(entry, ctx="verify_shell entry"))
 
-    for rel in list(manifest.get("adapter_regression_tests") or []):
-        path = REPO_ROOT / str(rel)
-        _require(path.is_file(), f"missing adapter regression test: {rel}")
+    for index, rel in enumerate(
+        _as_list(manifest.get("adapter_regression_tests"), ctx="adapter_regression_tests")
+    ):
+        _repo_file(rel, ctx=f"adapter_regression_tests[{index}]")
 
     print("ok")
     return 0

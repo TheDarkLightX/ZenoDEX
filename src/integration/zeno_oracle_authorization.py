@@ -207,7 +207,7 @@ def _is_sha256_ref(value: str) -> bool:
 
 
 def _rank_at_least(actual: Any, minimum: str) -> bool:
-    return EVIDENCE_RANK.get(str(actual), -1) >= EVIDENCE_RANK[minimum]
+    return type(actual) is str and EVIDENCE_RANK.get(actual, -1) >= EVIDENCE_RANK[minimum]
 
 
 def _expected_max_freshness_window_epochs(
@@ -229,16 +229,20 @@ def _expected_max_freshness_window_epochs(
 
 def _graph_obj_from_payload(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
     maybe_graph = payload.get("receipt_graph")
-    if isinstance(maybe_graph, Mapping):
+    if maybe_graph is None:
+        return None
+    if type(maybe_graph) is dict:
         return maybe_graph
-    return None
+    raise ValueError("receipt_graph must be an exact object")
 
 
 def _economic_envelope_obj_from_payload(payload: Mapping[str, Any]) -> Mapping[str, Any] | None:
     maybe_envelope = payload.get("economic_envelope")
-    if isinstance(maybe_envelope, Mapping):
+    if maybe_envelope is None:
+        return None
+    if type(maybe_envelope) is dict:
         return maybe_envelope
-    return None
+    raise ValueError("economic_envelope must be an exact object")
 
 
 def _non_negative_int_obj(obj: Mapping[str, Any], key: str, errors: list[str]) -> int | None:
@@ -282,13 +286,14 @@ def _receipt_required_bonds_e8(
     errors: list[str],
 ) -> tuple[int, ...]:
     report_leaf_commitments = receipt_graph.get("report_leaf_commitments")
-    if not isinstance(report_leaf_commitments, list):
+    if type(report_leaf_commitments) is not list:
         return ()
     required_bonds: list[int] = []
     for index, leaf in enumerate(report_leaf_commitments):
-        if not isinstance(leaf, Mapping):
+        if type(leaf) is not dict:
             continue
-        report_id = str(leaf.get("report_id", index))
+        report_id_obj = leaf.get("report_id")
+        report_id = report_id_obj if type(report_id_obj) is str and report_id_obj else f"index:{index}"
         required_bonds.append(
             _non_negative_leaf_int(
                 leaf,
@@ -419,7 +424,7 @@ def verify_receipt_graph_binding(
         "reporter_registry_root",
         "receipt_graph_root",
     ):
-        if not _is_sha256_ref(str(receipt_graph.get(key, ""))):
+        if not _is_sha256_ref(receipt_graph.get(key, "")):
             errors.append(f"receipt_graph {key} must be a sha256 reference")
 
     for key in (
@@ -469,44 +474,66 @@ def verify_receipt_graph_binding(
         errors.append("receipt_graph aggregate_evidence_class below O3")
 
     included_report_ids = receipt_graph.get("included_report_ids")
-    if not isinstance(included_report_ids, list) or not included_report_ids:
+    if type(included_report_ids) is not list or not included_report_ids:
         errors.append("receipt_graph included_report_ids must be a non-empty list")
         included_report_set: set[str] = set()
+    elif any(type(item) is not str or not item for item in included_report_ids):
+        errors.append("receipt_graph included_report_ids must contain non-empty strings")
+        included_report_set = set()
     else:
-        included_report_set = {str(item) for item in included_report_ids}
+        included_report_set = set(included_report_ids)
         if len(included_report_set) != len(included_report_ids):
             errors.append("receipt_graph included_report_ids must be distinct")
     included_source_ids = receipt_graph.get("included_source_ids")
-    if not isinstance(included_source_ids, list) or not included_source_ids:
+    if type(included_source_ids) is not list or not included_source_ids:
         errors.append("receipt_graph included_source_ids must be a non-empty list")
-    elif len({str(item) for item in included_source_ids}) != len(included_source_ids):
+    elif any(type(item) is not str or not item for item in included_source_ids):
+        errors.append("receipt_graph included_source_ids must contain non-empty strings")
+    elif len(set(included_source_ids)) != len(included_source_ids):
         errors.append("receipt_graph included_source_ids must be distinct")
 
     disputed_report_ids = receipt_graph.get("disputed_report_ids")
-    if not isinstance(disputed_report_ids, list):
+    if type(disputed_report_ids) is not list:
         errors.append("receipt_graph disputed_report_ids must be a list")
+    elif any(type(item) is not str or not item for item in disputed_report_ids):
+        errors.append("receipt_graph disputed_report_ids must contain non-empty strings")
     elif disputed_report_ids:
         errors.append("receipt_graph must not include disputed reports")
 
     report_leaf_commitments = receipt_graph.get("report_leaf_commitments")
-    if not isinstance(report_leaf_commitments, list) or not report_leaf_commitments:
+    if type(report_leaf_commitments) is not list or not report_leaf_commitments:
         errors.append("receipt_graph report_leaf_commitments must be a non-empty list")
     else:
         leaf_report_ids: list[str] = []
         leaf_source_ids: list[str] = []
         leaf_control_group_ids: list[str] = []
         for index, leaf in enumerate(report_leaf_commitments):
-            if not isinstance(leaf, Mapping):
-                errors.append(f"receipt_graph report_leaf_commitments[{index}] must be an object")
+            if type(leaf) is not dict:
+                errors.append(f"receipt_graph report_leaf_commitments[{index}] must be an exact object")
                 continue
-            report_id = str(leaf.get("report_id", ""))
-            source_id = str(leaf.get("source_id", ""))
-            control_group_id = str(leaf.get("control_group_id", leaf.get("reporter_id", "")))
+            report_id_obj = leaf.get("report_id")
+            source_id_obj = leaf.get("source_id")
+            control_group_id_obj = leaf.get("control_group_id", leaf.get("reporter_id"))
+            report_id = report_id_obj if type(report_id_obj) is str else ""
+            source_id = source_id_obj if type(source_id_obj) is str else ""
+            control_group_id = control_group_id_obj if type(control_group_id_obj) is str else ""
+            if not report_id:
+                errors.append(
+                    f"receipt_graph report_leaf_commitments[{index}] report_id must be a non-empty string"
+                )
+            if not source_id:
+                errors.append(
+                    f"receipt_graph report leaf {report_id or index} source_id must be a non-empty string"
+                )
+            if not control_group_id:
+                errors.append(
+                    f"receipt_graph report leaf {report_id or index} control_group_id must be a non-empty string"
+                )
             leaf_report_ids.append(report_id)
             leaf_source_ids.append(source_id)
             leaf_control_group_ids.append(control_group_id)
             _require_active_leaf_bool(leaf, errors, report_id=report_id)
-            if str(leaf.get("slash_state", "")) != "clear":
+            if type(leaf.get("slash_state")) is not str or leaf.get("slash_state") != "clear":
                 errors.append(f"receipt_graph report leaf {report_id} slash_state not clear")
             bond_key = "bond_e8" if "bond_e8" in leaf else "bond_amount_e8"
             bond_e8 = _non_negative_leaf_int(leaf, bond_key, errors, report_id=report_id)
@@ -517,7 +544,7 @@ def verify_receipt_graph_binding(
             errors.append("receipt_graph report_leaf_commitments must be sorted by report_id")
         if included_report_set and set(leaf_report_ids) != included_report_set:
             errors.append("receipt_graph report_leaf_commitments must match included_report_ids")
-        if isinstance(included_source_ids, list) and {str(item) for item in included_source_ids} != set(leaf_source_ids):
+        if type(included_source_ids) is list and set(included_source_ids) != set(leaf_source_ids):
             errors.append("receipt_graph report_leaf_commitments must match included_source_ids")
         if len(leaf_report_ids) != reporter_count:
             errors.append("receipt_graph reporter_count does not match report_leaf_commitments")
@@ -685,6 +712,8 @@ def _require_int(obj: Mapping[str, Any], key: str) -> int:
 
 
 def authorization_from_obj(obj: Mapping[str, Any]) -> OracleAuthorization:
+    if type(obj) is not dict:
+        raise ValueError("authorization must be an exact object")
     return OracleAuthorization(
         consumer_module=_require_str(obj, "consumer_module"),
         action_kind=_require_str(obj, "action_kind"),
@@ -711,6 +740,8 @@ def authorization_from_obj(obj: Mapping[str, Any]) -> OracleAuthorization:
 
 
 def runtime_from_obj(obj: Mapping[str, Any]) -> RuntimeActionFacts:
+    if type(obj) is not dict:
+        raise ValueError("runtime_action must be an exact object")
     runtime_notional_value = obj.get("runtime_notional_value_e8")
     if runtime_notional_value is not None:
         if isinstance(runtime_notional_value, bool) or not isinstance(runtime_notional_value, int):
@@ -747,9 +778,11 @@ def runtime_from_obj(obj: Mapping[str, Any]) -> RuntimeActionFacts:
 
 def _authorization_obj_from_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:
     maybe_nested = payload.get("authorization")
-    if isinstance(maybe_nested, Mapping):
+    if maybe_nested is None:
+        return payload
+    if type(maybe_nested) is dict:
         return maybe_nested
-    return payload
+    raise ValueError("authorization must be an exact object")
 
 
 def check_authorization_for_runtime(
@@ -766,6 +799,8 @@ def check_authorization_for_runtime(
     action facts it is actually about to execute.
     """
 
+    if type(authorization_payload) is not dict:
+        raise ValueError("authorization payload must be an exact object")
     authorization = authorization_from_obj(_authorization_obj_from_payload(authorization_payload))
     opaque_ok, opaque_errors = verify_opaque_authorization(authorization, runtime)
     typed_ok, typed_errors = verify_typed_authorization(authorization, runtime)

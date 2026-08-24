@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from src.core import perp_liquidation_tau_source_binding as tau_source_binding
 from src.core.dex import DexState
 from src.core.perp_epoch import PerpStepResult
@@ -419,6 +421,8 @@ def test_apply_perp_ops_partial_liquidate_accepts_matching_oracle_adapter(monkey
             "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
             "profile_id": _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
             "action_id": expected_action_id,
+            "value_e8": int(market.global_state["index_price_e8"]),
+            "action_epoch": int(market.global_state["now_epoch"]),
             "errors": [],
         }
 
@@ -464,6 +468,96 @@ def test_apply_perp_ops_partial_liquidate_accepts_matching_oracle_adapter(monkey
 
     assert res.ok is True, res.error
     assert res.state is not None
+
+
+@pytest.mark.parametrize(
+    "value_delta,epoch_delta,expected_error",
+    [
+        (1, 0, "oracle_adapter_bridge value_e8 mismatch"),
+        (0, 1, "oracle_adapter_bridge action_epoch mismatch"),
+    ],
+)
+def test_apply_perp_ops_partial_liquidate_rejects_oracle_bridge_semantic_drift(
+    monkeypatch,
+    value_delta: int,
+    epoch_delta: int,
+    expected_error: str,
+) -> None:
+    from src.integration import perp_engine as module
+
+    # Arrange: the adapter accepts the exact liquidation action identity while
+    # reporting a neighboring Oracle price or epoch.
+    account_pubkey = "11" * 48
+    market_id = "perp:partial-liq-oracle-semantic-drift"
+    market = _market_with_open_account(account_pubkey)
+    state = DexState(
+        balances=BalanceTable(),
+        pools={},
+        lp_balances=LPTable(),
+        perps=PerpsState(version=PERPS_STATE_VERSION, markets={market_id: market}),
+    )
+    base_config = PerpEngineConfig(
+        operator_pubkey="aa" * 48,
+        allow_isolated_markets=True,
+    )
+    expected_action_id = _perps_liquidate_account_runtime_oracle_action_id(
+        _LiquidateAccountOracleRuntimeRequest(
+            config=base_config,
+            market_id=market_id,
+            market=market,
+            account_pubkey=account_pubkey,
+            fraction_bps=2_500,
+        )
+    )
+
+    def accepted_neighboring_bridge(_bridge: object) -> dict[str, object]:
+        return {
+            "status": "accepted",
+            "consumer_module": "zenodex.perps",
+            "action_kind": "liquidate_account",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
+            "action_id": expected_action_id,
+            "value_e8": int(market.global_state["index_price_e8"]) + value_delta,
+            "action_epoch": int(market.global_state["now_epoch"]) + epoch_delta,
+        }
+
+    def unexpected_transition(*, state, action, params):
+        raise AssertionError("partial liquidation transition ran after Oracle drift")
+
+    monkeypatch.setattr(module, "perp_epoch_isolated_default_apply", unexpected_transition)
+
+    # Act.
+    result = apply_perp_ops(
+        config=PerpEngineConfig(
+            operator_pubkey="aa" * 48,
+            allow_isolated_markets=True,
+            require_oracle_adapter_for_isolated_partial_liquidate=True,
+            oracle_adapter_bridge_verifier=accepted_neighboring_bridge,
+        ),
+        state=state,
+        operations={
+            "5": [
+                {
+                    "module": "TauPerp",
+                    "version": "0.1",
+                    "market_id": market_id,
+                    "action": "partial_liquidate",
+                    "account_pubkey": account_pubkey,
+                    "fraction_bps": 2_500,
+                    "oracle_adapter_bridge": {"schema": "test.bridge"},
+                }
+            ]
+        },
+        tx_sender_pubkey=account_pubkey,
+        block_timestamp=0,
+    )
+
+    # Assert.
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error == expected_error
 
 
 def test_apply_perp_ops_partial_liquidate_rejects_wrong_oracle_adapter_action_id() -> None:

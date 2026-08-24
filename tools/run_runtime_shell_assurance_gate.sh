@@ -106,7 +106,13 @@ echo "== runtime-shell: adapter regression net =="
   tests/kernels/test_perp_epoch_isolated_v3_generated_ref_sync.py \
   tests/kernels/test_python_adapter_wrappers.py \
   tests/kernels/test_proof_mining_manager_v1_adapter.py \
-  tests/kernels/test_runtime_shell_adapters.py
+  tests/kernels/test_runtime_shell_adapters.py \
+  tests/integration/test_oracle_authorization_semantic_binding.py \
+  tests/integration/test_perp_engine.py \
+  tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py \
+  tests/integration/test_perp_engine_oracle_authorization.py \
+  tests/integration/test_perp_engine_partial_liquidate.py \
+  tests/test_zenodex_oracle_aggregate_adapter.py
 
 echo "== runtime-shell: manifest check =="
 "$PY" "$ROOT_DIR/tools/check_runtime_shell_assurance_manifest.py"

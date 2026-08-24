@@ -4,6 +4,7 @@ import hashlib
 import json
 import subprocess
 import sys
+from collections.abc import Iterator, Mapping
 from dataclasses import asdict, replace
 from pathlib import Path
 
@@ -592,6 +593,90 @@ def test_critical_consumer_rejects_hostile_string_subclass_at_decode_boundary() 
             runtime_value_e8=runtime.runtime_value_e8,
             now_epoch=runtime.now_epoch,
         )
+
+
+def test_critical_consumer_rejects_split_view_receipt_graph_mapping() -> None:
+    # Arrange: get() exposes a valid graph while iteration exposes a different
+    # graph whose root is bound into the authorization.
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    valid_graph = bundle["receipt_graph"]
+    iterated_graph = dict(valid_graph)
+    iterated_graph["reporter_count"] = 0
+    iterated_graph["report_leaf_commitments"] = []
+    iterated_graph["included_report_ids"] = []
+    iterated_body = {
+        key: value
+        for key, value in iterated_graph.items()
+        if key != "receipt_graph_root"
+    }
+    bound_root = semantic_hash("zeno_oracle.receipt_graph.v1", iterated_body)
+    iterated_graph["receipt_graph_root"] = bound_root
+    valid_graph["receipt_graph_root"] = bound_root
+    bundle["authorization"]["receipt_graph_root"] = bound_root
+
+    class SplitViewReceiptGraph(Mapping[str, object]):
+        def __getitem__(self, key: str) -> object:
+            return iterated_graph[key]
+
+        def __iter__(self) -> Iterator[str]:
+            return iter(iterated_graph)
+
+        def __len__(self) -> int:
+            return len(iterated_graph)
+
+        def get(self, key: str, default: object = None) -> object:
+            return valid_graph.get(key, default)
+
+    bundle["receipt_graph"] = SplitViewReceiptGraph()
+
+    # Act / Assert: reject before hashing or semantic validation can observe
+    # two different graph views.
+    with pytest.raises(ValueError, match="receipt_graph must be an exact object"):
+        check_critical_consumer_authorization(
+            bundle,
+            consumer_module="zenodex.zusd",
+            action_kind="mint",
+            action_id=runtime.action_id,
+            action_facts_hash=runtime.action_facts_hash,
+            pre_state_hash=runtime.pre_state_hash,
+            query_id=runtime.query_id,
+            runtime_value_e8=runtime.runtime_value_e8,
+            now_epoch=runtime.now_epoch,
+        )
+
+
+def test_critical_consumer_rejects_non_string_report_identifiers() -> None:
+    # Arrange: integer identifiers previously compared equal after str()
+    # coercion and could be committed into a different graph encoding.
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    graph = bundle["receipt_graph"]
+    integer_ids = list(range(len(graph["report_leaf_commitments"])))
+    graph["included_report_ids"] = integer_ids
+    for report_id, leaf in zip(integer_ids, graph["report_leaf_commitments"], strict=True):
+        leaf["report_id"] = report_id
+    _refresh_terminal_graph_roots(bundle)
+
+    # Act.
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+    )
+
+    # Assert.
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert "receipt_graph included_report_ids must contain non-empty strings" in result[
+        "receipt_graph_errors"
+    ]
 
 
 def test_critical_consumer_rejects_receipt_outside_profile_freshness_window() -> None:

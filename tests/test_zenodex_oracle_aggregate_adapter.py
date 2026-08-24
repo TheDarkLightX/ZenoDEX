@@ -46,6 +46,20 @@ def _run_verify(tmp_path: Path, obj: dict) -> tuple[int, dict]:
     return proc.returncode, json.loads(proc.stdout)
 
 
+def _run_verify_text(tmp_path: Path, text: str) -> tuple[int, dict]:
+    path = tmp_path / "aggregate-adapter.json"
+    path.write_text(text, encoding="utf-8")
+    proc = subprocess.run(
+        [sys.executable, "tools/zenodex_oracle_aggregate_adapter.py", "verify", str(path)],
+        cwd=REPO,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert proc.stderr == ""
+    return proc.returncode, json.loads(proc.stdout)
+
+
 def test_aggregate_adapter_accepts_sample(tmp_path: Path) -> None:
     bridge = sample_aggregate_adapter_bridge()
 
@@ -59,6 +73,21 @@ def test_aggregate_adapter_accepts_sample(tmp_path: Path) -> None:
     assert result["value_e8"] == bridge["aggregate_read"]["aggregate"]["aggregate"]["value_e8"]
     assert result["action_epoch"] == bridge["action"]["action_epoch"]
     assert result["errors"] == []
+
+
+def test_aggregate_adapter_rejects_duplicate_json_keys(tmp_path: Path) -> None:
+    # Arrange: the final schema value is valid under last-key-wins parsers.
+    bridge = sample_aggregate_adapter_bridge()
+    canonical = json.dumps(bridge, sort_keys=True)
+    duplicate_schema = '{"schema":"attacker-selected",' + canonical[1:]
+
+    # Act.
+    code, result = _run_verify_text(tmp_path, duplicate_schema)
+
+    # Assert.
+    assert code == 3
+    assert result["status"] == "inconclusive"
+    assert "aggregate_adapter_load_failed:duplicate JSON key: schema" in result["errors"]
 
 
 def test_aggregate_adapter_rejects_bridge_hash_forgery(tmp_path: Path) -> None:

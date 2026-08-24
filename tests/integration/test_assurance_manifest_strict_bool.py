@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -77,6 +79,91 @@ def test_runtime_shell_manifest_rejects_string_determinism_ok(
                 "adapter_spec": "adapter",
                 "kernel_path": "kernel.yaml",
                 "fingerprint": "fp",
+            }
+        )
+
+
+def test_runtime_shell_manifest_rejects_empty_required_inventory() -> None:
+    # Arrange.
+    manifest = copy.deepcopy(runtime_shell_manifest._load_json(runtime_shell_manifest.DEFAULT_MANIFEST))
+    manifest["toolchain"]["solvers"] = {}
+    manifest["source_files"] = []
+    manifest["shell_lint"] = []
+    manifest["verify_shell"] = []
+    manifest["adapter_regression_tests"] = []
+
+    # Act / Assert.
+    with pytest.raises(runtime_shell_manifest.ManifestError, match="required inventory"):
+        runtime_shell_manifest._check_manifest_inventory(manifest)
+
+
+def test_runtime_shell_manifest_rejects_duplicate_json_keys(tmp_path: Path) -> None:
+    # Arrange.
+    path = tmp_path / "duplicate.json"
+    path.write_text('{"manifest_version":0,"manifest_version":1}', encoding="utf-8")
+
+    # Act / Assert.
+    with pytest.raises(runtime_shell_manifest.ManifestError, match="duplicate JSON key: manifest_version"):
+        runtime_shell_manifest._load_json(path)
+
+
+def test_runtime_shell_manifest_rejects_source_path_outside_repository(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange.
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    outside = tmp_path / "outside.py"
+    outside.write_text("outside\n", encoding="utf-8")
+    digest = hashlib.sha256(outside.read_bytes()).hexdigest()
+    monkeypatch.setattr(runtime_shell_manifest, "REPO_ROOT", repo)
+
+    # Act / Assert.
+    with pytest.raises(runtime_shell_manifest.ManifestError, match="path must be repository-relative"):
+        runtime_shell_manifest._check_source_files(
+            [{"path": str(outside), "sha256": digest}],
+        )
+
+
+def test_runtime_shell_manifest_rejects_string_fingerprint_collection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange.
+    monkeypatch.setattr(runtime_shell_manifest, "REPO_ROOT", tmp_path)
+    _write_json(
+        tmp_path / "verify.json",
+        {
+            "ok": True,
+            "command": "verify-shell",
+            "ir_hash": "abc",
+            "mode": "bounded",
+            "seed": 7,
+            "traces": 2,
+            "max_steps": 3,
+            "determinism_trials": 2,
+            "failure": None,
+            "adapter": {"spec": "adapter"},
+            "model": "kernel.yaml",
+            "determinism": {"ok": True, "fingerprints": "aa"},
+        },
+    )
+
+    # Act / Assert.
+    with pytest.raises(runtime_shell_manifest.ManifestError, match="fingerprints: expected array"):
+        runtime_shell_manifest._check_verify_shell(
+            {
+                "report_path": "verify.json",
+                "ir_hash": "abc",
+                "mode": "bounded",
+                "seed": 7,
+                "traces": 2,
+                "max_steps": 3,
+                "determinism_trials": 2,
+                "adapter_spec": "adapter",
+                "kernel_path": "kernel.yaml",
+                "fingerprint": "a",
             }
         )
 

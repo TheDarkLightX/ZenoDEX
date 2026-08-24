@@ -1492,8 +1492,13 @@ def _check_isolated_settle_oracle_authorization(
         if ctx.config.require_oracle_authorization_for_isolated_settle:
             return "oracle_authorization_required"
         return None
-    if not isinstance(authorization, Mapping):
-        return "oracle_authorization must be an object"
+    if (
+        ctx.config.require_oracle_authorization_for_isolated_settle
+        and ctx.config.oracle_authorization_receipt_graph_root is None
+    ):
+        return "oracle_authorization_root_authority_required"
+    if type(authorization) is not dict:
+        return "oracle_authorization must be an exact object"
     if not bool(market.global_state.get("oracle_seen", False)):
         return "oracle_authorization_rejected: oracle snapshot not seen"
     if int(market.global_state.get("index_price_e8", 0)) <= 0:
@@ -2089,8 +2094,10 @@ def _check_clearinghouse_settle_oracle_authorization(
         if authorization_required:
             return "clearinghouse_settle_oracle_authorization_required"
         return None
-    if not isinstance(authorization, Mapping):
-        return "clearinghouse settle oracle_authorization must be an object"
+    if authorization_required and request.config.oracle_authorization_receipt_graph_root is None:
+        return "clearinghouse_settle_oracle_authorization_root_authority_required"
+    if type(authorization) is not dict:
+        return "clearinghouse settle oracle_authorization must be an exact object"
     if authorization_required and "oracle_adapter_bridge" not in request.data:
         return "settle_epoch requires oracle_adapter_bridge"
     if int(request.state.get("clearing_price_e8", 0)) <= 0:
@@ -2116,6 +2123,59 @@ def _check_clearinghouse_settle_oracle_authorization(
         runtime=runtime,
         runtime_value_e8=runtime_value_e8,
         now_epoch=now_epoch,
+    )
+
+
+def _check_clearinghouse_settle_oracle_admission(
+    request: _ClearinghouseSettleOracleAuthorizationRequest,
+) -> Optional[str]:
+    """Check the complete fixed/NP clearinghouse Oracle admission contract.
+
+    Settlement may consume a price only after the typed terminal receipt graph
+    and the adapter bridge agree with the exact locally derived action, price,
+    and epoch. Every clearinghouse shape uses this same admission function so a
+    new market shape cannot silently omit one half of the contract.
+    """
+
+    if type(request.state) is not dict:
+        return "clearinghouse_settle_oracle_authorization_rejected: state must be an exact object"
+    snapshot_request = replace(request, state=dict(request.state))
+
+    authorization_error = _check_clearinghouse_settle_oracle_authorization(
+        snapshot_request
+    )
+    if authorization_error is not None:
+        return authorization_error
+
+    runtime = _perps_clearinghouse_settle_oracle_runtime_facts(
+        snapshot_request.config,
+        market_id=snapshot_request.market_id,
+        market_kind=snapshot_request.market_kind,
+        quote_asset=snapshot_request.quote_asset,
+        state=snapshot_request.state,
+        participant_pubkeys=snapshot_request.participant_pubkeys,
+    )
+    numbers_error, runtime_value_e8, now_epoch = _clearinghouse_settle_runtime_numbers(
+        runtime
+    )
+    if numbers_error is not None:
+        return numbers_error
+    if runtime_value_e8 is None or now_epoch is None:
+        return "clearinghouse_settle_oracle_authorization_rejected: malformed runtime facts"
+
+    return _require_oracle_adapter_bridge(
+        _OracleAdapterBridgeRequirement(
+            config=snapshot_request.config,
+            data=snapshot_request.data,
+            consumer_module="zenodex.perps",
+            action_kind="settle_epoch",
+            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
+            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            expected_action_id=str(runtime["action_id"]),
+            expected_runtime_value_e8=runtime_value_e8,
+            expected_runtime_epoch=now_epoch,
+            required=snapshot_request.config.require_oracle_adapter_for_clearinghouse_settle_epoch,
+        )
     )
 
 
@@ -2851,36 +2911,30 @@ def _apply_ch2p_settle_epoch(
     data = op.data
     unknown = _reject_unknown_fields(
         data,
-        {"module", "version", "market_id", "action", "oracle_adapter_bridge"},
+        {
+            "module",
+            "version",
+            "market_id",
+            "action",
+            "oracle_adapter_bridge",
+            "oracle_authorization",
+        },
         error="settle_epoch has unknown fields",
     )
     if unknown is not None:
         return unknown
-    err = _require_oracle_adapter_bridge(
-        _OracleAdapterBridgeRequirement(
+    err = _check_clearinghouse_settle_oracle_admission(
+        _ClearinghouseSettleOracleAuthorizationRequest(
             config=ctx.config,
             data=data,
-            consumer_module="zenodex.perps",
-            action_kind="settle_epoch",
-            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
-            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
-                _ClearinghouseOracleRuntimeRequest(
-                    config=ctx.config,
-                    market_id=op.market_id,
-                    action_kind="settle_epoch",
-                    market_kind="clearinghouse_2p_v1",
-                    quote_asset=ch2p_market.quote_asset,
-                    state=ch2p_market.state,
-                    participant_pubkeys=(
-                        ch2p_market.account_a_pubkey,
-                        ch2p_market.account_b_pubkey,
-                    ),
-                )
+            market_id=op.market_id,
+            market_kind="clearinghouse_2p_v1",
+            quote_asset=ch2p_market.quote_asset,
+            state=ch2p_market.state,
+            participant_pubkeys=(
+                ch2p_market.account_a_pubkey,
+                ch2p_market.account_b_pubkey,
             ),
-            expected_runtime_value_e8=ch2p_market.state.get("clearing_price_e8"),
-            expected_runtime_epoch=ch2p_market.state.get("now_epoch"),
-            required=ctx.config.require_oracle_adapter_for_clearinghouse_settle_epoch,
         )
     )
     if err is not None:
@@ -2930,37 +2984,31 @@ def _apply_ch3p_settle_epoch(
     data = op.data
     unknown = _reject_unknown_fields(
         data,
-        {"module", "version", "market_id", "action", "oracle_adapter_bridge"},
+        {
+            "module",
+            "version",
+            "market_id",
+            "action",
+            "oracle_adapter_bridge",
+            "oracle_authorization",
+        },
         error="settle_epoch has unknown fields",
     )
     if unknown is not None:
         return unknown
-    err = _require_oracle_adapter_bridge(
-        _OracleAdapterBridgeRequirement(
+    err = _check_clearinghouse_settle_oracle_admission(
+        _ClearinghouseSettleOracleAuthorizationRequest(
             config=ctx.config,
             data=data,
-            consumer_module="zenodex.perps",
-            action_kind="settle_epoch",
-            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
-            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            expected_action_id=_perps_clearinghouse_runtime_oracle_action_id(
-                _ClearinghouseOracleRuntimeRequest(
-                    config=ctx.config,
-                    market_id=op.market_id,
-                    action_kind="settle_epoch",
-                    market_kind="clearinghouse_3p_transfer_v1",
-                    quote_asset=ch3p_market.quote_asset,
-                    state=ch3p_market.state,
-                    participant_pubkeys=(
-                        ch3p_market.account_a_pubkey,
-                        ch3p_market.account_b_pubkey,
-                        ch3p_market.account_c_pubkey,
-                    ),
-                )
+            market_id=op.market_id,
+            market_kind="clearinghouse_3p_transfer_v1",
+            quote_asset=ch3p_market.quote_asset,
+            state=ch3p_market.state,
+            participant_pubkeys=(
+                ch3p_market.account_a_pubkey,
+                ch3p_market.account_b_pubkey,
+                ch3p_market.account_c_pubkey,
             ),
-            expected_runtime_value_e8=ch3p_market.state.get("clearing_price_e8"),
-            expected_runtime_epoch=ch3p_market.state.get("now_epoch"),
-            required=ctx.config.require_oracle_adapter_for_clearinghouse_settle_epoch,
         )
     )
     if err is not None:
@@ -5237,6 +5285,13 @@ def _isolated_settle_authorization_error(
     if gate_error is not None:
         return gate_error
 
+    index_price_e8 = market.global_state.get("index_price_e8")
+    now_epoch = market.global_state.get("now_epoch")
+    if type(index_price_e8) is not int:
+        return "oracle_adapter_bridge runtime value_e8 must be a non-bool int"
+    if type(now_epoch) is not int:
+        return "oracle_adapter_bridge runtime epoch must be a non-bool int"
+
     err = _require_oracle_adapter_bridge(
         _OracleAdapterBridgeRequirement(
             config=ctx.config,
@@ -5251,6 +5306,8 @@ def _isolated_settle_authorization_error(
                 action_kind="settle_epoch",
                 market=market,
             ),
+            expected_runtime_value_e8=index_price_e8,
+            expected_runtime_epoch=now_epoch,
             required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch,
         )
     )
@@ -5933,6 +5990,12 @@ def _partial_liquidate_oracle_bridge_result(
     account_pubkey: str,
     fraction_bps: int,
 ) -> tuple[Optional[str], Any | None]:
+    index_price_e8 = market.global_state.get("index_price_e8")
+    now_epoch = market.global_state.get("now_epoch")
+    if type(index_price_e8) is not int:
+        return "oracle_adapter_bridge runtime value_e8 must be a non-bool int", None
+    if type(now_epoch) is not int:
+        return "oracle_adapter_bridge runtime epoch must be a non-bool int", None
     return _check_oracle_adapter_bridge(
         _OracleAdapterBridgeRequirement(
             config=ctx.config,
@@ -5950,6 +6013,8 @@ def _partial_liquidate_oracle_bridge_result(
                     fraction_bps=fraction_bps,
                 )
             ),
+            expected_runtime_value_e8=index_price_e8,
+            expected_runtime_epoch=now_epoch,
             required=ctx.config.require_oracle_adapter_for_isolated_partial_liquidate,
         )
     )
@@ -6535,32 +6600,7 @@ def _chnp_settle_oracle_bridge_error(
     state_for_oracle: Mapping[str, Any],
 ) -> str | None:
     participant_pubkeys = _chnp_participant_pubkeys(market)
-    expected_action_id = _perps_clearinghouse_runtime_oracle_action_id(
-        _ClearinghouseOracleRuntimeRequest(
-            config=config,
-            market_id=market_id,
-            action_kind="settle_epoch",
-            market_kind=PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
-            quote_asset=market.quote_asset,
-            state=state_for_oracle,
-            participant_pubkeys=participant_pubkeys,
-        )
-    )
-    err = _require_oracle_adapter_bridge(
-        _OracleAdapterBridgeRequirement(
-            config=config,
-            data=data,
-            consumer_module="zenodex.perps",
-            action_kind="settle_epoch",
-            expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID,
-            expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-            expected_action_id=expected_action_id,
-            required=config.require_oracle_adapter_for_clearinghouse_settle_epoch,
-        )
-    )
-    if err is not None:
-        return err
-    return _check_clearinghouse_settle_oracle_authorization(
+    return _check_clearinghouse_settle_oracle_admission(
         _ClearinghouseSettleOracleAuthorizationRequest(
             config=config,
             data=data,

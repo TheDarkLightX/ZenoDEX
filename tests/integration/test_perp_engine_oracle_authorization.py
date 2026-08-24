@@ -1,6 +1,17 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
+import pytest
+
 from src.core.dex import DexState
+from src.core.perps import (
+    PERPS_STATE_VERSION,
+    PerpClearinghouse2pMarketState,
+    PerpClearinghouse3pTransferMarketState,
+    PerpsState,
+)
+from src.integration import perp_engine
 from src.integration.perp_engine import (
     PerpEngineConfig,
     _isolated_settle_oracle_runtime_facts,
@@ -10,6 +21,10 @@ from src.integration.zeno_oracle_authorization import oracle_value_hash, semanti
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
 from tests.integration.oracle_authorization_test_helpers import authorization_bundle
+
+_FixedClearinghouseMarket = (
+    PerpClearinghouse2pMarketState | PerpClearinghouse3pTransferMarketState
+)
 
 
 def _op(market_id: str, action: str, **kwargs: object) -> dict[str, object]:
@@ -104,6 +119,7 @@ def _authorization_for(
     value_e8: int | None = None,
     evidence_class: str = "O3",
     expires_at_epoch: int | None = None,
+    profile_id: str = "critical-perps-v1",
 ) -> dict[str, object]:
     value = int(runtime["runtime_value_e8"] if value_e8 is None else value_e8)
     query_id = str(runtime["query_id"])
@@ -113,7 +129,7 @@ def _authorization_for(
         "action_id": str(runtime["action_id"]),
         "action_facts_hash": str(runtime["action_facts_hash"]),
         "pre_state_hash": str(runtime["pre_state_hash"]),
-        "profile_id": "critical-perps-v1",
+        "profile_id": profile_id,
         "query_id": query_id,
         "value_e8": value,
         "value_hash": oracle_value_hash(query_id=query_id, value_e8=value, observed_epoch=observed_epoch),
@@ -133,6 +149,328 @@ def _authorization_for(
     return authorization_bundle(auth)
 
 
+def _ready_fixed_clearinghouse_market(
+    market_kind: str,
+) -> tuple[DexState, _FixedClearinghouseMarket, str, tuple[str, ...]]:
+    quote_asset = "0x" + "88" * 32
+    alice = "11" * 48
+    bob = "22" * 48
+    carol = "33" * 48
+    if market_kind == "clearinghouse_2p_v1":
+        market_id = "perp:ch2p:typed-oracle-admission"
+        state = perp_engine._ch2p_init_state_dict()
+        state, _ = perp_engine._ch2p_step(state, tag="advance_epoch", args={"delta": 1})
+        state, _ = perp_engine._ch2p_step(
+            state,
+            tag="publish_clearing_price",
+            args={"price_e8": 100_000_000},
+        )
+        participants = (alice, bob)
+        market: _FixedClearinghouseMarket = PerpClearinghouse2pMarketState(
+            quote_asset=quote_asset,
+            account_a_pubkey=alice,
+            account_b_pubkey=bob,
+            state=state,
+        )
+    elif market_kind == "clearinghouse_3p_transfer_v1":
+        market_id = "perp:ch3p:typed-oracle-admission"
+        state = perp_engine._ch3p_init_state_dict()
+        state, _ = perp_engine._ch3p_step(state, tag="advance_epoch", args={"delta": 1})
+        state, _ = perp_engine._ch3p_step(
+            state,
+            tag="publish_clearing_price",
+            args={"price_e8": 100_000_000},
+        )
+        participants = (alice, bob, carol)
+        market = PerpClearinghouse3pTransferMarketState(
+            quote_asset=quote_asset,
+            account_a_pubkey=alice,
+            account_b_pubkey=bob,
+            account_c_pubkey=carol,
+            state=state,
+        )
+    else:  # pragma: no cover - helper is called only by the closed parameter set.
+        raise AssertionError(f"unsupported fixed clearinghouse kind: {market_kind}")
+
+    return (
+        DexState(
+            balances=BalanceTable(),
+            pools={},
+            lp_balances=LPTable(),
+            perps=PerpsState(version=PERPS_STATE_VERSION, markets={market_id: market}),
+        ),
+        market,
+        market_id,
+        participants,
+    )
+
+
+def _accepted_clearinghouse_bridge(
+    *,
+    runtime: dict[str, object],
+    value_e8: int | None = None,
+    action_epoch: int | None = None,
+) -> Callable[[object], dict[str, object]]:
+    def verify(_bridge: object) -> dict[str, object]:
+        return {
+            "status": "accepted",
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": runtime["query_id"],
+            "profile_id": perp_engine._ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            "action_id": runtime["action_id"],
+            "value_e8": runtime["runtime_value_e8"] if value_e8 is None else value_e8,
+            "action_epoch": runtime["now_epoch"] if action_epoch is None else action_epoch,
+        }
+
+    return verify
+
+
+@pytest.mark.parametrize(
+    "market_kind,version",
+    [
+        ("clearinghouse_2p_v1", "1.0"),
+        ("clearinghouse_3p_transfer_v1", "1.1"),
+    ],
+)
+def test_fixed_clearinghouse_settle_requires_typed_oracle_authorization(
+    market_kind: str,
+    version: str,
+) -> None:
+    # Arrange: each fixed clearinghouse has a valid, unsettled price, while the
+    # release policy requires independent typed Oracle authorization.
+    state, _market, market_id, _participants = _ready_fixed_clearinghouse_market(
+        market_kind
+    )
+    config = PerpEngineConfig(
+        operator_pubkey="00" * 48,
+        require_oracle_authorization_for_clearinghouse_settle_epoch=True,
+    )
+
+    # Act.
+    result = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={"5": [_op(market_id, "settle_epoch", version=version)]},
+        tx_sender_pubkey="00" * 48,
+        block_timestamp=0,
+    )
+
+    # Assert: rejection occurs before any settlement state or effects publish.
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error == "clearinghouse_settle_oracle_authorization_required"
+
+
+@pytest.mark.parametrize(
+    "market_kind,version",
+    [
+        ("clearinghouse_2p_v1", "1.0"),
+        ("clearinghouse_3p_transfer_v1", "1.1"),
+    ],
+)
+def test_fixed_clearinghouse_settle_accepts_exact_typed_oracle_admission(
+    market_kind: str,
+    version: str,
+) -> None:
+    # Arrange: derive the authorization and bridge from the exact mounted
+    # market state, price, epoch, participants, and action identity.
+    state, market, market_id, participants = _ready_fixed_clearinghouse_market(
+        market_kind
+    )
+    base_config = PerpEngineConfig(operator_pubkey="00" * 48)
+    runtime = perp_engine._perps_clearinghouse_settle_oracle_runtime_facts(
+        base_config,
+        market_id=market_id,
+        market_kind=market_kind,
+        quote_asset=market.quote_asset,
+        state=market.state,
+        participant_pubkeys=participants,
+    )
+    authorization = _authorization_for(
+        runtime,
+        observed_epoch=int(runtime["now_epoch"]),
+        profile_id=perp_engine._ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+    )
+    config = PerpEngineConfig(
+        operator_pubkey="00" * 48,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+        require_oracle_authorization_for_clearinghouse_settle_epoch=True,
+        oracle_adapter_bridge_verifier=_accepted_clearinghouse_bridge(runtime=runtime),
+        oracle_authorization_receipt_graph_root=str(
+            authorization["authorization"]["receipt_graph_root"]
+        ),
+    )
+
+    # Act.
+    result = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    version=version,
+                    oracle_adapter_bridge={},
+                    oracle_authorization=authorization,
+                )
+            ]
+        },
+        tx_sender_pubkey="00" * 48,
+        block_timestamp=0,
+    )
+
+    # Assert.
+    assert result.ok is True, result.error
+    assert result.state is not None
+    assert result.effects is not None
+
+
+@pytest.mark.parametrize(
+    "market_kind,version",
+    [
+        ("clearinghouse_2p_v1", "1.0"),
+        ("clearinghouse_3p_transfer_v1", "1.1"),
+    ],
+)
+def test_fixed_clearinghouse_settle_rejects_caller_selected_receipt_root(
+    market_kind: str,
+    version: str,
+) -> None:
+    # Arrange: the caller supplies a self-consistent authorization bundle, but
+    # the runtime policy has not selected its terminal receipt-graph root.
+    state, market, market_id, participants = _ready_fixed_clearinghouse_market(
+        market_kind
+    )
+    base_config = PerpEngineConfig(operator_pubkey="00" * 48)
+    runtime = perp_engine._perps_clearinghouse_settle_oracle_runtime_facts(
+        base_config,
+        market_id=market_id,
+        market_kind=market_kind,
+        quote_asset=market.quote_asset,
+        state=market.state,
+        participant_pubkeys=participants,
+    )
+    authorization = _authorization_for(
+        runtime,
+        observed_epoch=int(runtime["now_epoch"]),
+        profile_id=perp_engine._ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+    )
+    config = PerpEngineConfig(
+        operator_pubkey="00" * 48,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+        require_oracle_authorization_for_clearinghouse_settle_epoch=True,
+        oracle_adapter_bridge_verifier=_accepted_clearinghouse_bridge(runtime=runtime),
+    )
+
+    # Act.
+    result = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    version=version,
+                    oracle_adapter_bridge={},
+                    oracle_authorization=authorization,
+                )
+            ]
+        },
+        tx_sender_pubkey="00" * 48,
+        block_timestamp=0,
+    )
+
+    # Assert.
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error == "clearinghouse_settle_oracle_authorization_root_authority_required"
+
+
+@pytest.mark.parametrize(
+    "market_kind,version",
+    [
+        ("clearinghouse_2p_v1", "1.0"),
+        ("clearinghouse_3p_transfer_v1", "1.1"),
+    ],
+)
+@pytest.mark.parametrize(
+    "value_delta,epoch_delta,expected_error",
+    [
+        (1, 0, "oracle_adapter_bridge value_e8 mismatch"),
+        (0, 1, "oracle_adapter_bridge action_epoch mismatch"),
+    ],
+)
+def test_fixed_clearinghouse_settle_rejects_bridge_semantic_drift(
+    market_kind: str,
+    version: str,
+    value_delta: int,
+    epoch_delta: int,
+    expected_error: str,
+) -> None:
+    # Arrange: authorization is exact while the independently verified bridge
+    # is accepted for a neighboring price or epoch.
+    state, market, market_id, participants = _ready_fixed_clearinghouse_market(
+        market_kind
+    )
+    base_config = PerpEngineConfig(operator_pubkey="00" * 48)
+    runtime = perp_engine._perps_clearinghouse_settle_oracle_runtime_facts(
+        base_config,
+        market_id=market_id,
+        market_kind=market_kind,
+        quote_asset=market.quote_asset,
+        state=market.state,
+        participant_pubkeys=participants,
+    )
+    authorization = _authorization_for(
+        runtime,
+        observed_epoch=int(runtime["now_epoch"]),
+        profile_id=perp_engine._ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+    )
+    config = PerpEngineConfig(
+        operator_pubkey="00" * 48,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+        require_oracle_authorization_for_clearinghouse_settle_epoch=True,
+        oracle_adapter_bridge_verifier=_accepted_clearinghouse_bridge(
+            runtime=runtime,
+            value_e8=int(runtime["runtime_value_e8"]) + value_delta,
+            action_epoch=int(runtime["now_epoch"]) + epoch_delta,
+        ),
+        oracle_authorization_receipt_graph_root=str(
+            authorization["authorization"]["receipt_graph_root"]
+        ),
+    )
+
+    # Act.
+    result = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    version=version,
+                    oracle_adapter_bridge={},
+                    oracle_authorization=authorization,
+                )
+            ]
+        },
+        tx_sender_pubkey="00" * 48,
+        block_timestamp=0,
+    )
+
+    # Assert.
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error == expected_error
+
+
 def test_isolated_settle_requires_oracle_authorization_when_configured() -> None:
     market_id = "perp:auth-required"
     operator = "00" * 48
@@ -150,7 +488,9 @@ def test_isolated_settle_requires_oracle_authorization_when_configured() -> None
     assert res.error == "oracle_authorization_required"
 
 
-def test_isolated_settle_accepts_matching_typed_oracle_authorization() -> None:
+def test_isolated_settle_rejects_caller_selected_terminal_receipt_graph_root() -> None:
+    # Arrange: the payload is internally consistent, but no verifier-selected
+    # receipt graph root is installed in the runtime configuration.
     market_id = "perp:auth-ok"
     operator = "00" * 48
     state = _ready_market(market_id=market_id, operator=operator)
@@ -159,6 +499,7 @@ def test_isolated_settle_accepts_matching_typed_oracle_authorization() -> None:
     runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
     auth = _authorization_for(runtime, observed_epoch=int(market.global_state["oracle_last_update_epoch"]))
 
+    # Act.
     res = _apply_result(
         state=state,
         tx_sender_pubkey=operator,
@@ -167,7 +508,12 @@ def test_isolated_settle_accepts_matching_typed_oracle_authorization() -> None:
         ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
     )
 
-    assert res.ok is True, res.error
+    # Assert: a self-consistent caller-selected graph carries no independent
+    # authority and cannot move the market to its settled state.
+    assert res.ok is False
+    assert res.state is None
+    assert res.effects is None
+    assert res.error == "oracle_authorization_root_authority_required"
 
 
 def test_isolated_settle_accepts_configured_terminal_receipt_graph_root() -> None:
@@ -242,6 +588,7 @@ def test_isolated_settle_rejects_authorization_for_different_oracle_value() -> N
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
         ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
     )
 
@@ -274,6 +621,7 @@ def test_isolated_settle_rejects_malformed_runtime_facts(monkeypatch) -> None:
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
         ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
     )
 
@@ -302,6 +650,7 @@ def test_isolated_settle_sanitizes_oracle_verifier_internal_error(monkeypatch) -
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
         ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
     )
 
@@ -353,6 +702,7 @@ def test_isolated_settle_rejects_authorization_for_different_pre_state() -> None
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
         ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
     )
 
@@ -379,6 +729,7 @@ def test_isolated_settle_rejects_below_o3_authorization_evidence() -> None:
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
         ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
     )
 
@@ -406,6 +757,7 @@ def test_isolated_settle_rejects_expired_authorization() -> None:
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
         ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
     )
 
@@ -432,6 +784,7 @@ def test_isolated_settle_rejects_stale_but_unexpired_authorization() -> None:
         tx_sender_pubkey=operator,
         operator_pubkey=operator,
         require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
         ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
     )
 

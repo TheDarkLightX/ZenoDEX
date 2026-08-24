@@ -233,13 +233,30 @@ def verify_aggregate_adapter_bridge(obj: Mapping[str, Any]) -> AggregateAdapterR
     )
 
 
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    obj: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ValueError(f"duplicate JSON key: {key}")
+        obj[key] = value
+    return obj
+
+
+def _reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-standard JSON constant: {value}")
+
+
 def _load_json(path: Path) -> Mapping[str, Any]:
     size = path.stat().st_size
     if size > MAX_AGGREGATE_ADAPTER_BYTES:
         raise ValueError(f"aggregate_adapter_file_too_large:{size}>{MAX_AGGREGATE_ADAPTER_BYTES}")
     with path.open("r", encoding="utf-8") as handle:
-        obj = json.load(handle)
-    if not isinstance(obj, Mapping):
+        obj = json.load(
+            handle,
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_json_constant,
+        )
+    if type(obj) is not dict:
         raise ValueError("aggregate adapter bridge root must be a JSON object")
     return obj
 

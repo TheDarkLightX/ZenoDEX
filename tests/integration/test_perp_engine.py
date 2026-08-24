@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+
 from src.core.dex import DexState
 from src.state.balances import BalanceTable
 from src.state.lp import LPTable
@@ -168,6 +170,107 @@ def test_settle_epoch_oracle_adapter_bridge_required_when_configured() -> None:
     )
     assert res.ok is False
     assert res.error == "settle_epoch requires oracle_adapter_bridge"
+
+
+@pytest.mark.parametrize(
+    "value_delta,epoch_delta,expected_error",
+    [
+        (1, 0, "oracle_adapter_bridge value_e8 mismatch"),
+        (0, 1, "oracle_adapter_bridge action_epoch mismatch"),
+    ],
+)
+def test_isolated_settle_rejects_oracle_bridge_semantic_drift(
+    value_delta: int,
+    epoch_delta: int,
+    expected_error: str,
+) -> None:
+    from src.integration.perp_engine import (
+        _ORACLE_PERPS_INDEX_QUERY_ID,
+        _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        PerpEngineConfig,
+        _perps_runtime_oracle_action_id,
+        apply_perp_ops,
+    )
+
+    # Arrange: prepare one unsettled isolated epoch and an adapter result whose
+    # action identity is exact while its price or epoch differs by one atom.
+    market_id = "perp:oracle-adapter-semantic-drift"
+    quote_asset = "0x" + "92" * 32
+    operator = "00" * 48
+    state = DexState(balances=BalanceTable(), pools={}, lp_balances=LPTable())
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "init_market", quote_asset=quote_asset)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "advance_epoch", delta=1)],
+    )
+    state = _apply(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[_op(market_id, "publish_clearing_price", price_e8=100_000_000)],
+    )
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    assert hasattr(market, "global_state")
+    base_config = PerpEngineConfig(
+        operator_pubkey=operator,
+        allow_isolated_markets=True,
+    )
+    expected_action_id = _perps_runtime_oracle_action_id(
+        base_config,
+        market_id=market_id,
+        action_kind="settle_epoch",
+        market=market,
+    )
+    expected_value_e8 = int(market.global_state["index_price_e8"])
+    expected_epoch = int(market.global_state["now_epoch"])
+
+    def accepted_neighboring_bridge(_bridge: object) -> dict[str, object]:
+        return {
+            "status": "accepted",
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": _ORACLE_PERPS_INDEX_QUERY_ID,
+            "profile_id": _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            "action_id": expected_action_id,
+            "value_e8": expected_value_e8 + value_delta,
+            "action_epoch": expected_epoch + epoch_delta,
+        }
+
+    # Act.
+    result = apply_perp_ops(
+        config=PerpEngineConfig(
+            operator_pubkey=operator,
+            allow_isolated_markets=True,
+            require_oracle_adapter_for_isolated_settle_epoch=True,
+            oracle_adapter_bridge_verifier=accepted_neighboring_bridge,
+        ),
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    oracle_adapter_bridge={"schema": "test.bridge"},
+                )
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+
+    # Assert.
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error == expected_error
 
 
 def test_publish_clearing_price_rejects_zero_oracle_fee_friction() -> None:

@@ -4,7 +4,6 @@ import importlib
 import sys
 from types import ModuleType, SimpleNamespace
 
-
 PLAIN_ADAPTER_MODULES = [
     "src.kernels.python.dex_global_conservation_v1_adapter",
     "src.kernels.python.proof_mining_manager_v1_adapter",
@@ -90,9 +89,15 @@ def test_plain_adapters_cover_state_commit_and_effect_drain(monkeypatch) -> None
         assert unknown.code == "UnknownAction"
 
         effect_key = next(iter(module.EFFECT_HANDLERS))
+        effects = {effect_key: 7}
+        if module_name != "src.kernels.python.dex_global_conservation_v1_adapter":
+            # These legacy adapter generators retain their existing behavior;
+            # the global conservation adapter is the value-wide closure fixed
+            # by the dedicated reject-no-op test below.
+            effects["ignored"] = 9
         interp_mod._next_step_result = interp_mod.StepOk(
             state={"after": module_name},
-            effects={effect_key: 7, "ignored": 9},
+            effects=effects,
         )
         first_action = next(iter(module.ACTION_HANDLERS))
         result = adapter.apply(SimpleNamespace(tag=first_action))
@@ -113,6 +118,27 @@ def test_plain_adapters_cover_state_commit_and_effect_drain(monkeypatch) -> None
             result = adapter.apply(SimpleNamespace(tag=action_tag))
             assert isinstance(result, interp_mod.StepOk)
             assert dict(adapter.get_state()) == {"after": action_tag}
+
+
+def test_global_conservation_adapter_rejects_unknown_effect_before_state_commit(monkeypatch) -> None:
+    # Arrange.
+    interp_mod = _install_fake_interpreter(monkeypatch)
+    module = importlib.import_module("src.kernels.python.dex_global_conservation_v1_adapter")
+    adapter = module.make_adapter(ir={"schema": "fake"})
+    adapter.reset(state={"before": 1})
+    interp_mod._next_step_result = interp_mod.StepOk(
+        state={"after": 2},
+        effects={"total_a": 7, "unregistered_value_effect": 9},
+    )
+
+    # Act.
+    result = adapter.apply(SimpleNamespace(tag="swap_exact_in"))
+
+    # Assert: effect coverage is validated before any state or effect commit.
+    assert isinstance(result, interp_mod.StepError)
+    assert result.code == "UnknownEffect"
+    assert dict(adapter.get_state()) == {"before": 1}
+    assert dict(adapter.drain_effects()) == {}
 
 
 def test_ctx_adapters_fail_closed_on_prepare_error_and_commit_success(monkeypatch) -> None:

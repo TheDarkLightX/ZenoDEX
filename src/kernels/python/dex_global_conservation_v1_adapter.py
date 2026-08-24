@@ -36,17 +36,26 @@ class DexGlobalConservationV1Adapter:
 
             return StepError(code="UnknownAction", message="no handler for command.tag")
         res = handler(self, command)
-        from ESSO.kernel.interpreter import StepOk  # type: ignore
+        from ESSO.kernel.interpreter import StepError, StepOk  # type: ignore
 
         if isinstance(res, StepOk):
-            # Commit post-state.
-            self._state = dict(res.state)
-            # Commit effects through the shell wiring.
+            if type(res.state) is not dict:
+                return StepError(code="MalformedState", message="kernel post-state must be an exact object")
+            if type(res.effects) is not dict:
+                return StepError(code="MalformedEffects", message="kernel effects must be an exact object")
+            pending_handlers: list[tuple[Callable[..., None], str, Any]] = []
             for eff_id, v in res.effects.items():
-                eff_handler = EFFECT_HANDLERS.get(str(eff_id))
+                if type(eff_id) is not str:
+                    return StepError(code="MalformedEffectId", message="effect id must be an exact string")
+                eff_handler = EFFECT_HANDLERS.get(eff_id)
                 if eff_handler is None:
-                    continue
-                eff_handler(self, str(eff_id), v)
+                    return StepError(code="UnknownEffect", message=f"no handler for effect {eff_id!r}")
+                pending_handlers.append((eff_handler, eff_id, v))
+            # Commit only after the complete post-state and effect plan is
+            # validated. A rejected step is byte-for-byte a no-op to the shell.
+            self._state = dict(res.state)
+            for eff_handler, eff_id, value in pending_handlers:
+                eff_handler(self, eff_id, value)
         return res
 
     def drain_effects(self) -> Mapping[str, Any]:
