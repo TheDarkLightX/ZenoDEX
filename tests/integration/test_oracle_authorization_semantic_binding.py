@@ -7,6 +7,8 @@ import sys
 from dataclasses import asdict, replace
 from pathlib import Path
 
+import pytest
+
 from src.integration.zeno_oracle_authorization import (
     ZUSD_COLLATERAL_QUERY_ID,
     ZUSD_LIQUIDATE_VAULT_PROFILE_ID,
@@ -496,6 +498,100 @@ def test_critical_consumer_wrapper_accepts_zusd_mint_and_rejects_wrong_profile()
     assert rejected["typed_ok"] is False
     assert "profile_id mismatch" in rejected["opaque_errors"]
     assert "critical profile mismatch" in rejected["typed_errors"]
+
+
+def test_critical_consumer_accepts_configured_receipt_graph_root() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    configured_root = bundle["authorization"]["receipt_graph_root"]
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+        expected_receipt_graph_root=configured_root,
+    )
+
+    assert result["typed_ok"] is True
+    assert result["receipt_graph_ok"] is True
+    assert result["expected_receipt_graph_root"] == configured_root
+
+
+def test_critical_consumer_rejects_different_configured_receipt_graph_root() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    wrong_root = _hash("test.wrong-receipt-graph-root", "other-terminal-graph")
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+        expected_receipt_graph_root=wrong_root,
+    )
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert "receipt_graph_root does not match configured root" in result["receipt_graph_errors"]
+
+
+def test_critical_consumer_rejects_malformed_configured_receipt_graph_root() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+        expected_receipt_graph_root="sha256:not-canonical",
+    )
+
+    assert result["typed_ok"] is False
+    assert result["receipt_graph_ok"] is False
+    assert "expected_receipt_graph_root must be a sha256 reference" in result["receipt_graph_errors"]
+
+
+def test_critical_consumer_rejects_hostile_string_subclass_at_decode_boundary() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+
+    class AlwaysEqualString(str):
+        def __eq__(self, _other: object) -> bool:
+            return True
+
+    bundle["authorization"]["receipt_graph_root"] = AlwaysEqualString(
+        bundle["authorization"]["receipt_graph_root"],
+    )
+
+    with pytest.raises(ValueError, match="receipt_graph_root must be a non-empty string"):
+        check_critical_consumer_authorization(
+            bundle,
+            consumer_module="zenodex.zusd",
+            action_kind="mint",
+            action_id=runtime.action_id,
+            action_facts_hash=runtime.action_facts_hash,
+            pre_state_hash=runtime.pre_state_hash,
+            query_id=runtime.query_id,
+            runtime_value_e8=runtime.runtime_value_e8,
+            now_epoch=runtime.now_epoch,
+        )
 
 
 def test_critical_consumer_rejects_receipt_outside_profile_freshness_window() -> None:

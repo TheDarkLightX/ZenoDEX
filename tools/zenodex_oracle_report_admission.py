@@ -15,7 +15,6 @@ from typing import Any, Mapping
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from src.state.canonical import canonical_json_bytes
 from zenodex_oracle_reporter_lifecycle import (  # noqa: E402
     LIFECYCLE_SCHEMA,
     verify_lifecycle_trace,
@@ -29,6 +28,7 @@ from zenodex_oracle_source_diversity import (  # noqa: E402
     verify_source_diversity,
 )
 
+from src.state.canonical import canonical_json_bytes
 
 ADMISSION_SCHEMA = "zenodex.oracle.report_admission.v1"
 RESULT_SCHEMA = "zenodex.oracle.report_admission_verify_result.v1"
@@ -95,12 +95,22 @@ def admission_content_hash(obj: Mapping[str, Any]) -> str:
     return _content_hash(obj, omit_key="admission_id")
 
 
-def sample_lifecycle_for_signed_submission(signed_submission: Mapping[str, Any]) -> dict[str, Any]:
+def sample_lifecycle_for_signed_submission(
+    signed_submission: Mapping[str, Any],
+    *,
+    register_epoch: int = 1,
+    bond_epoch: int = 2,
+) -> dict[str, Any]:
+    for name, epoch in (("register_epoch", register_epoch), ("bond_epoch", bond_epoch)):
+        if not isinstance(epoch, int) or isinstance(epoch, bool) or epoch < 0:
+            raise ValueError(f"{name} must be a nonnegative int")
+    if register_epoch > bond_epoch:
+        raise ValueError("register_epoch must not exceed bond_epoch")
     reporter_id = str(signed_submission["reporter_id"])
     reports = list(signed_submission["reports"])
     events: list[dict[str, Any]] = [
-        {"type": "register", "epoch": 1},
-        {"type": "deposit_bond", "epoch": 2, "amount": 100},
+        {"type": "register", "epoch": register_epoch},
+        {"type": "deposit_bond", "epoch": bond_epoch, "amount": 100},
     ]
     for report in reports:
         events.append(

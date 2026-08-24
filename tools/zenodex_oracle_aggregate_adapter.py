@@ -15,7 +15,6 @@ from typing import Any, Mapping
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from src.state.canonical import canonical_json_bytes
 from zenodex_oracle import verify_bundle  # noqa: E402
 from zenodex_oracle_adapter import (  # noqa: E402
     ACTION_SCHEMA,
@@ -28,6 +27,7 @@ from zenodex_oracle_aggregate_read import (  # noqa: E402
     verify_aggregate_read_bridge,
 )
 
+from src.state.canonical import canonical_json_bytes
 
 AGGREGATE_ADAPTER_SCHEMA = "zenodex.oracle.aggregate_adapter_bridge.v1"
 RESULT_SCHEMA = "zenodex.oracle.aggregate_adapter_verify_result.v1"
@@ -58,9 +58,11 @@ class AggregateAdapterResult:
     aggregate_id: str | None = None
     query_id: str | None = None
     value_hash: str | None = None
+    value_e8: int | None = None
     consumer_module: str | None = None
     action_kind: str | None = None
     action_id: str | None = None
+    action_epoch: int | None = None
     read_receipt_id: str | None = None
     consumer_action_receipt_id: str | None = None
     profile_id: str | None = None
@@ -75,9 +77,11 @@ class AggregateAdapterResult:
             "aggregate_id": self.aggregate_id,
             "query_id": self.query_id,
             "value_hash": self.value_hash,
+            "value_e8": self.value_e8,
             "consumer_module": self.consumer_module,
             "action_kind": self.action_kind,
             "action_id": self.action_id,
+            "action_epoch": self.action_epoch,
             "read_receipt_id": self.read_receipt_id,
             "consumer_action_receipt_id": self.consumer_action_receipt_id,
             "profile_id": self.profile_id,
@@ -218,9 +222,11 @@ def verify_aggregate_adapter_bridge(obj: Mapping[str, Any]) -> AggregateAdapterR
         aggregate_id=None if aggregate_read_result is None else aggregate_read_result.aggregate_id,
         query_id=None if aggregate_read_result is None else aggregate_read_result.query_id,
         value_hash=None if aggregate_read_result is None else aggregate_read_result.value_hash,
+        value_e8=None if aggregate_read_result is None else aggregate_read_result.value_e8,
         consumer_module=None if adapter_result is None else adapter_result.consumer_module,
         action_kind=None if adapter_result is None else adapter_result.action_kind,
         action_id=None if adapter_result is None else adapter_result.action_id,
+        action_epoch=None if adapter_result is None else adapter_result.action_epoch,
         read_receipt_id=None if adapter_result is None else adapter_result.read_receipt_id,
         consumer_action_receipt_id=None if adapter_result is None else adapter_result.consumer_action_receipt_id,
         profile_id=None if adapter_result is None else adapter_result.profile_id,

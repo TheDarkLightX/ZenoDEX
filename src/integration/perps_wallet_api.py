@@ -2049,6 +2049,7 @@ def _local_perps_oracle_bridge_fixture(
         _ORACLE_PERPS_INDEX_QUERY_ID,
         _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
         _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+        _ClearinghouseOracleRuntimeRequest,
         _LiquidateAccountOracleRuntimeRequest,
         _perps_clearinghouse_runtime_oracle_action_id,
         _perps_liquidate_account_runtime_oracle_action_id,
@@ -2064,14 +2065,20 @@ def _local_perps_oracle_bridge_fixture(
         action_kind = "settle_epoch"
         profile_id = _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID
         freshness_window_epochs = 2
+        action_epoch = int(market.state.get("now_epoch", 0))
         action_id = _perps_clearinghouse_runtime_oracle_action_id(
-            config,
-            market_id=market_id,
-            action_kind=action_kind,
-            market_kind="clearinghouse_2p_v1",
-            quote_asset=market.quote_asset,
-            state=market.state,
-            participant_pubkeys=(market.account_a_pubkey, market.account_b_pubkey),
+            _ClearinghouseOracleRuntimeRequest(
+                config=config,
+                market_id=market_id,
+                action_kind=action_kind,
+                market_kind="clearinghouse_2p_v1",
+                quote_asset=market.quote_asset,
+                state=market.state,
+                participant_pubkeys=(
+                    market.account_a_pubkey,
+                    market.account_b_pubkey,
+                ),
+            )
         )
     elif wallet_action == "partial_liquidate":
         if not isinstance(market, PerpMarketState):
@@ -2081,6 +2088,7 @@ def _local_perps_oracle_bridge_fixture(
         action_kind = "liquidate_account"
         profile_id = _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID
         freshness_window_epochs = 1
+        action_epoch = int(market.global_state.get("now_epoch", 0))
         action_id = _perps_liquidate_account_runtime_oracle_action_id(
             _LiquidateAccountOracleRuntimeRequest(
                 config=config,
@@ -2093,7 +2101,10 @@ def _local_perps_oracle_bridge_fixture(
     else:
         raise ValueError("unsupported_oracle_bridge_action")
 
-    aggregate = sample_admitted_median3_aggregate()
+    aggregate = sample_admitted_median3_aggregate(
+        current_epoch=action_epoch,
+        latest_observed_epoch=action_epoch,
+    )
     aggregate_result = verify_admitted_median3_aggregate(aggregate)
     if aggregate_result.status != "accepted":
         raise ValueError("local oracle aggregate fixture rejected")
@@ -2123,7 +2134,6 @@ def _local_perps_oracle_bridge_fixture(
         for receipt in bundle["receipts"]
         if isinstance(receipt, Mapping) and receipt.get("id") == read_receipt_id
     )
-    action_epoch = int(aggregate_result.observed_epoch) + 1
     action_receipt: dict[str, Any] = {
         "type": ACTION_TYPE,
         "status": "accepted",

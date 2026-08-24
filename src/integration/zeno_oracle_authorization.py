@@ -197,7 +197,7 @@ def economic_envelope_hash(envelope: Mapping[str, Any]) -> str:
 
 
 def _is_sha256_ref(value: str) -> bool:
-    if not isinstance(value, str) or not value.startswith("sha256:") or len(value) != 71:
+    if type(value) is not str or not value.startswith("sha256:") or len(value) != 71:
         return False
     try:
         int(value.removeprefix("sha256:"), 16)
@@ -672,7 +672,7 @@ def verify_typed_authorization(
 
 def _require_str(obj: Mapping[str, Any], key: str) -> str:
     value = obj.get(key)
-    if not isinstance(value, str) or not value:
+    if type(value) is not str or not value:
         raise ValueError(f"{key} must be a non-empty string")
     return value
 
@@ -826,6 +826,7 @@ def check_critical_consumer_authorization(
     runtime_notional_value_e8: int | None = None,
     profile_id: str | None = None,
     max_freshness_window_epochs: int | None = None,
+    expected_receipt_graph_root: str | None = None,
     require_receipt_graph: bool = True,
     require_economic_envelope: bool = True,
 ) -> dict[str, Any]:
@@ -852,6 +853,10 @@ def check_critical_consumer_authorization(
     else:
         runtime_notional_value_e8_int = int(runtime_notional_value_e8)
 
+    configured_graph_errors: list[str] = []
+    if expected_receipt_graph_root is not None and not _is_sha256_ref(expected_receipt_graph_root):
+        configured_graph_errors.append("expected_receipt_graph_root must be a sha256 reference")
+
     expected_profile = profile_id or CRITICAL_CONSUMER_PROFILES.get((consumer_module, action_kind))
     expected_max_freshness_window_epochs = max_freshness_window_epochs
     if expected_max_freshness_window_epochs is None:
@@ -868,8 +873,12 @@ def check_critical_consumer_authorization(
             "receipt_graph_ok": False,
             "economic_envelope_ok": False,
             "opaque_errors": ["unsupported critical consumer/action"],
-            "typed_errors": ["unsupported critical consumer/action", *runtime_field_errors],
-            "receipt_graph_errors": ["unsupported critical consumer/action"],
+            "typed_errors": [
+                "unsupported critical consumer/action",
+                *runtime_field_errors,
+                *configured_graph_errors,
+            ],
+            "receipt_graph_errors": ["unsupported critical consumer/action", *configured_graph_errors],
             "economic_envelope_errors": ["unsupported critical consumer/action"],
             "authorization": dict(_authorization_obj_from_payload(authorization_payload)),
             "runtime_action": {
@@ -885,6 +894,7 @@ def check_critical_consumer_authorization(
                 "runtime_notional_value_e8": runtime_notional_value_e8,
                 "max_freshness_window_epochs": expected_max_freshness_window_epochs,
             },
+            "expected_receipt_graph_root": expected_receipt_graph_root,
         }
     runtime = RuntimeActionFacts(
         consumer_module=consumer_module,
@@ -908,10 +918,24 @@ def check_critical_consumer_authorization(
     authorization = authorization_from_obj(_authorization_obj_from_payload(authorization_payload))
     typed_errors = list(result["typed_errors"])
     typed_errors.extend(runtime_field_errors)
+    if (
+        expected_receipt_graph_root is not None
+        and not configured_graph_errors
+        and authorization.receipt_graph_root != expected_receipt_graph_root
+    ):
+        configured_graph_errors.append("receipt_graph_root does not match configured root")
+    if configured_graph_errors:
+        typed_errors.extend(configured_graph_errors)
+        result["receipt_graph_errors"] = [
+            *list(result["receipt_graph_errors"]),
+            *configured_graph_errors,
+        ]
+        result["receipt_graph_ok"] = False
     if authorization.profile_id != expected_profile:
         typed_errors.append("critical profile mismatch")
     result["typed_errors"] = typed_errors
     result["typed_ok"] = bool(result["typed_ok"] and not typed_errors)
     result["critical_consumer_profile"] = expected_profile
     result["critical_consumer_max_freshness_window_epochs"] = expected_max_freshness_window_epochs
+    result["expected_receipt_graph_root"] = expected_receipt_graph_root
     return result

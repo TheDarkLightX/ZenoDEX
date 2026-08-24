@@ -10,20 +10,15 @@ from __future__ import annotations
 
 import inspect
 
-import pytest
-
 from src.core.perps import (
     PerpAccountState,
     PerpClearinghouse2pMarketState,
     PerpMarketState,
 )
 from src.integration.perp_engine import (
+    PerpEngineConfig,
     _ClearinghouseOracleRuntimeRequest,
     _LiquidateAccountOracleRuntimeRequest,
-    _ORACLE_PERPS_INDEX_QUERY_ID,
-    _ORACLE_PERPS_LIQUIDATE_ACCOUNT_PROFILE_ID,
-    _ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
-    PerpEngineConfig,
     _perps_clearinghouse_runtime_oracle_action_id,
     _perps_liquidate_account_runtime_oracle_action_id,
 )
@@ -92,7 +87,7 @@ def _isolated_market() -> PerpMarketState:
             "initial_margin_bps": 5000,
             "maintenance_margin_bps": 2500,
             "depeg_buffer_bps": 0,
-            "liquidation_penalty_bps": 500,
+            "liquidation_penalty_bps": 400,
             "max_position_abs": 1_000_000,
             "fee_pool_quote": 0,
             "funding_rate_bps": 0,

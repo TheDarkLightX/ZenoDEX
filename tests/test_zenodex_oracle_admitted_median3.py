@@ -5,7 +5,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 
@@ -84,6 +83,20 @@ def test_admitted_median3_accepts_sample(tmp_path: Path) -> None:
     assert result["distinct_reporter_count"] == 3
     assert result["distinct_source_count"] == 3
     assert result["errors"] == []
+
+
+def test_admitted_median3_rebases_sample_to_low_runtime_epoch(tmp_path: Path) -> None:
+    aggregate = sample_admitted_median3_aggregate(
+        current_epoch=1,
+        latest_observed_epoch=1,
+    )
+
+    code, result = _run_verify(tmp_path, aggregate)
+
+    assert code == 0
+    assert result["status"] == "accepted"
+    assert aggregate["current_epoch"] == 1
+    assert result["observed_epoch"] == 1
 
 
 def test_admitted_median3_rejects_aggregate_hash_forgery(tmp_path: Path) -> None:

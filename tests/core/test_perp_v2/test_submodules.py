@@ -79,6 +79,46 @@ def test_guard_settle_epoch_rejects_liquidation_overflow_path() -> None:
     assert not guards.guard_settle_epoch(state, ActionParams(action=Action.SETTLE_EPOCH))
 
 
+def test_guard_settle_epoch_rejects_missing_oracle_snapshot() -> None:
+    # Arrange: the clearing price is current while no authenticated Oracle value exists.
+    state = _ready_to_settle(
+        oracle_seen=False,
+        oracle_last_update_epoch=0,
+        index_price_e8=0,
+        position_base=0,
+        entry_price_e8=0,
+    )
+
+    # Act.
+    allowed = guards.guard_settle_epoch(state, ActionParams(action=Action.SETTLE_EPOCH))
+
+    # Assert.
+    assert allowed is False
+
+
+def test_guard_settle_epoch_oracle_freshness_boundary() -> None:
+    # Arrange: one state is exactly fresh; the other exceeds the window by one epoch.
+    exact = _ready_to_settle(
+        now_epoch=101,
+        clearing_price_epoch=101,
+        oracle_last_update_epoch=1,
+        max_oracle_staleness_epochs=100,
+    )
+    stale = replace(
+        exact,
+        now_epoch=102,
+        clearing_price_epoch=102,
+    )
+
+    # Act.
+    exact_allowed = guards.guard_settle_epoch(exact, ActionParams(action=Action.SETTLE_EPOCH))
+    stale_allowed = guards.guard_settle_epoch(stale, ActionParams(action=Action.SETTLE_EPOCH))
+
+    # Assert.
+    assert exact_allowed is True
+    assert stale_allowed is False
+
+
 def test_apply_settle_epoch_liquidation_branch_recomputes_accounting() -> None:
     state = _ready_to_settle(
         collateral_quote=1_000,

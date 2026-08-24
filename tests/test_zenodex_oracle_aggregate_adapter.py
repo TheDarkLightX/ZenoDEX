@@ -5,7 +5,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "tools"))
 
@@ -15,7 +14,9 @@ from zenodex_oracle_aggregate_adapter import (  # noqa: E402
     sample_aggregate_adapter_bridge,
     sample_hash,
 )
-from zenodex_oracle_aggregate_read import bridge_content_hash as aggregate_read_content_hash  # noqa: E402
+from zenodex_oracle_aggregate_read import (  # noqa: E402
+    bridge_content_hash as aggregate_read_content_hash,
+)
 
 
 def _refresh_bridge_id(bridge: dict) -> None:
@@ -46,12 +47,17 @@ def _run_verify(tmp_path: Path, obj: dict) -> tuple[int, dict]:
 
 
 def test_aggregate_adapter_accepts_sample(tmp_path: Path) -> None:
-    code, result = _run_verify(tmp_path, sample_aggregate_adapter_bridge())
+    bridge = sample_aggregate_adapter_bridge()
+
+    code, result = _run_verify(tmp_path, bridge)
+
     assert code == 0
     assert result["ok"] is True
     assert result["status"] == "accepted"
     assert result["consumer_module"] == "zenodex.oracle.sample"
     assert result["action_kind"] == "sample_aggregate_read"
+    assert result["value_e8"] == bridge["aggregate_read"]["aggregate"]["aggregate"]["value_e8"]
+    assert result["action_epoch"] == bridge["action"]["action_epoch"]
     assert result["errors"] == []
 
 

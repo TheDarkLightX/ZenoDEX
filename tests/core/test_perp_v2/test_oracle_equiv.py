@@ -9,6 +9,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from dataclasses import fields as dc_fields
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -226,8 +227,18 @@ class TestActionSequenceEquivalence:
     @given(actions=st.lists(action_params_strategy(), min_size=1, max_size=30))
     @settings(max_examples=200, deadline=5000)
     def test_sequence(self, actions: list[ActionParams]):
-        our_state = initial_state()
-        ref_state = ref.init_state()
+        our_state = replace(
+            initial_state(),
+            oracle_seen=True,
+            oracle_last_update_epoch=0,
+            index_price_e8=100_000_000,
+        )
+        ref_state = replace(
+            ref.init_state(),
+            oracle_seen=True,
+            oracle_last_update_epoch=0,
+            index_price_e8=100_000_000,
+        )
 
         for i, params in enumerate(actions):
             our_result = step(our_state, params)
@@ -273,7 +284,6 @@ class TestLifecycleEquivalence:
 
         actions = [
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
-            ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=100_000_000),
             ActionParams(action=Action.DEPOSIT_COLLATERAL, amount=1_000_000, auth_ok=True),
             ActionParams(action=Action.SET_POSITION, new_position_base=100, auth_ok=True),
             ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
@@ -287,6 +297,19 @@ class TestLifecycleEquivalence:
         ]
 
         for i, params in enumerate(actions):
+            if params.action is Action.SET_POSITION:
+                our_s = replace(
+                    our_s,
+                    oracle_seen=True,
+                    oracle_last_update_epoch=our_s.now_epoch,
+                    index_price_e8=100_000_000,
+                )
+                ref_s = replace(
+                    ref_s,
+                    oracle_seen=True,
+                    oracle_last_update_epoch=ref_s.now_epoch,
+                    index_price_e8=100_000_000,
+                )
             our_result = step(our_s, params)
             ref_result = ref.step(ref_s, params_to_command(params))
 
@@ -323,37 +346,48 @@ class TestLifecycleEquivalence:
                 ref_s = ref_result.state
 
 
-def test_regression_stale_oracle_settle_epoch_accept_reject_parity() -> None:
-    """
-    Regression for a ref/native mismatch found by Hypothesis shrinking.
+@pytest.mark.parametrize(
+    ("epoch_delta", "expected_accepted"),
+    [
+        pytest.param(100, True, id="exact-staleness-boundary"),
+        pytest.param(101, False, id="one-epoch-past-staleness-boundary"),
+    ],
+)
+def test_regression_oracle_freshness_boundary_parity(
+    epoch_delta: int,
+    expected_accepted: bool,
+) -> None:
+    """The generated model and native core share the exact Oracle BVA boundary."""
+    our_s = replace(
+        initial_state(),
+        oracle_seen=True,
+        oracle_last_update_epoch=0,
+        index_price_e8=1,
+    )
+    ref_s = replace(
+        ref.init_state(),
+        oracle_seen=True,
+        oracle_last_update_epoch=0,
+        index_price_e8=1,
+    )
 
-    Scenario:
-    1) Settle epoch 1 to establish an oracle snapshot.
-    2) Advance by a large delta so the last oracle update is far in the past.
-    3) Publish a clearing price and attempt to settle again.
-
-    Expected: accept/reject parity with the generated ref model.
-    """
-    actions = [
-        ActionParams(action=Action.ADVANCE_EPOCH, delta=1),
+    for params in (
+        ActionParams(action=Action.ADVANCE_EPOCH, delta=epoch_delta),
         ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=1),
-        ActionParams(action=Action.SETTLE_EPOCH),
-        ActionParams(action=Action.ADVANCE_EPOCH, delta=101),
-        ActionParams(action=Action.PUBLISH_CLEARING_PRICE, price_e8=1),
-        ActionParams(action=Action.SETTLE_EPOCH),
-    ]
-
-    our_s = initial_state()
-    ref_s = ref.init_state()
-    for i, params in enumerate(actions):
+    ):
         our_result = step(our_s, params)
         ref_result = ref.step(ref_s, params_to_command(params))
-        assert our_result.accepted == ref_result.ok, (
-            f"step {i} ({params.action.value}): "
-            f"accept/reject mismatch: "
-            f"ours={our_result.accepted} (rejection={our_result.rejection}), "
-            f"ref={ref_result.ok} (error={ref_result.error})"
-        )
-        if our_result.accepted and ref_result.ok:
-            our_s = our_result.state
-            ref_s = ref_result.state
+        assert our_result.accepted is True
+        assert ref_result.ok is True
+        our_s = our_result.state
+        ref_s = ref_result.state
+
+    settle = ActionParams(action=Action.SETTLE_EPOCH)
+    our_result = step(our_s, settle)
+    ref_result = ref.step(ref_s, params_to_command(settle))
+
+    assert our_result.accepted is expected_accepted
+    assert ref_result.ok is expected_accepted
+    if expected_accepted:
+        assert _our_state_dict_for_ref(our_result.state) == ref_state_to_dict(ref_result.state)
+        assert our_effect_to_dict(our_result.effect) == dict(ref_result.effects)

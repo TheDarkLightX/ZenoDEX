@@ -57,6 +57,15 @@ def guard_settle_epoch(state: PerpState, params: ActionParams) -> bool:
         return False
     if state.oracle_last_update_epoch >= state.now_epoch:
         return False
+    if not state.oracle_seen or state.index_price_e8 <= 0:
+        return False
+    if not is_oracle_fresh(
+        state.now_epoch,
+        state.oracle_last_update_epoch,
+        state.max_oracle_staleness_epochs,
+        state.oracle_seen,
+    ):
+        return False
 
     sp = settle_price(
         state.clearing_price_e8,

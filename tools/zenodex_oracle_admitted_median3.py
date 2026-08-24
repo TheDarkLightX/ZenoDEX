@@ -15,21 +15,21 @@ from typing import Any, Mapping
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from src.state.canonical import canonical_json_bytes
 from zenodex_oracle_report_admission import (  # noqa: E402
     admission_content_hash,
     sample_lifecycle_for_signed_submission,
     verify_report_admission,
 )
 from zenodex_oracle_signed_report import (  # noqa: E402
-    G2Basic,
-    SUBMISSION_SCHEMA,
     _BLS_AVAILABLE,
+    SUBMISSION_SCHEMA,
+    G2Basic,
     _build_report,
     submission_content_hash,
 )
 from zenodex_oracle_source_diversity import sample_source_diversity  # noqa: E402
 
+from src.state.canonical import canonical_json_bytes
 
 ADMITTED_MEDIAN3_SCHEMA = "zenodex.oracle.admitted_median3_aggregate.v1"
 RESULT_SCHEMA = "zenodex.oracle.admitted_median3_verify_result.v1"
@@ -178,18 +178,43 @@ def _single_report_admission(
         "max_staleness_epochs": max_staleness_epochs,
         "evidence_class": evidence_class,
         "signed_submission": signed_submission,
-        "reporter_lifecycle": sample_lifecycle_for_signed_submission(signed_submission),
+        "reporter_lifecycle": sample_lifecycle_for_signed_submission(
+            signed_submission,
+            register_epoch=min(1, observed_epoch),
+            bond_epoch=min(2, observed_epoch),
+        ),
         "source_diversity": dict(source_diversity),
     }
     admission["admission_id"] = admission_content_hash(admission)
     return admission
 
 
-def sample_admitted_median3_aggregate() -> dict[str, Any]:
+def sample_admitted_median3_aggregate(
+    *,
+    current_epoch: int = 104,
+    latest_observed_epoch: int | None = None,
+) -> dict[str, Any]:
+    if not isinstance(current_epoch, int) or isinstance(current_epoch, bool) or current_epoch < 0:
+        raise ValueError("current_epoch must be a nonnegative int")
+    if latest_observed_epoch is None:
+        latest_observed_epoch = max(0, current_epoch - 2)
+    if (
+        not isinstance(latest_observed_epoch, int)
+        or isinstance(latest_observed_epoch, bool)
+        or latest_observed_epoch < 0
+        or latest_observed_epoch > current_epoch
+    ):
+        raise ValueError(
+            "latest_observed_epoch must be a nonnegative int not exceeding current_epoch"
+        )
     source_diversity = sample_source_diversity()
     query_id = str(source_diversity["query_id"])
     source_ids = [str(source["source_id"]) for source in source_diversity["sources"]]
-    current_epoch = 104
+    observed_epochs = (
+        max(0, latest_observed_epoch - 2),
+        max(0, latest_observed_epoch - 1),
+        latest_observed_epoch,
+    )
     max_staleness_epochs = 10
     admissions = [
         _single_report_admission(
@@ -198,7 +223,7 @@ def sample_admitted_median3_aggregate() -> dict[str, Any]:
             source_id=source_ids[0],
             query_id=query_id,
             value_e8=100_000_000,
-            observed_epoch=100,
+            observed_epoch=observed_epochs[0],
             source_diversity=source_diversity,
             current_epoch=current_epoch,
             max_staleness_epochs=max_staleness_epochs,
@@ -209,7 +234,7 @@ def sample_admitted_median3_aggregate() -> dict[str, Any]:
             source_id=source_ids[1],
             query_id=query_id,
             value_e8=101_000_000,
-            observed_epoch=101,
+            observed_epoch=observed_epochs[1],
             source_diversity=source_diversity,
             current_epoch=current_epoch,
             max_staleness_epochs=max_staleness_epochs,
@@ -220,7 +245,7 @@ def sample_admitted_median3_aggregate() -> dict[str, Any]:
             source_id=source_ids[2],
             query_id=query_id,
             value_e8=99_500_000,
-            observed_epoch=102,
+            observed_epoch=observed_epochs[2],
             source_diversity=source_diversity,
             current_epoch=current_epoch,
             max_staleness_epochs=max_staleness_epochs,

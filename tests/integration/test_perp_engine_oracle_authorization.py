@@ -30,11 +30,13 @@ def _apply_result(
     ops: list[dict[str, object]],
     operator_pubkey: str,
     require_authorization: bool = False,
+    receipt_graph_root: str | None = None,
 ):
     cfg = PerpEngineConfig(
         operator_pubkey=operator_pubkey,
         allow_isolated_markets=True,
         require_oracle_authorization_for_isolated_settle=require_authorization,
+        oracle_authorization_receipt_graph_root=receipt_graph_root,
     )
     return apply_perp_ops(
         config=cfg,
@@ -166,6 +168,60 @@ def test_isolated_settle_accepts_matching_typed_oracle_authorization() -> None:
     )
 
     assert res.ok is True, res.error
+
+
+def test_isolated_settle_accepts_configured_terminal_receipt_graph_root() -> None:
+    # Arrange.
+    market_id = "perp:auth-configured-root"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    auth = _authorization_for(runtime, observed_epoch=int(market.global_state["oracle_last_update_epoch"]))
+    configured_root = str(auth["authorization"]["receipt_graph_root"])
+
+    # Act.
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        receipt_graph_root=configured_root,
+        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+    )
+
+    # Assert.
+    assert res.ok is True, res.error
+
+
+def test_isolated_settle_rejects_different_configured_terminal_receipt_graph_root() -> None:
+    # Arrange.
+    market_id = "perp:auth-wrong-configured-root"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    auth = _authorization_for(runtime, observed_epoch=int(market.global_state["oracle_last_update_epoch"]))
+    wrong_root = semantic_hash("test.wrong-configured-root", {"market_id": market_id})
+
+    # Act.
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        receipt_graph_root=wrong_root,
+        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+    )
+
+    # Assert: policy-selected root mismatch closes settlement before mutation.
+    assert res.ok is False
+    assert res.state is None
+    assert res.effects is None
+    assert res.error is not None
+    assert "receipt_graph_root does not match configured root" in res.error
 
 
 def test_isolated_settle_rejects_authorization_for_different_oracle_value() -> None:
