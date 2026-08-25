@@ -126,6 +126,7 @@ def test_checker_rejects_authority_gate_and_semantic_promotion_drift(
     assert "VM gate IDs must be complete and ordered" in _findings(report)
     assert "buy-and-burn semantic anchor drift" in _findings(report)
     assert "claim status drift" in _findings(report)
+    assert report["production_authority"] == "NONE"
 
 
 def test_checker_rejects_stale_claim_hash_and_duplicate_json_key(tmp_path: Path) -> None:

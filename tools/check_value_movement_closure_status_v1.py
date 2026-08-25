@@ -403,19 +403,24 @@ def _load_live_gate_checkers_v1() -> tuple[
 ]:
     """Import checked live-gate helpers only after their source hashes pass."""
 
-    if __package__:
+    try:
         from tools.check_m6_asset_precision_policy_v1 import (
-            check_m6_asset_precision_policy_v1,
+            check_m6_asset_precision_policy_v1 as packaged_precision_checker,
         )
-        from tools.check_m6_value_sinks_v1 import check_m6_value_sinks_v1
-    else:
+        from tools.check_m6_value_sinks_v1 import (
+            check_m6_value_sinks_v1 as packaged_value_sinks_checker,
+        )
+    except ModuleNotFoundError as exc:
+        if exc.name != "tools":
+            raise
         from check_m6_asset_precision_policy_v1 import (
-            check_m6_asset_precision_policy_v1,
+            check_m6_asset_precision_policy_v1 as sibling_precision_checker,
         )
         from check_m6_value_sinks_v1 import (
-            check_m6_value_sinks_v1,
+            check_m6_value_sinks_v1 as sibling_value_sinks_checker,
         )
-    return check_m6_asset_precision_policy_v1, check_m6_value_sinks_v1
+        return sibling_precision_checker, sibling_value_sinks_checker
+    return packaged_precision_checker, packaged_value_sinks_checker
 
 
 def _git_blob_sha256_v1(
@@ -1118,7 +1123,10 @@ def check_value_movement_closure_status_v1(
         "ok": not findings,
         "subject_commit": commit,
         "gate_count": len(gate_rows) if type(gate_rows) is list else 0,
-        "production_authority": authority.get("production_authority"),
+        # The decoded status is evidence under review, never an authority
+        # source.  Drift is reported above and cannot be reflected into the
+        # checker's outward claim field.
+        "production_authority": "NONE",
         "findings": findings,
     }
 
