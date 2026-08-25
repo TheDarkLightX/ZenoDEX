@@ -6,8 +6,11 @@ import pytest
 
 from src.core import oracle_current_dispute_status_v1 as status_core
 from src.core.oracle_current_dispute_status_v1 import (
+    GLOBAL_CURRENT_DISPUTE_STATUS_ORACLE_ID_V1,
     _status_root,
     build_oracle_current_dispute_status_v1,
+    current_dispute_status_root_from_global_root_v1,
+    global_root_from_current_dispute_status_root_v1,
     verify_oracle_current_dispute_status_v1,
 )
 
@@ -62,6 +65,36 @@ def test_clean_status_has_stable_independent_root_vector() -> None:
     assert witness["current_dispute_status_root"] == (
         "sha256:22daec7d7fce0963414c8737e4046476de0527cdd7a9e25fe5af051b84d5d0f2"
     )
+
+
+def test_current_status_root_has_exact_global_abi_representation() -> None:
+    status_root = (
+        "sha256:22daec7d7fce0963414c8737e4046476de0527cdd7a9e25fe5af051b84d5d0f2"
+    )
+
+    global_root = global_root_from_current_dispute_status_root_v1(status_root)
+
+    assert GLOBAL_CURRENT_DISPUTE_STATUS_ORACLE_ID_V1 == (
+        "zenodex.oracle.current-dispute-status.v1"
+    )
+    assert global_root == (
+        "0x22daec7d7fce0963414c8737e4046476de0527cdd7a9e25fe5af051b84d5d0f2"
+    )
+    assert current_dispute_status_root_from_global_root_v1(global_root) == status_root
+
+
+@pytest.mark.parametrize(
+    "invalid_root",
+    [
+        "0x" + "11" * 32,
+        "sha256:" + "AA" * 32,
+        "sha256:" + "00" * 32,
+        object(),
+    ],
+)
+def test_invalid_status_root_cannot_cross_global_abi_boundary(invalid_root: object) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        global_root_from_current_dispute_status_root_v1(invalid_root)
 
 
 @pytest.mark.parametrize("status", ["open", "upheld"])

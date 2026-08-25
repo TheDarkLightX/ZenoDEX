@@ -1,0 +1,304 @@
+//! Cross-language and adversarial evidence for Oracle occurrence authority.
+
+use serde_json::json;
+use zenodex_global_settlement_abi_v1::{
+    hash_global_v1, verify_global_oracle_occurrence_authority_v1, AbiErrorV1,
+    EconomicCommandOccurrenceV1, GlobalEconomicStateV1, GlobalOracleOccurrenceAuthorityCandidateV1,
+    GlobalOracleOccurrencePolicyV1, LaneIdV1, LaneStateRootV1, OracleOccurrenceStateV1,
+    ReleaseStatusV1, RootV1, RouteReleaseV1, ALL_LANE_IDS_V1, GLOBAL_SETTLEMENT_ABI_V1,
+    ZERO_ROOT_V1,
+};
+
+const ORACLE_ID: &str = "zenodex.oracle.current-dispute-status.v1";
+const COMMAND_KIND: &str = "PERPS_SETTLE_EPOCH";
+
+fn root(value: u64) -> RootV1 {
+    RootV1::parse(
+        format!("0x{value:064x}"),
+        "oracle authority test root",
+        false,
+    )
+    .unwrap()
+}
+
+fn zero_root() -> RootV1 {
+    RootV1::parse(ZERO_ROOT_V1, "oracle authority test zero root", true).unwrap()
+}
+
+fn policy(max_age_blocks: u64) -> GlobalOracleOccurrencePolicyV1 {
+    GlobalOracleOccurrencePolicyV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        oracle_id: ORACLE_ID.to_owned(),
+        max_observation_age_blocks: max_age_blocks,
+    }
+}
+
+fn route(policy: &GlobalOracleOccurrencePolicyV1) -> RouteReleaseV1 {
+    let ordered_lanes = vec![LaneIdV1::PERPS_MARKET];
+    let module_release_ids = vec![root(101)];
+    let dependency_roles = vec!["PERPS_SETTLEMENT".to_owned()];
+    let port_schema_roots = vec![root(102)];
+    let guest_image_id = root(103);
+    let specification_root = root(104);
+    let source_root = root(105);
+    let toolchain_root = root(106);
+    let oracle_policy_root = policy.policy_root().unwrap();
+    let issue_burn_policy_root = root(107);
+    let content = json!({
+        "schema": GLOBAL_SETTLEMENT_ABI_V1,
+        "command_kind": COMMAND_KIND,
+        "ordered_lanes": ordered_lanes,
+        "module_release_ids": module_release_ids,
+        "dependency_roles": dependency_roles,
+        "port_schema_roots": port_schema_roots,
+        "guest_image_id": guest_image_id,
+        "specification_root": specification_root,
+        "source_root": source_root,
+        "toolchain_root": toolchain_root,
+        "oracle_policy_root": oracle_policy_root,
+        "issue_burn_policy_root": issue_burn_policy_root,
+        "max_cycles": 1_000_000,
+        "max_journal_bytes": 65_536,
+    });
+    RouteReleaseV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        route_release_id: hash_global_v1("global-route-release-content-v1", &content).unwrap(),
+        semantic_version: "1.0.0-oracle-authority-test".to_owned(),
+        command_kind: COMMAND_KIND.to_owned(),
+        ordered_lanes,
+        module_release_ids,
+        dependency_roles,
+        port_schema_roots,
+        guest_image_id,
+        specification_root,
+        source_root,
+        toolchain_root,
+        oracle_policy_root,
+        issue_burn_policy_root,
+        max_cycles: 1_000_000,
+        max_journal_bytes: 65_536,
+        status: ReleaseStatusV1::SHADOW,
+        accepts_new_objects: false,
+        evidence_statuses: vec![],
+    }
+}
+
+fn state(observed_height: u64, finalized: bool) -> GlobalEconomicStateV1 {
+    GlobalEconomicStateV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        chain_id: "zeno-oracle-authority-test".to_owned(),
+        deployment_root: root(201),
+        writer_epoch: 7,
+        height: 41,
+        profile_root: root(202),
+        lane_roots: ALL_LANE_IDS_V1
+            .iter()
+            .enumerate()
+            .map(|(index, lane_id)| LaneStateRootV1 {
+                lane_id: *lane_id,
+                module_release_id: root(300 + index as u64),
+                enabled: *lane_id == LaneIdV1::PERPS_MARKET,
+                state_root: root(400 + index as u64),
+            })
+            .collect(),
+        balances: vec![],
+        supplies: vec![],
+        custody: vec![],
+        liabilities: vec![],
+        reserves: vec![],
+        oracle_occurrences: vec![OracleOccurrenceStateV1 {
+            oracle_id: ORACLE_ID.to_owned(),
+            occurrence_root: root(501),
+            observed_height,
+            finalized,
+        }],
+        replay_state: vec![],
+        terminal_obligations: vec![],
+        history_root: zero_root(),
+        outbox: vec![],
+    }
+}
+
+fn occurrence(
+    state: &GlobalEconomicStateV1,
+    route: &RouteReleaseV1,
+    consumed: Vec<String>,
+) -> EconomicCommandOccurrenceV1 {
+    EconomicCommandOccurrenceV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        chain_id: state.chain_id.clone(),
+        deployment_root: state.deployment_root.clone(),
+        height: state.height + 1,
+        tx_index: 0,
+        op_index: 0,
+        command_kind: route.command_kind.clone(),
+        command_body_hash: root(601),
+        route_release_id: route.route_release_id.clone(),
+        subject_id: "perps-settlement-operator".to_owned(),
+        grant_root: root(602),
+        nonce: 1,
+        profile_root: state.profile_root.clone(),
+        pre_state_root: state.state_root().unwrap(),
+        consumed_object_ids: consumed,
+    }
+}
+
+#[test]
+fn exact_route_boundary_constructs_state_bound_authority() {
+    let policy = policy(2);
+    let route = route(&policy);
+    let state = state(39, true);
+    let occurrence = occurrence(&state, &route, vec![ORACLE_ID.to_owned()]);
+
+    let authority =
+        verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
+            pre_state: &state,
+            route: &route,
+            occurrence: &occurrence,
+            policy: &policy,
+        })
+        .unwrap();
+
+    assert_eq!(authority.pre_state_root(), &state.state_root().unwrap());
+    assert_eq!(authority.route_release_id(), &route.route_release_id);
+    assert_eq!(
+        authority.command_occurrence_id(),
+        &occurrence.occurrence_id().unwrap()
+    );
+    assert_eq!(authority.policy_root(), &policy.policy_root().unwrap());
+    assert_eq!(authority.oracle_id(), ORACLE_ID);
+    assert_eq!(authority.occurrence_root(), &root(501));
+    assert_eq!(authority.observed_height(), 39);
+    assert_eq!(authority.state_height(), 41);
+    assert_eq!(authority.observation_age_blocks(), 2);
+    assert_eq!(
+        policy.policy_root().unwrap().as_str(),
+        "0xe9236ce39308b70f6b2e762c8c87a1fda35d384e2a582067be108f693d3fda79"
+    );
+    assert_eq!(
+        authority.authority_root().unwrap().as_str(),
+        "0xd10e4381d237f3d467672934e0f38513148bd32c067a4853ef66c28a5c271486"
+    );
+}
+
+#[test]
+fn one_block_past_maximum_age_is_rejected() {
+    let policy = policy(2);
+    let route = route(&policy);
+    let state = state(38, true);
+    let occurrence = occurrence(&state, &route, vec![ORACLE_ID.to_owned()]);
+
+    let error =
+        verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
+            pre_state: &state,
+            route: &route,
+            occurrence: &occurrence,
+            policy: &policy,
+        })
+        .unwrap_err();
+
+    assert_eq!(
+        error,
+        AbiErrorV1::InvalidBounds("oracle occurrence freshness")
+    );
+}
+
+#[test]
+fn future_and_unfinalized_occurrences_are_rejected() {
+    let policy = policy(2);
+    let route = route(&policy);
+    for (candidate_state, expected) in [
+        (
+            state(42, true),
+            AbiErrorV1::InvalidBounds("oracle occurrence observed height"),
+        ),
+        (
+            state(39, false),
+            AbiErrorV1::InvalidBinding("oracle occurrence finality"),
+        ),
+    ] {
+        let occurrence = occurrence(&candidate_state, &route, vec![ORACLE_ID.to_owned()]);
+        let error = verify_global_oracle_occurrence_authority_v1(
+            GlobalOracleOccurrenceAuthorityCandidateV1 {
+                pre_state: &candidate_state,
+                route: &route,
+                occurrence: &occurrence,
+                policy: &policy,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error, expected);
+    }
+}
+
+#[test]
+fn omitted_consumption_and_missing_state_are_rejected() {
+    let policy = policy(2);
+    let route = route(&policy);
+    let state = state(39, true);
+    let omitted = occurrence(&state, &route, vec![]);
+    let omitted_error =
+        verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
+            pre_state: &state,
+            route: &route,
+            occurrence: &omitted,
+            policy: &policy,
+        })
+        .unwrap_err();
+    assert_eq!(
+        omitted_error,
+        AbiErrorV1::InvalidBinding("command route-bound oracle consumption")
+    );
+
+    let mut missing = state;
+    missing.oracle_occurrences.clear();
+    let missing_occurrence = occurrence(&missing, &route, vec![ORACLE_ID.to_owned()]);
+    let missing_error =
+        verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
+            pre_state: &missing,
+            route: &route,
+            occurrence: &missing_occurrence,
+            policy: &policy,
+        })
+        .unwrap_err();
+    assert_eq!(
+        missing_error,
+        AbiErrorV1::InvalidBinding("route-bound oracle occurrence")
+    );
+}
+
+#[test]
+fn caller_selected_policy_and_stale_head_are_rejected() {
+    let governed_policy = policy(2);
+    let route = route(&governed_policy);
+    let state = state(38, true);
+    let occurrence = occurrence(&state, &route, vec![ORACLE_ID.to_owned()]);
+    let caller_policy = policy(3);
+    let policy_error =
+        verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
+            pre_state: &state,
+            route: &route,
+            occurrence: &occurrence,
+            policy: &caller_policy,
+        })
+        .unwrap_err();
+    assert_eq!(
+        policy_error,
+        AbiErrorV1::InvalidBinding("route oracle policy root")
+    );
+
+    let mut raced_state = state;
+    raced_state.history_root = root(999);
+    let head_error =
+        verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
+            pre_state: &raced_state,
+            route: &route,
+            occurrence: &occurrence,
+            policy: &governed_policy,
+        })
+        .unwrap_err();
+    assert_eq!(
+        head_error,
+        AbiErrorV1::InvalidBinding("oracle authority command context")
+    );
+}

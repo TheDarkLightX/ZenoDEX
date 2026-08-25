@@ -35,6 +35,8 @@ The implementation is:
 
 - `src/core/global_settlement_types_v1.py`
 - `src/core/global_economic_proof_v1.py`
+- `src/core/global_oracle_occurrence_authority_v1.py`
+- `src/core/oracle_current_dispute_status_v1.py`
 - `src/core/route_composition_receipt_verification_v1.py`
 - `src/core/global_settlement_abi_v1.py`
 - `src/core/asset_transfer_types_v1.py`
@@ -54,12 +56,15 @@ Focused evidence is:
 
 - `tests/core/test_global_settlement_abi_v1.py`
 - `tests/core/test_global_settlement_abi_v1_parity.py`
+- `tests/core/test_global_oracle_occurrence_authority_v1.py`
+- `tests/core/test_oracle_current_dispute_status_v1.py`
 - `tests/core/test_asset_transfer_module_v1.py`
 - `tests/core/test_managed_asset_lifecycle_module_v1.py`
 - `tests/core/test_asset_lane_coordinator_v1.py`
 - `tests/core/test_asset_lane_coordinator_rejections_v1.py`
 - `tests/data/global_settlement_abi_v1_golden.json`
 - `zk/global_settlement_abi_v1/tests/golden_vectors.rs`
+- `zk/global_settlement_abi_v1/tests/global_oracle_occurrence_authority.rs`
 - `zk/global_settlement_abi_v1/tests/asset_transfer.rs`
 - `zk/global_settlement_abi_v1/tests/managed_asset_lifecycle.rs`
 - `zk/global_settlement_abi_v1/tests/asset_lane_coordinator.rs`
@@ -106,6 +111,26 @@ rejects.
 height, all lane roots, balances, supplies, custody, liabilities, reserves,
 Oracle occurrences, replay state, terminal obligations, history, and external
 outbox state. All collections use immutable canonical tuples with unique keys.
+
+`GlobalOracleOccurrencePolicyV1` gives the existing route
+`oracle_policy_root` a typed content-derived meaning: one Oracle object ID and
+one maximum observation age in blocks. The Python and Rust authority checkers
+require the command to bind the exact global pre-state root, content-derived route
+release, command kind, next height, and consumed Oracle object ID. The selected
+Oracle occurrence must exist in that pre-state, be finalized, be no newer than
+the state height, and satisfy the route-selected freshness ceiling. Acceptance
+constructs an opaque witness that commits all of those coordinates. Maximum
+age, one-block-stale, future-height, unfinalized, omitted-consumption,
+policy-substitution, and stale-head controls have cross-language evidence.
+Active-profile and route-registry selection remain obligations of the existing
+route and epoch verifiers.
+
+The current perps dispute-status bridge converts only the representation of
+the same SHA-256 digest between the legacy `sha256:` spelling and ABI V1's
+`0x` spelling. It accepts an opaque global authority only for the reserved
+`zenodex.oracle.current-dispute-status.v1` object ID. The status verifier still
+recomputes the complete status body, report scope, dispute set, and Oracle
+epoch before consumption.
 
 `GlobalEconomicEffectPlanV1` checks:
 
@@ -426,6 +451,8 @@ mutation.
 
 ```bash
 python3 -m ruff check \
+  src/core/global_oracle_occurrence_authority_v1.py \
+  src/core/oracle_current_dispute_status_v1.py \
   src/core/global_settlement_types_v1.py \
   src/core/global_economic_proof_v1.py \
   src/core/global_settlement_abi_v1.py \
@@ -439,6 +466,8 @@ python3 -m ruff check \
   tools/render_global_settlement_abi_v1_golden.py \
   tests/core/test_global_settlement_abi_v1.py \
   tests/core/test_global_settlement_abi_v1_parity.py \
+  tests/core/test_global_oracle_occurrence_authority_v1.py \
+  tests/core/test_oracle_current_dispute_status_v1.py \
   tests/core/test_asset_transfer_module_v1.py \
   tests/core/test_managed_asset_lifecycle_module_v1.py \
   tests/core/test_asset_lane_coordinator_v1.py \
@@ -450,6 +479,8 @@ PYTHONPATH=. python3 tools/render_global_settlement_abi_v1_golden.py \
 python3 -m pytest -q \
   tests/core/test_global_settlement_abi_v1.py \
   tests/core/test_global_settlement_abi_v1_parity.py \
+  tests/core/test_global_oracle_occurrence_authority_v1.py \
+  tests/core/test_oracle_current_dispute_status_v1.py \
   tests/core/test_asset_transfer_module_v1.py \
   tests/core/test_managed_asset_lifecycle_module_v1.py \
   tests/core/test_asset_lane_coordinator_v1.py \
@@ -582,6 +613,11 @@ terminal, adapter, and evidence registries.
 - The general `SuccinctReceiptVerifierV1` contract tests use deterministic
   recording adapters. The separate RISC0 adapter establishes cryptographic
   validity only for the exact ASSET_TRANSFER image and journal tested here.
+- The Oracle occurrence authority checker is deterministic ABI infrastructure.
+  No perps lane guest, route-composer guest, epoch receipt, active profile, or
+  atomic publication path currently consumes its opaque witness. Static
+  environment-selected dispute roots remain a research adapter seam and carry
+  no production authority.
 - The in-memory commit port does not establish datastore durability,
   crash/reopen safety, consensus finality, or destination delivery.
 - Existing Spot, zUSD, perps, M6, FCIS, and recursive branches remain donors or

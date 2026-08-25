@@ -13,9 +13,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..state.canonical import canonical_json_bytes
+from .global_oracle_occurrence_authority_v1 import GlobalOracleOccurrenceAuthorityV1
+from .global_settlement_types_v1 import _require_root
 
 CURRENT_DISPUTE_STATUS_SCHEMA_V1 = "zenodex.oracle.current_dispute_status.v1"
 CURRENT_DISPUTE_STATUS_HASH_DOMAIN_V1 = "zenodex.oracle.current_dispute_status/v1"
+GLOBAL_CURRENT_DISPUTE_STATUS_ORACLE_ID_V1 = (
+    "zenodex.oracle.current-dispute-status.v1"
+)
 DISPUTE_STATUSES_V1 = frozenset({"open", "rejected", "upheld"})
 REVOKING_DISPUTE_STATUSES_V1 = frozenset({"open", "upheld"})
 
@@ -55,6 +60,39 @@ def _status_root(body: Mapping[str, Any]) -> str:
         + canonical_json_bytes(dict(body))
     )
     return "sha256:" + hashlib.sha256(material).hexdigest()
+
+
+def global_root_from_current_dispute_status_root_v1(status_root: object) -> str:
+    """Convert the legacy SHA-256 reference spelling to ABI V1 root spelling."""
+
+    if type(status_root) is not str or not _is_canonical_sha256_ref(status_root):
+        raise ValueError("current dispute status root must be a canonical sha256 reference")
+    global_root = "0x" + status_root.removeprefix("sha256:")
+    return _require_root(global_root, name="global current dispute status root")
+
+
+def current_dispute_status_root_from_global_root_v1(global_root: object) -> str:
+    """Convert an ABI V1 root spelling to the legacy status reference spelling."""
+
+    if type(global_root) is not str:
+        raise TypeError("global current dispute status root must be an exact string")
+    canonical_root = _require_root(
+        global_root,
+        name="global current dispute status root",
+    )
+    return "sha256:" + canonical_root.removeprefix("0x")
+
+
+def current_dispute_status_root_from_global_authority_v1(
+    authority: GlobalOracleOccurrenceAuthorityV1,
+) -> str:
+    """Derive the legacy expected root from a checker-owned global witness."""
+
+    if type(authority) is not GlobalOracleOccurrenceAuthorityV1:
+        raise TypeError("current dispute status authority must be exact typed data")
+    if authority.oracle_id != GLOBAL_CURRENT_DISPUTE_STATUS_ORACLE_ID_V1:
+        raise ValueError("global authority is for a different Oracle occurrence")
+    return current_dispute_status_root_from_global_root_v1(authority.occurrence_root)
 
 
 def _normalized_report_ids(report_ids: Sequence[object], *, label: str) -> tuple[str, ...]:
