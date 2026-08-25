@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import hashlib
 import inspect
 import json
 import os
@@ -656,10 +657,11 @@ def test_full_execute_binds_head_before_plan_read_and_refuses_plan_only_commit(
     def validate_then_commit(
         root_view: ConfinedRootV1,
         profile: PlanValidationProfileV1,
+        artifacts: Any = None,
     ) -> tuple[dict[str, Any], list[Any]]:
         nonlocal committed
         events.append("first_plan_read")
-        plan, findings = real_structural_report(root_view, profile)
+        plan, findings = real_structural_report(root_view, profile, artifacts)
         assert findings == []
         (root / PLAN_JSON_PATH).write_text(
             '{"schema":"attacker-plan-not-validated"}\n', encoding="utf-8"
@@ -692,6 +694,94 @@ def test_full_execute_binds_head_before_plan_read_and_refuses_plan_only_commit(
     assert [item["rule_id"] for item in report["findings"]] == [
         "live_gate_effect_head_drift"
     ]
+
+
+def test_transient_plan_artifact_rewrite_restore_refuses_before_observation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: Mallory substitutes mutually consistent JSON and Markdown only
+    # while each artifact is read, then restores both before every later
+    # HEAD/status check. The exact committed blobs must still own semantics.
+    root = tmp_path / "subject"
+    subprocess.run(
+        ["/usr/bin/git", "clone", "-q", "--no-hardlinks", str(ROOT), str(root)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    original_json = (root / PLAN_JSON_PATH).read_bytes()
+    original_markdown = (root / PLAN_MARKDOWN_PATH).read_bytes()
+    hostile_plan = copy.deepcopy(dict(load_plan_v1(root)))
+    next(
+        row for row in hostile_plan["vm_gate_status"] if row["gate_id"] == "VM-04"
+    )["status"] = "PARTIAL"
+    hostile_json = canonical_plan_json_v1(hostile_plan).encode("utf-8")
+    split = checker_module._split_markdown(original_markdown.decode("utf-8"))
+    assert split is not None
+    hostile_markdown = (
+        split[0] + render_generated_markdown_v1(hostile_plan) + split[2]
+    ).encode("utf-8")
+    real_open_file = checker_module.AnchoredDirectoryV1.open_file
+    calls: list[str] = []
+    opened: list[str] = []
+
+    hostile_by_path = {
+        PLAN_JSON_PATH.as_posix(): hostile_json,
+        PLAN_MARKDOWN_PATH.as_posix(): hostile_markdown,
+    }
+    original_by_path = {
+        PLAN_JSON_PATH.as_posix(): original_json,
+        PLAN_MARKDOWN_PATH.as_posix(): original_markdown,
+    }
+
+    def transient_open_file(root_view: object, relative: str) -> Any:
+        hostile = hostile_by_path.get(relative)
+        if hostile is None:
+            return real_open_file(root_view, relative)
+        opened.append(relative)
+        (root / relative).write_bytes(hostile)
+        try:
+            return real_open_file(root_view, relative)
+        finally:
+            (root / relative).write_bytes(original_by_path[relative])
+
+    recorded = {gate["gate_id"]: gate for gate in hostile_plan["live_gates"]}
+
+    def counting_observer(spec: Any, _root: object, **_kwargs: object) -> Any:
+        calls.append(spec.gate_id)
+        row = recorded[spec.gate_id]
+        return LiveGateObservationV1(
+            int(row["exit_code"]), copy.deepcopy(row["observed"]), ""
+        )
+
+    monkeypatch.setattr(
+        checker_module.AnchoredDirectoryV1, "open_file", transient_open_file
+    )
+    monkeypatch.setattr(checker_module, "observe_live_gate_v1", counting_observer)
+    fd_count_before = len(os.listdir("/proc/self/fd"))
+    try:
+        # Act
+        report = check_whole_program_plan_v1(root, mode=PlanCheckModeV1.EXECUTE)
+    finally:
+        (root / PLAN_JSON_PATH).write_bytes(original_json)
+        (root / PLAN_MARKDOWN_PATH).write_bytes(original_markdown)
+
+    # Assert: exact HEAD-blob binding rejects both transient artifact snapshots
+    # before any observer call and leaves the tracked worktree clean.
+    findings = report["findings"]
+    assert isinstance(findings, list)
+    assert report["ok"] is False and report["executed_live_gates"] == 0
+    assert calls == []
+    assert opened == [PLAN_JSON_PATH.as_posix(), PLAN_MARKDOWN_PATH.as_posix()]
+    assert len(os.listdir("/proc/self/fd")) == fd_count_before
+    assert {item["rule_id"] for item in findings} == {
+        "plan_artifact_head_blob_mismatch"
+    }
+    assert {item["subject"] for item in findings} == {
+        PLAN_JSON_PATH.as_posix(),
+        PLAN_MARKDOWN_PATH.as_posix(),
+    }
+    assert scoped_worktree_dirty_paths_v1(root, CleanlinessScopeV1.FULL) == []
 
 
 def test_validation_profiles_are_closed_and_cleanliness_is_never_caller_selected() -> None:
@@ -1433,6 +1523,10 @@ def _fake_gate_root(tmp_path: Path, marker_dir: Path) -> tuple[Path, list[dict[s
         target.write_text(source, encoding="utf-8")
         observed = {} if spec.output_format == "text" else {key: project_observed_value_v1(output, key) for key in spec.observed_projection}
         rows.append({**copy.deepcopy(row), "checker_sha256": hashlib.sha256(target.read_bytes()).hexdigest(), "exit_code": 0, "observed": observed})
+    for relative in (PLAN_JSON_PATH, PLAN_MARKDOWN_PATH):
+        target = root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / relative).read_bytes())
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "fake gates")
     return root, rows
@@ -1847,6 +1941,86 @@ def test_direct_execution_validates_the_complete_plan_before_any_observer_call(m
     assert control_findings == [] and calls == sorted(LIVE_GATE_REGISTRY)
 
 
+def test_direct_execution_rejects_stale_caller_plan_under_invalid_committed_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange: a clean plan-only successor commits an invalid current JSON
+    # artifact. The caller retains the previously valid mapping.
+    root = tmp_path / "subject"
+    subprocess.run(
+        ["/usr/bin/git", "clone", "-q", "--no-hardlinks", str(ROOT), str(root)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    stale_plan = copy.deepcopy(dict(load_plan_v1(root)))
+    (root / PLAN_JSON_PATH).write_text(
+        '{"schema":"attacker/committed-plan/v1"}\n', encoding="utf-8"
+    )
+    _git(root, "add", PLAN_JSON_PATH.as_posix())
+    _git(root, "commit", "-q", "-m", "invalid committed plan")
+    calls: list[str] = []
+
+    def forbidden_observer(*args: object, **_kwargs: object) -> Any:
+        calls.append(str(args[0]))
+        raise AssertionError("invalid current plan must refuse before observation")
+
+    monkeypatch.setattr(checker_module, "_observe_anchored", forbidden_observer)
+
+    # Act
+    findings = execute_live_gates_v1(stale_plan, root)
+
+    # Assert: the committed sealed plan owns semantics; the stale caller never
+    # reaches an observer even though the witness repository is clean.
+    assert _git(root, "status", "--porcelain=v2", "--untracked-files=all") == ""
+    assert calls == []
+    assert [item.rule_id for item in findings] == ["plan_field_set_not_closed"]
+
+
+def test_direct_execution_requires_exact_equality_with_valid_committed_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange: the current committed JSON remains structurally valid and keeps
+    # the same rendered Markdown, but differs from the stale caller mapping.
+    root = tmp_path / "subject"
+    subprocess.run(
+        ["/usr/bin/git", "clone", "-q", "--no-hardlinks", str(ROOT), str(root)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    stale_plan = copy.deepcopy(dict(load_plan_v1(root)))
+    current_plan = copy.deepcopy(stale_plan)
+    current_plan["regeneration"]["check_command"] = (
+        "python3 tools/check_whole_program_plan_v1.py --json --exact-current"
+    )
+    assert render_generated_markdown_v1(current_plan) == render_generated_markdown_v1(
+        stale_plan
+    )
+    (root / PLAN_JSON_PATH).write_text(
+        canonical_plan_json_v1(current_plan), encoding="utf-8"
+    )
+    _git(root, "add", PLAN_JSON_PATH.as_posix())
+    _git(root, "commit", "-q", "-m", "valid current plan")
+    calls: list[str] = []
+
+    def forbidden_observer(*args: object, **_kwargs: object) -> Any:
+        calls.append(str(args[0]))
+        raise AssertionError("stale caller plan must refuse before observation")
+
+    monkeypatch.setattr(checker_module, "_observe_anchored", forbidden_observer)
+
+    # Act
+    findings = execute_live_gates_v1(stale_plan, root)
+
+    # Assert: both values validate, then exact committed-byte equality decides.
+    assert _git(root, "status", "--porcelain=v2", "--untracked-files=all") == ""
+    assert calls == []
+    assert [item.rule_id for item in findings] == [
+        "caller_plan_artifact_mismatch"
+    ]
+
+
 def test_execute_validates_every_full_row_into_an_immutable_effect_plan_before_any_observer_call(monkeypatch: pytest.MonkeyPatch) -> None:
     # Arrange: any observer call fails the test; only the LAST row is malformed in each variant.
     calls: list[object] = []
@@ -1879,6 +2053,14 @@ def test_execute_validates_every_full_row_into_an_immutable_effect_plan_before_a
         assert valid_findings == [] and isinstance(valid_effects, tuple)
         assert [effect.spec.gate_id for effect in valid_effects] == sorted(LIVE_GATE_REGISTRY)
         assert all(isinstance(effect.expected_observed, tuple) for effect in valid_effects)
+        expected_artifact_digests = {
+            path.as_posix(): hashlib.sha256((ROOT / path).read_bytes()).hexdigest()
+            for path in (PLAN_JSON_PATH, PLAN_MARKDOWN_PATH)
+        }
+        assert all(
+            dict(effect._artifact_digests) == expected_artifact_digests
+            for effect in valid_effects
+        )
         with pytest.raises(dataclasses.FrozenInstanceError):
             valid_effects[0].expected_exit_code = 1  # type: ignore[misc]
     finally:

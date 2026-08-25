@@ -34,13 +34,14 @@ checker hash, and child process addresses that inode, so a pathname swapped
 to another directory or an inode reused after deletion never redirects any
 step; a mount or bind mount inside the tree is refused. Both plan artifacts
 and every referenced file are read without following symlinks anywhere in
-their path; both artifacts must be committed regular blobs and regular
-worktree files, and regeneration replaces them atomically inside their
-confined directory. Live-gate effects are opaque: each is inseparable from
-the pre-read exact-HEAD/FULL-clean execution context, the exact source
-snapshot observed then, and bounded write-sealed checker and supervisor
-snapshots, so an effect refuses any other root or context drift and executes
-exactly the sealed top-level bytes. Validation runs under exactly one of three closed
+their path. Before ordinary decoding, the exact ``HEAD:path`` blobs are read,
+both worktree artifacts are captured in held write-sealed descriptors, and
+only byte-identical held snapshots are decoded and rendered. Regeneration
+replaces the artifacts atomically inside their confined directory. Execution
+contexts and live-gate effects are immutable trusted-process records, not
+unforgeable capabilities: every consumer rechecks their root, exact HEAD,
+artifact digests, full cleanliness, source snapshot, and bounded write-sealed
+checker/supervisor snapshots before use. Validation runs under exactly one of three closed
 profiles: ordinary (full cleanliness, every comparison), pre-regeneration
 (regeneration cleanliness, structure only), post-regeneration (regeneration
 cleanliness, every comparison).
@@ -64,7 +65,8 @@ over HEAD's committed tree entries except the two plan artifacts. Cleanliness
 is recomputed from git status and required before structural success and
 before any gate executes; the recorded Boolean is never trusted. Every
 ordinary check and every execution uses ``FULL`` scope, in which both plan
-artifacts must also match the committed subject; only the ``--refresh`` and
+artifacts are sealed and must byte-match their exact pre-read ``HEAD:path``
+blobs; only the ``--refresh`` and
 ``--render`` phase, which rewrites those two files, uses ``REGENERATION``
 scope that ignores exactly those two paths. A commit cannot contain its own
 identifier, so the candidate SHA is never recorded; a fresh detached checkout
@@ -122,6 +124,12 @@ from tools.live_gate_registry_v1 import (  # noqa: E402
     git_v1,
     observe_live_gate_v1,
 )
+from tools.whole_program_artifact_binding_v1 import (  # noqa: E402
+    BoundPlanArtifactsV1,
+    PlanArtifactBindingFindingV1,
+    PlanArtifactSpecV1,
+    bind_plan_artifacts_v1,
+)
 
 PLAN_JSON_PATH: Final = Path("docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V1.json")
 PLAN_MARKDOWN_PATH: Final = Path("docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V1.md")
@@ -129,6 +137,10 @@ CLOSURE_LEDGER_PATH: Final = Path("docs/research/ZENODEX_VALUE_MOVEMENT_CLOSURE_
 SCHEMA_V1: Final = "zenodex/whole-program-plan/v1"
 CHECK_SCHEMA_V1: Final = "zenodex/whole-program-plan-check/v1"
 MAX_PLAN_MARKDOWN_BYTES: Final = 1024 * 1024
+PLAN_ARTIFACT_SPECS_V1: Final = (
+    PlanArtifactSpecV1(PLAN_JSON_PATH.as_posix(), PLAN_JSON_LIMITS_V1.max_bytes),
+    PlanArtifactSpecV1(PLAN_MARKDOWN_PATH.as_posix(), MAX_PLAN_MARKDOWN_BYTES),
+)
 PHASE_IDS: Final[tuple[str, ...]] = ("P1", "P2", "P3", "P4", "P5", "P6")
 VM_GATE_IDS: Final[tuple[str, ...]] = tuple(f"VM-{index:02d}" for index in range(1, 13))
 VM_GATE_STATUSES: Final = frozenset({"GAP", "PARTIAL", "PASS"})
@@ -223,6 +235,8 @@ NONCLAIMS: Final[tuple[str, ...]] = (
     "linked worktree the .git file indirection may point outside the anchored root), so lineage, status, and "
     "source_snapshot are deterministic local evidence under a trusted git store, not an adversarially immutable repository "
     "snapshot",
+    "ExecutionContextV1 and LiveGateEffectV1 are caller-constructible same-process Python values used as trusted-process "
+    "conventions; they are not unforgeable capabilities and do not defend against code already executing in the checker process",
 )
 
 
@@ -707,17 +721,47 @@ def _sha256_file(root: ConfinedRootV1, relative: str) -> str | None:
         return None
 
 
-def _read_bounded_json_file(root: ConfinedRootV1, relative: Path, *, name: str) -> Mapping[str, Any]:
-    read = read_confined_file_v1(root, relative, max_bytes=PLAN_JSON_LIMITS_V1.max_bytes)
-    if read.data is None:
-        raise PlanUnreadable(f"cannot read {name}: {read.reason}")
+def _decode_plan_json_bytes_v1(data: bytes, *, name: str) -> Mapping[str, Any]:
+    """Decode one already bounded artifact byte string into a plan mapping."""
+
     try:
-        value = decode_bounded_json_v1(read.data, name=name, limits=PLAN_JSON_LIMITS_V1)
+        value = decode_bounded_json_v1(data, name=name, limits=PLAN_JSON_LIMITS_V1)
     except BoundedJsonError as exc:
         raise PlanUnreadable(f"cannot read {name}: {exc}") from exc
     if not isinstance(value, Mapping):
         raise PlanUnreadable(f"{name} root must be an object")
     return value
+
+
+def _read_bounded_json_file(root: ConfinedRootV1, relative: Path, *, name: str) -> Mapping[str, Any]:
+    read = read_confined_file_v1(root, relative, max_bytes=PLAN_JSON_LIMITS_V1.max_bytes)
+    if read.data is None:
+        raise PlanUnreadable(f"cannot read {name}: {read.reason}")
+    return _decode_plan_json_bytes_v1(read.data, name=name)
+
+
+def _decode_plan_markdown_bytes_v1(data: bytes) -> str:
+    try:
+        return data.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as exc:
+        raise PlanUnreadable(
+            f"plan markdown is not valid UTF-8 at byte {exc.start}"
+        ) from exc
+
+
+def _decode_bound_plan_artifacts_v1(
+    artifacts: BoundPlanArtifactsV1,
+) -> tuple[Mapping[str, Any], str]:
+    """Decode only the held exact-HEAD artifact snapshots."""
+
+    plan = _decode_plan_json_bytes_v1(
+        artifacts.bytes_for(PLAN_JSON_PATH.as_posix()),
+        name=f"plan {PLAN_JSON_PATH.name}",
+    )
+    markdown = _decode_plan_markdown_bytes_v1(
+        artifacts.bytes_for(PLAN_MARKDOWN_PATH.as_posix())
+    )
+    return plan, markdown
 
 
 def load_plan_v1(root: RootLike) -> Mapping[str, Any]:
@@ -736,10 +780,7 @@ def read_plan_markdown_v1(root: RootLike) -> str | None:
         if read.reason == "missing":
             return None
         raise PlanUnreadable(f"cannot read plan markdown: {read.reason}")
-    try:
-        return read.data.decode("utf-8", errors="strict")
-    except UnicodeDecodeError as exc:
-        raise PlanUnreadable(f"plan markdown is not valid UTF-8 at byte {exc.start}") from exc
+    return _decode_plan_markdown_bytes_v1(read.data)
 
 
 def _tree_entry(root: ConfinedRootV1, relative: Path) -> tuple[str, str] | None:
@@ -1650,32 +1691,42 @@ def _validate_with_root(
     return sorted(findings, key=lambda item: (item.rule_id, item.subject, item.evidence))
 
 
-_EXECUTION_CONTEXT_ISSUER_V1: Final = object()
-
-
 @dataclass(frozen=True, slots=True)
 class ExecutionContextV1:
-    """Opaque exact-HEAD and FULL-cleanliness capability for one execution plan."""
+    """Trusted-process record of one exact-HEAD, clean, sealed-artifact plan.
+
+    This public same-process value is a convention, not an unforgeable
+    capability. Every consumer rechecks its complete binding before effects.
+    """
 
     _owner: ConfinedRootV1
     _head: str
-    _issuer: object
+    _artifacts: BoundPlanArtifactsV1
+
+    @property
+    def artifact_digests(self) -> tuple[tuple[str, str], ...]:
+        return self._artifacts.digests
+
+    def close(self) -> None:
+        self._artifacts.close()
 
 
 @dataclass(frozen=True, slots=True)
 class LiveGateEffectV1:
-    """One fully validated gate row frozen into an opaque effect.
+    """One fully validated gate row frozen into a trusted-process effect.
 
     Beyond the registry spec and the expected result, an effect is inseparable
     from the planning root capability (``_owner``, compared by object
     identity), the exact source snapshot digest observed at planning
     (``_snapshot``), and sealed checker/supervisor snapshots captured while
     their source descriptors matched their hashes. It executes only through
-    that same capability while the invocation context still has the exact
-    pre-read HEAD and a fully clean worktree. ``expected_observed`` holds
+    that same root record while the invocation context still has the exact
+    pre-read HEAD, artifact digests, and a fully clean worktree. The dataclass
+    is caller-constructible and carries no authority outside this trusted
+    process. ``expected_observed`` holds
     ``(key, canonical JSON)`` pairs so the comparison is value-exact for every
     JSON type. Construct effects only through
-    ``plan_live_gate_effects_v1``.
+    ``plan_live_gate_effects_v1`` in ordinary use.
     """
 
     spec: LiveGateSpecV1
@@ -1684,6 +1735,7 @@ class LiveGateEffectV1:
     checker_sha256: str
     _owner: ConfinedRootV1
     _snapshot: str
+    _artifact_digests: tuple[tuple[str, str], ...]
     _context: ExecutionContextV1
     _checker: AnchoredFileV1
     _supervisor: SupervisorCodeV1
@@ -1702,6 +1754,33 @@ class LiveGateEffectV1:
 
 
 def close_live_gate_effects_v1(effects: Iterable[LiveGateEffectV1]) -> None:
+    """Close every executable snapshot and each shared invocation context."""
+
+    materialized = tuple(effects)
+    pending: BaseException | None = None
+    for effect in materialized:
+        try:
+            effect.close()
+        except BaseException as exc:
+            if pending is None:
+                pending = exc
+    contexts: list[ExecutionContextV1] = []
+    for effect in materialized:
+        if not any(effect._context is context for context in contexts):
+            contexts.append(effect._context)
+    for context in contexts:
+        try:
+            context.close()
+        except BaseException as exc:
+            if pending is None:
+                pending = exc
+    if pending is not None:
+        raise pending
+
+
+def _close_effect_sources_v1(effects: Iterable[LiveGateEffectV1]) -> None:
+    """Close checker/supervisor snapshots while leaving a caller-owned context open."""
+
     pending: BaseException | None = None
     for effect in effects:
         try:
@@ -1757,6 +1836,7 @@ def _gate_effect(
         checker.sha256,
         root,
         snapshot,
+        context.artifact_digests,
         context,
         checker,
         supervisor,
@@ -1808,7 +1888,7 @@ def _execution_context_findings(
 def _bind_execution_context_v1(
     root: ConfinedRootV1, *, subject: str
 ) -> tuple[ExecutionContextV1 | None, list[PlanFinding]]:
-    """Issue one opaque context only after exact HEAD and FULL cleanliness hold."""
+    """Record exact HEAD, FULL cleanliness, and sealed HEAD-bound artifacts."""
 
     head, findings = _execution_context_findings(
         root, subject=subject, expected_head=None
@@ -1831,28 +1911,56 @@ def _bind_execution_context_v1(
     ]
     if head is None or findings:
         return None, findings
-    return ExecutionContextV1(root, head, _EXECUTION_CONTEXT_ISSUER_V1), []
+    artifacts, binding_findings = bind_plan_artifacts_v1(
+        root.anchored, head, PLAN_ARTIFACT_SPECS_V1
+    )
+    if artifacts is None:
+        return None, _artifact_binding_plan_findings_v1(binding_findings)
+    context = ExecutionContextV1(root, head, artifacts)
+    findings = _bound_execution_context_findings(context, root, subject=subject)
+    if findings:
+        context.close()
+        return None, findings
+    return context, []
+
+
+def _artifact_binding_plan_findings_v1(
+    findings: Iterable[PlanArtifactBindingFindingV1],
+) -> list[PlanFinding]:
+    return [
+        PlanFinding(finding.rule_id, finding.subject, finding.evidence)
+        for finding in findings
+    ]
 
 
 def _bound_execution_context_findings(
     context: object, root: ConfinedRootV1, *, subject: str
 ) -> list[PlanFinding]:
-    """Require an authentic context owned by ``root`` and recheck its exact clean HEAD."""
+    """Recheck a trusted-process context's root, HEAD, cleanliness, and artifacts."""
 
-    if (
-        not isinstance(context, ExecutionContextV1)
-        or context._issuer is not _EXECUTION_CONTEXT_ISSUER_V1
-        or context._owner is not root
-    ):
+    if not isinstance(context, ExecutionContextV1) or context._owner is not root:
         return [
             PlanFinding(
                 "live_gate_execution_context_not_owned",
                 subject,
-                "execution context was not issued for this root capability",
+                "execution context is not the trusted-process record for this root",
+            )
+        ]
+    if context._artifacts.head != context._head:
+        return [
+            PlanFinding(
+                "plan_artifact_binding_context_mismatch",
+                subject,
+                "artifact commit differs from the context HEAD",
             )
         ]
     _head, findings = _execution_context_findings(
         root, subject=subject, expected_head=context._head
+    )
+    if findings:
+        return findings
+    findings.extend(
+        _artifact_binding_plan_findings_v1(context._artifacts.source_findings())
     )
     return findings
 
@@ -1876,6 +1984,13 @@ def _observe_anchored(
         return None, _refusal(Path(spec.checker_path), exc)
 
 
+def _close_owned_context_v1(
+    context: ExecutionContextV1, owns_context: bool
+) -> None:
+    if owns_context:
+        context.close()
+
+
 def _plan_effects(
     gates: object,
     root: ConfinedRootV1,
@@ -1885,6 +2000,7 @@ def _plan_effects(
 ) -> tuple[tuple[LiveGateEffectV1, ...], list[PlanFinding]]:
     if not isinstance(root, ConfinedRootV1) or not root.is_open:
         return (), [PlanFinding("root_unavailable", "root", "effects require an open persistent root capability")]
+    owns_context = context is None
     if context is None:
         context, findings = _bind_execution_context_v1(
             root, subject="live_gates"
@@ -1897,6 +2013,7 @@ def _plan_effects(
         return (), findings
     snapshot, findings = source_snapshot_v1(root)
     if snapshot is None:
+        _close_owned_context_v1(context, owns_context)
         return (), findings
     findings.extend(
         _bound_execution_context_findings(
@@ -1904,8 +2021,10 @@ def _plan_effects(
         )
     )
     if findings:
+        _close_owned_context_v1(context, owns_context)
         return (), findings
     if not isinstance(gates, list):
+        _close_owned_context_v1(context, owns_context)
         return (), [PlanFinding("live_gates_malformed", "live_gates", "must be a list")]
     effects: list[LiveGateEffectV1] = []
     for index, gate in enumerate(gates):
@@ -1927,7 +2046,8 @@ def _plan_effects(
         )
     )
     if findings:
-        close_live_gate_effects_v1(effects)
+        _close_effect_sources_v1(effects)
+        _close_owned_context_v1(context, owns_context)
         return (), findings
     return tuple(effects), []
 
@@ -1954,6 +2074,14 @@ def _effect_binding_findings(effect: LiveGateEffectV1, root: object) -> list[Pla
         return [PlanFinding("live_gate_effect_closed", gate_id, "the planning capability or held executable source is closed")]
     if effect._supervisor.root is not root.anchored:
         return [PlanFinding("live_gate_supervisor_not_owned", gate_id, "supervisor source is not owned by the planning root")]
+    if effect._artifact_digests != effect._context.artifact_digests:
+        return [
+            PlanFinding(
+                "live_gate_effect_artifact_binding_drift",
+                gate_id,
+                "effect artifact digests differ from its invocation context",
+            )
+        ]
     context_findings = _bound_execution_context_findings(
         effect._context, root, subject=gate_id
     )
@@ -2048,6 +2176,89 @@ def compare_live_gate_execution_v1(gate: object, root: RootLike) -> list[PlanFin
         return _root_unavailable(exc)
 
 
+def _validated_committed_execution_plan_v1(
+    caller_plan: Mapping[str, Any],
+    root: ConfinedRootV1,
+    context: ExecutionContextV1,
+) -> tuple[Mapping[str, Any] | None, list[PlanFinding]]:
+    """Validate committed semantics, caller compatibility, and exact equality."""
+
+    try:
+        committed_plan, markdown = _decode_bound_plan_artifacts_v1(
+            context._artifacts
+        )
+    except PlanUnreadable as exc:
+        return None, [
+            PlanFinding("plan_artifact_unreadable", "plan_artifacts", str(exc))
+        ]
+    findings = validate_plan_v1(
+        committed_plan,
+        root=root,
+        markdown=markdown,
+        profile=ORDINARY_VALIDATION_PROFILE_V1,
+    )
+    if findings:
+        return None, findings
+    findings = validate_plan_v1(
+        caller_plan,
+        root=root,
+        markdown=markdown,
+        profile=ORDINARY_VALIDATION_PROFILE_V1,
+    )
+    if findings:
+        return None, findings
+    try:
+        caller_bytes = canonical_plan_json_v1(caller_plan).encode("utf-8")
+    except (TypeError, ValueError, RecursionError) as exc:
+        return None, [
+            PlanFinding(
+                "caller_plan_unserializable",
+                "plan",
+                f"{type(exc).__name__}: {exc}",
+            )
+        ]
+    if caller_bytes != context._artifacts.bytes_for(PLAN_JSON_PATH.as_posix()):
+        return None, [
+            PlanFinding(
+                "caller_plan_artifact_mismatch",
+                PLAN_JSON_PATH.as_posix(),
+                "caller mapping differs from the sealed committed plan",
+            )
+        ]
+    return committed_plan, _bound_execution_context_findings(
+        context, root, subject="live_gates"
+    )
+
+
+def _run_live_gate_effects_v1(
+    effects: tuple[LiveGateEffectV1, ...],
+    root: ConfinedRootV1,
+    context: ExecutionContextV1,
+) -> tuple[list[PlanFinding], int]:
+    """Run until first refusal and preserve exact observer-call accounting."""
+
+    findings: list[PlanFinding] = []
+    executed = 0
+    try:
+        for effect in effects:
+            effect_findings, effect_executed = (
+                _execute_live_gate_effect_with_count_v1(effect, root)
+            )
+            executed += effect_executed
+            findings.extend(effect_findings)
+            if effect_findings:
+                break
+        if not findings:
+            findings.extend(
+                _bound_execution_context_findings(
+                    context, root, subject="live_gates"
+                )
+            )
+        return findings, executed
+    finally:
+        _close_effect_sources_v1(effects)
+
+
 def _execute_live_gates_with_count_v1(
     plan: Mapping[str, Any],
     root: RootLike,
@@ -2056,16 +2267,16 @@ def _execute_live_gates_with_count_v1(
 ) -> tuple[list[PlanFinding], int]:
     """Re-run gates and return findings plus the exact observer-call count.
 
-    Independently of any earlier validation by a caller, the complete plan,
-    its committed markdown companion, and the ``ORDINARY`` profile (which
-    includes ``FULL`` cleanliness of the whole worktree) are validated first;
-    then every full gate row and the exact registry set and order are frozen
-    into an owned effect plan. Any finding anywhere in the plan, gate row or
-    not, means zero observer calls.
+    The sealed current JSON/Markdown pair owns semantics. It is decoded and
+    validated first. The caller mapping is independently validated for stable
+    mutation findings, then its canonical bytes must equal the held committed
+    JSON exactly. Every effect carries both artifact digests. Any pre-execution
+    finding means zero observer calls.
     """
 
     try:
         with _UseRoot(root) as bound:
+            owns_context = context is None
             if context is None:
                 context, findings = _bind_execution_context_v1(
                     bound, subject="live_gates"
@@ -2077,52 +2288,23 @@ def _execute_live_gates_with_count_v1(
             if context is None or findings:
                 return findings, 0
             try:
-                markdown = read_plan_markdown_v1(bound)
-            except PlanUnreadable as exc:
-                return [
-                    PlanFinding(
-                        "plan_markdown_unreadable",
-                        PLAN_MARKDOWN_PATH.as_posix(),
-                        str(exc),
-                    )
-                ], 0
-            findings = validate_plan_v1(plan, root=bound, markdown=markdown, profile=ORDINARY_VALIDATION_PROFILE_V1)
-            if findings:
-                return findings, 0
-            findings.extend(
-                _bound_execution_context_findings(
-                    context, bound, subject="live_gates"
+                committed_plan, findings = _validated_committed_execution_plan_v1(
+                    plan, bound, context
                 )
-            )
-            if findings:
-                return findings, 0
-            effects, effect_findings = _plan_effects(
-                plan["live_gates"],
-                bound,
-                require_registry_set=True,
-                context=context,
-            )
-            if effect_findings:
-                return effect_findings, 0
-            executed = 0
-            try:
-                for effect in effects:
-                    effect_findings, effect_executed = (
-                        _execute_live_gate_effect_with_count_v1(effect, bound)
-                    )
-                    executed += effect_executed
-                    findings.extend(effect_findings)
-                    if effect_findings:
-                        break
-                if not findings:
-                    findings.extend(
-                        _bound_execution_context_findings(
-                            context, bound, subject="live_gates"
-                        )
-                    )
+                if committed_plan is None or findings:
+                    return findings, 0
+                effects, effect_findings = _plan_effects(
+                    committed_plan["live_gates"],
+                    bound,
+                    require_registry_set=True,
+                    context=context,
+                )
+                if effect_findings:
+                    return effect_findings, 0
+                return _run_live_gate_effects_v1(effects, bound, context)
             finally:
-                close_live_gate_effects_v1(effects)
-            return findings, executed
+                if owns_context:
+                    context.close()
     except RootUnavailable as exc:
         return _root_unavailable(exc), 0
 
@@ -2130,7 +2312,7 @@ def _execute_live_gates_with_count_v1(
 def execute_live_gates_v1(
     plan: Mapping[str, Any], root: RootLike
 ) -> list[PlanFinding]:
-    """Re-run every gate only after complete ordinary validation."""
+    """Re-run gates from the sealed committed plan after validating an equal caller mapping."""
 
     return _execute_live_gates_with_count_v1(plan, root)[0]
 
@@ -2332,58 +2514,100 @@ def plan_report_v1(plan: Mapping[str, Any], findings: Sequence[PlanFinding], *, 
     }
 
 
-def _structural_report(root: ConfinedRootV1, profile: PlanValidationProfileV1) -> tuple[Mapping[str, Any], list[PlanFinding]]:
-    plan = load_plan_v1(root)
-    markdown = read_plan_markdown_v1(root)
+def _structural_report(
+    root: ConfinedRootV1,
+    profile: PlanValidationProfileV1,
+    artifacts: BoundPlanArtifactsV1 | None = None,
+) -> tuple[Mapping[str, Any], list[PlanFinding]]:
+    """Validate path reads for regeneration or held exact-HEAD bytes for execution."""
+
+    if artifacts is None:
+        plan = load_plan_v1(root)
+        markdown = read_plan_markdown_v1(root)
+    else:
+        plan, markdown = _decode_bound_plan_artifacts_v1(artifacts)
     return plan, validate_plan_v1(plan, root=root, markdown=markdown, profile=profile)
+
+
+def _raise_if_plan_artifacts_unreadable_v1(root: ConfinedRootV1) -> None:
+    """Preserve typed unreadable diagnostics after binding has already refused.
+
+    These mutable-path reads can only refine a failure into ``PlanUnreadable``;
+    their values are discarded and can never become accepted plan semantics.
+    """
+
+    load_plan_v1(root)
+    if read_plan_markdown_v1(root) is None:
+        raise PlanUnreadable("plan markdown is missing")
+
+
+def _ordinary_context_result_v1(
+    root: ConfinedRootV1,
+    context: ExecutionContextV1,
+    mode: PlanCheckModeV1,
+) -> tuple[Mapping[str, Any], list[PlanFinding], int]:
+    """Decode the held artifacts, validate, optionally execute, and recheck."""
+
+    try:
+        plan, findings = _structural_report(
+            root, ORDINARY_VALIDATION_PROFILE_V1, context._artifacts
+        )
+    except PlanUnreadable as exc:
+        return {}, [
+            PlanFinding("plan_artifact_unreadable", "plan_artifacts", str(exc))
+        ], 0
+    if mode is not PlanCheckModeV1.EXECUTE:
+        return plan, findings, 0
+    findings.extend(
+        _bound_execution_context_findings(
+            context, root, subject="whole_program_plan"
+        )
+    )
+    executed = 0
+    if not findings:
+        execution_findings, executed = _execute_live_gates_with_count_v1(
+            plan, root, context=context
+        )
+        findings.extend(execution_findings)
+    if not findings:
+        findings.extend(
+            _bound_execution_context_findings(
+                context, root, subject="whole_program_plan"
+            )
+        )
+    return plan, findings, executed
 
 
 def check_whole_program_plan_v1(root: RootLike = REPO_ROOT, *, mode: PlanCheckModeV1 = PlanCheckModeV1.STRUCTURAL) -> dict[str, object]:
     """Return the ordinary deterministic report (``FULL`` cleanliness); never grants authority.
 
-    The root identity is bound once for the whole report. In ``EXECUTE`` mode,
-    an opaque exact-HEAD/FULL-clean context is issued before the first plan
-    artifact read and preserved through validation, planning, every observer,
-    and final report construction.
+    The root identity, exact HEAD/FULL cleanliness, and both HEAD-bound sealed
+    artifacts are recorded before either artifact is decoded. In ``EXECUTE``
+    mode the same trusted-process context and artifact digests are preserved
+    through validation, planning, every observer, and final report construction.
     """
 
     with _UseRoot(root) as bound:
-        context: ExecutionContextV1 | None = None
-        findings: list[PlanFinding] = []
-        if mode is PlanCheckModeV1.EXECUTE:
-            context, context_findings = _bind_execution_context_v1(
-                bound, subject="whole_program_plan"
-            )
-            findings.extend(context_findings)
-
-        plan, structural_findings = _structural_report(
-            bound, ORDINARY_VALIDATION_PROFILE_V1
+        context, findings = _bind_execution_context_v1(
+            bound, subject="whole_program_plan"
         )
-        findings.extend(structural_findings)
-        executed = 0
-        if mode is PlanCheckModeV1.EXECUTE and context is not None:
-            findings.extend(
-                _bound_execution_context_findings(
-                    context, bound, subject="whole_program_plan"
-                )
+        if context is None:
+            _raise_if_plan_artifacts_unreadable_v1(bound)
+            return plan_report_v1(
+                {}, findings, executed=0, profile=ORDINARY_VALIDATION_PROFILE_V1
             )
-            if not findings:
-                execution_findings, executed = _execute_live_gates_with_count_v1(
-                    plan, bound, context=context
-                )
-                findings.extend(execution_findings)
-            if not findings:
-                findings.extend(
-                    _bound_execution_context_findings(
-                        context, bound, subject="whole_program_plan"
-                    )
-                )
-        return plan_report_v1(
-            plan,
-            findings,
-            executed=executed,
-            profile=ORDINARY_VALIDATION_PROFILE_V1,
-        )
+        try:
+            plan, findings, executed = _ordinary_context_result_v1(
+                bound, context, mode
+            )
+            return plan_report_v1(
+                plan,
+                findings,
+                executed=executed,
+                profile=ORDINARY_VALIDATION_PROFILE_V1,
+            )
+        finally:
+            context.close()
 
 
 def post_regeneration_report_v1(root: RootLike) -> dict[str, object]:
@@ -2421,7 +2645,11 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--root", type=Path, default=REPO_ROOT)
     parser.add_argument("--json", action="store_true")
-    parser.add_argument("--execute", action="store_true", help="re-run every registry gate and compare observations")
+    parser.add_argument(
+        "--execute",
+        action="store_true",
+        help="bind exact sealed plan artifacts, re-run every registry gate, and compare observations",
+    )
     parser.add_argument("--refresh", action="store_true", help="regenerate live-gate observations and subject lineage")
     parser.add_argument("--observed-at", help="YYYY-MM-DD recorded with --refresh")
     parser.add_argument("--repin-evidence", action="append", default=[], metavar="TASK_ID")

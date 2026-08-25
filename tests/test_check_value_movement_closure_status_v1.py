@@ -146,6 +146,43 @@ def test_checker_rejects_stale_claim_hash_and_duplicate_json_key(tmp_path: Path)
     assert "claim contract hash mismatch" in _findings(stale_report)
     assert duplicate_report["ok"] is False
     assert "duplicate JSON key" in _findings(duplicate_report)[0]
+    assert duplicate_report["production_authority"] == "NONE"
+
+
+def test_every_unreadable_closure_ledger_returns_the_closed_report_schema(
+    tmp_path: Path,
+) -> None:
+    # Arrange: missing, malformed, and non-object ledgers exercise every
+    # pre-validation load rejection.
+    missing = tmp_path / "missing.json"
+    malformed = tmp_path / "malformed.json"
+    malformed.write_text('{"schema":', encoding="utf-8")
+    non_object = tmp_path / "non-object.json"
+    non_object.write_text("[]\n", encoding="utf-8")
+
+    # Act
+    reports = [
+        check_value_movement_closure_status_v1(status_path=path)
+        for path in (missing, malformed, non_object)
+    ]
+
+    # Assert: malformed evidence never changes or omits the checker-owned
+    # authority ceiling, and every path has one stable machine schema.
+    expected_fields = {
+        "findings",
+        "gate_count",
+        "ok",
+        "production_authority",
+        "schema",
+        "subject_commit",
+    }
+    for report in reports:
+        assert set(report) == expected_fields
+        assert report["ok"] is False
+        assert report["production_authority"] == "NONE"
+        assert report["subject_commit"] is None
+        assert report["gate_count"] == 0
+        assert _findings(report)[0].startswith("status ledger cannot be loaded:")
 
 
 def test_checker_rejects_stale_replay_slice_evidence(tmp_path: Path) -> None:

@@ -607,7 +607,7 @@
     },
     {
       "checker_path": "tools/check_value_movement_closure_status_v1.py",
-      "checker_sha256": "6d505b241419208c50f481d7053775585c1418b79a192339cfdd211e9c750b1d",
+      "checker_sha256": "9be0871b43e7d608a8e020dc9481795adb4ce714ba43b56360d48bfba96c8086",
       "command": [
         "python3",
         "tools/check_value_movement_closure_status_v1.py"
@@ -637,6 +637,8 @@
     "No production readiness, production authority, settlement authority, writer rotation, mount, or value-moving authority is claimed by this plan or any task status.",
     "A task marked DONE_BOUNDED is closed only within its declared nonclaims; it does not close a VM gate.",
     "Live-gate observations are local unattested execution records bound to the recorded subject and expire when any relied-on source changes.",
+    "Ordinary plan checks and execution decode held write-sealed JSON and Markdown bytes only after both match their exact pre-read HEAD:path blobs; the two plan artifacts remain excluded from the non-circular source-snapshot digest.",
+    "ExecutionContextV1 and LiveGateEffectV1 are caller-constructible same-process conventions, not unforgeable capabilities; code already executing in the checker process remains trusted.",
     "Test counts and passing checkers do not close semantic obligations; RIPR counterexamples, independent oracles, and mutation killers do.",
     "Historical RunPod proof replays recorded in READMEs are not reproduced by this plan.",
     "The explicit gate environment excludes inherited PATH, HOME, PYTHONPATH, and user site and refuses to run while root/external/ESSO is present; it does not attest the interpreter, its site-packages, or path hooks beyond that preflight, so live-gate observations are explicit rather than fully hermetic.",
@@ -708,8 +710,8 @@
     "branch": "codex/fable-whole-program-20260825",
     "observed_at": "2026-08-25",
     "scoped_worktree_clean": true,
-    "source_snapshot_file_count": 5788,
-    "source_snapshot_sha256": "17fd8f9a332031ac81810988332bc3d20a59dbcc29869899ce8efbdd9db75ab2"
+    "source_snapshot_file_count": 5789,
+    "source_snapshot_sha256": "512559e178ea14f717faf243530fe69b13b02ca8a7401336ccd3d2d7da515ac9"
   },
   "tasks": [
     {

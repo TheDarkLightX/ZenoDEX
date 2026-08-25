@@ -99,6 +99,15 @@ subject. `--refresh` never re-pins task evidence hashes unless the task is
 named explicitly, so a stale evidence pin remains a visible blocker until
 someone states why the artifact changed.
 
+An ordinary invocation reads both exact `HEAD:path` blobs before opening the
+worktree artifacts, captures the JSON and Markdown in held write-sealed
+descriptors, requires byte equality with those committed blobs, and decodes or
+renders only the held bytes. Both artifact digests remain attached to the
+invocation and every planned live-gate effect. `ExecutionContextV1` and
+`LiveGateEffectV1` are caller-constructible same-process conventions. They are
+not unforgeable capabilities, and code already executing inside the checker
+process remains trusted.
+
 ## Evidence rules for closing a task
 
 - `DONE` requires every dependency `DONE`, at least one evidence row, a pinned
@@ -115,7 +124,7 @@ someone states why the artifact changed.
 
 <!-- BEGIN GENERATED PLAN TABLES: regenerate with python3 tools/check_whole_program_plan_v1.py --render -->
 
-Subject: base `21fa295a42d455ced130a50ae66c84b3c1b32afa` on `codex/fable-whole-program-20260825`, source snapshot `17fd8f9a332031ac81810988332bc3d20a59dbcc29869899ce8efbdd9db75ab2` (5788 files, plan artifacts excluded), observed 2026-08-25.
+Subject: base `21fa295a42d455ced130a50ae66c84b3c1b32afa` on `codex/fable-whole-program-20260825`, source snapshot `512559e178ea14f717faf243530fe69b13b02ca8a7401336ccd3d2d7da515ac9` (5789 files, plan artifacts excluded), observed 2026-08-25.
 
 Authority ceiling: `claim_authority="NONE"`, `production_authority="NONE"`, `production_ready=false`, `release_ready=false`.
 
