@@ -95,6 +95,23 @@ fn exact_deposit_transition_produces_one_canonical_module_journal() {
 }
 
 #[test]
+fn canonical_guest_byte_path_matches_typed_transition_at_numeric_boundaries() {
+    // Arrange and act.
+    for amount_atoms in [1, u64::MAX as u128, u64::MAX as u128 + 1, i128::MAX as u128] {
+        let input = module_input(amount_atoms);
+        let input_bytes = canonical_perps_margin_module_guest_input_bytes_v1(&input).unwrap();
+        let byte_prepared =
+            prepare_perps_margin_module_from_canonical_bytes_v1(&input_bytes).unwrap();
+        let typed_prepared = prepare_perps_margin_module_v1(input.clone()).unwrap();
+
+        // Assert.
+        assert_eq!(byte_prepared.input, input);
+        assert_eq!(byte_prepared.accepted, typed_prepared.accepted);
+        assert_eq!(byte_prepared.journal_bytes, typed_prepared.journal_bytes);
+    }
+}
+
+#[test]
 fn economic_rejections_emit_no_prepared_journal() {
     // Arrange and act.
     let rejected = prepare_perps_margin_module_v1(module_input(0));

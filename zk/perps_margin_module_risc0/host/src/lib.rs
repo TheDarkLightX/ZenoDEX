@@ -14,6 +14,7 @@ use zenodex_perps_margin_module_risc0_shared::{
 };
 
 pub const MAX_PERPS_MARGIN_MODULE_RECEIPT_BYTES_V1: usize = 16 * 1024 * 1024;
+pub const MAX_PERPS_MARGIN_MODULE_CYCLES_V1: u64 = 4 * 1024 * 1024;
 
 #[derive(Debug)]
 pub enum PerpsMarginModuleHostErrorV1 {
@@ -55,6 +56,7 @@ pub fn build_perps_margin_module_executor_env_v1(
         .map_err(|_| PerpsMarginModuleHostErrorV1::InputTooLarge)?;
     let prepared = prepare_perps_margin_module_v1(input.clone())?;
     let mut builder = ExecutorEnv::builder();
+    builder.session_limit(Some(MAX_PERPS_MARGIN_MODULE_CYCLES_V1));
     builder.write_slice(&[input_len]);
     builder.write_slice(&input_bytes);
     let env = builder

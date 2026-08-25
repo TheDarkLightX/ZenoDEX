@@ -1904,6 +1904,49 @@ fn perps_lane_coordinator_adds_complete_conservation_and_projection_roots() {
 }
 
 #[test]
+fn perps_lane_coordinator_accepts_representable_delta_above_i128_absolute_base() {
+    // Arrange: both authoritative balances exceed i128::MAX, while the
+    // value-moving delta remains the exact module effect of 10_000 atoms.
+    let (fixture, mut pre, mut post, context) = perps_projection_pair();
+    let high_base_offset = i128::MAX as u128 + 1;
+    pre.balances[0].amount_atoms = pre.balances[0]
+        .amount_atoms
+        .checked_add(high_base_offset)
+        .unwrap();
+    post.balances[0].amount_atoms = post.balances[0]
+        .amount_atoms
+        .checked_add(high_base_offset)
+        .unwrap();
+    pre.supplies[0].amount_atoms = pre.supplies[0]
+        .amount_atoms
+        .checked_add(high_base_offset)
+        .unwrap();
+    post.supplies[0].amount_atoms = post.supplies[0]
+        .amount_atoms
+        .checked_add(high_base_offset)
+        .unwrap();
+    pre.validate().unwrap();
+    post.validate().unwrap();
+
+    // Act.
+    let result = compose_perps_margin_lane_single_v1(&PerpsMarginLaneCompositionCandidateV1 {
+        context,
+        module_journal: fixture.accepted.module_journal.clone(),
+        private_port: fixture.accepted.private_port.clone(),
+        pre_state: pre,
+        post_state: post,
+        module_effects: fixture.accepted.effects.clone(),
+    });
+
+    // Assert: absolute state magnitude cannot invalidate a representable
+    // signed transition delta.
+    assert!(matches!(
+        result,
+        Ok(PerpsMarginLaneCompositionResultV1::Accepted(_))
+    ));
+}
+
+#[test]
 fn perps_lane_projection_drift_and_context_substitution_are_exact_no_ops() {
     let (fixture, pre, post, context) = perps_projection_pair();
     let mut drifted = post.clone();

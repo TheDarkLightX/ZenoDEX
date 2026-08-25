@@ -505,17 +505,27 @@ fn expected_deltas(
         if pre_atoms == post_atoms {
             continue;
         }
-        let delta = i128::try_from(post_atoms)
-            .ok()
-            .and_then(|post_value| {
-                i128::try_from(pre_atoms)
-                    .ok()
-                    .and_then(|pre_value| post_value.checked_sub(pre_value))
-            })
-            .ok_or(AbiErrorV1::InvalidBounds("perps projection delta"))?;
+        let delta = signed_projection_delta_v1(pre_atoms, post_atoms)?;
         deltas.insert(key.clone(), delta);
     }
     Ok(deltas)
+}
+
+fn signed_projection_delta_v1(pre_atoms: u128, post_atoms: u128) -> AbiResultV1<i128> {
+    if post_atoms >= pre_atoms {
+        return i128::try_from(post_atoms - pre_atoms)
+            .map_err(|_| AbiErrorV1::InvalidBounds("perps projection delta"));
+    }
+
+    let magnitude = pre_atoms - post_atoms;
+    if magnitude == i128::MIN.unsigned_abs() {
+        return Ok(i128::MIN);
+    }
+    let magnitude = i128::try_from(magnitude)
+        .map_err(|_| AbiErrorV1::InvalidBounds("perps projection delta"))?;
+    magnitude
+        .checked_neg()
+        .ok_or(AbiErrorV1::InvalidBounds("perps projection delta"))
 }
 
 fn effect_deltas(effects: &GlobalEconomicEffectPlanV1) -> BTreeMap<EffectKeyV1, i128> {

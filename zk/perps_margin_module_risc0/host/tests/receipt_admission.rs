@@ -6,10 +6,11 @@ mod support;
 use support::{module_input, root};
 use zenodex_global_settlement_abi_v1::{AbiErrorV1, LaneModuleSuccinctReceiptVerifierV1};
 use zenodex_perps_margin_module_risc0_host::{
-    build_perps_margin_module_executor_env_v1, encode_perps_margin_module_receipt_v1,
-    prove_perps_margin_module_succinct_v1, require_perps_margin_module_receipt_bytes_len_v1,
-    verify_perps_margin_module_receipt_v1, PerpsMarginModuleHostErrorV1,
-    PinnedPerpsMarginModuleReceiptVerifierV1, MAX_PERPS_MARGIN_MODULE_RECEIPT_BYTES_V1,
+    build_perps_margin_module_executor_env_v1, decode_canonical_perps_margin_module_receipt_v1,
+    encode_perps_margin_module_receipt_v1, prove_perps_margin_module_succinct_v1,
+    require_perps_margin_module_receipt_bytes_len_v1, verify_perps_margin_module_receipt_v1,
+    PerpsMarginModuleHostErrorV1, PinnedPerpsMarginModuleReceiptVerifierV1,
+    MAX_PERPS_MARGIN_MODULE_RECEIPT_BYTES_V1,
 };
 
 #[test]
@@ -89,5 +90,28 @@ fn receipt_byte_and_expected_journal_bva_reject_before_decoding() {
     assert!(matches!(
         verifier.verify_succinct_receipt(&oversized, &root(91), &[]),
         Err(AbiErrorV1::InvalidBounds(_))
+    ));
+}
+
+#[test]
+fn receipt_codec_accepts_exact_bytes_and_rejects_equivalent_pretty_json() {
+    // Arrange.
+    let (_, prepared) = build_perps_margin_module_executor_env_v1(&module_input(100)).unwrap();
+    let fake: Receipt =
+        FakeReceipt::new(ReceiptClaim::ok([1_u32; 8], prepared.journal_bytes.clone()))
+            .try_into()
+            .unwrap();
+    let canonical = encode_perps_margin_module_receipt_v1(&fake).unwrap();
+    let noncanonical = serde_json::to_vec_pretty(&fake).unwrap();
+
+    // Act and assert.
+    let decoded = decode_canonical_perps_margin_module_receipt_v1(&canonical).unwrap();
+    assert_eq!(
+        encode_perps_margin_module_receipt_v1(&decoded).unwrap(),
+        canonical
+    );
+    assert!(matches!(
+        decode_canonical_perps_margin_module_receipt_v1(&noncanonical),
+        Err(PerpsMarginModuleHostErrorV1::ReceiptNonCanonical)
     ));
 }
