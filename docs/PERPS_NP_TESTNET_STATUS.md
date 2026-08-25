@@ -78,6 +78,50 @@ state-advance gate.
   affordance stay unreachable (action allow-list + market-kind gate), not merely
   hidden.
 
+## GlobalSettlement margin accounting SHADOW slice
+
+The newer `GlobalSettlementABI V1` work contains an independently versioned
+subject-bound margin accounting core in `src/core/perps_margin_*_v1.py` and
+`zk/global_settlement_abi_v1/src/perps_margin*.rs`. It selects only behavior
+already common to the documented peer-to-peer perps posture:
+
+- one profile-selected collateral asset per market;
+- exact command-owner/context-subject equality and monotonically increasing
+  nonce, with authentication and grant verification reserved for composition;
+- exact account, perps accounting-location, and claimant-liability candidate
+  deltas;
+- position-carrying withdrawal at or above the integer
+  maintenance-plus-depeg requirement, with a committed complete Oracle
+  authority/occurrence/price binding; flat-account withdrawal requires no
+  Oracle dependency;
+- exact zero aggregate peer-to-peer position and a maximum of 64 canonically
+  ordered accounts in this bounded module state;
+- explicit `ACTIVE`, `DRAIN_ONLY`, and `HALTED` market states, where
+  `DRAIN_ONLY` rejects deposits while preserving withdrawal and close;
+- close only after position and collateral reach zero;
+- a release/market/account-namespaced drained terminal obligation and permanent
+  closed account ID after close.
+
+The Rust and Python projections share frozen accepted-transition roots for the
+pre-state, command, post-state, candidate effect plan, typed private port,
+terminal table, and module receipt. They do not yet share one data-driven
+rejection-vector corpus. The private port exposes the command and Oracle
+dependency commitments needed by a future exact route composition. This slice
+remains `SHADOW`. Its candidate effect plan deliberately has no global
+asset-conservation row because no governed perps lane coordinator currently
+binds it to complete pre/post ZenoLedger balances, supply, and terminal-table
+updates or verifies its committed Oracle authority and exact price port. The
+global state refiner therefore cannot admit it as a complete settlement. No
+route, RISC0 guest, release activation, writer, API, or UI was added.
+
+Funding, intent matching, epoch settlement, objective Oracle witness/price-port
+verification, liquidation, insurance, ADL, bankruptcy, and whole-market
+terminal closeout remain unresolved for the M6 `PERPS_MARKET` row. The legacy
+proof workspace remains quarantined and is not relabeled by this slice.
+
+The ABI label `CUSTODY` identifies a committed accounting location. It makes no
+claim that a third party controls a user's keys or is a legal custodian.
+
 ## Reproduce
 
 ```bash

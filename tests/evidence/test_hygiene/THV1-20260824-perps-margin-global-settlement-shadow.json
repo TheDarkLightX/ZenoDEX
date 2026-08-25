@@ -1,0 +1,249 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260824-perps-margin-global-settlement-shadow",
+  "created_date": "2026-08-24",
+  "claim_scope": "The Python and Rust GlobalSettlementABI V1 SHADOW cores implement bounded subject-bound perps margin deposit, Oracle-bound position-carrying withdrawal, Oracle-free flat-account withdrawal, and terminal close as deterministic candidate transitions with exact typed no-op rejection and cross-language accepted-transition root vectors. The state requires exact peer-to-peer zero net position, at most 64 accounts, explicit ACTIVE/DRAIN_ONLY/HALTED lifecycle, and namespaced terminal obligations. Subject authentication and grant authority remain composition obligations.",
+  "change_kind": "behavior_change",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "PERPS-MARGIN-CANDIDATE-EFFECTS-PAIR-ACCOUNT-CUSTODY-AND-LIABILITY",
+    "PERPS-MARGIN-WITHDRAW-REQUIRES-EXACT-ORACLE-BINDING",
+    "PERPS-MARGIN-MAINTENANCE-USES-CEILING-ATOMIC-BOUNDARY",
+    "PERPS-MARGIN-REJECT-IS-EXACT-NOOP",
+    "PERPS-MARGIN-CLOSE-IS-TERMINAL",
+    "PERPS-MARGIN-DRAIN-ONLY-PRESERVES-CLAIMANT-EXIT",
+    "PERPS-MARGIN-PEER-TO-PEER-NET-POSITION-IS-ZERO",
+    "PERPS-MARGIN-ACCOUNT-CARDINALITY-IS-BOUNDED",
+    "PERPS-MARGIN-TERMINAL-ID-IS-RELEASE-MARKET-ACCOUNT-NAMESPACED",
+    "PERPS-MARGIN-DEPENDENCIES-ARE-PRIVATE-PORT-BOUND",
+    "PERPS-MARGIN-RUST-PYTHON-ROOT-PARITY"
+  ],
+  "failure_modes": [
+    "a position-carrying withdrawal reaches candidate effects without a complete Oracle authority, occurrence, and price binding",
+    "a mismatched Oracle price is used for a withdrawal maintenance decision",
+    "a deposit or close silently accepts irrelevant Oracle authority and expands the receipt's degrees of freedom",
+    "floor rounding or a strict comparison permits one atom below the maintenance requirement",
+    "candidate effects omit or mis-sign the account, perps accounting-location, or claimant-liability delta",
+    "a rejected command changes state, consumes an occurrence, or carries an economic effect",
+    "a drained account ID reopens after terminal closure",
+    "release retirement disables withdrawals and strands a claimant's collateral",
+    "a flat-account claimant cannot withdraw during an Oracle outage even though price cannot affect maintenance",
+    "an unbalanced peer-to-peer position state creates unexplained net market exposure",
+    "an unbounded account vector exceeds the reviewed proof and resource envelope or a 65th-account deposit escapes typed no-op rejection",
+    "two releases or markets reuse one terminal-obligation identifier for the same local account ID",
+    "hash-derived terminal obligations retain account order and violate canonical obligation-ID order",
+    "the leaf journal hides its command or Oracle dependency behind a zero or substitutable private-port root",
+    "Rust and Python serialize the same transition into different roots"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/global_settlement_abi_v1.py",
+      "sha256": "2a0ca53bd81c8298fa5915edb91fb0040c9f8fe288c2e5368ca984cf4c5c6819"
+    },
+    {
+      "path": "src/core/perps_margin_module_v1.py",
+      "sha256": "482f6158a9cf4ad42c3d2994e13f6f70e2a5f3d64abfd78d4430b5c138f6dbb2"
+    },
+    {
+      "path": "src/core/perps_margin_types_v1.py",
+      "sha256": "30061112b5239934c6b8c192ac893078a2a092d8e2310f7fa50ab9a1314882a9"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "befc46b2c4ef1a6fa69963617719e5548d81319a17c542e1a95424e896f649f9"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/perps_margin.rs",
+      "sha256": "ba88c7269bf01f8a8a90572a81f7d9b51a8cd20b01c612f881e7d797abff94f6"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/perps_margin_types.rs",
+      "sha256": "bd11416d4f48dcb59a584a07edc02c8e558f9caa9f7939871d7cea1aaf5709f0"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/perps_margin.rs",
+      "sha256": "c41b1dd410c086f4f1afc6d90fba2f3135dad3719c26e7d539f06b962cf1ecfc"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_perps_margin_module_v1.py",
+      "sha256": "66a070589c506269866a7fb54d7325f0b5868d2fd2f4ba65f0edc188d87565a9",
+      "node_ids": [
+        "tests/core/test_perps_margin_module_v1.py::test_deposit_creates_open_margin_claim_and_exact_candidate_effects",
+        "tests/core/test_perps_margin_module_v1.py::test_deposit_golden_roots_are_frozen_for_rust_python_parity",
+        "tests/core/test_perps_margin_module_v1.py::test_facade_exports_the_exact_perps_margin_state_type",
+        "tests/core/test_perps_margin_module_v1.py::test_candidate_effects_preserve_owned_atoms_and_pair_custody_with_liability",
+        "tests/core/test_perps_margin_module_v1.py::test_exhaustive_small_domain_kills_floor_and_strict_boundary_mutants",
+        "tests/core/test_perps_margin_module_v1.py::test_withdrawal_maintenance_boundary_bva",
+        "tests/core/test_perps_margin_module_v1.py::test_oracle_bound_withdrawal_golden_roots_match_rust_projection",
+        "tests/core/test_perps_margin_module_v1.py::test_withdrawal_requires_exact_nonzero_oracle_authority_binding",
+        "tests/core/test_perps_margin_module_v1.py::test_price_independent_commands_reject_unexpected_oracle_binding",
+        "tests/core/test_perps_margin_module_v1.py::test_partial_oracle_binding_is_invalid_input",
+        "tests/core/test_perps_margin_module_v1.py::test_accepted_output_rejects_private_port_and_statement_substitution",
+        "tests/core/test_perps_margin_module_v1.py::test_deposit_withdraw_close_is_terminal_and_cannot_reopen",
+        "tests/core/test_perps_margin_module_v1.py::test_drain_only_permits_withdraw_and_close_while_rejecting_deposit",
+        "tests/core/test_perps_margin_module_v1.py::test_policy_rejections_are_exact_noops",
+        "tests/core/test_perps_margin_module_v1.py::test_effect_delta_overflow_rejects_before_any_state_change",
+        "tests/core/test_perps_margin_module_v1.py::test_exhausted_nonce_rejects_before_command_nonce_comparison",
+        "tests/core/test_perps_margin_module_v1.py::test_closed_account_shape_and_account_order_are_canonical",
+        "tests/core/test_perps_margin_module_v1.py::test_terminal_obligation_id_is_namespaced_by_release_market_and_account",
+        "tests/core/test_perps_margin_module_v1.py::test_hash_derived_terminal_obligations_are_canonically_sorted",
+        "tests/core/test_perps_margin_module_v1.py::test_peer_to_peer_market_requires_exact_zero_net_position",
+        "tests/core/test_perps_margin_module_v1.py::test_account_count_uses_exact_maximum_boundary",
+        "tests/core/test_perps_margin_module_v1.py::test_bool_is_never_accepted_as_a_consensus_integer",
+        "tests/core/test_perps_margin_module_v1.py::test_python_boundary_rejects_hostile_scalar_and_account_subclasses"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "differential",
+    "stateful",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Focused examples arrange exact immutable context, state, and command values, act through one functional transition, and assert the complete accepted candidate or typed no-op rejection. Exhaustive, parameterized, and parity tests retain their independent-oracle shape."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Policy and boundary rejection tests assert the exact reject code, identical pre/post state root, and an empty effect plan. Malformed typed context is rejected before transition evaluation."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "maintenance_threshold",
+      "points": [
+        "one_atom_above_withdrawal_limit_accepts",
+        "exact_withdrawal_limit_accepts",
+        "one_atom_below_remaining_maintenance_rejects"
+      ]
+    },
+    {
+      "name": "oracle_binding_shape",
+      "points": [
+        "complete_exact_authority_occurrence_price_accepts_withdrawal",
+        "wholly_absent_rejects_position_carrying_withdrawal",
+        "wholly_absent_accepts_flat_account_withdrawal",
+        "partially_present_is_invalid_input",
+        "complete_mismatched_price_rejects",
+        "surplus_binding_rejects_deposit_flat_withdrawal_and_close"
+      ]
+    },
+    {
+      "name": "amount_and_integer_envelope",
+      "points": [
+        "zero_amount_rejects",
+        "one_atom_accepts_when_funded",
+        "signed_effect_maximum_neighbor_rejects",
+        "nonce_u64_maximum_rejects_before_comparison"
+      ]
+    },
+    {
+      "name": "terminal_lifecycle",
+      "points": [
+        "open_with_position_rejects_close",
+        "flat_with_collateral_rejects_close",
+        "flat_empty_closes_and_drains",
+        "closed_tombstone_rejects_reopen"
+      ]
+    },
+    {
+      "name": "market_lifecycle",
+      "points": [
+        "active_deposit_withdraw_close_reach_policy_checks",
+        "drain_only_deposit_rejects_exact_noop",
+        "drain_only_withdraw_and_terminal_close_remain_reachable",
+        "halted_commands_reject_exact_noop"
+      ]
+    },
+    {
+      "name": "peer_to_peer_net_position",
+      "points": [
+        "balanced_positive_and_negative_positions_accept",
+        "one_unit_unbalanced_position_rejects"
+      ]
+    },
+    {
+      "name": "account_cardinality",
+      "points": [
+        "63_accounts_plus_new_deposit_reaches_64",
+        "64_accounts_plus_new_deposit_returns_typed_exact_noop",
+        "decoded_65_account_state_is_invalid"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "replace ceiling maintenance division with floor division or reverse the exact threshold comparison",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_exhaustive_small_domain_kills_floor_and_strict_boundary_mutants"
+    },
+    {
+      "description": "allow withdrawal when the Oracle authority triple is absent",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_withdrawal_requires_exact_nonzero_oracle_authority_binding"
+    },
+    {
+      "description": "accept a complete Oracle binding whose price differs from the committed market index price",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_withdrawal_requires_exact_nonzero_oracle_authority_binding"
+    },
+    {
+      "description": "accept surplus Oracle authority on deposit or close",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_price_independent_commands_reject_unexpected_oracle_binding"
+    },
+    {
+      "description": "omit or reverse one candidate account, accounting-location, or claimant-liability delta",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_candidate_effects_preserve_owned_atoms_and_pair_custody_with_liability"
+    },
+    {
+      "description": "mutate a rejected transition's state root or attach an economic effect",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_policy_rejections_are_exact_noops"
+    },
+    {
+      "description": "permit a terminally closed account identifier to reopen",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_deposit_withdraw_close_is_terminal_and_cannot_reopen"
+    },
+    {
+      "description": "treat release retirement as a boolean disable that also blocks claimant withdrawal and close",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_drain_only_permits_withdraw_and_close_while_rejecting_deposit"
+    },
+    {
+      "description": "require Oracle availability to drain collateral from a flat account",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_drain_only_permits_withdraw_and_close_while_rejecting_deposit"
+    },
+    {
+      "description": "accept an unbalanced peer-to-peer market position vector",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_peer_to_peer_market_requires_exact_zero_net_position"
+    },
+    {
+      "description": "remove the bounded 64-account proof envelope, use a non-strict 65-account comparison, or leak an untyped construction failure from a 65th-account deposit",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_account_count_uses_exact_maximum_boundary"
+    },
+    {
+      "description": "derive terminal-obligation IDs from only a local account ID",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_terminal_obligation_id_is_namespaced_by_release_market_and_account"
+    },
+    {
+      "description": "retain account order after hashing terminal-obligation IDs instead of sorting by the committed ID",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_hash_derived_terminal_obligations_are_canonically_sorted"
+    },
+    {
+      "description": "remove or reorder an Oracle context field in one canonical Rust or Python receipt projection",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_oracle_bound_withdrawal_golden_roots_match_rust_projection"
+    },
+    {
+      "description": "substitute the typed private port or full-input statement while retaining the original accepted journal",
+      "killed_by": "tests/core/test_perps_margin_module_v1.py::test_accepted_output_rejects_private_port_and_statement_substitution"
+    }
+  ],
+  "nonclaims": [
+    "The module emits route-incomplete candidate effects and has no global conservation row, lane coordinator, route composer, proof guest, verifier, mount, writer, or publication authority.",
+    "The committed Oracle fields are caller data until a governed route verifies an opaque GlobalOracleOccurrenceAuthorityV1 witness and pairs the price with an authenticated Oracle module output.",
+    "The accepted-transition golden vectors do not constitute a shared data-driven Rust/Python rejection-parity corpus.",
+    "Funding, intent matching, position opening, liquidation, insurance, ADL, bankruptcy, migration, and whole-market terminal closeout remain outside this slice.",
+    "The M6 PERPS_MARKET capability remains REQUIRED_UNRESOLVED, production_authority remains NONE, and this evidence does not establish production readiness or safety of all value movement."
+  ]
+}
