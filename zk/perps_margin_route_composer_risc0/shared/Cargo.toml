@@ -1,0 +1,19 @@
+[package]
+name = "zenodex-perps-margin-route-composer-risc0-shared"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+description = "Canonical structural route input for the SHADOW perps-margin recursive route guest"
+
+[lib]
+doctest = false
+
+[dependencies]
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = { version = "=1.0.148", features = ["arbitrary_precision"] }
+zenodex-global-settlement-abi-v1 = { path = "../../global_settlement_abi_v1" }
+zenodex-perps-margin-lane-coordinator-risc0-shared = { path = "../../perps_margin_lane_coordinator_risc0/shared" }
+
+[lints.rust]
+unsafe_code = "forbid"

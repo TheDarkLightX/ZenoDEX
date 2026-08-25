@@ -1,0 +1,18 @@
+[package]
+name = "zenodex-perps-margin-route-composer-risc0-methods"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+
+[build-dependencies]
+risc0-build = "=3.0.6"
+
+[package.metadata.risc0]
+methods = ["guest"]
+
+[lib]
+doctest = false
+
+[lints.rust]
+unsafe_code = "forbid"

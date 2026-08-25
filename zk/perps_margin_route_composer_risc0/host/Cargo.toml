@@ -1,0 +1,30 @@
+[package]
+name = "zenodex-perps-margin-route-composer-risc0-host"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+description = "Fail-closed host for the SHADOW perps-margin structural route guest"
+
+[lib]
+doctest = false
+
+[dependencies]
+hex = "=0.4.3"
+risc0-zkvm = { version = "=3.0.6", features = ["disable-dev-mode"] }
+serde_json = "=1.0.148"
+zenodex-global-settlement-abi-v1 = { path = "../../global_settlement_abi_v1" }
+zenodex-perps-margin-lane-coordinator-risc0-methods = { path = "../../perps_margin_lane_coordinator_risc0/methods" }
+zenodex-perps-margin-route-composer-risc0-methods = { path = "../methods" }
+zenodex-perps-margin-route-composer-risc0-shared = { path = "../shared" }
+
+[dev-dependencies]
+zenodex-global-economic-epoch-risc0-host = { path = "../../global_economic_epoch_risc0/host" }
+zenodex-global-economic-epoch-risc0-methods = { path = "../../global_economic_epoch_risc0/methods" }
+zenodex-global-economic-epoch-risc0-shared = { path = "../../global_economic_epoch_risc0/shared" }
+zenodex-perps-margin-lane-coordinator-risc0-host = { path = "../../perps_margin_lane_coordinator_risc0/host" }
+zenodex-perps-margin-lane-coordinator-risc0-shared = { path = "../../perps_margin_lane_coordinator_risc0/shared" }
+zenodex-perps-margin-module-risc0-host = { path = "../../perps_margin_module_risc0/host" }
+
+[lints.rust]
+unsafe_code = "forbid"
