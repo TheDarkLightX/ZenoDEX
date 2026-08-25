@@ -6,8 +6,16 @@ permalink: autonomous-tau-dex-review/docs/zenodex-spot-state-proof-risc0-v1
 
 # ZenoDEX Spot Risc0 State Proof (v1)
 
+## Legacy quarantine
+
+This proof type is retained as historical regression source. Its workspace
+resolves Risc0 1.2.6, which is affected by `GHSA-jqq4-c7wq-36h7`. The workspace
+has authority `NONE` and is ineligible for governed release, settlement, claim
+promotion, or production admission. The current proof-toolchain gate exits
+nonzero while this quarantine remains.
+
 This document specifies the concrete **Risc0 proof type** used by this repo’s
-ZenoDEX spot integration, carried in the generic Tau Testnet
+legacy ZenoDEX spot integration, carried in the generic Tau Testnet
 `state_proof:<state_hash>` envelope (see `docs/tau_state_proof_v1.md`).
 
 ## Proof type
@@ -27,7 +35,7 @@ metadata hash committed by `header.proof_journal_hash`.
 Operators may pass `--toolchain-lock-hash` to the Risc0 or TEE metadata adapters
 when replaying against an externally approved lock manifest.
 
-The Risc0 metadata adapter can also require the spot proof's `post_app_hash` to
+The legacy Risc0 metadata adapter can also require the spot proof's `post_app_hash` to
 match `header.post_state_root`. When `pre_app_hash` is present, it can require
 that value to match `header.pre_state_root`. Empty pre-state proofs bind the
 absence bit into the public-input hash and journal hash.

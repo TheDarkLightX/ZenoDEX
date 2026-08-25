@@ -6,7 +6,11 @@ permalink: autonomous-tau-dex-review/zk/state-proof-risc0/readme
 
 # Tau State Proof (Risc0): Workspace
 
-This workspace builds a standalone generator/verifier binary for Tau Testnet `state_proof:<state_hash>` envelopes.
+This workspace is retained as historical regression source for Tau Testnet
+`state_proof:<state_hash>` envelopes. It resolves Risc0 1.2.6, which is affected
+by `GHSA-jqq4-c7wq-36h7`. Its authority is `NONE`. It is ineligible for governed
+release, settlement, claim promotion, or production admission, and the
+proof-toolchain gate blocks activation while it remains quarantined.
 
 ## Crates
 
@@ -35,9 +39,10 @@ rzup install
 The workspace currently uses `risc0-build` 1.2, whose method builder invokes the
 named rustup toolchain `risc0`. If that named toolchain is unavailable or lacks
 the guest target under its sysroot, normal local builds emit placeholder
-methods. Production and CI proof-generation lanes should use
-`RISC0_FORCE_BUILD=1` so a missing or misconfigured toolchain fails closed
-instead of producing placeholder image IDs.
+methods. Historical regression builds may use `RISC0_FORCE_BUILD=1` so a
+missing or misconfigured toolchain fails closed instead of producing
+placeholder image IDs. This flag does not restore release or admission
+eligibility.
 Clippy builds use placeholder methods because `risc0-build` 1.2 launches a
 nested guest build that is incompatible with the clippy wrapper. Lint success is
 not proof-generation evidence.
@@ -48,10 +53,12 @@ The repo parity gate contains the audited local toolchain detection path:
 bash tools/run_rust_runtime_parity_gate.sh
 ```
 
-## Use with local Tau Testnet smoke
+## Historical local Tau Testnet smoke
 
 From the repo root:
 
 ```bash
 TAU_STATE_PROOF_RISC0=1 bash tools/run_tau_testnet_local_smoke.sh
 ```
+
+This smoke path is research-only and carries no production authority.

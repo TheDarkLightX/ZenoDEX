@@ -18,11 +18,10 @@ if str(ROOT) not in sys.path:
 from src.integration.proof_toolchain_lock import (  # noqa: E402
     PROOF_TOOLCHAIN_LOCK_SCHEMA_V0,
     build_proof_toolchain_lock_manifest_v0,
-    proof_toolchain_lock_hash_v0,
     toolchain_lock_paths_v0,
 )
-from src.integration.zeno_ledger_v0 import ZERO_ROOT_V0  # noqa: E402
-
+from src.integration.zeno_ledger_v0 import ZERO_ROOT_V0, hash_v0  # noqa: E402
+from tools.risc0_dependency_policy_v1 import audit_risc0_dependency_policy_v1  # noqa: E402
 
 REPORT_SCHEMA = "zenodex/proof_toolchain_lock_check/v0"
 SHA256_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -109,20 +108,88 @@ def validate_proof_toolchain_lock_manifest_v0(
 
 
 def check_proof_toolchain_lock_v0(root: Path = ROOT) -> dict[str, Any]:
-    manifest = build_proof_toolchain_lock_manifest_v0(root)
-    validation = validate_proof_toolchain_lock_manifest_v0(manifest, root=root)
-    lock_hash = proof_toolchain_lock_hash_v0(root)
+    policy = audit_risc0_dependency_policy_v1(root)
+    try:
+        manifest = build_proof_toolchain_lock_manifest_v0(root)
+        validation = validate_proof_toolchain_lock_manifest_v0(manifest, root=root)
+        lock_hash = hash_v0("proof_toolchain_lock_v0", manifest)
+    except (FileNotFoundError, OSError, UnicodeError, ValueError) as exc:
+        manifest = {
+            "schema": PROOF_TOOLCHAIN_LOCK_SCHEMA_V0,
+            "version": 0,
+            "files": [],
+        }
+        validation = {
+            "schema": REPORT_SCHEMA,
+            "ok": False,
+            "status": "rejected",
+            "errors": [f"cannot build proof toolchain lock manifest: {exc}"],
+            "file_count": 0,
+            "groups": [],
+            "paths": [],
+        }
+        lock_hash = ZERO_ROOT_V0
     errors = list(validation["errors"])
+    errors.extend(
+        f"{finding['path']}:{finding['code']}: {finding['message']}"
+        for finding in policy["findings"]
+    )
+    errors.extend(_policy_manifest_binding_errors(policy, manifest))
     if lock_hash == ZERO_ROOT_V0:
         errors.append("proof toolchain lock hash must be non-zero")
+    inventory_ok = not errors
+    activation_blockers = [
+        f"{row['workspace']} is quarantined: {row['nonclaim']}"
+        for row in policy["quarantines"]
+    ]
+    activation_eligible = inventory_ok and policy["activation_eligible"]
+    status = (
+        "accepted"
+        if activation_eligible
+        else "blocked_quarantined_legacy"
+        if inventory_ok and activation_blockers
+        else "rejected"
+    )
     return {
         **validation,
-        "ok": not errors,
-        "status": "accepted" if not errors else "rejected",
+        "ok": activation_eligible,
+        "inventory_ok": inventory_ok,
+        "activation_eligible": activation_eligible,
+        "status": status,
         "errors": errors,
+        "activation_blockers": activation_blockers,
         "lock_hash": lock_hash,
         "manifest": manifest,
+        "risc0_dependency_policy": policy,
     }
+
+
+def _policy_manifest_binding_errors(
+    policy: Mapping[str, Any],
+    manifest: Mapping[str, Any],
+) -> list[str]:
+    files = manifest.get("files")
+    if not isinstance(files, list):
+        return ["proof toolchain manifest files are unavailable for RISC0 policy binding"]
+    committed = {
+        entry.get("path"): (entry.get("group"), entry.get("sha256"))
+        for entry in files
+        if isinstance(entry, Mapping) and isinstance(entry.get("path"), str)
+    }
+    inputs = policy.get("policy_input_sha256")
+    if not isinstance(inputs, Mapping):
+        return ["RISC0 policy input digests are unavailable"]
+    errors: list[str] = []
+    for path, expected_digest in sorted(inputs.items()):
+        if not isinstance(path, str) or not isinstance(expected_digest, str):
+            errors.append("RISC0 policy input digest row is malformed")
+            continue
+        committed_row = committed.get(path)
+        if committed_row is None:
+            errors.append(f"RISC0 policy input is absent from toolchain manifest: {path}")
+        elif committed_row != ("rust-risc0", expected_digest):
+            errors.append(f"RISC0 policy input digest/group mismatch: {path}")
+    return errors
 
 
 def _mapping(value: Any, name: str, errors: list[str]) -> Mapping[str, Any]:
@@ -168,6 +235,8 @@ def _print_human(report: dict[str, Any]) -> None:
     print("error: proof toolchain lock check failed", file=sys.stderr)
     for error in report["errors"]:
         print(f"  - {error}", file=sys.stderr)
+    for blocker in report["activation_blockers"]:
+        print(f"  - activation blocked: {blocker}", file=sys.stderr)
 
 
 def main(argv: list[str] | None = None) -> int:

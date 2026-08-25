@@ -108,11 +108,20 @@ metadata builders compute it from a repo manifest that hashes the Python
 lockfiles, Docker build files, Lean toolchain/lake manifests, Risc0 Cargo
 workspace locks, and Rust TEE verifier locks.
 
+The source gate discovers all Risc0 workspaces under `zk/`, requires exact
+`=3.0.6` governed declarations and 3.0.6 lock resolution, checks registry
+checksums and direct production feature policy, and blocks activation while a
+named legacy quarantine remains. The current `zk/state_proof_risc0` 1.2.6
+workspace is quarantined for `GHSA-jqq4-c7wq-36h7`, has authority `NONE`, and
+keeps the release check nonzero.
+
 Reasoning:
 - A proof receipt should carry the replay/toolchain lock posture that shaped the
   verifier and public-input environment.
 - The hash is a file-manifest commitment. Live external binaries and services
   still need their own attestation or operator approval.
+- Direct dependency checks do not establish the complete activated Cargo
+  feature graph or attest which compiler and binaries executed.
 
 ### Tau transaction envelopes reject malformed numeric metadata
 

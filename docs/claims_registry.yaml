@@ -728,9 +728,14 @@ claims:
       Python install command is explicitly reported as an allowlisted exception
       outside the production image and release gate. The proof-toolchain lock
       check separately binds Python lockfiles, Docker build files, Lean
-      manifests, Risc0 Cargo locks/manifests, and Rust TEE verifier
-      locks/manifests into proof metadata. This is a local source and manifest
-      audit; it does not prove live remote execution, optional external checkout
+      manifests, every discovered source Risc0 workspace manifest and lock, and
+      Rust TEE verifier locks/manifests into proof metadata. Its Risc0 policy
+      requires exact 3.0.6 governed core declarations and lock resolution,
+      registry checksums, direct production feature policy, and no legacy quarantine for
+      activation. The current state-proof 1.2.6 workspace is a named historical
+      quarantine with authority NONE, so activation remains blocked. This is a
+      local source and manifest audit; it does not prove live remote execution,
+      a complete activated Cargo feature graph, optional external checkout
       locks, or a latest-main two-machine run.
     evidence:
       kind: pytest
@@ -742,6 +747,8 @@ claims:
         - tools/check_python_hash_locks.py
         - tests/test_check_python_hash_locks.py
         - tools/check_proof_toolchain_lock.py
+        - tools/risc0_dependency_inventory_v1.py
+        - tools/risc0_dependency_policy_v1.py
         - tests/test_check_proof_toolchain_lock.py
         - src/integration/proof_toolchain_lock.py
         - tools/zeno_ledger_risc0_proof_metadata.py
