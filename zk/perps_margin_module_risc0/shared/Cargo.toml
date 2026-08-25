@@ -1,0 +1,17 @@
+[package]
+name = "zenodex-perps-margin-module-risc0-shared"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+description = "Canonical input and exact transition seam for the SHADOW perps-margin RISC0 guest"
+
+[lib]
+doctest = false
+
+[dependencies]
+serde_json = { version = "=1.0.148", features = ["arbitrary_precision"] }
+zenodex-global-settlement-abi-v1 = { path = "../../global_settlement_abi_v1" }
+
+[lints.rust]
+unsafe_code = "forbid"

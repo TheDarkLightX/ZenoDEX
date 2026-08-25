@@ -1,0 +1,24 @@
+[package]
+name = "zenodex-perps-margin-module-risc0-host"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.90"
+publish = false
+description = "Fail-closed host and receipt verifier for the SHADOW perps-margin module guest"
+
+[lib]
+doctest = false
+
+[dependencies]
+hex = "=0.4.3"
+risc0-zkvm = { version = "=3.0.6", features = ["disable-dev-mode"] }
+serde_json = "=1.0.148"
+zenodex-perps-margin-module-risc0-methods = { path = "../methods" }
+zenodex-perps-margin-module-risc0-shared = { path = "../shared" }
+zenodex-global-settlement-abi-v1 = { path = "../../global_settlement_abi_v1" }
+
+[dev-dependencies]
+sha2 = "=0.10.9"
+
+[lints.rust]
+unsafe_code = "forbid"
