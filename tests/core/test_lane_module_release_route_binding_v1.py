@@ -2011,7 +2011,10 @@ def test_route_composition_rejects_structural_duplicate_and_journal_substitution
             )
         assert verifier.calls == []
 
-    with pytest.raises(TypeError, match="verified lane witnesses must be typed"):
+    with pytest.raises(
+        TypeError,
+        match="verified lane witnesses must be exact typed",
+    ):
         RouteCompositionReceiptCandidateV1(
             profile,
             occurrence,

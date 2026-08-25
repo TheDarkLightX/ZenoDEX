@@ -255,6 +255,15 @@ def test_authority_constructor_is_checker_owned() -> None:
         GlobalOracleOccurrenceAuthorityV1(object(), object())
 
 
+def test_object_new_cannot_forge_oracle_authority() -> None:
+    # Arrange: bypass __init__, as a hostile in-process caller can attempt.
+    forged = object.__new__(GlobalOracleOccurrenceAuthorityV1)
+
+    # Act / Assert: no authority field or root can be observed from the forgery.
+    with pytest.raises(TypeError, match="checker-registered"):
+        _ = forged.authority_root
+
+
 def test_current_dispute_status_bridge_rejects_other_oracle_authority() -> None:
     other_oracle_id = "zenodex.oracle.other-finalized-occurrence.v1"
     other_policy = GlobalOracleOccurrencePolicyV1(

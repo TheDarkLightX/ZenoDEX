@@ -2,11 +2,12 @@
 
 use serde_json::json;
 use zenodex_global_settlement_abi_v1::{
-    hash_global_v1, verify_global_oracle_occurrence_authority_v1, AbiErrorV1,
-    EconomicCommandOccurrenceV1, GlobalEconomicStateV1, GlobalOracleOccurrenceAuthorityCandidateV1,
-    GlobalOracleOccurrencePolicyV1, LaneIdV1, LaneStateRootV1, OracleOccurrenceStateV1,
-    ReleaseStatusV1, RootV1, RouteReleaseV1, ALL_LANE_IDS_V1, GLOBAL_SETTLEMENT_ABI_V1,
-    ZERO_ROOT_V1,
+    hash_global_v1, verify_global_oracle_occurrence_authority_v1,
+    verify_global_oracle_price_occurrence_v1, AbiErrorV1, EconomicCommandOccurrenceV1,
+    GlobalEconomicStateV1, GlobalOracleOccurrenceAuthorityCandidateV1,
+    GlobalOracleOccurrencePolicyV1, GlobalOraclePriceOccurrenceV1, LaneIdV1, LaneStateRootV1,
+    OracleOccurrenceStateV1, ReleaseStatusV1, RootV1, RouteReleaseV1, ALL_LANE_IDS_V1,
+    GLOBAL_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1, GLOBAL_SETTLEMENT_ABI_V1, ZERO_ROOT_V1,
 };
 
 const ORACLE_ID: &str = "zenodex.oracle.current-dispute-status.v1";
@@ -84,6 +85,14 @@ fn route(policy: &GlobalOracleOccurrencePolicyV1) -> RouteReleaseV1 {
 }
 
 fn state(observed_height: u64, finalized: bool) -> GlobalEconomicStateV1 {
+    state_with_root(observed_height, finalized, root(501))
+}
+
+fn state_with_root(
+    observed_height: u64,
+    finalized: bool,
+    occurrence_root: RootV1,
+) -> GlobalEconomicStateV1 {
     GlobalEconomicStateV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
         chain_id: "zeno-oracle-authority-test".to_owned(),
@@ -108,7 +117,7 @@ fn state(observed_height: u64, finalized: bool) -> GlobalEconomicStateV1 {
         reserves: vec![],
         oracle_occurrences: vec![OracleOccurrenceStateV1 {
             oracle_id: ORACLE_ID.to_owned(),
-            occurrence_root: root(501),
+            occurrence_root,
             observed_height,
             finalized,
         }],
@@ -116,6 +125,18 @@ fn state(observed_height: u64, finalized: bool) -> GlobalEconomicStateV1 {
         terminal_obligations: vec![],
         history_root: zero_root(),
         outbox: vec![],
+    }
+}
+
+fn price_payload(price_e8: u128) -> GlobalOraclePriceOccurrenceV1 {
+    GlobalOraclePriceOccurrenceV1 {
+        schema: GLOBAL_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1.to_owned(),
+        oracle_id: ORACLE_ID.to_owned(),
+        market_id: "BTC-ZUSD-PERP".to_owned(),
+        base_asset: "BTC".to_owned(),
+        quote_asset: "zUSD".to_owned(),
+        price_e8,
+        observed_height: 40,
     }
 }
 
@@ -179,6 +200,120 @@ fn exact_route_boundary_constructs_state_bound_authority() {
         authority.authority_root().unwrap().as_str(),
         "0xd10e4381d237f3d467672934e0f38513148bd32c067a4853ef66c28a5c271486"
     );
+}
+
+#[test]
+fn finalized_occurrence_root_binds_one_exact_price_payload() {
+    let policy = policy(1);
+    let route = route(&policy);
+    let payload = price_payload(6_500_000_000_000);
+    let state = state_with_root(40, true, payload.occurrence_root().unwrap());
+    let occurrence = occurrence(&state, &route, vec![ORACLE_ID.to_owned()]);
+    let authority =
+        verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
+            pre_state: &state,
+            route: &route,
+            occurrence: &occurrence,
+            policy: &policy,
+        })
+        .unwrap();
+
+    let verified = verify_global_oracle_price_occurrence_v1(&authority, &payload).unwrap();
+
+    assert_eq!(
+        verified.oracle_authority_root(),
+        &authority.authority_root().unwrap()
+    );
+    assert_eq!(
+        verified.command_occurrence_id(),
+        &occurrence.occurrence_id().unwrap()
+    );
+    assert_eq!(verified.market_id(), "BTC-ZUSD-PERP");
+    assert_eq!(verified.base_asset(), "BTC");
+    assert_eq!(verified.quote_asset(), "zUSD");
+    assert_eq!(verified.price_e8(), 6_500_000_000_000);
+
+    let python_parity_payload = GlobalOraclePriceOccurrenceV1 {
+        schema: GLOBAL_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1.to_owned(),
+        oracle_id: "zenodex.oracle.perps-index-price.v1".to_owned(),
+        market_id: "BTC-ZUSD-PERP".to_owned(),
+        base_asset: "BTC".to_owned(),
+        quote_asset: "zUSD".to_owned(),
+        price_e8: 6_500_000_000_000,
+        observed_height: 40,
+    };
+    assert_eq!(
+        python_parity_payload.occurrence_root().unwrap().as_str(),
+        "0x9805b6e0554b0b824cb35c5e5e9ef23bd6951a1d9ca0a6fa996ed36a94060729"
+    );
+}
+
+#[test]
+fn one_field_price_payload_substitutions_reject() {
+    let policy = policy(1);
+    let route = route(&policy);
+    let payload = price_payload(6_500_000_000_000);
+    let state = state_with_root(40, true, payload.occurrence_root().unwrap());
+    let occurrence = occurrence(&state, &route, vec![ORACLE_ID.to_owned()]);
+    let authority =
+        verify_global_oracle_occurrence_authority_v1(GlobalOracleOccurrenceAuthorityCandidateV1 {
+            pre_state: &state,
+            route: &route,
+            occurrence: &occurrence,
+            policy: &policy,
+        })
+        .unwrap();
+
+    let mut substitutions = Vec::new();
+    let mut market = payload.clone();
+    market.market_id = "ETH-ZUSD-PERP".to_owned();
+    substitutions.push(market);
+    let mut base = payload.clone();
+    base.base_asset = "ETH".to_owned();
+    substitutions.push(base);
+    let mut quote = payload.clone();
+    quote.quote_asset = "USDC".to_owned();
+    substitutions.push(quote);
+    let mut price = payload.clone();
+    price.price_e8 += 1;
+    substitutions.push(price);
+    let mut height = payload.clone();
+    height.observed_height -= 1;
+    substitutions.push(height);
+
+    for substituted in substitutions {
+        assert!(verify_global_oracle_price_occurrence_v1(&authority, &substituted).is_err());
+    }
+}
+
+#[test]
+fn price_boundaries_reject_zero_and_accept_one_and_u128_max() {
+    assert_eq!(
+        price_payload(0).validate().unwrap_err(),
+        AbiErrorV1::InvalidBounds("global Oracle price e8")
+    );
+    for price_e8 in [1, u128::MAX] {
+        let policy = policy(1);
+        let route = route(&policy);
+        let payload = price_payload(price_e8);
+        let state = state_with_root(40, true, payload.occurrence_root().unwrap());
+        let occurrence = occurrence(&state, &route, vec![ORACLE_ID.to_owned()]);
+        let authority = verify_global_oracle_occurrence_authority_v1(
+            GlobalOracleOccurrenceAuthorityCandidateV1 {
+                pre_state: &state,
+                route: &route,
+                occurrence: &occurrence,
+                policy: &policy,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            verify_global_oracle_price_occurrence_v1(&authority, &payload)
+                .unwrap()
+                .price_e8(),
+            price_e8
+        );
+    }
 }
 
 #[test]

@@ -29,6 +29,7 @@ from .global_economic_proof_v1 import (
     ReceiptKindV1,
     SuccinctReceiptVerifierV1,
 )
+from .global_oracle_price_occurrence_v1 import VerifiedGlobalOraclePriceV1
 from .global_settlement_types_v1 import (
     EconomicProfileSnapshotV1,
     ReleaseStatusV1,
@@ -36,9 +37,11 @@ from .global_settlement_types_v1 import (
     hash_global_v1,
 )
 from .lane_module_release_route_binding_v1 import (
+    PerpsMarginReleaseRouteBindingCandidateV1,
     ReleaseRouteBoundLaneTransitionV1,
     bind_asset_transfer_lane_output_to_release_route_v1,
     bind_managed_asset_lifecycle_lane_output_to_release_route_v1,
+    bind_perps_margin_lane_output_to_release_route_v1,
 )
 from .managed_asset_lifecycle_lane_module_v1 import (
     ManagedAssetLifecycleLaneModuleAcceptedV1,
@@ -47,6 +50,12 @@ from .managed_asset_lifecycle_lane_module_v1 import (
     _snapshot_managed_asset_lifecycle_lane_module_accepted_v1,
     _snapshot_managed_asset_lifecycle_lane_module_input_v1,
 )
+from .perps_margin_lane_module_v1 import (
+    PerpsMarginLaneModuleInputV1,
+    _recompute_perps_margin_accepted_v1,
+    _snapshot_perps_margin_lane_module_input_v1,
+)
+from .perps_margin_types_v1 import PerpsMarginAcceptedV1
 
 VERIFIED_LANE_MODULE_TRANSITION_SCHEMA_V1: Final = (
     "zenodex/verified-lane-module-transition/v1"
@@ -134,6 +143,42 @@ class ManagedAssetLifecycleLaneModuleReceiptCandidateV1:
         for value, expected_type, label in expected_types:
             if type(value) is not expected_type:
                 raise TypeError(f"lane module {label} must be typed")
+
+
+@dataclass(frozen=True, slots=True)
+class PerpsMarginLaneModuleReceiptCandidateV1:
+    profile: EconomicProfileSnapshotV1
+    authenticated_command: AuthenticatedEconomicCommandV1
+    module_input: PerpsMarginLaneModuleInputV1
+    accepted: PerpsMarginAcceptedV1
+    release_route_binding: ReleaseRouteBoundLaneTransitionV1
+    verified_price: VerifiedGlobalOraclePriceV1 | None
+    receipt: LaneModuleReceiptEnvelopeV1
+
+    def __post_init__(self) -> None:
+        expected_types = (
+            (self.profile, EconomicProfileSnapshotV1, "economic profile"),
+            (
+                self.authenticated_command,
+                AuthenticatedEconomicCommandV1,
+                "authenticated economic command",
+            ),
+            (self.module_input, PerpsMarginLaneModuleInputV1, "perps margin input"),
+            (self.accepted, PerpsMarginAcceptedV1, "perps margin output"),
+            (
+                self.release_route_binding,
+                ReleaseRouteBoundLaneTransitionV1,
+                "release-route binding",
+            ),
+            (self.receipt, LaneModuleReceiptEnvelopeV1, "receipt envelope"),
+        )
+        for value, expected_type, label in expected_types:
+            if type(value) is not expected_type:
+                raise TypeError(f"lane module {label} must be typed")
+        if self.verified_price is not None and (
+            type(self.verified_price) is not VerifiedGlobalOraclePriceV1
+        ):
+            raise TypeError("lane module verified Oracle price must be exact typed data")
 
 
 @dataclass(frozen=True, slots=True)
@@ -343,6 +388,40 @@ def verify_managed_asset_lifecycle_lane_module_receipt_v1(
     )
 
 
+def verify_perps_margin_lane_module_receipt_v1(
+    candidate: PerpsMarginLaneModuleReceiptCandidateV1,
+    receipt_verifier: SuccinctReceiptVerifierV1,
+) -> VerifiedLaneModuleTransitionV1:
+    """Verify one perps-margin receipt under command and Oracle authority."""
+
+    owned = _snapshot_perps_margin_receipt_candidate_v1(candidate)
+    occurrence = owned.authenticated_command.occurrence
+    rebound = bind_perps_margin_lane_output_to_release_route_v1(
+        PerpsMarginReleaseRouteBindingCandidateV1(
+            owned.profile,
+            occurrence,
+            owned.module_input,
+            owned.accepted,
+            owned.verified_price,
+        )
+    )
+    _, expected = _recompute_perps_margin_accepted_v1(
+        owned.module_input,
+        owned.accepted,
+    )
+    return _verify_rebound_module_receipt_v1(
+        _ReboundLaneModuleReceiptCandidateV1(
+            owned.profile,
+            owned.authenticated_command.binding_root,
+            expected.module_journal,
+            owned.release_route_binding,
+            rebound,
+            owned.receipt,
+        ),
+        receipt_verifier,
+    )
+
+
 def _snapshot_asset_transfer_receipt_candidate_v1(
     candidate: AssetTransferLaneModuleReceiptCandidateV1,
 ) -> AssetTransferLaneModuleReceiptCandidateV1:
@@ -379,6 +458,28 @@ def _snapshot_managed_lifecycle_receipt_candidate_v1(
     )
 
 
+def _snapshot_perps_margin_receipt_candidate_v1(
+    candidate: PerpsMarginLaneModuleReceiptCandidateV1,
+) -> PerpsMarginLaneModuleReceiptCandidateV1:
+    if type(candidate) is not PerpsMarginLaneModuleReceiptCandidateV1:
+        raise TypeError("perps margin receipt candidate must have the exact type")
+    _, accepted = _recompute_perps_margin_accepted_v1(
+        candidate.module_input,
+        candidate.accepted,
+    )
+    return PerpsMarginLaneModuleReceiptCandidateV1(
+        profile=snapshot_economic_profile_v1(candidate.profile),
+        authenticated_command=candidate.authenticated_command,
+        module_input=_snapshot_perps_margin_lane_module_input_v1(
+            candidate.module_input
+        ),
+        accepted=accepted,
+        release_route_binding=candidate.release_route_binding,
+        verified_price=candidate.verified_price,
+        receipt=_snapshot_lane_module_receipt_envelope_v1(candidate.receipt),
+    )
+
+
 def _snapshot_lane_module_receipt_envelope_v1(
     receipt: LaneModuleReceiptEnvelopeV1,
 ) -> LaneModuleReceiptEnvelopeV1:
@@ -391,8 +492,10 @@ __all__ = [
     "AssetTransferLaneModuleReceiptCandidateV1",
     "LaneModuleReceiptEnvelopeV1",
     "ManagedAssetLifecycleLaneModuleReceiptCandidateV1",
+    "PerpsMarginLaneModuleReceiptCandidateV1",
     "VERIFIED_LANE_MODULE_TRANSITION_SCHEMA_V1",
     "VerifiedLaneModuleTransitionV1",
     "verify_asset_transfer_lane_module_receipt_v1",
     "verify_managed_asset_lifecycle_lane_module_receipt_v1",
+    "verify_perps_margin_lane_module_receipt_v1",
 ]

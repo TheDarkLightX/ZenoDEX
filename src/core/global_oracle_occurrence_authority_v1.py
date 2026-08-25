@@ -10,6 +10,8 @@ verifiers plus the atomic commit port.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from threading import Lock
+from weakref import WeakKeyDictionary
 
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1
 from .global_economic_refinement_snapshot_v1 import (
@@ -102,70 +104,134 @@ class _AuthorityFieldsV1:
 class GlobalOracleOccurrenceAuthorityV1:
     """Opaque witness for one governed Oracle occurrence in one exact head."""
 
-    _fields: _AuthorityFieldsV1
-    __slots__ = ("_fields",)
+    __slots__ = ("__weakref__",)
 
     def __init__(self, token: object, fields: object) -> None:
         if token is not _AUTHORITY_TOKEN or type(fields) is not _AuthorityFieldsV1:
             raise TypeError("GlobalOracleOccurrenceAuthorityV1 is checker-constructed")
-        object.__setattr__(self, "_fields", fields)
+        _register_authority_v1(self, fields)
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("GlobalOracleOccurrenceAuthorityV1 is immutable")
 
     @property
     def pre_state_root(self) -> str:
-        return self._fields.pre_state_root
+        return _authority_fields_v1(self).pre_state_root
 
     @property
     def route_release_id(self) -> str:
-        return self._fields.route_release_id
+        return _authority_fields_v1(self).route_release_id
 
     @property
     def command_occurrence_id(self) -> str:
-        return self._fields.command_occurrence_id
+        return _authority_fields_v1(self).command_occurrence_id
 
     @property
     def policy_root(self) -> str:
-        return self._fields.policy_root
+        return _authority_fields_v1(self).policy_root
 
     @property
     def oracle_id(self) -> str:
-        return self._fields.oracle_id
+        return _authority_fields_v1(self).oracle_id
 
     @property
     def occurrence_root(self) -> str:
-        return self._fields.occurrence_root
+        return _authority_fields_v1(self).occurrence_root
 
     @property
     def observed_height(self) -> int:
-        return self._fields.observed_height
+        return _authority_fields_v1(self).observed_height
 
     @property
     def state_height(self) -> int:
-        return self._fields.state_height
+        return _authority_fields_v1(self).state_height
 
     @property
     def observation_age_blocks(self) -> int:
-        return self._fields.observation_age_blocks
+        return _authority_fields_v1(self).observation_age_blocks
 
     @property
     def authority_root(self) -> str:
+        fields = _authority_fields_v1(self)
         return hash_global_v1(
             "global-oracle-occurrence-authority-v1",
             {
                 "schema": GLOBAL_ORACLE_OCCURRENCE_AUTHORITY_SCHEMA_V1,
-                "pre_state_root": self.pre_state_root,
-                "route_release_id": self.route_release_id,
-                "command_occurrence_id": self.command_occurrence_id,
-                "policy_root": self.policy_root,
-                "oracle_id": self.oracle_id,
-                "occurrence_root": self.occurrence_root,
-                "observed_height": self.observed_height,
-                "state_height": self.state_height,
-                "observation_age_blocks": self.observation_age_blocks,
+                "pre_state_root": fields.pre_state_root,
+                "route_release_id": fields.route_release_id,
+                "command_occurrence_id": fields.command_occurrence_id,
+                "policy_root": fields.policy_root,
+                "oracle_id": fields.oracle_id,
+                "occurrence_root": fields.occurrence_root,
+                "observed_height": fields.observed_height,
+                "state_height": fields.state_height,
+                "observation_age_blocks": fields.observation_age_blocks,
             },
         )
+
+
+_AUTHORITY_LOCK_V1 = Lock()
+_AUTHORITIES_V1: WeakKeyDictionary[
+    GlobalOracleOccurrenceAuthorityV1,
+    _AuthorityFieldsV1,
+] = WeakKeyDictionary()
+
+
+def _snapshot_authority_fields_v1(fields: _AuthorityFieldsV1) -> _AuthorityFieldsV1:
+    if type(fields) is not _AuthorityFieldsV1:
+        raise TypeError("global Oracle authority fields must be exact typed data")
+    for name, root_value in (
+        ("pre-state root", fields.pre_state_root),
+        ("route release id", fields.route_release_id),
+        ("command occurrence id", fields.command_occurrence_id),
+        ("policy root", fields.policy_root),
+        ("occurrence root", fields.occurrence_root),
+    ):
+        if type(root_value) is not str:
+            raise TypeError(f"global Oracle authority {name} must be exact text")
+        _require_root(root_value, name=f"global Oracle authority {name}")
+    if type(fields.oracle_id) is not str:
+        raise TypeError("global Oracle authority oracle id must be exact text")
+    _require_token(fields.oracle_id, name="global Oracle authority oracle id")
+    for name, height_value in (
+        ("observed height", fields.observed_height),
+        ("state height", fields.state_height),
+        ("observation age", fields.observation_age_blocks),
+    ):
+        if type(height_value) is not int:
+            raise TypeError(f"global Oracle authority {name} must be an exact int")
+        _require_nonnegative_int(
+            height_value,
+            name=f"global Oracle authority {name}",
+        )
+    if fields.observed_height > fields.state_height:
+        raise ValueError("global Oracle authority observation is in the future")
+    if fields.observation_age_blocks != fields.state_height - fields.observed_height:
+        raise ValueError("global Oracle authority observation age mismatch")
+    return replace(fields)
+
+
+def _register_authority_v1(
+    authority: GlobalOracleOccurrenceAuthorityV1,
+    fields: _AuthorityFieldsV1,
+) -> None:
+    owned = _snapshot_authority_fields_v1(fields)
+    with _AUTHORITY_LOCK_V1:
+        if authority in _AUTHORITIES_V1:
+            raise RuntimeError("global Oracle authority is already registered")
+        _AUTHORITIES_V1[authority] = owned
+
+
+def _authority_fields_v1(
+    authority: GlobalOracleOccurrenceAuthorityV1,
+) -> _AuthorityFieldsV1:
+    if type(authority) is not GlobalOracleOccurrenceAuthorityV1:
+        raise TypeError("global Oracle authority type is not closed")
+    with _AUTHORITY_LOCK_V1:
+        fields = _AUTHORITIES_V1.get(authority)
+    if fields is None:
+        raise TypeError("global Oracle authority is not checker-registered")
+    return _snapshot_authority_fields_v1(fields)
 
 
 def _snapshot_route_v1(route: RouteReleaseV1) -> RouteReleaseV1:

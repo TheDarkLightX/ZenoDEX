@@ -19,6 +19,7 @@ from .global_economic_proof_v1 import (
     EconomicCommandOccurrenceV1,
     LaneModuleTransitionJournalV1,
 )
+from .global_oracle_price_occurrence_v1 import VerifiedGlobalOraclePriceV1
 from .global_settlement_types_v1 import (
     EconomicProfileSnapshotV1,
     LaneIdV1,
@@ -29,6 +30,14 @@ from .managed_asset_lifecycle_lane_module_v1 import (
     ManagedAssetLifecycleLaneModuleAcceptedV1,
     ManagedAssetLifecycleLaneModuleInputV1,
     _recompute_managed_asset_lifecycle_lane_module_accepted_v1,
+)
+from .perps_margin_lane_module_v1 import (
+    PerpsMarginLaneModuleInputV1,
+    _recompute_perps_margin_accepted_v1,
+)
+from .perps_margin_types_v1 import (
+    PERPS_MARGIN_MODULE_SCHEMA_V1,
+    PerpsMarginAcceptedV1,
 )
 
 RELEASE_ROUTE_BOUND_LANE_TRANSITION_SCHEMA_V1: Final = (
@@ -331,9 +340,144 @@ def bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class PerpsMarginReleaseRouteBindingCandidateV1:
+    profile: EconomicProfileSnapshotV1
+    occurrence: EconomicCommandOccurrenceV1
+    module_input: PerpsMarginLaneModuleInputV1
+    accepted: PerpsMarginAcceptedV1
+    verified_price: VerifiedGlobalOraclePriceV1 | None
+
+    def __post_init__(self) -> None:
+        expected_types = (
+            (self.profile, EconomicProfileSnapshotV1),
+            (self.occurrence, EconomicCommandOccurrenceV1),
+            (self.module_input, PerpsMarginLaneModuleInputV1),
+            (self.accepted, PerpsMarginAcceptedV1),
+        )
+        if any(type(value) is not expected for value, expected in expected_types):
+            raise TypeError("perps margin route binding requires exact typed inputs")
+        if self.verified_price is not None and (
+            type(self.verified_price) is not VerifiedGlobalOraclePriceV1
+        ):
+            raise TypeError("perps margin route binding price must be checker-verified")
+
+
+def _perps_oracle_bindings_v1(
+    oracle_policy_root: str,
+    occurrence: EconomicCommandOccurrenceV1,
+    module_input: PerpsMarginLaneModuleInputV1,
+    verified_price: VerifiedGlobalOraclePriceV1,
+) -> tuple[tuple[object, object, str], ...]:
+    return (
+        (
+            module_input.context.oracle_authority_root,
+            verified_price.oracle_authority_root,
+            "Oracle authority root",
+        ),
+        (
+            module_input.context.oracle_occurrence_root,
+            verified_price.occurrence_root,
+            "Oracle occurrence root",
+        ),
+        (
+            module_input.context.oracle_price_e8,
+            verified_price.price_e8,
+            "Oracle price",
+        ),
+        (
+            occurrence.occurrence_id,
+            verified_price.command_occurrence_id,
+            "Oracle command occurrence",
+        ),
+        (
+            occurrence.route_release_id,
+            verified_price.route_release_id,
+            "Oracle route release",
+        ),
+        (
+            occurrence.pre_state_root,
+            verified_price.pre_state_root,
+            "Oracle pre-state",
+        ),
+        (oracle_policy_root, verified_price.policy_root, "Oracle policy"),
+        (module_input.command.market_id, verified_price.market_id, "Oracle market"),
+        (module_input.pre_state.market_id, verified_price.market_id, "Oracle state market"),
+        (
+            module_input.command.asset,
+            verified_price.quote_asset,
+            "Oracle quote asset",
+        ),
+        (
+            module_input.pre_state.collateral_asset,
+            verified_price.quote_asset,
+            "Oracle state quote asset",
+        ),
+    )
+
+
+def _require_perps_oracle_price_binding_v1(
+    profile: EconomicProfileSnapshotV1,
+    occurrence: EconomicCommandOccurrenceV1,
+    module_input: PerpsMarginLaneModuleInputV1,
+    verified_price: VerifiedGlobalOraclePriceV1 | None,
+) -> None:
+    if not module_input.context.has_oracle_authority:
+        if verified_price is not None:
+            raise ValueError("perps margin has unexpected Oracle price authority")
+        return
+    if verified_price is None or type(verified_price) is not VerifiedGlobalOraclePriceV1:
+        raise ValueError("perps margin Oracle price authority is missing")
+    route = profile.route_registry.route_for_command(
+        occurrence.command_kind,
+        claimed_route_release_id=occurrence.route_release_id,
+    )
+    for actual, expected, label in _perps_oracle_bindings_v1(
+        route.oracle_policy_root,
+        occurrence,
+        module_input,
+        verified_price,
+    ):
+        if actual != expected:
+            raise ValueError(f"perps margin {label} mismatch")
+
+
+def bind_perps_margin_lane_output_to_release_route_v1(
+    candidate: PerpsMarginReleaseRouteBindingCandidateV1,
+) -> ReleaseRouteBoundLaneTransitionV1:
+    """Bind one accepted perps-margin output to command and Oracle authority."""
+
+    if type(candidate) is not PerpsMarginReleaseRouteBindingCandidateV1:
+        raise TypeError("perps margin route candidate must have the exact type")
+    owned_input, expected = _recompute_perps_margin_accepted_v1(
+        candidate.module_input,
+        candidate.accepted,
+    )
+    _require_perps_oracle_price_binding_v1(
+        candidate.profile,
+        candidate.occurrence,
+        owned_input,
+        candidate.verified_price,
+    )
+    return _bind_candidate_v1(
+        candidate.profile,
+        candidate.occurrence,
+        _BindingCandidateV1(
+            owned_input.command.command_kind,
+            owned_input.command.command_body_hash,
+            expected.statement_root,
+            PERPS_MARGIN_MODULE_SCHEMA_V1,
+            owned_input.context,
+            expected.module_journal,
+        ),
+    )
+
+
 __all__ = [
     "RELEASE_ROUTE_BOUND_LANE_TRANSITION_SCHEMA_V1",
     "ReleaseRouteBoundLaneTransitionV1",
+    "PerpsMarginReleaseRouteBindingCandidateV1",
     "bind_asset_transfer_lane_output_to_release_route_v1",
     "bind_managed_asset_lifecycle_lane_output_to_release_route_v1",
+    "bind_perps_margin_lane_output_to_release_route_v1",
 ]

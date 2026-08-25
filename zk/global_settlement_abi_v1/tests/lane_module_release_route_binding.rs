@@ -291,6 +291,9 @@ fn authorization_registry(routes: &RouteRegistryV1) -> EconomicCommandAuthorizat
                 ASSET_TRANSFER_COMMAND_KIND_V1 => ("alice", root(7)),
                 MANAGED_ASSET_BURN_COMMAND_KIND_V1 => ("alice", root(6)),
                 MANAGED_ASSET_ISSUE_COMMAND_KIND_V1 => ("issuer", root(5)),
+                PERPS_MARGIN_CLOSE_COMMAND_KIND_V1
+                | PERPS_MARGIN_DEPOSIT_COMMAND_KIND_V1
+                | PERPS_MARGIN_WITHDRAW_COMMAND_KIND_V1 => ("alice", root(7)),
                 _ => panic!("unsupported authentication test route"),
             };
             EconomicCommandAuthorizationV1 {
@@ -526,6 +529,224 @@ fn profile() -> (
         .validate_registries(&lanes, &coordinators, &routes)
         .expect("test profile must bind registries");
     (profile, lanes, coordinators, routes)
+}
+
+fn perps_lane_release(lane_id: LaneIdV1, ordinal: u64) -> LaneModuleReleaseV1 {
+    let mut release = lane_release(lane_id, ordinal);
+    let selected = lane_id == LaneIdV1::PERPS_MARKET;
+    release.semantic_version = "1.0.0-perps-binding-test".to_owned();
+    release.status = if selected {
+        ReleaseStatusV1::ACTIVE_NEW
+    } else {
+        ReleaseStatusV1::SHADOW
+    };
+    release.accepts_new_objects = selected;
+    release.evidence_statuses = if selected {
+        active_evidence()
+    } else {
+        vec![EvidenceStatusV1::DISABLED_PROVED_NO_WRITER]
+    };
+    release.command_variants = if selected {
+        vec![
+            PERPS_MARGIN_CLOSE_COMMAND_KIND_V1.to_owned(),
+            PERPS_MARGIN_DEPOSIT_COMMAND_KIND_V1.to_owned(),
+            PERPS_MARGIN_WITHDRAW_COMMAND_KIND_V1.to_owned(),
+        ]
+    } else {
+        vec![]
+    };
+    release.terminal_command_variants = if selected {
+        vec![PERPS_MARGIN_CLOSE_COMMAND_KIND_V1.to_owned()]
+    } else {
+        vec![]
+    };
+    let content = json!({
+        "schema": GLOBAL_SETTLEMENT_ABI_V1,
+        "lane_id": release.lane_id,
+        "state_schema_root": release.state_schema_root,
+        "command_variants": release.command_variants,
+        "terminal_command_variants": release.terminal_command_variants,
+        "guest_image_id": release.guest_image_id,
+        "specification_root": release.specification_root,
+        "source_root": release.source_root,
+        "toolchain_root": release.toolchain_root,
+        "terminal_coverage_root": release.terminal_coverage_root,
+        "migration_compatibility_root": release.migration_compatibility_root,
+        "max_cycles": release.max_cycles,
+        "max_journal_bytes": release.max_journal_bytes,
+    });
+    release.release_id = hash_global_v1("global-lane-module-release-content-v1", &content).unwrap();
+    release.validate().unwrap();
+    release
+}
+
+fn perps_coordinator_release(lane_id: LaneIdV1, ordinal: u64) -> LaneCoordinatorReleaseV1 {
+    let mut release = coordinator_release(lane_id, ordinal);
+    let selected = lane_id == LaneIdV1::PERPS_MARKET;
+    release.semantic_version = "1.0.0-perps-binding-test".to_owned();
+    release.status = if selected {
+        ReleaseStatusV1::ACTIVE_NEW
+    } else {
+        ReleaseStatusV1::SHADOW
+    };
+    release.accepts_new_objects = selected;
+    release.evidence_statuses = if selected {
+        active_evidence()
+    } else {
+        vec![EvidenceStatusV1::DISABLED_PROVED_NO_WRITER]
+    };
+    release.validate().unwrap();
+    release
+}
+
+fn perps_route(
+    command_kind: &str,
+    index: u64,
+    release_id: &RootV1,
+    oracle_policy_root: &RootV1,
+) -> RouteReleaseV1 {
+    let ordered_lanes = vec![LaneIdV1::PERPS_MARKET];
+    let module_release_ids = vec![release_id.clone()];
+    let dependency_roles = vec!["PERPS_MARGIN".to_owned()];
+    let port_schema_roots = vec![root(500 + index)];
+    let guest_image_id = root(520 + index);
+    let specification_root = root(530 + index);
+    let source_root = root(540 + index);
+    let toolchain_root = root(550 + index);
+    let issue_burn_policy_root = root(511);
+    let content = json!({
+        "schema": GLOBAL_SETTLEMENT_ABI_V1,
+        "command_kind": command_kind,
+        "ordered_lanes": ordered_lanes,
+        "module_release_ids": module_release_ids,
+        "dependency_roles": dependency_roles,
+        "port_schema_roots": port_schema_roots,
+        "guest_image_id": guest_image_id,
+        "specification_root": specification_root,
+        "source_root": source_root,
+        "toolchain_root": toolchain_root,
+        "oracle_policy_root": oracle_policy_root,
+        "issue_burn_policy_root": issue_burn_policy_root,
+        "max_cycles": 2_000_000,
+        "max_journal_bytes": 131_072,
+    });
+    let route = RouteReleaseV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        route_release_id: hash_global_v1("global-route-release-content-v1", &content).unwrap(),
+        semantic_version: "1.0.0-perps-binding-test".to_owned(),
+        command_kind: command_kind.to_owned(),
+        ordered_lanes,
+        module_release_ids,
+        dependency_roles,
+        port_schema_roots,
+        guest_image_id,
+        specification_root,
+        source_root,
+        toolchain_root,
+        oracle_policy_root: oracle_policy_root.clone(),
+        issue_burn_policy_root,
+        max_cycles: 2_000_000,
+        max_journal_bytes: 131_072,
+        status: ReleaseStatusV1::ACTIVE_NEW,
+        accepts_new_objects: true,
+        evidence_statuses: active_evidence(),
+    };
+    route.validate().unwrap();
+    route
+}
+
+fn perps_profile() -> (
+    EconomicProfileSnapshotV1,
+    LaneRegistryV1,
+    LaneCoordinatorRegistryV1,
+    RouteRegistryV1,
+    GlobalOracleOccurrencePolicyV1,
+) {
+    let lanes = LaneRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        releases: ALL_LANE_IDS_V1
+            .iter()
+            .enumerate()
+            .map(|(index, lane)| perps_lane_release(*lane, index as u64 + 1))
+            .collect(),
+    };
+    let coordinators = LaneCoordinatorRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        releases: ALL_LANE_IDS_V1
+            .iter()
+            .enumerate()
+            .map(|(index, lane)| perps_coordinator_release(*lane, index as u64 + 1))
+            .collect(),
+    };
+    let release_id = lanes
+        .release_for(LaneIdV1::PERPS_MARKET)
+        .unwrap()
+        .release_id
+        .clone();
+    let policy = GlobalOracleOccurrencePolicyV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        oracle_id: "zenodex.oracle.perps-index-price.v1".to_owned(),
+        max_observation_age_blocks: 1,
+    };
+    let policy_root = policy.policy_root().unwrap();
+    let routes = RouteRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        routes: [
+            PERPS_MARGIN_CLOSE_COMMAND_KIND_V1,
+            PERPS_MARGIN_DEPOSIT_COMMAND_KIND_V1,
+            PERPS_MARGIN_WITHDRAW_COMMAND_KIND_V1,
+        ]
+        .iter()
+        .enumerate()
+        .map(|(index, command)| perps_route(command, index as u64, &release_id, &policy_root))
+        .collect(),
+    };
+    let lane_registry_root = lanes.registry_root().unwrap();
+    let lane_coordinator_registry_root = coordinators.registry_root().unwrap();
+    let route_registry_root = routes.registry_root().unwrap();
+    let authorizations = authorization_registry(&routes);
+    let signature_verifiers = signature_verifier_registry();
+    let policy_registry_root =
+        authentication_policy_registry(&authorizations, &signature_verifiers)
+            .registry_root()
+            .unwrap();
+    let proof_shape_root = root(601);
+    let root_image_id = root(602);
+    let verifier_registry_root = root(603);
+    let migration_registry_root = root(604);
+    let terminal_registry_root = root(605);
+    let content = json!({
+        "schema": GLOBAL_SETTLEMENT_ABI_V1,
+        "authority_epoch": 7,
+        "lane_registry_root": lane_registry_root,
+        "lane_coordinator_registry_root": lane_coordinator_registry_root,
+        "route_registry_root": route_registry_root,
+        "proof_shape_root": proof_shape_root,
+        "root_image_id": root_image_id,
+        "verifier_registry_root": verifier_registry_root,
+        "migration_registry_root": migration_registry_root,
+        "policy_registry_root": policy_registry_root,
+        "terminal_registry_root": terminal_registry_root,
+    });
+    let profile = EconomicProfileSnapshotV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        profile_id: hash_global_v1("global-economic-profile-content-v1", &content).unwrap(),
+        authority_epoch: 7,
+        lane_registry_root,
+        lane_coordinator_registry_root,
+        route_registry_root,
+        proof_shape_root,
+        root_image_id,
+        verifier_registry_root,
+        migration_registry_root,
+        policy_registry_root,
+        terminal_registry_root,
+        status: ProfileStatusV1::ACTIVE,
+    };
+    profile
+        .validate_registries(&lanes, &coordinators, &routes)
+        .unwrap();
+    (profile, lanes, coordinators, routes, policy)
 }
 
 fn occurrence(
@@ -1044,6 +1265,573 @@ impl LaneModuleSuccinctReceiptVerifierV1 for RecordingModuleReceiptVerifier {
             Ok(())
         }
     }
+}
+
+struct PerpsReceiptFixture {
+    profile: EconomicProfileSnapshotV1,
+    lanes: LaneRegistryV1,
+    coordinators: LaneCoordinatorRegistryV1,
+    routes: RouteRegistryV1,
+    authenticated_command: AuthenticatedEconomicCommandV1,
+    module_input: PerpsMarginLaneModuleInputV1,
+    accepted: PerpsMarginAcceptedV1,
+    verified_price: Option<VerifiedGlobalOraclePriceV1>,
+}
+
+fn perps_receipt_fixture(with_position: bool, price_e8: u128) -> PerpsReceiptFixture {
+    let (profile, lanes, coordinators, routes, policy) = perps_profile();
+    let release_id = lanes
+        .release_for(LaneIdV1::PERPS_MARKET)
+        .unwrap()
+        .release_id
+        .clone();
+    let command_kind = if with_position {
+        PERPS_MARGIN_WITHDRAW_COMMAND_KIND_V1
+    } else {
+        PERPS_MARGIN_DEPOSIT_COMMAND_KIND_V1
+    };
+    let command = PerpsMarginCommandV1 {
+        command_kind: command_kind.to_owned(),
+        account_id: "alice-margin".to_owned(),
+        market_id: "BTC-ZUSD-PERP".to_owned(),
+        owner: "alice".to_owned(),
+        asset: "zUSD".to_owned(),
+        amount_atoms: 10_000,
+        nonce: 1,
+    };
+    let accounts = if with_position {
+        vec![
+            PerpsMarginAccountV1 {
+                account_id: "alice-margin".to_owned(),
+                owner: "alice".to_owned(),
+                position_base: 1,
+                entry_price_e8: price_e8,
+                collateral_atoms: 1_000_000_000_000,
+                nonce: 0,
+                status: PerpsMarginAccountStatusV1::OPEN,
+            },
+            PerpsMarginAccountV1 {
+                account_id: "bob-margin".to_owned(),
+                owner: "bob".to_owned(),
+                position_base: -1,
+                entry_price_e8: price_e8,
+                collateral_atoms: 1_000_000_000_000,
+                nonce: 0,
+                status: PerpsMarginAccountStatusV1::OPEN,
+            },
+        ]
+    } else {
+        vec![]
+    };
+    let pre_state = PerpsMarginStateV1 {
+        schema: PERPS_MARGIN_MODULE_SCHEMA_V1.to_owned(),
+        module_release_id: release_id,
+        market_id: "BTC-ZUSD-PERP".to_owned(),
+        collateral_asset: "zUSD".to_owned(),
+        index_price_e8: price_e8,
+        maintenance_margin_bps: 500,
+        depeg_buffer_bps: 100,
+        max_position_abs: 10,
+        market_status: PerpsMarginMarketStatusV1::ACTIVE,
+        accounts,
+    };
+    let payload = GlobalOraclePriceOccurrenceV1 {
+        schema: GLOBAL_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1.to_owned(),
+        oracle_id: policy.oracle_id.clone(),
+        market_id: "BTC-ZUSD-PERP".to_owned(),
+        base_asset: "BTC".to_owned(),
+        quote_asset: "zUSD".to_owned(),
+        price_e8,
+        observed_height: 40,
+    };
+    let zero = RootV1::parse(ZERO_ROOT_V1, "perps binding zero root", true).unwrap();
+    let global_state = GlobalEconomicStateV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        chain_id: "zeno-perps-binding-test".to_owned(),
+        deployment_root: root(701),
+        writer_epoch: profile.authority_epoch,
+        height: 41,
+        profile_root: profile.profile_id.clone(),
+        lane_roots: ALL_LANE_IDS_V1
+            .iter()
+            .map(|lane_id| LaneStateRootV1 {
+                lane_id: *lane_id,
+                module_release_id: lanes.release_for(*lane_id).unwrap().release_id.clone(),
+                enabled: *lane_id == LaneIdV1::PERPS_MARKET,
+                state_root: if *lane_id == LaneIdV1::PERPS_MARKET {
+                    pre_state.state_root().unwrap()
+                } else {
+                    zero.clone()
+                },
+            })
+            .collect(),
+        balances: vec![],
+        supplies: vec![],
+        custody: vec![],
+        liabilities: vec![],
+        reserves: vec![],
+        oracle_occurrences: vec![OracleOccurrenceStateV1 {
+            oracle_id: policy.oracle_id.clone(),
+            occurrence_root: payload.occurrence_root().unwrap(),
+            observed_height: 40,
+            finalized: true,
+        }],
+        replay_state: vec![],
+        terminal_obligations: vec![],
+        history_root: zero,
+        outbox: vec![],
+    };
+    let route = routes.route_for_command(command_kind, None).unwrap();
+    let occurrence = EconomicCommandOccurrenceV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        chain_id: global_state.chain_id.clone(),
+        deployment_root: global_state.deployment_root.clone(),
+        height: 42,
+        tx_index: 0,
+        op_index: 0,
+        command_kind: command_kind.to_owned(),
+        command_body_hash: command.command_body_hash().unwrap(),
+        route_release_id: route.route_release_id.clone(),
+        subject_id: "alice".to_owned(),
+        grant_root: root(7),
+        nonce: 9,
+        profile_root: profile.profile_id.clone(),
+        pre_state_root: global_state.state_root().unwrap(),
+        consumed_object_ids: if with_position {
+            vec![policy.oracle_id.clone()]
+        } else {
+            vec![]
+        },
+    };
+    let authenticated_command = authenticate_occurrence(
+        &profile,
+        &routes,
+        &occurrence,
+        canonical_economic_command_body_bytes_v1(command_kind, &command).unwrap(),
+    );
+    let verified_price = if with_position {
+        let authority = verify_global_oracle_occurrence_authority_v1(
+            GlobalOracleOccurrenceAuthorityCandidateV1 {
+                pre_state: &global_state,
+                route,
+                occurrence: &occurrence,
+                policy: &policy,
+            },
+        )
+        .unwrap();
+        Some(verify_global_oracle_price_occurrence_v1(&authority, &payload).unwrap())
+    } else {
+        None
+    };
+    let context = PerpsMarginContextV1 {
+        chain_id: occurrence.chain_id.clone(),
+        deployment_root: occurrence.deployment_root.clone(),
+        profile_root: profile.profile_id.clone(),
+        writer_epoch: profile.authority_epoch,
+        module_release_id: pre_state.module_release_id.clone(),
+        command_occurrence_id: occurrence.occurrence_id().unwrap(),
+        subject_id: occurrence.subject_id.clone(),
+        grant_root: occurrence.grant_root.clone(),
+        oracle_authority_root: verified_price.as_ref().map_or_else(
+            || RootV1::parse(ZERO_ROOT_V1, "zero authority", true).unwrap(),
+            |value| value.oracle_authority_root().clone(),
+        ),
+        oracle_occurrence_root: verified_price.as_ref().map_or_else(
+            || RootV1::parse(ZERO_ROOT_V1, "zero occurrence", true).unwrap(),
+            |value| value.occurrence_root().clone(),
+        ),
+        oracle_price_e8: verified_price.as_ref().map_or(0, |value| value.price_e8()),
+    };
+    let module_input = PerpsMarginLaneModuleInputV1 {
+        schema: PERPS_MARGIN_LANE_MODULE_INPUT_SCHEMA_V1.to_owned(),
+        context,
+        pre_state,
+        command,
+    };
+    let accepted = match transition_perps_margin_lane_module_v1(&module_input).unwrap() {
+        PerpsMarginResultV1::Accepted(value) => *value,
+        PerpsMarginResultV1::Rejected(value) => panic!("unexpected reject: {:?}", value.code),
+    };
+    PerpsReceiptFixture {
+        profile,
+        lanes,
+        coordinators,
+        routes,
+        authenticated_command,
+        module_input,
+        accepted,
+        verified_price,
+    }
+}
+
+fn perps_binding_candidate<'a>(
+    fixture: &'a PerpsReceiptFixture,
+    verified_price: Option<&'a VerifiedGlobalOraclePriceV1>,
+) -> PerpsMarginReleaseRouteBindingCandidateV1<'a> {
+    PerpsMarginReleaseRouteBindingCandidateV1 {
+        profile: &fixture.profile,
+        lanes: &fixture.lanes,
+        coordinators: &fixture.coordinators,
+        routes: &fixture.routes,
+        occurrence: fixture.authenticated_command.occurrence(),
+        module_input: &fixture.module_input,
+        accepted: &fixture.accepted,
+        verified_price,
+    }
+}
+
+#[test]
+fn perps_position_withdraw_binds_exact_price_and_succinct_receipt() {
+    let fixture = perps_receipt_fixture(true, 6_500_000_000_000);
+    let price = fixture.verified_price.as_ref().unwrap();
+    let binding = bind_perps_margin_lane_output_to_release_route_v1(perps_binding_candidate(
+        &fixture,
+        Some(price),
+    ))
+    .unwrap();
+    let verifier = RecordingModuleReceiptVerifier::default();
+    let verified = verify_perps_margin_lane_module_receipt_v1(
+        PerpsMarginLaneModuleReceiptCandidateV1 {
+            profile: &fixture.profile,
+            lanes: &fixture.lanes,
+            coordinators: &fixture.coordinators,
+            routes: &fixture.routes,
+            authenticated_command: &fixture.authenticated_command,
+            module_input: &fixture.module_input,
+            accepted: &fixture.accepted,
+            release_route_binding: &binding,
+            verified_price: Some(price),
+            receipt: LaneModuleReceiptEnvelopeV1 {
+                receipt_kind: ReceiptKindV1::SUCCINCT,
+                receipt_bytes: b"perps-receipt",
+            },
+        },
+        &verifier,
+    )
+    .unwrap();
+
+    let release = fixture.lanes.release_for(LaneIdV1::PERPS_MARKET).unwrap();
+    assert_eq!(verified.expected_image_id(), &release.guest_image_id);
+    assert_eq!(
+        fixture.module_input.statement_root().unwrap().as_str(),
+        "0x98db379bafabd24f85a639d2308848c6655340d74103c3cd36a020b6208987d3"
+    );
+    assert_eq!(
+        fixture
+            .accepted
+            .module_journal
+            .journal_root()
+            .unwrap()
+            .as_str(),
+        "0x3fe473d5df90145a53bd0477153f1e1f7b4da0d802d5c5fe00174309454fa2cb"
+    );
+    assert_eq!(
+        verified.authenticated_command_binding_root(),
+        &fixture.authenticated_command.binding_root().unwrap()
+    );
+    assert_eq!(verifier.calls.borrow().len(), 1);
+    assert_eq!(
+        verifier.calls.borrow()[0],
+        (
+            b"perps-receipt".to_vec(),
+            release.guest_image_id.clone(),
+            canonical_bytes_v1(&fixture.accepted.module_journal).unwrap(),
+        )
+    );
+}
+
+#[test]
+fn perps_price_substitution_extra_authority_and_wrong_kind_reject_pre_verifier() {
+    let fixture = perps_receipt_fixture(true, 6_500_000_000_000);
+    let wrong_price = perps_receipt_fixture(true, 6_500_000_000_001);
+    assert_eq!(
+        bind_perps_margin_lane_output_to_release_route_v1(perps_binding_candidate(
+            &fixture,
+            wrong_price.verified_price.as_ref()
+        ),)
+        .unwrap_err(),
+        AbiErrorV1::InvalidBinding("perps margin Oracle price binding")
+    );
+
+    let flat = perps_receipt_fixture(false, 6_500_000_000_000);
+    assert_eq!(
+        bind_perps_margin_lane_output_to_release_route_v1(perps_binding_candidate(
+            &flat,
+            fixture.verified_price.as_ref()
+        ),)
+        .unwrap_err(),
+        AbiErrorV1::InvalidBinding("perps margin unexpected Oracle price authority")
+    );
+
+    let price = fixture.verified_price.as_ref().unwrap();
+    let binding = bind_perps_margin_lane_output_to_release_route_v1(perps_binding_candidate(
+        &fixture,
+        Some(price),
+    ))
+    .unwrap();
+    let verifier = RecordingModuleReceiptVerifier::default();
+    assert_eq!(
+        verify_perps_margin_lane_module_receipt_v1(
+            PerpsMarginLaneModuleReceiptCandidateV1 {
+                profile: &fixture.profile,
+                lanes: &fixture.lanes,
+                coordinators: &fixture.coordinators,
+                routes: &fixture.routes,
+                authenticated_command: &fixture.authenticated_command,
+                module_input: &fixture.module_input,
+                accepted: &fixture.accepted,
+                release_route_binding: &binding,
+                verified_price: Some(price),
+                receipt: LaneModuleReceiptEnvelopeV1 {
+                    receipt_kind: ReceiptKindV1::COMPOSITE,
+                    receipt_bytes: b"receipt",
+                },
+            },
+            &verifier,
+        )
+        .unwrap_err(),
+        AbiErrorV1::InvalidBinding("lane module receipt kind")
+    );
+    assert!(verifier.calls.borrow().is_empty());
+}
+
+fn perps_projection_pair() -> (
+    PerpsReceiptFixture,
+    PerpsMarginLaneProjectionV1,
+    PerpsMarginLaneProjectionV1,
+    PerpsMarginLaneCoordinatorContextV1,
+) {
+    let fixture = perps_receipt_fixture(true, 6_500_000_000_000);
+    let pre_lane = fixture.module_input.pre_state.clone();
+    let post_lane = fixture.accepted.post_state.clone();
+    let pre = PerpsMarginLaneProjectionV1 {
+        schema: PERPS_MARGIN_LANE_PROJECTION_SCHEMA_V1.to_owned(),
+        lane_state: pre_lane.clone(),
+        balances: vec![EconomicAmountV1 {
+            owner: "alice".to_owned(),
+            asset: "zUSD".to_owned(),
+            custody_domain: ACCOUNT_CUSTODY_DOMAIN_V1.to_owned(),
+            amount_atoms: 2_000_000_000_000,
+        }],
+        accounting_locations: vec![
+            EconomicAmountV1 {
+                owner: "alice-margin".to_owned(),
+                asset: "zUSD".to_owned(),
+                custody_domain: PERPS_MARGIN_CUSTODY_DOMAIN_V1.to_owned(),
+                amount_atoms: 1_000_000_000_000,
+            },
+            EconomicAmountV1 {
+                owner: "bob-margin".to_owned(),
+                asset: "zUSD".to_owned(),
+                custody_domain: PERPS_MARGIN_CUSTODY_DOMAIN_V1.to_owned(),
+                amount_atoms: 1_000_000_000_000,
+            },
+        ],
+        liabilities: vec![
+            EconomicAmountV1 {
+                owner: "alice".to_owned(),
+                asset: "zUSD".to_owned(),
+                custody_domain: PERPS_MARGIN_CUSTODY_DOMAIN_V1.to_owned(),
+                amount_atoms: 1_000_000_000_000,
+            },
+            EconomicAmountV1 {
+                owner: "bob".to_owned(),
+                asset: "zUSD".to_owned(),
+                custody_domain: PERPS_MARGIN_CUSTODY_DOMAIN_V1.to_owned(),
+                amount_atoms: 1_000_000_000_000,
+            },
+        ],
+        supplies: vec![AssetSupplyV1 {
+            asset: "zUSD".to_owned(),
+            amount_atoms: 4_000_000_000_000,
+        }],
+        terminal_obligations: pre_lane.terminal_obligations().unwrap(),
+    };
+    let post = PerpsMarginLaneProjectionV1 {
+        schema: PERPS_MARGIN_LANE_PROJECTION_SCHEMA_V1.to_owned(),
+        lane_state: post_lane.clone(),
+        balances: vec![EconomicAmountV1 {
+            owner: "alice".to_owned(),
+            asset: "zUSD".to_owned(),
+            custody_domain: ACCOUNT_CUSTODY_DOMAIN_V1.to_owned(),
+            amount_atoms: 2_000_000_010_000,
+        }],
+        accounting_locations: vec![
+            EconomicAmountV1 {
+                owner: "alice-margin".to_owned(),
+                asset: "zUSD".to_owned(),
+                custody_domain: PERPS_MARGIN_CUSTODY_DOMAIN_V1.to_owned(),
+                amount_atoms: 999_999_990_000,
+            },
+            EconomicAmountV1 {
+                owner: "bob-margin".to_owned(),
+                asset: "zUSD".to_owned(),
+                custody_domain: PERPS_MARGIN_CUSTODY_DOMAIN_V1.to_owned(),
+                amount_atoms: 1_000_000_000_000,
+            },
+        ],
+        liabilities: vec![
+            EconomicAmountV1 {
+                owner: "alice".to_owned(),
+                asset: "zUSD".to_owned(),
+                custody_domain: PERPS_MARGIN_CUSTODY_DOMAIN_V1.to_owned(),
+                amount_atoms: 999_999_990_000,
+            },
+            EconomicAmountV1 {
+                owner: "bob".to_owned(),
+                asset: "zUSD".to_owned(),
+                custody_domain: PERPS_MARGIN_CUSTODY_DOMAIN_V1.to_owned(),
+                amount_atoms: 1_000_000_000_000,
+            },
+        ],
+        supplies: vec![AssetSupplyV1 {
+            asset: "zUSD".to_owned(),
+            amount_atoms: 4_000_000_000_000,
+        }],
+        terminal_obligations: post_lane.terminal_obligations().unwrap(),
+    };
+    pre.validate().unwrap();
+    post.validate().unwrap();
+    let coordinator = fixture
+        .coordinators
+        .release_for(LaneIdV1::PERPS_MARKET)
+        .unwrap();
+    let context = PerpsMarginLaneCoordinatorContextV1 {
+        schema: PERPS_MARGIN_LANE_COORDINATOR_SCHEMA_V1.to_owned(),
+        chain_id: fixture.authenticated_command.occurrence().chain_id.clone(),
+        deployment_root: fixture
+            .authenticated_command
+            .occurrence()
+            .deployment_root
+            .clone(),
+        profile_root: fixture.profile.profile_id.clone(),
+        writer_epoch: fixture.profile.authority_epoch,
+        coordinator_release_id: coordinator.coordinator_release_id.clone(),
+        command_occurrence_id: fixture
+            .authenticated_command
+            .occurrence()
+            .occurrence_id()
+            .unwrap(),
+        compatible_modules: vec![PerpsMarginModuleCompatibilityV1 {
+            module_release_id: fixture.module_input.context.module_release_id.clone(),
+            module_schema: PERPS_MARGIN_MODULE_SCHEMA_V1.to_owned(),
+        }],
+    };
+    (fixture, pre, post, context)
+}
+
+#[test]
+fn perps_lane_coordinator_adds_complete_conservation_and_projection_roots() {
+    let (fixture, pre, post, context) = perps_projection_pair();
+    let result = compose_perps_margin_lane_single_v1(&PerpsMarginLaneCompositionCandidateV1 {
+        context: context.clone(),
+        module_journal: fixture.accepted.module_journal.clone(),
+        private_port: fixture.accepted.private_port.clone(),
+        pre_state: pre.clone(),
+        post_state: post.clone(),
+        module_effects: fixture.accepted.effects.clone(),
+    })
+    .unwrap();
+    let PerpsMarginLaneCompositionResultV1::Accepted(accepted) = result else {
+        panic!("exact perps composition must accept");
+    };
+
+    assert_eq!(accepted.post_state, post);
+    assert_eq!(
+        pre.state_root().unwrap().as_str(),
+        "0x8570aa2d5eaaaa28aad048749250ab1b16588ac209a07a49cd043786d11867a9"
+    );
+    assert_eq!(
+        post.state_root().unwrap().as_str(),
+        "0x48efacb34784dfecbc0560e1233e6be8f4d589c58d26fdc4447f5c41928a5eb7"
+    );
+    assert_eq!(
+        accepted.lane_journal.pre_lane_root,
+        pre.state_root().unwrap()
+    );
+    assert_eq!(
+        accepted.lane_journal.post_lane_root,
+        post.state_root().unwrap()
+    );
+    assert_eq!(
+        accepted.effects.effect_plan_root().unwrap().as_str(),
+        "0xfed2cf18b25e6068030aebbceac92faef92cf73ce354f299c897e79187332fa7"
+    );
+    assert_eq!(
+        accepted.lane_journal.journal_root().unwrap().as_str(),
+        "0xf20c1dcfcd432aa96ac974c61e79e70ad78d25cf7ea0e74db6930abda8f93395"
+    );
+    assert_eq!(accepted.effects.rows, fixture.accepted.effects.rows);
+    assert_eq!(accepted.effects.asset_conservation.len(), 1);
+    let conservation = &accepted.effects.asset_conservation[0];
+    assert_eq!(conservation.asset, "zUSD");
+    assert_eq!(
+        conservation.owned_and_custodied_pre_atoms,
+        4_000_000_000_000
+    );
+    assert_eq!(
+        conservation.owned_and_custodied_post_atoms,
+        4_000_000_000_000
+    );
+    assert_eq!(conservation.supply_pre_atoms, 4_000_000_000_000);
+    assert_eq!(conservation.supply_post_atoms, 4_000_000_000_000);
+    assert_eq!(conservation.authorized_issue_atoms, 0);
+    assert_eq!(conservation.authorized_burn_atoms, 0);
+}
+
+#[test]
+fn perps_lane_projection_drift_and_context_substitution_are_exact_no_ops() {
+    let (fixture, pre, post, context) = perps_projection_pair();
+    let mut drifted = post.clone();
+    drifted.balances[0].amount_atoms -= 1;
+    drifted.accounting_locations.push(EconomicAmountV1 {
+        owner: "treasury".to_owned(),
+        asset: "zUSD".to_owned(),
+        custody_domain: "treasury".to_owned(),
+        amount_atoms: 1,
+    });
+    drifted.validate().unwrap();
+    let drift_result =
+        compose_perps_margin_lane_single_v1(&PerpsMarginLaneCompositionCandidateV1 {
+            context: context.clone(),
+            module_journal: fixture.accepted.module_journal.clone(),
+            private_port: fixture.accepted.private_port.clone(),
+            pre_state: pre.clone(),
+            post_state: drifted,
+            module_effects: fixture.accepted.effects.clone(),
+        })
+        .unwrap();
+    let PerpsMarginLaneCompositionResultV1::Rejected(drift_reject) = drift_result else {
+        panic!("unrecorded accounting movement must reject");
+    };
+    assert_eq!(
+        drift_reject.code,
+        PerpsMarginLaneCoordinatorRejectCodeV1::STATE_EFFECT_MISMATCH
+    );
+    assert_eq!(drift_reject.pre_state_root, pre.state_root().unwrap());
+    assert_eq!(drift_reject.post_state_root, pre.state_root().unwrap());
+    assert!(drift_reject.effects.is_empty());
+
+    let mut wrong_context = context;
+    wrong_context.profile_root = root(999);
+    let context_result =
+        compose_perps_margin_lane_single_v1(&PerpsMarginLaneCompositionCandidateV1 {
+            context: wrong_context,
+            module_journal: fixture.accepted.module_journal.clone(),
+            private_port: fixture.accepted.private_port.clone(),
+            pre_state: pre,
+            post_state: post,
+            module_effects: fixture.accepted.effects.clone(),
+        })
+        .unwrap();
+    let PerpsMarginLaneCompositionResultV1::Rejected(context_reject) = context_result else {
+        panic!("profile substitution must reject");
+    };
+    assert_eq!(
+        context_reject.code,
+        PerpsMarginLaneCoordinatorRejectCodeV1::CONTEXT_MISMATCH
+    );
+    assert!(context_reject.effects.is_empty());
 }
 
 #[derive(Default)]

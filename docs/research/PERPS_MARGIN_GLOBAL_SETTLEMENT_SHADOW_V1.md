@@ -80,23 +80,37 @@ is computed, so canonical ordering does not depend on incidental hash order.
 
 ## Authority boundary
 
-The module emits candidate `ACCOUNT_MOVEMENT`, `CUSTODY`, and `LIABILITY` rows,
-one `PERPS_MARKET` lane write, occurrence consumption, and the complete
-post-state terminal-obligation root. It does not emit a global conservation row.
+The leaf module emits candidate `ACCOUNT_MOVEMENT`, `CUSTODY`, and `LIABILITY`
+rows, one `PERPS_MARKET` lane write, occurrence consumption, and the complete
+post-state terminal-obligation root. Its owned input wrapper snapshots and
+recomputes the transition before release binding or receipt verification.
 
-This omission is a fail-closed boundary. A future perps lane coordinator and
-route composer must derive global owned-and-custodied totals and supply from the
-authenticated complete pre/post ZenoLedger states, bind account availability,
-bind terminal-table refinement, verify the command authentication and grant
-behind the committed subject and grant root, verify that the committed Oracle
-authority root was produced by `GlobalOracleOccurrenceAuthorityV1`, pair the
-committed price with the authenticated Oracle module output, and add the exact
-conservation row. The current global state/effect refiner rejects the candidate
-effect plan as route-incomplete.
+The release binder now requires the authenticated command occurrence, the
+governed active route selected from a synthetic test profile, and the exact
+typed Oracle price authority when the margin transition depends on a price.
+That price authority commits the Oracle ID, market, base asset, quote asset,
+price-e8, observed height, finalized occurrence root, route, policy, pre-state,
+and command occurrence. Only a `SUCCINCT` receipt under the release-selected
+image and exact canonical module journal can create the opaque module receipt
+witness. The verifier remains an injected port in this research slice.
 
-No caller can use this module output as a verified epoch or durable commit
-witness. No module release, route release, RISC0 image, verifier, API, UI, or
-writer is mounted.
+The structural perps lane coordinator takes complete pre/post projections of
+account balances, accounting locations, claimant liabilities, supplies,
+terminal obligations, and the perps state. It checks exact module/port/context
+bindings, derives projected deltas, rejects hidden movement, and replaces the
+module lane write with projection roots while adding the complete per-asset
+conservation row. Every typed rejection has identical pre/post roots and empty
+effects.
+
+The remaining fail-closed boundary is receipt-backed lane composition and
+route/global refinement. The current coordinator output has no verified
+coordinator receipt, route-composition witness, epoch proof, or durable
+publisher authority.
+
+No caller can use this module or structural coordinator output as a verified
+epoch or durable commit witness. The active releases used in tests are
+synthetic fixtures only. No perps module release, route release, RISC0 image,
+verifier deployment, API, UI, or writer is mounted.
 
 The formal ABI term `CUSTODY` means a committed accounting location. It does
 not identify a third-party key holder or make a claim about legal custodianship.
@@ -105,10 +119,18 @@ not identify a third-party key holder or make a claim about legal custodianship.
 
 ```bash
 python3 -m pytest -q tests/core/test_perps_margin_module_v1.py
+python3 -m pytest -q \
+  tests/core/test_global_oracle_occurrence_authority_v1.py \
+  tests/core/test_global_oracle_price_occurrence_v1.py \
+  tests/core/test_perps_margin_release_receipt_binding_v1.py \
+  tests/core/test_perps_margin_lane_coordinator_v1.py
 
 CARGO_TARGET_DIR=/tmp/zenodex-perps-margin-target \
   cargo test --manifest-path zk/global_settlement_abi_v1/Cargo.toml \
-  --test perps_margin --locked --offline
+  --test perps_margin \
+  --test global_oracle_occurrence_authority \
+  --test lane_module_release_route_binding \
+  --locked --offline
 ```
 
 The tests cover deposit creation, exact candidate effects, maintenance BVA at
@@ -119,22 +141,28 @@ namespacing, fixed rejection precedence, exact no-op rejection, overflow,
 nonce exhaustion, canonical ordering, unknown fields, hostile Python
 subclasses, absent/partial/mismatched/surplus Oracle bindings, private-port and
 statement substitution, decoded Rust rejection validation, and frozen
-Rust/Python accepted-transition roots.
+Rust/Python accepted-transition roots. Shared fixed vectors also bind the typed
+Oracle payload, governed perps input statement, module journal, complete
+pre/post lane projections, normalized effect plan, and lane journal across
+Python and Rust. Negative coordinator evidence covers hidden accounting
+movement, profile substitution, unsupported effect kinds, incomplete claimant
+liabilities, and incomplete terminal obligations.
 
 ## Nonclaims and remaining semantic decisions
 
 - No intent matching, position opening, or epoch settlement.
 - No funding rule or funding source.
-- No objective Oracle witness or price-port verification inside this module;
-  its committed Oracle fields gain authority only through a future governed
-  route composition proof.
-- No objective command authentication or grant verification inside this
-  module; owner/subject equality alone grants no authority.
+- No deployed Oracle module receipt or cross-lane Oracle composition proof.
+- No real RISC0 perps guest image or cryptographic receipt replay. Tests use an
+  injected verifier port and synthetic release/profile data.
 - No liquidation, insurance, ADL, or bankruptcy policy.
 - No cross-market or portfolio margin.
 - No complete whole-market terminal closeout.
-- No lane coordinator, route composer, proof guest, receipt verification, or
-  publication authority.
+- No coordinator receipt verifier, receipt-backed lane composition, route
+  composer, epoch proof, migration, mount, writer, or publication authority.
+- No governed registry that binds a perps market ID to its expected base asset;
+  the typed price payload commits the base asset, while this bounded route
+  currently binds market ID and quote asset only.
 - No shared data-driven Rust/Python rejection-vector corpus; rejection parity is
   covered by implementation-specific negative tests in this slice.
 - No change to the M6 `PERPS_MARKET` disposition `REQUIRED_UNRESOLVED`.

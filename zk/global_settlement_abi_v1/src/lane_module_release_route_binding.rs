@@ -4,9 +4,14 @@ use crate::asset_transfer_lane_module::{
     AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
 };
 use crate::canonical::{hash_global_v1, AbiErrorV1, AbiResultV1, RootV1};
+use crate::global_oracle_price_occurrence::VerifiedGlobalOraclePriceV1;
 use crate::managed_asset_lifecycle_lane_module::{
     ManagedAssetLifecycleLaneModuleAcceptedV1, ManagedAssetLifecycleLaneModuleInputV1,
 };
+use crate::perps_margin_lane_module::{
+    recompute_perps_margin_accepted_v1, PerpsMarginLaneModuleInputV1,
+};
+use crate::perps_margin_types::{PerpsMarginAcceptedV1, PERPS_MARGIN_MODULE_SCHEMA_V1};
 use crate::proof::{EconomicCommandOccurrenceV1, LaneModuleTransitionJournalV1};
 use crate::release::{
     EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1, LaneIdV1, LaneRegistryV1,
@@ -324,6 +329,95 @@ pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
                 grant_root: &module_input.context.grant_root,
             },
             module_journal: &accepted.module_journal,
+        },
+    )
+}
+
+fn require_perps_oracle_price_binding_v1(
+    routes: &RouteRegistryV1,
+    occurrence: &EconomicCommandOccurrenceV1,
+    module_input: &PerpsMarginLaneModuleInputV1,
+    verified_price: Option<&VerifiedGlobalOraclePriceV1>,
+) -> AbiResultV1<()> {
+    let context = &module_input.context;
+    if !context.has_oracle_authority() {
+        return if verified_price.is_none() {
+            Ok(())
+        } else {
+            Err(AbiErrorV1::InvalidBinding(
+                "perps margin unexpected Oracle price authority",
+            ))
+        };
+    }
+    let verified = verified_price.ok_or(AbiErrorV1::InvalidBinding(
+        "perps margin Oracle price authority missing",
+    ))?;
+    let route =
+        routes.route_for_command(&occurrence.command_kind, Some(&occurrence.route_release_id))?;
+    let occurrence_id = occurrence.occurrence_id()?;
+    if context.oracle_authority_root != *verified.oracle_authority_root()
+        || context.oracle_occurrence_root != *verified.occurrence_root()
+        || context.oracle_price_e8 != verified.price_e8()
+        || occurrence_id != *verified.command_occurrence_id()
+        || occurrence.route_release_id != *verified.route_release_id()
+        || occurrence.pre_state_root != *verified.pre_state_root()
+        || route.oracle_policy_root != *verified.policy_root()
+        || module_input.command.market_id != verified.market_id()
+        || module_input.pre_state.market_id != verified.market_id()
+        || module_input.command.asset != verified.quote_asset()
+        || module_input.pre_state.collateral_asset != verified.quote_asset()
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "perps margin Oracle price binding",
+        ));
+    }
+    Ok(())
+}
+
+pub struct PerpsMarginReleaseRouteBindingCandidateV1<'a> {
+    pub profile: &'a EconomicProfileSnapshotV1,
+    pub lanes: &'a LaneRegistryV1,
+    pub coordinators: &'a LaneCoordinatorRegistryV1,
+    pub routes: &'a RouteRegistryV1,
+    pub occurrence: &'a EconomicCommandOccurrenceV1,
+    pub module_input: &'a PerpsMarginLaneModuleInputV1,
+    pub accepted: &'a PerpsMarginAcceptedV1,
+    pub verified_price: Option<&'a VerifiedGlobalOraclePriceV1>,
+}
+
+pub fn bind_perps_margin_lane_output_to_release_route_v1(
+    candidate: PerpsMarginReleaseRouteBindingCandidateV1<'_>,
+) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
+    candidate.module_input.validate()?;
+    let expected = recompute_perps_margin_accepted_v1(candidate.module_input, candidate.accepted)?;
+    require_perps_oracle_price_binding_v1(
+        candidate.routes,
+        candidate.occurrence,
+        candidate.module_input,
+        candidate.verified_price,
+    )?;
+    bind_candidate_v1(
+        candidate.profile,
+        candidate.lanes,
+        candidate.coordinators,
+        candidate.routes,
+        candidate.occurrence,
+        BindingCandidateV1 {
+            actual_command_kind: &candidate.module_input.command.command_kind,
+            command_body_hash: candidate.module_input.command.command_body_hash()?,
+            statement_root: &expected.statement_root,
+            producer_module_schema: PERPS_MARGIN_MODULE_SCHEMA_V1,
+            context: ModuleContextBindingV1 {
+                chain_id: &candidate.module_input.context.chain_id,
+                deployment_root: &candidate.module_input.context.deployment_root,
+                profile_root: &candidate.module_input.context.profile_root,
+                writer_epoch: candidate.module_input.context.writer_epoch,
+                module_release_id: &candidate.module_input.context.module_release_id,
+                command_occurrence_id: &candidate.module_input.context.command_occurrence_id,
+                subject_id: &candidate.module_input.context.subject_id,
+                grant_root: &candidate.module_input.context.grant_root,
+            },
+            module_journal: &expected.module_journal,
         },
     )
 }

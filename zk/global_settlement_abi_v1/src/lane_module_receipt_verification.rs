@@ -7,14 +7,20 @@ use crate::canonical::{
     canonical_bytes_v1, hash_bytes_sha256_v1, hash_global_v1, AbiErrorV1, AbiResultV1, RootV1,
 };
 use crate::economic_command_authentication::AuthenticatedEconomicCommandV1;
+use crate::global_oracle_price_occurrence::VerifiedGlobalOraclePriceV1;
 use crate::lane_module_release_route_binding::{
     bind_asset_transfer_lane_output_to_release_route_v1,
     bind_managed_asset_lifecycle_lane_output_to_release_route_v1,
+    bind_perps_margin_lane_output_to_release_route_v1, PerpsMarginReleaseRouteBindingCandidateV1,
     ReleaseRouteBoundLaneTransitionV1,
 };
 use crate::managed_asset_lifecycle_lane_module::{
     ManagedAssetLifecycleLaneModuleAcceptedV1, ManagedAssetLifecycleLaneModuleInputV1,
 };
+use crate::perps_margin_lane_module::{
+    recompute_perps_margin_accepted_v1, PerpsMarginLaneModuleInputV1,
+};
+use crate::perps_margin_types::PerpsMarginAcceptedV1;
 use crate::proof::{LaneModuleTransitionJournalV1, ReceiptKindV1};
 use crate::release::{
     EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1, LaneRegistryV1, ReleaseStatusV1,
@@ -64,6 +70,19 @@ pub struct ManagedAssetLifecycleLaneModuleReceiptCandidateV1<'a> {
     pub module_input: &'a ManagedAssetLifecycleLaneModuleInputV1,
     pub accepted: &'a ManagedAssetLifecycleLaneModuleAcceptedV1,
     pub release_route_binding: &'a ReleaseRouteBoundLaneTransitionV1,
+    pub receipt: LaneModuleReceiptEnvelopeV1<'a>,
+}
+
+pub struct PerpsMarginLaneModuleReceiptCandidateV1<'a> {
+    pub profile: &'a EconomicProfileSnapshotV1,
+    pub lanes: &'a LaneRegistryV1,
+    pub coordinators: &'a LaneCoordinatorRegistryV1,
+    pub routes: &'a RouteRegistryV1,
+    pub authenticated_command: &'a AuthenticatedEconomicCommandV1,
+    pub module_input: &'a PerpsMarginLaneModuleInputV1,
+    pub accepted: &'a PerpsMarginAcceptedV1,
+    pub release_route_binding: &'a ReleaseRouteBoundLaneTransitionV1,
+    pub verified_price: Option<&'a VerifiedGlobalOraclePriceV1>,
     pub receipt: LaneModuleReceiptEnvelopeV1<'a>,
 }
 
@@ -270,6 +289,37 @@ pub fn verify_managed_asset_lifecycle_lane_module_receipt_v1(
             lanes: candidate.lanes,
             authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
             module_journal: &candidate.accepted.module_journal,
+            release_route_binding: candidate.release_route_binding,
+            rebound,
+            receipt: candidate.receipt,
+        },
+        receipt_verifier,
+    )
+}
+
+pub fn verify_perps_margin_lane_module_receipt_v1(
+    candidate: PerpsMarginLaneModuleReceiptCandidateV1<'_>,
+    receipt_verifier: &dyn LaneModuleSuccinctReceiptVerifierV1,
+) -> AbiResultV1<VerifiedLaneModuleTransitionV1> {
+    let occurrence = candidate.authenticated_command.occurrence();
+    let rebound = bind_perps_margin_lane_output_to_release_route_v1(
+        PerpsMarginReleaseRouteBindingCandidateV1 {
+            profile: candidate.profile,
+            lanes: candidate.lanes,
+            coordinators: candidate.coordinators,
+            routes: candidate.routes,
+            occurrence,
+            module_input: candidate.module_input,
+            accepted: candidate.accepted,
+            verified_price: candidate.verified_price,
+        },
+    )?;
+    let expected = recompute_perps_margin_accepted_v1(candidate.module_input, candidate.accepted)?;
+    verify_rebound_module_receipt_v1(
+        ReboundLaneModuleReceiptCandidateV1 {
+            lanes: candidate.lanes,
+            authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
+            module_journal: &expected.module_journal,
             release_route_binding: candidate.release_route_binding,
             rebound,
             receipt: candidate.receipt,
