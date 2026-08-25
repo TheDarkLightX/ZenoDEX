@@ -25,8 +25,11 @@ V1_QUARANTINE_SHA256 = {
     "zk/global_settlement_abi_v1/src/economic_epoch_receipt_verification.rs": (
         "d7b526cf48809ad2544e65e356e5894f6b342cda606a660f6d054f86061505ec"
     ),
+    # Re-pinned from 992caaf0... after the V1 perps route-test additions in
+    # 0e71359d7, f4f18e7eb, and 07edc70c0. Those commits do not touch the
+    # quarantined V2 reference implementation.
     "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs": (
-        "992caaf014e98c2bf0f6f27017d7eef9ccb855b7ce991067b0a9587bb57e9056"
+        "85ff856f3bb6f335f4635780443b436cd9c886c0ecacdf4c0d6b38a61b22623e"
     ),
 }
 
