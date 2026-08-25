@@ -107,6 +107,7 @@ echo "== runtime-shell: adapter regression net =="
   tests/kernels/test_python_adapter_wrappers.py \
   tests/kernels/test_proof_mining_manager_v1_adapter.py \
   tests/kernels/test_runtime_shell_adapters.py \
+  tests/core/test_oracle_current_dispute_status_v1.py \
   tests/integration/test_oracle_authorization_semantic_binding.py \
   tests/integration/test_perp_engine.py \
   tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py \

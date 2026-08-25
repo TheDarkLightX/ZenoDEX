@@ -5,6 +5,9 @@ from dataclasses import replace
 import pytest
 
 from src.core.dex import DexState
+from src.core.oracle_current_dispute_status_v1 import (
+    build_oracle_current_dispute_status_v1,
+)
 from src.integration import perp_engine
 from src.integration.perp_engine import PerpEngineConfig, apply_perp_ops
 from src.integration.zeno_oracle_authorization import oracle_value_hash, semantic_hash
@@ -359,3 +362,91 @@ def test_clearinghouse_np_rejects_authorization_created_before_pending_intents()
     assert result.effects is None
     assert result.error is not None
     assert "action_id mismatch" in result.error or "pre_state_hash mismatch" in result.error
+
+
+def test_clearinghouse_np_rejects_current_open_dispute_without_effects() -> None:
+    market_id = "perp:chnp:current-open-dispute"
+    quote_asset = "0x" + "9d" * 32
+    operator = "00" * 48
+    state = _ready_np_market(
+        market_id=market_id,
+        operator=operator,
+        quote_asset=quote_asset,
+    )
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    base_config = PerpEngineConfig(operator_pubkey=operator)
+    participants = perp_engine._chnp_participant_pubkeys(market)
+    oracle_state = perp_engine._chnp_oracle_state(market)
+    runtime = perp_engine._perps_clearinghouse_settle_oracle_runtime_facts(
+        base_config,
+        market_id=market_id,
+        market_kind=perp_engine.PERP_MARKET_KIND_CLEARINGHOUSE_NP_V1,
+        quote_asset=market.quote_asset,
+        state=oracle_state,
+        participant_pubkeys=participants,
+    )
+    authorization = _authorization_for_runtime(runtime)
+    report_ids = authorization["receipt_graph"]["included_report_ids"]
+    current_status = build_oracle_current_dispute_status_v1(
+        report_ids=report_ids,
+        dispute_entries=(
+            {
+                "dispute_id": semantic_hash(
+                    "test.oracle.dispute",
+                    {"market_kind": "clearinghouse_np_v1"},
+                ),
+                "report_id": report_ids[0],
+                "status": "open",
+            },
+        ),
+        as_of_epoch=int(runtime["now_epoch"]),
+    )
+
+    def accepted_bridge(_bridge: object) -> dict[str, object]:
+        return {
+            "status": "accepted",
+            "consumer_module": "zenodex.perps",
+            "action_kind": "settle_epoch",
+            "query_id": runtime["query_id"],
+            "profile_id": perp_engine._ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+            "action_id": runtime["action_id"],
+            "value_e8": runtime["runtime_value_e8"],
+            "action_epoch": runtime["now_epoch"],
+        }
+
+    result = apply_perp_ops(
+        config=PerpEngineConfig(
+            operator_pubkey=operator,
+            require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+            require_oracle_authorization_for_clearinghouse_settle_epoch=True,
+            oracle_adapter_bridge_verifier=accepted_bridge,
+            oracle_authorization_receipt_graph_root=str(
+                authorization["authorization"]["receipt_graph_root"]
+            ),
+            require_oracle_current_dispute_status_for_clearinghouse_settle_epoch=True,
+            oracle_current_dispute_status_root=str(
+                current_status["current_dispute_status_root"]
+            ),
+        ),
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "run_epoch",
+                    oracle_adapter_bridge={},
+                    oracle_authorization=authorization,
+                    oracle_current_dispute_status=current_status,
+                )
+            ]
+        },
+        tx_sender_pubkey=operator,
+        block_timestamp=0,
+    )
+
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error is not None
+    assert "current dispute status includes open or upheld reports" in result.error

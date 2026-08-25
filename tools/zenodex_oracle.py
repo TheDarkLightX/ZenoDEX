@@ -154,6 +154,9 @@ if getattr(sys, "frozen", False):
     ROOT = Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent))
 sys.path.insert(0, str(ROOT))
 
+from src.core.oracle_current_dispute_status_v1 import (  # noqa: E402
+    build_oracle_current_dispute_status_v1,
+)
 from src.integration.zeno_ledger_signature import (  # noqa: E402
     build_bls_signed_artifact_envelope_v0,
 )
@@ -2660,8 +2663,9 @@ def _authorization_persistence_lock(home: Path) -> Iterator[None]:
 
     A dispute registry commit that wins this lock prevents later authorization
     issuance for its report. An authorization committed first remains a
-    historical artifact if a dispute is opened later. Settlement-time
-    revocation policy is outside this local pre-MVP boundary.
+    historical artifact if a dispute is opened later. The local status
+    projection observes both under this lock. Atomic settlement-time root
+    revalidation remains a ZenoLedger commit-boundary obligation.
     """
 
     lock_path = home / "data" / "oracle_authorizations.lock"
@@ -3041,6 +3045,54 @@ def _persist_authorization_bundle(
         return _persist_authorization_bundle_locked(home, bundle)
 
 
+def _current_dispute_status_for_authorization(
+    home: Path,
+    *,
+    authorization_id: str,
+    as_of_epoch: int,
+) -> dict[str, Any]:
+    """Read one authorization and current dispute registry under one lock."""
+
+    if type(authorization_id) is not str or SHA256_RE.fullmatch(authorization_id) is None:
+        raise ValueError("authorization_id must be a canonical sha256 reference")
+    if type(as_of_epoch) is not int or as_of_epoch < 0:
+        raise ValueError("as_of_epoch must be a non-negative exact int")
+    with _authorization_persistence_lock(home):
+        receipt_path = _authorization_receipt_path(home, authorization_id)
+        if not receipt_path.is_file():
+            raise FileNotFoundError("authorization receipt not found")
+        bundle = _load_canonical_authorization_receipt(home, receipt_path)
+        receipt_check = verify_standalone_receipt(bundle)
+        if receipt_check.get("ok") is not True:
+            raise ValueError("canonical authorization receipt failed full verification")
+        graph = bundle.get("receipt_graph")
+        if type(graph) is not dict:
+            raise ValueError("authorization receipt_graph must be an exact object")
+        report_ids = graph.get("included_report_ids")
+        if type(report_ids) is not list:
+            raise ValueError("authorization included_report_ids must be an exact list")
+        dispute_entries, _events, replay_errors = _dispute_registry_history_snapshot(
+            home
+        )
+        if replay_errors:
+            raise ValueError(
+                "dispute registry failed event replay: " + "; ".join(replay_errors)
+            )
+        current_status = build_oracle_current_dispute_status_v1(
+            report_ids=report_ids,
+            dispute_entries=list(dispute_entries.values()),
+            as_of_epoch=as_of_epoch,
+        )
+    return {
+        "schema": "zeno_oracle.authorization_current_dispute_status.v1",
+        "ok": True,
+        "authorization_id": authorization_id,
+        "receipt_graph_root": graph.get("receipt_graph_root"),
+        "current_dispute_status": current_status,
+        "production_authority": False,
+    }
+
+
 def cmd_authorization_build(args: argparse.Namespace) -> int:
     home = _home(args)
     read = _reads_by_id(home).get(args.read_id)
@@ -3063,7 +3115,18 @@ def cmd_authorization_build(args: argparse.Namespace) -> int:
     from tools.check_oracle_authorization_semantic_binding import check_authorization_payload
 
     with _authorization_persistence_lock(home):
-        dispute_snapshot = _load_disputes(home)
+        dispute_entries, _events, replay_errors = _dispute_registry_history_snapshot(
+            home
+        )
+        if replay_errors:
+            raise SystemExit(
+                "dispute registry failed event replay: " + "; ".join(replay_errors)
+            )
+        dispute_snapshot = {
+            "schema": "zeno_oracle.local_dispute_registry.v1",
+            "disputes": dispute_entries,
+            "production_authority": False,
+        }
         if _aggregate_has_disputed_reports_in_snapshot(dispute_snapshot, aggregate):
             raise SystemExit(
                 "accepted read aggregate includes open or upheld disputed reports"
@@ -3455,11 +3518,81 @@ def _iter_jsonl(path: Path) -> list[dict[str, Any]]:
     return items
 
 
-def _verify_disputes(home: Path, reports: list[dict[str, Any]], errors: list[str]) -> None:
-    report_ids = {str(report["report_id"]) for report in reports if report.get("report_id")}
+def _replay_dispute_events(
+    dispute_events: list[dict[str, Any]],
+    errors: list[str],
+) -> dict[str, dict[str, Any]]:
+    replayed: dict[str, dict[str, Any]] = {}
+    for index, event in enumerate(dispute_events):
+        dispute_id = event.get("dispute_id")
+        if not isinstance(dispute_id, str) or not dispute_id:
+            errors.append(f"dispute event {index} missing dispute_id")
+            continue
+        event_kind = event.get("event")
+        if event_kind == "open":
+            if dispute_id in replayed:
+                errors.append(f"dispute {dispute_id} has duplicate open event")
+                continue
+            entry = dict(event)
+            entry.pop("event", None)
+            if entry.get("status") != "open":
+                errors.append(f"dispute {dispute_id} open event status must be open")
+            replayed[dispute_id] = entry
+            continue
+        if event_kind == "resolve":
+            entry = replayed.get(dispute_id)
+            if entry is None:
+                errors.append(f"dispute {dispute_id} resolve event precedes open event")
+                continue
+            if entry.get("status") != "open":
+                errors.append(f"dispute {dispute_id} has duplicate resolve event")
+                continue
+            outcome = event.get("outcome")
+            resolved_epoch = event.get("resolved_epoch")
+            slash_e8 = event.get("slash_e8")
+            if outcome not in {"upheld", "rejected"}:
+                errors.append(f"dispute {dispute_id} resolve event outcome is invalid")
+                continue
+            if type(resolved_epoch) is not int or resolved_epoch < 0:
+                errors.append(f"dispute {dispute_id} resolve event epoch is invalid")
+                continue
+            if type(slash_e8) is not int or slash_e8 < 0:
+                errors.append(f"dispute {dispute_id} resolve event slash_e8 is invalid")
+                continue
+            entry["status"] = outcome
+            entry["resolved_epoch"] = resolved_epoch
+            entry["slash_e8"] = slash_e8
+            continue
+        errors.append(f"dispute {dispute_id} has unknown event type")
+    return replayed
+
+
+def _dispute_registry_history_snapshot(
+    home: Path,
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[str]]:
     disputes = _load_disputes(home)
     entries = _dispute_entries(disputes)
     dispute_events = _iter_jsonl(_disputes_log_path(home))
+    errors: list[str] = []
+    replayed = _replay_dispute_events(dispute_events, errors)
+    for dispute_id in sorted(set(replayed) - set(entries)):
+        errors.append(f"dispute event has no registry entry: {dispute_id}")
+    for dispute_id in sorted(set(entries) - set(replayed)):
+        errors.append(f"dispute registry entry has no replayed open event: {dispute_id}")
+    for dispute_id in sorted(set(entries) & set(replayed)):
+        entry = entries[dispute_id]
+        if type(entry) is not dict:
+            errors.append(f"dispute {dispute_id} registry entry must be an exact object")
+        elif entry != replayed[dispute_id]:
+            errors.append(f"dispute {dispute_id} registry entry does not match event replay")
+    return entries, dispute_events, errors
+
+
+def _verify_disputes(home: Path, reports: list[dict[str, Any]], errors: list[str]) -> None:
+    report_ids = {str(report["report_id"]) for report in reports if report.get("report_id")}
+    with _authorization_persistence_lock(home):
+        entries, dispute_events, history_errors = _dispute_registry_history_snapshot(home)
+    errors.extend(history_errors)
     opened_counts: dict[str, int] = {}
     resolved_counts: dict[str, int] = {}
     resolve_events: dict[str, dict[str, Any]] = {}
@@ -4875,7 +5008,55 @@ def _dashboard_endpoint_payload(
     *,
     now_epoch: int,
     query_params: Mapping[str, list[str]] | None = None,
+    current_dispute_status_epoch: int | None = None,
 ) -> tuple[int, dict[str, Any]]:
+    if path == "/api/oracle/authorization/current-dispute-status":
+        params = query_params or {}
+        unknown_params = sorted(set(params) - {"id"})
+        if unknown_params:
+            return 400, {
+                "schema": "zeno_oracle.api_error.v1",
+                "ok": False,
+                "error": "unknown query parameters: " + ", ".join(unknown_params),
+                "production_authority": False,
+            }
+        authorization_ids = params.get("id", [])
+        if len(authorization_ids) != 1:
+            return 400, {
+                "schema": "zeno_oracle.api_error.v1",
+                "ok": False,
+                "error": "exactly one authorization id is required",
+                "production_authority": False,
+            }
+        if type(current_dispute_status_epoch) is not int or current_dispute_status_epoch < 0:
+            return 503, {
+                "schema": "zeno_oracle.api_error.v1",
+                "ok": False,
+                "error": "current dispute status epoch authority is not configured",
+                "production_authority": False,
+            }
+        try:
+            result = _current_dispute_status_for_authorization(
+                home,
+                authorization_id=authorization_ids[0],
+                as_of_epoch=current_dispute_status_epoch,
+            )
+        except FileNotFoundError:
+            return 404, {
+                "schema": "zeno_oracle.api_error.v1",
+                "ok": False,
+                "error": "authorization receipt not found",
+                "production_authority": False,
+            }
+        except (SystemExit, TypeError, ValueError) as exc:
+            return 400, {
+                "schema": "zeno_oracle.api_error.v1",
+                "ok": False,
+                "error": str(exc),
+                "production_authority": False,
+            }
+        return 200, result
+
     if path == "/api/oracle/verify-receipt":
         authority_status = _oracle_authority_status(home)
         production_authority = bool(authority_status.get("production_authority") is True)
@@ -5005,7 +5186,14 @@ def _dashboard_endpoint_payload(
             "ok": False,
             "error": "not_found",
             "path": path,
-            "available_paths": sorted([*routes, "/api/oracle/authority", "/api/oracle/verify-receipt"]),
+            "available_paths": sorted(
+                [
+                    *routes,
+                    "/api/oracle/authority",
+                    "/api/oracle/authorization/current-dispute-status",
+                    "/api/oracle/verify-receipt",
+                ]
+            ),
             "production_authority": False,
         },
     )
@@ -5352,6 +5540,7 @@ def cmd_serve(args: argparse.Namespace) -> int:
                         parsed.path,
                         now_epoch=now_epoch,
                         query_params=parse_qs(parsed.query),
+                        current_dispute_status_epoch=args.now_epoch,
                     )
             except Exception as exc:
                 status, payload = (
@@ -5455,9 +5644,15 @@ def cmd_serve(args: argparse.Namespace) -> int:
             "/api/oracle/aggregates",
             "/api/oracle/accepted-reads",
             "/api/oracle/authorizations",
+            "/api/oracle/authorization/current-dispute-status",
             "/api/oracle/replay",
         ],
         "write_paths_enabled": bool(args.allow_writes),
+        "current_dispute_status_epoch": {
+            "configured": args.now_epoch is not None,
+            "mode": "startup_snapshot" if args.now_epoch is not None else "unavailable",
+            "as_of_epoch": int(args.now_epoch) if args.now_epoch is not None else None,
+        },
         "write_paths": [
             "/api/oracle/authority/exercise/evaluate",
             "/api/oracle/identity/create",

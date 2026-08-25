@@ -46,6 +46,60 @@ def _string_set_from_assignment(tree: ast.AST, name: str) -> set[str]:
     return set()
 
 
+def _direct_function_calls(tree: ast.Module, function_name: str) -> set[str]:
+    function = next(
+        (
+            node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == function_name
+        ),
+        None,
+    )
+    if function is None:
+        return set()
+
+    calls: set[str] = set()
+
+    class DirectCallVisitor(ast.NodeVisitor):
+        def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
+            if node is function:
+                self.generic_visit(node)
+
+        def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:  # noqa: N802
+            if node is function:
+                self.generic_visit(node)
+
+        def visit_Call(self, node: ast.Call) -> None:  # noqa: N802
+            if isinstance(node.func, ast.Name):
+                calls.add(node.func.id)
+            self.generic_visit(node)
+
+    DirectCallVisitor().visit(function)
+    return calls
+
+
+def _require_direct_call(
+    tree: ast.Module,
+    *,
+    function_name: str,
+    callee_name: str,
+    errors: list[str],
+) -> None:
+    _expect(
+        callee_name in _direct_function_calls(tree, function_name),
+        errors,
+        f"perps_settle_missing_required_call:{function_name}:{callee_name}",
+    )
+
+
+def _canonical_sha256_root_configured(value: object) -> bool:
+    if type(value) is not str or len(value) != 71 or not value.startswith("sha256:"):
+        return False
+    digest = value.removeprefix("sha256:")
+    return digest == digest.lower() and all(char in "0123456789abcdef" for char in digest)
+
+
 def _profile_key(profile: Mapping[str, Any]) -> tuple[str, str]:
     return str(profile["consumer_module"]), str(profile["action_kind"])
 
@@ -154,6 +208,12 @@ def _check_fail_closed_config(runtime_surfaces: list[dict[str, Any]]) -> dict[st
         "require_oracle_authorization_for_clearinghouse_settle_epoch": bool(
             perp_config.require_oracle_authorization_for_clearinghouse_settle_epoch
         ),
+        "require_oracle_current_dispute_status_for_isolated_settle": bool(
+            perp_config.require_oracle_current_dispute_status_for_isolated_settle
+        ),
+        "require_oracle_current_dispute_status_for_clearinghouse_settle_epoch": bool(
+            perp_config.require_oracle_current_dispute_status_for_clearinghouse_settle_epoch
+        ),
         "check_trigger_execute_oracle_adapter_bridge(required=True)": True,
         "check_trigger_execute_oracle_authorization": True,
     }
@@ -162,11 +222,25 @@ def _check_fail_closed_config(runtime_surfaces: list[dict[str, Any]]) -> dict[st
         if control_checks.get(control) is not True:
             errors.append(f"fail_closed_config_missing_required_control:{control}")
     covered_controls = sorted(control for control, ok in control_checks.items() if ok)
+    authorization_root_configured = _canonical_sha256_root_configured(
+        perp_config.oracle_authorization_receipt_graph_root
+    )
+    current_status_root_configured = _canonical_sha256_root_configured(
+        perp_config.oracle_current_dispute_status_root
+    )
     return {
         "status": "accepted" if not errors else "rejected",
         "ok": not errors,
+        "claim_scope": "fail_closed_controls_only",
         "required_controls": required_controls,
         "covered_controls": covered_controls,
+        "root_authority": {
+            "authorization_receipt_graph_root_configured": authorization_root_configured,
+            "current_dispute_status_root_configured": current_status_root_configured,
+            "settlement_enabled": (
+                authorization_root_configured and current_status_root_configured
+            ),
+        },
         "errors": errors,
     }
 
@@ -176,6 +250,7 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
     key = ("zenodex.perps", "settle_epoch")
     profile = profiles[key]
     source = _source("src/integration/perp_engine.py")
+    tree = _module_ast("src/integration/perp_engine.py")
 
     from src.integration import perp_engine  # pylint: disable=import-outside-toplevel
 
@@ -197,15 +272,36 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
         'action_kind="settle_epoch"',
         "expected_query_id=_ORACLE_PERPS_INDEX_QUERY_ID",
         "expected_profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID",
-        "expected_action_id=_perps_runtime_oracle_action_id(",
+        "runtime = _isolated_settle_oracle_runtime_facts(",
+        "_perps_clearinghouse_settle_oracle_runtime_facts(",
+        'action_id=str(runtime["action_id"])',
         'expected_action_id=str(runtime["action_id"])',
         "expected_runtime_value_e8=runtime_value_e8",
         "expected_runtime_epoch=now_epoch",
         "expected_receipt_graph_root=config.oracle_authorization_receipt_graph_root",
+        "current_dispute_status=op.data.get(\"oracle_current_dispute_status\")",
+        "current_dispute_status=request.data.get(\"oracle_current_dispute_status\")",
+        "expected_current_dispute_status_root=config.oracle_current_dispute_status_root",
+        "require_current_dispute_status=current_status_required",
+        "require_current_dispute_status=current_dispute_status_required",
         "required=ctx.config.require_oracle_adapter_for_isolated_settle_epoch",
         "required=snapshot_request.config.require_oracle_adapter_for_clearinghouse_settle_epoch",
     ):
         _expect(needle in source, errors, f"perps_settle_missing_static_wiring:{needle}")
+    for function_name, callee_name in (
+        ("_apply_isolated_settle_epoch", "_isolated_settle_authorization_error"),
+        ("_isolated_settle_authorization_error", "_check_isolated_settle_oracle_authorization"),
+        ("_apply_ch2p_settle_epoch", "_check_clearinghouse_settle_oracle_admission"),
+        ("_apply_ch3p_settle_epoch", "_check_clearinghouse_settle_oracle_admission"),
+        ("_apply_chnp_run_or_settle_epoch", "_chnp_settle_oracle_bridge_error"),
+        ("_chnp_settle_oracle_bridge_error", "_check_clearinghouse_settle_oracle_admission"),
+    ):
+        _require_direct_call(
+            tree,
+            function_name=function_name,
+            callee_name=callee_name,
+            errors=errors,
+        )
     return _runtime_surface(
         consumer_module=key[0],
         action_kind=key[1],
@@ -218,6 +314,8 @@ def _check_perps_settle_epoch(profiles: Mapping[tuple[str, str], Mapping[str, An
                 "require_oracle_adapter_for_clearinghouse_settle_epoch",
                 "require_oracle_authorization_for_isolated_settle",
                 "require_oracle_authorization_for_clearinghouse_settle_epoch",
+                "require_oracle_current_dispute_status_for_isolated_settle",
+                "require_oracle_current_dispute_status_for_clearinghouse_settle_epoch",
             ],
             "covered_runtime_actions": [
                 "isolated_settle_epoch",

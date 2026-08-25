@@ -836,6 +836,8 @@ def test_dispute_commit_before_authorization_rejects_without_authorization_write
 def test_authorization_commit_before_later_dispute_remains_historical_artifact(
     tmp_path: Path,
 ) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
     # Arrange.
     home = tmp_path / "oracle-home"
     fixture = _prepare_authorization_dispute_fixture(home)
@@ -864,13 +866,244 @@ def test_authorization_commit_before_later_dispute_remains_historical_artifact(
         "13",
     )
     retry = _run(*_authorization_build_args(home, fixture["read_id"]))
+    current_status = oracle_cli._current_dispute_status_for_authorization(
+        home,
+        authorization_id=authorization["authorization_id"],
+        as_of_epoch=13,
+    )
 
-    # Assert: authorization-first ordering keeps its historical bytes. The
-    # later dispute blocks new issuance; settlement revocation is separate.
+    # Assert: authorization-first ordering keeps its historical bytes, blocks
+    # new issuance, and produces a current witness that revokes consumption.
     assert retry.returncode != 0
     assert "disputed reports" in retry.stderr
     assert receipt_path.read_bytes() == receipt_bytes
     assert index_path.read_bytes() == index_bytes
+    assert current_status["current_dispute_status"]["disputed_report_ids"] == [
+        fixture["report_id"]
+    ]
+    assert current_status["production_authority"] is False
+
+
+def test_current_dispute_status_rejects_tampered_authorization_graph(
+    tmp_path: Path,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Given a durable authorization whose graph is changed without changing
+    # the authorization object or its content-derived identity.
+    home = tmp_path / "oracle-home"
+    fixture = _prepare_authorization_dispute_fixture(home)
+    authorization = _run_json_ok(*_authorization_build_args(home, fixture["read_id"]))
+    receipt_path = Path(str(authorization["receipt_path"]))
+    stored = json.loads(receipt_path.read_text(encoding="utf-8"))
+    stored["receipt_graph"]["included_report_ids"] = []
+    receipt_path.write_text(
+        json.dumps(stored, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    # When a consumer asks the local producer for a current status witness,
+    # then full receipt verification rejects before deriving the report scope.
+    with pytest.raises(
+        ValueError,
+        match="canonical authorization receipt failed full verification",
+    ):
+        oracle_cli._current_dispute_status_for_authorization(
+            home,
+            authorization_id=authorization["authorization_id"],
+            as_of_epoch=13,
+        )
+
+
+def test_current_status_rejects_log_only_dispute_after_registry_loss(
+    tmp_path: Path,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    home = tmp_path / "oracle-home"
+    fixture = _prepare_authorization_dispute_fixture(home)
+    authorization = _run_json_ok(*_authorization_build_args(home, fixture["read_id"]))
+    _run_json_ok(
+        "--json",
+        "dispute",
+        "open",
+        "--home",
+        str(home),
+        "--report-id",
+        fixture["report_id"],
+        "--reporter-id",
+        fixture["reporter_id"],
+        "--bond-e8",
+        "1",
+        "--reason",
+        "registry-loss-status-test",
+        "--epoch",
+        "13",
+    )
+    (home / "data" / "disputes.json").unlink()
+
+    with pytest.raises(ValueError, match="dispute registry failed event replay"):
+        oracle_cli._current_dispute_status_for_authorization(
+            home,
+            authorization_id=authorization["authorization_id"],
+            as_of_epoch=13,
+        )
+
+
+def test_local_replay_rejects_log_only_dispute_after_registry_loss(
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "oracle-home"
+    fixture = _prepare_authorization_dispute_fixture(home)
+    _run_json_ok(
+        "--json",
+        "dispute",
+        "open",
+        "--home",
+        str(home),
+        "--report-id",
+        fixture["report_id"],
+        "--reporter-id",
+        fixture["reporter_id"],
+        "--bond-e8",
+        "1",
+        "--reason",
+        "registry-loss-replay-test",
+        "--epoch",
+        "13",
+    )
+    (home / "data" / "disputes.json").unlink()
+
+    replay = _run("--json", "verify", "local-state", "--home", str(home))
+    payload = json.loads(replay.stdout)
+
+    assert replay.returncode == 2
+    assert any(
+        "dispute event has no registry entry" in error
+        for error in payload["errors"]
+    )
+
+
+def test_current_status_rejects_registry_status_divergence_from_event_log(
+    tmp_path: Path,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    # Given an authorization followed by an open dispute recorded in both
+    # durable views.
+    home = tmp_path / "oracle-home"
+    fixture = _prepare_authorization_dispute_fixture(home)
+    authorization = _run_json_ok(*_authorization_build_args(home, fixture["read_id"]))
+    opened = _run_json_ok(
+        "--json",
+        "dispute",
+        "open",
+        "--home",
+        str(home),
+        "--report-id",
+        fixture["report_id"],
+        "--reporter-id",
+        fixture["reporter_id"],
+        "--bond-e8",
+        "1",
+        "--reason",
+        "registry-event-divergence-test",
+        "--epoch",
+        "13",
+    )
+    # When the mutable registry is hand-edited to clear revocation without a
+    # matching resolve event.
+    registry_path = home / "data" / "disputes.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["disputes"][opened["dispute_id"]]["status"] = "rejected"
+    registry_path.write_text(
+        json.dumps(registry, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    # Then the status producer rejects instead of projecting the edited
+    # registry as a clean witness.
+    with pytest.raises(
+        ValueError,
+        match="registry entry does not match event replay",
+    ):
+        oracle_cli._current_dispute_status_for_authorization(
+            home,
+            authorization_id=authorization["authorization_id"],
+            as_of_epoch=13,
+        )
+
+
+def test_authorization_build_rejects_registry_status_divergence_from_event_log(
+    tmp_path: Path,
+) -> None:
+    home = tmp_path / "oracle-home"
+    fixture = _prepare_authorization_dispute_fixture(home)
+    opened = _run_json_ok(
+        "--json",
+        "dispute",
+        "open",
+        "--home",
+        str(home),
+        "--report-id",
+        fixture["report_id"],
+        "--reporter-id",
+        fixture["reporter_id"],
+        "--bond-e8",
+        "1",
+        "--reason",
+        "authorization-registry-event-divergence-test",
+        "--epoch",
+        "13",
+    )
+    registry_path = home / "data" / "disputes.json"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["disputes"][opened["dispute_id"]]["status"] = "rejected"
+    registry_path.write_text(
+        json.dumps(registry, sort_keys=True, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    authorization = _run(*_authorization_build_args(home, fixture["read_id"]))
+
+    assert authorization.returncode != 0
+    assert "dispute registry failed event replay" in authorization.stderr
+    assert not (home / "data" / "oracle_authorizations.jsonl").exists()
+    assert list((home / "receipts" / "authorizations").glob("*.json")) == []
+
+
+def test_current_status_endpoint_rejects_caller_selected_epoch(tmp_path: Path) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    status, payload = oracle_cli._dashboard_endpoint_payload(
+        tmp_path,
+        "/api/oracle/authorization/current-dispute-status",
+        now_epoch=12,
+        query_params={
+            "id": ["sha256:" + "1" * 64],
+            "epoch": ["999"],
+        },
+    )
+
+    assert status == 400
+    assert payload["error"] == "unknown query parameters: epoch"
+
+
+def test_current_status_endpoint_rejects_untrusted_default_time_epoch(
+    tmp_path: Path,
+) -> None:
+    import tools.zenodex_oracle as oracle_cli
+
+    status, payload = oracle_cli._dashboard_endpoint_payload(
+        tmp_path,
+        "/api/oracle/authorization/current-dispute-status",
+        now_epoch=1_780_000_000,
+        query_params={"id": ["sha256:" + "1" * 64]},
+    )
+
+    assert status == 503
+    assert payload["error"] == "current dispute status epoch authority is not configured"
+    assert payload["production_authority"] is False
 
 
 def test_authorization_build_snapshots_and_persists_under_one_non_nested_lock(
@@ -2046,6 +2279,11 @@ def test_local_api_write_endpoints_are_explicitly_enabled(tmp_path: Path) -> Non
         assert disabled.stdout is not None
         disabled_ready = json.loads(disabled.stdout.readline())
         assert disabled_ready["write_paths_enabled"] is False
+        assert disabled_ready["current_dispute_status_epoch"] == {
+            "configured": False,
+            "mode": "unavailable",
+            "as_of_epoch": None,
+        }
         status, rejected = _http_post_json(
             f"http://127.0.0.1:{disabled_port}/api/oracle/query/register",
             {"base_asset": "AGRS", "quote_asset": "ZDEX"},
@@ -2086,6 +2324,11 @@ def test_local_api_write_endpoints_are_explicitly_enabled(tmp_path: Path) -> Non
         assert proc.stdout is not None
         ready = json.loads(proc.stdout.readline())
         assert ready["write_paths_enabled"] is True
+        assert ready["current_dispute_status_epoch"] == {
+            "configured": True,
+            "mode": "startup_snapshot",
+            "as_of_epoch": 12,
+        }
         assert "/api/oracle/aggregate/build" in ready["write_paths"]
         assert "/api/oracle/read/accept" in ready["write_paths"]
         assert "/api/oracle/authorization/build" in ready["write_paths"]
@@ -2357,6 +2600,14 @@ def test_local_api_write_endpoints_are_explicitly_enabled(tmp_path: Path) -> Non
         )
         assert authorization["runtime_binding_source"] == "consumer_runtime_exact"
         assert authorization["idempotent_replay"] is False
+        current_status = _http_json(
+            f"{base}/api/oracle/authorization/current-dispute-status"
+            f"?id={urllib.parse.quote(authorization['authorization_id'])}"
+        )
+        assert current_status["ok"] is True
+        assert current_status["current_dispute_status"]["as_of_epoch"] == 12
+        assert current_status["current_dispute_status"]["disputed_report_ids"] == []
+        assert current_status["production_authority"] is False
 
         authorization_log = home / "data" / "oracle_authorizations.jsonl"
         authorization_log_before_rejections = authorization_log.read_bytes()

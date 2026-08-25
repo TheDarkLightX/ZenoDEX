@@ -6,6 +6,9 @@ from dataclasses import replace
 import pytest
 
 from src.core.dex import DexState
+from src.core.oracle_current_dispute_status_v1 import (
+    build_oracle_current_dispute_status_v1,
+)
 from src.core.perps import (
     PERPS_STATE_VERSION,
     PerpClearinghouse2pMarketState,
@@ -51,12 +54,18 @@ def _apply_result(
     operator_pubkey: str,
     require_authorization: bool = False,
     receipt_graph_root: str | None = None,
+    require_current_dispute_status: bool = False,
+    current_dispute_status_root: str | None = None,
 ):
     cfg = PerpEngineConfig(
         operator_pubkey=operator_pubkey,
         allow_isolated_markets=True,
         require_oracle_authorization_for_isolated_settle=require_authorization,
         oracle_authorization_receipt_graph_root=receipt_graph_root,
+        require_oracle_current_dispute_status_for_isolated_settle=(
+            require_current_dispute_status
+        ),
+        oracle_current_dispute_status_root=current_dispute_status_root,
     )
     return apply_perp_ops(
         config=cfg,
@@ -304,6 +313,11 @@ def test_fixed_clearinghouse_settle_accepts_exact_typed_oracle_admission(
         observed_epoch=int(runtime["now_epoch"]),
         profile_id=perp_engine._ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
     )
+    current_status = build_oracle_current_dispute_status_v1(
+        report_ids=authorization["receipt_graph"]["included_report_ids"],
+        dispute_entries=(),
+        as_of_epoch=int(runtime["now_epoch"]),
+    )
     config = PerpEngineConfig(
         operator_pubkey="00" * 48,
         require_oracle_adapter_for_clearinghouse_settle_epoch=True,
@@ -311,6 +325,10 @@ def test_fixed_clearinghouse_settle_accepts_exact_typed_oracle_admission(
         oracle_adapter_bridge_verifier=_accepted_clearinghouse_bridge(runtime=runtime),
         oracle_authorization_receipt_graph_root=str(
             authorization["authorization"]["receipt_graph_root"]
+        ),
+        require_oracle_current_dispute_status_for_clearinghouse_settle_epoch=True,
+        oracle_current_dispute_status_root=str(
+            current_status["current_dispute_status_root"]
         ),
     )
 
@@ -326,6 +344,7 @@ def test_fixed_clearinghouse_settle_accepts_exact_typed_oracle_admission(
                     version=version,
                     oracle_adapter_bridge={},
                     oracle_authorization=authorization,
+                    oracle_current_dispute_status=current_status,
                 )
             ]
         },
@@ -337,6 +356,89 @@ def test_fixed_clearinghouse_settle_accepts_exact_typed_oracle_admission(
     assert result.ok is True, result.error
     assert result.state is not None
     assert result.effects is not None
+
+
+@pytest.mark.parametrize(
+    "market_kind,version",
+    [
+        ("clearinghouse_2p_v1", "1.0"),
+        ("clearinghouse_3p_transfer_v1", "1.1"),
+    ],
+)
+def test_fixed_clearinghouse_rejects_current_open_dispute_without_effects(
+    market_kind: str,
+    version: str,
+) -> None:
+    state, market, market_id, participants = _ready_fixed_clearinghouse_market(
+        market_kind
+    )
+    base_config = PerpEngineConfig(operator_pubkey="00" * 48)
+    runtime = perp_engine._perps_clearinghouse_settle_oracle_runtime_facts(
+        base_config,
+        market_id=market_id,
+        market_kind=market_kind,
+        quote_asset=market.quote_asset,
+        state=market.state,
+        participant_pubkeys=participants,
+    )
+    authorization = _authorization_for(
+        runtime,
+        observed_epoch=int(runtime["now_epoch"]),
+        profile_id=perp_engine._ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
+    )
+    report_ids = authorization["receipt_graph"]["included_report_ids"]
+    current_status = build_oracle_current_dispute_status_v1(
+        report_ids=report_ids,
+        dispute_entries=(
+            {
+                "dispute_id": semantic_hash(
+                    "test.oracle.dispute",
+                    {"market_kind": market_kind},
+                ),
+                "report_id": report_ids[0],
+                "status": "open",
+            },
+        ),
+        as_of_epoch=int(runtime["now_epoch"]),
+    )
+    config = PerpEngineConfig(
+        operator_pubkey="00" * 48,
+        require_oracle_adapter_for_clearinghouse_settle_epoch=True,
+        require_oracle_authorization_for_clearinghouse_settle_epoch=True,
+        oracle_adapter_bridge_verifier=_accepted_clearinghouse_bridge(runtime=runtime),
+        oracle_authorization_receipt_graph_root=str(
+            authorization["authorization"]["receipt_graph_root"]
+        ),
+        require_oracle_current_dispute_status_for_clearinghouse_settle_epoch=True,
+        oracle_current_dispute_status_root=str(
+            current_status["current_dispute_status_root"]
+        ),
+    )
+
+    result = apply_perp_ops(
+        config=config,
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    version=version,
+                    oracle_adapter_bridge={},
+                    oracle_authorization=authorization,
+                    oracle_current_dispute_status=current_status,
+                )
+            ]
+        },
+        tx_sender_pubkey="00" * 48,
+        block_timestamp=0,
+    )
+
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error is not None
+    assert "current dispute status includes open or upheld reports" in result.error
 
 
 @pytest.mark.parametrize(
@@ -860,6 +962,355 @@ def test_isolated_settle_accepts_configured_terminal_receipt_graph_root() -> Non
 
     # Assert.
     assert res.ok is True, res.error
+
+
+def test_isolated_settle_status_field_cannot_be_silently_ignored() -> None:
+    market_id = "perp:status-presence-activates-gate"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        ops=[
+            _op(
+                market_id,
+                "settle_epoch",
+                oracle_current_dispute_status={"schema": "malformed"},
+            )
+        ],
+    )
+
+    assert res.ok is False
+    assert res.state is None
+    assert res.effects is None
+    assert res.error == "oracle_authorization_required"
+
+
+def test_isolated_settle_status_root_alone_activates_fail_closed_gate() -> None:
+    market_id = "perp:status-root-presence-activates-gate"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        current_dispute_status_root="sha256:" + "1" * 64,
+        ops=[_op(market_id, "settle_epoch")],
+    )
+
+    assert res.ok is False
+    assert res.state is None
+    assert res.effects is None
+    assert res.error == "oracle_authorization_required"
+
+
+@pytest.mark.parametrize(
+    "market_kind,version",
+    [
+        ("clearinghouse_2p_v1", "1.0"),
+        ("clearinghouse_3p_transfer_v1", "1.1"),
+    ],
+)
+def test_fixed_clearinghouse_status_field_cannot_be_silently_ignored(
+    market_kind: str,
+    version: str,
+) -> None:
+    state, _market, market_id, _participants = _ready_fixed_clearinghouse_market(
+        market_kind
+    )
+
+    result = apply_perp_ops(
+        config=PerpEngineConfig(operator_pubkey="00" * 48),
+        state=state,
+        operations={
+            "5": [
+                _op(
+                    market_id,
+                    "settle_epoch",
+                    version=version,
+                    oracle_current_dispute_status={"schema": "malformed"},
+                )
+            ]
+        },
+        tx_sender_pubkey="00" * 48,
+        block_timestamp=0,
+    )
+
+    assert result.ok is False
+    assert result.state is None
+    assert result.effects is None
+    assert result.error == "clearinghouse_settle_oracle_authorization_required"
+
+
+def test_isolated_settle_rechecks_current_dispute_status_before_mutation() -> None:
+    # Given an authorization that was valid when created, followed by an open
+    # dispute against one of its reports.
+    market_id = "perp:auth-late-dispute"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    auth = _authorization_for(
+        runtime,
+        observed_epoch=int(market.global_state["oracle_last_update_epoch"]),
+    )
+    report_ids = auth["receipt_graph"]["included_report_ids"]
+    status = build_oracle_current_dispute_status_v1(
+        report_ids=report_ids,
+        dispute_entries=(
+            {
+                "dispute_id": semantic_hash("test.oracle.dispute", {"market_id": market_id}),
+                "report_id": report_ids[0],
+                "status": "open",
+            },
+        ),
+        as_of_epoch=int(runtime["now_epoch"]),
+    )
+
+    # When settlement consumes the old authorization with the current root.
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
+        require_current_dispute_status=True,
+        current_dispute_status_root=str(status["current_dispute_status_root"]),
+        ops=[
+            _op(
+                market_id,
+                "settle_epoch",
+                oracle_authorization=auth,
+                oracle_current_dispute_status=status,
+            )
+        ],
+    )
+
+    # Then settlement rejects with no candidate state or effects.
+    assert res.ok is False
+    assert res.state is None
+    assert res.effects is None
+    assert res.error is not None
+    assert "current dispute status includes open or upheld reports" in res.error
+
+
+def test_isolated_settle_accepts_current_clean_dispute_status() -> None:
+    market_id = "perp:auth-current-clean"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    auth = _authorization_for(
+        runtime,
+        observed_epoch=int(market.global_state["oracle_last_update_epoch"]),
+    )
+    status = build_oracle_current_dispute_status_v1(
+        report_ids=auth["receipt_graph"]["included_report_ids"],
+        dispute_entries=(),
+        as_of_epoch=int(runtime["now_epoch"]),
+    )
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
+        require_current_dispute_status=True,
+        current_dispute_status_root=str(status["current_dispute_status_root"]),
+        ops=[
+            _op(
+                market_id,
+                "settle_epoch",
+                oracle_authorization=auth,
+                oracle_current_dispute_status=status,
+            )
+        ],
+    )
+
+    assert res.ok is True, res.error
+    assert res.state is not None
+
+
+def test_isolated_settle_current_status_requires_verifier_selected_root() -> None:
+    market_id = "perp:auth-current-root-required"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    auth = _authorization_for(
+        runtime,
+        observed_epoch=int(market.global_state["oracle_last_update_epoch"]),
+    )
+    status = build_oracle_current_dispute_status_v1(
+        report_ids=auth["receipt_graph"]["included_report_ids"],
+        dispute_entries=(),
+        as_of_epoch=int(runtime["now_epoch"]),
+    )
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
+        require_current_dispute_status=True,
+        ops=[
+            _op(
+                market_id,
+                "settle_epoch",
+                oracle_authorization=auth,
+                oracle_current_dispute_status=status,
+            )
+        ],
+    )
+
+    assert res.ok is False
+    assert res.state is None
+    assert res.effects is None
+    assert res.error == "oracle_current_dispute_status_root_authority_required"
+
+
+def test_isolated_current_status_requirement_also_requires_authorization_root() -> None:
+    # Given a self-consistent authorization and clean current-status witness,
+    # while policy enables only the current-status flag.
+    market_id = "perp:auth-current-implies-auth-root"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    auth = _authorization_for(
+        runtime,
+        observed_epoch=int(market.global_state["oracle_last_update_epoch"]),
+    )
+    status = build_oracle_current_dispute_status_v1(
+        report_ids=auth["receipt_graph"]["included_report_ids"],
+        dispute_entries=(),
+        as_of_epoch=int(runtime["now_epoch"]),
+    )
+
+    # When the caller supplies both objects without a verifier-selected
+    # authorization receipt-graph root.
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_current_dispute_status=True,
+        current_dispute_status_root=str(status["current_dispute_status_root"]),
+        ops=[
+            _op(
+                market_id,
+                "settle_epoch",
+                oracle_authorization=auth,
+                oracle_current_dispute_status=status,
+            )
+        ],
+    )
+
+    # Then neither a caller-selected authorization root nor settlement effects
+    # are accepted.
+    assert res.ok is False
+    assert res.state is None
+    assert res.effects is None
+    assert res.error == "oracle_authorization_root_authority_required"
+
+
+def test_isolated_settle_current_status_is_required_before_mutation() -> None:
+    market_id = "perp:auth-current-status-required"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    auth = _authorization_for(
+        runtime,
+        observed_epoch=int(market.global_state["oracle_last_update_epoch"]),
+    )
+    status = build_oracle_current_dispute_status_v1(
+        report_ids=auth["receipt_graph"]["included_report_ids"],
+        dispute_entries=(),
+        as_of_epoch=int(runtime["now_epoch"]),
+    )
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
+        require_current_dispute_status=True,
+        current_dispute_status_root=str(status["current_dispute_status_root"]),
+        ops=[_op(market_id, "settle_epoch", oracle_authorization=auth)],
+    )
+
+    assert res.ok is False
+    assert res.state is None
+    assert res.effects is None
+    assert res.error is not None
+    assert "current dispute status required" in res.error
+
+
+def test_isolated_settle_rejects_caller_selected_clean_dispute_root() -> None:
+    market_id = "perp:auth-caller-clean-dispute-root"
+    operator = "00" * 48
+    state = _ready_market(market_id=market_id, operator=operator)
+    assert state.perps is not None
+    market = state.perps.markets[market_id]
+    runtime = _isolated_settle_oracle_runtime_facts(market_id=market_id, market=market)
+    auth = _authorization_for(
+        runtime,
+        observed_epoch=int(market.global_state["oracle_last_update_epoch"]),
+    )
+    report_ids = auth["receipt_graph"]["included_report_ids"]
+    authoritative_open = build_oracle_current_dispute_status_v1(
+        report_ids=report_ids,
+        dispute_entries=(
+            {
+                "dispute_id": semantic_hash("test.oracle.dispute", {"market_id": market_id}),
+                "report_id": report_ids[0],
+                "status": "open",
+            },
+        ),
+        as_of_epoch=int(runtime["now_epoch"]),
+    )
+    caller_clean = build_oracle_current_dispute_status_v1(
+        report_ids=report_ids,
+        dispute_entries=(),
+        as_of_epoch=int(runtime["now_epoch"]),
+    )
+
+    res = _apply_result(
+        state=state,
+        tx_sender_pubkey=operator,
+        operator_pubkey=operator,
+        require_authorization=True,
+        receipt_graph_root=str(auth["authorization"]["receipt_graph_root"]),
+        require_current_dispute_status=True,
+        current_dispute_status_root=str(
+            authoritative_open["current_dispute_status_root"]
+        ),
+        ops=[
+            _op(
+                market_id,
+                "settle_epoch",
+                oracle_authorization=auth,
+                oracle_current_dispute_status=caller_clean,
+            )
+        ],
+    )
+
+    assert res.ok is False
+    assert res.state is None
+    assert res.effects is None
+    assert res.error is not None
+    assert "root does not match verifier-selected root" in res.error
 
 
 def test_isolated_settle_rejects_different_configured_terminal_receipt_graph_root() -> None:

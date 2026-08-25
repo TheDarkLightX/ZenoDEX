@@ -37,6 +37,8 @@ def test_fail_closed_perp_config_forces_oracle_adapter_and_authorization() -> No
         require_oracle_adapter_for_clearinghouse_settle_epoch=False,
         require_oracle_authorization_for_isolated_settle=False,
         require_oracle_authorization_for_clearinghouse_settle_epoch=False,
+        require_oracle_current_dispute_status_for_isolated_settle=False,
+        require_oracle_current_dispute_status_for_clearinghouse_settle_epoch=False,
     )
 
     assert cfg.require_oracle_adapter_for_isolated_settle_epoch is True
@@ -44,3 +46,7 @@ def test_fail_closed_perp_config_forces_oracle_adapter_and_authorization() -> No
     assert cfg.require_oracle_adapter_for_clearinghouse_settle_epoch is True
     assert cfg.require_oracle_authorization_for_isolated_settle is True
     assert cfg.require_oracle_authorization_for_clearinghouse_settle_epoch is True
+    assert cfg.require_oracle_current_dispute_status_for_isolated_settle is True
+    assert cfg.require_oracle_current_dispute_status_for_clearinghouse_settle_epoch is True
+    assert cfg.oracle_authorization_receipt_graph_root is None
+    assert cfg.oracle_current_dispute_status_root is None

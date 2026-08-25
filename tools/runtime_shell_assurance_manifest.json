@@ -55,12 +55,16 @@
       "sha256": "016dae467d29d5740a7864072cda5edbf254a0646b393943279ad9888718b40e"
     },
     {
+      "path": "src/core/oracle_current_dispute_status_v1.py",
+      "sha256": "d8131ce15c3e28a80deaf27f60d730e340c15a19210be25a585f2368f93df040"
+    },
+    {
       "path": "src/integration/perp_engine.py",
-      "sha256": "ad1975d26f2698b98b5e73cc43e9ab47dcad1d30b1bd11207a9d15550a87d81c"
+      "sha256": "4ee75841563c90b9cc5e0fec6ffdf57cbfa983cbb743486b62bc99ad9be1dddc"
     },
     {
       "path": "src/integration/zeno_oracle_authorization.py",
-      "sha256": "5e4ad7a2b8f3ac302262f1269b4a878edb62cba5adecbe97c47e1857e3c71726"
+      "sha256": "366014defaeedfd0863f93e9cec3eabedcc1b356cc834faf8219f66256d605b5"
     },
     {
       "path": "tests/kernels/test_python_adapter_wrappers.py",
@@ -87,20 +91,24 @@
       "sha256": "2c0bae9252425aaf413e4d595f30f0c51959fcf3ec02f136ccb946b7ce5c51f5"
     },
     {
+      "path": "tests/core/test_oracle_current_dispute_status_v1.py",
+      "sha256": "39e4d9c178d56b0192ed4625b514ba0a3443d0a6b3b42994b83e894b154599b9"
+    },
+    {
       "path": "tests/integration/test_oracle_authorization_semantic_binding.py",
-      "sha256": "b7217f8bc63c5bc17e36d01b97f201cbb3d2e7af5dff7e895a89683a1618694e"
+      "sha256": "dfc69ae1959950716eb2887d7e38505c99d70677508ea11da06e4ef18a3b0878"
     },
     {
       "path": "tests/integration/test_perp_engine.py",
-      "sha256": "066e2a04944b60fe2bd6d4cdef04e85f3030e87b8e5613961c4a5744e6c97e10"
+      "sha256": "7b4bfab86b8481e3e7af953362edaa109a296f9f10d8bc7d42203b500b42c1ed"
     },
     {
       "path": "tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py",
-      "sha256": "03b587f9886368fb4514ae033548af8d1a7160b7fae615043c8926214ff27c81"
+      "sha256": "65b4774ea743a2985498b448f653e80540eeca2aa6f503fe93136eacbfe36eb9"
     },
     {
       "path": "tests/integration/test_perp_engine_oracle_authorization.py",
-      "sha256": "0d00d350797b2a7b1b6721e0f4e043bb250c1d9be5b3b514ae62efa7c2856af1"
+      "sha256": "761a99b13abea9a7cac50ce29677f402689c61ce6b071812d5cbac3cdbacbbd5"
     },
     {
       "path": "tests/integration/test_perp_engine_partial_liquidate.py",
@@ -116,11 +124,11 @@
     },
     {
       "path": "tools/run_runtime_shell_assurance_gate.sh",
-      "sha256": "eb55517cd93a92c95c315883d1c013e7cc66f00caece7d20dc7c294f014382f6"
+      "sha256": "44be6e566b42fb12f96afaa7900e1f1b1e64894febfbeacd3a440d0f87171382"
     },
     {
       "path": "tools/check_runtime_shell_assurance_manifest.py",
-      "sha256": "402fa568f944626e9ef654a83917514c4d688ef113159f509410a319c61cc0ae"
+      "sha256": "8ddad0ad49fdfa2c228b9fe110894cb499b9087321756b685a9ac003850e14f8"
     }
   ],
   "shell_lint": [
@@ -305,6 +313,7 @@
     "tests/kernels/test_python_adapter_wrappers.py",
     "tests/kernels/test_proof_mining_manager_v1_adapter.py",
     "tests/kernels/test_runtime_shell_adapters.py",
+    "tests/core/test_oracle_current_dispute_status_v1.py",
     "tests/integration/test_oracle_authorization_semantic_binding.py",
     "tests/integration/test_perp_engine.py",
     "tests/integration/test_perp_engine_clearinghouse_np_oracle_authorization.py",

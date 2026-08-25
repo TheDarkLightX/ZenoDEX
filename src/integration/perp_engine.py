@@ -965,6 +965,9 @@ class PerpEngineConfig:
     require_oracle_authorization_for_isolated_settle: bool = False
     require_oracle_authorization_for_clearinghouse_settle_epoch: bool = False
     oracle_authorization_receipt_graph_root: Optional[str] = None
+    require_oracle_current_dispute_status_for_isolated_settle: bool = False
+    require_oracle_current_dispute_status_for_clearinghouse_settle_epoch: bool = False
+    oracle_current_dispute_status_root: Optional[str] = None
     # Optional isolated-perps scaling policy. When both fields are set, each
     # set_position must keep aggregate open interest within the depth-supported
     # TWAP-funding manipulation budget.
@@ -1520,16 +1523,24 @@ def _check_isolated_settle_oracle_authorization(
     op: PerpOp,
     market: PerpMarketState,
 ) -> Optional[str]:
+    current_status_required = bool(
+        ctx.config.require_oracle_current_dispute_status_for_isolated_settle
+        or "oracle_current_dispute_status" in op.data
+        or ctx.config.oracle_current_dispute_status_root is not None
+    )
+    authorization_required = bool(
+        ctx.config.require_oracle_authorization_for_isolated_settle
+        or current_status_required
+    )
     authorization = op.data.get("oracle_authorization")
     if authorization is None:
-        if ctx.config.require_oracle_authorization_for_isolated_settle:
+        if authorization_required:
             return "oracle_authorization_required"
         return None
-    if (
-        ctx.config.require_oracle_authorization_for_isolated_settle
-        and ctx.config.oracle_authorization_receipt_graph_root is None
-    ):
+    if authorization_required and ctx.config.oracle_authorization_receipt_graph_root is None:
         return "oracle_authorization_root_authority_required"
+    if current_status_required and ctx.config.oracle_current_dispute_status_root is None:
+        return "oracle_current_dispute_status_root_authority_required"
     if type(authorization) is not dict:
         return "oracle_authorization must be an exact object"
     if not bool(market.global_state.get("oracle_seen", False)):
@@ -1562,6 +1573,9 @@ def _check_isolated_settle_oracle_authorization(
             runtime_value_e8=runtime_value_e8,
             now_epoch=now_epoch,
             expected_receipt_graph_root=ctx.config.oracle_authorization_receipt_graph_root,
+            current_dispute_status=op.data.get("oracle_current_dispute_status"),
+            expected_current_dispute_status_root=ctx.config.oracle_current_dispute_status_root,
+            require_current_dispute_status=current_status_required,
             runtime_notional_value_e8=runtime_notional_value_e8,
         )
     except Exception as exc:
@@ -2256,6 +2270,8 @@ def _check_clearinghouse_typed_oracle_authorization(
     runtime: Mapping[str, Any],
     runtime_value_e8: int,
     now_epoch: int,
+    current_dispute_status: Mapping[str, Any] | None,
+    current_dispute_status_required: bool,
 ) -> Optional[str]:
     runtime_notional_value_e8 = runtime.get("runtime_notional_value_e8")
     if type(runtime_notional_value_e8) is not int or runtime_notional_value_e8 < 0:
@@ -2274,6 +2290,9 @@ def _check_clearinghouse_typed_oracle_authorization(
             profile_id=_ORACLE_PERPS_SETTLE_EPOCH_PROFILE_ID,
             max_freshness_window_epochs=2,
             expected_receipt_graph_root=config.oracle_authorization_receipt_graph_root,
+            current_dispute_status=current_dispute_status,
+            expected_current_dispute_status_root=config.oracle_current_dispute_status_root,
+            require_current_dispute_status=current_dispute_status_required,
             runtime_notional_value_e8=runtime_notional_value_e8,
         )
     except Exception as exc:
@@ -2298,7 +2317,15 @@ class _ClearinghouseSettleOracleAuthorizationRequest:
 def _check_clearinghouse_settle_oracle_authorization(
     request: _ClearinghouseSettleOracleAuthorizationRequest,
 ) -> Optional[str]:
-    authorization_required = bool(request.config.require_oracle_authorization_for_clearinghouse_settle_epoch)
+    current_status_required = bool(
+        request.config.require_oracle_current_dispute_status_for_clearinghouse_settle_epoch
+        or "oracle_current_dispute_status" in request.data
+        or request.config.oracle_current_dispute_status_root is not None
+    )
+    authorization_required = bool(
+        request.config.require_oracle_authorization_for_clearinghouse_settle_epoch
+        or current_status_required
+    )
     authorization = request.data.get("oracle_authorization")
     if authorization is None:
         if authorization_required:
@@ -2306,6 +2333,8 @@ def _check_clearinghouse_settle_oracle_authorization(
         return None
     if authorization_required and request.config.oracle_authorization_receipt_graph_root is None:
         return "clearinghouse_settle_oracle_authorization_root_authority_required"
+    if current_status_required and request.config.oracle_current_dispute_status_root is None:
+        return "clearinghouse_settle_oracle_current_dispute_status_root_authority_required"
     if type(authorization) is not dict:
         return "clearinghouse settle oracle_authorization must be an exact object"
     if authorization_required and "oracle_adapter_bridge" not in request.data:
@@ -2333,6 +2362,8 @@ def _check_clearinghouse_settle_oracle_authorization(
         runtime=runtime,
         runtime_value_e8=runtime_value_e8,
         now_epoch=now_epoch,
+        current_dispute_status=request.data.get("oracle_current_dispute_status"),
+        current_dispute_status_required=current_status_required,
     )
 
 
@@ -3142,6 +3173,7 @@ def _apply_ch2p_settle_epoch(
             "action",
             "oracle_adapter_bridge",
             "oracle_authorization",
+            "oracle_current_dispute_status",
         },
         error="settle_epoch has unknown fields",
     )
@@ -3215,6 +3247,7 @@ def _apply_ch3p_settle_epoch(
             "action",
             "oracle_adapter_bridge",
             "oracle_authorization",
+            "oracle_current_dispute_status",
         },
         error="settle_epoch has unknown fields",
     )
@@ -5499,7 +5532,15 @@ def _isolated_settle_authorization_error(
     market: PerpMarketState,
 ) -> Optional[str]:
     data = op.data
-    allowed = {"module", "version", "market_id", "action", "oracle_authorization", "oracle_adapter_bridge"}
+    allowed = {
+        "module",
+        "version",
+        "market_id",
+        "action",
+        "oracle_adapter_bridge",
+        "oracle_authorization",
+        "oracle_current_dispute_status",
+    }
     gate_error = _operator_gate_error(
         action_kind=RUNTIME_ACTION_SETTLE_EPOCH,
         action=op.action,
@@ -7103,6 +7144,7 @@ def _apply_chnp_run_or_settle_epoch(
         "funding_rate_bps",
         "oracle_adapter_bridge",
         "oracle_authorization",
+        "oracle_current_dispute_status",
     }
     unknown = _reject_unknown_fields(data, allowed, error=f"{action} has unknown fields")
     if unknown is not None:

@@ -64,7 +64,7 @@ def zeno_oracle_fail_closed_perp_config(
     oracle_adapter_bridge_verifier: OracleAdapterBridgeVerifier | None = None,
     **overrides: Any,
 ) -> PerpEngineConfig:
-    """Build a perps config with all critical Oracle adapter/auth gates forced on."""
+    """Force perps Oracle gates; absent verifier-selected roots halt settlement."""
 
     cfg = PerpEngineConfig(**overrides)
     verifier = cfg.oracle_adapter_bridge_verifier
@@ -78,4 +78,6 @@ def zeno_oracle_fail_closed_perp_config(
         require_oracle_adapter_for_clearinghouse_settle_epoch=True,
         require_oracle_authorization_for_isolated_settle=True,
         require_oracle_authorization_for_clearinghouse_settle_epoch=True,
+        require_oracle_current_dispute_status_for_isolated_settle=True,
+        require_oracle_current_dispute_status_for_clearinghouse_settle_epoch=True,
     )

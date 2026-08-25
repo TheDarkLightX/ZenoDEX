@@ -19,6 +19,9 @@ require_oracle_adapter_for_clearinghouse_settle_epoch: bool
 require_oracle_authorization_for_isolated_settle: bool
 require_oracle_authorization_for_clearinghouse_settle_epoch: bool
 oracle_authorization_receipt_graph_root: Optional[str]
+require_oracle_current_dispute_status_for_isolated_settle: bool
+require_oracle_current_dispute_status_for_clearinghouse_settle_epoch: bool
+oracle_current_dispute_status_root: Optional[str]
 ```
 
 When a `settle_epoch` op carries `oracle_adapter_bridge`, the engine:
@@ -43,6 +46,10 @@ profile_id      = published O3 / 2-epoch perps settle profile
 8. when typed authorization is required, verifies the action facts, pre-state,
    price, epoch, profile, query, and terminal receipt graph against the
    configured root.
+9. when current dispute status is required, verifies a fresh status witness at
+   the settlement epoch over the exact receipt-graph report set and compares it
+   with a verifier-selected root. Any `open` or `upheld` report rejects before
+   settlement mutation.
 
 For isolated perps, the runtime action ID is the SHA-256 content hash of:
 
@@ -99,6 +106,9 @@ TAU_DEX_REQUIRE_ORACLE_ADAPTER_FOR_ISOLATED_SETTLE_EPOCH
 TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE
 TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH
 TAU_DEX_PERP_ORACLE_AUTHORIZATION_RECEIPT_GRAPH_ROOT
+TAU_DEX_REQUIRE_ORACLE_CURRENT_DISPUTE_STATUS_FOR_ISOLATED_SETTLE
+TAU_DEX_REQUIRE_ORACLE_CURRENT_DISPUTE_STATUS_FOR_CLEARINGHOUSE_SETTLE_EPOCH
+TAU_DEX_PERP_ORACLE_CURRENT_DISPUTE_STATUS_ROOT
 ```
 
 The wallet adapter copies a supplied `oracle_authorization` into an owned
@@ -106,7 +116,26 @@ canonical JSON object before constructing the engine operation. Typed
 authorization remains disabled by default on these development adapters until
 an authorization producer and verifier-selected root are configured. The
 `zeno_oracle_fail_closed_perp_config` helper forces both typed-authorization
-controls on for fail-closed profiles.
+controls and both current-dispute-status controls on for fail-closed profiles.
+
+The local Oracle service exposes a non-mutating status projection at:
+
+```text
+GET /api/oracle/authorization/current-dispute-status?id=<authorization_id>
+```
+
+The projection reads the canonical authorization and current local dispute
+registry under the authorization persistence lock. Its root commits the exact
+report scope, dispute entries, derived revoked report set, and runtime epoch.
+The endpoint requires an explicit server `--now-epoch`; without it the endpoint
+returns 503. That value is a startup snapshot in the local research service.
+Callers cannot change it through the query string. A long-running service can
+therefore become stale, and the settlement engine rejects a witness whose epoch
+does not equal the engine-derived settlement epoch.
+This local projection has `production_authority=false`. Production admission
+still requires the expected current root to come from the atomic global state
+and be rechecked under the settlement CAS or write lock. A caller-selected root
+has no authority.
 
 The wallet proof-intent operation hash commits the authorization. Its Oracle
 authority exercise also records whether typed authorization was required,

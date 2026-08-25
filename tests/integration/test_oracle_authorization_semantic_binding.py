@@ -10,6 +10,9 @@ from pathlib import Path
 
 import pytest
 
+from src.core.oracle_current_dispute_status_v1 import (
+    build_oracle_current_dispute_status_v1,
+)
 from src.integration.zeno_oracle_authorization import (
     ECONOMIC_ENVELOPE_FIELDS,
     ZUSD_COLLATERAL_QUERY_ID,
@@ -537,6 +540,160 @@ def test_critical_consumer_accepts_configured_receipt_graph_root() -> None:
     assert result["typed_ok"] is True
     assert result["receipt_graph_ok"] is True
     assert result["expected_receipt_graph_root"] == configured_root
+
+
+def test_critical_consumer_accepts_current_clean_dispute_status() -> None:
+    # Given an authorization and a verifier-selected current status over the
+    # same terminal report scope.
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    status = build_oracle_current_dispute_status_v1(
+        report_ids=bundle["receipt_graph"]["included_report_ids"],
+        dispute_entries=(),
+        as_of_epoch=runtime.now_epoch,
+    )
+
+    # When the critical consumer verifies both bindings.
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+        current_dispute_status=status,
+        expected_current_dispute_status_root=status["current_dispute_status_root"],
+        require_current_dispute_status=True,
+    )
+
+    # Then the current status gate is part of typed acceptance.
+    assert result["typed_ok"] is True
+    assert result["current_dispute_status_required"] is True
+    assert result["current_dispute_status_ok"] is True
+
+
+def test_authorization_created_before_open_dispute_rejects_at_consumption() -> None:
+    # Given an otherwise valid authorization created before a report is disputed.
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    report_id = bundle["receipt_graph"]["included_report_ids"][0]
+    status = build_oracle_current_dispute_status_v1(
+        report_ids=bundle["receipt_graph"]["included_report_ids"],
+        dispute_entries=(
+            {
+                "dispute_id": _hash("test.oracle.dispute", "late-open"),
+                "report_id": report_id,
+                "status": "open",
+            },
+        ),
+        as_of_epoch=runtime.now_epoch,
+    )
+
+    # When settlement checks the current status after the dispute opened.
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+        current_dispute_status=status,
+        expected_current_dispute_status_root=status["current_dispute_status_root"],
+        require_current_dispute_status=True,
+    )
+
+    # Then the old authorization has no value-moving authority.
+    assert result["typed_ok"] is False
+    assert result["current_dispute_status_ok"] is False
+    assert (
+        "current dispute status includes open or upheld reports"
+        in result["current_dispute_status_errors"]
+    )
+
+
+def test_critical_consumer_rejects_missing_current_status_root_authority() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+        require_current_dispute_status=True,
+    )
+
+    assert result["typed_ok"] is False
+    assert result["current_dispute_status_ok"] is False
+    assert result["current_dispute_status_errors"] == [
+        "current dispute status root authority required",
+        "current dispute status required",
+    ]
+
+
+def test_critical_consumer_rejects_malformed_present_current_status() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.zusd",
+        action_kind="mint",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+        current_dispute_status=[],
+        expected_current_dispute_status_root="sha256:" + "1" * 64,
+    )
+
+    assert result["typed_ok"] is False
+    assert result["current_dispute_status_required"] is True
+    assert result["current_dispute_status_ok"] is False
+    assert result["current_dispute_status_errors"] == [
+        "current dispute status must be an exact object"
+    ]
+
+
+def test_unsupported_consumer_result_preserves_current_status_schema() -> None:
+    authorization, runtime = _valid_pair()
+    bundle = authorization_bundle(asdict(authorization))
+    expected_status_root = "sha256:" + "1" * 64
+
+    result = check_critical_consumer_authorization(
+        bundle,
+        consumer_module="zenodex.unsupported",
+        action_kind="unknown",
+        action_id=runtime.action_id,
+        action_facts_hash=runtime.action_facts_hash,
+        pre_state_hash=runtime.pre_state_hash,
+        query_id=runtime.query_id,
+        runtime_value_e8=runtime.runtime_value_e8,
+        now_epoch=runtime.now_epoch,
+        expected_current_dispute_status_root=expected_status_root,
+    )
+
+    assert result["typed_ok"] is False
+    assert result["critical_consumer_profile"] is None
+    assert result["current_dispute_status_required"] is True
+    assert result["current_dispute_status_ok"] is False
+    assert result["current_dispute_status_errors"] == [
+        "unsupported critical consumer/action"
+    ]
+    assert result["expected_current_dispute_status_root"] == expected_status_root
 
 
 def test_critical_consumer_rejects_different_configured_receipt_graph_root() -> None:

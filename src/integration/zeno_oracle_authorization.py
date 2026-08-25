@@ -7,6 +7,9 @@ import json
 from dataclasses import asdict, dataclass
 from typing import Any, Mapping
 
+from src.core.oracle_current_dispute_status_v1 import (
+    verify_oracle_current_dispute_status_v1,
+)
 from src.core.oracle_economic_security import (
     ENVELOPE_KEYS as ECONOMIC_SECURITY_ENVELOPE_KEYS,
 )
@@ -1121,6 +1124,38 @@ def check_authorization_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     return check_authorization_for_runtime(payload, runtime_from_obj(runtime_obj))
 
 
+def _check_current_dispute_status_for_critical_consumer(
+    *,
+    receipt_graph: Mapping[str, Any] | None,
+    current_dispute_status: Mapping[str, Any] | None,
+    expected_root: str | None,
+    now_epoch: int,
+    required: bool,
+) -> tuple[bool, bool, list[str]]:
+    gate_required = bool(
+        required or current_dispute_status is not None or expected_root is not None
+    )
+    if not gate_required:
+        return False, True, []
+    errors: list[str] = []
+    if expected_root is None:
+        errors.append("current dispute status root authority required")
+    if current_dispute_status is None:
+        errors.append("current dispute status required")
+        return True, False, errors
+    included_report_ids: Any = []
+    if type(receipt_graph) is dict:
+        included_report_ids = receipt_graph.get("included_report_ids", [])
+    dispute_check = verify_oracle_current_dispute_status_v1(
+        current_dispute_status,
+        expected_report_ids=included_report_ids,
+        expected_root=expected_root or "",
+        now_epoch=now_epoch,
+    )
+    errors.extend(dispute_check.errors)
+    return True, not errors, errors
+
+
 def check_critical_consumer_authorization(
     authorization_payload: Mapping[str, Any],
     *,
@@ -1136,6 +1171,9 @@ def check_critical_consumer_authorization(
     profile_id: str | None = None,
     max_freshness_window_epochs: int | None = None,
     expected_receipt_graph_root: str | None = None,
+    current_dispute_status: Mapping[str, Any] | None = None,
+    expected_current_dispute_status_root: str | None = None,
+    require_current_dispute_status: bool = False,
     require_receipt_graph: bool = True,
     require_economic_envelope: bool = True,
 ) -> dict[str, Any]:
@@ -1175,6 +1213,11 @@ def check_critical_consumer_authorization(
             profile_id=expected_profile,
         )
     if expected_profile is None:
+        current_status_gate_required = bool(
+            require_current_dispute_status
+            or current_dispute_status is not None
+            or expected_current_dispute_status_root is not None
+        )
         return {
             "schema": SCHEMA,
             "opaque_ok": False,
@@ -1204,6 +1247,20 @@ def check_critical_consumer_authorization(
                 "max_freshness_window_epochs": expected_max_freshness_window_epochs,
             },
             "expected_receipt_graph_root": expected_receipt_graph_root,
+            "critical_consumer_profile": None,
+            "critical_consumer_max_freshness_window_epochs": (
+                expected_max_freshness_window_epochs
+            ),
+            "current_dispute_status_required": current_status_gate_required,
+            "current_dispute_status_ok": False,
+            "current_dispute_status_errors": (
+                ["unsupported critical consumer/action"]
+                if current_status_gate_required
+                else []
+            ),
+            "expected_current_dispute_status_root": (
+                expected_current_dispute_status_root
+            ),
         }
     runtime = RuntimeActionFacts(
         consumer_module=consumer_module,
@@ -1242,9 +1299,25 @@ def check_critical_consumer_authorization(
         result["receipt_graph_ok"] = False
     if authorization.profile_id != expected_profile:
         typed_errors.append("critical profile mismatch")
+    (
+        current_dispute_status_required,
+        current_dispute_status_ok,
+        current_dispute_status_errors,
+    ) = _check_current_dispute_status_for_critical_consumer(
+        receipt_graph=_graph_obj_from_payload(authorization_payload),
+        current_dispute_status=current_dispute_status,
+        expected_root=expected_current_dispute_status_root,
+        now_epoch=now_epoch_int,
+        required=require_current_dispute_status,
+    )
+    typed_errors.extend(current_dispute_status_errors)
     result["typed_errors"] = typed_errors
     result["typed_ok"] = bool(result["typed_ok"] and not typed_errors)
     result["critical_consumer_profile"] = expected_profile
     result["critical_consumer_max_freshness_window_epochs"] = expected_max_freshness_window_epochs
     result["expected_receipt_graph_root"] = expected_receipt_graph_root
+    result["current_dispute_status_required"] = current_dispute_status_required
+    result["current_dispute_status_ok"] = current_dispute_status_ok
+    result["current_dispute_status_errors"] = current_dispute_status_errors
+    result["expected_current_dispute_status_root"] = expected_current_dispute_status_root
     return result

@@ -1341,12 +1341,19 @@ def _oracle_authority_exercise_for_action(
     bridge_present = isinstance(bridge, Mapping)
     authorization = operation.get("oracle_authorization")
     authorization_present = type(authorization) is dict
+    current_dispute_status = operation.get("oracle_current_dispute_status")
+    current_dispute_status_present = type(current_dispute_status) is dict
     market_id = str(operation.get("market_id") or "")
     authorization_required = False
+    current_dispute_status_required = False
     if action == "settle_epoch":
         if market_id.startswith("perp:ch2p:"):
             authorization_required = _env_bool(
                 "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+                False,
+            )
+            current_dispute_status_required = _env_bool(
+                "TAU_DEX_REQUIRE_ORACLE_CURRENT_DISPUTE_STATUS_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
                 False,
             )
         else:
@@ -1354,11 +1361,20 @@ def _oracle_authority_exercise_for_action(
                 "TAU_DEX_REQUIRE_ORACLE_AUTHORIZATION_FOR_ISOLATED_SETTLE",
                 False,
             )
+            current_dispute_status_required = _env_bool(
+                "TAU_DEX_REQUIRE_ORACLE_CURRENT_DISPUTE_STATUS_FOR_ISOLATED_SETTLE",
+                False,
+            )
+    authorization_required = bool(
+        authorization_required or current_dispute_status_required
+    )
     readiness_gaps = list(oracle_authority.get("readiness_gaps") or [])
     if not bridge_present:
         readiness_gaps.append("oracle adapter bridge is missing from operation")
     if authorization_required and not authorization_present:
         readiness_gaps.append("typed oracle authorization is missing from operation")
+    if current_dispute_status_required and not current_dispute_status_present:
+        readiness_gaps.append("current oracle dispute status is missing from operation")
 
     signature_quorum = oracle_authority.get("signature_quorum")
     if not isinstance(signature_quorum, Mapping):
@@ -1368,6 +1384,7 @@ def _oracle_authority_exercise_for_action(
         authority_ready
         and bridge_present
         and (authorization_present or not authorization_required)
+        and (current_dispute_status_present or not current_dispute_status_required)
     )
     body: dict[str, Any] = {
         "schema": _ORACLE_AUTHORITY_EXERCISE_SCHEMA,
@@ -1405,6 +1422,16 @@ def _oracle_authority_exercise_for_action(
                 authorization,
             )
             if authorization_present
+            else None
+        ),
+        "oracle_current_dispute_status_required": current_dispute_status_required,
+        "oracle_current_dispute_status_present": current_dispute_status_present,
+        "oracle_current_dispute_status_hash": (
+            _hash_payload(
+                "zenodex.perps_wallet.oracle_current_dispute_status/v1",
+                current_dispute_status,
+            )
+            if current_dispute_status_present
             else None
         ),
     }
@@ -1819,6 +1846,12 @@ def _build_operation_and_sender(
         authorization = _request_owned_json_object(body, name="oracle_authorization")
         if authorization is not None:
             operation["oracle_authorization"] = authorization
+        current_dispute_status = _request_owned_json_object(
+            body,
+            name="oracle_current_dispute_status",
+        )
+        if current_dispute_status is not None:
+            operation["oracle_current_dispute_status"] = current_dispute_status
         tx_sender = _tx_sender_for_action(body, action=action, account_a_pubkey=None, account_pubkey=None)
         return operation, tx_sender, meta
 
@@ -1996,6 +2029,21 @@ def _build_perp_config(*, chain_id: str) -> PerpEngineConfig:
         oracle_authorization_receipt_graph_root=(
             _env_str(
                 "TAU_DEX_PERP_ORACLE_AUTHORIZATION_RECEIPT_GRAPH_ROOT",
+                "",
+            )
+            or None
+        ),
+        require_oracle_current_dispute_status_for_isolated_settle=_env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_CURRENT_DISPUTE_STATUS_FOR_ISOLATED_SETTLE",
+            False,
+        ),
+        require_oracle_current_dispute_status_for_clearinghouse_settle_epoch=_env_bool(
+            "TAU_DEX_REQUIRE_ORACLE_CURRENT_DISPUTE_STATUS_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+            False,
+        ),
+        oracle_current_dispute_status_root=(
+            _env_str(
+                "TAU_DEX_PERP_ORACLE_CURRENT_DISPUTE_STATUS_ROOT",
                 "",
             )
             or None

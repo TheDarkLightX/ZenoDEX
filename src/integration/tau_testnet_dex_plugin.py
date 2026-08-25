@@ -1062,6 +1062,9 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
     oracle_authorization_root = (
         _str_env("TAU_DEX_PERP_ORACLE_AUTHORIZATION_RECEIPT_GRAPH_ROOT") or None
     )
+    oracle_current_dispute_status_root = (
+        _str_env("TAU_DEX_PERP_ORACLE_CURRENT_DISPUTE_STATUS_ROOT") or None
+    )
 
     def _oracle_adapter_bridge_verifier(bridge):
         from tools.zenodex_oracle_aggregate_adapter import (  # pylint: disable=import-outside-toplevel
@@ -1113,6 +1116,15 @@ def _build_perp_engine_config(*, chain_id: str) -> PerpEngineConfig:
             default=False,
         ),
         oracle_authorization_receipt_graph_root=oracle_authorization_root,
+        require_oracle_current_dispute_status_for_isolated_settle=_bool_env(
+            "TAU_DEX_REQUIRE_ORACLE_CURRENT_DISPUTE_STATUS_FOR_ISOLATED_SETTLE",
+            default=False,
+        ),
+        require_oracle_current_dispute_status_for_clearinghouse_settle_epoch=_bool_env(
+            "TAU_DEX_REQUIRE_ORACLE_CURRENT_DISPUTE_STATUS_FOR_CLEARINGHOUSE_SETTLE_EPOCH",
+            default=False,
+        ),
+        oracle_current_dispute_status_root=oracle_current_dispute_status_root,
         require_tau_source_binding_for_isolated_partial_liquidate=_bool_env(
             "TAU_DEX_REQUIRE_TAU_SOURCE_BINDING_FOR_ISOLATED_PARTIAL_LIQUIDATE",
             default=False,
