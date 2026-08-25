@@ -1,4 +1,4 @@
-"""Governed profile binding for the closed M6 capability requirements."""
+"""Governed ABI binding for the closed M6 capability requirements."""
 
 from __future__ import annotations
 

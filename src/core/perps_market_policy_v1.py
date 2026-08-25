@@ -5,15 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from typing import Final
 
+from .global_economic_capability_profile_binding_v1 import (
+    snapshot_economic_policy_registry_v1,
+)
 from .global_economic_proof_v1 import EconomicCommandOccurrenceV1
 from .global_settlement_types_v1 import (
     EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
     _require_token,
     hash_global_v1,
-)
-from .m6_capability_profile_binding_v1 import (
-    snapshot_economic_policy_registry_v1,
 )
 
 PERPS_MARKET_POLICY_SCHEMA_V1: Final = "zenodex/perps-market-policy/v1"

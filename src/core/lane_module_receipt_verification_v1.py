@@ -23,6 +23,9 @@ from .asset_transfer_lane_module_v1 import (
     _snapshot_asset_transfer_lane_module_input_v1,
 )
 from .economic_command_authentication_v1 import AuthenticatedEconomicCommandV1
+from .global_economic_capability_profile_binding_v1 import (
+    snapshot_economic_policy_registry_v1,
+)
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import (
     LaneModuleTransitionJournalV1,
@@ -44,7 +47,6 @@ from .lane_module_release_route_binding_v1 import (
     bind_managed_asset_lifecycle_lane_output_to_release_route_v1,
     bind_perps_margin_lane_output_to_release_route_v1,
 )
-from .m6_capability_profile_binding_v1 import snapshot_economic_policy_registry_v1
 from .managed_asset_lifecycle_lane_module_v1 import (
     ManagedAssetLifecycleLaneModuleAcceptedV1,
     ManagedAssetLifecycleLaneModuleInputV1,

@@ -23,6 +23,13 @@ from .economic_initial_state_replay_continuity_v1 import (
 from .economic_initial_state_terminal_continuity_v1 import (
     derive_economic_initial_state_terminal_continuity_root_v1,
 )
+from .global_economic_asset_precision_policy_v1 import (
+    validate_m6_asset_precision_profile_binding_v1,
+)
+from .global_economic_capability_profile_binding_v1 import (
+    snapshot_economic_policy_registry_v1,
+    validate_m6_capability_profile_binding_v1,
+)
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import ReceiptKindV1
 from .global_economic_refinement_snapshot_v1 import _snapshot_state_v1
@@ -40,13 +47,6 @@ from .global_settlement_types_v1 import (
     canonical_global_bytes_v1,
     hash_global_v1,
     validate_global_state_profile_v1,
-)
-from .m6_asset_precision_policy_v1 import (
-    validate_m6_asset_precision_profile_binding_v1,
-)
-from .m6_capability_profile_binding_v1 import (
-    snapshot_economic_policy_registry_v1,
-    validate_m6_capability_profile_binding_v1,
 )
 
 

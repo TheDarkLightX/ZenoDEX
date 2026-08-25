@@ -4,7 +4,9 @@ import json
 from copy import deepcopy
 from pathlib import Path
 
-from src.core.m6_capability_profile_binding_v1 import M6_CAPABILITY_MANIFEST_ROOT_V1
+from src.core.global_economic_capability_profile_binding_v1 import (
+    M6_CAPABILITY_MANIFEST_ROOT_V1,
+)
 from tools.check_m6_capability_manifest_v1 import (
     DEFAULT_MANIFEST,
     REPO_ROOT,

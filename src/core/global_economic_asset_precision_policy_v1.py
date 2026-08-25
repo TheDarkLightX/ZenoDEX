@@ -1,4 +1,4 @@
-"""Exact governed eight-decimal amount policy for the M6 profile."""
+"""Exact governed eight-decimal amount policy for the M6 economic profile."""
 
 from __future__ import annotations
 
