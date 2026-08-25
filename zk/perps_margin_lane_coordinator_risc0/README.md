@@ -48,6 +48,38 @@ The separate missing-child-assumption real test also passed, establishing that
 the coordinator cannot produce this lane receipt without resolving the exact
 child proof.
 
+## CUDA backend benchmark
+
+An isolated external runner enabled RISC Zero 3.0.6's `cuda` and
+`disable-dev-mode` host features while importing the unchanged committed guest
+and method crates. This separation is required. Enabling CUDA inside the method
+workspace changed the child image ID, and the pinned-image assertion rejected
+that attempt before proving. The rejected-run log SHA-256 is
+`40853bfa396b3655ae528d951e1ca2c990e351196778e9e036b95274ad80ce2a`.
+
+The corrected runner used an NVIDIA L40S, driver 580.126.20, and CUDA toolkit
+12.4.131. Both runs preserved the exact CPU image words, image root, embedded
+method hash, test vector, and verifier controls:
+
+| Replay | Child proof | Recursive total | CPU-relative total speedup |
+| --- | ---: | ---: | ---: |
+| CUDA 1 | 9.769015574 s | 25.512611844 s | 63.191x |
+| CUDA 2 | 9.764355094 s | 27.825517501 s | 57.938x |
+
+The mean child time was 9.766685 seconds and the mean recursive time was
+26.669065 seconds, a 60.451x end-to-end speedup over the CPU baseline. A live
+sample attributed 5,996 MiB to the proof process on the L40S. The passed-run
+log SHA-256 values are
+`5b073d06ecdda37fb114b47c044535b5ab2eb71214c713fd61c36cdd702f1e48`
+and
+`f337bb97d404d542829107b0c90ccb2e97a6ff08af7fe821ce822c1e4bf14079`.
+
+CUDA remains a benchmark backend and is not a production dependency of this
+workspace. Its optional graph added 169 packages relative to the portable host
+configuration. Backend activation therefore requires separate dependency,
+license, build-provenance, and deployment review; it cannot modify a governed
+guest image or release ID.
+
 This proof covers one bounded margin deposit, withdrawal, or close transition
 and its single-module lane composition. It does not prove the complete perps
 lifecycle, route or epoch composition, mounting, durable publication, or
