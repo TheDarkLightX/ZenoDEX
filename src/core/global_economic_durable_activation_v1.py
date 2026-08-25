@@ -34,6 +34,7 @@ DURABLE_ECONOMIC_ACTIVATION_SCHEMA_V1: Final = (
 MAX_DURABLE_ECONOMIC_COMPONENT_BYTES_V1: Final = 8 * 1024 * 1024
 MAX_DURABLE_ECONOMIC_RECORD_BYTES_V1: Final = 256 * 1024
 MAX_DURABLE_ECONOMIC_BUNDLE_BYTES_V1: Final = 16 * 1024 * 1024
+MAX_GLOBAL_ECONOMIC_CANONICAL_JSON_DEPTH_V1: Final = 64
 _BUNDLE_MAGIC_V1: Final = b"ZGDAJ1\x00"
 _U64_MAX_V1: Final = (1 << 64) - 1
 
@@ -540,20 +541,62 @@ def _reject_duplicate_object_pairs_v1(
     return result
 
 
+def _json_string_state_after_character_v1(
+    character: str,
+    *,
+    escaped: bool,
+) -> tuple[bool, bool]:
+    if escaped:
+        return False, True
+    if character == "\\":
+        return True, True
+    return False, character != '"'
+
+
+def _require_json_nesting_bound_v1(decoded_text: str, *, name: str) -> None:
+    """Reject excessive container nesting without relying on parser recursion."""
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for character in decoded_text:
+        if in_string:
+            escaped, in_string = _json_string_state_after_character_v1(
+                character,
+                escaped=escaped,
+            )
+            continue
+        if character == '"':
+            in_string = True
+        elif character in "[{":
+            depth += 1
+            if depth > MAX_GLOBAL_ECONOMIC_CANONICAL_JSON_DEPTH_V1:
+                raise ValueError(f"{name} JSON nesting exceeds the bound")
+        elif character in "]}" and depth > 0:
+            depth -= 1
+
+
 def _decode_exact_canonical_json_v1(payload: bytes, *, name: str) -> object:
     try:
         decoded_text = payload.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ValueError(f"{name} is not UTF-8") from exc
+    _require_json_nesting_bound_v1(decoded_text, name=name)
     try:
         value = json.loads(
             decoded_text,
             object_pairs_hook=_reject_duplicate_object_pairs_v1,
             parse_constant=_reject_json_constant_v1,
         )
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, RecursionError) as exc:
         raise ValueError(f"{name} is not valid JSON") from exc
-    if canonical_global_bytes_v1(value) != payload:
+    try:
+        canonical_payload = canonical_global_bytes_v1(value)
+    except RecursionError as exc:
+        raise ValueError(
+            f"{name} canonicalization exceeds the host recursion capacity"
+        ) from exc
+    if canonical_payload != payload:
         raise ValueError(f"{name} encoding is not canonical")
     return value
 
@@ -980,18 +1023,10 @@ def _validate_bundle_body_bindings_v1(
 
 
 def _decode_record_v1(record_bytes: bytes) -> DurableEconomicActivationRecordV1:
-    try:
-        decoded_text = record_bytes.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise ValueError("durable activation record is not UTF-8") from exc
-    try:
-        value = json.loads(
-            decoded_text,
-            object_pairs_hook=_reject_duplicate_object_pairs_v1,
-            parse_constant=_reject_json_constant_v1,
-        )
-    except json.JSONDecodeError as exc:
-        raise ValueError("durable activation record is not valid JSON") from exc
+    value = _decode_exact_canonical_json_v1(
+        record_bytes,
+        name="durable activation record",
+    )
     if type(value) is not dict:
         raise TypeError("durable activation record must decode to an object")
     expected_fields = {

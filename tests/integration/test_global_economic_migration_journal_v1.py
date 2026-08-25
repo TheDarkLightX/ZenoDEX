@@ -16,6 +16,7 @@ import src.integration.global_economic_migration_journal_v1 as journal_module
 from src.core.economic_initial_state_atom_coverage_v1 import EconomicInitialStateKindV1
 from src.core.global_economic_durable_activation_v1 import (
     MAX_DURABLE_ECONOMIC_COMPONENT_BYTES_V1,
+    MAX_GLOBAL_ECONOMIC_CANONICAL_JSON_DEPTH_V1,
     DurableEconomicActivationRecordV1,
     DurableEconomicComponentKindV1,
     DurableEconomicComponentV1,
@@ -165,6 +166,22 @@ def _replace_record_fragment_v1(
         + len(mutated_record).to_bytes(4, "big")
         + mutated_record
         + encoded[record_end:]
+    )
+
+
+def _replace_record_v1(
+    bundle: DurableEconomicInitialStateBundleV1,
+    record: bytes,
+) -> bytes:
+    encoded = bundle.canonical_bytes
+    magic_size = len(b"ZGDAJ1\x00")
+    old_record_size = int.from_bytes(encoded[magic_size : magic_size + 4], "big")
+    old_record_end = magic_size + 4 + old_record_size
+    return (
+        encoded[:magic_size]
+        + len(record).to_bytes(4, "big")
+        + record
+        + encoded[old_record_end:]
     )
 
 
@@ -852,6 +869,40 @@ def test_bundle_decoder_rejects_duplicate_noncanonical_and_unknown_record_shapes
     ):
         with pytest.raises((TypeError, ValueError)):
             decode_durable_economic_initial_state_bundle_v1(mutated)
+
+
+@pytest.mark.parametrize(
+    ("depth", "expected_error"),
+    [
+        (MAX_GLOBAL_ECONOMIC_CANONICAL_JSON_DEPTH_V1 - 1, "field set is not closed"),
+        (MAX_GLOBAL_ECONOMIC_CANONICAL_JSON_DEPTH_V1, "field set is not closed"),
+        (MAX_GLOBAL_ECONOMIC_CANONICAL_JSON_DEPTH_V1 + 1, "nesting exceeds the bound"),
+    ],
+)
+def test_public_bundle_record_decoder_applies_json_depth_bva(
+    depth: int,
+    expected_error: str,
+) -> None:
+    # Arrange: outer object plus nested arrays has exactly the requested depth.
+    genesis, _ = _bundles_v1()
+    nested = (b"[" * (depth - 1)) + b"null" + (b"]" * (depth - 1))
+    hostile_record = b'{"probe":' + nested + b"}"
+    hostile_bundle = _replace_record_v1(genesis, hostile_record)
+
+    # Act and assert: public framing cannot bypass the shared lexical bound.
+    with pytest.raises(ValueError, match=expected_error):
+        decode_durable_economic_initial_state_bundle_v1(hostile_bundle)
+
+
+def test_public_bundle_record_decoder_normalizes_extreme_nesting() -> None:
+    # Arrange: the old direct json.loads path leaked RecursionError at this depth.
+    genesis, _ = _bundles_v1()
+    nested = (b"[" * 10_000) + b"null" + (b"]" * 10_000)
+    hostile_bundle = _replace_record_v1(genesis, b'{"probe":' + nested + b"}")
+
+    # Act and assert: the public decoder returns the same typed resource rejection.
+    with pytest.raises(ValueError, match="nesting exceeds the bound"):
+        decode_durable_economic_initial_state_bundle_v1(hostile_bundle)
 
 
 def test_component_byte_count_boundary_accepts_max_and_rejects_neighbors() -> None:
