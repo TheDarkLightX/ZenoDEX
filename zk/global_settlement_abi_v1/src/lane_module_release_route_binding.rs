@@ -12,10 +12,11 @@ use crate::perps_margin_lane_module::{
     recompute_perps_margin_accepted_v1, PerpsMarginLaneModuleInputV1,
 };
 use crate::perps_margin_types::{PerpsMarginAcceptedV1, PERPS_MARGIN_MODULE_SCHEMA_V1};
+use crate::perps_market_policy::{require_governed_perps_market_policy_v1, PerpsMarketPolicyV1};
 use crate::proof::{EconomicCommandOccurrenceV1, LaneModuleTransitionJournalV1};
 use crate::release::{
-    EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1, LaneIdV1, LaneRegistryV1,
-    ProfileStatusV1, RouteRegistryV1,
+    EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1, LaneIdV1,
+    LaneRegistryV1, ProfileStatusV1, RouteRegistryV1,
 };
 
 pub const RELEASE_ROUTE_BOUND_LANE_TRANSITION_SCHEMA_V1: &str =
@@ -376,6 +377,8 @@ fn require_perps_oracle_price_binding_v1(
 
 pub struct PerpsMarginReleaseRouteBindingCandidateV1<'a> {
     pub profile: &'a EconomicProfileSnapshotV1,
+    pub policy_registry: &'a EconomicPolicyRegistryV1,
+    pub market_policy: &'a PerpsMarketPolicyV1,
     pub lanes: &'a LaneRegistryV1,
     pub coordinators: &'a LaneCoordinatorRegistryV1,
     pub routes: &'a RouteRegistryV1,
@@ -385,11 +388,46 @@ pub struct PerpsMarginReleaseRouteBindingCandidateV1<'a> {
     pub verified_price: Option<&'a VerifiedGlobalOraclePriceV1>,
 }
 
+fn require_perps_market_policy_binding_v1(
+    candidate: &PerpsMarginReleaseRouteBindingCandidateV1<'_>,
+) -> AbiResultV1<()> {
+    require_governed_perps_market_policy_v1(
+        candidate.profile,
+        candidate.policy_registry,
+        candidate.occurrence,
+        candidate.market_policy,
+    )?;
+    let input = candidate.module_input;
+    let policy = candidate.market_policy;
+    if input.command.market_id != policy.market_id
+        || input.pre_state.market_id != policy.market_id
+        || input.command.asset != policy.quote_asset
+        || input.pre_state.collateral_asset != policy.quote_asset
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "perps margin market policy state binding",
+        ));
+    }
+    if let Some(price) = candidate.verified_price {
+        if price.market_id() != policy.market_id
+            || price.base_asset() != policy.base_asset
+            || price.quote_asset() != policy.quote_asset
+            || price.oracle_id() != policy.oracle_id
+        {
+            return Err(AbiErrorV1::InvalidBinding(
+                "perps margin market policy Oracle binding",
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub fn bind_perps_margin_lane_output_to_release_route_v1(
     candidate: PerpsMarginReleaseRouteBindingCandidateV1<'_>,
 ) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
     candidate.module_input.validate()?;
     let expected = recompute_perps_margin_accepted_v1(candidate.module_input, candidate.accepted)?;
+    require_perps_market_policy_binding_v1(&candidate)?;
     require_perps_oracle_price_binding_v1(
         candidate.routes,
         candidate.occurrence,

@@ -21,6 +21,7 @@ from .global_economic_proof_v1 import (
 )
 from .global_oracle_price_occurrence_v1 import VerifiedGlobalOraclePriceV1
 from .global_settlement_types_v1 import (
+    EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
     LaneIdV1,
     ProfileStatusV1,
@@ -38,6 +39,10 @@ from .perps_margin_lane_module_v1 import (
 from .perps_margin_types_v1 import (
     PERPS_MARGIN_MODULE_SCHEMA_V1,
     PerpsMarginAcceptedV1,
+)
+from .perps_market_policy_v1 import (
+    PerpsMarketPolicyV1,
+    require_governed_perps_market_policy_v1,
 )
 
 RELEASE_ROUTE_BOUND_LANE_TRANSITION_SCHEMA_V1: Final = (
@@ -343,6 +348,8 @@ def bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
 @dataclass(frozen=True, slots=True)
 class PerpsMarginReleaseRouteBindingCandidateV1:
     profile: EconomicProfileSnapshotV1
+    policy_registry: EconomicPolicyRegistryV1
+    market_policy: PerpsMarketPolicyV1
     occurrence: EconomicCommandOccurrenceV1
     module_input: PerpsMarginLaneModuleInputV1
     accepted: PerpsMarginAcceptedV1
@@ -351,6 +358,8 @@ class PerpsMarginReleaseRouteBindingCandidateV1:
     def __post_init__(self) -> None:
         expected_types = (
             (self.profile, EconomicProfileSnapshotV1),
+            (self.policy_registry, EconomicPolicyRegistryV1),
+            (self.market_policy, PerpsMarketPolicyV1),
             (self.occurrence, EconomicCommandOccurrenceV1),
             (self.module_input, PerpsMarginLaneModuleInputV1),
             (self.accepted, PerpsMarginAcceptedV1),
@@ -361,6 +370,55 @@ class PerpsMarginReleaseRouteBindingCandidateV1:
             type(self.verified_price) is not VerifiedGlobalOraclePriceV1
         ):
             raise TypeError("perps margin route binding price must be checker-verified")
+
+
+def _require_perps_market_policy_binding_v1(
+    candidate: PerpsMarginReleaseRouteBindingCandidateV1,
+    module_input: PerpsMarginLaneModuleInputV1,
+) -> None:
+    policy = require_governed_perps_market_policy_v1(
+        profile=candidate.profile,
+        policy_registry=candidate.policy_registry,
+        occurrence=candidate.occurrence,
+        market_policy=candidate.market_policy,
+    )
+    exact_bindings: tuple[tuple[object, object, str], ...] = (
+        (module_input.command.market_id, policy.market_id, "market policy market"),
+        (module_input.pre_state.market_id, policy.market_id, "market policy state market"),
+        (module_input.command.asset, policy.quote_asset, "market policy quote asset"),
+        (
+            module_input.pre_state.collateral_asset,
+            policy.quote_asset,
+            "market policy state quote asset",
+        ),
+    )
+    if candidate.verified_price is not None:
+        exact_bindings = (
+            *exact_bindings,
+            (
+                candidate.verified_price.market_id,
+                policy.market_id,
+                "market policy Oracle market",
+            ),
+            (
+                candidate.verified_price.base_asset,
+                policy.base_asset,
+                "market policy base asset",
+            ),
+            (
+                candidate.verified_price.quote_asset,
+                policy.quote_asset,
+                "market policy Oracle quote asset",
+            ),
+            (
+                candidate.verified_price.oracle_id,
+                policy.oracle_id,
+                "market policy Oracle id",
+            ),
+        )
+    for actual, expected, label in exact_bindings:
+        if actual != expected:
+            raise ValueError(f"perps margin {label} mismatch")
 
 
 def _perps_oracle_bindings_v1(
@@ -453,6 +511,7 @@ def bind_perps_margin_lane_output_to_release_route_v1(
         candidate.module_input,
         candidate.accepted,
     )
+    _require_perps_market_policy_binding_v1(candidate, owned_input)
     _require_perps_oracle_price_binding_v1(
         candidate.profile,
         candidate.occurrence,

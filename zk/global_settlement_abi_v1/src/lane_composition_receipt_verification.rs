@@ -5,6 +5,7 @@ use crate::canonical::{
 };
 use crate::proof::{EconomicCommandOccurrenceV1, LaneCompositionJournalV1, ReceiptKindV1};
 use crate::receipt_backed_asset_lane_composition::ReceiptBackedAssetLaneCompositionV1;
+use crate::receipt_backed_perps_margin_lane_composition::ReceiptBackedPerpsMarginLaneCompositionV1;
 use crate::release::{
     EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1, LaneIdV1,
     LaneRegistryV1, ProfileStatusV1, ReleaseStatusV1, RouteRegistryV1,
@@ -39,6 +40,18 @@ pub struct LaneCompositionReceiptCandidateV1<'a> {
     pub routes: &'a RouteRegistryV1,
     pub occurrence: &'a EconomicCommandOccurrenceV1,
     pub structural_composition: &'a ReceiptBackedAssetLaneCompositionV1,
+    pub lane_journal: &'a LaneCompositionJournalV1,
+    pub receipt: LaneCompositionReceiptEnvelopeV1<'a>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct PerpsMarginLaneCompositionReceiptCandidateV1<'a> {
+    pub profile: &'a EconomicProfileSnapshotV1,
+    pub lanes: &'a LaneRegistryV1,
+    pub coordinators: &'a LaneCoordinatorRegistryV1,
+    pub routes: &'a RouteRegistryV1,
+    pub occurrence: &'a EconomicCommandOccurrenceV1,
+    pub structural_composition: &'a ReceiptBackedPerpsMarginLaneCompositionV1,
     pub lane_journal: &'a LaneCompositionJournalV1,
     pub receipt: LaneCompositionReceiptEnvelopeV1<'a>,
 }
@@ -259,6 +272,132 @@ pub fn verify_asset_lane_composition_receipt_v1(
         profile_id: candidate.profile.profile_id.clone(),
         route_release_id: candidate.structural_composition.route_release_id().clone(),
         lane_id: LaneIdV1::ASSET_TRANSFER,
+        coordinator_release_id: coordinator.coordinator_release_id.clone(),
+        command_occurrence_id: candidate.occurrence.occurrence_id()?,
+        writer_epoch: candidate.profile.authority_epoch,
+        structural_composition_root: candidate.structural_composition.binding_root()?,
+        lane_journal_root: candidate.lane_journal.journal_root()?,
+        lane_journal_digest,
+        expected_image_id: coordinator.guest_image_id.clone(),
+        receipt_digest,
+        receipt_kind: candidate.receipt.receipt_kind,
+    })
+}
+
+fn require_exact_perps_journal_binding_v1(
+    candidate: &PerpsMarginLaneCompositionReceiptCandidateV1<'_>,
+    coordinator: &LaneCoordinatorReleaseV1,
+    route_release_id: &RootV1,
+) -> AbiResultV1<()> {
+    let occurrence_id = candidate.occurrence.occurrence_id()?;
+    let structural = candidate.structural_composition;
+    let journal = candidate.lane_journal;
+    if candidate.occurrence.profile_root != candidate.profile.profile_id
+        || structural.profile_id() != &candidate.profile.profile_id
+        || structural.route_release_id() != route_release_id
+        || structural.lane_id() != LaneIdV1::PERPS_MARKET
+        || structural.declared_coordinator_release_id() != &coordinator.coordinator_release_id
+        || structural.command_occurrence_id() != &occurrence_id
+        || journal.chain_id != candidate.occurrence.chain_id
+        || journal.deployment_root != candidate.occurrence.deployment_root
+        || journal.profile_root != candidate.profile.profile_id
+        || journal.lane_id != LaneIdV1::PERPS_MARKET
+        || journal.coordinator_release_id != coordinator.coordinator_release_id
+        || journal.command_occurrence_id != occurrence_id
+        || journal.journal_root()? != *structural.lane_journal_root()
+        || journal.pre_lane_root != *structural.pre_lane_root()
+        || journal.post_lane_root != *structural.post_lane_root()
+        || journal.effect_plan_root != *structural.effect_plan_root()
+        || journal.terminal_obligations_root != *structural.terminal_obligations_root()
+        || journal.writer_epoch != candidate.profile.authority_epoch
+    {
+        return Err(AbiErrorV1::InvalidBinding(
+            "perps lane composition exact journal",
+        ));
+    }
+    Ok(())
+}
+
+fn require_exact_perps_lane_composition_binding_v1<'a>(
+    candidate: &'a PerpsMarginLaneCompositionReceiptCandidateV1<'a>,
+) -> AbiResultV1<&'a LaneCoordinatorReleaseV1> {
+    candidate.profile.validate_registries(
+        candidate.lanes,
+        candidate.coordinators,
+        candidate.routes,
+    )?;
+    candidate.occurrence.validate()?;
+    candidate.lane_journal.validate()?;
+    if candidate.profile.status != ProfileStatusV1::ACTIVE {
+        return Err(AbiErrorV1::InvalidBinding(
+            "perps lane composition active profile",
+        ));
+    }
+    let route = candidate.routes.route_for_command(
+        &candidate.occurrence.command_kind,
+        Some(&candidate.occurrence.route_release_id),
+    )?;
+    if route.ordered_lanes.as_slice() != [LaneIdV1::PERPS_MARKET] {
+        return Err(AbiErrorV1::InvalidBinding(
+            "perps lane composition single lane route",
+        ));
+    }
+    let coordinator = candidate
+        .coordinators
+        .release_for(LaneIdV1::PERPS_MARKET)
+        .ok_or(AbiErrorV1::InvalidBinding(
+            "perps lane composition coordinator registry",
+        ))?;
+    if coordinator.status != ReleaseStatusV1::ACTIVE_NEW || !coordinator.accepts_new_objects {
+        return Err(AbiErrorV1::InvalidBinding(
+            "perps lane composition selected coordinator active",
+        ));
+    }
+    require_exact_perps_journal_binding_v1(candidate, coordinator, &route.route_release_id)?;
+    Ok(coordinator)
+}
+
+pub fn verify_perps_margin_lane_composition_receipt_v1(
+    candidate: PerpsMarginLaneCompositionReceiptCandidateV1<'_>,
+    receipt_verifier: &dyn LaneCompositionSuccinctReceiptVerifierV1,
+) -> AbiResultV1<VerifiedLaneCompositionV1> {
+    let coordinator = require_exact_perps_lane_composition_binding_v1(&candidate)?;
+    if candidate.receipt.receipt_kind != ReceiptKindV1::SUCCINCT {
+        return Err(AbiErrorV1::InvalidBinding(
+            "perps lane composition receipt kind",
+        ));
+    }
+    if candidate.receipt.receipt_bytes.is_empty() {
+        return Err(AbiErrorV1::InvalidBounds(
+            "perps lane composition receipt bytes",
+        ));
+    }
+    let journal_bytes = canonical_bytes_v1(candidate.lane_journal)?;
+    let journal_len = u64::try_from(journal_bytes.len())
+        .map_err(|_| AbiErrorV1::InvalidBounds("perps lane composition canonical journal bytes"))?;
+    if journal_len > coordinator.max_journal_bytes {
+        return Err(AbiErrorV1::InvalidBounds(
+            "perps lane composition canonical journal bytes",
+        ));
+    }
+    let lane_journal_digest = sha256_root_v1(
+        &journal_bytes,
+        "perps lane composition canonical journal digest",
+    )?;
+    let receipt_digest = sha256_root_v1(
+        candidate.receipt.receipt_bytes,
+        "perps lane composition receipt digest",
+    )?;
+    receipt_verifier.verify_succinct_receipt(
+        candidate.receipt.receipt_bytes,
+        &coordinator.guest_image_id,
+        &journal_bytes,
+    )?;
+
+    Ok(VerifiedLaneCompositionV1 {
+        profile_id: candidate.profile.profile_id.clone(),
+        route_release_id: candidate.structural_composition.route_release_id().clone(),
+        lane_id: LaneIdV1::PERPS_MARKET,
         coordinator_release_id: coordinator.coordinator_release_id.clone(),
         command_occurrence_id: candidate.occurrence.occurrence_id()?,
         writer_epoch: candidate.profile.authority_epoch,

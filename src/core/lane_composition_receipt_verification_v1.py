@@ -36,6 +36,9 @@ from .global_settlement_types_v1 import (
 from .receipt_backed_asset_lane_composition_v1 import (
     ReceiptBackedAssetLaneCompositionV1,
 )
+from .receipt_backed_perps_margin_lane_composition_v1 import (
+    ReceiptBackedPerpsMarginLaneCompositionV1,
+)
 
 VERIFIED_LANE_COMPOSITION_SCHEMA_V1: Final = "zenodex/verified-lane-composition/v1"
 _VERIFIED_LANE_COMPOSITION_TOKEN = object()
@@ -69,7 +72,10 @@ class LaneCompositionReceiptEnvelopeV1:
 class LaneCompositionReceiptCandidateV1:
     profile: EconomicProfileSnapshotV1
     occurrence: EconomicCommandOccurrenceV1
-    structural_composition: ReceiptBackedAssetLaneCompositionV1
+    structural_composition: (
+        ReceiptBackedAssetLaneCompositionV1
+        | ReceiptBackedPerpsMarginLaneCompositionV1
+    )
     lane_journal: LaneCompositionJournalV1
     receipt: LaneCompositionReceiptEnvelopeV1
 
@@ -77,17 +83,19 @@ class LaneCompositionReceiptCandidateV1:
         expected_types = (
             (self.profile, EconomicProfileSnapshotV1, "economic profile"),
             (self.occurrence, EconomicCommandOccurrenceV1, "command occurrence"),
-            (
-                self.structural_composition,
-                ReceiptBackedAssetLaneCompositionV1,
-                "structural composition",
-            ),
             (self.lane_journal, LaneCompositionJournalV1, "lane journal"),
             (self.receipt, LaneCompositionReceiptEnvelopeV1, "receipt envelope"),
         )
         for value, expected_type, label in expected_types:
             if type(value) is not expected_type:
                 raise TypeError(f"lane composition {label} must be exact typed data")
+        if type(self.structural_composition) not in (
+            ReceiptBackedAssetLaneCompositionV1,
+            ReceiptBackedPerpsMarginLaneCompositionV1,
+        ):
+            raise TypeError(
+                "lane composition structural composition must be exact typed data"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,9 +231,15 @@ def _sha256_root_v1(value: bytes) -> str:
 
 
 def _snapshot_structural_composition_v1(
-    structural: ReceiptBackedAssetLaneCompositionV1,
+    structural: (
+        ReceiptBackedAssetLaneCompositionV1
+        | ReceiptBackedPerpsMarginLaneCompositionV1
+    ),
 ) -> _StructuralLaneCompositionSnapshotV1:
-    if type(structural) is not ReceiptBackedAssetLaneCompositionV1:
+    if type(structural) not in (
+        ReceiptBackedAssetLaneCompositionV1,
+        ReceiptBackedPerpsMarginLaneCompositionV1,
+    ):
         raise TypeError("lane composition structural composition must be exact typed data")
     return _StructuralLaneCompositionSnapshotV1(
         profile_id=structural.profile_id,
@@ -266,6 +280,8 @@ def _snapshot_lane_composition_candidate_v1(
 
 def _require_exact_lane_composition_binding_v1(
     candidate: _LaneCompositionReceiptSnapshotV1,
+    *,
+    expected_lane_id: LaneIdV1,
 ) -> LaneCoordinatorReleaseV1:
     profile = candidate.profile
     occurrence = candidate.occurrence
@@ -275,9 +291,9 @@ def _require_exact_lane_composition_binding_v1(
         occurrence.command_kind,
         claimed_route_release_id=occurrence.route_release_id,
     )
-    if route.ordered_lanes != (LaneIdV1.ASSET_TRANSFER,):
-        raise ValueError("lane composition receipt requires the single asset lane route")
-    coordinator_release = profile.lane_coordinator_registry.release_for(LaneIdV1.ASSET_TRANSFER)
+    if route.ordered_lanes != (expected_lane_id,):
+        raise ValueError("lane composition receipt requires its declared single-lane route")
+    coordinator_release = profile.lane_coordinator_registry.release_for(expected_lane_id)
     if (
         coordinator_release.status is not ReleaseStatusV1.ACTIVE_NEW
         or not coordinator_release.accepts_new_objects
@@ -287,6 +303,7 @@ def _require_exact_lane_composition_binding_v1(
         candidate,
         coordinator_release,
         route.route_release_id,
+        expected_lane_id,
     )
     return coordinator_release
 
@@ -295,6 +312,7 @@ def _require_exact_lane_journal_bindings_v1(
     candidate: _LaneCompositionReceiptSnapshotV1,
     coordinator_release: LaneCoordinatorReleaseV1,
     route_release_id: str,
+    expected_lane_id: LaneIdV1,
 ) -> None:
     occurrence = candidate.occurrence
     structural = candidate.structural_composition
@@ -305,7 +323,7 @@ def _require_exact_lane_journal_bindings_v1(
         (occurrence.profile_root, candidate.profile.profile_id, "occurrence profile"),
         (structural.profile_id, candidate.profile.profile_id, "structural profile"),
         (structural.route_release_id, route_release_id, "structural route"),
-        (structural.lane_id, LaneIdV1.ASSET_TRANSFER, "structural lane"),
+        (structural.lane_id, expected_lane_id, "structural lane"),
         (
             structural.declared_coordinator_release_id,
             coordinator_release.coordinator_release_id,
@@ -315,7 +333,7 @@ def _require_exact_lane_journal_bindings_v1(
         (lane_journal.chain_id, occurrence.chain_id, "journal chain"),
         (lane_journal.deployment_root, occurrence.deployment_root, "journal deployment"),
         (lane_journal.profile_root, candidate.profile.profile_id, "journal profile"),
-        (lane_journal.lane_id, LaneIdV1.ASSET_TRANSFER, "journal lane"),
+        (lane_journal.lane_id, expected_lane_id, "journal lane"),
         (
             lane_journal.coordinator_release_id,
             coordinator_release.coordinator_release_id,
@@ -339,14 +357,17 @@ def _require_exact_lane_journal_bindings_v1(
         raise ValueError("lane composition writer epoch mismatch")
 
 
-def verify_asset_lane_composition_receipt_v1(
+def _verify_lane_composition_receipt_v1(
     candidate: LaneCompositionReceiptCandidateV1,
     receipt_verifier: LaneCompositionSuccinctReceiptVerifierV1,
+    *,
+    expected_lane_id: LaneIdV1,
 ) -> VerifiedLaneCompositionV1:
-    """Verify an asset-lane coordinator receipt under the active profile image."""
-
     owned = _snapshot_lane_composition_candidate_v1(candidate)
-    coordinator_release = _require_exact_lane_composition_binding_v1(owned)
+    coordinator_release = _require_exact_lane_composition_binding_v1(
+        owned,
+        expected_lane_id=expected_lane_id,
+    )
     if owned.receipt.receipt_kind is not ReceiptKindV1.SUCCINCT:
         raise ValueError("lane composition verification requires a succinct receipt")
     if not owned.receipt.receipt_bytes:
@@ -368,7 +389,7 @@ def verify_asset_lane_composition_receipt_v1(
         _VerifiedLaneCompositionFieldsV1(
             owned.profile.profile_id,
             owned.structural_composition.route_release_id,
-            LaneIdV1.ASSET_TRANSFER,
+            expected_lane_id,
             coordinator_release.coordinator_release_id,
             owned.occurrence.occurrence_id,
             owned.profile.authority_epoch,
@@ -382,6 +403,32 @@ def verify_asset_lane_composition_receipt_v1(
     )
 
 
+def verify_asset_lane_composition_receipt_v1(
+    candidate: LaneCompositionReceiptCandidateV1,
+    receipt_verifier: LaneCompositionSuccinctReceiptVerifierV1,
+) -> VerifiedLaneCompositionV1:
+    """Verify an asset-lane coordinator receipt under the active profile image."""
+
+    return _verify_lane_composition_receipt_v1(
+        candidate,
+        receipt_verifier,
+        expected_lane_id=LaneIdV1.ASSET_TRANSFER,
+    )
+
+
+def verify_perps_margin_lane_composition_receipt_v1(
+    candidate: LaneCompositionReceiptCandidateV1,
+    receipt_verifier: LaneCompositionSuccinctReceiptVerifierV1,
+) -> VerifiedLaneCompositionV1:
+    """Verify a perps-margin coordinator receipt under its governed image."""
+
+    return _verify_lane_composition_receipt_v1(
+        candidate,
+        receipt_verifier,
+        expected_lane_id=LaneIdV1.PERPS_MARKET,
+    )
+
+
 __all__ = [
     "LaneCompositionReceiptCandidateV1",
     "LaneCompositionReceiptEnvelopeV1",
@@ -389,4 +436,5 @@ __all__ = [
     "VERIFIED_LANE_COMPOSITION_SCHEMA_V1",
     "VerifiedLaneCompositionV1",
     "verify_asset_lane_composition_receipt_v1",
+    "verify_perps_margin_lane_composition_receipt_v1",
 ]

@@ -21,10 +21,11 @@ use crate::perps_margin_lane_module::{
     recompute_perps_margin_accepted_v1, PerpsMarginLaneModuleInputV1,
 };
 use crate::perps_margin_types::PerpsMarginAcceptedV1;
+use crate::perps_market_policy::PerpsMarketPolicyV1;
 use crate::proof::{LaneModuleTransitionJournalV1, ReceiptKindV1};
 use crate::release::{
-    EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1, LaneRegistryV1, ReleaseStatusV1,
-    RouteRegistryV1,
+    EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, LaneCoordinatorRegistryV1, LaneRegistryV1,
+    ReleaseStatusV1, RouteRegistryV1,
 };
 
 pub const VERIFIED_LANE_MODULE_TRANSITION_SCHEMA_V1: &str =
@@ -75,6 +76,8 @@ pub struct ManagedAssetLifecycleLaneModuleReceiptCandidateV1<'a> {
 
 pub struct PerpsMarginLaneModuleReceiptCandidateV1<'a> {
     pub profile: &'a EconomicProfileSnapshotV1,
+    pub policy_registry: &'a EconomicPolicyRegistryV1,
+    pub market_policy: &'a PerpsMarketPolicyV1,
     pub lanes: &'a LaneRegistryV1,
     pub coordinators: &'a LaneCoordinatorRegistryV1,
     pub routes: &'a RouteRegistryV1,
@@ -305,6 +308,8 @@ pub fn verify_perps_margin_lane_module_receipt_v1(
     let rebound = bind_perps_margin_lane_output_to_release_route_v1(
         PerpsMarginReleaseRouteBindingCandidateV1 {
             profile: candidate.profile,
+            policy_registry: candidate.policy_registry,
+            market_policy: candidate.market_policy,
             lanes: candidate.lanes,
             coordinators: candidate.coordinators,
             routes: candidate.routes,

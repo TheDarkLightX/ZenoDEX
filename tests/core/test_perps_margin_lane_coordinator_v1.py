@@ -182,10 +182,10 @@ def test_withdraw_refines_candidate_rows_into_complete_conservation() -> None:
     assert result.lane_journal.post_lane_root == post.state_root
     assert result.lane_journal.effect_plan_root == result.effects.effect_plan_root
     assert result.effects.effect_plan_root == (
-        "0xfed2cf18b25e6068030aebbceac92faef92cf73ce354f299c897e79187332fa7"
+        "0x53cb336b2b2c28c7cc5d130f1ff75d3e6d1b1dcee25e34adec16e03bceedac61"
     )
     assert result.lane_journal.journal_root == (
-        "0xf20c1dcfcd432aa96ac974c61e79e70ad78d25cf7ea0e74db6930abda8f93395"
+        "0xc1b65ad2a9a2a493f4c6e218a71d638a98c29476fcb91912ccb2f7e46de8810c"
     )
     assert result.effects.rows == fixture.accepted.effects.rows
     assert len(result.effects.asset_conservation) == 1

@@ -23,6 +23,8 @@ from . import (
     perps_margin_lane_module_v1,
     perps_margin_module_v1,
     perps_margin_types_v1,
+    perps_market_policy_v1,
+    receipt_backed_perps_margin_lane_composition_v1,
     route_composition_receipt_verification_v1,
 )
 from .economic_effect_occurrence_v1 import *  # noqa: F401,F403
@@ -42,6 +44,8 @@ from .perps_margin_lane_coordinator_v1 import *  # noqa: F401,F403
 from .perps_margin_lane_module_v1 import *  # noqa: F401,F403
 from .perps_margin_module_v1 import *  # noqa: F401,F403
 from .perps_margin_types_v1 import *  # noqa: F401,F403
+from .perps_market_policy_v1 import *  # noqa: F401,F403
+from .receipt_backed_perps_margin_lane_composition_v1 import *  # noqa: F401,F403
 from .route_composition_receipt_verification_v1 import *  # noqa: F401,F403
 
 __all__ = [
@@ -62,5 +66,7 @@ __all__ = [
     *perps_margin_module_v1.__all__,
     *perps_margin_lane_coordinator_v1.__all__,
     *perps_margin_lane_module_v1.__all__,
+    *perps_market_policy_v1.__all__,
+    *receipt_backed_perps_margin_lane_composition_v1.__all__,
     *route_composition_receipt_verification_v1.__all__,
 ]

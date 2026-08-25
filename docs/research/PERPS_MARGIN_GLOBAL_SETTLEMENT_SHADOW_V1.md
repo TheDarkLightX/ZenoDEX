@@ -88,6 +88,11 @@ recomputes the transition before release binding or receipt verification.
 The release binder now requires the authenticated command occurrence, the
 governed active route selected from a synthetic test profile, and the exact
 typed Oracle price authority when the margin transition depends on a price.
+The profile policy registry also commits one `PerpsMarketPolicyV1` for every
+perps-margin command. That policy fixes the market ID, Oracle ID, base asset,
+and quote/collateral asset. A price occurrence for another base asset now
+rejects even when its occurrence root and Oracle finality witness are otherwise
+internally consistent.
 That price authority commits the Oracle ID, market, base asset, quote asset,
 price-e8, observed height, finalized occurrence root, route, policy, pre-state,
 and command occurrence. Only a `SUCCINCT` receipt under the release-selected
@@ -102,10 +107,19 @@ module lane write with projection roots while adding the complete per-asset
 conservation row. Every typed rejection has identical pre/post roots and empty
 effects.
 
-The remaining fail-closed boundary is receipt-backed lane composition and
-route/global refinement. The current coordinator output has no verified
-coordinator receipt, route-composition witness, epoch proof, or durable
-publisher authority.
+Receipt-backed perps lane composition now pairs the opaque verified module
+witness with the exact module journal, replays the structural coordinator, and
+binds its complete projection and effects into the lane journal. A separate
+host verifier boundary selects the governed coordinator image, requires a
+`SUCCINCT` receipt, and verifies the exact canonical lane journal before it can
+construct an opaque verified-lane input. This source slice contains no real
+coordinator guest that verifies the module receipt as an in-guest assumption,
+so the host interfaces and synthetic verifier tests do not establish recursive
+proof authority.
+
+The remaining fail-closed boundary is a real coordinator guest and image,
+followed by route/global refinement. There is no perps route-composition
+witness, epoch proof, or durable publisher authority.
 
 No caller can use this module or structural coordinator output as a verified
 epoch or durable commit witness. The active releases used in tests are
@@ -122,8 +136,10 @@ python3 -m pytest -q tests/core/test_perps_margin_module_v1.py
 python3 -m pytest -q \
   tests/core/test_global_oracle_occurrence_authority_v1.py \
   tests/core/test_global_oracle_price_occurrence_v1.py \
+  tests/core/test_perps_market_policy_binding_v1.py \
   tests/core/test_perps_margin_release_receipt_binding_v1.py \
-  tests/core/test_perps_margin_lane_coordinator_v1.py
+  tests/core/test_perps_margin_lane_coordinator_v1.py \
+  tests/core/test_receipt_backed_perps_margin_lane_composition_v1.py
 
 CARGO_TARGET_DIR=/tmp/zenodex-perps-margin-target \
   cargo test --manifest-path zk/global_settlement_abi_v1/Cargo.toml \
@@ -146,23 +162,24 @@ Oracle payload, governed perps input statement, module journal, complete
 pre/post lane projections, normalized effect plan, and lane journal across
 Python and Rust. Negative coordinator evidence covers hidden accounting
 movement, profile substitution, unsupported effect kinds, incomplete claimant
-liabilities, and incomplete terminal obligations.
+liabilities, and incomplete terminal obligations. The market-policy root is a
+shared Python/Rust vector. Receipt substitution tests cover the module journal,
+projection, profile, coordinator journal, receipt kind, empty receipt, selected
+image, exact journal bytes, and verifier rejection.
 
 ## Nonclaims and remaining semantic decisions
 
 - No intent matching, position opening, or epoch settlement.
 - No funding rule or funding source.
 - No deployed Oracle module receipt or cross-lane Oracle composition proof.
-- No real RISC0 perps guest image or cryptographic receipt replay. Tests use an
-  injected verifier port and synthetic release/profile data.
+- No real RISC0 perps module or coordinator guest image and no public
+  cryptographic receipt replay. Tests use injected verifier ports and synthetic
+  release/profile data.
 - No liquidation, insurance, ADL, or bankruptcy policy.
 - No cross-market or portfolio margin.
 - No complete whole-market terminal closeout.
-- No coordinator receipt verifier, receipt-backed lane composition, route
+- No coordinator guest that verifies the module receipt assumption, route
   composer, epoch proof, migration, mount, writer, or publication authority.
-- No governed registry that binds a perps market ID to its expected base asset;
-  the typed price payload commits the base asset, while this bounded route
-  currently binds market ID and quote asset only.
 - No shared data-driven Rust/Python rejection-vector corpus; rejection parity is
   covered by implementation-specific negative tests in this slice.
 - No change to the M6 `PERPS_MARKET` disposition `REQUIRED_UNRESOLVED`.

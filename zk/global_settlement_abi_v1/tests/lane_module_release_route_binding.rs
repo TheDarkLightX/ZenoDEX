@@ -395,6 +395,24 @@ fn authenticate_occurrence(
     let signature_verifier_registry = signature_verifier_registry();
     let policy_registry =
         authentication_policy_registry(&authorization_registry, &signature_verifier_registry);
+    authenticate_occurrence_with_policy_registry(
+        profile,
+        routes,
+        occurrence,
+        command_body_bytes,
+        &policy_registry,
+    )
+}
+
+fn authenticate_occurrence_with_policy_registry(
+    profile: &EconomicProfileSnapshotV1,
+    routes: &RouteRegistryV1,
+    occurrence: &EconomicCommandOccurrenceV1,
+    command_body_bytes: Vec<u8>,
+    policy_registry: &EconomicPolicyRegistryV1,
+) -> AuthenticatedEconomicCommandV1 {
+    let authorization_registry = authorization_registry(routes);
+    let signature_verifier_registry = signature_verifier_registry();
     let authorization = authorization_registry
         .authorization_for(occurrence, &format!("{}-key-1", occurrence.subject_id))
         .unwrap();
@@ -424,7 +442,7 @@ fn authenticate_occurrence(
         &EconomicCommandAuthenticationCandidateV1 {
             profile,
             routes,
-            policy_registry: &policy_registry,
+            policy_registry,
             authorization_registry: &authorization_registry,
             signature_verifier_registry: &signature_verifier_registry,
             intent: &intent,
@@ -655,12 +673,48 @@ fn perps_route(
     route
 }
 
+fn perps_market_policy() -> PerpsMarketPolicyV1 {
+    PerpsMarketPolicyV1 {
+        schema: PERPS_MARKET_POLICY_SCHEMA_V1.to_owned(),
+        market_id: "BTC-ZUSD-PERP".to_owned(),
+        base_asset: "BTC".to_owned(),
+        quote_asset: "zUSD".to_owned(),
+        oracle_id: "zenodex.oracle.perps-index-price.v1".to_owned(),
+    }
+}
+
+fn perps_policy_registry(
+    authorizations: &EconomicCommandAuthorizationRegistryV1,
+    signature_verifiers: &EconomicCommandSignatureVerifierRegistryV1,
+    market_policy: &PerpsMarketPolicyV1,
+) -> EconomicPolicyRegistryV1 {
+    let mut registry = authentication_policy_registry(authorizations, signature_verifiers);
+    for command_kind in [
+        PERPS_MARGIN_CLOSE_COMMAND_KIND_V1,
+        PERPS_MARGIN_DEPOSIT_COMMAND_KIND_V1,
+        PERPS_MARGIN_WITHDRAW_COMMAND_KIND_V1,
+    ] {
+        registry.bindings.push(EconomicPolicyBindingV1 {
+            policy_kind: PERPS_MARKET_POLICY_KIND_V1.to_owned(),
+            command_kind: command_kind.to_owned(),
+            policy_root: market_policy.policy_root().unwrap(),
+        });
+    }
+    registry.bindings.sort_by(|left, right| {
+        (&left.policy_kind, &left.command_kind).cmp(&(&right.policy_kind, &right.command_kind))
+    });
+    registry.validate().unwrap();
+    registry
+}
+
 fn perps_profile() -> (
     EconomicProfileSnapshotV1,
     LaneRegistryV1,
     LaneCoordinatorRegistryV1,
     RouteRegistryV1,
     GlobalOracleOccurrencePolicyV1,
+    EconomicPolicyRegistryV1,
+    PerpsMarketPolicyV1,
 ) {
     let lanes = LaneRegistryV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
@@ -706,10 +760,10 @@ fn perps_profile() -> (
     let route_registry_root = routes.registry_root().unwrap();
     let authorizations = authorization_registry(&routes);
     let signature_verifiers = signature_verifier_registry();
-    let policy_registry_root =
-        authentication_policy_registry(&authorizations, &signature_verifiers)
-            .registry_root()
-            .unwrap();
+    let market_policy = perps_market_policy();
+    let policy_registry =
+        perps_policy_registry(&authorizations, &signature_verifiers, &market_policy);
+    let policy_registry_root = policy_registry.registry_root().unwrap();
     let proof_shape_root = root(601);
     let root_image_id = root(602);
     let verifier_registry_root = root(603);
@@ -746,7 +800,15 @@ fn perps_profile() -> (
     profile
         .validate_registries(&lanes, &coordinators, &routes)
         .unwrap();
-    (profile, lanes, coordinators, routes, policy)
+    (
+        profile,
+        lanes,
+        coordinators,
+        routes,
+        policy,
+        policy_registry,
+        market_policy,
+    )
 }
 
 fn occurrence(
@@ -1269,6 +1331,8 @@ impl LaneModuleSuccinctReceiptVerifierV1 for RecordingModuleReceiptVerifier {
 
 struct PerpsReceiptFixture {
     profile: EconomicProfileSnapshotV1,
+    policy_registry: EconomicPolicyRegistryV1,
+    market_policy: PerpsMarketPolicyV1,
     lanes: LaneRegistryV1,
     coordinators: LaneCoordinatorRegistryV1,
     routes: RouteRegistryV1,
@@ -1279,7 +1343,16 @@ struct PerpsReceiptFixture {
 }
 
 fn perps_receipt_fixture(with_position: bool, price_e8: u128) -> PerpsReceiptFixture {
-    let (profile, lanes, coordinators, routes, policy) = perps_profile();
+    perps_receipt_fixture_with_base(with_position, price_e8, "BTC")
+}
+
+fn perps_receipt_fixture_with_base(
+    with_position: bool,
+    price_e8: u128,
+    base_asset: &str,
+) -> PerpsReceiptFixture {
+    let (profile, lanes, coordinators, routes, policy, policy_registry, market_policy) =
+        perps_profile();
     let release_id = lanes
         .release_for(LaneIdV1::PERPS_MARKET)
         .unwrap()
@@ -1339,7 +1412,7 @@ fn perps_receipt_fixture(with_position: bool, price_e8: u128) -> PerpsReceiptFix
         schema: GLOBAL_ORACLE_PRICE_OCCURRENCE_SCHEMA_V1.to_owned(),
         oracle_id: policy.oracle_id.clone(),
         market_id: "BTC-ZUSD-PERP".to_owned(),
-        base_asset: "BTC".to_owned(),
+        base_asset: base_asset.to_owned(),
         quote_asset: "zUSD".to_owned(),
         price_e8,
         observed_height: 40,
@@ -1403,11 +1476,12 @@ fn perps_receipt_fixture(with_position: bool, price_e8: u128) -> PerpsReceiptFix
             vec![]
         },
     };
-    let authenticated_command = authenticate_occurrence(
+    let authenticated_command = authenticate_occurrence_with_policy_registry(
         &profile,
         &routes,
         &occurrence,
         canonical_economic_command_body_bytes_v1(command_kind, &command).unwrap(),
+        &policy_registry,
     );
     let verified_price = if with_position {
         let authority = verify_global_oracle_occurrence_authority_v1(
@@ -1454,6 +1528,8 @@ fn perps_receipt_fixture(with_position: bool, price_e8: u128) -> PerpsReceiptFix
     };
     PerpsReceiptFixture {
         profile,
+        policy_registry,
+        market_policy,
         lanes,
         coordinators,
         routes,
@@ -1470,6 +1546,8 @@ fn perps_binding_candidate<'a>(
 ) -> PerpsMarginReleaseRouteBindingCandidateV1<'a> {
     PerpsMarginReleaseRouteBindingCandidateV1 {
         profile: &fixture.profile,
+        policy_registry: &fixture.policy_registry,
+        market_policy: &fixture.market_policy,
         lanes: &fixture.lanes,
         coordinators: &fixture.coordinators,
         routes: &fixture.routes,
@@ -1493,6 +1571,8 @@ fn perps_position_withdraw_binds_exact_price_and_succinct_receipt() {
     let verified = verify_perps_margin_lane_module_receipt_v1(
         PerpsMarginLaneModuleReceiptCandidateV1 {
             profile: &fixture.profile,
+            policy_registry: &fixture.policy_registry,
+            market_policy: &fixture.market_policy,
             lanes: &fixture.lanes,
             coordinators: &fixture.coordinators,
             routes: &fixture.routes,
@@ -1514,7 +1594,7 @@ fn perps_position_withdraw_binds_exact_price_and_succinct_receipt() {
     assert_eq!(verified.expected_image_id(), &release.guest_image_id);
     assert_eq!(
         fixture.module_input.statement_root().unwrap().as_str(),
-        "0x98db379bafabd24f85a639d2308848c6655340d74103c3cd36a020b6208987d3"
+        "0xc5a148733e1e90151e0b4a2211d88f9da8936b7ba162bc7613664f8535994672"
     );
     assert_eq!(
         fixture
@@ -1523,7 +1603,7 @@ fn perps_position_withdraw_binds_exact_price_and_succinct_receipt() {
             .journal_root()
             .unwrap()
             .as_str(),
-        "0x3fe473d5df90145a53bd0477153f1e1f7b4da0d802d5c5fe00174309454fa2cb"
+        "0x847cd95b5de91325f8094c210b3ab5d3f6d46f759ccbffb3685c62be8e90dcf6"
     );
     assert_eq!(
         verified.authenticated_command_binding_root(),
@@ -1574,6 +1654,8 @@ fn perps_price_substitution_extra_authority_and_wrong_kind_reject_pre_verifier()
         verify_perps_margin_lane_module_receipt_v1(
             PerpsMarginLaneModuleReceiptCandidateV1 {
                 profile: &fixture.profile,
+                policy_registry: &fixture.policy_registry,
+                market_policy: &fixture.market_policy,
                 lanes: &fixture.lanes,
                 coordinators: &fixture.coordinators,
                 routes: &fixture.routes,
@@ -1593,6 +1675,48 @@ fn perps_price_substitution_extra_authority_and_wrong_kind_reject_pre_verifier()
         AbiErrorV1::InvalidBinding("lane module receipt kind")
     );
     assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
+fn perps_market_policy_root_matches_python_and_rejects_base_asset_substitution() {
+    let policy = perps_market_policy();
+    assert_eq!(
+        policy.policy_root().unwrap().as_str(),
+        "0xa41728c33880ba70f198f632be3f9677ef683a710ffe999b281689127edd505a"
+    );
+    let substituted = perps_receipt_fixture_with_base(true, 6_500_000_000_000, "WBTC");
+    assert_eq!(
+        bind_perps_margin_lane_output_to_release_route_v1(perps_binding_candidate(
+            &substituted,
+            substituted.verified_price.as_ref(),
+        ))
+        .unwrap_err(),
+        AbiErrorV1::InvalidBinding("perps margin market policy Oracle binding")
+    );
+    assert!(serde_json::from_value::<PerpsMarketPolicyV1>(json!({
+        "schema": PERPS_MARKET_POLICY_SCHEMA_V1,
+        "market_id": "BTC-ZUSD-PERP",
+        "base_asset": "BTC",
+        "quote_asset": "zUSD",
+        "oracle_id": "zenodex.oracle.perps-index-price.v1",
+        "caller_selected_market_alias": "forbidden",
+    }))
+    .is_err());
+}
+
+#[test]
+fn perps_market_policy_identifier_length_bva_accepts_160_and_rejects_161_bytes() {
+    // Arrange.
+    let mut policy = perps_market_policy();
+    policy.market_id = "M".repeat(160);
+
+    // Act and assert.
+    assert!(policy.validate().is_ok());
+    policy.market_id.push('M');
+    assert_eq!(
+        policy.validate().unwrap_err(),
+        AbiErrorV1::InvalidToken("perps market policy market id")
+    );
 }
 
 fn perps_projection_pair() -> (
@@ -1755,11 +1879,11 @@ fn perps_lane_coordinator_adds_complete_conservation_and_projection_roots() {
     );
     assert_eq!(
         accepted.effects.effect_plan_root().unwrap().as_str(),
-        "0xfed2cf18b25e6068030aebbceac92faef92cf73ce354f299c897e79187332fa7"
+        "0x53cb336b2b2c28c7cc5d130f1ff75d3e6d1b1dcee25e34adec16e03bceedac61"
     );
     assert_eq!(
         accepted.lane_journal.journal_root().unwrap().as_str(),
-        "0xf20c1dcfcd432aa96ac974c61e79e70ad78d25cf7ea0e74db6930abda8f93395"
+        "0xc1b65ad2a9a2a493f4c6e218a71d638a98c29476fcb91912ccb2f7e46de8810c"
     );
     assert_eq!(accepted.effects.rows, fixture.accepted.effects.rows);
     assert_eq!(accepted.effects.asset_conservation.len(), 1);
@@ -1832,6 +1956,213 @@ fn perps_lane_projection_drift_and_context_substitution_are_exact_no_ops() {
         PerpsMarginLaneCoordinatorRejectCodeV1::CONTEXT_MISMATCH
     );
     assert!(context_reject.effects.is_empty());
+}
+
+fn structural_perps_lane_fixture() -> (
+    PerpsReceiptFixture,
+    LaneCompositionJournalV1,
+    ReceiptBackedPerpsMarginLaneCompositionV1,
+) {
+    let (fixture, pre, post, context) = perps_projection_pair();
+    let price = fixture.verified_price.as_ref().unwrap();
+    let binding = bind_perps_margin_lane_output_to_release_route_v1(perps_binding_candidate(
+        &fixture,
+        Some(price),
+    ))
+    .unwrap();
+    let verified_module = verify_perps_margin_lane_module_receipt_v1(
+        PerpsMarginLaneModuleReceiptCandidateV1 {
+            profile: &fixture.profile,
+            policy_registry: &fixture.policy_registry,
+            market_policy: &fixture.market_policy,
+            lanes: &fixture.lanes,
+            coordinators: &fixture.coordinators,
+            routes: &fixture.routes,
+            authenticated_command: &fixture.authenticated_command,
+            module_input: &fixture.module_input,
+            accepted: &fixture.accepted,
+            release_route_binding: &binding,
+            verified_price: Some(price),
+            receipt: LaneModuleReceiptEnvelopeV1 {
+                receipt_kind: ReceiptKindV1::SUCCINCT,
+                receipt_bytes: b"perps-module-receipt-v1",
+            },
+        },
+        &RecordingModuleReceiptVerifier::default(),
+    )
+    .unwrap();
+    let lane_result = compose_perps_margin_lane_single_v1(&PerpsMarginLaneCompositionCandidateV1 {
+        context: context.clone(),
+        module_journal: fixture.accepted.module_journal.clone(),
+        private_port: fixture.accepted.private_port.clone(),
+        pre_state: pre.clone(),
+        post_state: post.clone(),
+        module_effects: fixture.accepted.effects.clone(),
+    })
+    .unwrap();
+    let PerpsMarginLaneCompositionResultV1::Accepted(lane_accepted) = lane_result else {
+        panic!("exact perps composition must accept");
+    };
+    let structural = compose_receipt_backed_perps_margin_lane_single_v1(
+        ReceiptBackedPerpsMarginLaneCompositionCandidateV1 {
+            profile: &fixture.profile,
+            lanes: &fixture.lanes,
+            coordinators: &fixture.coordinators,
+            routes: &fixture.routes,
+            occurrence: fixture.authenticated_command.occurrence(),
+            coordinator_context: &context,
+            module_journal: &fixture.accepted.module_journal,
+            private_port: &fixture.accepted.private_port,
+            pre_state: &pre,
+            post_state: &post,
+            module_effects: &fixture.accepted.effects,
+            verified_module: &verified_module,
+        },
+    )
+    .unwrap();
+    (fixture, lane_accepted.lane_journal, structural)
+}
+
+#[test]
+fn perps_lane_receipt_uses_governed_coordinator_image_and_exact_journal() {
+    // Arrange.
+    let (fixture, lane_journal, structural) = structural_perps_lane_fixture();
+    let verifier = RecordingCompositionReceiptVerifier::default();
+
+    // Act.
+    let verified = verify_perps_margin_lane_composition_receipt_v1(
+        PerpsMarginLaneCompositionReceiptCandidateV1 {
+            profile: &fixture.profile,
+            lanes: &fixture.lanes,
+            coordinators: &fixture.coordinators,
+            routes: &fixture.routes,
+            occurrence: fixture.authenticated_command.occurrence(),
+            structural_composition: &structural,
+            lane_journal: &lane_journal,
+            receipt: LaneCompositionReceiptEnvelopeV1 {
+                receipt_kind: ReceiptKindV1::SUCCINCT,
+                receipt_bytes: b"perps-coordinator-receipt-v1",
+            },
+        },
+        &verifier,
+    )
+    .unwrap();
+
+    // Assert.
+    let coordinator = fixture
+        .coordinators
+        .release_for(LaneIdV1::PERPS_MARKET)
+        .unwrap();
+    assert_eq!(verified.lane_id(), LaneIdV1::PERPS_MARKET);
+    assert_eq!(verified.expected_image_id(), &coordinator.guest_image_id);
+    assert_eq!(
+        verifier.calls.borrow().as_slice(),
+        &[(
+            b"perps-coordinator-receipt-v1".to_vec(),
+            coordinator.guest_image_id.clone(),
+            canonical_bytes_v1(&lane_journal).unwrap(),
+        )]
+    );
+}
+
+#[test]
+fn perps_lane_journal_substitution_rejects_before_receipt_verifier() {
+    // Arrange.
+    let (fixture, mut lane_journal, structural) = structural_perps_lane_fixture();
+    lane_journal.post_lane_root = root(90_001);
+    let verifier = RecordingCompositionReceiptVerifier::default();
+
+    // Act.
+    let error = verify_perps_margin_lane_composition_receipt_v1(
+        PerpsMarginLaneCompositionReceiptCandidateV1 {
+            profile: &fixture.profile,
+            lanes: &fixture.lanes,
+            coordinators: &fixture.coordinators,
+            routes: &fixture.routes,
+            occurrence: fixture.authenticated_command.occurrence(),
+            structural_composition: &structural,
+            lane_journal: &lane_journal,
+            receipt: LaneCompositionReceiptEnvelopeV1 {
+                receipt_kind: ReceiptKindV1::SUCCINCT,
+                receipt_bytes: b"perps-coordinator-receipt-v1",
+            },
+        },
+        &verifier,
+    )
+    .unwrap_err();
+
+    // Assert.
+    assert_eq!(
+        error,
+        AbiErrorV1::InvalidBinding("perps lane composition exact journal")
+    );
+    assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
+fn perps_lane_receipt_shape_and_verifier_rejection_create_no_witness() {
+    // Arrange.
+    let (fixture, lane_journal, structural) = structural_perps_lane_fixture();
+    for (receipt_kind, receipt_bytes, expected) in [
+        (
+            ReceiptKindV1::SUCCINCT,
+            &[][..],
+            AbiErrorV1::InvalidBounds("perps lane composition receipt bytes"),
+        ),
+        (
+            ReceiptKindV1::COMPOSITE,
+            &b"composite"[..],
+            AbiErrorV1::InvalidBinding("perps lane composition receipt kind"),
+        ),
+    ] {
+        let verifier = RecordingCompositionReceiptVerifier::default();
+        let error = verify_perps_margin_lane_composition_receipt_v1(
+            PerpsMarginLaneCompositionReceiptCandidateV1 {
+                profile: &fixture.profile,
+                lanes: &fixture.lanes,
+                coordinators: &fixture.coordinators,
+                routes: &fixture.routes,
+                occurrence: fixture.authenticated_command.occurrence(),
+                structural_composition: &structural,
+                lane_journal: &lane_journal,
+                receipt: LaneCompositionReceiptEnvelopeV1 {
+                    receipt_kind,
+                    receipt_bytes,
+                },
+            },
+            &verifier,
+        )
+        .unwrap_err();
+        assert_eq!(error, expected);
+        assert!(verifier.calls.borrow().is_empty());
+    }
+
+    let verifier = RecordingCompositionReceiptVerifier {
+        reject: true,
+        ..Default::default()
+    };
+    let error = verify_perps_margin_lane_composition_receipt_v1(
+        PerpsMarginLaneCompositionReceiptCandidateV1 {
+            profile: &fixture.profile,
+            lanes: &fixture.lanes,
+            coordinators: &fixture.coordinators,
+            routes: &fixture.routes,
+            occurrence: fixture.authenticated_command.occurrence(),
+            structural_composition: &structural,
+            lane_journal: &lane_journal,
+            receipt: LaneCompositionReceiptEnvelopeV1 {
+                receipt_kind: ReceiptKindV1::SUCCINCT,
+                receipt_bytes: b"cryptographically-invalid-perps-lane-receipt",
+            },
+        },
+        &verifier,
+    )
+    .unwrap_err();
+    assert_eq!(
+        error,
+        AbiErrorV1::InvalidBinding("test verifier rejected lane composition receipt")
+    );
+    assert_eq!(verifier.calls.borrow().len(), 1);
 }
 
 #[derive(Default)]

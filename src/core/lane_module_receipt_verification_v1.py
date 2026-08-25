@@ -31,6 +31,7 @@ from .global_economic_proof_v1 import (
 )
 from .global_oracle_price_occurrence_v1 import VerifiedGlobalOraclePriceV1
 from .global_settlement_types_v1 import (
+    EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
     ReleaseStatusV1,
     canonical_global_bytes_v1,
@@ -43,6 +44,7 @@ from .lane_module_release_route_binding_v1 import (
     bind_managed_asset_lifecycle_lane_output_to_release_route_v1,
     bind_perps_margin_lane_output_to_release_route_v1,
 )
+from .m6_capability_profile_binding_v1 import snapshot_economic_policy_registry_v1
 from .managed_asset_lifecycle_lane_module_v1 import (
     ManagedAssetLifecycleLaneModuleAcceptedV1,
     ManagedAssetLifecycleLaneModuleInputV1,
@@ -56,6 +58,10 @@ from .perps_margin_lane_module_v1 import (
     _snapshot_perps_margin_lane_module_input_v1,
 )
 from .perps_margin_types_v1 import PerpsMarginAcceptedV1
+from .perps_market_policy_v1 import (
+    PerpsMarketPolicyV1,
+    snapshot_perps_market_policy_v1,
+)
 
 VERIFIED_LANE_MODULE_TRANSITION_SCHEMA_V1: Final = (
     "zenodex/verified-lane-module-transition/v1"
@@ -148,6 +154,8 @@ class ManagedAssetLifecycleLaneModuleReceiptCandidateV1:
 @dataclass(frozen=True, slots=True)
 class PerpsMarginLaneModuleReceiptCandidateV1:
     profile: EconomicProfileSnapshotV1
+    policy_registry: EconomicPolicyRegistryV1
+    market_policy: PerpsMarketPolicyV1
     authenticated_command: AuthenticatedEconomicCommandV1
     module_input: PerpsMarginLaneModuleInputV1
     accepted: PerpsMarginAcceptedV1
@@ -158,6 +166,8 @@ class PerpsMarginLaneModuleReceiptCandidateV1:
     def __post_init__(self) -> None:
         expected_types = (
             (self.profile, EconomicProfileSnapshotV1, "economic profile"),
+            (self.policy_registry, EconomicPolicyRegistryV1, "economic policy registry"),
+            (self.market_policy, PerpsMarketPolicyV1, "perps market policy"),
             (
                 self.authenticated_command,
                 AuthenticatedEconomicCommandV1,
@@ -399,6 +409,8 @@ def verify_perps_margin_lane_module_receipt_v1(
     rebound = bind_perps_margin_lane_output_to_release_route_v1(
         PerpsMarginReleaseRouteBindingCandidateV1(
             owned.profile,
+            owned.policy_registry,
+            owned.market_policy,
             occurrence,
             owned.module_input,
             owned.accepted,
@@ -469,6 +481,10 @@ def _snapshot_perps_margin_receipt_candidate_v1(
     )
     return PerpsMarginLaneModuleReceiptCandidateV1(
         profile=snapshot_economic_profile_v1(candidate.profile),
+        policy_registry=snapshot_economic_policy_registry_v1(
+            candidate.policy_registry
+        ),
+        market_policy=snapshot_perps_market_policy_v1(candidate.market_policy),
         authenticated_command=candidate.authenticated_command,
         module_input=_snapshot_perps_margin_lane_module_input_v1(
             candidate.module_input

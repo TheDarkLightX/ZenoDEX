@@ -82,6 +82,10 @@ from src.core.perps_margin_types_v1 import (
     PerpsMarginMarketStatusV1,
     PerpsMarginStateV1,
 )
+from src.core.perps_market_policy_v1 import (
+    PERPS_MARKET_POLICY_KIND_V1,
+    PerpsMarketPolicyV1,
+)
 from tests.core import test_lane_module_release_route_binding_v1 as support
 
 ORACLE_ID = "zenodex.oracle.perps-index-price.v1"
@@ -89,6 +93,12 @@ MARKET_ID = "BTC-ZUSD-PERP"
 BASE_ASSET = "BTC"
 QUOTE_ASSET = "zUSD"
 PRICE_E8 = 6_500_000_000_000
+MARKET_POLICY = PerpsMarketPolicyV1(
+    MARKET_ID,
+    BASE_ASSET,
+    QUOTE_ASSET,
+    ORACLE_ID,
+)
 
 
 def _root(value: int) -> str:
@@ -212,6 +222,7 @@ def _policy_registry(
                         ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
                         signature_verifiers.registry_root,
                     ),
+                    (PERPS_MARKET_POLICY_KIND_V1, MARKET_POLICY.policy_root),
                 )
             ),
             key=lambda binding: (binding.policy_kind, binding.command_kind),
@@ -328,6 +339,8 @@ def _perps_state(*, with_position: bool, price_e8: int) -> PerpsMarginStateV1:
 @dataclass(frozen=True, slots=True)
 class _Fixture:
     profile: EconomicProfileSnapshotV1
+    policy_registry: EconomicPolicyRegistryV1
+    market_policy: PerpsMarketPolicyV1
     occurrence: EconomicCommandOccurrenceV1
     authenticated_command: object
     module_input: PerpsMarginLaneModuleInputV1
@@ -341,6 +354,8 @@ def _binding_candidate(
 ) -> PerpsMarginReleaseRouteBindingCandidateV1:
     return PerpsMarginReleaseRouteBindingCandidateV1(
         fixture.profile,
+        fixture.policy_registry,
+        fixture.market_policy,
         fixture.occurrence,
         fixture.module_input,
         fixture.accepted,
@@ -348,7 +363,12 @@ def _binding_candidate(
     )
 
 
-def _fixture(*, with_position: bool, price_e8: int = PRICE_E8) -> _Fixture:
+def _fixture(
+    *,
+    with_position: bool,
+    price_e8: int = PRICE_E8,
+    base_asset: str = BASE_ASSET,
+) -> _Fixture:
     profile, authorizations, signature_verifiers, oracle_policy = _profile()
     command_kind = (
         PERPS_MARGIN_WITHDRAW_COMMAND_KIND_V1
@@ -368,7 +388,7 @@ def _fixture(*, with_position: bool, price_e8: int = PRICE_E8) -> _Fixture:
     payload = GlobalOraclePriceOccurrenceV1(
         ORACLE_ID,
         MARKET_ID,
-        BASE_ASSET,
+        base_asset,
         QUOTE_ASSET,
         price_e8,
         40,
@@ -494,6 +514,8 @@ def _fixture(*, with_position: bool, price_e8: int = PRICE_E8) -> _Fixture:
     assert isinstance(accepted, PerpsMarginAcceptedV1)
     return _Fixture(
         profile,
+        policies,
+        MARKET_POLICY,
         occurrence,
         authenticated_command,
         module_input,
@@ -528,6 +550,8 @@ def test_position_withdraw_binds_authenticated_command_exact_price_and_receipt()
     verified = verify_perps_margin_lane_module_receipt_v1(
         PerpsMarginLaneModuleReceiptCandidateV1(
             fixture.profile,
+            fixture.policy_registry,
+            fixture.market_policy,
             fixture.authenticated_command,
             fixture.module_input,
             fixture.accepted,
@@ -545,10 +569,10 @@ def test_position_withdraw_binds_authenticated_command_exact_price_and_receipt()
         fixture.authenticated_command.binding_root
     )
     assert fixture.module_input.statement_root == (
-        "0x98db379bafabd24f85a639d2308848c6655340d74103c3cd36a020b6208987d3"
+        "0xc5a148733e1e90151e0b4a2211d88f9da8936b7ba162bc7613664f8535994672"
     )
     assert fixture.accepted.module_journal.journal_root == (
-        "0x3fe473d5df90145a53bd0477153f1e1f7b4da0d802d5c5fe00174309454fa2cb"
+        "0x847cd95b5de91325f8094c210b3ab5d3f6d46f759ccbffb3685c62be8e90dcf6"
     )
     assert verifier.calls == [
         (
@@ -621,6 +645,8 @@ def test_mutated_perps_output_and_wrong_receipt_kind_never_reach_verifier() -> N
         verify_perps_margin_lane_module_receipt_v1(
             PerpsMarginLaneModuleReceiptCandidateV1(
                 fixture.profile,
+                fixture.policy_registry,
+                fixture.market_policy,
                 fixture.authenticated_command,
                 fixture.module_input,
                 fixture.accepted,
@@ -640,6 +666,8 @@ def test_release_binding_candidate_rejects_untyped_parallel_inputs() -> None:
     with pytest.raises(TypeError, match="requires exact typed inputs"):
         PerpsMarginReleaseRouteBindingCandidateV1(
             fixture.profile,
+            fixture.policy_registry,
+            fixture.market_policy,
             fixture.occurrence,
             fixture.module_input,
             object(),  # type: ignore[arg-type]
