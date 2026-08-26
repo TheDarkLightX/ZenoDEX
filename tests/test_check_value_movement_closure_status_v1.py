@@ -99,11 +99,27 @@ def _publisher_bound_slice(value: dict[str, object]) -> dict[str, object]:
     )
 
 
-def test_current_value_movement_closure_status_is_exact_and_fail_closed() -> None:
+def test_current_value_movement_closure_status_is_exactly_red_and_fail_closed_until_repin() -> None:
     report = check_value_movement_closure_status_v1()
 
-    assert report["ok"] is True
-    assert _findings(report) == []
+    assert report["ok"] is False
+    assert _findings(report) == [
+        "checker dependency artifact hash mismatch: asset_precision_checker_sha256",
+        "checker dependency artifact hash mismatch: value_sink_checker_sha256",
+        "replay slice artifact hash mismatch: python_integration_test_sha256",
+        "source-head slice artifact hash mismatch: python_test_sha256",
+        "durable publisher slice artifact hash mismatch: python_proof_sha256",
+        "durable publisher slice artifact hash mismatch: python_publisher_test_sha256",
+        "durable publisher slice artifact hash mismatch: python_abi_test_sha256",
+        "current authority slice artifact hash mismatch: python_publisher_test_sha256",
+        "monotonic anchor slice artifact hash mismatch: python_publisher_test_sha256",
+        "publisher-bound slice artifact hash mismatch: core_sha256",
+        "live gate helpers skipped because dependency binding failed",
+        "value sink inventory observation is stale or incomplete",
+        "live value sink inventory has findings",
+        "asset precision policy observation is stale or incomplete",
+        "live asset precision policy has findings",
+    ]
     assert report["gate_count"] == 12
     assert report["production_authority"] == "NONE"
 

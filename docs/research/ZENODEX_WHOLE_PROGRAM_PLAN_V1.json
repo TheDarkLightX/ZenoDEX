@@ -711,7 +711,7 @@
     "observed_at": "2026-08-26",
     "scoped_worktree_clean": true,
     "source_snapshot_file_count": 5790,
-    "source_snapshot_sha256": "2779b9fe92e51f5743d9ad14fa4737311b09dd6aa51cef8e72742ce139992eaa"
+    "source_snapshot_sha256": "9b391e26bc1ca983b8b34b17cd7d47d108320e40456940d3c4591c884b51c37d"
   },
   "tasks": [
     {
