@@ -1,6 +1,6 @@
 {
   "schema": "zenodex/whole-program-plan/v2",
-  "status": "RESEARCH_ONLY_ACTIVE_IMPLEMENTATION_PLAN",
+  "status": "RESEARCH_ONLY_CANDIDATE_PENDING_ADMISSION",
   "authority": {
     "production_authority": "NONE",
     "settlement_authority": "NONE",
@@ -19,7 +19,7 @@
     {
       "path": "docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json",
       "sha256": "34930be9d4d69c4c46c7c97f57fd492d4c95061f8960f936261a8a3415d5db95",
-      "role": "Closed scope registry: 12 lanes, 103 capabilities, four required cross-lane routes, and explicit exclusions."
+      "role": "Provisional closed-name registry and requirements floor: 12 lanes, 103 capabilities, four required cross-lane routes, explicit exclusions, and incomplete requirements closure."
     },
     {
       "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
@@ -32,6 +32,15 @@
       "role": "Eight-decimal integer-atom policy."
     }
   ],
+  "requirements_floor": {
+    "classification": "PROVISIONAL_CLOSED_NAME_REGISTRY_REQUIREMENTS_INCOMPLETE",
+    "manifest_complete": false,
+    "workflow_count": 18,
+    "scenario_count": 81,
+    "required_expansion_count": 11,
+    "unresolved_policy_count": 20,
+    "closure_rule": "Map every workflow, scenario, expansion, and unresolved policy into versioned requirement rows before VM-01 or scope completeness may pass."
+  },
   "historical_inputs": [
     {
       "source": "User-supplied Modular Whole-Economy Zeno Recursive Proof Fabric plan",
@@ -61,6 +70,17 @@
       "name": "IDNI tau-testnet",
       "repository": "https://github.com/IDNI/tau-testnet",
       "observed_commit": "0b038824c8583a1a902ef54369d3d0ecf3384cf5",
+      "observed_tree": "445d77a77b451a0babe5b25c2d66bc45ee20ef29",
+      "source_sha256": {
+        "README.md": "5897a1b965096bbb606e0030da84f6beca050518e99428865c95a09f4d34414c",
+        "api_response.py": "1dad7240f3116e6d309856753ff8e4bcce327772c87206d8e2b0c48bc5912b4a",
+        "app/container.py": "3a368099b28a23dbac76bee4f4149b1d72b67708d9c9b78dbb725dafff9d708a",
+        "commands/gettxstatus.py": "f293977bc334540228cf7f27f9af49902a96436beee58e97661086ba501ae844",
+        "commands/sendtx.py": "82a4805e039fa644b099928dc19a600cc1f9d8753580c7b3a6d2a3a09c7248cf",
+        "consensus/admission.py": "cf2e11165a17de3191f73739afaa725693b6ff2fb4df8e36c6e3de2cb486516b",
+        "server.py": "22cb9ed07749d08bc1b275ad5518c9545eef7da0ce61696741227c00abb22bfb",
+        "tau_defs.py": "853d55e054116a13af7854b81789da1dbcbfc27a6a60cd78308dd54cc7b7e5ad"
+      },
       "classification": "ALPHA_NO_ECONOMIC_FINALITY_NO_PYTHON_APP_BRIDGE",
       "incompatibilities": [
         "apply_app_tx, getappstate, and getstateproof are absent",
@@ -71,7 +91,7 @@
         "the current local profile sets TAU_FORCE_TEST and therefore does not exercise real Tau evaluation",
         "the patched bridge folds the ZenoDEX app hash into Tau state and therefore lets Tau select the durable economic head"
       ],
-      "integration_rule": "Treat legacy Python bridge execution as a historical research oracle. A current adapter may submit or observe typed operations, but it cannot publish ZenoLedger state or satisfy external finality."
+      "integration_rule": "Treat legacy Python bridge execution as a historical research oracle. Current Tau ingress is shadow or testnet observation only. It may observe tentatively ordered Tau transactions, but it cannot authenticate a domain-bound EconomicCommandOccurrenceV1, establish final ZenoDEX ordering, publish ZenoLedger state, or satisfy external finality."
     }
   ],
   "selected_architecture": {
@@ -129,7 +149,7 @@
     "rescaling": "No denomination rescaling under GlobalSettlementABI V1.",
     "accounting_language": "Key control determines practical custody. Same-ledger values are described by accounting location, accounting control domain, claimant entitlement, and key authority.",
     "external_lane": "The registered external lane starts empty. Unregistered destinations reject without mutation.",
-    "tau_role": "Current Tau may authenticate or order typed command occurrences and may govern policy predicates. Tau does not receive a separate durable publication path."
+    "tau_role": "Current Tau may authenticate and tentatively order Tau transactions and may evaluate governed policy predicates. A versioned adapter must separately authenticate a domain-bound EconomicCommandOccurrenceV1. ZenoLedger ordering and publication remain authoritative."
   },
   "baseline_verdict": {
     "candidate_disposition": "NO_GO_FOR_PRODUCTION_OR_WHOLE_PROGRAM_CLOSURE",
@@ -221,15 +241,17 @@
       "obligation_id": "O-001",
       "phase": "P1",
       "priority": "P0",
-      "title": "Admit this V2 plan and emit an exact commit receipt",
+      "title": "Admit the exact plan candidate through PlanAdmissionReceiptV1 and an active-plan registry entry",
+      "depends_on": [],
       "closes": ["single_active_plan_gap"],
-      "required_evidence": ["JSON parse", "normative source hash replay", "independent exact-commit review"]
+      "required_evidence": ["candidate JSON parse", "normative source hash replay", "independent exact-commit review", "external admission receipt", "active-plan registry entry"]
     },
     {
       "obligation_id": "O-002",
       "phase": "P1",
       "priority": "P0",
       "title": "Quarantine bridge-backed stream-8 perps and stream-11 zUSD monetary value movement",
+      "depends_on": ["O-001"],
       "closes": ["current_tau_mounted_incompatibility", "false_mounted_claim", "unusable_clock_seam"],
       "required_evidence": ["minimized current-Tau incompatibility witnesses", "startup refusal before server construction", "compose and manifest exclusion", "operator-surface parity", "reject-no-effect"]
     },
@@ -238,6 +260,7 @@
       "phase": "P1",
       "priority": "P0",
       "title": "Add an exact-upstream compatibility gate and classify every retired Tau bridge dependency",
+      "depends_on": ["O-002"],
       "closes": ["current_tau_compatibility_gap", "stale_tau_assurance"],
       "required_evidence": ["current upstream source pin", "reserved-stream check", "signature-preimage differential", "RPC response differential", "route reachability inventory", "startup refusal for retired bridge modes"]
     },
@@ -246,6 +269,7 @@
       "phase": "P1",
       "priority": "P1",
       "title": "Replace selected phrase checks with a closed operator-surface consistency registry",
+      "depends_on": ["O-002"],
       "closes": ["operator_documentation_drift"],
       "required_evidence": ["closed surface registry", "mounted route positive liveness references", "quarantined route refusal references", "semantic mutant"]
     },
@@ -253,24 +277,28 @@
       "obligation_id": "O-005",
       "phase": "P1",
       "priority": "P1",
-      "title": "Reconcile all 12 value-movement gates and all 103 capability rows against the post-quarantine candidate",
-      "closes": ["stale_closure_ledger"],
-      "required_evidence": ["exact candidate and tree", "per-row status and evidence", "historical evidence explicitly labeled"]
+      "title": "Close the requirements floor into versioned rows without inventing unresolved policy",
+      "depends_on": ["O-001"],
+      "closes": ["incomplete_requirements_registry"],
+      "required_evidence": ["all 18 workflows mapped", "all 81 scenarios mapped", "all 11 expansions mapped", "all 20 unresolved policies represented", "manifest_complete remains false until every mapping is nonvacuous"]
     },
     {
       "obligation_id": "O-006",
       "phase": "P2",
       "priority": "P1",
       "title": "Bind every closed user command to exactly one lane module or governed route",
+      "depends_on": ["O-005"],
       "closes": ["command_to_lane_mapping_gap"],
-      "required_evidence": ["all registered commands mapped exactly once", "research-disabled commands cannot map to ACTIVE_NEW", "unmapped and duplicate mapping mutants", "map root bound by the capability manifest"]
+      "required_evidence": ["all registered commands mapped exactly once", "research-disabled commands cannot map to ACTIVE_NEW", "unmapped and duplicate mapping mutants", "map root bound by the capability manifest", "current-subject obligation and value-movement ledger rows initialized"]
     },
     {
       "obligation_id": "O-007",
       "phase": "P2",
       "priority": "P1",
       "title": "Complete operation-derived cross-language value-writer and sink inventory",
-      "closes": ["VM-01"],
+      "depends_on": ["O-006"],
+      "contributes_to": ["VM-01"],
+      "bounded_delta": "Inventory and mediation reachability only. VM-01 remains open until user stories, decoders, rejection behavior, recovery, committed failures, and terminal paths also close.",
       "required_evidence": ["Python, Rust, Tau, shell, generated, deployment, API, CLI, recovery, migration, worker, and admin reachability", "command-to-lane consistency", "novel-writer mutation killer"]
     },
     {
@@ -278,26 +306,37 @@
       "phase": "P3",
       "priority": "P1",
       "title": "Freeze ABI V1 ownership and complete global state and effect reconciliation",
-      "closes": ["ABI ownership ambiguity", "custody terminology drift", "VM-02", "VM-03"],
+      "depends_on": ["O-006", "O-007"],
+      "closes": ["ABI ownership ambiguity", "custody terminology drift"],
+      "contributes_to": ["VM-02", "VM-03"],
+      "bounded_delta": "Python and Rust ownership, codec, root, conservation, and effect reconciliation only. Proof guest, verifier journal, durable schema parity, complete effect provenance, and machine-checked theorems remain aggregate gate obligations.",
       "required_evidence": ["field owner, unit, width, order, authority, and reject table", "per-asset conservation across all 12 lanes", "claimant and reserve equations", "canonicalization", "reject-no-op", "Python and Rust codec and root parity"]
     },
     {
       "obligation_id": "O-009",
       "phase": "P3",
       "priority": "P1",
-      "title": "Make one verifier-gated atomic publisher the only durable value writer",
-      "closes": ["VM-09"],
-      "required_evidence": ["writer fencing", "CAS", "crash and reopen", "exact retry", "lost acknowledgment", "outbox redelivery and reconciliation"]
+      "title": "Fence one verifier-gated atomic publisher capability in SHADOW before mounting",
+      "depends_on": ["O-008"],
+      "contributes_to": ["VM-09"],
+      "bounded_delta": "At most advances VM-09 from GAP to PARTIAL. VM-09 cannot pass until P6 mounts the sole capability and mechanically retires every alternative writer.",
+      "required_evidence": ["writer fencing", "CAS", "crash and reopen", "exact retry", "lost acknowledgment", "outbox redelivery and reconciliation", "SHADOW release status"]
     },
     {
       "obligation_id": "O-010",
       "phase": "P4",
       "priority": "P1",
-      "title": "Close capability rows lane by lane, starting with ASSET_TRANSFER, SPOT_LIQUIDITY, and ZDEX_TOKENOMICS",
-      "closes": ["VM-04", "VM-05"],
+      "title": "Advance capability rows lane by lane, starting with ASSET_TRANSFER, SPOT_LIQUIDITY, and ZDEX_TOKENOMICS",
+      "depends_on": ["O-008"],
+      "contributes_to": ["VM-04", "VM-05"],
+      "bounded_delta": "Closes only the selected capability rows and the governed fee-funded ZDEX purchase-and-burn route. VM-04 and VM-05 remain open until every enabled lane and all four required routes close.",
       "required_evidence": ["happy, reject, authorization, cancellation, recovery, and terminal BDD", "BVA", "stateful histories", "governed fee-funded ZDEX purchase and exact burn"]
     }
   ],
+  "vm_gate_promotion": {
+    "rule": "No individual obligation may close a VM gate. Aggregate deterministic gate checkers promote a VM gate only after every conjunct in the formal safety claim passes on one exact subject.",
+    "individual_obligation_maximum": "CONTRIBUTES_TO"
+  },
   "coordination_protocol": {
     "active_candidate_count": 1,
     "max_implementation_workers_per_wave": 3,
@@ -330,7 +369,7 @@
     "cost_metric": "Record wall time, compute, changed lines, and review rounds per newly closed obligation."
   },
   "current_tau_integration_contract": {
-    "ingress": "Tau-originated signed event or policy verdict enters a versioned adapter and becomes a domain-bound EconomicCommandOccurrenceV1.",
+    "ingress": "A Tau-originated signed observation or policy verdict enters a versioned shadow/testnet adapter. Separate Zeno-domain authentication is required before it may become an EconomicCommandOccurrenceV1.",
     "publication": "Only an opaque VerifiedEconomicEpochV1 may reach the atomic ZenoLedger publisher.",
     "egress": "External-only effects enter an outbox and use current Tau submission plus canonical-chain observation.",
     "required_adapter_properties": [
@@ -339,7 +378,7 @@
       "use only release-registered nonreserved operation streams",
       "bind an inner Zeno signature to Tau network or genesis, Zeno deployment and profile, nonce, and command hash",
       "poll transaction status and canonical blocks",
-      "represent reorganization as a pending or reversed external obligation",
+      "classify pre-finality observations removed by reorganization as ORPHANED with no irreversible settlement",
       "disable irreversible external value movement until an approved finality policy exists"
     ],
     "forbidden": [

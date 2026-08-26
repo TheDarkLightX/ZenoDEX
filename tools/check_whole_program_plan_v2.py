@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed when the active whole-program plan loses scope or semantics."""
+"""Fail closed when the whole-program plan candidate loses scope or semantics."""
 
 from __future__ import annotations
 
@@ -20,6 +20,54 @@ EXPECTED_VM_GATES = tuple(f"VM-{index:02d}" for index in range(1, 13))
 EXPECTED_OBLIGATIONS = tuple(f"O-{index:03d}" for index in range(1, 11))
 EXPECTED_POLICIES = tuple(f"UP-{index:02d}" for index in range(1, 21))
 EXPECTED_TAU_COMMIT = "0b038824c8583a1a902ef54369d3d0ecf3384cf5"
+EXPECTED_TAU_TREE = "445d77a77b451a0babe5b25c2d66bc45ee20ef29"
+EXPECTED_TAU_SOURCE_SHA256 = {
+    "README.md": "5897a1b965096bbb606e0030da84f6beca050518e99428865c95a09f4d34414c",
+    "api_response.py": "1dad7240f3116e6d309856753ff8e4bcce327772c87206d8e2b0c48bc5912b4a",
+    "app/container.py": "3a368099b28a23dbac76bee4f4149b1d72b67708d9c9b78dbb725dafff9d708a",
+    "commands/gettxstatus.py": "f293977bc334540228cf7f27f9af49902a96436beee58e97661086ba501ae844",
+    "commands/sendtx.py": "82a4805e039fa644b099928dc19a600cc1f9d8753580c7b3a6d2a3a09c7248cf",
+    "consensus/admission.py": "cf2e11165a17de3191f73739afaa725693b6ff2fb4df8e36c6e3de2cb486516b",
+    "server.py": "22cb9ed07749d08bc1b275ad5518c9545eef7da0ce61696741227c00abb22bfb",
+    "tau_defs.py": "853d55e054116a13af7854b81789da1dbcbfc27a6a60cd78308dd54cc7b7e5ad",
+}
+EXPECTED_NORMATIVE_ROLES = (
+    "Provisional closed-name registry and requirements floor: 12 lanes, 103 "
+    "capabilities, four required cross-lane routes, explicit exclusions, and "
+    "incomplete requirements closure.",
+    "Conjunctive claim target and semantic nonclaims.",
+    "Eight-decimal integer-atom policy.",
+)
+EXPECTED_VM_GATE_PROMOTION = {
+    "rule": (
+        "No individual obligation may close a VM gate. Aggregate deterministic "
+        "gate checkers promote a VM gate only after every conjunct in the formal "
+        "safety claim passes on one exact subject."
+    ),
+    "individual_obligation_maximum": "CONTRIBUTES_TO",
+}
+EXPECTED_TAU_INTEGRATION_RULE = (
+    "Treat legacy Python bridge execution as a historical research oracle. Current "
+    "Tau ingress is shadow or testnet observation only. It may observe tentatively "
+    "ordered Tau transactions, but it cannot authenticate a domain-bound "
+    "EconomicCommandOccurrenceV1, establish final ZenoDEX ordering, publish "
+    "ZenoLedger state, or satisfy external finality."
+)
+EXPECTED_TAU_ROLE = (
+    "Current Tau may authenticate and tentatively order Tau transactions and may "
+    "evaluate governed policy predicates. A versioned adapter must separately "
+    "authenticate a domain-bound EconomicCommandOccurrenceV1. ZenoLedger ordering "
+    "and publication remain authoritative."
+)
+EXPECTED_TAU_INGRESS = (
+    "A Tau-originated signed observation or policy verdict enters a versioned "
+    "shadow/testnet adapter. Separate Zeno-domain authentication is required before "
+    "it may become an EconomicCommandOccurrenceV1."
+)
+EXPECTED_TAU_REORG_PROPERTY = (
+    "classify pre-finality observations removed by reorganization as ORPHANED "
+    "with no irreversible settlement"
+)
 EXPECTED_PROOF_SHAPE = {
     "module_receipts_per_route_min": 1,
     "module_receipts_per_route_max": 8,
@@ -136,8 +184,8 @@ def check_whole_program_plan_v2(
 
     if plan.get("schema") != SCHEMA:
         findings.append("whole-program plan schema mismatch")
-    if plan.get("status") != "RESEARCH_ONLY_ACTIVE_IMPLEMENTATION_PLAN":
-        findings.append("plan status must remain research-only")
+    if plan.get("status") != "RESEARCH_ONLY_CANDIDATE_PENDING_ADMISSION":
+        findings.append("plan must remain a candidate until external admission")
 
     authority = plan.get("authority")
     expected_authority = {
@@ -178,6 +226,8 @@ def check_whole_program_plan_v2(
     )
     if _exact_ids(normative_inputs, "path") != expected_normative_paths:
         findings.append("normative input set or order drift")
+    if _exact_ids(normative_inputs, "role") != EXPECTED_NORMATIVE_ROLES:
+        findings.append("normative input role or scope semantics drift")
     if type(normative_inputs) is list:
         for row in normative_inputs:
             if type(row) is not dict:
@@ -194,6 +244,32 @@ def check_whole_program_plan_v2(
                 continue
             if actual_hash != expected_hash:
                 findings.append(f"normative input hash drift: {path.relative_to(root)}")
+
+    requirements_floor = plan.get("requirements_floor")
+    expected_requirements_floor = {
+        "classification": "PROVISIONAL_CLOSED_NAME_REGISTRY_REQUIREMENTS_INCOMPLETE",
+        "manifest_complete": False,
+        "workflow_count": 18,
+        "scenario_count": 81,
+        "required_expansion_count": 11,
+        "unresolved_policy_count": 20,
+        "closure_rule": (
+            "Map every workflow, scenario, expansion, and unresolved policy into "
+            "versioned requirement rows before VM-01 or scope completeness may pass."
+        ),
+    }
+    if requirements_floor != expected_requirements_floor:
+        findings.append("provisional requirements-floor semantics drift")
+    if capability_manifest.get("manifest_complete") is not False:
+        findings.append("capability manifest must remain explicitly incomplete")
+    expected_history = {
+        "workflow_count": 18,
+        "scenario_count": 81,
+        "required_spec_expansion_count": 11,
+        "status": "REQUIRED_BUT_NOT_CAPABILITY_COMPLETE",
+    }
+    if capability_manifest.get("historical_requirements") != expected_history:
+        findings.append("capability manifest historical requirements drift")
 
     architecture = plan.get("selected_architecture")
     if type(architecture) is not dict:
@@ -212,13 +288,65 @@ def check_whole_program_plan_v2(
     upstream = plan.get("upstream_dependencies")
     if type(upstream) is not list or len(upstream) != 1 or type(upstream[0]) is not dict:
         findings.append("current Tau dependency pin must be one exact row")
-    elif upstream[0].get("observed_commit") != EXPECTED_TAU_COMMIT:
-        findings.append("current Tau dependency commit drift")
+    else:
+        if upstream[0].get("observed_commit") != EXPECTED_TAU_COMMIT:
+            findings.append("current Tau dependency commit drift")
+        if upstream[0].get("observed_tree") != EXPECTED_TAU_TREE:
+            findings.append("current Tau dependency tree drift")
+        if upstream[0].get("source_sha256") != EXPECTED_TAU_SOURCE_SHA256:
+            findings.append("current Tau source-hash set drift")
+        if upstream[0].get("integration_rule") != EXPECTED_TAU_INTEGRATION_RULE:
+            findings.append("current Tau authority-boundary wording drift")
+
+    semantic_anchors = plan.get("semantic_anchors")
+    if type(semantic_anchors) is not dict or semantic_anchors.get("tau_role") != EXPECTED_TAU_ROLE:
+        findings.append("current Tau semantic role drift")
+    tau_contract = plan.get("current_tau_integration_contract")
+    if type(tau_contract) is not dict:
+        findings.append("current Tau integration contract must be an object")
+    else:
+        if tau_contract.get("ingress") != EXPECTED_TAU_INGRESS:
+            findings.append("current Tau ingress authentication boundary drift")
+        properties = tau_contract.get("required_adapter_properties")
+        if type(properties) is not list or EXPECTED_TAU_REORG_PROPERTY not in properties:
+            findings.append("current Tau reorganization semantics drift")
 
     if _exact_ids(plan.get("value_movement_gates"), "gate_id") != EXPECTED_VM_GATES:
         findings.append("value-movement gate set or order drift")
-    if _exact_ids(plan.get("next_obligations"), "obligation_id") != EXPECTED_OBLIGATIONS:
+    if plan.get("vm_gate_promotion") != EXPECTED_VM_GATE_PROMOTION:
+        findings.append("aggregate VM-gate promotion rule drift")
+    obligations = plan.get("next_obligations")
+    if _exact_ids(obligations, "obligation_id") != EXPECTED_OBLIGATIONS:
         findings.append("next-obligation set or order drift")
+    if type(obligations) is list and all(type(row) is dict for row in obligations):
+        prior_ids: set[str] = set()
+        for row in obligations:
+            obligation_id = row.get("obligation_id")
+            dependencies = row.get("depends_on")
+            if (
+                type(obligation_id) is not str
+                or type(dependencies) is not list
+                or any(type(value) is not str for value in dependencies)
+                or not set(dependencies).issubset(prior_ids)
+            ):
+                findings.append(f"invalid or forward obligation dependency: {obligation_id}")
+            closes = row.get("closes", [])
+            if type(closes) is not list or any(type(value) is not str for value in closes):
+                findings.append(f"invalid closes list: {obligation_id}")
+            elif any(value in EXPECTED_VM_GATES for value in closes):
+                findings.append(f"individual obligation claims aggregate VM closure: {obligation_id}")
+            contributes_to = row.get("contributes_to", [])
+            if (
+                type(contributes_to) is not list
+                or any(value not in EXPECTED_VM_GATES for value in contributes_to)
+            ):
+                findings.append(f"invalid VM contribution list: {obligation_id}")
+            elif contributes_to and (
+                type(row.get("bounded_delta")) is not str or not row["bounded_delta"].strip()
+            ):
+                findings.append(f"VM contribution lacks bounded delta: {obligation_id}")
+            if type(obligation_id) is str:
+                prior_ids.add(obligation_id)
     if _exact_ids(plan.get("unresolved_semantic_decisions"), "decision_id") != EXPECTED_POLICIES:
         findings.append("unresolved semantic-decision set or order drift")
 
@@ -246,6 +374,7 @@ def check_whole_program_plan_v2(
     return {
         "schema": "zenodex/whole-program-plan-check/v2",
         "ok": not findings,
+        "plan_status": plan.get("status"),
         "production_authority": "NONE",
         "release_ready": False,
         "subject_tree_verified": subject_tree_verified,

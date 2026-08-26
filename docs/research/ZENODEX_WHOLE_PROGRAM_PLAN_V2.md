@@ -1,17 +1,19 @@
 # ZenoDEX Whole-Program Implementation Plan V2
 
-Status: research-only active implementation plan
+Status: research-only candidate pending admission
 Implementation base: `92bec186d36846bb5e43b2be90a58b8a46ee56c6`
 Production authority: `NONE`
 Settlement authority: `NONE`
 
 ## Result
 
-This is the single current plan for completing the Modular Whole-Economy Zeno
-Recursive Proof Fabric. It reconciles the original six-phase architecture, the
-current 103-capability M6 registry, the value-movement claim target, the G0
-production-readiness work, the historical 65-task decomposition, current Tau
-upstream behavior, and exact-subject independent review.
+This candidate proposes one current plan for completing the Modular
+Whole-Economy Zeno Recursive Proof Fabric. It becomes active only through an
+external admission receipt and active-plan registry entry. It reconciles the
+original six-phase architecture, the current 103-capability M6 registry, the
+value-movement claim target, the G0 production-readiness work, the historical
+65-task decomposition, current Tau upstream behavior, and exact-subject
+independent review.
 
 The architecture remains sound. GlobalSettlementABI V1 stays selected. A V2 is
 permitted only for a new foundational effect category or invariant, together
@@ -19,8 +21,8 @@ with an approved typed delta, migration obligations, and compatibility policy.
 
 At the recorded implementation base, the candidate is a substantial research
 implementation. It is not a production or whole-program closure candidate.
-Architectural implementation
-maturity is approximately 33 percent under a conservative component rubric.
+Architectural implementation maturity is approximately 33 percent under a
+conservative component rubric.
 Formal-artifact maturity is approximately 15 to 25 percent as a coarse estimate.
 Strict release closure is 0 of at least 350 registered required evidence cells
 because no complete command or M6 row is closed on one exact subject. The
@@ -37,8 +39,12 @@ The machine-readable plan is
 
 ## Scope and semantic anchors
 
-The closed scope is the 12 lanes, 103 capabilities, four mixed-lane routes, and
-explicit exclusions in `ZENODEX_M6_CAPABILITY_MANIFEST_V1.json`.
+The provisional closed-name registry and requirements floor is the 12 lanes,
+103 capabilities, four mixed-lane routes, and explicit exclusions in
+`ZENODEX_M6_CAPABILITY_MANIFEST_V1.json`. Requirements closure remains
+incomplete. The 18 workflows, 81 scenarios, 11 required expansions, and 20
+unresolved policy decisions must map into versioned rows before scope or VM-01
+may be called complete.
 
 The following decisions are fixed for this program:
 
@@ -60,8 +66,10 @@ The following decisions are fixed for this program:
   key-authority language.
 - The registered external lane starts empty. Unregistered destinations reject
   without mutation.
-- Tau may authenticate or order typed command occurrences and may evaluate
-  governed predicates. ZenoLedger retains the sole durable publication path.
+- Tau may authenticate and tentatively order Tau transactions and may evaluate
+  governed predicates. Separate Zeno-domain authentication is required before
+  an observation can become an `EconomicCommandOccurrenceV1`. ZenoLedger
+  ordering and publication remain authoritative.
 
 ## Current blockers
 
@@ -72,8 +80,10 @@ Four issues take precedence over broader implementation:
    also lacks the required verifier-owned execution clock. Both value-moving
    routes must remain unmounted until their replacement paths have positive
    liveness and adversarial evidence.
-2. `tools/dex-ui/README.md` still contains a contradictory mounted-posture claim
-   for quarantined stream-9 zUSD and AutoTrader behavior.
+2. `tools/dex-ui/README.md` still presents stream-9 zUSD wallet, stream-11 zUSD
+   monetary, and stream-8 perps paths as current mounted behavior while later
+   sections describe quarantine. The operator surface is internally
+   contradictory.
 3. Current Tau removed the historical application bridge and state-proof RPCs,
    reserved streams 5 through 11, changed its signed transaction preimage to
    include `tx_type`, and changed RPC responses to JSON envelopes. The local
@@ -104,10 +114,10 @@ Tau-originated signed event or policy verdict
 
 The adapter must parse current JSON envelopes, sign `tx_type=user_tx`, use a
 release-registered nonreserved stream, bind an inner Zeno signature to both
-network domains and the command occurrence, observe canonical transaction
-status, and represent reorganization as a pending or reversed external
-obligation. Irreversible external value movement stays disabled until an
-approved finality policy exists.
+network domains and the command occurrence, and observe canonical transaction
+status. A pre-finality observation removed by reorganization becomes
+`ORPHANED` and causes no irreversible settlement. Irreversible external value
+movement stays disabled until an approved finality policy exists.
 
 Economic parameters that the user has not selected remain explicitly
 unselected. This includes fee percentages, host-service evidence, farm
@@ -166,25 +176,30 @@ plus independent reviews close all 12 value-movement gates.
 
 The next work executes in this order:
 
-1. Admit this plan with an immutable exact-commit review receipt.
+1. Admit the exact plan candidate through `PlanAdmissionReceiptV1` and an
+   active-plan registry entry.
 2. Quarantine bridge-backed stream-8 perps and stream-11 zUSD value movement.
 3. Add an exact-upstream Tau compatibility gate and classify every dependency
    on the retired bridge protocol.
 4. Replace selected phrase checks with a closed operator-surface consistency
    registry.
-5. Reconcile the 12 value-movement gates and 103 capability rows against the
-   post-quarantine candidate.
+5. Close the requirements floor into versioned rows covering all 18 workflows,
+   81 scenarios, 11 expansions, and 20 unresolved policies.
 6. Bind every registered user command to exactly one lane module or governed
-   route.
+   route and initialize current-subject progress ledgers.
 7. Complete operation-derived, cross-language writer and sink mediation.
 8. Freeze ABI V1 field ownership and complete global state and effect
    reconciliation.
-9. Make one verifier-gated atomic publisher the only durable value writer.
-10. Close lane capability rows starting with ASSET_TRANSFER, SPOT_LIQUIDITY,
+9. Fence one verifier-gated atomic publisher capability in `SHADOW` before
+   mounting.
+10. Advance lane capability rows starting with ASSET_TRANSFER, SPOT_LIQUIDITY,
     and ZDEX_TOKENOMICS, including governed fee-funded ZDEX purchase and exact
     burn.
 
 Each obligation has explicit closure evidence in the machine-readable plan.
+Individual obligations may contribute to a value-movement gate. Only aggregate
+deterministic checkers may close a VM gate after every formal-claim conjunct
+passes on one exact subject.
 
 ## Multi-agent execution protocol
 

@@ -30,6 +30,7 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
     assert report == {
         "schema": "zenodex/whole-program-plan-check/v2",
         "ok": True,
+        "plan_status": "RESEARCH_ONLY_CANDIDATE_PENDING_ADMISSION",
         "production_authority": "NONE",
         "release_ready": False,
         "subject_tree_verified": True,
@@ -46,6 +47,20 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
         (
             lambda plan: plan["authority"].update({"production_authority": "ACTIVE"}),
             "authority ceiling drift",
+        ),
+        (
+            lambda plan: plan.update({"status": "RESEARCH_ONLY_ACTIVE_IMPLEMENTATION_PLAN"}),
+            "plan must remain a candidate until external admission",
+        ),
+        (
+            lambda plan: plan["normative_inputs"][0].update(
+                {"role": "Closed and complete whole-program scope."}
+            ),
+            "normative input role or scope semantics drift",
+        ),
+        (
+            lambda plan: plan["requirements_floor"].update({"manifest_complete": True}),
+            "provisional requirements-floor semantics drift",
         ),
         (
             lambda plan: plan["selected_architecture"].update(
@@ -76,6 +91,59 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
                 {"closed_value_movement_gates": 1}
             ),
             "baseline verdict must not claim a closed value-movement gate",
+        ),
+        (
+            lambda plan: plan["next_obligations"][6].update({"closes": ["VM-01"]}),
+            "individual obligation claims aggregate VM closure: O-007",
+        ),
+        (
+            lambda plan: plan["next_obligations"][2].update({"depends_on": ["O-010"]}),
+            "invalid or forward obligation dependency: O-003",
+        ),
+        (
+            lambda plan: plan["vm_gate_promotion"].update(
+                {"individual_obligation_maximum": "CLOSES"}
+            ),
+            "aggregate VM-gate promotion rule drift",
+        ),
+        (
+            lambda plan: plan["upstream_dependencies"][0].update(
+                {"observed_tree": "0" * 40}
+            ),
+            "current Tau dependency tree drift",
+        ),
+        (
+            lambda plan: plan["upstream_dependencies"][0]["source_sha256"].update(
+                {"server.py": "0" * 64}
+            ),
+            "current Tau source-hash set drift",
+        ),
+        (
+            lambda plan: plan["upstream_dependencies"][0].update(
+                {"integration_rule": "Tau authenticates ZenoDEX commands."}
+            ),
+            "current Tau authority-boundary wording drift",
+        ),
+        (
+            lambda plan: plan["semantic_anchors"].update(
+                {"tau_role": "Tau establishes final ZenoDEX ordering."}
+            ),
+            "current Tau semantic role drift",
+        ),
+        (
+            lambda plan: plan["current_tau_integration_contract"].update(
+                {"ingress": "A Tau signature becomes an EconomicCommandOccurrenceV1."}
+            ),
+            "current Tau ingress authentication boundary drift",
+        ),
+        (
+            lambda plan: plan["current_tau_integration_contract"][
+                "required_adapter_properties"
+            ].remove(
+                "classify pre-finality observations removed by reorganization as "
+                "ORPHANED with no irreversible settlement"
+            ),
+            "current Tau reorganization semantics drift",
         ),
         (
             lambda plan: plan["subject"].update(
