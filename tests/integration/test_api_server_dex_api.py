@@ -29,6 +29,18 @@ def _stop_test_server(httpd, thread: threading.Thread) -> None:
     thread.join(timeout=2.0)
 
 
+def _locally_sign_settlement_price_packet(packet: dict[str, object]) -> dict[str, object]:
+    from src.integration.settlement_price_attestation import (
+        SettlementSpotPricePacket,
+        build_settlement_spot_price_attestation,
+    )
+
+    return build_settlement_spot_price_attestation(
+        packet=SettlementSpotPricePacket.from_dict(packet),
+        signer_privkey=7,
+    ).to_dict()
+
+
 def _pool_dict(
     *,
     pid: str,
@@ -1106,18 +1118,7 @@ def test_api_server_build_and_verify_settlement_spot_price_attestation() -> None
         assert body0["ok"] is True
         packet = body0["packet"]
 
-        conn = HTTPConnection(host, port, timeout=2.0)
-        conn.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": packet, "signer_privkey": 7}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp = conn.getresponse()
-        body = json.loads(resp.read().decode("utf-8"))
-        assert resp.status == 200
-        assert body["ok"] is True
-        attestation = body["attestation"]
+        attestation = _locally_sign_settlement_price_packet(packet)
 
         conn2 = HTTPConnection(host, port, timeout=2.0)
         conn2.request(
@@ -1180,18 +1181,7 @@ def test_api_server_build_settlement_spot_value_contract_from_price_attestation(
         assert body0["ok"] is True
         packet = body0["packet"]
 
-        conn1 = HTTPConnection(host, port, timeout=2.0)
-        conn1.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": packet, "signer_privkey": 7}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp1 = conn1.getresponse()
-        body1 = json.loads(resp1.read().decode("utf-8"))
-        assert resp1.status == 200
-        assert body1["ok"] is True
-        attestation = body1["attestation"]
+        attestation = _locally_sign_settlement_price_packet(packet)
 
         req = {
             "settlement": settlement,
@@ -1340,18 +1330,7 @@ def test_api_server_build_settlement_lp_value_contract_from_price_attestation() 
         assert body0["ok"] is True
         packet = body0["packet"]
 
-        conn1 = HTTPConnection(host, port, timeout=2.0)
-        conn1.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": packet, "signer_privkey": 7}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp1 = conn1.getresponse()
-        body1 = json.loads(resp1.read().decode("utf-8"))
-        assert resp1.status == 200
-        assert body1["ok"] is True
-        attestation = body1["attestation"]
+        attestation = _locally_sign_settlement_price_packet(packet)
 
         req = {
             "settlement": settlement,
@@ -1500,18 +1479,7 @@ def test_api_server_build_and_verify_settlement_value_packet_lp_attested() -> No
         assert body0["ok"] is True
         price_packet = body0["packet"]
 
-        conn1 = HTTPConnection(host, port, timeout=2.0)
-        conn1.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": price_packet, "signer_privkey": 7}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp1 = conn1.getresponse()
-        body1 = json.loads(resp1.read().decode("utf-8"))
-        assert resp1.status == 200
-        assert body1["ok"] is True
-        attestation = body1["attestation"]
+        attestation = _locally_sign_settlement_price_packet(price_packet)
 
         req = {
             "settlement": settlement,
@@ -1666,18 +1634,7 @@ def test_api_server_build_endogenous_lp_value_packet_from_attestation() -> None:
         assert resp0.status == 200
         assert body0["ok"] is True
 
-        conn1 = HTTPConnection(host, port, timeout=2.0)
-        conn1.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": body0["packet"], "signer_privkey": 7}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp1 = conn1.getresponse()
-        body1 = json.loads(resp1.read().decode("utf-8"))
-        assert resp1.status == 200
-        assert body1["ok"] is True
-        attestation = body1["attestation"]
+        attestation = _locally_sign_settlement_price_packet(body0["packet"])
 
         req = {
             "settlement": settlement,
@@ -1834,18 +1791,7 @@ def test_api_server_build_and_verify_settlement_end_to_end_certificate_packet_en
         assert body0["ok"] is True
         price_packet = body0["packet"]
 
-        conn1 = HTTPConnection(host, port, timeout=2.0)
-        conn1.request(
-            "POST",
-            "/api/dex/build_settlement_spot_price_attestation",
-            body=json.dumps({"packet": price_packet, "signer_privkey": 7}).encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-        )
-        resp1 = conn1.getresponse()
-        body1 = json.loads(resp1.read().decode("utf-8"))
-        assert resp1.status == 200
-        assert body1["ok"] is True
-        attestation = body1["attestation"]
+        attestation = _locally_sign_settlement_price_packet(price_packet)
 
         req = {
             "settlement": settlement,

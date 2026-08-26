@@ -1788,6 +1788,29 @@ class _Handler(BaseHTTPRequestHandler):
             return 8 * 1024 * 1024
         return 65_536
 
+    def _reject_authenticated_raw_authority_material(
+        self,
+        *,
+        raw_body: Optional[bytes],
+        cors_origin: Optional[str],
+    ) -> bool:
+        if raw_body is None:
+            return False
+        from src.integration.http_authority_ingress_v1 import (
+            HttpAuthorityIngressRejectedV1,
+            inspect_http_authority_ingress_v1,
+        )
+
+        authority_ingress = inspect_http_authority_ingress_v1(raw_body)
+        if not isinstance(authority_ingress, HttpAuthorityIngressRejectedV1):
+            return False
+        payload: dict[str, object] = {
+            "ok": False,
+            "error": authority_ingress.code.value,
+        }
+        self._write_json(400, payload, cors_origin=cors_origin)
+        return True
+
     def _perps_state(self) -> Any:
         """Get the current PerpsState from the server (may be None)."""
         return getattr(self.server, "perps_state", None)
@@ -1841,6 +1864,11 @@ class _Handler(BaseHTTPRequestHandler):
         if not self._demo_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
+        if self._reject_authenticated_raw_authority_material(
+            raw_body=raw_body,
+            cors_origin=cors_origin,
+        ):
+            return True
         from src.integration.perps_wallet_api import handle_perps_wallet_request
 
         status, resp = handle_perps_wallet_request(method, path, raw_body)
@@ -1883,6 +1911,11 @@ class _Handler(BaseHTTPRequestHandler):
         if not self._demo_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
+        if self._reject_authenticated_raw_authority_material(
+            raw_body=raw_body,
+            cors_origin=cors_origin,
+        ):
+            return True
         from src.integration.zusd_tau_wallet_api import handle_zusd_tau_wallet_request
 
         status, resp = handle_zusd_tau_wallet_request(method, path, raw_body)
@@ -1899,6 +1932,11 @@ class _Handler(BaseHTTPRequestHandler):
         if not self._demo_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
+        if self._reject_authenticated_raw_authority_material(
+            raw_body=raw_body,
+            cors_origin=cors_origin,
+        ):
+            return True
         from src.integration.zusd_monetary_wallet_api import handle_zusd_monetary_wallet_request
 
         status, resp = handle_zusd_monetary_wallet_request(method, path, raw_body)
@@ -1914,6 +1952,11 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         if not self._demo_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        if self._reject_authenticated_raw_authority_material(
+            raw_body=raw_body,
+            cors_origin=cors_origin,
+        ):
             return True
         from src.integration.autotrader_live_api import handle_autotrader_live_request
 
@@ -2001,6 +2044,11 @@ class _Handler(BaseHTTPRequestHandler):
         if not self._demo_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
             return True
+        if self._reject_authenticated_raw_authority_material(
+            raw_body=raw_body,
+            cors_origin=cors_origin,
+        ):
+            return True
         from src.integration.confidential_sealed_bid_api import handle_confidential_sealed_bid_request
 
         table = getattr(self.server, "confidential_sealed_bid_table", None)  # type: ignore[attr-defined]
@@ -2070,6 +2118,11 @@ class _Handler(BaseHTTPRequestHandler):
             return False
         if not self._demo_auth_ok():
             self._write_json(401, {"ok": False, "error": "unauthorized"}, cors_origin=cors_origin)
+            return True
+        if self._reject_authenticated_raw_authority_material(
+            raw_body=raw_body,
+            cors_origin=cors_origin,
+        ):
             return True
         if self._maybe_handle_dex_get_endpoint(method=method, path=path, cors_origin=cors_origin):
             return True

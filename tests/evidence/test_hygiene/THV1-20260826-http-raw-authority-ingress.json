@@ -1,0 +1,169 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-http-raw-authority-ingress",
+  "created_date": "2026-08-26",
+  "claim_scope": "The authenticated mounted API-server boundaries for DEX, perps wallet, zUSD Tau wallet, zUSD monetary wallet, AutoTrader live, and confidential sealed-bid requests deterministically reject bounded valid JSON containing a recognized raw signing-authority field before route dispatch. The server-side DEX price-attestation signer is unregistered, while the remaining DEX flow accepts a client-signed attestation.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "HTTP-RAW-SIGNING-AUTHORITY-DOES-NOT-CROSS-MOUNTED-BOUNDARY",
+    "HTTP-AUTHENTICATION-PRECEDES-AUTHORITY-MATERIAL-CLASSIFICATION",
+    "HTTP-AUTHORITY-REJECTION-TYPE-CANNOT-CARRY-USER-DERIVED-TEXT",
+    "HTTP-AUTHORITY-SCAN-IS-BOUNDED-AND-DETERMINISTIC",
+    "HTTP-DUPLICATE-KEY-CANNOT-HIDE-AUTHORITY-MATERIAL",
+    "DEX-SERVER-SIDE-PRICE-ATTESTATION-SIGNER-IS-UNMOUNTED"
+  ],
+  "failure_modes": [
+    "a mounted HTTP route receives a raw private key and signs or derives a public key inside the server process",
+    "a nested, aliased, camel-case, or plural private-key field bypasses admission",
+    "a duplicate JSON field hides raw authority material through last-write-wins decoding",
+    "the admission scan performs unbounded graph traversal",
+    "a raw authority value or attacker-controlled field name is reflected in the rejection response",
+    "authority scanning changes the established malformed-JSON route error or leaks route behavior before authentication",
+    "the DEX OpenAPI surface continues to advertise a server-side private-key signer",
+    "client-side attestation signing migration breaks the mounted settlement verification and consumer flows"
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/http_authority_ingress_v1.py",
+      "sha256": "06dba539ba552d14ae2bbe57d25a7a4d4bc7a01e37317ead075f4332044b74fa"
+    },
+    {
+      "path": "src/integration/api_server.py",
+      "sha256": "cc244ef18d84f64a864d609bd447728c076326ef53c16774119edd23c501acd2"
+    },
+    {
+      "path": "src/integration/dex_dispatch_settlement_audit_handlers.py",
+      "sha256": "61ab4268b9e8d21fb45c07a6aa8411a715cc72717ee613a2b983835007eaec62"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_http_authority_ingress_v1.py",
+      "sha256": "51cb198931b4280d5e836a03817c9173678728630e5523af5876bf3be55a1d72",
+      "node_ids": [
+        "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_rejects_raw_key_aliases_at_any_depth",
+        "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_accepts_public_key_and_posture_fields",
+        "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_depth_bva",
+        "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_defers_malformed_json_to_route_error_abi",
+        "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_observes_duplicate_secret_field_before_overwrite",
+        "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_rejects_unscannable_shape",
+        "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_node_budget_bva",
+        "tests/integration/test_http_authority_ingress_v1.py::test_mounted_post_choke_point_rejects_nested_raw_key_before_dispatch",
+        "tests/integration/test_http_authority_ingress_v1.py::test_authentication_precedes_raw_authority_material_classification"
+      ]
+    },
+    {
+      "path": "tests/integration/test_api_server_dex_dispatch.py",
+      "sha256": "b7c8fb2dc15b6d42bff4d9c22f2acd0685ff7a7e4835f60d9eb0da29d6de005f",
+      "node_ids": [
+        "tests/integration/test_api_server_dex_dispatch.py::test_mounted_dex_rejects_raw_signer_privkey_before_dispatch",
+        "tests/integration/test_api_server_dex_dispatch.py::test_server_side_price_attestation_builder_is_unregistered"
+      ]
+    },
+    {
+      "path": "tests/integration/test_api_server_dex_api.py",
+      "sha256": "72945310d27c41b29592ad6200bbd49d18429359470671adfab9a74e0c9bbe50",
+      "node_ids": [
+        "tests/integration/test_api_server_dex_api.py::test_api_server_build_and_verify_settlement_spot_price_attestation",
+        "tests/integration/test_api_server_dex_api.py::test_api_server_build_settlement_spot_value_contract_from_price_attestation"
+      ]
+    },
+    {
+      "path": "tests/integration/test_api_server_request_grammar_fuzz.py",
+      "sha256": "ba7108df09557a79ca357ee36993e9e20ebfc90d904799641314424d68a136d2",
+      "node_ids": [
+        "tests/integration/test_api_server_request_grammar_fuzz.py::test_api_server_request_grammar_fuzz_all_targets_are_covered_and_deterministic",
+        "tests/integration/test_api_server_request_grammar_fuzz.py::test_api_server_request_minimizer_collapses_unauthorized_dead_fields",
+        "tests/integration/test_api_server_request_grammar_fuzz.py::test_api_server_request_minimizer_cli_emits_expected_schema"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "fuzz",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The tests arrange exact bytes, authentication state, enabled mount, and route; act through either the pure classifier or localhost HTTP server; then assert exact decision type, status, response fields, absence of the secret value, and route registration state."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The classifier is pure and the mounted rejection occurs before route import and dispatch. The evidence observes only the deterministic HTTP rejection and no handler-produced response."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "json_graph_depth",
+      "points": [
+        "depth_32_accepts_safe_shape",
+        "depth_33_returns_scan_refused"
+      ]
+    },
+    {
+      "name": "json_graph_node_budget",
+      "points": [
+        "131072_total_nodes_accept_safe_shape",
+        "131073_total_nodes_returns_scan_refused"
+      ]
+    },
+    {
+      "name": "field_semantics",
+      "points": [
+        "recognized_private_key_alias_rejects_at_nested_path",
+        "public_key_key_id_posture_and_advisory_seed_fields_accept"
+      ]
+    },
+    {
+      "name": "authentication_order",
+      "points": [
+        "unauthenticated_request_returns_only_401",
+        "authenticated_request_with_raw_key_returns_400_before_dispatch"
+      ]
+    },
+    {
+      "name": "json_decode_state",
+      "points": [
+        "valid_bounded_json_is_classified",
+        "malformed_json_is_deferred_to_existing_route_error_abi"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "scan a decoded mapping after duplicate keys have overwritten the first raw-key occurrence",
+      "killed_by": "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_observes_duplicate_secret_field_before_overwrite"
+    },
+    {
+      "description": "scan only top-level fields or only the exact signer_privkey spelling",
+      "killed_by": "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_rejects_raw_key_aliases_at_any_depth"
+    },
+    {
+      "description": "remove the depth or node resource ceiling",
+      "killed_by": "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_node_budget_bva"
+    },
+    {
+      "description": "perform authority-material classification before mounted-route authentication",
+      "killed_by": "tests/integration/test_http_authority_ingress_v1.py::test_authentication_precedes_raw_authority_material_classification"
+    },
+    {
+      "description": "leave the server-side DEX price-attestation signing route registered or advertised",
+      "killed_by": "tests/integration/test_api_server_dex_dispatch.py::test_server_side_price_attestation_builder_is_unregistered"
+    },
+    {
+      "description": "return or reflect the raw authority value or attacker-controlled field name in the mounted rejection",
+      "killed_by": "tests/integration/test_http_authority_ingress_v1.py::test_mounted_post_choke_point_rejects_nested_raw_key_before_dispatch"
+    }
+  ],
+  "nonclaims": [
+    "This packet covers the named API-server mounts only. Direct Python callers, CLI tools, alternate HTTP servers, UI storage, environment variables, encrypted keystores, and future mounts require separate inventory and evidence.",
+    "Recognition is closed over the field names and normalized fragments encoded in the classifier. It is not semantic secret detection for arbitrary attacker-chosen field names or values.",
+    "Internal testnet signing helpers remain present for local direct-call fixtures and are not granted publication, settlement, or production authority by this change.",
+    "The scanner does not prove cryptographic key non-extractability, signer correctness, transaction authorization, economic conservation, or safety of all value movement.",
+    "The DEX and M6 remain research-only, production_authority remains NONE, and this patch does not mount ZRPF or promote a release."
+  ]
+}

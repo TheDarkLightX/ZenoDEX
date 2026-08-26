@@ -126,7 +126,7 @@ def test_api_server_request_grammar_fuzz_cli_emits_expected_schema() -> None:
 def test_api_server_request_minimizer_collapses_unauthorized_dead_fields() -> None:
     witness = minimize_case("dex_request_envelope", "DexReq->UnauthorizedWithDeadFields")
     assert witness.outcome_label == "handled:401:unauthorized"
-    assert witness.path_id == "5e8fc70d924d6b69"
+    assert witness.path_id == "fd03b173b6c4b0ca"
     assert witness.original_size > witness.minimized_size
     assert witness.payload == {"token": "sekret"}
 
@@ -151,6 +151,6 @@ def test_api_server_request_minimizer_cli_emits_expected_schema() -> None:
     assert witness["target"] == "dex_request_envelope"
     assert witness["derivation"] == "DexReq->UnauthorizedWithDeadFields"
     assert witness["outcome_label"] == "handled:401:unauthorized"
-    assert witness["path_id"] == "5e8fc70d924d6b69"
+    assert witness["path_id"] == "fd03b173b6c4b0ca"
     assert witness["payload"] == {"token": "sekret"}
     assert witness["original_size"] > witness["minimized_size"]

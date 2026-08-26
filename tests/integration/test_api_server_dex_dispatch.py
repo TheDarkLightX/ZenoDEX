@@ -673,7 +673,7 @@ def test_proof_mining_payout_template_builds_combined_dex_proof_and_claim(monkey
         _stop_test_server(httpd, t)
 
 
-def test_build_settlement_spot_price_attestation_rejects_bool_signer_privkey() -> None:
+def test_mounted_dex_rejects_raw_signer_privkey_before_dispatch() -> None:
     httpd, t, host, port = _start_test_server()
     try:
         status, body = _post_json(
@@ -681,9 +681,23 @@ def test_build_settlement_spot_price_attestation_rejects_bool_signer_privkey() -
             {"packet": {}, "signer_privkey": True},
         )
         assert status == 400
-        assert body == {"ok": False, "error": "bad_signer_privkey"}
+        assert body == {
+            "ok": False,
+            "error": "raw_authority_material_forbidden",
+        }
     finally:
         _stop_test_server(httpd, t)
+
+
+def test_server_side_price_attestation_builder_is_unregistered() -> None:
+    from src.integration.api_server_dex_dispatch import (
+        generate_openapi_document,
+        lookup,
+    )
+
+    path = "/api/dex/build_settlement_spot_price_attestation"
+    assert lookup(path) is None
+    assert path not in generate_openapi_document()["paths"]
 
 
 # ---------------------------------------------------------------------------

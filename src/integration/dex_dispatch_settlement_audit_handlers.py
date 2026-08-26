@@ -263,7 +263,6 @@ def register_settlement_audit_handlers() -> None:
     )
     _register("/api/dex/verify_settlement_feature_extension_packet", _handle_verify_settlement_feature_extension_packet)
     _register("/api/dex/verify_settlement_spot_price_attestation", _handle_verify_settlement_spot_price_attestation)
-    _register("/api/dex/build_settlement_spot_price_attestation", _handle_build_settlement_spot_price_attestation)
     _register("/api/dex/build_exact_out_route_certificate", _handle_build_exact_out_route_certificate)
     _register("/api/dex/audit_exact_out_two_pool_canonicality", _handle_audit_exact_out_two_pool_canonicality)
     _register(
