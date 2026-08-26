@@ -291,9 +291,12 @@ is set:
 - runtime config key `perpsPreviewWrites`
 - env `VITE_PERPS_PREVIEW_WRITES=true`
 
-`/api/zusd/wallet/*` is different. It is a Tau-node-backed transport bridge for
-the zUSD stream-9 wallet lane. Keep it behind local or explicitly controlled
-auth, and only enable local signing in test environments.
+`/api/zusd/wallet/*` is a Tau-node-backed transport bridge for the zUSD
+stream-9 wallet lane. It is quarantined from normal API startup and the
+checked-in local-testnet launcher until Tau signatures bind network identity
+and a durable submission-reconciliation protocol exists. Exercise it only
+through direct isolated shadow tests; local signing does not make the route
+mountable.
 
 `/api/zusd/monetary/*` and `/api/perps/wallet/*` are also Tau-node-backed local
 or testnet transport bridges. Keep them behind local or explicitly controlled

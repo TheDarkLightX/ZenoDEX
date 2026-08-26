@@ -1,0 +1,126 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zzzz-zusd-tau-shadow-admission-correction-3",
+  "created_date": "2026-08-26",
+  "claim_scope": "This third append-only correction closes the remaining shadow-admission contradictions found by exact rereview. The zUSD Tau status route maps backend hello success to a stable public value, the local-testnet manifest/readiness/feature/browser surfaces all omit the quarantined wallet lane, both operator guidance sections describe the quarantine, and the mounted hostile-response replay confirms backend text is absent from the HTTP response.",
+  "change_kind": "evidence_correction",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZUSD-TAU-BACKEND-HELLO-TEXT-IS-NOT-REFLECTED",
+    "ZUSD-TAU-QUARANTINE-COVERS-MANIFEST-READINESS-AND-SMOKE",
+    "ZUSD-TAU-OPERATOR-GUIDANCE-MATCHES-CURRENT-MOUNT-STATE",
+    "ZUSD-TAU-PRODUCTION-AUTHORITY-REMAINS-NONE"
+  ],
+  "failure_modes": [
+    "a malicious Tau hello success response is reflected verbatim through the mounted HTTP status route",
+    "readiness probes a route omitted from the enabled-lane manifest and marks the stack unhealthy",
+    "feature or browser smoke exercises a route that normal API startup refuses",
+    "a later operator-security section tells users to enable local signing on a quarantined route",
+    "a correction packet claims backend-text and deployment closure while these counterexamples remain"
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/zusd_tau_wallet_api.py",
+      "sha256": "45b6dbfed835a8e5548a573bed0fceab2d6d77d88debb79394f80f876afb8979"
+    },
+    {
+      "path": "src/integration/api_server.py",
+      "sha256": "5bc9b2217107fec920c4a87c18ab37b2abbf7e5c02aa1001556962e141a0f519"
+    },
+    {
+      "path": "docker-compose.local-testnet.yml",
+      "sha256": "69fce17d892159c5d1866eab2899d42fc49b6e7fbc80e1eb928e14701d30598d"
+    },
+    {
+      "path": "tools/zenoctl_testnet_local/lifecycle.py",
+      "sha256": "308f647bc33ae38409bf7a628be8f6ed57ef434d7aed9d2c1a87773d71eb2ee2"
+    },
+    {
+      "path": "tools/dex-ui/README.md",
+      "sha256": "17841c1bcf3ab863085245a5ad570ed82ac9ed4c44bb704d9bf0982897ad945f"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_zusd_tau_wallet_api.py",
+      "sha256": "ba0037f1e5a33f955c4e4293a89b3bbe5f29dffc97434e68602ae9aaa89e3ff6",
+      "node_ids": [
+        "tests/integration/test_zusd_tau_wallet_api.py::test_status_reports_tau_node_bridge",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_mounted_status_redacts_tau_hello_response",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_preserves_acceptance_when_post_submit_json_exceeds_depth_bound",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_redacts_success_and_createblock_backend_text"
+      ]
+    },
+    {
+      "path": "tests/integration/test_api_server_main.py",
+      "sha256": "15bb401f32fca3a9f8899be4c4362a28b0b736e79cb1b63889780fda023ea6b3",
+      "node_ids": [
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_zusd_tau_wallet_mount_until_network_binding_and_reconciliation_exist",
+        "tests/integration/test_api_server_main.py::test_local_testnet_profile_quarantines_zusd_tau_wallet_lane"
+      ]
+    },
+    {
+      "path": "tests/integration/test_zenoctl_testnet_local.py",
+      "sha256": "c34560cc59673e9e138f6764442921ce16160b3e828bc148f697e4993f4f1f65",
+      "node_ids": [
+        "tests/integration/test_zenoctl_testnet_local.py::test_strict_browser_smoke_cases_include_local_fixture_zk_proof",
+        "tests/integration/test_zenoctl_testnet_local.py::test_lane_readiness_keeps_stack_ready_when_only_tokenomics_gate_blocks",
+        "tests/integration/test_zenoctl_testnet_local.py::test_feature_smoke_omits_quarantined_zusd_tau_wallet_lane"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange normal and hostile Tau status responses, exact local-testnet declarations, and safe neighboring lane responses; act through the mounted HTTP route, normal startup, readiness, feature smoke, and browser case generation; then assert stable outputs, absent backend text, exact send state, and absence of quarantined URLs and check names."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Normal startup refusal remains before server construction. Hostile status responses perform no transaction send, while post-send tests separately preserve one already accepted submission without inventing a second send."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "Tau_hello_public_projection",
+      "points": [
+        "ordinary_success_maps_to_reachable",
+        "hostile_20000_character_success_maps_to_reachable",
+        "backend_text_is_absent_from_mounted_HTTP_JSON"
+      ]
+    },
+    {
+      "name": "local_testnet_zUSD_Tau_lane",
+      "points": [
+        "enabled_normal_startup_refuses",
+        "Compose_manifest_readiness_feature_and_browser_surfaces_omit_lane",
+        "zUSD_monetary_neighbor_remains_in_readiness_and_smoke"
+      ]
+    },
+    {
+      "name": "post_send_outcome",
+      "points": [
+        "explicit_acceptance_and_valid_observation",
+        "explicit_acceptance_and_depth_overflow_observation",
+        "pre_acceptance_backend_error"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "The preceding correction packet is retained unchanged as historical evidence and its overbroad backend-text and deployment claims are superseded here.",
+    "The zUSD Tau wallet remains available only to direct isolated shadow tests. Manual same-process server construction is test capability, not deployment authority.",
+    "Tau signatures still omit network ID and genesis hash. No durable send journal, idempotent retry, crash recovery, finality proof, or reconciliation protocol exists.",
+    "Perps and zUSD monetary status routes have separate backend-response projection obligations and are not covered by this packet.",
+    "Process crashes, BaseException, ambiguous send timeouts, and remote finality remain outside the post-acceptance observation guarantee.",
+    "No executable semantic-mutation campaign was run, so mutation evidence is intentionally absent.",
+    "No monetary-policy, global-conservation, whole-economy recursion, production-readiness, or all-value-movement safety claim is made.",
+    "Production authority remains NONE."
+  ]
+}

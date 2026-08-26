@@ -78,8 +78,49 @@ def test_status_reports_tau_node_bridge(monkeypatch) -> None:
     assert status["chain_id"] == "tau-test-wallet"
     assert status["app_bridge_available"] is True
     assert status["holder_count"] == 2
+    assert status["hello"] == "reachable"
     assert status["external_signed_payload_supported"] is True
     assert status["preferred_signing_mode"] == "external_signed_payload"
+
+
+def test_mounted_status_redacts_tau_hello_response(monkeypatch) -> None:
+    from src.integration import api_server
+
+    class _SensitiveHelloClient(_FakeClient):
+        def rpc(self, cmd: str) -> str:
+            if cmd == "hello version=1":
+                return "HELLO: backend-secret:" + ("x" * 20_000)
+            return super().rpc(cmd)
+
+    monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "tau-test-wallet")
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", _SensitiveHelloClient)
+    httpd = api_server.ThreadingHTTPServer(("127.0.0.1", 0), api_server._Handler)
+    httpd.cors_origins = set()
+    httpd.rate_limiter = api_server.TokenBucketRateLimiter(rpm=0)
+    httpd.demo_api_token = ""
+    httpd.external_auth_enforced = True
+    httpd.zusd_tau_wallet_api_enabled = True
+    thread = threading.Thread(
+        target=httpd.serve_forever,
+        kwargs={"poll_interval": 0.01},
+        daemon=True,
+    )
+    thread.start()
+    host, port = httpd.server_address[:2]
+    try:
+        connection = HTTPConnection(str(host), int(port), timeout=2.0)
+        connection.request("GET", "/api/zusd/wallet/status")
+
+        response = connection.getresponse()
+        payload = json.loads(response.read().decode("utf-8"))
+
+        assert response.status == 200
+        assert payload["status"]["hello"] == "reachable"
+        assert "backend-secret" not in json.dumps(payload)
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2.0)
 
 
 def test_prepare_transfer_uses_tau_app_state_balances_and_nonce(monkeypatch) -> None:
