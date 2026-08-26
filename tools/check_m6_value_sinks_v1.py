@@ -17,11 +17,13 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any, Iterable, Mapping, cast
 
-if __package__:
+try:
     from tools.check_m6_writer_inventory import load_writer_inventory_manifest
-else:
+except ModuleNotFoundError as exc:
+    if exc.name != "tools":
+        raise
     from check_m6_writer_inventory import load_writer_inventory_manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -430,7 +432,7 @@ def main(argv: Iterable[str] | None = None) -> int:
     else:
         print(
             "M6 Python value sink inventory ok; "
-            f"{len(report['release_gaps'])} classified sinks remain release-blocking"
+            f"{len(cast(list[object], report['release_gaps']))} classified sinks remain release-blocking"
         )
     return 0 if gate_ok else 1
 

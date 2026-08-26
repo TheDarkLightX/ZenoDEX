@@ -8,12 +8,14 @@ import json
 from pathlib import Path
 from typing import Any
 
-if __package__:
+try:
     from src.core.m6_asset_precision_policy_v1 import (
         M6_ASSET_PRECISION_POLICY_ROOT_V1,
         m6_asset_precision_policy_canonical_v1,
     )
-else:
+except ModuleNotFoundError as exc:
+    if exc.name != "src":
+        raise
     import sys
 
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))

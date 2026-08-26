@@ -1,0 +1,2749 @@
+{
+  "authority": {
+    "claim_authority": "NONE",
+    "production_authority": "NONE",
+    "production_ready": false,
+    "release_ready": false
+  },
+  "external_gates": [
+    {
+      "executed_by_checker": false,
+      "gate_id": "checkpoint_admission",
+      "location": "coordination packet (untracked, outside the repository): checkpoint_admission.py --parent <subject.base_commit> --candidate <candidate> --source-branch <subject.branch> --packet <checkpoint packet>",
+      "purpose": "Deterministic object and claim-ceiling admission for every candidate SHA before semantic review (STATE.md decision D4); the V8 contract reports review_packet_admitted and object_preflight_passed against a coordinator-owned frozen detached subject. Review-packet admission establishes object and declaration hygiene only; it does not establish semantic correctness and grants no settlement, migration, release, or production authority."
+    },
+    {
+      "executed_by_checker": false,
+      "gate_id": "steering_packet_rubric",
+      "location": "coordination packet (untracked, outside the repository): RUBRIC.sha256",
+      "purpose": "Attested packet hashes verified before each checkpoint report."
+    }
+  ],
+  "finding_registry": [
+    {
+      "finding_id": "F-01",
+      "severity": "High",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "Consensus-path policy and authority identities read from os.environ inside the Tau transition"
+    },
+    {
+      "finding_id": "F-02",
+      "severity": "High",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "HTTP APIs accept raw private keys in request bodies and sign server-side"
+    },
+    {
+      "finding_id": "F-03",
+      "severity": "High",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "Mediation checkers scan src only while the deployed node holds unregistered writers, sinks, and the forbidden literal"
+    },
+    {
+      "finding_id": "F-04",
+      "severity": "Medium-High",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "Node buy-and-burn is a treasury-balance shortcut with post-hoc rewrite of written block artifacts"
+    },
+    {
+      "finding_id": "F-05",
+      "severity": "Medium",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "Two faucet writers with divergent policy; the node faucet can mint canonical zUSD"
+    },
+    {
+      "finding_id": "F-06",
+      "severity": "Medium",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "Perps slice Python/Rust rejection-class divergence, missing Python boundary twin, lane journal lacks child binding"
+    },
+    {
+      "finding_id": "F-07",
+      "severity": "Medium",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "Proof verifiers read RISC0_DEV_MODE from the process environment"
+    },
+    {
+      "finding_id": "F-08",
+      "severity": "Medium",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "Receipt canonical form is third-party serialization decoded before journal bounds"
+    },
+    {
+      "finding_id": "F-09",
+      "severity": "Medium",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "Spot proof crate quarantined on risc0 1.2; live blocks are unproven, unsigned, and DA-less"
+    },
+    {
+      "finding_id": "F-10",
+      "severity": "Medium",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "zUSD shutdown writer exists while the manifest requires a proved no-writer certificate"
+    },
+    {
+      "finding_id": "F-11",
+      "severity": "Medium",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "Proof-reward reserve is a key-controlled account re-based to the observed chain balance"
+    },
+    {
+      "finding_id": "F-12",
+      "severity": "Medium",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "Catch-all exception handling produces deterministic-looking rejects and shallow immutability"
+    },
+    {
+      "finding_id": "F-13",
+      "severity": "Low",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "Wall-clock fallbacks in node time_ms and API previews"
+    },
+    {
+      "finding_id": "F-14",
+      "severity": "Low",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "AutoGovNext records economic parameters that nothing consumes"
+    },
+    {
+      "finding_id": "F-15",
+      "severity": "Low",
+      "source": "Fable FCIS audit 2026-08-25 at ea8e3c16",
+      "status": "OPEN",
+      "title": "Tau specs encode a supply-floor buyback policy that drifts from the hyperdeflation anchor"
+    },
+    {
+      "finding_id": "H1",
+      "severity": "High",
+      "source": "HOTSPOT_TARGETS.md at 21fa295a4",
+      "status": "OPEN",
+      "title": "Raw signing material at network ingress"
+    },
+    {
+      "finding_id": "H2",
+      "severity": "High",
+      "source": "HOTSPOT_TARGETS.md at 21fa295a4",
+      "status": "OPEN",
+      "title": "Environment-selected economic or authority policy"
+    },
+    {
+      "finding_id": "H3",
+      "severity": "High",
+      "source": "HOTSPOT_TARGETS.md at 21fa295a4",
+      "status": "OPEN",
+      "title": "Mounted node permits locally synthesized settlement"
+    },
+    {
+      "finding_id": "H4",
+      "severity": "High",
+      "source": "HOTSPOT_TARGETS.md at 21fa295a4",
+      "status": "OPEN",
+      "title": "Multiple durable writer families"
+    },
+    {
+      "finding_id": "H5",
+      "severity": "Medium",
+      "source": "HOTSPOT_TARGETS.md at 21fa295a4",
+      "status": "OPEN",
+      "title": "Stale closure-ledger evidence on a continuous 49-commit lineage"
+    },
+    {
+      "finding_id": "I1",
+      "severity": "High",
+      "source": "STATE.md open issue",
+      "status": "OPEN",
+      "title": "Deployed writer/sink mediation incomplete; environment- or caller-selected authority remains"
+    },
+    {
+      "finding_id": "I2",
+      "severity": "High",
+      "source": "STATE.md open issue",
+      "status": "OPEN",
+      "title": "Enabled M6 lane lifecycles, cross-lane effects, terminal paths, and cross-implementation parity incomplete"
+    },
+    {
+      "finding_id": "I3",
+      "severity": "High",
+      "source": "STATE.md open issue",
+      "status": "OPEN",
+      "title": "No measured release-selected verifier, sole atomic publisher, proved migration/cutover, or legacy retirement"
+    },
+    {
+      "finding_id": "B-01",
+      "severity": "Medium",
+      "source": "Fable re-audit at 21fa295a4 (this plan)",
+      "status": "OPEN",
+      "title": "M6 research-boundary gate fails at the subject: ABI policy-binding modules carry the research m6_ prefix and are package-imported"
+    },
+    {
+      "finding_id": "B-02",
+      "severity": "Low",
+      "source": "Fable re-audit at 21fa295a4 (this plan)",
+      "status": "OPEN",
+      "title": "V1 object-nullifier quarantine byte pin is stale after perps route-binding test changes"
+    },
+    {
+      "finding_id": "B-03",
+      "severity": "Low",
+      "source": "Fable re-audit at 21fa295a4 (this plan)",
+      "status": "OPEN",
+      "title": "Canonical JSON decoders reject deep nesting only through the interpreter recursion limit"
+    },
+    {
+      "finding_id": "B-04",
+      "severity": "Info",
+      "source": "Fable re-audit at 21fa295a4 (this plan)",
+      "status": "HISTORICAL",
+      "title": "M6 ATDD and Luna completeness contracts remain pinned to historical base 12bde5263"
+    },
+    {
+      "finding_id": "B-05",
+      "severity": "Medium",
+      "source": "Fable re-audit at 21fa295a4 (this plan; explicit gate environment)",
+      "status": "OPEN",
+      "title": "Live gates depend on operator-local ambient state: the production-boundary gate resolves py_ecc only from the user site, and the tracked root sitecustomize.py inserts the ignored external/ESSO directory into child sys.path whenever it exists"
+    }
+  ],
+  "heavy_gates_requiring_runpod": [
+    {
+      "command": "cargo test --locked --offline --manifest-path zk/global_settlement_abi_v1/Cargo.toml && cargo clippy --locked --offline --manifest-path zk/global_settlement_abi_v1/Cargo.toml --all-targets -- -D warnings",
+      "gate_id": "HG-01",
+      "last_recorded_evidence": "docs/research/GLOBAL_SETTLEMENT_ABI_V1_REFERENCE_20260805.md evidence commands (historical); F-06 notes a Rust boundary test without a Python twin.",
+      "reason": "Pure Rust crate; affordable locally only with an explicit scratch CARGO_TARGET_DIR while root free space stays near 9 GiB; not run in this checkpoint.",
+      "workspace": "zk/global_settlement_abi_v1"
+    },
+    {
+      "command": "cargo test --locked -p zenodex-asset-transfer-module-risc0-host --test real_proof real_asset_transfer_transition_proves_the_exact_module_journal -- --ignored --nocapture",
+      "gate_id": "HG-02",
+      "last_recorded_evidence": "Historical image root 0x226651d0ba0e014c84331a521d78de508a5ede995990a7745d7ae61d93c22e24, 569.75 s local proof (reference doc); not reproduced at this subject.",
+      "reason": "RISC0 3.0.6 guest build and Succinct proving; multi-gigabyte target and long proving time.",
+      "workspace": "zk/asset_transfer_module_risc0"
+    },
+    {
+      "command": "cargo test --locked -p zenodex-asset-lane-coordinator-risc0-host --test real_composition real_module_receipt_composes_into_the_exact_lane_journal -- --ignored --nocapture",
+      "gate_id": "HG-03",
+      "last_recorded_evidence": "Historical coordinator image root 0xdba71555eb4790fd0146032e88f7c4720b343f08a1de785982b3c4faf14cfa61, 1443.67 s recursive run; release-aware replay interrupted (exit 130).",
+      "reason": "Recursive child verification proof; multi-gigabyte target and long proving time.",
+      "workspace": "zk/asset_lane_coordinator_risc0"
+    },
+    {
+      "command": "cargo test --locked -p zenodex-global-economic-epoch-risc0-host --test real_composition -- --ignored --nocapture && cargo test --locked -p zenodex-global-economic-epoch-risc0-host --test real_aggregation_nine -- --ignored --nocapture",
+      "gate_id": "HG-04",
+      "last_recorded_evidence": "Historical three-receipt direct/aggregation branch and 12-receipt nine-command tree (reference doc); no 64-command replay exists.",
+      "reason": "Bounded epoch recursion with real Succinct children; heavy.",
+      "workspace": "zk/global_economic_epoch_risc0"
+    },
+    {
+      "command": "cargo test --locked --workspace -- --ignored --nocapture",
+      "gate_id": "HG-05",
+      "last_recorded_evidence": "None; source-only slice with static max-review passes.",
+      "reason": "Initialization guest never built; no ELF, image ID, cycle measurement, proof, or receipt replay exists (closure ledger).",
+      "workspace": "zk/economic_initial_state_risc0"
+    },
+    {
+      "command": "RISC0_SKIP_BUILD=1 cargo test --locked --workspace && cargo test --locked --workspace -- --ignored --nocapture",
+      "gate_id": "HG-06",
+      "last_recorded_evidence": "README records a RunPod Succinct replay dated 2026-08-25; not reproduced here (prior audit nonclaim).",
+      "reason": "Perps margin module guest build and Succinct proof.",
+      "workspace": "zk/perps_margin_module_risc0"
+    },
+    {
+      "command": "RISC0_SKIP_BUILD=1 cargo test --locked --workspace && cargo test --locked --workspace -- --ignored --nocapture",
+      "gate_id": "HG-07",
+      "last_recorded_evidence": "README records a RunPod Succinct replay and a CUDA benchmark (commit ea8e3c164); not reproduced here.",
+      "reason": "Single-child recursive perps lane proof; includes the ignored pin-equality test (F-06).",
+      "workspace": "zk/perps_margin_lane_coordinator_risc0"
+    },
+    {
+      "command": "RISC0_SKIP_BUILD=1 cargo test --locked --workspace && cargo test --locked --workspace -- --ignored --nocapture",
+      "gate_id": "HG-08",
+      "last_recorded_evidence": "Unknown at this subject; source only.",
+      "reason": "Shadow route recursion seam (commit 21fa295a4); unbuilt on this host.",
+      "workspace": "zk/perps_margin_route_composer_risc0"
+    },
+    {
+      "command": "RISC0_SKIP_BUILD=1 cargo test --locked --workspace && cargo test --locked --workspace -- --ignored --nocapture",
+      "gate_id": "HG-09",
+      "last_recorded_evidence": "Unknown at this subject; prior audit did not read this workspace.",
+      "reason": "ZDEX allocation guest; unbuilt on this host.",
+      "workspace": "zk/zdex_fee_allocation_risc0"
+    },
+    {
+      "command": "RISC0_SKIP_BUILD=1 cargo test --locked --workspace && cargo test --locked --workspace -- --ignored --nocapture",
+      "gate_id": "HG-10",
+      "last_recorded_evidence": "Unknown at this subject; prior audit did not read this workspace.",
+      "reason": "ZDEX burn guest; unbuilt on this host.",
+      "workspace": "zk/zdex_hyperdeflation_burn_risc0"
+    },
+    {
+      "command": "RISC0_SKIP_BUILD=1 cargo test --locked --workspace && cargo test --locked --workspace -- --ignored --nocapture",
+      "gate_id": "HG-11",
+      "last_recorded_evidence": "Unknown at this subject; prior audit did not read this workspace.",
+      "reason": "ZDEX lane coordinator guest; unbuilt on this host.",
+      "workspace": "zk/zdex_tokenomics_lane_coordinator_risc0"
+    },
+    {
+      "command": "cd zk/state_proof_risc0 && cargo test --all && cargo clippy --all -- -D warnings",
+      "gate_id": "HG-12",
+      "last_recorded_evidence": "Quarantine README; authority NONE.",
+      "reason": "Quarantined risc0 1.2.6 crate (GHSA-jqq4-c7wq-36h7); cannot support production proof claims (F-09).",
+      "workspace": "zk/state_proof_risc0"
+    },
+    {
+      "command": "PYTHONPATH=external/ESSO python3 -m ESSO verify-multi <model.yaml> --solvers z3,cvc5",
+      "gate_id": "HG-13",
+      "last_recorded_evidence": "permissionless_assurance status: lane readiness 1/7.",
+      "reason": "external/ESSO is absent on this host; kernel, spot, derivatives, and perps evidence lanes report MISSING.",
+      "workspace": "external/ESSO"
+    },
+    {
+      "command": "python3 tools/check_tau_supported_runtime_subset.py && pytest -q tests/tau/test_tau_spec_assurance.py",
+      "gate_id": "HG-14",
+      "last_recorded_evidence": "Closure ledger tau_upstream: requalification_required=true.",
+      "reason": "tau-binary is absent on this host; Tau upstream requires requalification (closure ledger tau_upstream).",
+      "workspace": "tau"
+    },
+    {
+      "command": "cd lean-mathlib && lake build",
+      "gate_id": "HG-15",
+      "last_recorded_evidence": "Not run at this subject.",
+      "reason": "Mathlib-backed Lean build is multi-gigabyte and thermally heavy on this workstation.",
+      "workspace": "lean-mathlib"
+    },
+    {
+      "command": "bash tools/run_release_gate.sh",
+      "gate_id": "HG-16",
+      "last_recorded_evidence": "permissionless_assurance status: release lane MISSING (external/ESSO, tau-binary).",
+      "reason": "Full release gate requires Tau, proof, evidence, and audit lanes that are absent locally.",
+      "workspace": "release"
+    }
+  ],
+  "live_gates": [
+    {
+      "checker_path": "tools/check_m6_asset_precision_policy_v1.py",
+      "checker_sha256": "9698aa7e81c2362280adf0c9677ef005de75f79a06d5f2885887202936df43d3",
+      "command": [
+        "python3",
+        "tools/check_m6_asset_precision_policy_v1.py"
+      ],
+      "exit_code": 0,
+      "gate_id": "m6_asset_precision_policy",
+      "observed": {
+        "atoms_per_display_unit": 100000000,
+        "decimal_places": 8,
+        "ok": true,
+        "policy_root": "0xacfbd1be88e823fcdd1b094b8d2f0c8ee1bf19c826004e89752f27fd22aa49dd"
+      },
+      "observed_projection": [
+        "ok",
+        "decimal_places",
+        "atoms_per_display_unit",
+        "policy_root"
+      ],
+      "output_format": "json",
+      "purpose": "Eight-decimal atom policy root binding.",
+      "timeout_seconds": 300
+    },
+    {
+      "checker_path": "tools/check_m6_global_economic_core_atdd_v1.py",
+      "checker_sha256": "165c322b0e994dc3bbabdc1434d12a7c596f6692e870e7a2d17c4abe1b08f9c6",
+      "command": [
+        "python3",
+        "tools/check_m6_global_economic_core_atdd_v1.py"
+      ],
+      "exit_code": 1,
+      "gate_id": "m6_atdd_contract",
+      "observed": {
+        "contract_status": "RESEARCH_ONLY_DRAFT",
+        "errors#len": 26
+      },
+      "observed_projection": [
+        "contract_status",
+        "errors#len"
+      ],
+      "output_format": "json",
+      "purpose": "Historical 18-workflow ATDD contract pins (expected stale; B-04).",
+      "timeout_seconds": 300
+    },
+    {
+      "checker_path": "tools/check_m6_capability_manifest_v1.py",
+      "checker_sha256": "16afc3dd57e68b63780c16841cc16345a064b3cc988ab6f9405078fc3b7cf1a5",
+      "command": [
+        "python3",
+        "tools/check_m6_capability_manifest_v1.py"
+      ],
+      "exit_code": 0,
+      "gate_id": "m6_capability_manifest",
+      "observed": {
+        "lane_count": 12,
+        "manifest_complete": false,
+        "manifest_root": "0x21efc162df198e40a0aa942fcb69b7a5f5cc0f93907b11a3c6b25359e4a464bb",
+        "ok": true,
+        "open_capability_count": 103,
+        "production_authority": "NONE",
+        "release_eligible": false
+      },
+      "observed_projection": [
+        "ok",
+        "lane_count",
+        "open_capability_count",
+        "manifest_complete",
+        "release_eligible",
+        "production_authority",
+        "manifest_root"
+      ],
+      "output_format": "json",
+      "purpose": "Closed capability universe and its content-derived root.",
+      "timeout_seconds": 300
+    },
+    {
+      "checker_path": "tools/check_m6_global_economic_core_luna_review_v1.py",
+      "checker_sha256": "25ae2a0591b958aae6dc69a6437327630fe9747e8c4952dda21a8a0ac0c23161",
+      "command": [
+        "python3",
+        "tools/check_m6_global_economic_core_luna_review_v1.py"
+      ],
+      "exit_code": 1,
+      "gate_id": "m6_luna_completeness_review",
+      "observed": {
+        "errors#len": 5
+      },
+      "observed_projection": [
+        "errors#len"
+      ],
+      "output_format": "json",
+      "purpose": "Historical completeness-review pins (expected stale; B-04).",
+      "timeout_seconds": 300
+    },
+    {
+      "checker_path": "tools/check_m6_research_boundary.py",
+      "checker_sha256": "5e8af55df78038afac517b5fc00545e59ca08d71495af8ecc83e4165d42dc0e1",
+      "command": [
+        "python3",
+        "tools/check_m6_research_boundary.py",
+        "--json"
+      ],
+      "exit_code": 1,
+      "gate_id": "m6_research_boundary",
+      "observed": {
+        "checked_file_count": 636,
+        "findings[].path": [
+          "src/core/economic_initial_state_v1.py",
+          "src/core/economic_initial_state_v1.py",
+          "src/core/global_settlement_abi_v1.py",
+          "src/core/global_settlement_abi_v1.py",
+          "src/core/global_settlement_abi_v1.py",
+          "src/core/lane_module_receipt_verification_v1.py",
+          "src/core/perps_market_policy_v1.py"
+        ],
+        "findings[].rule_id": [
+          "research_module_import",
+          "research_module_import",
+          "research_module_import",
+          "research_module_import",
+          "research_module_import",
+          "research_module_import",
+          "research_module_import"
+        ],
+        "m6_production_mounted": false,
+        "ok": false
+      },
+      "observed_projection": [
+        "ok",
+        "checked_file_count",
+        "findings[].path",
+        "findings[].rule_id",
+        "m6_production_mounted"
+      ],
+      "output_format": "json",
+      "purpose": "No static production import of research M6 modules (B-01 at the subject).",
+      "timeout_seconds": 300
+    },
+    {
+      "checker_path": "tools/check_m6_risc0_semantic_surface_v1.py",
+      "checker_sha256": "656968f9cd8e5ce766aa8ba62cf1903a06c379eb2bc773616b6f4e2ba492af9e",
+      "command": [
+        "python3",
+        "tools/check_m6_risc0_semantic_surface_v1.py"
+      ],
+      "exit_code": 1,
+      "gate_id": "m6_risc0_semantic_surface",
+      "observed": {
+        "activation_eligible": false,
+        "canonical_state_codec_match": false,
+        "errors#len": 8,
+        "ok": false,
+        "risc0_guest_transition_reachable": false,
+        "status": "BLOCKED_SEMANTIC_SURFACE"
+      },
+      "observed_projection": [
+        "status",
+        "ok",
+        "activation_eligible",
+        "canonical_state_codec_match",
+        "errors#len",
+        "risc0_guest_transition_reachable"
+      ],
+      "output_format": "json",
+      "purpose": "Legacy M6 FCIS Python/Rust/guest surface parity (expected BLOCKED).",
+      "timeout_seconds": 300
+    },
+    {
+      "checker_path": "tools/check_m6_value_sinks_v1.py",
+      "checker_sha256": "e98a4ff880ac4defbc7451bcd44ce959b509f5bc9192f332932382b4dba2ab69",
+      "command": [
+        "python3",
+        "tools/check_m6_value_sinks_v1.py",
+        "--json"
+      ],
+      "exit_code": 0,
+      "gate_id": "m6_value_sinks",
+      "observed": {
+        "classified_identity_count": 20,
+        "observed_occurrence_count": 29,
+        "ok": true,
+        "release_gaps#len": 19,
+        "release_ready": false
+      },
+      "observed_projection": [
+        "ok",
+        "classified_identity_count",
+        "observed_occurrence_count",
+        "release_gaps#len",
+        "release_ready"
+      ],
+      "output_format": "json",
+      "purpose": "Operation-derived Python sink classification (src scope).",
+      "timeout_seconds": 300
+    },
+    {
+      "checker_path": "tools/check_m6_writer_inventory.py",
+      "checker_sha256": "f44c42a9caaa42f9dae53e8852dd211773d3ed2d14f9423983434d35f151fd33",
+      "command": [
+        "python3",
+        "tools/check_m6_writer_inventory.py",
+        "--json"
+      ],
+      "exit_code": 0,
+      "gate_id": "m6_writer_inventory",
+      "observed": {
+        "coverage_row_count": 27,
+        "findings#len": 0,
+        "ok": true,
+        "open_coverage_count": 27,
+        "release_gate_status": "BLOCKED_OPEN_COVERAGE",
+        "release_ready": false,
+        "unmounted_entrypoint_count": 18
+      },
+      "observed_projection": [
+        "ok",
+        "coverage_row_count",
+        "open_coverage_count",
+        "unmounted_entrypoint_count",
+        "release_gate_status",
+        "release_ready",
+        "findings#len"
+      ],
+      "output_format": "json",
+      "purpose": "Writer entrypoint and command coverage rows (src scope).",
+      "timeout_seconds": 300
+    },
+    {
+      "checker_path": "tools/permissionless_assurance.py",
+      "checker_sha256": "6fbe7eb5a2f0b9d17603b03c302321620f8606aaed4ed40064a85a58635f7231",
+      "command": [
+        "python3",
+        "tools/permissionless_assurance.py",
+        "status"
+      ],
+      "exit_code": 0,
+      "gate_id": "permissionless_assurance_status",
+      "observed": {},
+      "observed_projection": [],
+      "output_format": "text",
+      "purpose": "Lane readiness status (1/7 evidence-ready at the subject; external/ESSO and tau-binary absent).",
+      "timeout_seconds": 600
+    },
+    {
+      "checker_path": "tools/check_production_boundary.py",
+      "checker_sha256": "5b01a6afc3f6f08137df3caed7fe8c72582f84c5d40b5a9e1b0f157047e0eeda",
+      "command": [
+        "python3",
+        "tools/check_production_boundary.py",
+        "--json"
+      ],
+      "exit_code": 1,
+      "gate_id": "production_boundary",
+      "observed": {
+        "checks[].check_id": [
+          "production_boundary_audit_execution_complete"
+        ],
+        "checks[].ok": [
+          false
+        ],
+        "ok": false
+      },
+      "observed_projection": [
+        "ok",
+        "checks[].check_id",
+        "checks[].ok"
+      ],
+      "output_format": "json",
+      "purpose": "Production boundary audit (unsafe-literal scan is src-scoped; F-03).",
+      "timeout_seconds": 600
+    },
+    {
+      "checker_path": "tools/check_value_movement_closure_status_v1.py",
+      "checker_sha256": "9be0871b43e7d608a8e020dc9481795adb4ce714ba43b56360d48bfba96c8086",
+      "command": [
+        "python3",
+        "tools/check_value_movement_closure_status_v1.py"
+      ],
+      "exit_code": 1,
+      "gate_id": "value_movement_closure_status",
+      "observed": {
+        "findings#len": 15,
+        "gate_count": 12,
+        "ok": false,
+        "production_authority": "NONE",
+        "subject_commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a"
+      },
+      "observed_projection": [
+        "ok",
+        "subject_commit",
+        "gate_count",
+        "production_authority",
+        "findings#len"
+      ],
+      "output_format": "json",
+      "purpose": "Closure ledger exact-subject binding (expected stale until P1-T08).",
+      "timeout_seconds": 300
+    }
+  ],
+  "nonclaims": [
+    "No production readiness, production authority, settlement authority, writer rotation, mount, or value-moving authority is claimed by this plan or any task status.",
+    "A task marked DONE_BOUNDED is closed only within its declared nonclaims; it does not close a VM gate.",
+    "Live-gate observations are local unattested execution records bound to the recorded subject and expire when any relied-on source changes.",
+    "Ordinary plan checks and execution decode held write-sealed JSON and Markdown bytes only after both match their exact pre-read HEAD:path blobs; the two plan artifacts remain excluded from the non-circular source-snapshot digest.",
+    "ExecutionContextV1 and LiveGateEffectV1 are caller-constructible same-process conventions, not unforgeable capabilities; code already executing in the checker process remains trusted.",
+    "Test counts and passing checkers do not close semantic obligations; RIPR counterexamples, independent oracles, and mutation killers do.",
+    "Historical RunPod proof replays recorded in READMEs are not reproduced by this plan.",
+    "The explicit gate environment excludes inherited PATH, HOME, PYTHONPATH, and user site and refuses to run while root/external/ESSO is present; it does not attest the interpreter, its site-packages, or path hooks beyond that preflight, so live-gate observations are explicit rather than fully hermetic.",
+    "The whole-value-movement formal safety claim remains UNPROVED."
+  ],
+  "phases": [
+    {
+      "objective": "Isolate the exact clean subject, record donor provenance, register heavy gates, re-audit every deterministic gate, and repair gates that fail at the base.",
+      "original_plan_section": 1,
+      "phase_id": "P1",
+      "title": "Freeze a trustworthy candidate"
+    },
+    {
+      "objective": "Turn the capability manifest into a normative per-capability contract, discover every value writer and sink from operations across every language and deployment surface, and fail CI when a reachable command lacks a complete release row.",
+      "original_plan_section": 2,
+      "phase_id": "P2",
+      "title": "Promote the global contract: closed requirements and complete mediation"
+    },
+    {
+      "objective": "Close canonical state and effect ownership, remove caller-provided or sidecar economic authority, and keep the crash-tested publisher behind a verifier interface.",
+      "original_plan_section": 3,
+      "phase_id": "P3",
+      "title": "Build the stable functional core and publisher"
+    },
+    {
+      "objective": "Implement each enabled lane through create, custody, transfer, claim, cancellation, recovery, terminal drain, and migration; prove excluded capabilities cannot write; add coordinators and governed routes.",
+      "original_plan_section": 4,
+      "phase_id": "P4",
+      "title": "Complete modular M6 cores and terminal lifecycles"
+    },
+    {
+      "objective": "Split the shared proof code into a stable ABI crate plus module guests, add module, coordinator, route, and bounded epoch guests with exact assumption resolution, and bind every journal completely.",
+      "original_plan_section": 5,
+      "phase_id": "P5",
+      "title": "Implement the recursive proof fabric"
+    },
+    {
+      "objective": "Select the measured verifier from committed profile state, mount one atomic publisher, dual-run in shadow mode, prove migration, rotate the writer epoch, retire legacy writers, and regenerate release evidence on the clean candidate.",
+      "original_plan_section": 6,
+      "phase_id": "P6",
+      "title": "Mount, migrate, and cut over"
+    }
+  ],
+  "program": "Modular Whole-Economy Zeno Recursive Proof Fabric production program (six phases restored from the 2026-08-05 plan)",
+  "regeneration": {
+    "check_command": "python3 tools/check_whole_program_plan_v1.py --json",
+    "evidence_repin_rule": "Task evidence hashes are recomputed only for tasks named with --repin-evidence in a commit whose message states why each artifact changed; --refresh never re-pins evidence silently, and live-gate observations are always re-executed rather than copied.",
+    "execute_command": "python3 tools/check_whole_program_plan_v1.py --execute --json",
+    "refresh_command": "python3 tools/check_whole_program_plan_v1.py --refresh --observed-at YYYY-MM-DD [--repin-evidence TASK_ID ...]",
+    "render_command": "python3 tools/check_whole_program_plan_v1.py --render"
+  },
+  "schema": "zenodex/whole-program-plan/v1",
+  "semantic_anchors": {
+    "asset_precision": "Eight decimal places; integer atoms; no floating point in consensus, accounting, proof, verifier, or settlement paths.",
+    "autonomous_governance": "Autonomous governance and LLM agents may submit authenticated typed commands only. They receive no independent publication capability.",
+    "buy_and_burn": "Atomically spend the governed quote-asset fee allocation through the selected authenticated Spot route and burn the exact ZDEX atoms received.",
+    "buy_and_burn_exclusions": [
+      "treasury-balance burn shortcut",
+      "legacy transfer-burn substitution"
+    ],
+    "external_registry_default": "Empty until a complete registered external finality, timeout, refund, acknowledgment, and idempotency profile is approved.",
+    "hosting_compensation": "Separately named governed fee allocation with explicit eligibility, claimant, expiry, cancellation, and terminal-drain semantics.",
+    "hyperdeflation": "No arbitrary fixed percentage of initial supply is required as a floor. Bind a retained-supply rule such as R(S)=ceil(p*S/q), 0<p<q, and burn<=S-R(S).",
+    "rescaling": "No denomination rescaling under GlobalSettlementABI V1. Rescaling requires an ABI V2 migration that distinguishes conversion from issue or burn.",
+    "self_custody_language": "Key control determines practical custody. Same-ledger values are modeled by accounting location, accounting control domain, and claimant entitlement."
+  },
+  "subject": {
+    "base_commit": "21fa295a42d455ced130a50ae66c84b3c1b32afa",
+    "branch": "codex/fable-whole-program-20260825-r3",
+    "observed_at": "2026-08-26",
+    "scoped_worktree_clean": true,
+    "source_snapshot_file_count": 5790,
+    "source_snapshot_sha256": "2779b9fe92e51f5743d9ad14fa4737311b09dd6aa51cef8e72742ce139992eaa"
+  },
+  "tasks": [
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [],
+      "evidence": [
+        {
+          "kind": "commit",
+          "reference": "21fa295a42d455ced130a50ae66c84b3c1b32afa",
+          "sha256": null
+        },
+        {
+          "kind": "external",
+          "reference": "checkpoint_admission.py packet at the subject: base_is_ancestor=true, clean=true, branch codex/fable-whole-program-20260825",
+          "sha256": null
+        }
+      ],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [
+        "worktree isolation grants no authority and does not certify the subject's contents"
+      ],
+      "notes": "The dirty primary checkout (b6842cd26aadf32b7ee774f58665570479cacfe6) is never edited; every change lands on the isolated worktree branch.",
+      "phase_id": "P1",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "DONE",
+      "task_id": "P1-T01",
+      "title": "Isolate the clean implementation worktree at the exact subject",
+      "vm_gates": []
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T01"
+      ],
+      "evidence": [
+        {
+          "kind": "doc",
+          "reference": "docs/research/ZRPF_FCIS_PRESERVATION_MANIFEST_20260811.md",
+          "sha256": "9dadb425125a8585cfef9a56e7925bcd4e544c12e3610de53ec4657386d4fb40"
+        },
+        {
+          "kind": "doc",
+          "reference": "docs/research/M6_DRIFTED_WIP_PRESERVATION_20260811.md",
+          "sha256": "2012f66d7b4e40ebf6552454cd1423a93f738bdf86da240ae49cc467202f05a4"
+        },
+        {
+          "kind": "manifest",
+          "reference": "docs/research/ZENODEX_DONOR_PROVENANCE_SNAPSHOT_V1.json",
+          "sha256": "bd9da9bf4a240d961a6b7abc77783c8d2443a3aba88c3e2ead7c2a816a29523f"
+        },
+        {
+          "kind": "commit",
+          "reference": "b6842cd26aadf32b7ee774f58665570479cacfe6",
+          "sha256": null
+        }
+      ],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [
+        "the dirty primary-checkout donor inventory lives in the coordination packet and is not tracked in the repository",
+        "the tracked donor snapshot records metadata for the two out-of-line donors; their Git objects are not required for plan replay",
+        "donor commits and preserved WIP branches are research input; none is relabeled as current authority"
+      ],
+      "notes": "Bounded because the tracked preservation manifests and content-derived donor snapshot record the ZRPF and M6 provenance without making out-of-line Git objects part of the candidate lineage. The 12-file dirty patch of the primary checkout is inventoried only in the coordination packet (DIRTY_DONOR_INVENTORY.md). Every remaining commit evidence row is an ancestor of the candidate and therefore travels with a transport-faithful clone.",
+      "phase_id": "P1",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "DONE_BOUNDED",
+      "task_id": "P1-T02",
+      "title": "Record donor provenance manifests for the ZRPF, M6/FCIS, and dirty primary checkouts",
+      "vm_gates": []
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T01"
+      ],
+      "evidence": [
+        {
+          "kind": "external",
+          "reference": "df -h / on 2026-08-25: 455G total, 423G used, 9.0G available (98%); ~/.risc0 5.0G, ~/.rustup 7.9G, ~/.cargo 1.9G already present",
+          "sha256": null
+        },
+        {
+          "kind": "external",
+          "reference": "heavy_gates_requiring_runpod section of this plan",
+          "sha256": null
+        }
+      ],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [
+        "registering a heavy gate records that it was not run; it produces no proof, receipt, or replay evidence"
+      ],
+      "notes": "No RISC0 workspace target directory exists in the worktree; none is created on this host while root free space stays below the safe multi-gigabyte build threshold.",
+      "phase_id": "P1",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "DONE_BOUNDED",
+      "task_id": "P1-T03",
+      "title": "Register heavy gates that require RunPod and record the host disk posture",
+      "vm_gates": []
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T01"
+      ],
+      "evidence": [
+        {
+          "kind": "external",
+          "reference": "live_gates section (checker-hash pinned, re-executable with --execute) and test_execution_receipt of this plan",
+          "sha256": null
+        }
+      ],
+      "findings": [
+        "B-01",
+        "B-02",
+        "B-03",
+        "B-04",
+        "B-05",
+        "H5"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [
+        "a re-audit records gate outcomes; it closes no VM gate and grants no authority"
+      ],
+      "notes": "Observed at the subject: writer inventory 27/27 rows OPEN and 18 unmounted entrypoints; 19 authority-relevant Python sinks without release bindings; capability manifest 103 open rows; research-boundary gate FAILING with 7 name-pattern import findings (B-01); closure ledger stale against the 49-commit descendant range (H5); RISC0 semantic surface BLOCKED; production-boundary gate passing within its src-scoped inventory under the ambient user-site environment but failing hermetically because py_ecc resolves only from the operator user site (B-05); ATDD/Luna contracts pinned to historical base 12bde5263 (B-04); program test subset 1573 passed / 4 failed (B-01, B-02, B-03, H5).",
+      "phase_id": "P1",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "DONE",
+      "task_id": "P1-T04",
+      "title": "Re-audit every deterministic gate at the exact subject and record live statuses",
+      "vm_gates": []
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [
+        {
+          "kind": "checker",
+          "reference": "tools/check_m6_research_boundary.py",
+          "sha256": null
+        },
+        {
+          "kind": "test",
+          "reference": "tests/test_check_m6_research_boundary.py",
+          "sha256": null
+        }
+      ],
+      "findings": [
+        "B-01"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Two ABI profile-binding modules (m6_asset_precision_policy_v1, m6_capability_profile_binding_v1) carry the research-only m6_ prefix and are package-imported by ABI modules; the repair must keep the name-pattern rule for research modules intact and make the boundary explicit.",
+      "phase_id": "P1",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P1-T05",
+      "title": "Repair the research-boundary regression without weakening the checker",
+      "vm_gates": [
+        "VM-01"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "reference": "tests/core/test_global_economic_object_nullifier_reference_v2_isolation.py",
+          "sha256": null
+        }
+      ],
+      "findings": [
+        "B-02"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "The pinned Rust test file zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs changed in the later perps commits 0e71359d7, f4f18e7eb, and 07edc70c0; the isolation intent (the V2 reference must not touch V1 artifacts) is unaffected, so the re-pin must cite those commits.",
+      "phase_id": "P1",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P1-T06",
+      "title": "Re-pin the V1 object-nullifier quarantine byte manifest with provenance",
+      "vm_gates": []
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "reference": "tests/integration/test_global_economic_authority_journal_v1.py",
+          "sha256": null
+        }
+      ],
+      "findings": [
+        "B-03"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "decode_global_economic_authority_head_v1 and the monotonic-anchor decoder rely on the interpreter raising RecursionError; CPython 3.12.3 decodes 1500 nested arrays without it, so the reject class depends on the interpreter. An explicit depth bound checked before parsing restores deterministic typed rejection.",
+      "phase_id": "P1",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P1-T07",
+      "title": "Enforce a deterministic nesting bound in the shared canonical-JSON decoder",
+      "vm_gates": [
+        "VM-02"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T05",
+        "P1-T06",
+        "P1-T07"
+      ],
+      "evidence": [
+        {
+          "kind": "checker",
+          "reference": "tools/check_value_movement_closure_status_v1.py",
+          "sha256": null
+        },
+        {
+          "kind": "manifest",
+          "reference": "docs/research/ZENODEX_VALUE_MOVEMENT_CLOSURE_STATUS_V1.json",
+          "sha256": null
+        }
+      ],
+      "findings": [
+        "H5"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Procedure: bind the exact clean candidate as subject, recompute only the artifact hashes whose semantic evidence changed on the 49-commit descendant range, update the checker's expected subject and gate-evidence root, and preserve every historical review verdict as historical.",
+      "phase_id": "P1",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P1-T08",
+      "title": "Regenerate the closure ledger against the current candidate through the source-pinned procedure",
+      "vm_gates": [
+        "VM-12"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [
+        {
+          "kind": "checker",
+          "reference": "tools/check_m6_global_economic_core_atdd_v1.py",
+          "sha256": null
+        },
+        {
+          "kind": "checker",
+          "reference": "tools/check_m6_global_economic_core_luna_review_v1.py",
+          "sha256": null
+        }
+      ],
+      "findings": [
+        "B-04"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [
+        "the historical 18-workflow/81-scenario contract is not the complete capability universe and its stale pins are preserved rather than refreshed"
+      ],
+      "notes": "The contract requires base_commit to equal HEAD and pins 18 runtime files; re-pinning would assert that the drifted runtime still refines the contract, which needs a repeated completeness review by the contract owner rather than a mechanical hash refresh.",
+      "phase_id": "P1",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "BLOCKED_EXTERNAL",
+      "task_id": "P1-T09",
+      "title": "Classify the historical ATDD/Luna contract pins and their re-pin procedure",
+      "vm_gates": []
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [
+        {
+          "kind": "checker",
+          "reference": "tools/check_production_boundary.py",
+          "sha256": null
+        }
+      ],
+      "findings": [
+        "B-05"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Under the explicit gate environment (PYTHONPATH equal to the repository root, user site disabled, HOME and PATH not inherited) check_production_boundary.py reports production_boundary_audit_execution_complete=false with ModuleNotFoundError: py_ecc, because the BLS dependency is installed only in the operator user site; the recorded live-gate observation preserves that result rather than the ambient one. The tracked root sitecustomize.py also inserts external/ESSO (git-ignored, present in the primary checkout) into child sys.path whenever the directory exists, and PYTHONPATH equal to the root cannot prevent that hook, so the registry preflight refuses to run any gate while root/external/ESSO is present. Closing this task requires declaring and pinning gate dependencies and removing or neutralizing the path hook; interpreter, site-packages, and hook attestation remain open, so the environment is explicit, not fully hermetic.",
+      "phase_id": "P1",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P1-T10",
+      "title": "Make every live gate dependency-declared and path-hook-free: no user-site packages and no ignored-directory sitecustomize insertion",
+      "vm_gates": [
+        "VM-12"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T05"
+      ],
+      "evidence": [
+        {
+          "kind": "checker",
+          "reference": "tools/check_m6_value_sinks_v1.py",
+          "sha256": null
+        },
+        {
+          "kind": "manifest",
+          "reference": "tools/m6_value_sink_manifest_v1.json",
+          "sha256": null
+        }
+      ],
+      "findings": [
+        "F-03",
+        "H3",
+        "H4",
+        "I1"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "The V1 scan covers src only; tools/zeno_ledger_node.py holds os.replace and Path.replace sinks, tools/zenodex_oracle.py and the hygiene packet renderer hold os.replace sinks, and every one must receive a closed classification with an exact occurrence count.",
+      "phase_id": "P2",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P2-T01",
+      "title": "Extend operation-derived value-sink discovery to mounted tools, Path.replace, and file-write sinks",
+      "vm_gates": [
+        "VM-01"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T05"
+      ],
+      "evidence": [
+        {
+          "kind": "checker",
+          "reference": "tools/check_m6_writer_inventory.py",
+          "sha256": null
+        },
+        {
+          "kind": "manifest",
+          "reference": "tools/m6_writer_inventory_manifest_v1.json",
+          "sha256": null
+        }
+      ],
+      "findings": [
+        "F-03",
+        "F-04",
+        "F-05",
+        "I1"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Node writers outside src: _append_dex_transactions_v0_locked, _append_dex_transaction_v0_locked, _build_faucet_block_from_body_v0, _build_tokenomics_reward_claim_block_from_body_v0, _build_autogovnext_block_from_body_v1, _build_dex_block_with_tokenomics_buyback_v0, _apply_tokenomics_buyback_burn_to_block_report_v0, _append_testnet_faucet_v0_locked, _append_tokenomics_reward_claim_v0_locked, _append_autogovnext_admission_v1_locked, _pull_live_from_peer_v0_locked, and _write_live_state.",
+      "phase_id": "P2",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P2-T02",
+      "title": "Register the mounted node writers in the writer inventory with lane and workflow coverage rows",
+      "vm_gates": [
+        "VM-01"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T02"
+      ],
+      "evidence": [
+        {
+          "kind": "checker",
+          "reference": "tools/check_production_boundary.py",
+          "sha256": null
+        }
+      ],
+      "findings": [
+        "F-03",
+        "H3"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Six allow_missing_settlement=True call sites in tools/zeno_ledger_node.py (lines 2011, 2043, 4287, 4475, 4495, 5589) pass the src-only literal gate today; each must be classified by deployed reachability, and mutants that rename, wrap, import indirectly, or dispatch dynamically must still fail the gate.",
+      "phase_id": "P2",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-18"
+      ],
+      "status": "OPEN",
+      "task_id": "P2-T03",
+      "title": "Scan mounted tools for unsafe configuration literals and classify node settlement reachability",
+      "vm_gates": [
+        "VM-01"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T01"
+      ],
+      "evidence": [],
+      "findings": [
+        "H4"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Required mutants: an arbitrarily named durable writer outside src, an importlib-loaded writer, and a subprocess-invoked writer; each must produce an unclassified-sink or unregistered-writer finding.",
+      "phase_id": "P2",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P2-T04",
+      "title": "Prove novel-writer and dynamically imported writer mutants block release",
+      "vm_gates": [
+        "VM-01",
+        "VM-09"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T01"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-03",
+        "H4"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "VM-01 closes only when discovery starts from durable storage and effect sinks in every implementation language and traverses callers through generated code, dynamic loading, workers, callbacks, migration, deployment configuration, and deployed entrypoints.",
+      "phase_id": "P2",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P2-T05",
+      "title": "Add cross-language and deployment sink inventories (Rust, Tau, shell, generated code, deployment wiring)",
+      "vm_gates": [
+        "VM-01"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-02",
+        "H1"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "perps_wallet_api, zusd_monetary_wallet_api, zusd_tau_wallet_api, autotrader_live_api, and confidential_sealed_bid_api parse raw private keys from request bodies before or around env-gated signing switches; production-capable schemas must reject every raw-key alias and nested form with a typed error, keep signing client-side (dex-ui signer, CLI), and never echo key bytes in errors, logs, receipts, or retries.",
+      "phase_id": "P2",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P2-T06",
+      "title": "Quarantine private-key-over-HTTP ingress; accept signatures or locally signed envelopes only",
+      "vm_gates": [
+        "VM-01"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-01",
+        "H2",
+        "I1"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "tau_testnet_dex_plugin reads TAU_DEX_* policy and operator/oracle identities inside the transition; the repair captures a typed policy once in the shell, commits it under the config digest, binds-or-validates it on every transition as the zUSD bridge already does, and adds an AST ban on environment reads under the transition plus a two-environment determinism test.",
+      "phase_id": "P2",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P2-T07",
+      "title": "Freeze consensus policy and authority identities into committed state instead of process environment",
+      "vm_gates": [
+        "VM-01",
+        "VM-07"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [
+        {
+          "kind": "manifest",
+          "reference": "docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json",
+          "sha256": null
+        },
+        {
+          "kind": "checker",
+          "reference": "tools/check_m6_capability_manifest_v1.py",
+          "sha256": null
+        }
+      ],
+      "findings": [
+        "I2"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "103 capability rows across 12 lanes are open; the mapping must use the semantic coverage statuses (PROVED, IMPLEMENTED, MOUNTED, TESTED, UNMOUNTED, GAP, UNKNOWN) and never promote a row from inventory alone.",
+      "phase_id": "P2",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P2-T08",
+      "title": "Map every capability-manifest row to command, transition, effects, route, terminal path, adapter, and evidence status",
+      "vm_gates": [
+        "VM-01",
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T02"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "check_m6_writer_inventory.py --require-release-ready already returns nonzero while any row is open; the release gate must call it, and a schema revision must verify each claimed binding against executable registries before RELEASE_BACKED becomes encodable.",
+      "phase_id": "P2",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P2-T09",
+      "title": "Wire the release gate so a reachable command without a complete release row fails CI",
+      "vm_gates": [
+        "VM-01",
+        "VM-12"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T01"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-10"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "src/core/zusd_shutdown.py has a writer reachable through configuration while the manifest requires EXCLUDED_DAY_ONE_PROVE_NO_WRITER; a configuration default is not proved absence.",
+      "phase_id": "P2",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P2-T10",
+      "title": "Produce a proved-no-writer certificate for zUSD emergency shutdown",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-05"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [
+        "neither faucet policy is selected; both artifacts are preserved as provenance"
+      ],
+      "notes": "The node faucet excludes only the protocol token while the Tau plugin also excludes canonical zUSD; the divergence is recorded, not resolved, and a differential test will pin whichever policy governance selects.",
+      "phase_id": "P2",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-19"
+      ],
+      "status": "DEFERRED_SEMANTIC_DECISION",
+      "task_id": "P2-T11",
+      "title": "Record the faucet asset-exclusion divergence as a semantic question and add a parity witness",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-15"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [
+        "no Tau specification is rewritten; the floor specs remain historical drift evidence"
+      ],
+      "notes": "The formal claim treats any conflict between the hyperdeflation anchor and a mounted artifact as release-blocking; the Tau floor specs cannot be mounted under the selected profile.",
+      "phase_id": "P2",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-20"
+      ],
+      "status": "DEFERRED_SEMANTIC_DECISION",
+      "task_id": "P2-T12",
+      "title": "Record the Tau buyback supply-floor specifications against the hyperdeflation anchor",
+      "vm_gates": [
+        "VM-07"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T08"
+      ],
+      "evidence": [],
+      "findings": [
+        "I2"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Steering checkpoint C2; extends guests only after ownership is closed.",
+      "phase_id": "P3",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P3-T01",
+      "title": "Close the ABI ownership table: one owner, width, unit, order, authorization source, and reject behavior per field",
+      "vm_gates": [
+        "VM-02"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T01"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "reference": "tests/core/test_global_settlement_abi_v1_parity.py",
+          "sha256": null
+        }
+      ],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "The eighteen-vector corpus is bounded differential evidence; full-state independently generated vectors with duplicate/unknown/noncanonical negatives and map-order metamorphism remain to be added.",
+      "phase_id": "P3",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P3-T02",
+      "title": "Establish complete Python/Rust/guest/verifier/durable codec and root parity for GlobalEconomicStateV1",
+      "vm_gates": [
+        "VM-02",
+        "VM-07"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T01"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Injective route-effect occurrences exist; the remaining rows must bind source occurrence, grant, policy, release, and control domain with machine-checked conservation and partition theorems.",
+      "phase_id": "P3",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P3-T03",
+      "title": "Complete the global effect algebra: authorization grant, claimant, residue, terminal, and external-delivery rows",
+      "vm_gates": [
+        "VM-03"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T02"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-04"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "The sidecar mutates post-state after header, snapshot, and checkpoint are written, uses a fixed supply_floor, and conflicts with the buy-and-burn and hyperdeflation anchors; crash injection between the two header writes is the minimized witness.",
+      "phase_id": "P3",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-01",
+        "UP-14"
+      ],
+      "status": "OPEN",
+      "task_id": "P3-T04",
+      "title": "Retire the node treasury-balance buy-and-burn sidecar in favor of a typed governed route with one header write",
+      "vm_gates": [
+        "VM-09"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T03"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-11"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "proof_mining_runtime re-bases the reserve to the observed chain balance of a key-controlled account; drains and top-ups outside protocol rules leave no occurrence row.",
+      "phase_id": "P3",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-09"
+      ],
+      "status": "OPEN",
+      "task_id": "P3-T05",
+      "title": "Model the proof-reward reserve as an accounting location with occurrence rows",
+      "vm_gates": [
+        "VM-03",
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T07"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-12"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "dex_engine.apply_ops, perp_engine.apply_perp_ops, and plugin stages convert environment-dependent exceptions into deterministic-looking rejects, which can split validators.",
+      "phase_id": "P3",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P3-T06",
+      "title": "Replace catch-all exception rejection on mounted apply paths with typed rejection",
+      "vm_gates": [
+        "VM-07"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T01"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "One RootV1(String) type currently serves image IDs, journal roots, occurrence IDs, release IDs, and state roots; cross-kind substitution is caught only by recomputation.",
+      "phase_id": "P3",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P3-T07",
+      "title": "Introduce root and amount newtypes in the ABI with a Python mirror and regenerated goldens",
+      "vm_gates": [
+        "VM-02"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T07"
+      ],
+      "evidence": [],
+      "findings": [
+        "B-03"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Generalizes P1-T07 across the durable activation, epoch journal, anchor, and authority decoders plus the Rust deserializers.",
+      "phase_id": "P3",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P3-T08",
+      "title": "Apply deterministic depth and byte bounds to every canonical decoder on authoritative paths",
+      "vm_gates": [
+        "VM-02"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "reference": "tests/integration/test_global_economic_durable_publisher_v1.py",
+          "sha256": "6156a7ebab7f26697844be8d059d6ee375d9d431bb189fe0fc33ff7f7e1f4d3c"
+        },
+        {
+          "kind": "test",
+          "reference": "tests/integration/test_global_economic_epoch_journal_v1.py",
+          "sha256": "4b67d736f4adb9f8d5d9a42c649b1648919f31404daf8f0484f9fc6aa8768dd7"
+        },
+        {
+          "kind": "test",
+          "reference": "tests/integration/test_global_economic_migration_journal_v1.py",
+          "sha256": "c8b257e650ed0daed0cce8a3649f7d169c7468ef2bec1fb408105a7e031a52f7"
+        },
+        {
+          "kind": "test",
+          "reference": "tests/core/test_global_economic_monotonic_anchor_v1.py",
+          "sha256": "7947c317264153d0446f1afb4335a24908cfd15a5b20bc28c083c2c9f12c3077"
+        },
+        {
+          "kind": "test",
+          "reference": "tests/integration/test_global_economic_monotonic_anchor_backend_v1.py",
+          "sha256": "d072c4dc07f48288c407ef126dff2d5958af6ac98963ceb1e30490a98388a2b7"
+        },
+        {
+          "kind": "doc",
+          "reference": "docs/research/GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1.md",
+          "sha256": "4b354b00691e90759eac21df75b4edf646c75ba07e36089d5c1cc5dd6b04e33f"
+        }
+      ],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [
+        "unmounted tested-discovery infrastructure only",
+        "no cryptographic receipt verification, release-selected measured verifier, objective finality, outbox reconciliation, Rust/RISC0 parity, or sole-writer enforcement"
+      ],
+      "notes": "Inherited from the closure-ledger slices; the pinned test files passed in the subject's test execution receipt. The authority-journal test file is excluded from the pins until P1-T07 repairs its interpreter-dependent nesting test.",
+      "phase_id": "P3",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "DONE_BOUNDED",
+      "task_id": "P3-T09",
+      "title": "Retain the crash-tested durable activation, epoch, authority, anchor, and verifier-owned publisher shells",
+      "vm_gates": [
+        "VM-10"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T03"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "reference": "tests/core/test_asset_transfer_module_v1.py",
+          "sha256": null
+        },
+        {
+          "kind": "test",
+          "reference": "tests/core/test_managed_asset_lifecycle_module_v1.py",
+          "sha256": null
+        }
+      ],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Transfer and managed issue/burn modules exist with Rust parity and one real receipt (historical); transaction-fee policy, external custody, registration, and terminal drain remain open.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-13"
+      ],
+      "status": "IN_PROGRESS",
+      "task_id": "P4-T01",
+      "title": "Complete the ASSET_TRANSFER lane lifecycle: fee policy envelope, asset registration, and supply terminal policy",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T03"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "apply_ops and batch clearing are mounted donors; pool_close and residue terminal disposition are GAP.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-12"
+      ],
+      "status": "OPEN",
+      "task_id": "P4-T02",
+      "title": "Refine legacy Spot settlement and liquidity into the SPOT_LIQUIDITY lane with pool close and residue disposition",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T03"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "No farm writer exists in src; the node's testnet emission claims are a legacy writer outside the lane.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-03"
+      ],
+      "status": "OPEN",
+      "task_id": "P4-T03",
+      "title": "Implement the FARM_INCENTIVES lane lifecycle behind a versioned profile",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T03"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "reference": "tests/core/test_zdex_fee_allocation_v1.py",
+          "sha256": null
+        },
+        {
+          "kind": "test",
+          "reference": "tests/core/test_zdex_purchase_burn_route_v1.py",
+          "sha256": null
+        },
+        {
+          "kind": "test",
+          "reference": "tests/core/test_zdex_hyperdeflation_v1.py",
+          "sha256": null
+        }
+      ],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "SHADOW fee allocation, exact purchase-and-burn, and retained-supply math exist in Python and Rust; percentages and hosting economics stay profile-owned and unselected.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-01",
+        "UP-02",
+        "UP-14",
+        "UP-15"
+      ],
+      "status": "IN_PROGRESS",
+      "task_id": "P4-T04",
+      "title": "Complete the ZDEX_TOKENOMICS lane: hosting-compensation claims, staking claims, reserve lifecycle, and terminal disposition",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T03"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "The mounted zusd_monetary_bridge is the best FCIS donor; shared-asset coexistence remains a required theorem or new issuance stays disabled.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-04"
+      ],
+      "status": "OPEN",
+      "task_id": "P4-T05",
+      "title": "Refine zUSD into one complete ZUSD_MONETARY lifecycle with Stability Pool, liquidation, recovery, and terminal claims",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T03"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "reference": "tests/core/test_perps_margin_module_v1.py",
+          "sha256": null
+        },
+        {
+          "kind": "doc",
+          "reference": "docs/research/PERPS_MARGIN_GLOBAL_SETTLEMENT_SHADOW_V1.md",
+          "sha256": null
+        }
+      ],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Deposit, withdraw, and close with typestate markets exist; the repository holds incompatible wider insurance and ADL choices that require an explicit protocol decision.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-05"
+      ],
+      "status": "IN_PROGRESS",
+      "task_id": "P4-T06",
+      "title": "Extend the SHADOW perps margin core to the selected PERPS_MARKET profile: funding, liquidation, insurance, ADL, bankruptcy, closeout",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T03"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Route-bound Oracle occurrence authority exists; reporter economics live only in a replay tool.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-06"
+      ],
+      "status": "OPEN",
+      "task_id": "P4-T07",
+      "title": "Implement the ORACLE_MARKET lifecycle: query, tip, bond, report, finality, reward, dispute, clawback, slash, terminal drain",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T03"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Clearing and non-reveal bonds exist; asset settlement is a local fixture path that also carries private keys (F-02).",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-07"
+      ],
+      "status": "OPEN",
+      "task_id": "P4-T08",
+      "title": "Implement the SEALED_AUCTION lane with bond custody, reveal, clearing, payment, inventory, refund, slash, cancel, and expiry",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T03"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "The autotrader live API is a relay; no escrow writer exists.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-08"
+      ],
+      "status": "OPEN",
+      "task_id": "P4-T09",
+      "title": "Implement the STRATEGY_ESCROW lane: reservation, activation, trigger, replacement, cancellation, expiry, recovery",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T05"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-11"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Proof-mining claims are mounted through the Tau plugin with claimed-slot nullifiers and a key-account reserve.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-09"
+      ],
+      "status": "OPEN",
+      "task_id": "P4-T10",
+      "title": "Implement the PROOF_REWARDS lane: reserve, verified-result binding, claimant, nullifier, payout, terminal task state",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T01"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Cross-shard effect application is implemented and mounted only in a local runner; the manifest disposition DISABLED_PENDING_COMPLETE_PROFILE requires proved absence of a reachable writer, not a default.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P4-T11",
+      "title": "Prove EXTERNAL_CUSTODY has no writer while the registry stays empty",
+      "vm_gates": [
+        "VM-01",
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T03"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-14"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "AutoGovNext records parameters that nothing consumes; the lane must keep autonomous agents at command-submission authority only.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [
+        "UP-10",
+        "UP-11"
+      ],
+      "status": "OPEN",
+      "task_id": "P4-T12",
+      "title": "Implement the GOVERNANCE_MIGRATION lane: registry change, parameter change, release activation, treasury action, schema migration, writer-epoch rotation, command submission",
+      "vm_gates": [
+        "VM-04"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P4-T02",
+        "P4-T04",
+        "P4-T05",
+        "P4-T06",
+        "P4-T09"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "reference": "tests/core/test_zdex_hyperdeflation_route_refinement_v1.py",
+          "sha256": null
+        }
+      ],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "fee_funded_zdex_purchase_and_burn exists as a SHADOW route; zusd_liquidation_settlement, perps_epoch_settlement, and strategy_triggered_spot_swap are absent.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "IN_PROGRESS",
+      "task_id": "P4-T13",
+      "title": "Implement the four required cross-lane routes as governed route composers",
+      "vm_gates": [
+        "VM-05"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T03"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "reference": "tests/core/test_asset_lane_coordinator_v1.py",
+          "sha256": null
+        },
+        {
+          "kind": "test",
+          "reference": "tests/core/test_perps_margin_lane_coordinator_v1.py",
+          "sha256": null
+        }
+      ],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Single-module coordinators exist for asset, perps margin, and ZDEX lanes; multi-module sequencing and cross-release coexistence remain open.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "IN_PROGRESS",
+      "task_id": "P4-T14",
+      "title": "Complete lane coordinators and route composers with exact port pairing, release coexistence, and field ownership",
+      "vm_gates": [
+        "VM-05"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-06"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Rust returns Err(InvalidBounds) where Python returns STATE_EFFECT_MISMATCH for |delta| outside i128, and the Rust representable-delta boundary test has no Python twin.",
+      "phase_id": "P4",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P4-T15",
+      "title": "Add the perps slice Python/Rust rejection corpus, Python delta bound, and boundary twin tests",
+      "vm_gates": [
+        "VM-07"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T02"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Separate RISC0 3.0.6 workspaces exist for asset transfer, asset lane coordination, initial state, global epoch, perps margin module/lane/route, and ZDEX allocation/burn/lane; each still embeds its own copy of shared semantics rather than one versioned ABI crate dependency.",
+      "phase_id": "P5",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "IN_PROGRESS",
+      "task_id": "P5-T01",
+      "title": "Split the shared proof code into a stable ABI crate plus independently versioned module guest crates",
+      "vm_gates": [
+        "VM-06"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P5-T01"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-06"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "LaneCompositionJournalV1 carries ordered module journal roots but no child image or verifier-set binding; the child image is a constant checked only by an ignored test.",
+      "phase_id": "P5",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P5-T02",
+      "title": "Bind child image IDs, verifier-set roots, profiles, and statement hashes into lane composition journals",
+      "vm_gates": [
+        "VM-06"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T04"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-07"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Host verifiers read RISC0_DEV_MODE; the check belongs in the prover shell with a compile-time disabled dev mode.",
+      "phase_id": "P5",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P5-T03",
+      "title": "Remove environment-selected dev-mode admission from proof verifiers",
+      "vm_gates": [
+        "VM-06",
+        "VM-08"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P5-T01"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-08"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "serde_json::to_vec(Receipt) is the canonical form today and a 16 MiB decode precedes journal bounds.",
+      "phase_id": "P5",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P5-T04",
+      "title": "Replace third-party receipt serialization with an owned envelope digest and check journal bounds before decoding",
+      "vm_gates": [
+        "VM-06"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P5-T01",
+        "P5-T02"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-09"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [
+        "no receipt recorded in a README is reproduced by this plan; historical replays are historical"
+      ],
+      "notes": "Requires RunPod capacity; see heavy gates HG-02 through HG-12.",
+      "phase_id": "P5",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "BLOCKED_EXTERNAL",
+      "task_id": "P5-T05",
+      "title": "Generate and replay real pinned-image receipts for every module family and mixed-lane epochs",
+      "vm_gates": [
+        "VM-06"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T02"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Per-command differential traces over decision, reject precedence, state, effects, roots, replay, and outbox.",
+      "phase_id": "P5",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P5-T06",
+      "title": "Add direct-versus-proof parity vectors across Python, Rust, and guest for every command",
+      "vm_gates": [
+        "VM-07"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P5-T01"
+      ],
+      "evidence": [],
+      "findings": [
+        "F-09"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Live node blocks carry zero proof-journal, data-availability, and signature-set roots.",
+      "phase_id": "P5",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P5-T07",
+      "title": "Replace the quarantined risc0 1.2 state_proof crate on 3.0.x and bind proof journal hash plus signature set in live headers",
+      "vm_gates": [
+        "VM-06",
+        "VM-09"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T12"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Tau may evaluate the versioned formal policy; the tau binary lane is absent on this host.",
+      "phase_id": "P5",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P5-T08",
+      "title": "Record Tau policy applicability per lane and add Tau-versus-runtime parity where applicable",
+      "vm_gates": [
+        "VM-07"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P5-T02",
+        "P5-T05"
+      ],
+      "evidence": [
+        {
+          "kind": "test",
+          "reference": "tests/core/test_global_settlement_abi_v1.py",
+          "sha256": null
+        }
+      ],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [
+        "existing 1/8/9/64 and 0/65 boundary tests use recording verifier doubles; no boundary or substitution class is exercised with a real pinned-image receipt"
+      ],
+      "notes": "Original plan section 4 release gate and the VM-06 test-obligation matrix. Typed contract boundaries exist in the Python and Rust ABI with injected doubles; the real-receipt variants, the conditional, fake, development-mode, and unresolved-assumption rejections, and the resource-ceiling rejections must be replayed on RunPod (HG-02 through HG-11) for every module family and mixed-lane epoch.",
+      "phase_id": "P5",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "IN_PROGRESS",
+      "task_id": "P5-T09",
+      "title": "Real-receipt proof BVA: epochs accept 1, 8, 9, and 64 occurrences and reject 0 and 65; routes accept 1 and 8 modules and reject 0 and 9; missing, extra, reordered, duplicate, wrong-image, wrong-profile, wrong-control-root, conditional, fake, development-mode, and mutated receipts reject before publication",
+      "vm_gates": [
+        "VM-06"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T01",
+        "P3-T02",
+        "P4-T14",
+        "P5-T06"
+      ],
+      "evidence": [],
+      "findings": [
+        "I3"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "The process-local capability binds registry, image, manifest, and artifact bytes; evidence labels remain producer-supplied and the executing backend is unattested.",
+      "phase_id": "P6",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P6-T01",
+      "title": "Seal verification behind a release-selected measured verifier with commit-lock reselection and an isolation boundary",
+      "vm_gates": [
+        "VM-08"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T08"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "UI changes are permitted only for a confirmed authority or safety defect.",
+      "phase_id": "P6",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P6-T02",
+      "title": "Route every API, UI, Tau bridge, and recovery operation through the command registry and status model",
+      "vm_gates": [
+        "VM-01",
+        "VM-09"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P6-T02"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Non-value-moving shadow mode only.",
+      "phase_id": "P6",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P6-T03",
+      "title": "Dual-run legacy execution and ZRPF in shadow mode and convert every divergence into minimized negative evidence",
+      "vm_gates": [
+        "VM-07"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P2-T04",
+        "P6-T01"
+      ],
+      "evidence": [],
+      "findings": [
+        "I3"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Local ledger, M6 direct, direct-batch, ZRPF, M6 durable, and separate global commit paths coexist today.",
+      "phase_id": "P6",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P6-T04",
+      "title": "Mount one sole atomic publisher and mechanically fence every other writer",
+      "vm_gates": [
+        "VM-09"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T09"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "The SHADOW monotonic anchor is a port contract with an in-memory backend.",
+      "phase_id": "P6",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P6-T05",
+      "title": "Deploy a concrete authenticated finality/anchor service and complete the persistence-boundary fault matrix and outbox reconciliation",
+      "vm_gates": [
+        "VM-10"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P6-T04"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Bounded explicit-row coverage and table continuity exist; predecessor-source totality, objective source-head finality, and coexistence theorems remain open.",
+      "phase_id": "P6",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P6-T06",
+      "title": "Prove migration totality, atomic profile and writer-epoch rotation, and shared-asset coexistence or issuance disablement",
+      "vm_gates": [
+        "VM-11"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P3-T04",
+        "P6-T06"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Grant no earlier Spot-only value-moving authority.",
+      "phase_id": "P6",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P6-T07",
+      "title": "Retire legacy writers after cutover",
+      "vm_gates": [
+        "VM-09",
+        "VM-11"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T08",
+        "P2-T09",
+        "P6-T07"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Steering checkpoint C8.",
+      "phase_id": "P6",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P6-T08",
+      "title": "Regenerate release evidence on the clean candidate and obtain independent security, proof, lifecycle, and authority reviews",
+      "vm_gates": [
+        "VM-12"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P1-T09",
+        "P4-T13",
+        "P4-T14",
+        "P6-T06",
+        "P6-T08"
+      ],
+      "evidence": [],
+      "findings": [
+        "B-04"
+      ],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "Original plan section 4 release gate. The 81 scenarios and 11 expansions stay frozen to historical base 12bde5263 until re-reviewed (B-04, P1-T09), and profile-specific shutdown-exclusion tests are retained for releases that exclude shutdown. Every actor and command needs the six BDD paths; BVA at zero, one atom, minimum and maximum neighbors, overflow, dust, rounding, epoch, Oracle freshness, and collateral or fee thresholds; conservation, custody and claim, deterministic replay, canonical encoding, reject-no-op, split and merge, and terminal-drain properties; cross-version zUSD reconciliation, perps insurance compatibility, and old-proof-after-activation rejection; migration totality, duplicate, downgrade, skipped-predecessor, pending-obligation, crash and reopen, release-race, and emergency-revocation tests; concurrent roots, stale CAS, exact retry, lost acknowledgment, outbox redelivery, and destination idempotency; differential parity across Rust host, guest, Python, Tau or SMT policy, Lean and Kani results, and the complete ZenoLedger state; independent security, proof, economic-lifecycle, and authority-boundary reviews.",
+      "phase_id": "P6",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P6-T09",
+      "title": "Release-blocking evidence portfolio: preserve all 81 M6 scenarios plus 11 expansions with profile shutdown exclusions; per-actor happy, rejection, authorization, cancellation, recovery, and terminal BDD; BVA; stateful, property, and differential evidence; migration, CAS, and outbox histories; independent security, proof, economic-lifecycle, and authority reviews",
+      "vm_gates": [
+        "VM-04",
+        "VM-06",
+        "VM-07",
+        "VM-10",
+        "VM-11",
+        "VM-12"
+      ]
+    },
+    {
+      "claims_vm_improvement": false,
+      "depends_on": [
+        "P6-T08",
+        "P6-T09"
+      ],
+      "evidence": [],
+      "findings": [],
+      "mutation_killers": [],
+      "nonclaims": [],
+      "notes": "ClaimMayBeTrusted requires complete capability profile, closed semantics, complete mediation, proved model, runtime refinement, proof binding, sole atomic publication, migration continuity, and release-backed evidence; the P6-T09 evidence portfolio therefore precedes this certificate.",
+      "phase_id": "P6",
+      "ripr_counterexample": null,
+      "semantic_decisions_avoided": [],
+      "status": "OPEN",
+      "task_id": "P6-T10",
+      "title": "Emit the whole-value-movement claim certificate only from the checker that binds every conjunct",
+      "vm_gates": [
+        "VM-12"
+      ]
+    }
+  ],
+  "test_execution_receipt": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "tests/core/test_global_settlement_abi_v1.py",
+      "tests/core/test_global_settlement_abi_v1_parity.py",
+      "tests/core/test_economic_*.py",
+      "tests/core/test_global_economic_*.py",
+      "tests/integration/test_global_economic_*.py",
+      "tests/core/test_zdex_*.py",
+      "tests/core/test_perps_margin_*.py",
+      "tests/core/test_asset_*.py",
+      "tests/core/test_managed_asset_*.py",
+      "tests/core/test_lane_module_release_route_binding_v1.py",
+      "tests/core/test_receipt_backed_*.py",
+      "tests/integration/test_m6_*.py",
+      "tests/core/test_m6_*.py",
+      "tests/core/test_global_oracle_occurrence_authority_v1.py",
+      "tests/test_check_m6_writer_inventory.py",
+      "tests/test_check_m6_value_sinks_v1.py",
+      "tests/test_check_m6_research_boundary.py",
+      "tests/test_check_production_boundary.py",
+      "tests/test_check_m6_capability_manifest_v1.py",
+      "tests/test_check_m6_asset_precision_policy_v1.py",
+      "tests/test_check_value_movement_closure_status_v1.py",
+      "tests/core/test_perps_market_policy_binding_v1.py",
+      "tests/core/test_global_oracle_price_occurrence_v1.py"
+    ],
+    "duration_seconds": 1526,
+    "evidence_authority": "LOCAL_EXECUTION_RECORD_UNATTESTED",
+    "failed": 4,
+    "failed_tests": [
+      "tests/core/test_global_economic_object_nullifier_reference_v2_isolation.py::test_reference_v2_leaves_v1_quarantine_artifacts_byte_identical",
+      "tests/integration/test_global_economic_authority_journal_v1.py::test_decoder_normalizes_hostile_json_nesting_to_typed_rejection",
+      "tests/test_check_m6_research_boundary.py::test_current_m6_research_boundary_is_unmounted_and_clean",
+      "tests/test_check_value_movement_closure_status_v1.py::test_current_value_movement_closure_status_is_exact_and_fail_closed"
+    ],
+    "interpreter": "Python 3.12.3, pytest 7.4.4, Linux x86_64",
+    "passed": 1573,
+    "subject_commit": "21fa295a42d455ced130a50ae66c84b3c1b32afa"
+  },
+  "unresolved_policies": [
+    {
+      "implementation_rule": "Typed governed parameters with fail-closed envelopes only; production values stay profile-owned, canonically committed, and unselected.",
+      "policy_id": "UP-01",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 1",
+      "statement": "Fee allocation percentages among purchase-and-burn, hosting compensation, staking, treasury, reserves, and any carried residue."
+    },
+    {
+      "implementation_rule": "Hosting compensation stays a separately named claimant obligation; no PulseX percentage is inferred.",
+      "policy_id": "UP-02",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 2",
+      "statement": "Hosting claimant eligibility, measurement period, proof of service, replacement, slashing, and terminal disposition."
+    },
+    {
+      "implementation_rule": "Lane structure may exist; the release stays SHADOW until values and evidence are selected.",
+      "policy_id": "UP-03",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 3",
+      "statement": "Farm activation, emission schedule, cancellation, and terminal drain."
+    },
+    {
+      "implementation_rule": "Shared zUSD issuance stays disabled across releases unless a coexistence theorem exists.",
+      "policy_id": "UP-04",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 4",
+      "statement": "zUSD collateral assets, collateral ratios, fees, Oracle thresholds, liquidation/recovery rules, Stability Pool economics, and coexistence rule."
+    },
+    {
+      "implementation_rule": "The SHADOW margin core stays bounded to deposit, withdraw, and close; wider incompatible choices are recorded, not chosen.",
+      "policy_id": "UP-05",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 5",
+      "statement": "Complete perps market profile, funding cadence, margin and liquidation thresholds, insurance priority, ADL ordering, bankruptcy allocation, and terminal closeout."
+    },
+    {
+      "implementation_rule": "Route-bound occurrence authority stays structural; reporter economics remain unmounted.",
+      "policy_id": "UP-06",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 6",
+      "statement": "Oracle query, tip, bond, reward, dispute, clawback, and slash values and the finality rule."
+    },
+    {
+      "implementation_rule": "Existing clearing fixtures do not decide the profile.",
+      "policy_id": "UP-07",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 7",
+      "statement": "Auction bond, reveal window, clearing tie-break, inventory disposition, cancellation, slash, refund, and expiry rules."
+    },
+    {
+      "implementation_rule": "No escrow writer is added before the policy is selected.",
+      "policy_id": "UP-08",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 8",
+      "statement": "Strategy escrow trigger authority, replacement, expiry, recovery, and route permissions."
+    },
+    {
+      "implementation_rule": "The reserve becomes an accounting location; funding rules stay profile inputs.",
+      "policy_id": "UP-09",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 9",
+      "statement": "Proof-reward funding, claimant eligibility, nullifier scope, payout, and task terminal semantics."
+    },
+    {
+      "implementation_rule": "Prior 24/48/72 hour examples and fixed quorums remain candidates.",
+      "policy_id": "UP-10",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 10",
+      "statement": "Autonomous-governance quorum, timelock, parameter envelopes, emergency procedure, treasury authority, and upgrade constraints."
+    },
+    {
+      "implementation_rule": "Testnet adapters keep explicit options; no final ABI is assumed.",
+      "policy_id": "UP-11",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 11",
+      "statement": "Tau-origin asset registration and finality semantics once the Tau runtime exposes a stable authoritative interface."
+    },
+    {
+      "implementation_rule": "Legacy batch clearing remains a donor; normative behavior is preserved where it already exists.",
+      "policy_id": "UP-12",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 12",
+      "statement": "Spot and LP curve selection, fee tiers, routing, slippage, pool admission and closure, LP rounding, dust, and residue disposition."
+    },
+    {
+      "implementation_rule": "The transfer module keeps a profile-owned flat fee without a chosen production value.",
+      "policy_id": "UP-13",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 13",
+      "statement": "Generic-transfer fees, asset registration, managed-issuance authority, and asset-supply terminal policy."
+    },
+    {
+      "implementation_rule": "Bind R(S)=ceil(p*S/q) with 0<p<q and burn<=S-R(S) structurally; p and q stay profile inputs.",
+      "policy_id": "UP-14",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 14",
+      "statement": "Exact retained-supply parameters, per-epoch burn limits, minimum purchase and burn atoms, and zero-output handling."
+    },
+    {
+      "implementation_rule": "No issuance route is added; hyperdeflation remains the intended long-run policy.",
+      "policy_id": "UP-15",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 15",
+      "statement": "ZDEX future issuance policy, reserve lifecycle, staking claims, and terminal disposition."
+    },
+    {
+      "implementation_rule": "Only rules already fixed by GlobalSettlementABI V1 are implemented.",
+      "policy_id": "UP-16",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 16",
+      "statement": "Transaction ordering, authorization grants, replay domains, and consensus-time rules not already fixed by the stable ABI."
+    },
+    {
+      "implementation_rule": "Eight decimals applies to asset amounts and does not silently select every other scale.",
+      "policy_id": "UP-17",
+      "source": "SEMANTIC_DECISION_BOUNDARY.md item 17",
+      "statement": "Price, ratio, funding, and collateral fixed-point scales beyond eight-decimal asset amounts."
+    },
+    {
+      "implementation_rule": "The production-boundary scan is extended to tools; a helper survives only with a reachability proof, never by default.",
+      "policy_id": "UP-18",
+      "source": "Encountered during the 21fa295a4 re-audit (HOTSPOT_TARGETS H3, audit F-03)",
+      "statement": "Deployment profile for the node's locally synthesized settlement: whether any allow_missing_settlement=True testnet helper may remain and how production proves it unreachable."
+    },
+    {
+      "implementation_rule": "Two artifacts disagree; both are preserved as provenance and neither is silently chosen.",
+      "policy_id": "UP-19",
+      "source": "Encountered during the 21fa295a4 re-audit (audit F-05)",
+      "statement": "Faucet asset-exclusion policy: the node excludes only the protocol token while the Tau plugin also excludes canonical zUSD."
+    },
+    {
+      "implementation_rule": "The anchor governs the selected profile; the Tau floor specs are historical drift and cannot be mounted under it.",
+      "policy_id": "UP-20",
+      "source": "Encountered during the 21fa295a4 re-audit (audit F-15, docs/TAU_SPECS_PRODUCTION.md)",
+      "statement": "Tau buyback supply-floor specifications versus the retained-supply hyperdeflation anchor."
+    }
+  ],
+  "vm_gate_status": [
+    {
+      "decisive_remaining_condition": "Operation-derived, cross-language, deployment-aware sink reachability and release bindings.",
+      "gate_id": "VM-01",
+      "status": "PARTIAL",
+      "tasks": [
+        "P1-T05",
+        "P2-T01",
+        "P2-T02",
+        "P2-T03",
+        "P2-T04",
+        "P2-T05",
+        "P2-T06",
+        "P2-T07",
+        "P2-T08",
+        "P2-T09",
+        "P4-T11",
+        "P6-T02"
+      ]
+    },
+    {
+      "decisive_remaining_condition": "Complete Python/Rust/guest/verifier/durable codec and root parity with deterministic resource bounds.",
+      "gate_id": "VM-02",
+      "status": "PARTIAL",
+      "tasks": [
+        "P1-T07",
+        "P3-T01",
+        "P3-T02",
+        "P3-T07",
+        "P3-T08"
+      ]
+    },
+    {
+      "decisive_remaining_condition": "Authorization, claimant, residue, terminal, and external-delivery effect coverage.",
+      "gate_id": "VM-03",
+      "status": "PARTIAL",
+      "tasks": [
+        "P3-T03",
+        "P3-T05"
+      ]
+    },
+    {
+      "decisive_remaining_condition": "Total enabled-lane lifecycles with recovery and terminal drain; excluded lanes proved writer-free.",
+      "gate_id": "VM-04",
+      "status": "GAP",
+      "tasks": [
+        "P2-T08",
+        "P2-T10",
+        "P2-T11",
+        "P3-T05",
+        "P4-T01",
+        "P4-T02",
+        "P4-T03",
+        "P4-T04",
+        "P4-T05",
+        "P4-T06",
+        "P4-T07",
+        "P4-T08",
+        "P4-T09",
+        "P4-T10",
+        "P4-T11",
+        "P4-T12",
+        "P6-T09"
+      ]
+    },
+    {
+      "decisive_remaining_condition": "Governed mixed-lane routes and exact port/effect/release composition.",
+      "gate_id": "VM-05",
+      "status": "GAP",
+      "tasks": [
+        "P4-T13",
+        "P4-T14"
+      ]
+    },
+    {
+      "decisive_remaining_condition": "Whole-economy execution in real pinned-image recursive proofs and replay.",
+      "gate_id": "VM-06",
+      "status": "PARTIAL",
+      "tasks": [
+        "P5-T01",
+        "P5-T02",
+        "P5-T03",
+        "P5-T04",
+        "P5-T05",
+        "P5-T07",
+        "P5-T09",
+        "P6-T09"
+      ]
+    },
+    {
+      "decisive_remaining_condition": "Decision, reject precedence, state, effects, roots, replay, and outbox refinement across every authoritative implementation.",
+      "gate_id": "VM-07",
+      "status": "GAP",
+      "tasks": [
+        "P2-T07",
+        "P2-T12",
+        "P3-T02",
+        "P3-T06",
+        "P4-T15",
+        "P5-T06",
+        "P5-T08",
+        "P6-T03",
+        "P6-T09"
+      ]
+    },
+    {
+      "decisive_remaining_condition": "Measured isolated backend, committed release selection, exact replay, revocation, and lock-time reselection.",
+      "gate_id": "VM-08",
+      "status": "PARTIAL",
+      "tasks": [
+        "P5-T03",
+        "P6-T01"
+      ]
+    },
+    {
+      "decisive_remaining_condition": "One mounted atomic publisher and mechanically fenced legacy writers.",
+      "gate_id": "VM-09",
+      "status": "GAP",
+      "tasks": [
+        "P2-T04",
+        "P3-T04",
+        "P5-T07",
+        "P6-T02",
+        "P6-T04",
+        "P6-T07"
+      ]
+    },
+    {
+      "decisive_remaining_condition": "Concrete finality/anchor service, all persistence-boundary faults, delivery and acknowledgment reconciliation.",
+      "gate_id": "VM-10",
+      "status": "PARTIAL",
+      "tasks": [
+        "P3-T09",
+        "P6-T05",
+        "P6-T09"
+      ]
+    },
+    {
+      "decisive_remaining_condition": "Proved migration semantics, atomic authority rotation, total classification, terminal/payable validity, coexistence.",
+      "gate_id": "VM-11",
+      "status": "PARTIAL",
+      "tasks": [
+        "P6-T06",
+        "P6-T07",
+        "P6-T09"
+      ]
+    },
+    {
+      "decisive_remaining_condition": "Clean exact-subject reproducible evidence after all preceding gates close.",
+      "gate_id": "VM-12",
+      "status": "GAP",
+      "tasks": [
+        "P1-T08",
+        "P1-T10",
+        "P2-T09",
+        "P6-T08",
+        "P6-T09",
+        "P6-T10"
+      ]
+    }
+  ]
+}
