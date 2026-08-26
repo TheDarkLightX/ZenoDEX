@@ -1,0 +1,56 @@
+{
+  "authority": "NONE",
+  "captured_at": "2026-08-25",
+  "donors": [
+    {
+      "commit": "d5198b89480eeb36dd56ad55e8b77c4e38c98f45",
+      "commit_object_sha256": "83816d77948d78de119290fcef596287ad4883fe572aef8fd005a59671477011",
+      "id": "ZRPF_REVIEWED_DONOR",
+      "object_transport": "METADATA_ONLY_OBJECT_NOT_REQUIRED_BY_PLAN",
+      "parents": [
+        "05e59d0343898d3c7f3e70ce107b9defd2f24f79"
+      ],
+      "preservation_manifest": {
+        "path": "docs/research/ZRPF_FCIS_PRESERVATION_MANIFEST_20260811.md",
+        "sha256": "9dadb425125a8585cfef9a56e7925bcd4e544c12e3610de53ec4657386d4fb40"
+      },
+      "source_ref_observed": "refs/remotes/origin/agent/zrpf-production-integration-20260714",
+      "tree": "f6d00acf42177d2bd76d917e1cf78588b1615be5"
+    },
+    {
+      "commit": "c2e80678415543df43dba0f4678fae9931a1bb91",
+      "commit_object_sha256": "9643fc0ed6b2d4e7a2e2557d43e0530675b05280e6792824126777f95cb99823",
+      "id": "M6_FCIS_REVIEWED_DONOR",
+      "object_transport": "ADVERTISED_REF_NON_LINEAGE_OBJECT_NOT_REQUIRED_BY_PLAN",
+      "parents": [
+        "bfc3b10fe84f5807a226e4b564127c1ffb5ff0d6"
+      ],
+      "preservation_manifest": {
+        "path": "docs/research/M6_DRIFTED_WIP_PRESERVATION_20260811.md",
+        "sha256": "2012f66d7b4e40ebf6552454cd1423a93f738bdf86da240ae49cc467202f05a4"
+      },
+      "source_ref_observed": "refs/remotes/origin/codex/j07-k01-j06-dependency-rebind-20260804",
+      "tree": "3e1b02031d68e299be826e913b549c015ca34e3e"
+    },
+    {
+      "commit": "b6842cd26aadf32b7ee774f58665570479cacfe6",
+      "commit_object_sha256": "a1435a9b2271833fe4624d4fce0a135972f1bbd30243dc2eee21f5427a46ac24",
+      "coordination_inventory_sha256": "bdda9fae29de21b38782d412a9e471b5b73b893a206414081f80483d297ba137",
+      "id": "DIRTY_PRIMARY_CHECKOUT_DONOR",
+      "object_transport": "SUBJECT_LINEAGE_COMMIT",
+      "parents": [
+        "e75827eee690f082aeaf94ead86ee89255495e5b"
+      ],
+      "tree": "d166dc8dff0baa00c7eea9cd04935e468b1fde3d"
+    }
+  ],
+  "nonclaims": [
+    "This artifact records locally observed content identifiers and does not transport the two out-of-line donor objects.",
+    "Advertised-ref reachability is incidental, can disappear when refs are retired, and does not substitute for candidate ancestry or a tracked object bundle.",
+    "The donor commits and preservation manifests remain research inputs and grant no settlement, publication, migration, release, or value-moving authority.",
+    "The coordination inventory is outside the repository; its digest records provenance only and does not make its bytes independently available.",
+    "No donor implementation is relabeled as current whole-program authority or merged into the authoritative candidate lineage."
+  ],
+  "schema": "zenodex/donor-provenance-snapshot/v1",
+  "status": "RESEARCH_ONLY_PROVENANCE_RECORD"
+}
