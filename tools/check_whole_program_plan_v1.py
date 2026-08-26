@@ -341,23 +341,27 @@ ORDINARY_VALIDATION_PROFILE_V1: Final = PlanValidationProfileV1(PlanValidationKi
 POST_REGENERATION_PROFILE_V1: Final = PlanValidationProfileV1(PlanValidationKindV1.POST_REGENERATION)
 NARRATIVE_BASE_DEFECT_RANGE_RE: Final = re.compile(r"`B-01` through `B-(\d{2})`")
 MAX_TREE_PATH_COMPONENTS: Final = 64
-TREE_MODE_TYPES: Final[Mapping[str, str]] = {
-    "100644": "blob",
-    "100755": "blob",
-    "120000": "blob",
-    "160000": "commit",
-}
+TREE_MODE_TYPES: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "100644": "blob",
+        "100755": "blob",
+        "120000": "blob",
+        "160000": "commit",
+    }
+)
 DONOR_SNAPSHOT_FIELDS: Final = frozenset(
     {"authority", "captured_at", "donors", "nonclaims", "schema", "status"}
 )
 DONOR_COMMON_FIELDS: Final = frozenset(
     {"commit", "commit_object_sha256", "id", "object_transport", "parents", "tree"}
 )
-DONOR_EXPECTED_TRANSPORT: Final[Mapping[str, str]] = {
-    "ZRPF_REVIEWED_DONOR": "METADATA_ONLY_OBJECT_NOT_REQUIRED_BY_PLAN",
-    "M6_FCIS_REVIEWED_DONOR": "ADVERTISED_REF_NON_LINEAGE_OBJECT_NOT_REQUIRED_BY_PLAN",
-    "DIRTY_PRIMARY_CHECKOUT_DONOR": "SUBJECT_LINEAGE_COMMIT",
-}
+DONOR_EXPECTED_TRANSPORT: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "ZRPF_REVIEWED_DONOR": "METADATA_ONLY_OBJECT_NOT_REQUIRED_BY_PLAN",
+        "M6_FCIS_REVIEWED_DONOR": "ADVERTISED_REF_NON_LINEAGE_OBJECT_NOT_REQUIRED_BY_PLAN",
+        "DIRTY_PRIMARY_CHECKOUT_DONOR": "SUBJECT_LINEAGE_COMMIT",
+    }
+)
 DONOR_REQUIRED_NONCLAIMS: Final[tuple[str, ...]] = (
     "This artifact records locally observed content identifiers and does not transport the two out-of-line donor objects.",
     "Advertised-ref reachability is incidental, can disappear when refs are retired, and does not substitute for candidate ancestry or a tracked object bundle.",

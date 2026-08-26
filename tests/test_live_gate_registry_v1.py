@@ -44,7 +44,7 @@ def test_registry_is_closed_sorted_python_only_and_points_at_real_tools() -> Non
 
 
 def test_registry_mapping_rejects_runtime_mutation() -> None:
-    """Same-process callers cannot insert, remove, replace, or clear gates."""
+    """Same-process callers cannot mutate executable or environment registries."""
 
     gate_id = next(iter(LIVE_GATE_REGISTRY))
     spec = LIVE_GATE_REGISTRY[gate_id]
@@ -60,6 +60,16 @@ def test_registry_mapping_rejects_runtime_mutation() -> None:
             operation()
     assert LIVE_GATE_REGISTRY[gate_id] is spec
     assert "forged" not in LIVE_GATE_REGISTRY
+    for environment in (
+        registry_module.PROCESS_ENVIRONMENT_BASE,
+        registry_module._SUPERVISOR_ENVIRONMENT,
+    ):
+        original_path = environment["PATH"]
+        with pytest.raises(TypeError):
+            environment["PATH"] = "/tmp/forged"  # type: ignore[index]
+        with pytest.raises(TypeError):
+            del environment["PATH"]  # type: ignore[misc]
+        assert environment["PATH"] == original_path
 
 
 def test_foreign_or_lookalike_spec_cannot_be_observed(tmp_path: Path) -> None:

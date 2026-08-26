@@ -1519,6 +1519,21 @@ def test_closed_authority_and_plan_nonclaims_cannot_be_mutated_or_replaced() -> 
         checker_module.REQUIRED_AUTHORITY["production_authority"] = "GLOBAL_EPOCH"  # type: ignore[index]
     with pytest.raises(TypeError):
         del checker_module.REQUIRED_AUTHORITY["production_authority"]  # type: ignore[misc]
+    closed_vocabularies = (
+        (checker_module.TREE_MODE_TYPES, "100644", "forged"),
+        (
+            checker_module.DONOR_EXPECTED_TRANSPORT,
+            "ZRPF_REVIEWED_DONOR",
+            "FORGED_TRANSPORT",
+        ),
+    )
+    for vocabulary, key, forged in closed_vocabularies:
+        original = vocabulary[key]
+        with pytest.raises(TypeError):
+            vocabulary[key] = forged  # type: ignore[index]
+        with pytest.raises(TypeError):
+            del vocabulary[key]  # type: ignore[misc]
+        assert vocabulary[key] == original
 
     replaced = _plan()
     replaced["nonclaims"] = ["all prior nonclaims removed"]

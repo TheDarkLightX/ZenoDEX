@@ -142,17 +142,19 @@ _MAX_PROC_RECORD_BYTES: Final = 4096
 _MAX_PROC_LIST_BYTES: Final = 1024 * 1024
 _SUPERVISOR_OVERHEAD_SECONDS: Final = 10
 _SUPERVISOR_REQUEST_LIMIT_BYTES: Final = 65536
-PROCESS_ENVIRONMENT_BASE: Final[Mapping[str, str]] = {
-    "PATH": "/usr/bin:/bin",
-    "HOME": "/nonexistent",
-    "XDG_CONFIG_HOME": "/nonexistent",
-    "LANG": "C.UTF-8",
-    "LC_ALL": "C.UTF-8",
-    "GIT_CONFIG_NOSYSTEM": "1",
-    "GIT_CONFIG_GLOBAL": "/dev/null",
-    "GIT_NO_REPLACE_OBJECTS": "1",
-    "GIT_TERMINAL_PROMPT": "0",
-}
+PROCESS_ENVIRONMENT_BASE: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "PATH": "/usr/bin:/bin",
+        "HOME": "/nonexistent",
+        "XDG_CONFIG_HOME": "/nonexistent",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": "/dev/null",
+        "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_TERMINAL_PROMPT": "0",
+    }
+)
 
 _GIT_OID_RE_V1: Final = re.compile(r"[0-9a-f]{40}")
 
@@ -1317,13 +1319,15 @@ def supervise_main() -> None:
     os._exit(0)
 
 
-_SUPERVISOR_ENVIRONMENT: Final[Mapping[str, str]] = {
-    **PROCESS_ENVIRONMENT_BASE,
-    "PYTHONNOUSERSITE": "1",
-    "PYTHONHASHSEED": "0",
-    "PYTHONDONTWRITEBYTECODE": "1",
-    "PYTHONIOENCODING": "utf-8",
-}
+_SUPERVISOR_ENVIRONMENT: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        **PROCESS_ENVIRONMENT_BASE,
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONHASHSEED": "0",
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONIOENCODING": "utf-8",
+    }
+)
 
 
 def _decode_supervisor_response(payload: bytes) -> ProcessRunV1:
