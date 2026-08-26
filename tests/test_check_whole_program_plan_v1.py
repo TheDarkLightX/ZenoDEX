@@ -1255,6 +1255,32 @@ def test_transport_faithful_clone_replays_without_out_of_line_donor_objects(
     assert report["authority"]["production_authority"] == "NONE"
 
 
+def test_donor_snapshot_lineage_labels_are_equivalent_to_raw_git_ancestry() -> None:
+    with ConfinedRootV1.bind(ROOT) as bound:
+        snapshot = checker_module._read_bounded_json_file(
+            bound,
+            checker_module.DONOR_PROVENANCE_PATH,
+            name="donor provenance snapshot",
+        )
+        accepted = checker_module._validate_donor_provenance_content_v1(snapshot, bound)
+        forged = copy.deepcopy(snapshot)
+        donor = next(row for row in forged["donors"] if row["id"] == "M6_FCIS_REVIEWED_DONOR")
+        donor["object_transport"] = "SUBJECT_LINEAGE_COMMIT"
+        refused = checker_module._validate_donor_provenance_content_v1(forged, bound)
+        false_metadata = copy.deepcopy(snapshot)
+        false_metadata["donors"][0]["tree"] = "0" * 40
+        metadata_refused = checker_module._validate_donor_provenance_content_v1(false_metadata, bound)
+
+    assert accepted == []
+    assert {finding.rule_id for finding in refused} == {
+        "donor_transport_ancestry_mismatch",
+        "donor_transport_label_invalid",
+    }
+    assert {finding.rule_id for finding in metadata_refused} == {
+        "donor_commit_metadata_mismatch"
+    }
+
+
 def test_amended_direct_child_replays_from_a_detached_worktree_while_stale_or_unrelated_subjects_fail(
     tmp_path: Path,
 ) -> None:

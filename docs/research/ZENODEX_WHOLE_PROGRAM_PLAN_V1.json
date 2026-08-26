@@ -711,7 +711,7 @@
     "observed_at": "2026-08-25",
     "scoped_worktree_clean": true,
     "source_snapshot_file_count": 5790,
-    "source_snapshot_sha256": "13103e6ecdb5c190b73aa8e8087282f9c8db380f2f952fa40eca5ecae8e699a5"
+    "source_snapshot_sha256": "8ecbea2805c19376e41922408fda0a4b50c8b8e33a6b68ae93473c949afb23a9"
   },
   "tasks": [
     {
@@ -762,7 +762,7 @@
         {
           "kind": "manifest",
           "reference": "docs/research/ZENODEX_DONOR_PROVENANCE_SNAPSHOT_V1.json",
-          "sha256": "c4e535aee9d8a63e2a08135b5e394df52dd68e313a6947faa84b77fa2357e5c1"
+          "sha256": "bd9da9bf4a240d961a6b7abc77783c8d2443a3aba88c3e2ead7c2a816a29523f"
         },
         {
           "kind": "commit",

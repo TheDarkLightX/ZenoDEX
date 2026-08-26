@@ -139,6 +139,7 @@ from tools.whole_program_artifact_binding_v1 import (  # noqa: E402
 PLAN_JSON_PATH: Final = Path(PLAN_JSON_ARTIFACT_PATH_V1)
 PLAN_MARKDOWN_PATH: Final = Path(PLAN_MARKDOWN_ARTIFACT_PATH_V1)
 CLOSURE_LEDGER_PATH: Final = Path("docs/research/ZENODEX_VALUE_MOVEMENT_CLOSURE_STATUS_V1.json")
+DONOR_PROVENANCE_PATH: Final = Path("docs/research/ZENODEX_DONOR_PROVENANCE_SNAPSHOT_V1.json")
 SCHEMA_V1: Final = "zenodex/whole-program-plan/v1"
 CHECK_SCHEMA_V1: Final = "zenodex/whole-program-plan-check/v1"
 MAX_PLAN_MARKDOWN_BYTES: Final = MAX_PLAN_MARKDOWN_BYTES_V1
@@ -321,6 +322,17 @@ TREE_MODE_TYPES: Final[Mapping[str, str]] = {
     "100755": "blob",
     "120000": "blob",
     "160000": "commit",
+}
+DONOR_SNAPSHOT_FIELDS: Final = frozenset(
+    {"authority", "captured_at", "donors", "nonclaims", "schema", "status"}
+)
+DONOR_COMMON_FIELDS: Final = frozenset(
+    {"commit", "commit_object_sha256", "id", "object_transport", "parents", "tree"}
+)
+DONOR_EXPECTED_TRANSPORT: Final[Mapping[str, str]] = {
+    "ZRPF_REVIEWED_DONOR": "METADATA_ONLY_OBJECT_NOT_REQUIRED_BY_PLAN",
+    "M6_FCIS_REVIEWED_DONOR": "ADVERTISED_REF_NON_LINEAGE_OBJECT_NOT_REQUIRED_BY_PLAN",
+    "DIRTY_PRIMARY_CHECKOUT_DONOR": "SUBJECT_LINEAGE_COMMIT",
 }
 
 
@@ -1240,6 +1252,145 @@ def _validate_semantic_anchors(plan: Mapping[str, Any], root: ConfinedRootV1) ->
     return [PlanFinding("semantic_anchor_drift", "semantic_anchors", ",".join(drift))] if drift else []
 
 
+def _donor_row_fields_v1(donor_id: str) -> frozenset[str]:
+    if donor_id in {"ZRPF_REVIEWED_DONOR", "M6_FCIS_REVIEWED_DONOR"}:
+        return DONOR_COMMON_FIELDS | {"preservation_manifest", "source_ref_observed"}
+    if donor_id == "DIRTY_PRIMARY_CHECKOUT_DONOR":
+        return DONOR_COMMON_FIELDS | {"coordination_inventory_sha256"}
+    return DONOR_COMMON_FIELDS
+
+
+def _validate_donor_provenance_content_v1(
+    snapshot: Mapping[str, Any], root: ConfinedRootV1
+) -> list[PlanFinding]:
+    """Check the closed donor record and make every lineage label agree with raw Git ancestry."""
+
+    shape = _shape(
+        snapshot,
+        DONOR_SNAPSHOT_FIELDS,
+        rule="donor_snapshot_field_set_not_closed",
+        subject=DONOR_PROVENANCE_PATH.as_posix(),
+    )
+    if shape is not None:
+        return [shape]
+    findings: list[PlanFinding] = []
+    if snapshot["schema"] != "zenodex/donor-provenance-snapshot/v1":
+        findings.append(PlanFinding("donor_snapshot_schema_mismatch", "schema", str(snapshot["schema"])))
+    if snapshot["authority"] != "NONE":
+        findings.append(PlanFinding("donor_snapshot_authority_violated", "authority", str(snapshot["authority"])))
+    if snapshot["status"] != "RESEARCH_ONLY_PROVENANCE_RECORD":
+        findings.append(PlanFinding("donor_snapshot_status_invalid", "status", str(snapshot["status"])))
+    if not _is_date(snapshot["captured_at"]):
+        findings.append(PlanFinding("donor_snapshot_date_invalid", "captured_at", str(snapshot["captured_at"])))
+    if not _is_str_list(snapshot["nonclaims"]) or not snapshot["nonclaims"]:
+        findings.append(PlanFinding("donor_snapshot_nonclaims_missing", "nonclaims", "must be a nonempty string list"))
+    donors = snapshot["donors"]
+    if type(donors) is not list:
+        return findings + [PlanFinding("donor_rows_malformed", "donors", "must be an exact list")]
+    seen_ids: set[str] = set()
+    seen_commits: set[str] = set()
+    for index, row in enumerate(donors):
+        subject = f"donors[{index}]"
+        if type(row) is not dict:
+            findings.append(PlanFinding("donor_row_malformed", subject, "must be an exact object"))
+            continue
+        donor_id = row.get("id")
+        if type(donor_id) is not str or donor_id not in DONOR_EXPECTED_TRANSPORT:
+            findings.append(PlanFinding("donor_id_invalid", subject, str(donor_id)))
+            continue
+        row_shape = _shape(
+            row,
+            _donor_row_fields_v1(donor_id),
+            rule="donor_row_field_set_not_closed",
+            subject=subject,
+        )
+        if row_shape is not None:
+            findings.append(row_shape)
+            continue
+        commit = row["commit"]
+        if donor_id in seen_ids:
+            findings.append(PlanFinding("donor_id_duplicate", subject, donor_id))
+        seen_ids.add(donor_id)
+        if not _is_commit(commit):
+            findings.append(PlanFinding("donor_commit_malformed", subject, str(commit)))
+            continue
+        if commit in seen_commits:
+            findings.append(PlanFinding("donor_commit_duplicate", subject, commit))
+        seen_commits.add(commit)
+        if not _is_sha256(row["commit_object_sha256"]) or not _is_commit(row["tree"]):
+            findings.append(PlanFinding("donor_content_id_malformed", subject, donor_id))
+        parents = row["parents"]
+        if type(parents) is not list or not parents or not all(_is_commit(parent) for parent in parents) or len(set(parents)) != len(parents):
+            findings.append(PlanFinding("donor_parents_malformed", subject, donor_id))
+        expected_transport = DONOR_EXPECTED_TRANSPORT[donor_id]
+        if row["object_transport"] != expected_transport:
+            findings.append(
+                PlanFinding(
+                    "donor_transport_label_invalid",
+                    subject,
+                    f"expected={expected_transport} observed={row['object_transport']}",
+                )
+            )
+        exists = _git(root, ["cat-file", "-e", f"{commit}^{{commit}}"])[0] == 0
+        is_ancestor = exists and _git(root, ["merge-base", "--is-ancestor", commit, "HEAD"])[0] == 0
+        labelled_lineage = row["object_transport"] == "SUBJECT_LINEAGE_COMMIT"
+        if labelled_lineage != is_ancestor:
+            findings.append(
+                PlanFinding(
+                    "donor_transport_ancestry_mismatch",
+                    subject,
+                    f"commit={commit} labelled_lineage={str(labelled_lineage).lower()} observed_ancestor={str(is_ancestor).lower()}",
+                )
+            )
+        if exists:
+            raw = _git_bytes(root, ["cat-file", "commit", commit], max_output_bytes=MAX_HASHED_FILE_BYTES)
+            if raw is None or hashlib.sha256(raw).hexdigest() != row["commit_object_sha256"]:
+                findings.append(PlanFinding("donor_commit_object_digest_mismatch", subject, commit))
+            elif b"\n\n" not in raw:
+                findings.append(PlanFinding("donor_commit_metadata_unreadable", subject, commit))
+            else:
+                headers = raw.split(b"\n\n", 1)[0].splitlines()
+                trees = [line[5:].decode("ascii", errors="replace") for line in headers if line.startswith(b"tree ")]
+                observed_parents = [line[7:].decode("ascii", errors="replace") for line in headers if line.startswith(b"parent ")]
+                if trees != [row["tree"]] or observed_parents != parents:
+                    findings.append(
+                        PlanFinding(
+                            "donor_commit_metadata_mismatch",
+                            subject,
+                            f"tree={','.join(trees)} parents={','.join(observed_parents)}",
+                        )
+                    )
+        if donor_id in {"ZRPF_REVIEWED_DONOR", "M6_FCIS_REVIEWED_DONOR"}:
+            manifest = row["preservation_manifest"]
+            if type(manifest) is not dict or set(manifest) != {"path", "sha256"} or not _is_repo_relative(manifest.get("path")) or not _is_sha256(manifest.get("sha256")):
+                findings.append(PlanFinding("donor_preservation_manifest_malformed", subject, donor_id))
+            elif _sha256_file(root, manifest["path"]) != manifest["sha256"]:
+                findings.append(PlanFinding("donor_preservation_manifest_digest_mismatch", subject, manifest["path"]))
+            if not isinstance(row["source_ref_observed"], str) or not row["source_ref_observed"].startswith("refs/"):
+                findings.append(PlanFinding("donor_source_ref_malformed", subject, str(row["source_ref_observed"])))
+        elif not _is_sha256(row["coordination_inventory_sha256"]):
+            findings.append(PlanFinding("donor_coordination_digest_malformed", subject, donor_id))
+    if seen_ids != set(DONOR_EXPECTED_TRANSPORT):
+        findings.append(
+            PlanFinding(
+                "donor_registry_incomplete",
+                "donors",
+                f"expected={','.join(sorted(DONOR_EXPECTED_TRANSPORT))} observed={','.join(sorted(seen_ids))}",
+            )
+        )
+    return findings
+
+
+def donor_provenance_findings_v1(root: ConfinedRootV1) -> list[PlanFinding]:
+    """Validate the tracked donor snapshot as semantics, rather than accepting only its byte pin."""
+
+    try:
+        snapshot = _read_bounded_json_file(root, DONOR_PROVENANCE_PATH, name="donor provenance snapshot")
+    except PlanUnreadable as exc:
+        return [PlanFinding("donor_snapshot_unreadable", DONOR_PROVENANCE_PATH.as_posix(), str(exc))]
+    return _validate_donor_provenance_content_v1(snapshot, root)
+
+
 def _validate_phases(plan: Mapping[str, Any]) -> list[PlanFinding]:
     phases = plan["phases"]
     if not isinstance(phases, list):
@@ -1866,6 +2017,7 @@ def _validate_with_root(
         lambda: plan_artifact_findings_v1(bound),
         lambda: _validate_subject(plan, bound, profile),
         lambda: _validate_semantic_anchors(plan, bound),
+        lambda: donor_provenance_findings_v1(bound),
         lambda: _validate_phases(plan),
         lambda: _validate_finding_registry(plan, well_formed),
         lambda: _validate_rows(plan["unresolved_policies"], POLICY_ROWS)[0],

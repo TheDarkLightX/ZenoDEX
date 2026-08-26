@@ -205,6 +205,12 @@ def _closed_git_arguments_v1(args: Sequence[str]) -> tuple[str, ...] | None:
         if separator and _GIT_OID_RE_V1.fullmatch(oid) and _closed_git_path_v1(path):
             return argv
     if (
+        len(argv) == 3
+        and argv[:2] == ("cat-file", "commit")
+        and _GIT_OID_RE_V1.fullmatch(argv[2])
+    ):
+        return argv
+    if (
         len(argv) == 4
         and argv[:2] == ("merge-base", "--is-ancestor")
         and _GIT_OID_RE_V1.fullmatch(argv[2])
