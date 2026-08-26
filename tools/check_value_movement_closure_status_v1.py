@@ -16,6 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_STATUS_PATH = Path(
     "docs/research/ZENODEX_VALUE_MOVEMENT_CLOSURE_STATUS_V1.json"
 )
+CLOSURE_CHECK_SCHEMA_V1 = "zenodex/value-movement-closure-status-check/v1"
 M6_ATDD_PATH = Path("docs/research/m6_global_economic_core_atdd_bdd_v1.json")
 EXPECTED_GATE_IDS = tuple(f"VM-{index:02d}" for index in range(1, 13))
 EXPECTED_GATE_EVIDENCE_ROOT = (
@@ -403,19 +404,24 @@ def _load_live_gate_checkers_v1() -> tuple[
 ]:
     """Import checked live-gate helpers only after their source hashes pass."""
 
-    if __package__:
+    try:
         from tools.check_m6_asset_precision_policy_v1 import (
-            check_m6_asset_precision_policy_v1,
+            check_m6_asset_precision_policy_v1 as packaged_precision_checker,
         )
-        from tools.check_m6_value_sinks_v1 import check_m6_value_sinks_v1
-    else:
+        from tools.check_m6_value_sinks_v1 import (
+            check_m6_value_sinks_v1 as packaged_value_sinks_checker,
+        )
+    except ModuleNotFoundError as exc:
+        if exc.name != "tools":
+            raise
         from check_m6_asset_precision_policy_v1 import (
-            check_m6_asset_precision_policy_v1,
+            check_m6_asset_precision_policy_v1 as sibling_precision_checker,
         )
         from check_m6_value_sinks_v1 import (
-            check_m6_value_sinks_v1,
+            check_m6_value_sinks_v1 as sibling_value_sinks_checker,
         )
-    return check_m6_asset_precision_policy_v1, check_m6_value_sinks_v1
+        return sibling_precision_checker, sibling_value_sinks_checker
+    return packaged_precision_checker, packaged_value_sinks_checker
 
 
 def _git_blob_sha256_v1(
@@ -759,6 +765,24 @@ def _validate_publisher_bound_slice_evidence_v1(
     )
 
 
+def _closed_report_v1(
+    findings: list[str],
+    *,
+    subject_commit: object = None,
+    gate_count: int = 0,
+) -> dict[str, object]:
+    """One fail-closed outward schema for every success and refusal path."""
+
+    return {
+        "schema": CLOSURE_CHECK_SCHEMA_V1,
+        "ok": not findings,
+        "subject_commit": subject_commit,
+        "gate_count": gate_count,
+        "production_authority": "NONE",
+        "findings": findings,
+    }
+
+
 def check_value_movement_closure_status_v1(
     root: Path = REPO_ROOT,
     status_path: Path | None = None,
@@ -768,11 +792,9 @@ def check_value_movement_closure_status_v1(
     try:
         status = _load_exact_json(source)
     except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        return {
-            "schema": "zenodex/value-movement-closure-status-check/v1",
-            "ok": False,
-            "findings": [f"status ledger cannot be loaded: {type(exc).__name__}: {exc}"],
-        }
+        return _closed_report_v1(
+            [f"status ledger cannot be loaded: {type(exc).__name__}: {exc}"]
+        )
 
     if status.get("schema") != "zenodex/value-movement-closure-status/v1":
         findings.append("closure status schema mismatch")
@@ -1113,14 +1135,13 @@ def check_value_movement_closure_status_v1(
     if live_precision["ok"] is not True:
         findings.append("live asset precision policy has findings")
 
-    return {
-        "schema": "zenodex/value-movement-closure-status-check/v1",
-        "ok": not findings,
-        "subject_commit": commit,
-        "gate_count": len(gate_rows) if type(gate_rows) is list else 0,
-        "production_authority": authority.get("production_authority"),
-        "findings": findings,
-    }
+    # The decoded status is evidence under review, never an authority source.
+    # Drift cannot be reflected into the checker-owned outward claim field.
+    return _closed_report_v1(
+        findings,
+        subject_commit=commit,
+        gate_count=len(gate_rows) if type(gate_rows) is list else 0,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
