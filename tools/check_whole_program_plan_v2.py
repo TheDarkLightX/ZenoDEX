@@ -222,9 +222,9 @@ def check_whole_program_plan_v2(
     if _exact_ids(plan.get("unresolved_semantic_decisions"), "decision_id") != EXPECTED_POLICIES:
         findings.append("unresolved semantic-decision set or order drift")
 
-    verdict = plan.get("current_verdict")
+    verdict = plan.get("baseline_verdict")
     if type(verdict) is not dict or verdict.get("closed_value_movement_gates") != 0:
-        findings.append("current plan must not claim a closed value-movement gate")
+        findings.append("baseline verdict must not claim a closed value-movement gate")
     if type(verdict) is not dict or verdict.get("value_movement_gate_count") != 12:
         findings.append("value-movement gate count drift")
 

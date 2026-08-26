@@ -17,8 +17,9 @@ The architecture remains sound. GlobalSettlementABI V1 stays selected. A V2 is
 permitted only for a new foundational effect category or invariant, together
 with an approved typed delta, migration obligations, and compatibility policy.
 
-The current candidate is a substantial research implementation. It is not a
-production or whole-program closure candidate. Architectural implementation
+At the recorded implementation base, the candidate is a substantial research
+implementation. It is not a production or whole-program closure candidate.
+Architectural implementation
 maturity is approximately 33 percent under a conservative component rubric.
 Formal-artifact maturity is approximately 15 to 25 percent as a coarse estimate.
 Strict release closure is 0 of at least 350 registered required evidence cells
@@ -26,9 +27,10 @@ because no complete command or M6 row is closed on one exact subject. The
 350-cell denominator is a lower bound and must expand when the 103-capability
 registry creates additional obligations. Exact-ledger closure is approximately
 1 to 3 percent and must be reconciled on the current head. These figures answer
-different questions. Closed capability rows and value-movement gates govern
-promotion. Currently, zero of the 12 value-movement gates has current-subject
-`PASS` evidence.
+different questions. They are an immutable baseline diagnosis, not a live
+progress counter. Exact-subject obligation and value-movement ledgers govern
+live progress and promotion. At the baseline, zero of the 12 value-movement
+gates has `PASS` evidence.
 
 The machine-readable plan is
 `docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json`.

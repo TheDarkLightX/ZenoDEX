@@ -131,7 +131,7 @@
     "external_lane": "The registered external lane starts empty. Unregistered destinations reject without mutation.",
     "tau_role": "Current Tau may authenticate or order typed command occurrences and may govern policy predicates. Tau does not receive a separate durable publication path."
   },
-  "current_verdict": {
+  "baseline_verdict": {
     "candidate_disposition": "NO_GO_FOR_PRODUCTION_OR_WHOLE_PROGRAM_CLOSURE",
     "architectural_implementation_maturity_estimate": "33_PERCENT_CONSERVATIVE",
     "formal_artifact_maturity_estimate": "15_TO_25_PERCENT_COARSE",
@@ -139,7 +139,7 @@
     "exact_ledger_closure_estimate": "1_TO_3_PERCENT_REQUIRES_CURRENT_RECONCILIATION",
     "closed_value_movement_gates": 0,
     "value_movement_gate_count": 12,
-    "estimate_warning": "Percentages are coarse planning estimates. The 350-cell denominator is a registered lower bound and must expand where the 103-capability registry creates additional obligations. Gate and capability-row closure are authoritative progress measures.",
+    "estimate_warning": "This is an immutable diagnosis of the implementation base. Live progress belongs in exact-subject obligation and value-movement ledgers. Percentages are coarse planning estimates. The 350-cell denominator is a registered lower bound and must expand where the 103-capability registry creates additional obligations.",
     "immediate_blockers": [
       "The bridge-backed stream-8 perps and stream-11 zUSD monetary APIs remain mounted despite incompatibility with current Tau.",
       "The stream-11 zUSD monetary API also lacks a verifier-owned execution clock for ordinary execution.",

@@ -72,10 +72,10 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
             "unresolved semantic-decision set or order drift",
         ),
         (
-            lambda plan: plan["current_verdict"].update(
+            lambda plan: plan["baseline_verdict"].update(
                 {"closed_value_movement_gates": 1}
             ),
-            "current plan must not claim a closed value-movement gate",
+            "baseline verdict must not claim a closed value-movement gate",
         ),
         (
             lambda plan: plan["subject"].update(
