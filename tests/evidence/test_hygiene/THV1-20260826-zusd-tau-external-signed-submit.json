@@ -1,0 +1,167 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zusd-tau-external-signed-submit",
+  "created_date": "2026-08-26",
+  "claim_scope": "The zUSD Tau-token wallet submit path can accept an externally signed stream-9 Tau transaction without receiving a server-side private key. Admission decodes into an immutable unverified value, constructs a verified wrapper only after exact sender, current sequence, expiration, fee, operation projection, closed-field, and BLS-signature checks, and broadcasts only the reconstructed verified payload. A deterministic Tau rejection cannot be reported as submit success.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZUSD-TAU-SUBMIT-REQUIRES-ONE-SIGNING-AUTHORITY",
+    "ZUSD-TAU-EXTERNAL-PAYLOAD-BINDS-ACTOR-SEQUENCE-EXPIRY-FEE-OPERATIONS",
+    "ZUSD-TAU-EXTERNAL-PAYLOAD-HAS-CLOSED-CANONICAL-FIELDS",
+    "ZUSD-TAU-EXTERNAL-PAYLOAD-REQUIRES-VALID-BLS-SIGNATURE",
+    "ZUSD-TAU-BINDING-REJECTS-BEFORE-SENDTX",
+    "ZUSD-TAU-REJECTED-SENDTX-IS-NEVER-REPORTED-AS-SUCCESS",
+    "ZUSD-TAU-HTTP-BODY-NEEDS-NO-RAW-SIGNING-KEY"
+  ],
+  "failure_modes": [
+    "the server requires or receives a private key to submit a zUSD Tau-token transfer, mint, or burn",
+    "a signed transaction for another actor, sequence, expiration, fee, or operation set is broadcast",
+    "an extra or ambiguous transaction-payload field changes meaning outside the verifier's closed schema",
+    "a boolean aliases an integer transaction coordinate",
+    "a malformed or invalid BLS signature reaches sendtx",
+    "local signing authority and an external signed payload are both selected",
+    "a signed submit payload is silently accepted during the prepare phase",
+    "the HTTP authority-material classifier rejects the safe public signed envelope",
+    "a Tau node rejection is returned to the caller as a successful submission"
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/zusd_tau_wallet_api.py",
+      "sha256": "e60f5753e532a200ad895e6cc931bf011ac99780f138a0efbab90205f604730c"
+    },
+    {
+      "path": "src/integration/http_authority_ingress_v1.py",
+      "sha256": "06dba539ba552d14ae2bbe57d25a7a4d4bc7a01e37317ead075f4332044b74fa"
+    },
+    {
+      "path": "src/integration/tau_net_client.py",
+      "sha256": "f466df2b9e12ed548c1434a4115ad240428f7cee5741292675125f11e6ae744a"
+    },
+    {
+      "path": "src/integration/zusd_tau_token.py",
+      "sha256": "07af5ba0f99e62bd8e913c789a8e609b010fd921d7567af9dcd50b7f36c4f9a2"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_zusd_tau_wallet_api.py",
+      "sha256": "acf2f828181fd21f050c650321a94c363c845ef4464875ada89279425778274e",
+      "node_ids": [
+        "tests/integration/test_zusd_tau_wallet_api.py::test_status_reports_tau_node_bridge",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_accepts_exact_external_signed_payload_without_server_key",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_prepare_sign_submit_roundtrip_uses_real_token_operation_projection",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_binds_nonzero_external_fee_limit",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_accepts_external_payload_as_json_string",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_never_reports_rejected_sendtx_as_success",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_external_signed_payload_binding_mutations_reject_without_send",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_rejects_ambiguous_local_and_external_signing_authority",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_rejects_ambiguous_external_payload_aliases",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_prepare_rejects_signed_payload_in_wrong_phase"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "stateful",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange exact Tau state, current sequence, token operation, fee, signer, and request phase; act through prepare and submit; then assert the complete typed HTTP result, exact sent payload, signing mode, and sendtx observation. Mutation cases assert the exact reject code and empty send list."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Every payload-binding, ambiguity, wrong-phase, shape, and signature rejection is observed before sendtx with an empty fake-client send list. A node-level send rejection necessarily records one attempted payload and is separately asserted never to produce a success response."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "transaction_sequence",
+      "points": [
+        "current_sequence_7_accepts",
+        "lower_neighbor_6_rejects",
+        "upper_neighbor_8_rejects",
+        "boolean_alias_rejects"
+      ]
+    },
+    {
+      "name": "expiration",
+      "points": [
+        "exact_deadline_accepts",
+        "lower_neighbor_rejects",
+        "upper_neighbor_rejects"
+      ]
+    },
+    {
+      "name": "fee_limit",
+      "points": [
+        "zero_fee_accepts_when_requested",
+        "nonzero_17_accepts_when_exactly_requested",
+        "mismatched_fee_rejects"
+      ]
+    },
+    {
+      "name": "signing_authority_cardinality",
+      "points": [
+        "one_external_signed_payload_accepts",
+        "local_and_external_authority_reject",
+        "two_external_payload_aliases_reject"
+      ]
+    },
+    {
+      "name": "request_phase",
+      "points": [
+        "unsigned_prepare_returns_signable_operation_projection",
+        "exact_signed_submit_accepts",
+        "signed_prepare_rejects"
+      ]
+    },
+    {
+      "name": "transport_result",
+      "points": [
+        "Tau_success_is_reported_after_one_exact_send",
+        "Tau_rejection_maps_to_502_and_never_reports_success"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept a lower, higher, or boolean transaction sequence",
+      "killed_by": "tests/integration/test_zusd_tau_wallet_api.py::test_external_signed_payload_binding_mutations_reject_without_send"
+    },
+    {
+      "description": "accept a neighboring expiration or mismatched fee limit",
+      "killed_by": "tests/integration/test_zusd_tau_wallet_api.py::test_external_signed_payload_binding_mutations_reject_without_send"
+    },
+    {
+      "description": "broadcast a different stream-9 operation projection or sender",
+      "killed_by": "tests/integration/test_zusd_tau_wallet_api.py::test_external_signed_payload_binding_mutations_reject_without_send"
+    },
+    {
+      "description": "skip BLS verification or accept an all-zero signature",
+      "killed_by": "tests/integration/test_zusd_tau_wallet_api.py::test_external_signed_payload_binding_mutations_reject_without_send"
+    },
+    {
+      "description": "ignore an extra signed-payload field",
+      "killed_by": "tests/integration/test_zusd_tau_wallet_api.py::test_external_signed_payload_binding_mutations_reject_without_send"
+    },
+    {
+      "description": "treat any sendtx response as successful",
+      "killed_by": "tests/integration/test_zusd_tau_wallet_api.py::test_submit_never_reports_rejected_sendtx_as_success"
+    }
+  ],
+  "nonclaims": [
+    "This is a mounted transport-admission improvement for the zUSD TauToken stream. It does not prove zUSD monetary policy, token issuance authorization, global conservation, Oracle correctness, or whole-economy settlement.",
+    "The verified Python wrapper is process-local and does not constitute cryptographic publication authority, a RISC0 proof, or an opaque cross-process capability.",
+    "The underlying Tau transaction format does not add a new explicit chain-id field in this patch; operation-bound asset identifiers and the selected Tau endpoint remain deployment assumptions.",
+    "A transport timeout after possible remote acceptance remains ambiguous. Durable reconciliation, destination idempotency, and exactly-once submission are not implemented here.",
+    "The local-signing branch remains available for direct local/test fixtures but is rejected at the mounted HTTP authority-material boundary.",
+    "No UI changes are included. Clients must use the prepare response with an external signer and submit the resulting signed payload.",
+    "M6 remains research-only, production_authority remains NONE, and this packet does not establish production readiness or safety of all value movement."
+  ]
+}
