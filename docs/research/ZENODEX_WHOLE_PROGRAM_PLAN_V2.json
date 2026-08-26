@@ -1,0 +1,374 @@
+{
+  "schema": "zenodex/whole-program-plan/v2",
+  "status": "RESEARCH_ONLY_ACTIVE_IMPLEMENTATION_PLAN",
+  "authority": {
+    "production_authority": "NONE",
+    "settlement_authority": "NONE",
+    "release_ready": false,
+    "production_ready": false
+  },
+  "subject": {
+    "implementation_base_commit": "92bec186d36846bb5e43b2be90a58b8a46ee56c6",
+    "implementation_base_tree": "304133278615eded1f62a8ceaf60cc65d0bb87e0",
+    "branch": "codex/whole-program-integration-20260825",
+    "observed_at": "2026-08-26",
+    "base_worktree_clean": true,
+    "plan_commit_binding": "The commit that adds this plan is recorded by an external immutable review receipt. The committed plan does not claim a self-referential HEAD hash."
+  },
+  "normative_inputs": [
+    {
+      "path": "docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json",
+      "sha256": "34930be9d4d69c4c46c7c97f57fd492d4c95061f8960f936261a8a3415d5db95",
+      "role": "Closed scope registry: 12 lanes, 103 capabilities, four required cross-lane routes, and explicit exclusions."
+    },
+    {
+      "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
+      "sha256": "32985ee88b0b15a0b6ef1408e60ac1767f93e20eade434090011e144ecd56990",
+      "role": "Conjunctive claim target and semantic nonclaims."
+    },
+    {
+      "path": "docs/research/ZENODEX_M6_ASSET_PRECISION_POLICY_V1.json",
+      "sha256": "d1427502b4a6eea32fdc0895b9f872d13eea6dc9670cec2a117dcb9d96fdb815",
+      "role": "Eight-decimal integer-atom policy."
+    }
+  ],
+  "historical_inputs": [
+    {
+      "source": "User-supplied Modular Whole-Economy Zeno Recursive Proof Fabric plan",
+      "use": "Architectural objective and release-gate source.",
+      "authority": "INTENT_SOURCE"
+    },
+    {
+      "source_commit": "75d2ed88d095bf0d7c3fc95348f111032f0e3267",
+      "path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V1.json",
+      "use": "Task-decomposition and finding-registry donor.",
+      "authority": "HISTORICAL_DONOR_NOT_CURRENT_EVIDENCE"
+    },
+    {
+      "source": "G0 production-readiness bundle at a0f3fc426d9a4ce3b8416bc48d94c8820ec3943b",
+      "use": "G0 preservation and production-readiness donor.",
+      "authority": "HISTORICAL_DONOR_NOT_CURRENT_EVIDENCE"
+    },
+    {
+      "path": "docs/research/ZENODEX_VALUE_MOVEMENT_CLOSURE_STATUS_V1.json",
+      "sha256": "86d9f9a44eddf4677e04c3b6e893e0379f26c1befc414b802c15e1b0df2bbef2",
+      "use": "Historical 12-gate diagnosis bound to commit 68b8749b19509325ba75ad33057a247c332d8339.",
+      "authority": "STALE_DIAGNOSTIC_REQUIRES_RECONCILIATION"
+    }
+  ],
+  "upstream_dependencies": [
+    {
+      "name": "IDNI tau-testnet",
+      "repository": "https://github.com/IDNI/tau-testnet",
+      "observed_commit": "0b038824c8583a1a902ef54369d3d0ecf3384cf5",
+      "classification": "ALPHA_NO_ECONOMIC_FINALITY_NO_PYTHON_APP_BRIDGE",
+      "incompatibilities": [
+        "apply_app_tx, getappstate, and getstateproof are absent",
+        "historical bridge streams 5 through 11 are protocol-reserved",
+        "current transaction signatures bind tx_type while the legacy ZenoDEX client does not",
+        "current RPC responses use JSON envelopes while the legacy client expects text prefixes",
+        "remote createblock is refused by default",
+        "the current local profile sets TAU_FORCE_TEST and therefore does not exercise real Tau evaluation",
+        "the patched bridge folds the ZenoDEX app hash into Tau state and therefore lets Tau select the durable economic head"
+      ],
+      "integration_rule": "Treat legacy Python bridge execution as a historical research oracle. A current adapter may submit or observe typed operations, but it cannot publish ZenoLedger state or satisfy external finality."
+    }
+  ],
+  "selected_architecture": {
+    "settlement_abi": "GlobalSettlementABI V1",
+    "abi_v2_trigger": "A new foundational effect category or invariant plus an approved typed delta, migration obligations, and compatibility policy.",
+    "closed_lane_registry": [
+      "ASSET_TRANSFER",
+      "SPOT_LIQUIDITY",
+      "FARM_INCENTIVES",
+      "ZDEX_TOKENOMICS",
+      "ZUSD_MONETARY",
+      "PERPS_MARKET",
+      "ORACLE_MARKET",
+      "SEALED_AUCTION",
+      "STRATEGY_ESCROW",
+      "PROOF_REWARDS",
+      "EXTERNAL_CUSTODY",
+      "GOVERNANCE_MIGRATION"
+    ],
+    "initial_recursive_qualification": {
+      "module_receipts_per_route_min": 1,
+      "module_receipts_per_route_max": 8,
+      "commands_per_epoch_min": 1,
+      "commands_per_epoch_max": 64,
+      "module_leaf_occurrences_per_epoch_max": 64,
+      "aggregation_fanout": 8,
+      "command_aggregation_levels_max": 2,
+      "required_rejections": [
+        "zero_route_receipts",
+        "nine_route_receipts",
+        "zero_epoch_commands",
+        "sixty_five_epoch_commands",
+        "journal_byte_excess",
+        "cycle_budget_excess"
+      ]
+    },
+    "unselected_until_evidence": [
+      "validator_quorum",
+      "external_finality_backend",
+      "production_latency_target",
+      "proof_shape_above_64_commands",
+      "fee_allocation_percentages"
+    ]
+  },
+  "semantic_anchors": {
+    "asset_precision": "Eight decimal places represented as unsigned integer atoms. Floats are forbidden in authoritative paths.",
+    "autonomous_governance": "Autonomous governance and LLM agents may submit authenticated typed commands. They have no publication capability.",
+    "buy_and_burn": "Spend the governed quote-asset fee allocation through the release-selected Spot route and burn the exact ZDEX atoms received.",
+    "buy_and_burn_forbidden_substitutes": [
+      "treasury_balance_burn_shortcut",
+      "transfer_burn_substitution"
+    ],
+    "hosting_compensation": "A separately named governed fee allocation with explicit eligibility, claimant, expiry, cancellation, and terminal-drain semantics.",
+    "hyperdeflation": "No fixed percentage of initial supply is required as a floor. Each burn obeys a profile-bound retained-supply rule and cannot exceed current supply minus retained supply.",
+    "rescaling": "No denomination rescaling under GlobalSettlementABI V1.",
+    "accounting_language": "Key control determines practical custody. Same-ledger values are described by accounting location, accounting control domain, claimant entitlement, and key authority.",
+    "external_lane": "The registered external lane starts empty. Unregistered destinations reject without mutation.",
+    "tau_role": "Current Tau may authenticate or order typed command occurrences and may govern policy predicates. Tau does not receive a separate durable publication path."
+  },
+  "current_verdict": {
+    "candidate_disposition": "NO_GO_FOR_PRODUCTION_OR_WHOLE_PROGRAM_CLOSURE",
+    "architectural_implementation_maturity_estimate": "33_PERCENT_CONSERVATIVE",
+    "formal_artifact_maturity_estimate": "15_TO_25_PERCENT_COARSE",
+    "strict_release_closure": "0_PERCENT_0_OF_AT_LEAST_350_REGISTERED_REQUIRED_EVIDENCE_CELLS",
+    "exact_ledger_closure_estimate": "1_TO_3_PERCENT_REQUIRES_CURRENT_RECONCILIATION",
+    "closed_value_movement_gates": 0,
+    "value_movement_gate_count": 12,
+    "estimate_warning": "Percentages are coarse planning estimates. The 350-cell denominator is a registered lower bound and must expand where the 103-capability registry creates additional obligations. Gate and capability-row closure are authoritative progress measures.",
+    "immediate_blockers": [
+      "The bridge-backed stream-8 perps and stream-11 zUSD monetary APIs remain mounted despite incompatibility with current Tau.",
+      "The stream-11 zUSD monetary API also lacks a verifier-owned execution clock for ordinary execution.",
+      "Operator documentation still contains a contradictory current-mounted claim in tools/dex-ui/README.md.",
+      "Current Tau removed the historical Python app bridge, reserved streams 5 through 11, changed signing and response formats, and removed the state-proof RPC assumptions.",
+      "The value-movement closure ledger is stale and no single current-subject plan previously governed work."
+    ]
+  },
+  "phases": [
+    {
+      "phase_id": "P1",
+      "title": "Freeze and reconcile the trustworthy candidate",
+      "exit": "One pushed candidate, one active plan, exact semantic-source hashes, current Tau compatibility classification, current closure ledger, and no contradictory mounted-route claims."
+    },
+    {
+      "phase_id": "P2",
+      "title": "Close requirements and mediate every value writer",
+      "exit": "Every reachable value command and sink maps to a capability row, typed transition, canonical effect, route, terminal path, adapter, and evidence row; unknown and disabled paths reject without mutation."
+    },
+    {
+      "phase_id": "P3",
+      "title": "Complete the functional core and sole publisher",
+      "exit": "Global state and effect ownership, canonical codecs, reject-no-op, invariants, and a crash-tested verifier-gated atomic publisher close without sidecar economic authority."
+    },
+    {
+      "phase_id": "P4",
+      "title": "Complete enabled lane and route lifecycles",
+      "exit": "All 103 capability rows and four cross-lane routes are release-backed or carry a proved disabled-no-writer certificate, including recovery, terminal drain, and migration."
+    },
+    {
+      "phase_id": "P5",
+      "title": "Complete the recursive proof fabric",
+      "exit": "Module, coordinator, route, and bounded epoch proofs use pinned images, exact assumption resolution, owned canonical journals, complete bindings, real receipts, negative receipt evidence, and direct-versus-proof parity."
+    },
+    {
+      "phase_id": "P6",
+      "title": "Mount, migrate, cut over, and release",
+      "exit": "One release-selected verifier and atomic publisher are mounted; migration is proved; legacy writers are retired; current-profile evidence and independent reviews close all 12 value-movement gates."
+    }
+  ],
+  "value_movement_gates": [
+    {"gate_id": "VM-01", "title": "Complete writer and sink mediation", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-02", "title": "Canonical state and root parity", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-03", "title": "Complete canonical effect algebra", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-04", "title": "Enabled lane lifecycle and terminal closure", "status": "GAP"},
+    {"gate_id": "VM-05", "title": "Governed mixed-lane route composition", "status": "GAP"},
+    {"gate_id": "VM-06", "title": "Whole-economy recursive execution", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-07", "title": "Cross-implementation refinement parity", "status": "GAP"},
+    {"gate_id": "VM-08", "title": "Release-selected isolated verification", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-09", "title": "Sole atomic publication authority", "status": "GAP"},
+    {"gate_id": "VM-10", "title": "Finality, fault, and outbox reconciliation", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-11", "title": "Migration and writer-epoch rotation", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-12", "title": "Exact-subject release evidence", "status": "GAP"}
+  ],
+  "unresolved_semantic_decisions": [
+    {"decision_id": "UP-01", "topic": "Fee allocation percentages among ZDEX purchase-and-burn, hosting compensation, staking, treasury, reserves, and carried residue."},
+    {"decision_id": "UP-02", "topic": "Hosting claimant eligibility, service evidence, measurement period, replacement, slashing, expiry, and terminal disposition."},
+    {"decision_id": "UP-03", "topic": "Farm activation, emission schedule, cancellation, and terminal drain."},
+    {"decision_id": "UP-04", "topic": "zUSD collateral set, ratios, fees, Oracle thresholds, liquidation, recovery, Stability Pool economics, and release coexistence."},
+    {"decision_id": "UP-05", "topic": "Perps funding cadence, margin and liquidation thresholds, insurance priority, ADL ordering, bankruptcy allocation, and terminal closeout."},
+    {"decision_id": "UP-06", "topic": "Oracle query, tip, bond, reward, dispute, clawback, slash, and finality policy."},
+    {"decision_id": "UP-07", "topic": "Auction bond, reveal window, tie-break, inventory disposition, cancellation, slash, refund, and expiry."},
+    {"decision_id": "UP-08", "topic": "Strategy escrow trigger authority, replacement, expiry, recovery, and route permissions."},
+    {"decision_id": "UP-09", "topic": "Proof-reward funding, claimant eligibility, nullifier scope, payout, and terminal task semantics."},
+    {"decision_id": "UP-10", "topic": "Autonomous-governance quorum, timelock, parameter envelopes, emergency procedure, treasury authority, and upgrade constraints."},
+    {"decision_id": "UP-11", "topic": "Tau-origin asset registration and finality semantics once Tau exposes a stable authoritative interface."},
+    {"decision_id": "UP-12", "topic": "Spot and LP curve, fee tiers, routing, slippage, pool admission and close, LP rounding, dust, and residue disposition."},
+    {"decision_id": "UP-13", "topic": "Generic-transfer fees, asset registration, managed-issuance authority, and asset-supply terminal policy."},
+    {"decision_id": "UP-14", "topic": "Retained-supply parameters, per-epoch burn limits, minimum purchase and burn atoms, and zero-output handling."},
+    {"decision_id": "UP-15", "topic": "ZDEX future issuance policy, reserve lifecycle, staking claims, and terminal disposition."},
+    {"decision_id": "UP-16", "topic": "Ordering, authorization grants, replay domains, and consensus-time rules beyond those fixed by ABI V1."},
+    {"decision_id": "UP-17", "topic": "Price, ratio, funding, and collateral fixed-point scales beyond eight-decimal asset amounts."},
+    {"decision_id": "UP-18", "topic": "Reachability and exclusion policy for locally synthesized settlement helpers."},
+    {"decision_id": "UP-19", "topic": "Testnet faucet asset-exclusion policy."},
+    {"decision_id": "UP-20", "topic": "Disposition of historical Tau supply-floor specifications under the retained-supply hyperdeflation anchor."}
+  ],
+  "next_obligations": [
+    {
+      "obligation_id": "O-001",
+      "phase": "P1",
+      "priority": "P0",
+      "title": "Admit this V2 plan and emit an exact commit receipt",
+      "closes": ["single_active_plan_gap"],
+      "required_evidence": ["JSON parse", "normative source hash replay", "independent exact-commit review"]
+    },
+    {
+      "obligation_id": "O-002",
+      "phase": "P1",
+      "priority": "P0",
+      "title": "Quarantine bridge-backed stream-8 perps and stream-11 zUSD monetary value movement",
+      "closes": ["current_tau_mounted_incompatibility", "false_mounted_claim", "unusable_clock_seam"],
+      "required_evidence": ["minimized current-Tau incompatibility witnesses", "startup refusal before server construction", "compose and manifest exclusion", "operator-surface parity", "reject-no-effect"]
+    },
+    {
+      "obligation_id": "O-003",
+      "phase": "P1",
+      "priority": "P0",
+      "title": "Add an exact-upstream compatibility gate and classify every retired Tau bridge dependency",
+      "closes": ["current_tau_compatibility_gap", "stale_tau_assurance"],
+      "required_evidence": ["current upstream source pin", "reserved-stream check", "signature-preimage differential", "RPC response differential", "route reachability inventory", "startup refusal for retired bridge modes"]
+    },
+    {
+      "obligation_id": "O-004",
+      "phase": "P1",
+      "priority": "P1",
+      "title": "Replace selected phrase checks with a closed operator-surface consistency registry",
+      "closes": ["operator_documentation_drift"],
+      "required_evidence": ["closed surface registry", "mounted route positive liveness references", "quarantined route refusal references", "semantic mutant"]
+    },
+    {
+      "obligation_id": "O-005",
+      "phase": "P1",
+      "priority": "P1",
+      "title": "Reconcile all 12 value-movement gates and all 103 capability rows against the post-quarantine candidate",
+      "closes": ["stale_closure_ledger"],
+      "required_evidence": ["exact candidate and tree", "per-row status and evidence", "historical evidence explicitly labeled"]
+    },
+    {
+      "obligation_id": "O-006",
+      "phase": "P2",
+      "priority": "P1",
+      "title": "Bind every closed user command to exactly one lane module or governed route",
+      "closes": ["command_to_lane_mapping_gap"],
+      "required_evidence": ["all registered commands mapped exactly once", "research-disabled commands cannot map to ACTIVE_NEW", "unmapped and duplicate mapping mutants", "map root bound by the capability manifest"]
+    },
+    {
+      "obligation_id": "O-007",
+      "phase": "P2",
+      "priority": "P1",
+      "title": "Complete operation-derived cross-language value-writer and sink inventory",
+      "closes": ["VM-01"],
+      "required_evidence": ["Python, Rust, Tau, shell, generated, deployment, API, CLI, recovery, migration, worker, and admin reachability", "command-to-lane consistency", "novel-writer mutation killer"]
+    },
+    {
+      "obligation_id": "O-008",
+      "phase": "P3",
+      "priority": "P1",
+      "title": "Freeze ABI V1 ownership and complete global state and effect reconciliation",
+      "closes": ["ABI ownership ambiguity", "custody terminology drift", "VM-02", "VM-03"],
+      "required_evidence": ["field owner, unit, width, order, authority, and reject table", "per-asset conservation across all 12 lanes", "claimant and reserve equations", "canonicalization", "reject-no-op", "Python and Rust codec and root parity"]
+    },
+    {
+      "obligation_id": "O-009",
+      "phase": "P3",
+      "priority": "P1",
+      "title": "Make one verifier-gated atomic publisher the only durable value writer",
+      "closes": ["VM-09"],
+      "required_evidence": ["writer fencing", "CAS", "crash and reopen", "exact retry", "lost acknowledgment", "outbox redelivery and reconciliation"]
+    },
+    {
+      "obligation_id": "O-010",
+      "phase": "P4",
+      "priority": "P1",
+      "title": "Close capability rows lane by lane, starting with ASSET_TRANSFER, SPOT_LIQUIDITY, and ZDEX_TOKENOMICS",
+      "closes": ["VM-04", "VM-05"],
+      "required_evidence": ["happy, reject, authorization, cancellation, recovery, and terminal BDD", "BVA", "stateful histories", "governed fee-funded ZDEX purchase and exact burn"]
+    }
+  ],
+  "coordination_protocol": {
+    "active_candidate_count": 1,
+    "max_implementation_workers_per_wave": 3,
+    "worker_unit": "one falsifiable obligation",
+    "required_worker_packet": [
+      "exact candidate commit, parent, and tree",
+      "plan and semantic-source hashes",
+      "authority ceiling",
+      "one named invariant and authority boundary",
+      "declared disjoint write set",
+      "minimized failing witness or explicit discovery contract",
+      "expected gate or capability-row closure delta",
+      "required tests and nonclaims",
+      "compute and disk budget"
+    ],
+    "candidate_rule": "Each worker candidate is one direct child of the declared integration head. A dirty subject invalidates the packet.",
+    "shared_file_rule": "Registries, ledgers, manifests, semantic contracts, and shared ABI files are integrator-owned. Workers request shared changes instead of editing them concurrently.",
+    "test_rule": "The minimized BEFORE witness must fail on the parent and the AFTER evidence must pass on the child and on the post-integration head.",
+    "promotion_order": [
+      "worker candidate",
+      "donor review",
+      "serial integration and conflict resolution",
+      "independent review of the exact integrated candidate",
+      "deterministic receipt",
+      "ledger promotion",
+      "push"
+    ],
+    "stop_rule": "Stop or reformulate a workstream after two review cycles with no closed-obligation delta.",
+    "progress_metric": "Closed value-movement gates and closed capability rows. Commits, tests, lines, and compute are supporting telemetry.",
+    "cost_metric": "Record wall time, compute, changed lines, and review rounds per newly closed obligation."
+  },
+  "current_tau_integration_contract": {
+    "ingress": "Tau-originated signed event or policy verdict enters a versioned adapter and becomes a domain-bound EconomicCommandOccurrenceV1.",
+    "publication": "Only an opaque VerifiedEconomicEpochV1 may reach the atomic ZenoLedger publisher.",
+    "egress": "External-only effects enter an outbox and use current Tau submission plus canonical-chain observation.",
+    "required_adapter_properties": [
+      "parse current JSON RPC envelopes",
+      "include tx_type=user_tx in the signed Tau payload",
+      "use only release-registered nonreserved operation streams",
+      "bind an inner Zeno signature to Tau network or genesis, Zeno deployment and profile, nonce, and command hash",
+      "poll transaction status and canonical blocks",
+      "represent reorganization as a pending or reversed external obligation",
+      "disable irreversible external value movement until an approved finality policy exists"
+    ],
+    "forbidden": [
+      "mirrored authoritative Python application state",
+      "native balance patch as settlement",
+      "a second durable economic writer",
+      "current-Tau compatibility claims based on TAU_FORCE_TEST"
+    ]
+  },
+  "release_gate": {
+    "required_capability_statuses": [
+      "SPECIFIED",
+      "IMPLEMENTED",
+      "PROVED",
+      "MOUNTED",
+      "TESTED",
+      "TERMINAL_COMPLETE",
+      "MIGRATABLE",
+      "NO_BYPASS",
+      "RELEASE_BACKED"
+    ],
+    "excluded_capability_status": "DISABLED_PROVED_NO_WRITER",
+    "whole_value_movement_claim": "FORBIDDEN_UNTIL_ALL_12_VM_GATES_PASS_ON_ONE_EXACT_RELEASE_SUBJECT"
+  },
+  "nonclaims": [
+    "This plan is not a proof, verifier receipt, production release, migration certificate, or settlement authorization.",
+    "No current Tau alpha observation establishes economic finality or a production external-asset lane.",
+    "The current-Tau integration defect does not invalidate standalone Spot, zUSD, perps, or other scoped cores and proofs; they remain reviewed donors until rebound to GlobalSettlementABI journals.",
+    "Historical tests and proof receipts do not establish current-subject parity.",
+    "Passing plan checks does not promote any capability row or value-movement gate."
+  ]
+}
