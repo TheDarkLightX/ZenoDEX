@@ -87,14 +87,29 @@ def _remove_disposable_subject(root: Path) -> None:
 def _remove_disposable_complete_subjects_after_each_test() -> Iterator[None]:
     """Bound peak disk use without weakening full-clone attack isolation."""
 
-    first_owned = len(_DISPOSABLE_COMPLETE_SUBJECTS)
     try:
         yield
     finally:
-        owned = _DISPOSABLE_COMPLETE_SUBJECTS[first_owned:]
-        del _DISPOSABLE_COMPLETE_SUBJECTS[first_owned:]
+        owned = list(dict.fromkeys(_DISPOSABLE_COMPLETE_SUBJECTS))
+        failed: list[Path] = []
+        errors: list[BaseException] = []
         for root in reversed(owned):
-            _remove_disposable_subject(root)
+            try:
+                _remove_disposable_subject(root)
+            except BaseException as exc:
+                failed.append(root)
+                errors.append(exc)
+        failed_set = set(failed)
+        _DISPOSABLE_COMPLETE_SUBJECTS[:] = [
+            root for root in owned if root in failed_set
+        ]
+        if errors:
+            primary = errors[0]
+            for later in errors[1:]:
+                primary.add_note(
+                    f"later clone cleanup also failed: {type(later).__name__}: {later}"
+                )
+            raise primary
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -1273,12 +1288,189 @@ def test_donor_snapshot_lineage_labels_are_equivalent_to_raw_git_ancestry() -> N
 
     assert accepted == []
     assert {finding.rule_id for finding in refused} == {
+        "donor_identity_mismatch",
         "donor_transport_ancestry_mismatch",
         "donor_transport_label_invalid",
     }
     assert {finding.rule_id for finding in metadata_refused} == {
-        "donor_commit_metadata_mismatch"
+        "donor_commit_metadata_mismatch",
+        "donor_identity_mismatch",
     }
+
+
+def test_donor_descriptor_registry_binds_absent_metadata_and_manifest_path() -> None:
+    with ConfinedRootV1.bind(ROOT) as bound:
+        snapshot = checker_module._read_bounded_json_file(
+            bound,
+            checker_module.DONOR_PROVENANCE_PATH,
+            name="donor provenance snapshot",
+        )
+        fabricated = copy.deepcopy(snapshot)
+        donor = fabricated["donors"][0]
+        donor.update(
+            commit="f" * 40,
+            commit_object_sha256="e" * 64,
+            parents=["d" * 40],
+            tree="c" * 40,
+        )
+        absent_refused = checker_module._validate_donor_provenance_content_v1(
+            fabricated, bound
+        )
+        substituted = copy.deepcopy(snapshot)
+        substituted["donors"][0]["preservation_manifest"] = {
+            "path": "README.md",
+            "sha256": hashlib.sha256((ROOT / "README.md").read_bytes()).hexdigest(),
+        }
+        manifest_refused = checker_module._validate_donor_provenance_content_v1(
+            substituted, bound
+        )
+
+    assert {finding.rule_id for finding in absent_refused} >= {
+        "donor_identity_mismatch",
+        "donor_metadata_unverifiable",
+    }
+    assert "donor_preservation_manifest_binding_mismatch" in {
+        finding.rule_id for finding in manifest_refused
+    }
+
+
+def test_donor_ref_and_required_nonclaims_are_checker_owned() -> None:
+    with ConfinedRootV1.bind(ROOT) as bound:
+        snapshot = checker_module._read_bounded_json_file(
+            bound,
+            checker_module.DONOR_PROVENANCE_PATH,
+            name="donor provenance snapshot",
+        )
+        bad_ref = copy.deepcopy(snapshot)
+        bad_ref["donors"][0]["source_ref_observed"] = "refs/"
+        bad_nonclaims = copy.deepcopy(snapshot)
+        bad_nonclaims["nonclaims"] = ["candidate-selected"]
+
+        ref_findings = checker_module._validate_donor_provenance_content_v1(
+            bad_ref, bound
+        )
+        nonclaim_findings = checker_module._validate_donor_provenance_content_v1(
+            bad_nonclaims, bound
+        )
+
+    assert "donor_source_ref_malformed" in {
+        finding.rule_id for finding in ref_findings
+    }
+    assert {finding.rule_id for finding in nonclaim_findings} == {
+        "donor_snapshot_nonclaims_mismatch"
+    }
+
+
+def test_donor_ancestry_query_failure_is_not_non_lineage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _clone_complete_subject(tmp_path)
+    target = "c2e80678415543df43dba0f4678fae9931a1bb91"
+    real_git = checker_module._git
+
+    def fail_ancestry(root: object, args: list[str]) -> tuple[int, str]:
+        if args == ["merge-base", "--is-ancestor", target, "HEAD"]:
+            return -1, ""
+        return real_git(root, args)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(checker_module, "_git", fail_ancestry)
+    with ConfinedRootV1.bind(root) as bound:
+        snapshot = checker_module._read_bounded_json_file(
+            bound,
+            checker_module.DONOR_PROVENANCE_PATH,
+            name="donor provenance snapshot",
+        )
+        findings = checker_module._validate_donor_provenance_content_v1(
+            snapshot, bound
+        )
+    report = check_whole_program_plan_v1(root)
+
+    assert "donor_ancestry_query_failed" in {
+        finding.rule_id for finding in findings
+    }
+    assert report["ok"] is False
+    assert "donor_ancestry_query_failed" in {
+        finding["rule_id"] for finding in report["findings"]
+    }
+
+
+def test_invalid_donor_cardinality_rejects_before_git_io(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with ConfinedRootV1.bind(ROOT) as bound:
+        snapshot = checker_module._read_bounded_json_file(
+            bound,
+            checker_module.DONOR_PROVENANCE_PATH,
+            name="donor provenance snapshot",
+        )
+        by_id = {row["id"]: row for row in snapshot["donors"]}
+        malformed = copy.deepcopy(snapshot)
+        malformed["donors"] = [
+            *[
+                copy.deepcopy(by_id["M6_FCIS_REVIEWED_DONOR"])
+                for _ in range(16)
+            ],
+            copy.deepcopy(by_id["ZRPF_REVIEWED_DONOR"]),
+            copy.deepcopy(by_id["DIRTY_PRIMARY_CHECKOUT_DONOR"]),
+        ]
+        calls = {"git": 0, "git_bytes": 0}
+
+        def unexpected_git(*_args: object, **_kwargs: object) -> tuple[int, str]:
+            calls["git"] += 1
+            return -1, ""
+
+        def unexpected_git_bytes(*_args: object, **_kwargs: object) -> bytes | None:
+            calls["git_bytes"] += 1
+            return None
+
+        monkeypatch.setattr(checker_module, "_git", unexpected_git)
+        monkeypatch.setattr(checker_module, "_git_bytes", unexpected_git_bytes)
+        findings = checker_module._validate_donor_provenance_content_v1(
+            malformed, bound
+        )
+
+    assert {"donor_id_duplicate", "donor_commit_duplicate"} <= {
+        finding.rule_id for finding in findings
+    }
+    assert calls == {"git": 0, "git_bytes": 0}
+
+
+def test_clone_finalizer_attempts_every_path_and_retains_failures_for_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    roots = [tmp_path / f"clone-{index}" for index in range(3)]
+    for root in roots:
+        root.mkdir()
+    cleanup = _remove_disposable_complete_subjects_after_each_test.__wrapped__()
+    next(cleanup)
+    _DISPOSABLE_COMPLETE_SUBJECTS.extend(roots)
+    calls: list[Path] = []
+    real_remove = _remove_disposable_subject
+
+    def refuse_one(root: Path) -> None:
+        calls.append(root)
+        if root == roots[-1]:
+            raise OSError("injected cleanup refusal")
+        real_remove(root)
+
+    monkeypatch.setattr(
+        sys.modules[__name__], "_remove_disposable_subject", refuse_one
+    )
+    try:
+        with pytest.raises(OSError, match="cleanup refusal"):
+            next(cleanup)
+        assert set(calls) == set(roots)
+        assert _DISPOSABLE_COMPLETE_SUBJECTS == [roots[-1]]
+        assert all(not root.exists() for root in roots[:-1])
+    finally:
+        monkeypatch.setattr(
+            sys.modules[__name__], "_remove_disposable_subject", real_remove
+        )
+        for root in roots:
+            _remove_disposable_subject(root)
+        _DISPOSABLE_COMPLETE_SUBJECTS[:] = [
+            root for root in _DISPOSABLE_COMPLETE_SUBJECTS if root not in roots
+        ]
 
 
 def test_amended_direct_child_replays_from_a_detached_worktree_while_stale_or_unrelated_subjects_fail(
