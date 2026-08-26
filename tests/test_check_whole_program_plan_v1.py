@@ -1489,6 +1489,59 @@ def test_owned_plan_breaks_aliases_and_rejects_cycles_within_bounds() -> None:
     ]
 
 
+def test_owned_plan_depth_matches_the_bounded_decoder_bva() -> None:
+    """Root plus 31 containers is accepted; the next container is refused."""
+
+    def nested_lists(count: int) -> list[object]:
+        value: list[object] = []
+        for _ in range(count - 1):
+            value = [value]
+        return value
+
+    accepted, accepted_findings = checker_module._owned_plan_v1(
+        {"value": nested_lists(31)}
+    )
+    refused, refused_findings = checker_module._owned_plan_v1(
+        {"value": nested_lists(32)}
+    )
+
+    assert accepted is not None and accepted_findings == []
+    assert refused is None
+    assert [finding.rule_id for finding in refused_findings] == [
+        "plan_value_not_owned"
+    ]
+
+
+def test_closed_authority_and_plan_nonclaims_cannot_be_mutated_or_replaced() -> None:
+    """Authority and required scope restrictions are checker-owned constants."""
+
+    with pytest.raises(TypeError):
+        checker_module.REQUIRED_AUTHORITY["production_authority"] = "GLOBAL_EPOCH"  # type: ignore[index]
+    with pytest.raises(TypeError):
+        del checker_module.REQUIRED_AUTHORITY["production_authority"]  # type: ignore[misc]
+
+    replaced = _plan()
+    replaced["nonclaims"] = ["all prior nonclaims removed"]
+    owned, ownership_findings = checker_module._owned_plan_v1(replaced)
+    assert owned is not None and ownership_findings == []
+    preflight, findings = checker_module._pure_plan_preflight_v1(
+        owned, ORDINARY_VALIDATION_PROFILE_V1
+    )
+
+    assert preflight is None
+    assert [finding.rule_id for finding in findings] == [
+        "nonclaims_required_floor_mismatch"
+    ]
+    assert plan_report_v1(
+        {}, [], executed=0, profile=ORDINARY_VALIDATION_PROFILE_V1
+    )["authority"] == {
+        "claim_authority": "NONE",
+        "production_authority": "NONE",
+        "production_ready": False,
+        "release_ready": False,
+    }
+
+
 @pytest.mark.parametrize("hostile_kind", ("callback", "exploding"))
 def test_direct_gate_preflight_owns_rows_without_callbacks(
     hostile_kind: str, monkeypatch: pytest.MonkeyPatch
@@ -3620,6 +3673,30 @@ def test_execution_context_construction_failure_closes_bound_artifacts(
             checker_module._bind_execution_context_v1(
                 bound, subject="review"
             )
+
+        assert len(os.listdir("/proc/self/fd")) == fd_before
+
+
+def test_live_gate_effect_construction_failure_closes_all_acquired_sources(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A non-OSError constructor failure cannot leak checker, supervisor, or context fds."""
+
+    def fail_effect_construction(*_args: object, **_kwargs: object) -> object:
+        raise MemoryError("review-effect-construction")
+
+    root = _clone_complete_subject(tmp_path)
+    plan = dict(load_plan_v1(root))
+    with ConfinedRootV1.bind(root) as bound:
+        fd_before = len(os.listdir("/proc/self/fd"))
+        monkeypatch.setattr(
+            checker_module,
+            "LiveGateEffectV1",
+            fail_effect_construction,
+        )
+
+        with pytest.raises(MemoryError, match="review-effect-construction"):
+            plan_live_gate_effects_v1(plan["live_gates"], bound)
 
         assert len(os.listdir("/proc/self/fd")) == fd_before
 

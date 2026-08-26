@@ -43,6 +43,25 @@ def test_registry_is_closed_sorted_python_only_and_points_at_real_tools() -> Non
         assert (spec.output_format == "json") or spec.observed_projection == ()
 
 
+def test_registry_mapping_rejects_runtime_mutation() -> None:
+    """Same-process callers cannot insert, remove, replace, or clear gates."""
+
+    gate_id = next(iter(LIVE_GATE_REGISTRY))
+    spec = LIVE_GATE_REGISTRY[gate_id]
+    operations = (
+        lambda: LIVE_GATE_REGISTRY.__setitem__("forged", spec),  # type: ignore[attr-defined]
+        lambda: LIVE_GATE_REGISTRY.__delitem__(gate_id),  # type: ignore[attr-defined]
+        lambda: LIVE_GATE_REGISTRY.clear(),  # type: ignore[attr-defined]
+        lambda: LIVE_GATE_REGISTRY.update({"forged": spec}),  # type: ignore[attr-defined]
+    )
+
+    for operation in operations:
+        with pytest.raises((AttributeError, TypeError)):
+            operation()
+    assert LIVE_GATE_REGISTRY[gate_id] is spec
+    assert "forged" not in LIVE_GATE_REGISTRY
+
+
 def test_foreign_or_lookalike_spec_cannot_be_observed(tmp_path: Path) -> None:
     # Arrange: a look-alike copy of a real entry that would drop a marker if executed.
     marker = tmp_path / "marker"

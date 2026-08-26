@@ -168,12 +168,14 @@ SHA256_RE: Final = re.compile(r"[0-9a-f]{64}\Z")
 DATE_RE: Final = re.compile(r"[0-9]{4}-[0-9]{2}-[0-9]{2}\Z")
 MUTATION_KILLER_RE: Final = re.compile(r"(tests/[A-Za-z0-9_/.-]+\.py)::(test_[A-Za-z0-9_]+)\Z")
 ABSOLUTE_PATH_TOKEN_RE: Final = re.compile(r"(?:^|[\s\"'=(,])(?:/|~/|[A-Za-z]:\\)")
-REQUIRED_AUTHORITY: Final[Mapping[str, object]] = {
-    "claim_authority": "NONE",
-    "production_authority": "NONE",
-    "production_ready": False,
-    "release_ready": False,
-}
+REQUIRED_AUTHORITY: Final[Mapping[str, object]] = MappingProxyType(
+    {
+        "claim_authority": "NONE",
+        "production_authority": "NONE",
+        "production_ready": False,
+        "release_ready": False,
+    }
+)
 TOP_LEVEL_FIELDS: Final = frozenset(
     {
         "schema", "program", "subject", "authority", "semantic_anchors", "phases", "tasks",
@@ -250,6 +252,18 @@ NONCLAIMS: Final[tuple[str, ...]] = (
     "snapshot",
     "ExecutionContextV1 and LiveGateEffectV1 are caller-constructible same-process Python values used as trusted-process "
     "conventions; they are not unforgeable capabilities and do not defend against code already executing in the checker process",
+)
+
+PLAN_REQUIRED_NONCLAIMS: Final[tuple[str, ...]] = (
+    "No production readiness, production authority, settlement authority, writer rotation, mount, or value-moving authority is claimed by this plan or any task status.",
+    "A task marked DONE_BOUNDED is closed only within its declared nonclaims; it does not close a VM gate.",
+    "Live-gate observations are local unattested execution records bound to the recorded subject and expire when any relied-on source changes.",
+    "Ordinary plan checks and execution decode held write-sealed JSON and Markdown bytes only after both match their exact pre-read HEAD:path blobs; the two plan artifacts remain excluded from the non-circular source-snapshot digest.",
+    "ExecutionContextV1 and LiveGateEffectV1 are caller-constructible same-process conventions, not unforgeable capabilities; code already executing in the checker process remains trusted.",
+    "Test counts and passing checkers do not close semantic obligations; RIPR counterexamples, independent oracles, and mutation killers do.",
+    "Historical RunPod proof replays recorded in READMEs are not reproduced by this plan.",
+    "The explicit gate environment excludes inherited PATH, HOME, PYTHONPATH, and user site and refuses to run while root/external/ESSO is present; it does not attest the interpreter, its site-packages, or path hooks beyond that preflight, so live-gate observations are explicit rather than fully hermetic.",
+    "The whole-value-movement formal safety claim remains UNPROVED.",
 )
 
 
@@ -576,7 +590,7 @@ def _owned_plan_value_v1(
 
 def _owned_plan_v1(value: object) -> tuple[dict[str, object] | None, list[PlanFinding]]:
     owned, finding = _owned_plan_value_v1(
-        value, path="plan", depth=0, budget=_OwnedPlanBudgetV1()
+        value, path="plan", depth=1, budget=_OwnedPlanBudgetV1()
     )
     if finding is not None:
         return None, [finding]
@@ -1180,7 +1194,12 @@ def _validate_top_level(plan: Mapping[str, Any]) -> list[PlanFinding]:
         ("schema", lambda value: value == SCHEMA_V1, "plan_schema_mismatch"),
         ("program", _is_nonempty_str, "plan_program_missing"),
         ("authority", lambda value: isinstance(value, Mapping) and dict(value) == dict(REQUIRED_AUTHORITY), "authority_ceiling_violated"),
-        ("nonclaims", lambda value: _is_str_list(value) and bool(value), "nonclaims_missing"),
+        (
+            "nonclaims",
+            lambda value: type(value) is list
+            and value == list(PLAN_REQUIRED_NONCLAIMS),
+            "nonclaims_required_floor_mismatch",
+        ),
         ("regeneration", _is_regeneration_contract, "regeneration_contract_incomplete"),
     )
     return _check_fields(plan, checks, "plan")
@@ -2395,37 +2414,13 @@ def _owned_gate_rows_v1(
                     ",".join(sorted(LIVE_GATE_FIELDS)),
                 )
             ]
-    owned, finding = _owned_plan_value_v1(
-        gates,
-        path="live_gates",
-        depth=0,
-        budget=_OwnedPlanBudgetV1(),
-    )
-    if finding is not None or type(owned) is not list:
+    owned_wrapper, findings = _owned_plan_v1({"live_gates": gates})
+    if owned_wrapper is None:
+        return None, findings
+    owned = owned_wrapper.get("live_gates")
+    if type(owned) is not list:
         return None, [
-            finding
-            if finding is not None
-            else PlanFinding("live_gates_malformed", "live_gates", "must be an exact list")
-        ]
-    try:
-        encoded = _canonical_plan_text_v1({"live_gates": owned}).encode(
-            "utf-8", errors="strict"
-        )
-    except (MemoryError, OverflowError, RecursionError, TypeError, UnicodeEncodeError, ValueError) as exc:
-        return None, [
-            PlanFinding(
-                "plan_value_not_owned",
-                "live_gates",
-                f"canonical gate encoding refused: {type(exc).__name__}",
-            )
-        ]
-    if len(encoded) > PLAN_JSON_LIMITS_V1.max_bytes:
-        return None, [
-            PlanFinding(
-                "plan_value_not_owned",
-                "live_gates",
-                "canonical gate bytes exceed the bounded JSON byte limit",
-            )
+            PlanFinding("live_gates_malformed", "live_gates", "must be an exact list")
         ]
     return owned, []
 
@@ -2888,6 +2883,31 @@ def _canonical_json(value: object) -> str:
     return json.dumps(value, sort_keys=True, ensure_ascii=True, separators=(",", ":"))
 
 
+def _close_untransferred_gate_sources_v1(
+    checker: AnchoredFileV1 | None,
+    supervisor: SupervisorCodeV1 | None,
+    *,
+    subject: str,
+) -> list[PlanFinding]:
+    """Attempt every cleanup and report failures without skipping later sources."""
+
+    findings: list[PlanFinding] = []
+    for source_name, source in (("checker", checker), ("supervisor", supervisor)):
+        if source is None:
+            continue
+        try:
+            source.close()
+        except BaseException as exc:
+            findings.append(
+                PlanFinding(
+                    "live_gate_source_cleanup_refused",
+                    subject,
+                    f"{source_name}: {type(exc).__name__}: {exc}",
+                )
+            )
+    return findings
+
+
 def _gate_effect(
     gate: object,
     *,
@@ -2903,36 +2923,75 @@ def _gate_effect(
         return None, findings
     spec = LIVE_GATE_REGISTRY[str(gate["gate_id"])]
     try:
+        observed = tuple(
+            sorted(
+                (str(key), _canonical_json(value))
+                for key, value in gate["observed"].items()
+            )
+        )
+    except (
+        AttributeError,
+        MemoryError,
+        OverflowError,
+        RecursionError,
+        TypeError,
+        UnicodeEncodeError,
+        ValueError,
+    ) as exc:
+        return None, [
+            PlanFinding(
+                "live_gate_observed_canonicalization_refused",
+                spec.gate_id,
+                f"{type(exc).__name__}: {exc}",
+            )
+        ]
+    try:
         checker = root.anchored.open_file(spec.checker_path)
     except OSError as exc:
         return None, [PlanFinding("live_gate_checker_missing", spec.gate_id, f"{spec.checker_path}: {exc}")]
     if checker.sha256 != gate["checker_sha256"]:
-        checker.close()
-        return None, [PlanFinding("live_gate_checker_hash_drift", spec.gate_id, spec.checker_path)]
+        return None, [
+            PlanFinding("live_gate_checker_hash_drift", spec.gate_id, spec.checker_path),
+            *_close_untransferred_gate_sources_v1(
+                checker, None, subject=spec.gate_id
+            ),
+        ]
     try:
         supervisor = bind_supervisor_code_v1(root.anchored)
     except OSError as exc:
-        checker.close()
         return None, [
             PlanFinding(
                 "live_gate_supervisor_binding_refused",
                 spec.gate_id,
                 f"{type(exc).__name__}: {exc}",
-            )
+            ),
+            *_close_untransferred_gate_sources_v1(
+                checker, None, subject=spec.gate_id
+            ),
         ]
-    observed = tuple(sorted((str(key), _canonical_json(value)) for key, value in gate["observed"].items()))
-    return LiveGateEffectV1(
-        spec,
-        int(gate["exit_code"]),
-        observed,
-        checker.sha256,
-        root,
-        snapshot,
-        context.artifact_digests,
-        context,
-        checker,
-        supervisor,
-    ), []
+    except BaseException:
+        _close_untransferred_gate_sources_v1(
+            checker, None, subject=spec.gate_id
+        )
+        raise
+    try:
+        return LiveGateEffectV1(
+            spec,
+            int(gate["exit_code"]),
+            observed,
+            checker.sha256,
+            root,
+            snapshot,
+            context.artifact_digests,
+            context,
+            checker,
+            supervisor,
+        ), []
+    except BaseException:
+        _close_untransferred_gate_sources_v1(
+            checker, supervisor, subject=spec.gate_id
+        )
+        raise
 
 
 def _execution_context_findings(
@@ -3145,17 +3204,29 @@ def _plan_effects(
         _close_owned_context_v1(context, owns_context)
         return (), findings
     effects: list[LiveGateEffectV1] = []
-    for index, gate in enumerate(owned_gates):
-        effect, row_findings = _gate_effect(
-            gate,
-            label=f"live_gates[{index}]",
-            root=root,
-            snapshot=snapshot.sha256,
-            context=context,
-        )
-        findings.extend(row_findings)
-        if effect is not None:
-            effects.append(effect)
+    try:
+        for index, gate in enumerate(owned_gates):
+            effect, row_findings = _gate_effect(
+                gate,
+                label=f"live_gates[{index}]",
+                root=root,
+                snapshot=snapshot.sha256,
+                context=context,
+            )
+            findings.extend(row_findings)
+            if effect is not None:
+                effects.append(effect)
+    except BaseException:
+        try:
+            _close_effect_sources_v1(effects)
+        except BaseException:
+            pass
+        if owns_context:
+            try:
+                context.close()
+            except BaseException:
+                pass
+        raise
     if require_registry_set:
         findings.extend(_registry_set_findings(owned_gates))
     findings.extend(

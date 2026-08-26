@@ -109,6 +109,7 @@ import time
 from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from types import MappingProxyType
 from typing import Final
 
 _RUNNING_AS_SUPERVISOR_V1: Final = (
@@ -808,7 +809,7 @@ def _build_registry(rows: Sequence[RegistryRow]) -> Mapping[str, LiveGateSpecV1]
         registry[gate_id] = LiveGateSpecV1(gate_id, argv, argv[1], output_format, projection, timeout_seconds)
     if list(registry) != sorted(registry):
         raise ValueError("live gate registry must be sorted by gate id")
-    return registry
+    return MappingProxyType(registry)
 
 
 LIVE_GATE_REGISTRY: Final[Mapping[str, LiveGateSpecV1]] = _build_registry(
