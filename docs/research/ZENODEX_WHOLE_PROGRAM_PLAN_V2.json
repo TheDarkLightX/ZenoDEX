@@ -1,11 +1,17 @@
 {
-  "schema": "zenodex/whole-program-plan/v2",
+  "schema": "zenodex/whole-program-plan/v2.1",
   "status": "RESEARCH_ONLY_CANDIDATE_PENDING_ADMISSION",
   "authority": {
     "production_authority": "NONE",
     "settlement_authority": "NONE",
     "release_ready": false,
     "production_ready": false
+  },
+  "admission_model": {
+    "human_selection": "EXTERNAL_USER_DIRECTIVE_REQUIRED_NOT_MACHINE_VERIFIED",
+    "llm_review": "ADVISORY_HASHED_ARTIFACT_ONLY",
+    "deterministic_evidence": "REPLAYED_BY_ADMISSION_CHECKER",
+    "authority_effect": "NONE"
   },
   "subject": {
     "implementation_base_commit": "92bec186d36846bb5e43b2be90a58b8a46ee56c6",
@@ -38,8 +44,25 @@
     "workflow_count": 18,
     "scenario_count": 81,
     "required_expansion_count": 11,
+    "required_expansion_ids": ["RSE-001", "RSE-002", "RSE-003", "RSE-004", "RSE-005", "RSE-006", "RSE-007", "RSE-008", "RSE-009", "RSE-010", "RSE-011"],
+    "confirmed_finding_count": 8,
+    "confirmed_findings": [
+      {"finding_id": "CE-001", "status": "OPEN_BLOCKER"},
+      {"finding_id": "CE-002", "status": "OPEN_BLOCKER"},
+      {"finding_id": "CE-003", "status": "OPEN_BLOCKER"},
+      {"finding_id": "CE-004", "status": "REPAIRED_IN_BOUNDED_MODEL"},
+      {"finding_id": "CE-005", "status": "REPAIRED_IN_BOUNDED_MODEL"},
+      {"finding_id": "CE-006", "status": "OPEN_PRODUCT_AND_THEOREM_DECISION"},
+      {"finding_id": "CE-007", "status": "OPEN_BLOCKER"},
+      {"finding_id": "CE-008", "status": "OPEN_BLOCKER"}
+    ],
+    "completeness_review": {
+      "path": "docs/research/m6_global_economic_core_luna_completeness_review_v1.json",
+      "sha256": "b3a1929422b6399a3c30fb1ead4c7732a8802d08b1d4b59e6fc3ea79463b4698",
+      "authority": "ADVISORY_FINDING_SOURCE_REQUIRES_LOCAL_CLOSURE_EVIDENCE"
+    },
     "unresolved_policy_count": 20,
-    "closure_rule": "Map every workflow, scenario, expansion, and unresolved policy into versioned requirement rows before VM-01 or scope completeness may pass."
+    "closure_rule": "Map every workflow, scenario, required expansion, confirmed finding, and unresolved policy into versioned requirement rows before VM-01 or scope completeness may pass."
   },
   "historical_inputs": [
     {
@@ -63,6 +86,30 @@
       "sha256": "86d9f9a44eddf4677e04c3b6e893e0379f26c1befc414b802c15e1b0df2bbef2",
       "use": "Historical 12-gate diagnosis bound to commit 68b8749b19509325ba75ad33057a247c332d8339.",
       "authority": "STALE_DIAGNOSTIC_REQUIRES_RECONCILIATION"
+    },
+    {
+      "source_commit": "57351387ef7f0ad09e0a759baf8826f72d880c66",
+      "use": "Deployed-launcher value-sink inventory donor; reconcile against 2085533fe before import.",
+      "authority": "UNREVIEWED_DONOR_NOT_CURRENT_EVIDENCE"
+    },
+    {
+      "source_commit": "2085533fefd82d57fbd79049bff618dd9cf484db",
+      "use": "Competing deployed-launcher value-sink inventory donor; select by exact review and mutation evidence.",
+      "authority": "UNREVIEWED_DONOR_NOT_CURRENT_EVIDENCE"
+    },
+    {
+      "source_commit": "ae889ac45429b9211666e6bc4158e89b7523cd2d",
+      "use": "Whole-program Plan V1, bounded JSON, and live-gate registry donor.",
+      "authority": "UNREVIEWED_DONOR_NOT_CURRENT_EVIDENCE"
+    }
+  ],
+  "advisory_reviews": [
+    {
+      "reviewer": "FABLE_5_HIGH",
+      "artifact_path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2_1_FABLE_ADVISORY_REVIEW.md",
+      "external_raw_report_sha256": "6093fbaa06371bcf36d88825863055e9b35a5b1de583418ee70f62bcb58435fa",
+      "verdict": "REVISE_V2_CORRECTIONS_APPLIED_TO_V2_1",
+      "authority": "ADVISORY_NONE"
     }
   ],
   "upstream_dependencies": [
@@ -92,6 +139,18 @@
         "the patched bridge folds the ZenoDEX app hash into Tau state and therefore lets Tau select the durable economic head"
       ],
       "integration_rule": "Treat legacy Python bridge execution as a historical research oracle. Current Tau ingress is shadow or testnet observation only. It may observe tentatively ordered Tau transactions, but it cannot authenticate a domain-bound EconomicCommandOccurrenceV1, establish final ZenoDEX ordering, publish ZenoLedger state, or satisfy external finality."
+    },
+    {
+      "name": "IDNI tau-lang",
+      "repository": "https://github.com/IDNI/tau-lang",
+      "observed_commit": "1195b4a629250d284ac33789021263dd0395cfb3",
+      "observed_tree": "3d2ee089856c98d29bea3da1c9152dba298485d3",
+      "source_sha256": {
+        "README.md": "cd6d6377d49b01bfb1a7bec458bb20f1d943431007edbf902dbf64ef8f9d7137",
+        "src/main.cpp": "f9a9bc2ba7b3d12dab00d2161c6577579a57102a93ea692a63926316029c84dc"
+      },
+      "classification": "POLICY_LANGUAGE_SOURCE_PIN_REPLAY_REQUIRED",
+      "integration_rule": "Tau Language may evaluate release-selected policy predicates only through a versioned adapter. A Tau verdict grants no settlement, publication, verifier, migration, or release authority."
     }
   ],
   "selected_architecture": {
@@ -153,13 +212,14 @@
   },
   "baseline_verdict": {
     "candidate_disposition": "NO_GO_FOR_PRODUCTION_OR_WHOLE_PROGRAM_CLOSURE",
-    "architectural_implementation_maturity_estimate": "33_PERCENT_CONSERVATIVE",
-    "formal_artifact_maturity_estimate": "15_TO_25_PERCENT_COARSE",
-    "strict_release_closure": "0_PERCENT_0_OF_AT_LEAST_350_REGISTERED_REQUIRED_EVIDENCE_CELLS",
-    "exact_ledger_closure_estimate": "1_TO_3_PERCENT_REQUIRES_CURRENT_RECONCILIATION",
+    "architecture_inventory": "12_LANES_103_CAPABILITIES_4_REQUIRED_ROUTES_3_EXCLUSIONS",
+    "strict_release_closure": "0_OF_966_MANIFEST_DERIVED_MINIMUM_EVIDENCE_CELLS",
+    "minimum_release_evidence_cell_count": 966,
+    "minimum_release_evidence_cell_formula": "103 capabilities * 9 required statuses + 4 routes * 9 required statuses + 3 exclusion certificates",
+    "current_ledger_status": "STALE_REQUIRES_EXACT_SUBJECT_RECONCILIATION",
     "closed_value_movement_gates": 0,
     "value_movement_gate_count": 12,
-    "estimate_warning": "This is an immutable diagnosis of the implementation base. Live progress belongs in exact-subject obligation and value-movement ledgers. Percentages are coarse planning estimates. The 350-cell denominator is a registered lower bound and must expand where the 103-capability registry creates additional obligations.",
+    "estimate_warning": "This is an immutable diagnosis of the implementation base. Live progress belongs in exact-subject obligation and value-movement ledgers. The 966-cell count is a manifest-derived minimum and expands when requirement, evidence, migration, or terminal rows create additional obligations.",
     "immediate_blockers": [
       "The bridge-backed stream-8 perps and stream-11 zUSD monetary APIs remain mounted despite incompatibility with current Tau.",
       "The stream-11 zUSD monetary API also lacks a verifier-owned execution clock for ordinary execution.",
@@ -201,18 +261,40 @@
     }
   ],
   "value_movement_gates": [
-    {"gate_id": "VM-01", "title": "Complete writer and sink mediation", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
-    {"gate_id": "VM-02", "title": "Canonical state and root parity", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
-    {"gate_id": "VM-03", "title": "Complete canonical effect algebra", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
-    {"gate_id": "VM-04", "title": "Enabled lane lifecycle and terminal closure", "status": "GAP"},
-    {"gate_id": "VM-05", "title": "Governed mixed-lane route composition", "status": "GAP"},
-    {"gate_id": "VM-06", "title": "Whole-economy recursive execution", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
-    {"gate_id": "VM-07", "title": "Cross-implementation refinement parity", "status": "GAP"},
-    {"gate_id": "VM-08", "title": "Release-selected isolated verification", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
-    {"gate_id": "VM-09", "title": "Sole atomic publication authority", "status": "GAP"},
-    {"gate_id": "VM-10", "title": "Finality, fault, and outbox reconciliation", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
-    {"gate_id": "VM-11", "title": "Migration and writer-epoch rotation", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
-    {"gate_id": "VM-12", "title": "Exact-subject release evidence", "status": "GAP"}
+    {"gate_id": "VM-01", "title": "Closed requirements and value-writer registry", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-02", "title": "Complete typed global state and canonical codec", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-03", "title": "Global economic delta algebra", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-04", "title": "Complete lane transition cores", "status": "GAP"},
+    {"gate_id": "VM-05", "title": "Lane and route composition", "status": "GAP"},
+    {"gate_id": "VM-06", "title": "Ordered epoch proof fabric", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-07", "title": "Formal model and implementation refinement", "status": "GAP"},
+    {"gate_id": "VM-08", "title": "Release-aware verifier authority", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-09", "title": "Sole atomic publisher", "status": "GAP"},
+    {"gate_id": "VM-10", "title": "Crash, concurrency, replay, and delivery refinement", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-11", "title": "Certified initialization, migration, and version coexistence", "status": "PARTIAL_REQUIRES_CURRENT_RECONCILIATION"},
+    {"gate_id": "VM-12", "title": "Release evidence and independent review", "status": "GAP"}
+  ],
+  "gap_registry": [
+    {"gap_id": "single_active_plan_gap", "status": "OPEN", "owner_obligation": "O-001"},
+    {"gap_id": "current_tau_compatibility_gap", "status": "OPEN", "owner_obligation": "O-003A"},
+    {"gap_id": "current_tau_mounted_incompatibility", "status": "OPEN", "owner_obligation": "O-002"},
+    {"gap_id": "false_mounted_claim", "status": "OPEN", "owner_obligation": "O-002"},
+    {"gap_id": "unusable_clock_seam", "status": "OPEN", "owner_obligation": "O-002"},
+    {"gap_id": "stale_tau_assurance", "status": "OPEN", "owner_obligation": "O-003B"},
+    {"gap_id": "retired_bridge_dependency_inventory_gap", "status": "OPEN", "owner_obligation": "O-003B"},
+    {"gap_id": "operator_documentation_drift", "status": "OPEN", "owner_obligation": "O-004"},
+    {"gap_id": "incomplete_requirements_registry", "status": "OPEN", "owner_obligation": "O-005"},
+    {"gap_id": "current_closure_ledger_gap", "status": "OPEN", "owner_obligation": "O-005B"},
+    {"gap_id": "command_to_lane_mapping_gap", "status": "OPEN", "owner_obligation": "O-006"},
+    {"gap_id": "deployed_launcher_sink_coverage_gap", "status": "OPEN", "owner_obligation": "O-007A"},
+    {"gap_id": "cross_language_sink_coverage_gap", "status": "OPEN", "owner_obligation": "O-007B"},
+    {"gap_id": "dynamic_recovery_admin_sink_coverage_gap", "status": "OPEN", "owner_obligation": "O-007C"},
+    {"gap_id": "build_host_qualification_gap", "status": "OPEN", "owner_obligation": "O-008A"},
+    {"gap_id": "abi_v1_ownership_ambiguity", "status": "OPEN", "owner_obligation": "O-008"},
+    {"gap_id": "accounting_terminology_drift", "status": "OPEN", "owner_obligation": "O-008"},
+    {"gap_id": "atomic_publisher_shadow_gap", "status": "OPEN", "owner_obligation": "O-009"},
+    {"gap_id": "asset_transfer_capability_gap", "status": "OPEN", "owner_obligation": "O-010A"},
+    {"gap_id": "buy_and_burn_policy_and_route_gap", "status": "BLOCKED_PENDING_POLICY", "owner_obligation": "O-010B"}
   ],
   "unresolved_semantic_decisions": [
     {"decision_id": "UP-01", "topic": "Fee allocation percentages among ZDEX purchase-and-burn, hosting compensation, staking, treasury, reserves, and carried residue."},
@@ -241,28 +323,37 @@
       "obligation_id": "O-001",
       "phase": "P1",
       "priority": "P0",
-      "title": "Admit the exact plan candidate through PlanAdmissionReceiptV1 and an active-plan registry entry",
+      "title": "Admit the exact plan candidate through a user-selected research-only receipt and active-plan registry entry",
       "depends_on": [],
       "closes": ["single_active_plan_gap"],
-      "required_evidence": ["candidate JSON parse", "normative source hash replay", "independent exact-commit review", "external admission receipt", "active-plan registry entry"]
+      "required_evidence": ["candidate JSON parse", "normative source hash replay", "external user-selection premise labelled not machine verified", "hashed advisory exact-commit review artifact", "deterministic admission receipt", "active-plan registry entry"]
+    },
+    {
+      "obligation_id": "O-003A",
+      "phase": "P1",
+      "priority": "P0",
+      "title": "Create replayable current-Tau incompatibility witnesses before route quarantine",
+      "depends_on": ["O-001"],
+      "closes": ["current_tau_compatibility_gap"],
+      "required_evidence": ["replayable current upstream source pin", "reserved-stream check", "signature-preimage differential", "RPC response differential", "TAU_FORCE_TEST disqualifier", "source-byte mutation killer"]
     },
     {
       "obligation_id": "O-002",
       "phase": "P1",
       "priority": "P0",
       "title": "Quarantine bridge-backed stream-8 perps and stream-11 zUSD monetary value movement",
-      "depends_on": ["O-001"],
+      "depends_on": ["O-003A"],
       "closes": ["current_tau_mounted_incompatibility", "false_mounted_claim", "unusable_clock_seam"],
-      "required_evidence": ["minimized current-Tau incompatibility witnesses", "startup refusal before server construction", "compose and manifest exclusion", "operator-surface parity", "reject-no-effect"]
+      "required_evidence": ["minimized current-Tau incompatibility witnesses", "startup refusal before server construction", "compose and manifest exclusion", "operator-surface parity", "environment-alias re-enable mutant", "reject-no-effect"]
     },
     {
-      "obligation_id": "O-003",
+      "obligation_id": "O-003B",
       "phase": "P1",
       "priority": "P0",
-      "title": "Add an exact-upstream compatibility gate and classify every retired Tau bridge dependency",
+      "title": "Classify every retired Tau bridge dependency and enforce route reachability closure",
       "depends_on": ["O-002"],
-      "closes": ["current_tau_compatibility_gap", "stale_tau_assurance"],
-      "required_evidence": ["current upstream source pin", "reserved-stream check", "signature-preimage differential", "RPC response differential", "route reachability inventory", "startup refusal for retired bridge modes"]
+      "closes": ["stale_tau_assurance", "retired_bridge_dependency_inventory_gap"],
+      "required_evidence": ["operation-derived dependency rows", "QUARANTINED or RESEARCH_ORACLE or REMOVED classification", "new bridge import mutation killer", "startup refusal for retired bridge modes"]
     },
     {
       "obligation_id": "O-004",
@@ -280,7 +371,16 @@
       "title": "Close the requirements floor into versioned rows without inventing unresolved policy",
       "depends_on": ["O-001"],
       "closes": ["incomplete_requirements_registry"],
-      "required_evidence": ["all 18 workflows mapped", "all 81 scenarios mapped", "all 11 expansions mapped", "all 20 unresolved policies represented", "manifest_complete remains false until every mapping is nonvacuous"]
+      "required_evidence": ["all 18 workflows mapped", "all 81 scenarios mapped", "all 11 expansions mapped", "all eight confirmed findings mapped", "all 20 unresolved policies represented", "vacuous lane-mapping mutant", "manifest_complete remains false until every mapping is nonvacuous"]
+    },
+    {
+      "obligation_id": "O-005B",
+      "phase": "P1",
+      "priority": "P1",
+      "title": "Regenerate the value-movement closure ledger on the admitted exact subject without promotion",
+      "depends_on": ["O-003B", "O-004", "O-005"],
+      "closes": ["current_closure_ledger_gap"],
+      "required_evidence": ["ledger subject equals exact admitted head", "all source hashes replay", "historical rows labelled stale or donor", "zero promoted VM gates", "stale-subject mutation killer"]
     },
     {
       "obligation_id": "O-006",
@@ -292,22 +392,54 @@
       "required_evidence": ["all registered commands mapped exactly once", "research-disabled commands cannot map to ACTIVE_NEW", "unmapped and duplicate mapping mutants", "map root bound by the capability manifest", "current-subject obligation and value-movement ledger rows initialized"]
     },
     {
-      "obligation_id": "O-007",
+      "obligation_id": "O-007A",
       "phase": "P2",
       "priority": "P1",
-      "title": "Complete operation-derived cross-language value-writer and sink inventory",
-      "depends_on": ["O-006"],
+      "title": "Close deployed-launcher value-writer and sink reachability",
+      "depends_on": ["O-005B", "O-006"],
+      "closes": ["deployed_launcher_sink_coverage_gap"],
       "contributes_to": ["VM-01"],
-      "bounded_delta": "Inventory and mediation reachability only. VM-01 remains open until user stories, decoders, rejection behavior, recovery, committed failures, and terminal paths also close.",
-      "required_evidence": ["Python, Rust, Tau, shell, generated, deployment, API, CLI, recovery, migration, worker, and admin reachability", "command-to-lane consistency", "novel-writer mutation killer"]
+      "bounded_delta": "Deployed launcher and deployment-closure reachability only. VM-01 remains open.",
+      "required_evidence": ["exact launcher roots", "deployment profile closure", "57351387e versus 2085533fe donor selection receipt", "novel deployed-writer mutation killer"]
+    },
+    {
+      "obligation_id": "O-007B",
+      "phase": "P2",
+      "priority": "P1",
+      "title": "Extend operation-derived sink inventory across Python, Rust, Tau, shell, and generated code",
+      "depends_on": ["O-007A"],
+      "closes": ["cross_language_sink_coverage_gap"],
+      "contributes_to": ["VM-01"],
+      "bounded_delta": "Cross-language discovery and mediation reachability only. User-story, recovery, and terminal closure remain aggregate VM-01 obligations.",
+      "required_evidence": ["language-specific operation definitions", "generated-code ownership", "dynamic import declarations", "command-to-lane consistency", "novel cross-language writer mutation killer"]
+    },
+    {
+      "obligation_id": "O-007C",
+      "phase": "P2",
+      "priority": "P1",
+      "title": "Close recovery, migration, callback, worker, and administrative sink reachability",
+      "depends_on": ["O-007B"],
+      "closes": ["dynamic_recovery_admin_sink_coverage_gap"],
+      "contributes_to": ["VM-01"],
+      "bounded_delta": "Non-primary and dynamically reached writer inventory only. VM-01 remains open until all normative rows and terminal paths close.",
+      "required_evidence": ["recovery and migration entrypoints", "callbacks and proof callbacks", "workers and administrative paths", "dynamic loading registry", "novel indirect-writer mutation killer"]
+    },
+    {
+      "obligation_id": "O-008A",
+      "phase": "P3",
+      "priority": "P1",
+      "title": "Qualify a reproducible Rust and RISC0 build host before parity or proof claims",
+      "depends_on": ["O-001"],
+      "closes": ["build_host_qualification_gap"],
+      "required_evidence": ["exact toolchain locks", "disk and memory budget", "clean build receipt", "RISC0 3.0.6 image rebuild receipt", "artifact hashes", "no production authority"]
     },
     {
       "obligation_id": "O-008",
       "phase": "P3",
       "priority": "P1",
       "title": "Freeze ABI V1 ownership and complete global state and effect reconciliation",
-      "depends_on": ["O-006", "O-007"],
-      "closes": ["ABI ownership ambiguity", "custody terminology drift"],
+      "depends_on": ["O-006", "O-007C", "O-008A"],
+      "closes": ["abi_v1_ownership_ambiguity", "accounting_terminology_drift"],
       "contributes_to": ["VM-02", "VM-03"],
       "bounded_delta": "Python and Rust ownership, codec, root, conservation, and effect reconciliation only. Proof guest, verifier journal, durable schema parity, complete effect provenance, and machine-checked theorems remain aggregate gate obligations.",
       "required_evidence": ["field owner, unit, width, order, authority, and reject table", "per-asset conservation across all 12 lanes", "claimant and reserve equations", "canonicalization", "reject-no-op", "Python and Rust codec and root parity"]
@@ -318,19 +450,34 @@
       "priority": "P1",
       "title": "Fence one verifier-gated atomic publisher capability in SHADOW before mounting",
       "depends_on": ["O-008"],
+      "closes": ["atomic_publisher_shadow_gap"],
       "contributes_to": ["VM-09"],
       "bounded_delta": "At most advances VM-09 from GAP to PARTIAL. VM-09 cannot pass until P6 mounts the sole capability and mechanically retires every alternative writer.",
       "required_evidence": ["writer fencing", "CAS", "crash and reopen", "exact retry", "lost acknowledgment", "outbox redelivery and reconciliation", "SHADOW release status"]
     },
     {
-      "obligation_id": "O-010",
+      "obligation_id": "O-010A",
       "phase": "P4",
       "priority": "P1",
-      "title": "Advance capability rows lane by lane, starting with ASSET_TRANSFER, SPOT_LIQUIDITY, and ZDEX_TOKENOMICS",
+      "title": "Advance ASSET_TRANSFER capability rows without selecting unresolved policy",
       "depends_on": ["O-008"],
+      "closes": ["asset_transfer_capability_gap"],
+      "contributes_to": ["VM-04"],
+      "bounded_delta": "Only selected ASSET_TRANSFER capability rows may advance. VM-04 remains open until every enabled lane closes.",
+      "required_evidence": ["happy, reject, authorization, cancellation, recovery, and terminal BDD", "zero, one-atom, maximum-neighbor, overflow, and fee BVA", "stateful histories", "managed issue and burn authorization", "terminal asset policy"]
+    },
+    {
+      "obligation_id": "O-010B",
+      "phase": "P4",
+      "priority": "P1",
+      "status": "BLOCKED_PENDING_POLICY_DECISIONS",
+      "title": "Advance SPOT_LIQUIDITY and ZDEX_TOKENOMICS including governed fee-funded ZDEX purchase and exact burn",
+      "depends_on": ["O-009", "O-010A"],
+      "blocked_on_policy": ["UP-01", "UP-12", "UP-14"],
+      "closes": ["buy_and_burn_policy_and_route_gap"],
       "contributes_to": ["VM-04", "VM-05"],
-      "bounded_delta": "Closes only the selected capability rows and the governed fee-funded ZDEX purchase-and-burn route. VM-04 and VM-05 remain open until every enabled lane and all four required routes close.",
-      "required_evidence": ["happy, reject, authorization, cancellation, recovery, and terminal BDD", "BVA", "stateful histories", "governed fee-funded ZDEX purchase and exact burn"]
+      "bounded_delta": "Selected Spot, liquidity, and tokenomics rows may advance only after governed policy inputs exist. VM-04 and VM-05 remain open until all lanes and required routes close.",
+      "required_evidence": ["approved fee allocation and residue policy", "approved Spot and LP semantics", "approved retained-supply burn policy", "governed quote-fee purchase through the release-selected Spot route", "exact burn of received ZDEX atoms", "atomic failure and terminal BDD", "BVA and stateful histories"]
     }
   ],
   "vm_gate_promotion": {
@@ -352,21 +499,23 @@
       "required tests and nonclaims",
       "compute and disk budget"
     ],
-    "candidate_rule": "Each worker candidate is one direct child of the declared integration head. A dirty subject invalidates the packet.",
+    "candidate_rule": "Each worker candidate is one direct child of the declared integration head and contains only the declared write set. Evidence and review materialize that exact commit in a clean isolated checkout. Preserved unrelated working-tree changes receive no candidate or evidence status.",
     "shared_file_rule": "Registries, ledgers, manifests, semantic contracts, and shared ABI files are integrator-owned. Workers request shared changes instead of editing them concurrently.",
     "test_rule": "The minimized BEFORE witness must fail on the parent and the AFTER evidence must pass on the child and on the post-integration head.",
     "promotion_order": [
       "worker candidate",
       "donor review",
       "serial integration and conflict resolution",
-      "independent review of the exact integrated candidate",
+      "advisory independent review of the exact integrated candidate",
       "deterministic receipt",
       "ledger promotion",
       "push"
     ],
     "stop_rule": "Stop or reformulate a workstream after two review cycles with no closed-obligation delta.",
     "progress_metric": "Closed value-movement gates and closed capability rows. Commits, tests, lines, and compute are supporting telemetry.",
-    "cost_metric": "Record wall time, compute, changed lines, and review rounds per newly closed obligation."
+    "cost_metric": "Record wall time, compute, changed lines, and review rounds per newly closed obligation.",
+    "review_rule": "Fable, Opus, Max, Sol, and all other agent outputs are advisory. Preserve a hash-bound review artifact, but let only deterministic gates and user-selected governance premises affect admission.",
+    "dag_rule": "The obligation list is a stable topological order. Independent nodes may run in parallel only with disjoint write sets and exact-parent packets."
   },
   "current_tau_integration_contract": {
     "ingress": "A Tau-originated signed observation or policy verdict enters a versioned shadow/testnet adapter. Separate Zeno-domain authentication is required before it may become an EconomicCommandOccurrenceV1.",

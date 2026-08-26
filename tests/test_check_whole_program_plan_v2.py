@@ -24,11 +24,19 @@ def _write_mutant(tmp_path: Path, plan: dict[str, Any]) -> Path:
     return path
 
 
+def _obligation(plan: dict[str, Any], obligation_id: str) -> dict[str, Any]:
+    matches = [
+        row for row in plan["next_obligations"] if row["obligation_id"] == obligation_id
+    ]
+    assert len(matches) == 1
+    return matches[0]
+
+
 def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
     report = check_whole_program_plan_v2()
 
     assert report == {
-        "schema": "zenodex/whole-program-plan-check/v2",
+        "schema": "zenodex/whole-program-plan-check/v2.1",
         "ok": True,
         "plan_status": "RESEARCH_ONLY_CANDIDATE_PENDING_ADMISSION",
         "production_authority": "NONE",
@@ -51,6 +59,18 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
         (
             lambda plan: plan.update({"status": "RESEARCH_ONLY_ACTIVE_IMPLEMENTATION_PLAN"}),
             "plan must remain a candidate until external admission",
+        ),
+        (
+            lambda plan: plan["admission_model"].update(
+                {"llm_review": "AUTHORITATIVE_EVIDENCE"}
+            ),
+            "research-plan admission model drift",
+        ),
+        (
+            lambda plan: plan["advisory_reviews"][0].update(
+                {"authority": "EVIDENCE"}
+            ),
+            "advisory planning-review binding drift",
         ),
         (
             lambda plan: plan["normative_inputs"][0].update(
@@ -83,6 +103,12 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
             "value-movement gate set or order drift",
         ),
         (
+            lambda plan: plan["value_movement_gates"][0].update(
+                {"title": "Complete writer and sink mediation"}
+            ),
+            "value-movement gate titles drift from the normative safety claim",
+        ),
+        (
             lambda plan: plan["unresolved_semantic_decisions"].pop(),
             "unresolved semantic-decision set or order drift",
         ),
@@ -93,12 +119,26 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
             "baseline verdict must not claim a closed value-movement gate",
         ),
         (
-            lambda plan: plan["next_obligations"][6].update({"closes": ["VM-01"]}),
-            "individual obligation claims aggregate VM closure: O-007",
+            lambda plan: _obligation(plan, "O-007A").update({"closes": ["VM-01"]}),
+            "individual obligation claims aggregate VM closure: O-007A",
         ),
         (
-            lambda plan: plan["next_obligations"][2].update({"depends_on": ["O-010"]}),
-            "invalid or forward obligation dependency: O-003",
+            lambda plan: _obligation(plan, "O-003A").update(
+                {"depends_on": ["O-010B"]}
+            ),
+            "invalid or forward obligation dependency: O-003A",
+        ),
+        (
+            lambda plan: _obligation(plan, "O-004").update(
+                {"closes": ["invented_gap"]}
+            ),
+            "unregistered gap target: O-004",
+        ),
+        (
+            lambda plan: plan["gap_registry"][0].update(
+                {"owner_obligation": "O-002"}
+            ),
+            "gap target owner mismatch: O-001",
         ),
         (
             lambda plan: plan["vm_gate_promotion"].update(
@@ -117,6 +157,12 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
                 {"server.py": "0" * 64}
             ),
             "current Tau source-hash set drift",
+        ),
+        (
+            lambda plan: plan["upstream_dependencies"][1].update(
+                {"observed_tree": "0" * 40}
+            ),
+            "current Tau Language dependency tree drift",
         ),
         (
             lambda plan: plan["upstream_dependencies"][0].update(
@@ -150,6 +196,26 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
                 {"implementation_base_tree": "0" * 40}
             ),
             "implementation base commit and tree do not match Git objects",
+        ),
+        (
+            lambda plan: plan["requirements_floor"]["confirmed_findings"].pop(),
+            "provisional requirements-floor semantics drift",
+        ),
+        (
+            lambda plan: plan["historical_inputs"].pop(),
+            "whole-program donor reconciliation set drift",
+        ),
+        (
+            lambda plan: _obligation(plan, "O-010B").update(
+                {"blocked_on_policy": ["UP-01"]}
+            ),
+            "buy-and-burn obligation policy blockers drift",
+        ),
+        (
+            lambda plan: plan["baseline_verdict"].update(
+                {"strict_release_closure": "0_PERCENT"}
+            ),
+            "manifest-derived release denominator or baseline telemetry drift",
         ),
     ],
 )
@@ -191,7 +257,7 @@ def test_whole_program_plan_v2_normative_source_hash_mutant_fails_closed(
 def test_whole_program_plan_v2_rejects_duplicate_json_keys(tmp_path: Path) -> None:
     mutant_path = tmp_path / "duplicate-key-plan.json"
     mutant_path.write_text(
-        '{"schema":"zenodex/whole-program-plan/v2","schema":"forged"}',
+        '{"schema":"zenodex/whole-program-plan/v2.1","schema":"forged"}',
         encoding="utf-8",
     )
 
