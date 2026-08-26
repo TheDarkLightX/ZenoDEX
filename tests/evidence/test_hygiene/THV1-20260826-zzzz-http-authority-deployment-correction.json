@@ -1,0 +1,114 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zzzz-http-authority-deployment-correction",
+  "created_date": "2026-08-26",
+  "claim_scope": "This packet corrects the deployment and sealed-bid wording in THV1-20260826-zz-http-authority-review-correction. Normal startup rejects AutoTrader live writes and the sealed-bid local-ledger adapter if enabled. The local-testnet Compose profile now disables both adapters and reaches server construction with the other configured API lanes. The sealed-bid helper remains present, contains fixture-key and transaction-submission capability, and is launcher-unmounted; its current exact replay fails before sendtx because an internal import is unavailable.",
+  "change_kind": "evidence_correction",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "LOCAL-TESTNET-PROFILE-DOES-NOT-ENABLE-REFUSED-ADAPTERS",
+    "SAFE-LOCAL-TESTNET-PROFILE-REACHES-SERVER-CONSTRUCTION",
+    "SEALED-BID-FIXTURE-SIGNER-IS-LAUNCHER-UNMOUNTED",
+    "EVIDENCE-DISTINGUISHES-CAPABILITY-FROM-OBSERVED-EXECUTION"
+  ],
+  "failure_modes": [
+    "the deployment profile enables a mode that the launcher refuses and thereby removes every co-hosted API lane",
+    "AutoTrader local signing or testnet submission remains enabled after its live API is disabled",
+    "sealed-bid auto-mining remains enabled after local-ledger settlement is disabled",
+    "evidence states that a transaction was sent when exact replay failed before sendtx",
+    "evidence describes a retained fixture-key helper as having no settlement capability"
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/api_server.py",
+      "sha256": "2747594a626e319c1bdcf89390d142ccdb7abffb09dc6ae25a3d71cefce608a4"
+    },
+    {
+      "path": "src/integration/http_authority_ingress_v1.py",
+      "sha256": "409833388bbcdf34b4256885470e1b5354d9a7ddc6a74ca15ea59e8de12743b0"
+    },
+    {
+      "path": "src/integration/confidential_sealed_bid_api.py",
+      "sha256": "3c38cfc9f1b6e3b70625adee9f6b6c4ab46f21576e40359334aafc98ab93ecd2"
+    },
+    {
+      "path": "docker-compose.local-testnet.yml",
+      "sha256": "477d2eda7d3e2c00296c06f555d993f75592d61d0a7a8c05e56e14732df71440"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_api_server_main.py",
+      "sha256": "2780f6538a7b35b440466487a6a58486f59c8a86b007e1cefa30985655281ed9",
+      "node_ids": [
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_autotrader_live_mount_until_external_intent_signing_exists",
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_mounted_sealed_bid_fixture_signer",
+        "tests/integration/test_api_server_main.py::test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_construction"
+      ]
+    },
+    {
+      "path": "tests/integration/test_http_authority_ingress_v1.py",
+      "sha256": "2285a89fc17796463a44c681fee7aa28805be50f114d67854ede18e547cd3a7e",
+      "node_ids": [
+        "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_refuses_non_ascii_field_names"
+      ]
+    },
+    {
+      "path": "tests/integration/test_api_server_request_grammar_fuzz.py",
+      "sha256": "7aabcd8abb03ba6a2fd4c17cbacf7c1cb2b6a4f9b463eb26a1cb166f937d4d24",
+      "node_ids": [
+        "tests/integration/test_api_server_request_grammar_fuzz.py::test_api_server_request_minimizer_collapses_unauthorized_dead_fields",
+        "tests/integration/test_api_server_request_grammar_fuzz.py::test_api_server_request_minimizer_cli_emits_expected_schema"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "stateful"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange enabled hazardous modes or load the exact Compose profile, act through normal main startup, and assert exact refusal or one server construction plus attached disabled adapter state."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Hazardous configurations replace the server constructor with a failing sentinel and return before bind or state attachment. The safe profile constructs exactly one server with AutoTrader live disabled and no sealed-bid settlement submitter."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "autotrader_live_profile_state",
+      "points": [
+        "enabled_refuses_before_server_construction",
+        "disabled_with_local_signing_and_submission_disabled_reaches_construction"
+      ]
+    },
+    {
+      "name": "sealed_bid_settlement_profile_state",
+      "points": [
+        "enabled_refuses_before_server_construction",
+        "disabled_with_auto_mine_disabled_attaches_no_submitter"
+      ]
+    },
+    {
+      "name": "sealed_bid_helper_observation",
+      "points": [
+        "source_contains_fixture_key_and_sendtx_capability",
+        "current_exact_replay_fails_at_internal_import_before_sendtx"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "The prior correction packet inaccurately stated that the sealed-bid adapter signs a transaction in the reviewed replay. No sendtx occurred because the helper raised ImportError first.",
+    "The retained sealed-bid helper still contains fixture-key derivation and a designed transaction-submission path. Launcher unmounting does not erase that capability, and direct Python callers remain a separate reachability obligation.",
+    "These protections are launcher and deployment-profile guards. Direct calls to _attach_api_server_state with a forged configuration can attach the adapters inside the same process.",
+    "AutoTrader live execution and sealed-bid local-ledger settlement are unavailable in the local-testnet profile after this correction. Other configured API lanes remain startable.",
+    "This packet does not claim executable semantic-mutation receipts. Its evidence families intentionally omit mutation evidence.",
+    "No UI source, economic transition, proof authority, settlement authority, or production authority is added.",
+    "Production authority remains NONE."
+  ]
+}

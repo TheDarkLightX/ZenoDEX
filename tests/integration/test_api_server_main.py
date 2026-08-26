@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
+
+import yaml
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _unexpected_server_construction(*_args, **_kwargs) -> None:
@@ -137,3 +142,52 @@ def test_api_server_refuses_mounted_sealed_bid_fixture_signer(
         "Refusing to start: CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED "
         "uses local fixture signing authority and is not mountable."
     ]
+
+
+def test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_construction(
+    monkeypatch,
+) -> None:
+    from src.integration import api_server
+
+    compose = yaml.safe_load(
+        (REPO_ROOT / "docker-compose.local-testnet.yml").read_text(encoding="utf-8")
+    )
+    environment = compose["services"]["zenodex-api"]["environment"]
+    assert environment["AUTOTRADER_LIVE_API_ENABLED"] == "false"
+    assert environment["AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING"] == "false"
+    assert environment["AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION"] == "false"
+    assert environment["AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED"] == "false"
+    assert environment["AUTOTRADER_LIVE_SUPERVISOR_ENABLED"] == "false"
+    assert environment["CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED"] == "false"
+    assert environment["CONFIDENTIAL_SEALED_BID_AUTO_MINE"] == "false"
+
+    base_config = api_server._load_api_server_config()
+    config = replace(
+        base_config,
+        autotrader_live_enabled=False,
+        confidential_sealed_bid_asset_settlement_enabled=False,
+        external_auth_enforced=True,
+    )
+    server_instances: list[object] = []
+
+    class FakeServer:
+        def __init__(self, address, handler_cls):
+            self.address = address
+            self.handler_cls = handler_cls
+            server_instances.append(self)
+
+        def serve_forever(self, poll_interval=0.25):  # noqa: ANN001
+            return None
+
+    monkeypatch.setattr(api_server, "_load_api_server_config", lambda: config)
+    monkeypatch.setattr(api_server, "ThreadingHTTPServer", FakeServer)
+
+    rc = api_server.main([])
+
+    assert rc == 0
+    assert len(server_instances) == 1
+    assert server_instances[0].autotrader_live_api_enabled is False  # type: ignore[attr-defined]
+    assert (  # type: ignore[attr-defined]
+        server_instances[0].confidential_sealed_bid_asset_settlement_submitter
+        is None
+    )
