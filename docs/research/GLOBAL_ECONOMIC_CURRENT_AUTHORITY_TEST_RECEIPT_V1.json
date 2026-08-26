@@ -1,7 +1,7 @@
 {
   "schema": "zenodex/global-economic-current-authority-test-receipt/v1",
-  "recorded_at": "2026-08-23",
-  "implementation_subject_commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
+  "recorded_at": "2026-08-26",
+  "implementation_subject_commit": "68b8749b19509325ba75ad33057a247c332d8339",
   "environment": {
     "platform": "linux",
     "python": "3.12.3",
@@ -27,14 +27,14 @@
         "tests/integration/test_global_economic_authority_journal_v1.py",
         "tests/integration/test_global_economic_epoch_journal_v1.py",
         "tests/integration/test_global_economic_durable_publisher_v1.py",
-        "--junitxml=/dev/shm/zenodex-anchor-69ff811b-adjacent.xml"
+        "--junitxml=/tmp/zenodex-anchor-68b8749b-adjacent.xml"
       ],
       "exit_code": 0,
-      "tests": 287,
+      "tests": 298,
       "errors": 0,
       "failures": 0,
       "skipped": 0,
-      "junit_sha256": "6b6682ccc42beafa1d8edba2e76134851c0f5445a5d963990ad4f92ac05d3e4e",
+      "junit_sha256": "7c2022526f1f2204c3f2acf72f6b3d8adb88c5d7d3cb233d03bb15599834373b",
       "junit_artifact_committed": false
     },
     {
@@ -47,21 +47,21 @@
         "-p",
         "no:cacheprovider",
         "tests/test_check_m6_value_sinks_v1.py",
-        "--junitxml=/dev/shm/zenodex-anchor-69ff811b-sinks.xml"
+        "--junitxml=/tmp/zenodex-anchor-68b8749b-sinks.xml"
       ],
       "exit_code": 0,
       "tests": 9,
       "errors": 0,
       "failures": 0,
       "skipped": 0,
-      "junit_sha256": "2de6f6cae95098d5bc52fbb288e41b0a6e6b0c5f0d12c7f7c0b824979e25f458",
+      "junit_sha256": "93eb2621ce56f85689bef6dfb44a79c7286e68ebe39e4bba8d25db9fc2fedf5f",
       "junit_artifact_committed": false
     }
   ],
-  "total_tests": 296,
+  "total_tests": 307,
   "evidence_authority": "LOCAL_EXECUTION_RECORD_UNATTESTED",
   "nonclaims": [
-    "The ephemeral JUnit artifacts are not committed or independently attested.",
+    "The ephemeral JUnit artifacts were written under shared /tmp, are not committed, and are not independently attested.",
     "The receipt does not prove that another machine replayed either command.",
     "Passing tests do not establish production authority or whole-value-movement safety."
   ]

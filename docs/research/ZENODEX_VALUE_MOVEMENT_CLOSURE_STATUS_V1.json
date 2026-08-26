@@ -1,13 +1,13 @@
 {
   "schema": "zenodex/value-movement-closure-status/v1",
-  "observed_at": "2026-08-23",
+  "observed_at": "2026-08-26",
   "subject": {
-    "branch": "codex/zdex-hyperdeflation-v1-20260821",
-    "commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
+    "branch": "codex/whole-program-integration-20260825",
+    "commit": "68b8749b19509325ba75ad33057a247c332d8339",
     "scoped_worktree_clean_before_this_ledger": true
   },
   "checker_dependencies": {
-    "asset_precision_checker_sha256": "06b4dcd8cfddab5364f731a2e40beb9c44a5329e434afd06f2ab45d1fc18e8a8",
+    "asset_precision_checker_sha256": "d8332bd7d51de584c319290d7274c0254c91f1b1cfc8187e83c710284c5992a2",
     "value_sink_checker_sha256": "deb1298ec2ea7265afa9546e3810981ec007d54bdeb71f586ac1e31309ee96a0",
     "m6_atdd_sha256": "c7a6b52b6167e0b899aacc233c6db7c6a9fe3235d6aa6918609267a9d030fcfc",
     "asset_precision_policy_sha256": "d1427502b4a6eea32fdc0895b9f872d13eea6dc9670cec2a117dcb9d96fdb815",
@@ -32,8 +32,8 @@
   },
   "test_execution_receipt": {
     "path": "docs/research/GLOBAL_ECONOMIC_CURRENT_AUTHORITY_TEST_RECEIPT_V1.json",
-    "sha256": "41437aca047f4abe3fa1485a69ca717b4e9dc8e618496e44631c26d955ea4f9d",
-    "implementation_subject_commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
+    "sha256": "ec6a3173041185a3f9a21027f51a785ce8bbe3c23f2d4b3428d7e0f1c1ca6575",
+    "implementation_subject_commit": "68b8749b19509325ba75ad33057a247c332d8339",
     "evidence_authority": "LOCAL_EXECUTION_RECORD_UNATTESTED"
   },
   "tau_upstream": {
@@ -544,8 +544,8 @@
     {
       "id": "PUBLISHER_BOUND_EPOCH_VERIFICATION",
       "commit": "408cf223723b001131c013cdb6382c70e56ad932",
-      "artifact_subject_commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
-      "core_sha256": "ee346430be797b19427f52a5dff307965ce3f3983a2004cee950468ce9d67577",
+      "artifact_subject_commit": "68b8749b19509325ba75ad33057a247c332d8339",
+      "core_sha256": "f9ff27f3d346c2099ab3678ae87961cbc09653b6c641650ea0db0bf3bac23a50",
       "publisher_sha256": "7ed2e205fa72d59cfde97229cc4a5d7408e9c891983dfb6a9f425cccead12f47",
       "status": [
         "IMPLEMENTED_PYTHON_REFERENCE",
@@ -685,12 +685,12 @@
     {
       "id": "ECONOMIC_INITIAL_STATE_REPLAY_PRESERVATION_V1",
       "commit": "0d29ea7286bd302cf3e2135a7fc7511d78ef5816",
-      "artifact_subject_commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
+      "artifact_subject_commit": "68b8749b19509325ba75ad33057a247c332d8339",
       "design_sha256": "73d4269dc58b9fa9fe334bbb9d126b13589d1c02538f0f21c2a237dd6b481831",
       "python_sha256": "e4958644e482f867799601bb2b03b62a1aaf83c4a04e946efdb6309c46c54996",
-      "python_admission_sha256": "625338660a772404db772c03af3c227abf1b1603308ffb6028125c53b1f6fbbd",
+      "python_admission_sha256": "68491754100f05564320ebba841bd354d83d0d1588acb581c89f33c386ec9455",
       "python_unit_test_sha256": "e09e492db4fb3640697672db191ada45def1f1ad960634831ac25149b23293db",
-      "python_integration_test_sha256": "2ef5a69d6bd8916cc65c3422e7406e69a2345ee07398ef8ec255db293f8d8ec1",
+      "python_integration_test_sha256": "4300f87b71a7c9d192ac1b2a5b5fbf62bb7bcb791dd1f824964d9214176c69aa",
       "golden_fixture_sha256": "9e2b233076a0724635dffb3d7f06f1cb26b7b4ac3c79b3ae4f02420e5877c9e4",
       "golden_renderer_sha256": "196235b39c880630edbbe52c698605cbf8f852cd14e93c7296c8392a39f863bf",
       "golden_continuity_root": "0x745187e4d961ba25a2e6db19aa8e339b314b90432944f479a6c672ad4730c127",
@@ -724,12 +724,12 @@
     },
     {
       "id": "ECONOMIC_INITIAL_STATE_SOURCE_HEAD_ACTIVATION_V1",
-      "commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
+      "commit": "68b8749b19509325ba75ad33057a247c332d8339",
       "design_sha256": "471ed937844a880269563ee3a83a04b13b030a41a57a29599546355a4462f6c4",
-      "python_initial_state_sha256": "625338660a772404db772c03af3c227abf1b1603308ffb6028125c53b1f6fbbd",
+      "python_initial_state_sha256": "68491754100f05564320ebba841bd354d83d0d1588acb581c89f33c386ec9455",
       "python_publisher_verification_sha256": "172f92131cd3be3c9aa801bc77e1baccfffa2a21aa74b505687b4e1328e8375f",
       "python_commit_port_sha256": "7ed2e205fa72d59cfde97229cc4a5d7408e9c891983dfb6a9f425cccead12f47",
-      "python_test_sha256": "2ef5a69d6bd8916cc65c3422e7406e69a2345ee07398ef8ec255db293f8d8ec1",
+      "python_test_sha256": "4300f87b71a7c9d192ac1b2a5b5fbf62bb7bcb791dd1f824964d9214176c69aa",
       "status": [
         "IMPLEMENTED_PYTHON_CORE",
         "IMPLEMENTED_IN_MEMORY_CAS_SHELL",
@@ -752,11 +752,11 @@
     {
       "id": "GLOBAL_ECONOMIC_DURABLE_ACTIVATION_JOURNAL_V1",
       "commit": "7b5b142e32c505261fbcea68ebb915464b187acb",
-      "artifact_subject_commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
+      "artifact_subject_commit": "68b8749b19509325ba75ad33057a247c332d8339",
       "design_sha256": "52a6898278b37465082776f7a8c35d1ca8a8d4f36eabb94c721d05b6e4b120cb",
-      "python_core_sha256": "36ceffb91d70ea1fd750b250300707340cefd1bf7a9a06cdadce3a6953605d21",
+      "python_core_sha256": "71f27ecafb61568c89fdd861787316ab4725f561484c64821a723d81a652d57d",
       "python_journal_sha256": "089b2c06829f9f0398456873f41720f5f6be7ef3c4877e7c9b6253d12ff7bf28",
-      "python_test_sha256": "c8b257e650ed0daed0cce8a3649f7d169c7468ef2bec1fb408105a7e031a52f7",
+      "python_test_sha256": "69e55ada412110137338fa80e7b16e80831ad9ad5c56d0f7be7a30098b8660de",
       "status": [
         "IMPLEMENTED_PYTHON_CORE",
         "IMPLEMENTED_SQLITE_CAS_SHELL",
@@ -777,8 +777,8 @@
     },
     {
       "id": "GLOBAL_ECONOMIC_DURABLE_EPOCH_JOURNAL_V1",
-      "commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
-      "artifact_subject_commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
+      "commit": "68b8749b19509325ba75ad33057a247c332d8339",
+      "artifact_subject_commit": "68b8749b19509325ba75ad33057a247c332d8339",
       "design_sha256": "1b4b6edd2dd17329e9a6460118c1ef4141eab5369fdfccee7acaabab27614a9d",
       "python_bundle_sha256": "d3500267964f84e05dcc278ab0843a4b8b46b7c4163e27691ad4bfd9c29299ba",
       "python_journal_sha256": "462a077a99a7363370ab538ede7811ab3ebbb8c0f39fa37f60e65f4264cca8f8",
@@ -823,19 +823,19 @@
     },
     {
       "id": "GLOBAL_ECONOMIC_DURABLE_PUBLISHER_V1",
-      "commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
-      "artifact_subject_commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
+      "commit": "68b8749b19509325ba75ad33057a247c332d8339",
+      "artifact_subject_commit": "68b8749b19509325ba75ad33057a247c332d8339",
       "design_sha256": "4b354b00691e90759eac21df75b4edf646c75ba07e36089d5c1cc5dd6b04e33f",
       "verifier_design_sha256": "e996c317d5361597ae97d5e0efef0c505acbd6bdaf8a6e76c0eda3fc56ae6189",
       "python_verifier_registry_sha256": "04c1b791a0e9fb546a6f8138b1ff74c955666ece32c271ab024f04a8362f8bde",
       "python_verifier_evidence_sha256": "66bbc6de53605e05a28d45602f2de896058370d6ac3df7cb04ef0a1cb97ce045",
       "python_verifier_deployment_sha256": "dc32a1e0abfaad182c6240cf951f0ee049aee19313b1dde87c5127b845179278",
       "python_publisher_sha256": "cd38832b33f1499b7b882669478788da6200d92fb73f526a2ca633ff88da55b4",
-      "python_proof_sha256": "ee346430be797b19427f52a5dff307965ce3f3983a2004cee950468ce9d67577",
+      "python_proof_sha256": "f9ff27f3d346c2099ab3678ae87961cbc09653b6c641650ea0db0bf3bac23a50",
       "python_journal_sha256": "462a077a99a7363370ab538ede7811ab3ebbb8c0f39fa37f60e65f4264cca8f8",
       "python_verifier_test_sha256": "cacc89e0245d61183d12779b8684dcbbbc417fc35bb98f727b64d8221e23842e",
-      "python_abi_test_sha256": "2ef5a69d6bd8916cc65c3422e7406e69a2345ee07398ef8ec255db293f8d8ec1",
-      "python_publisher_test_sha256": "4c0f56cf6a077bb0278474d84fb1d5116741f4c7ba7f9752a9d86d3106cf7a6b",
+      "python_abi_test_sha256": "4300f87b71a7c9d192ac1b2a5b5fbf62bb7bcb791dd1f824964d9214176c69aa",
+      "python_publisher_test_sha256": "6156a7ebab7f26697844be8d059d6ee375d9d431bb189fe0fc33ff7f7e1f4d3c",
       "python_journal_test_sha256": "4b67d736f4adb9f8d5d9a42c649b1648919f31404daf8f0484f9fc6aa8768dd7",
       "writer_manifest_sha256": "a0f8bd4c11660aa4d614a089b252ac5403d7cee0d4cb73454afc121a4bfa0b9f",
       "sink_manifest_sha256": "48881c14d37bb4297ae35f2291eae64167c2dcf78ee53bcfba0a0f9d000fc8ba",
@@ -877,15 +877,15 @@
     },
     {
       "id": "GLOBAL_ECONOMIC_CURRENT_AUTHORITY_HEAD_V1",
-      "commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
-      "artifact_subject_commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
+      "commit": "68b8749b19509325ba75ad33057a247c332d8339",
+      "artifact_subject_commit": "68b8749b19509325ba75ad33057a247c332d8339",
       "design_sha256": "768020d65c1e6a52207301bd08abce236fe5da3c84386068a342aead57c68d85",
       "python_core_sha256": "77d4f33f4fd353260154a146e5b7c270a2ca4eae46a13f0ce67da6b5b384896c",
       "python_authority_journal_sha256": "66b43e86cc1e024ce817044ac0b9515f64d0943a0bfdfd2148e0c8c0badcc4da",
       "python_publisher_sha256": "cd38832b33f1499b7b882669478788da6200d92fb73f526a2ca633ff88da55b4",
       "python_epoch_journal_sha256": "462a077a99a7363370ab538ede7811ab3ebbb8c0f39fa37f60e65f4264cca8f8",
       "python_authority_test_sha256": "79bffec932a4e5d0ea5328712c83d6c9b39eb253f0ff0d5d59e8c7705d853524",
-      "python_publisher_test_sha256": "4c0f56cf6a077bb0278474d84fb1d5116741f4c7ba7f9752a9d86d3106cf7a6b",
+      "python_publisher_test_sha256": "6156a7ebab7f26697844be8d059d6ee375d9d431bb189fe0fc33ff7f7e1f4d3c",
       "python_epoch_test_sha256": "4b67d736f4adb9f8d5d9a42c649b1648919f31404daf8f0484f9fc6aa8768dd7",
       "sink_manifest_sha256": "48881c14d37bb4297ae35f2291eae64167c2dcf78ee53bcfba0a0f9d000fc8ba",
       "sink_test_sha256": "319764c65bdccc1acf4e0e35d82f7d0910435af4fe3e926a73007988fd747c61",
@@ -923,8 +923,8 @@
     },
     {
       "id": "GLOBAL_ECONOMIC_MONOTONIC_ANCHOR_V1",
-      "commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
-      "artifact_subject_commit": "69ff811b785a80eec91ee3512f856e6fd33e4a3a",
+      "commit": "68b8749b19509325ba75ad33057a247c332d8339",
+      "artifact_subject_commit": "68b8749b19509325ba75ad33057a247c332d8339",
       "authority_design_sha256": "768020d65c1e6a52207301bd08abce236fe5da3c84386068a342aead57c68d85",
       "campaign_sha256": "f8e3df0d83d62ecec035f6861ddefa0f979cf7a66a9ba928e9011e169856fc15",
       "claim_sha256": "32985ee88b0b15a0b6ef1408e60ac1767f93e20eade434090011e144ecd56990",
@@ -934,7 +934,7 @@
       "python_epoch_journal_sha256": "462a077a99a7363370ab538ede7811ab3ebbb8c0f39fa37f60e65f4264cca8f8",
       "python_core_test_sha256": "7947c317264153d0446f1afb4335a24908cfd15a5b20bc28c083c2c9f12c3077",
       "python_backend_test_sha256": "d072c4dc07f48288c407ef126dff2d5958af6ac98963ceb1e30490a98388a2b7",
-      "python_publisher_test_sha256": "4c0f56cf6a077bb0278474d84fb1d5116741f4c7ba7f9752a9d86d3106cf7a6b",
+      "python_publisher_test_sha256": "6156a7ebab7f26697844be8d059d6ee375d9d431bb189fe0fc33ff7f7e1f4d3c",
       "status": [
         "IMPLEMENTED_CANONICAL_MONOTONIC_ANCHOR",
         "IMPLEMENTED_MEASURED_SHADOW_BACKEND_PORT",
@@ -1135,7 +1135,7 @@
       "policy_artifact_sha256": "d1427502b4a6eea32fdc0895b9f872d13eea6dc9670cec2a117dcb9d96fdb815",
       "python_sha256": "14c88736b3ce63053ff65c6ee0b2712af993065f12dbe19afddd9cf8a60ad86f",
       "rust_sha256": "d20a5fea3fbb0c7f21b66630d1979736a15472f2f02a35602d6c580f716b8c4e",
-      "checker_sha256": "06b4dcd8cfddab5364f731a2e40beb9c44a5329e434afd06f2ab45d1fc18e8a8",
+      "checker_sha256": "d8332bd7d51de584c319290d7274c0254c91f1b1cfc8187e83c710284c5992a2",
       "status": [
         "IMPLEMENTED_PYTHON_ADMISSION",
         "IMPLEMENTED_RUST_VALIDATOR",
@@ -1201,17 +1201,17 @@
     {
       "id": "VM-10",
       "status": "PARTIAL",
-      "evidence": "The unmounted activation, authority, ordinary-epoch journal and verifier-owned publisher retain atomic SQLite CAS, exact retry, active-generation recheck, bounded history, private no-replace bootstrap and tested process-crash recovery. Subject 69ff811b7 includes an optional SHADOW monotonic-anchor profile. Under an independently authenticated current, monotonic and linearizable backend assumption, it rejects restored authority bytes and an epoch tip behind the external checkpoint. One local epoch ahead admits only byte-identical retry from the exact predecessor. Every successful local outcome arms recovery before projection. Unknown lower-journal outcomes arm recovery only after exact durable-head classification; pre-commit faults preserve original error and no effect. A successful CAS may adopt a later same-authority tip only when complete local durable heads match it exactly. Process-control interruption preserves the original exception after recovery classification. Every other changed anchor rejects before receipt verification, and exhausted V1 successor coordinates reject before proof or SQLite mutation. This is a port contract and in-memory test backend, with no concrete external service or production selection. Unanchored APIs, private writers and alternative commit paths remain callable. Authority-successor anchoring, atomic migration retirement, authenticated install provenance, persistent descriptor fencing, outbox reconciliation, objective finality, hardware power-loss evidence, Rust/RISC0 parity, one mounted authoritative writer and legacy-path retirement remain absent."
+      "evidence": "The unmounted activation, authority, ordinary-epoch journal and verifier-owned publisher retain atomic SQLite CAS, exact retry, active-generation recheck, bounded history, private no-replace bootstrap and tested process-crash recovery. Subject 68b8749b1 includes an optional SHADOW monotonic-anchor profile. Under an independently authenticated current, monotonic and linearizable backend assumption, it rejects restored authority bytes and an epoch tip behind the external checkpoint. One local epoch ahead admits only byte-identical retry from the exact predecessor. Every successful local outcome arms recovery before projection. Unknown lower-journal outcomes arm recovery only after exact durable-head classification; pre-commit faults preserve original error and no effect. A successful CAS may adopt a later same-authority tip only when complete local durable heads match it exactly. Process-control interruption preserves the original exception after recovery classification. Every other changed anchor rejects before receipt verification, and exhausted V1 successor coordinates reject before proof or SQLite mutation. This is a port contract and in-memory test backend, with no concrete external service or production selection. Unanchored APIs, private writers and alternative commit paths remain callable. Authority-successor anchoring, atomic migration retirement, authenticated install provenance, persistent descriptor fencing, outbox reconciliation, objective finality, hardware power-loss evidence, Rust/RISC0 parity, one mounted authoritative writer and legacy-path retirement remain absent."
     },
     {
       "id": "VM-11",
       "status": "PARTIAL",
-      "evidence": "Python and Rust derive matching roots for every explicit balance, supply, named accounting-location, liability, reserve and terminal-obligation target row in the bounded vectors. The predecessor-bound slices preserve complete global replay, outbox and terminal-obligation tables across isolated migration, and the in-memory migration path binds the publisher-owned source head. The unmounted durable journals checkpoint complete activation and ordinary-epoch bundles under one directory-local authority generation. Subject 69ff811b7 provides bounded rollback detection, concurrent-forward-tip validation, and one-step exact-retry recovery only for the optional SHADOW anchored profile under an external-currentness assumption. This does not prove migration receipt validity, transition semantics, atomic authority rotation, a concrete anti-rollback deployment, authority-successor continuity, terminal validity, funding, claimant key control, payable routes, source authorization, external delivery, objective finality, migration totality, coexistence or verifier-owned durable activation. Changed Rust targets and shared vectors remain uncompiled and unrun in Rust, and independent review of replay and terminal slices remains pending."
+      "evidence": "Python and Rust derive matching roots for every explicit balance, supply, named accounting-location, liability, reserve and terminal-obligation target row in the bounded vectors. The predecessor-bound slices preserve complete global replay, outbox and terminal-obligation tables across isolated migration, and the in-memory migration path binds the publisher-owned source head. The unmounted durable journals checkpoint complete activation and ordinary-epoch bundles under one directory-local authority generation. Subject 68b8749b1 provides bounded rollback detection, concurrent-forward-tip validation, and one-step exact-retry recovery only for the optional SHADOW anchored profile under an external-currentness assumption. This does not prove migration receipt validity, transition semantics, atomic authority rotation, a concrete anti-rollback deployment, authority-successor continuity, terminal validity, funding, claimant key control, payable routes, source authorization, external delivery, objective finality, migration totality, coexistence or verifier-owned durable activation. Changed Rust targets and shared vectors remain uncompiled and unrun in Rust, and independent review of replay and terminal slices remains pending."
     },
     {
       "id": "VM-12",
       "status": "GAP",
-      "evidence": "This ledger binds clean scoped implementation subject 69ff811b785a80eec91ee3512f856e6fd33e4a3a. The current-authority campaign preserves minimized rollback, revocation, inode-replacement, migration, forward-tip, lower-journal commit-before-ack, process-control interruption, and pre-commit fault histories. A local unattested execution receipt records 296 passing exact-subject tests: 287 adjacent monotonic-anchor, settlement ABI, verifier release, activation, authority, epoch, publisher, and migration tests plus nine exhaustive value-sink tests; its ephemeral JUnit outputs are hash-recorded but uncommitted and independently unreplayed. Touched Python passes Ruff and targeted mypy; the security scan reported zero High or Medium and five Low advisory findings. Exact-code max review of 8b3dc4268 found no High, Medium, or Low defect and returned GO only for the bounded synchronous SHADOW assumptions. The positive schedule remains deterministic reentrancy, several control-flow exception variants remain untested, and one asynchronous interruption window requires reopen classification. A concrete authenticated monotonic backend, genesis and successor anchoring, authenticated install provenance, persistent descriptor fencing, atomic migration retirement, authenticated successor admission, isolated executable attestation, sole-writer fencing, real Rust/RISC0 replay, objective finality, and complete release evidence remain absent."
+      "evidence": "This ledger binds clean scoped implementation subject 68b8749b19509325ba75ad33057a247c332d8339. The current-authority campaign preserves minimized rollback, revocation, inode-replacement, migration, forward-tip, lower-journal commit-before-ack, process-control interruption, and pre-commit fault histories. A local unattested execution receipt records 307 passing exact-subject tests: 298 adjacent monotonic-anchor, settlement ABI, verifier release, activation, authority, epoch, publisher, and migration tests plus nine exhaustive value-sink tests; its ephemeral JUnit outputs are hash-recorded but uncommitted and independently unreplayed. The exact 68b8749b1 subject has not received an independent whole-delta review; the historical exact-code max review of 8b3dc4268 remains scoped only to that older bounded synchronous SHADOW subject. The positive schedule remains deterministic reentrancy, several control-flow exception variants remain untested, and one asynchronous interruption window requires reopen classification. A concrete authenticated monotonic backend, genesis and successor anchoring, authenticated install provenance, persistent descriptor fencing, atomic migration retirement, authenticated successor admission, isolated executable attestation, sole-writer fencing, real Rust/RISC0 replay, objective finality, and complete release evidence remain absent."
     }
   ],
   "live_gate_observations": {

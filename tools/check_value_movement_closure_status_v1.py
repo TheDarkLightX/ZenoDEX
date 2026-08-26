@@ -19,9 +19,9 @@ DEFAULT_STATUS_PATH = Path(
 M6_ATDD_PATH = Path("docs/research/m6_global_economic_core_atdd_bdd_v1.json")
 EXPECTED_GATE_IDS = tuple(f"VM-{index:02d}" for index in range(1, 13))
 EXPECTED_GATE_EVIDENCE_ROOT = (
-    "ba6c1d6ec9c2cfa249f4f9882bf6c0511e11f1259846e7f07771dc8b75d43042"
+    "5c5f21507d1d0010601409377d26a8d20aaae5a35271e8f92ccdfde6c620565f"
 )
-EXPECTED_SUBJECT_COMMIT = "69ff811b785a80eec91ee3512f856e6fd33e4a3a"
+EXPECTED_SUBJECT_COMMIT = "68b8749b19509325ba75ad33057a247c332d8339"
 EXPECTED_TOP_LEVEL_FIELDS = frozenset(
     {
         "authority",
@@ -123,22 +123,21 @@ EXPECTED_TEST_RECEIPT_PATH = Path(
     "docs/research/GLOBAL_ECONOMIC_CURRENT_AUTHORITY_TEST_RECEIPT_V1.json"
 )
 EXPECTED_TEST_RECEIPT_SHA256 = (
-    "41437aca047f4abe3fa1485a69ca717b4e9dc8e618496e44631c26d955ea4f9d"
+    "ec6a3173041185a3f9a21027f51a785ce8bbe3c23f2d4b3428d7e0f1c1ca6575"
 )
 EXPECTED_VM12_EVIDENCE = (
     "This ledger binds clean scoped implementation subject "
-    "69ff811b785a80eec91ee3512f856e6fd33e4a3a. The current-authority campaign "
+    "68b8749b19509325ba75ad33057a247c332d8339. The current-authority campaign "
     "preserves minimized rollback, revocation, inode-replacement, migration, "
     "forward-tip, lower-journal commit-before-ack, process-control interruption, "
     "and pre-commit fault histories. A local unattested execution receipt records "
-    "296 passing exact-subject tests: 287 adjacent monotonic-anchor, settlement ABI, "
+    "307 passing exact-subject tests: 298 adjacent monotonic-anchor, settlement ABI, "
     "verifier release, activation, authority, epoch, publisher, and migration tests "
     "plus nine exhaustive value-sink tests; its ephemeral JUnit outputs are "
-    "hash-recorded but uncommitted and independently unreplayed. Touched Python "
-    "passes Ruff and targeted mypy; the security scan reported zero High or Medium "
-    "and five Low advisory findings. Exact-code max review of 8b3dc4268 found no "
-    "High, Medium, or Low defect and returned GO only for the bounded synchronous "
-    "SHADOW assumptions. The positive schedule remains deterministic reentrancy, "
+    "hash-recorded but uncommitted and independently unreplayed. The exact 68b8749b1 "
+    "subject has not received an independent whole-delta review; the historical "
+    "exact-code max review of 8b3dc4268 remains scoped only to that older bounded "
+    "synchronous SHADOW subject. The positive schedule remains deterministic reentrancy, "
     "several control-flow exception variants remain untested, and one asynchronous "
     "interruption window requires reopen classification. A concrete authenticated "
     "monotonic backend, genesis and successor anchoring, authenticated install "
@@ -926,19 +925,19 @@ def check_value_movement_closure_status_v1(
         findings.append("test execution receipt subject mismatch")
     if receipt.get("evidence_authority") != "LOCAL_EXECUTION_RECORD_UNATTESTED":
         findings.append("test execution receipt authority exceeds evidence")
-    if receipt.get("total_tests") != 296:
+    if receipt.get("total_tests") != 307:
         findings.append("test execution receipt total drift")
     runs = receipt.get("runs")
     expected_runs = (
         (
             "adjacent_monotonic_authority_portfolio",
-            287,
-            "6b6682ccc42beafa1d8edba2e76134851c0f5445a5d963990ad4f92ac05d3e4e",
+            298,
+            "7c2022526f1f2204c3f2acf72f6b3d8adb88c5d7d3cb233d03bb15599834373b",
         ),
         (
             "exhaustive_python_value_sinks",
             9,
-            "2de6f6cae95098d5bc52fbb288e41b0a6e6b0c5f0d12c7f7c0b824979e25f458",
+            "93eb2621ce56f85689bef6dfb44a79c7286e68ebe39e4bba8d25db9fc2fedf5f",
         ),
     )
     if type(runs) is not list or len(runs) != len(expected_runs):
