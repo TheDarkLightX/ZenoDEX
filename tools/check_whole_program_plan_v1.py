@@ -199,6 +199,7 @@ MAX_EVIDENCE_ROWS_TOTAL_V1: Final = 512
 MAX_MUTATION_KILLERS_PER_TASK_V1: Final = 16
 MAX_MUTATION_KILLERS_TOTAL_V1: Final = 512
 MAX_TASK_REFERENCES_PER_LIST_V1: Final = 64
+MAX_EXTERNAL_GATE_ROWS_V1: Final = 16
 ZERO_OID: Final = "0" * 40
 PHASE_FIELDS: Final = frozenset({"phase_id", "title", "original_plan_section", "objective"})
 TASK_FIELDS: Final = frozenset(
@@ -622,7 +623,37 @@ def _owned_plan_v1(value: object) -> tuple[dict[str, object] | None, list[PlanFi
                 "canonical plan bytes exceed the bounded JSON byte limit",
             )
         ]
-    return owned, []
+    try:
+        decoded = decode_bounded_json_v1(
+            encoded,
+            name="canonical in-memory plan",
+            limits=PLAN_JSON_LIMITS_V1,
+        )
+    except (
+        BoundedJsonError,
+        MemoryError,
+        OverflowError,
+        RecursionError,
+        RuntimeError,
+        UnicodeError,
+        ValueError,
+    ) as exc:
+        return None, [
+            PlanFinding(
+                "plan_value_not_owned",
+                "plan",
+                f"canonical plan refused by bounded decoder: {type(exc).__name__}",
+            )
+        ]
+    if type(decoded) is not dict:
+        return None, [
+            PlanFinding(
+                "plan_value_not_owned",
+                "plan",
+                "bounded decoder did not return an exact top-level mapping",
+            )
+        ]
+    return cast(dict[str, object], decoded), []
 
 
 def _mode_or_findings_v1(mode: object) -> tuple[PlanCheckModeV1 | None, list[PlanFinding]]:
@@ -853,7 +884,14 @@ class ConfinedRootV1:
             anchored = AnchoredDirectoryV1.open(path)
         except OSError as exc:
             raise RootUnavailable(f"repository root refused: {exc}") from exc
-        return cls(path, anchored)
+        try:
+            return cls(path, anchored)
+        except BaseException:
+            try:
+                anchored.close()
+            except BaseException:
+                pass
+            raise
 
     @property
     def device(self) -> int:
@@ -2464,6 +2502,14 @@ def _validate_external_gates(plan: Mapping[str, Any]) -> list[PlanFinding]:
     external = plan["external_gates"]
     if not isinstance(external, list) or not external:
         return [PlanFinding("external_gates_malformed", "external_gates", "must be a nonempty list")]
+    if len(external) > MAX_EXTERNAL_GATE_ROWS_V1:
+        return [
+            PlanFinding(
+                "external_gate_count_exceeded",
+                "external_gates",
+                f"{len(external)}>{MAX_EXTERNAL_GATE_ROWS_V1}",
+            )
+        ]
     checks: tuple[FieldCheck, ...] = (
         ("gate_id", _is_nonempty_str, "external_gate_text_missing"),
         ("location", _is_nonempty_str, "external_gate_text_missing"),
@@ -2472,10 +2518,26 @@ def _validate_external_gates(plan: Mapping[str, Any]) -> list[PlanFinding]:
         ("executed_by_checker", lambda value: value is False, "external_gate_claims_execution"),
     )
     findings: list[PlanFinding] = []
+    seen_gate_ids: set[str] = set()
     for index, entry in enumerate(external):
         label = f"external_gates[{index}]"
         shape = _shape(entry, EXTERNAL_GATE_FIELDS, rule="external_gate_field_set_not_closed", subject=label)
-        findings.extend([shape] if shape is not None else _check_fields(entry, checks, label))
+        if shape is not None:
+            findings.append(shape)
+            continue
+        findings.extend(_check_fields(entry, checks, label))
+        gate_id = entry.get("gate_id") if isinstance(entry, Mapping) else None
+        if type(gate_id) is not str:
+            continue
+        if gate_id in seen_gate_ids:
+            findings.append(
+                PlanFinding(
+                    "external_gate_id_duplicate",
+                    gate_id,
+                    "duplicate external gate id",
+                )
+            )
+        seen_gate_ids.add(gate_id)
     return findings
 
 
@@ -2577,6 +2639,77 @@ def render_generated_markdown_v1(plan: Mapping[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _markdown_size_refusal_v1(observed_bytes: int) -> PlanFinding:
+    return PlanFinding(
+        "plan_markdown_size_refused",
+        PLAN_MARKDOWN_PATH.as_posix(),
+        f"{observed_bytes}>{MAX_PLAN_MARKDOWN_BYTES}",
+    )
+
+
+def _render_bounded_generated_markdown_v1(
+    plan: Mapping[str, Any],
+) -> tuple[bytes | None, PlanFinding | None]:
+    """Render the generated block under the artifact's exact byte ceiling."""
+
+    try:
+        rendered = render_generated_markdown_v1(plan).encode(
+            "utf-8", errors="strict"
+        )
+    except (
+        AttributeError,
+        IndexError,
+        KeyError,
+        MemoryError,
+        OverflowError,
+        RecursionError,
+        TypeError,
+        UnicodeError,
+        ValueError,
+    ) as exc:
+        return None, PlanFinding(
+            "plan_markdown_unrenderable",
+            PLAN_MARKDOWN_PATH.as_posix(),
+            type(exc).__name__,
+        )
+    if len(rendered) > MAX_PLAN_MARKDOWN_BYTES:
+        return None, _markdown_size_refusal_v1(len(rendered))
+    return rendered, None
+
+
+def _compose_bounded_markdown_v1(
+    prefix: str, generated: bytes, suffix: str
+) -> tuple[bytes | None, PlanFinding | None]:
+    """Compose one final companion without allocating above its byte ceiling."""
+
+    if type(prefix) is not str or type(generated) is not bytes or type(suffix) is not str:
+        return None, PlanFinding(
+            "plan_markdown_unrenderable",
+            PLAN_MARKDOWN_PATH.as_posix(),
+            "composition requires exact str/bytes/str values",
+        )
+    try:
+        prefix_bytes = prefix.encode("utf-8", errors="strict")
+        suffix_bytes = suffix.encode("utf-8", errors="strict")
+    except (MemoryError, UnicodeError) as exc:
+        return None, PlanFinding(
+            "plan_markdown_unrenderable",
+            PLAN_MARKDOWN_PATH.as_posix(),
+            type(exc).__name__,
+        )
+    total = len(prefix_bytes) + len(generated) + len(suffix_bytes)
+    if total > MAX_PLAN_MARKDOWN_BYTES:
+        return None, _markdown_size_refusal_v1(total)
+    try:
+        return b"".join((prefix_bytes, generated, suffix_bytes)), None
+    except MemoryError as exc:
+        return None, PlanFinding(
+            "plan_markdown_unrenderable",
+            PLAN_MARKDOWN_PATH.as_posix(),
+            type(exc).__name__,
+        )
+
+
 def _split_markdown(markdown: str) -> tuple[str, str, str] | None:
     begin = markdown.find(GENERATED_BEGIN)
     end = markdown.find(GENERATED_END)
@@ -2611,10 +2744,17 @@ def _validate_markdown(plan: Mapping[str, Any], markdown: str | None, profile: P
     parts = _split_markdown(markdown)
     if parts is None:
         return [PlanFinding("plan_markdown_generated_block_missing", PLAN_MARKDOWN_PATH.as_posix(), "generated markers absent")]
-    try:
-        expected = render_generated_markdown_v1(plan)
-    except (KeyError, TypeError, AttributeError, ValueError, IndexError) as exc:
-        return [PlanFinding("plan_markdown_unrenderable", PLAN_MARKDOWN_PATH.as_posix(), f"{type(exc).__name__}: {exc}")]
+    expected_bytes, render_finding = _render_bounded_generated_markdown_v1(plan)
+    if expected_bytes is None:
+        return [
+            render_finding
+            or PlanFinding(
+                "plan_markdown_unrenderable",
+                PLAN_MARKDOWN_PATH.as_posix(),
+                "bounded render returned no bytes",
+            )
+        ]
+    expected = expected_bytes.decode("utf-8")
     findings = _narrative_range_findings(plan, parts[0] + parts[2])
     if not profile.compares_regenerable:
         return findings
@@ -3160,11 +3300,56 @@ def _observe_anchored(
         return None, _refusal(Path(spec.checker_path), exc)
 
 
-def _close_owned_context_v1(
-    context: ExecutionContextV1, owns_context: bool
-) -> None:
+def _discard_failed_effect_plan_v1(
+    effects: Iterable[LiveGateEffectV1],
+    context: ExecutionContextV1,
+    *,
+    owns_context: bool,
+) -> list[PlanFinding]:
+    """Attempt source and context cleanup independently on a normal refusal."""
+
+    findings: list[PlanFinding] = []
+    try:
+        _close_effect_sources_v1(effects)
+    except BaseException as exc:
+        findings.append(
+            PlanFinding(
+                "live_gate_effect_cleanup_refused",
+                "live_gates",
+                type(exc).__name__,
+            )
+        )
     if owns_context:
-        context.close()
+        try:
+            context.close()
+        except BaseException as exc:
+            findings.append(
+                PlanFinding(
+                    "live_gate_context_cleanup_refused",
+                    "live_gates",
+                    type(exc).__name__,
+                )
+            )
+    return findings
+
+
+def _discard_failed_effect_plan_preserving_primary_v1(
+    effects: Iterable[LiveGateEffectV1],
+    context: ExecutionContextV1,
+    *,
+    owns_context: bool,
+) -> None:
+    """Attempt every owned cleanup without replacing an active exception."""
+
+    try:
+        _close_effect_sources_v1(effects)
+    except BaseException:
+        pass
+    if owns_context:
+        try:
+            context.close()
+        except BaseException:
+            pass
 
 
 def _plan_effects(
@@ -3193,22 +3378,37 @@ def _plan_effects(
         findings = _bound_execution_context_findings(
             context, root, subject="live_gates"
         )
-    if context is None or findings:
+    if context is None:
         return (), findings
-    snapshot, findings = source_snapshot_v1(root)
-    if snapshot is None:
-        _close_owned_context_v1(context, owns_context)
-        return (), findings
-    findings.extend(
-        _bound_execution_context_findings(
-            context, root, subject="live_gates"
-        )
-    )
     if findings:
-        _close_owned_context_v1(context, owns_context)
+        findings.extend(
+            _discard_failed_effect_plan_v1(
+                (), context, owns_context=owns_context
+            )
+        )
         return (), findings
     effects: list[LiveGateEffectV1] = []
     try:
+        snapshot, findings = source_snapshot_v1(root)
+        if snapshot is None:
+            findings.extend(
+                _discard_failed_effect_plan_v1(
+                    effects, context, owns_context=owns_context
+                )
+            )
+            return (), findings
+        findings.extend(
+            _bound_execution_context_findings(
+                context, root, subject="live_gates"
+            )
+        )
+        if findings:
+            findings.extend(
+                _discard_failed_effect_plan_v1(
+                    effects, context, owns_context=owns_context
+                )
+            )
+            return (), findings
         for index, gate in enumerate(owned_gates):
             effect, row_findings = _gate_effect(
                 gate,
@@ -3220,29 +3420,26 @@ def _plan_effects(
             findings.extend(row_findings)
             if effect is not None:
                 effects.append(effect)
-    except BaseException:
-        try:
-            _close_effect_sources_v1(effects)
-        except BaseException:
-            pass
-        if owns_context:
-            try:
-                context.close()
-            except BaseException:
-                pass
-        raise
-    if require_registry_set:
-        findings.extend(_registry_set_findings(owned_gates))
-    findings.extend(
-        _bound_execution_context_findings(
-            context, root, subject="live_gates"
+        if require_registry_set:
+            findings.extend(_registry_set_findings(owned_gates))
+        findings.extend(
+            _bound_execution_context_findings(
+                context, root, subject="live_gates"
+            )
         )
-    )
-    if findings:
-        _close_effect_sources_v1(effects)
-        _close_owned_context_v1(context, owns_context)
-        return (), findings
-    return tuple(effects), []
+        if findings:
+            findings.extend(
+                _discard_failed_effect_plan_v1(
+                    effects, context, owns_context=owns_context
+                )
+            )
+            return (), findings
+        return tuple(effects), []
+    except BaseException:
+        _discard_failed_effect_plan_preserving_primary_v1(
+            effects, context, owns_context=owns_context
+        )
+        raise
 
 
 def plan_live_gate_effects_v1(gates: object, root: ConfinedRootV1) -> tuple[tuple[LiveGateEffectV1, ...], list[PlanFinding]]:
@@ -3762,6 +3959,18 @@ def write_markdown_v1(root: RootLike, plan: Mapping[str, Any]) -> list[PlanFindi
     if owned_plan is None or preflight is None:
         return preflight_findings
     typed_plan = cast(dict[str, Any], owned_plan)
+    generated, render_finding = _render_bounded_generated_markdown_v1(
+        typed_plan
+    )
+    if generated is None:
+        return [
+            render_finding
+            or PlanFinding(
+                "plan_markdown_unrenderable",
+                PLAN_MARKDOWN_PATH.as_posix(),
+                "bounded render returned no bytes",
+            )
+        ]
     try:
         with _UseRoot(root) as bound:
             markdown = read_plan_markdown_v1(bound)
@@ -3773,9 +3982,18 @@ def write_markdown_v1(root: RootLike, plan: Mapping[str, Any]) -> list[PlanFindi
             parts = _split_markdown(markdown)
             if parts is None:
                 return [PlanFinding("plan_markdown_generated_block_missing", PLAN_MARKDOWN_PATH.as_posix(), "generated markers absent")]
-            rendered = (
-                parts[0] + render_generated_markdown_v1(typed_plan) + parts[2]
-            ).encode("utf-8")
+            rendered, composition_finding = _compose_bounded_markdown_v1(
+                parts[0], generated, parts[2]
+            )
+            if rendered is None:
+                return [
+                    composition_finding
+                    or PlanFinding(
+                        "plan_markdown_unrenderable",
+                        PLAN_MARKDOWN_PATH.as_posix(),
+                        "bounded composition returned no bytes",
+                    )
+                ]
             refusal = replace_confined_file_v1(bound, PLAN_MARKDOWN_PATH, rendered)
             return [PlanFinding("plan_artifact_write_refused", PLAN_MARKDOWN_PATH.as_posix(), refusal)] if refusal else []
     except RootUnavailable as exc:

@@ -31,6 +31,20 @@ from tools.live_gate_registry_v1 import (
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def _open_descriptor_numbers() -> frozenset[int]:
+    return frozenset(int(name) for name in os.listdir("/proc/self/fd"))
+
+
+def _close_descriptor_delta(before: frozenset[int]) -> tuple[int, ...]:
+    leaked = tuple(sorted(_open_descriptor_numbers() - before))
+    for descriptor in leaked:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+    return leaked
+
+
 def test_registry_is_closed_sorted_python_only_and_points_at_real_tools() -> None:
     # Arrange / Act / Assert
     assert list(LIVE_GATE_REGISTRY) == sorted(LIVE_GATE_REGISTRY)
@@ -877,6 +891,149 @@ def test_open_file_sealed_copy_failure_closes_source_and_memfd(
         with pytest.raises(OSError, match="sealed copy failure"):
             anchored.open_file(source.name)
         assert set(os.listdir("/proc/self/fd")) == before
+    finally:
+        anchored.close()
+
+
+@pytest.mark.parametrize("failure_type", (MemoryError, KeyboardInterrupt))
+def test_anchored_directory_constructor_failure_restores_descriptor_set(
+    tmp_path: Path, failure_type: type[BaseException]
+) -> None:
+    """RIPR: final capability construction owns no fd unless it returns."""
+
+    class FailingAnchoredDirectory(registry_module.AnchoredDirectoryV1):
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            raise failure_type("injected anchored-directory construction failure")
+
+    before = _open_descriptor_numbers()
+    leaked: tuple[int, ...] = ()
+    try:
+        with pytest.raises(
+            failure_type, match="anchored-directory construction failure"
+        ):
+            FailingAnchoredDirectory.open(tmp_path)
+        leaked = _close_descriptor_delta(before)
+    finally:
+        if not leaked:
+            leaked = _close_descriptor_delta(before)
+
+    assert leaked == ()
+
+
+@pytest.mark.parametrize("failure_type", (MemoryError, KeyboardInterrupt))
+def test_anchored_file_constructor_failure_restores_descriptor_set(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_type: type[BaseException],
+) -> None:
+    """RIPR: source and sealed descriptors unwind at the transfer edge."""
+
+    source = tmp_path / "checker.py"
+    source.write_text("print('bounded')\n", encoding="utf-8")
+    anchored = registry_module.AnchoredDirectoryV1.open(tmp_path)
+
+    def fail_constructor(*_args: object, **_kwargs: object) -> object:
+        raise failure_type("injected anchored-file construction failure")
+
+    monkeypatch.setattr(registry_module, "AnchoredFileV1", fail_constructor)
+    before = _open_descriptor_numbers()
+    leaked: tuple[int, ...] = ()
+    try:
+        with pytest.raises(failure_type, match="anchored-file construction failure"):
+            anchored.open_file(source.name)
+        leaked = _close_descriptor_delta(before)
+    finally:
+        if not leaked:
+            leaked = _close_descriptor_delta(before)
+        anchored.close()
+
+    assert leaked == ()
+
+
+@pytest.mark.parametrize("failure_type", (MemoryError, KeyboardInterrupt))
+def test_supervisor_constructor_failure_restores_descriptor_set(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    failure_type: type[BaseException],
+) -> None:
+    """RIPR: a failed supervisor aggregate cannot retain its source fds."""
+
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    (tools / "live_gate_registry_v1.py").write_text(
+        "# bounded supervisor fixture\n", encoding="utf-8"
+    )
+    anchored = registry_module.AnchoredDirectoryV1.open(tmp_path)
+
+    def fail_constructor(*_args: object, **_kwargs: object) -> object:
+        raise failure_type("injected supervisor construction failure")
+
+    monkeypatch.setattr(registry_module, "SupervisorCodeV1", fail_constructor)
+    before = _open_descriptor_numbers()
+    leaked: tuple[int, ...] = ()
+    try:
+        with pytest.raises(failure_type, match="supervisor construction failure"):
+            registry_module._open_supervisor_code_v1(
+                anchored, expected_sha256=None
+            )
+        leaked = _close_descriptor_delta(before)
+    finally:
+        if not leaked:
+            leaked = _close_descriptor_delta(before)
+        anchored.close()
+
+    assert leaked == ()
+
+
+def test_failed_transfer_cleanup_is_deduplicated_and_preserves_primary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Cleanup runs once per fd and cannot replace the constructor failure."""
+
+    descriptor, peer = os.pipe()
+    real_close = os.close
+    close_calls: list[int] = []
+
+    def close_then_raise(candidate: int) -> None:
+        close_calls.append(candidate)
+        real_close(candidate)
+        raise OSError("injected cleanup failure")
+
+    monkeypatch.setattr(registry_module.os, "close", close_then_raise)
+    try:
+        with pytest.raises(MemoryError, match="primary construction failure"):
+            try:
+                raise MemoryError("primary construction failure")
+            except BaseException:
+                registry_module._close_descriptors_after_failure_v1(
+                    descriptor, descriptor
+                )
+                raise
+    finally:
+        real_close(peer)
+
+    assert close_calls == [descriptor]
+
+
+def test_repeated_constructor_failures_do_not_accumulate_descriptors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stateful retry history: eight failed transfers retain zero resources."""
+
+    source = tmp_path / "checker.py"
+    source.write_text("print('bounded')\n", encoding="utf-8")
+    anchored = registry_module.AnchoredDirectoryV1.open(tmp_path)
+
+    def fail_constructor(*_args: object, **_kwargs: object) -> object:
+        raise MemoryError("injected retry construction failure")
+
+    monkeypatch.setattr(registry_module, "AnchoredFileV1", fail_constructor)
+    before = _open_descriptor_numbers()
+    try:
+        for _attempt in range(8):
+            with pytest.raises(MemoryError, match="retry construction failure"):
+                anchored.open_file(source.name)
+            assert _open_descriptor_numbers() == before
     finally:
         anchored.close()
 

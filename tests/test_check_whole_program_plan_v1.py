@@ -1512,6 +1512,141 @@ def test_owned_plan_depth_matches_the_bounded_decoder_bva() -> None:
     ]
 
 
+def test_owned_plan_uses_the_bounded_decoder_at_the_exact_token_bva() -> None:
+    """100,000 null fields use 200,000 lexical tokens; one more is refused."""
+
+    accepted_input = {f"k{index:06d}": None for index in range(100_000)}
+    accepted, accepted_findings = checker_module._owned_plan_v1(accepted_input)
+
+    assert accepted is not None and accepted_findings == []
+    canonical = checker_module._canonical_plan_text_v1(accepted).encode("utf-8")
+    decoded = checker_module.decode_bounded_json_v1(
+        canonical,
+        name="owned-plan-token-boundary",
+        limits=checker_module.PLAN_JSON_LIMITS_V1,
+    )
+    assert decoded == accepted
+
+    refused_input = {f"k{index:06d}": None for index in range(100_001)}
+    refused, refused_findings = checker_module._owned_plan_v1(refused_input)
+
+    assert refused is None
+    assert [finding.rule_id for finding in refused_findings] == [
+        "plan_value_not_owned"
+    ]
+    assert "bounded decoder" in refused_findings[0].evidence
+
+
+def test_external_gate_counterexample_is_rejected_by_owned_plan_domain() -> None:
+    """RIPR: retain the review's 26,000-row canonical-token witness."""
+
+    plan = _plan()
+    row = {
+        "executed_by_checker": False,
+        "gate_id": "x",
+        "location": "x",
+        "purpose": "x",
+    }
+    plan["external_gates"] = [dict(row) for _ in range(26_000)]
+
+    owned, preflight, findings = checker_module._owned_plan_preflight_v1(
+        plan, ORDINARY_VALIDATION_PROFILE_V1
+    )
+
+    assert owned is None and preflight is None
+    assert [finding.rule_id for finding in findings] == [
+        "plan_value_not_owned"
+    ]
+    assert "bounded decoder" in findings[0].evidence
+
+
+def test_external_gate_cardinality_and_unique_id_contract_bva() -> None:
+    """The declared row maximum passes; max+1 and duplicate IDs fail closed."""
+
+    def external_rows(count: int) -> list[dict[str, object]]:
+        return [
+            {
+                "executed_by_checker": False,
+                "gate_id": f"external-{index:02d}",
+                "location": f"coordination packet {index}",
+                "purpose": f"bounded external evidence {index}",
+            }
+            for index in range(count)
+        ]
+
+    at_maximum = _plan()
+    at_maximum["external_gates"] = external_rows(
+        checker_module.MAX_EXTERNAL_GATE_ROWS_V1
+    )
+    _owned, preflight, accepted_findings = checker_module._owned_plan_preflight_v1(
+        at_maximum, ORDINARY_VALIDATION_PROFILE_V1
+    )
+
+    assert preflight is not None and accepted_findings == []
+
+    over_maximum = _plan()
+    over_maximum["external_gates"] = external_rows(
+        checker_module.MAX_EXTERNAL_GATE_ROWS_V1 + 1
+    )
+    _owned, refused_preflight, over_findings = (
+        checker_module._owned_plan_preflight_v1(
+            over_maximum, ORDINARY_VALIDATION_PROFILE_V1
+        )
+    )
+
+    assert refused_preflight is None
+    assert [finding.rule_id for finding in over_findings] == [
+        "external_gate_count_exceeded"
+    ]
+
+    duplicate = _plan()
+    duplicate["external_gates"] = external_rows(2)
+    duplicate["external_gates"][1]["gate_id"] = duplicate["external_gates"][0][
+        "gate_id"
+    ]
+    _owned, refused_preflight, duplicate_findings = (
+        checker_module._owned_plan_preflight_v1(
+            duplicate, ORDINARY_VALIDATION_PROFILE_V1
+        )
+    )
+
+    assert refused_preflight is None
+    assert [finding.rule_id for finding in duplicate_findings] == [
+        "external_gate_id_duplicate"
+    ]
+
+
+@pytest.mark.parametrize("failure_type", (MemoryError, KeyboardInterrupt))
+def test_confined_root_constructor_failure_restores_descriptor_set(
+    failure_type: type[BaseException],
+) -> None:
+    """RIPR: ConfinedRoot owns its anchor only after construction returns."""
+
+    class FailingConfinedRoot(ConfinedRootV1):
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            raise failure_type("injected confined-root construction failure")
+
+    before = frozenset(int(name) for name in os.listdir("/proc/self/fd"))
+    leaked: tuple[int, ...] = ()
+    try:
+        with pytest.raises(failure_type, match="confined-root construction failure"):
+            FailingConfinedRoot.bind(ROOT)
+        leaked = tuple(
+            sorted(
+                frozenset(int(name) for name in os.listdir("/proc/self/fd"))
+                - before
+            )
+        )
+    finally:
+        for descriptor in leaked:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+
+    assert leaked == ()
+
+
 def test_closed_authority_and_plan_nonclaims_cannot_be_mutated_or_replaced() -> None:
     """Authority and required scope restrictions are checker-owned constants."""
 
@@ -3714,6 +3849,151 @@ def test_live_gate_effect_construction_failure_closes_all_acquired_sources(
             plan_live_gate_effects_v1(plan["live_gates"], bound)
 
         assert len(os.listdir("/proc/self/fd")) == fd_before
+
+
+def test_effect_planning_closes_owned_context_when_snapshot_raises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """RIPR: a post-bind BaseException cannot retain the four context fds."""
+
+    root = _clone_complete_subject(tmp_path)
+    plan = dict(load_plan_v1(root))
+    captured_contexts: list[checker_module.ExecutionContextV1] = []
+    real_bind = checker_module._bind_execution_context_v1
+
+    def capture_bind(
+        *args: object, **kwargs: object
+    ) -> tuple[
+        checker_module.ExecutionContextV1 | None,
+        list[checker_module.PlanFinding],
+    ]:
+        context, findings = real_bind(*args, **kwargs)  # type: ignore[arg-type]
+        if context is not None:
+            captured_contexts.append(context)
+        return context, findings
+
+    def fail_after_context_binding(
+        *_args: object, **_kwargs: object
+    ) -> tuple[None, list[checker_module.PlanFinding]]:
+        raise MemoryError("injected after execution-context binding")
+
+    with ConfinedRootV1.bind(root) as bound:
+        monkeypatch.setattr(checker_module, "_bind_execution_context_v1", capture_bind)
+        monkeypatch.setattr(checker_module, "source_snapshot_v1", fail_after_context_binding)
+        before = frozenset(os.listdir("/proc/self/fd"))
+        try:
+            with pytest.raises(
+                MemoryError, match="injected after execution-context binding"
+            ):
+                plan_live_gate_effects_v1(plan["live_gates"], bound)
+            after = frozenset(os.listdir("/proc/self/fd"))
+        finally:
+            for context in captured_contexts:
+                context.close()
+
+    assert after == before
+
+
+def test_effect_failure_cleanup_attempts_sources_and_context_without_masking_primary() -> None:
+    """Mutation killer: one cleanup failure cannot skip the other owner."""
+
+    events: list[str] = []
+
+    class RefusingEffect:
+        def close(self) -> None:
+            events.append("effect")
+            raise OSError("effect cleanup refusal")
+
+    class RefusingContext:
+        def close(self) -> None:
+            events.append("context")
+            raise OSError("context cleanup refusal")
+
+    with pytest.raises(MemoryError, match="primary planning failure"):
+        try:
+            raise MemoryError("primary planning failure")
+        except BaseException:
+            checker_module._discard_failed_effect_plan_preserving_primary_v1(
+                [RefusingEffect()],  # type: ignore[list-item]
+                RefusingContext(),  # type: ignore[arg-type]
+                owns_context=True,
+            )
+            raise
+
+    assert events == ["effect", "context"]
+
+
+def test_oversized_generated_markdown_is_rejected_before_root_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RIPR: deterministic output above 1 MiB remains a pure refusal."""
+
+    plan = _plan()
+    plan["tasks"][0]["title"] = "X" * 1_100_000
+    bind_calls: list[object] = []
+
+    def refuse_bind(
+        cls: type[ConfinedRootV1], root: object
+    ) -> ConfinedRootV1:
+        bind_calls.append((cls, root))
+        raise checker_module.RootUnavailable("root binding must remain unreachable")
+
+    monkeypatch.setattr(ConfinedRootV1, "bind", classmethod(refuse_bind))
+
+    findings = checker_module.write_markdown_v1(ROOT, plan)
+
+    assert bind_calls == []
+    assert [finding.rule_id for finding in findings] == [
+        "plan_markdown_size_refused"
+    ]
+
+
+def test_oversized_generated_markdown_never_reaches_atomic_replace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The oversized pure render has no durable replacement effect."""
+
+    plan = _plan()
+    plan["tasks"][0]["title"] = "X" * 1_100_000
+    replacements: list[tuple[Path, int]] = []
+
+    def capture_replace(
+        _root: ConfinedRootV1, path: Path, data: bytes
+    ) -> str | None:
+        replacements.append((path, len(data)))
+        return None
+
+    monkeypatch.setattr(
+        checker_module, "replace_confined_file_v1", capture_replace
+    )
+
+    findings = checker_module.write_markdown_v1(ROOT, plan)
+
+    assert replacements == []
+    assert [finding.rule_id for finding in findings] == [
+        "plan_markdown_size_refused"
+    ]
+
+
+def test_final_markdown_composition_uses_exact_maximum_bva() -> None:
+    """A final artifact at 1 MiB passes; one byte more is refused."""
+
+    generated = b"generated"
+    exact_prefix = "P" * (checker_module.MAX_PLAN_MARKDOWN_BYTES - len(generated))
+
+    accepted, accepted_finding = checker_module._compose_bounded_markdown_v1(
+        exact_prefix, generated, ""
+    )
+    refused, refused_finding = checker_module._compose_bounded_markdown_v1(
+        exact_prefix, generated, "S"
+    )
+
+    assert accepted is not None
+    assert len(accepted) == checker_module.MAX_PLAN_MARKDOWN_BYTES
+    assert accepted_finding is None
+    assert refused is None
+    assert refused_finding is not None
+    assert refused_finding.rule_id == "plan_markdown_size_refused"
 
 
 def test_integrity_refusal_preserves_primary_finding_when_cleanup_fails(

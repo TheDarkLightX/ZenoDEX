@@ -355,6 +355,28 @@ def _canonical_parts(relative: Sequence[str]) -> tuple[str, ...]:
     return parts
 
 
+def _close_descriptors_after_failure_v1(
+    *descriptors: int | None,
+) -> None:
+    """Best-effort failure unwind, once per acquired descriptor.
+
+    The caller remains inside the exception handler for the primary failure.
+    Cleanup failures are intentionally suppressed so they cannot replace that
+    failure. A descriptor is never retried because Linux ``close`` failures can
+    leave ownership ambiguous and a retry could close a reused descriptor.
+    """
+
+    attempted: set[int] = set()
+    for descriptor in descriptors:
+        if descriptor is None or descriptor < 0 or descriptor in attempted:
+            continue
+        attempted.add(descriptor)
+        try:
+            os.close(descriptor)
+        except BaseException:
+            pass
+
+
 class AnchoredDirectoryV1:
     """One persistent descriptor-backed directory capability.
 
@@ -401,10 +423,10 @@ class AnchoredDirectoryV1:
                 os.close(descriptor)
                 descriptor = next_descriptor
             info = os.fstat(descriptor)
+            return cls(descriptor, info.st_dev, info.st_ino)
         except BaseException:
-            os.close(descriptor)
+            _close_descriptors_after_failure_v1(descriptor)
             raise
-        return cls(descriptor, info.st_dev, info.st_ino)
 
     @property
     def is_open(self) -> bool:
@@ -504,14 +526,10 @@ class AnchoredDirectoryV1:
             )
             if not stable or size != before.st_size or _hash_descriptor(descriptor) != digest:
                 raise AnchorRefused(f"{relative!r} changed while its executable snapshot was sealed")
+            return AnchoredFileV1(descriptor, sealed, digest, size)
         except BaseException:
-            try:
-                if sealed is not None:
-                    os.close(sealed)
-            finally:
-                os.close(descriptor)
+            _close_descriptors_after_failure_v1(sealed, descriptor)
             raise
-        return AnchoredFileV1(descriptor, sealed, digest, size)
 
     def close(self) -> None:
         if self.is_open:
@@ -701,13 +719,19 @@ def _open_supervisor_code_v1(
     if not root.is_open:
         raise AnchorRefused("supervisor root is closed")
     source = root.open_file(SUPERVISOR_MODULE_PATH_V1)
-    if expected_sha256 is not None and source.sha256 != expected_sha256:
-        observed = source.sha256
-        source.close()
-        raise AnchorRefused(
-            f"supervisor source hash differs from the loaded registry: expected={expected_sha256} observed={observed}"
-        )
-    return SupervisorCodeV1(root, source, source.sha256)
+    try:
+        if expected_sha256 is not None and source.sha256 != expected_sha256:
+            raise AnchorRefused(
+                "supervisor source hash differs from the loaded registry: "
+                f"expected={expected_sha256} observed={source.sha256}"
+            )
+        return SupervisorCodeV1(root, source, source.sha256)
+    except BaseException:
+        try:
+            source.close()
+        except BaseException:
+            pass
+        raise
 
 
 # Bind the source that defined this process eagerly at import time. This closes

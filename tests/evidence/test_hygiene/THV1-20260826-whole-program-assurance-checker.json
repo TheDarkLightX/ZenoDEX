@@ -1,0 +1,252 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-whole-program-assurance-checker",
+  "created_date": "2026-08-26",
+  "claim_scope": "The whole-program assurance checker owns and bounded-decodes public plan values before effects, enforces bounded unique external-gate rows, binds executable and plan artifacts to persistent descriptor capabilities, unwinds every acquired descriptor on BaseException paths, bounds generated Markdown before root binding and atomic replacement, and preserves the exact deliberately red value-movement closure posture. Independent OS descriptor-set observations, fixed canonical-token vectors, callback capture, and exact report vectors provide grade-2 or stronger executable oracles for the covered obligations.",
+  "change_kind": "bug_fix",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "WHOLE-PROGRAM-PUBLIC-PLAN-DOMAIN-EQUALS-BOUNDED-CANONICAL-DECODE-DOMAIN",
+    "WHOLE-PROGRAM-EXTERNAL-GATES-ARE-BOUNDED-AND-UNIQUELY-IDENTIFIED",
+    "WHOLE-PROGRAM-DESCRIPTOR-OWNERSHIP-TRANSFERS-ONLY-ON-SUCCESS",
+    "WHOLE-PROGRAM-FAILED-EFFECT-PLANNING-UNWINDS-SOURCES-AND-CONTEXT",
+    "WHOLE-PROGRAM-MARKDOWN-NEVER-EXCEEDS-ITS-BOUND-OR-BINDS-A-ROOT-WHEN-PURELY-OVERSIZED",
+    "WHOLE-PROGRAM-PLAN-AND-AUTHORITY-VOCABULARIES-REMAIN-CLOSED",
+    "VALUE-MOVEMENT-CLOSURE-REPORT-AUTHORITY-IS-CHECKER-OWNED-NONE",
+    "VALUE-MOVEMENT-CLOSURE-REMAINS-EXACTLY-RED-UNTIL-EXACT-REPIN",
+    "LIVE-GATE-DIRECT-SCRIPT-IMPORT-FALLBACK-IS-NARROW"
+  ],
+  "failure_modes": [
+    "an in-memory plan passes pure preflight while its canonical bytes exceed the bounded decoder token domain",
+    "an unbounded or duplicate external-gate list consumes resources or creates ambiguous gate identity",
+    "AnchoredDirectoryV1, AnchoredFileV1, SupervisorCodeV1, or ConfinedRootV1 construction fails after descriptor acquisition and leaks ownership",
+    "cleanup retries one descriptor or replaces the primary constructor failure",
+    "repeated failed construction accumulates descriptors until process exhaustion",
+    "effect planning raises after binding the execution context and leaks four plan-artifact descriptors",
+    "one failing effect cleanup prevents execution-context cleanup or masks the primary planning failure",
+    "generated Markdown above one MiB reaches root binding or atomic replacement",
+    "a generated block below the limit combines with narrative bytes into an oversized final artifact",
+    "unreadable or adversarial closure evidence omits or forges the checker-owned NONE authority ceiling",
+    "stale evidence is promoted from the deliberately red closure posture",
+    "a broad ModuleNotFoundError fallback hides a missing transitive dependency or changes direct-script import semantics"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/bounded_json_v1.py",
+      "sha256": "df945bb07694d3e407b323641af6579c39fa8e2350e4776946a4415d956a72e1"
+    },
+    {
+      "path": "tools/check_m6_asset_precision_policy_v1.py",
+      "sha256": "9698aa7e81c2362280adf0c9677ef005de75f79a06d5f2885887202936df43d3"
+    },
+    {
+      "path": "tools/check_m6_value_sinks_v1.py",
+      "sha256": "e98a4ff880ac4defbc7451bcd44ce959b509f5bc9192f332932382b4dba2ab69"
+    },
+    {
+      "path": "tools/check_value_movement_closure_status_v1.py",
+      "sha256": "9be0871b43e7d608a8e020dc9481795adb4ce714ba43b56360d48bfba96c8086"
+    },
+    {
+      "path": "tools/check_whole_program_plan_v1.py",
+      "sha256": "3ee97465b5c8ce82bd3cc323c21d3da48be64b7e9d5546159eb5ae09b6edbc7a"
+    },
+    {
+      "path": "tools/live_gate_registry_v1.py",
+      "sha256": "8acd41b6014543baff180d39147fa9ce4fe932d2e214716bfd87e840b56169d2"
+    },
+    {
+      "path": "tools/whole_program_artifact_binding_v1.py",
+      "sha256": "24a69f4297ba6ba69d36b40e741832303eac171e9d656125b7e4a8469c1b6368"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_bounded_json_v1.py",
+      "sha256": "33cd3dda8d7e583f3690627df526e5c95b46ced6e7cbf9a5996ba12dc2d8db22",
+      "node_ids": [
+        "tests/test_bounded_json_v1.py::test_byte_bound_accepts_exact_limit_and_rejects_one_over",
+        "tests/test_bounded_json_v1.py::test_depth_bound_accepts_exact_limit_and_rejects_one_over",
+        "tests/test_bounded_json_v1.py::test_node_bound_is_enforced_before_and_after_decoding",
+        "tests/test_bounded_json_v1.py::test_duplicate_keys_lone_surrogates_and_bad_utf8_are_rejected"
+      ]
+    },
+    {
+      "path": "tests/test_check_value_movement_closure_status_v1.py",
+      "sha256": "b2c1b230a5406aa2a3ade98cda63ed034ca53239c8d00684bcf5851c944357cc",
+      "node_ids": [
+        "tests/test_check_value_movement_closure_status_v1.py::test_current_value_movement_closure_status_is_exactly_red_and_fail_closed_until_repin",
+        "tests/test_check_value_movement_closure_status_v1.py::test_checker_rejects_authority_gate_and_semantic_promotion_drift",
+        "tests/test_check_value_movement_closure_status_v1.py::test_checker_rejects_stale_claim_hash_and_duplicate_json_key",
+        "tests/test_check_value_movement_closure_status_v1.py::test_every_unreadable_closure_ledger_returns_the_closed_report_schema"
+      ]
+    },
+    {
+      "path": "tests/test_check_whole_program_plan_v1.py",
+      "sha256": "9ea91ef4edb9ae617da8fd68ca7f4fb62aeeece1d9fe4983c8e54effbf4b8920",
+      "node_ids": [
+        "tests/test_check_whole_program_plan_v1.py::test_public_multiplicity_preflight_precedes_root_binding",
+        "tests/test_check_whole_program_plan_v1.py::test_owned_plan_depth_matches_the_bounded_decoder_bva",
+        "tests/test_check_whole_program_plan_v1.py::test_owned_plan_uses_the_bounded_decoder_at_the_exact_token_bva",
+        "tests/test_check_whole_program_plan_v1.py::test_external_gate_counterexample_is_rejected_by_owned_plan_domain",
+        "tests/test_check_whole_program_plan_v1.py::test_external_gate_cardinality_and_unique_id_contract_bva",
+        "tests/test_check_whole_program_plan_v1.py::test_confined_root_constructor_failure_restores_descriptor_set",
+        "tests/test_check_whole_program_plan_v1.py::test_closed_authority_and_plan_nonclaims_cannot_be_mutated_or_replaced",
+        "tests/test_check_whole_program_plan_v1.py::test_execution_context_construction_failure_closes_bound_artifacts",
+        "tests/test_check_whole_program_plan_v1.py::test_live_gate_effect_construction_failure_closes_all_acquired_sources",
+        "tests/test_check_whole_program_plan_v1.py::test_effect_planning_closes_owned_context_when_snapshot_raises",
+        "tests/test_check_whole_program_plan_v1.py::test_effect_failure_cleanup_attempts_sources_and_context_without_masking_primary",
+        "tests/test_check_whole_program_plan_v1.py::test_oversized_generated_markdown_is_rejected_before_root_binding",
+        "tests/test_check_whole_program_plan_v1.py::test_oversized_generated_markdown_never_reaches_atomic_replace",
+        "tests/test_check_whole_program_plan_v1.py::test_final_markdown_composition_uses_exact_maximum_bva"
+      ]
+    },
+    {
+      "path": "tests/test_live_gate_registry_v1.py",
+      "sha256": "19b4da2e28e51a218834b5a531ed16710726651d63678fafd596c04f792d7208",
+      "node_ids": [
+        "tests/test_live_gate_registry_v1.py::test_registry_mapping_rejects_runtime_mutation",
+        "tests/test_live_gate_registry_v1.py::test_root_only_sealed_execution_matches_direct_script_import_semantics",
+        "tests/test_live_gate_registry_v1.py::test_open_file_post_seal_failure_closes_both_new_descriptors",
+        "tests/test_live_gate_registry_v1.py::test_anchored_directory_constructor_failure_restores_descriptor_set",
+        "tests/test_live_gate_registry_v1.py::test_anchored_file_constructor_failure_restores_descriptor_set",
+        "tests/test_live_gate_registry_v1.py::test_supervisor_constructor_failure_restores_descriptor_set",
+        "tests/test_live_gate_registry_v1.py::test_failed_transfer_cleanup_is_deduplicated_and_preserves_primary",
+        "tests/test_live_gate_registry_v1.py::test_repeated_constructor_failures_do_not_accumulate_descriptors"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Focused regressions arrange an exact hostile value or injected failure, act through one public admission or ownership edge, and assert exact typed findings plus complete descriptor, callback, replacement, report, and authority observations. Parameterized and stateful cases retain the same explicit observation boundary."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Rejected plans bind no root when the defect is pure, invoke no atomic replacement, return no effect plan, preserve the checker-owned NONE authority field, and restore the exact descriptor set. Repeated failures assert zero accumulated resources."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "canonical_plan_lexical_tokens",
+      "points": [
+        "200000_tokens_accept",
+        "200002_tokens_reject",
+        "26000_repeated_external_rows_reject"
+      ]
+    },
+    {
+      "name": "external_gate_cardinality_and_identity",
+      "points": [
+        "one_row_accepts",
+        "declared_maximum_accepts",
+        "maximum_plus_one_rejects",
+        "duplicate_gate_id_rejects"
+      ]
+    },
+    {
+      "name": "constructor_failure_class",
+      "points": [
+        "ordinary_success_transfers_ownership",
+        "MemoryError_restores_descriptor_set",
+        "KeyboardInterrupt_restores_descriptor_set",
+        "cleanup_failure_preserves_primary"
+      ]
+    },
+    {
+      "name": "markdown_artifact_bytes",
+      "points": [
+        "exact_one_mibibyte_composition_accepts",
+        "one_byte_over_rejects",
+        "generated_block_alone_over_limit_rejects_before_root"
+      ]
+    },
+    {
+      "name": "closure_report_input",
+      "points": [
+        "exact_deliberately_red_ledger",
+        "missing_ledger",
+        "malformed_ledger",
+        "non_object_ledger",
+        "authority_mutant"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "return a constructor-owned descriptor aggregate outside the acquisition try block",
+      "killed_by": "tests/test_live_gate_registry_v1.py::test_anchored_directory_constructor_failure_restores_descriptor_set"
+    },
+    {
+      "description": "close only the source or only the sealed descriptor after AnchoredFileV1 construction fails",
+      "killed_by": "tests/test_live_gate_registry_v1.py::test_anchored_file_constructor_failure_restores_descriptor_set"
+    },
+    {
+      "description": "catch Exception instead of BaseException at descriptor ownership-transfer edges",
+      "killed_by": "tests/test_live_gate_registry_v1.py::test_supervisor_constructor_failure_restores_descriptor_set"
+    },
+    {
+      "description": "retry or duplicate raw descriptor cleanup and replace the primary failure with the cleanup failure",
+      "killed_by": "tests/test_live_gate_registry_v1.py::test_failed_transfer_cleanup_is_deduplicated_and_preserves_primary"
+    },
+    {
+      "description": "permit repeated failed construction to retain one descriptor per retry",
+      "killed_by": "tests/test_live_gate_registry_v1.py::test_repeated_constructor_failures_do_not_accumulate_descriptors"
+    },
+    {
+      "description": "trust semantic-node counting without round-tripping canonical bytes through the bounded decoder",
+      "killed_by": "tests/test_check_whole_program_plan_v1.py::test_owned_plan_uses_the_bounded_decoder_at_the_exact_token_bva"
+    },
+    {
+      "description": "remove the external-gate cardinality limit or duplicate gate-id check",
+      "killed_by": "tests/test_check_whole_program_plan_v1.py::test_external_gate_cardinality_and_unique_id_contract_bva"
+    },
+    {
+      "description": "begin the effect cleanup region after source-snapshot acquisition",
+      "killed_by": "tests/test_check_whole_program_plan_v1.py::test_effect_planning_closes_owned_context_when_snapshot_raises"
+    },
+    {
+      "description": "allow one effect cleanup failure to skip context cleanup or mask the active planning failure",
+      "killed_by": "tests/test_check_whole_program_plan_v1.py::test_effect_failure_cleanup_attempts_sources_and_context_without_masking_primary"
+    },
+    {
+      "description": "render oversized generated Markdown after binding the repository root",
+      "killed_by": "tests/test_check_whole_program_plan_v1.py::test_oversized_generated_markdown_is_rejected_before_root_binding"
+    },
+    {
+      "description": "send oversized final Markdown bytes to atomic replacement",
+      "killed_by": "tests/test_check_whole_program_plan_v1.py::test_oversized_generated_markdown_never_reaches_atomic_replace"
+    },
+    {
+      "description": "check only the generated block and omit prefix-plus-block-plus-suffix byte accounting",
+      "killed_by": "tests/test_check_whole_program_plan_v1.py::test_final_markdown_composition_uses_exact_maximum_bva"
+    },
+    {
+      "description": "reflect decoded closure-ledger authority into the checker-owned outward production-authority field",
+      "killed_by": "tests/test_check_value_movement_closure_status_v1.py::test_checker_rejects_authority_gate_and_semantic_promotion_drift"
+    },
+    {
+      "description": "treat missing or malformed closure evidence as a partial report without the NONE authority ceiling",
+      "killed_by": "tests/test_check_value_movement_closure_status_v1.py::test_every_unreadable_closure_ledger_returns_the_closed_report_schema"
+    },
+    {
+      "description": "broaden direct-script fallback to catch a missing transitive dependency",
+      "killed_by": "tests/test_live_gate_registry_v1.py::test_root_only_sealed_execution_matches_direct_script_import_semantics"
+    }
+  ],
+  "nonclaims": [
+    "This packet admits an assurance-checker candidate and does not establish semantic completion of the whole economy, correctness of every plan task, or safety of all value movement.",
+    "The whole-program ledger intentionally retains open findings and incomplete value-movement gates; its exact red observations remain evidence, not authority.",
+    "No production readiness, production authority, settlement authority, writer rotation, migration, mount, or value-moving authority is granted; production_authority remains NONE.",
+    "Descriptor tests cover the Linux procfs and openat2 execution environment used by this checker. They do not establish cross-platform capability confinement.",
+    "The bounded canonical round-trip establishes acceptance-domain parity for this JSON plan codec. It does not prove arbitrary third-party codecs or all transitive imported code.",
+    "Named mutation killers are reviewed semantic mutants; no exhaustive automated mutation campaign is claimed."
+  ]
+}
