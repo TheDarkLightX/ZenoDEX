@@ -106,8 +106,9 @@ import stat as stat_module
 import subprocess
 import sys
 import time
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from types import MappingProxyType
 from typing import Final
@@ -287,15 +288,31 @@ def openat2_support_v1() -> str:
     """
 
     if not _OPENAT2_SUPPORT:
-        root = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        owner = _OwnedDescriptorsV1(2)
+        result = ""
         try:
-            probe = _openat2_raw(root, ".", os.O_RDONLY | os.O_DIRECTORY, 0, SUBTREE_RESOLVE)
-            os.close(probe)
-            _OPENAT2_SUPPORT.append("")
+            root = owner.acquire(
+                0,
+                lambda: os.open(
+                    "/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
+                ),
+            )
+            owner.acquire(
+                1,
+                lambda: _openat2_raw(
+                    root,
+                    ".",
+                    os.O_RDONLY | os.O_DIRECTORY,
+                    0,
+                    SUBTREE_RESOLVE,
+                ),
+            )
         except OSError as exc:
-            _OPENAT2_SUPPORT.append(f"openat2 with the required resolve flags is unavailable on this kernel ({os.strerror(exc.errno or 0)})")
-        finally:
-            os.close(root)
+            result = f"openat2 with the required resolve flags is unavailable on this kernel ({os.strerror(exc.errno or 0)})"
+        cleanup_error = owner.close_preserving_primary()
+        if cleanup_error is not None and not result:
+            result = f"openat2 support-probe cleanup failed ({type(cleanup_error).__name__})"
+        _OPENAT2_SUPPORT.append(result)
     return _OPENAT2_SUPPORT[0]
 
 
@@ -377,6 +394,151 @@ def _close_descriptors_after_failure_v1(
             pass
 
 
+class _OwnedDescriptorsV1:
+    """Fixed-capacity owner for partially acquired descriptor aggregates.
+
+    Storage is allocated before acquisition.  Each acquisition is installed in
+    an already allocated slot inside the acquisition exception region.  A
+    failed close remains owned when ``fstat`` confirms that the descriptor is
+    still live; failure cleanup then makes one bounded retry while continuing
+    to every independent slot and preserving the caller's primary exception.
+
+    This is a trusted, single-threaded checker protocol.  It does not claim to
+    distinguish descriptor reuse by a hostile concurrent in-process thread.
+    """
+
+    __slots__ = ("_descriptors",)
+
+    def __init__(self, capacity: int) -> None:
+        if type(capacity) is not int or capacity < 1 or capacity > 8:
+            raise ValueError("descriptor owner capacity must be in [1, 8]")
+        self._descriptors = [-1] * capacity
+
+    def _require_slot(self, slot: int) -> None:
+        if type(slot) is not int or slot < 0 or slot >= len(self._descriptors):
+            raise ValueError("descriptor owner slot is outside its fixed capacity")
+
+    def acquire(self, slot: int, opener: Callable[[], int]) -> int:
+        """Acquire directly into an empty slot, closing an uninstalled result."""
+
+        self._require_slot(slot)
+        if self._descriptors[slot] >= 0:
+            raise RuntimeError("descriptor owner slot is already occupied")
+        descriptor = -1
+        try:
+            descriptor = opener()
+            if type(descriptor) is not int or descriptor < 0:
+                raise TypeError("descriptor opener returned an invalid descriptor")
+            self._descriptors[slot] = descriptor
+            return descriptor
+        except BaseException:
+            if descriptor >= 0 and self._descriptors[slot] != descriptor:
+                _close_descriptors_after_failure_v1(descriptor)
+            raise
+
+    def adopt(self, slot: int, descriptor: int) -> int:
+        """Install an already acquired descriptor into a preallocated slot."""
+
+        self._require_slot(slot)
+        if self._descriptors[slot] >= 0:
+            raise RuntimeError("descriptor owner slot is already occupied")
+        if type(descriptor) is not int or descriptor < 0:
+            raise TypeError("cannot adopt an invalid descriptor")
+        if descriptor in self._descriptors:
+            raise RuntimeError("descriptor is already owned by this aggregate")
+        self._descriptors[slot] = descriptor
+        return descriptor
+
+    def descriptor(self, slot: int) -> int:
+        self._require_slot(slot)
+        descriptor = self._descriptors[slot]
+        if descriptor < 0:
+            raise RuntimeError("descriptor owner slot is empty")
+        return descriptor
+
+    def owns(self, descriptor: int) -> bool:
+        return descriptor in self._descriptors
+
+    def move(self, source: int, destination: int) -> None:
+        """Move one slot without acquiring, releasing, or duplicating a resource."""
+
+        self._require_slot(source)
+        self._require_slot(destination)
+        if self._descriptors[source] < 0 or self._descriptors[destination] >= 0:
+            raise RuntimeError("invalid descriptor ownership move")
+        self._descriptors[destination], self._descriptors[source] = (
+            self._descriptors[source],
+            -1,
+        )
+
+    def detach(self, slot: int) -> int:
+        """Transfer one descriptor to a successful return value."""
+
+        descriptor = self.descriptor(slot)
+        self._descriptors[slot] = -1
+        return descriptor
+
+    def _still_open(self, descriptor: int) -> bool:
+        try:
+            os.fstat(descriptor)
+        except OSError as exc:
+            return exc.errno != errno_module.EBADF
+        except BaseException:
+            return True
+        return True
+
+    def _close_once(self, slot: int) -> BaseException | None:
+        descriptor = self._descriptors[slot]
+        if descriptor < 0:
+            return None
+        try:
+            os.close(descriptor)
+        except BaseException as exc:
+            if not self._still_open(descriptor):
+                self._descriptors[slot] = -1
+            return exc
+        self._descriptors[slot] = -1
+        return None
+
+    def _has_owned_descriptor(self) -> bool:
+        slot = 0
+        while slot < len(self._descriptors):
+            if self._descriptors[slot] >= 0:
+                return True
+            slot += 1
+        return False
+
+    def _close_round(self, first: BaseException | None) -> BaseException | None:
+        slot = 0
+        while slot < len(self._descriptors):
+            failure = self._close_once(slot)
+            if first is None and failure is not None:
+                first = failure
+            slot += 1
+        return first
+
+    def release(self, slot: int) -> None:
+        """Release one slot; retain confirmed-live ownership after a close fault."""
+
+        self._require_slot(slot)
+        failure = self._close_once(slot)
+        if failure is not None:
+            raise failure
+
+    def close_preserving_primary(self) -> BaseException | None:
+        """Attempt all slots and one bounded retry of confirmed-live failures."""
+
+        first = self._close_round(None)
+        if self._has_owned_descriptor():
+            first = self._close_round(first)
+        return first
+
+    def close(self) -> None:
+        failure = self.close_preserving_primary()
+        if failure is not None:
+            raise failure
+
+
 class AnchoredDirectoryV1:
     """One persistent descriptor-backed directory capability.
 
@@ -411,21 +573,40 @@ class AnchoredDirectoryV1:
     @classmethod
     def open(cls, path: Path) -> AnchoredDirectoryV1:
         absolute = Path(os.path.abspath(path))
-        descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+        owner = _OwnedDescriptorsV1(2)
         try:
+            descriptor = owner.acquire(
+                0,
+                lambda: os.open(
+                    "/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
+                ),
+            )
             for name in absolute.parts[1:]:
                 try:
-                    next_descriptor = _openat2(descriptor, name, os.O_RDONLY | os.O_DIRECTORY, 0, ROOT_PATH_RESOLVE)
+                    owner.acquire(
+                        1,
+                        partial(
+                            _openat2,
+                            descriptor,
+                            name,
+                            os.O_RDONLY | os.O_DIRECTORY,
+                            0,
+                            ROOT_PATH_RESOLVE,
+                        ),
+                    )
                 except AnchorRefused:
                     raise
                 except OSError as exc:
                     raise AnchorRefused(f"root component {name!r} is not a directory reachable without following a symlink: {type(exc).__name__}") from exc
-                os.close(descriptor)
-                descriptor = next_descriptor
+                owner.release(0)
+                owner.move(1, 0)
+                descriptor = owner.descriptor(0)
             info = os.fstat(descriptor)
-            return cls(descriptor, info.st_dev, info.st_ino)
+            result = cls(descriptor, info.st_dev, info.st_ino)
+            owner.detach(0)
+            return result
         except BaseException:
-            _close_descriptors_after_failure_v1(descriptor)
+            owner.close_preserving_primary()
             raise
 
     @property
@@ -447,36 +628,59 @@ class AnchoredDirectoryV1:
         """Descriptor of the directory holding ``parts[-1]``, every component opened under the subtree policy."""
 
         canonical = _canonical_parts(parts)
-        directory = os.dup(self._require_open())
+        owner = _OwnedDescriptorsV1(2)
         try:
+            directory = owner.acquire(0, lambda: os.dup(self._require_open()))
             for name in canonical[:-1]:
-                next_directory = _subtree_open(directory, name, os.O_RDONLY | os.O_DIRECTORY, 0)
-                os.close(directory)
-                directory = next_directory
+                owner.acquire(
+                    1,
+                    partial(
+                        _subtree_open,
+                        directory, name, os.O_RDONLY | os.O_DIRECTORY, 0
+                    ),
+                )
+                owner.release(0)
+                owner.move(1, 0)
+                directory = owner.descriptor(0)
         except BaseException:
-            os.close(directory)
+            owner.close_preserving_primary()
             raise
-        return directory
+        return owner.detach(0)
 
     def open_entry(self, parts: Sequence[str], flags: int, mode: int = 0o644) -> int:
         """Open the final entry itself under the subtree policy (never followed, never blocking, never across a mount)."""
 
-        directory = self.walk(parts)
+        owner = _OwnedDescriptorsV1(2)
         try:
+            directory = owner.acquire(0, lambda: self.walk(parts))
             entry_flags = flags | os.O_NOFOLLOW | os.O_CLOEXEC | (0 if flags & os.O_PATH else os.O_NONBLOCK)
             creating = bool(flags & (os.O_CREAT | getattr(os, "O_TMPFILE", 0)))
-            return _subtree_open(directory, _canonical_parts(parts)[-1], entry_flags, mode if creating else 0)
-        finally:
-            os.close(directory)
+            owner.acquire(
+                1,
+                lambda: _subtree_open(
+                    directory,
+                    _canonical_parts(parts)[-1],
+                    entry_flags,
+                    mode if creating else 0,
+                ),
+            )
+            owner.release(0)
+            return owner.detach(1)
+        except BaseException:
+            owner.close_preserving_primary()
+            raise
 
     def stat(self, relative: str) -> os.stat_result:
         """Stat of the entry itself through the anchored descriptor; no component is followed."""
 
-        descriptor = self.open_entry(relative.split("/"), os.O_PATH)
+        owner = _OwnedDescriptorsV1(1)
         try:
+            descriptor = owner.acquire(
+                0, lambda: self.open_entry(relative.split("/"), os.O_PATH)
+            )
             return os.fstat(descriptor)
         finally:
-            os.close(descriptor)
+            owner.close()
 
     def probe(self, relative: str) -> AnchoredPathProbeV1:
         """Resolve ``relative`` without following links; only ``ENOENT`` means absent."""
@@ -501,13 +705,17 @@ class AnchoredDirectoryV1:
     def open_file(self, relative: str) -> AnchoredFileV1:
         """Hold a regular source inode and an immutable sealed copy of its exact bytes."""
 
-        descriptor = self.open_entry(relative.split("/"), os.O_RDONLY)
         sealed: int | None = None
+        owner = _OwnedDescriptorsV1(2)
         try:
+            descriptor = owner.acquire(
+                0, lambda: self.open_entry(relative.split("/"), os.O_RDONLY)
+            )
             before = os.fstat(descriptor)
             if not stat_module.S_ISREG(before.st_mode):
                 raise AnchorRefused(f"{relative!r} is not a regular file")
-            sealed, digest, size = _seal_descriptor_copy_v1(descriptor)
+            digest, size = _seal_descriptor_copy_v1(descriptor, owner, 1)
+            sealed = owner.descriptor(1)
             after = os.fstat(descriptor)
             stable = (
                 before.st_dev,
@@ -526,15 +734,20 @@ class AnchoredDirectoryV1:
             )
             if not stable or size != before.st_size or _hash_descriptor(descriptor) != digest:
                 raise AnchorRefused(f"{relative!r} changed while its executable snapshot was sealed")
-            return AnchoredFileV1(descriptor, sealed, digest, size)
+            result = AnchoredFileV1(descriptor, sealed, digest, size)
+            owner.detach(0)
+            owner.detach(1)
+            return result
         except BaseException:
-            _close_descriptors_after_failure_v1(sealed, descriptor)
+            owner.close_preserving_primary()
             raise
 
     def close(self) -> None:
         if self.is_open:
-            descriptor, self._descriptor = self._descriptor, -1
-            os.close(descriptor)
+            owner = _OwnedDescriptorsV1(1)
+            owner.adopt(0, self._descriptor)
+            self._descriptor = -1
+            owner.close()
 
     def __enter__(self) -> AnchoredDirectoryV1:
         return self
@@ -561,8 +774,10 @@ def _hash_descriptor(descriptor: int) -> str:
     return digest.hexdigest()
 
 
-def _seal_descriptor_copy_v1(descriptor: int) -> tuple[int, str, int]:
-    """Copy bounded source bytes into a write-sealed memfd and return fd, digest, size."""
+def _seal_descriptor_copy_v1(
+    descriptor: int, owner: _OwnedDescriptorsV1, slot: int
+) -> tuple[str, int]:
+    """Copy bounded bytes into a memfd already owned by ``owner``."""
 
     required = (
         "memfd_create",
@@ -581,45 +796,44 @@ def _seal_descriptor_copy_v1(descriptor: int) -> tuple[int, str, int]:
     )
     if any(not hasattr(fcntl, name) for name in seal_names):
         raise AnchorRefused("kernel file seals are unavailable")
-    sealed = os.memfd_create(
-        "zenodex-live-gate-v1",
-        os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING,
+    sealed = owner.acquire(
+        slot,
+        lambda: os.memfd_create(
+            "zenodex-live-gate-v1",
+            os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING,
+        ),
     )
-    try:
-        digest = hashlib.sha256()
-        total = 0
-        offset = 0
-        while True:
-            chunk = os.pread(descriptor, _READ_CHUNK_BYTES, offset)
-            if not chunk:
-                break
-            total += len(chunk)
-            if total > _MAX_HASHED_FILE_BYTES:
-                raise AnchorRefused(f"file exceeds {_MAX_HASHED_FILE_BYTES} bytes")
-            digest.update(chunk)
-            view = memoryview(chunk)
-            while view:
-                written = os.write(sealed, view)
-                if written <= 0:
-                    raise AnchorRefused("sealed executable snapshot write made no progress")
-                view = view[written:]
-            offset += len(chunk)
-        os.fchmod(sealed, 0o400)
-        seals = (
-            fcntl.F_SEAL_GROW
-            | fcntl.F_SEAL_SEAL
-            | fcntl.F_SEAL_SHRINK
-            | fcntl.F_SEAL_WRITE
-        )
-        fcntl.fcntl(sealed, fcntl.F_ADD_SEALS, seals)
-        observed_seals = int(fcntl.fcntl(sealed, fcntl.F_GET_SEALS))
-        if observed_seals & seals != seals:
-            raise AnchorRefused("sealed executable snapshot is missing required write seals")
-        os.lseek(sealed, 0, os.SEEK_SET)
-        return sealed, digest.hexdigest(), total
-    except BaseException:
-        os.close(sealed)
-        raise
+    digest = hashlib.sha256()
+    total = 0
+    offset = 0
+    while True:
+        chunk = os.pread(descriptor, _READ_CHUNK_BYTES, offset)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > _MAX_HASHED_FILE_BYTES:
+            raise AnchorRefused(f"file exceeds {_MAX_HASHED_FILE_BYTES} bytes")
+        digest.update(chunk)
+        view = memoryview(chunk)
+        while view:
+            written = os.write(sealed, view)
+            if written <= 0:
+                raise AnchorRefused("sealed executable snapshot write made no progress")
+            view = view[written:]
+        offset += len(chunk)
+    os.fchmod(sealed, 0o400)
+    seals = (
+        fcntl.F_SEAL_GROW
+        | fcntl.F_SEAL_SEAL
+        | fcntl.F_SEAL_SHRINK
+        | fcntl.F_SEAL_WRITE
+    )
+    fcntl.fcntl(sealed, fcntl.F_ADD_SEALS, seals)
+    observed_seals = int(fcntl.fcntl(sealed, fcntl.F_GET_SEALS))
+    if observed_seals & seals != seals:
+        raise AnchorRefused("sealed executable snapshot is missing required write seals")
+    os.lseek(sealed, 0, os.SEEK_SET)
+    return digest.hexdigest(), total
 
 
 class AnchoredFileV1:
@@ -678,14 +892,14 @@ class AnchoredFileV1:
         return data if len(data) <= max_bytes else None
 
     def close(self) -> None:
-        descriptor, self._descriptor = self._descriptor, -1
-        sealed, self._sealed_descriptor = self._sealed_descriptor, -1
-        try:
-            if descriptor >= 0:
-                os.close(descriptor)
-        finally:
-            if sealed >= 0:
-                os.close(sealed)
+        owner = _OwnedDescriptorsV1(2)
+        if self._descriptor >= 0:
+            owner.adopt(0, self._descriptor)
+        if self._sealed_descriptor >= 0:
+            owner.adopt(1, self._sealed_descriptor)
+        self._descriptor = -1
+        self._sealed_descriptor = -1
+        owner.close()
 
     def __enter__(self) -> AnchoredFileV1:
         return self
@@ -718,8 +932,9 @@ def _open_supervisor_code_v1(
 ) -> SupervisorCodeV1:
     if not root.is_open:
         raise AnchorRefused("supervisor root is closed")
-    source = root.open_file(SUPERVISOR_MODULE_PATH_V1)
+    source: AnchoredFileV1 | None = None
     try:
+        source = root.open_file(SUPERVISOR_MODULE_PATH_V1)
         if expected_sha256 is not None and source.sha256 != expected_sha256:
             raise AnchorRefused(
                 "supervisor source hash differs from the loaded registry: "
@@ -727,10 +942,11 @@ def _open_supervisor_code_v1(
             )
         return SupervisorCodeV1(root, source, source.sha256)
     except BaseException:
-        try:
-            source.close()
-        except BaseException:
-            pass
+        if source is not None:
+            try:
+                source.close()
+            except BaseException:
+                pass
         raise
 
 
@@ -1014,12 +1230,16 @@ class ChildScanV1:
 def _read_proc_record(path: Path, max_bytes: int) -> bytes | None:
     """Bytes of one ``/proc`` record, or ``None`` when unreadable or larger than ``max_bytes``."""
 
+    owner = _OwnedDescriptorsV1(1)
+    failed = False
+    chunks: list[bytes] = []
     try:
-        descriptor = os.open(path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW)
-    except OSError:
-        return None
-    try:
-        chunks: list[bytes] = []
+        descriptor = owner.acquire(
+            0,
+            lambda: os.open(
+                path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
+            ),
+        )
         remaining = max_bytes + 1
         while remaining > 0:
             chunk = os.read(descriptor, remaining)
@@ -1028,9 +1248,10 @@ def _read_proc_record(path: Path, max_bytes: int) -> bytes | None:
             chunks.append(chunk)
             remaining -= len(chunk)
     except OSError:
+        failed = True
+    cleanup_error = owner.close_preserving_primary()
+    if failed or cleanup_error is not None:
         return None
-    finally:
-        os.close(descriptor)
     data = b"".join(chunks)
     return data if len(data) <= max_bytes else None
 

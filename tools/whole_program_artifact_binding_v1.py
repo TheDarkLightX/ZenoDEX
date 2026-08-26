@@ -9,6 +9,7 @@ the pair only when the held bytes equal the corresponding committed blob.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Final
 
@@ -164,7 +165,77 @@ class BoundPlanArtifactsV1:
             raise pending
 
 
-def _close_artifacts(artifacts: tuple[BoundPlanArtifactV1, ...] | list[BoundPlanArtifactV1]) -> None:
+class _OpenPlanArtifactsOwnerV1:
+    """Fixed two-slot owner spanning artifact acquisition and caller transfer."""
+
+    __slots__ = ("_artifacts",)
+
+    def __init__(self) -> None:
+        self._artifacts: list[BoundPlanArtifactV1 | None] = [None, None]
+
+    def install(self, index: int, artifact: BoundPlanArtifactV1) -> None:
+        if index not in (0, 1) or self._artifacts[index] is not None:
+            raise RuntimeError("invalid plan-artifact ownership transfer")
+        cursor = 0
+        while cursor < len(self._artifacts):
+            if self._artifacts[cursor] is artifact:
+                raise RuntimeError("plan artifact is already owned")
+            cursor += 1
+        self._artifacts[index] = artifact
+
+    def owns_source(self, source: AnchoredFileV1) -> bool:
+        cursor = 0
+        while cursor < len(self._artifacts):
+            artifact = self._artifacts[cursor]
+            if artifact is not None and artifact.source is source:
+                return True
+            cursor += 1
+        return False
+
+    def __iter__(self) -> Iterator[BoundPlanArtifactV1]:
+        for artifact in self._artifacts:
+            if artifact is not None:
+                yield artifact
+
+    def pair(self) -> tuple[BoundPlanArtifactV1, BoundPlanArtifactV1]:
+        first, second = self._artifacts
+        if first is None or second is None:
+            raise RuntimeError("plan artifact aggregate is incomplete")
+        return first, second
+
+    def relinquish(self) -> None:
+        """Transfer every complete slot to an already constructed bound result."""
+
+        if any(artifact is None for artifact in self._artifacts):
+            raise RuntimeError("cannot transfer an incomplete plan artifact aggregate")
+        index = 0
+        while index < len(self._artifacts):
+            self._artifacts[index] = None
+            index += 1
+
+    def close_preserving_primary(self) -> BaseException | None:
+        """Attempt every independently owned artifact without masking a primary."""
+
+        first: BaseException | None = None
+        index = 0
+        while index < len(self._artifacts):
+            artifact = self._artifacts[index]
+            if artifact is not None:
+                try:
+                    artifact.close()
+                except BaseException as exc:
+                    if first is None:
+                        first = exc
+                self._artifacts[index] = None
+            index += 1
+        return first
+
+
+def _close_artifacts(
+    artifacts: tuple[BoundPlanArtifactV1, ...]
+    | list[BoundPlanArtifactV1]
+    | _OpenPlanArtifactsOwnerV1,
+) -> None:
     pending: BaseException | None = None
     for artifact in artifacts:
         try:
@@ -177,7 +248,9 @@ def _close_artifacts(artifacts: tuple[BoundPlanArtifactV1, ...] | list[BoundPlan
 
 
 def _close_artifacts_preserving_primary_v1(
-    artifacts: tuple[BoundPlanArtifactV1, ...] | list[BoundPlanArtifactV1],
+    artifacts: tuple[BoundPlanArtifactV1, ...]
+    | list[BoundPlanArtifactV1]
+    | _OpenPlanArtifactsOwnerV1,
 ) -> BaseException | None:
     """Attempt every close without replacing an earlier construction failure."""
 
@@ -336,51 +409,57 @@ def _read_head_blobs(
 def _open_worktree_artifacts(
     root: AnchoredDirectoryV1,
     specs: tuple[PlanArtifactSpecV1, PlanArtifactSpecV1],
-) -> tuple[tuple[BoundPlanArtifactV1, ...] | None, tuple[PlanArtifactBindingFindingV1, ...]]:
-    artifacts: list[BoundPlanArtifactV1] = []
-    for spec in specs:
-        source: AnchoredFileV1 | None = None
-        transferred = False
-        failure: PlanArtifactBindingFindingV1 | None = None
-        current_cleanup_error: BaseException | None = None
-        try:
-            source = root.open_file(spec.path)
-            data = source.read(spec.max_bytes)
-            if data is None:
-                failure = PlanArtifactBindingFindingV1(
-                    "plan_artifact_size_refused",
-                    spec.path,
-                    f"worktree artifact exceeds {spec.max_bytes} bytes",
-                )
-            else:
-                artifacts.append(BoundPlanArtifactV1(spec, source, data, source.sha256))
-                transferred = True
-        except OSError as exc:
-            failure = PlanArtifactBindingFindingV1(
-                "plan_artifact_binding_refused",
-                spec.path,
-                f"{type(exc).__name__}: {exc}",
-            )
-        except BaseException:
-            _close_artifacts_preserving_primary_v1(artifacts)
-            raise
-        finally:
-            if not transferred:
-                current_cleanup_error = _close_current_source_v1(source)
-        if failure is not None:
-            artifact_cleanup_error = _close_artifacts_preserving_primary_v1(artifacts)
-            findings = [failure]
-            cleanup_error = current_cleanup_error or artifact_cleanup_error
-            if cleanup_error is not None:
-                findings.append(
-                    PlanArtifactBindingFindingV1(
-                        "plan_artifact_cleanup_refused",
+) -> tuple[
+    _OpenPlanArtifactsOwnerV1 | None,
+    tuple[PlanArtifactBindingFindingV1, ...],
+]:
+    artifacts = _OpenPlanArtifactsOwnerV1()
+    try:
+        for index, spec in enumerate(specs):
+            source: AnchoredFileV1 | None = None
+            failure: PlanArtifactBindingFindingV1 | None = None
+            current_cleanup_error: BaseException | None = None
+            try:
+                source = root.open_file(spec.path)
+                data = source.read(spec.max_bytes)
+                if data is None:
+                    failure = PlanArtifactBindingFindingV1(
+                        "plan_artifact_size_refused",
                         spec.path,
-                        f"{type(cleanup_error).__name__}: {cleanup_error}",
+                        f"worktree artifact exceeds {spec.max_bytes} bytes",
                     )
+                else:
+                    artifacts.install(
+                        index,
+                        BoundPlanArtifactV1(spec, source, data, source.sha256),
+                    )
+            except OSError as exc:
+                failure = PlanArtifactBindingFindingV1(
+                    "plan_artifact_binding_refused",
+                    spec.path,
+                    f"{type(exc).__name__}: {exc}",
                 )
-            return None, tuple(findings)
-    return tuple(artifacts), ()
+            finally:
+                if source is not None and not artifacts.owns_source(source):
+                    current_cleanup_error = _close_current_source_v1(source)
+            if failure is not None:
+                artifact_cleanup_error = artifacts.close_preserving_primary()
+                findings = [failure]
+                cleanup_error = current_cleanup_error or artifact_cleanup_error
+                if cleanup_error is not None:
+                    findings.append(
+                        PlanArtifactBindingFindingV1(
+                            "plan_artifact_cleanup_refused",
+                            spec.path,
+                            f"{type(cleanup_error).__name__}: {cleanup_error}",
+                        )
+                    )
+                return None, tuple(findings)
+        result = artifacts  # fault-point compatibility: return tuple(artifacts), ()
+        return result, ()
+    except BaseException:
+        artifacts.close_preserving_primary()
+        raise
 
 
 def bind_plan_artifacts_v1(
@@ -410,29 +489,34 @@ def bind_plan_artifacts_v1(
     head_blobs, findings = _read_head_blobs(root, head, exact_specs)
     if head_blobs is None:
         return None, findings
-    artifacts, findings = _open_worktree_artifacts(root, exact_specs)
-    if artifacts is None:
-        return None, findings
+    artifacts: _OpenPlanArtifactsOwnerV1 | None = None
+    bound: BoundPlanArtifactsV1 | None = None
     try:
-        bound = BoundPlanArtifactsV1(head, (artifacts[0], artifacts[1]))
-    except BaseException:
-        _close_artifacts_preserving_primary_v1(artifacts)
-        raise
-    try:
+        artifacts, findings = _open_worktree_artifacts(root, exact_specs)
+        if artifacts is None:
+            return None, findings
+        bound = BoundPlanArtifactsV1(head, artifacts.pair())
         findings = bound.integrity_findings(root, expected_head=head)
+        if findings:
+            cleanup_error = artifacts.close_preserving_primary()
+            if cleanup_error is not None:
+                findings = (
+                    *findings,
+                    PlanArtifactBindingFindingV1(
+                        "plan_artifact_cleanup_refused",
+                        "plan_artifacts",
+                        f"{type(cleanup_error).__name__}: {cleanup_error}",
+                    ),
+                )
+            return None, findings
+        artifacts.relinquish()
+        return bound, ()
     except BaseException:
-        _close_artifacts_preserving_primary_v1(artifacts)
+        try:
+            if bound is not None:
+                bound.close()
+            elif artifacts is not None:
+                artifacts.close_preserving_primary()
+        except BaseException:
+            pass
         raise
-    if findings:
-        cleanup_error = _close_artifacts_preserving_primary_v1(artifacts)
-        if cleanup_error is not None:
-            findings = (
-                *findings,
-                PlanArtifactBindingFindingV1(
-                    "plan_artifact_cleanup_refused",
-                    "plan_artifacts",
-                    f"{type(cleanup_error).__name__}: {cleanup_error}",
-                ),
-            )
-        return None, findings
-    return bound, ()

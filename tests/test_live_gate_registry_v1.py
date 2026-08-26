@@ -63,7 +63,7 @@ def test_registry_mapping_rejects_runtime_mutation() -> None:
     gate_id = next(iter(LIVE_GATE_REGISTRY))
     spec = LIVE_GATE_REGISTRY[gate_id]
     operations = (
-        lambda: LIVE_GATE_REGISTRY.__setitem__("forged", spec),  # type: ignore[attr-defined]
+        lambda: LIVE_GATE_REGISTRY.__setitem__("forged", spec),  # type: ignore[index]
         lambda: LIVE_GATE_REGISTRY.__delitem__(gate_id),  # type: ignore[attr-defined]
         lambda: LIVE_GATE_REGISTRY.clear(),  # type: ignore[attr-defined]
         lambda: LIVE_GATE_REGISTRY.update({"forged": spec}),  # type: ignore[attr-defined]
@@ -82,7 +82,7 @@ def test_registry_mapping_rejects_runtime_mutation() -> None:
         with pytest.raises(TypeError):
             environment["PATH"] = "/tmp/forged"  # type: ignore[index]
         with pytest.raises(TypeError):
-            del environment["PATH"]  # type: ignore[misc]
+            del environment["PATH"]  # type: ignore[attr-defined]
         assert environment["PATH"] == original_path
 
 
@@ -1012,7 +1012,7 @@ def test_failed_transfer_cleanup_is_deduplicated_and_preserves_primary(
     finally:
         real_close(peer)
 
-    assert close_calls == [descriptor]
+    assert close_calls == [descriptor]  # type: ignore[unreachable]
 
 
 def test_repeated_constructor_failures_do_not_accumulate_descriptors(

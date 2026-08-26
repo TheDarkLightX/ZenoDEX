@@ -1,0 +1,226 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-z-whole-program-assurance-checker-fcis-linearization",
+  "created_date": "2026-08-26",
+  "claim_scope": "This successor covers these exact Linux and Python checker paths: root traversal handoff, subtree walk handoff, open_entry finalizer, effect aggregate allocation, open_file acquisition, ad-hoc root transfer, artifact aggregate return, and artifact caller transfer. For the demonstrated deterministic line-boundary BaseException and transient close-failure traces, fixed-capacity aggregate owners attempt every held descriptor and preserve the primary failure. The same packet covers strict caller Markdown UTF-8 byte BVA before root, Git, filesystem, process, or observer effects, plus closed NOT_APPLIED, APPLIED_DURABLE, and APPLIED_DURABILITY_UNKNOWN replacement results at the tested open, write, file-fsync, close, rename, and directory-fsync points. Authority remains checker-owned NONE and the value-movement closure remains deliberately red.",
+  "change_kind": "bug_fix",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "WHOLE-PROGRAM-DEMONSTRATED-DESCRIPTOR-HANDOFFS-HAVE-AGGREGATE-OWNERS",
+    "WHOLE-PROGRAM-PRIMARY-BASEEXCEPTION-SURVIVES-DEMONSTRATED-CLEANUP",
+    "WHOLE-PROGRAM-CALLER-MARKDOWN-UTF8-BOUND-PRECEDES-EFFECTS",
+    "WHOLE-PROGRAM-REPLACEMENT-REPORTS-CLOSED-LINEARIZATION-STATE",
+    "WHOLE-PROGRAM-HYGIENE-HISTORY-IS-APPEND-ONLY",
+    "VALUE-MOVEMENT-CLOSURE-REPORT-AUTHORITY-IS-CHECKER-OWNED-NONE",
+    "VALUE-MOVEMENT-CLOSURE-REMAINS-EXACTLY-RED-UNTIL-EXACT-REPIN"
+  ],
+  "failure_modes": [
+    "a predecessor close fault strands the newly opened root-traversal successor",
+    "a predecessor close fault strands the newly opened subtree successor",
+    "an open_entry directory-finalizer fault discards both directory and entry ownership",
+    "effect aggregate allocation fails after execution-context acquisition but before cleanup ownership",
+    "open_file acquisition is interrupted before source cleanup ownership",
+    "an ad-hoc root is bound before the caller records ownership",
+    "artifact aggregate materialization fails after two open artifact records are acquired",
+    "artifact caller transfer is interrupted before the caller establishes cleanup ownership",
+    "caller-supplied Markdown above one MiB reaches root or Git effects",
+    "a post-rename durability fault is reported as an ordinary no-mutation refusal",
+    "historical evidence is rewritten to conceal an overbroad prior claim",
+    "a checker repair promotes production authority or the deliberately red closure posture"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/bounded_json_v1.py",
+      "sha256": "df945bb07694d3e407b323641af6579c39fa8e2350e4776946a4415d956a72e1"
+    },
+    {
+      "path": "tools/check_m6_asset_precision_policy_v1.py",
+      "sha256": "9698aa7e81c2362280adf0c9677ef005de75f79a06d5f2885887202936df43d3"
+    },
+    {
+      "path": "tools/check_m6_value_sinks_v1.py",
+      "sha256": "e98a4ff880ac4defbc7451bcd44ce959b509f5bc9192f332932382b4dba2ab69"
+    },
+    {
+      "path": "tools/check_value_movement_closure_status_v1.py",
+      "sha256": "9be0871b43e7d608a8e020dc9481795adb4ce714ba43b56360d48bfba96c8086"
+    },
+    {
+      "path": "tools/check_whole_program_plan_v1.py",
+      "sha256": "bbcf8b21041f708336294b0434881b9f6afc76bdd57c030e783532399d164a28"
+    },
+    {
+      "path": "tools/live_gate_registry_v1.py",
+      "sha256": "3014eb8b76f51c155380fe4bd0801b81509bb4a2d51c0c11eaf2991c654cdc12"
+    },
+    {
+      "path": "tools/whole_program_artifact_binding_v1.py",
+      "sha256": "9cad9441b92dc8ead5309f28c6ba5213accf5700bcaacb236c51e0bbdab22c17"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_bounded_json_v1.py",
+      "sha256": "33cd3dda8d7e583f3690627df526e5c95b46ced6e7cbf9a5996ba12dc2d8db22",
+      "node_ids": [
+        "tests/test_bounded_json_v1.py::test_byte_bound_accepts_exact_limit_and_rejects_one_over",
+        "tests/test_bounded_json_v1.py::test_depth_bound_accepts_exact_limit_and_rejects_one_over",
+        "tests/test_bounded_json_v1.py::test_node_bound_is_enforced_before_and_after_decoding",
+        "tests/test_bounded_json_v1.py::test_duplicate_keys_lone_surrogates_and_bad_utf8_are_rejected"
+      ]
+    },
+    {
+      "path": "tests/test_check_value_movement_closure_status_v1.py",
+      "sha256": "b2c1b230a5406aa2a3ade98cda63ed034ca53239c8d00684bcf5851c944357cc",
+      "node_ids": [
+        "tests/test_check_value_movement_closure_status_v1.py::test_current_value_movement_closure_status_is_exactly_red_and_fail_closed_until_repin",
+        "tests/test_check_value_movement_closure_status_v1.py::test_checker_rejects_authority_gate_and_semantic_promotion_drift",
+        "tests/test_check_value_movement_closure_status_v1.py::test_checker_rejects_stale_claim_hash_and_duplicate_json_key",
+        "tests/test_check_value_movement_closure_status_v1.py::test_every_unreadable_closure_ledger_returns_the_closed_report_schema"
+      ]
+    },
+    {
+      "path": "tests/test_check_whole_program_plan_v1.py",
+      "sha256": "13e8385aadef414431243c98192d0275f90a8aa76cfa1e5408d17ea97e872e11",
+      "node_ids": [
+        "tests/test_check_whole_program_plan_v1.py::test_confined_io_refuses_symlinked_directory_components_and_replaces_atomically",
+        "tests/test_check_whole_program_plan_v1.py::test_root_identity_is_bound_and_a_swapped_root_pathname_never_reaches_the_external_victim",
+        "tests/test_check_whole_program_plan_v1.py::test_confined_root_constructor_failure_restores_descriptor_set",
+        "tests/test_check_whole_program_plan_v1.py::test_execution_context_construction_failure_closes_bound_artifacts",
+        "tests/test_check_whole_program_plan_v1.py::test_live_gate_effect_construction_failure_closes_all_acquired_sources",
+        "tests/test_check_whole_program_plan_v1.py::test_effect_planning_closes_owned_context_when_snapshot_raises",
+        "tests/test_check_whole_program_plan_v1.py::test_effect_failure_cleanup_attempts_sources_and_context_without_masking_primary",
+        "tests/test_check_whole_program_plan_v1.py::test_oversized_generated_markdown_is_rejected_before_root_binding",
+        "tests/test_check_whole_program_plan_v1.py::test_oversized_generated_markdown_never_reaches_atomic_replace",
+        "tests/test_check_whole_program_plan_v1.py::test_final_markdown_composition_uses_exact_maximum_bva"
+      ]
+    },
+    {
+      "path": "tests/test_live_gate_registry_v1.py",
+      "sha256": "761308a5418af972decd17efb62790af9aecb67d3d66ebbba136cc22d335dcf5",
+      "node_ids": [
+        "tests/test_live_gate_registry_v1.py::test_registry_mapping_rejects_runtime_mutation",
+        "tests/test_live_gate_registry_v1.py::test_root_only_sealed_execution_matches_direct_script_import_semantics",
+        "tests/test_live_gate_registry_v1.py::test_open_file_post_seal_failure_closes_both_new_descriptors",
+        "tests/test_live_gate_registry_v1.py::test_anchored_directory_constructor_failure_restores_descriptor_set",
+        "tests/test_live_gate_registry_v1.py::test_anchored_file_constructor_failure_restores_descriptor_set",
+        "tests/test_live_gate_registry_v1.py::test_supervisor_constructor_failure_restores_descriptor_set",
+        "tests/test_live_gate_registry_v1.py::test_failed_transfer_cleanup_is_deduplicated_and_preserves_primary",
+        "tests/test_live_gate_registry_v1.py::test_repeated_constructor_failures_do_not_accumulate_descriptors",
+        "tests/test_live_gate_registry_v1.py::test_anchored_file_close_attempts_sealed_fd_when_source_close_raises"
+      ]
+    },
+    {
+      "path": "tests/test_whole_program_fcis_linearization_v1.py",
+      "sha256": "8c2b93b609ae23852d15e01fe2a1faf26cbb713b7fdbfc1a3e3e060244906980",
+      "node_ids": [
+        "tests/test_whole_program_fcis_linearization_v1.py::test_root_traversal_close_failure_unwinds_predecessor_and_successor",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_subtree_close_failure_unwinds_predecessor_and_successor",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_open_entry_finalizer_failure_unwinds_directory_and_entry",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_effect_list_allocation_precedes_execution_context_acquisition",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_open_file_initialization_precedes_source_acquisition",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_ad_hoc_root_ownership_is_declared_before_binding",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_artifact_aggregate_return_failure_unwinds_every_source",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_artifact_caller_transfer_failure_unwinds_every_source",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_repeated_root_handoff_failures_have_zero_descriptor_growth",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_public_markdown_utf8_byte_bound_is_pure_before_root",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_replacement_fault_points_report_linearization_and_retry_exactly",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_replacement_result_states_are_closed_and_caller_mapping_is_exhaustive",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_hygiene_successor_preserves_history_and_bounds_ownership_claim"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each regression arranges one exact descriptor handoff, UTF-8 boundary, or replacement fault; acts through the owning public or internal FCIS boundary; and asserts exact descriptor sets, callback counts, typed states, target bytes, retries, evidence hashes, and authority posture."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Pure Markdown excess crosses no root or Git boundary, and NOT_APPLIED replacement faults retain the old target bytes. Post-rename faults are explicitly APPLIED_DURABILITY_UNKNOWN and are excluded from reject-is-no-op reasoning."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "demonstrated_descriptor_transfer_edges",
+      "points": [
+        "eight_individually_injected_edges",
+        "one_repeated_handoff_failure",
+        "eight_repeated_handoff_failures"
+      ]
+    },
+    {
+      "name": "caller_markdown_utf8_bytes",
+      "points": [
+        "exact_one_mibibyte_reaches_semantic_validation",
+        "one_utf8_byte_over_refuses_before_root"
+      ]
+    },
+    {
+      "name": "replacement_linearization_fault",
+      "points": [
+        "open_write_file_fsync_close_and_preapply_rename_are_not_applied",
+        "directory_fsync_is_applied_durability_unknown",
+        "fault_removed_retry_is_applied_durable"
+      ]
+    },
+    {
+      "name": "evidence_lifecycle",
+      "points": [
+        "historical_packet_exact_sha256_preserved",
+        "successor_claim_names_exact_covered_paths",
+        "universal_cleanup_wording_refused"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "release a predecessor before retaining its newly opened successor",
+      "killed_by": "tests/test_whole_program_fcis_linearization_v1.py::test_root_traversal_close_failure_unwinds_predecessor_and_successor"
+    },
+    {
+      "description": "return an entry from a try whose failing finalizer discards the entry",
+      "killed_by": "tests/test_whole_program_fcis_linearization_v1.py::test_open_entry_finalizer_failure_unwinds_directory_and_entry"
+    },
+    {
+      "description": "allocate the effect aggregate after acquiring the execution context but before cleanup ownership",
+      "killed_by": "tests/test_whole_program_fcis_linearization_v1.py::test_effect_list_allocation_precedes_execution_context_acquisition"
+    },
+    {
+      "description": "transfer an open artifact aggregate outside the caller cleanup region",
+      "killed_by": "tests/test_whole_program_fcis_linearization_v1.py::test_artifact_caller_transfer_failure_unwinds_every_source"
+    },
+    {
+      "description": "measure caller Markdown characters instead of strict UTF-8 bytes or bind the root before measuring",
+      "killed_by": "tests/test_whole_program_fcis_linearization_v1.py::test_public_markdown_utf8_byte_bound_is_pure_before_root"
+    },
+    {
+      "description": "collapse post-rename directory-fsync failure into NOT_APPLIED",
+      "killed_by": "tests/test_whole_program_fcis_linearization_v1.py::test_replacement_fault_points_report_linearization_and_retry_exactly"
+    },
+    {
+      "description": "add a replacement state without exhaustively mapping it at callers",
+      "killed_by": "tests/test_whole_program_fcis_linearization_v1.py::test_replacement_result_states_are_closed_and_caller_mapping_is_exhaustive"
+    },
+    {
+      "description": "rewrite historical hygiene evidence or retain its falsified universal wording in the successor",
+      "killed_by": "tests/test_whole_program_fcis_linearization_v1.py::test_hygiene_successor_preserves_history_and_bounds_ownership_claim"
+    }
+  ],
+  "nonclaims": [
+    "This packet is bounded to the eight named deterministic Python line-boundary ownership traces and the listed replacement fault points; it does not establish universal BaseException safety for every descriptor operation or every bytecode interruption point.",
+    "Persistent close failures after the bounded retry, hostile concurrent in-process descriptor reuse, kernel faults, abrupt process death, and cross-platform behavior remain outside this claim.",
+    "APPLIED_DURABILITY_UNKNOWN establishes observed target application with unknown crash durability; it does not establish a durable commit and callers must refuse success promotion.",
+    "The historical THV1-20260826 whole-program packet remains immutable replay evidence. This successor narrows its cleanup claim and does not retroactively validate the historical universal wording.",
+    "No semantic completion of the whole economy, safety of all value movement, production readiness, settlement authority, writer rotation, migration, mount, or value-moving authority is established; production_authority remains NONE.",
+    "The whole-program ledger retains its exact red closure posture and accepted semantic anchors; this checker repair changes no economic semantics.",
+    "Named mutation killers are reviewed semantic mutants. No exhaustive mutation campaign or universal filesystem crash theorem is claimed."
+  ]
+}

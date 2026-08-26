@@ -12,7 +12,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -76,6 +76,18 @@ GIT_ENV = {
 
 _DISPOSABLE_COMPLETE_SUBJECTS: list[Path] = []
 _CLONE_FIXTURE_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
+
+
+def _report_finding_rows(report: Mapping[str, object]) -> list[dict[str, Any]]:
+    raw = report["findings"]
+    assert type(raw) is list and all(type(row) is dict for row in raw)
+    return cast(list[dict[str, Any]], raw)
+
+
+def _report_authority(report: Mapping[str, object]) -> dict[str, object]:
+    raw = report["authority"]
+    assert type(raw) is dict
+    return cast(dict[str, object], raw)
 
 
 def _remove_disposable_subject(root: Path) -> None:
@@ -727,7 +739,7 @@ def test_plan_artifact_changed_during_execution_refuses_the_whole_observation_se
     original_status = checker_module.scoped_worktree_dirty_paths_v1
 
     def status_without_development_dirt(
-        root: object, scope: CleanlinessScopeV1
+        root: checker_module.RootLike, scope: CleanlinessScopeV1
     ) -> list[str] | None:
         observed = original_status(root, scope)
         if observed is None:
@@ -791,7 +803,7 @@ def test_plan_only_head_substitution_after_snapshot_is_refused_before_observatio
     committed = False
     calls: list[str] = []
 
-    def commit_after_snapshot(root_view: object) -> Any:
+    def commit_after_snapshot(root_view: checker_module.RootLike) -> Any:
         nonlocal committed
         snapshot = real_snapshot(root_view)
         if not committed:
@@ -886,7 +898,7 @@ def test_full_execute_binds_head_before_plan_read_and_refuses_plan_only_commit(
     assert _git(root, "status", "--porcelain=v2", "--untracked-files=all") == ""
     assert report["ok"] is False and report["executed_live_gates"] == 0
     assert calls == []
-    assert [item["rule_id"] for item in report["findings"]] == [
+    assert [item["rule_id"] for item in _report_finding_rows(report)] == [
         "live_gate_effect_head_drift"
     ]
 
@@ -929,7 +941,9 @@ def test_transient_plan_artifact_rewrite_restore_refuses_before_observation(
         PLAN_MARKDOWN_PATH.as_posix(): original_markdown,
     }
 
-    def transient_open_file(root_view: object, relative: str) -> Any:
+    def transient_open_file(
+        root_view: AnchoredDirectoryV1, relative: str
+    ) -> Any:
         hostile = hostile_by_path.get(relative)
         if hostile is None:
             return real_open_file(root_view, relative)
@@ -1004,7 +1018,7 @@ class _ForgedValidationProfile:
     """Duck-typed profile used to prove the public validator requires its exact value type."""
 
     kind = PlanValidationKindV1.ORDINARY
-    repin_tasks = frozenset()
+    repin_tasks: frozenset[str] = frozenset()
     cleanliness = CleanlinessScopeV1.FULL
     compares_regenerable = False
 
@@ -1029,7 +1043,7 @@ def test_public_check_rejects_nonenum_mode_before_any_observer(
     assert report["ok"] is False
     assert report["executed_live_gates"] == 0
     assert observer_calls == []
-    assert [finding["rule_id"] for finding in report["findings"]] == [
+    assert [finding["rule_id"] for finding in _report_finding_rows(report)] == [
         "plan_check_mode_invalid"
     ]
     assert report["requested_check_mode"] == "invalid"
@@ -1063,13 +1077,13 @@ def test_public_profile_boundaries_refuse_a_duck_typed_profile_and_normalize_the
         "validation_profile_invalid"
     ]
     assert report["ok"] is False and report["executed_live_gates"] == 0
-    assert {finding["rule_id"] for finding in report["findings"]} == {
+    assert {finding["rule_id"] for finding in _report_finding_rows(report)} == {
         "plan_check_mode_invalid",
         "validation_profile_invalid",
     }
     assert report["requested_check_mode"] == "invalid"
     assert report["accepted_check_mode"] == "none"
-    assert report["authority"]["production_authority"] == "NONE"
+    assert _report_authority(report)["production_authority"] == "NONE"
 
 
 def test_closed_report_refuses_an_unaccepted_mode_without_observers(
@@ -1098,7 +1112,7 @@ def test_closed_report_refuses_an_unaccepted_mode_without_observers(
     assert report["ok"] is False
     assert report["accepted_check_mode"] == "none"
     assert report["executed_live_gates"] == 0
-    assert [finding["rule_id"] for finding in report["findings"]] == [
+    assert [finding["rule_id"] for finding in _report_finding_rows(report)] == [
         "report_mode_not_accepted"
     ]
     assert observer_calls == []
@@ -1141,11 +1155,11 @@ def test_closed_report_refuses_accepted_execute_with_nonexact_observer_count(
     assert report["ok"] is False
     assert report["accepted_check_mode"] == PlanCheckModeV1.EXECUTE.value
     assert report["executed_live_gates"] == 0
-    assert [finding["rule_id"] for finding in report["findings"]] == [
+    assert [finding["rule_id"] for finding in _report_finding_rows(report)] == [
         "report_execute_observer_count_invalid"
     ]
     assert observer_calls == []
-    assert report["authority"]["production_authority"] == "NONE"
+    assert _report_authority(report)["production_authority"] == "NONE"
 
 
 class _FindingStringSubclass(str):
@@ -1233,7 +1247,7 @@ def test_closed_report_normalizes_a_same_process_forged_finding() -> None:
     )
 
     assert report["ok"] is False
-    assert [finding["rule_id"] for finding in report["findings"]] == [
+    assert [finding["rule_id"] for finding in _report_finding_rows(report)] == [
         "report_findings_invalid"
     ]
     json.dumps(report)
@@ -1245,7 +1259,7 @@ def test_public_report_cannot_claim_success_without_checker_validation() -> None
     )
 
     assert report["ok"] is False
-    assert [finding["rule_id"] for finding in report["findings"]] == [
+    assert [finding["rule_id"] for finding in _report_finding_rows(report)] == [
         "report_validation_missing"
     ]
 
@@ -1260,7 +1274,7 @@ def test_public_report_refuses_a_hostile_findings_container() -> None:
     )
 
     assert report["ok"] is False
-    assert [finding["rule_id"] for finding in report["findings"]] == [
+    assert [finding["rule_id"] for finding in _report_finding_rows(report)] == [
         "report_findings_invalid"
     ]
 
@@ -1653,7 +1667,7 @@ def test_closed_authority_and_plan_nonclaims_cannot_be_mutated_or_replaced() -> 
     with pytest.raises(TypeError):
         checker_module.REQUIRED_AUTHORITY["production_authority"] = "GLOBAL_EPOCH"  # type: ignore[index]
     with pytest.raises(TypeError):
-        del checker_module.REQUIRED_AUTHORITY["production_authority"]  # type: ignore[misc]
+        del checker_module.REQUIRED_AUTHORITY["production_authority"]  # type: ignore[attr-defined]
     closed_vocabularies = (
         (checker_module.TREE_MODE_TYPES, "100644", "forged"),
         (
@@ -1667,7 +1681,7 @@ def test_closed_authority_and_plan_nonclaims_cannot_be_mutated_or_replaced() -> 
         with pytest.raises(TypeError):
             vocabulary[key] = forged  # type: ignore[index]
         with pytest.raises(TypeError):
-            del vocabulary[key]  # type: ignore[misc]
+            del vocabulary[key]  # type: ignore[attr-defined]
         assert vocabulary[key] == original
 
     replaced = _plan()
@@ -1824,7 +1838,7 @@ def test_transport_faithful_clone_replays_without_out_of_line_donor_objects(
 
     assert "d5198b89480eeb36dd56ad55e8b77c4e38c98f45" in unavailable
     assert report["ok"] is True, report["findings"]
-    assert report["authority"]["production_authority"] == "NONE"
+    assert _report_authority(report)["production_authority"] == "NONE"
 
 
 def test_donor_snapshot_lineage_labels_are_equivalent_to_raw_git_ancestry() -> None:
@@ -1900,7 +1914,7 @@ def test_donor_ref_and_required_nonclaims_are_checker_owned() -> None:
         )
         bad_ref = copy.deepcopy(snapshot)
         bad_ref["donors"][0]["source_ref_observed"] = "refs/"
-        bad_nonclaims = copy.deepcopy(snapshot)
+        bad_nonclaims: dict[str, Any] = copy.deepcopy(dict(snapshot))
         bad_nonclaims["nonclaims"] = ["candidate-selected"]
 
         ref_findings = checker_module._validate_donor_provenance_content_v1(
@@ -1947,7 +1961,7 @@ def test_donor_ancestry_query_failure_is_not_non_lineage(
     }
     assert report["ok"] is False
     assert "donor_ancestry_query_failed" in {
-        finding["rule_id"] for finding in report["findings"]
+        finding["rule_id"] for finding in _report_finding_rows(report)
     }
 
 
@@ -1961,7 +1975,7 @@ def test_invalid_donor_cardinality_rejects_before_git_io(
             name="donor provenance snapshot",
         )
         by_id = {row["id"]: row for row in snapshot["donors"]}
-        malformed = copy.deepcopy(snapshot)
+        malformed: dict[str, Any] = copy.deepcopy(dict(snapshot))
         malformed["donors"] = [
             *[
                 copy.deepcopy(by_id["M6_FCIS_REVIEWED_DONOR"])
@@ -2060,11 +2074,11 @@ def test_duplicate_tasks_reject_before_evidence_observations(
         "_git_commit_probe",
         lambda *_args, **_kwargs: calls.append("probe"),
     )
-    monkeypatch.setattr(
-        checker_module,
-        "_git",
-        lambda *_args, **_kwargs: (calls.append("git") or (-1, "")),
-    )
+    def unexpected_git(*_args: object, **_kwargs: object) -> tuple[int, str]:
+        calls.append("git")
+        return -1, ""
+
+    monkeypatch.setattr(checker_module, "_git", unexpected_git)
     monkeypatch.setattr(
         checker_module,
         "read_confined_file_v1",
@@ -2092,11 +2106,11 @@ def test_duplicate_evidence_rejects_before_evidence_observations(
         "_git_commit_probe",
         lambda *_args, **_kwargs: calls.append("probe"),
     )
-    monkeypatch.setattr(
-        checker_module,
-        "_git",
-        lambda *_args, **_kwargs: (calls.append("git") or (-1, "")),
-    )
+    def unexpected_git(*_args: object, **_kwargs: object) -> tuple[int, str]:
+        calls.append("git")
+        return -1, ""
+
+    monkeypatch.setattr(checker_module, "_git", unexpected_git)
 
     # Act
     findings = validate_plan_v1(plan, root=ROOT, markdown=None)
@@ -2594,11 +2608,19 @@ def test_confined_io_refuses_symlinked_directory_components_and_replaces_atomica
 
     # Assert
     assert traversal_read.data is None and "symlink" in traversal_read.reason
-    assert traversal_refusal and (external / PLAN_JSON_PATH.name).read_bytes() == b"{}\n"
+    assert traversal_refusal.state is checker_module.ConfinedReplaceStateV1.NOT_APPLIED
+    assert (external / PLAN_JSON_PATH.name).read_bytes() == b"{}\n"
     assert sorted(entry.name for entry in external.iterdir()) == [PLAN_JSON_PATH.name]
-    assert replaced == "" and bytes_after_replace == b"new\n" and entries_after_replace == [target.name]
-    assert "not a regular file" in symlink_refusal and victim.read_bytes() == b"victim\n" and target.is_symlink()
-    assert hostile_reads == [None] * len(hostile_paths) and all(hostile_writes)
+    assert replaced.state is checker_module.ConfinedReplaceStateV1.APPLIED_DURABLE
+    assert bytes_after_replace == b"new\n" and entries_after_replace == [target.name]
+    assert symlink_refusal.state is checker_module.ConfinedReplaceStateV1.NOT_APPLIED
+    assert "not a regular file" in symlink_refusal.reason
+    assert victim.read_bytes() == b"victim\n" and target.is_symlink()
+    assert hostile_reads == [None] * len(hostile_paths)
+    assert all(
+        result.state is checker_module.ConfinedReplaceStateV1.NOT_APPLIED
+        for result in hostile_writes
+    )
     assert not (tmp_path / "x").exists() and not Path("/etc/x").exists()
 
 
@@ -2681,8 +2703,10 @@ def test_root_identity_is_bound_and_a_swapped_root_pathname_never_reaches_the_ex
     # Assert: every operation through the capability addressed the bound inode (the moved original), never the
     # symlink target or the twin; the victim and decoy trees are byte-identical; binding the symlink is refused.
     assert before.data == b"original\n"
-    assert symlink_read.data == b"original\n" and symlink_write == ""
-    assert other_read.data == b"through-link\n" and other_write == ""
+    assert symlink_read.data == b"original\n"
+    assert symlink_write.state is checker_module.ConfinedReplaceStateV1.APPLIED_DURABLE
+    assert other_read.data == b"through-link\n"
+    assert other_write.state is checker_module.ConfinedReplaceStateV1.APPLIED_DURABLE
     assert restored.data == b"through-twin\n" and target.read_bytes() == b"through-twin\n"
     assert pathname_bind_refused
     assert victim.read_bytes() == b"victim\n" and decoy.read_bytes() == b"decoy\n"
@@ -3187,7 +3211,8 @@ def test_witness_inode_reuse_after_root_deletion_never_reaches_the_replacement(t
 
     # Assert: the replacement is never read, written, or validated through the capability, reused inode or not.
     assert read.data is None and read.data != b'{"replacement": true}\n'
-    assert refusal and (root / PLAN_JSON_PATH).read_bytes() == b'{"replacement": true}\n'
+    assert refusal.state is checker_module.ConfinedReplaceStateV1.NOT_APPLIED
+    assert (root / PLAN_JSON_PATH).read_bytes() == b'{"replacement": true}\n'
     assert subject_rules and "scoped_worktree_dirty" not in subject_rules
     assert all(rule.endswith(("_unknown", "_unavailable")) for rule in subject_rules), (subject_rules, reused)
 
@@ -3718,7 +3743,7 @@ def test_plan_artifact_binding_closes_the_current_source_after_memory_error(tmp_
 
     # Act
     try:
-        artifact_binding_module.AnchoredFileV1.read = raise_memory_error  # type: ignore[method-assign]
+        artifact_binding_module.AnchoredFileV1.read = raise_memory_error  # type: ignore[assignment]
         with pytest.raises(MemoryError, match="review-injected"):
             with ConfinedRootV1.bind(_clone_complete_subject(tmp_path)) as bound:
                 checker_module._bind_execution_context_v1(bound, subject="memory_error")
@@ -3920,7 +3945,7 @@ def test_effect_failure_cleanup_attempts_sources_and_context_without_masking_pri
             )
             raise
 
-    assert events == ["effect", "context"]
+    assert events == ["effect", "context"]  # type: ignore[unreachable]
 
 
 def test_oversized_generated_markdown_is_rejected_before_root_binding(
@@ -3959,9 +3984,11 @@ def test_oversized_generated_markdown_never_reaches_atomic_replace(
 
     def capture_replace(
         _root: ConfinedRootV1, path: Path, data: bytes
-    ) -> str | None:
+    ) -> checker_module.ConfinedReplaceResultV1:
         replacements.append((path, len(data)))
-        return None
+        return checker_module.ConfinedReplaceResultV1(
+            checker_module.ConfinedReplaceStateV1.APPLIED_DURABLE, ""
+        )
 
     monkeypatch.setattr(
         checker_module, "replace_confined_file_v1", capture_replace
@@ -4131,5 +4158,5 @@ def test_replacement_commit_cannot_reach_any_whole_program_observer(
     assert report["ok"] is False and report["executed_live_gates"] == 0
     assert observer_calls == []
     assert "scoped_worktree_dirty" in {
-        finding["rule_id"] for finding in report["findings"]
+        finding["rule_id"] for finding in _report_finding_rows(report)
     }

@@ -101,7 +101,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Final, NoReturn, cast
+from typing import Any, Final, NoReturn, assert_never, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if not __package__ and str(REPO_ROOT) not in sys.path:
@@ -122,6 +122,7 @@ from tools.live_gate_registry_v1 import (  # noqa: E402
     LiveGateObservationV1,
     LiveGateSpecV1,
     SupervisorCodeV1,
+    _OwnedDescriptorsV1,
     bind_supervisor_code_v1,
     git_bytes_v1,
     git_commit_object_probe_v1,
@@ -880,17 +881,23 @@ class ConfinedRootV1:
         if isinstance(root, ConfinedRootV1):
             return root
         path = Path(os.path.abspath(root))
+        anchored: AnchoredDirectoryV1 | None = None
         try:
             anchored = AnchoredDirectoryV1.open(path)
-        except OSError as exc:
-            raise RootUnavailable(f"repository root refused: {exc}") from exc
-        try:
             return cls(path, anchored)
+        except OSError as exc:
+            if anchored is not None:
+                try:
+                    anchored.close()
+                except BaseException:
+                    pass
+            raise RootUnavailable(f"repository root refused: {exc}") from exc
         except BaseException:
-            try:
-                anchored.close()
-            except BaseException:
-                pass
+            if anchored is not None:
+                try:
+                    anchored.close()
+                except BaseException:
+                    pass
             raise
 
     @property
@@ -931,10 +938,20 @@ class _UseRoot:
     def __enter__(self) -> ConfinedRootV1:
         if isinstance(self.root, ConfinedRootV1):
             self.bound = self.root
-        else:
+            return self.bound
+        self.owned = True
+        try:
             self.bound = ConfinedRootV1.bind(self.root)
-            self.owned = True
-        return self.bound
+            return self.bound
+        except BaseException:
+            if self.bound is not None:
+                try:
+                    self.bound.close()
+                except BaseException:
+                    pass
+            self.bound = None
+            self.owned = False
+            raise
 
     def __exit__(self, *_exc: object) -> None:
         if self.owned and self.bound is not None:
@@ -1031,8 +1048,11 @@ def read_confined_file_v1(root: RootLike, relative: Path, *, max_bytes: int) -> 
 
     try:
         with _UseRoot(root) as bound:
+            owner = _OwnedDescriptorsV1(1)
             try:
-                descriptor = _open_confined(bound, relative, os.O_RDONLY)
+                descriptor = owner.acquire(
+                    0, lambda: _open_confined(bound, relative, os.O_RDONLY)
+                )
             except FileNotFoundError:
                 return ConfinedReadV1(None, "missing")
             except (OSError, ValueError) as exc:
@@ -1042,13 +1062,105 @@ def read_confined_file_v1(root: RootLike, relative: Path, *, max_bytes: int) -> 
             except OSError as exc:
                 return ConfinedReadV1(None, f"unreadable: {type(exc).__name__}")
             finally:
-                os.close(descriptor)
+                owner.close_preserving_primary()
     except PlanUnreadable as exc:
         return ConfinedReadV1(None, str(exc))
 
 
-def replace_confined_file_v1(root: RootLike, relative: Path, data: bytes) -> str:
-    """Atomically replace a regular file through the bound root descriptor; returns ``""`` or the refusal reason.
+class ConfinedReplaceStateV1(enum.Enum):
+    """Closed target-state result around the atomic rename linearization point."""
+
+    NOT_APPLIED = "not_applied"
+    APPLIED_DURABLE = "applied_durable"
+    APPLIED_DURABILITY_UNKNOWN = "applied_durability_unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class ConfinedReplaceResultV1:
+    """Typed target state plus an orthogonal descriptor-cleanup observation."""
+
+    state: ConfinedReplaceStateV1
+    reason: str
+    cleanup_error: str = ""
+
+    def __post_init__(self) -> None:
+        if type(self.state) is not ConfinedReplaceStateV1:
+            raise TypeError("replacement state must be an exact closed enum value")
+        if type(self.reason) is not str:
+            raise TypeError("replacement reason must be an exact string")
+        if type(self.cleanup_error) is not str:
+            raise TypeError("replacement cleanup error must be an exact string")
+        if self.state is ConfinedReplaceStateV1.APPLIED_DURABLE:
+            if self.reason:
+                raise ValueError("durable replacement cannot carry a refusal reason")
+        elif not self.reason:
+            raise ValueError("non-durable replacement states require a reason")
+
+
+def _replace_not_applied_v1(reason: str) -> ConfinedReplaceResultV1:
+    return ConfinedReplaceResultV1(ConfinedReplaceStateV1.NOT_APPLIED, reason)
+
+
+def _replace_durability_unknown_v1(reason: str) -> ConfinedReplaceResultV1:
+    return ConfinedReplaceResultV1(
+        ConfinedReplaceStateV1.APPLIED_DURABILITY_UNKNOWN, reason
+    )
+
+
+def _replacement_finding_v1(
+    result: ConfinedReplaceResultV1, relative: Path
+) -> PlanFinding | None:
+    """Exhaustively map every shell linearization state into checker semantics."""
+
+    if result.state is ConfinedReplaceStateV1.NOT_APPLIED:
+        return PlanFinding(
+            "plan_artifact_write_refused", relative.as_posix(), result.reason
+        )
+    if result.state is ConfinedReplaceStateV1.APPLIED_DURABILITY_UNKNOWN:
+        return PlanFinding(
+            "plan_artifact_write_durability_unknown",
+            relative.as_posix(),
+            result.reason,
+        )
+    if result.state is ConfinedReplaceStateV1.APPLIED_DURABLE:
+        if result.cleanup_error:
+            return PlanFinding(
+                "plan_artifact_write_cleanup_unknown",
+                relative.as_posix(),
+                result.cleanup_error,
+            )
+        return None
+    return assert_never(result.state)  # type: ignore[unreachable]
+
+
+def _target_matches_after_rename_fault_v1(
+    owner: _OwnedDescriptorsV1,
+    directory: int,
+    name: str,
+    expected: bytes,
+) -> bool | None:
+    """Observe exact target bytes after an interrupted rename attempt."""
+
+    try:
+        descriptor = owner.acquire(
+            1,
+            lambda: os.open(
+                name, os.O_RDONLY | _FILE_FLAGS, dir_fd=directory
+            ),
+        )
+        observed = _read_descriptor(descriptor, len(expected)).data
+        owner.release(1)
+    except FileNotFoundError:
+        return False
+    except BaseException:
+        return None
+    return observed == expected
+
+
+def replace_confined_file_v1(
+    root: RootLike, relative: Path, data: bytes
+) -> ConfinedReplaceResultV1:
+    """Atomically replace a regular file and report its exact linearization state.
 
     The new bytes are written to a fresh ``O_EXCL`` temporary entry in the
     same confined directory and renamed over the target; rename never follows
@@ -1058,54 +1170,95 @@ def replace_confined_file_v1(root: RootLike, relative: Path, data: bytes) -> str
 
     parts = _confined_parts(relative)
     if parts is None:
-        return f"{relative.as_posix()} is not a canonical repository-relative path"
+        return _replace_not_applied_v1(
+            f"{relative.as_posix()} is not a canonical repository-relative path"
+        )
+    if type(data) is not bytes:
+        return _replace_not_applied_v1("replacement data must be exact bytes")
     name = parts[-1]
     temporary = f".{name}.{os.getpid()}.tmp"
+    owner = _OwnedDescriptorsV1(2)
     try:
         with _UseRoot(root) as bound:
-            directory = bound.anchored.walk(parts)
+            directory = owner.acquire(0, lambda: bound.anchored.walk(parts))
     except (OSError, PlanUnreadable) as exc:
-        return _refusal(relative, exc)
+        owner.close_preserving_primary()
+        return _replace_not_applied_v1(_refusal(relative, exc))
+    rename_started = False
+    renamed = False
     try:
         try:
             existing = os.stat(name, dir_fd=directory, follow_symlinks=False)
         except FileNotFoundError:
             existing = None
         if existing is not None and not stat.S_ISREG(existing.st_mode):
-            return f"{relative.as_posix()} is not a regular file"
-        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | _FILE_FLAGS, 0o644, dir_fd=directory)
-        try:
-            view = memoryview(data)
-            while view:
-                written = os.write(descriptor, view)
-                view = view[written:]
-            os.fsync(descriptor)
-        finally:
-            os.close(descriptor)
+            owner.close_preserving_primary()
+            return _replace_not_applied_v1(
+                f"{relative.as_posix()} is not a regular file"
+            )
+        descriptor = owner.acquire(
+            1,
+            lambda: os.open(
+                temporary,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | _FILE_FLAGS,
+                0o644,
+                dir_fd=directory,
+            ),
+        )
+        view = memoryview(data)
+        while view:
+            written = os.write(descriptor, view)
+            if written <= 0:
+                raise OSError("replacement write made no progress")
+            view = view[written:]
+        os.fsync(descriptor)
+        owner.release(1)
+        rename_started = True
         os.rename(temporary, name, src_dir_fd=directory, dst_dir_fd=directory)
+        renamed = True
         os.fsync(directory)
-        return ""
-    except OSError as exc:
-        try:
-            os.unlink(temporary, dir_fd=directory)
-        except OSError:
-            pass
-        return f"cannot replace {relative.as_posix()}: {type(exc).__name__}"
-    finally:
-        os.close(directory)
+    except BaseException as exc:
+        target_match: bool | None = None
+        if rename_started and not renamed:
+            target_match = _target_matches_after_rename_fault_v1(
+                owner, directory, name, data
+            )
+        if not renamed and target_match is not True:
+            try:
+                os.unlink(temporary, dir_fd=directory)
+            except OSError:
+                pass
+        owner.close_preserving_primary()
+        if not isinstance(exc, OSError):
+            raise
+        reason = f"cannot replace {relative.as_posix()}: {type(exc).__name__}"
+        if renamed or target_match is True or (rename_started and target_match is None):
+            return _replace_durability_unknown_v1(reason)
+        return _replace_not_applied_v1(reason)
+    cleanup_error = owner.close_preserving_primary()
+    if cleanup_error is not None:
+        return ConfinedReplaceResultV1(
+            ConfinedReplaceStateV1.APPLIED_DURABLE,
+            "",
+            f"descriptor cleanup failed: {type(cleanup_error).__name__}",
+        )
+    return ConfinedReplaceResultV1(ConfinedReplaceStateV1.APPLIED_DURABLE, "")
 
 
 def _confined_stat(root: ConfinedRootV1, relative: Path) -> os.stat_result | None:
     """Stat of the entry itself (no symlink followed anywhere) through the bound root, or ``None``."""
 
+    owner = _OwnedDescriptorsV1(1)
     try:
-        descriptor = _open_confined(root, relative, os.O_PATH)
+        descriptor = owner.acquire(
+            0, lambda: _open_confined(root, relative, os.O_PATH)
+        )
     except (OSError, ValueError):
         return None
     try:
         return os.fstat(descriptor)
     finally:
-        os.close(descriptor)
+        owner.close_preserving_primary()
 
 
 def _is_regular_file(root: ConfinedRootV1, relative: str) -> bool:
@@ -2647,6 +2800,24 @@ def _markdown_size_refusal_v1(observed_bytes: int) -> PlanFinding:
     )
 
 
+def _public_markdown_preflight_finding_v1(markdown: str | None) -> PlanFinding | None:
+    """Strict UTF-8 byte bound for caller Markdown before root or Git effects."""
+
+    if markdown is None:
+        return None
+    try:
+        observed = len(markdown.encode("utf-8", errors="strict"))
+    except UnicodeEncodeError as exc:
+        return PlanFinding(
+            "plan_markdown_encoding_refused",
+            PLAN_MARKDOWN_PATH.as_posix(),
+            f"strict UTF-8 required: {type(exc).__name__}",
+        )
+    if observed > MAX_PLAN_MARKDOWN_BYTES:
+        return _markdown_size_refusal_v1(observed)
+    return None
+
+
 def _render_bounded_generated_markdown_v1(
     plan: Mapping[str, Any],
 ) -> tuple[bytes | None, PlanFinding | None]:
@@ -2872,6 +3043,9 @@ def validate_plan_v1(
                 f"expected an exact string or None, received {type(markdown).__name__}",
             )
         ]
+    markdown_finding = _public_markdown_preflight_finding_v1(markdown)
+    if markdown_finding is not None:
+        return [markdown_finding]
     preflight, preflight_findings = _pure_plan_preflight_v1(owned_plan, checked_profile)
     if preflight is None:
         return preflight_findings
@@ -3009,11 +3183,15 @@ def close_live_gate_effects_v1(effects: Iterable[LiveGateEffectV1]) -> None:
         raise pending
 
 
-def _close_effect_sources_v1(effects: Iterable[LiveGateEffectV1]) -> None:
+def _close_effect_sources_v1(
+    effects: Iterable[LiveGateEffectV1 | None],
+) -> None:
     """Close checker/supervisor snapshots while leaving a caller-owned context open."""
 
     pending: BaseException | None = None
     for effect in effects:
+        if effect is None:
+            continue
         try:
             effect.close()
         except BaseException as exc:
@@ -3089,36 +3267,43 @@ def _gate_effect(
                 f"{type(exc).__name__}: {exc}",
             )
         ]
+    checker: AnchoredFileV1 | None = None
+    supervisor: SupervisorCodeV1 | None = None
     try:
-        checker = root.anchored.open_file(spec.checker_path)
-    except OSError as exc:
-        return None, [PlanFinding("live_gate_checker_missing", spec.gate_id, f"{spec.checker_path}: {exc}")]
-    if checker.sha256 != gate["checker_sha256"]:
-        return None, [
-            PlanFinding("live_gate_checker_hash_drift", spec.gate_id, spec.checker_path),
-            *_close_untransferred_gate_sources_v1(
-                checker, None, subject=spec.gate_id
-            ),
-        ]
-    try:
-        supervisor = bind_supervisor_code_v1(root.anchored)
-    except OSError as exc:
-        return None, [
-            PlanFinding(
-                "live_gate_supervisor_binding_refused",
-                spec.gate_id,
-                f"{type(exc).__name__}: {exc}",
-            ),
-            *_close_untransferred_gate_sources_v1(
-                checker, None, subject=spec.gate_id
-            ),
-        ]
-    except BaseException:
-        _close_untransferred_gate_sources_v1(
-            checker, None, subject=spec.gate_id
-        )
-        raise
-    try:
+        try:
+            checker = root.anchored.open_file(spec.checker_path)
+        except OSError as exc:
+            return None, [
+                PlanFinding(
+                    "live_gate_checker_missing",
+                    spec.gate_id,
+                    f"{spec.checker_path}: {exc}",
+                )
+            ]
+        if checker.sha256 != gate["checker_sha256"]:
+            return None, [
+                PlanFinding(
+                    "live_gate_checker_hash_drift",
+                    spec.gate_id,
+                    spec.checker_path,
+                ),
+                *_close_untransferred_gate_sources_v1(
+                    checker, None, subject=spec.gate_id
+                ),
+            ]
+        try:
+            supervisor = bind_supervisor_code_v1(root.anchored)
+        except OSError as exc:
+            return None, [
+                PlanFinding(
+                    "live_gate_supervisor_binding_refused",
+                    spec.gate_id,
+                    f"{type(exc).__name__}: {exc}",
+                ),
+                *_close_untransferred_gate_sources_v1(
+                    checker, None, subject=spec.gate_id
+                ),
+            ]
         return LiveGateEffectV1(
             spec,
             int(gate["exit_code"]),
@@ -3206,42 +3391,38 @@ def _bind_execution_context_v1(
     ]
     if head is None or findings:
         return None, findings
-    artifacts, binding_findings = bind_plan_artifacts_v1(
-        root.anchored, head
-    )
-    if artifacts is None:
-        return None, _artifact_binding_plan_findings_v1(binding_findings)
+    artifacts: BoundPlanArtifactsV1 | None = None
+    context: ExecutionContextV1 | None = None
     try:
+        artifacts, binding_findings = bind_plan_artifacts_v1(root.anchored, head)
+        if artifacts is None:
+            return None, _artifact_binding_plan_findings_v1(binding_findings)
         context = ExecutionContextV1(root, head, artifacts)
-    except BaseException:
-        try:
-            artifacts.close()
-        except BaseException:
-            pass
-        raise
-    try:
         findings = _bound_execution_context_findings(
             context, root, subject=subject
         )
+        if findings:
+            try:
+                context.close()
+            except BaseException as exc:
+                findings.append(
+                    PlanFinding(
+                        "plan_artifact_cleanup_refused",
+                        "plan_artifacts",
+                        f"{type(exc).__name__}: {exc}",
+                    )
+                )
+            return None, findings
+        return context, []
     except BaseException:
         try:
-            context.close()
+            if context is not None:
+                context.close()
+            elif artifacts is not None:
+                artifacts.close()
         except BaseException:
             pass
         raise
-    if findings:
-        try:
-            context.close()
-        except BaseException as exc:
-            findings.append(
-                PlanFinding(
-                    "plan_artifact_cleanup_refused",
-                    "plan_artifacts",
-                    f"{type(exc).__name__}: {exc}",
-                )
-            )
-        return None, findings
-    return context, []
 
 
 def _artifact_binding_plan_findings_v1(
@@ -3301,7 +3482,7 @@ def _observe_anchored(
 
 
 def _discard_failed_effect_plan_v1(
-    effects: Iterable[LiveGateEffectV1],
+    effects: Iterable[LiveGateEffectV1 | None],
     context: ExecutionContextV1,
     *,
     owns_context: bool,
@@ -3334,7 +3515,7 @@ def _discard_failed_effect_plan_v1(
 
 
 def _discard_failed_effect_plan_preserving_primary_v1(
-    effects: Iterable[LiveGateEffectV1],
+    effects: Iterable[LiveGateEffectV1 | None],
     context: ExecutionContextV1,
     *,
     owns_context: bool,
@@ -3369,43 +3550,44 @@ def _plan_effects(
         )
     if not isinstance(root, ConfinedRootV1) or not root.is_open:
         return (), [PlanFinding("root_unavailable", "root", "effects require an open persistent root capability")]
+    effect_slots: list[LiveGateEffectV1 | None] = [None] * len(owned_gates)  # effects: list[LiveGateEffectV1] = []
     owns_context = context is None
-    if context is None:
-        context, findings = _bind_execution_context_v1(
-            root, subject="live_gates"
-        )
-    else:
-        findings = _bound_execution_context_findings(
-            context, root, subject="live_gates"
-        )
-    if context is None:
-        return (), findings
-    if findings:
-        findings.extend(
-            _discard_failed_effect_plan_v1(
-                (), context, owns_context=owns_context
-            )
-        )
-        return (), findings
-    effects: list[LiveGateEffectV1] = []
+    acquired_context: ExecutionContextV1 | None = context
     try:
+        if acquired_context is None:
+            acquired_context, findings = _bind_execution_context_v1(
+                root, subject="live_gates"
+            )
+        else:
+            findings = _bound_execution_context_findings(
+                acquired_context, root, subject="live_gates"
+            )
+        if acquired_context is None:
+            return (), findings
+        if findings:
+            findings.extend(
+                _discard_failed_effect_plan_v1(
+                    (), acquired_context, owns_context=owns_context
+                )
+            )
+            return (), findings
         snapshot, findings = source_snapshot_v1(root)
         if snapshot is None:
             findings.extend(
                 _discard_failed_effect_plan_v1(
-                    effects, context, owns_context=owns_context
+                    effect_slots, acquired_context, owns_context=owns_context
                 )
             )
             return (), findings
         findings.extend(
             _bound_execution_context_findings(
-                context, root, subject="live_gates"
+                acquired_context, root, subject="live_gates"
             )
         )
         if findings:
             findings.extend(
                 _discard_failed_effect_plan_v1(
-                    effects, context, owns_context=owns_context
+                    effect_slots, acquired_context, owns_context=owns_context
                 )
             )
             return (), findings
@@ -3415,30 +3597,37 @@ def _plan_effects(
                 label=f"live_gates[{index}]",
                 root=root,
                 snapshot=snapshot.sha256,
-                context=context,
+                context=acquired_context,
             )
             findings.extend(row_findings)
             if effect is not None:
-                effects.append(effect)
+                effect_slots[index] = effect
         if require_registry_set:
             findings.extend(_registry_set_findings(owned_gates))
         findings.extend(
             _bound_execution_context_findings(
-                context, root, subject="live_gates"
+                acquired_context, root, subject="live_gates"
             )
         )
         if findings:
             findings.extend(
                 _discard_failed_effect_plan_v1(
-                    effects, context, owns_context=owns_context
+                    effect_slots, acquired_context, owns_context=owns_context
                 )
             )
             return (), findings
-        return tuple(effects), []
+        if any(effect is None for effect in effect_slots):
+            raise RuntimeError(
+                "accepted live-gate plan has an incomplete effect aggregate"
+            )
+        return cast(tuple[LiveGateEffectV1, ...], tuple(effect_slots)), []
     except BaseException:
-        _discard_failed_effect_plan_preserving_primary_v1(
-            effects, context, owns_context=owns_context
-        )
+        if acquired_context is not None:
+            _discard_failed_effect_plan_preserving_primary_v1(
+                effect_slots,
+                acquired_context,
+                owns_context=owns_context,
+            )
         raise
 
 
@@ -3903,27 +4092,31 @@ def _refresh_with_root(
     planned, snapshot_findings = source_snapshot_v1(bound_root)
     if planned is None:
         return snapshot_findings
+    supervisor: SupervisorCodeV1 | None = None
     try:
-        supervisor = bind_supervisor_code_v1(bound_root.anchored)
-    except OSError as exc:
-        return [
-            PlanFinding(
-                "live_gate_supervisor_binding_refused",
-                "refresh",
-                f"{type(exc).__name__}: {exc}",
-            )
-        ]
-    try:
+        try:
+            supervisor = bind_supervisor_code_v1(bound_root.anchored)
+        except OSError as exc:
+            return [
+                PlanFinding(
+                    "live_gate_supervisor_binding_refused",
+                    "refresh",
+                    f"{type(exc).__name__}: {exc}",
+                )
+            ]
         for gate, spec in bound:
+            checker: AnchoredFileV1 | None = None
             try:
                 checker = bound_root.anchored.open_file(spec.checker_path)
             except OSError as exc:
                 findings.append(PlanFinding("live_gate_checker_missing", spec.gate_id, f"{spec.checker_path}: {exc}"))
                 continue
-            with checker:
+            try:
                 observation, refusal = _observe_anchored(
                     spec, bound_root, checker, supervisor
                 )
+            finally:
+                checker.close()
             current, current_findings = source_snapshot_v1(bound_root)
             if current is None or current.sha256 != planned.sha256:
                 findings.extend(current_findings or [PlanFinding("live_gate_effect_snapshot_drift", spec.gate_id, "source snapshot changed during observation; observation refused")])
@@ -3933,7 +4126,8 @@ def _refresh_with_root(
                 continue
             gate.update({"checker_sha256": checker.sha256, "exit_code": observation.exit_code, "observed": observation.observed})
     finally:
-        supervisor.close()
+        if supervisor is not None:
+            supervisor.close()
     findings.extend(_repin_evidence(refreshed, bound_root, repin))
     findings.extend(_refresh_subject(refreshed, bound_root, observed_at))
     return findings
@@ -3994,8 +4188,13 @@ def write_markdown_v1(root: RootLike, plan: Mapping[str, Any]) -> list[PlanFindi
                         "bounded composition returned no bytes",
                     )
                 ]
-            refusal = replace_confined_file_v1(bound, PLAN_MARKDOWN_PATH, rendered)
-            return [PlanFinding("plan_artifact_write_refused", PLAN_MARKDOWN_PATH.as_posix(), refusal)] if refusal else []
+            replacement = replace_confined_file_v1(
+                bound, PLAN_MARKDOWN_PATH, rendered
+            )
+            replacement_finding = _replacement_finding_v1(
+                replacement, PLAN_MARKDOWN_PATH
+            )
+            return [replacement_finding] if replacement_finding is not None else []
     except RootUnavailable as exc:
         return _root_unavailable(exc)
 
@@ -4296,19 +4495,20 @@ def check_whole_program_plan_v1(root: RootLike = REPO_ROOT, *, mode: PlanCheckMo
         )
     try:
         with _UseRoot(root) as bound:
-            context, findings = _bind_execution_context_v1(
-                bound, subject="whole_program_plan"
-            )
-            if context is None:
-                _raise_if_plan_artifacts_unreadable_v1(bound)
-                return _validated_plan_report_v1(
-                    {},
-                    findings,
-                    executed=0,
-                    profile=ORDINARY_VALIDATION_PROFILE_V1,
-                    mode=checked_mode,
-                )
+            context: ExecutionContextV1 | None = None
             try:
+                context, findings = _bind_execution_context_v1(
+                    bound, subject="whole_program_plan"
+                )
+                if context is None:
+                    _raise_if_plan_artifacts_unreadable_v1(bound)
+                    return _validated_plan_report_v1(
+                        {},
+                        findings,
+                        executed=0,
+                        profile=ORDINARY_VALIDATION_PROFILE_V1,
+                        mode=checked_mode,
+                    )
                 plan, findings, executed = _ordinary_context_result_v1(
                     bound, context, checked_mode
                 )
@@ -4320,7 +4520,8 @@ def check_whole_program_plan_v1(root: RootLike = REPO_ROOT, *, mode: PlanCheckMo
                     mode=checked_mode,
                 )
             finally:
-                context.close()
+                if context is not None:
+                    context.close()
     except PlanUnreadable as exc:
         return _validated_plan_report_v1(
             {},
@@ -4406,15 +4607,18 @@ def _run_refresh(root: RootLike, observed_at: str | None, repin: Sequence[str]) 
             profile=PlanValidationProfileV1.pre_regeneration(),
             mode=PlanCheckModeV1.STRUCTURAL,
         )
-    refusal = replace_confined_file_v1(root, PLAN_JSON_PATH, canonical_plan_json_v1(refreshed).encode("utf-8"))
-    return (
-        _failure(
-            [PlanFinding("plan_artifact_write_refused", PLAN_JSON_PATH.as_posix(), refusal)],
-            profile=PlanValidationProfileV1.pre_regeneration(),
-            mode=PlanCheckModeV1.STRUCTURAL,
-        )
-        if refusal
-        else 0
+    replacement = replace_confined_file_v1(
+        root,
+        PLAN_JSON_PATH,
+        canonical_plan_json_v1(refreshed).encode("utf-8"),
+    )
+    replacement_finding = _replacement_finding_v1(replacement, PLAN_JSON_PATH)
+    if replacement_finding is None:
+        return 0
+    return _failure(
+        [replacement_finding],
+        profile=PlanValidationProfileV1.pre_regeneration(),
+        mode=PlanCheckModeV1.STRUCTURAL,
     )
 
 
