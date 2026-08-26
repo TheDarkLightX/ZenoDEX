@@ -15,6 +15,7 @@ from typing import Any
 import pytest
 
 import tools.check_whole_program_plan_v1 as checker_module
+import tools.whole_program_artifact_binding_v1 as artifact_binding_module
 from tools.check_whole_program_plan_v1 import (
     GENERATED_BEGIN,
     GENERATED_END,
@@ -50,6 +51,7 @@ from tools.check_whole_program_plan_v1 import (
 from tools.live_gate_registry_v1 import (
     LIVE_GATE_REGISTRY,
     PROCESS_ENVIRONMENT_BASE,
+    AnchoredDirectoryV1,
     AnchorRefused,
     LiveGateObservationV1,
     ProcessBoundsV1,
@@ -76,6 +78,42 @@ def _git(repo: Path, *args: str) -> str:
         ["/usr/bin/git", *args], cwd=repo, env=GIT_ENV, check=True, capture_output=True, text=True
     )
     return result.stdout.strip()
+
+
+def _replace_aware_git(repo: Path, *args: str) -> str:
+    """Run fixture Git with replacement refs enabled to construct an adversarial repository."""
+
+    environment = dict(GIT_ENV)
+    environment.pop("GIT_NO_REPLACE_OBJECTS", None)
+    result = subprocess.run(
+        ["/usr/bin/git", *args], cwd=repo, env=environment, check=True, capture_output=True, text=True
+    )
+    return result.stdout.strip()
+
+
+def _clone_complete_subject(tmp_path: Path, name: str = "subject") -> Path:
+    """Create a clean disposable complete subject from the committed test root."""
+
+    root = tmp_path / name
+    subprocess.run(
+        ["/usr/bin/git", "clone", "-q", "--no-hardlinks", str(ROOT), str(root)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return root
+
+
+def _replacement_commit_for_head(repo: Path, raw_head: str, message: str) -> str:
+    """Build a replacement commit with the raw subject's parent, avoiding a replacement-parent cycle."""
+
+    replacement_tree = _git(repo, "write-tree")
+    parents = tuple(part for part in _git(repo, "show", "-s", "--format=%P", raw_head).split() if part)
+    args = ["commit-tree", replacement_tree]
+    for parent in parents:
+        args.extend(("-p", parent))
+    args.extend(("-m", message))
+    return _git(repo, *args)
 
 
 def _plan() -> dict[str, Any]:
@@ -766,8 +804,8 @@ def test_transient_plan_artifact_rewrite_restore_refuses_before_observation(
         (root / PLAN_JSON_PATH).write_bytes(original_json)
         (root / PLAN_MARKDOWN_PATH).write_bytes(original_markdown)
 
-    # Assert: exact HEAD-blob binding rejects both transient artifact snapshots
-    # before any observer call and leaves the tracked worktree clean.
+    # Assert: both the restored source descriptor and the exact HEAD blob reject
+    # the transient artifact snapshots before any observer call.
     findings = report["findings"]
     assert isinstance(findings, list)
     assert report["ok"] is False and report["executed_live_gates"] == 0
@@ -775,7 +813,8 @@ def test_transient_plan_artifact_rewrite_restore_refuses_before_observation(
     assert opened == [PLAN_JSON_PATH.as_posix(), PLAN_MARKDOWN_PATH.as_posix()]
     assert len(os.listdir("/proc/self/fd")) == fd_count_before
     assert {item["rule_id"] for item in findings} == {
-        "plan_artifact_head_blob_mismatch"
+        "plan_artifact_head_blob_mismatch",
+        "plan_artifact_source_drift",
     }
     assert {item["subject"] for item in findings} == {
         PLAN_JSON_PATH.as_posix(),
@@ -802,6 +841,154 @@ def test_validation_profiles_are_closed_and_cleanliness_is_never_caller_selected
     assert "cleanliness" not in inspect.signature(check_whole_program_plan_v1).parameters
     assert "cleanliness" not in inspect.signature(validate_plan_v1).parameters
     assert main(["--root", str(ROOT), "--render", "--execute"]) == 2
+
+
+class _ForgedValidationProfile:
+    """Duck-typed profile used to prove the public validator requires its exact value type."""
+
+    kind = PlanValidationKindV1.ORDINARY
+    repin_tasks = frozenset()
+    cleanliness = CleanlinessScopeV1.FULL
+    compares_regenerable = False
+
+
+@pytest.mark.parametrize("mode", ("execute", True, object()), ids=("string", "bool", "object"))
+def test_public_check_rejects_nonenum_mode_before_any_observer(
+    mode: object, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange: every observer raises if wrong-mode input reaches execution.
+    observer_calls: list[object] = []
+
+    def forbidden_observer(*args: object, **_kwargs: object) -> object:
+        observer_calls.append(args)
+        raise AssertionError("an invalid check mode must refuse before any observer")
+
+    monkeypatch.setattr(checker_module, "observe_live_gate_v1", forbidden_observer)
+
+    # Act
+    report = check_whole_program_plan_v1(_clone_complete_subject(tmp_path), mode=mode)  # type: ignore[arg-type]
+
+    # Assert: a string, Boolean alias, and arbitrary object are not structural mode fallbacks.
+    assert report["ok"] is False
+    assert report["executed_live_gates"] == 0
+    assert observer_calls == []
+    assert [finding["rule_id"] for finding in report["findings"]] == [
+        "plan_check_mode_invalid"
+    ]
+    assert report["requested_check_mode"] == "invalid"
+    assert report["accepted_check_mode"] == "none"
+    assert report["authority"] == {
+        "claim_authority": "NONE",
+        "production_authority": "NONE",
+        "production_ready": False,
+        "release_ready": False,
+    }
+
+
+def test_public_profile_boundaries_refuse_a_duck_typed_profile_and_normalize_the_report(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    forged = _ForgedValidationProfile()
+    root = _clone_complete_subject(tmp_path)
+    plan = dict(load_plan_v1(root))
+
+    # Act
+    validation_findings = validate_plan_v1(
+        plan, root=root, markdown=(root / PLAN_MARKDOWN_PATH).read_text(encoding="utf-8"), profile=forged  # type: ignore[arg-type]
+    )
+    report = plan_report_v1(
+        plan, [], executed=11, profile=forged, mode="execute"  # type: ignore[arg-type]
+    )
+
+    # Assert: no public boundary may accept a profile merely because it exposes matching attributes.
+    assert [finding.rule_id for finding in validation_findings] == [
+        "validation_profile_invalid"
+    ]
+    assert report["ok"] is False and report["executed_live_gates"] == 0
+    assert {finding["rule_id"] for finding in report["findings"]} == {
+        "plan_check_mode_invalid",
+        "validation_profile_invalid",
+    }
+    assert report["requested_check_mode"] == "invalid"
+    assert report["accepted_check_mode"] == "none"
+    assert report["authority"]["production_authority"] == "NONE"
+
+
+def test_closed_report_refuses_an_unaccepted_mode_without_observers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: a direct public constructor call must not turn an explicit refusal into a green report.
+    observer_calls: list[object] = []
+
+    def forbidden_observer(*args: object, **_kwargs: object) -> object:
+        observer_calls.append(args)
+        raise AssertionError("closed report construction must never observe live gates")
+
+    monkeypatch.setattr(checker_module, "observe_live_gate_v1", forbidden_observer)
+
+    # Act
+    report = plan_report_v1(
+        {},
+        [],
+        executed=0,
+        profile=ORDINARY_VALIDATION_PROFILE_V1,
+        mode=PlanCheckModeV1.STRUCTURAL,
+        mode_accepted=False,
+    )
+
+    # Assert: the refused mode is an explicit typed failure, with no claimed execution or authority.
+    assert report["ok"] is False
+    assert report["accepted_check_mode"] == "none"
+    assert report["executed_live_gates"] == 0
+    assert [finding["rule_id"] for finding in report["findings"]] == [
+        "report_mode_not_accepted"
+    ]
+    assert observer_calls == []
+    assert report["authority"] == {
+        "claim_authority": "NONE",
+        "production_authority": "NONE",
+        "production_ready": False,
+        "release_ready": False,
+    }
+
+
+@pytest.mark.parametrize(
+    "executed",
+    (len(LIVE_GATE_REGISTRY) - 1, len(LIVE_GATE_REGISTRY) + 1),
+    ids=("too_few", "too_many"),
+)
+def test_closed_report_refuses_accepted_execute_with_nonexact_observer_count(
+    executed: int,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: a direct report constructor has no observation capability of its own.
+    observer_calls: list[object] = []
+
+    def forbidden_observer(*args: object, **_kwargs: object) -> object:
+        observer_calls.append(args)
+        raise AssertionError("closed report construction must never observe live gates")
+
+    monkeypatch.setattr(checker_module, "observe_live_gate_v1", forbidden_observer)
+
+    # Act
+    report = plan_report_v1(
+        {},
+        [],
+        executed=executed,
+        profile=ORDINARY_VALIDATION_PROFILE_V1,
+        mode=PlanCheckModeV1.EXECUTE,
+    )
+
+    # Assert: an otherwise green execute report must bind the exact registry cardinality.
+    assert report["ok"] is False
+    assert report["accepted_check_mode"] == PlanCheckModeV1.EXECUTE.value
+    assert report["executed_live_gates"] == 0
+    assert [finding["rule_id"] for finding in report["findings"]] == [
+        "report_execute_observer_count_invalid"
+    ]
+    assert observer_calls == []
+    assert report["authority"]["production_authority"] == "NONE"
 
 
 def _synthetic_repository(tmp_path: Path) -> tuple[Path, str]:
@@ -937,6 +1124,37 @@ def test_main_reports_valid_plan_with_exit_zero(capsys: pytest.CaptureFixture[st
     assert report["authority"]["production_authority"] == "NONE"
 
 
+@pytest.mark.parametrize(
+    "argv",
+    (
+        ("--render", "--execute", "--json"),
+        ("--refresh", "--json"),
+        ("--unknown-argument", "--json"),
+    ),
+    ids=("regeneration_execute_conflict", "missing_observed_at", "argparse_usage_error"),
+)
+def test_every_cli_failure_uses_one_closed_authority_report(
+    argv: tuple[str, ...], capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Act
+    code = main(["--root", str(ROOT), *argv])
+    report = json.loads(capsys.readouterr().out)
+
+    # Assert: invocation, refresh, and parser failures retain the complete report boundary.
+    assert code == 2
+    assert report["ok"] is False and isinstance(report["error"], str) and report["error"]
+    assert report["executed_live_gates"] == 0
+    assert report["accepted_check_mode"] == "none"
+    assert report["authority"] == {
+        "claim_authority": "NONE",
+        "production_authority": "NONE",
+        "production_ready": False,
+        "release_ready": False,
+    }
+    assert report["schema"] == checker_module.CHECK_SCHEMA_V1
+    assert all(set(finding) == {"rule_id", "subject", "evidence"} for finding in report["findings"])
+
+
 def _refuse_gate_execution(*_args: object, **_kwargs: object) -> object:
     raise AssertionError("a registry gate executed before the plan was completely validated")
 
@@ -983,24 +1201,28 @@ ENTRYPOINTS: tuple[tuple[str, list[str]], ...] = (
 )
 
 
-def _entrypoint_attempts(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> list[tuple[str, int, dict[str, Any]]]:
-    """Run the ordinary check, ``--render``, and ``--refresh`` on the real root; return (entrypoint, exit code, report)."""
+def _entrypoint_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    root: Path,
+) -> list[tuple[str, int, dict[str, Any]]]:
+    """Run each entrypoint against one disposable subject; return (entrypoint, exit code, report)."""
 
     monkeypatch.setattr(checker_module, "observe_live_gate_v1", _refuse_gate_execution)
     attempts: list[tuple[str, int, dict[str, Any]]] = []
     for name, argv in ENTRYPOINTS:
-        code = main(["--root", str(ROOT), *argv])
+        code = main(["--root", str(root), *argv])
         attempts.append((name, code, json.loads(capsys.readouterr().out)))
     return attempts
 
 
-def _artifact_bytes() -> tuple[bytes, bytes]:
-    return (ROOT / PLAN_JSON_PATH).read_bytes(), (ROOT / PLAN_MARKDOWN_PATH).read_bytes()
+def _artifact_bytes(root: Path) -> tuple[bytes, bytes]:
+    return (root / PLAN_JSON_PATH).read_bytes(), (root / PLAN_MARKDOWN_PATH).read_bytes()
 
 
-def _restore_artifacts(original_json: bytes, original_markdown: bytes) -> None:
+def _restore_artifacts(root: Path, original_json: bytes, original_markdown: bytes) -> None:
     for relative, data in ((PLAN_JSON_PATH, original_json), (PLAN_MARKDOWN_PATH, original_markdown)):
-        path = ROOT / relative
+        path = root / relative
         if path.is_symlink() or (path.exists() and not path.is_file()) or path.is_file():
             path.unlink() if not path.is_dir() else path.rmdir()
         path.write_bytes(data)
@@ -1008,22 +1230,23 @@ def _restore_artifacts(original_json: bytes, original_markdown: bytes) -> None:
 
 @pytest.mark.parametrize("mutation", sorted(MALFORMED_PLAN_MUTATIONS))
 def test_every_entrypoint_rejects_malformed_plan_before_any_gate_or_write(
-    mutation: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    mutation: str, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    # Arrange: the tracked plan is syntactically valid JSON whose structure or scalar types are malformed.
-    plan = _plan()
+    # Arrange: mutate only a disposable subject, so a process kill cannot leave the review candidate dirty.
+    root = _clone_complete_subject(tmp_path)
+    plan = dict(load_plan_v1(root))
     MALFORMED_PLAN_MUTATIONS[mutation](plan)
-    original_json, original_markdown = _artifact_bytes()
+    original_json, original_markdown = _artifact_bytes(root)
     malformed = canonical_plan_json_v1(plan).encode("utf-8")
     assert malformed != original_json
     try:
-        (ROOT / PLAN_JSON_PATH).write_bytes(malformed)
+        (root / PLAN_JSON_PATH).write_bytes(malformed)
 
         # Act: ordinary check plus both regeneration entrypoints, with every registry gate refusing to execute.
-        attempts = _entrypoint_attempts(monkeypatch, capsys)
-        json_after, markdown_after = _artifact_bytes()
+        attempts = _entrypoint_attempts(monkeypatch, capsys, root)
+        json_after, markdown_after = _artifact_bytes(root)
     finally:
-        _restore_artifacts(original_json, original_markdown)
+        _restore_artifacts(root, original_json, original_markdown)
 
     # Assert: typed nonzero findings, no raw exception, no execution evidence, and both artifacts byte-identical.
     for name, code, report in attempts:
@@ -1034,48 +1257,53 @@ def test_every_entrypoint_rejects_malformed_plan_before_any_gate_or_write(
             assert finding["rule_id"] and finding["rule_id"] == finding["rule_id"].lower(), name
         assert not any(f["rule_id"] in EXECUTION_EVIDENCE_RULES for f in report["findings"]), name
     assert json_after == malformed and markdown_after == original_markdown
+    assert scoped_worktree_dirty_paths_v1(root, CleanlinessScopeV1.FULL) == []
 
 
 @pytest.mark.parametrize("payload", [b"[]\n", b'{"schema": ', b"null\n"], ids=["list_root", "truncated", "null_root"])
 def test_every_entrypoint_reports_unreadable_plan_as_typed_error_without_writing(
-    payload: bytes, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    payload: bytes, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    # Arrange
-    original_json, original_markdown = _artifact_bytes()
+    # Arrange: unreadable-artifact cases use the same disposable-subject discipline.
+    root = _clone_complete_subject(tmp_path)
+    original_json, original_markdown = _artifact_bytes(root)
     try:
-        (ROOT / PLAN_JSON_PATH).write_bytes(payload)
+        (root / PLAN_JSON_PATH).write_bytes(payload)
 
         # Act
-        attempts = _entrypoint_attempts(monkeypatch, capsys)
-        json_after, markdown_after = _artifact_bytes()
+        attempts = _entrypoint_attempts(monkeypatch, capsys, root)
+        json_after, markdown_after = _artifact_bytes(root)
     finally:
-        _restore_artifacts(original_json, original_markdown)
+        _restore_artifacts(root, original_json, original_markdown)
 
     # Assert
     for name, code, report in attempts:
         assert code == 2 and report["ok"] is False and isinstance(report["error"], str) and report["error"], name
     assert json_after == payload and markdown_after == original_markdown
+    assert scoped_worktree_dirty_paths_v1(root, CleanlinessScopeV1.FULL) == []
 
 
 def test_invalid_utf8_markdown_is_a_typed_unreadable_error_on_every_entrypoint(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
 ) -> None:
-    # Arrange: the tracked markdown companion carries an invalid UTF-8 prefix.
-    original_json, original_markdown = _artifact_bytes()
+    # Arrange: the malformed companion lives only in a disposable subject.
+    root = _clone_complete_subject(tmp_path)
+    original_json, original_markdown = _artifact_bytes(root)
     hostile = b"\xff\xfe" + original_markdown
     try:
-        (ROOT / PLAN_MARKDOWN_PATH).write_bytes(hostile)
+        (root / PLAN_MARKDOWN_PATH).write_bytes(hostile)
 
         # Act
-        attempts = _entrypoint_attempts(monkeypatch, capsys)
-        json_after, markdown_after = _artifact_bytes()
+        attempts = _entrypoint_attempts(monkeypatch, capsys, root)
+        json_after, markdown_after = _artifact_bytes(root)
     finally:
-        _restore_artifacts(original_json, original_markdown)
+        _restore_artifacts(root, original_json, original_markdown)
 
     # Assert: exit 2 with a typed error naming UTF-8, never a raw UnicodeDecodeError, and no write.
     for name, code, report in attempts:
         assert code == 2 and report["ok"] is False and "UTF-8" in report["error"], name
     assert json_after == original_json and markdown_after == hostile
+    assert scoped_worktree_dirty_paths_v1(root, CleanlinessScopeV1.FULL) == []
 
 
 def _structural_paths(value: object) -> dict[tuple[str, ...], tuple[object, ...]]:
@@ -1127,30 +1355,32 @@ def test_every_plan_field_survives_list_and_object_mutants_with_typed_findings(m
 def test_symlinked_artifact_never_reads_or_writes_the_external_victim(
     artifact: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    # Arrange: the tracked artifact is replaced by a symlink to a victim outside the repository.
+    # Arrange: the symlink attack stays in a disposable subject and cannot leak into the review worktree.
+    root = _clone_complete_subject(tmp_path, "subject")
     victim = tmp_path / "victim.txt"
     victim.write_bytes(b"victim bytes\n")
-    original_json, original_markdown = _artifact_bytes()
-    dirty_before = scoped_worktree_dirty_paths_v1(ROOT, CleanlinessScopeV1.FULL)
+    original_json, original_markdown = _artifact_bytes(root)
+    dirty_before = scoped_worktree_dirty_paths_v1(root, CleanlinessScopeV1.FULL)
     assert dirty_before is not None and artifact.as_posix() not in dirty_before
-    path = ROOT / artifact
+    path = root / artifact
     path.unlink()
     os.symlink(victim, path)
     try:
         # Act
-        attempts = _entrypoint_attempts(monkeypatch, capsys)
+        attempts = _entrypoint_attempts(monkeypatch, capsys, root)
         still_symlink = path.is_symlink()
-        victim_after, tmp_entries = victim.read_bytes(), sorted(entry.name for entry in tmp_path.iterdir())
-        other_after = (ROOT / (PLAN_MARKDOWN_PATH if artifact == PLAN_JSON_PATH else PLAN_JSON_PATH)).read_bytes()
+        victim_after = victim.read_bytes()
+        temp_entries = sorted(entry.name for entry in tmp_path.iterdir() if entry.name != root.name)
+        other_after = (root / (PLAN_MARKDOWN_PATH if artifact == PLAN_JSON_PATH else PLAN_JSON_PATH)).read_bytes()
     finally:
-        _restore_artifacts(original_json, original_markdown)
+        _restore_artifacts(root, original_json, original_markdown)
 
     # Assert: typed exit 2 naming the symlink, victim untouched, no temporary entry, symlink not replaced.
     for name, code, report in attempts:
         assert code == 2 and report["ok"] is False and "symlink" in report["error"], name
-    assert still_symlink and victim_after == b"victim bytes\n" and tmp_entries == ["victim.txt"]
+    assert still_symlink and victim_after == b"victim bytes\n" and temp_entries == ["victim.txt"]
     assert other_after == (original_markdown if artifact == PLAN_JSON_PATH else original_json)
-    assert scoped_worktree_dirty_paths_v1(ROOT, CleanlinessScopeV1.FULL) == dirty_before
+    assert scoped_worktree_dirty_paths_v1(root, CleanlinessScopeV1.FULL) == dirty_before
 
 
 def test_artifact_checks_reject_committed_symlink_fifo_directory_and_device(tmp_path: Path) -> None:
@@ -2240,3 +2470,256 @@ def test_markdown_narrative_base_defect_range_must_end_at_the_highest_registered
     assert stale != _markdown()
     assert stale_rules == ["plan_markdown_narrative_stale_finding_range"]
     assert "plan_markdown_narrative_stale_finding_range" in registry_rules
+
+
+def test_bound_artifact_record_is_immutable_and_forced_byte_mutation_refuses_before_observation(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange: bind a real exact-HEAD context, then model same-process mutation through the documented non-unforgeability seam.
+    observer_calls: list[object] = []
+
+    def forbidden_observer(*args: object, **_kwargs: object) -> object:
+        observer_calls.append(args)
+        raise AssertionError("a mutated artifact context must refuse before observation")
+
+    monkeypatch.setattr(checker_module, "observe_live_gate_v1", forbidden_observer)
+    root = _clone_complete_subject(tmp_path)
+    with ConfinedRootV1.bind(root) as bound:
+        context, findings = checker_module._bind_execution_context_v1(
+            bound, subject="artifact_immutability"
+        )
+        assert context is not None and findings == []
+        artifact = context._artifacts.artifacts[0]
+        original_data = artifact.data
+        try:
+            # Act / Assert, construction boundary: normal mutation is unavailable.
+            with pytest.raises(dataclasses.FrozenInstanceError):
+                artifact.data = b"hostile"  # type: ignore[misc]
+
+            # Act, hostile same-process mutation: defensive revalidation still refuses without a gate call.
+            object.__setattr__(artifact, "data", b"hostile")
+            execution_findings, executed = checker_module._execute_live_gates_with_count_v1(
+                dict(load_plan_v1(root)), bound, context=context
+            )
+        finally:
+            object.__setattr__(artifact, "data", original_data)
+            context.close()
+
+    # Assert: the report never trusts a stale digest after the held data changes.
+    assert executed == 0 and observer_calls == []
+    assert "plan_artifact_data_digest_mismatch" in {
+        finding.rule_id for finding in execution_findings
+    }
+
+
+@pytest.mark.parametrize(
+    ("projection", "case"),
+    (
+        (lambda artifacts: artifacts[:1], "missing_markdown"),
+        (lambda artifacts: tuple(reversed(artifacts)), "reordered_pair"),
+    ),
+)
+def test_bound_artifact_pair_requires_the_exact_ordered_two_item_spec_before_observation(
+    projection: Callable[[tuple[Any, ...]], tuple[Any, ...]],
+    case: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    observer_calls: list[object] = []
+
+    def forbidden_observer(*args: object, **_kwargs: object) -> object:
+        observer_calls.append(args)
+        raise AssertionError("an incomplete or reordered bound pair must refuse before observation")
+
+    monkeypatch.setattr(checker_module, "observe_live_gate_v1", forbidden_observer)
+    root = _clone_complete_subject(tmp_path)
+    with ConfinedRootV1.bind(root) as bound:
+        context, findings = checker_module._bind_execution_context_v1(
+            bound, subject=f"artifact_pair.{case}"
+        )
+        assert context is not None and findings == []
+        artifacts = context._artifacts
+        original_pair = artifacts.artifacts
+        replacement_pair = projection(original_pair)
+        try:
+            # Act / Assert, construction boundary: ordinary code cannot swap the ordered pair.
+            with pytest.raises(dataclasses.FrozenInstanceError):
+                artifacts.artifacts = replacement_pair  # type: ignore[misc]
+
+            # Act: the documented same-process convention is still checked before any execution.
+            object.__setattr__(artifacts, "artifacts", replacement_pair)
+            execution_findings, executed = checker_module._execute_live_gates_with_count_v1(
+                dict(load_plan_v1(root)), bound, context=context
+            )
+        finally:
+            object.__setattr__(artifacts, "artifacts", original_pair)
+            context.close()
+
+    # Assert
+    assert executed == 0 and observer_calls == []
+    assert "plan_artifact_binding_shape_invalid" in {
+        finding.rule_id for finding in execution_findings
+    }
+
+
+def test_plan_artifact_binding_closes_the_current_source_after_memory_error(tmp_path: Path) -> None:
+    # Arrange: fail after the first source and its sealed memfd have been acquired.
+    original_read = artifact_binding_module.AnchoredFileV1.read
+
+    def raise_memory_error(_source: object, _max_bytes: int) -> bytes | None:
+        raise MemoryError("review-injected")
+
+    fd_before = len(os.listdir("/proc/self/fd"))
+
+    # Act
+    try:
+        artifact_binding_module.AnchoredFileV1.read = raise_memory_error  # type: ignore[method-assign]
+        with pytest.raises(MemoryError, match="review-injected"):
+            with ConfinedRootV1.bind(_clone_complete_subject(tmp_path)) as bound:
+                checker_module._bind_execution_context_v1(bound, subject="memory_error")
+    finally:
+        artifact_binding_module.AnchoredFileV1.read = original_read  # type: ignore[method-assign]
+
+    # Assert: the current source has no chance to leak if non-OSError construction aborts.
+    assert len(os.listdir("/proc/self/fd")) == fd_before
+
+
+def test_plan_artifact_binding_closes_the_current_source_after_record_construction_memory_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange: the source is open when immutable-record construction itself aborts.
+    def raise_constructor_memory_error(*_args: object, **_kwargs: object) -> object:
+        raise MemoryError("review-injected-record-construction")
+
+    monkeypatch.setattr(
+        artifact_binding_module,
+        "BoundPlanArtifactV1",
+        raise_constructor_memory_error,
+    )
+    fd_before = len(os.listdir("/proc/self/fd"))
+
+    # Act / Assert: BaseException cleanup retains the original failure and closes the untransferred source.
+    with pytest.raises(MemoryError, match="review-injected-record-construction"):
+        with ConfinedRootV1.bind(_clone_complete_subject(tmp_path)) as bound:
+            checker_module._bind_execution_context_v1(bound, subject="record_construction_failure")
+    assert len(os.listdir("/proc/self/fd")) == fd_before
+
+
+def test_plan_artifact_binding_preserves_memory_error_and_closes_current_source_when_prior_cleanup_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Arrange: one artifact transfers ownership, the second read fails, and the first close itself raises after closing.
+    original_read = artifact_binding_module.AnchoredFileV1.read
+    original_close = artifact_binding_module.BoundPlanArtifactV1.close
+    read_count = 0
+
+    def second_read_fails(source: object, max_bytes: int) -> bytes | None:
+        nonlocal read_count
+        read_count += 1
+        if read_count == 1:
+            return original_read(source, max_bytes)  # type: ignore[arg-type]
+        raise MemoryError("review-injected-second-source")
+
+    def close_then_raise(artifact: object) -> None:
+        original_close(artifact)  # type: ignore[arg-type]
+        raise RuntimeError("review-injected-cleanup")
+
+    monkeypatch.setattr(artifact_binding_module.AnchoredFileV1, "read", second_read_fails)
+    monkeypatch.setattr(artifact_binding_module.BoundPlanArtifactV1, "close", close_then_raise)
+    fd_before = len(os.listdir("/proc/self/fd"))
+
+    # Act / Assert: primary failure remains typed and every owned descriptor receives cleanup.
+    with pytest.raises(MemoryError, match="review-injected-second-source"):
+        with ConfinedRootV1.bind(_clone_complete_subject(tmp_path)) as bound:
+            checker_module._bind_execution_context_v1(bound, subject="cleanup_failure")
+    assert len(os.listdir("/proc/self/fd")) == fd_before
+
+
+def test_git_replacement_objects_cannot_retarget_raw_snapshot_status_or_plan_artifact_binding(
+    tmp_path: Path,
+) -> None:
+    # Arrange: a raw commit and a replacement commit disagree on both an ordinary source and the two bound artifacts.
+    root = tmp_path / "replacement-subject"
+    root.mkdir()
+    _git(root, "init", "-q", "-b", "main")
+    (root / "docs" / "research").mkdir(parents=True)
+    (root / "a.txt").write_text("raw source\n", encoding="utf-8")
+    (root / PLAN_JSON_PATH).write_bytes(b'{"artifact":"raw"}\n')
+    (root / PLAN_MARKDOWN_PATH).write_text("raw markdown\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "raw subject")
+    raw_head = _git(root, "rev-parse", "HEAD")
+    raw_snapshot, raw_snapshot_findings = source_snapshot_v1(root)
+    assert raw_snapshot is not None and raw_snapshot_findings == []
+
+    (root / "a.txt").write_text("replacement source\n", encoding="utf-8")
+    (root / PLAN_JSON_PATH).write_bytes(b'{"artifact":"replacement"}\n')
+    (root / PLAN_MARKDOWN_PATH).write_text("replacement markdown\n", encoding="utf-8")
+    _git(root, "add", "-A")
+    replacement_head = _replacement_commit_for_head(root, raw_head, "replacement subject")
+    _git(root, "checkout", "-q", "--force", "--detach", raw_head)
+    _replace_aware_git(root, "replace", raw_head, replacement_head)
+    _replace_aware_git(root, "checkout", "-q", "--force", "--detach", raw_head)
+    assert (root / "a.txt").read_text(encoding="utf-8") == "replacement source\n"
+
+    # Act
+    status_code, raw_status = git_v1(root, ["status", "--porcelain=v2", "--untracked-files=all"])
+    observed_snapshot, observed_snapshot_findings = source_snapshot_v1(root)
+    with AnchoredDirectoryV1.open(root) as anchored:
+        bound_artifacts, binding_findings = artifact_binding_module.bind_plan_artifacts_v1(
+            anchored, raw_head, checker_module.PLAN_ARTIFACT_SPECS_V1
+        )
+        if bound_artifacts is not None:
+            bound_artifacts.close()
+
+    # Assert: every Git-derived branch sees the raw object graph and the sealed worktree pair refuses it.
+    assert status_code == 0 and raw_status
+    assert observed_snapshot_findings == [] and observed_snapshot == raw_snapshot
+    assert bound_artifacts is None
+    assert {finding.rule_id for finding in binding_findings} == {
+        "plan_artifact_head_blob_mismatch"
+    }
+    assert {finding.subject for finding in binding_findings} == {
+        PLAN_JSON_PATH.as_posix(),
+        PLAN_MARKDOWN_PATH.as_posix(),
+    }
+
+
+def test_replacement_commit_cannot_reach_any_whole_program_observer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange: materialize a valid replacement plan at the same raw HEAD through a replacement ref.
+    root = tmp_path / "subject"
+    subprocess.run(
+        ["/usr/bin/git", "clone", "-q", "--no-hardlinks", str(ROOT), str(root)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    raw_head = _git(root, "rev-parse", "HEAD")
+    replacement_plan = copy.deepcopy(dict(load_plan_v1(root)))
+    replacement_plan["tasks"][0]["notes"] = "replacement-ref semantic witness"
+    (root / PLAN_JSON_PATH).write_text(canonical_plan_json_v1(replacement_plan), encoding="utf-8")
+    _git(root, "add", PLAN_JSON_PATH.as_posix())
+    replacement_head = _replacement_commit_for_head(root, raw_head, "replacement plan semantics")
+    _git(root, "checkout", "-q", "--force", "--detach", raw_head)
+    _replace_aware_git(root, "replace", raw_head, replacement_head)
+    _replace_aware_git(root, "checkout", "-q", "--force", "--detach", raw_head)
+    observer_calls: list[str] = []
+
+    def forbidden_observer(spec: Any, _root: object, **_kwargs: object) -> object:
+        observer_calls.append(spec.gate_id)
+        raise AssertionError("a replacement commit must refuse before any observer")
+
+    monkeypatch.setattr(checker_module, "observe_live_gate_v1", forbidden_observer)
+
+    # Act
+    report = check_whole_program_plan_v1(root, mode=PlanCheckModeV1.EXECUTE)
+
+    # Assert: the raw subject sees a dirty worktree and cannot turn the replacement's valid plan into evidence.
+    assert report["ok"] is False and report["executed_live_gates"] == 0
+    assert observer_calls == []
+    assert "scoped_worktree_dirty" in {
+        finding["rule_id"] for finding in report["findings"]
+    }

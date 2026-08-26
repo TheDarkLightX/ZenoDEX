@@ -71,10 +71,11 @@ def test_environment_is_explicit_and_carries_no_ambient_secrets() -> None:
     assert env["HOME"] == "/nonexistent"
     assert env["PYTHONNOUSERSITE"] == "1"
     assert env["GIT_CONFIG_GLOBAL"] == "/dev/null"
+    assert env["GIT_NO_REPLACE_OBJECTS"] == "1"
     assert env["PYTHONPATH"] == str(ROOT.resolve())
     assert set(env) == {
         "PATH", "HOME", "XDG_CONFIG_HOME", "LANG", "LC_ALL", "GIT_CONFIG_NOSYSTEM",
-        "GIT_CONFIG_GLOBAL", "GIT_TERMINAL_PROMPT", "PYTHONPATH", "PYTHONNOUSERSITE",
+        "GIT_CONFIG_GLOBAL", "GIT_NO_REPLACE_OBJECTS", "GIT_TERMINAL_PROMPT", "PYTHONPATH", "PYTHONNOUSERSITE",
         "PYTHONHASHSEED", "PYTHONDONTWRITEBYTECODE", "PYTHONIOENCODING",
     }
 

@@ -100,7 +100,7 @@ import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final
+from typing import Any, Final, NoReturn
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if not __package__ and str(REPO_ROOT) not in sys.path:
@@ -125,22 +125,24 @@ from tools.live_gate_registry_v1 import (  # noqa: E402
     observe_live_gate_v1,
 )
 from tools.whole_program_artifact_binding_v1 import (  # noqa: E402
+    MAX_PLAN_MARKDOWN_BYTES_V1,
+    PLAN_JSON_ARTIFACT_PATH_V1,
+    PLAN_MARKDOWN_ARTIFACT_PATH_V1,
     BoundPlanArtifactsV1,
     PlanArtifactBindingFindingV1,
-    PlanArtifactSpecV1,
     bind_plan_artifacts_v1,
 )
+from tools.whole_program_artifact_binding_v1 import (  # noqa: E402
+    PLAN_ARTIFACT_SPECS_V1 as _BOUND_PLAN_ARTIFACT_SPECS_V1,
+)
 
-PLAN_JSON_PATH: Final = Path("docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V1.json")
-PLAN_MARKDOWN_PATH: Final = Path("docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V1.md")
+PLAN_JSON_PATH: Final = Path(PLAN_JSON_ARTIFACT_PATH_V1)
+PLAN_MARKDOWN_PATH: Final = Path(PLAN_MARKDOWN_ARTIFACT_PATH_V1)
 CLOSURE_LEDGER_PATH: Final = Path("docs/research/ZENODEX_VALUE_MOVEMENT_CLOSURE_STATUS_V1.json")
 SCHEMA_V1: Final = "zenodex/whole-program-plan/v1"
 CHECK_SCHEMA_V1: Final = "zenodex/whole-program-plan-check/v1"
-MAX_PLAN_MARKDOWN_BYTES: Final = 1024 * 1024
-PLAN_ARTIFACT_SPECS_V1: Final = (
-    PlanArtifactSpecV1(PLAN_JSON_PATH.as_posix(), PLAN_JSON_LIMITS_V1.max_bytes),
-    PlanArtifactSpecV1(PLAN_MARKDOWN_PATH.as_posix(), MAX_PLAN_MARKDOWN_BYTES),
-)
+MAX_PLAN_MARKDOWN_BYTES: Final = MAX_PLAN_MARKDOWN_BYTES_V1
+PLAN_ARTIFACT_SPECS_V1: Final = _BOUND_PLAN_ARTIFACT_SPECS_V1
 PHASE_IDS: Final[tuple[str, ...]] = ("P1", "P2", "P3", "P4", "P5", "P6")
 VM_GATE_IDS: Final[tuple[str, ...]] = tuple(f"VM-{index:02d}" for index in range(1, 13))
 VM_GATE_STATUSES: Final = frozenset({"GAP", "PARTIAL", "PASS"})
@@ -230,8 +232,8 @@ NONCLAIMS: Final[tuple[str, ...]] = (
     "gate containment covers descendants of a gate that outlive it under a live dedicated supervisor; a gate that kills its "
     "supervisor or double-forks into a new session before losing it is outside the sandbox claim and yields a typed "
     "parent-side failure naming possible orphans, never a success",
-    "git runs with a descriptor-bound working directory, but git metadata, refs, worktree administrative paths, commondir, "
-    "and the object store are not separately descriptor-bound or attested and can be raced by a same-host adversary (in a "
+    "git runs with a descriptor-bound working directory and disables replacement-object resolution, but remaining git metadata, "
+    "refs, worktree administrative paths, commondir, and the object store are not separately descriptor-bound or attested and can be raced by a same-host adversary (in a "
     "linked worktree the .git file indirection may point outside the anchored root), so lineage, status, and "
     "source_snapshot are deterministic local evidence under a trusted git store, not an adversarially immutable repository "
     "snapshot",
@@ -290,9 +292,9 @@ class PlanValidationProfileV1:
     repin_tasks: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
-        if not isinstance(self.kind, PlanValidationKindV1):
+        if type(self.kind) is not PlanValidationKindV1:
             raise ValueError("validation kind must be one of the closed profiles")
-        if not isinstance(self.repin_tasks, frozenset) or not all(isinstance(item, str) for item in self.repin_tasks):
+        if type(self.repin_tasks) is not frozenset or not all(type(item) is str for item in self.repin_tasks):
             raise ValueError("re-pin tasks must be a frozenset of task ids")
         if self.repin_tasks and self.kind is not PlanValidationKindV1.PRE_REGENERATION:
             raise ValueError("evidence re-pin is only meaningful before regeneration")
@@ -332,6 +334,49 @@ class PlanFinding:
         return {"evidence": self.evidence, "rule_id": self.rule_id, "subject": self.subject}
 
 
+def _mode_or_findings_v1(mode: object) -> tuple[PlanCheckModeV1 | None, list[PlanFinding]]:
+    """Require one exact closed mode before opening artifacts or deciding execution."""
+
+    if type(mode) is PlanCheckModeV1:
+        return mode, []
+    return None, [
+        PlanFinding(
+            "plan_check_mode_invalid",
+            "mode",
+            f"expected PlanCheckModeV1, received {type(mode).__name__}",
+        )
+    ]
+
+
+def _profile_or_findings_v1(
+    profile: object,
+) -> tuple[PlanValidationProfileV1 | None, list[PlanFinding]]:
+    """Require one exact closed profile before it controls validation comparisons."""
+
+    if type(profile) is not PlanValidationProfileV1:
+        return None, [
+            PlanFinding(
+                "validation_profile_invalid",
+                "profile",
+                f"expected PlanValidationProfileV1, received {type(profile).__name__}",
+            )
+        ]
+    if (
+        type(profile.kind) is not PlanValidationKindV1
+        or type(profile.repin_tasks) is not frozenset
+        or not all(type(task_id) is str for task_id in profile.repin_tasks)
+        or (profile.repin_tasks and profile.kind is not PlanValidationKindV1.PRE_REGENERATION)
+    ):
+        return None, [
+            PlanFinding(
+                "validation_profile_invalid",
+                "profile",
+                "profile fields do not encode one closed validation profile",
+            )
+        ]
+    return profile, []
+
+
 @dataclass(frozen=True, slots=True)
 class PlanVocabularyV1:
     """Identifier sets a task row may reference, plus tasks whose evidence is being re-pinned."""
@@ -355,6 +400,17 @@ class RowContractV1:
 
 class PlanUnreadable(ValueError):
     """The plan or one of its companions cannot be decoded within bounds."""
+
+
+class PlanCliUsageError(ValueError):
+    """A command-line invocation cannot select a closed plan-checker operation."""
+
+
+class _ClosedPlanArgumentParser(argparse.ArgumentParser):
+    """Convert parser failures into the same closed JSON-report path as every other refusal."""
+
+    def error(self, message: str) -> NoReturn:
+        raise PlanCliUsageError(message)
 
 
 Predicate = Callable[[object], bool]
@@ -754,13 +810,12 @@ def _decode_bound_plan_artifacts_v1(
 ) -> tuple[Mapping[str, Any], str]:
     """Decode only the held exact-HEAD artifact snapshots."""
 
-    plan = _decode_plan_json_bytes_v1(
-        artifacts.bytes_for(PLAN_JSON_PATH.as_posix()),
-        name=f"plan {PLAN_JSON_PATH.name}",
-    )
-    markdown = _decode_plan_markdown_bytes_v1(
-        artifacts.bytes_for(PLAN_MARKDOWN_PATH.as_posix())
-    )
+    plan_bytes = artifacts.bytes_for(PLAN_JSON_PATH.as_posix())
+    markdown_bytes = artifacts.bytes_for(PLAN_MARKDOWN_PATH.as_posix())
+    if plan_bytes is None or markdown_bytes is None:
+        raise PlanUnreadable("bound plan artifact pair is incomplete")
+    plan = _decode_plan_json_bytes_v1(plan_bytes, name=f"plan {PLAN_JSON_PATH.name}")
+    markdown = _decode_plan_markdown_bytes_v1(markdown_bytes)
     return plan, markdown
 
 
@@ -1649,9 +1704,12 @@ def validate_plan_v1(
     typed finding.
     """
 
+    checked_profile, profile_findings = _profile_or_findings_v1(profile)
+    if checked_profile is None:
+        return profile_findings
     try:
         with _UseRoot(root) as bound:
-            return _validate_with_root(plan, bound, markdown, profile)
+            return _validate_with_root(plan, bound, markdown, checked_profile)
     except RootUnavailable as exc:
         return _root_unavailable(exc)
 
@@ -1912,7 +1970,7 @@ def _bind_execution_context_v1(
     if head is None or findings:
         return None, findings
     artifacts, binding_findings = bind_plan_artifacts_v1(
-        root.anchored, head, PLAN_ARTIFACT_SPECS_V1
+        root.anchored, head
     )
     if artifacts is None:
         return None, _artifact_binding_plan_findings_v1(binding_findings)
@@ -1946,21 +2004,17 @@ def _bound_execution_context_findings(
                 "execution context is not the trusted-process record for this root",
             )
         ]
-    if context._artifacts.head != context._head:
-        return [
-            PlanFinding(
-                "plan_artifact_binding_context_mismatch",
-                subject,
-                "artifact commit differs from the context HEAD",
-            )
-        ]
     _head, findings = _execution_context_findings(
         root, subject=subject, expected_head=context._head
     )
     if findings:
         return findings
     findings.extend(
-        _artifact_binding_plan_findings_v1(context._artifacts.source_findings())
+        _artifact_binding_plan_findings_v1(
+            context._artifacts.integrity_findings(
+                root.anchored, expected_head=context._head
+            )
+        )
     )
     return findings
 
@@ -2217,7 +2271,16 @@ def _validated_committed_execution_plan_v1(
                 f"{type(exc).__name__}: {exc}",
             )
         ]
-    if caller_bytes != context._artifacts.bytes_for(PLAN_JSON_PATH.as_posix()):
+    committed_plan_bytes = context._artifacts.bytes_for(PLAN_JSON_PATH.as_posix())
+    if committed_plan_bytes is None:
+        return None, [
+            PlanFinding(
+                "plan_artifact_binding_shape_invalid",
+                "plan_artifacts",
+                "sealed JSON artifact is absent from the exact ordered pair",
+            )
+        ]
+    if caller_bytes != committed_plan_bytes:
         return None, [
             PlanFinding(
                 "caller_plan_artifact_mismatch",
@@ -2488,30 +2551,163 @@ def write_markdown_v1(root: RootLike, plan: Mapping[str, Any]) -> list[PlanFindi
         return _root_unavailable(exc)
 
 
-def plan_report_v1(plan: Mapping[str, Any], findings: Sequence[PlanFinding], *, executed: int, profile: PlanValidationProfileV1) -> dict[str, object]:
-    """Deterministic report over any candidate-controlled plan; hostile types never raise."""
+def _closed_plan_report_v1(
+    plan: object,
+    findings: object,
+    *,
+    executed: object,
+    profile: object,
+    mode: object,
+    error: object = None,
+    mode_accepted: object = True,
+) -> dict[str, object]:
+    """Build the only JSON report shape for success, typed refusal, and CLI failure.
 
+    The report itself is a defensive boundary. It derives the literal authority
+    ceiling, exact closed profile/mode labels, and a zero observer count for
+    malformed requests before it exposes any candidate-controlled summary.
+    """
+
+    checked_mode, mode_findings = _mode_or_findings_v1(mode)
+    checked_profile, profile_findings = _profile_or_findings_v1(profile)
+    normalized_findings: list[PlanFinding] = []
+    if isinstance(findings, (list, tuple)):
+        for finding in findings:
+            if type(finding) is PlanFinding:
+                normalized_findings.append(finding)
+            else:
+                normalized_findings.append(
+                    PlanFinding(
+                        "report_findings_invalid",
+                        "findings",
+                        f"expected PlanFinding, received {type(finding).__name__}",
+                    )
+                )
+    else:
+        normalized_findings.append(
+            PlanFinding(
+                "report_findings_invalid",
+                "findings",
+                f"expected list or tuple, received {type(findings).__name__}",
+            )
+        )
+    normalized_findings.extend(mode_findings)
+    normalized_findings.extend(profile_findings)
+    normalized_error = error if type(error) is str else None
+    if error is not None and normalized_error is None:
+        normalized_findings.append(
+            PlanFinding(
+                "report_error_invalid",
+                "error",
+                f"expected string or None, received {type(error).__name__}",
+            )
+        )
+    if type(mode_accepted) is not bool:
+        normalized_findings.append(
+            PlanFinding(
+                "report_mode_accepted_invalid",
+                "accepted_check_mode",
+                "expected an exact Boolean",
+            )
+        )
+    elif not mode_accepted and not mode_findings:
+        normalized_findings.append(
+            PlanFinding(
+                "report_mode_not_accepted",
+                "accepted_check_mode",
+                "the requested check mode was explicitly refused",
+            )
+        )
+    accepted_mode = (
+        checked_mode
+        if checked_mode is not None
+        and checked_profile is not None
+        and type(mode_accepted) is bool
+        and mode_accepted
+        and normalized_error is None
+        else None
+    )
+    executed_is_valid = type(executed) is int and executed >= 0
+    normalized_executed = executed if executed_is_valid else 0
+    if not executed_is_valid:
+        normalized_findings.append(
+            PlanFinding(
+                "report_executed_live_gates_invalid",
+                "executed_live_gates",
+                "expected a nonnegative exact integer",
+            )
+        )
+    if accepted_mode is None or checked_profile is None:
+        normalized_executed = 0
+    elif not normalized_findings and accepted_mode is PlanCheckModeV1.STRUCTURAL and normalized_executed != 0:
+        normalized_findings.append(
+            PlanFinding(
+                "report_structural_observer_count_invalid",
+                "executed_live_gates",
+                "structural mode cannot report live-gate observations",
+            )
+        )
+        normalized_executed = 0
+    elif (
+        not normalized_findings
+        and accepted_mode is PlanCheckModeV1.EXECUTE
+        and normalized_executed != len(LIVE_GATE_REGISTRY)
+    ):
+        normalized_findings.append(
+            PlanFinding(
+                "report_execute_observer_count_invalid",
+                "executed_live_gates",
+                f"accepted execute requires exactly {len(LIVE_GATE_REGISTRY)} observer calls",
+            )
+        )
+        normalized_executed = 0
     raw_tasks = plan.get("tasks") if isinstance(plan, Mapping) else None
     tasks = [task for task in raw_tasks if isinstance(task, Mapping)] if isinstance(raw_tasks, list) else []
     raw_gates = plan.get("vm_gate_status") if isinstance(plan, Mapping) else None
     gate_entries = [entry for entry in raw_gates if isinstance(entry, Mapping)] if isinstance(raw_gates, list) else []
     return {
+        "accepted_check_mode": accepted_mode.value if accepted_mode is not None else "none",
         "authority": dict(REQUIRED_AUTHORITY),
-        "cleanliness_scope": profile.cleanliness.value,
+        "cleanliness_scope": checked_profile.cleanliness.value if checked_profile is not None else "invalid",
         "closed_task_count": sum(1 for task in tasks if _in(CLOSED_TASK_STATUSES)(task.get("status"))),
-        "executed_live_gates": executed,
-        "findings": [finding.to_dict() for finding in findings],
+        "error": normalized_error,
+        "executed_live_gates": normalized_executed,
+        "findings": [finding.to_dict() for finding in normalized_findings],
         "nonclaims": list(NONCLAIMS),
-        "ok": not findings,
+        "ok": not normalized_findings and normalized_error is None,
+        "requested_check_mode": checked_mode.value if checked_mode is not None else "invalid",
         "schema": CHECK_SCHEMA_V1,
         "task_count": len(tasks),
-        "validation_profile": profile.kind.value,
+        "validation_profile": checked_profile.kind.value if checked_profile is not None else "invalid",
         "vm_gate_status": {
             entry["gate_id"]: entry["status"]
             for entry in gate_entries
             if isinstance(entry.get("gate_id"), str) and isinstance(entry.get("status"), str)
         },
     }
+
+
+def plan_report_v1(
+    plan: Mapping[str, Any],
+    findings: Sequence[PlanFinding],
+    *,
+    executed: int,
+    profile: PlanValidationProfileV1,
+    mode: PlanCheckModeV1 = PlanCheckModeV1.STRUCTURAL,
+    error: str | None = None,
+    mode_accepted: bool = True,
+) -> dict[str, object]:
+    """Public closed report constructor for ordinary checks and every CLI failure path."""
+
+    return _closed_plan_report_v1(
+        plan,
+        findings,
+        executed=executed,
+        profile=profile,
+        mode=mode,
+        error=error,
+        mode_accepted=mode_accepted,
+    )
 
 
 def _structural_report(
@@ -2548,6 +2744,9 @@ def _ordinary_context_result_v1(
 ) -> tuple[Mapping[str, Any], list[PlanFinding], int]:
     """Decode the held artifacts, validate, optionally execute, and recheck."""
 
+    checked_mode, mode_findings = _mode_or_findings_v1(mode)
+    if checked_mode is None:
+        return {}, mode_findings, 0
     try:
         plan, findings = _structural_report(
             root, ORDINARY_VALIDATION_PROFILE_V1, context._artifacts
@@ -2556,7 +2755,7 @@ def _ordinary_context_result_v1(
         return {}, [
             PlanFinding("plan_artifact_unreadable", "plan_artifacts", str(exc))
         ], 0
-    if mode is not PlanCheckModeV1.EXECUTE:
+    if checked_mode is PlanCheckModeV1.STRUCTURAL:
         return plan, findings, 0
     findings.extend(
         _bound_execution_context_findings(
@@ -2587,27 +2786,53 @@ def check_whole_program_plan_v1(root: RootLike = REPO_ROOT, *, mode: PlanCheckMo
     through validation, planning, every observer, and final report construction.
     """
 
-    with _UseRoot(root) as bound:
-        context, findings = _bind_execution_context_v1(
-            bound, subject="whole_program_plan"
+    checked_mode, _mode_findings = _mode_or_findings_v1(mode)
+    if checked_mode is None:
+        return plan_report_v1(
+            {},
+            [],
+            executed=0,
+            profile=ORDINARY_VALIDATION_PROFILE_V1,
+            mode=mode,
+            mode_accepted=False,
         )
-        if context is None:
-            _raise_if_plan_artifacts_unreadable_v1(bound)
-            return plan_report_v1(
-                {}, findings, executed=0, profile=ORDINARY_VALIDATION_PROFILE_V1
+    try:
+        with _UseRoot(root) as bound:
+            context, findings = _bind_execution_context_v1(
+                bound, subject="whole_program_plan"
             )
-        try:
-            plan, findings, executed = _ordinary_context_result_v1(
-                bound, context, mode
-            )
-            return plan_report_v1(
-                plan,
-                findings,
-                executed=executed,
-                profile=ORDINARY_VALIDATION_PROFILE_V1,
-            )
-        finally:
-            context.close()
+            if context is None:
+                _raise_if_plan_artifacts_unreadable_v1(bound)
+                return plan_report_v1(
+                    {},
+                    findings,
+                    executed=0,
+                    profile=ORDINARY_VALIDATION_PROFILE_V1,
+                    mode=checked_mode,
+                )
+            try:
+                plan, findings, executed = _ordinary_context_result_v1(
+                    bound, context, checked_mode
+                )
+                return plan_report_v1(
+                    plan,
+                    findings,
+                    executed=executed,
+                    profile=ORDINARY_VALIDATION_PROFILE_V1,
+                    mode=checked_mode,
+                )
+            finally:
+                context.close()
+    except PlanUnreadable as exc:
+        return plan_report_v1(
+            {},
+            [PlanFinding("plan_unreadable", "plan_artifacts", str(exc))],
+            executed=0,
+            profile=ORDINARY_VALIDATION_PROFILE_V1,
+            mode=checked_mode,
+            error=str(exc),
+            mode_accepted=False,
+        )
 
 
 def post_regeneration_report_v1(root: RootLike) -> dict[str, object]:
@@ -2615,34 +2840,88 @@ def post_regeneration_report_v1(root: RootLike) -> dict[str, object]:
 
     with _UseRoot(root) as bound:
         plan, findings = _structural_report(bound, POST_REGENERATION_PROFILE_V1)
-    return plan_report_v1(plan, findings, executed=0, profile=POST_REGENERATION_PROFILE_V1)
+    return plan_report_v1(
+        plan,
+        findings,
+        executed=0,
+        profile=POST_REGENERATION_PROFILE_V1,
+        mode=PlanCheckModeV1.STRUCTURAL,
+    )
 
 
 def _emit(payload: Mapping[str, object]) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
-def _failure(findings: Sequence[PlanFinding]) -> int:
-    _emit({"schema": CHECK_SCHEMA_V1, "ok": False, "findings": [item.to_dict() for item in findings]})
-    return 1
+def _failure(
+    findings: Sequence[PlanFinding],
+    *,
+    profile: PlanValidationProfileV1,
+    mode: PlanCheckModeV1,
+    error: str | None = None,
+    mode_accepted: bool = True,
+    exit_code: int = 1,
+) -> int:
+    """Emit one closed report for every CLI refusal without weakening authority labels."""
+
+    _emit(
+        plan_report_v1(
+            {},
+            findings,
+            executed=0,
+            profile=profile,
+            mode=mode,
+            error=error,
+            mode_accepted=mode_accepted,
+        )
+    )
+    return exit_code
 
 
 def _run_refresh(root: RootLike, observed_at: str | None, repin: Sequence[str]) -> int:
     if observed_at is None or not _is_date(observed_at):
-        _emit({"schema": CHECK_SCHEMA_V1, "ok": False, "error": "--refresh requires --observed-at YYYY-MM-DD"})
-        return 2
+        return _failure(
+            [
+                PlanFinding(
+                    "cli_observed_at_invalid",
+                    "--observed-at",
+                    "--refresh requires --observed-at YYYY-MM-DD",
+                )
+            ],
+            profile=PlanValidationProfileV1.pre_regeneration(),
+            mode=PlanCheckModeV1.STRUCTURAL,
+            error="--refresh requires --observed-at YYYY-MM-DD",
+            mode_accepted=False,
+            exit_code=2,
+        )
     refreshed, findings = refresh_plan_v1(load_plan_v1(root), root=root, observed_at=observed_at, repin_tasks=repin)
     if findings:
-        return _failure(findings)
+        return _failure(
+            findings,
+            profile=PlanValidationProfileV1.pre_regeneration(),
+            mode=PlanCheckModeV1.STRUCTURAL,
+        )
     findings = write_markdown_v1(root, refreshed)
     if findings:
-        return _failure(findings)
+        return _failure(
+            findings,
+            profile=PlanValidationProfileV1.pre_regeneration(),
+            mode=PlanCheckModeV1.STRUCTURAL,
+        )
     refusal = replace_confined_file_v1(root, PLAN_JSON_PATH, canonical_plan_json_v1(refreshed).encode("utf-8"))
-    return _failure([PlanFinding("plan_artifact_write_refused", PLAN_JSON_PATH.as_posix(), refusal)]) if refusal else 0
+    return (
+        _failure(
+            [PlanFinding("plan_artifact_write_refused", PLAN_JSON_PATH.as_posix(), refusal)],
+            profile=PlanValidationProfileV1.pre_regeneration(),
+            mode=PlanCheckModeV1.STRUCTURAL,
+        )
+        if refusal
+        else 0
+    )
 
 
 def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = _ClosedPlanArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--root", type=Path, default=REPO_ROOT)
     parser.add_argument("--json", action="store_true")
     parser.add_argument(
@@ -2658,12 +2937,40 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    args = _parse_args(argv)
+    try:
+        args = _parse_args(argv)
+    except PlanCliUsageError as exc:
+        return _failure(
+            [PlanFinding("cli_arguments_invalid", "argv", str(exc))],
+            profile=ORDINARY_VALIDATION_PROFILE_V1,
+            mode=PlanCheckModeV1.STRUCTURAL,
+            error=str(exc),
+            mode_accepted=False,
+            exit_code=2,
+        )
     root = Path(args.root)
     regenerating = bool(args.refresh or args.render)
+    mode = PlanCheckModeV1.EXECUTE if args.execute else PlanCheckModeV1.STRUCTURAL
+    failure_profile = (
+        PlanValidationProfileV1.pre_regeneration()
+        if regenerating
+        else ORDINARY_VALIDATION_PROFILE_V1
+    )
     if regenerating and args.execute:
-        _emit({"schema": CHECK_SCHEMA_V1, "ok": False, "error": "--execute requires a fully committed worktree; run it after committing the regenerated artifacts"})
-        return 2
+        return _failure(
+            [
+                PlanFinding(
+                    "cli_arguments_invalid",
+                    "argv",
+                    "--execute requires a fully committed worktree; run it after committing the regenerated artifacts",
+                )
+            ],
+            profile=failure_profile,
+            mode=mode,
+            error="--execute requires a fully committed worktree; run it after committing the regenerated artifacts",
+            mode_accepted=False,
+            exit_code=2,
+        )
     try:
         with ConfinedRootV1.bind(root) as bound:
             if args.refresh:
@@ -2673,21 +2980,33 @@ def main(argv: Sequence[str] | None = None) -> int:
             elif args.render:
                 findings = write_markdown_v1(bound, load_plan_v1(bound))
                 if findings:
-                    return _failure(findings)
+                    return _failure(
+                        findings,
+                        profile=PlanValidationProfileV1.pre_regeneration(),
+                        mode=PlanCheckModeV1.STRUCTURAL,
+                    )
             if regenerating:
                 report = post_regeneration_report_v1(bound)
             else:
-                report = check_whole_program_plan_v1(bound, mode=PlanCheckModeV1.EXECUTE if args.execute else PlanCheckModeV1.STRUCTURAL)
+                report = check_whole_program_plan_v1(bound, mode=mode)
     except PlanUnreadable as exc:
-        _emit({"schema": CHECK_SCHEMA_V1, "ok": False, "error": str(exc)})
-        return 2
+        return _failure(
+            [PlanFinding("plan_unreadable", "plan_artifacts", str(exc))],
+            profile=failure_profile,
+            mode=mode,
+            error=str(exc),
+            mode_accepted=False,
+            exit_code=2,
+        )
     if args.json or not report["ok"]:
         _emit(report)
     elif regenerating:
         print(f"whole-program plan regenerated ({report['cleanliness_scope']} scope); commit both plan artifacts before any ordinary check or --execute")
     else:
         print(f"whole-program plan ok; {report['closed_task_count']}/{report['task_count']} tasks closed; production_authority remains NONE")
-    return 0 if report["ok"] else 1
+    if report["ok"]:
+        return 0
+    return 2 if type(report["error"]) is str and report["error"] else 1
 
 
 if __name__ == "__main__":

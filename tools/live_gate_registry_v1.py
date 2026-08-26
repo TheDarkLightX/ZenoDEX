@@ -74,8 +74,9 @@ Boundary rules:
   individually sealed or attested: a transitive dependency swapped and
   restored between snapshot checks is not detected. Transitive repository
   code is trusted, not attested;
-- git runs from ``/usr/bin/git`` with system and global configuration
-  disabled and a descriptor-bound working directory. The git store itself
+- git runs from ``/usr/bin/git`` with replacement-object resolution, system,
+  and global configuration disabled and a descriptor-bound working directory.
+  The git store itself
   is not anchored: git metadata, refs, worktree administrative paths,
   commondir, and the object store are not separately descriptor-bound or
   attested and can be raced by a same-host adversary; in a linked worktree
@@ -146,6 +147,7 @@ PROCESS_ENVIRONMENT_BASE: Final[Mapping[str, str]] = {
     "LC_ALL": "C.UTF-8",
     "GIT_CONFIG_NOSYSTEM": "1",
     "GIT_CONFIG_GLOBAL": "/dev/null",
+    "GIT_NO_REPLACE_OBJECTS": "1",
     "GIT_TERMINAL_PROMPT": "0",
 }
 
@@ -1335,8 +1337,12 @@ def run_bounded_process_v1(
 
 
 def _git_run(root: WorkingDirectory, args: Sequence[str], max_output_bytes: int) -> ProcessRunV1:
-    """Trusted git in its own session; an anchored root is addressed by descriptor, a pathname by pathname."""
+    """Trusted raw-object Git in its own session; every invocation disables replacement refs."""
 
+    if any(type(arg) is not str for arg in args):
+        return ProcessRunV1(-1, b"", "process could not start: git arguments must be exact strings")
+    if any(arg == "--replace-objects" or arg.startswith("--replace-objects=") for arg in args):
+        return ProcessRunV1(-1, b"", "process could not start: git replacement objects are forbidden")
     inherited: tuple[int, ...] = ()
     if isinstance(root, AnchoredDirectoryV1):
         if not root.is_open:
@@ -1345,7 +1351,7 @@ def _git_run(root: WorkingDirectory, args: Sequence[str], max_output_bytes: int)
     else:
         cwd = str(root)
     return _run_plain_process(
-        (GIT_BINARY, *args),
+        (GIT_BINARY, "--no-replace-objects", *args),
         cwd=cwd,
         env=PROCESS_ENVIRONMENT_BASE,
         bounds=ProcessBoundsV1(GIT_TIMEOUT_SECONDS, max_output_bytes),
