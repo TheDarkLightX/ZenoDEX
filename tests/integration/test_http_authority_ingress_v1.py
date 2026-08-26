@@ -89,6 +89,23 @@ def test_http_authority_ingress_observes_duplicate_secret_field_before_overwrite
     assert not hasattr(decision, "field_paths")
 
 
+@pytest.mark.parametrize(
+    "field",
+    (
+        "ｐｒｉｖａｔｅ＿ｋｅｙ",
+        "signer_κey",
+    ),
+)
+def test_http_authority_ingress_refuses_non_ascii_field_names(field: str) -> None:
+    raw = json.dumps({field: "must-never-cross-http"}).encode("utf-8")
+
+    decision = inspect_http_authority_ingress_v1(raw)
+
+    assert decision == HttpAuthorityIngressRejectedV1(
+        code=HttpAuthorityIngressRejectCodeV1.SCAN_REFUSED,
+    )
+
+
 def test_http_authority_ingress_rejects_unscannable_shape() -> None:
     raw = (b'{"nested":' * 40) + b"null" + (b"}" * 40)
 

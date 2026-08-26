@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
+
+def _unexpected_server_construction(*_args, **_kwargs) -> None:
+    raise AssertionError("startup refusal must precede server construction")
+
 
 def test_api_server_refuses_demo_routes_without_token_on_public_host(monkeypatch) -> None:
     from src.integration import api_server
@@ -83,3 +89,51 @@ def test_api_server_allows_sensitive_routes_when_external_auth_declared(monkeypa
 
     rc = api_server.main([])
     assert rc == 0
+
+
+def test_api_server_refuses_autotrader_live_mount_until_external_intent_signing_exists(
+    monkeypatch,
+    capsys,
+) -> None:
+    from src.integration import api_server
+
+    base_config = api_server._load_api_server_config()
+    config = replace(
+        base_config,
+        autotrader_live_enabled=True,
+        confidential_sealed_bid_asset_settlement_enabled=False,
+    )
+    monkeypatch.setattr(api_server, "_load_api_server_config", lambda: config)
+    monkeypatch.setattr(api_server, "ThreadingHTTPServer", _unexpected_server_construction)
+
+    rc = api_server.main([])
+
+    assert rc == 2
+    assert capsys.readouterr().out.splitlines() == [
+        "Refusing to start: AUTOTRADER_LIVE_API_ENABLED is unavailable until "
+        "client-signed DEX intent envelopes are implemented and verified."
+    ]
+
+
+def test_api_server_refuses_mounted_sealed_bid_fixture_signer(
+    monkeypatch,
+    capsys,
+) -> None:
+    from src.integration import api_server
+
+    base_config = api_server._load_api_server_config()
+    config = replace(
+        base_config,
+        autotrader_live_enabled=False,
+        confidential_sealed_bid_asset_settlement_enabled=True,
+    )
+    monkeypatch.setattr(api_server, "_load_api_server_config", lambda: config)
+    monkeypatch.setattr(api_server, "ThreadingHTTPServer", _unexpected_server_construction)
+
+    rc = api_server.main([])
+
+    assert rc == 2
+    assert capsys.readouterr().out.splitlines() == [
+        "Refusing to start: CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED "
+        "uses local fixture signing authority and is not mountable."
+    ]

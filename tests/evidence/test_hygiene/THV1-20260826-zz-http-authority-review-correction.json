@@ -1,0 +1,125 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zz-http-authority-review-correction",
+  "created_date": "2026-08-26",
+  "claim_scope": "Independent review corrected the HTTP raw-authority-ingress claim. The mounted scanner now refuses every non-ASCII JSON object key, and normal API-server startup refuses AutoTrader live writes until external DEX-intent signing exists and refuses confidential sealed-bid local-ledger settlement while that adapter can derive fixture signing keys. These are fail-closed mount controls only.",
+  "change_kind": "evidence_correction",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "HTTP-AUTHORITY-FIELD-ALPHABET-IS-CLOSED-ASCII",
+    "AUTOTRADER-RAW-SIGNER-DEPENDENCY-CANNOT-BE-MOUNTED",
+    "SEALED-BID-FIXTURE-SIGNER-CANNOT-BE-MOUNTED",
+    "STARTUP-REFUSAL-PRECEDES-SERVER-CONSTRUCTION"
+  ],
+  "failure_modes": [
+    "a Unicode homoglyph field bypasses a field-name denylist and is later normalized into a signing-authority alias",
+    "the API advertises AutoTrader prepare and submit routes even though ingress rejects the signer field those handlers require",
+    "the mounted sealed-bid settlement adapter derives known fixture keys and signs a value-moving transaction",
+    "a hazardous configuration constructs or binds the server before returning its refusal",
+    "the deterministic request-grammar witness retains a stale source-path fingerprint after the guarded API source changes"
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/http_authority_ingress_v1.py",
+      "sha256": "409833388bbcdf34b4256885470e1b5354d9a7ddc6a74ca15ea59e8de12743b0"
+    },
+    {
+      "path": "src/integration/api_server.py",
+      "sha256": "2747594a626e319c1bdcf89390d142ccdb7abffb09dc6ae25a3d71cefce608a4"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_http_authority_ingress_v1.py",
+      "sha256": "2285a89fc17796463a44c681fee7aa28805be50f114d67854ede18e547cd3a7e",
+      "node_ids": [
+        "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_refuses_non_ascii_field_names"
+      ]
+    },
+    {
+      "path": "tests/integration/test_api_server_main.py",
+      "sha256": "ee8ad0fbf1356bb5fa6f86c0bb6d04fea7dc44f5ae79be7d8b0fd93df6b623c5",
+      "node_ids": [
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_autotrader_live_mount_until_external_intent_signing_exists",
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_mounted_sealed_bid_fixture_signer"
+      ]
+    },
+    {
+      "path": "tests/integration/test_api_server_request_grammar_fuzz.py",
+      "sha256": "7aabcd8abb03ba6a2fd4c17cbacf7c1cb2b6a4f9b463eb26a1cb166f937d4d24",
+      "node_ids": [
+        "tests/integration/test_api_server_request_grammar_fuzz.py::test_api_server_request_minimizer_collapses_unauthorized_dead_fields",
+        "tests/integration/test_api_server_request_grammar_fuzz.py::test_api_server_request_minimizer_cli_emits_expected_schema"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange the exact ambiguous field or enabled hazardous mode, act through the pure scanner or main startup path, and assert the exact typed rejection or refusal text before any server constructor can run."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The scanner is pure. Startup tests replace the server constructor with a failing sentinel, proving refusal occurs before socket binding, state attachment, route exposure, or value-moving effects."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "json_object_key_alphabet",
+      "points": [
+        "safe_ascii_field_can_be_classified",
+        "any_non_ascii_field_returns_scan_refused"
+      ]
+    },
+    {
+      "name": "autotrader_live_mount",
+      "points": [
+        "disabled_does_not_trigger_this_refusal",
+        "enabled_refuses_before_server_construction"
+      ]
+    },
+    {
+      "name": "sealed_bid_local_ledger_settlement_mount",
+      "points": [
+        "disabled_does_not_attach_fixture_signer",
+        "enabled_refuses_before_server_construction"
+      ]
+    },
+    {
+      "name": "request_grammar_source_fingerprint",
+      "points": [
+        "outcome_remains_handled_401_unauthorized",
+        "path_id_is_regenerated_as_fa4f78d8874b3eda"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept non-ASCII object keys and rely on present-day normalization behavior",
+      "killed_by": "tests/integration/test_http_authority_ingress_v1.py::test_http_authority_ingress_refuses_non_ascii_field_names"
+    },
+    {
+      "description": "allow AutoTrader live startup while its mounted write contract still requires raw signer authority",
+      "killed_by": "tests/integration/test_api_server_main.py::test_api_server_refuses_autotrader_live_mount_until_external_intent_signing_exists"
+    },
+    {
+      "description": "attach the sealed-bid local-ledger fixture signer when its environment flag is enabled",
+      "killed_by": "tests/integration/test_api_server_main.py::test_api_server_refuses_mounted_sealed_bid_fixture_signer"
+    }
+  ],
+  "nonclaims": [
+    "This packet corrects the earlier statement that all internal testnet signing helpers were reachable only through direct-call fixtures. Before this correction, the sealed-bid local-ledger submitter could be mounted by configuration.",
+    "The common field-name scanner remains a defense-in-depth denylist over ASCII names. It is not a substitute for route-specific closed typed request decoders.",
+    "AutoTrader live writes are deliberately unavailable through normal API-server startup. External signing for both DEX intent envelopes and the Tau transaction remains to be implemented and verified.",
+    "Confidential sealed-bid commit and reveal behavior is outside this correction. Only the local-ledger settlement adapter with fixture signing authority is prevented from mounting.",
+    "Direct Python fixture helpers and manually constructed test servers remain outside normal API-server startup and carry no production or settlement authority.",
+    "This packet proves no economic conservation, signer non-extractability, whole-economy recursion, deployment finality, or safety of all value movement.",
+    "Production authority remains NONE."
+  ]
+}

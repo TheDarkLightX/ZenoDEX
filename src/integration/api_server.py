@@ -1046,6 +1046,16 @@ def _api_startup_refusal_lines(config: ApiServerConfig) -> Optional[list[str]]:
             "Refusing to start: PERPS_DEMO_API_UNSAFE_ENABLED is local demo only. "
             "Set ZENODEX_ENV=local/dev/test and bind API_HOST to loopback."
         ]
+    if config.autotrader_live_enabled:
+        return [
+            "Refusing to start: AUTOTRADER_LIVE_API_ENABLED is unavailable until "
+            "client-signed DEX intent envelopes are implemented and verified."
+        ]
+    if config.confidential_sealed_bid_asset_settlement_enabled:
+        return [
+            "Refusing to start: CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED "
+            "uses local fixture signing authority and is not mountable."
+        ]
     if config.sensitive_api_enabled and not config.external_auth_enforced and not config.auth_bearer_token:
         return [
             "Refusing to start: sensitive APIs enabled without external auth or ZENODEX_API_BEARER_TOKEN "

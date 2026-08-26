@@ -146,6 +146,8 @@ def inspect_http_authority_ingress_v1(
             ):
                 return _scan_refused_v1()
             for key, _child in current.entries:
+                if not key.isascii():
+                    return _scan_refused_v1()
                 if _is_raw_authority_field_name_v1(key):
                     return HttpAuthorityIngressRejectedV1(
                         code=HttpAuthorityIngressRejectCodeV1.RAW_AUTHORITY_MATERIAL_FORBIDDEN,
