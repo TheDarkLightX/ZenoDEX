@@ -552,6 +552,7 @@ def test_strict_browser_smoke_cases_include_local_fixture_zk_proof(
     spot_query = parse_qs(urlsplit(str(by_name["spot_swap_ui"]["url"])).query)
     assert "zkProofJson" not in spot_query
     assert "autotrader_ui" not in by_name
+    assert "zusd_wallet_ui" not in by_name
 
 
 # ---------------------------------------------------------------------------
@@ -2771,9 +2772,10 @@ def test_lane_readiness_keeps_stack_ready_when_only_tokenomics_gate_blocks(
         "rejection_code": "TOKENOMICS_AUTHORITY_NOT_READY",
     }
     assert all("/api/strategy/autotrader/" not in url for url in requested_urls)
+    assert all("/api/zusd/wallet/" not in url for url in requested_urls)
 
 
-def test_feature_smoke_omits_quarantined_autotrader_lane(
+def test_feature_smoke_omits_quarantined_autotrader_and_zusd_tau_wallet_lanes(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -2804,7 +2806,6 @@ def test_feature_smoke_omits_quarantined_autotrader_lane(
     monkeypatch.setattr(lc, "_smoke_run_id", lambda: "run-1")
     monkeypatch.setattr(lc, "_build_signed_live_swap_payload", lambda **_kwargs: {})
     monkeypatch.setattr(lc, "_run_complex_grouped_transaction_smoke", lambda **_kwargs: {"ok": True})
-    monkeypatch.setattr(lc, "_zusd_transfer_payload", lambda **_kwargs: {})
     monkeypatch.setattr(lc, "_run_perps_wallet_cycle_smoke", lambda **_kwargs: {"ok": True})
     monkeypatch.setattr(lc, "_run_oracle_write_smoke", lambda **_kwargs: {"ok": True})
     monkeypatch.setattr(lc, "_confidential_local_fixture_from_manifest", lambda **_kwargs: object())
@@ -2823,6 +2824,8 @@ def test_feature_smoke_omits_quarantined_autotrader_lane(
     assert report["ok"] is True
     assert "autotrader_live_prepare" not in report["checks"]
     assert all("/api/strategy/autotrader/" not in url for url in posted_urls)
+    assert "zusd_wallet_transfer" not in report["checks"]
+    assert all("/api/zusd/wallet/" not in url for url in posted_urls)
 
 
 def test_runtime_env_for_existing_manifest_recovers_tokens_and_roles(tmp_path: Path) -> None:

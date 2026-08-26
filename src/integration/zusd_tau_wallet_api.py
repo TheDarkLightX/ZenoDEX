@@ -674,10 +674,10 @@ def _status_payload() -> Dict[str, Any]:
     }
     try:
         client = _tau_client()
-        hello = client.rpc("hello version=1").strip()
+        client.rpc("hello version=1")
         app_state, app_hash = _load_app_state(client)
         status["node_reachable"] = True
-        status["hello"] = hello
+        status["hello"] = "reachable"
         status["app_hash"] = app_hash
         status["app_bridge_available"] = bool(app_state or app_hash)
         status["holder_count"] = len(_balances_for_asset(app_state, asset_id=asset_id))

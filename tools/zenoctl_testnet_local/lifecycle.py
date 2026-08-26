@@ -2206,7 +2206,6 @@ def _probe_ui_surface_contract(*, ui_base: str) -> dict[str, Any]:
 def _collect_lane_readiness(*, ui_base: str, manifest: Mapping[str, Any] | None = None) -> dict[str, Any]:
     lanes = {
         "spot": _safe_get_json(f"{ui_base}/api/pools"),
-        "zusd_wallet": _safe_get_json(f"{ui_base}/api/zusd/wallet/status"),
         "zusd_monetary": _safe_get_json(f"{ui_base}/api/zusd/monetary/status"),
         "perps_wallet": _safe_get_json(f"{ui_base}/api/perps/wallet/status", timeout_s=15.0),
         "oracle_health": _safe_get_json(f"{ui_base}/api/oracle/health"),
@@ -2215,8 +2214,6 @@ def _collect_lane_readiness(*, ui_base: str, manifest: Mapping[str, Any] | None 
     }
     checks = {
         "spot": bool(lanes["spot"].get("ok")) and isinstance(lanes["spot"].get("pools"), list) and len(lanes["spot"]["pools"]) > 0,
-        "zusd_wallet": bool(lanes["zusd_wallet"].get("ok"))
-        and bool(((lanes["zusd_wallet"].get("status") or {}).get("node_reachable"))),
         "zusd_monetary": bool(lanes["zusd_monetary"].get("ok"))
         and bool(((lanes["zusd_monetary"].get("status") or {}).get("node_reachable")))
         and bool(((lanes["zusd_monetary"].get("status") or {}).get("monetary_state_present"))),
@@ -2542,15 +2539,6 @@ def _run_feature_smoke(*, ui_base: str, paths: mf.ManifestPaths, manifest: Mappi
             chain_id=chain_id,
             deadline=deadline,
             run_id=run_id,
-        ),
-    )
-    capture(
-        "zusd_wallet_transfer",
-        lambda: _summarize_response(
-            _post_json(
-                f"{ui_base}/api/zusd/wallet/submit",
-                _zusd_transfer_payload(ui_base=ui_base, roles=roles, deadline=deadline),
-            ),
         ),
     )
     capture(
@@ -3121,7 +3109,6 @@ def _browser_smoke_cases(
     deadline = int(time.time()) + 3600
     alice = _role_pubkey(roles, "alice")
     alice_priv = roles["alice"]["privkey_hex"]
-    bob = _role_pubkey(roles, "bob")
     oracle_auth = _role_pubkey(roles, "oracle_authority")
     oracle_priv = roles["oracle_authority"]["privkey_hex"]
     market_id = str(seed_report["market_id"])
@@ -3161,23 +3148,6 @@ def _browser_smoke_cases(
                 }
             ),
             "snippets": ("Swap Confirmed",),
-        },
-        {
-            "name": "zusd_wallet_ui",
-            "url": url(
-                {
-                    "tab": "zusd",
-                    "demo": "false",
-                    "zenodexUiSmokeZusd": "1",
-                    "zusdAction": "transfer",
-                    "senderPubkey": alice,
-                    "recipientPubkey": bob,
-                    "zusdAmount": "1",
-                    "zusdDeadline": str(deadline),
-                    "signerPrivkey": alice_priv,
-                }
-            ),
-            "snippets": ("zUSD Wallet", "\"ok\": true"),
         },
         {
             "name": "zusd_monetary_ui",
