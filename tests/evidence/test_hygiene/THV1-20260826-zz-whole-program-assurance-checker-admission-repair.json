@@ -1,0 +1,183 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zz-whole-program-assurance-checker-admission-repair",
+  "created_date": "2026-08-26",
+  "claim_scope": "This append-only successor invalidates the two named predecessor packets for current-evidence selection and covers only the demonstrated Linux and Python checker paths. The openat2 support probe and proc-record reader close their acquired descriptor after the tested post-acquisition MemoryError and KeyboardInterrupt injections. Confined replacement preserves a foreign PID-named O_EXCL collision, reports APPLICATION_UNKNOWN when a raising rename leaves application observationally ambiguous, removes every tested invocation-owned temporary path, and permits the tested exact retries. The hygiene gate treats the live-gate registry and whole-program artifact binding helper as critical in isolation and excludes superseded packets from current selection. Authority remains checker-owned NONE and the value-movement closure remains deliberately red.",
+  "change_kind": "bug_fix",
+  "risk_class": "assurance",
+  "invariant_ids": [
+    "WHOLE-PROGRAM-TESTED-POST-ACQUISITION-BASEEXCEPTION-CLOSES-DESCRIPTORS",
+    "WHOLE-PROGRAM-REPLACEMENT-UNLINKS-ONLY-INVOCATION-OWNED-TEMPORARIES",
+    "WHOLE-PROGRAM-RENAME-APPLICATION-AMBIGUITY-IS-TYPED",
+    "WHOLE-PROGRAM-TESTED-REPLACEMENT-FAULTS-REMAIN-RETRYABLE",
+    "WHOLE-PROGRAM-AUTHORITY-HELPERS-ARE-HYGIENE-CRITICAL-IN-ISOLATION",
+    "WHOLE-PROGRAM-SUPERSEDED-EVIDENCE-CANNOT-BE-CURRENT",
+    "VALUE-MOVEMENT-CLOSURE-REPORT-AUTHORITY-IS-CHECKER-OWNED-NONE",
+    "VALUE-MOVEMENT-CLOSURE-REMAINS-EXACTLY-RED-UNTIL-EXACT-REPIN"
+  ],
+  "failure_modes": [
+    "the openat2 support probe leaks its root descriptor when a BaseException follows acquisition",
+    "the proc-record reader leaks its file descriptor when a BaseException follows acquisition",
+    "an O_EXCL EEXIST collision causes replacement cleanup to unlink a foreign pathname",
+    "target-byte equality after a raising rename is misreported as proof that this invocation applied",
+    "an invocation-owned temporary survives an ambiguous rename result and blocks exact retry",
+    "the live-gate registry or artifact-binding helper changes in isolation with critical_path_count zero",
+    "a stale or overbroad superseded packet is selected as current evidence",
+    "a checker repair promotes production authority or the deliberately red closure posture"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/check_whole_program_plan_v1.py",
+      "sha256": "801491fbbe0acaf1a11fd6700ddd3569e6bce8fcdd16c04146571c6714977397"
+    },
+    {
+      "path": "tools/live_gate_registry_v1.py",
+      "sha256": "94c7657b60ae8db90f143aea2cd14c5a4ed62addb702a4006ec27fb6b82d8c91"
+    },
+    {
+      "path": "tools/whole_program_artifact_binding_v1.py",
+      "sha256": "9cad9441b92dc8ead5309f28c6ba5213accf5700bcaacb236c51e0bbdab22c17"
+    },
+    {
+      "path": "tools/check_test_hygiene_v1.py",
+      "sha256": "72e6c4dbb348a43adb1911780ff8f06bbb84abdcb6af5fa978650f0b7aa82972"
+    },
+    {
+      "path": "tools/test_hygiene_model_v1.py",
+      "sha256": "bb2d0d83eca20ef8135fab595f91a2ec3f41a900dad1f76f7d290b6247f14bf2"
+    },
+    {
+      "path": "tools/test_hygiene_evidence_v1.py",
+      "sha256": "99409582938d8ba2ba38b00e9d9271169fb4f923a8834ff8cc4966bb6b4aa870"
+    },
+    {
+      "path": "tools/test_hygiene_contract_v1.json",
+      "sha256": "7ffdaab278e3136228a40b743daefb10b8f5e7612360a0612fdd3acc1b28bfa6"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/test_whole_program_fcis_linearization_v1.py",
+      "sha256": "ac369002aaa33213b781f142aef8eb78278980f1ad2cef5bf1029f3174e660af",
+      "node_ids": [
+        "tests/test_whole_program_fcis_linearization_v1.py::test_openat2_support_post_acquisition_baseexception_closes_descriptor",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_proc_record_post_acquisition_baseexception_closes_descriptor",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_replacement_fault_points_report_linearization_and_retry_exactly",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_replacement_foreign_exclusive_temp_is_never_unlinked",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_identical_bytes_pre_rename_fault_is_ambiguous_and_retryable",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_applied_then_raising_rename_is_ambiguous_and_retryable",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_replacement_result_states_are_closed_and_caller_mapping_is_exhaustive",
+        "tests/test_whole_program_fcis_linearization_v1.py::test_current_hygiene_packet_invalidates_universal_predecessors_and_names_matrix"
+      ]
+    },
+    {
+      "path": "tests/test_check_test_hygiene_v1.py",
+      "sha256": "97af043170aab96e2b55a326c0053de4763603654d83bcc04acd3c68df99c5ef",
+      "node_ids": [
+        "tests/test_check_test_hygiene_v1.py::test_isolated_registry_or_binding_change_requires_evidence_packet",
+        "tests/test_check_test_hygiene_v1.py::test_superseded_packet_cannot_fallback_as_current_evidence",
+        "tests/test_check_test_hygiene_v1.py::test_supersession_must_name_an_earlier_existing_packet",
+        "tests/test_check_test_hygiene_v1.py::test_default_contract_retains_mandatory_critical_path_probes"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each regression arranges one exact post-acquisition exception, pathname collision, rename fault, isolated changed path, or supersession chain; acts through one owning boundary; and asserts exact descriptor sets, target and temporary bytes, typed state, retry result, selected packet, and authority posture."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The tested descriptor failures restore the descriptor set. Foreign EEXIST and tested NOT_APPLIED faults preserve target bytes and foreign paths. APPLICATION_UNKNOWN is a refusal to promote success and exact retry is tested separately."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "post_acquisition_baseexception_cleanup",
+      "points": [
+        "openat2_support_MemoryError",
+        "openat2_support_KeyboardInterrupt",
+        "proc_record_MemoryError",
+        "proc_record_KeyboardInterrupt"
+      ]
+    },
+    {
+      "name": "replacement_fault_matrix",
+      "points": [
+        "foreign_O_EXCL_EEXIST_preserves_foreign_temp_and_target",
+        "open_write_file_fsync_close_and_preapply_rename_are_NOT_APPLIED",
+        "identical_bytes_preapply_rename_fault_is_APPLICATION_UNKNOWN",
+        "applied_then_raising_rename_is_APPLICATION_UNKNOWN",
+        "directory_fsync_fault_is_APPLIED_DURABILITY_UNKNOWN",
+        "all_tested_owned_temp_faults_allow_exact_retry"
+      ]
+    },
+    {
+      "name": "isolated_critical_path_coverage",
+      "points": [
+        "live_gate_registry_requires_packet",
+        "whole_program_artifact_binding_requires_packet",
+        "noncritical_document_remains_zero_critical_paths"
+      ]
+    },
+    {
+      "name": "evidence_lifecycle",
+      "points": [
+        "historical_packet_bytes_remain_immutable",
+        "supersession_names_only_earlier_existing_ids",
+        "superseded_packet_is_excluded_from_current_selection",
+        "stale_successor_never_falls_back_to_universal_predecessor"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "catch only OSError after support-probe or proc-record descriptor acquisition",
+      "killed_by": "tests/test_whole_program_fcis_linearization_v1.py::test_openat2_support_post_acquisition_baseexception_closes_descriptor"
+    },
+    {
+      "description": "unlink the predictable temporary pathname after O_EXCL reports EEXIST",
+      "killed_by": "tests/test_whole_program_fcis_linearization_v1.py::test_replacement_foreign_exclusive_temp_is_never_unlinked"
+    },
+    {
+      "description": "treat matching target bytes after a raising rename as proof of application",
+      "killed_by": "tests/test_whole_program_fcis_linearization_v1.py::test_identical_bytes_pre_rename_fault_is_ambiguous_and_retryable"
+    },
+    {
+      "description": "omit APPLICATION_UNKNOWN from exhaustive caller handling",
+      "killed_by": "tests/test_whole_program_fcis_linearization_v1.py::test_replacement_result_states_are_closed_and_caller_mapping_is_exhaustive"
+    },
+    {
+      "description": "leave either authority helper outside the isolated critical-path registry",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_isolated_registry_or_binding_change_requires_evidence_packet"
+    },
+    {
+      "description": "fall back to a superseded packet when its successor pin is stale",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_superseded_packet_cannot_fallback_as_current_evidence"
+    },
+    {
+      "description": "permit supersession to name missing or later evidence",
+      "killed_by": "tests/test_check_test_hygiene_v1.py::test_supersession_must_name_an_earlier_existing_packet"
+    }
+  ],
+  "nonclaims": [
+    "This packet is bounded to the named deterministic Python exception injections, replacement fault matrix, and hygiene-selection cases. It does not establish universal BaseException safety, arbitrary bytecode-interruption safety, or a filesystem crash theorem.",
+    "APPLICATION_UNKNOWN means the checker cannot attribute application after a raising rename. It does not claim application or durability; callers refuse success and the tested desired-byte retry is idempotent.",
+    "Persistent close or unlink failures, hostile concurrent in-process descriptor or pathname manipulation, abrupt process death, kernel faults, and cross-platform behavior remain outside this claim.",
+    "Supersession removes predecessor packets from current-evidence selection while preserving their bytes for historical replay. It does not alter historical facts or validate their overbroad wording.",
+    "No semantic completion of the whole economy, safety of all value movement, production readiness, settlement authority, writer rotation, migration, mount, or value-moving authority is established; production_authority and claim_authority remain NONE.",
+    "The whole-program ledger retains its exact red closure posture and accepted semantic anchors; this admission repair changes no economic behavior or UI.",
+    "Named mutation killers are reviewed semantic mutants. No exhaustive mutation campaign is claimed."
+  ],
+  "supersedes_evidence_ids": [
+    "THV1-20260826-whole-program-assurance-checker",
+    "THV1-20260826-z-whole-program-assurance-checker-fcis-linearization"
+  ]
+}

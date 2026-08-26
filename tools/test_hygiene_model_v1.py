@@ -102,6 +102,7 @@ class PacketV1:
     source_pins: tuple[PinV1, ...]
     test_pins: tuple[PinV1, ...]
     removed_paths: tuple[RemovedPathV1, ...]
+    supersedes_evidence_ids: tuple[str, ...] = ()
 
     @property
     def node_ids(self) -> tuple[str, ...]:

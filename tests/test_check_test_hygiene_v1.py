@@ -353,6 +353,75 @@ def test_noncritical_document_change_needs_no_packet(tmp_path: Path) -> None:
     assert report["pytest_node_ids"] == []
 
 
+@pytest.mark.parametrize(
+    "critical_path",
+    (
+        "tools/live_gate_registry_v1.py",
+        "tools/whole_program_artifact_binding_v1.py",
+    ),
+)
+def test_isolated_registry_or_binding_change_requires_evidence_packet(
+    tmp_path: Path, critical_path: str
+) -> None:
+    """Negative probe: each authority helper is critical even in isolation."""
+
+    empty_evidence = tmp_path / "empty-evidence"
+    with pytest.raises(
+        TestHygieneError,
+        match=rf"uncovered critical path: M:{critical_path}",
+    ):
+        check_repository(
+            repo_root=REPO_ROOT,
+            contract_path=DEFAULT_CONTRACT,
+            evidence_dir=empty_evidence,
+            changed_paths=[ChangedPathV1(status="M", path=critical_path)],
+        )
+
+
+def test_superseded_packet_cannot_fallback_as_current_evidence(
+    tmp_path: Path,
+) -> None:
+    """Negative probe: stale successor evidence cannot reactivate its predecessor."""
+
+    repo, contract, evidence_dir = _fixture_repo(tmp_path)
+    predecessor = _packet(repo)
+    predecessor_id = predecessor["evidence_id"]
+    assert type(predecessor_id) is str
+    _write_json(evidence_dir / f"{predecessor_id}.json", predecessor)
+
+    successor = _packet(repo)
+    successor_id = "THV1-20260806-example-successor"
+    successor["evidence_id"] = successor_id
+    successor["created_date"] = "2026-08-06"
+    successor["supersedes_evidence_ids"] = [predecessor_id]
+    successor["source_pins"][0]["sha256"] = "0" * 64  # type: ignore[index]
+    _write_json(evidence_dir / f"{successor_id}.json", successor)
+
+    with pytest.raises(TestHygieneError, match="source sha256 drift"):
+        check_repository(
+            repo_root=repo,
+            contract_path=contract,
+            evidence_dir=evidence_dir,
+            changed_paths=[ChangedPathV1(status="M", path="src/core/example.py")],
+        )
+
+
+def test_supersession_must_name_an_earlier_existing_packet(tmp_path: Path) -> None:
+    """Schema regression: invalidation cannot silently name absent evidence."""
+
+    repo, contract, evidence_dir = _fixture_repo(tmp_path)
+    packet = _packet(repo)
+    packet["supersedes_evidence_ids"] = ["THV1-20260804-absent"]
+    _write_json(evidence_dir / "THV1-20260805-example.json", packet)
+
+    with pytest.raises(TestHygieneError, match="must be an earlier packet"):
+        check_repository(
+            repo_root=repo,
+            contract_path=contract,
+            evidence_dir=evidence_dir,
+        )
+
+
 def test_unknown_contract_field_rejects_fail_closed(tmp_path: Path) -> None:
     # Arrange
     repo, contract, evidence_dir = _fixture_repo(tmp_path)

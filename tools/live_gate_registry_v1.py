@@ -291,24 +291,28 @@ def openat2_support_v1() -> str:
         owner = _OwnedDescriptorsV1(2)
         result = ""
         try:
-            root = owner.acquire(
-                0,
-                lambda: os.open(
-                    "/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
-                ),
-            )
-            owner.acquire(
-                1,
-                lambda: _openat2_raw(
-                    root,
-                    ".",
-                    os.O_RDONLY | os.O_DIRECTORY,
+            try:
+                root = owner.acquire(
                     0,
-                    SUBTREE_RESOLVE,
-                ),
-            )
-        except OSError as exc:
-            result = f"openat2 with the required resolve flags is unavailable on this kernel ({os.strerror(exc.errno or 0)})"
+                    lambda: os.open(
+                        "/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC
+                    ),
+                )
+                owner.acquire(
+                    1,
+                    lambda: _openat2_raw(
+                        root,
+                        ".",
+                        os.O_RDONLY | os.O_DIRECTORY,
+                        0,
+                        SUBTREE_RESOLVE,
+                    ),
+                )
+            except OSError as exc:
+                result = f"openat2 with the required resolve flags is unavailable on this kernel ({os.strerror(exc.errno or 0)})"
+        except BaseException:
+            owner.close_preserving_primary()
+            raise
         cleanup_error = owner.close_preserving_primary()
         if cleanup_error is not None and not result:
             result = f"openat2 support-probe cleanup failed ({type(cleanup_error).__name__})"
@@ -1249,6 +1253,9 @@ def _read_proc_record(path: Path, max_bytes: int) -> bytes | None:
             remaining -= len(chunk)
     except OSError:
         failed = True
+    except BaseException:
+        owner.close_preserving_primary()
+        raise
     cleanup_error = owner.close_preserving_primary()
     if failed or cleanup_error is not None:
         return None

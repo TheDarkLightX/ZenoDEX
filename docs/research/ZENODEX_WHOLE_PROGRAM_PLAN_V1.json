@@ -710,8 +710,8 @@
     "branch": "codex/fable-whole-program-20260825-r3",
     "observed_at": "2026-08-26",
     "scoped_worktree_clean": true,
-    "source_snapshot_file_count": 5793,
-    "source_snapshot_sha256": "2abd058913b5d21d583ef71c8d95bae255863527da82a2a5a74203a666675129"
+    "source_snapshot_file_count": 5794,
+    "source_snapshot_sha256": "07fe58e70927c850e6e75da6a0bb79b96a47dddd552ad67394c92fff6498d521"
   },
   "tasks": [
     {

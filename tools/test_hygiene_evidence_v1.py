@@ -48,6 +48,7 @@ _PACKET_FIELDS = frozenset(
         "nonclaims",
     }
 )
+_OPTIONAL_PACKET_FIELDS = frozenset({"supersedes_evidence_ids"})
 
 
 def _parse_pin(value: object, *, context: str, test_pin: bool) -> PinV1:
@@ -196,7 +197,12 @@ def _validate_path_partition(
 def load_packet(path: Path, contract: ContractV1) -> PacketV1:
     context = path.name
     raw = load_json(path, context=context)
-    exact_fields(raw, _PACKET_FIELDS, context=context)
+    expected_fields = _PACKET_FIELDS | (
+        _OPTIONAL_PACKET_FIELDS
+        if "supersedes_evidence_ids" in raw
+        else frozenset()
+    )
+    exact_fields(raw, expected_fields, context=context)
     require(raw["schema"] == EVIDENCE_SCHEMA, f"{context}: schema mismatch")
     evidence_id = string_value(raw["evidence_id"], context=f"{context}.evidence_id")
     require(
@@ -246,6 +252,14 @@ def load_packet(path: Path, contract: ContractV1) -> PacketV1:
         source_pins=source_pins,
         test_pins=test_pins,
         removed_paths=removed,
+        supersedes_evidence_ids=(
+            string_list(
+                raw["supersedes_evidence_ids"],
+                context=f"{context}.supersedes_evidence_ids",
+            )
+            if "supersedes_evidence_ids" in raw
+            else ()
+        ),
     )
 
 
@@ -282,4 +296,18 @@ def load_packets(evidence_dir: Path, contract: ContractV1) -> tuple[PacketV1, ..
     )
     ids = [packet.evidence_id for packet in packets]
     require(len(ids) == len(set(ids)), "duplicate evidence ids")
+    seen: set[str] = set()
+    superseded_by: dict[str, str] = {}
+    for packet in packets:
+        for predecessor in packet.supersedes_evidence_ids:
+            require(
+                predecessor in seen,
+                f"{packet.evidence_id}: superseded evidence must be an earlier packet: {predecessor}",
+            )
+            require(
+                predecessor not in superseded_by,
+                f"{packet.evidence_id}: evidence already superseded by {superseded_by.get(predecessor, '')}: {predecessor}",
+            )
+            superseded_by[predecessor] = packet.evidence_id
+        seen.add(packet.evidence_id)
     return packets

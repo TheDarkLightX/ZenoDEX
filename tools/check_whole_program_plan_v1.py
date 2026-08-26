@@ -1071,6 +1071,7 @@ class ConfinedReplaceStateV1(enum.Enum):
     """Closed target-state result around the atomic rename linearization point."""
 
     NOT_APPLIED = "not_applied"
+    APPLICATION_UNKNOWN = "application_unknown"
     APPLIED_DURABLE = "applied_durable"
     APPLIED_DURABILITY_UNKNOWN = "applied_durability_unknown"
 
@@ -1101,9 +1102,23 @@ def _replace_not_applied_v1(reason: str) -> ConfinedReplaceResultV1:
     return ConfinedReplaceResultV1(ConfinedReplaceStateV1.NOT_APPLIED, reason)
 
 
-def _replace_durability_unknown_v1(reason: str) -> ConfinedReplaceResultV1:
+def _replace_durability_unknown_v1(
+    reason: str, *, cleanup_error: str = ""
+) -> ConfinedReplaceResultV1:
     return ConfinedReplaceResultV1(
-        ConfinedReplaceStateV1.APPLIED_DURABILITY_UNKNOWN, reason
+        ConfinedReplaceStateV1.APPLIED_DURABILITY_UNKNOWN,
+        reason,
+        cleanup_error,
+    )
+
+
+def _replace_application_unknown_v1(
+    reason: str, *, cleanup_error: str = ""
+) -> ConfinedReplaceResultV1:
+    return ConfinedReplaceResultV1(
+        ConfinedReplaceStateV1.APPLICATION_UNKNOWN,
+        reason,
+        cleanup_error,
     )
 
 
@@ -1112,15 +1127,26 @@ def _replacement_finding_v1(
 ) -> PlanFinding | None:
     """Exhaustively map every shell linearization state into checker semantics."""
 
+    evidence = (
+        f"{result.reason}; {result.cleanup_error}"
+        if result.cleanup_error
+        else result.reason
+    )
     if result.state is ConfinedReplaceStateV1.NOT_APPLIED:
         return PlanFinding(
-            "plan_artifact_write_refused", relative.as_posix(), result.reason
+            "plan_artifact_write_refused", relative.as_posix(), evidence
+        )
+    if result.state is ConfinedReplaceStateV1.APPLICATION_UNKNOWN:
+        return PlanFinding(
+            "plan_artifact_write_application_unknown",
+            relative.as_posix(),
+            evidence,
         )
     if result.state is ConfinedReplaceStateV1.APPLIED_DURABILITY_UNKNOWN:
         return PlanFinding(
             "plan_artifact_write_durability_unknown",
             relative.as_posix(),
-            result.reason,
+            evidence,
         )
     if result.state is ConfinedReplaceStateV1.APPLIED_DURABLE:
         if result.cleanup_error:
@@ -1186,6 +1212,7 @@ def replace_confined_file_v1(
         return _replace_not_applied_v1(_refusal(relative, exc))
     rename_started = False
     renamed = False
+    temporary_owned = False
     try:
         try:
             existing = os.stat(name, dir_fd=directory, follow_symlinks=False)
@@ -1196,15 +1223,18 @@ def replace_confined_file_v1(
             return _replace_not_applied_v1(
                 f"{relative.as_posix()} is not a regular file"
             )
-        descriptor = owner.acquire(
-            1,
-            lambda: os.open(
+        def create_owned_temporary() -> int:
+            nonlocal temporary_owned
+            descriptor = os.open(
                 temporary,
                 os.O_WRONLY | os.O_CREAT | os.O_EXCL | _FILE_FLAGS,
                 0o644,
                 dir_fd=directory,
-            ),
-        )
+            )
+            temporary_owned = True
+            return descriptor
+
+        descriptor = owner.acquire(1, create_owned_temporary)
         view = memoryview(data)
         while view:
             written = os.write(descriptor, view)
@@ -1216,6 +1246,7 @@ def replace_confined_file_v1(
         rename_started = True
         os.rename(temporary, name, src_dir_fd=directory, dst_dir_fd=directory)
         renamed = True
+        temporary_owned = False
         os.fsync(directory)
     except BaseException as exc:
         target_match: bool | None = None
@@ -1223,24 +1254,54 @@ def replace_confined_file_v1(
             target_match = _target_matches_after_rename_fault_v1(
                 owner, directory, name, data
             )
-        if not renamed and target_match is not True:
+        temporary_cleanup_error: BaseException | None = None
+        if temporary_owned:
             try:
                 os.unlink(temporary, dir_fd=directory)
-            except OSError:
-                pass
-        owner.close_preserving_primary()
+            except FileNotFoundError:
+                temporary_owned = False
+            except BaseException as cleanup_exc:
+                temporary_cleanup_error = cleanup_exc
+            else:
+                temporary_owned = False
+        descriptor_cleanup_error = owner.close_preserving_primary()
         if not isinstance(exc, OSError):
             raise
         reason = f"cannot replace {relative.as_posix()}: {type(exc).__name__}"
-        if renamed or target_match is True or (rename_started and target_match is None):
-            return _replace_durability_unknown_v1(reason)
+        cleanup_failures = tuple(
+            failure
+            for failure in (temporary_cleanup_error, descriptor_cleanup_error)
+            if failure is not None
+        )
+        cleanup_error = (
+            "; ".join(
+                f"cleanup failed: {type(failure).__name__}"
+                for failure in cleanup_failures
+            )
+            if cleanup_failures
+            else ""
+        )
+        if renamed:
+            return _replace_durability_unknown_v1(
+                reason, cleanup_error=cleanup_error
+            )
+        if rename_started and target_match is not False:
+            return _replace_application_unknown_v1(
+                reason, cleanup_error=cleanup_error
+            )
+        if cleanup_error:
+            return ConfinedReplaceResultV1(
+                ConfinedReplaceStateV1.NOT_APPLIED,
+                reason,
+                cleanup_error,
+            )
         return _replace_not_applied_v1(reason)
-    cleanup_error = owner.close_preserving_primary()
-    if cleanup_error is not None:
+    final_cleanup_error = owner.close_preserving_primary()
+    if final_cleanup_error is not None:
         return ConfinedReplaceResultV1(
             ConfinedReplaceStateV1.APPLIED_DURABLE,
             "",
-            f"descriptor cleanup failed: {type(cleanup_error).__name__}",
+            f"descriptor cleanup failed: {type(final_cleanup_error).__name__}",
         )
     return ConfinedReplaceResultV1(ConfinedReplaceStateV1.APPLIED_DURABLE, "")
 

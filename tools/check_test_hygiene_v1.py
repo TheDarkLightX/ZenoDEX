@@ -53,6 +53,7 @@ class _SelectionContextV1:
     repo_root: Path
     packets: tuple[PacketV1, ...]
     strong_families: frozenset[str]
+    superseded_evidence_ids: frozenset[str]
 
 
 def _matching_rules(contract: ContractV1, path: str) -> tuple[RuleV1, ...]:
@@ -114,6 +115,8 @@ def _select_packet(
 ) -> PacketV1:
     stale_labels: list[str] = []
     for packet in reversed(context.packets):
+        if packet.evidence_id in context.superseded_evidence_ids:
+            continue
         if change.status == "D":
             if packet.removal_for(change.path) is None:
                 continue
@@ -164,6 +167,11 @@ def check_repository(
         repo_root=repo_root,
         packets=packets,
         strong_families=contract.strong_families,
+        superseded_evidence_ids=frozenset(
+            predecessor
+            for packet in packets
+            for predecessor in packet.supersedes_evidence_ids
+        ),
     )
     for change in normalized:
         rules = _matching_rules(contract, change.path)
@@ -188,6 +196,9 @@ def check_repository(
         "critical_path_count": len(critical),
         "covered_critical_paths": sorted(selected),
         "selected_evidence_ids": sorted(selected_packets),
+        "superseded_evidence_ids": sorted(
+            selection_context.superseded_evidence_ids
+        ),
         "pytest_node_ids": nodes,
     }
 

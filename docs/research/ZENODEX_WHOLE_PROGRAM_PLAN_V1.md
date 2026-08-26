@@ -124,7 +124,7 @@ process remains trusted.
 
 <!-- BEGIN GENERATED PLAN TABLES: regenerate with python3 tools/check_whole_program_plan_v1.py --render -->
 
-Subject: base `21fa295a42d455ced130a50ae66c84b3c1b32afa` on `codex/fable-whole-program-20260825-r3`, source snapshot `2abd058913b5d21d583ef71c8d95bae255863527da82a2a5a74203a666675129` (5793 files, plan artifacts excluded), observed 2026-08-26.
+Subject: base `21fa295a42d455ced130a50ae66c84b3c1b32afa` on `codex/fable-whole-program-20260825-r3`, source snapshot `07fe58e70927c850e6e75da6a0bb79b96a47dddd552ad67394c92fff6498d521` (5794 files, plan artifacts excluded), observed 2026-08-26.
 
 Authority ceiling: `claim_authority="NONE"`, `production_authority="NONE"`, `production_ready=false`, `release_ready=false`.
 

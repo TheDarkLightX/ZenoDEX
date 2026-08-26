@@ -76,6 +76,8 @@
         "tools/run_*gate*.sh",
         "tools/test_hygiene_*_v1.py",
         "tools/test_hygiene_contract_v1.json",
+        "tools/live_gate_registry_v1.py",
+        "tools/whole_program_artifact_binding_v1.py",
         ".github/workflows/**",
         ".github/CODEOWNERS",
         "docs/testing/TEST_HYGIENE_CONTRACT_V1.md",

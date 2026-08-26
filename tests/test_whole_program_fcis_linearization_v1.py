@@ -16,7 +16,7 @@ import sys
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from types import FrameType
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -30,6 +30,9 @@ HISTORICAL_PACKET = Path(
 )
 SUCCESSOR_PACKET = Path(
     "tests/evidence/test_hygiene/THV1-20260826-z-whole-program-assurance-checker-fcis-linearization.json"
+)
+CURRENT_PACKET = Path(
+    "tests/evidence/test_hygiene/THV1-20260826-zz-whole-program-assurance-checker-admission-repair.json"
 )
 HISTORICAL_PACKET_SHA256 = (
     "90d9833f3a8e569b5941894e6e0aeab06906722b42ade7264f3cb2cb8c9e0a3b"
@@ -292,6 +295,64 @@ def test_artifact_caller_transfer_failure_unwinds_every_source() -> None:
         root.close()
 
 
+@pytest.mark.parametrize("failure_type", (MemoryError, KeyboardInterrupt))
+def test_openat2_support_post_acquisition_baseexception_closes_descriptor(
+    monkeypatch: pytest.MonkeyPatch,
+    failure_type: type[BaseException],
+) -> None:
+    """Negative regression: support-probe interruption cannot leak its root fd."""
+
+    real_acquire = registry._OwnedDescriptorsV1.acquire
+    cached = tuple(registry._OPENAT2_SUPPORT)
+
+    def acquire_then_fail(
+        self: registry._OwnedDescriptorsV1,
+        slot: int,
+        opener: Callable[[], int],
+    ) -> int:
+        descriptor = real_acquire(self, slot, opener)
+        raise failure_type(f"injected after support-probe acquisition {descriptor}")
+
+    before = _open_fds()
+    registry._OPENAT2_SUPPORT.clear()
+    monkeypatch.setattr(registry._OwnedDescriptorsV1, "acquire", acquire_then_fail)
+    try:
+        with pytest.raises(failure_type, match="support-probe acquisition"):
+            registry.openat2_support_v1()
+        assert _open_fds() == before
+        assert registry._OPENAT2_SUPPORT == []
+    finally:
+        registry._OPENAT2_SUPPORT[:] = cached
+        _close_raw(_open_fds() - before)
+
+
+@pytest.mark.parametrize("failure_type", (MemoryError, KeyboardInterrupt))
+def test_proc_record_post_acquisition_baseexception_closes_descriptor(
+    monkeypatch: pytest.MonkeyPatch,
+    failure_type: type[BaseException],
+) -> None:
+    """Negative regression: proc-record interruption cannot leak its file fd."""
+
+    real_acquire = registry._OwnedDescriptorsV1.acquire
+
+    def acquire_then_fail(
+        self: registry._OwnedDescriptorsV1,
+        slot: int,
+        opener: Callable[[], int],
+    ) -> int:
+        descriptor = real_acquire(self, slot, opener)
+        raise failure_type(f"injected after proc-record acquisition {descriptor}")
+
+    before = _open_fds()
+    monkeypatch.setattr(registry._OwnedDescriptorsV1, "acquire", acquire_then_fail)
+    try:
+        with pytest.raises(failure_type, match="proc-record acquisition"):
+            registry._read_proc_record(Path("/proc/self/stat"), 4096)
+        assert _open_fds() == before
+    finally:
+        _close_raw(_open_fds() - before)
+
+
 @pytest.mark.parametrize("attempts", (1, 8))
 def test_repeated_root_handoff_failures_have_zero_descriptor_growth(
     monkeypatch: pytest.MonkeyPatch, attempts: int
@@ -464,6 +525,97 @@ def test_replacement_fault_points_report_linearization_and_retry_exactly(
         assert target.read_bytes() == b"new"
 
 
+def test_replacement_foreign_exclusive_temp_is_never_unlinked(tmp_path: Path) -> None:
+    """Negative regression: an O_EXCL collision never transfers pathname ownership."""
+
+    target = tmp_path / "artifact.txt"
+    target.write_bytes(b"old")
+    foreign = tmp_path / f".artifact.txt.{os.getpid()}.tmp"
+    foreign.write_bytes(b"foreign")
+
+    with checker.ConfinedRootV1.bind(tmp_path) as root:
+        result = checker.replace_confined_file_v1(
+            root, Path("artifact.txt"), b"new"
+        )
+
+    assert result.state is checker.ConfinedReplaceStateV1.NOT_APPLIED
+    assert target.read_bytes() == b"old"
+    assert foreign.read_bytes() == b"foreign"
+
+
+def test_identical_bytes_pre_rename_fault_is_ambiguous_and_retryable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stateful regression: equality cannot prove application before rename returns."""
+
+    target = tmp_path / "artifact.txt"
+    target.write_bytes(b"same")
+    temporary = tmp_path / f".artifact.txt.{os.getpid()}.tmp"
+
+    def fail_before_rename(*_args: object, **_kwargs: object) -> None:
+        raise OSError("injected pre-rename fault")
+
+    with checker.ConfinedRootV1.bind(tmp_path) as root:
+        with monkeypatch.context() as fault:
+            fault.setattr(checker.os, "rename", fail_before_rename)
+            result = checker.replace_confined_file_v1(
+                root, Path("artifact.txt"), b"same"
+            )
+
+        assert result.state is checker.ConfinedReplaceStateV1.APPLICATION_UNKNOWN
+        assert target.read_bytes() == b"same"
+        assert not temporary.exists()
+
+        retry = checker.replace_confined_file_v1(
+            root, Path("artifact.txt"), b"same"
+        )
+        assert retry.state is checker.ConfinedReplaceStateV1.APPLIED_DURABLE
+        assert target.read_bytes() == b"same"
+
+
+def test_applied_then_raising_rename_is_ambiguous_and_retryable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Stateful regression: a raising rename cannot be claimed as applied."""
+
+    target = tmp_path / "artifact.txt"
+    target.write_bytes(b"old")
+    temporary = tmp_path / f".artifact.txt.{os.getpid()}.tmp"
+    real_rename = os.rename
+
+    def apply_then_fail(
+        source: PathArg,
+        destination: PathArg,
+        *,
+        src_dir_fd: int | None = None,
+        dst_dir_fd: int | None = None,
+    ) -> None:
+        real_rename(
+            source,
+            destination,
+            src_dir_fd=src_dir_fd,
+            dst_dir_fd=dst_dir_fd,
+        )
+        raise OSError("injected post-application rename fault")
+
+    with checker.ConfinedRootV1.bind(tmp_path) as root:
+        with monkeypatch.context() as fault:
+            fault.setattr(checker.os, "rename", apply_then_fail)
+            result = checker.replace_confined_file_v1(
+                root, Path("artifact.txt"), b"new"
+            )
+
+        assert result.state is checker.ConfinedReplaceStateV1.APPLICATION_UNKNOWN
+        assert target.read_bytes() == b"new"
+        assert not temporary.exists()
+
+        retry = checker.replace_confined_file_v1(
+            root, Path("artifact.txt"), b"new"
+        )
+        assert retry.state is checker.ConfinedReplaceStateV1.APPLIED_DURABLE
+        assert target.read_bytes() == b"new"
+
+
 def test_replacement_result_states_are_closed_and_caller_mapping_is_exhaustive() -> None:
     """Mutation oracle: every linearization state has one exact caller outcome."""
 
@@ -473,6 +625,9 @@ def test_replacement_result_states_are_closed_and_caller_mapping_is_exhaustive()
     )
     uncertain = checker.ConfinedReplaceResultV1(
         states.APPLIED_DURABILITY_UNKNOWN, "directory sync refused"
+    )
+    ambiguous = checker.ConfinedReplaceResultV1(
+        states.APPLICATION_UNKNOWN, "rename outcome unavailable"
     )
     durable = checker.ConfinedReplaceResultV1(states.APPLIED_DURABLE, "")
 
@@ -487,6 +642,13 @@ def test_replacement_result_states_are_closed_and_caller_mapping_is_exhaustive()
         "plan_artifact_write_durability_unknown",
         checker.PLAN_JSON_PATH.as_posix(),
         "directory sync refused",
+    )
+    assert checker._replacement_finding_v1(
+        ambiguous, checker.PLAN_JSON_PATH
+    ) == checker.PlanFinding(
+        "plan_artifact_write_application_unknown",
+        checker.PLAN_JSON_PATH.as_posix(),
+        "rename outcome unavailable",
     )
     assert checker._replacement_finding_v1(durable, checker.PLAN_JSON_PATH) is None
 
@@ -516,3 +678,51 @@ def test_hygiene_successor_preserves_history_and_bounds_ownership_claim() -> Non
     )
     assert any("persistent close failures" in item.casefold() for item in nonclaims)
     assert any("production_authority remains NONE" in item for item in nonclaims)
+
+
+def test_current_hygiene_packet_invalidates_universal_predecessors_and_names_matrix() -> None:
+    """Evidence oracle: only the bounded successor can serve as current evidence."""
+
+    packet = json.loads((ROOT / CURRENT_PACKET).read_text(encoding="utf-8"))
+    claim = packet["claim_scope"]
+    dimensions = {
+        row["name"]: row["points"] for row in packet["boundary_dimensions"]
+    }
+    report = checker_check_hygiene_for_live_registry()
+
+    assert packet["supersedes_evidence_ids"] == [
+        "THV1-20260826-whole-program-assurance-checker",
+        "THV1-20260826-z-whole-program-assurance-checker-fcis-linearization",
+    ]
+    assert "unwinds every acquired descriptor" not in claim
+    assert dimensions["replacement_fault_matrix"] == [
+        "foreign_O_EXCL_EEXIST_preserves_foreign_temp_and_target",
+        "open_write_file_fsync_close_and_preapply_rename_are_NOT_APPLIED",
+        "identical_bytes_preapply_rename_fault_is_APPLICATION_UNKNOWN",
+        "applied_then_raising_rename_is_APPLICATION_UNKNOWN",
+        "directory_fsync_fault_is_APPLIED_DURABILITY_UNKNOWN",
+        "all_tested_owned_temp_faults_allow_exact_retry",
+    ]
+    assert dimensions["post_acquisition_baseexception_cleanup"] == [
+        "openat2_support_MemoryError",
+        "openat2_support_KeyboardInterrupt",
+        "proc_record_MemoryError",
+        "proc_record_KeyboardInterrupt",
+    ]
+    assert report["selected_evidence_ids"] == [packet["evidence_id"]]
+    superseded = cast(list[str], report["superseded_evidence_ids"])
+    assert set(superseded) >= set(
+        packet["supersedes_evidence_ids"]
+    )
+
+
+def checker_check_hygiene_for_live_registry() -> dict[str, object]:
+    """Run the public hygiene boundary for one newly explicit critical path."""
+
+    from tools.check_test_hygiene_v1 import ChangedPathV1, check_repository
+
+    return check_repository(
+        changed_paths=[
+            ChangedPathV1(status="M", path="tools/live_gate_registry_v1.py")
+        ]
+    )
