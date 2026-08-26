@@ -16,7 +16,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-
 SCHEMA_V2 = "zeno_ledger.local_testnet_manifest.v2"
 SCHEMA_V1 = "zeno_ledger.local_testnet_manifest.v1"
 SCHEMA_V0 = "zeno_ledger.local_testnet_manifest.v0"
@@ -29,6 +28,14 @@ _COMPOSE_PROJECT_RE = re.compile(r"^zenodex-local-testnet-[0-9a-f]{8}$")
 ZK_MODES = frozenset({"auto-strict", "strict", "open"})
 ZK_EFFECTIVE_MODES = frozenset({"strict", "open"})
 PROOF_VERIFIER_KINDS = frozenset({"disabled", "subprocess", "misconfigured"})
+LOCAL_TESTNET_MOUNTABLE_LANES = (
+    "DEX_API_ENABLED",
+    "PERPS_WALLET_API_ENABLED",
+    "ZUSD_TAU_WALLET_API_ENABLED",
+    "ZUSD_MONETARY_WALLET_API_ENABLED",
+    "CONFIDENTIAL_ATTESTATION_API_ENABLED",
+)
+_LOCAL_TESTNET_MOUNTABLE_LANE_SET = frozenset(LOCAL_TESTNET_MOUNTABLE_LANES)
 
 
 @dataclass(frozen=True)
@@ -288,6 +295,13 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
         for lane in lanes:
             if not isinstance(lane, str) or not lane:
                 errors.append(f"enabled_lanes entries must be non-empty strings, got {lane!r}")
+        unmountable_lanes = sorted(
+            lane
+            for lane in lanes
+            if isinstance(lane, str) and lane and lane not in _LOCAL_TESTNET_MOUNTABLE_LANE_SET
+        )
+        if unmountable_lanes:
+            errors.append(f"enabled_lanes contains unmountable lanes: {unmountable_lanes}")
 
     fixture_paths = manifest.get("fixture_paths")
     if not isinstance(fixture_paths, Mapping):

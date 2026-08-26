@@ -1,0 +1,116 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zzzzzz-http-authority-persisted-manifest-closure",
+  "created_date": "2026-08-26",
+  "claim_scope": "This append-only correction closes the persisted-manifest and operator-wording gaps left by the fresh-profile alignment packet. The manifest schema now rejects AutoTrader live as an unmountable local-testnet lane, normal restart refuses such a persisted manifest while force-reset recovery can still read it, lifecycle generation imports the schema-owned lane registry, and every AutoTrader passage in the dated UI-status note is explicitly historical and unmounted.",
+  "change_kind": "evidence_correction",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "PERSISTED-LOCAL-TESTNET-MANIFEST-CANNOT-READVERTISE-QUARANTINED-AUTOTRADER",
+    "FORCE-RESET-CAN-RECOVER-AN-INVALID-STALE-MANIFEST",
+    "LIFECYCLE-AND-MANIFEST-SHARE-ONE-MOUNTABLE-LANE-REGISTRY",
+    "AUTOTRADER-PUBLIC-STATUS-WORDING-IS-HISTORICAL-AND-UNMOUNTED"
+  ],
+  "failure_modes": [
+    "a fresh manifest omits AutoTrader but restart accepts an older manifest that advertises it",
+    "fixing restart validation makes an invalid stack impossible to reset safely",
+    "manifest validation and lifecycle generation duplicate different allowed-lane sets",
+    "a correction note says unmounted while later present-tense sections claim mounted AutoTrader execution"
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/api_server.py",
+      "sha256": "2747594a626e319c1bdcf89390d142ccdb7abffb09dc6ae25a3d71cefce608a4"
+    },
+    {
+      "path": "docker-compose.local-testnet.yml",
+      "sha256": "477d2eda7d3e2c00296c06f555d993f75592d61d0a7a8c05e56e14732df71440"
+    },
+    {
+      "path": "tools/zenoctl_testnet_local/lifecycle.py",
+      "sha256": "2656af400588dde24de691556943b2328f6cda7d1b0970a96cb324e71eb267b0"
+    },
+    {
+      "path": "tools/zenoctl_testnet_local/manifest.py",
+      "sha256": "600dac105d48ed44c811f263d9c3181005c7453d5a71571c54818cd0380a091f"
+    },
+    {
+      "path": "docs/ZENODEX_UI_SURFACE_STATUS_2026_05_20.md",
+      "sha256": "766fe141644e3edbb632c2f9ec9e51a63a012c9f73cb0b0233b0625e8e34369e"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_api_server_main.py",
+      "sha256": "5ea4ab44e86fd1d7ad90d30158067c6dfc53b982e6aa6bc4a1f8336c682f65d5",
+      "node_ids": [
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_autotrader_live_mount_until_external_intent_signing_exists",
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_mounted_sealed_bid_fixture_signer",
+        "tests/integration/test_api_server_main.py::test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_construction"
+      ]
+    },
+    {
+      "path": "tests/integration/test_zenoctl_testnet_local.py",
+      "sha256": "1b4cb2e77ff65d36d31c8bfae8c51374f24e9de8276384a6f3d6f9b1d4e854aa",
+      "node_ids": [
+        "tests/integration/test_zenoctl_testnet_local.py::test_manifest_rejects_quarantined_autotrader_lane",
+        "tests/integration/test_zenoctl_testnet_local.py::test_strict_browser_smoke_cases_include_local_fixture_zk_proof",
+        "tests/integration/test_zenoctl_testnet_local.py::test_lane_readiness_keeps_stack_ready_when_only_tokenomics_gate_blocks",
+        "tests/integration/test_zenoctl_testnet_local.py::test_feature_smoke_omits_quarantined_autotrader_lane"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange exact current and stale persisted lane declarations; act through schema validation, normal manifest loading, force-reset loading, real ApiServerConfig decoding, main startup, readiness, feature smoke, and browser case generation; then assert exact rejection text, recovery availability, lane-set equality, and absent quarantined routes."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "A stale manifest is rejected before compose restart. Force mode only permits loading it for the existing explicit reset path. Hazardous runtime configurations still return before server construction."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "persisted_manifest_mode",
+      "points": [
+        "current_mountable_lane_subset_validates",
+        "first_quarantined_AutoTrader_lane_rejects",
+        "force_reset_loader_can_read_invalid_manifest_for_recovery"
+      ]
+    },
+    {
+      "name": "lane_registry_consumer",
+      "points": [
+        "manifest_validator",
+        "fresh_manifest_builder",
+        "Compose_to_ApiServerConfig_differential",
+        "readiness_feature_and_browser_smoke"
+      ]
+    },
+    {
+      "name": "operator_wording_time",
+      "points": [
+        "2026_05_historical_donor_result",
+        "2026_08_current_normal_startup_quarantine"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "The preceding fresh-profile packet omitted persisted-manifest acceptance and retained contradictory present-tense prose. This packet supersedes those unqualified claims.",
+    "Force mode may read an invalid stale manifest only to execute the explicit reset workflow; it does not make the stale lane declaration valid.",
+    "AutoTrader implementation and historical tests remain donor material. The UI source is unchanged, and normal API startup does not mount the route.",
+    "This validates deployment declarations and operator wording. It does not prove economic semantics, remote finality, or complete same-process reachability control.",
+    "No executable semantic-mutation campaign was run, so mutation evidence is intentionally absent.",
+    "No settlement, proof, migration, writer-rotation, value-moving, or production authority is added.",
+    "Production authority remains NONE."
+  ]
+}

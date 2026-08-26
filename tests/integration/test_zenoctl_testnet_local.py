@@ -140,6 +140,25 @@ def test_manifest_rejects_bad_schema(tmp_path: Path) -> None:
     assert any("schema" in e for e in errors)
 
 
+def test_manifest_rejects_quarantined_autotrader_lane(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].append("AUTOTRADER_LIVE_API_ENABLED")
+
+    errors = mf.validate_manifest(body)
+
+    assert errors == [
+        "enabled_lanes contains unmountable lanes: ['AUTOTRADER_LIVE_API_ENABLED']"
+    ]
+    path = tmp_path / mf.MANIFEST_FILENAME
+    path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="unmountable lanes"):
+        lc._load_manifest_if_present(path)
+    assert lc._load_manifest_if_present(path, allow_invalid=True) is not None
+
+
 def test_manifest_rejects_missing_keys(tmp_path: Path) -> None:
     from tools.zenoctl_testnet_local import manifest as mf
 

@@ -17,7 +17,7 @@ describe a currently mounted value-submission lane.
 | zUSD | Yes | Live Tau wallet plus monetary-vault lanes | Yes for stream `9` transfer/mint/burn transport and stream `11` collateral mint, repay, redeem, stability pool, liquidation, and SP collateral claims. | `tests/integration/test_zusd_tau_wallet_ui_bridge.py`, `tests/integration/test_zusd_tau_wallet_ui_docker.py`, `tests/integration/test_zusd_monetary_wallet_ui_bridge.py`, `tests/integration/test_zusd_monetary_wallet_ui_docker.py`, `tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim` |
 | Oracle | Yes | Live local operator console with authority preflight | Yes for local read/write API routes, dashboard reads, a write-enabled receipt flow, `/api/oracle/authority` production-authority preflight, and a bounded `/api/oracle/authority/exercise/evaluate` receipt lane with receipt-binding and public-evidence binding hashes. Public-testnet authority exercise still requires concrete public broadcast references. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py`, `tests/integration/test_zeno_oracle_authority.py` |
 | Perpetuals | Yes | Read-only preview plus live wallet panel in non-demo mode | Yes for stream `8` two-party clearinghouse init, collateral deposit/withdraw, signed position updates, epoch advance, oracle price publish, and settle through `/api/perps/wallet/*`. The mounted `/api/perps/*` path remains demo/development. | `tests/integration/test_perps_ui_preview_lock.py`, `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, `tests/integration/test_perps_stream8_resilience.py` |
-| Strategy | Yes | Receipt-backed live-prepare plus gated local/testnet submit, execute-once, and bounded supervisor panel in non-demo mode | Yes for local AutoTrader prepare, gated local/testnet submit, stateful execute-once, and bounded supervisor preflight/execute through `/api/strategy/autotrader/*`, including explicit risk acknowledgement, `AUTOTRADER_LIVE_ALLOW_LOCAL_SIGNING=true`, `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, `AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED=true`, `AUTOTRADER_LIVE_SUPERVISOR_ENABLED=true`, policy compilation, guard checks, signed intent operations, Tau tx payload construction or externally signed Tau envelope validation, `sendtx`, optional auto-mining, release certificates, a public supervisor profile, template/action surface binding, and a crash-conservative durable execution journal. Unattended production execution, production chain submission, and automatic ambiguous-outcome reconciliation remain non-claims. | `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_execution_journal.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
+| Strategy | UI retained; live route unmounted | Historical donor coverage only | Normal API startup refuses `/api/strategy/autotrader/*`, and the local-testnet manifest, readiness, feature smoke, and browser smoke omit it pending client-signed DEX intent envelopes and review. | Historical donor tests: `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_execution_journal.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
 | Confidential | Yes | Live operator-status plus local/testnet attestation and bounded runtime-receipt surface | Yes for status via `GET /api/confidential/status`, local/testnet external-verifier attestation receipts via `POST /api/confidential/attestation/verify`, stateful live-admission request consumption via `POST /api/confidential/attestation/admit`, and redacted bounded runtime receipts via `POST /api/confidential/attestation/execute`, now bound to public operator-status, measurement-allowlist, and verifier-configuration hashes. Runtime confidential privacy remains a non-claim. | `tests/integration/test_confidential_ui_bridge.py`, `tests/integration/test_api_server_confidential.py`, `tests/integration/test_zenodex_live_cross_stream_stateful.py` |
 
 ## Interpretation
@@ -28,7 +28,7 @@ selection.
 The next product-complete backend promotions still required are:
 
 1. public-testnet exercise of a signed production Oracle authority profile, full wallet/key-manager UX, and proof/ZK promotion for the mounted perps live lane;
-2. production-grade unattended strategy execution beyond explicit local/testnet execute-once and bounded supervisor ticks;
+2. client-signed DEX intent envelopes, durable ambiguous-outcome reconciliation, and a reviewed strategy route before AutoTrader may be mounted;
 3. confidential runtime privacy beyond the external-verifier attestation receipt, live-admission gate, and bounded redacted runtime receipt path.
 
 Perps now has focused backend and browser evidence for a mounted live wallet
@@ -87,10 +87,10 @@ sequence, expiry, fee limit, encoded operations, and BLS signature before
 SP-claim actions can be driven by an external signer or key-manager without
 enabling local raw-key signing in the API.
 
-The AutoTrader local/testnet path now accepts an externally signed Tau
-transaction envelope for the prepared strategy operation bundle and can execute
-it through an explicit execute-once route or a bounded supervisor route. The
-API validates the envelope's sender, current sequence, expiry, fee limit,
+The historical AutoTrader donor path accepted an externally signed Tau
+transaction envelope for the prepared strategy operation bundle and exercised
+an execute-once route and bounded supervisor route in isolated tests. The donor
+validates the envelope's sender, current sequence, expiry, fee limit,
 encoded operations, and BLS signature before `sendtx`; replaying the same
 signed envelope is rejected before a second `sendtx`; the execute-once path
 durably reserves a caller-provided execution ID immediately before one exact
@@ -99,10 +99,10 @@ and blocks replay for both `PENDING` and `SENT` outcomes; and the supervisor
 path requires a public local/testnet supervisor profile plus a deterministic
 preflight receipt before submit. The supervisor
 lane now also enforces the declared per-process run budget and exposes the
-remaining run count in mounted status and result receipts. This is
+remaining run count in donor status and result receipts. This is
 Tau-envelope transport, stateful replay-guard, and bounded supervisor evidence
-for the Strategy panel, while unattended production strategy execution and
-production wallet key management remain non-claims.
+for a possible Strategy panel. Normal API startup now refuses this path, so it
+provides no mounted local-testnet or production authority.
 
 The confidential tab now has a live local/testnet attestation receipt,
 admission path, and bounded runtime-receipt path. The mounted API invokes a
@@ -128,7 +128,6 @@ pytest -q \
   tests/integration/test_zusd_monetary_wallet_ui_docker.py \
   tests/integration/test_zeno_oracle_ui_bridge.py \
   tests/integration/test_perps_wallet_ui_bridge.py \
-  tests/integration/test_autotrader_live_ui_bridge.py \
   tests/integration/test_perps_ui_preview_lock.py \
   tests/integration/test_confidential_ui_bridge.py
 ```
@@ -144,9 +143,6 @@ These checks prove:
 - the mounted perps tab fails closed to read-only preview by default for the demo trading grid in non-demo mode;
 - the mounted perps wallet panel can submit signed stream `8` clearinghouse init
   and oracle price publish actions through the Tau-node-backed API;
-- the mounted Strategy tab can prepare receipt-backed AutoTrader operations and
-  submit them to a local/testnet Tau RPC when explicit risk acknowledgement,
-  local signing, testnet-submission, and execute-once gates are enabled;
 - the mounted confidential tab can load live operator posture from the stdlib API server and run a local/testnet external-verifier attestation admission smoke.
 
 Current backend-only perps bridge check:
@@ -160,25 +156,26 @@ pytest -q tests/integration/test_perps_stream8_resilience.py
 python3 tools/zenodex_live_cross_stream_stateful.py --format json
 ```
 
-Current AutoTrader live-prepare checks:
+Historical AutoTrader donor checks, unmounted as of 2026-08-26:
 
 ```bash
 pytest -q tests/integration/test_autotrader_live_api.py
 pytest -q tests/integration/test_autotrader_live_ui_bridge.py -s
 ```
 
-These prove the mounted strategy API requires explicit risk acknowledgement and
-local-signing enablement, prepares a signed receipt-backed operation bundle,
-can submit the prepared Tau envelope to a local/testnet Tau RPC behind
+These historical tests exercised a directly enabled donor API with explicit
+risk acknowledgement and local-signing enablement. They covered a signed
+receipt-backed operation bundle and local/testnet Tau RPC submission behind
 `AUTOTRADER_LIVE_ALLOW_TESTNET_SUBMISSION=true`, and renders the result in the
-Strategy tab. The same suite now also covers a bounded supervisor route that
+Strategy tab. The same donor suite also covered a bounded supervisor route that
 requires a public local/testnet supervisor profile, emits a supervisor
 preflight receipt, consumes a replay-guarded execution key after successful
 submit, and enforces the declared per-process run budget. They do not claim
 unattended production strategy execution, production wallet key management, or
-production chain submission.
+production chain submission. They are excluded from the current mounted test
+list because normal startup refuses the route.
 
-Latest AutoTrader live-prepare pass on 2026-05-21:
+Historical AutoTrader live-prepare pass on 2026-05-21:
 
 ```bash
 python3 -m pytest -q tests/integration/test_autotrader_live_api.py
@@ -187,7 +184,7 @@ python3 -m pytest -q tests/integration/test_autotrader_live_ui_bridge.py -s
 
 Results: `4 passed` and `1 passed`.
 
-Latest AutoTrader local/testnet submit pass on 2026-05-21:
+Historical AutoTrader local/testnet submit pass on 2026-05-21:
 
 ```bash
 python3 -m pytest -q tests/integration/test_autotrader_live_api.py
@@ -195,28 +192,29 @@ python3 -m pytest -q tests/integration/test_autotrader_live_ui_bridge.py -s
 npm run build
 ```
 
-Results: `14 passed`, `4 passed`, and Vite production build passed. The API
-suite includes a Tau app-bridge application check proving the default prepared
-AutoTrader signed intent payload applies against the same deterministic fixture
-pool that the live-preparation path quotes. It also accepts a valid externally
-signed Tau envelope and rejects duplicate signed-envelope replay before a
-second `sendtx`. It now also exposes `POST
+Results: `14 passed`, `4 passed`, and Vite production build passed. The
+historical API suite included a Tau app-bridge application check showing that
+the default prepared AutoTrader signed intent payload applied against the same
+deterministic fixture pool quoted by the live-preparation path. It also accepted
+a valid externally signed Tau envelope and rejected duplicate signed-envelope
+replay before a second `sendtx`. It exposed `POST
 /api/strategy/autotrader/execute-once`, gated by
 `AUTOTRADER_LIVE_EXECUTE_ONCE_ENABLED=true`, which durably reserves an execution
-ID immediately before the first network send and rejects replay before a second
-broadcast. Each reservation commits to one exact chain and signed Tau payload;
-an ambiguous response remains `PENDING`, while explicit Tau acceptance advances
-the same row to `SENT`. It also now exposes `POST
+ID immediately before the first network send and rejected replay before a second
+broadcast. Each reservation committed to one exact chain and signed Tau payload;
+an ambiguous response remained `PENDING`, while explicit Tau acceptance advanced
+the same row to `SENT`. It also exposed `POST
 /api/strategy/autotrader/supervisor/preflight` and `POST
 /api/strategy/autotrader/supervisor/execute`, gated by
-`AUTOTRADER_LIVE_SUPERVISOR_ENABLED=true`, which require a ready public
-supervisor profile, emit a deterministic preflight receipt, bind the prepared
-template and allowed action set, require an externally signed Tau envelope,
-and use the same durable one-payload execution reservation. The browser submit,
-execute-once, and supervisor smokes call the mounted Strategy tab, send the
+`AUTOTRADER_LIVE_SUPERVISOR_ENABLED=true`, which required a ready public
+supervisor profile, emitted a deterministic preflight receipt, bound the prepared
+template and allowed action set, required an externally signed Tau envelope,
+and used the same durable one-payload execution reservation. The historical browser submit,
+execute-once, and supervisor smokes called the donor Strategy tab, sent the
 externally signed prepared Tau transaction to a Tau-compatible local/testnet
-RPC, and render the `sendtx`, preflight, signing mode, strategy surface, and
-consumed execution key evidence.
+RPC, and rendered the `sendtx`, preflight, signing mode, strategy surface, and
+consumed execution key evidence. These results do not describe a route admitted
+by current normal startup.
 
 Latest local browser pass on 2026-05-20:
 
@@ -595,13 +593,13 @@ seeds of `32` steps each; receipt tests `2 passed`. The covered disaster states
 are duplicate zUSD replay side effects, cross-stream partial mutation, expired
 zUSD deadline materialization, perps overdeposit materialization, missing Oracle
 bridge settlement, balance drift after a zUSD-to-perps success path, and
-confidential admission replay/digest drift. The replay now also covers the
-AutoTrader execute-once lane: deterministic failures before the send boundary
+confidential admission replay/digest drift. The replay also covered the historical
+AutoTrader execute-once donor lane: deterministic failures before the send boundary
 leave no reservation, every outcome after reservation blocks replay, and an
 ambiguous network outcome remains `PENDING` rather than authorizing a second Tau
 transaction. Long-horizon fuzz still covers balance/nonce/atomicity drift.
 
-Current AutoTrader durable-submission hardening update on 2026-08-23:
+Unintegrated AutoTrader donor-hardening result from 2026-08-23:
 
 ```bash
 python3 -m pytest -q tests/integration/test_autotrader_execution_journal.py tests/integration/test_autotrader_live_api.py
@@ -613,8 +611,8 @@ cross-process reservation races, a 16-case structure-preserving malformed-row
 atlas, duplicate JSON fields, exact submission-root binding, sequence-race
 second-send prevention, response-loss quarantine, and preservation of `SENT`
 after a later block-observation failure. Automatic
-reconciliation of `PENDING` submissions remains unimplemented, and this
-local/testnet evidence grants no production settlement authority.
+reconciliation of `PENDING` submissions remains unimplemented, and this donor
+evidence grants no mounted local-testnet or production settlement authority.
 
 Latest Tau transaction canonicalization and RPC redaction pass on 2026-05-21:
 
