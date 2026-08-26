@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+from http.client import HTTPConnection
 
 import pytest
 
@@ -10,6 +12,7 @@ from src.integration.http_authority_ingress_v1 import (
     inspect_http_authority_ingress_v1,
 )
 from src.integration.tau_net_client import (
+    TauNetRpcError,
     bls_pubkey_hex_from_privkey,
     build_signed_tau_transaction,
 )
@@ -267,6 +270,45 @@ def test_submit_accepts_exact_external_signed_payload_without_server_key(monkeyp
     assert client.sent == [signed_payload]
 
 
+def test_mounted_submit_accepts_exact_external_signed_payload(monkeypatch) -> None:
+    from src.integration import api_server
+
+    client, body, signed_payload = _external_submit_fixture(monkeypatch)
+    httpd = api_server.ThreadingHTTPServer(("127.0.0.1", 0), api_server._Handler)
+    httpd.cors_origins = set()
+    httpd.rate_limiter = api_server.TokenBucketRateLimiter(rpm=0)
+    httpd.demo_api_token = ""
+    httpd.external_auth_enforced = True
+    httpd.zusd_tau_wallet_api_enabled = True
+    thread = threading.Thread(
+        target=httpd.serve_forever,
+        kwargs={"poll_interval": 0.01},
+        daemon=True,
+    )
+    thread.start()
+    host, port = httpd.server_address[:2]
+    try:
+        connection = HTTPConnection(str(host), int(port), timeout=2.0)
+        connection.request(
+            "POST",
+            "/api/zusd/wallet/submit",
+            body=json.dumps(body).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+
+        response = connection.getresponse()
+        payload = json.loads(response.read().decode("utf-8"))
+
+        assert response.status == 200
+        assert payload["transport"]["signing_mode"] == "external_signed_payload"
+        assert payload["submission"]["outcome"] == "accepted"
+        assert client.sent == [signed_payload]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=2.0)
+
+
 def test_prepare_sign_submit_roundtrip_uses_real_token_operation_projection(monkeypatch) -> None:
     signer_privkey = 5
     signer_pubkey = "0x" + bls_pubkey_hex_from_privkey(signer_privkey)
@@ -338,6 +380,78 @@ def test_prepare_sign_submit_roundtrip_uses_real_token_operation_projection(monk
     assert client.sent == [signed_payload]
 
 
+def test_signed_payload_from_other_configured_chain_rejects_without_send(monkeypatch) -> None:
+    signer_privkey = 5
+    signer_pubkey = "0x" + bls_pubkey_hex_from_privkey(signer_privkey)
+
+    class _ChainBoundClient(_FakeClient):
+        def getappstate(self, *, full: bool = False) -> str:
+            assert full is True
+            chain_id = wallet_api._tau_chain_id()
+            asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
+            return json.dumps(
+                {
+                    "app_hash": "sha256:" + "ab" * 32,
+                    "app_state": {
+                        "balances": [
+                            {"pubkey": signer_pubkey, "asset": asset_id, "amount": 400},
+                            {"pubkey": RECIPIENT, "asset": asset_id, "amount": 50},
+                        ],
+                        "nonces": [
+                            {
+                                "pubkey": token_sender_nonce_key(signer_pubkey),
+                                "last_nonce": 4,
+                            }
+                        ],
+                    },
+                },
+                sort_keys=True,
+            )
+
+        def get_sequence(self, sender_pubkey_hex: str) -> int:
+            assert sender_pubkey_hex == signer_pubkey[2:]
+            return 7
+
+    client = _ChainBoundClient()
+    monkeypatch.setattr(wallet_api, "_tau_client", lambda: client)
+    monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "chain-a")
+    body = {
+        "action": "transfer",
+        "sender_pubkey": signer_pubkey,
+        "recipient_pubkey": RECIPIENT,
+        "amount": 100,
+        "deadline": 123456789,
+        "tx_fee_limit": 17,
+    }
+    prepare_status, prepared = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/prepare",
+        json.dumps(body).encode("utf-8"),
+    )
+    assert prepare_status == 200
+    signed_payload = build_signed_tau_transaction(
+        privkey=signer_privkey,
+        sequence_number=prepared["transport"]["tx_sequence_number"],
+        expiration_time=body["deadline"],
+        operations=prepared["report"]["operations"],
+        fee_limit=body["tx_fee_limit"],
+    )
+
+    monkeypatch.setenv("ZUSD_TAU_WALLET_CHAIN_ID", "chain-b")
+    submit_status, submitted = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps({**body, "signed_tau_tx_payload": signed_payload}).encode("utf-8"),
+    )
+
+    assert submit_status == 400
+    assert submitted == {
+        "ok": False,
+        "error": "signed_tau_tx_payload operations mismatch",
+    }
+    assert client.sent == []
+
+
 def test_submit_binds_nonzero_external_fee_limit(monkeypatch) -> None:
     client, body, signed_payload = _external_submit_fixture(
         monkeypatch,
@@ -390,6 +504,150 @@ def test_submit_never_reports_rejected_sendtx_as_success(monkeypatch) -> None:
         "ok": False,
         "error": "tau_rpc_error",
         "detail": "sendtx rejected",
+    }
+    assert client.sent == [signed_payload]
+
+
+def test_submit_rejects_request_chain_mismatch_without_send(monkeypatch) -> None:
+    client, body, _signed_payload = _external_submit_fixture(monkeypatch)
+    body["chain_id"] = "another-chain"
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {"ok": False, "error": "chain_id mismatch"}
+    assert client.sent == []
+
+
+def test_submit_rejects_noncanonical_asset_override_without_send(monkeypatch) -> None:
+    client, body, _signed_payload = _external_submit_fixture(monkeypatch)
+    body["asset_id"] = "0x" + ("ab" * 32)
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {"ok": False, "error": "asset_id mismatch"}
+    assert client.sent == []
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_error"),
+    (
+        (
+            lambda payload: payload.update(sender_pubkey=payload["sender_pubkey"].upper()),
+            "signed_tau_tx_payload sender_pubkey not canonical",
+        ),
+        (
+            lambda payload: payload.update(signature=payload["signature"].upper()),
+            "signed_tau_tx_payload signature not canonical",
+        ),
+    ),
+)
+def test_submit_rejects_noncanonical_wire_encodings_without_send(
+    monkeypatch,
+    mutation,
+    expected_error: str,
+) -> None:
+    client, body, signed_payload = _external_submit_fixture(monkeypatch)
+    mutation(signed_payload)
+    body["signed_tau_tx_payload"] = signed_payload
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {"ok": False, "error": expected_error}
+    assert client.sent == []
+
+
+def test_submit_rejects_duplicate_fields_inside_string_payload_without_send(monkeypatch) -> None:
+    client, body, signed_payload = _external_submit_fixture(monkeypatch)
+    encoded = json.dumps(signed_payload, sort_keys=True)
+    body["signed_tau_tx_payload"] = encoded.replace(
+        '"fee_limit": "0"',
+        '"fee_limit": "999", "fee_limit": "0"',
+    )
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {
+        "ok": False,
+        "error": "signed_tau_tx_payload duplicate field",
+    }
+    assert client.sent == []
+
+
+def test_submit_rejects_duplicate_outer_fields_before_transport(monkeypatch) -> None:
+    client, body, _signed_payload = _external_submit_fixture(monkeypatch)
+    encoded = json.dumps(body, sort_keys=True)
+    raw_body = encoded.replace('"amount": 100', '"amount": 1, "amount": 100')
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        raw_body.encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {"ok": False, "error": "duplicate_json_field"}
+    assert client.sent == []
+
+
+def test_submit_rejects_unknown_request_field_without_send(monkeypatch) -> None:
+    client, body, _signed_payload = _external_submit_fixture(monkeypatch)
+    body["future_signing_mode"] = "surprise"
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 400
+    assert payload == {"ok": False, "error": "request_fields_mismatch"}
+    assert client.sent == []
+
+
+def test_submit_preserves_acceptance_when_post_submit_observation_fails(monkeypatch) -> None:
+    client, body, signed_payload = _external_submit_fixture(monkeypatch)
+
+    def fail_after_acceptance(*, full: bool = False) -> str:
+        assert full is True
+        raise TauNetRpcError("post-submit observation unavailable")
+
+    client.getappstate = fail_after_acceptance
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["submission"] == {
+        "outcome": "accepted",
+        "sendtx_response": "SUCCESS tx accepted",
+    }
+    assert payload["post_submit"] == {
+        "status": "observation_failed",
+        "error": "post_submit_observation_failed",
     }
     assert client.sent == [signed_payload]
 

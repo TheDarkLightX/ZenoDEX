@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
+
+def _unexpected_server_construction(*_args, **_kwargs) -> None:
+    raise AssertionError("startup refusal must precede server construction")
+
 
 def test_api_server_refuses_demo_routes_without_token_on_public_host(monkeypatch) -> None:
     from src.integration import api_server
@@ -83,3 +89,23 @@ def test_api_server_allows_sensitive_routes_when_external_auth_declared(monkeypa
 
     rc = api_server.main([])
     assert rc == 0
+
+
+def test_api_server_refuses_zusd_tau_wallet_mount_until_network_binding_and_reconciliation_exist(
+    monkeypatch,
+    capsys,
+) -> None:
+    from src.integration import api_server
+
+    base_config = api_server._load_api_server_config()
+    config = replace(base_config, zusd_tau_wallet_enabled=True)
+    monkeypatch.setattr(api_server, "_load_api_server_config", lambda: config)
+    monkeypatch.setattr(api_server, "ThreadingHTTPServer", _unexpected_server_construction)
+
+    rc = api_server.main([])
+
+    assert rc == 2
+    assert capsys.readouterr().out.splitlines() == [
+        "Refusing to start: ZUSD_TAU_WALLET_API_ENABLED requires Tau network-domain "
+        "signature binding and durable submission reconciliation."
+    ]

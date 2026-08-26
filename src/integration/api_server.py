@@ -1046,6 +1046,11 @@ def _api_startup_refusal_lines(config: ApiServerConfig) -> Optional[list[str]]:
             "Refusing to start: PERPS_DEMO_API_UNSAFE_ENABLED is local demo only. "
             "Set ZENODEX_ENV=local/dev/test and bind API_HOST to loopback."
         ]
+    if config.zusd_tau_wallet_enabled:
+        return [
+            "Refusing to start: ZUSD_TAU_WALLET_API_ENABLED requires Tau network-domain "
+            "signature binding and durable submission reconciliation."
+        ]
     if config.sensitive_api_enabled and not config.external_auth_enforced and not config.auth_bearer_token:
         return [
             "Refusing to start: sensitive APIs enabled without external auth or ZENODEX_API_BEARER_TOKEN "
