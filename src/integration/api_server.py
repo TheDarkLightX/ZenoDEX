@@ -1051,6 +1051,11 @@ def _api_startup_refusal_lines(config: ApiServerConfig) -> Optional[list[str]]:
             "Refusing to start: AUTOTRADER_LIVE_API_ENABLED is unavailable until "
             "client-signed DEX intent envelopes are implemented and verified."
         ]
+    if config.zusd_tau_wallet_enabled:
+        return [
+            "Refusing to start: ZUSD_TAU_WALLET_API_ENABLED requires Tau network-domain "
+            "signature binding and durable submission reconciliation."
+        ]
     if config.confidential_sealed_bid_asset_settlement_enabled:
         return [
             "Refusing to start: CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED "

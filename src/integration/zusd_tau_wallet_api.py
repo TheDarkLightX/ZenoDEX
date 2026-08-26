@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Optional, Tuple, cast
@@ -33,6 +34,43 @@ from .zusd_tau_token import (
 
 MAX_POST_BODY = 65_536
 ResponseT = Tuple[int, Dict[str, Any]]
+
+_INSPECT_REQUEST_FIELDS = frozenset(
+    {
+        "action",
+        "asset_id",
+        "chain_id",
+        "operator_pubkey",
+        "recipient_pubkey",
+        "sender_pubkey",
+    }
+)
+_PREPARE_REQUEST_FIELDS = _INSPECT_REQUEST_FIELDS | {
+    "amount",
+    "deadline",
+    "signed_tau_tx_payload",
+    "signer_privkey",
+    "tau_tx_payload",
+    "tx_fee_limit",
+}
+_SUBMIT_REQUEST_FIELDS = _PREPARE_REQUEST_FIELDS
+
+
+class _DuplicateJsonFieldError(ValueError):
+    pass
+
+
+def _reject_duplicate_json_fields(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    result: dict[str, object] = {}
+    for key, value in pairs:
+        if key in result:
+            raise _DuplicateJsonFieldError(key)
+        result[key] = value
+    return result
+
+
+def _load_json_without_duplicate_fields(raw: bytes | str) -> object:
+    return json.loads(raw, object_pairs_hook=_reject_duplicate_json_fields)
 
 
 def _env_str(name: str, default: str) -> str:
@@ -134,7 +172,9 @@ def _parse_json_body(body: Optional[bytes]) -> Tuple[Optional[Dict[str, Any]], O
     if len(body) > MAX_POST_BODY:
         return None, "body_too_large"
     try:
-        obj = json.loads(body)
+        obj = _load_json_without_duplicate_fields(body)
+    except _DuplicateJsonFieldError:
+        return None, "duplicate_json_field"
     except (json.JSONDecodeError, UnicodeDecodeError):
         return None, "invalid_json"
     if not isinstance(obj, dict):
@@ -265,6 +305,40 @@ def _request_int(body: Mapping[str, Any], *, name: str, default: Optional[int] =
     return int(value)
 
 
+def _require_closed_request_fields(
+    body: Mapping[str, Any],
+    *,
+    allowed: frozenset[str],
+) -> None:
+    if any(type(key) is not str for key in body) or not set(body) <= allowed:
+        raise ValueError("request_fields_mismatch")
+
+
+def _bound_chain_and_asset(body: Mapping[str, Any]) -> tuple[str, str]:
+    chain_id = _tau_chain_id()
+    if "chain_id" in body:
+        requested_chain_id = body.get("chain_id")
+        if type(requested_chain_id) is not str or requested_chain_id != chain_id:
+            raise ValueError("chain_id mismatch")
+
+    asset_id = derive_zusd_tau_asset_id(chain_id=chain_id)
+    if "asset_id" in body:
+        explicit_asset_id = body.get("asset_id")
+        if type(explicit_asset_id) is not str:
+            raise ValueError("asset_id mismatch")
+        try:
+            requested_asset_id = canonical_hex_fixed_allow_0x(
+                explicit_asset_id,
+                nbytes=32,
+                name="asset_id",
+            )
+        except (TypeError, ValueError) as exc:
+            raise ValueError("asset_id mismatch") from exc
+        if requested_asset_id != asset_id:
+            raise ValueError("asset_id mismatch")
+    return chain_id, asset_id
+
+
 @dataclass(frozen=True, slots=True)
 class _UnverifiedTauTxPayloadV1:
     sender_pubkey: str
@@ -344,7 +418,9 @@ def _request_signed_tau_tx_payload(
     selected = body.get(present[0])
     if type(selected) is str:
         try:
-            selected = json.loads(selected)
+            selected = _load_json_without_duplicate_fields(selected)
+        except _DuplicateJsonFieldError as exc:
+            raise ValueError("signed_tau_tx_payload duplicate field") from exc
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             raise ValueError("bad_signed_tau_tx_payload") from exc
     return _decode_unverified_tau_tx_payload(selected)
@@ -372,13 +448,11 @@ def _validate_external_tau_tx_payload(
     operations: Mapping[str, Any],
     tx_fee_limit: int,
 ) -> _VerifiedExternalTauTxPayloadV1:
-    sender_raw = payload.sender_pubkey
-    sender_prefixed = sender_raw if sender_raw.lower().startswith("0x") else "0x" + sender_raw
-    sender_pubkey = _canonical_pubkey(
-        sender_prefixed,
-        name="signed_tau_tx_payload.sender_pubkey",
-    )
-    if sender_pubkey.lower() != actor_pubkey.lower():
+    if re.fullmatch(r"[0-9a-f]{96}", payload.sender_pubkey) is None:
+        raise ValueError("signed_tau_tx_payload sender_pubkey not canonical")
+    if re.fullmatch(r"[0-9a-f]{192}", payload.signature) is None:
+        raise ValueError("signed_tau_tx_payload signature not canonical")
+    if payload.sender_pubkey != _pubkey_for_rpc(actor_pubkey):
         raise ValueError("signed_tau_tx_payload sender mismatch")
 
     if payload.sequence_number != tx_sequence_number:
@@ -419,13 +493,7 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
     if action == "mint" and operator_pubkey is None:
         raise ValueError("missing_operator_pubkey")
 
-    chain_id = str(body.get("chain_id") or _tau_chain_id())
-    explicit_asset_id = body.get("asset_id")
-    asset_id = (
-        canonical_hex_fixed_allow_0x(explicit_asset_id, nbytes=32, name="asset_id")
-        if isinstance(explicit_asset_id, str) and explicit_asset_id.strip()
-        else derive_zusd_tau_asset_id(chain_id=chain_id)
-    )
+    chain_id, asset_id = _bound_chain_and_asset(body)
     client = _tau_client()
     context = _transport_context(
         client=client,
@@ -530,15 +598,30 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
         if not tau_rpc_response_is_success(send_resp):
             raise TauNetRpcError("sendtx rejected")
         payload["submission"] = {
+            "outcome": "accepted",
             "sendtx_response": send_resp,
         }
-        if _auto_mine():
-            payload["submission"]["createblock_response"] = client.createblock()
-        app_state_after, app_hash_after = _load_app_state(client)
-        payload["post_submit"] = {
-            "app_hash": app_hash_after,
-            "balances": _balances_for_asset(app_state_after, asset_id=asset_id),
-        }
+        try:
+            if _auto_mine():
+                payload["submission"]["createblock_response"] = client.createblock()
+            app_state_after, app_hash_after = _load_app_state(client)
+            payload["post_submit"] = {
+                "status": "observed",
+                "app_hash": app_hash_after,
+                "balances": _balances_for_asset(app_state_after, asset_id=asset_id),
+            }
+        except (
+            TauNetRpcError,
+            json.JSONDecodeError,
+            UnicodeDecodeError,
+            TypeError,
+            ValueError,
+            OSError,
+        ):
+            payload["post_submit"] = {
+                "status": "observation_failed",
+                "error": "post_submit_observation_failed",
+            }
     return payload
 
 
@@ -591,17 +674,12 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
         if parsed is None:
             return 400, {"ok": False, "error": "bad_json"}
         if rest == ["inspect"]:
+            _require_closed_request_fields(parsed, allowed=_INSPECT_REQUEST_FIELDS)
             action = _request_action(parsed)
             sender_pubkey = _canonical_pubkey(parsed.get("sender_pubkey"), name="sender_pubkey") if "sender_pubkey" in parsed else None
             recipient_pubkey = _canonical_pubkey(parsed.get("recipient_pubkey"), name="recipient_pubkey") if "recipient_pubkey" in parsed else None
             operator_pubkey = _canonical_pubkey(parsed.get("operator_pubkey"), name="operator_pubkey") if "operator_pubkey" in parsed else None
-            chain_id = str(parsed.get("chain_id") or _tau_chain_id())
-            explicit_asset_id = parsed.get("asset_id")
-            asset_id = (
-                canonical_hex_fixed_allow_0x(explicit_asset_id, nbytes=32, name="asset_id")
-                if isinstance(explicit_asset_id, str) and explicit_asset_id.strip()
-                else derive_zusd_tau_asset_id(chain_id=chain_id)
-            )
+            chain_id, asset_id = _bound_chain_and_asset(parsed)
             context = _transport_context(
                 client=_tau_client(),
                 action=action,
@@ -612,8 +690,10 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
             )
             return 200, {"ok": True, "transport": context, "chain_id": chain_id}
         if rest == ["prepare"]:
+            _require_closed_request_fields(parsed, allowed=_PREPARE_REQUEST_FIELDS)
             return 200, _build_prepare_response(parsed, for_submit=False)
         if rest == ["submit"]:
+            _require_closed_request_fields(parsed, allowed=_SUBMIT_REQUEST_FIELDS)
             return 200, _build_prepare_response(parsed, for_submit=True)
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:

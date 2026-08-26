@@ -120,6 +120,26 @@ def test_api_server_refuses_autotrader_live_mount_until_external_intent_signing_
     ]
 
 
+def test_api_server_refuses_zusd_tau_wallet_mount_until_network_binding_and_reconciliation_exist(
+    monkeypatch,
+    capsys,
+) -> None:
+    from src.integration import api_server
+
+    base_config = api_server._load_api_server_config()
+    config = replace(base_config, autotrader_live_enabled=False, zusd_tau_wallet_enabled=True)
+    monkeypatch.setattr(api_server, "_load_api_server_config", lambda: config)
+    monkeypatch.setattr(api_server, "ThreadingHTTPServer", _unexpected_server_construction)
+
+    rc = api_server.main([])
+
+    assert rc == 2
+    assert capsys.readouterr().out.splitlines() == [
+        "Refusing to start: ZUSD_TAU_WALLET_API_ENABLED requires Tau network-domain "
+        "signature binding and durable submission reconciliation."
+    ]
+
+
 def test_api_server_refuses_mounted_sealed_bid_fixture_signer(
     monkeypatch,
     capsys,

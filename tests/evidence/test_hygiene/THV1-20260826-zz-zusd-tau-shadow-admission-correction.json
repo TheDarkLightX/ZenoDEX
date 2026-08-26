@@ -1,0 +1,190 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zz-zusd-tau-shadow-admission-correction",
+  "created_date": "2026-08-26",
+  "claim_scope": "This packet corrects the external-signer admission claim after independent review. The shadow zUSD Tau wallet route binds requests to one configured chain and its derived canonical zUSD asset, rejects duplicate or unknown fields and non-canonical sender/signature encodings before sendtx, preserves an explicit Tau acceptance when later observation fails, and remains disabled in normal API-server startup pending Tau network-domain signatures and durable submission reconciliation.",
+  "change_kind": "evidence_correction",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZUSD-TAU-REQUEST-BINDS-CONFIGURED-CHAIN-AND-CANONICAL-ASSET",
+    "ZUSD-TAU-SIGNED-WIRE-ENCODING-IS-LOWERCASE-UNPREFIXED",
+    "ZUSD-TAU-JSON-DUPLICATES-AND-UNKNOWN-FIELDS-REJECT-BEFORE-SEND",
+    "ZUSD-TAU-EXPLICIT-ACCEPTANCE-IS-NOT-DOWNGRADED-BY-OBSERVATION-FAILURE",
+    "ZUSD-TAU-NORMAL-MOUNT-REQUIRES-NETWORK-BINDING-AND-DURABLE-RECONCILIATION"
+  ],
+  "failure_modes": [
+    "a signed payload prepared for one configured chain is submitted unchanged through another configured chain",
+    "a caller supplies a shared or unrelated explicit asset ID to bypass chain-derived operation binding",
+    "mixed-case sender or signature encodings produce multiple transaction identities for the same cryptographic bytes",
+    "duplicate signed fields are overwritten by JSON decoding before closed-field validation",
+    "an unknown request field silently selects future or ambiguous semantics",
+    "sendtx explicitly accepts a transaction and a later state read causes the API to report a pre-send-style 502",
+    "normal API startup exposes the route before network-domain signing and crash-safe reconciliation exist",
+    "the deterministic API grammar witness retains a stale path fingerprint after startup source changes"
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/zusd_tau_wallet_api.py",
+      "sha256": "081ce1113d5a5f650ec61ab7fbe92b9fe00b36f44cab1a4b13cdf305867c4496"
+    },
+    {
+      "path": "src/integration/api_server.py",
+      "sha256": "5bc9b2217107fec920c4a87c18ab37b2abbf7e5c02aa1001556962e141a0f519"
+    },
+    {
+      "path": "src/integration/tau_net_client.py",
+      "sha256": "f466df2b9e12ed548c1434a4115ad240428f7cee5741292675125f11e6ae744a"
+    },
+    {
+      "path": "src/integration/zusd_tau_token.py",
+      "sha256": "07af5ba0f99e62bd8e913c789a8e609b010fd921d7567af9dcd50b7f36c4f9a2"
+    },
+    {
+      "path": "src/integration/http_authority_ingress_v1.py",
+      "sha256": "06dba539ba552d14ae2bbe57d25a7a4d4bc7a01e37317ead075f4332044b74fa"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_zusd_tau_wallet_api.py",
+      "sha256": "f925d9513a3fde57f52e1ca788a11bd6f77467e0071bf2d4d37be775fdc82e1f",
+      "node_ids": [
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_accepts_exact_external_signed_payload_without_server_key",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_mounted_submit_accepts_exact_external_signed_payload",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_prepare_sign_submit_roundtrip_uses_real_token_operation_projection",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_signed_payload_from_other_configured_chain_rejects_without_send",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_rejects_request_chain_mismatch_without_send",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_rejects_noncanonical_asset_override_without_send",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_rejects_noncanonical_wire_encodings_without_send",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_rejects_duplicate_fields_inside_string_payload_without_send",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_rejects_duplicate_outer_fields_before_transport",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_rejects_unknown_request_field_without_send",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_preserves_acceptance_when_post_submit_observation_fails"
+      ]
+    },
+    {
+      "path": "tests/integration/test_api_server_main.py",
+      "sha256": "d50ce6513ef6f68eb6a75db8c441c16996cca7dd25be0af7e7bc0414ef673488",
+      "node_ids": [
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_zusd_tau_wallet_mount_until_network_binding_and_reconciliation_exist"
+      ]
+    },
+    {
+      "path": "tests/integration/test_api_server_request_grammar_fuzz.py",
+      "sha256": "832fc6639f0deace785438b44e9fdbd9ed588b333596675f1173adf8150dbf35",
+      "node_ids": [
+        "tests/integration/test_api_server_request_grammar_fuzz.py::test_api_server_request_minimizer_collapses_unauthorized_dead_fields",
+        "tests/integration/test_api_server_request_grammar_fuzz.py::test_api_server_request_minimizer_cli_emits_expected_schema"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "stateful",
+    "mutation"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange exact configured chains, canonical assets, signed wire payloads, duplicate encodings, send observations, and startup state; act through direct and mounted route boundaries; then assert exact status, typed error, payload outcome, and send cardinality."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Every chain, asset, encoding, duplicate, and field-set rejection asserts an empty client send list. Normal startup refusal replaces the server constructor with a failing sentinel, proving no bind or state attachment occurred."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "chain_binding",
+      "points": [
+        "configured_chain_accepts_exact_projection",
+        "explicit_different_chain_rejects",
+        "payload_from_previous_configured_chain_rejects_after_chain_change"
+      ]
+    },
+    {
+      "name": "asset_binding",
+      "points": [
+        "derived_canonical_zusd_asset_accepts",
+        "different_explicit_asset_rejects"
+      ]
+    },
+    {
+      "name": "wire_encoding",
+      "points": [
+        "lowercase_unprefixed_sender_and_signature_accept",
+        "uppercase_sender_rejects",
+        "uppercase_signature_rejects"
+      ]
+    },
+    {
+      "name": "json_field_cardinality",
+      "points": [
+        "one_exact_field_accepts",
+        "duplicate_outer_field_rejects",
+        "duplicate_nested_signed_field_rejects",
+        "unknown_request_field_rejects"
+      ]
+    },
+    {
+      "name": "post_send_observation",
+      "points": [
+        "accepted_and_observed_reports_observed",
+        "accepted_then_read_failure_reports_accepted_with_observation_failed"
+      ]
+    },
+    {
+      "name": "normal_mount",
+      "points": [
+        "disabled_configuration_does_not_trigger_zusd_refusal",
+        "enabled_configuration_refuses_before_server_construction"
+      ]
+    },
+    {
+      "name": "request_grammar_source_fingerprint",
+      "points": [
+        "outcome_remains_handled_401_unauthorized",
+        "path_id_is_regenerated_as_d9512e5dd39d7628"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "honor caller-provided chain or asset overrides",
+      "killed_by": "tests/integration/test_zusd_tau_wallet_api.py::test_submit_rejects_request_chain_mismatch_without_send"
+    },
+    {
+      "description": "accept a payload produced under another configured chain",
+      "killed_by": "tests/integration/test_zusd_tau_wallet_api.py::test_signed_payload_from_other_configured_chain_rejects_without_send"
+    },
+    {
+      "description": "canonicalize mixed-case sender or signature after admission",
+      "killed_by": "tests/integration/test_zusd_tau_wallet_api.py::test_submit_rejects_noncanonical_wire_encodings_without_send"
+    },
+    {
+      "description": "decode duplicate JSON fields with last-write-wins semantics",
+      "killed_by": "tests/integration/test_zusd_tau_wallet_api.py::test_submit_rejects_duplicate_fields_inside_string_payload_without_send"
+    },
+    {
+      "description": "convert a post-acceptance observation failure into a generic 502",
+      "killed_by": "tests/integration/test_zusd_tau_wallet_api.py::test_submit_preserves_acceptance_when_post_submit_observation_fails"
+    },
+    {
+      "description": "mount the zUSD Tau wallet before both external prerequisites exist",
+      "killed_by": "tests/integration/test_api_server_main.py::test_api_server_refuses_zusd_tau_wallet_mount_until_network_binding_and_reconciliation_exist"
+    }
+  ],
+  "nonclaims": [
+    "The prior THV1-20260826-zusd-tau-external-signed-submit packet overstated canonical closure, differential evidence, and mounted readiness. This append-only correction narrows those claims.",
+    "The current Tau transaction signature preimage omits network ID and genesis hash. Application-level chain-derived asset binding reduces replay for this route and does not repair the protocol-wide omission.",
+    "Normal API-server startup refuses the zUSD Tau wallet. The mounted positive test constructs a manual test server and grants no deployment or production authority.",
+    "There is no durable pre-send journal, crash recovery, idempotent retry, or reconciliation protocol. A send exception after possible remote acceptance and a process crash after acceptance remain ambiguous.",
+    "The accepted-observation-failed response preserves known acceptance only when sendtx returned an explicit success before the later failure.",
+    "The tests use the same Tau BLS implementation as the route and are not an independent cryptographic differential oracle.",
+    "The private verified wrapper is process-local guarded control flow and is not an unforgeable authority capability.",
+    "This packet proves no zUSD monetary-policy authorization, global conservation, whole-economy recursion, finality, production readiness, or safety of all value movement.",
+    "Production authority remains NONE."
+  ]
+}
