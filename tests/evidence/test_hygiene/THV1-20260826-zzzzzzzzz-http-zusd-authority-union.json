@@ -1,0 +1,158 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zzzzzzzzz-http-zusd-authority-union",
+  "created_date": "2026-08-26",
+  "claim_scope": "This append-only post-integration packet binds the conflict-resolved union of the HTTP authority quarantine, versioned Compose identity, and zUSD Tau shadow submission work. Normal startup and the local-testnet profile omit AutoTrader and zUSD Tau wallet authority, reject fixture-signed sealed-bid settlement, retain the zUSD monetary neighbor, redact Tau backend text, preserve accepted-send state across bounded observation failure, reject relocated manifests, and refuse legacy 32-bit automatic teardown.",
+  "change_kind": "evidence_correction",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "HTTP-AUTHORITY-UNION-FAILS-CLOSED-BEFORE-SERVER-CONSTRUCTION",
+    "LOCAL-TESTNET-MOUNTABLE-REGISTRY-OMITS-AUTOTRADER-AND-ZUSD-TAU",
+    "ZUSD-MONETARY-NEIGHBOR-REMAINS-MOUNTED",
+    "ZUSD-TAU-BACKEND-TEXT-IS-REDACTED",
+    "ZUSD-TAU-POST-ACCEPTANCE-STATE-IS-PRESERVED",
+    "VALID-AND-STALE-MANIFESTS-BIND-SELECTED-OUT-DIR",
+    "LEGACY-32-BIT-COMPOSE-IDENTITY-REFUSES-AUTOMATIC-TEARDOWN"
+  ],
+  "failure_modes": [
+    "conflict resolution retains one hazardous lane while removing the other",
+    "Compose declarations and the manifest registry advertise different authority",
+    "quarantining zUSD Tau also removes the independently mounted zUSD monetary lane",
+    "a hostile Tau hello or submit response leaks backend text through HTTP",
+    "a post-acceptance observation failure is reported as a pre-send rejection or causes a second send",
+    "a valid relocated manifest or legacy project identity reaches restart or destructive teardown",
+    "historical evidence packets are rewritten instead of superseded"
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/zusd_tau_wallet_api.py",
+      "sha256": "45b6dbfed835a8e5548a573bed0fceab2d6d77d88debb79394f80f876afb8979"
+    },
+    {
+      "path": "src/integration/api_server.py",
+      "sha256": "bdc2dbd41b8f85dc9db26f05b8820e5cc9e58f24194c7f3e96727bb272132607"
+    },
+    {
+      "path": "docker-compose.local-testnet.yml",
+      "sha256": "6d0e8aa402645d1fcf043fde286e16b1642c2ee6fb99c608f119de40b1b5bc8c"
+    },
+    {
+      "path": "tools/zenoctl_testnet_local/lifecycle.py",
+      "sha256": "1340c0ce00afb0d2e9955bc798be7cac7214a2360edada91cdfd090248fcc221"
+    },
+    {
+      "path": "tools/zenoctl_testnet_local/manifest.py",
+      "sha256": "22d5978021f1d23815db256edf0e815ba50363d13382046a3538fb5b86f6283e"
+    },
+    {
+      "path": "tools/dex-ui/README.md",
+      "sha256": "17841c1bcf3ab863085245a5ad570ed82ac9ed4c44bb704d9bf0982897ad945f"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_zusd_tau_wallet_api.py",
+      "sha256": "ba0037f1e5a33f955c4e4293a89b3bbe5f29dffc97434e68602ae9aaa89e3ff6",
+      "node_ids": [
+        "tests/integration/test_zusd_tau_wallet_api.py::test_status_reports_tau_node_bridge",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_mounted_status_redacts_tau_hello_response",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_preserves_acceptance_when_post_submit_json_exceeds_depth_bound",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_redacts_success_and_createblock_backend_text"
+      ]
+    },
+    {
+      "path": "tests/integration/test_api_server_main.py",
+      "sha256": "0fda4c3910e8ac9b76aa63d1afad2edbe9957848505bccfbb06336f45ece000c",
+      "node_ids": [
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_autotrader_live_mount_until_external_intent_signing_exists",
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_zusd_tau_wallet_mount_until_network_binding_and_reconciliation_exist",
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_mounted_sealed_bid_fixture_signer",
+        "tests/integration/test_api_server_main.py::test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_construction",
+        "tests/integration/test_api_server_main.py::test_local_testnet_profile_quarantines_zusd_tau_wallet_lane"
+      ]
+    },
+    {
+      "path": "tests/integration/test_api_server_request_grammar_fuzz.py",
+      "sha256": "0e7120f6cffbc071c0245c71ef253830f6eeb5a3a236158603df513a7f8be286",
+      "node_ids": [
+        "tests/integration/test_api_server_request_grammar_fuzz.py::test_api_server_request_minimizer_collapses_unauthorized_dead_fields",
+        "tests/integration/test_api_server_request_grammar_fuzz.py::test_api_server_request_minimizer_cli_emits_expected_schema"
+      ]
+    },
+    {
+      "path": "tests/integration/test_zenoctl_testnet_local.py",
+      "sha256": "96a1bb70383eaa2c547283702526ebd1ffccfc64e1d4da5c6d15c31c174d9f28",
+      "node_ids": [
+        "tests/integration/test_zenoctl_testnet_local.py::test_force_up_can_load_stale_manifest_for_reset",
+        "tests/integration/test_zenoctl_testnet_local.py::test_manifest_rejects_quarantined_autotrader_lane",
+        "tests/integration/test_zenoctl_testnet_local.py::test_manifest_rejects_quarantined_zusd_tau_wallet_lane",
+        "tests/integration/test_zenoctl_testnet_local.py::test_manifest_force_reset_rejects_invalid_identity_binding",
+        "tests/integration/test_zenoctl_testnet_local.py::test_manifest_loader_rejects_valid_manifest_relocated_to_another_out_dir",
+        "tests/integration/test_zenoctl_testnet_local.py::test_compose_project_identity_separates_known_legacy_collision",
+        "tests/integration/test_zenoctl_testnet_local.py::test_force_reset_classifies_and_refuses_collision_prone_legacy_project",
+        "tests/integration/test_zenoctl_testnet_local.py::test_force_reset_uses_derived_identity_and_safe_paths",
+        "tests/integration/test_zenoctl_testnet_local.py::test_strict_browser_smoke_cases_include_local_fixture_zk_proof",
+        "tests/integration/test_zenoctl_testnet_local.py::test_lane_readiness_keeps_stack_ready_when_only_tokenomics_gate_blocks",
+        "tests/integration/test_zenoctl_testnet_local.py::test_feature_smoke_omits_quarantined_autotrader_and_zusd_tau_wallet_lanes"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "stateful",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange hazardous and safe neighboring lane configurations, hostile backend responses, accepted-send observation failures, current and relocated manifests, and a concrete legacy collision pair; act through startup, mounted HTTP, launcher generation, smoke generation, manifest loading, and reset admission; then assert exact refusal, stable public projection, one-send preservation, dual-lane omission, neighbor retention, and pre-effect identity rejection."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Hazardous startup and manifest identity failures return before server construction, engine detection, Compose teardown, filesystem removal, or fresh stack generation. Pre-acceptance zUSD rejects perform no send; post-acceptance observation failures preserve the accepted result and do not authorize replay."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "mounted_lane",
+      "points": [
+        "AutoTrader_refused_and_omitted",
+        "zUSD_Tau_refused_and_omitted",
+        "sealed_bid_fixture_settlement_refused",
+        "zUSD_monetary_retained"
+      ]
+    },
+    {
+      "name": "manifest_identity",
+      "points": [
+        "current_v2_identity",
+        "valid_relocated_identity_rejects",
+        "stale_identity_bound_manifest_recovers",
+        "legacy_32_bit_identity_refuses_automatic_teardown"
+      ]
+    },
+    {
+      "name": "zUSD_Tau_observation",
+      "points": [
+        "ordinary_status_maps_to_reachable",
+        "hostile_status_text_is_absent",
+        "accepted_send_with_valid_observation",
+        "accepted_send_with_depth_overflow_observation"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "The independently reviewed branch packets remain immutable historical evidence. Their source pins do not describe conflict-resolved bytes; this packet supersedes current-byte claims.",
+    "AutoTrader and zUSD Tau implementations remain donor or direct shadow-test material. Normal startup and the generated local-testnet profile do not mount them.",
+    "Tau signatures still omit network ID and genesis hash. Durable send journaling, idempotent retry, crash recovery, finality proof, and reconciliation remain open.",
+    "Legacy 32-bit Compose stacks require operator-assisted collision-safe migration and are not automatically torn down.",
+    "A 128-bit digest reduces practical collision risk and does not prove injectivity over all paths.",
+    "No executable semantic-mutation campaign was run, so mutation evidence is intentionally absent.",
+    "No whole-economy conservation, proof recursion, production-readiness, or all-value-movement safety claim is made.",
+    "Production authority remains NONE."
+  ]
+}

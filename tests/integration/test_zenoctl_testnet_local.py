@@ -159,6 +159,23 @@ def test_manifest_rejects_quarantined_autotrader_lane(tmp_path: Path) -> None:
     assert lc._load_manifest_if_present(path, allow_invalid=True) is not None
 
 
+def test_manifest_rejects_quarantined_zusd_tau_wallet_lane(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].append("ZUSD_TAU_WALLET_API_ENABLED")
+
+    assert mf.validate_manifest(body) == [
+        "enabled_lanes contains unmountable lanes: ['ZUSD_TAU_WALLET_API_ENABLED']"
+    ]
+    path = tmp_path / mf.MANIFEST_FILENAME
+    path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="unmountable lanes"):
+        lc._load_manifest_if_present(path)
+    assert lc._load_manifest_if_present(path, allow_invalid=True) is not None
+
+
 def test_manifest_force_reset_rejects_invalid_identity_binding(tmp_path: Path) -> None:
     from tools.zenoctl_testnet_local import lifecycle as lc
     from tools.zenoctl_testnet_local import manifest as mf
