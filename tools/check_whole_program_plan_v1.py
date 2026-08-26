@@ -117,11 +117,14 @@ from tools.live_gate_registry_v1 import (  # noqa: E402
     AnchoredDirectoryV1,
     AnchoredFileV1,
     AnchorRefused,
+    GitObjectPresenceV1,
+    GitObjectProbeV1,
     LiveGateObservationV1,
     LiveGateSpecV1,
     SupervisorCodeV1,
     bind_supervisor_code_v1,
     git_bytes_v1,
+    git_commit_object_probe_v1,
     git_v1,
     observe_live_gate_v1,
 )
@@ -188,6 +191,12 @@ SUBJECT_FIELDS: Final = frozenset(
 PLAN_ARTIFACT_PATHS: Final = frozenset({PLAN_JSON_PATH.as_posix(), PLAN_MARKDOWN_PATH.as_posix()})
 MAX_SOURCE_LISTING_BYTES: Final = 8 * 1024 * 1024
 MAX_HASHED_FILE_BYTES: Final = 64 * 1024 * 1024
+MAX_TASK_ROWS_V1: Final = 256
+MAX_EVIDENCE_ROWS_PER_TASK_V1: Final = 16
+MAX_EVIDENCE_ROWS_TOTAL_V1: Final = 512
+MAX_MUTATION_KILLERS_PER_TASK_V1: Final = 16
+MAX_MUTATION_KILLERS_TOTAL_V1: Final = 512
+MAX_TASK_REFERENCES_PER_LIST_V1: Final = 64
 ZERO_OID: Final = "0" * 40
 PHASE_FIELDS: Final = frozenset({"phase_id", "title", "original_plan_section", "objective"})
 TASK_FIELDS: Final = frozenset(
@@ -808,6 +817,19 @@ def _git(root: RootLike, args: Sequence[str]) -> tuple[int, str]:
         return -1, ""
 
 
+def _git_commit_probe(root: RootLike, oid: str) -> GitObjectProbeV1:
+    """Typed commit presence through the descriptor-bound repository root."""
+
+    try:
+        with _UseRoot(root) as bound:
+            return git_commit_object_probe_v1(bound.anchored, oid)
+    except (OSError, PlanUnreadable) as exc:
+        return GitObjectProbeV1(
+            GitObjectPresenceV1.QUERY_FAILED,
+            f"repository root unavailable: {type(exc).__name__}",
+        )
+
+
 @dataclass(frozen=True, slots=True)
 class ConfinedReadV1:
     """Bytes of one regular file reached without following any symlink; ``reason`` names the refusal."""
@@ -1343,6 +1365,27 @@ def _validate_donor_provenance_content_v1(
 ) -> list[PlanFinding]:
     """Check candidate data against checker-owned donor identities and tri-state Git observations."""
 
+    owned_snapshot, ownership_finding = _owned_plan_value_v1(
+        snapshot,
+        path="donor_snapshot",
+        depth=0,
+        node_count=[0],
+    )
+    if ownership_finding is not None or type(owned_snapshot) is not dict:
+        detail = (
+            ownership_finding.evidence
+            if ownership_finding is not None
+            else "top-level donor snapshot must be an exact object"
+        )
+        return [
+            PlanFinding(
+                "donor_snapshot_value_not_owned",
+                DONOR_PROVENANCE_PATH.as_posix(),
+                detail,
+            )
+        ]
+    snapshot = cast(dict[str, Any], owned_snapshot)
+
     shape = _shape(
         snapshot,
         DONOR_SNAPSHOT_FIELDS,
@@ -1411,6 +1454,10 @@ def _validate_donor_provenance_content_v1(
         seen_commits.add(commit)
         if not _is_sha256(row["commit_object_sha256"]) or not _is_commit(row["tree"]):
             findings.append(PlanFinding("donor_content_id_malformed", subject, donor_id))
+        if type(row["object_transport"]) is not str:
+            findings.append(
+                PlanFinding("donor_transport_label_invalid", subject, "must be an exact string")
+            )
         parents = row["parents"]
         if type(parents) is not list or not parents or not all(_is_commit(parent) for parent in parents) or len(set(parents)) != len(parents):
             findings.append(PlanFinding("donor_parents_malformed", subject, donor_id))
@@ -1454,15 +1501,17 @@ def _validate_donor_provenance_content_v1(
                     f"expected={descriptor.object_transport} observed={row['object_transport']}",
                 )
             )
-        presence_code, _presence_output = _git(
-            root, ["cat-file", "-e", f"{commit}^{{commit}}"]
-        )
-        if presence_code == -1 or presence_code not in {0, 1, 128}:
+        presence = _git_commit_probe(root, commit)
+        if presence.state is GitObjectPresenceV1.QUERY_FAILED:
             findings.append(
-                PlanFinding("donor_object_query_failed", subject, f"commit={commit} exit={presence_code}")
+                PlanFinding(
+                    "donor_object_query_failed",
+                    subject,
+                    f"commit={commit} reason={presence.reason}",
+                )
             )
             continue
-        exists = presence_code == 0
+        exists = presence.state is GitObjectPresenceV1.PRESENT
         if exists:
             ancestry_code, _ancestry_output = _git(
                 root, ["merge-base", "--is-ancestor", commit, "HEAD"]
@@ -1579,56 +1628,158 @@ class EvidenceContextV1:
     compare_digests: bool
 
 
-def _file_evidence_findings(item: Mapping[str, Any], *, label: str, context: EvidenceContextV1, root: ConfinedRootV1) -> list[PlanFinding]:
+@dataclass(slots=True)
+class ValidationObservationCacheV1:
+    """Invocation-local cache for bounded, read-only validation observations."""
+
+    commit_probes: dict[str, GitObjectProbeV1]
+    commit_ancestry: dict[str, int]
+    file_bytes: dict[str, bytes | None]
+    file_regular: dict[str, bool]
+    file_sha256: dict[str, str | None]
+
+    @classmethod
+    def empty(cls) -> ValidationObservationCacheV1:
+        return cls({}, {}, {}, {}, {})
+
+
+def _cached_commit_probe_v1(
+    root: ConfinedRootV1,
+    commit: str,
+    cache: ValidationObservationCacheV1,
+) -> GitObjectProbeV1:
+    if commit not in cache.commit_probes:
+        cache.commit_probes[commit] = _git_commit_probe(root, commit)
+    return cache.commit_probes[commit]
+
+
+def _cached_commit_ancestry_v1(
+    root: ConfinedRootV1,
+    commit: str,
+    cache: ValidationObservationCacheV1,
+) -> int:
+    if commit not in cache.commit_ancestry:
+        cache.commit_ancestry[commit] = _git(
+            root, ["merge-base", "--is-ancestor", commit, "HEAD"]
+        )[0]
+    return cache.commit_ancestry[commit]
+
+
+def _evidence_structure_findings_v1(item: object, *, label: str) -> list[PlanFinding]:
+    """Pure row validation performed before any evidence observation."""
+
+    shape = _shape(
+        item,
+        EVIDENCE_FIELDS,
+        rule="evidence_field_set_not_closed",
+        subject=label,
+    )
+    if shape is not None or type(item) is not dict:
+        return [shape] if shape is not None else []
+    kind, reference, digest = item["kind"], item["reference"], item["sha256"]
+    findings: list[PlanFinding] = []
+    if not _in(EVIDENCE_KINDS)(kind) or not _is_nonempty_str(reference):
+        findings.append(
+            PlanFinding(
+                "evidence_kind_or_reference_invalid",
+                label,
+                f"{_text(kind)}:{_text(reference)}",
+            )
+        )
+    if digest is not None and not _is_sha256(digest):
+        findings.append(PlanFinding("evidence_hash_malformed", label, _text(digest)))
+    if type(kind) is str and kind not in FILE_EVIDENCE_KINDS and digest is not None:
+        findings.append(PlanFinding("evidence_hash_not_applicable", label, _text(kind)))
+    if kind == "commit" and not _is_commit(reference):
+        findings.append(PlanFinding("evidence_commit_malformed", label, _text(reference)))
+    return findings
+
+
+def _file_evidence_findings(
+    item: Mapping[str, Any],
+    *,
+    label: str,
+    context: EvidenceContextV1,
+    root: ConfinedRootV1,
+    cache: ValidationObservationCacheV1,
+) -> list[PlanFinding]:
     reference, digest = str(item["reference"]), item["sha256"]
     if not _is_repo_relative(reference):
         return [PlanFinding("evidence_path_not_repo_relative", label, reference)]
-    if not _is_regular_file(root, reference):
+    if reference not in cache.file_regular:
+        cache.file_regular[reference] = _is_regular_file(root, reference)
+    if not cache.file_regular[reference]:
         return [PlanFinding("evidence_missing", label, reference)]
     if digest is None:
         return [PlanFinding("closed_task_evidence_unpinned", label, reference)] if context.closed else []
     if not _is_sha256(digest):
         return [PlanFinding("evidence_hash_malformed", label, str(digest))]
-    if context.compare_digests and _sha256_file(root, reference) != digest:
+    if reference not in cache.file_sha256:
+        cache.file_sha256[reference] = _sha256_file(root, reference)
+    if context.compare_digests and cache.file_sha256[reference] != digest:
         return [PlanFinding("evidence_hash_drift", label, reference)]
     return []
 
 
-def _validate_evidence_item(item: object, *, label: str, context: EvidenceContextV1, root: ConfinedRootV1) -> list[PlanFinding]:
-    shape = _shape(item, EVIDENCE_FIELDS, rule="evidence_field_set_not_closed", subject=label)
-    if shape is not None or not isinstance(item, Mapping):
-        return [shape] if shape is not None else []
-    kind, reference, digest = item["kind"], item["reference"], item["sha256"]
-    if not _in(EVIDENCE_KINDS)(kind) or not _is_nonempty_str(reference):
-        return [PlanFinding("evidence_kind_or_reference_invalid", label, f"{_text(kind)}:{_text(reference)}")]
+def _validate_evidence_item(
+    item: object,
+    *,
+    label: str,
+    context: EvidenceContextV1,
+    root: ConfinedRootV1,
+    cache: ValidationObservationCacheV1 | None = None,
+) -> list[PlanFinding]:
+    structure = _evidence_structure_findings_v1(item, label=label)
+    if structure or type(item) is not dict:
+        return structure
+    observation_cache = cache or ValidationObservationCacheV1.empty()
+    kind, reference = item["kind"], item["reference"]
     if kind in FILE_EVIDENCE_KINDS:
-        return _file_evidence_findings(item, label=label, context=context, root=root)
-    findings = [PlanFinding("evidence_hash_not_applicable", label, str(kind))] if digest is not None else []
-    if kind == "commit" and not _is_commit(reference):
-        findings.append(PlanFinding("evidence_commit_malformed", label, str(reference)))
-    elif kind == "commit" and _git(root, ["cat-file", "-e", f"{reference}^{{commit}}"])[0] != 0:
-        findings.append(PlanFinding("evidence_commit_unknown", label, str(reference)))
-    elif kind == "commit" and _git(
-        root, ["merge-base", "--is-ancestor", str(reference), "HEAD"]
-    )[0] != 0:
-        findings.append(
-            PlanFinding(
-                "evidence_commit_outside_subject_lineage",
-                label,
-                str(reference),
-            )
+        return _file_evidence_findings(
+            item,
+            label=label,
+            context=context,
+            root=root,
+            cache=observation_cache,
         )
+    findings: list[PlanFinding] = []
+    if kind == "commit":
+        probe = _cached_commit_probe_v1(root, reference, observation_cache)
+        if probe.state is GitObjectPresenceV1.QUERY_FAILED:
+            findings.append(
+                PlanFinding("evidence_commit_query_failed", label, probe.reason)
+            )
+        elif probe.state is GitObjectPresenceV1.ABSENT:
+            findings.append(PlanFinding("evidence_commit_unknown", label, reference))
+        elif _cached_commit_ancestry_v1(root, reference, observation_cache) != 0:
+            findings.append(
+                PlanFinding(
+                    "evidence_commit_outside_subject_lineage",
+                    label,
+                    reference,
+                )
+            )
     return findings
 
 
-def _validate_mutation_killers(task_id: str, killers: Sequence[str], root: ConfinedRootV1) -> list[PlanFinding]:
+def _validate_mutation_killers(
+    task_id: str,
+    killers: Sequence[str],
+    root: ConfinedRootV1,
+    cache: ValidationObservationCacheV1,
+) -> list[PlanFinding]:
     findings: list[PlanFinding] = []
     for killer in killers:
         match = MUTATION_KILLER_RE.fullmatch(killer)
         if match is None:
             findings.append(PlanFinding("mutation_killer_reference_malformed", task_id, killer))
             continue
-        source = read_confined_file_v1(root, Path(match.group(1)), max_bytes=MAX_HASHED_FILE_BYTES).data
+        path = match.group(1)
+        if path not in cache.file_bytes:
+            cache.file_bytes[path] = read_confined_file_v1(
+                root, Path(path), max_bytes=MAX_HASHED_FILE_BYTES
+            ).data
+        source = cache.file_bytes[path]
         if source is None or f"def {match.group(2)}(".encode("utf-8") not in source:
             findings.append(PlanFinding("mutation_killer_missing", task_id, killer))
     return findings
@@ -1651,7 +1802,12 @@ def _vm_claim_findings(task: Mapping[str, Any]) -> list[PlanFinding]:
     return [PlanFinding(rule, task_id, evidence) for satisfied, rule, evidence in checks if not satisfied]
 
 
-def _validate_task_semantics(task: Mapping[str, Any], root: ConfinedRootV1, compare_digests: bool) -> list[PlanFinding]:
+def _validate_task_semantics(
+    task: Mapping[str, Any],
+    root: ConfinedRootV1,
+    compare_digests: bool,
+    cache: ValidationObservationCacheV1,
+) -> list[PlanFinding]:
     task_id, status = str(task["task_id"]), str(task["status"])
     closed = status in CLOSED_TASK_STATUSES
     conditions = (
@@ -1662,17 +1818,31 @@ def _validate_task_semantics(task: Mapping[str, Any], root: ConfinedRootV1, comp
     findings = [PlanFinding(rule, task_id, evidence) for violated, rule, evidence in conditions if violated]
     if task["claims_vm_improvement"]:
         findings.extend(_vm_claim_findings(task))
-    findings.extend(_validate_mutation_killers(task_id, task["mutation_killers"], root))
+    findings.extend(
+        _validate_mutation_killers(task_id, task["mutation_killers"], root, cache)
+    )
     context = EvidenceContextV1(closed=closed, compare_digests=compare_digests)
     for index, item in enumerate(task["evidence"]):
-        findings.extend(_validate_evidence_item(item, label=f"{task_id}.evidence[{index}]", context=context, root=root))
+        findings.extend(
+            _validate_evidence_item(
+                item,
+                label=f"{task_id}.evidence[{index}]",
+                context=context,
+                root=root,
+                cache=cache,
+            )
+        )
     return findings
 
 
-def _validate_task(task: object, *, index: int, root: ConfinedRootV1, vocabulary: PlanVocabularyV1) -> list[PlanFinding]:
+def _validate_task_structure_v1(
+    task: object, *, index: int, vocabulary: PlanVocabularyV1
+) -> list[PlanFinding]:
+    """Pure task validation; no Git, file, or process observation."""
+
     label = f"tasks[{index}]"
     shape = _shape(task, TASK_FIELDS, rule="task_field_set_not_closed", subject=label)
-    if shape is not None or not isinstance(task, Mapping):
+    if shape is not None or type(task) is not dict:
         return [shape] if shape is not None else []
     task_id = task["task_id"]
     if not _matches(TASK_ID_RE)(task_id):
@@ -1689,12 +1859,174 @@ def _validate_task(task: object, *, index: int, root: ConfinedRootV1, vocabulary
         ("nonclaims", _is_str_list, "task_nonclaims_malformed"),
         ("claims_vm_improvement", _is_bool, "task_claim_flag_malformed"),
         ("ripr_counterexample", lambda value: value is None or _is_nonempty_str(value), "ripr_counterexample_malformed"),
-        ("evidence", lambda value: isinstance(value, list), "task_evidence_malformed"),
+        ("evidence", lambda value: type(value) is list, "task_evidence_malformed"),
         ("mutation_killers", _is_str_list, "mutation_killers_malformed"),
     )
     findings = _check_fields(task, checks, str(task_id))
+    evidence = task["evidence"]
+    killers = task["mutation_killers"]
+    if type(evidence) is list:
+        if len(evidence) > MAX_EVIDENCE_ROWS_PER_TASK_V1:
+            findings.append(
+                PlanFinding(
+                    "task_evidence_limit_exceeded",
+                    str(task_id),
+                    f"{len(evidence)}>{MAX_EVIDENCE_ROWS_PER_TASK_V1}",
+                )
+            )
+        identities: list[tuple[str, str, str | None]] = []
+        for evidence_index, item in enumerate(evidence):
+            evidence_label = f"{task_id}.evidence[{evidence_index}]"
+            findings.extend(
+                _evidence_structure_findings_v1(item, label=evidence_label)
+            )
+            if type(item) is dict and set(item) == EVIDENCE_FIELDS:
+                kind, reference, digest = (
+                    item["kind"],
+                    item["reference"],
+                    item["sha256"],
+                )
+                if (
+                    type(kind) is str
+                    and type(reference) is str
+                    and (digest is None or type(digest) is str)
+                ):
+                    identities.append((kind, reference, digest))
+        duplicate_identities = sorted(
+            {identity for identity in identities if identities.count(identity) > 1}
+        )
+        if duplicate_identities:
+            findings.append(
+                PlanFinding(
+                    "task_evidence_duplicate",
+                    str(task_id),
+                    f"duplicate_rows={len(duplicate_identities)}",
+                )
+            )
+    if type(killers) is list and len(killers) > MAX_MUTATION_KILLERS_PER_TASK_V1:
+        findings.append(
+            PlanFinding(
+                "mutation_killer_limit_exceeded",
+                str(task_id),
+                f"{len(killers)}>{MAX_MUTATION_KILLERS_PER_TASK_V1}",
+            )
+        )
+    for field in (
+        "depends_on",
+        "vm_gates",
+        "findings",
+        "semantic_decisions_avoided",
+        "nonclaims",
+    ):
+        value = task[field]
+        if type(value) is list and len(value) > MAX_TASK_REFERENCES_PER_LIST_V1:
+            findings.append(
+                PlanFinding(
+                    "task_reference_limit_exceeded",
+                    str(task_id),
+                    f"{field}={len(value)}>{MAX_TASK_REFERENCES_PER_LIST_V1}",
+                )
+            )
+    return findings
+
+
+def _validate_task(
+    task: object,
+    *,
+    index: int,
+    root: ConfinedRootV1,
+    vocabulary: PlanVocabularyV1,
+    cache: ValidationObservationCacheV1,
+) -> list[PlanFinding]:
+    findings = _validate_task_structure_v1(task, index=index, vocabulary=vocabulary)
+    if findings or type(task) is not dict:
+        return findings
+    task_id = task["task_id"]
     compare_digests = str(task_id) not in vocabulary.repin_task_ids
-    return findings if findings else _validate_task_semantics(task, root, compare_digests)
+    return _validate_task_semantics(task, root, compare_digests, cache)
+
+
+def _preflight_tasks_v1(
+    tasks: object, vocabulary: PlanVocabularyV1
+) -> tuple[list[PlanFinding], list[Mapping[str, Any]]]:
+    """Bound and validate every task before the first external observation."""
+
+    if type(tasks) is not list or not tasks:
+        return [PlanFinding("tasks_malformed", "tasks", "must be a nonempty exact list")], []
+    if len(tasks) > MAX_TASK_ROWS_V1:
+        return [
+            PlanFinding(
+                "task_limit_exceeded",
+                "tasks",
+                f"{len(tasks)}>{MAX_TASK_ROWS_V1}",
+            )
+        ], []
+    findings: list[PlanFinding] = []
+    for index, task in enumerate(tasks):
+        findings.extend(
+            _validate_task_structure_v1(task, index=index, vocabulary=vocabulary)
+        )
+    well_formed: list[Mapping[str, Any]] = [
+        cast(dict[str, Any], task) for task in tasks if type(task) is dict
+    ]
+    task_ids = [task.get("task_id") for task in well_formed]
+    exact_ids = [task_id for task_id in task_ids if type(task_id) is str]
+    duplicates = sorted(
+        {task_id for task_id in exact_ids if exact_ids.count(task_id) > 1}
+    )
+    findings.extend(
+        PlanFinding("task_id_duplicate", task_id, "duplicate task id")
+        for task_id in duplicates
+    )
+    if exact_ids != sorted(exact_ids):
+        findings.append(
+            PlanFinding("tasks_not_in_canonical_order", "tasks", "sort by task_id")
+        )
+    evidence_total = sum(
+        len(task["evidence"])
+        for task in well_formed
+        if type(task.get("evidence")) is list
+    )
+    killer_total = sum(
+        len(task["mutation_killers"])
+        for task in well_formed
+        if type(task.get("mutation_killers")) is list
+    )
+    if evidence_total > MAX_EVIDENCE_ROWS_TOTAL_V1:
+        findings.append(
+            PlanFinding(
+                "task_evidence_total_limit_exceeded",
+                "tasks",
+                f"{evidence_total}>{MAX_EVIDENCE_ROWS_TOTAL_V1}",
+            )
+        )
+    if killer_total > MAX_MUTATION_KILLERS_TOTAL_V1:
+        findings.append(
+            PlanFinding(
+                "mutation_killer_total_limit_exceeded",
+                "tasks",
+                f"{killer_total}>{MAX_MUTATION_KILLERS_TOTAL_V1}",
+            )
+        )
+    if findings:
+        return findings, well_formed
+    pure_semantic_findings: list[PlanFinding] = []
+    for task in well_formed:
+        task_id = str(task["task_id"])
+        status = str(task["status"])
+        if status == "DEFERRED_SEMANTIC_DECISION" and not task[
+            "semantic_decisions_avoided"
+        ]:
+            pure_semantic_findings.append(
+                PlanFinding(
+                    "deferred_task_without_policy",
+                    task_id,
+                    "name the unresolved policy",
+                )
+            )
+    if pure_semantic_findings:
+        return pure_semantic_findings, well_formed
+    return _validate_dependencies(well_formed), well_formed
 
 
 def _dependency_edge_findings(task_id: str, dep: str, status: object, by_id: Mapping[str, Mapping[str, Any]]) -> list[PlanFinding]:
@@ -1935,6 +2267,32 @@ def _registry_set_findings(gates: Sequence[object]) -> list[PlanFinding]:
     return [PlanFinding("live_gate_registry_set_mismatch", "live_gates", f"declared={ids} registry={sorted(LIVE_GATE_REGISTRY)}")]
 
 
+def _preflight_live_gates_v1(plan: Mapping[str, Any]) -> list[PlanFinding]:
+    """Validate the complete closed live-gate set before reading checker files."""
+
+    gates = plan["live_gates"]
+    if type(gates) is not list:
+        return [
+            PlanFinding("live_gates_malformed", "live_gates", "must be an exact list")
+        ]
+    findings: list[PlanFinding] = []
+    if len(gates) > len(LIVE_GATE_REGISTRY) + 16:
+        return [
+            PlanFinding(
+                "live_gate_registry_set_mismatch",
+                "live_gates",
+                f"declared_count={len(gates)} registry_count={len(LIVE_GATE_REGISTRY)}",
+            )
+        ]
+    for index, gate in enumerate(gates):
+        binding_findings, _spec = _live_gate_binding_findings(
+            gate, label=f"live_gates[{index}]"
+        )
+        findings.extend(binding_findings)
+    findings.extend(_registry_set_findings(gates))
+    return findings
+
+
 def _validate_live_gates(plan: Mapping[str, Any], root: ConfinedRootV1, profile: PlanValidationProfileV1) -> list[PlanFinding]:
     gates = plan["live_gates"]
     if not isinstance(gates, list):
@@ -2163,29 +2521,56 @@ def _validate_with_root(
     findings = _validate_top_level(plan)
     if findings:
         return findings
+    registry_preflight = [
+        *_validate_rows(plan["finding_registry"], FINDING_ROWS)[0],
+        *_validate_rows(plan["unresolved_policies"], POLICY_ROWS)[0],
+        *_validate_rows(plan["heavy_gates_requiring_runpod"], HEAVY_GATE_ROWS)[0],
+    ]
+    if registry_preflight:
+        return sorted(
+            registry_preflight,
+            key=lambda item: (item.rule_id, item.subject, item.evidence),
+        )
     tasks = plan["tasks"]
-    if not isinstance(tasks, list) or not tasks:
-        return [PlanFinding("tasks_malformed", "tasks", "must be a nonempty list")]
-    well_formed = [task for task in tasks if isinstance(task, Mapping)]
     vocabulary = PlanVocabularyV1(
         _row_ids(plan["finding_registry"], "finding_id"), _row_ids(plan["unresolved_policies"], "policy_id"), profile.repin_tasks
     )
+    task_preflight, well_formed = _preflight_tasks_v1(tasks, vocabulary)
+    if task_preflight:
+        return sorted(
+            task_preflight, key=lambda item: (item.rule_id, item.subject, item.evidence)
+        )
+    pure_preflight = [
+        *_validate_phases(plan),
+        *_validate_finding_registry(plan, well_formed),
+        *_validate_rows(plan["unresolved_policies"], POLICY_ROWS)[0],
+        *_validate_vm_gate_status(plan, well_formed),
+        *_preflight_live_gates_v1(plan),
+        *_validate_external_gates(plan),
+        *_validate_rows(plan["heavy_gates_requiring_runpod"], HEAVY_GATE_ROWS)[0],
+        *_validate_receipt(plan),
+    ]
+    if pure_preflight:
+        return sorted(
+            pure_preflight, key=lambda item: (item.rule_id, item.subject, item.evidence)
+        )
+    cache = ValidationObservationCacheV1.empty()
     for index, task in enumerate(tasks):
-        findings.extend(_validate_task(task, index=index, root=bound, vocabulary=vocabulary))
+        findings.extend(
+            _validate_task(
+                task,
+                index=index,
+                root=bound,
+                vocabulary=vocabulary,
+                cache=cache,
+            )
+        )
     validators: tuple[Callable[[], list[PlanFinding]], ...] = (
         lambda: plan_artifact_findings_v1(bound),
         lambda: _validate_subject(plan, bound, profile),
         lambda: _validate_semantic_anchors(plan, bound),
         lambda: donor_provenance_findings_v1(bound),
-        lambda: _validate_phases(plan),
-        lambda: _validate_finding_registry(plan, well_formed),
-        lambda: _validate_rows(plan["unresolved_policies"], POLICY_ROWS)[0],
-        lambda: _validate_dependencies(well_formed),
-        lambda: _validate_vm_gate_status(plan, well_formed),
         lambda: _validate_live_gates(plan, bound, profile),
-        lambda: _validate_external_gates(plan),
-        lambda: _validate_rows(plan["heavy_gates_requiring_runpod"], HEAVY_GATE_ROWS)[0],
-        lambda: _validate_receipt(plan),
         lambda: _validate_markdown(plan, markdown, profile),
     )
     for validator in validators:

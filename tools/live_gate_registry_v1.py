@@ -127,6 +127,7 @@ from tools.bounded_json_v1 import (  # noqa: E402
 GIT_BINARY: Final = "/usr/bin/git"
 GIT_TIMEOUT_SECONDS: Final = 60
 MAX_GIT_OUTPUT_BYTES: Final = 1024 * 1024
+MAX_GIT_OBJECT_PROBE_OUTPUT_BYTES: Final = 256
 MAX_GATE_OUTPUT_BYTES: Final = GATE_OUTPUT_LIMITS_V1.max_bytes
 MAX_LIVE_GATE_TIMEOUT_SECONDS: Final = 900
 _READ_CHUNK_BYTES: Final = 65536
@@ -756,6 +757,22 @@ class ProcessRunV1:
     error: str
     escaped_descendants: int = 0
     stderr: bytes = b""
+
+
+class GitObjectPresenceV1(enum.Enum):
+    """Closed semantic result of probing one exact commit object."""
+
+    PRESENT = "present"
+    ABSENT = "absent"
+    QUERY_FAILED = "query_failed"
+
+
+@dataclass(frozen=True, slots=True)
+class GitObjectProbeV1:
+    """Typed object-presence observation; process failure is never absence."""
+
+    state: GitObjectPresenceV1
+    reason: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -1434,6 +1451,64 @@ def _git_run(root: WorkingDirectory, args: Sequence[str], max_output_bytes: int)
         env=PROCESS_ENVIRONMENT_BASE,
         bounds=ProcessBoundsV1(GIT_TIMEOUT_SECONDS, max_output_bytes),
         pass_fds=inherited,
+    )
+
+
+def git_commit_object_probe_v1(root: WorkingDirectory, oid: str) -> GitObjectProbeV1:
+    """Probe one exact commit through Git's explicit batch ``missing`` result.
+
+    ``cat-file -e`` uses the same nonzero exit family for ordinary absence and
+    fatal repository failures.  Batch-check instead reports absence in a
+    successful, exact stdout record.  Every process error, nonzero exit,
+    stderr byte, or noncanonical response is ``QUERY_FAILED``.
+    """
+
+    if type(oid) is not str or _GIT_OID_RE_V1.fullmatch(oid) is None:
+        return GitObjectProbeV1(
+            GitObjectPresenceV1.QUERY_FAILED, "commit id is not one exact 40-hex oid"
+        )
+    inherited: tuple[int, ...] = ()
+    if isinstance(root, AnchoredDirectoryV1):
+        if not root.is_open:
+            return GitObjectProbeV1(
+                GitObjectPresenceV1.QUERY_FAILED, "anchored directory is closed"
+            )
+        cwd, inherited = root.child_path, (root._descriptor,)
+    else:
+        cwd = str(root)
+    run = _run_plain_process(
+        (
+            GIT_BINARY,
+            "--no-replace-objects",
+            "cat-file",
+            "--batch-check=%(objectname) %(objecttype)",
+        ),
+        cwd=cwd,
+        env=PROCESS_ENVIRONMENT_BASE,
+        bounds=ProcessBoundsV1(
+            GIT_TIMEOUT_SECONDS, MAX_GIT_OBJECT_PROBE_OUTPUT_BYTES
+        ),
+        pass_fds=inherited,
+        stdin_data=f"{oid}\n".encode("ascii"),
+    )
+    if run.error:
+        return GitObjectProbeV1(GitObjectPresenceV1.QUERY_FAILED, run.error)
+    if run.exit_code != 0:
+        return GitObjectProbeV1(
+            GitObjectPresenceV1.QUERY_FAILED,
+            f"git object probe exited {run.exit_code}",
+        )
+    if run.stderr:
+        return GitObjectProbeV1(
+            GitObjectPresenceV1.QUERY_FAILED, "git object probe wrote stderr"
+        )
+    if run.stdout == f"{oid} commit\n".encode("ascii"):
+        return GitObjectProbeV1(GitObjectPresenceV1.PRESENT)
+    if run.stdout == f"{oid} missing\n".encode("ascii"):
+        return GitObjectProbeV1(GitObjectPresenceV1.ABSENT)
+    return GitObjectProbeV1(
+        GitObjectPresenceV1.QUERY_FAILED,
+        "git object probe returned a noncanonical response",
     )
 
 

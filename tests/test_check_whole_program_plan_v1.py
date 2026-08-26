@@ -6,6 +6,7 @@ import hashlib
 import inspect
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -74,6 +75,7 @@ GIT_ENV = {
 }
 
 _DISPOSABLE_COMPLETE_SUBJECTS: list[Path] = []
+_CLONE_FIXTURE_NAME_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}\Z")
 
 
 def _remove_disposable_subject(root: Path) -> None:
@@ -119,6 +121,22 @@ def _git(repo: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def _owned_clone_destination_v1(tmp_path: Path, name: str) -> tuple[Path, Path]:
+    """Create one exclusive helper-owned container and its clone destination."""
+
+    if type(name) is not str or _CLONE_FIXTURE_NAME_RE.fullmatch(name) is None:
+        raise ValueError("clone fixture name must be one canonical basename")
+    requested = tmp_path / name
+    try:
+        requested.mkdir(mode=0o700)
+    except FileExistsError as exc:
+        raise FileExistsError(
+            f"clone fixture destination already exists: {name}"
+        ) from exc
+    _DISPOSABLE_COMPLETE_SUBJECTS.append(requested)
+    return requested, requested
+
+
 def _replace_aware_git(repo: Path, *args: str) -> str:
     """Run fixture Git with replacement refs enabled to construct an adversarial repository."""
 
@@ -133,8 +151,7 @@ def _replace_aware_git(repo: Path, *args: str) -> str:
 def _clone_complete_subject(tmp_path: Path, name: str = "subject") -> Path:
     """Create a clean disposable complete subject from the committed test root."""
 
-    root = tmp_path / name
-    _DISPOSABLE_COMPLETE_SUBJECTS.append(root)
+    container, root = _owned_clone_destination_v1(tmp_path, name)
     try:
         subprocess.run(
             ["/usr/bin/git", "clone", "-q", "--no-hardlinks", str(ROOT), str(root)],
@@ -144,13 +161,13 @@ def _clone_complete_subject(tmp_path: Path, name: str = "subject") -> Path:
         )
     except BaseException as primary:
         try:
-            _remove_disposable_subject(root)
+            _remove_disposable_subject(container)
         except BaseException as cleanup_error:
             primary.add_note(
                 f"partial clone cleanup also failed: {type(cleanup_error).__name__}"
             )
         else:
-            _DISPOSABLE_COMPLETE_SUBJECTS.remove(root)
+            _DISPOSABLE_COMPLETE_SUBJECTS.remove(container)
         raise
     return root
 
@@ -158,8 +175,7 @@ def _clone_complete_subject(tmp_path: Path, name: str = "subject") -> Path:
 def _clone_transport_subject(tmp_path: Path, name: str = "transport-subject") -> Path:
     """Transfer only advertised candidate history, without local object leakage."""
 
-    root = tmp_path / name
-    _DISPOSABLE_COMPLETE_SUBJECTS.append(root)
+    container, root = _owned_clone_destination_v1(tmp_path, name)
     try:
         subprocess.run(
             [
@@ -176,13 +192,13 @@ def _clone_transport_subject(tmp_path: Path, name: str = "transport-subject") ->
         )
     except BaseException as primary:
         try:
-            _remove_disposable_subject(root)
+            _remove_disposable_subject(container)
         except BaseException as cleanup_error:
             primary.add_note(
                 f"partial clone cleanup also failed: {type(cleanup_error).__name__}"
             )
         else:
-            _DISPOSABLE_COMPLETE_SUBJECTS.remove(root)
+            _DISPOSABLE_COMPLETE_SUBJECTS.remove(container)
         raise
     return root
 
@@ -197,10 +213,10 @@ def test_failed_clone_is_removed_before_the_helper_propagates(
     monkeypatch: pytest.MonkeyPatch,
     clone_helper: Callable[[Path, str], Path],
 ) -> None:
-    root = tmp_path / "partial"
-
-    def fail_after_partial_clone(*_args: object, **_kwargs: object) -> object:
-        root.mkdir()
+    def fail_after_partial_clone(*args: object, **_kwargs: object) -> object:
+        command = args[0]
+        assert isinstance(command, list)
+        root = Path(command[-1])
         (root / "partial.pack").write_bytes(b"partial")
         raise subprocess.CalledProcessError(128, ["git", "clone"])
 
@@ -209,8 +225,40 @@ def test_failed_clone_is_removed_before_the_helper_propagates(
     with pytest.raises(subprocess.CalledProcessError):
         clone_helper(tmp_path, "partial")
 
-    assert not root.exists()
-    assert root not in _DISPOSABLE_COMPLETE_SUBJECTS
+    assert not any(tmp_path.iterdir())
+    assert _DISPOSABLE_COMPLETE_SUBJECTS == []
+
+
+@pytest.mark.parametrize(
+    "clone_helper",
+    (_clone_complete_subject, _clone_transport_subject),
+    ids=("complete", "transport"),
+)
+def test_failed_clone_never_deletes_a_preexisting_destination(
+    tmp_path: Path,
+    clone_helper: Callable[[Path, str], Path],
+) -> None:
+    # Arrange
+    destination = tmp_path / "preexisting"
+    destination.mkdir()
+    sentinel = destination / "keep.txt"
+    sentinel.write_text("caller-owned\n", encoding="utf-8")
+
+    # Act / Assert
+    with pytest.raises(FileExistsError):
+        clone_helper(tmp_path, "preexisting")
+    assert sentinel.read_text(encoding="utf-8") == "caller-owned\n"
+    assert _DISPOSABLE_COMPLETE_SUBJECTS == []
+
+
+@pytest.mark.parametrize("name", ("../escape", "/tmp/escape", "nested/path", ""))
+def test_clone_fixture_name_is_one_canonical_basename(
+    tmp_path: Path, name: str
+) -> None:
+    with pytest.raises(ValueError):
+        _clone_complete_subject(tmp_path, name)
+    assert not any(tmp_path.iterdir())
+    assert _DISPOSABLE_COMPLETE_SUBJECTS == []
 
 
 def _replacement_commit_for_head(repo: Path, raw_head: str, message: str) -> str:
@@ -1433,6 +1481,121 @@ def test_invalid_donor_cardinality_rejects_before_git_io(
         finding.rule_id for finding in findings
     }
     assert calls == {"git": 0, "git_bytes": 0}
+
+
+def test_donor_object_probe_failure_is_never_safe_absence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    target = "c2e80678415543df43dba0f4678fae9931a1bb91"
+    real_probe = checker_module._git_commit_probe
+
+    def fail_target(root: object, commit: str) -> object:
+        if commit == target:
+            return checker_module.GitObjectProbeV1(
+                checker_module.GitObjectPresenceV1.QUERY_FAILED,
+                "injected object database failure",
+            )
+        return real_probe(root, commit)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(checker_module, "_git_commit_probe", fail_target)
+    with ConfinedRootV1.bind(ROOT) as bound:
+        snapshot = checker_module._read_bounded_json_file(
+            bound,
+            checker_module.DONOR_PROVENANCE_PATH,
+            name="donor provenance snapshot",
+        )
+
+        # Act
+        findings = checker_module._validate_donor_provenance_content_v1(
+            snapshot, bound
+        )
+
+    # Assert
+    assert "donor_object_query_failed" in {
+        finding.rule_id for finding in findings
+    }
+
+
+def test_private_donor_validator_owns_values_before_equality() -> None:
+    class AlwaysEqual:
+        def __eq__(self, _other: object) -> bool:
+            return True
+
+    with ConfinedRootV1.bind(ROOT) as bound:
+        snapshot = checker_module._read_bounded_json_file(
+            bound,
+            checker_module.DONOR_PROVENANCE_PATH,
+            name="donor provenance snapshot",
+        )
+        snapshot["donors"][2]["object_transport"] = AlwaysEqual()
+
+        findings = checker_module._validate_donor_provenance_content_v1(
+            snapshot, bound
+        )
+
+    assert {finding.rule_id for finding in findings} == {
+        "donor_snapshot_value_not_owned"
+    }
+
+
+def test_duplicate_tasks_reject_before_evidence_observations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    plan = copy.deepcopy(_plan())
+    plan["tasks"] = [copy.deepcopy(plan["tasks"][0]) for _ in range(32)]
+    calls: list[str] = []
+    monkeypatch.setattr(
+        checker_module,
+        "_git_commit_probe",
+        lambda *_args, **_kwargs: calls.append("probe"),
+    )
+    monkeypatch.setattr(
+        checker_module,
+        "_git",
+        lambda *_args, **_kwargs: (calls.append("git") or (-1, "")),
+    )
+    monkeypatch.setattr(
+        checker_module,
+        "read_confined_file_v1",
+        lambda *_args, **_kwargs: calls.append("file"),
+    )
+
+    # Act
+    findings = validate_plan_v1(plan, root=ROOT, markdown=None)
+
+    # Assert
+    assert "task_id_duplicate" in {finding.rule_id for finding in findings}
+    assert calls == []
+
+
+def test_duplicate_evidence_rejects_before_evidence_observations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    plan = copy.deepcopy(_plan())
+    evidence = copy.deepcopy(plan["tasks"][0]["evidence"][0])
+    plan["tasks"][0]["evidence"] = [copy.deepcopy(evidence) for _ in range(64)]
+    calls: list[str] = []
+    monkeypatch.setattr(
+        checker_module,
+        "_git_commit_probe",
+        lambda *_args, **_kwargs: calls.append("probe"),
+    )
+    monkeypatch.setattr(
+        checker_module,
+        "_git",
+        lambda *_args, **_kwargs: (calls.append("git") or (-1, "")),
+    )
+
+    # Act
+    findings = validate_plan_v1(plan, root=ROOT, markdown=None)
+
+    # Assert
+    rules = {finding.rule_id for finding in findings}
+    assert {"task_evidence_duplicate", "task_evidence_limit_exceeded"} <= rules
+    assert calls == []
 
 
 def test_clone_finalizer_attempts_every_path_and_retains_failures_for_retry(

@@ -13,11 +13,13 @@ from tools.live_gate_registry_v1 import (
     LIVE_GATE_REGISTRY,
     MAX_LIVE_GATE_TIMEOUT_SECONDS,
     ChildScanV1,
+    GitObjectPresenceV1,
     LiveGateSpecV1,
     ProcessBoundsV1,
     ProcessRunV1,
     enable_child_subreaper_v1,
     gate_environment_v1,
+    git_commit_object_probe_v1,
     git_v1,
     live_gate_preflight_v1,
     observe_live_gate_v1,
@@ -1195,6 +1197,65 @@ def test_git_runs_from_trusted_binary_with_minimal_environment() -> None:
     # Assert
     assert code == 0 and len(head) == 40
     assert bad_code != 0 and bad_out == ""
+
+
+def test_git_commit_object_probe_distinguishes_presence_and_absence() -> None:
+    # Arrange
+    code, head = git_v1(ROOT, ["rev-parse", "HEAD"])
+    assert code == 0
+
+    # Act
+    present = git_commit_object_probe_v1(ROOT, head)
+    absent = git_commit_object_probe_v1(ROOT, "0" * 40)
+
+    # Assert
+    assert present.state is GitObjectPresenceV1.PRESENT and present.reason == ""
+    assert absent.state is GitObjectPresenceV1.ABSENT and absent.reason == ""
+
+
+@pytest.mark.parametrize("exit_code", (1, 128))
+def test_git_commit_object_probe_never_downgrades_fatal_exit_to_absence(
+    exit_code: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Arrange
+    monkeypatch.setattr(
+        registry_module,
+        "_run_plain_process",
+        lambda *_args, **_kwargs: ProcessRunV1(
+            exit_code,
+            b"",
+            "",
+            0,
+            b"fatal: injected object database failure\n",
+        ),
+    )
+
+    # Act
+    result = git_commit_object_probe_v1(ROOT, "0" * 40)
+
+    # Assert
+    assert result.state is GitObjectPresenceV1.QUERY_FAILED
+    assert result.reason != ""
+
+
+def test_git_commit_object_probe_rejects_malformed_or_wrong_type_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    oid = "0" * 40
+    monkeypatch.setattr(
+        registry_module,
+        "_run_plain_process",
+        lambda *_args, **_kwargs: ProcessRunV1(0, f"{oid} blob\n".encode(), ""),
+    )
+
+    # Act
+    malformed = git_commit_object_probe_v1(ROOT, oid)
+    invalid_oid = git_commit_object_probe_v1(ROOT, "0" * 39)
+
+    # Assert
+    assert malformed.state is GitObjectPresenceV1.QUERY_FAILED
+    assert invalid_oid.state is GitObjectPresenceV1.QUERY_FAILED
 
 
 def test_anchored_file_hash_and_read_do_not_mutate_shared_offsets() -> None:
