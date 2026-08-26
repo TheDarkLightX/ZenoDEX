@@ -766,12 +766,20 @@ def _reset_stack(*, paths: mf.ManifestPaths, engine_name: str, manifest: Mapping
             )
     if manifest is not None:
         engine = cm.detect_engine(engine_name)
+        reset_manifest = {
+            "ports": {"ui": DEFAULT_UI_PORT},
+            "chain_id": DEFAULT_CHAIN_ID,
+            "network_id": DEFAULT_NETWORK_ID,
+            "host_paths": {},
+            "rendered_paths": {},
+            "zk_required": False,
+        }
         cm.compose_down(
             engine=engine,
-            project_name=str(manifest["compose_project"]),
+            project_name=mf.compose_project_name(paths.out_dir),
             compose_files=[COMPOSE_FILE],
             remove_volumes=True,
-            env=_lifecycle_env_for_compose(dict(manifest), paths),
+            env=_lifecycle_env_for_compose(reset_manifest, paths),
         )
     shutil.rmtree(paths.out_dir, ignore_errors=True)
 
@@ -1397,12 +1405,21 @@ def _load_manifest_if_present(path: Path, *, allow_invalid: bool = False) -> dic
         return None
     try:
         return mf.load_manifest(path)
-    except ValueError:
+    except ValueError as load_error:
         if not allow_invalid:
             raise
         raw = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(raw, dict):
             raise
+        expected_out_dir = str(path.parent.resolve())
+        expected_project = mf.compose_project_name(path.parent)
+        if (
+            raw.get("out_dir") != expected_out_dir
+            or raw.get("compose_project") != expected_project
+        ):
+            raise ValueError(
+                f"{path}: force-reset manifest has unsafe identity binding"
+            ) from load_error
         return raw
 
 

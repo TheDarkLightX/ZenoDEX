@@ -159,6 +159,52 @@ def test_manifest_rejects_quarantined_autotrader_lane(tmp_path: Path) -> None:
     assert lc._load_manifest_if_present(path, allow_invalid=True) is not None
 
 
+def test_manifest_force_reset_rejects_invalid_identity_binding(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].append("AUTOTRADER_LIVE_API_ENABLED")
+    expected_project = mf.compose_project_name(tmp_path)
+    wrong_project = "zenodex-local-testnet-00000000"
+    if wrong_project == expected_project:
+        wrong_project = "zenodex-local-testnet-11111111"
+    body["compose_project"] = wrong_project
+    path = tmp_path / mf.MANIFEST_FILENAME
+    path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    assert mf.validate_manifest(body) == [
+        "compose_project does not match the project derived from out_dir: "
+        f"expected {expected_project!r}, got {wrong_project!r}",
+        "enabled_lanes contains unmountable lanes: ['AUTOTRADER_LIVE_API_ENABLED']",
+    ]
+    with pytest.raises(ValueError, match="force-reset manifest has unsafe identity binding"):
+        lc._load_manifest_if_present(path, allow_invalid=True)
+
+
+def test_force_reset_uses_derived_identity_and_safe_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    paths = mf.ManifestPaths.from_out_dir(tmp_path)
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["host_paths"]["fixtures_dir"] = "/untrusted/fixtures"
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: captured.update(kwargs))
+    monkeypatch.setattr(lc.shutil, "rmtree", lambda *_args, **_kwargs: None)
+
+    lc._reset_stack(paths=paths, engine_name="auto", manifest=body)
+
+    assert captured["project_name"] == mf.compose_project_name(paths.out_dir)
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert env["FIXTURES_DIR"] == str(paths.fixtures_dir)
+
+
 def test_manifest_rejects_missing_keys(tmp_path: Path) -> None:
     from tools.zenoctl_testnet_local import manifest as mf
 

@@ -246,6 +246,11 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
     out_dir = manifest.get("out_dir")
     if not isinstance(out_dir, str) or not out_dir.startswith("/"):
         errors.append(f"out_dir must be an absolute path string, got {out_dir!r}")
+    elif project != compose_project_name(out_dir):
+        errors.append(
+            "compose_project does not match the project derived from out_dir: "
+            f"expected {compose_project_name(out_dir)!r}, got {project!r}"
+        )
 
     chain_id = manifest.get("chain_id")
     if not isinstance(chain_id, str) or not chain_id:

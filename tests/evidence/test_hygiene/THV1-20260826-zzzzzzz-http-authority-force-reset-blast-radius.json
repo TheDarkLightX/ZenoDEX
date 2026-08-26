@@ -1,0 +1,75 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zzzzzzz-http-authority-force-reset-blast-radius",
+  "created_date": "2026-08-26",
+  "claim_scope": "This append-only correction narrows stale-manifest recovery by separating reset identity from stale payload fields. Force reset requires the manifest out directory and Compose project to match values derived from the selected output directory. Teardown then derives its project and path-bearing environment from that trusted directory instead of the stale manifest. Other stale schema fields may remain readable for explicit recovery without controlling teardown.",
+  "change_kind": "evidence_correction",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "FORCE-RESET-IDENTITY-IS-DERIVED-FROM-SELECTED-OUT-DIR",
+    "STALE-MANIFEST-PATHS-CANNOT-CONTROL-TEARDOWN",
+    "STALE-SCHEMA-AND-QUARANTINED-LANE-REMAIN-RECOVERABLE"
+  ],
+  "failure_modes": [
+    "allow-invalid recovery passes an unrelated Compose project into teardown",
+    "stale host paths redirect Compose parsing or volume declarations during teardown",
+    "hardening the force path prevents an operator from replacing an identity-bound stale manifest"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/zenoctl_testnet_local/lifecycle.py",
+      "sha256": "413c51becd58c0c017a1956865186dbba784840f84b4e35b1fd931d87ff43d49"
+    },
+    {
+      "path": "tools/zenoctl_testnet_local/manifest.py",
+      "sha256": "8807a4a18b6f1aa8662187032f561875e90a17fb9a72f3a1fea4cce46c6afe6f"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_zenoctl_testnet_local.py",
+      "sha256": "5d05fd1ceb2e887201b0dfa979276e0131c15bc8f2c85e6a1aa3b1143f0ac993",
+      "node_ids": [
+        "tests/integration/test_zenoctl_testnet_local.py::test_force_up_can_load_stale_manifest_for_reset",
+        "tests/integration/test_zenoctl_testnet_local.py::test_manifest_rejects_quarantined_autotrader_lane",
+        "tests/integration/test_zenoctl_testnet_local.py::test_manifest_force_reset_rejects_invalid_identity_binding",
+        "tests/integration/test_zenoctl_testnet_local.py::test_force_reset_uses_derived_identity_and_safe_paths"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange identity-bound stale manifests, an invalid Compose identity, and hostile path-bearing fields; act through normal loading, force-reset loading, and teardown construction; then assert recovery, identity rejection, and trusted path derivation."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "An identity mismatch raises before engine detection, Compose teardown, filesystem removal, or fresh stack generation. An identity-bound stale manifest reaches teardown only through a newly derived project and safe environment."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "force_reset_identity_and_payload_trust",
+      "points": [
+        "identity_bound_stale_schema_is_recoverable",
+        "identity_bound_quarantined_lane_is_recoverable",
+        "invalid_compose_identity_rejects",
+        "hostile_stale_path_is_replaced_by_selected_out_dir_path"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "The preceding persisted-manifest packet did not constrain additional validation failures on the force-reset path. This packet supersedes that recovery claim.",
+    "The force-reset loader may return other stale fields, but the teardown path consumes no project, host path, rendered path, port, chain, network, or proof-mode value from them.",
+    "No executable semantic-mutation campaign was run, so mutation evidence is intentionally absent.",
+    "No settlement, proof, migration, writer-rotation, value-moving, or production authority is added.",
+    "Production authority remains NONE."
+  ]
+}
