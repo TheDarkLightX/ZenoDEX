@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
+
+import yaml
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _unexpected_server_construction(*_args, **_kwargs) -> None:
@@ -109,3 +114,15 @@ def test_api_server_refuses_zusd_tau_wallet_mount_until_network_binding_and_reco
         "Refusing to start: ZUSD_TAU_WALLET_API_ENABLED requires Tau network-domain "
         "signature binding and durable submission reconciliation."
     ]
+
+
+def test_local_testnet_profile_quarantines_zusd_tau_wallet_lane() -> None:
+    from tools.zenoctl_testnet_local import lifecycle
+
+    compose = yaml.safe_load((REPO_ROOT / "docker-compose.local-testnet.yml").read_text(encoding="utf-8"))
+    environment = compose["services"]["zenodex-api"]["environment"]
+
+    assert environment["ZUSD_TAU_WALLET_API_ENABLED"] == "false"
+    assert environment["ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING"] == "false"
+    assert environment["ZUSD_TAU_WALLET_AUTO_MINE"] == "false"
+    assert "ZUSD_TAU_WALLET_API_ENABLED" not in lifecycle.LOCAL_TESTNET_ENABLED_LANES

@@ -44,7 +44,6 @@ from . import fixtures as fx
 from . import manifest as mf
 from . import nginx as ng
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = REPO_ROOT / "docker-compose.local-testnet.yml"
 NGINX_TEMPLATE = REPO_ROOT / ".docker" / "nginx.local-testnet.conf.template"
@@ -89,6 +88,13 @@ DEFAULT_FIXTURE_NATIVE_MATERIALIZE_E8 = DEFAULT_ZUSD_BOOTSTRAP_COLLATERAL_E8
 DEFAULT_FIXTURE_TEST_ASSET_PREFUND = 1_000_000
 DEFAULT_FIXTURE_ZUSD_COUNTERPARTY_PREFUND = 25
 SMOKE_CONFIDENTIAL_POLICY_DIGEST = "0x" + ("d" * 64)
+LOCAL_TESTNET_ENABLED_LANES = (
+    "DEX_API_ENABLED",
+    "PERPS_WALLET_API_ENABLED",
+    "ZUSD_MONETARY_WALLET_API_ENABLED",
+    "AUTOTRADER_LIVE_API_ENABLED",
+    "CONFIDENTIAL_ATTESTATION_API_ENABLED",
+)
 
 
 @dataclass(frozen=True)
@@ -284,14 +290,7 @@ def cmd_up(opts: UpOptions) -> int:
             "tau_local": TAU_LOCAL_IMAGE,
             "ui_nginx": UI_NGINX_IMAGE,
         },
-        enabled_lanes=[
-            "DEX_API_ENABLED",
-            "PERPS_WALLET_API_ENABLED",
-            "ZUSD_TAU_WALLET_API_ENABLED",
-            "ZUSD_MONETARY_WALLET_API_ENABLED",
-            "AUTOTRADER_LIVE_API_ENABLED",
-            "CONFIDENTIAL_ATTESTATION_API_ENABLED",
-        ],
+        enabled_lanes=list(LOCAL_TESTNET_ENABLED_LANES),
         fixture_paths=bundle.as_manifest_paths(),
         ledger_bundle_manifest=str(paths.out_dir / "ledger" / "public_testnet_manifest.json"),
         writer_token=writer_token,

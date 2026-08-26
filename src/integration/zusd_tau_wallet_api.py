@@ -33,6 +33,8 @@ from .zusd_tau_token import (
 )
 
 MAX_POST_BODY = 65_536
+MAX_TAU_APP_STATE_BYTES = 1_048_576
+MAX_TAU_APP_STATE_JSON_DEPTH = 64
 ResponseT = Tuple[int, Dict[str, Any]]
 
 _INSPECT_REQUEST_FIELDS = frozenset(
@@ -182,10 +184,42 @@ def _parse_json_body(body: Optional[bytes]) -> Tuple[Optional[Dict[str, Any]], O
     return obj, None
 
 
+def _require_bounded_json_text(raw: str, *, max_bytes: int, max_depth: int) -> None:
+    if len(raw.encode("utf-8")) > max_bytes:
+        raise TauNetRpcError("getappstate response too large")
+    depth = 0
+    in_string = False
+    escaped = False
+    for char in raw:
+        if in_string:
+            if escaped:
+                escaped = False
+                continue
+            if char == "\\":
+                escaped = True
+                continue
+            if char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char in "[{":
+            depth += 1
+            if depth > max_depth:
+                raise TauNetRpcError("getappstate JSON nesting too deep")
+        elif char in "]}":
+            depth -= 1
+
+
 def _load_app_state(client: TauNetTcpClient) -> Tuple[Dict[str, Any], Optional[str]]:
     raw = client.getappstate(full=True).strip()
     if not raw:
         raise TauNetRpcError("empty getappstate response")
+    _require_bounded_json_text(
+        raw,
+        max_bytes=MAX_TAU_APP_STATE_BYTES,
+        max_depth=MAX_TAU_APP_STATE_JSON_DEPTH,
+    )
     obj = json.loads(raw)
     if not isinstance(obj, dict):
         raise TauNetRpcError("invalid getappstate response")
@@ -599,25 +633,22 @@ def _build_prepare_response(body: Mapping[str, Any], *, for_submit: bool) -> Dic
             raise TauNetRpcError("sendtx rejected")
         payload["submission"] = {
             "outcome": "accepted",
-            "sendtx_response": send_resp,
+            "sendtx_response": "accepted",
         }
         try:
             if _auto_mine():
-                payload["submission"]["createblock_response"] = client.createblock()
+                client.createblock()
+                payload["submission"]["createblock_response"] = "received"
             app_state_after, app_hash_after = _load_app_state(client)
             payload["post_submit"] = {
                 "status": "observed",
                 "app_hash": app_hash_after,
                 "balances": _balances_for_asset(app_state_after, asset_id=asset_id),
             }
-        except (
-            TauNetRpcError,
-            json.JSONDecodeError,
-            UnicodeDecodeError,
-            TypeError,
-            ValueError,
-            OSError,
-        ):
+        except Exception:
+            # An explicit sendtx success is irreversible local knowledge. Post-send
+            # observation is best-effort and no ordinary observation failure may
+            # rewrite that known outcome into a pre-send-style error response.
             payload["post_submit"] = {
                 "status": "observation_failed",
                 "error": "post_submit_observation_failed",
@@ -650,9 +681,9 @@ def _status_payload() -> Dict[str, Any]:
         status["app_hash"] = app_hash
         status["app_bridge_available"] = bool(app_state or app_hash)
         status["holder_count"] = len(_balances_for_asset(app_state, asset_id=asset_id))
-    except Exception as exc:
+    except Exception:
         status["node_reachable"] = False
-        status["error"] = f"{type(exc).__name__}: {exc}"
+        status["error"] = "tau_status_unavailable"
     return status
 
 
@@ -698,7 +729,7 @@ def handle_zusd_tau_wallet_request(method: str, path: str, body: Optional[bytes]
         return 404, {"ok": False, "error": "not_found"}
     except (ValueError, TypeError) as exc:
         return 400, {"ok": False, "error": str(exc)}
-    except TauNetRpcError as exc:
-        return 502, {"ok": False, "error": "tau_rpc_error", "detail": str(exc)}
-    except Exception as exc:
-        return 500, {"ok": False, "error": "internal_error", "detail": f"{type(exc).__name__}: {exc}"}
+    except TauNetRpcError:
+        return 502, {"ok": False, "error": "tau_rpc_error"}
+    except Exception:
+        return 500, {"ok": False, "error": "internal_error"}
