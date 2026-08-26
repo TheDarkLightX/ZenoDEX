@@ -1,0 +1,88 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zzzzzzzz-http-authority-compose-identity-v2",
+  "created_date": "2026-08-26",
+  "claim_scope": "This append-only correction supersedes the force-reset blast-radius packet at commit d62432cca. It binds both valid and stale manifests to the selected output directory before restart or reset, introduces a versioned 128-bit Compose identity for newly generated manifests, derives teardown paths from the selected directory, and classifies then refuses automatic teardown of the collision-prone legacy 32-bit identity.",
+  "change_kind": "evidence_correction",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "FORCE-RESET-IDENTITY-IS-DERIVED-FROM-SELECTED-OUT-DIR",
+    "VALID-RELOCATED-MANIFEST-REJECTS-BEFORE-RESTART-OR-RESET",
+    "COMPOSE-PROJECT-V2-USES-128-BIT-DIRECTORY-IDENTITY",
+    "LEGACY-32-BIT-PROJECT-REFUSES-AUTOMATIC-TEARDOWN",
+    "STALE-MANIFEST-PATHS-CANNOT-CONTROL-TEARDOWN",
+    "STALE-SCHEMA-AND-QUARANTINED-LANE-REMAIN-RECOVERABLE"
+  ],
+  "failure_modes": [
+    "allow-invalid recovery passes an unrelated Compose project into teardown",
+    "a valid manifest generated for directory B is copied into directory A and bypasses fallback-only identity checks",
+    "two output directories collide in the retired 32-bit project namespace and one teardown addresses both",
+    "stale host paths redirect Compose parsing or volume declarations during teardown",
+    "hardening the force path prevents an operator from replacing an identity-bound stale manifest"
+  ],
+  "source_pins": [
+    {
+      "path": "tools/zenoctl_testnet_local/lifecycle.py",
+      "sha256": "0ed7253c65829696284828af33e40c4f78928451ad93f769fdaaa1ca7bdaa309"
+    },
+    {
+      "path": "tools/zenoctl_testnet_local/manifest.py",
+      "sha256": "bed351aeb8ba772033e7dcf2dc41ec33391170f6ce6cc63c3e7c119f4887072c"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_zenoctl_testnet_local.py",
+      "sha256": "b6fedb2888f258b69ad743c353c3bf0f8e536a4b7626a5cd260f9fab3c91fc11",
+      "node_ids": [
+        "tests/integration/test_zenoctl_testnet_local.py::test_force_up_can_load_stale_manifest_for_reset",
+        "tests/integration/test_zenoctl_testnet_local.py::test_manifest_rejects_quarantined_autotrader_lane",
+        "tests/integration/test_zenoctl_testnet_local.py::test_manifest_force_reset_rejects_invalid_identity_binding",
+        "tests/integration/test_zenoctl_testnet_local.py::test_manifest_loader_rejects_valid_manifest_relocated_to_another_out_dir",
+        "tests/integration/test_zenoctl_testnet_local.py::test_compose_project_identity_separates_known_legacy_collision",
+        "tests/integration/test_zenoctl_testnet_local.py::test_force_reset_classifies_and_refuses_collision_prone_legacy_project",
+        "tests/integration/test_zenoctl_testnet_local.py::test_force_reset_uses_derived_identity_and_safe_paths"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange identity-bound stale manifests, a valid relocated manifest, an invalid identity, hostile path-bearing fields, and a concrete legacy collision pair; act through normal loading, force loading, and teardown construction; then assert recovery, rejection before effects, v2 separation, and trusted path derivation."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Every manifest identity mismatch and every legacy project raises before engine detection, Compose teardown, filesystem removal, or fresh stack generation. An identity-bound v2 stale manifest reaches teardown only through a newly derived project and safe environment."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "force_reset_identity_and_payload_trust",
+      "points": [
+        "identity_bound_stale_schema_is_recoverable",
+        "identity_bound_quarantined_lane_is_recoverable",
+        "invalid_compose_identity_rejects",
+        "valid_relocated_manifest_rejects_in_normal_and_force_modes",
+        "known_legacy_collision_pair_separates_under_v2",
+        "exact_legacy_identity_is_classified_then_refused_before_engine_detection",
+        "hostile_stale_path_is_replaced_by_selected_out_dir_path"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "The committed force-reset blast-radius packet did not cover valid relocated manifests or the collision-prone 32-bit Compose namespace. This packet supersedes those claims without rewriting that historical packet.",
+    "The force-reset loader may return other identity-bound stale fields, but v2 teardown consumes no project, host path, rendered path, port, chain, network, or proof-mode value from them.",
+    "Legacy 32-bit manifests are not automatically migrated or torn down. Operator-assisted collision-safe migration remains unimplemented.",
+    "A 128-bit content-derived identity reduces practical collision risk; it is not a mathematical proof that distinct paths can never collide.",
+    "No executable semantic-mutation campaign was run, so mutation evidence is intentionally absent.",
+    "No settlement, proof, migration, writer-rotation, value-moving, or production authority is added.",
+    "Production authority remains NONE."
+  ]
+}

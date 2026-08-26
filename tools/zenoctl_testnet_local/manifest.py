@@ -24,7 +24,7 @@ MANIFEST_FILENAME = "local_testnet_manifest.json"
 
 _SHA256_HEX_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 _ARTIFACT_HASH_RE = re.compile(r"^(?:0x|sha256:)[0-9a-f]{64}$")
-_COMPOSE_PROJECT_RE = re.compile(r"^zenodex-local-testnet-[0-9a-f]{8}$")
+_COMPOSE_PROJECT_RE = re.compile(r"^zenodex-local-testnet-v2-[0-9a-f]{32}$")
 ZK_MODES = frozenset({"auto-strict", "strict", "open"})
 ZK_EFFECTIVE_MODES = frozenset({"strict", "open"})
 PROOF_VERIFIER_KINDS = frozenset({"disabled", "subprocess", "misconfigured"})
@@ -75,13 +75,18 @@ def writer_token_sha256(token: str) -> str:
     return f"sha256:{digest}"
 
 
-def compose_project_name(out_dir: Path | str) -> str:
-    """Derive a stable, collision-resistant compose project name from the
-    output directory's absolute path. Allows multiple parallel stacks on
-    one machine without name conflict."""
+def legacy_compose_project_name(out_dir: Path | str) -> str:
+    """Return the retired 32-bit project identity for legacy recovery only."""
     abs_path = str(Path(out_dir).resolve()).encode("utf-8")
     hash8 = hashlib.blake2b(abs_path, digest_size=4).hexdigest()
     return f"zenodex-local-testnet-{hash8}"
+
+
+def compose_project_name(out_dir: Path | str) -> str:
+    """Derive the versioned 128-bit project identity for a selected out-dir."""
+    abs_path = str(Path(out_dir).resolve()).encode("utf-8")
+    hash128 = hashlib.blake2b(abs_path, digest_size=16).hexdigest()
+    return f"zenodex-local-testnet-v2-{hash128}"
 
 
 def build_manifest(

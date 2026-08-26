@@ -166,9 +166,9 @@ def test_manifest_force_reset_rejects_invalid_identity_binding(tmp_path: Path) -
     body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
     body["enabled_lanes"].append("AUTOTRADER_LIVE_API_ENABLED")
     expected_project = mf.compose_project_name(tmp_path)
-    wrong_project = "zenodex-local-testnet-00000000"
+    wrong_project = "zenodex-local-testnet-v2-" + ("0" * 32)
     if wrong_project == expected_project:
-        wrong_project = "zenodex-local-testnet-11111111"
+        wrong_project = "zenodex-local-testnet-v2-" + ("1" * 32)
     body["compose_project"] = wrong_project
     path = tmp_path / mf.MANIFEST_FILENAME
     path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -178,8 +178,70 @@ def test_manifest_force_reset_rejects_invalid_identity_binding(tmp_path: Path) -
         f"expected {expected_project!r}, got {wrong_project!r}",
         "enabled_lanes contains unmountable lanes: ['AUTOTRADER_LIVE_API_ENABLED']",
     ]
-    with pytest.raises(ValueError, match="force-reset manifest has unsafe identity binding"):
+    with pytest.raises(ValueError, match="manifest has unsafe identity binding"):
         lc._load_manifest_if_present(path, allow_invalid=True)
+
+
+def test_manifest_loader_rejects_valid_manifest_relocated_to_another_out_dir(
+    tmp_path: Path,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    selected_out_dir = tmp_path / "selected"
+    other_out_dir = tmp_path / "other"
+    body = mf.build_manifest(**_valid_manifest_kwargs(other_out_dir))
+    path = selected_out_dir / mf.MANIFEST_FILENAME
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+    assert mf.validate_manifest(body) == []
+    with pytest.raises(ValueError, match="manifest has unsafe identity binding"):
+        lc._load_manifest_if_present(path)
+    with pytest.raises(ValueError, match="manifest has unsafe identity binding"):
+        lc._load_manifest_if_present(path, allow_invalid=True)
+
+
+def test_compose_project_identity_separates_known_legacy_collision() -> None:
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    left = Path("/tmp/zenodex-compose-id-collision-37513")
+    right = Path("/tmp/zenodex-compose-id-collision-41442")
+
+    assert mf.legacy_compose_project_name(left) == mf.legacy_compose_project_name(right)
+    assert mf.compose_project_name(left) != mf.compose_project_name(right)
+    assert mf.compose_project_name(left).startswith("zenodex-local-testnet-v2-")
+    assert len(mf.compose_project_name(left).rsplit("-", 1)[1]) == 32
+
+
+def test_force_reset_classifies_and_refuses_collision_prone_legacy_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    paths = mf.ManifestPaths.from_out_dir(tmp_path)
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    legacy_project = mf.legacy_compose_project_name(tmp_path)
+    body["compose_project"] = legacy_project
+    path = tmp_path / mf.MANIFEST_FILENAME
+    path.write_text(json.dumps(body, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    engine_called = False
+
+    with pytest.raises(ValueError, match="manifest validation failed"):
+        lc._load_manifest_if_present(path)
+    loaded = lc._load_manifest_if_present(path, allow_invalid=True)
+
+    def detect_engine(_name: str) -> object:
+        nonlocal engine_called
+        engine_called = True
+        return object()
+
+    monkeypatch.setattr(lc.cm, "detect_engine", detect_engine)
+
+    with pytest.raises(ValueError, match="legacy 32-bit Compose identity"):
+        lc._reset_stack(paths=paths, engine_name="auto", manifest=loaded)
+    assert engine_called is False
 
 
 def test_force_reset_uses_derived_identity_and_safe_paths(

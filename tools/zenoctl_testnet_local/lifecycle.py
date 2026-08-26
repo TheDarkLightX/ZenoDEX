@@ -765,6 +765,18 @@ def _reset_stack(*, paths: mf.ManifestPaths, engine_name: str, manifest: Mapping
                 f"contains unrelated entries {sorted(unexpected)[:5]}. Move or empty it first."
             )
     if manifest is not None:
+        expected_out_dir = str(paths.out_dir.resolve())
+        project_name = manifest.get("compose_project")
+        if manifest.get("out_dir") != expected_out_dir:
+            raise ValueError("refusing reset: manifest has unsafe identity binding")
+        if project_name == mf.legacy_compose_project_name(paths.out_dir):
+            raise ValueError(
+                "refusing automatic reset of legacy 32-bit Compose identity; "
+                "collision-safe migration evidence is required"
+            )
+        expected_project = mf.compose_project_name(paths.out_dir)
+        if project_name != expected_project:
+            raise ValueError("refusing reset: manifest has unsafe identity binding")
         engine = cm.detect_engine(engine_name)
         reset_manifest = {
             "ports": {"ui": DEFAULT_UI_PORT},
@@ -776,7 +788,7 @@ def _reset_stack(*, paths: mf.ManifestPaths, engine_name: str, manifest: Mapping
         }
         cm.compose_down(
             engine=engine,
-            project_name=mf.compose_project_name(paths.out_dir),
+            project_name=expected_project,
             compose_files=[COMPOSE_FILE],
             remove_volumes=True,
             env=_lifecycle_env_for_compose(reset_manifest, paths),
@@ -1404,23 +1416,47 @@ def _load_manifest_if_present(path: Path, *, allow_invalid: bool = False) -> dic
     if not path.exists():
         return None
     try:
-        return mf.load_manifest(path)
+        manifest = mf.load_manifest(path)
     except ValueError as load_error:
         if not allow_invalid:
             raise
         raw = json.loads(path.read_text(encoding="utf-8"))
         if not isinstance(raw, dict):
             raise
-        expected_out_dir = str(path.parent.resolve())
-        expected_project = mf.compose_project_name(path.parent)
-        if (
-            raw.get("out_dir") != expected_out_dir
-            or raw.get("compose_project") != expected_project
-        ):
-            raise ValueError(
-                f"{path}: force-reset manifest has unsafe identity binding"
-            ) from load_error
+        _require_selected_manifest_identity(
+            path=path,
+            manifest=raw,
+            allow_legacy=True,
+            cause=load_error,
+        )
         return raw
+    _require_selected_manifest_identity(
+        path=path,
+        manifest=manifest,
+        allow_legacy=False,
+    )
+    return manifest
+
+
+def _require_selected_manifest_identity(
+    *,
+    path: Path,
+    manifest: Mapping[str, Any],
+    allow_legacy: bool,
+    cause: Exception | None = None,
+) -> None:
+    expected_out_dir = str(path.parent.resolve())
+    allowed_projects = {mf.compose_project_name(path.parent)}
+    if allow_legacy:
+        allowed_projects.add(mf.legacy_compose_project_name(path.parent))
+    if (
+        manifest.get("out_dir") != expected_out_dir
+        or manifest.get("compose_project") not in allowed_projects
+    ):
+        error = ValueError(f"{path}: manifest has unsafe identity binding")
+        if cause is not None:
+            raise error from cause
+        raise error
 
 
 def _load_json_file(path: Path, *, label: str) -> dict[str, Any]:
