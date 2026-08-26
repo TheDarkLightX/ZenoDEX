@@ -6,9 +6,10 @@ import hashlib
 import inspect
 import json
 import os
+import shutil
 import subprocess
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -72,6 +73,25 @@ GIT_ENV = {
     "GIT_COMMITTER_DATE": "2026-08-25T00:00:00+0000",
 }
 
+_DISPOSABLE_COMPLETE_SUBJECTS: list[Path] = []
+
+
+@pytest.fixture(autouse=True)
+def _remove_disposable_complete_subjects_after_each_test() -> Iterator[None]:
+    """Bound peak disk use without weakening full-clone attack isolation."""
+
+    first_owned = len(_DISPOSABLE_COMPLETE_SUBJECTS)
+    try:
+        yield
+    finally:
+        owned = _DISPOSABLE_COMPLETE_SUBJECTS[first_owned:]
+        del _DISPOSABLE_COMPLETE_SUBJECTS[first_owned:]
+        for root in reversed(owned):
+            if root.is_symlink():
+                root.unlink()
+            elif root.exists():
+                shutil.rmtree(root)
+
 
 def _git(repo: Path, *args: str) -> str:
     result = subprocess.run(
@@ -101,6 +121,28 @@ def _clone_complete_subject(tmp_path: Path, name: str = "subject") -> Path:
         capture_output=True,
         text=True,
     )
+    _DISPOSABLE_COMPLETE_SUBJECTS.append(root)
+    return root
+
+
+def _clone_transport_subject(tmp_path: Path, name: str = "transport-subject") -> Path:
+    """Transfer only advertised candidate history, without local object leakage."""
+
+    root = tmp_path / name
+    subprocess.run(
+        [
+            "/usr/bin/git",
+            "clone",
+            "-q",
+            "--no-local",
+            str(ROOT),
+            str(root),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    _DISPOSABLE_COMPLETE_SUBJECTS.append(root)
     return root
 
 
@@ -991,6 +1033,53 @@ def test_closed_report_refuses_accepted_execute_with_nonexact_observer_count(
     assert report["authority"]["production_authority"] == "NONE"
 
 
+class _FindingStringSubclass(str):
+    pass
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("rule_id", object()),
+        ("subject", []),
+        ("evidence", True),
+        ("rule_id", _FindingStringSubclass("rule")),
+    ],
+)
+def test_plan_finding_constructor_requires_exact_string_fields(
+    field: str, value: object
+) -> None:
+    values: dict[str, object] = {
+        "rule_id": "rule",
+        "subject": "subject",
+        "evidence": "evidence",
+    }
+    values[field] = value
+
+    with pytest.raises(TypeError, match=f"PlanFinding.{field}"):
+        checker_module.PlanFinding(**values)  # type: ignore[arg-type]
+
+
+def test_closed_report_normalizes_a_same_process_forged_finding() -> None:
+    forged = object.__new__(checker_module.PlanFinding)
+    object.__setattr__(forged, "rule_id", object())
+    object.__setattr__(forged, "subject", "subject")
+    object.__setattr__(forged, "evidence", "evidence")
+
+    report = plan_report_v1(
+        {},
+        [forged],
+        executed=0,
+        profile=ORDINARY_VALIDATION_PROFILE_V1,
+    )
+
+    assert report["ok"] is False
+    assert [finding["rule_id"] for finding in report["findings"]] == [
+        "report_findings_invalid"
+    ]
+    json.dumps(report)
+
+
 def _synthetic_repository(tmp_path: Path) -> tuple[Path, str]:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -999,6 +1088,66 @@ def _synthetic_repository(tmp_path: Path) -> tuple[Path, str]:
     _git(repo, "add", "a.txt")
     _git(repo, "commit", "-q", "-m", "base")
     return repo, _git(repo, "rev-parse", "HEAD")
+
+
+def test_commit_evidence_must_be_in_the_subject_lineage(tmp_path: Path) -> None:
+    repo, base = _synthetic_repository(tmp_path)
+    _git(repo, "checkout", "-q", "-b", "side")
+    (repo / "side.txt").write_text("side\n", encoding="utf-8")
+    _git(repo, "add", "side.txt")
+    _git(repo, "commit", "-q", "-m", "side")
+    side = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "checkout", "-q", "main")
+
+    with ConfinedRootV1.bind(repo) as bound:
+        accepted = checker_module._validate_evidence_item(
+            {"kind": "commit", "reference": base, "sha256": None},
+            label="task.evidence[0]",
+            context=checker_module.EvidenceContextV1(
+                closed=True, compare_digests=True
+            ),
+            root=bound,
+        )
+        refused = checker_module._validate_evidence_item(
+            {"kind": "commit", "reference": side, "sha256": None},
+            label="task.evidence[1]",
+            context=checker_module.EvidenceContextV1(
+                closed=True, compare_digests=True
+            ),
+            root=bound,
+        )
+
+    assert accepted == []
+    assert [finding.rule_id for finding in refused] == [
+        "evidence_commit_outside_subject_lineage"
+    ]
+
+
+def test_transport_faithful_clone_replays_without_out_of_line_donor_objects(
+    tmp_path: Path,
+) -> None:
+    root = _clone_transport_subject(tmp_path)
+
+    unavailable = [
+        commit
+        for commit in (
+            "d5198b89480eeb36dd56ad55e8b77c4e38c98f45",
+            "c2e80678415543df43dba0f4678fae9931a1bb91",
+        )
+        if subprocess.run(
+            ["/usr/bin/git", "cat-file", "-e", f"{commit}^{{commit}}"],
+            cwd=root,
+            env=GIT_ENV,
+            check=False,
+            capture_output=True,
+        ).returncode
+        != 0
+    ]
+    report = check_whole_program_plan_v1(root)
+
+    assert "d5198b89480eeb36dd56ad55e8b77c4e38c98f45" in unavailable
+    assert report["ok"] is True, report["findings"]
+    assert report["authority"]["production_authority"] == "NONE"
 
 
 def test_amended_direct_child_replays_from_a_detached_worktree_while_stale_or_unrelated_subjects_fail(
@@ -2634,6 +2783,103 @@ def test_plan_artifact_binding_preserves_memory_error_and_closes_current_source_
         with ConfinedRootV1.bind(_clone_complete_subject(tmp_path)) as bound:
             checker_module._bind_execution_context_v1(bound, subject="cleanup_failure")
     assert len(os.listdir("/proc/self/fd")) == fd_before
+
+
+def test_plan_artifact_pair_construction_failure_closes_every_descriptor(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def fail_pair_construction(*_args: object, **_kwargs: object) -> object:
+        raise MemoryError("review-pair-construction")
+
+    root = _clone_complete_subject(tmp_path)
+    with ConfinedRootV1.bind(root) as bound:
+        head = checker_module._git(bound, ["rev-parse", "HEAD"])[1]
+        fd_before = len(os.listdir("/proc/self/fd"))
+        monkeypatch.setattr(
+            artifact_binding_module,
+            "BoundPlanArtifactsV1",
+            fail_pair_construction,
+        )
+
+        with pytest.raises(MemoryError, match="review-pair-construction"):
+            artifact_binding_module.bind_plan_artifacts_v1(
+                bound.anchored, head
+            )
+
+        assert len(os.listdir("/proc/self/fd")) == fd_before
+
+
+def test_execution_context_construction_failure_closes_bound_artifacts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    def fail_context_construction(*_args: object, **_kwargs: object) -> object:
+        raise MemoryError("review-context-construction")
+
+    root = _clone_complete_subject(tmp_path)
+    with ConfinedRootV1.bind(root) as bound:
+        fd_before = len(os.listdir("/proc/self/fd"))
+        monkeypatch.setattr(
+            checker_module,
+            "ExecutionContextV1",
+            fail_context_construction,
+        )
+
+        with pytest.raises(MemoryError, match="review-context-construction"):
+            checker_module._bind_execution_context_v1(
+                bound, subject="review"
+            )
+
+        assert len(os.listdir("/proc/self/fd")) == fd_before
+
+
+def test_integrity_refusal_preserves_primary_finding_when_cleanup_fails(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    original_close = artifact_binding_module.BoundPlanArtifactV1.close
+
+    def refuse_integrity(
+        _artifacts: object, _root: object, *, expected_head: str
+    ) -> tuple[artifact_binding_module.PlanArtifactBindingFindingV1, ...]:
+        del expected_head
+        return (
+            artifact_binding_module.PlanArtifactBindingFindingV1(
+                "plan_artifact_head_blob_mismatch",
+                "plan_artifacts",
+                "review-primary",
+            ),
+        )
+
+    def close_then_raise(
+        artifact: artifact_binding_module.BoundPlanArtifactV1,
+    ) -> None:
+        original_close(artifact)
+        raise RuntimeError("review-cleanup")
+
+    monkeypatch.setattr(
+        artifact_binding_module.BoundPlanArtifactsV1,
+        "integrity_findings",
+        refuse_integrity,
+    )
+    monkeypatch.setattr(
+        artifact_binding_module.BoundPlanArtifactV1,
+        "close",
+        close_then_raise,
+    )
+    root = _clone_complete_subject(tmp_path)
+    with ConfinedRootV1.bind(root) as bound:
+        head = checker_module._git(bound, ["rev-parse", "HEAD"])[1]
+        fd_before = len(os.listdir("/proc/self/fd"))
+
+        artifacts, findings = artifact_binding_module.bind_plan_artifacts_v1(
+            bound.anchored, head
+        )
+
+        assert artifacts is None
+        assert [finding.rule_id for finding in findings] == [
+            "plan_artifact_head_blob_mismatch",
+            "plan_artifact_cleanup_refused",
+        ]
+        assert len(os.listdir("/proc/self/fd")) == fd_before
 
 
 def test_git_replacement_objects_cannot_retarget_raw_snapshot_status_or_plan_artifact_binding(

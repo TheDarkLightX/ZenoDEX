@@ -710,8 +710,8 @@
     "branch": "codex/fable-whole-program-20260825-r3",
     "observed_at": "2026-08-25",
     "scoped_worktree_clean": true,
-    "source_snapshot_file_count": 5789,
-    "source_snapshot_sha256": "27609f69c5e4e9d2add621858c642f296d8458424823970bc09c8731ae4b79ed"
+    "source_snapshot_file_count": 5790,
+    "source_snapshot_sha256": "23cc8d166b81a504288c8d71dbdfb0daf8162d607e44381036f31f141969da61"
   },
   "tasks": [
     {
@@ -760,14 +760,9 @@
           "sha256": "2012f66d7b4e40ebf6552454cd1423a93f738bdf86da240ae49cc467202f05a4"
         },
         {
-          "kind": "commit",
-          "reference": "d5198b89480eeb36dd56ad55e8b77c4e38c98f45",
-          "sha256": null
-        },
-        {
-          "kind": "commit",
-          "reference": "c2e80678415543df43dba0f4678fae9931a1bb91",
-          "sha256": null
+          "kind": "manifest",
+          "reference": "docs/research/ZENODEX_DONOR_PROVENANCE_SNAPSHOT_V1.json",
+          "sha256": "c861460ae0f9778b95e578620b5d37c9af9e9cb7fab59a61b10823ef84d2fb84"
         },
         {
           "kind": "commit",
@@ -779,9 +774,10 @@
       "mutation_killers": [],
       "nonclaims": [
         "the dirty primary-checkout donor inventory lives in the coordination packet and is not tracked in the repository",
+        "the tracked donor snapshot records metadata for the two out-of-line donors; their Git objects are not required for plan replay",
         "donor commits and preserved WIP branches are research input; none is relabeled as current authority"
       ],
-      "notes": "Bounded because the tracked preservation manifests cover the ZRPF and M6 snapshots while the 12-file dirty patch of the primary checkout is inventoried only in the coordination packet (DIRTY_DONOR_INVENTORY.md).",
+      "notes": "Bounded because the tracked preservation manifests and content-derived donor snapshot record the ZRPF and M6 provenance without making out-of-line Git objects part of the candidate lineage. The 12-file dirty patch of the primary checkout is inventoried only in the coordination packet (DIRTY_DONOR_INVENTORY.md). Every remaining commit evidence row is an ancestor of the candidate and therefore travels with a transport-faithful clone.",
       "phase_id": "P1",
       "ripr_counterexample": null,
       "semantic_decisions_avoided": [],

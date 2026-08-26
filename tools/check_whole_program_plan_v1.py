@@ -330,8 +330,26 @@ class PlanFinding:
     subject: str
     evidence: str
 
+    def __post_init__(self) -> None:
+        for field in ("rule_id", "subject", "evidence"):
+            value = getattr(self, field)
+            if type(value) is not str:
+                raise TypeError(
+                    f"PlanFinding.{field} must be an exact string, received "
+                    f"{type(value).__name__}"
+                )
+
     def to_dict(self) -> dict[str, str]:
         return {"evidence": self.evidence, "rule_id": self.rule_id, "subject": self.subject}
+
+
+def _plan_finding_is_closed_v1(value: object) -> bool:
+    """Defend the report boundary from same-process forged dataclass fields."""
+
+    return type(value) is PlanFinding and all(
+        type(getattr(value, field, None)) is str
+        for field in ("rule_id", "subject", "evidence")
+    )
 
 
 def _mode_or_findings_v1(mode: object) -> tuple[PlanCheckModeV1 | None, list[PlanFinding]]:
@@ -1186,6 +1204,16 @@ def _validate_evidence_item(item: object, *, label: str, context: EvidenceContex
         findings.append(PlanFinding("evidence_commit_malformed", label, str(reference)))
     elif kind == "commit" and _git(root, ["cat-file", "-e", f"{reference}^{{commit}}"])[0] != 0:
         findings.append(PlanFinding("evidence_commit_unknown", label, str(reference)))
+    elif kind == "commit" and _git(
+        root, ["merge-base", "--is-ancestor", str(reference), "HEAD"]
+    )[0] != 0:
+        findings.append(
+            PlanFinding(
+                "evidence_commit_outside_subject_lineage",
+                label,
+                str(reference),
+            )
+        )
     return findings
 
 
@@ -1974,10 +2002,35 @@ def _bind_execution_context_v1(
     )
     if artifacts is None:
         return None, _artifact_binding_plan_findings_v1(binding_findings)
-    context = ExecutionContextV1(root, head, artifacts)
-    findings = _bound_execution_context_findings(context, root, subject=subject)
+    try:
+        context = ExecutionContextV1(root, head, artifacts)
+    except BaseException:
+        try:
+            artifacts.close()
+        except BaseException:
+            pass
+        raise
+    try:
+        findings = _bound_execution_context_findings(
+            context, root, subject=subject
+        )
+    except BaseException:
+        try:
+            context.close()
+        except BaseException:
+            pass
+        raise
     if findings:
-        context.close()
+        try:
+            context.close()
+        except BaseException as exc:
+            findings.append(
+                PlanFinding(
+                    "plan_artifact_cleanup_refused",
+                    "plan_artifacts",
+                    f"{type(exc).__name__}: {exc}",
+                )
+            )
         return None, findings
     return context, []
 
@@ -2573,7 +2626,7 @@ def _closed_plan_report_v1(
     normalized_findings: list[PlanFinding] = []
     if isinstance(findings, (list, tuple)):
         for finding in findings:
-            if type(finding) is PlanFinding:
+            if _plan_finding_is_closed_v1(finding):
                 normalized_findings.append(finding)
             else:
                 normalized_findings.append(

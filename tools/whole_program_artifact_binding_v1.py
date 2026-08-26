@@ -413,9 +413,26 @@ def bind_plan_artifacts_v1(
     artifacts, findings = _open_worktree_artifacts(root, exact_specs)
     if artifacts is None:
         return None, findings
-    bound = BoundPlanArtifactsV1(head, (artifacts[0], artifacts[1]))
-    findings = bound.integrity_findings(root, expected_head=head)
+    try:
+        bound = BoundPlanArtifactsV1(head, (artifacts[0], artifacts[1]))
+    except BaseException:
+        _close_artifacts_preserving_primary_v1(artifacts)
+        raise
+    try:
+        findings = bound.integrity_findings(root, expected_head=head)
+    except BaseException:
+        _close_artifacts_preserving_primary_v1(artifacts)
+        raise
     if findings:
-        _close_artifacts(artifacts)
+        cleanup_error = _close_artifacts_preserving_primary_v1(artifacts)
+        if cleanup_error is not None:
+            findings = (
+                *findings,
+                PlanArtifactBindingFindingV1(
+                    "plan_artifact_cleanup_refused",
+                    "plan_artifacts",
+                    f"{type(cleanup_error).__name__}: {cleanup_error}",
+                ),
+            )
         return None, findings
     return bound, ()
