@@ -97,18 +97,13 @@ API_PROXY_TARGET=http://127.0.0.1:8000 \
 npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
-To expose the Tau-node-backed zUSD wallet transport surface through the same
-API server, enable the wallet bridge and point it at a local Tau node:
-
-```bash
-ZUSD_TAU_WALLET_API_ENABLED=true \
-ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING=true \
-ZUSD_TAU_WALLET_CHAIN_ID=tau-local \
-ZUSD_TAU_WALLET_TAU_HOST=127.0.0.1 \
-ZUSD_TAU_WALLET_TAU_PORT=65432 \
-ZENODEX_API_BEARER_TOKEN=sekret \
-python3 -m src.integration.api_server
-```
+The Tau-node-backed zUSD transport route is quarantined from normal API-server
+startup and from the checked-in local-testnet profile. Tau transaction
+signatures do not yet bind the network identifier or genesis, and the route has
+no durable submission journal or reconciliation protocol. Setting
+`ZUSD_TAU_WALLET_API_ENABLED=true` therefore makes the API server refuse to
+start. Keep this lane in direct, isolated shadow tests until both prerequisites
+exist.
 
 The Tau node can run through the local-node Docker profile:
 
@@ -116,8 +111,7 @@ The Tau node can run through the local-node Docker profile:
 docker compose -f docker-compose.yml -f docker-compose.permissionless.yml --profile local-node up -d tau-local
 ```
 
-If you want to test `mint`, configure the Tau token operator pubkey for the
-node environment as well:
+Direct isolated helper tests for `mint` require the Tau token operator pubkey:
 
 ```bash
 TAU_DEX_TOKEN_OPERATOR_PUBKEY=0x<operator-pubkey>

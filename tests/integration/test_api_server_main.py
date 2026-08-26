@@ -231,3 +231,15 @@ def test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_const
     assert len(server_instances) == 1
     assert server_instances[0].autotrader_live_api_enabled is False
     assert server_instances[0].confidential_sealed_bid_asset_settlement_submitter is None
+
+
+def test_local_testnet_profile_quarantines_zusd_tau_wallet_lane() -> None:
+    from tools.zenoctl_testnet_local import lifecycle
+
+    compose = yaml.safe_load((REPO_ROOT / "docker-compose.local-testnet.yml").read_text(encoding="utf-8"))
+    environment = compose["services"]["zenodex-api"]["environment"]
+
+    assert environment["ZUSD_TAU_WALLET_API_ENABLED"] == "false"
+    assert environment["ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING"] == "false"
+    assert environment["ZUSD_TAU_WALLET_AUTO_MINE"] == "false"
+    assert "ZUSD_TAU_WALLET_API_ENABLED" not in lifecycle.LOCAL_TESTNET_ENABLED_LANES

@@ -1,0 +1,127 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zzz-zusd-tau-shadow-admission-correction-2",
+  "created_date": "2026-08-26",
+  "claim_scope": "This second append-only correction closes the independently reproduced post-acceptance recursion and deployment-profile contradictions. Once sendtx returns explicit success, every ordinary post-submit observation exception preserves the accepted outcome; Tau backend text is not reflected in success or error responses; Tau app-state JSON has byte and nesting bounds; and the checked-in local-testnet compose and launcher manifest omit the quarantined zUSD Tau wallet lane.",
+  "change_kind": "evidence_correction",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZUSD-TAU-EXPLICIT-ACCEPTANCE-SURVIVES-ALL-ORDINARY-OBSERVATION-EXCEPTIONS",
+    "ZUSD-TAU-APP-STATE-JSON-IS-BYTE-AND-DEPTH-BOUNDED",
+    "ZUSD-TAU-BACKEND-TEXT-IS-NOT-REFLECTED-OVER-HTTP",
+    "ZUSD-TAU-LOCAL-TESTNET-PROFILE-OMITS-QUARANTINED-LANE"
+  ],
+  "failure_modes": [
+    "sendtx explicitly succeeds and deeply nested post-state JSON raises RecursionError that rewrites the response as internal_error",
+    "Tau RPC exception text or successful backend response text is reflected to an HTTP caller",
+    "the local-testnet compose enables a lane that normal API startup refuses",
+    "the local-testnet manifest advertises a quarantined lane as enabled",
+    "operator documentation instructs users to enable a lane that deliberately refuses startup"
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/zusd_tau_wallet_api.py",
+      "sha256": "6985aef9b4af03e9f826713dd55c87156fa54b768f8e64a61a10ed12e2918cc8"
+    },
+    {
+      "path": "src/integration/api_server.py",
+      "sha256": "5bc9b2217107fec920c4a87c18ab37b2abbf7e5c02aa1001556962e141a0f519"
+    },
+    {
+      "path": "docker-compose.local-testnet.yml",
+      "sha256": "69fce17d892159c5d1866eab2899d42fc49b6e7fbc80e1eb928e14701d30598d"
+    },
+    {
+      "path": "tools/zenoctl_testnet_local/lifecycle.py",
+      "sha256": "20f7d27e2bf1d8db6b5e1bf8aa5286cb7b7c41e002f00f07836bc3551588efe2"
+    },
+    {
+      "path": "tools/dex-ui/README.md",
+      "sha256": "c2159cd79a5061f510f1f155920b94adf5e2192ab12945c4665b767c907e4b4d"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_zusd_tau_wallet_api.py",
+      "sha256": "45d2f2dff6377dc0b342727af665e9178d439fc2024ee1bfc775de138daf08be",
+      "node_ids": [
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_preserves_acceptance_when_post_submit_json_exceeds_depth_bound",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_redacts_tau_backend_error_text",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_submit_redacts_success_and_createblock_backend_text",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_internal_error_response_does_not_reflect_exception_text",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_status_response_does_not_reflect_tau_backend_error_text",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_tau_app_state_json_depth_bound_accepts_limit_and_ignores_strings",
+        "tests/integration/test_zusd_tau_wallet_api.py::test_tau_app_state_json_depth_bound_rejects_first_excess_level"
+      ]
+    },
+    {
+      "path": "tests/integration/test_api_server_main.py",
+      "sha256": "15bb401f32fca3a9f8899be4c4362a28b0b736e79cb1b63889780fda023ea6b3",
+      "node_ids": [
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_zusd_tau_wallet_mount_until_network_binding_and_reconciliation_exist",
+        "tests/integration/test_api_server_main.py::test_local_testnet_profile_quarantines_zusd_tau_wallet_lane"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "stateful"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange exact signed submissions, adversarial Tau responses, JSON depth neighbors, and the real deployment files; act through the route or launcher declaration; then assert exact status, stable response shape, send cardinality, and enabled-lane membership."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Pre-send internal and Tau failures assert the exact send count. Post-send tests separately preserve known acceptance and classify only the non-authoritative observation as failed."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "post_acceptance_observation",
+      "points": [
+        "explicit_send_success_then_valid_state_reports_accepted_and_observed",
+        "explicit_send_success_then_rpc_error_reports_accepted_and_observation_failed",
+        "explicit_send_success_then_depth_overflow_reports_accepted_and_observation_failed"
+      ]
+    },
+    {
+      "name": "json_nesting_depth",
+      "points": [
+        "exact_depth_limit_accepts",
+        "first_excess_depth_rejects",
+        "structural_characters_inside_strings_do_not_consume_depth"
+      ]
+    },
+    {
+      "name": "backend_text_exposure",
+      "points": [
+        "Tau_exception_returns_stable_tau_rpc_error",
+        "internal_exception_returns_stable_internal_error",
+        "successful_send_and_createblock_return_stable_status_words"
+      ]
+    },
+    {
+      "name": "local_testnet_lane",
+      "points": [
+        "normal_API_startup_refuses_enabled_zUSD_Tau_wallet",
+        "compose_disables_API_local_signing_and_auto_mine",
+        "launcher_manifest_omits_zUSD_Tau_wallet_lane"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "The zUSD Tau wallet remains quarantined from normal API-server startup and the checked-in local-testnet profile.",
+    "The direct mounted test server is a process-local shadow harness and grants no deployment or settlement authority.",
+    "Tau signatures still omit network ID and genesis hash; application-level chain-derived asset binding does not repair that protocol-wide omission.",
+    "No durable pre-send journal, idempotent retry, crash recovery, or reconciliation protocol exists. Ambiguous send timeouts and process crashes after remote acceptance remain unresolved.",
+    "Catching ordinary exceptions after explicit send success preserves local knowledge. It does not establish remote finality or exactly-once execution.",
+    "No executable mutation campaign was run for this correction, so mutation evidence is intentionally absent.",
+    "This packet proves no zUSD monetary-policy authorization, global conservation, whole-economy recursion, production readiness, or safety of all value movement.",
+    "Production authority remains NONE."
+  ]
+}

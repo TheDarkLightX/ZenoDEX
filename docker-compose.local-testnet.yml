@@ -364,9 +364,9 @@ services:
       ZENO_LEDGER_WRITER_SNAPSHOT_URL: http://zeno-ledger-writer:8787/api/dex/snapshot
       TAU_DEX_PERP_ORACLE_PUBKEY: ${TAU_DEX_ORACLE_PUBKEY:?TAU_DEX_ORACLE_PUBKEY must be set by the orchestrator}
       ZUSD_API_ENABLED: "false"
-      ZUSD_TAU_WALLET_API_ENABLED: "true"
-      ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING: "true"
-      ZUSD_TAU_WALLET_AUTO_MINE: "true"
+      ZUSD_TAU_WALLET_API_ENABLED: "false"
+      ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING: "false"
+      ZUSD_TAU_WALLET_AUTO_MINE: "false"
       ZUSD_TAU_WALLET_TAU_HOST: "tau-local"
       ZUSD_TAU_WALLET_TAU_PORT: "65432"
       ZUSD_TAU_WALLET_TAU_TIMEOUT_S: "10"

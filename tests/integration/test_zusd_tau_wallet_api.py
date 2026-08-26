@@ -186,7 +186,7 @@ def test_submit_requires_explicit_local_signing_and_returns_sendtx(monkeypatch) 
 
     assert status_code == 200
     assert payload["ok"] is True
-    assert payload["submission"]["sendtx_response"] == "SUCCESS tx accepted"
+    assert payload["submission"]["sendtx_response"] == "accepted"
 
 
 def _external_submit_fixture(monkeypatch, *, tx_fee_limit: int = 0):
@@ -503,7 +503,6 @@ def test_submit_never_reports_rejected_sendtx_as_success(monkeypatch) -> None:
     assert payload == {
         "ok": False,
         "error": "tau_rpc_error",
-        "detail": "sendtx rejected",
     }
     assert client.sent == [signed_payload]
 
@@ -643,13 +642,141 @@ def test_submit_preserves_acceptance_when_post_submit_observation_fails(monkeypa
     assert payload["ok"] is True
     assert payload["submission"] == {
         "outcome": "accepted",
-        "sendtx_response": "SUCCESS tx accepted",
+        "sendtx_response": "accepted",
     }
     assert payload["post_submit"] == {
         "status": "observation_failed",
         "error": "post_submit_observation_failed",
     }
     assert client.sent == [signed_payload]
+
+
+def test_submit_preserves_acceptance_when_post_submit_json_exceeds_depth_bound(monkeypatch) -> None:
+    client, body, signed_payload = _external_submit_fixture(monkeypatch)
+    nested = "[" * 10_000 + "0" + "]" * 10_000
+
+    def deeply_nested_state(*, full: bool = False) -> str:
+        assert full is True
+        return '{"app_hash":"sha256:' + ("ab" * 32) + '","app_state":' + nested + "}"
+
+    client.getappstate = deeply_nested_state
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["ok"] is True
+    assert payload["submission"]["outcome"] == "accepted"
+    assert payload["post_submit"] == {
+        "status": "observation_failed",
+        "error": "post_submit_observation_failed",
+    }
+    assert client.sent == [signed_payload]
+
+
+def test_submit_redacts_tau_backend_error_text(monkeypatch) -> None:
+    client, body, signed_payload = _external_submit_fixture(monkeypatch)
+
+    def reject_with_sensitive_detail(payload):
+        client.sent.append(dict(payload))
+        raise TauNetRpcError("backend-secret:" + ("x" * 20_000))
+
+    client.sendtx = reject_with_sensitive_detail
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 502
+    assert payload == {"ok": False, "error": "tau_rpc_error"}
+    assert client.sent == [signed_payload]
+
+
+def test_submit_redacts_success_and_createblock_backend_text(monkeypatch) -> None:
+    client, body, signed_payload = _external_submit_fixture(monkeypatch)
+    monkeypatch.setenv("ZUSD_TAU_WALLET_AUTO_MINE", "true")
+
+    def accepted_with_sensitive_detail(payload):
+        client.sent.append(dict(payload))
+        return "SUCCESS backend-secret:" + ("x" * 20_000)
+
+    client.sendtx = accepted_with_sensitive_detail
+    client.createblock = lambda: "BLOCK backend-secret:" + ("y" * 20_000)
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 200
+    assert payload["submission"] == {
+        "outcome": "accepted",
+        "sendtx_response": "accepted",
+        "createblock_response": "received",
+    }
+    assert "backend-secret" not in json.dumps(payload)
+    assert client.sent == [signed_payload]
+
+
+def test_internal_error_response_does_not_reflect_exception_text(monkeypatch) -> None:
+    client, body, _signed_payload = _external_submit_fixture(monkeypatch)
+
+    def fail_before_send(**_kwargs):
+        raise RuntimeError("internal-secret:" + ("x" * 20_000))
+
+    monkeypatch.setattr(wallet_api, "prepare_zusd_tau_token_operation", fail_before_send)
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "POST",
+        "/api/zusd/wallet/submit",
+        json.dumps(body).encode("utf-8"),
+    )
+
+    assert status_code == 500
+    assert payload == {"ok": False, "error": "internal_error"}
+    assert client.sent == []
+
+
+def test_status_response_does_not_reflect_tau_backend_error_text(monkeypatch) -> None:
+    class _FailingStatusClient(_FakeClient):
+        def getappstate(self, *, full: bool = False) -> str:
+            assert full is True
+            raise TauNetRpcError("backend-secret:" + ("x" * 20_000))
+
+    monkeypatch.setattr(wallet_api, "TauNetTcpClient", _FailingStatusClient)
+
+    status_code, payload = wallet_api.handle_zusd_tau_wallet_request(
+        "GET",
+        "/api/zusd/wallet/status",
+        None,
+    )
+
+    assert status_code == 200
+    assert payload["status"]["node_reachable"] is False
+    assert payload["status"]["error"] == "tau_status_unavailable"
+
+
+def test_tau_app_state_json_depth_bound_accepts_limit_and_ignores_strings() -> None:
+    wallet_api._require_bounded_json_text(
+        '{"payload":[[{"text":"[[[{{{"}]]]}',
+        max_bytes=100,
+        max_depth=4,
+    )
+
+
+def test_tau_app_state_json_depth_bound_rejects_first_excess_level() -> None:
+    with pytest.raises(TauNetRpcError, match="JSON nesting too deep"):
+        wallet_api._require_bounded_json_text(
+            '{"payload":[[[[0]]]]}',
+            max_bytes=100,
+            max_depth=4,
+        )
 
 
 @pytest.mark.parametrize(
