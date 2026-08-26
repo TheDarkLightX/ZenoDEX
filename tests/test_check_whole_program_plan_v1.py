@@ -10,7 +10,7 @@ import re
 import shutil
 import subprocess
 import sys
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -1168,6 +1168,34 @@ class _GapEqualString(str):
         return other == "GAP"
 
 
+class _CallbackGateMapping(Mapping[str, object]):
+    def __init__(self, calls: list[str]) -> None:
+        self.calls = calls
+
+    def __getitem__(self, key: str) -> object:
+        self.calls.append(f"getitem:{key}")
+        raise KeyError(key)
+
+    def __iter__(self) -> Iterator[str]:
+        self.calls.append("iter")
+        return iter(())
+
+    def __len__(self) -> int:
+        self.calls.append("len")
+        return 0
+
+
+class _ExplodingGateMapping(Mapping[str, object]):
+    def __getitem__(self, key: str) -> object:
+        raise RuntimeError(f"hostile getitem: {key}")
+
+    def __iter__(self) -> Iterator[str]:
+        raise RuntimeError("hostile iterator")
+
+    def __len__(self) -> int:
+        raise RuntimeError("hostile length")
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -1405,6 +1433,122 @@ def test_direct_gate_multiplicity_preflight_precedes_context_binding(
 
     assert effects == ()
     assert calls == []
+    assert "live_gate_registry_set_mismatch" in {
+        finding.rule_id for finding in findings
+    }
+
+
+def test_escaped_string_amplification_rejects_before_root_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Public ownership and the bounded file decoder share one encoded-byte cap."""
+
+    plan = _plan()
+    plan["tasks"][0]["notes"] = "\x00" * 700_000
+    assert (
+        len(canonical_plan_json_v1(plan).encode("utf-8"))
+        > checker_module.PLAN_JSON_LIMITS_V1.max_bytes
+    )
+    calls: list[object] = []
+
+    def refuse_bind(
+        cls: type[ConfinedRootV1], root: object
+    ) -> ConfinedRootV1:
+        calls.append((cls, root))
+        raise checker_module.RootUnavailable("encoded byte refusal must be pure")
+
+    monkeypatch.setattr(ConfinedRootV1, "bind", classmethod(refuse_bind))
+
+    findings = validate_plan_v1(plan, root=ROOT, markdown=None)
+
+    assert calls == []
+    assert [finding.rule_id for finding in findings] == ["plan_value_not_owned"]
+    assert "canonical plan bytes" in findings[0].evidence
+
+
+def test_owned_plan_breaks_aliases_and_rejects_cycles_within_bounds() -> None:
+    """The owned graph is a bounded JSON tree even for aliased Python input."""
+
+    aliased = _plan()
+    shared: list[object] = ["λ", "🧠"]
+    aliased["nonclaims"] = [shared, shared]
+    owned, alias_findings = checker_module._owned_plan_v1(aliased)
+    cyclic = _plan()
+    cycle: list[object] = []
+    cycle.append(cycle)
+    cyclic["nonclaims"] = cycle
+    _rejected, cycle_findings = checker_module._owned_plan_v1(cyclic)
+
+    assert alias_findings == [] and owned is not None
+    owned_nonclaims = owned["nonclaims"]
+    assert type(owned_nonclaims) is list
+    assert owned_nonclaims[0] == owned_nonclaims[1]
+    assert owned_nonclaims[0] is not owned_nonclaims[1]
+    assert [finding.rule_id for finding in cycle_findings] == [
+        "plan_value_not_owned"
+    ]
+
+
+@pytest.mark.parametrize("hostile_kind", ("callback", "exploding"))
+def test_direct_gate_preflight_owns_rows_without_callbacks(
+    hostile_kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Arbitrary Mapping methods cannot run before typed direct-row refusal."""
+
+    calls: list[str] = []
+    gate: object = (
+        _CallbackGateMapping(calls)
+        if hostile_kind == "callback"
+        else _ExplodingGateMapping()
+    )
+    context_calls: list[str] = []
+
+    def refuse_context(*_args: object, **_kwargs: object) -> object:
+        context_calls.append("context")
+        raise AssertionError("hostile direct rows must not bind context")
+
+    monkeypatch.setattr(checker_module, "_bind_execution_context_v1", refuse_context)
+    with ConfinedRootV1.bind(ROOT) as bound:
+        effects, findings = plan_live_gate_effects_v1([gate], bound)
+
+    assert effects == ()
+    assert calls == []
+    assert context_calls == []
+    assert [finding.rule_id for finding in findings] == [
+        "live_gate_field_set_not_closed"
+    ]
+
+
+@pytest.mark.parametrize("operation", ("execute", "write", "refresh"))
+def test_all_public_plan_operations_preflight_before_root_binding(
+    operation: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Malformed caller plans stay in the pure phase for every public operation."""
+
+    plan = _plan()
+    plan["live_gates"].append(copy.deepcopy(plan["live_gates"][0]))
+    root_calls: list[object] = []
+
+    def refuse_bind(
+        cls: type[ConfinedRootV1], root: object
+    ) -> ConfinedRootV1:
+        root_calls.append((cls, root))
+        raise checker_module.RootUnavailable("invalid caller plan must remain pure")
+
+    monkeypatch.setattr(ConfinedRootV1, "bind", classmethod(refuse_bind))
+    if operation == "execute":
+        findings = execute_live_gates_v1(plan, ROOT)
+    elif operation == "write":
+        findings = checker_module.write_markdown_v1(ROOT, plan)
+    else:
+        _refreshed, findings = refresh_plan_v1(
+            plan,
+            root=ROOT,
+            observed_at="2026-08-26",
+            repin_tasks=(),
+        )
+
+    assert root_calls == []
     assert "live_gate_registry_set_mismatch" in {
         finding.rule_id for finding in findings
     }

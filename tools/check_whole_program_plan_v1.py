@@ -444,6 +444,12 @@ class _OwnedPlanBudgetV1:
     string_bytes: int = 0
 
 
+def _canonical_plan_text_v1(value: object) -> str:
+    """Return the one on-disk plan encoding used for the public byte bound."""
+
+    return json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+
+
 def _claim_owned_string_v1(
     value: str, *, path: str, budget: _OwnedPlanBudgetV1
 ) -> PlanFinding | None:
@@ -501,6 +507,12 @@ def _owned_plan_value_v1(
             )
         return value, None
     if type(value) is list:
+        if len(value) > MAX_PUBLIC_PLAN_NODES_V1 - budget.nodes:
+            return None, PlanFinding(
+                "plan_value_not_owned",
+                path,
+                "public plan exceeds the owned-value node bound",
+            )
         owned_items: list[object] = []
         try:
             snapshot = tuple(value)
@@ -520,6 +532,12 @@ def _owned_plan_value_v1(
             owned_items.append(owned)
         return owned_items, None
     if type(value) is dict:
+        if len(value) > MAX_PUBLIC_PLAN_NODES_V1 - budget.nodes:
+            return None, PlanFinding(
+                "plan_value_not_owned",
+                path,
+                "public plan exceeds the owned-value node bound",
+            )
         owned_mapping: dict[str, object] = {}
         try:
             snapshot = tuple(value.items())
@@ -566,6 +584,24 @@ def _owned_plan_v1(value: object) -> tuple[dict[str, object] | None, list[PlanFi
         return None, [
             PlanFinding(
                 "plan_value_not_owned", "plan", "top-level plan must be an exact mapping"
+            )
+        ]
+    try:
+        encoded = _canonical_plan_text_v1(owned).encode("utf-8", errors="strict")
+    except (MemoryError, OverflowError, RecursionError, TypeError, UnicodeEncodeError, ValueError) as exc:
+        return None, [
+            PlanFinding(
+                "plan_value_not_owned",
+                "plan",
+                f"canonical plan encoding refused: {type(exc).__name__}",
+            )
+        ]
+    if len(encoded) > PLAN_JSON_LIMITS_V1.max_bytes:
+        return None, [
+            PlanFinding(
+                "plan_value_not_owned",
+                "plan",
+                "canonical plan bytes exceed the bounded JSON byte limit",
             )
         ]
     return owned, []
@@ -2327,23 +2363,23 @@ def _registry_set_findings(gates: Sequence[object]) -> list[PlanFinding]:
 def _preflight_live_gates_v1(plan: Mapping[str, Any]) -> list[PlanFinding]:
     """Validate the complete closed live-gate set before reading checker files."""
 
-    return _preflight_gate_rows_v1(
+    _owned_gates, findings = _preflight_gate_rows_v1(
         plan["live_gates"], require_registry_set=True
     )
+    return findings
 
 
-def _preflight_gate_rows_v1(
-    gates: object, *, require_registry_set: bool
-) -> list[PlanFinding]:
-    """Purely validate full gate rows and optional exact registry multiplicity."""
+def _owned_gate_rows_v1(
+    gates: object,
+) -> tuple[list[object] | None, list[PlanFinding]]:
+    """Copy exact gate rows before any mapping or scalar callback can run."""
 
     if type(gates) is not list:
-        return [
+        return None, [
             PlanFinding("live_gates_malformed", "live_gates", "must be an exact list")
         ]
-    findings: list[PlanFinding] = []
     if len(gates) > len(LIVE_GATE_REGISTRY) + 16:
-        return [
+        return None, [
             PlanFinding(
                 "live_gate_registry_set_mismatch",
                 "live_gates",
@@ -2351,13 +2387,68 @@ def _preflight_gate_rows_v1(
             )
         ]
     for index, gate in enumerate(gates):
+        if type(gate) is not dict:
+            return None, [
+                PlanFinding(
+                    "live_gate_field_set_not_closed",
+                    f"live_gates[{index}]",
+                    ",".join(sorted(LIVE_GATE_FIELDS)),
+                )
+            ]
+    owned, finding = _owned_plan_value_v1(
+        gates,
+        path="live_gates",
+        depth=0,
+        budget=_OwnedPlanBudgetV1(),
+    )
+    if finding is not None or type(owned) is not list:
+        return None, [
+            finding
+            if finding is not None
+            else PlanFinding("live_gates_malformed", "live_gates", "must be an exact list")
+        ]
+    try:
+        encoded = _canonical_plan_text_v1({"live_gates": owned}).encode(
+            "utf-8", errors="strict"
+        )
+    except (MemoryError, OverflowError, RecursionError, TypeError, UnicodeEncodeError, ValueError) as exc:
+        return None, [
+            PlanFinding(
+                "plan_value_not_owned",
+                "live_gates",
+                f"canonical gate encoding refused: {type(exc).__name__}",
+            )
+        ]
+    if len(encoded) > PLAN_JSON_LIMITS_V1.max_bytes:
+        return None, [
+            PlanFinding(
+                "plan_value_not_owned",
+                "live_gates",
+                "canonical gate bytes exceed the bounded JSON byte limit",
+            )
+        ]
+    return owned, []
+
+
+def _preflight_gate_rows_v1(
+    gates: object, *, require_registry_set: bool
+) -> tuple[list[object] | None, list[PlanFinding]]:
+    """Purely validate full gate rows and optional exact registry multiplicity."""
+
+    owned_gates, ownership_findings = _owned_gate_rows_v1(gates)
+    if owned_gates is None:
+        return None, ownership_findings
+    findings: list[PlanFinding] = []
+    for index, gate in enumerate(owned_gates):
         binding_findings, _spec = _live_gate_binding_findings(
             gate, label=f"live_gates[{index}]"
         )
         findings.extend(binding_findings)
     if require_registry_set:
-        findings.extend(_registry_set_findings(gates))
-    return findings
+        findings.extend(_registry_set_findings(owned_gates))
+    if findings:
+        return None, findings
+    return owned_gates, []
 
 
 def _validate_live_gates(plan: Mapping[str, Any], root: ConfinedRootV1, profile: PlanValidationProfileV1) -> list[PlanFinding]:
@@ -2595,6 +2686,22 @@ def _pure_plan_preflight_v1(
     return PurePlanPreflightV1(tuple(well_formed), vocabulary), []
 
 
+def _owned_plan_preflight_v1(
+    plan: object, profile: PlanValidationProfileV1
+) -> tuple[dict[str, object] | None, PurePlanPreflightV1 | None, list[PlanFinding]]:
+    """Own and structurally preflight one public plan without external effects."""
+
+    owned_plan, ownership_findings = _owned_plan_v1(plan)
+    if owned_plan is None:
+        return None, None, ownership_findings
+    preflight, preflight_findings = _pure_plan_preflight_v1(
+        owned_plan, profile
+    )
+    if preflight is None:
+        return owned_plan, None, preflight_findings
+    return owned_plan, preflight, []
+
+
 def validate_plan_v1(
     plan: Mapping[str, Any],
     *,
@@ -2626,9 +2733,7 @@ def validate_plan_v1(
                 f"expected an exact string or None, received {type(markdown).__name__}",
             )
         ]
-    preflight, preflight_findings = _pure_plan_preflight_v1(
-        owned_plan, checked_profile
-    )
+    preflight, preflight_findings = _pure_plan_preflight_v1(owned_plan, checked_profile)
     if preflight is None:
         return preflight_findings
     try:
@@ -3006,10 +3111,10 @@ def _plan_effects(
     require_registry_set: bool,
     context: ExecutionContextV1 | None = None,
 ) -> tuple[tuple[LiveGateEffectV1, ...], list[PlanFinding]]:
-    gate_preflight = _preflight_gate_rows_v1(
+    owned_gates, gate_preflight = _preflight_gate_rows_v1(
         gates, require_registry_set=require_registry_set
     )
-    if gate_preflight:
+    if owned_gates is None:
         return (), sorted(
             gate_preflight,
             key=lambda item: (item.rule_id, item.subject, item.evidence),
@@ -3039,13 +3144,8 @@ def _plan_effects(
     if findings:
         _close_owned_context_v1(context, owns_context)
         return (), findings
-    if type(gates) is not list:
-        _close_owned_context_v1(context, owns_context)
-        return (), [
-            PlanFinding("live_gates_malformed", "live_gates", "must be an exact list")
-        ]
     effects: list[LiveGateEffectV1] = []
-    for index, gate in enumerate(gates):
+    for index, gate in enumerate(owned_gates):
         effect, row_findings = _gate_effect(
             gate,
             label=f"live_gates[{index}]",
@@ -3057,7 +3157,7 @@ def _plan_effects(
         if effect is not None:
             effects.append(effect)
     if require_registry_set:
-        findings.extend(_registry_set_findings(gates))
+        findings.extend(_registry_set_findings(owned_gates))
     findings.extend(
         _bound_execution_context_findings(
             context, root, subject="live_gates"
@@ -3181,9 +3281,16 @@ def execute_live_gate_effect_v1(
 def compare_live_gate_execution_v1(gate: object, root: RootLike) -> list[PlanFinding]:
     """Plan and execute one gate row within one capability; refuse any row that does not fully validate."""
 
+    owned_gates, preflight_findings = _preflight_gate_rows_v1(
+        [gate], require_registry_set=False
+    )
+    if owned_gates is None:
+        return preflight_findings
     try:
         with _UseRoot(root) as bound:
-            effects, findings = _plan_effects([gate], bound, require_registry_set=False)
+            effects, findings = _plan_effects(
+                owned_gates, bound, require_registry_set=False
+            )
             if findings or not effects:
                 return findings
             try:
@@ -3196,6 +3303,7 @@ def compare_live_gate_execution_v1(gate: object, root: RootLike) -> list[PlanFin
 
 def _validated_committed_execution_plan_v1(
     caller_plan: Mapping[str, Any],
+    caller_preflight: PurePlanPreflightV1,
     root: ConfinedRootV1,
     context: ExecutionContextV1,
 ) -> tuple[Mapping[str, Any] | None, list[PlanFinding]]:
@@ -3217,11 +3325,12 @@ def _validated_committed_execution_plan_v1(
     )
     if findings:
         return None, findings
-    findings = validate_plan_v1(
+    findings = _validate_with_root(
         caller_plan,
-        root=root,
-        markdown=markdown,
-        profile=ORDINARY_VALIDATION_PROFILE_V1,
+        root,
+        markdown,
+        ORDINARY_VALIDATION_PROFILE_V1,
+        caller_preflight,
     )
     if findings:
         return None, findings
@@ -3301,6 +3410,11 @@ def _execute_live_gates_with_count_v1(
     finding means zero observer calls.
     """
 
+    owned_plan, caller_preflight, preflight_findings = _owned_plan_preflight_v1(
+        plan, ORDINARY_VALIDATION_PROFILE_V1
+    )
+    if owned_plan is None or caller_preflight is None:
+        return preflight_findings, 0
     try:
         with _UseRoot(root) as bound:
             owns_context = context is None
@@ -3316,7 +3430,7 @@ def _execute_live_gates_with_count_v1(
                 return findings, 0
             try:
                 committed_plan, findings = _validated_committed_execution_plan_v1(
-                    plan, bound, context
+                    owned_plan, caller_preflight, bound, context
                 )
                 if committed_plan is None or findings:
                     return findings, 0
@@ -3378,6 +3492,44 @@ def _refresh_invocation_findings(plan: Mapping[str, Any], observed_at: object, r
     return findings
 
 
+def _owned_repin_tasks_v1(
+    value: object,
+) -> tuple[frozenset[str] | None, list[PlanFinding]]:
+    """Own the closed re-pin selector without invoking arbitrary iterables."""
+
+    if type(value) not in (list, tuple, frozenset):
+        return None, [
+            PlanFinding(
+                "repin_tasks_malformed",
+                "repin_tasks",
+                "expected an exact list, tuple, or frozenset of exact task ids",
+            )
+        ]
+    owned_container = cast(
+        list[object] | tuple[object, ...] | frozenset[object], value
+    )
+    snapshot: tuple[object, ...] = tuple(owned_container)
+    if len(snapshot) > MAX_TASK_ROWS_V1 or not all(
+        type(item) is str for item in snapshot
+    ):
+        return None, [
+            PlanFinding(
+                "repin_tasks_malformed",
+                "repin_tasks",
+                "re-pin selection exceeds the task bound or contains a non-string",
+            )
+        ]
+    if len(set(snapshot)) != len(snapshot):
+        return None, [
+            PlanFinding(
+                "repin_tasks_malformed",
+                "repin_tasks",
+                "re-pin task ids must be unique",
+            )
+        ]
+    return frozenset(cast(tuple[str, ...], snapshot)), []
+
+
 def _refresh_subject(refreshed: dict[str, Any], root: ConfinedRootV1, observed_at: str) -> list[PlanFinding]:
     """Rebind the subject to the committed sources (git anchored to the bound root); the candidate SHA is never recorded."""
 
@@ -3425,23 +3577,52 @@ def refresh_plan_v1(
     plan artifacts dirty.
     """
 
-    refreshed = copy.deepcopy(dict(plan))
-    repin = frozenset(repin_tasks)
-    findings = _refresh_invocation_findings(plan, observed_at, repin)
+    owned_plan, ownership_findings = _owned_plan_v1(plan)
+    if owned_plan is None:
+        return {}, ownership_findings
+    typed_plan = cast(dict[str, Any], owned_plan)
+    refreshed = copy.deepcopy(typed_plan)
+    repin, repin_findings = _owned_repin_tasks_v1(repin_tasks)
+    if repin is None:
+        return refreshed, repin_findings
+    findings = _refresh_invocation_findings(typed_plan, observed_at, repin)
     if findings:
         return refreshed, findings
+    profile = PlanValidationProfileV1.pre_regeneration(repin)
+    preflight, preflight_findings = _pure_plan_preflight_v1(typed_plan, profile)
+    if preflight is None:
+        return refreshed, preflight_findings
     try:
         with _UseRoot(root) as bound_root:
-            return refreshed, _refresh_with_root(plan, refreshed, bound_root, observed_at, repin)
+            return refreshed, _refresh_with_root(
+                typed_plan,
+                refreshed,
+                bound_root,
+                observed_at,
+                repin,
+                profile,
+                preflight,
+            )
     except RootUnavailable as exc:
         return refreshed, _root_unavailable(exc)
 
 
 def _refresh_with_root(
-    plan: Mapping[str, Any], refreshed: dict[str, Any], bound_root: ConfinedRootV1, observed_at: str, repin: frozenset[str]
+    plan: Mapping[str, Any],
+    refreshed: dict[str, Any],
+    bound_root: ConfinedRootV1,
+    observed_at: str,
+    repin: frozenset[str],
+    profile: PlanValidationProfileV1,
+    preflight: PurePlanPreflightV1,
 ) -> list[PlanFinding]:
-    profile = PlanValidationProfileV1.pre_regeneration(repin)
-    findings = validate_plan_v1(plan, root=bound_root, markdown=read_plan_markdown_v1(bound_root), profile=profile)
+    findings = _validate_with_root(
+        plan,
+        bound_root,
+        read_plan_markdown_v1(bound_root),
+        profile,
+        preflight,
+    )
     if findings:
         return findings
     bound, findings = _bound_gates(refreshed["live_gates"])
@@ -3487,7 +3668,7 @@ def _refresh_with_root(
 
 
 def canonical_plan_json_v1(plan: Mapping[str, Any]) -> str:
-    return json.dumps(plan, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    return _canonical_plan_text_v1(plan)
 
 
 def write_markdown_v1(root: RootLike, plan: Mapping[str, Any]) -> list[PlanFinding]:
@@ -3499,16 +3680,27 @@ def write_markdown_v1(root: RootLike, plan: Mapping[str, Any]) -> list[PlanFindi
     input.
     """
 
+    profile = PlanValidationProfileV1.pre_regeneration()
+    owned_plan, preflight, preflight_findings = _owned_plan_preflight_v1(
+        plan, profile
+    )
+    if owned_plan is None or preflight is None:
+        return preflight_findings
+    typed_plan = cast(dict[str, Any], owned_plan)
     try:
         with _UseRoot(root) as bound:
             markdown = read_plan_markdown_v1(bound)
-            findings = validate_plan_v1(plan, root=bound, markdown=markdown, profile=PlanValidationProfileV1.pre_regeneration())
+            findings = _validate_with_root(
+                typed_plan, bound, markdown, profile, preflight
+            )
             if findings or markdown is None:
                 return findings or [PlanFinding("plan_markdown_missing", PLAN_MARKDOWN_PATH.as_posix(), "companion markdown is required")]
             parts = _split_markdown(markdown)
             if parts is None:
                 return [PlanFinding("plan_markdown_generated_block_missing", PLAN_MARKDOWN_PATH.as_posix(), "generated markers absent")]
-            rendered = (parts[0] + render_generated_markdown_v1(plan) + parts[2]).encode("utf-8")
+            rendered = (
+                parts[0] + render_generated_markdown_v1(typed_plan) + parts[2]
+            ).encode("utf-8")
             refusal = replace_confined_file_v1(bound, PLAN_MARKDOWN_PATH, rendered)
             return [PlanFinding("plan_artifact_write_refused", PLAN_MARKDOWN_PATH.as_posix(), refusal)] if refusal else []
     except RootUnavailable as exc:
