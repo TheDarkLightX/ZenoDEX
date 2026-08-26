@@ -99,6 +99,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import selectors
 import signal
 import stat as stat_module
@@ -150,6 +151,67 @@ PROCESS_ENVIRONMENT_BASE: Final[Mapping[str, str]] = {
     "GIT_NO_REPLACE_OBJECTS": "1",
     "GIT_TERMINAL_PROMPT": "0",
 }
+
+_GIT_OID_RE_V1: Final = re.compile(r"[0-9a-f]{40}")
+
+
+def _closed_git_path_v1(value: str) -> bool:
+    """Accept one canonical repository-relative Git path argument."""
+
+    if not value or value.startswith("/") or "\\" in value or "\x00" in value:
+        return False
+    return all(part not in {"", ".", ".."} for part in value.split("/"))
+
+
+def _closed_git_arguments_v1(args: Sequence[str]) -> tuple[str, ...] | None:
+    """Snapshot only the exact read-only Git forms used by this assurance code.
+
+    Keeping this grammar here prevents caller-supplied global options such as
+    ``-C``, ``--git-dir``, ``--work-tree``, and ``-c`` from redirecting the
+    descriptor-bound working directory or changing command semantics.
+    """
+
+    if type(args) not in (list, tuple) or any(type(arg) is not str for arg in args):
+        return None
+    argv = tuple(args)
+    if argv in {
+        ("rev-parse", "HEAD"),
+        ("rev-parse", "--show-toplevel"),
+        ("branch", "--show-current"),
+        ("status", "--porcelain=v2", "--untracked-files=all"),
+        (
+            "status",
+            "--porcelain=v2",
+            "-z",
+            "--untracked-files=all",
+            "--no-renames",
+        ),
+        ("ls-tree", "-r", "-z", "--full-tree", "HEAD"),
+    }:
+        return argv
+    if (
+        len(argv) == 5
+        and argv[:4] == ("ls-tree", "-z", "HEAD", "--")
+        and _closed_git_path_v1(argv[4])
+    ):
+        return argv
+    if len(argv) == 3 and argv[:2] == ("cat-file", "-e"):
+        expression = argv[2]
+        oid = expression.removesuffix("^{commit}")
+        if expression == f"{oid}^{{commit}}" and _GIT_OID_RE_V1.fullmatch(oid):
+            return argv
+    if len(argv) == 3 and argv[:2] == ("cat-file", "blob"):
+        oid, separator, path = argv[2].partition(":")
+        if separator and _GIT_OID_RE_V1.fullmatch(oid) and _closed_git_path_v1(path):
+            return argv
+    if (
+        len(argv) == 4
+        and argv[:2] == ("merge-base", "--is-ancestor")
+        and _GIT_OID_RE_V1.fullmatch(argv[2])
+        and (argv[3] == "HEAD" or _GIT_OID_RE_V1.fullmatch(argv[3]))
+    ):
+        return argv
+    return None
 
 
 _ANCHOR_FLAGS: Final = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
@@ -454,19 +516,20 @@ class AnchoredDirectoryV1:
 
 
 def _hash_descriptor(descriptor: int) -> str:
-    """SHA-256 of the whole file behind ``descriptor``, read from offset zero, bounded in size."""
+    """SHA-256 of one descriptor without mutating its shared file offset."""
 
-    os.lseek(descriptor, 0, os.SEEK_SET)
     digest = hashlib.sha256()
     total = 0
+    offset = 0
     while True:
-        chunk = os.read(descriptor, _READ_CHUNK_BYTES)
+        chunk = os.pread(descriptor, _READ_CHUNK_BYTES, offset)
         if not chunk:
             break
         total += len(chunk)
         if total > _MAX_HASHED_FILE_BYTES:
             raise AnchorRefused(f"file exceeds {_MAX_HASHED_FILE_BYTES} bytes")
         digest.update(chunk)
+        offset += len(chunk)
     return digest.hexdigest()
 
 
@@ -495,11 +558,11 @@ def _seal_descriptor_copy_v1(descriptor: int) -> tuple[int, str, int]:
         os.MFD_CLOEXEC | os.MFD_ALLOW_SEALING,
     )
     try:
-        os.lseek(descriptor, 0, os.SEEK_SET)
         digest = hashlib.sha256()
         total = 0
+        offset = 0
         while True:
-            chunk = os.read(descriptor, _READ_CHUNK_BYTES)
+            chunk = os.pread(descriptor, _READ_CHUNK_BYTES, offset)
             if not chunk:
                 break
             total += len(chunk)
@@ -512,6 +575,7 @@ def _seal_descriptor_copy_v1(descriptor: int) -> tuple[int, str, int]:
                 if written <= 0:
                     raise AnchorRefused("sealed executable snapshot write made no progress")
                 view = view[written:]
+            offset += len(chunk)
         os.fchmod(sealed, 0o400)
         seals = (
             fcntl.F_SEAL_GROW
@@ -564,19 +628,24 @@ class AnchoredFileV1:
         return _hash_descriptor(self._descriptor)
 
     def read(self, max_bytes: int) -> bytes | None:
-        """Whole content from offset zero, or ``None`` when it exceeds ``max_bytes``."""
+        """Whole content without mutating the shared offset, or ``None`` above the bound."""
 
         if not self.is_open:
             raise AnchorRefused("anchored file is closed")
-        os.lseek(self._sealed_descriptor, 0, os.SEEK_SET)
         chunks: list[bytes] = []
         remaining = max_bytes + 1
+        offset = 0
         while remaining > 0:
-            chunk = os.read(self._sealed_descriptor, min(remaining, _READ_CHUNK_BYTES))
+            chunk = os.pread(
+                self._sealed_descriptor,
+                min(remaining, _READ_CHUNK_BYTES),
+                offset,
+            )
             if not chunk:
                 break
             chunks.append(chunk)
             remaining -= len(chunk)
+            offset += len(chunk)
         data = b"".join(chunks)
         return data if len(data) <= max_bytes else None
 
@@ -1337,12 +1406,15 @@ def run_bounded_process_v1(
 
 
 def _git_run(root: WorkingDirectory, args: Sequence[str], max_output_bytes: int) -> ProcessRunV1:
-    """Trusted raw-object Git in its own session; every invocation disables replacement refs."""
+    """Trusted read-only Git in its own session under a closed command grammar."""
 
-    if any(type(arg) is not str for arg in args):
-        return ProcessRunV1(-1, b"", "process could not start: git arguments must be exact strings")
-    if any(arg == "--replace-objects" or arg.startswith("--replace-objects=") for arg in args):
-        return ProcessRunV1(-1, b"", "process could not start: git replacement objects are forbidden")
+    closed_args = _closed_git_arguments_v1(args)
+    if closed_args is None:
+        return ProcessRunV1(
+            -1,
+            b"",
+            "process could not start: git arguments are outside the closed read-only grammar",
+        )
     inherited: tuple[int, ...] = ()
     if isinstance(root, AnchoredDirectoryV1):
         if not root.is_open:
@@ -1351,7 +1423,7 @@ def _git_run(root: WorkingDirectory, args: Sequence[str], max_output_bytes: int)
     else:
         cwd = str(root)
     return _run_plain_process(
-        (GIT_BINARY, "--no-replace-objects", *args),
+        (GIT_BINARY, "--no-replace-objects", *closed_args),
         cwd=cwd,
         env=PROCESS_ENVIRONMENT_BASE,
         bounds=ProcessBoundsV1(GIT_TIMEOUT_SECONDS, max_output_bytes),

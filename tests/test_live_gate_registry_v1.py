@@ -1197,6 +1197,36 @@ def test_git_runs_from_trusted_binary_with_minimal_environment() -> None:
     assert bad_code != 0 and bad_out == ""
 
 
+def test_anchored_file_hash_and_read_do_not_mutate_shared_offsets() -> None:
+    with registry_module.AnchoredDirectoryV1.open(ROOT) as anchored:
+        with anchored.open_file("tools/live_gate_registry_v1.py") as source:
+            os.lseek(source._descriptor, 7, os.SEEK_SET)
+            os.lseek(source._sealed_descriptor, 11, os.SEEK_SET)
+
+            assert source.rehash() == source.sha256
+            assert source.read(source.size) is not None
+            assert os.lseek(source._descriptor, 0, os.SEEK_CUR) == 7
+            assert os.lseek(source._sealed_descriptor, 0, os.SEEK_CUR) == 11
+
+
+@pytest.mark.parametrize(
+    "args",
+    (
+        ["-C", "/tmp", "rev-parse", "HEAD"],
+        ["--git-dir=/tmp/other", "rev-parse", "HEAD"],
+        ["-c", "alias.escape=!true", "escape"],
+        ["status", "--porcelain=v2", "--work-tree=/tmp"],
+    ),
+)
+def test_git_refuses_root_redirection_and_unregistered_commands(
+    args: list[str],
+) -> None:
+    code, output = git_v1(ROOT, args)
+
+    assert code == -1
+    assert output == ""
+
+
 def test_registry_gate_observation_is_bounded_json_projection() -> None:
     # Arrange
     spec = LIVE_GATE_REGISTRY["m6_asset_precision_policy"]

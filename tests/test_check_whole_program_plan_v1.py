@@ -76,6 +76,13 @@ GIT_ENV = {
 _DISPOSABLE_COMPLETE_SUBJECTS: list[Path] = []
 
 
+def _remove_disposable_subject(root: Path) -> None:
+    if root.is_symlink():
+        root.unlink()
+    elif root.exists():
+        shutil.rmtree(root)
+
+
 @pytest.fixture(autouse=True)
 def _remove_disposable_complete_subjects_after_each_test() -> Iterator[None]:
     """Bound peak disk use without weakening full-clone attack isolation."""
@@ -87,10 +94,7 @@ def _remove_disposable_complete_subjects_after_each_test() -> Iterator[None]:
         owned = _DISPOSABLE_COMPLETE_SUBJECTS[first_owned:]
         del _DISPOSABLE_COMPLETE_SUBJECTS[first_owned:]
         for root in reversed(owned):
-            if root.is_symlink():
-                root.unlink()
-            elif root.exists():
-                shutil.rmtree(root)
+            _remove_disposable_subject(root)
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -115,13 +119,24 @@ def _clone_complete_subject(tmp_path: Path, name: str = "subject") -> Path:
     """Create a clean disposable complete subject from the committed test root."""
 
     root = tmp_path / name
-    subprocess.run(
-        ["/usr/bin/git", "clone", "-q", "--no-hardlinks", str(ROOT), str(root)],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
     _DISPOSABLE_COMPLETE_SUBJECTS.append(root)
+    try:
+        subprocess.run(
+            ["/usr/bin/git", "clone", "-q", "--no-hardlinks", str(ROOT), str(root)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except BaseException as primary:
+        try:
+            _remove_disposable_subject(root)
+        except BaseException as cleanup_error:
+            primary.add_note(
+                f"partial clone cleanup also failed: {type(cleanup_error).__name__}"
+            )
+        else:
+            _DISPOSABLE_COMPLETE_SUBJECTS.remove(root)
+        raise
     return root
 
 
@@ -129,21 +144,58 @@ def _clone_transport_subject(tmp_path: Path, name: str = "transport-subject") ->
     """Transfer only advertised candidate history, without local object leakage."""
 
     root = tmp_path / name
-    subprocess.run(
-        [
-            "/usr/bin/git",
-            "clone",
-            "-q",
-            "--no-local",
-            str(ROOT),
-            str(root),
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-    )
     _DISPOSABLE_COMPLETE_SUBJECTS.append(root)
+    try:
+        subprocess.run(
+            [
+                "/usr/bin/git",
+                "clone",
+                "-q",
+                "--no-local",
+                str(ROOT),
+                str(root),
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except BaseException as primary:
+        try:
+            _remove_disposable_subject(root)
+        except BaseException as cleanup_error:
+            primary.add_note(
+                f"partial clone cleanup also failed: {type(cleanup_error).__name__}"
+            )
+        else:
+            _DISPOSABLE_COMPLETE_SUBJECTS.remove(root)
+        raise
     return root
+
+
+@pytest.mark.parametrize(
+    "clone_helper",
+    (_clone_complete_subject, _clone_transport_subject),
+    ids=("complete", "transport"),
+)
+def test_failed_clone_is_removed_before_the_helper_propagates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    clone_helper: Callable[[Path, str], Path],
+) -> None:
+    root = tmp_path / "partial"
+
+    def fail_after_partial_clone(*_args: object, **_kwargs: object) -> object:
+        root.mkdir()
+        (root / "partial.pack").write_bytes(b"partial")
+        raise subprocess.CalledProcessError(128, ["git", "clone"])
+
+    monkeypatch.setattr(subprocess, "run", fail_after_partial_clone)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        clone_helper(tmp_path, "partial")
+
+    assert not root.exists()
+    assert root not in _DISPOSABLE_COMPLETE_SUBJECTS
 
 
 def _replacement_commit_for_head(repo: Path, raw_head: str, message: str) -> str:
@@ -1037,6 +1089,22 @@ class _FindingStringSubclass(str):
     pass
 
 
+class _FindingSuppressingList(list[object]):
+    def __iter__(self) -> Iterator[object]:
+        return iter(())
+
+
+class _GapEqualString(str):
+    def __new__(cls) -> _GapEqualString:
+        return str.__new__(cls, "EVIL")
+
+    def __hash__(self) -> int:
+        return hash("GAP")
+
+    def __eq__(self, other: object) -> bool:
+        return other == "GAP"
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
@@ -1078,6 +1146,43 @@ def test_closed_report_normalizes_a_same_process_forged_finding() -> None:
         "report_findings_invalid"
     ]
     json.dumps(report)
+
+
+def test_public_report_cannot_claim_success_without_checker_validation() -> None:
+    report = plan_report_v1(
+        {}, [], executed=0, profile=ORDINARY_VALIDATION_PROFILE_V1
+    )
+
+    assert report["ok"] is False
+    assert [finding["rule_id"] for finding in report["findings"]] == [
+        "report_validation_missing"
+    ]
+
+
+def test_public_report_refuses_a_hostile_findings_container() -> None:
+    findings = _FindingSuppressingList(
+        [checker_module.PlanFinding("injected", "plan", "must remain visible")]
+    )
+
+    report = plan_report_v1(
+        {}, findings, executed=0, profile=ORDINARY_VALIDATION_PROFILE_V1  # type: ignore[arg-type]
+    )
+
+    assert report["ok"] is False
+    assert [finding["rule_id"] for finding in report["findings"]] == [
+        "report_findings_invalid"
+    ]
+
+
+def test_plan_validation_refuses_hostile_recursive_string_subclasses() -> None:
+    plan = _plan()
+    row = next(item for item in plan["vm_gate_status"] if item["status"] == "GAP")
+    row["status"] = _GapEqualString()
+
+    findings = validate_plan_v1(plan, root=ROOT, markdown=_markdown())
+
+    assert [finding.rule_id for finding in findings] == ["plan_value_not_owned"]
+    assert findings[0].subject.endswith(".status")
 
 
 def _synthetic_repository(tmp_path: Path) -> tuple[Path, str]:

@@ -100,7 +100,7 @@ import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Final, NoReturn
+from typing import Any, Final, NoReturn, cast
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if not __package__ and str(REPO_ROOT) not in sys.path:
@@ -350,6 +350,100 @@ def _plan_finding_is_closed_v1(value: object) -> bool:
         type(getattr(value, field, None)) is str
         for field in ("rule_id", "subject", "evidence")
     )
+
+
+MAX_PUBLIC_PLAN_DEPTH_V1: Final = 64
+MAX_PUBLIC_PLAN_NODES_V1: Final = 100_000
+
+
+def _owned_plan_value_v1(
+    value: object,
+    *,
+    path: str,
+    depth: int,
+    node_count: list[int],
+) -> tuple[object | None, PlanFinding | None]:
+    """Copy an exact JSON subset into checker-owned builtins.
+
+    Public callers may supply Python subclasses with hostile equality or
+    iteration. The checker accepts only exact builtins, refuses floats, and
+    owns a recursive copy before any semantic validator or report projection
+    observes the value.
+    """
+
+    node_count[0] += 1
+    if depth > MAX_PUBLIC_PLAN_DEPTH_V1 or node_count[0] > MAX_PUBLIC_PLAN_NODES_V1:
+        return None, PlanFinding(
+            "plan_value_not_owned",
+            path,
+            "public plan exceeds the owned-value depth or node bound",
+        )
+    if value is None or type(value) in (str, int, bool):
+        return value, None
+    if type(value) is list:
+        owned_items: list[object] = []
+        try:
+            snapshot = tuple(value)
+        except (MemoryError, RuntimeError) as exc:
+            return None, PlanFinding(
+                "plan_value_not_owned", path, f"list snapshot refused: {type(exc).__name__}"
+            )
+        for index, item in enumerate(snapshot):
+            owned, finding = _owned_plan_value_v1(
+                item,
+                path=f"{path}[{index}]",
+                depth=depth + 1,
+                node_count=node_count,
+            )
+            if finding is not None:
+                return None, finding
+            owned_items.append(owned)
+        return owned_items, None
+    if type(value) is dict:
+        owned_mapping: dict[str, object] = {}
+        try:
+            snapshot = tuple(value.items())
+        except (MemoryError, RuntimeError) as exc:
+            return None, PlanFinding(
+                "plan_value_not_owned", path, f"mapping snapshot refused: {type(exc).__name__}"
+            )
+        for key, item in snapshot:
+            if type(key) is not str:
+                return None, PlanFinding(
+                    "plan_value_not_owned",
+                    path,
+                    f"mapping key must be an exact string, received {type(key).__name__}",
+                )
+            owned, finding = _owned_plan_value_v1(
+                item,
+                path=f"{path}.{key}",
+                depth=depth + 1,
+                node_count=node_count,
+            )
+            if finding is not None:
+                return None, finding
+            owned_mapping[key] = owned
+        return owned_mapping, None
+    return None, PlanFinding(
+        "plan_value_not_owned",
+        path,
+        f"expected an exact JSON scalar, list, or mapping, received {type(value).__name__}",
+    )
+
+
+def _owned_plan_v1(value: object) -> tuple[dict[str, object] | None, list[PlanFinding]]:
+    owned, finding = _owned_plan_value_v1(
+        value, path="plan", depth=0, node_count=[0]
+    )
+    if finding is not None:
+        return None, [finding]
+    if type(owned) is not dict:
+        return None, [
+            PlanFinding(
+                "plan_value_not_owned", "plan", "top-level plan must be an exact mapping"
+            )
+        ]
+    return owned, []
 
 
 def _mode_or_findings_v1(mode: object) -> tuple[PlanCheckModeV1 | None, list[PlanFinding]]:
@@ -1735,9 +1829,20 @@ def validate_plan_v1(
     checked_profile, profile_findings = _profile_or_findings_v1(profile)
     if checked_profile is None:
         return profile_findings
+    owned_plan, ownership_findings = _owned_plan_v1(plan)
+    if owned_plan is None:
+        return ownership_findings
+    if markdown is not None and type(markdown) is not str:
+        return [
+            PlanFinding(
+                "plan_markdown_type_invalid",
+                PLAN_MARKDOWN_PATH.as_posix(),
+                f"expected an exact string or None, received {type(markdown).__name__}",
+            )
+        ]
     try:
         with _UseRoot(root) as bound:
-            return _validate_with_root(plan, bound, markdown, checked_profile)
+            return _validate_with_root(owned_plan, bound, markdown, checked_profile)
     except RootUnavailable as exc:
         return _root_unavailable(exc)
 
@@ -2613,6 +2718,7 @@ def _closed_plan_report_v1(
     mode: object,
     error: object = None,
     mode_accepted: object = True,
+    validation_complete: object = False,
 ) -> dict[str, object]:
     """Build the only JSON report shape for success, typed refusal, and CLI failure.
 
@@ -2624,10 +2730,10 @@ def _closed_plan_report_v1(
     checked_mode, mode_findings = _mode_or_findings_v1(mode)
     checked_profile, profile_findings = _profile_or_findings_v1(profile)
     normalized_findings: list[PlanFinding] = []
-    if isinstance(findings, (list, tuple)):
-        for finding in findings:
+    if type(findings) in (list, tuple):
+        for finding in cast(list[object] | tuple[object, ...], findings):
             if _plan_finding_is_closed_v1(finding):
-                normalized_findings.append(finding)
+                normalized_findings.append(cast(PlanFinding, finding))
             else:
                 normalized_findings.append(
                     PlanFinding(
@@ -2646,6 +2752,9 @@ def _closed_plan_report_v1(
         )
     normalized_findings.extend(mode_findings)
     normalized_findings.extend(profile_findings)
+    owned_plan, ownership_findings = _owned_plan_v1(plan)
+    normalized_findings.extend(ownership_findings)
+    report_plan: Mapping[str, object] = owned_plan if owned_plan is not None else {}
     normalized_error = error if type(error) is str else None
     if error is not None and normalized_error is None:
         normalized_findings.append(
@@ -2669,6 +2778,14 @@ def _closed_plan_report_v1(
                 "report_mode_not_accepted",
                 "accepted_check_mode",
                 "the requested check mode was explicitly refused",
+            )
+        )
+    if type(validation_complete) is not bool:
+        normalized_findings.append(
+            PlanFinding(
+                "report_validation_state_invalid",
+                "validation_complete",
+                "expected an exact Boolean",
             )
         )
     accepted_mode = (
@@ -2714,10 +2831,23 @@ def _closed_plan_report_v1(
             )
         )
         normalized_executed = 0
-    raw_tasks = plan.get("tasks") if isinstance(plan, Mapping) else None
-    tasks = [task for task in raw_tasks if isinstance(task, Mapping)] if isinstance(raw_tasks, list) else []
-    raw_gates = plan.get("vm_gate_status") if isinstance(plan, Mapping) else None
-    gate_entries = [entry for entry in raw_gates if isinstance(entry, Mapping)] if isinstance(raw_gates, list) else []
+    if (
+        type(validation_complete) is bool
+        and not validation_complete
+        and not normalized_findings
+        and normalized_error is None
+    ):
+        normalized_findings.append(
+            PlanFinding(
+                "report_validation_missing",
+                "plan",
+                "public report construction has no completed checker validation",
+            )
+        )
+    raw_tasks = report_plan.get("tasks")
+    tasks = [task for task in raw_tasks if type(task) is dict] if type(raw_tasks) is list else []
+    raw_gates = report_plan.get("vm_gate_status")
+    gate_entries = [entry for entry in raw_gates if type(entry) is dict] if type(raw_gates) is list else []
     return {
         "accepted_check_mode": accepted_mode.value if accepted_mode is not None else "none",
         "authority": dict(REQUIRED_AUTHORITY),
@@ -2735,7 +2865,7 @@ def _closed_plan_report_v1(
         "vm_gate_status": {
             entry["gate_id"]: entry["status"]
             for entry in gate_entries
-            if isinstance(entry.get("gate_id"), str) and isinstance(entry.get("status"), str)
+            if type(entry.get("gate_id")) is str and type(entry.get("status")) is str
         },
     }
 
@@ -2750,7 +2880,7 @@ def plan_report_v1(
     error: str | None = None,
     mode_accepted: bool = True,
 ) -> dict[str, object]:
-    """Public closed report constructor for ordinary checks and every CLI failure path."""
+    """Build a fail-closed report without claiming caller-supplied validation."""
 
     return _closed_plan_report_v1(
         plan,
@@ -2760,6 +2890,30 @@ def plan_report_v1(
         mode=mode,
         error=error,
         mode_accepted=mode_accepted,
+    )
+
+
+def _validated_plan_report_v1(
+    plan: Mapping[str, Any],
+    findings: Sequence[PlanFinding],
+    *,
+    executed: int,
+    profile: PlanValidationProfileV1,
+    mode: PlanCheckModeV1 = PlanCheckModeV1.STRUCTURAL,
+    error: str | None = None,
+    mode_accepted: bool = True,
+) -> dict[str, object]:
+    """Internal report builder used only after a checker-owned validation path."""
+
+    return _closed_plan_report_v1(
+        plan,
+        findings,
+        executed=executed,
+        profile=profile,
+        mode=mode,
+        error=error,
+        mode_accepted=mode_accepted,
+        validation_complete=True,
     )
 
 
@@ -2841,7 +2995,7 @@ def check_whole_program_plan_v1(root: RootLike = REPO_ROOT, *, mode: PlanCheckMo
 
     checked_mode, _mode_findings = _mode_or_findings_v1(mode)
     if checked_mode is None:
-        return plan_report_v1(
+        return _validated_plan_report_v1(
             {},
             [],
             executed=0,
@@ -2856,7 +3010,7 @@ def check_whole_program_plan_v1(root: RootLike = REPO_ROOT, *, mode: PlanCheckMo
             )
             if context is None:
                 _raise_if_plan_artifacts_unreadable_v1(bound)
-                return plan_report_v1(
+                return _validated_plan_report_v1(
                     {},
                     findings,
                     executed=0,
@@ -2867,7 +3021,7 @@ def check_whole_program_plan_v1(root: RootLike = REPO_ROOT, *, mode: PlanCheckMo
                 plan, findings, executed = _ordinary_context_result_v1(
                     bound, context, checked_mode
                 )
-                return plan_report_v1(
+                return _validated_plan_report_v1(
                     plan,
                     findings,
                     executed=executed,
@@ -2877,7 +3031,7 @@ def check_whole_program_plan_v1(root: RootLike = REPO_ROOT, *, mode: PlanCheckMo
             finally:
                 context.close()
     except PlanUnreadable as exc:
-        return plan_report_v1(
+        return _validated_plan_report_v1(
             {},
             [PlanFinding("plan_unreadable", "plan_artifacts", str(exc))],
             executed=0,
@@ -2893,7 +3047,7 @@ def post_regeneration_report_v1(root: RootLike) -> dict[str, object]:
 
     with _UseRoot(root) as bound:
         plan, findings = _structural_report(bound, POST_REGENERATION_PROFILE_V1)
-    return plan_report_v1(
+    return _validated_plan_report_v1(
         plan,
         findings,
         executed=0,
@@ -2918,7 +3072,7 @@ def _failure(
     """Emit one closed report for every CLI refusal without weakening authority labels."""
 
     _emit(
-        plan_report_v1(
+        _validated_plan_report_v1(
             {},
             findings,
             executed=0,
