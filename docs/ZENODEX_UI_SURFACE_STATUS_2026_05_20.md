@@ -2,6 +2,13 @@
 
 This note records the mounted ZenoDEX UI posture as of 2026-05-20.
 
+Current authority correction (2026-08-26): normal API startup now refuses the
+AutoTrader live route until client-signed DEX intent envelopes exist and are
+verified. The checked-in local-testnet profile, its enabled-lane manifest,
+readiness probes, feature smoke, and browser smoke all omit that route. The
+Strategy row below is retained as historical research coverage and does not
+describe a currently mounted value-submission lane.
+
 ## Mounted surfaces
 
 | Surface | Mounted in UI | Default posture | Authoritative backend path | Browser evidence |

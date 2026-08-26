@@ -1,0 +1,112 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zzzzz-http-authority-launcher-closure",
+  "created_date": "2026-08-26",
+  "claim_scope": "This append-only correction closes the local-testnet declaration drift left after AutoTrader live authority was quarantined. The exact Compose lane booleans, ApiServerConfig decode, launcher enabled-lane manifest, attached server state, readiness probes, feature smoke, browser smoke, and current operator note now agree that AutoTrader live is unavailable while the five declared safe lanes remain configured.",
+  "change_kind": "evidence_correction",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "LOCAL-TESTNET-COMPOSE-CONFIG-MANIFEST-AND-RUNTIME-AGREE",
+    "QUARANTINED-AUTOTRADER-IS-NOT-PROBED-OR-ADVERTISED",
+    "SAFE-LOCAL-TESTNET-LANES-REMAIN-CONSTRUCTIBLE",
+    "PUBLIC-MOUNT-WORDING-MATCHES-CURRENT-AUTHORITY"
+  ],
+  "failure_modes": [
+    "the launcher manifest advertises AutoTrader live after Compose disables it",
+    "readiness declares the stack unhealthy by probing a deliberately disabled route",
+    "feature smoke posts signing material to a deliberately disabled route",
+    "browser smoke expects a deliberately disabled route to accept",
+    "a test manually invents safe configuration instead of decoding the exact deployment declaration",
+    "a historical UI status row is misread as current mounted authority"
+  ],
+  "source_pins": [
+    {
+      "path": "src/integration/api_server.py",
+      "sha256": "2747594a626e319c1bdcf89390d142ccdb7abffb09dc6ae25a3d71cefce608a4"
+    },
+    {
+      "path": "docker-compose.local-testnet.yml",
+      "sha256": "477d2eda7d3e2c00296c06f555d993f75592d61d0a7a8c05e56e14732df71440"
+    },
+    {
+      "path": "tools/zenoctl_testnet_local/lifecycle.py",
+      "sha256": "b34de8fd15cef41ffc786a4a625871fd3ed44a9017a2fbb2b10a91f8e21f2409"
+    },
+    {
+      "path": "docs/ZENODEX_UI_SURFACE_STATUS_2026_05_20.md",
+      "sha256": "a3a5462bcd9fd462393adcea5621d8fde7274e84b8a7ea673e88069e24fc6f11"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_api_server_main.py",
+      "sha256": "5ea4ab44e86fd1d7ad90d30158067c6dfc53b982e6aa6bc4a1f8336c682f65d5",
+      "node_ids": [
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_autotrader_live_mount_until_external_intent_signing_exists",
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_mounted_sealed_bid_fixture_signer",
+        "tests/integration/test_api_server_main.py::test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_construction"
+      ]
+    },
+    {
+      "path": "tests/integration/test_zenoctl_testnet_local.py",
+      "sha256": "871eefe33144c791cd398a349ddc80f59dba0422634cbb9aeb35d730be91d070",
+      "node_ids": [
+        "tests/integration/test_zenoctl_testnet_local.py::test_strict_browser_smoke_cases_include_local_fixture_zk_proof",
+        "tests/integration/test_zenoctl_testnet_local.py::test_lane_readiness_keeps_stack_ready_when_only_tokenomics_gate_blocks",
+        "tests/integration/test_zenoctl_testnet_local.py::test_feature_smoke_omits_quarantined_autotrader_lane"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "differential"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange the exact Compose document and representative safe lane responses; act through ApiServerConfig decode, normal main startup, readiness, feature smoke, and browser case generation; then compare exact lane sets, attachment state, URLs, check names, and refusal outcomes."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Enabled hazardous modes still replace the server constructor with a failing sentinel. The decoded safe profile constructs exactly one server with AutoTrader disabled and no sealed-bid settlement submitter."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "autotrader_deployment_state",
+      "points": [
+        "recognized_true_configuration_refuses_before_construction",
+        "exact_Compose_false_decodes_false_and_reaches_construction",
+        "manifest_readiness_feature_and_browser_surfaces_omit_lane"
+      ]
+    },
+    {
+      "name": "sealed_bid_settlement_state",
+      "points": [
+        "recognized_true_configuration_refuses_before_construction",
+        "exact_Compose_false_decodes_false_and_attaches_no_submitter"
+      ]
+    },
+    {
+      "name": "declaration_differential",
+      "points": [
+        "Compose_literal_enabled_set",
+        "ApiServerConfig_decoded_enabled_set",
+        "launcher_manifest_enabled_set",
+        "attached_server_disabled_authority_state"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "The previous deployment packet mislabeled its tests as stateful. This packet removes that label and uses a connected declaration differential as its strong evidence family.",
+    "Normal API startup and the checked-in local-testnet launcher quarantine AutoTrader live and sealed-bid local-ledger settlement. Direct same-process attachment remains a separate reachability obligation.",
+    "The Strategy UI code and historical research tests remain in the repository. This change updates smoke expectations and current authority wording; it does not remove the UI.",
+    "The five aligned local-testnet lanes are test surfaces and gain no production-readiness status from this declaration differential.",
+    "No executable semantic-mutation campaign was run, so mutation evidence is intentionally absent.",
+    "No economic transition, proof authority, settlement authority, or production authority is added.",
+    "Production authority remains NONE."
+  ]
+}

@@ -44,7 +44,6 @@ from . import fixtures as fx
 from . import manifest as mf
 from . import nginx as ng
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = REPO_ROOT / "docker-compose.local-testnet.yml"
 NGINX_TEMPLATE = REPO_ROOT / ".docker" / "nginx.local-testnet.conf.template"
@@ -89,6 +88,13 @@ DEFAULT_FIXTURE_NATIVE_MATERIALIZE_E8 = DEFAULT_ZUSD_BOOTSTRAP_COLLATERAL_E8
 DEFAULT_FIXTURE_TEST_ASSET_PREFUND = 1_000_000
 DEFAULT_FIXTURE_ZUSD_COUNTERPARTY_PREFUND = 25
 SMOKE_CONFIDENTIAL_POLICY_DIGEST = "0x" + ("d" * 64)
+LOCAL_TESTNET_ENABLED_LANES = (
+    "DEX_API_ENABLED",
+    "PERPS_WALLET_API_ENABLED",
+    "ZUSD_TAU_WALLET_API_ENABLED",
+    "ZUSD_MONETARY_WALLET_API_ENABLED",
+    "CONFIDENTIAL_ATTESTATION_API_ENABLED",
+)
 
 
 @dataclass(frozen=True)
@@ -284,14 +290,7 @@ def cmd_up(opts: UpOptions) -> int:
             "tau_local": TAU_LOCAL_IMAGE,
             "ui_nginx": UI_NGINX_IMAGE,
         },
-        enabled_lanes=[
-            "DEX_API_ENABLED",
-            "PERPS_WALLET_API_ENABLED",
-            "ZUSD_TAU_WALLET_API_ENABLED",
-            "ZUSD_MONETARY_WALLET_API_ENABLED",
-            "AUTOTRADER_LIVE_API_ENABLED",
-            "CONFIDENTIAL_ATTESTATION_API_ENABLED",
-        ],
+        enabled_lanes=list(LOCAL_TESTNET_ENABLED_LANES),
         fixture_paths=bundle.as_manifest_paths(),
         ledger_bundle_manifest=str(paths.out_dir / "ledger" / "public_testnet_manifest.json"),
         writer_token=writer_token,
@@ -2163,7 +2162,6 @@ def _collect_lane_readiness(*, ui_base: str, manifest: Mapping[str, Any] | None 
         "zusd_wallet": _safe_get_json(f"{ui_base}/api/zusd/wallet/status"),
         "zusd_monetary": _safe_get_json(f"{ui_base}/api/zusd/monetary/status"),
         "perps_wallet": _safe_get_json(f"{ui_base}/api/perps/wallet/status", timeout_s=15.0),
-        "autotrader": _safe_get_json(f"{ui_base}/api/strategy/autotrader/status"),
         "oracle_health": _safe_get_json(f"{ui_base}/api/oracle/health"),
         "oracle_dashboard": _safe_get_json(f"{ui_base}/api/oracle/dashboard"),
         "confidential": _safe_get_json(f"{ui_base}/api/confidential/status"),
@@ -2180,8 +2178,6 @@ def _collect_lane_readiness(*, ui_base: str, manifest: Mapping[str, Any] | None 
         and int(((lanes["perps_wallet"].get("status") or {}).get("market_count") or 0)) >= 1
         and bool((((lanes["perps_wallet"].get("status") or {}).get("wallet_authority") or {}).get("ok")))
         and bool((((lanes["perps_wallet"].get("status") or {}).get("oracle_authority") or {}).get("ok"))),
-        "autotrader": bool(lanes["autotrader"].get("ok"))
-        and bool((((lanes["autotrader"].get("status") or {}).get("supervisor") or {}).get("ok"))),
         "oracle_health": bool(lanes["oracle_health"].get("ok")),
         "oracle_dashboard": bool(lanes["oracle_dashboard"].get("ok")),
         "confidential": bool(lanes["confidential"].get("ok")),
@@ -2542,19 +2538,6 @@ def _run_feature_smoke(*, ui_base: str, paths: mf.ManifestPaths, manifest: Mappi
     capture(
         "oracle_write_flow",
         lambda: _run_oracle_write_smoke(ui_base=ui_base, run_id=run_id),
-    )
-    capture(
-        "autotrader_live_prepare",
-        lambda: _summarize_response(
-            _post_json(
-                f"{ui_base}/api/strategy/autotrader/prepare",
-                {
-                    "acknowledge_experimental_live_risk": True,
-                    "signer_privkey": _role_privkey_int(roles, "alice"),
-                    "chain_id": chain_id,
-                },
-            ),
-        ),
     )
     capture(
         "confidential_runtime_execute",
@@ -3212,18 +3195,6 @@ def _browser_smoke_cases(
                 }
             ),
             "snippets": ("ZenoOracle", "oracle write smoke accepted"),
-        },
-        {
-            "name": "autotrader_ui",
-            "url": url(
-                {
-                    "tab": "strategy",
-                    "strategyView": "create",
-                    "demo": "false",
-                    "zenodexUiSmokeStrategyLive": "1",
-                }
-            ),
-            "snippets": ("AutoTrader Live Prepare", "accepted"),
         },
         {
             "name": "confidential_ui",

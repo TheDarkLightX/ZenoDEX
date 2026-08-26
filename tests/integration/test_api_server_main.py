@@ -148,6 +148,7 @@ def test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_const
     monkeypatch,
 ) -> None:
     from src.integration import api_server
+    from tools.zenoctl_testnet_local import lifecycle
 
     compose = yaml.safe_load(
         (REPO_ROOT / "docker-compose.local-testnet.yml").read_text(encoding="utf-8")
@@ -160,17 +161,39 @@ def test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_const
     assert environment["AUTOTRADER_LIVE_SUPERVISOR_ENABLED"] == "false"
     assert environment["CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED"] == "false"
     assert environment["CONFIDENTIAL_SEALED_BID_AUTO_MINE"] == "false"
+    assert "AUTOTRADER_LIVE_API_ENABLED" not in lifecycle.LOCAL_TESTNET_ENABLED_LANES
 
-    base_config = api_server._load_api_server_config()
-    config = replace(
-        base_config,
-        autotrader_live_enabled=False,
-        confidential_sealed_bid_asset_settlement_enabled=False,
-        external_auth_enforced=True,
+    lane_fields = {
+        "DEX_API_ENABLED": "dex_enabled",
+        "PERPS_WALLET_API_ENABLED": "perps_wallet_enabled",
+        "ZUSD_TAU_WALLET_API_ENABLED": "zusd_tau_wallet_enabled",
+        "ZUSD_MONETARY_WALLET_API_ENABLED": "zusd_monetary_wallet_enabled",
+        "AUTOTRADER_LIVE_API_ENABLED": "autotrader_live_enabled",
+        "CONFIDENTIAL_ATTESTATION_API_ENABLED": "confidential_attestation_enabled",
+    }
+    for env_name in lane_fields:
+        monkeypatch.setenv(env_name, environment[env_name])
+    monkeypatch.setenv(
+        "CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED",
+        environment["CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED"],
     )
-    server_instances: list[object] = []
+    monkeypatch.setenv("PERPS_API_ENABLED", environment["PERPS_API_ENABLED"])
+    monkeypatch.setenv("PERPS_DEMO_API_UNSAFE_ENABLED", "false")
+    monkeypatch.setenv("CONFIDENTIAL_SEALED_BID_API_ENABLED", "false")
+    monkeypatch.setenv("AUTOGOV_LIVE_APPLY_API_ENABLED", "false")
+    monkeypatch.setenv("ZENODEX_EXTERNAL_AUTH_ENFORCED", "true")
+
+    config = api_server._load_api_server_config()
+    configured_enabled_lanes = {
+        env_name for env_name, field_name in lane_fields.items() if getattr(config, field_name)
+    }
+    assert configured_enabled_lanes == set(lifecycle.LOCAL_TESTNET_ENABLED_LANES)
+    assert config.confidential_sealed_bid_asset_settlement_enabled is False
 
     class FakeServer:
+        autotrader_live_api_enabled: bool
+        confidential_sealed_bid_asset_settlement_submitter: object | None
+
         def __init__(self, address, handler_cls):
             self.address = address
             self.handler_cls = handler_cls
@@ -179,15 +202,12 @@ def test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_const
         def serve_forever(self, poll_interval=0.25):  # noqa: ANN001
             return None
 
-    monkeypatch.setattr(api_server, "_load_api_server_config", lambda: config)
+    server_instances: list[FakeServer] = []
     monkeypatch.setattr(api_server, "ThreadingHTTPServer", FakeServer)
 
     rc = api_server.main([])
 
     assert rc == 0
     assert len(server_instances) == 1
-    assert server_instances[0].autotrader_live_api_enabled is False  # type: ignore[attr-defined]
-    assert (  # type: ignore[attr-defined]
-        server_instances[0].confidential_sealed_bid_asset_settlement_submitter
-        is None
-    )
+    assert server_instances[0].autotrader_live_api_enabled is False
+    assert server_instances[0].confidential_sealed_bid_asset_settlement_submitter is None

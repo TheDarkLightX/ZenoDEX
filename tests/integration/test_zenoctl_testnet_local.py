@@ -20,12 +20,13 @@ import os
 import socket
 import subprocess
 import sys
-import yaml
 from contextlib import closing
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Mapping
 
 import pytest
+import yaml
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -423,6 +424,7 @@ def test_strict_browser_smoke_cases_include_local_fixture_zk_proof(
 
     spot_query = parse_qs(urlsplit(str(by_name["spot_swap_ui"]["url"])).query)
     assert "zkProofJson" not in spot_query
+    assert "autotrader_ui" not in by_name
 
 
 # ---------------------------------------------------------------------------
@@ -2600,7 +2602,10 @@ def test_lane_readiness_keeps_stack_ready_when_only_tokenomics_gate_blocks(
         "hardware_custody": {"hardware_custody_ready": True},
     }
 
+    requested_urls: list[str] = []
+
     def fake_get_json(url: str, **_: object) -> dict:
+        requested_urls.append(url)
         if url.endswith("/api/pools"):
             return {"ok": True, "pools": [{"pool_id": "spot-a"}]}
         if url.endswith("/api/zusd/wallet/status"):
@@ -2638,6 +2643,59 @@ def test_lane_readiness_keeps_stack_ready_when_only_tokenomics_gate_blocks(
         "enabled": False,
         "rejection_code": "TOKENOMICS_AUTHORITY_NOT_READY",
     }
+    assert all("/api/strategy/autotrader/" not in url for url in requested_urls)
+
+
+def test_feature_smoke_omits_quarantined_autotrader_lane(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    roles = {
+        "alice": {
+            "public_key": "0x" + ("11" * 48),
+            "privkey_int": 1,
+        }
+    }
+    posted_urls: list[str] = []
+
+    def fake_load(_path: Path, *, label: str) -> dict:
+        if label == "key bundle":
+            return {"roles": roles}
+        if label == "api seed report":
+            return {"market_id": "perp:ch2p:test"}
+        raise AssertionError(label)
+
+    def fake_post(url: str, _payload: object) -> dict:
+        posted_urls.append(url)
+        return {"ok": True}
+
+    monkeypatch.setattr(lc, "_load_json_file", fake_load)
+    monkeypatch.setattr(lc, "_role_materials", lambda _bundle: roles)
+    monkeypatch.setattr(lc, "_post_json", fake_post)
+    monkeypatch.setattr(lc, "_smoke_run_id", lambda: "run-1")
+    monkeypatch.setattr(lc, "_build_signed_live_swap_payload", lambda **_kwargs: {})
+    monkeypatch.setattr(lc, "_run_complex_grouped_transaction_smoke", lambda **_kwargs: {"ok": True})
+    monkeypatch.setattr(lc, "_zusd_transfer_payload", lambda **_kwargs: {})
+    monkeypatch.setattr(lc, "_run_perps_wallet_cycle_smoke", lambda **_kwargs: {"ok": True})
+    monkeypatch.setattr(lc, "_run_oracle_write_smoke", lambda **_kwargs: {"ok": True})
+    monkeypatch.setattr(lc, "_confidential_local_fixture_from_manifest", lambda **_kwargs: object())
+    monkeypatch.setattr(lc, "_confidential_runtime_payload", lambda **_kwargs: {})
+
+    report = lc._run_feature_smoke(
+        ui_base="http://127.0.0.1:18080",
+        paths=SimpleNamespace(reports_dir=tmp_path),
+        manifest={
+            "chain_id": "chain",
+            "fixture_paths": {"key_bundle": str(tmp_path / "keys.json")},
+            "zk_required": False,
+        },
+    )
+
+    assert report["ok"] is True
+    assert "autotrader_live_prepare" not in report["checks"]
+    assert all("/api/strategy/autotrader/" not in url for url in posted_urls)
 
 
 def test_runtime_env_for_existing_manifest_recovers_tokens_and_roles(tmp_path: Path) -> None:
