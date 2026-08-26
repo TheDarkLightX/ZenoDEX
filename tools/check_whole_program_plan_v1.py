@@ -433,8 +433,36 @@ def _plan_finding_is_closed_v1(value: object) -> bool:
     )
 
 
-MAX_PUBLIC_PLAN_DEPTH_V1: Final = 64
-MAX_PUBLIC_PLAN_NODES_V1: Final = 100_000
+MAX_PUBLIC_PLAN_DEPTH_V1: Final = PLAN_JSON_LIMITS_V1.max_depth
+MAX_PUBLIC_PLAN_NODES_V1: Final = PLAN_JSON_LIMITS_V1.max_nodes
+MAX_PUBLIC_PLAN_INTEGER_ABS_V1: Final = 10 ** PLAN_JSON_LIMITS_V1.max_integer_digits
+
+
+@dataclass(slots=True)
+class _OwnedPlanBudgetV1:
+    nodes: int = 0
+    string_bytes: int = 0
+
+
+def _claim_owned_string_v1(
+    value: str, *, path: str, budget: _OwnedPlanBudgetV1
+) -> PlanFinding | None:
+    try:
+        encoded = value.encode("utf-8", errors="strict")
+    except UnicodeEncodeError:
+        return PlanFinding(
+            "plan_value_not_owned",
+            path,
+            "string is not scalar UTF-8",
+        )
+    if len(encoded) > PLAN_JSON_LIMITS_V1.max_bytes - budget.string_bytes:
+        return PlanFinding(
+            "plan_value_not_owned",
+            path,
+            "aggregate string bytes exceed the bounded JSON byte limit",
+        )
+    budget.string_bytes += len(encoded)
+    return None
 
 
 def _owned_plan_value_v1(
@@ -442,7 +470,7 @@ def _owned_plan_value_v1(
     *,
     path: str,
     depth: int,
-    node_count: list[int],
+    budget: _OwnedPlanBudgetV1,
 ) -> tuple[object | None, PlanFinding | None]:
     """Copy an exact JSON subset into checker-owned builtins.
 
@@ -452,14 +480,25 @@ def _owned_plan_value_v1(
     observes the value.
     """
 
-    node_count[0] += 1
-    if depth > MAX_PUBLIC_PLAN_DEPTH_V1 or node_count[0] > MAX_PUBLIC_PLAN_NODES_V1:
+    budget.nodes += 1
+    if depth > MAX_PUBLIC_PLAN_DEPTH_V1 or budget.nodes > MAX_PUBLIC_PLAN_NODES_V1:
         return None, PlanFinding(
             "plan_value_not_owned",
             path,
             "public plan exceeds the owned-value depth or node bound",
         )
-    if value is None or type(value) in (str, int, bool):
+    if value is None or type(value) is bool:
+        return value, None
+    if type(value) is str:
+        finding = _claim_owned_string_v1(value, path=path, budget=budget)
+        return (None, finding) if finding is not None else (value, None)
+    if type(value) is int:
+        if abs(value) >= MAX_PUBLIC_PLAN_INTEGER_ABS_V1:
+            return None, PlanFinding(
+                "plan_value_not_owned",
+                path,
+                "integer exceeds the bounded JSON digit limit",
+            )
         return value, None
     if type(value) is list:
         owned_items: list[object] = []
@@ -474,7 +513,7 @@ def _owned_plan_value_v1(
                 item,
                 path=f"{path}[{index}]",
                 depth=depth + 1,
-                node_count=node_count,
+                budget=budget,
             )
             if finding is not None:
                 return None, finding
@@ -495,11 +534,16 @@ def _owned_plan_value_v1(
                     path,
                     f"mapping key must be an exact string, received {type(key).__name__}",
                 )
+            key_finding = _claim_owned_string_v1(
+                key, path=path, budget=budget
+            )
+            if key_finding is not None:
+                return None, key_finding
             owned, finding = _owned_plan_value_v1(
                 item,
                 path=f"{path}.{key}",
                 depth=depth + 1,
-                node_count=node_count,
+                budget=budget,
             )
             if finding is not None:
                 return None, finding
@@ -514,7 +558,7 @@ def _owned_plan_value_v1(
 
 def _owned_plan_v1(value: object) -> tuple[dict[str, object] | None, list[PlanFinding]]:
     owned, finding = _owned_plan_value_v1(
-        value, path="plan", depth=0, node_count=[0]
+        value, path="plan", depth=0, budget=_OwnedPlanBudgetV1()
     )
     if finding is not None:
         return None, [finding]
@@ -577,6 +621,14 @@ class PlanVocabularyV1:
     finding_ids: frozenset[str]
     policy_ids: frozenset[str]
     repin_task_ids: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True, slots=True)
+class PurePlanPreflightV1:
+    """Owned task rows and vocabulary admitted before root or observation effects."""
+
+    tasks: tuple[Mapping[str, Any], ...]
+    vocabulary: PlanVocabularyV1
 
 
 @dataclass(frozen=True, slots=True)
@@ -1369,7 +1421,7 @@ def _validate_donor_provenance_content_v1(
         snapshot,
         path="donor_snapshot",
         depth=0,
-        node_count=[0],
+        budget=_OwnedPlanBudgetV1(),
     )
     if ownership_finding is not None or type(owned_snapshot) is not dict:
         detail = (
@@ -1788,7 +1840,12 @@ def _validate_mutation_killers(
 def _text(value: object) -> str:
     """Short deterministic rendering of any JSON value for a finding's evidence field."""
 
-    return json.dumps(value, sort_keys=True, ensure_ascii=True, separators=(",", ":"))[:120]
+    try:
+        return json.dumps(
+            value, sort_keys=True, ensure_ascii=True, separators=(",", ":")
+        )[:120]
+    except (MemoryError, RecursionError, TypeError, ValueError):
+        return f"<unrenderable:{type(value).__name__}>"
 
 
 def _vm_claim_findings(task: Mapping[str, Any]) -> list[PlanFinding]:
@@ -2270,7 +2327,16 @@ def _registry_set_findings(gates: Sequence[object]) -> list[PlanFinding]:
 def _preflight_live_gates_v1(plan: Mapping[str, Any]) -> list[PlanFinding]:
     """Validate the complete closed live-gate set before reading checker files."""
 
-    gates = plan["live_gates"]
+    return _preflight_gate_rows_v1(
+        plan["live_gates"], require_registry_set=True
+    )
+
+
+def _preflight_gate_rows_v1(
+    gates: object, *, require_registry_set: bool
+) -> list[PlanFinding]:
+    """Purely validate full gate rows and optional exact registry multiplicity."""
+
     if type(gates) is not list:
         return [
             PlanFinding("live_gates_malformed", "live_gates", "must be an exact list")
@@ -2289,7 +2355,8 @@ def _preflight_live_gates_v1(plan: Mapping[str, Any]) -> list[PlanFinding]:
             gate, label=f"live_gates[{index}]"
         )
         findings.extend(binding_findings)
-    findings.extend(_registry_set_findings(gates))
+    if require_registry_set:
+        findings.extend(_registry_set_findings(gates))
     return findings
 
 
@@ -2477,6 +2544,57 @@ def _row_ids(rows: object, field: str) -> frozenset[str]:
     return frozenset(str(row[field]) for row in rows if isinstance(row, Mapping) and field in row)
 
 
+def _pure_plan_preflight_v1(
+    plan: Mapping[str, Any], profile: PlanValidationProfileV1
+) -> tuple[PurePlanPreflightV1 | None, list[PlanFinding]]:
+    """Reject all structural and multiplicity defects before binding a root."""
+
+    findings = _validate_top_level(plan)
+    if findings:
+        return None, findings
+    registry_findings = [
+        *_validate_rows(plan["finding_registry"], FINDING_ROWS)[0],
+        *_validate_rows(plan["unresolved_policies"], POLICY_ROWS)[0],
+        *_validate_rows(
+            plan["heavy_gates_requiring_runpod"], HEAVY_GATE_ROWS
+        )[0],
+    ]
+    if registry_findings:
+        return None, sorted(
+            registry_findings,
+            key=lambda item: (item.rule_id, item.subject, item.evidence),
+        )
+    vocabulary = PlanVocabularyV1(
+        _row_ids(plan["finding_registry"], "finding_id"),
+        _row_ids(plan["unresolved_policies"], "policy_id"),
+        profile.repin_tasks,
+    )
+    task_findings, well_formed = _preflight_tasks_v1(plan["tasks"], vocabulary)
+    if task_findings:
+        return None, sorted(
+            task_findings,
+            key=lambda item: (item.rule_id, item.subject, item.evidence),
+        )
+    pure_findings = [
+        *_validate_phases(plan),
+        *_validate_finding_registry(plan, well_formed),
+        *_validate_rows(plan["unresolved_policies"], POLICY_ROWS)[0],
+        *_validate_vm_gate_status(plan, well_formed),
+        *_preflight_live_gates_v1(plan),
+        *_validate_external_gates(plan),
+        *_validate_rows(
+            plan["heavy_gates_requiring_runpod"], HEAVY_GATE_ROWS
+        )[0],
+        *_validate_receipt(plan),
+    ]
+    if pure_findings:
+        return None, sorted(
+            pure_findings,
+            key=lambda item: (item.rule_id, item.subject, item.evidence),
+        )
+    return PurePlanPreflightV1(tuple(well_formed), vocabulary), []
+
+
 def validate_plan_v1(
     plan: Mapping[str, Any],
     *,
@@ -2508,52 +2626,34 @@ def validate_plan_v1(
                 f"expected an exact string or None, received {type(markdown).__name__}",
             )
         ]
+    preflight, preflight_findings = _pure_plan_preflight_v1(
+        owned_plan, checked_profile
+    )
+    if preflight is None:
+        return preflight_findings
     try:
         with _UseRoot(root) as bound:
-            return _validate_with_root(owned_plan, bound, markdown, checked_profile)
+            return _validate_with_root(
+                owned_plan,
+                bound,
+                markdown,
+                checked_profile,
+                preflight,
+            )
     except RootUnavailable as exc:
         return _root_unavailable(exc)
 
 
 def _validate_with_root(
-    plan: Mapping[str, Any], bound: ConfinedRootV1, markdown: str | None, profile: PlanValidationProfileV1
+    plan: Mapping[str, Any],
+    bound: ConfinedRootV1,
+    markdown: str | None,
+    profile: PlanValidationProfileV1,
+    preflight: PurePlanPreflightV1,
 ) -> list[PlanFinding]:
-    findings = _validate_top_level(plan)
-    if findings:
-        return findings
-    registry_preflight = [
-        *_validate_rows(plan["finding_registry"], FINDING_ROWS)[0],
-        *_validate_rows(plan["unresolved_policies"], POLICY_ROWS)[0],
-        *_validate_rows(plan["heavy_gates_requiring_runpod"], HEAVY_GATE_ROWS)[0],
-    ]
-    if registry_preflight:
-        return sorted(
-            registry_preflight,
-            key=lambda item: (item.rule_id, item.subject, item.evidence),
-        )
-    tasks = plan["tasks"]
-    vocabulary = PlanVocabularyV1(
-        _row_ids(plan["finding_registry"], "finding_id"), _row_ids(plan["unresolved_policies"], "policy_id"), profile.repin_tasks
-    )
-    task_preflight, well_formed = _preflight_tasks_v1(tasks, vocabulary)
-    if task_preflight:
-        return sorted(
-            task_preflight, key=lambda item: (item.rule_id, item.subject, item.evidence)
-        )
-    pure_preflight = [
-        *_validate_phases(plan),
-        *_validate_finding_registry(plan, well_formed),
-        *_validate_rows(plan["unresolved_policies"], POLICY_ROWS)[0],
-        *_validate_vm_gate_status(plan, well_formed),
-        *_preflight_live_gates_v1(plan),
-        *_validate_external_gates(plan),
-        *_validate_rows(plan["heavy_gates_requiring_runpod"], HEAVY_GATE_ROWS)[0],
-        *_validate_receipt(plan),
-    ]
-    if pure_preflight:
-        return sorted(
-            pure_preflight, key=lambda item: (item.rule_id, item.subject, item.evidence)
-        )
+    findings: list[PlanFinding] = []
+    tasks = preflight.tasks
+    vocabulary = preflight.vocabulary
     cache = ValidationObservationCacheV1.empty()
     for index, task in enumerate(tasks):
         findings.extend(
@@ -2906,6 +3006,14 @@ def _plan_effects(
     require_registry_set: bool,
     context: ExecutionContextV1 | None = None,
 ) -> tuple[tuple[LiveGateEffectV1, ...], list[PlanFinding]]:
+    gate_preflight = _preflight_gate_rows_v1(
+        gates, require_registry_set=require_registry_set
+    )
+    if gate_preflight:
+        return (), sorted(
+            gate_preflight,
+            key=lambda item: (item.rule_id, item.subject, item.evidence),
+        )
     if not isinstance(root, ConfinedRootV1) or not root.is_open:
         return (), [PlanFinding("root_unavailable", "root", "effects require an open persistent root capability")]
     owns_context = context is None
@@ -2931,9 +3039,11 @@ def _plan_effects(
     if findings:
         _close_owned_context_v1(context, owns_context)
         return (), findings
-    if not isinstance(gates, list):
+    if type(gates) is not list:
         _close_owned_context_v1(context, owns_context)
-        return (), [PlanFinding("live_gates_malformed", "live_gates", "must be a list")]
+        return (), [
+            PlanFinding("live_gates_malformed", "live_gates", "must be an exact list")
+        ]
     effects: list[LiveGateEffectV1] = []
     for index, gate in enumerate(gates):
         effect, row_findings = _gate_effect(

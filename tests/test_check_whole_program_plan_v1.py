@@ -1248,6 +1248,168 @@ def test_plan_validation_refuses_hostile_recursive_string_subclasses() -> None:
     assert findings[0].subject.endswith(".status")
 
 
+def test_private_donor_validator_rejects_integer_beyond_decode_bound() -> None:
+    """The in-process donor boundary enforces the file decoder's integer bound."""
+
+    snapshot = json.loads(
+        (ROOT / checker_module.DONOR_PROVENANCE_PATH).read_text(encoding="utf-8")
+    )
+    snapshot["captured_at"] = 10**5000
+
+    with ConfinedRootV1.bind(ROOT) as bound:
+        findings = checker_module._validate_donor_provenance_content_v1(
+            snapshot, bound
+        )
+
+    assert [finding.rule_id for finding in findings] == [
+        "donor_snapshot_value_not_owned"
+    ]
+
+
+def test_public_plan_validator_rejects_integer_beyond_decode_bound() -> None:
+    """The public plan API returns a typed finding for an oversized exact integer."""
+
+    plan = _plan()
+    plan["vm_gate_status"][0]["gate_id"] = 10**5000
+
+    findings = validate_plan_v1(plan, root=ROOT, markdown=None)
+
+    assert [finding.rule_id for finding in findings] == ["plan_value_not_owned"]
+    assert findings[0].subject.endswith(".gate_id")
+
+
+@pytest.mark.parametrize(
+    ("value_offset", "sign", "ownership_rejected"),
+    [
+        (-1, 1, False),
+        (0, 1, True),
+        (-1, -1, False),
+        (0, -1, True),
+    ],
+)
+def test_public_integer_ownership_matches_decoder_digit_bva(
+    value_offset: int, sign: int, ownership_rejected: bool
+) -> None:
+    """The in-process API and byte decoder agree at both signed neighbors."""
+
+    limit = 10 ** checker_module.PLAN_JSON_LIMITS_V1.max_integer_digits
+    plan = _plan()
+    plan["vm_gate_status"][0]["gate_id"] = sign * (limit + value_offset)
+
+    findings = validate_plan_v1(plan, root=ROOT, markdown=None)
+    rules = {finding.rule_id for finding in findings}
+
+    assert ("plan_value_not_owned" in rules) is ownership_rejected
+
+
+@pytest.mark.parametrize(
+    "hostile_value",
+    [
+        pytest.param(
+            "x" * (checker_module.PLAN_JSON_LIMITS_V1.max_bytes + 1),
+            id="aggregate-byte-limit-next",
+        ),
+        pytest.param("\ud800", id="lone-surrogate"),
+    ],
+)
+def test_public_string_ownership_rejects_before_root_binding(
+    hostile_value: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Oversized or non-UTF-8 strings stay outside the owned plan boundary."""
+
+    plan = _plan()
+    plan["vm_gate_status"][0]["gate_id"] = hostile_value
+    calls: list[object] = []
+
+    def refuse_bind(
+        cls: type[ConfinedRootV1], root: object
+    ) -> ConfinedRootV1:
+        calls.append((cls, root))
+        raise checker_module.RootUnavailable("root bind must not run")
+
+    monkeypatch.setattr(ConfinedRootV1, "bind", classmethod(refuse_bind))
+
+    findings = validate_plan_v1(plan, root=ROOT, markdown=None)
+
+    assert calls == []
+    assert [finding.rule_id for finding in findings] == ["plan_value_not_owned"]
+
+
+@pytest.mark.parametrize("invalid_kind", ("task", "evidence", "live-gate"))
+def test_public_multiplicity_preflight_precedes_root_binding(
+    invalid_kind: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every closed-set multiplicity defect rejects before filesystem effects."""
+
+    plan = copy.deepcopy(_plan())
+    if invalid_kind == "task":
+        plan["tasks"] = [
+            copy.deepcopy(plan["tasks"][0]),
+            copy.deepcopy(plan["tasks"][0]),
+        ]
+        expected_rule = "task_id_duplicate"
+    elif invalid_kind == "evidence":
+        evidence = copy.deepcopy(plan["tasks"][0]["evidence"][0])
+        plan["tasks"][0]["evidence"] = [
+            copy.deepcopy(evidence),
+            copy.deepcopy(evidence),
+        ]
+        expected_rule = "task_evidence_duplicate"
+    else:
+        plan["live_gates"][-1] = copy.deepcopy(plan["live_gates"][0])
+        expected_rule = "live_gate_registry_set_mismatch"
+    calls: list[object] = []
+
+    def refuse_bind(
+        cls: type[ConfinedRootV1], root: object
+    ) -> ConfinedRootV1:
+        calls.append((cls, root))
+        raise checker_module.RootUnavailable("root bind must not run")
+
+    monkeypatch.setattr(ConfinedRootV1, "bind", classmethod(refuse_bind))
+
+    findings = validate_plan_v1(plan, root=ROOT, markdown=None)
+
+    assert calls == []
+    assert expected_rule in {finding.rule_id for finding in findings}
+
+
+def test_direct_gate_multiplicity_preflight_precedes_context_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A duplicate full gate set cannot trigger Git or artifact context binding."""
+
+    gates = copy.deepcopy(_plan()["live_gates"])
+    gates.append(copy.deepcopy(gates[0]))
+    calls: list[str] = []
+
+    def refuse_context(
+        *_args: object, **_kwargs: object
+    ) -> tuple[None, list[checker_module.PlanFinding]]:
+        calls.append("context")
+        return None, [
+            checker_module.PlanFinding(
+                "context_binding_reached",
+                "live_gates",
+                "pure preflight must run first",
+            )
+        ]
+
+    monkeypatch.setattr(
+        checker_module, "_bind_execution_context_v1", refuse_context
+    )
+    with ConfinedRootV1.bind(ROOT) as bound:
+        effects, findings = checker_module.plan_live_gate_effects_v1(
+            gates, bound
+        )
+
+    assert effects == ()
+    assert calls == []
+    assert "live_gate_registry_set_mismatch" in {
+        finding.rule_id for finding in findings
+    }
+
+
 def _synthetic_repository(tmp_path: Path) -> tuple[Path, str]:
     repo = tmp_path / "repo"
     repo.mkdir()
