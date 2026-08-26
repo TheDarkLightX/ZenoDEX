@@ -243,3 +243,33 @@ def test_local_testnet_profile_quarantines_zusd_tau_wallet_lane() -> None:
     assert environment["ZUSD_TAU_WALLET_ALLOW_LOCAL_SIGNING"] == "false"
     assert environment["ZUSD_TAU_WALLET_AUTO_MINE"] == "false"
     assert "ZUSD_TAU_WALLET_API_ENABLED" not in lifecycle.LOCAL_TESTNET_ENABLED_LANES
+
+
+def test_operator_docs_do_not_advertise_quarantined_zusd_tau_wallet_as_mounted() -> None:
+    ui_status = (REPO_ROOT / "docs/ZENODEX_UI_SURFACE_STATUS_2026_05_20.md").read_text(
+        encoding="utf-8"
+    )
+    perps_plan = (REPO_ROOT / "docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md").read_text(
+        encoding="utf-8"
+    )
+    quickstart = (REPO_ROOT / "docs/LOCAL_TESTNET_QUICKSTART.md").read_text(encoding="utf-8")
+    normalized_ui_status = " ".join(ui_status.split())
+    normalized_perps_plan = " ".join(perps_plan.split())
+    normalized_quickstart = " ".join(quickstart.split())
+
+    prohibited_current_claims = (
+        "Live Tau wallet plus monetary-vault lanes",
+        "the mounted zUSD tab can submit through the Tau wallet bridge",
+        "The mounted non-demo zUSD UI now exposes both the stream `9` TauToken wallet",
+    )
+    combined = normalized_ui_status + normalized_perps_plan + normalized_quickstart
+    for claim in prohibited_current_claims:
+        assert claim not in combined
+    assert "Normal API startup refuses `/api/zusd/wallet/*`" in normalized_ui_status
+    assert "The stream `11` monetary-vault path remains mounted." in normalized_ui_status
+    assert (
+        "The stream `9` TauToken wallet transport path is unmounted."
+        in normalized_perps_plan
+    )
+    assert "Compose project: zenodex-local-testnet-v2-<hash32>" in normalized_quickstart
+    assert "The AutoTrader route and stream `9` zUSD Tau wallet are unmounted." in normalized_quickstart

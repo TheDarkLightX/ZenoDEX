@@ -1,0 +1,123 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-zzzzzzzzzz-zusd-operator-docs-drift-closure",
+  "created_date": "2026-08-26",
+  "claim_scope": "This append-only correction closes operator-documentation drift after the combined HTTP authority integration. The current UI status, perps completion notes, and local-testnet quickstart no longer advertise the quarantined stream 9 zUSD Tau wallet or AutoTrader as mounted. They state that normal startup refuses those routes, preserve the separate stream 11 monetary-vault mount, and document the versioned 128-bit Compose project identity.",
+  "change_kind": "evidence_correction",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "OPERATOR-DOCS-MATCH-ZUSD-TAU-STARTUP-REFUSAL",
+    "OPERATOR-DOCS-PRESERVE-ZUSD-MONETARY-NEIGHBOR",
+    "HISTORICAL-ZUSD-TAU-TESTS-DO-NOT-IMPLY-CURRENT-MOUNT"
+  ],
+  "failure_modes": [
+    "a current surface matrix says the stream 9 Tau wallet is live while startup refuses it",
+    "a perps plan tells operators that both zUSD routes are mounted",
+    "the local-testnet quickstart advertises AutoTrader or stream 9 zUSD smoke after those routes are quarantined",
+    "the quickstart retains the collision-prone legacy 32-bit Compose project identity",
+    "correcting stream 9 wording accidentally labels stream 11 monetary service unmounted",
+    "line wrapping bypasses an exact documentation assertion"
+  ],
+  "source_pins": [
+    {
+      "path": "docs/LOCAL_TESTNET_QUICKSTART.md",
+      "sha256": "f42408a1c3aa033ac03a4b342afd895cdc7a865fb36633dcab8abec03b097183"
+    },
+    {
+      "path": "docs/ZENODEX_UI_SURFACE_STATUS_2026_05_20.md",
+      "sha256": "10d451528139e3c34a40ff1ff7d30063363c3f540f827c7f2bfbc3e1f3c205bd"
+    },
+    {
+      "path": "docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md",
+      "sha256": "2020f8c85470f3cfae8367688e884d80f8dddca03f28d15bfce50379aeb2cd72"
+    },
+    {
+      "path": "src/integration/api_server.py",
+      "sha256": "bdc2dbd41b8f85dc9db26f05b8820e5cc9e58f24194c7f3e96727bb272132607"
+    },
+    {
+      "path": "docker-compose.local-testnet.yml",
+      "sha256": "6d0e8aa402645d1fcf043fde286e16b1642c2ee6fb99c608f119de40b1b5bc8c"
+    },
+    {
+      "path": "tools/zenoctl_testnet_local/manifest.py",
+      "sha256": "22d5978021f1d23815db256edf0e815ba50363d13382046a3538fb5b86f6283e"
+    },
+    {
+      "path": "tools/zenoctl_testnet_local/lifecycle.py",
+      "sha256": "1340c0ce00afb0d2e9955bc798be7cac7214a2360edada91cdfd090248fcc221"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/integration/test_api_server_main.py",
+      "sha256": "6b18fabd85bd5234486591556e8a9088fe94a8c0568a4c6f07d98f2a9eba746a",
+      "node_ids": [
+        "tests/integration/test_api_server_main.py::test_api_server_refuses_zusd_tau_wallet_mount_until_network_binding_and_reconciliation_exist",
+        "tests/integration/test_api_server_main.py::test_local_testnet_profile_quarantines_zusd_tau_wallet_lane",
+        "tests/integration/test_api_server_main.py::test_local_testnet_compose_disables_unsafe_adapters_and_reaches_server_construction",
+        "tests/integration/test_api_server_main.py::test_operator_docs_do_not_advertise_quarantined_zusd_tau_wallet_as_mounted"
+      ]
+    },
+    {
+      "path": "tests/integration/test_zenoctl_testnet_local.py",
+      "sha256": "96a1bb70383eaa2c547283702526ebd1ffccfc64e1d4da5c6d15c31c174d9f28",
+      "node_ids": [
+        "tests/integration/test_zenoctl_testnet_local.py::test_manifest_rejects_quarantined_zusd_tau_wallet_lane",
+        "tests/integration/test_zenoctl_testnet_local.py::test_strict_browser_smoke_cases_include_local_fixture_zk_proof",
+        "tests/integration/test_zenoctl_testnet_local.py::test_lane_readiness_keeps_stack_ready_when_only_tokenomics_gate_blocks",
+        "tests/integration/test_zenoctl_testnet_local.py::test_feature_smoke_omits_quarantined_autotrader_and_zusd_tau_wallet_lanes"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "bdd_scenario",
+    "negative_regression",
+    "boundary",
+    "differential"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "The test arranges the two operator documents and current startup/deployment sources; acts by normalizing rendered prose independently of line wrapping; then rejects three stale mounted claims and requires exact stream 9 quarantine plus stream 11 preservation statements."
+  },
+  "reject_is_noop": {
+    "status": "not_applicable",
+    "reason": "This correction changes documentation and its conformance test. Runtime rejection semantics are unchanged and remain covered by the pinned startup and launcher tests."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "zUSD_route",
+      "points": [
+        "stream_9_wallet_unmounted",
+        "stream_11_monetary_mounted",
+        "historical_stream_9_tests_labeled_noncurrent"
+      ]
+    },
+    {
+      "name": "document_rendering",
+      "points": [
+        "single_line_claim",
+        "line_wrapped_claim_normalized_before_assertion"
+      ]
+    },
+    {
+      "name": "localtest_operator_contract",
+      "points": [
+        "versioned_128_bit_compose_identity",
+        "mounted_smoke_routes_listed",
+        "quarantined_routes_explicitly_omitted"
+      ]
+    }
+  ],
+  "mutations": [],
+  "nonclaims": [
+    "This packet corrects operator-facing authority wording and does not add or remove a runtime route.",
+    "The stream 9 implementation remains direct shadow/donor material and receives no settlement or deployment authority.",
+    "The stream 11 monetary path has separate unresolved production-readiness obligations beyond its current mounted local/testnet status.",
+    "No executable semantic-mutation campaign was run, so mutation evidence is intentionally absent.",
+    "No whole-economy safety, production-readiness, or value-movement guarantee is made.",
+    "Production authority remains NONE."
+  ]
+}

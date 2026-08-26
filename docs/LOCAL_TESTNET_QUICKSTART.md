@@ -1,17 +1,17 @@
 # Local-Testnet Quickstart
 
 One command brings up a real local-testnet stack of ZenoDEX against live
-local backends. Every mounted UI tab exercises a real
-backend, end-to-end on your machine.
+local backends. Mounted actions exercise real local backends end-to-end on
+your machine. Retained UI surfaces can include routes that remain unavailable.
 
 ## What this gives you
 
 | Service | Role |
 |---|---|
 | **3-node ZenoLedger** (writer + forwarder + read-only follower) | Live spot routes (`/api/pools`, `/api/swap`), block production / sync / replay |
-| **Local Tau node** | Settlement validation; zUSD wallet bridge; perps wallet path |
+| **Local Tau node** | Settlement validation; zUSD monetary path; perps wallet path |
 | **Zeno Oracle service** | Oracle dashboard, freshness/reporter lifecycle, token-settlement |
-| **Stdlib API** | All other `/api/*` routes (zUSD wallet/monetary, perps wallet, autotrader, confidential) |
+| **Stdlib API** | Mounted `/api/*` routes for zUSD monetary, perps wallet, and confidential operations. Normal startup refuses the zUSD Tau wallet and AutoTrader routes. |
 | **UI + nginx** | The mounted dex-ui, single-origin path split, browser never sees bearer tokens |
 
 ## Prerequisites
@@ -66,15 +66,15 @@ When the stack is healthy you'll see:
 ZenoDEX local-testnet is up.
 
   UI:                http://127.0.0.1:18080
-  Compose project:   zenodex-local-testnet-<hash8>
+  Compose project:   zenodex-local-testnet-v2-<hash32>
   Chain ID:          zeno-ledger-localtest-v0
   Manifest:          /tmp/zen-local/local_testnet_manifest.json
   Fixtures:          /tmp/zen-local/fixtures
   Key secrets:       /tmp/zen-local/secrets/keys.json
 ```
 
-Open <http://127.0.0.1:18080> in a browser. Every tab is wired to a real
-local backend.
+Open <http://127.0.0.1:18080> in a browser. Mounted actions are wired to real
+local backends. The AutoTrader route and stream `9` zUSD Tau wallet are unmounted.
 
 ## Lifecycle
 
@@ -83,7 +83,7 @@ local backend.
 | `zenoctl testnet local up --out-dir DIR [--zk-mode auto-strict\|strict\|open]` | Bring up the stack and seed initial state. If a manifest already exists in DIR, restart from the saved artifacts; pass `--force` to wipe and recreate. Default ZK posture is `auto-strict`. |
 | `zenoctl testnet local down --out-dir DIR` | Stop the stack. Preserves compose volumes, manifest, and fixtures. |
 | `zenoctl testnet local status --out-dir DIR [--json]` | Show stack health, per-service state, and per-lane readiness. |
-| `zenoctl testnet local smoke --out-dir DIR [--browser auto\|off\|required]` | Exercise live spot, zUSD, perps, Oracle, AutoTrader, confidential, and optional browser UI paths. Writes `<out-dir>/reports/local_smoke_report.json`. |
+| `zenoctl testnet local smoke --out-dir DIR [--browser auto\|off\|required]` | Exercise live spot, zUSD monetary, perps, Oracle, confidential, and optional browser UI paths. AutoTrader and the stream `9` zUSD Tau wallet are omitted. Writes `<out-dir>/reports/local_smoke_report.json`. |
 | `zenoctl testnet local release-smoke --out-dir DIR` | Exercise the public v0.1.16 flow: verify startup-funded fixture accounts, faucet `tAGRS`, deposit fake native AGRS collateral, mint `zUSD`, deposit perps collateral, open long/short, settle perps state, swap `tAGRS/tZDEX`, and verify live height plus header/config hashes. Writes `<out-dir>/reports/release_flow_smoke_report.json`. |
 | `zenoctl testnet local public [--no-open] [--no-release-smoke]` | Point-and-click public mode. Uses `~/.zenodex/public-testnet-v0.1.16` by default, validates the release flow, starts the Quick Tunnel, and opens the public UI. |
 | `zenoctl testnet local public-up --out-dir DIR` | Bring up the same stack and expose it through a Cloudflare Quick Tunnel. Writes `<out-dir>/reports/public_testnet_host_report.json` after the public URL is known. |
@@ -120,10 +120,10 @@ zenodex-local-testnet smoke --out-dir /tmp/zen-local --browser required
 
 This submits real local-testnet feature transactions through the running
 stack and then loads the UI in headless Chrome/Chromium. The backend checks
-cover spot swap, zUSD wallet transfer, zUSD monetary epoch advance, perps
-clearing-price publication, Oracle write flow, AutoTrader live prepare, and
-confidential runtime execution. The browser checks cover the mounted UI
-tabs for those same surfaces.
+cover spot swap, grouped transactions, zUSD monetary epoch advance, perps
+clearing-price publication, Oracle write flow, and confidential runtime
+execution. The browser checks cover the corresponding mounted actions.
+AutoTrader and the stream `9` zUSD Tau wallet remain outside this smoke path.
 
 Use `--browser off` for API-only verification on machines without Chrome.
 Use `--browser auto` to run UI checks when Chrome is available and skip them
@@ -232,9 +232,9 @@ tips, and `common_header_match: true`.
 | Tab / route | Backend | Notes |
 |---|---|---|
 | Spot pools | ZenoLedger writer (`/api/pools`, `/api/swap`) | Mutation auth: nginx injects the writer bearer; browser never holds it. |
-| zUSD wallet (Tau / monetary) | Stdlib API (`/api/zusd/*`) | Talks to local Tau. |
+| zUSD monetary | Stdlib API (`/api/zusd/monetary/*`) | Mounted stream `11` actions talk to local Tau. Normal startup refuses `/api/zusd/wallet/*`. |
 | Perps wallet | Stdlib API (`/api/perps/wallet/*`) | Authoritative live path. The perps grid in the UI remains preview-only. |
-| AutoTrader | Stdlib API (`/api/strategy/autotrader/*`) | Local supervisor profile is in fixtures. |
+| AutoTrader | Unmounted (`/api/strategy/autotrader/*` refused at startup) | UI retained; no local-testnet submission authority. |
 | Confidential | Stdlib API (`/api/confidential/*`) | Status and attestation routes. |
 | Oracle dashboard | Oracle service (`/api/oracle/*`) | Reverse-proxied through nginx (same-origin). |
 

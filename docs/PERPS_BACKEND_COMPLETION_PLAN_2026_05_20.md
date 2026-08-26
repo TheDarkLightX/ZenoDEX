@@ -72,10 +72,11 @@ checks, Tau RPC send-failure retry evidence, API-level node-restart replay
 evidence, and Docker Tau-node restart plus pause/retry evidence exist for the
 current local/testnet lane.
 
-The mounted non-demo zUSD UI now exposes both the stream `9` TauToken wallet
-transport path and the stream `11` monetary-vault path. The monetary path is
-served by `src/integration/zusd_monetary_wallet_api.py` under
-`/api/zusd/monetary/*` and mounted in
+The stream `9` TauToken wallet transport path is unmounted. Normal API startup
+refuses `/api/zusd/wallet/*` pending network-domain signature binding and
+durable submission reconciliation. The stream `11` monetary-vault path remains
+mounted. It is served by `src/integration/zusd_monetary_wallet_api.py` under
+`/api/zusd/monetary/*` and rendered by
 `tools/dex-ui/src/components/ZUSDMonetarySurface.jsx`.
 
 The demo HTTP wrapper `src/integration/zusd_api.py` remains demo/development

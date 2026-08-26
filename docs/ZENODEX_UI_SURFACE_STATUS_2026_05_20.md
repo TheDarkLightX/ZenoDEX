@@ -14,7 +14,7 @@ describe a currently mounted value-submission lane.
 | Surface | Mounted in UI | Default posture | Authoritative backend path | Browser evidence |
 | --- | --- | --- | --- | --- |
 | Swap / Pools | Yes | Live local/testnet spot lane | Yes, mounted spot path through local API and Tau-ledger flow | `tests/integration/test_dex_ui_live_bridge.py` |
-| zUSD | Yes | Live Tau wallet plus monetary-vault lanes | Yes for stream `9` transfer/mint/burn transport and stream `11` collateral mint, repay, redeem, stability pool, liquidation, and SP collateral claims. | `tests/integration/test_zusd_tau_wallet_ui_bridge.py`, `tests/integration/test_zusd_tau_wallet_ui_docker.py`, `tests/integration/test_zusd_monetary_wallet_ui_bridge.py`, `tests/integration/test_zusd_monetary_wallet_ui_docker.py`, `tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim` |
+| zUSD | UI retained; monetary lane mounted, Tau wallet route unmounted | Stream `11` collateral mint, repay, redeem, Stability Pool, liquidation, and SP collateral claims remain mounted through `/api/zusd/monetary/*`. Normal API startup refuses `/api/zusd/wallet/*` pending network-domain signature binding and durable submission reconciliation. | Current monetary evidence: `tests/integration/test_zusd_monetary_wallet_ui_bridge.py`, `tests/integration/test_zusd_monetary_wallet_ui_docker.py`, `tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim`. Historical stream `9` donor tests: `tests/integration/test_zusd_tau_wallet_ui_bridge.py`, `tests/integration/test_zusd_tau_wallet_ui_docker.py`. |
 | Oracle | Yes | Live local operator console with authority preflight | Yes for local read/write API routes, dashboard reads, a write-enabled receipt flow, `/api/oracle/authority` production-authority preflight, and a bounded `/api/oracle/authority/exercise/evaluate` receipt lane with receipt-binding and public-evidence binding hashes. Public-testnet authority exercise still requires concrete public broadcast references. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py`, `tests/integration/test_zeno_oracle_authority.py` |
 | Perpetuals | Yes | Read-only preview plus live wallet panel in non-demo mode | Yes for stream `8` two-party clearinghouse init, collateral deposit/withdraw, signed position updates, epoch advance, oracle price publish, and settle through `/api/perps/wallet/*`. The mounted `/api/perps/*` path remains demo/development. | `tests/integration/test_perps_ui_preview_lock.py`, `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, `tests/integration/test_perps_stream8_resilience.py` |
 | Strategy | UI retained; live route unmounted | Historical donor coverage only | Normal API startup refuses `/api/strategy/autotrader/*`, and the local-testnet manifest, readiness, feature smoke, and browser smoke omit it pending client-signed DEX intent envelopes and review. | Historical donor tests: `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_execution_journal.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
@@ -30,6 +30,11 @@ The next product-complete backend promotions still required are:
 1. public-testnet exercise of a signed production Oracle authority profile, full wallet/key-manager UX, and proof/ZK promotion for the mounted perps live lane;
 2. client-signed DEX intent envelopes, durable ambiguous-outcome reconciliation, and a reviewed strategy route before AutoTrader may be mounted;
 3. confidential runtime privacy beyond the external-verifier attestation receipt, live-admission gate, and bounded redacted runtime receipt path.
+
+Normal API startup refuses `/api/zusd/wallet/*`. The stream `11`
+monetary-vault path remains mounted. The stream `9` transport implementation
+and its historical UI tests are direct shadow/donor material until the missing
+signature-domain and durable-reconciliation obligations close.
 
 Perps now has focused backend and browser evidence for a mounted live wallet
 lane. Collateral-minted zUSD can be transferred and used as the quote collateral
@@ -122,8 +127,6 @@ Run these from repo root:
 
 ```bash
 pytest -q \
-  tests/integration/test_zusd_tau_wallet_ui_bridge.py \
-  tests/integration/test_zusd_tau_wallet_ui_docker.py \
   tests/integration/test_zusd_monetary_wallet_ui_bridge.py \
   tests/integration/test_zusd_monetary_wallet_ui_docker.py \
   tests/integration/test_zeno_oracle_ui_bridge.py \
@@ -138,7 +141,6 @@ These checks prove:
   write-enabled local receipt flow when the service is started with
   `--allow-writes`, while an unreachable local Oracle service renders a
   fail-closed offline status and keeps authority blocked;
-- the mounted zUSD tab can submit through the Tau wallet bridge, including the local Docker Tau node lane;
 - the mounted zUSD tab can submit stream `11` monetary-vault actions through the Tau-node-backed API, including the local Docker Tau node lane;
 - the mounted perps tab fails closed to read-only preview by default for the demo trading grid in non-demo mode;
 - the mounted perps wallet panel can submit signed stream `8` clearinghouse init
@@ -216,15 +218,16 @@ RPC, and rendered the `sendtx`, preflight, signing mode, strategy surface, and
 consumed execution key evidence. These results do not describe a route admitted
 by current normal startup.
 
-Latest local browser pass on 2026-05-20:
+Historical mixed local browser pass on 2026-05-20:
 
 ```bash
 pytest -q tests/integration/test_zusd_tau_wallet_ui_bridge.py tests/integration/test_zusd_monetary_wallet_ui_bridge.py tests/integration/test_zeno_oracle_ui_bridge.py tests/integration/test_perps_ui_preview_lock.py tests/integration/test_confidential_ui_bridge.py
 pytest -q tests/integration/test_dex_ui_live_bridge.py
 ```
 
-Results: mounted non-spot browser checks `7 passed`; spot/pools browser checks
-`2 passed`.
+Results at that historical revision: non-spot browser checks `7 passed`;
+spot/pools browser checks `2 passed`. The stream `9` zUSD wallet result does
+not describe a route admitted by current normal startup.
 
 Latest Oracle offline fail-closed browser pass on 2026-05-21:
 
