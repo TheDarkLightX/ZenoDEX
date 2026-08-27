@@ -1,6 +1,7 @@
 use serde::Serialize;
 
 use crate::asset_transfer_lane_module::{
+    recompute_asset_transfer_lane_module_from_validated_accepted_v1,
     AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
 };
 use crate::canonical::{
@@ -10,12 +11,13 @@ use crate::canonical::{
 use crate::economic_command_authentication::AuthenticatedEconomicCommandV1;
 use crate::global_oracle_price_occurrence::VerifiedGlobalOraclePriceV1;
 use crate::lane_module_release_route_binding::{
-    bind_asset_transfer_lane_output_with_recomputed_v1,
-    bind_managed_asset_lifecycle_lane_output_with_recomputed_v1,
+    bind_asset_transfer_lane_output_structural_v1,
+    bind_managed_asset_lifecycle_lane_output_structural_v1,
     bind_perps_margin_lane_output_to_release_route_v1, PerpsMarginReleaseRouteBindingCandidateV1,
     ReleaseRouteBoundLaneTransitionV1,
 };
 use crate::managed_asset_lifecycle_lane_module::{
+    recompute_managed_asset_lifecycle_lane_module_from_validated_accepted_v1,
     ManagedAssetLifecycleLaneModuleAcceptedV1, ManagedAssetLifecycleLaneModuleInputV1,
 };
 use crate::perps_margin_lane_module::{
@@ -181,7 +183,6 @@ struct ReboundLaneModuleReceiptCandidateV1<'a> {
     lanes: &'a LaneRegistryV1,
     authenticated_command_binding_root: RootV1,
     module_journal: &'a LaneModuleTransitionJournalV1,
-    release_route_binding: &'a ReleaseRouteBoundLaneTransitionV1,
     rebound: ReleaseRouteBoundLaneTransitionV1,
     receipt: LaneModuleReceiptEnvelopeV1<'a>,
 }
@@ -190,9 +191,6 @@ fn verify_rebound_module_receipt_v1(
     candidate: ReboundLaneModuleReceiptCandidateV1<'_>,
     receipt_verifier: &dyn LaneModuleSuccinctReceiptVerifierV1,
 ) -> AbiResultV1<VerifiedLaneModuleTransitionV1> {
-    if candidate.release_route_binding.binding_root()? != candidate.rebound.binding_root()? {
-        return Err(AbiErrorV1::InvalidBinding("lane module structural binding"));
-    }
     if candidate.receipt.receipt_kind != ReceiptKindV1::SUCCINCT {
         return Err(AbiErrorV1::InvalidBinding("lane module receipt kind"));
     }
@@ -250,12 +248,22 @@ fn verify_rebound_module_receipt_v1(
     })
 }
 
+fn require_exact_release_route_binding_v1(
+    supplied: &ReleaseRouteBoundLaneTransitionV1,
+    rebound: &ReleaseRouteBoundLaneTransitionV1,
+) -> AbiResultV1<()> {
+    if supplied.binding_root()? != rebound.binding_root()? {
+        return Err(AbiErrorV1::InvalidBinding("lane module structural binding"));
+    }
+    Ok(())
+}
+
 pub fn verify_asset_transfer_lane_module_receipt_v1(
     candidate: AssetTransferLaneModuleReceiptCandidateV1<'_>,
     receipt_verifier: &dyn LaneModuleSuccinctReceiptVerifierV1,
 ) -> AbiResultV1<VerifiedLaneModuleTransitionV1> {
     let occurrence = candidate.authenticated_command.occurrence();
-    let (rebound, expected) = bind_asset_transfer_lane_output_with_recomputed_v1(
+    let rebound = bind_asset_transfer_lane_output_structural_v1(
         candidate.profile,
         candidate.lanes,
         candidate.coordinators,
@@ -264,12 +272,16 @@ pub fn verify_asset_transfer_lane_module_receipt_v1(
         candidate.module_input,
         candidate.accepted,
     )?;
+    require_exact_release_route_binding_v1(candidate.release_route_binding, &rebound)?;
+    let expected = recompute_asset_transfer_lane_module_from_validated_accepted_v1(
+        candidate.module_input,
+        candidate.accepted,
+    )?;
     verify_rebound_module_receipt_v1(
         ReboundLaneModuleReceiptCandidateV1 {
             lanes: candidate.lanes,
             authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
             module_journal: &expected.module_journal,
-            release_route_binding: candidate.release_route_binding,
             rebound,
             receipt: candidate.receipt,
         },
@@ -282,7 +294,7 @@ pub fn verify_managed_asset_lifecycle_lane_module_receipt_v1(
     receipt_verifier: &dyn LaneModuleSuccinctReceiptVerifierV1,
 ) -> AbiResultV1<VerifiedLaneModuleTransitionV1> {
     let occurrence = candidate.authenticated_command.occurrence();
-    let (rebound, expected) = bind_managed_asset_lifecycle_lane_output_with_recomputed_v1(
+    let rebound = bind_managed_asset_lifecycle_lane_output_structural_v1(
         candidate.profile,
         candidate.lanes,
         candidate.coordinators,
@@ -291,12 +303,16 @@ pub fn verify_managed_asset_lifecycle_lane_module_receipt_v1(
         candidate.module_input,
         candidate.accepted,
     )?;
+    require_exact_release_route_binding_v1(candidate.release_route_binding, &rebound)?;
+    let expected = recompute_managed_asset_lifecycle_lane_module_from_validated_accepted_v1(
+        candidate.module_input,
+        candidate.accepted,
+    )?;
     verify_rebound_module_receipt_v1(
         ReboundLaneModuleReceiptCandidateV1 {
             lanes: candidate.lanes,
             authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
             module_journal: &expected.module_journal,
-            release_route_binding: candidate.release_route_binding,
             rebound,
             receipt: candidate.receipt,
         },
@@ -324,12 +340,12 @@ pub fn verify_perps_margin_lane_module_receipt_v1(
         },
     )?;
     let expected = recompute_perps_margin_accepted_v1(candidate.module_input, candidate.accepted)?;
+    require_exact_release_route_binding_v1(candidate.release_route_binding, &rebound)?;
     verify_rebound_module_receipt_v1(
         ReboundLaneModuleReceiptCandidateV1 {
             lanes: candidate.lanes,
             authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
             module_journal: &expected.module_journal,
-            release_route_binding: candidate.release_route_binding,
             rebound,
             receipt: candidate.receipt,
         },
