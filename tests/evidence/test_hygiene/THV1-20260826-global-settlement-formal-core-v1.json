@@ -1,0 +1,184 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260826-global-settlement-formal-core-v1",
+  "created_date": "2026-08-26",
+  "claim_scope": "Research-only structural evidence for part of GlobalSettlementABI V1. Lean proves closed abstract lane/effect/reject enumerations, per-asset issue and burn projections, accepted evidence by construction, abstract rejection reduction, and ordered-plan laws. ESSO with Z3 and CVC5 proves initialization and one-step inductiveness of one finite invariant conjunction over a two-asset bounded model. Executable differential tests bind selected enum, sign, projection, application, reject-projection, and mutation observations to the pinned Python surface.",
+  "change_kind": "assurance_infrastructure",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "GSV1-LEAN-CLOSED-ENUMERATIONS",
+    "GSV1-LEAN-PER-ASSET-ISSUE-BURN-SEPARATION",
+    "GSV1-LEAN-ACCEPTED-EVIDENCE-BY-CONSTRUCTION",
+    "GSV1-LEAN-ABSTRACT-REJECT-REDUCTION",
+    "GSV1-ESSO-FINITE-CONSERVATION-CONJUNCTION",
+    "GSV1-ESSO-REJECT-PROJECTION-NOOP-EMPTY-ROWS",
+    "GSV1-FORMAL-EVIDENCE-FAIL-CLOSED"
+  ],
+  "failure_modes": [
+    "a lane, effect kind, or abstract reject code silently drifts from the pinned Python enumeration",
+    "issue and burn are admitted only by a net delta, allowing a paired issue-burn substitution",
+    "an accepted abstract outcome can be constructed without well-formedness, application, and non-negativity evidence",
+    "a rejected bounded step mutates an authoritative accounting or replay field or emits an economic row",
+    "an ESSO result with a changed IR, solver disagreement, extra or missing query, inconclusive result, changed toolchain revision, or changed fingerprint is admitted",
+    "a proof placeholder, custom axiom declaration, unsafe declaration, missing proof, or empty proof file passes the repository scanner",
+    "bounded model behavior drifts from the independent reference transition while its internal invariants still pass"
+  ],
+  "source_pins": [
+    {
+      "path": "lean-mathlib/Proofs.lean",
+      "sha256": "2cb8e42e0bac5b2f47877ac201fc1641db2f78e41778906b4897ca82fffed000"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalSettlementCoreV1.lean",
+      "sha256": "70fa4eae3de6a4d08fe3cea48b01893ab666aa0540fa0002985926f984183e40"
+    },
+    {
+      "path": "lean-mathlib/Proofs/GlobalSettlementCoreV1Challenge.lean",
+      "sha256": "a3c2f0b22419e30b16e845bc5e7b2c9100e1eed45a15c6536c66b9ff501e0f0b"
+    },
+    {
+      "path": "tools/scan_lean_proof_placeholders_v1.py",
+      "sha256": "98cacda16ef965eef3a0100f3e017978cadaeb94a5f0299d0643648ce9b215bc"
+    },
+    {
+      "path": "src/kernels/dex/global_settlement_core_v1.yaml",
+      "sha256": "121972779c7ac2f06dee1a6970498ab6b8e17c80c3050342648d8d2d432a2b7d"
+    },
+    {
+      "path": "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
+      "sha256": "5eb23a72b9c1c0d565ad7041fb2bd1de0b576c748264a43f01f46af0027d1ce1"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/formal/test_lean_global_settlement_core_v1.py",
+      "sha256": "6f4f84746d86ae7e1aba0e8de24d8898a647dd3c527eed7d507475cbbd0d0658",
+      "node_ids": [
+        "tests/formal/test_lean_global_settlement_core_v1.py::test_lean_target_compiles_without_warnings",
+        "tests/formal/test_lean_global_settlement_core_v1.py::test_lean_targets_have_no_placeholders_with_axiom_checking",
+        "tests/formal/test_lean_global_settlement_core_v1.py::test_proof_names_every_unmodeled_accepted_transition_field",
+        "tests/formal/test_lean_global_settlement_core_v1.py::test_sign_admission_matches_python_for_every_kind_and_bound",
+        "tests/formal/test_lean_global_settlement_core_v1.py::test_paired_weakening_of_issue_positivity_is_killed",
+        "tests/formal/test_lean_global_settlement_core_v1.py::test_per_asset_projection_matches_python",
+        "tests/formal/test_lean_global_settlement_core_v1.py::test_plan_application_matches_python_conservation_rows",
+        "tests/formal/test_lean_global_settlement_core_v1.py::test_rejection_projection_matches_python_reject_discipline",
+        "tests/formal/test_lean_global_settlement_core_v1.py::test_net_preserving_substitution_witness_matches_python"
+      ]
+    },
+    {
+      "path": "tests/formal/test_scan_lean_proof_placeholders_v1.py",
+      "sha256": "cfe30eb764a77c3a67c3a15859ea1e1c1c5ddf7cb4e6dd5a9601d2f62e2e7d70",
+      "node_ids": [
+        "tests/formal/test_scan_lean_proof_placeholders_v1.py::test_sorry_in_tactic_position_blocks",
+        "tests/formal/test_scan_lean_proof_placeholders_v1.py::test_axiom_declaration_blocks_by_default",
+        "tests/formal/test_scan_lean_proof_placeholders_v1.py::test_unsafe_declaration_blocks",
+        "tests/formal/test_scan_lean_proof_placeholders_v1.py::test_native_decide_blocks",
+        "tests/formal/test_scan_lean_proof_placeholders_v1.py::test_empty_and_whitespace_only_proofs_fail_closed",
+        "tests/formal/test_scan_lean_proof_placeholders_v1.py::test_repository_proof_targets_are_clean"
+      ]
+    },
+    {
+      "path": "tests/formal/test_esso_global_settlement_core_v1.py",
+      "sha256": "726226e0afec9caf19ea8df2ac3585c9f83c37c31629e91dcb0fbdffe0fe4784",
+      "node_ids": [
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_model_declares_exactly_the_twelve_stable_lane_ids_in_canonical_order",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_reference_oracle_matches_the_model_on_every_table_case_and_a_fresh_box",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_esso_evidence_admission_fails_closed",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_esso_verify_multi_reports_verified_or_evidence_is_incomplete",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_open_then_drain_terminal_obligation_conserves_holdings",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_each_reject_class_is_an_authoritative_projection_noop_with_empty_rows",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_bva_amount_zero_rejects_and_one_atom_accepts",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_bva_maximum_neighbour_accepts_and_overflow_rejects",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_bva_height_horizon_neighbour_accepts_and_horizon_rejects",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_sequential_composition_preserves_per_asset_equations",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_step_is_deterministic_for_identical_inputs",
+        "tests/formal/test_esso_global_settlement_core_v1.py::test_every_named_mutant_is_killed_by_the_bounded_boxes"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "property",
+    "differential",
+    "stateful",
+    "mutation",
+    "formal",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Focused scenario and negative tests arrange an explicit book, command, proof file, or evidence payload; act through one transition, compiler, scanner, or admission function; and assert exact effects, rejection labels, projection state, or fail-closed error. Property, differential, stateful, and formal nodes keep their native invariant-oriented shape."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "For the finite ESSO model, every named rejection preserves exactly the sixteen-field AUTHORITATIVE_PROJECTION and emits zero economic rows. Evidence-journal fields may change. The Lean theorem proves only reduction to the same abstract AssetBook and identity abstract plan. No full runtime state-root or history no-op is claimed."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "entry_delta_sign",
+      "points": ["-1", "0", "+1"]
+    },
+    {
+      "name": "amount_and_balance",
+      "points": ["zero rejects", "one atom accepts", "exact payer balance accepts", "one atom short rejects", "post-width overflow rejects"]
+    },
+    {
+      "name": "height_and_occurrence",
+      "points": ["fresh current-height occurrence", "stale lower and higher height", "last fresh identity", "duplicate identity", "horizon neighbor", "horizon overflow"]
+    },
+    {
+      "name": "registry_and_asset_separation",
+      "points": ["each of twelve lanes", "unknown lane 12", "asset a", "asset b", "cross-asset isolation"]
+    },
+    {
+      "name": "proof_input_shape",
+      "points": ["clean proof", "placeholder in tactic position", "placeholder word in prose", "missing path", "non-Lean suffix", "zero-byte proof", "whitespace-only proof"]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "drop strict positivity for ISSUE and admit a negative issue row",
+      "killed_by": "tests/formal/test_lean_global_settlement_core_v1.py::test_paired_weakening_of_issue_positivity_is_killed"
+    },
+    {
+      "description": "replace per-asset accounting with a cross-asset scalar sum",
+      "killed_by": "tests/formal/test_esso_global_settlement_core_v1.py::test_every_named_mutant_is_killed_by_the_bounded_boxes"
+    },
+    {
+      "description": "omit a burn, burn row, fee residue, or residue row",
+      "killed_by": "tests/formal/test_esso_global_settlement_core_v1.py::test_every_named_mutant_is_killed_by_the_bounded_boxes"
+    },
+    {
+      "description": "apply economic effects on a rejected command",
+      "killed_by": "tests/formal/test_esso_global_settlement_core_v1.py::test_each_reject_class_is_an_authoritative_projection_noop_with_empty_rows"
+    },
+    {
+      "description": "swap destination accounting buckets while preserving scalar conservation",
+      "killed_by": "tests/formal/test_esso_global_settlement_core_v1.py::test_reference_oracle_matches_the_model_on_every_table_case_and_a_fresh_box"
+    },
+    {
+      "description": "bypass authorization, stale replay, or occurrence consumption",
+      "killed_by": "tests/formal/test_esso_global_settlement_core_v1.py::test_every_named_mutant_is_killed_by_the_bounded_boxes"
+    },
+    {
+      "description": "change rejection precedence while retaining rejection",
+      "killed_by": "tests/formal/test_esso_global_settlement_core_v1.py::test_every_named_mutant_is_killed_by_the_bounded_boxes"
+    },
+    {
+      "description": "hide a proof obligation in an empty or placeholder-bearing proof file",
+      "killed_by": "tests/formal/test_scan_lean_proof_placeholders_v1.py::test_empty_and_whitespace_only_proofs_fail_closed"
+    }
+  ],
+  "nonclaims": [
+    "This packet establishes no production, settlement, release, migration, proof-receipt, or value-moving authority.",
+    "The Lean model is an abstraction of part of GlobalEconomicEffectPlanV1. It does not prove canonical rows, roots, lane writes, occurrence consumption, external outbox behavior, terminal-obligation lifecycle, integer bounds, or Python/Rust/RISC0 refinement.",
+    "The ESSO result proves initialization and one-step inductiveness of the invariant conjunction for its finite two-asset model. It does not prove each invariant independently or establish runtime refinement.",
+    "The bounded model leaves command-lane compatibility, unknown-asset policy, authorization derivation, terminal-obligation identities, canonical hashes, production widths, fee-residue mapping, and runtime refinement open.",
+    "The current Python refinement rejects nonzero carried fee residue because no state-bearing mapping exists. The ESSO residue location is a documented candidate, not an implemented runtime rule.",
+    "The aggregate Proofs.lean target has a pre-existing missing Proofs.DeltaAccounting import outside this change; only the two new proof targets are admitted here.",
+    "Passing these tests and formal checks does not guarantee all ZenoDEX value movement."
+  ]
+}

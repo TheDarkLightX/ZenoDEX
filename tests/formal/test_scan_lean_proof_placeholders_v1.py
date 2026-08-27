@@ -174,6 +174,16 @@ def test_non_proof_suffix_fails_closed(tmp_path: Path) -> None:
     assert "not a .lean proof file" in payload["error"]
 
 
+def test_empty_and_whitespace_only_proofs_fail_closed(tmp_path: Path) -> None:
+    for name, body in (("Empty.lean", ""), ("Whitespace.lean", " \n\t")):
+        target = _write(tmp_path, name, body)
+        code, payload = _run(str(target))
+        assert code == 2
+        assert payload["blocked"] is True
+        assert payload["matches"] == []
+        assert "empty or whitespace-only proof file" in payload["error"]
+
+
 def test_directory_without_proof_files_fails_closed(tmp_path: Path) -> None:
     empty = tmp_path / "empty"
     empty.mkdir()

@@ -203,6 +203,7 @@ def test_proof_names_every_unmodeled_accepted_transition_field() -> None:
     for field in sorted(fields - modeled):
         assert field in core, f"proof must name {field} as unmodeled"
     assert set(UNMODELED_ACCEPTED_FIELDS) == fields - modeled
+    assert "These six fields are **not modeled**" in core
 
 
 def test_proof_names_every_unmodeled_rejected_transition_field() -> None:

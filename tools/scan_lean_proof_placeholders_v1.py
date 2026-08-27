@@ -12,9 +12,9 @@ admission gating:
     optional attributes and modifiers, so the words are not flagged inside
     identifiers or prose.
 3.  Every path problem is an error, not a skip. A missing path, an explicitly
-    passed non-proof file, an unreadable file, or a directory containing no
-    proof files all exit non-zero. A scan that examined nothing never reports
-    success.
+    passed non-proof file, an unreadable file, an empty or whitespace-only
+    proof file, or a directory containing no proof files all exit non-zero. A
+    scan that examined nothing never reports success.
 
 Exit codes:
     0   every scanned file is clean
@@ -211,6 +211,8 @@ def main(argv: list[str] | None = None) -> int:
                 text = file_path.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError) as exc:
                 raise ScanError(f"cannot read {file_path}: {exc}") from exc
+            if not text.strip():
+                raise ScanError(f"empty or whitespace-only proof file: {file_path}")
             matches.extend(scan_text(str(file_path), text, check_axioms=check_axioms))
     except ScanError as exc:
         payload = {

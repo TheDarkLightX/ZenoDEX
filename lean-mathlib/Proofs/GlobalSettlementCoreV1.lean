@@ -43,7 +43,7 @@ about them:
 `LaneTransitionRejectedV1`. It is much smaller than either.
 
 `LaneTransitionAcceptedV1` has seven fields. Only `effects` has an analogue
-here, and only the partial one described above. These five are **not modeled**,
+here, and only the partial one described above. These six fields are **not modeled**,
 and no theorem mentions them:
 
 * `command_occurrence_id` — command identity and occurrence binding;
