@@ -108,7 +108,7 @@ fn guest_input() -> AssetLaneCoordinatorGuestInputV1 {
 }
 
 #[test]
-fn placeholder_lane_method_and_fake_module_receipt_reject_before_authority() {
+fn fake_module_receipt_rejects_before_proving_or_authority() {
     // Arrange
     let input = guest_input();
     let prepared = prepare_asset_lane_coordinator_v1(input.clone()).unwrap();
@@ -126,7 +126,7 @@ fn placeholder_lane_method_and_fake_module_receipt_reject_before_authority() {
     ));
     assert!(matches!(
         prove_asset_lane_coordinator_succinct_v1(&input, fake),
-        Err(AssetLaneCoordinatorHostErrorV1::PlaceholderMethod)
+        Err(AssetLaneCoordinatorHostErrorV1::ModuleReceiptKind)
     ));
 }
 
