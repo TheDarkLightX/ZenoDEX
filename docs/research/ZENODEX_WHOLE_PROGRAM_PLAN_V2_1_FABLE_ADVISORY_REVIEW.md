@@ -5,6 +5,13 @@ Authority effect: `NONE`
 Fable session: `49d6b6b2-89e3-43ce-b1c0-e97b6a262c1f`
 Raw report SHA-256: `6093fbaa06371bcf36d88825863055e9b35a5b1de583418ee70f62bcb58435fa`
 
+Correction recorded 2026-08-27: item 10 below is retained as historical
+advisory provenance and undercounted the manifest's four explicit exclusions
+as three. The manifest-derived minimum is 967 cells:
+`(103 + 4) * 9 + 4`. The deterministic plan checker now derives and validates
+that count. This correction grants no authority and does not rewrite Fable's
+raw report.
+
 ## Scope
 
 Fable reviewed Plan V2, its uncommitted admission files, the capability

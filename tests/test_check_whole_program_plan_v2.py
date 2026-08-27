@@ -7,7 +7,11 @@ from typing import Any, Callable
 
 import pytest
 
-from tools.check_whole_program_plan_v2 import REPO_ROOT, check_whole_program_plan_v2
+from tools.check_whole_program_plan_v2 import (
+    REPO_ROOT,
+    _manifest_scope_counts,
+    check_whole_program_plan_v2,
+)
 
 PLAN_PATH = REPO_ROOT / "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json"
 
@@ -51,6 +55,21 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
         "closed_value_movement_gate_count": 0,
         "findings": [],
     }
+
+
+def test_malformed_exclusion_row_cannot_collapse_the_derived_denominator() -> None:
+    manifest = json.loads(
+        (REPO_ROOT / "docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    manifest["explicit_exclusions"] = [7]
+    findings: list[str] = []
+
+    counts = _manifest_scope_counts(manifest, findings)
+
+    assert counts == (12, 103, 4, 0, 963)
+    assert "explicit exclusions must be nonempty and unique" in findings
 
 
 @pytest.mark.parametrize(
@@ -157,6 +176,12 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
             "semantic completeness estimation policy drift",
         ),
         (
+            lambda plan: plan["release_gate"]["required_capability_statuses"].remove(
+                "PROVED"
+            ),
+            "whole-program release gate contract drift",
+        ),
+        (
             lambda plan: plan["upstream_dependencies"][0].update(
                 {"observed_tree": "0" * 40}
             ),
@@ -229,7 +254,21 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
         ),
         (
             lambda plan: plan["baseline_verdict"].update(
-                {"minimum_release_evidence_cell_count": 966}
+                {
+                    "architecture_inventory": (
+                        "12_LANES_103_CAPABILITIES_4_REQUIRED_ROUTES_3_EXCLUSIONS"
+                    ),
+                    "strict_release_closure": (
+                        "0_OF_966_MANIFEST_DERIVED_MINIMUM_EVIDENCE_CELLS"
+                    ),
+                    "minimum_release_evidence_cell_count": 966,
+                    "minimum_release_evidence_cell_formula": (
+                        "103 capabilities * 9 required statuses + 4 routes * 9 "
+                        "required statuses + 3 exclusion certificates"
+                    ),
+                    "explicit_exclusion_count": 3,
+                    "unclosed_release_evidence_cell_count": 966,
+                }
             ),
             "manifest-derived release denominator or baseline telemetry drift",
         ),
