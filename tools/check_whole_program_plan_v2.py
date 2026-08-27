@@ -231,13 +231,13 @@ def _without_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object
     return result
 
 
-def _load_object(path: Path) -> Mapping[str, object]:
+def _load_object_bytes(data: bytes, source_name: str) -> Mapping[str, object]:
     value = json.loads(
-        path.read_text(encoding="utf-8"),
+        data.decode("utf-8"),
         object_pairs_hook=_without_duplicate_keys,
     )
     if type(value) is not dict:
-        raise TypeError(f"{path.name} root must be an object")
+        raise TypeError(f"{source_name} root must be an object")
     return value
 
 
@@ -366,12 +366,31 @@ def check_whole_program_plan_v2(
 ) -> dict[str, object]:
     findings: list[str] = []
     source = plan_path or root / DEFAULT_PLAN
+    capability_manifest_path = root / CAPABILITY_MANIFEST
+    completeness_review_path = root / COMPLETENESS_REVIEW
+    safety_claim_path = root / SAFETY_CLAIM
     try:
-        plan = _load_object(source)
-        capability_manifest = _load_object(root / CAPABILITY_MANIFEST)
-        completeness_review = _load_object(root / COMPLETENESS_REVIEW)
-        safety_claim_text = (root / SAFETY_CLAIM).read_text(encoding="utf-8")
-    except (OSError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        plan_bytes = source.read_bytes()
+        capability_manifest_bytes = capability_manifest_path.read_bytes()
+        completeness_review_bytes = completeness_review_path.read_bytes()
+        safety_claim_bytes = safety_claim_path.read_bytes()
+        plan = _load_object_bytes(plan_bytes, source.name)
+        capability_manifest = _load_object_bytes(
+            capability_manifest_bytes,
+            capability_manifest_path.name,
+        )
+        completeness_review = _load_object_bytes(
+            completeness_review_bytes,
+            completeness_review_path.name,
+        )
+        safety_claim_text = safety_claim_bytes.decode("utf-8")
+    except (
+        OSError,
+        TypeError,
+        ValueError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+    ) as exc:
         return {
             "schema": "zenodex/whole-program-plan-check/v2.1",
             "ok": False,
@@ -435,6 +454,10 @@ def check_whole_program_plan_v2(
     if _exact_ids(normative_inputs, "role") != EXPECTED_NORMATIVE_ROLES:
         findings.append("normative input role or scope semantics drift")
     if type(normative_inputs) is list:
+        cached_input_bytes = {
+            CAPABILITY_MANIFEST: capability_manifest_bytes,
+            SAFETY_CLAIM: safety_claim_bytes,
+        }
         for row in normative_inputs:
             if type(row) is not dict:
                 continue
@@ -444,17 +467,19 @@ def check_whole_program_plan_v2(
                 findings.append("normative input path or SHA-256 is invalid")
                 continue
             try:
-                actual_hash = hashlib.sha256(path.read_bytes()).hexdigest()
+                relative_path = path.relative_to(root)
+                input_bytes = cached_input_bytes.get(relative_path)
+                if input_bytes is None:
+                    input_bytes = path.read_bytes()
+                actual_hash = hashlib.sha256(input_bytes).hexdigest()
             except OSError as exc:
                 findings.append(f"normative input unreadable: {path.name}: {type(exc).__name__}")
                 continue
             if actual_hash != expected_hash:
                 findings.append(f"normative input hash drift: {path.relative_to(root)}")
 
-    review_hash = hashlib.sha256((root / COMPLETENESS_REVIEW).read_bytes()).hexdigest()
-    capability_manifest_sha256 = hashlib.sha256(
-        (root / CAPABILITY_MANIFEST).read_bytes()
-    ).hexdigest()
+    review_hash = hashlib.sha256(completeness_review_bytes).hexdigest()
+    capability_manifest_sha256 = hashlib.sha256(capability_manifest_bytes).hexdigest()
     if capability_manifest_sha256 != EXPECTED_CAPABILITY_MANIFEST_SHA256:
         findings.append("exact capability manifest source drift")
     review_expansions = _exact_ids(completeness_review.get("required_spec_expansions"), "id")
@@ -664,6 +689,14 @@ def check_whole_program_plan_v2(
         explicit_exclusion_count,
         minimum_release_evidence_cell_count,
     ) = _manifest_scope_counts(capability_manifest, findings)
+    expected_estimate_warning = (
+        "This is an immutable diagnosis of the implementation base. Live progress "
+        "belongs in exact-subject obligation and value-movement ledgers. The "
+        f"{minimum_release_evidence_cell_count}-cell count is a manifest-derived "
+        "minimum and expands when requirement, evidence, migration, or terminal rows "
+        "create additional obligations. Zero promoted cells is a release-evidence "
+        "result, not a product implementation estimate."
+    )
 
     verdict = plan.get("baseline_verdict")
     if type(verdict) is not dict or verdict.get("closed_value_movement_gates") != 0:
@@ -701,6 +734,7 @@ def check_whole_program_plan_v2(
             verdict.get("observed_release_closure_basis_points") != 0,
             verdict.get("scope_discovery_confidence")
             != "NOT_NUMERICALLY_ESTIMABLE_REQUIREMENTS_INCOMPLETE",
+            verdict.get("estimate_warning") != expected_estimate_warning,
             "PERCENT" in json.dumps(verdict, sort_keys=True),
         )
     ):

@@ -57,6 +57,27 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
     }
 
 
+def test_capability_manifest_is_read_once_for_parse_hash_and_counts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path = REPO_ROOT / "docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json"
+    original_read_bytes = Path.read_bytes
+    manifest_read_count = 0
+
+    def counted_read_bytes(path: Path) -> bytes:
+        nonlocal manifest_read_count
+        if path == manifest_path:
+            manifest_read_count += 1
+        return original_read_bytes(path)
+
+    monkeypatch.setattr(Path, "read_bytes", counted_read_bytes)
+
+    report = check_whole_program_plan_v2()
+
+    assert report["ok"] is True
+    assert manifest_read_count == 1
+
+
 def test_malformed_exclusion_row_cannot_collapse_the_derived_denominator() -> None:
     manifest = json.loads(
         (REPO_ROOT / "docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json").read_text(
@@ -255,6 +276,22 @@ def test_malformed_exclusion_row_cannot_collapse_the_derived_denominator() -> No
         (
             lambda plan: plan["baseline_verdict"].update(
                 {
+                    "estimate_warning": (
+                        "This is an immutable diagnosis of the implementation base. "
+                        "Live progress belongs in exact-subject obligation and "
+                        "value-movement ledgers. The 966-cell count is a "
+                        "manifest-derived minimum and expands when requirement, "
+                        "evidence, migration, or terminal rows create additional "
+                        "obligations. Zero promoted cells is a release-evidence "
+                        "result, not a product implementation estimate."
+                    )
+                }
+            ),
+            "manifest-derived release denominator or baseline telemetry drift",
+        ),
+        (
+            lambda plan: plan["baseline_verdict"].update(
+                {
                     "architecture_inventory": (
                         "12_LANES_103_CAPABILITIES_4_REQUIRED_ROUTES_3_EXCLUSIONS"
                     ),
@@ -268,6 +305,15 @@ def test_malformed_exclusion_row_cannot_collapse_the_derived_denominator() -> No
                     ),
                     "explicit_exclusion_count": 3,
                     "unclosed_release_evidence_cell_count": 966,
+                    "estimate_warning": (
+                        "This is an immutable diagnosis of the implementation base. "
+                        "Live progress belongs in exact-subject obligation and "
+                        "value-movement ledgers. The 966-cell count is a "
+                        "manifest-derived minimum and expands when requirement, "
+                        "evidence, migration, or terminal rows create additional "
+                        "obligations. Zero promoted cells is a release-evidence "
+                        "result, not a product implementation estimate."
+                    ),
                 }
             ),
             "manifest-derived release denominator or baseline telemetry drift",
