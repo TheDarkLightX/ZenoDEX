@@ -1,0 +1,25 @@
+{
+  "schema": "zenodex/active-whole-program-plan-registry/v1",
+  "status": "RESEARCH_ONLY",
+  "active_plan_count": 1,
+  "active_plans": [
+    {
+      "plan_schema": "zenodex/whole-program-plan/v2.1",
+      "plan_commit": "c52c71d01a3edf3e298a840d41345abdc2d6d26d",
+      "plan_tree": "7978c0df78428e806e5f19281df537fe1cfc7451",
+      "plan_path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json",
+      "plan_sha256": "8bbd05a875317fb75e4853f7babc3a91351e581f6d1ec7ed75db0e660ae4542f",
+      "admission_receipt_path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_ADMISSION_V1.json",
+      "admission_receipt_payload_sha256": "fdc2d69fe530e0098d66f4a9d5d6297296cdf896b0fb97beb0f959ae054be86d",
+      "activation_class": "ACTIVE_RESEARCH_IMPLEMENTATION_PLAN"
+    }
+  ],
+  "authority": {
+    "production_authority": "NONE",
+    "settlement_authority": "NONE",
+    "release_authority": "NONE",
+    "value_movement_authority": "NONE"
+  },
+  "replacement_rule": "A successor registry must bind one exact reviewed plan commit and its valid admission receipt. Concurrent active plans reject.",
+  "nonclaim": "Active means selected for research implementation coordination only."
+}

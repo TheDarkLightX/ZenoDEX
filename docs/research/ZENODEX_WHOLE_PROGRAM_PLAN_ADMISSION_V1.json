@@ -1,0 +1,82 @@
+{
+  "schema": "zenodex/plan-admission-receipt/v1",
+  "status": "ADMITTED_RESEARCH_IMPLEMENTATION_PLAN",
+  "admitted_plan": {
+    "schema": "zenodex/whole-program-plan/v2.1",
+    "commit": "c52c71d01a3edf3e298a840d41345abdc2d6d26d",
+    "parent": "87048abf3bed2adba0e316e4f9c2ea93f438aeb6",
+    "tree": "7978c0df78428e806e5f19281df537fe1cfc7451",
+    "plan_path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json",
+    "plan_sha256": "8bbd05a875317fb75e4853f7babc3a91351e581f6d1ec7ed75db0e660ae4542f"
+  },
+  "subject_files": [
+    {
+      "path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json",
+      "sha256": "8bbd05a875317fb75e4853f7babc3a91351e581f6d1ec7ed75db0e660ae4542f"
+    },
+    {
+      "path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.md",
+      "sha256": "da42739f085b3344d4a1240ea0a77fa91b9def05c5c6a530dad7d789d2e920f6"
+    },
+    {
+      "path": "tests/test_check_whole_program_plan_v2.py",
+      "sha256": "f58daad9829e7c6843c7a34caf010fdfd57f18e5f6ee0c21c6acf35726f3f695"
+    },
+    {
+      "path": "tools/check_whole_program_plan_v2.py",
+      "sha256": "468790671f6bc1e9bfe9925ffd03844bc35d47f98e0a9a9cdb18783f169f6a4d"
+    }
+  ],
+  "normative_inputs": [
+    {
+      "path": "docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json",
+      "sha256": "34930be9d4d69c4c46c7c97f57fd492d4c95061f8960f936261a8a3415d5db95"
+    },
+    {
+      "path": "docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md",
+      "sha256": "32985ee88b0b15a0b6ef1408e60ac1767f93e20eade434090011e144ecd56990"
+    },
+    {
+      "path": "docs/research/ZENODEX_M6_ASSET_PRECISION_POLICY_V1.json",
+      "sha256": "d1427502b4a6eea32fdc0895b9f872d13eea6dc9670cec2a117dcb9d96fdb815"
+    }
+  ],
+  "upstream_dependency_binding": {
+    "plan_field_sha256": "a1bccbf7e07520e9ad990ed904cb602b519e7a35310d3a75d2815b2545e6adb9",
+    "dependency_count": 2,
+    "evidence_class": "DECLARATIONS_FROM_ADMITTED_PLAN_NOT_REPLAYED_BY_THIS_CHECKER",
+    "authority": "NONE"
+  },
+  "selection_premise": {
+    "classification": "EXTERNAL_USER_DIRECTIVE_NOT_MACHINE_VERIFIED",
+    "selected_plan_commit": "c52c71d01a3edf3e298a840d41345abdc2d6d26d",
+    "scope": "RESEARCH_IMPLEMENTATION_COORDINATION_ONLY",
+    "authority": "NONE"
+  },
+  "advisory_review": {
+    "reviewer_class": "FABLE_5_HIGH",
+    "artifact_commit": "87048abf3bed2adba0e316e4f9c2ea93f438aeb6",
+    "artifact_blob": "638d1ed55d70ad410f86fa52dc4e5bb9b7980364",
+    "artifact_path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2_1_FABLE_ADVISORY_REVIEW.md",
+    "artifact_sha256": "a901dde42ab21685fdc76f910ab05f37219da033e1dfceee8783a65128832678",
+    "raw_report_sha256": "6093fbaa06371bcf36d88825863055e9b35a5b1de583418ee70f62bcb58435fa",
+    "verdict": "REVISE_CORRECTIONS_RECORDED",
+    "authority": "NONE",
+    "evidence_class": "HASH_BOUND_ADVISORY_ARTIFACT"
+  },
+  "authority": {
+    "production_authority": "NONE",
+    "settlement_authority": "NONE",
+    "release_authority": "NONE",
+    "value_movement_authority": "NONE"
+  },
+  "admission_scope": "The exact plan commit becomes the active research-only implementation plan. It may order work and evidence obligations. It cannot authorize settlement, value movement, release, migration, or production claims.",
+  "nonclaims": [
+    "This receipt is not a proof of architectural soundness.",
+    "This receipt does not close any value-movement gate or capability row.",
+    "The user-selection premise is external and not machine verified.",
+    "The upstream Tau dependencies and raw advisory report are referenced by admitted artifacts and are not independently replayed by this checker.",
+    "This receipt grants no production, settlement, release, migration, or value-moving authority."
+  ],
+  "receipt_payload_sha256": "fdc2d69fe530e0098d66f4a9d5d6297296cdf896b0fb97beb0f959ae054be86d"
+}
