@@ -417,11 +417,17 @@ def _require_profile_tau_source_bound_v1(paths: TauReplayPathsV1) -> None:
 
 def load_current_tau_compatibility_snapshot_v1(
     paths: TauReplayPathsV1,
+    *,
+    generation_source_commit: str | None = None,
 ) -> CurrentTauCompatibilitySnapshotV1:
     """Acquire exact Git objects and semantic observations for the pure core."""
 
     captured_head = _git_head_v1(paths.root)
-    implementation_commit = _implementation_subject_commit_v1(paths.root, captured_head)
+    if generation_source_commit is not None and generation_source_commit != captured_head:
+        _reject("GENERATION_SOURCE_DRIFT", "HEAD", "generation must bind current HEAD")
+    implementation_commit = generation_source_commit or _implementation_subject_commit_v1(
+        paths.root, captured_head
+    )
     for ancestor, code in ((ACTIVE_PLAN_COMMIT_V1, "ACTIVE_PLAN_ANCESTRY"),):
         if not _git_is_ancestor_v1(paths.root, ancestor, captured_head):
             _reject(code, "HEAD", "required source commit is not on current lineage")
@@ -475,8 +481,14 @@ def load_current_tau_compatibility_snapshot_v1(
     return snapshot
 
 
-def build_current_tau_compatibility_bytes_v1(paths: TauReplayPathsV1) -> bytes:
-    snapshot = load_current_tau_compatibility_snapshot_v1(paths)
+def build_current_tau_compatibility_bytes_v1(
+    paths: TauReplayPathsV1,
+    *,
+    generation_source_commit: str | None = None,
+) -> bytes:
+    snapshot = load_current_tau_compatibility_snapshot_v1(
+        paths, generation_source_commit=generation_source_commit
+    )
     return canonical_json_bytes_v1(build_current_tau_compatibility_artifact_v1(snapshot))
 
 
@@ -495,7 +507,10 @@ def main(argv: list[str] | None = None) -> int:
         args.historical_bridge_repo or args.tau_testnet_repo,
     )
     try:
-        data = build_current_tau_compatibility_bytes_v1(paths)
+        generation_source_commit = None if args.check else _git_head_v1(args.root)
+        data = build_current_tau_compatibility_bytes_v1(
+            paths, generation_source_commit=generation_source_commit
+        )
         target = args.root / JSON_OUTPUT
         if args.check:
             actual = _read_bounded_regular_file_v1(
