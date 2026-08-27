@@ -94,6 +94,7 @@ from src.core.lane_module_receipt_verification_v1 import (
 from src.core.lane_module_release_route_binding_v1 import (
     ManagedAssetLifecycleReleaseRouteBindingCandidateV1,
     ReleaseRouteBoundLaneTransitionV1,
+    _bind_managed_asset_lifecycle_lane_output_structural_v1,
     bind_asset_transfer_lane_output_to_release_route_v1,
     bind_managed_asset_lifecycle_lane_output_to_release_route_v1,
 )
@@ -1489,6 +1490,57 @@ def test_managed_receipt_structural_binding_rejects_coherent_foreign_output_firs
     # recomputation, and the cryptographic verifier is never invoked.
     with pytest.raises(ValueError, match="lane module structural binding mismatch"):
         verify_managed_asset_lifecycle_lane_module_receipt_v1(candidate, verifier)
+    assert verifier.calls == []
+
+
+def test_managed_receipt_recomputation_rejects_structurally_bound_foreign_output() -> None:
+    # Arrange: construct an amount+1 output and give it the matching structural
+    # witness for the honest input statement. This isolates semantic
+    # recomputation from the earlier structural-binding rejection.
+    governance, occurrence, module_input, _, _ = _accepted_managed_issue_with_binding()
+    foreign_input = replace(
+        module_input,
+        command=replace(
+            module_input.command,
+            amount_atoms=module_input.command.amount_atoms + 1,
+        ),
+    )
+    foreign = transition_managed_asset_lifecycle_lane_module_v1(foreign_input)
+    assert isinstance(foreign, ManagedAssetLifecycleLaneModuleAcceptedV1)
+    forged = _structurally_rebind_managed_statement(
+        foreign,
+        module_input.statement_root,
+    )
+    forged_bound = _bind_managed_asset_lifecycle_lane_output_structural_v1(
+        _managed_binding_candidate(
+            governance,
+            occurrence,
+            module_input,
+            forged,
+        )
+    )
+    verifier = _RecordingModuleReceiptVerifier()
+
+    # Act / Assert: a matching structural witness cannot replace semantic
+    # transition recomputation, and receipt verification remains unreachable.
+    with pytest.raises(
+        ValueError,
+        match="managed lifecycle supplied acceptance differs from recomputation",
+    ):
+        verify_managed_asset_lifecycle_lane_module_receipt_v1(
+            _managed_receipt_candidate(
+                governance,
+                occurrence,
+                module_input,
+                forged,
+                forged_bound,
+                LaneModuleReceiptEnvelopeV1(
+                    ReceiptKindV1.SUCCINCT,
+                    b"structurally-bound-foreign-managed-output",
+                ),
+            ),
+            verifier,
+        )
     assert verifier.calls == []
 
 
