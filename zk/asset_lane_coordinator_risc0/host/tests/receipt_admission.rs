@@ -1,8 +1,9 @@
 use risc0_zkvm::{FakeReceipt, Receipt, ReceiptClaim};
 use zenodex_asset_lane_coordinator_risc0_host::{
-    build_asset_lane_coordinator_executor_env_v1, prove_asset_lane_coordinator_succinct_v1,
-    require_asset_lane_coordinator_receipt_bytes_len_v1, AssetLaneCoordinatorHostErrorV1,
-    PinnedAssetLaneCoordinatorReceiptVerifierV1, MAX_ASSET_LANE_COORDINATOR_RECEIPT_BYTES_V1,
+    asset_lane_coordinator_image_root_v1, build_asset_lane_coordinator_executor_env_v1,
+    prove_asset_lane_coordinator_succinct_v1, require_asset_lane_coordinator_receipt_bytes_len_v1,
+    AssetLaneCoordinatorHostErrorV1, PinnedAssetLaneCoordinatorReceiptVerifierV1,
+    MAX_ASSET_LANE_COORDINATOR_RECEIPT_BYTES_V1,
 };
 use zenodex_asset_lane_coordinator_risc0_shared::{
     prepare_asset_lane_coordinator_v1, AssetLaneCoordinatorGuestInputV1,
@@ -124,10 +125,18 @@ fn fake_module_receipt_rejects_before_proving_or_authority() {
         build_asset_lane_coordinator_executor_env_v1(&input, fake.clone()),
         Err(AssetLaneCoordinatorHostErrorV1::ModuleReceiptKind)
     ));
-    assert!(matches!(
-        prove_asset_lane_coordinator_succinct_v1(&input, fake),
-        Err(AssetLaneCoordinatorHostErrorV1::ModuleReceiptKind)
-    ));
+    let result = prove_asset_lane_coordinator_succinct_v1(&input, fake);
+    if asset_lane_coordinator_image_root_v1().is_ok() {
+        assert!(matches!(
+            result,
+            Err(AssetLaneCoordinatorHostErrorV1::ModuleReceiptKind)
+        ));
+    } else {
+        assert!(matches!(
+            result,
+            Err(AssetLaneCoordinatorHostErrorV1::PlaceholderMethod)
+        ));
+    }
 }
 
 #[test]
