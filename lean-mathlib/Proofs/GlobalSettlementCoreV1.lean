@@ -37,6 +37,42 @@ about them:
   that a `LaneTransitionRejectedV1` returns the exact *root*. This file proves
   the analogous statement about the abstract book and abstract plan only.
 
+## The Outcome analogy, and what it leaves out
+
+`Outcome` is an analogy for `LaneTransitionAcceptedV1` and
+`LaneTransitionRejectedV1`. It is much smaller than either.
+
+`LaneTransitionAcceptedV1` has seven fields. Only `effects` has an analogue
+here, and only the partial one described above. These five are **not modeled**,
+and no theorem mentions them:
+
+* `command_occurrence_id` — command identity and occurrence binding;
+* `private_ports_root` — private port commitments;
+* `receipt_root` — receipts. Nothing here confers receipt authority;
+* `terminal_obligations` (`TerminalObligationV1`) — obligation identity,
+  claimant, asset, amount, and `TerminalObligationStatusV1` lifecycle;
+* `pre_state_root` / `post_state_root` — these are 32-byte roots, whereas
+  `AssetBook` is a per-asset balance function. Equality of books is not
+  equality of roots.
+
+`LaneTransitionRejectedV1` has four fields. `code` and the abstract plan have
+analogues; `pre_state_root` and `post_state_root` do not, for the same reason.
+So `rejected_emits_empty_abstract_plan` is not a full reject no-op claim.
+
+## Token and integer constraints, none of them modeled
+
+`Asset`, `Principal`, and `ControlDomain` are plain `String`. The Python
+`_require_token` rejects the empty string, anything above `MAX_TOKEN_BYTES_V1`
+UTF-8 bytes, and any character outside printable ASCII `0x21`–`0x7E`. Roots
+must additionally be 66 characters, lowercase, `0x`-prefixed 32-byte hex, and
+usually nonzero. None of that syntax or size discipline is expressed here: a
+`String` in this file may be empty, oversized, or non-ASCII.
+
+Integer widths are likewise unmodeled. Python enforces `MAX_ATOMS_V1` for
+`u128` fields, `MIN_DELTA_ATOMS_V1` and `MAX_DELTA_ATOMS_V1` for `i128`
+deltas, and `MAX_U64_V1` for counters. `Int` here is unbounded in both
+directions.
+
 ## Modeling decisions
 
 Every quantity is indexed by asset. Book columns are functions `Asset → Int`
@@ -1285,29 +1321,13 @@ theorem seqPlan_journal_not_commutative :
     JournalEntry.mk.injEq] at h
   exact absurd h.1.1 (by decide)
 
-/-! ## 14. Source-comparison vectors
+/-! ## 14. Source comparison
 
-Machine-readable vectors for an integrator test to compare against the Python
-enumerations. Each is *derived* from the corresponding Lean enumeration, so it
-cannot drift from the definitions above. These are string vectors for
-comparison only; they carry no semantic claim of their own. -/
-
-/-- Lane codes in canonical order, comma separated. -/
-def laneIdVectorV1 : String :=
-  String.intercalate "," (allLaneIds.map LaneId.code)
-
-/-- Effect-kind codes in declaration order, comma separated. -/
-def effectKindVectorV1 : String :=
-  String.intercalate "," (allEffectKinds.map EffectKind.code)
-
-/-- Reject codes in declaration order, comma separated. -/
-def rejectCodeVectorV1 : String :=
-  String.intercalate "," (allRejectCodes.map RejectCode.code)
-
-/-- The entry sign conventions enforced by `EntryWellFormed`, in the same
-machine-readable shape. -/
-def signConventionVectorV1 : String :=
-  "ISSUE:positive,BURN:negative,ANY:nonzero"
+Executable comparison output lives in `Proofs.GlobalSettlementCoreV1Challenge`,
+which derives every emitted field by evaluating the definitions above rather
+than by restating them as literals. That module also binds the intended
+signatures of the theorems in this file, so a weakening here fails to compile
+there. -/
 
 end GlobalSettlementCoreV1
 end Proofs

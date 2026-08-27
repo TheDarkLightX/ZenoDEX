@@ -105,6 +105,7 @@ import Proofs.GaloisSplitCertificate
 import Proofs.GamifiedRefundFairQueue
 import Proofs.GeneralizedSettlementCertificates
 import Proofs.GlobalSettlementCoreV1
+import Proofs.GlobalSettlementCoreV1Challenge
 import Proofs.GracefulDegradation
 import Proofs.GrossMarginSafety
 import Proofs.HybridCurveProperties

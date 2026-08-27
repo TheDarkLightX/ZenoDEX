@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -14,19 +16,25 @@ from src.core.global_settlement_types_v1 import (
     EconomicEffectRowV1,
     GlobalEconomicEffectPlanV1,
     LaneIdV1,
+    LaneTransitionAcceptedV1,
     LaneTransitionRejectCodeV1,
+    LaneTransitionRejectedV1,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
 LEAN_DIR = ROOT / "lean-mathlib"
 PROOF = LEAN_DIR / "Proofs" / "GlobalSettlementCoreV1.lean"
-LEAN_MODULE = "Proofs.GlobalSettlementCoreV1"
-SCANNER = Path.home() / ".codex" / "proof-engineering" / "scripts" / "scan_proof_placeholders.py"
-SCANNER_ALT = (
-    Path.home() / ".codex" / "skills" / "proof-engineering" / "scripts" / "scan_proof_placeholders.py"
-)
+CHALLENGE = LEAN_DIR / "Proofs" / "GlobalSettlementCoreV1Challenge.lean"
+CHALLENGE_MODULE = "Proofs.GlobalSettlementCoreV1Challenge"
+SCANNER = ROOT / "tools" / "scan_lean_proof_placeholders_v1.py"
 
-CLAIMS = (
+PRINCIPAL = "treasury"
+ASSET = "ZUSD"
+DOMAIN = "zenoledger:core"
+ZERO_ROOT = "0x" + "00" * 32
+DEMO_ROOT = "0x" + "11" * 32
+
+CORE_CLAIMS = (
     "allLaneIds_complete",
     "allLaneIds_no_duplicates",
     "allEffectKinds_complete",
@@ -49,27 +57,46 @@ CLAIMS = (
     "seqPlan_journal_not_commutative",
 )
 
-# Every field of GlobalEconomicEffectPlanV1 that this proof does not represent.
-UNMODELED_SURFACE = (
+CHALLENGE_CLAIMS = (
+    "challenge_accepted_evidence_construction",
+    "challenge_accepted_outcome_carries_evidence",
+    "challenge_accepted_outcome_is_nonNegative",
+    "challenge_plan_identities",
+    "challenge_plan_composition_preserves_wellFormedness",
+    "challenge_rejection_reduces",
+    "challenge_per_asset_projection",
+    "challenge_asset_separation",
+    "challenge_application_moves_by_projection",
+    "challenge_net_preserving_substitution_rejected",
+    "challenge_nonNegativity_is_separate",
+    "entryAdmissible_iff",
+    "weakIssue_is_strictly_weaker",
+    "not_wellFormed_of_planWellFormedOn_false",
+)
+
+# GlobalEconomicEffectPlanV1 fields with no analogue in the proof.
+UNMODELED_PLAN_FIELDS = (
     "fee_conservation",
     "lane_writes",
     "occurrence_consumptions",
     "external_outbox_enqueue",
 )
 
+# LaneTransitionAcceptedV1 fields with no analogue in the proof's Outcome.
+UNMODELED_ACCEPTED_FIELDS = (
+    "command_occurrence_id",
+    "pre_state_root",
+    "post_state_root",
+    "private_ports_root",
+    "receipt_root",
+    "terminal_obligations",
+)
+
 FORBIDDEN_PROOF_TOKENS = ("sorry", "admit", "axiom", "unsafe")
 
-VECTOR_PROBE = """import Proofs.GlobalSettlementCoreV1
+REPORT_PROBE = """import Proofs.GlobalSettlementCoreV1Challenge
 
-open Proofs.GlobalSettlementCoreV1
-
-def main : IO Unit := do
-  IO.println laneIdVectorV1
-  IO.println effectKindVectorV1
-  IO.println rejectCodeVectorV1
-  IO.println signConventionVectorV1
-
-#eval main
+#eval IO.println Proofs.GlobalSettlementCoreV1Challenge.challengeReportV1
 """
 
 
@@ -79,28 +106,38 @@ def _require_lake() -> str:
     return lake
 
 
-def test_global_settlement_core_v1_compiles_without_warnings() -> None:
-    lake = _require_lake()
-    result = subprocess.run(
-        [lake, "env", "lean", "-DwarningAsError=true", str(PROOF)],
+def _lean(*args: str, timeout: int = 600) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [_require_lake(), *args],
         cwd=LEAN_DIR,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        timeout=600,
+        timeout=timeout,
         check=False,
     )
+
+
+# --------------------------------------------------------------------------
+# Compilation and placeholder gates
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("target", [PROOF, CHALLENGE], ids=["core", "challenge"])
+def test_lean_target_compiles_without_warnings(target: Path) -> None:
+    result = _lean("env", "lean", "-DwarningAsError=true", str(target))
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.strip() == ""
     assert result.stderr.strip() == ""
 
 
-def test_global_settlement_core_v1_has_no_proof_placeholders() -> None:
-    scanner = SCANNER if SCANNER.exists() else SCANNER_ALT
-    if not scanner.exists():
-        pytest.skip("repository placeholder scanner is not installed here")
+def test_placeholder_gate_is_repository_owned_and_fails_closed() -> None:
+    assert SCANNER.is_file(), "the placeholder gate must be committed to this repository"
+
+
+def test_lean_targets_have_no_placeholders_with_axiom_checking() -> None:
     result = subprocess.run(
-        ["python3", str(scanner), str(PROOF.relative_to(ROOT)), "--json"],
+        [sys.executable, str(SCANNER), str(PROOF), str(CHALLENGE), "--json"],
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -109,37 +146,32 @@ def test_global_settlement_core_v1_has_no_proof_placeholders() -> None:
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert '"blocked": false' in result.stdout
-    assert '"match_count": 0' in result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["blocked"] is False
+    assert payload["match_count"] == 0
+    assert payload["axiom_check"] is True
+    assert len(payload["scanned_files"]) == 2
 
 
-def test_global_settlement_core_v1_claim_surface_is_explicit_and_clean() -> None:
-    source = PROOF.read_text(encoding="utf-8")
-    lowered = source.lower()
+def test_claim_surface_is_explicit_and_clean() -> None:
+    core = PROOF.read_text(encoding="utf-8")
+    challenge = CHALLENGE.read_text(encoding="utf-8")
     for token in FORBIDDEN_PROOF_TOKENS:
-        assert re.search(rf"\b{re.escape(token)}\b", lowered) is None
-    for claim in CLAIMS:
-        assert re.search(rf"\btheorem\s+{re.escape(claim)}\b", source) is not None
+        assert re.search(rf"\b{re.escape(token)}\b", core.lower()) is None
+        assert re.search(rf"\b{re.escape(token)}\b", challenge.lower()) is None
+    for claim in CORE_CLAIMS:
+        assert re.search(rf"\btheorem\s+{re.escape(claim)}\b", core) is not None
+    for claim in CHALLENGE_CLAIMS:
+        assert re.search(rf"\btheorem\s+{re.escape(claim)}\b", challenge) is not None
+    assert "import Proofs.GlobalSettlementCoreV1" in challenge
 
 
-def test_global_settlement_core_v1_declares_its_unmodeled_surface() -> None:
-    source = PROOF.read_text(encoding="utf-8")
-    # Doc prose is hard-wrapped, so compare against a whitespace-normalized copy.
-    flat = " ".join(source.split())
-    for field in UNMODELED_SURFACE:
-        assert field in source, f"proof must name {field} as unmodeled"
-    assert "not modeled at all" in flat
-    assert "canonical ordering, deduplication, and aggregation" in flat
-    assert "lower bound only" in flat
-    assert "checked `i128` / `u128` arithmetic" in flat
-    assert "is NOT the canonical `rows` tuple" in flat
-    assert (
-        "no statement here asserts custody, possession, title, control, or any "
-        "enforceable claim over any asset" in flat
-    )
+# --------------------------------------------------------------------------
+# Omission inventory, verified against the live Python types
+# --------------------------------------------------------------------------
 
 
-def test_python_plan_has_exactly_the_fields_the_proof_accounts_for() -> None:
+def test_proof_names_every_unmodeled_plan_field() -> None:
     fields = set(GlobalEconomicEffectPlanV1.__dataclass_fields__)
     assert fields == {
         "rows",
@@ -149,138 +181,277 @@ def test_python_plan_has_exactly_the_fields_the_proof_accounts_for() -> None:
         "occurrence_consumptions",
         "external_outbox_enqueue",
     }
-    # The proof models `rows` (as a non-canonical journal) and the issue/burn
-    # totals of `asset_conservation`; the rest must be declared unmodeled.
-    assert set(UNMODELED_SURFACE).issubset(fields)
+    core = PROOF.read_text(encoding="utf-8")
+    for field in UNMODELED_PLAN_FIELDS:
+        assert field in core, f"proof must name {field} as unmodeled"
 
 
-def _lean_vectors(tmp_path: Path) -> list[str]:
-    lake = _require_lake()
-    build = subprocess.run(
-        [lake, "build", LEAN_MODULE],
-        cwd=LEAN_DIR,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        timeout=600,
-        check=False,
+def test_proof_names_every_unmodeled_accepted_transition_field() -> None:
+    """Drift guard: if the live type gains a field, this fails until named."""
+    fields = set(LaneTransitionAcceptedV1.__dataclass_fields__)
+    assert fields == {
+        "command_occurrence_id",
+        "pre_state_root",
+        "post_state_root",
+        "effects",
+        "private_ports_root",
+        "receipt_root",
+        "terminal_obligations",
+    }
+    core = PROOF.read_text(encoding="utf-8")
+    modeled = {"effects"}
+    for field in sorted(fields - modeled):
+        assert field in core, f"proof must name {field} as unmodeled"
+    assert set(UNMODELED_ACCEPTED_FIELDS) == fields - modeled
+
+
+def test_proof_names_every_unmodeled_rejected_transition_field() -> None:
+    fields = set(LaneTransitionRejectedV1.__dataclass_fields__)
+    assert fields == {"code", "pre_state_root", "post_state_root", "effects"}
+    core = PROOF.read_text(encoding="utf-8")
+    for field in ("pre_state_root", "post_state_root"):
+        assert field in core
+
+
+def test_proof_declares_token_and_integer_width_omissions() -> None:
+    flat = " ".join(PROOF.read_text(encoding="utf-8").split())
+    assert "MAX_TOKEN_BYTES_V1" in flat
+    assert "printable ASCII `0x21`–`0x7E`" in flat
+    assert "MAX_ATOMS_V1" in flat
+    assert "MIN_DELTA_ATOMS_V1" in flat
+    assert "MAX_DELTA_ATOMS_V1" in flat
+    assert "MAX_U64_V1" in flat
+    assert "`Int` here is unbounded in both directions" in flat
+    assert "lower bound only" in flat
+
+
+def test_proof_keeps_legal_neutral_wording_and_bounded_claims() -> None:
+    flat = " ".join(PROOF.read_text(encoding="utf-8").split())
+    assert (
+        "no statement here asserts custody, possession, title, control, or any "
+        "enforceable claim over any asset" in flat
     )
+    assert "is NOT the canonical `rows` tuple" in flat
+    assert "canonical ordering, deduplication, and aggregation" in flat
+    assert "not a full reject no-op claim" in flat
+    assert "Nothing here confers receipt authority" in flat
+    challenge_flat = " ".join(CHALLENGE.read_text(encoding="utf-8").split())
+    assert "bounded source comparison, not a runtime refinement proof" in challenge_flat
+
+
+# --------------------------------------------------------------------------
+# Executable Lean report, compared against live Python behaviour
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def report(tmp_path_factory: pytest.TempPathFactory) -> dict[str, list[list[str]]]:
+    build = _lean("build", CHALLENGE_MODULE)
     assert build.returncode == 0, build.stdout + build.stderr
-    probe = tmp_path / "EvalVectors.lean"
-    probe.write_text(VECTOR_PROBE, encoding="utf-8")
-    result = subprocess.run(
-        [lake, "env", "lean", str(probe)],
-        cwd=LEAN_DIR,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        timeout=600,
-        check=False,
-    )
+    probe = tmp_path_factory.mktemp("challenge") / "Report.lean"
+    probe.write_text(REPORT_PROBE, encoding="utf-8")
+    result = _lean("env", "lean", str(probe))
     assert result.returncode == 0, result.stdout + result.stderr
-    lines = [line.strip() for line in result.stdout.strip().splitlines() if line.strip()]
-    assert len(lines) == 4, result.stdout
-    return lines
+    sections: dict[str, list[list[str]]] = {}
+    for line in result.stdout.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        fields = line.split(",")
+        sections.setdefault(fields[0], []).append(fields[1:])
+    assert sections, result.stdout
+    return sections
 
 
-def test_lean_lane_vector_matches_python_enum(tmp_path: Path) -> None:
-    lanes = _lean_vectors(tmp_path)[0].split(",")
-    assert lanes == [lane.value for lane in ALL_LANE_IDS_V1]
-    assert lanes == [lane.value for lane in LaneIdV1]
-    assert len(lanes) == 12
+def test_report_lane_rows_match_python_enum(report) -> None:
+    rows = report["LANE"]
+    assert [r[0] for r in rows] == [lane.value for lane in ALL_LANE_IDS_V1]
+    assert [r[0] for r in rows] == [lane.value for lane in LaneIdV1]
+    assert [int(r[1]) for r in rows] == list(range(len(ALL_LANE_IDS_V1)))
+    assert len(rows) == 12
 
 
-def test_lean_effect_kind_vector_matches_python_enum(tmp_path: Path) -> None:
-    kinds = _lean_vectors(tmp_path)[1].split(",")
-    assert kinds == [kind.value for kind in EconomicEffectKindV1]
-    assert len(kinds) == 9
+def test_report_effect_kind_rows_match_python_enum(report) -> None:
+    rows = report["KIND"]
+    assert [r[0] for r in rows] == [kind.value for kind in EconomicEffectKindV1]
+    assert len(rows) == 9
 
 
-def test_lean_reject_code_vector_matches_python_enum(tmp_path: Path) -> None:
-    codes = _lean_vectors(tmp_path)[2].split(",")
-    assert codes == [code.value for code in LaneTransitionRejectCodeV1]
-    assert len(codes) == 7
+def test_report_reject_code_rows_match_python_enum(report) -> None:
+    rows = report["REJECTCODE"]
+    assert [r[0] for r in rows] == [code.value for code in LaneTransitionRejectCodeV1]
+    assert len(rows) == 7
 
 
-def test_lean_sign_convention_vector_matches_python_validation(tmp_path: Path) -> None:
-    assert _lean_vectors(tmp_path)[3] == "ISSUE:positive,BURN:negative,ANY:nonzero"
-
-    def row(kind: EconomicEffectKindV1, delta: int) -> EconomicEffectRowV1:
-        return EconomicEffectRowV1(
+def _python_admits(kind: EconomicEffectKindV1, delta: int) -> bool:
+    try:
+        EconomicEffectRowV1(
             kind=kind,
-            principal="treasury",
-            asset="ZUSD",
-            custody_domain="zenoledger:core",
+            principal=PRINCIPAL,
+            asset=ASSET,
+            custody_domain=DOMAIN,
             delta_atoms=delta,
         )
-
-    # ISSUE:positive
-    assert row(EconomicEffectKindV1.ISSUE, 250).delta_atoms == 250
-    with pytest.raises(ValueError):
-        row(EconomicEffectKindV1.ISSUE, -1)
-    # BURN:negative
-    assert row(EconomicEffectKindV1.BURN, -70).delta_atoms == -70
-    with pytest.raises(ValueError):
-        row(EconomicEffectKindV1.BURN, 1)
-    # ANY:nonzero
-    with pytest.raises(ValueError):
-        row(EconomicEffectKindV1.ACCOUNT_MOVEMENT, 0)
+    except ValueError:
+        return False
+    return True
 
 
-def _issue_row() -> EconomicEffectRowV1:
-    return EconomicEffectRowV1(
+def _python_sign_matrix() -> set[tuple[str, int, bool]]:
+    return {
+        (kind.value, delta, _python_admits(kind, delta))
+        for kind in EconomicEffectKindV1
+        for delta in (-1, 0, 1)
+    }
+
+
+def _lean_sign_matrix(rows: list[list[str]]) -> set[tuple[str, int, bool]]:
+    return {(r[0], int(r[1]), r[2] == "true") for r in rows}
+
+
+def test_sign_admission_matches_python_for_every_kind_and_bound(report) -> None:
+    lean_matrix = _lean_sign_matrix(report["SIGN"])
+    assert len(lean_matrix) == 27
+    assert lean_matrix == _python_sign_matrix()
+
+
+def test_paired_weakening_of_issue_positivity_is_killed(report) -> None:
+    """The weakened rule must be observably wrong against Python."""
+    strict = _lean_sign_matrix(report["SIGN"])
+    weakened = _lean_sign_matrix(report["SIGNWEAK"])
+    python = _python_sign_matrix()
+
+    assert strict == python
+    assert weakened != strict
+    assert weakened != python
+
+    # The single observable divergence is ISSUE at -1.
+    assert ("ISSUE", -1, False) in strict
+    assert ("ISSUE", -1, True) in weakened
+    assert _python_admits(EconomicEffectKindV1.ISSUE, -1) is False
+    assert (strict ^ weakened) == {("ISSUE", -1, False), ("ISSUE", -1, True)}
+
+
+# The journal the Lean challenge projects over, mirrored field for field.
+COMPARISON_ROWS = (
+    (EconomicEffectKindV1.ISSUE, PRINCIPAL, "ZUSD", 250),
+    (EconomicEffectKindV1.BURN, PRINCIPAL, "ZUSD", -70),
+    (EconomicEffectKindV1.ACCOUNT_MOVEMENT, "alice", "ZUSD", -100),
+    (EconomicEffectKindV1.ACCOUNT_MOVEMENT, "bob", "ZUSD", 100),
+    (EconomicEffectKindV1.ISSUE, PRINCIPAL, "ZDEX", 40),
+)
+COMPARISON_ASSETS = ("ZUSD", "ZDEX", "ZBTC")
+COMPARISON_BOOK = {"ZUSD": 1000, "ZDEX": 500, "ZBTC": 0}
+
+
+def _python_projection(asset: str) -> tuple[int, int]:
+    """Reproduces _validate_issue_burn_projection's per-asset totals."""
+    issued = sum(
+        row[3] for row in COMPARISON_ROWS
+        if row[0] is EconomicEffectKindV1.ISSUE and row[2] == asset
+    )
+    burned = sum(
+        -row[3] for row in COMPARISON_ROWS
+        if row[0] is EconomicEffectKindV1.BURN and row[2] == asset
+    )
+    return issued, burned
+
+
+def test_per_asset_projection_matches_python(report) -> None:
+    rows = {r[0]: (int(r[1]), int(r[2]), int(r[3])) for r in report["PROJ"]}
+    assert set(rows) == set(COMPARISON_ASSETS)
+    for asset in COMPARISON_ASSETS:
+        issued, burned = _python_projection(asset)
+        assert rows[asset] == (issued, burned, issued - burned), asset
+    # The absent asset is a real zero, not a missing row.
+    assert rows["ZBTC"] == (0, 0, 0)
+    # Unlike assets are never summed into one total.
+    cross_asset_total = sum(net for _, _, net in rows.values())
+    assert cross_asset_total == 220
+    for asset in COMPARISON_ASSETS:
+        assert rows[asset][2] != cross_asset_total, asset
+
+
+def test_plan_application_matches_python_conservation_rows(report) -> None:
+    rows = {r[0]: tuple(int(v) for v in r[1:]) for r in report["APPLY"]}
+    assert set(rows) == set(COMPARISON_ASSETS)
+    for asset in COMPARISON_ASSETS:
+        issued, burned = _python_projection(asset)
+        pre = COMPARISON_BOOK[asset]
+        # AssetConservationRowV1 validates exactly this arithmetic.
+        conservation = AssetConservationRowV1(
+            asset=asset,
+            owned_and_custodied_pre_atoms=pre,
+            owned_and_custodied_post_atoms=pre + issued - burned,
+            supply_pre_atoms=pre,
+            supply_post_atoms=pre + issued - burned,
+            authorized_issue_atoms=issued,
+            authorized_burn_atoms=burned,
+        )
+        assert rows[asset] == (
+            conservation.owned_and_custodied_pre_atoms,
+            conservation.supply_pre_atoms,
+            conservation.owned_and_custodied_post_atoms,
+            conservation.supply_post_atoms,
+        ), asset
+
+
+def test_rejection_projection_matches_python_reject_discipline(report) -> None:
+    rows = {r[0]: tuple(int(v) for v in r[1:]) for r in report["REJECT"]}
+    assert set(rows) == {code.value for code in LaneTransitionRejectCodeV1}
+    for code in LaneTransitionRejectCodeV1:
+        rejected = LaneTransitionRejectedV1.reject(code, DEMO_ROOT)
+        # Python: exact pre-state root back, and an empty effect plan.
+        assert rejected.post_state_root == rejected.pre_state_root
+        assert rejected.effects.is_empty
+        holdings, supply, journal_len, auth_issue, auth_burn = rows[code.value]
+        # Lean: the pre-book back unchanged, empty journal, zero totals.
+        assert holdings == COMPARISON_BOOK["ZUSD"]
+        assert supply == COMPARISON_BOOK["ZUSD"]
+        assert journal_len == len(rejected.effects.rows) == 0
+        assert auth_issue == 0
+        assert auth_burn == 0
+
+
+def test_net_preserving_substitution_witness_matches_python(report) -> None:
+    rows = {r[0]: r[1] == "true" for r in report["SUBST"]}
+    assert rows == {"honest": True, "inflated": False}
+
+    row = EconomicEffectRowV1(
         kind=EconomicEffectKindV1.ISSUE,
-        principal="treasury",
-        asset="ZUSD",
-        custody_domain="zenoledger:core",
+        principal=PRINCIPAL,
+        asset=ASSET,
+        custody_domain=DOMAIN,
         delta_atoms=250,
     )
 
+    def conservation(issue: int, burn: int) -> AssetConservationRowV1:
+        return AssetConservationRowV1(
+            asset=ASSET,
+            owned_and_custodied_pre_atoms=1000,
+            owned_and_custodied_post_atoms=1000 + issue - burn,
+            supply_pre_atoms=1000,
+            supply_post_atoms=1000 + issue - burn,
+            authorized_issue_atoms=issue,
+            authorized_burn_atoms=burn,
+        )
 
-def _conservation(issue: int, burn: int) -> AssetConservationRowV1:
-    return AssetConservationRowV1(
-        asset="ZUSD",
-        owned_and_custodied_pre_atoms=1000,
-        owned_and_custodied_post_atoms=1000 + issue - burn,
-        supply_pre_atoms=1000,
-        supply_post_atoms=1000 + issue - burn,
-        authorized_issue_atoms=issue,
-        authorized_burn_atoms=burn,
-    )
-
-
-def test_python_rejects_net_preserving_issue_burn_substitution() -> None:
-    """The Python analogue of `netPreservingSubstitution_not_wellFormed`.
-
-    A +1 issue / +1 burn substitution leaves the net delta unchanged, so the
-    conservation row alone still validates. The plan rejects it because the
-    stored totals must each equal the projection over the canonical rows.
-    """
-    row = _issue_row()
-
-    honest = _conservation(issue=250, burn=0)
-    plan = GlobalEconomicEffectPlanV1((row,), (honest,), (), (), (), ())
-    assert plan.asset_conservation[0].authorized_issue_atoms == 250
-
-    inflated = _conservation(issue=251, burn=1)
-    # The row on its own is net-preserving and therefore valid in isolation.
+    honest = conservation(250, 0)
+    inflated = conservation(251, 1)
+    # Net-preserving: the conservation rows agree on both post columns.
     assert inflated.owned_and_custodied_post_atoms == honest.owned_and_custodied_post_atoms
     assert inflated.supply_post_atoms == honest.supply_post_atoms
-    # The plan pins each stored total separately, exactly as PlanWellFormed does.
+    # Python accepts the honest plan and rejects the substitution, matching Lean.
+    GlobalEconomicEffectPlanV1((row,), (honest,), (), (), (), ())
     with pytest.raises(ValueError):
         GlobalEconomicEffectPlanV1((row,), (inflated,), (), (), (), ())
 
 
-def test_python_empty_plan_is_empty_in_every_field() -> None:
-    """Bounds the rejection claim.
-
-    The proof shows a rejection emits the empty *abstract* plan, covering the
-    journal and the two authorized totals only. Python emptiness is stronger:
-    it also covers the four fields the proof declares unmodeled.
-    """
+def test_python_empty_plan_is_stronger_than_the_modeled_rejection() -> None:
     empty = GlobalEconomicEffectPlanV1.empty()
     assert empty.is_empty
     assert empty.rows == ()
     assert empty.asset_conservation == ()
-    for field in UNMODELED_SURFACE:
+    for field in UNMODELED_PLAN_FIELDS:
         assert getattr(empty, field) == ()
+    assert ZERO_ROOT != DEMO_ROOT
