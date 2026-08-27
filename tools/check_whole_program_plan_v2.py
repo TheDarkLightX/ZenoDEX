@@ -63,6 +63,16 @@ REQUIRED_RELEASE_STATUSES = (
     "NO_BYPASS",
     "RELEASE_BACKED",
 )
+EXPECTED_CAPABILITY_MANIFEST_SHA256 = (
+    "34930be9d4d69c4c46c7c97f57fd492d4c95061f8960f936261a8a3415d5db95"
+)
+EXPECTED_RELEASE_GATE = {
+    "required_capability_statuses": list(REQUIRED_RELEASE_STATUSES),
+    "excluded_capability_status": "DISABLED_PROVED_NO_WRITER",
+    "whole_value_movement_claim": (
+        "FORBIDDEN_UNTIL_ALL_12_VM_GATES_PASS_ON_ONE_EXACT_RELEASE_SUBJECT"
+    ),
+}
 EXPECTED_TAU_COMMIT = "0b038824c8583a1a902ef54369d3d0ecf3384cf5"
 EXPECTED_TAU_TREE = "445d77a77b451a0babe5b25c2d66bc45ee20ef29"
 EXPECTED_TAU_SOURCE_SHA256 = {
@@ -279,9 +289,12 @@ def _manifest_scope_counts(
         findings.append("required cross-lane routes must be nonempty and unique")
 
     exclusions = capability_manifest.get("explicit_exclusions")
+    exclusion_rows_valid = type(exclusions) is list and all(
+        type(row) is dict for row in exclusions
+    )
     exclusion_ids = _exact_ids(exclusions, "capability")
     if (
-        type(exclusions) is not list
+        not exclusion_rows_valid
         or not exclusions
         or any(type(value) is not str or not value for value in exclusion_ids)
         or len(exclusion_ids) != len(set(exclusion_ids))
@@ -439,6 +452,11 @@ def check_whole_program_plan_v2(
                 findings.append(f"normative input hash drift: {path.relative_to(root)}")
 
     review_hash = hashlib.sha256((root / COMPLETENESS_REVIEW).read_bytes()).hexdigest()
+    capability_manifest_sha256 = hashlib.sha256(
+        (root / CAPABILITY_MANIFEST).read_bytes()
+    ).hexdigest()
+    if capability_manifest_sha256 != EXPECTED_CAPABILITY_MANIFEST_SHA256:
+        findings.append("exact capability manifest source drift")
     review_expansions = _exact_ids(completeness_review.get("required_spec_expansions"), "id")
     review_findings = completeness_review.get("confirmed_findings")
     review_finding_ids = _exact_ids(review_findings, "id")
@@ -575,6 +593,8 @@ def check_whole_program_plan_v2(
         findings.append("aggregate VM-gate promotion rule drift")
     if plan.get("completeness_estimation_policy") != EXPECTED_COMPLETENESS_ESTIMATION_POLICY:
         findings.append("semantic completeness estimation policy drift")
+    if plan.get("release_gate") != EXPECTED_RELEASE_GATE:
+        findings.append("whole-program release gate contract drift")
     obligations = plan.get("next_obligations")
     if _exact_ids(obligations, "obligation_id") != EXPECTED_OBLIGATIONS:
         findings.append("next-obligation set or order drift")

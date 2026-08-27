@@ -17,6 +17,10 @@ if str(REPO_ROOT) not in sys.path:
 _global_types = importlib.import_module("src.core.global_settlement_types_v1")
 LaneIdV1 = _global_types.LaneIdV1
 hash_global_v1 = _global_types.hash_global_v1
+_capability_binding = importlib.import_module(
+    "src.core.global_economic_capability_profile_binding_v1"
+)
+M6_CAPABILITY_MANIFEST_ROOT_V1 = _capability_binding.M6_CAPABILITY_MANIFEST_ROOT_V1
 
 DEFAULT_MANIFEST = Path("docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json")
 SCHEMA = "zenodex/m6-capability-manifest/v1"
@@ -158,12 +162,16 @@ def check_m6_capability_manifest_v1(
     if history != expected_history:
         findings.append("historical requirement counts or claim ceiling drift")
 
+    manifest_root = hash_global_v1("m6-capability-manifest-v1", manifest)
+    if manifest_root != M6_CAPABILITY_MANIFEST_ROOT_V1:
+        findings.append("exact M6 capability manifest root drift")
+
     return {
         "schema": "zenodex/m6-capability-manifest-check/v1",
         "ok": not findings,
         "lane_count": len(lanes) if type(lanes) is list else 0,
         "open_capability_count": open_capability_count,
-        "manifest_root": hash_global_v1("m6-capability-manifest-v1", manifest),
+        "manifest_root": manifest_root,
         "manifest_complete": False,
         "release_eligible": False,
         "production_authority": "NONE",

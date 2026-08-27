@@ -61,6 +61,30 @@ def test_subset_profile_cannot_erase_farms_or_buy_and_burn(tmp_path: Path) -> No
     assert any("atomic_purchase_and_burn" in finding for finding in report["findings"])
 
 
+def test_nonmandatory_capability_cannot_be_deleted_from_the_frozen_floor(
+    tmp_path: Path,
+) -> None:
+    mutated = deepcopy(_manifest())
+    asset_lane = mutated["lanes"][0]  # type: ignore[index]
+    asset_lane["capabilities"].remove("account_lifecycle")
+
+    report = check_m6_capability_manifest_v1(manifest_path=_write(tmp_path, mutated))
+
+    assert report["ok"] is False
+    assert "exact M6 capability manifest root drift" in report["findings"]
+
+
+def test_malformed_exclusion_row_rejects(tmp_path: Path) -> None:
+    mutated = deepcopy(_manifest())
+    mutated["explicit_exclusions"] = [7]
+
+    report = check_m6_capability_manifest_v1(manifest_path=_write(tmp_path, mutated))
+
+    assert report["ok"] is False
+    assert "explicit exclusions must be a list of objects" in report["findings"]
+    assert "exact M6 capability manifest root drift" in report["findings"]
+
+
 def test_metadata_cannot_promote_an_unresolved_manifest(tmp_path: Path) -> None:
     mutated = deepcopy(_manifest())
     mutated["manifest_complete"] = True
