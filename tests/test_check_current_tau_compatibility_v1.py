@@ -387,6 +387,48 @@ def test_rejection_given_profile_runtime_path_is_unbound_then_typed_rejects(
     assert raised.value.code == "PROFILE_TAU_SOURCE_UNBOUND"
 
 
+def test_given_profile_runtime_path_resolves_to_reviewed_source_then_binding_accepts(
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    root = tmp_path / "root"
+    supplied = tmp_path / "reviewed-source"
+    (root / "external").mkdir(parents=True)
+    supplied.mkdir()
+    (root / "external" / "tau-testnet").symlink_to(supplied)
+    paths = TauReplayPathsV1(root, supplied, supplied, supplied)
+
+    # Act / Assert
+    builder_module._require_profile_tau_source_bound_v1(paths)
+
+
+def test_mutation_given_active_registry_bytes_drift_when_loaded_then_shell_rejects(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    plan_path = REPO_ROOT / "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json"
+    registry_path = REPO_ROOT / builder_module.ACTIVE_REGISTRY_PATH_V1
+    admission_path = REPO_ROOT / builder_module.ADMISSION_RECEIPT_PATH_V1
+    target_registry = tmp_path / builder_module.ACTIVE_REGISTRY_PATH_V1
+    target_admission = tmp_path / builder_module.ADMISSION_RECEIPT_PATH_V1
+    target_registry.parent.mkdir(parents=True)
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["active_plan_count"] = 0
+    target_registry.write_text(json.dumps(registry), encoding="utf-8")
+    target_admission.write_bytes(admission_path.read_bytes())
+    monkeypatch.setattr(
+        builder_module,
+        "_git_source_bytes_v1",
+        lambda _root, _commit, _path: plan_path.read_bytes(),
+    )
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        builder_module._load_active_plan_binding_v1(tmp_path)
+    assert raised.value.code == "ACTIVE_PLAN_ADMISSION_DRIFT"
+
+
 def test_mutation_given_reserved_stream_is_overwritten_then_ast_rejects() -> None:
     # Arrange
     source = (
