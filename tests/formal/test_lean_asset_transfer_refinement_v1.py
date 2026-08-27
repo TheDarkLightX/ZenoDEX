@@ -17,7 +17,7 @@ Evidence families:
 - ``mutation``: a deliberately weakened Lean variant that drops the fee-owner
   credit must be observably non-conservative, and structural checks pin the
   guard order, the width literals, and the runtime facts that the Lean prose
-  cites (aggregate-before-width in Python, ``BTreeMap`` order in Rust).
+  cites (final role aggregation and fixed failure-class precedence).
 
 This is research-only formal evidence. It creates no settlement, release,
 production, migration, or value-moving authority, and it is not a refinement
@@ -154,7 +154,7 @@ REQUIRED_SCOPE_PHRASES = (
     "MAX_ATOMS_V1",
     "MIN_DELTA_ATOMS_V1",
     "MAX_DELTA_ATOMS_V1",
-    "BTreeMap",
+    "negative-delta preflight",
     "accounting-location",
     "no statement here asserts custody, possession, title, control, or any "
     "enforceable claim over any asset",
@@ -511,7 +511,7 @@ def test_lean_guard_order_matches_python_enum_and_transition_source() -> None:
     assert enum_order[8:] == ["EFFECT_DELTA_OVERFLOW", "INSUFFICIENT_BALANCE", "BALANCE_OVERFLOW"]
 
 
-def test_runtime_sources_still_match_the_cited_aggregate_and_order_facts() -> None:
+def test_runtime_sources_still_match_final_aggregation_and_precedence() -> None:
     """Pins the runtime facts the Lean prose cites so drift re-opens review."""
     python_source = PYTHON_TRANSITION.read_text(encoding="utf-8")
     rust_source = RUST_TRANSITION.read_text(encoding="utf-8")
@@ -521,8 +521,12 @@ def test_runtime_sources_still_match_the_cited_aggregate_and_order_facts() -> No
     width = python_source.index("MIN_DELTA_ATOMS_V1 or delta_atoms > MAX_DELTA_ATOMS_V1")
     assert aggregate < width, "Python aggregates the fee-owner delta before the width check"
     assert "for owner, delta_atoms in deltas.items():" in python_source
-    assert "BTreeMap<String, i128>" in rust_source
-    assert re.search(r"amount\s*\.checked_add\(fee\)\s*\.and_then\(i128::checked_neg\)", rust_source)
+    assert "fn checked_negative_sum(left: u128, right: u128)" in rust_source
+    assert "const I128_MIN_MAGNITUDE: u128 = 1_u128 << 127;" in rust_source
+    assert "if policy.fee_owner == command.sender" in rust_source
+    assert "else if policy.fee_owner == command.recipient" in rust_source
+    assert "deltas.iter().filter(|(_, delta)| **delta < 0)" in rust_source
+    assert "deltas.iter().filter(|(_, delta)| **delta >= 0)" in rust_source
 
 
 def test_width_literals_match_python_constants_in_source() -> None:
