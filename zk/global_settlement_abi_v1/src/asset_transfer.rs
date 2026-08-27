@@ -57,8 +57,8 @@ fn checked_negative_sum(left: u128, right: u128) -> Result<i128, AssetTransferRe
     let magnitude = left
         .checked_add(right)
         .ok_or(AssetTransferRejectCodeV1::EFFECT_DELTA_OVERFLOW)?;
-    let minimum_magnitude = (i128::MAX as u128) + 1;
-    if magnitude == minimum_magnitude {
+    const I128_MIN_MAGNITUDE: u128 = 1_u128 << 127;
+    if magnitude == I128_MIN_MAGNITUDE {
         return Ok(i128::MIN);
     }
     i128::try_from(magnitude)
