@@ -27,6 +27,7 @@ PROOF = LEAN_DIR / "Proofs" / "GlobalSettlementCoreV1.lean"
 CHALLENGE = LEAN_DIR / "Proofs" / "GlobalSettlementCoreV1Challenge.lean"
 CHALLENGE_MODULE = "Proofs.GlobalSettlementCoreV1Challenge"
 SCANNER = ROOT / "tools" / "scan_lean_proof_placeholders_v1.py"
+BLUEPRINT = ROOT / "docs" / "research" / "ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md"
 
 PRINCIPAL = "treasury"
 ASSET = "ZUSD"
@@ -221,6 +222,17 @@ def test_claim_surface_is_explicit_and_clean() -> None:
     )
     assert overbroad_signature_claim not in challenge_prose
     assert "others exercise the core's public definitions directly" in challenge_prose
+
+
+def test_axiom_and_signature_claim_ceiling_names_the_explicit_surface() -> None:
+    assert len(CORE_CLAIMS) == 20
+    assert len(CHALLENGE_CLAIMS) == 14
+    blueprint = " ".join(BLUEPRINT.read_text(encoding="utf-8").split())
+    core = " ".join(PROOF.read_text(encoding="utf-8").split())
+    assert "explicit 34-claim surface" in blueprint
+    assert "every named core and challenge theorem" not in blueprint
+    assert "selected theorem signatures" in core
+    assert "signatures of the theorems in this file" not in core
 
 
 # --------------------------------------------------------------------------

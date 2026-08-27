@@ -30,7 +30,7 @@
     },
     {
       "path": "lean-mathlib/Proofs/GlobalSettlementCoreV1.lean",
-      "sha256": "70fa4eae3de6a4d08fe3cea48b01893ab666aa0540fa0002985926f984183e40"
+      "sha256": "012089ef11605a0413142a6ecb518d410ce53565e6caf3985b8728f19d7670d2"
     },
     {
       "path": "lean-mathlib/Proofs/GlobalSettlementCoreV1Challenge.lean",
@@ -46,20 +46,21 @@
     },
     {
       "path": "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
-      "sha256": "977ec3829dfbef2c3e676cc72e864552c2080174944f55d157c2d3a046faac87"
+      "sha256": "35962ab47c7588b1354efcc97c63fa05206d2b8c1025cdb45929d807aa4f5f93"
     }
   ],
   "removed_paths": [],
   "test_pins": [
     {
       "path": "tests/formal/test_lean_global_settlement_core_v1.py",
-      "sha256": "39f8b857cf4011324066e2bbb8f0b211c7c57c3ae1da12de01e21a2d59867738",
+      "sha256": "3bae86f808b9cda377e667910ebc6aa5e851196a9d0ceb0cf9fcbf09c90149ae",
       "node_ids": [
         "tests/formal/test_lean_global_settlement_core_v1.py::test_lean_target_compiles_without_warnings",
         "tests/formal/test_lean_global_settlement_core_v1.py::test_lean_targets_have_no_placeholders_with_axiom_checking",
         "tests/formal/test_lean_global_settlement_core_v1.py::test_all_named_claims_depend_only_on_standard_lean_axioms",
         "tests/formal/test_lean_global_settlement_core_v1.py::test_axiom_dependency_parser_reveals_project_defined_axiom",
         "tests/formal/test_lean_global_settlement_core_v1.py::test_claim_surface_is_explicit_and_clean",
+        "tests/formal/test_lean_global_settlement_core_v1.py::test_axiom_and_signature_claim_ceiling_names_the_explicit_surface",
         "tests/formal/test_lean_global_settlement_core_v1.py::test_proof_names_every_unmodeled_accepted_transition_field",
         "tests/formal/test_lean_global_settlement_core_v1.py::test_sign_admission_matches_python_for_every_kind_and_bound",
         "tests/formal/test_lean_global_settlement_core_v1.py::test_paired_weakening_of_issue_positivity_is_killed",
@@ -199,7 +200,7 @@
   "nonclaims": [
     "This packet establishes no production, settlement, release, migration, proof-receipt, or value-moving authority.",
     "The Lean model is an abstraction of part of GlobalEconomicEffectPlanV1. It does not prove canonical rows, roots, lane writes, occurrence consumption, external outbox behavior, terminal-obligation lifecycle, integer bounds, or Python/Rust/RISC0 refinement.",
-    "The local placeholder scanner blocks declarations in the two proof files. A separate Lean print-axioms gate allows only propext, Quot.sound, and Classical.choice for every named claim; trust in Lean, Mathlib, and their toolchain remains external.",
+    "The local placeholder scanner blocks declarations in the two proof files. A separate Lean print-axioms gate allows only propext, Quot.sound, and Classical.choice for the explicit 34-claim surface; other theorem declarations are outside that gate, and trust in Lean, Mathlib, and their toolchain remains external.",
     "The ESSO result proves initialization and one-step inductiveness of the invariant conjunction for its finite two-asset model. It does not prove each invariant independently or establish runtime refinement.",
     "The bounded model leaves command-lane compatibility, unknown-asset policy, authorization derivation, terminal-obligation identities, canonical hashes, production widths, fee-residue mapping, and runtime refinement open.",
     "The current Python refinement rejects nonzero carried fee residue because no state-bearing mapping exists. The ESSO residue location is a documented candidate, not an implemented runtime rule.",

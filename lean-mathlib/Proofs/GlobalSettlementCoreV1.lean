@@ -1325,9 +1325,9 @@ theorem seqPlan_journal_not_commutative :
 
 Executable comparison output lives in `Proofs.GlobalSettlementCoreV1Challenge`,
 which derives every emitted field by evaluating the definitions above rather
-than by restating them as literals. That module also binds the intended
-signatures of the theorems in this file, so a weakening here fails to compile
-there. -/
+than by restating them as literals. That module binds selected theorem
+signatures and exercises other public definitions directly. Weakening a
+selected bound signature fails to compile there. -/
 
 end GlobalSettlementCoreV1
 end Proofs

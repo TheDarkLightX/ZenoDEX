@@ -740,8 +740,9 @@ unterminated block comments and strings. Repair 5 closes those bounded defects:
   incomplete correspondence inventory;
 - the Lean scanner rejects `constant` declarations and malformed lexical
   enclosures, with retained negative tests; a separate `#print axioms` gate
-  checks every named core and challenge theorem against the allowed Lean
-  standard set `propext`, `Quot.sound`, and `Classical.choice`.
+  checks the explicit 34-claim surface against the allowed Lean standard set
+  `propext`, `Quot.sound`, and `Classical.choice`. The remaining theorem
+  declarations are outside that transitive-axiom claim.
 
 ```text
 PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO \
