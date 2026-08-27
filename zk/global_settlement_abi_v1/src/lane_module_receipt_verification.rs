@@ -5,7 +5,7 @@ use crate::asset_transfer_lane_module::{
 };
 use crate::canonical::{
     canonical_bytes_v1, hash_bytes_sha256_v1, hash_global_v1, AbiErrorV1, AbiResultV1, RootV1,
-    MAX_ECONOMIC_RECEIPT_BYTES_V1,
+    MAX_LANE_MODULE_RECEIPT_BYTES_V1,
 };
 use crate::economic_command_authentication::AuthenticatedEconomicCommandV1;
 use crate::global_oracle_price_occurrence::VerifiedGlobalOraclePriceV1;
@@ -199,7 +199,7 @@ fn verify_rebound_module_receipt_v1(
     if candidate.receipt.receipt_bytes.is_empty() {
         return Err(AbiErrorV1::InvalidBounds("lane module receipt bytes"));
     }
-    if candidate.receipt.receipt_bytes.len() > MAX_ECONOMIC_RECEIPT_BYTES_V1 {
+    if candidate.receipt.receipt_bytes.len() > MAX_LANE_MODULE_RECEIPT_BYTES_V1 {
         return Err(AbiErrorV1::InvalidBounds("lane module receipt bytes"));
     }
 
