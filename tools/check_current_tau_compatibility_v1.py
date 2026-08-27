@@ -1,7 +1,46 @@
 #!/usr/bin/env python3
 """Replay and check the exact research-only current-Tau incompatibility artifact."""
 
+# ruff: noqa: E402 -- the isolated-path bootstrap must precede all non-builtin imports.
+
 from __future__ import annotations
+
+import sys as _bootstrap_sys
+
+
+def _require_isolated_python_main_v1() -> None:
+    """Fail before repository imports unless Python excluded ambient paths."""
+
+    if not _bootstrap_sys.flags.isolated or not _bootstrap_sys.flags.safe_path:
+        _bootstrap_sys.stdout.write(
+            '{"artifact_root":null,"artifact_sha256":"",'
+            '"current_tau_compatible":false,"findings":'
+            '[{"code":"PYTHON_NOT_ISOLATED","path":"python"}],"o002_implemented":false,'
+            '"o003a_evidence_complete":false,"ok":false,'
+            '"production_authority":"NONE","release_authority":"NONE",'
+            '"route_quarantine_implemented":false,"schema":'
+            '"zenodex/current-tau-compatibility-check/v1",'
+            '"settlement_authority":"NONE","value_movement_authority":"NONE",'
+            '"value_movement_claim_allowed":false,"vm_gates_closed":[]}\n'
+        )
+        raise SystemExit(1)
+    import os as bootstrap_os
+
+    repo_root = bootstrap_os.path.dirname(
+        bootstrap_os.path.dirname(bootstrap_os.path.realpath(__file__))
+    )
+    trusted_runtime_paths = [
+        entry
+        for entry in _bootstrap_sys.path
+        if entry
+        and "site-packages" not in entry
+        and "dist-packages" not in entry
+    ]
+    _bootstrap_sys.path[:] = [*trusted_runtime_paths, repo_root]
+
+
+if __name__ == "__main__":
+    _require_isolated_python_main_v1()
 
 import json
 import sys

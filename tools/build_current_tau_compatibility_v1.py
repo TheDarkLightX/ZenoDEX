@@ -1,7 +1,42 @@
 #!/usr/bin/env python3
 """Build replayable research evidence for the current-Tau compatibility gap."""
 
+# ruff: noqa: E402 -- the isolated-path bootstrap must precede all non-builtin imports.
+
 from __future__ import annotations
+
+import sys as _bootstrap_sys
+
+
+def _require_isolated_python_main_v1() -> None:
+    """Fail before repository imports unless Python excluded ambient paths."""
+
+    if not _bootstrap_sys.flags.isolated or not _bootstrap_sys.flags.safe_path:
+        _bootstrap_sys.stdout.write(
+            '{"finding":"PYTHON_NOT_ISOLATED","o002_implemented":false,'
+            '"o003a_evidence_complete":false,"ok":false,'
+            '"production_authority":"NONE","release_authority":"NONE",'
+            '"settlement_authority":"NONE","value_movement_authority":"NONE",'
+            '"value_movement_claim_allowed":false,"vm_gates_closed":[]}\n'
+        )
+        raise SystemExit(1)
+    import os as bootstrap_os
+
+    repo_root = bootstrap_os.path.dirname(
+        bootstrap_os.path.dirname(bootstrap_os.path.realpath(__file__))
+    )
+    trusted_runtime_paths = [
+        entry
+        for entry in _bootstrap_sys.path
+        if entry
+        and "site-packages" not in entry
+        and "dist-packages" not in entry
+    ]
+    _bootstrap_sys.path[:] = [*trusted_runtime_paths, repo_root]
+
+
+if __name__ == "__main__":
+    _require_isolated_python_main_v1()
 
 import hashlib
 import json

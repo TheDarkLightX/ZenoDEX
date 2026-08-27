@@ -79,7 +79,18 @@ def literal_int_set_v1(raw: bytes, path: str, name: str) -> tuple[int, ...]:
         and isinstance(node.func, ast.Attribute)
         and isinstance(node.func.value, ast.Name)
         and node.func.value.id == name
-        and node.func.attr in {"add", "clear", "discard", "pop", "remove", "update"}
+        and node.func.attr
+        in {
+            "add",
+            "clear",
+            "difference_update",
+            "discard",
+            "intersection_update",
+            "pop",
+            "remove",
+            "symmetric_difference_update",
+            "update",
+        }
         for node in ast.walk(tree)
     )
     if len(matches) != 1 or writes != 1:
@@ -185,8 +196,24 @@ def user_tx_signing_fields_v1(raw: bytes, path: str, function_name: str) -> tupl
     all_returns = [node for node in ast.walk(function) if isinstance(node, ast.Return)]
     if top_level_returns != [len(function.body) - 1] or len(all_returns) != 1:
         _reject("SIGNING_RETURN_SHAPE", path, "expected one final top-level return")
-    if any(isinstance(node, ast.Delete) for node in ast.walk(function)):
-        _reject("SIGNING_MUTATION_SHAPE", path, "delete is forbidden in signing projection")
+    if any(isinstance(node, (ast.Delete, ast.Raise)) for node in ast.walk(function)):
+        _reject("SIGNING_MUTATION_SHAPE", path, "delete and raise are forbidden")
+    forbidden_mutator = any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "signing_dict"
+        and node.func.attr in {"clear", "pop", "popitem", "setdefault", "update"}
+        for node in ast.walk(function)
+    )
+    aliased = any(
+        isinstance(node, (ast.Assign, ast.AnnAssign))
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "signing_dict"
+        for node in ast.walk(function)
+    )
+    if forbidden_mutator or aliased:
+        _reject("SIGNING_MUTATION_SHAPE", path, "signing projection may not be aliased or mutated")
     signing_assignments = [
         index
         for index, node in enumerate(function.body)
@@ -254,6 +281,8 @@ def class_methods_v1(raw: bytes, path: str, class_name: str) -> set[str]:
 
 def require_success_envelope_v1(raw: bytes, path: str) -> None:
     function = _function_v1(python_tree_v1(raw, path), "success_response", path)
+    if any(isinstance(node, ast.Raise) for node in ast.walk(function)):
+        _reject("SUCCESS_ENVELOPE_SHAPE", path, "raise is forbidden")
     statements = [
         node
         for node in function.body
@@ -277,20 +306,54 @@ def require_success_envelope_v1(raw: bytes, path: str) -> None:
     ):
         _reject("SUCCESS_ENVELOPE_SHAPE", path, "return must serialize one literal envelope")
     envelope = value.args[0]
+    if len(envelope.keys) != 3 or len(envelope.values) != 3 or any(
+        key is None for key in envelope.keys
+    ):
+        _reject("SUCCESS_ENVELOPE_SHAPE", path, "envelope must have exactly three fields")
     keys = tuple(
         key.value
-        for key in envelope.keys
         if isinstance(key, ast.Constant) and type(key.value) is str
+        else None
+        for key in envelope.keys
     )
-    status_value = envelope.values[0] if envelope.values else None
+    status_value, command_value, data_value = envelope.values
+    keywords_are_exact = (
+        len(value.keywords) == 1
+        and value.keywords[0].arg == "separators"
+        and _is_compact_json_separators_v1(value.keywords[0].value)
+    )
     if keys != ("status", "command", "data") or not (
-        isinstance(status_value, ast.Constant) and status_value.value == "ok"
+        isinstance(status_value, ast.Constant)
+        and type(status_value.value) is str
+        and status_value.value == "ok"
+        and isinstance(command_value, ast.Name)
+        and command_value.id == "command"
+        and isinstance(data_value, ast.Call)
+        and isinstance(data_value.func, ast.Name)
+        and data_value.func.id == "dict"
+        and len(data_value.args) == 1
+        and isinstance(data_value.args[0], ast.Name)
+        and data_value.args[0].id == "data"
+        and not data_value.keywords
+        and keywords_are_exact
     ):
         _reject("SUCCESS_ENVELOPE_SHAPE", path, "current JSON success envelope drift")
 
 
+def _is_compact_json_separators_v1(value: ast.expr) -> bool:
+    return (
+        isinstance(value, ast.Tuple)
+        and len(value.elts) == 2
+        and all(isinstance(element, ast.Constant) for element in value.elts)
+        and tuple(element.value for element in value.elts if isinstance(element, ast.Constant))
+        == (",", ":")
+    )
+
+
 def force_test_requires_test_env_v1(raw: bytes, path: str) -> bool:
     function = _function_v1(python_tree_v1(raw, path), "is_force_test_enabled", path)
+    if any(isinstance(node, ast.Raise) for node in ast.walk(function)):
+        return False
     body = function.body
     requested = _named_assignment_index_v1(body, "requested")
     runtime_env = _named_assignment_index_v1(body, "runtime_env")
@@ -440,6 +503,8 @@ def command_registry_keys_v1(raw: bytes, path: str) -> tuple[str, ...]:
     ]
     if len(builds) != 1:
         _reject("COMMAND_REGISTRY_FUNCTION", path, "expected one build method")
+    if any(isinstance(node, ast.Raise) for node in ast.walk(builds[0])):
+        _reject("COMMAND_REGISTRY_MUTATION", path, "raise is forbidden in registry construction")
     dictionaries: list[ast.Dict] = []
     for node in builds[0].body:
         if not (
@@ -477,7 +542,13 @@ def command_registry_keys_v1(raw: bytes, path: str) -> tuple[str, ...]:
         and node.func.attr in {"clear", "pop", "popitem", "setdefault", "update"}
         for node in ast.walk(builds[0])
     )
-    if name_writes != 1 or subscript_writes or mutator_calls:
+    aliases = sum(
+        isinstance(node, (ast.Assign, ast.AnnAssign))
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "command_handlers"
+        for node in ast.walk(builds[0])
+    )
+    if name_writes != 1 or subscript_writes or mutator_calls or aliases:
         _reject("COMMAND_REGISTRY_MUTATION", path, "registry changes after construction")
     keys: list[str] = []
     for key in dictionaries[0].keys:
