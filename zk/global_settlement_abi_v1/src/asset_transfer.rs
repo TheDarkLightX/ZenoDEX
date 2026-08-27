@@ -53,6 +53,20 @@ fn apply_delta(current: u128, delta: i128) -> Result<u128, AssetTransferRejectCo
     }
 }
 
+fn checked_negative_sum(left: u128, right: u128) -> Result<i128, AssetTransferRejectCodeV1> {
+    let magnitude = left
+        .checked_add(right)
+        .ok_or(AssetTransferRejectCodeV1::EFFECT_DELTA_OVERFLOW)?;
+    let minimum_magnitude = (i128::MAX as u128) + 1;
+    if magnitude == minimum_magnitude {
+        return Ok(i128::MIN);
+    }
+    i128::try_from(magnitude)
+        .ok()
+        .and_then(i128::checked_neg)
+        .ok_or(AssetTransferRejectCodeV1::EFFECT_DELTA_OVERFLOW)
+}
+
 fn post_balances(
     state: &AssetTransferStateV1,
     asset: &str,
@@ -176,21 +190,28 @@ fn prepare_transfer<'a>(
         .map_err(|_| AssetTransferRejectCodeV1::EFFECT_DELTA_OVERFLOW)?;
     let fee = i128::try_from(policy.transfer_fee_atoms)
         .map_err(|_| AssetTransferRejectCodeV1::EFFECT_DELTA_OVERFLOW)?;
-    let debit = amount
-        .checked_add(fee)
-        .and_then(i128::checked_neg)
-        .ok_or(AssetTransferRejectCodeV1::EFFECT_DELTA_OVERFLOW)?;
-    let mut deltas = BTreeMap::from([
-        (command.sender.clone(), debit),
-        (command.recipient.clone(), amount),
-    ]);
-    let fee_owner_delta = deltas
-        .get(&policy.fee_owner)
-        .copied()
-        .unwrap_or(0)
-        .checked_add(fee)
-        .ok_or(AssetTransferRejectCodeV1::EFFECT_DELTA_OVERFLOW)?;
-    deltas.insert(policy.fee_owner.clone(), fee_owner_delta);
+    let mut deltas = BTreeMap::new();
+    if policy.fee_owner == command.sender {
+        let sender_delta = amount
+            .checked_neg()
+            .ok_or(AssetTransferRejectCodeV1::EFFECT_DELTA_OVERFLOW)?;
+        deltas.insert(command.sender.clone(), sender_delta);
+        deltas.insert(command.recipient.clone(), amount);
+    } else if policy.fee_owner == command.recipient {
+        let recipient_delta = amount
+            .checked_add(fee)
+            .ok_or(AssetTransferRejectCodeV1::EFFECT_DELTA_OVERFLOW)?;
+        let sender_delta = recipient_delta
+            .checked_neg()
+            .ok_or(AssetTransferRejectCodeV1::EFFECT_DELTA_OVERFLOW)?;
+        deltas.insert(command.sender.clone(), sender_delta);
+        deltas.insert(command.recipient.clone(), recipient_delta);
+    } else {
+        let sender_delta = checked_negative_sum(command.amount_atoms, policy.transfer_fee_atoms)?;
+        deltas.insert(command.sender.clone(), sender_delta);
+        deltas.insert(command.recipient.clone(), amount);
+        deltas.insert(policy.fee_owner.clone(), fee);
+    }
     Ok(PreparedTransferV1 {
         context,
         pre_state,
