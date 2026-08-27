@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::canonical::{
     hash_global_v1, validate_root_sequence_v1, validate_schema_v1, validate_token_v1, AbiErrorV1,
-    AbiResultV1, RootV1,
+    AbiResultV1, RootV1, MAX_EFFECT_PLAN_ASSET_CONSERVATION_ROWS_V1,
+    MAX_EFFECT_PLAN_EXTERNAL_OUTBOX_ROWS_V1, MAX_EFFECT_PLAN_FEE_CONSERVATION_ROWS_V1,
+    MAX_EFFECT_PLAN_LANE_WRITES_V1, MAX_EFFECT_PLAN_OCCURRENCE_CONSUMPTIONS_V1,
+    MAX_EFFECT_PLAN_ROWS_V1,
 };
 use crate::release::LaneIdV1;
 use crate::state::TerminalObligationV1;
@@ -186,7 +189,40 @@ pub struct GlobalEconomicEffectPlanV1 {
 }
 
 impl GlobalEconomicEffectPlanV1 {
+    pub(crate) fn validate_resource_bounds(&self) -> AbiResultV1<()> {
+        if self.rows.len() > MAX_EFFECT_PLAN_ROWS_V1 {
+            return Err(AbiErrorV1::InvalidBounds("economic effect plan rows"));
+        }
+        if self.asset_conservation.len() > MAX_EFFECT_PLAN_ASSET_CONSERVATION_ROWS_V1 {
+            return Err(AbiErrorV1::InvalidBounds(
+                "economic effect plan asset conservation rows",
+            ));
+        }
+        if self.fee_conservation.len() > MAX_EFFECT_PLAN_FEE_CONSERVATION_ROWS_V1 {
+            return Err(AbiErrorV1::InvalidBounds(
+                "economic effect plan fee conservation rows",
+            ));
+        }
+        if self.lane_writes.len() > MAX_EFFECT_PLAN_LANE_WRITES_V1 {
+            return Err(AbiErrorV1::InvalidBounds(
+                "economic effect plan lane writes",
+            ));
+        }
+        if self.occurrence_consumptions.len() > MAX_EFFECT_PLAN_OCCURRENCE_CONSUMPTIONS_V1 {
+            return Err(AbiErrorV1::InvalidBounds(
+                "economic effect plan occurrence consumptions",
+            ));
+        }
+        if self.external_outbox_enqueue.len() > MAX_EFFECT_PLAN_EXTERNAL_OUTBOX_ROWS_V1 {
+            return Err(AbiErrorV1::InvalidBounds(
+                "economic effect plan external outbox rows",
+            ));
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> AbiResultV1<()> {
+        self.validate_resource_bounds()?;
         validate_schema_v1(&self.schema)?;
         for row in &self.rows {
             row.validate()?;

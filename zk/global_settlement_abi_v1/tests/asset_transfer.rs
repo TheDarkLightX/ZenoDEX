@@ -363,19 +363,25 @@ fn state_row_bounds_accept_maximum_and_reject_next_neighbors() {
 
     // Act / Assert
     assert!(policy_bounded.validate().is_ok());
-    let mut policy_over = policy_bounded;
+    let mut policy_over = policy_bounded.clone();
     policy_over.policies.push(AssetTransferPolicyV1 {
         asset: format!("ASSET{MAX_ASSET_POLICY_ROWS_V1:03}"),
         fee_owner: "treasury".to_owned(),
         transfer_fee_atoms: 0,
         enabled: true,
     });
-    policy_over.supplies.push(AssetSupplyV1 {
+    assert_eq!(
+        policy_over.validate().unwrap_err(),
+        AbiErrorV1::InvalidBounds("asset transfer policy or supply rows")
+    );
+
+    // Arrange / Act / Assert: supply max+1 independently kills its bound.
+    policy_bounded.supplies.push(AssetSupplyV1 {
         asset: format!("ASSET{MAX_ASSET_POLICY_ROWS_V1:03}"),
         amount_atoms: 0,
     });
     assert_eq!(
-        policy_over.validate().unwrap_err(),
+        policy_bounded.validate().unwrap_err(),
         AbiErrorV1::InvalidBounds("asset transfer policy or supply rows")
     );
 

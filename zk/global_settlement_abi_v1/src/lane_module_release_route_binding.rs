@@ -1,13 +1,13 @@
 use serde::Serialize;
 
 use crate::asset_transfer_lane_module::{
-    recompute_asset_transfer_lane_module_accepted_v1, AssetTransferLaneModuleAcceptedV1,
-    AssetTransferLaneModuleInputV1,
+    recompute_asset_transfer_lane_module_from_validated_accepted_v1,
+    AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
 };
 use crate::canonical::{hash_global_v1, AbiErrorV1, AbiResultV1, RootV1};
 use crate::global_oracle_price_occurrence::VerifiedGlobalOraclePriceV1;
 use crate::managed_asset_lifecycle_lane_module::{
-    recompute_managed_asset_lifecycle_lane_module_accepted_v1,
+    recompute_managed_asset_lifecycle_lane_module_from_validated_accepted_v1,
     ManagedAssetLifecycleLaneModuleAcceptedV1, ManagedAssetLifecycleLaneModuleInputV1,
 };
 use crate::perps_margin_lane_module::{
@@ -259,7 +259,7 @@ pub fn bind_asset_transfer_lane_output_to_release_route_v1(
     module_input: &AssetTransferLaneModuleInputV1,
     accepted: &AssetTransferLaneModuleAcceptedV1,
 ) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
-    let (bound, _) = bind_asset_transfer_lane_output_with_recomputed_v1(
+    let bound = bind_asset_transfer_lane_output_structural_v1(
         profile,
         lanes,
         coordinators,
@@ -268,10 +268,11 @@ pub fn bind_asset_transfer_lane_output_to_release_route_v1(
         module_input,
         accepted,
     )?;
+    recompute_asset_transfer_lane_module_from_validated_accepted_v1(module_input, accepted)?;
     Ok(bound)
 }
 
-pub(crate) fn bind_asset_transfer_lane_output_with_recomputed_v1(
+pub(crate) fn bind_asset_transfer_lane_output_structural_v1(
     profile: &EconomicProfileSnapshotV1,
     lanes: &LaneRegistryV1,
     coordinators: &LaneCoordinatorRegistryV1,
@@ -279,10 +280,7 @@ pub(crate) fn bind_asset_transfer_lane_output_with_recomputed_v1(
     occurrence: &EconomicCommandOccurrenceV1,
     module_input: &AssetTransferLaneModuleInputV1,
     accepted: &AssetTransferLaneModuleAcceptedV1,
-) -> AbiResultV1<(
-    ReleaseRouteBoundLaneTransitionV1,
-    AssetTransferLaneModuleAcceptedV1,
-)> {
+) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
     module_input.validate()?;
     accepted.validate()?;
     let statement_root = module_input.statement_root()?;
@@ -291,7 +289,7 @@ pub(crate) fn bind_asset_transfer_lane_output_with_recomputed_v1(
             "asset transfer accepted statement",
         ));
     }
-    let bound = bind_candidate_v1(
+    bind_candidate_v1(
         profile,
         lanes,
         coordinators,
@@ -314,9 +312,7 @@ pub(crate) fn bind_asset_transfer_lane_output_with_recomputed_v1(
             },
             module_journal: &accepted.module_journal,
         },
-    )?;
-    let expected = recompute_asset_transfer_lane_module_accepted_v1(module_input, accepted)?;
-    Ok((bound, expected))
+    )
 }
 
 pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
@@ -328,7 +324,7 @@ pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
     module_input: &ManagedAssetLifecycleLaneModuleInputV1,
     accepted: &ManagedAssetLifecycleLaneModuleAcceptedV1,
 ) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
-    let (bound, _) = bind_managed_asset_lifecycle_lane_output_with_recomputed_v1(
+    let bound = bind_managed_asset_lifecycle_lane_output_structural_v1(
         profile,
         lanes,
         coordinators,
@@ -337,10 +333,14 @@ pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
         module_input,
         accepted,
     )?;
+    recompute_managed_asset_lifecycle_lane_module_from_validated_accepted_v1(
+        module_input,
+        accepted,
+    )?;
     Ok(bound)
 }
 
-pub(crate) fn bind_managed_asset_lifecycle_lane_output_with_recomputed_v1(
+pub(crate) fn bind_managed_asset_lifecycle_lane_output_structural_v1(
     profile: &EconomicProfileSnapshotV1,
     lanes: &LaneRegistryV1,
     coordinators: &LaneCoordinatorRegistryV1,
@@ -348,10 +348,7 @@ pub(crate) fn bind_managed_asset_lifecycle_lane_output_with_recomputed_v1(
     occurrence: &EconomicCommandOccurrenceV1,
     module_input: &ManagedAssetLifecycleLaneModuleInputV1,
     accepted: &ManagedAssetLifecycleLaneModuleAcceptedV1,
-) -> AbiResultV1<(
-    ReleaseRouteBoundLaneTransitionV1,
-    ManagedAssetLifecycleLaneModuleAcceptedV1,
-)> {
+) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
     module_input.validate()?;
     accepted.validate()?;
     let statement_root = module_input.statement_root()?;
@@ -360,7 +357,7 @@ pub(crate) fn bind_managed_asset_lifecycle_lane_output_with_recomputed_v1(
             "managed asset accepted statement",
         ));
     }
-    let bound = bind_candidate_v1(
+    bind_candidate_v1(
         profile,
         lanes,
         coordinators,
@@ -383,10 +380,7 @@ pub(crate) fn bind_managed_asset_lifecycle_lane_output_with_recomputed_v1(
             },
             module_journal: &accepted.module_journal,
         },
-    )?;
-    let expected =
-        recompute_managed_asset_lifecycle_lane_module_accepted_v1(module_input, accepted)?;
-    Ok((bound, expected))
+    )
 }
 
 fn require_perps_oracle_price_binding_v1(

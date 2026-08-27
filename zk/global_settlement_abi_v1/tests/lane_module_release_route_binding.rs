@@ -1314,6 +1314,79 @@ fn coherent_managed_output_for_another_amount_rejects_before_route_binding() {
 }
 
 #[test]
+fn receipt_structural_binding_rejects_a_coherent_foreign_output_before_recomputation() {
+    // Arrange: bind the honest output, then create a structurally valid output
+    // for amount+1 and rebound only its public statement to the honest input.
+    let (profile, lanes, coordinators, routes) = profile();
+    let occurrence = occurrence(
+        &profile,
+        &routes,
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        "alice",
+        root(7),
+    );
+    let input = asset_input(&profile, &lanes, &occurrence, None);
+    let AssetTransferLaneModuleResultV1::Accepted(accepted) =
+        transition_asset_transfer_lane_module_v1(&input).unwrap()
+    else {
+        panic!("valid transfer must accept")
+    };
+    let bound = bind_asset_transfer_lane_output_to_release_route_v1(
+        &profile,
+        &lanes,
+        &coordinators,
+        &routes,
+        &occurrence,
+        &input,
+        &accepted,
+    )
+    .unwrap();
+    let mut foreign_input = input.clone();
+    foreign_input.command.amount_atoms += 1;
+    let AssetTransferLaneModuleResultV1::Accepted(mut forged) =
+        transition_asset_transfer_lane_module_v1(&foreign_input).unwrap()
+    else {
+        panic!("foreign transfer must remain economically valid")
+    };
+    structurally_rebind_transfer_statement(&mut forged, input.statement_root().unwrap());
+    let authenticated = authenticate_occurrence(
+        &profile,
+        &routes,
+        &occurrence,
+        canonical_economic_command_body_bytes_v1(&input.command.command_kind, &input.command)
+            .unwrap(),
+    );
+    let verifier = RecordingModuleReceiptVerifier::default();
+
+    // Act
+    let result = verify_asset_transfer_lane_module_receipt_v1(
+        AssetTransferLaneModuleReceiptCandidateV1 {
+            profile: &profile,
+            lanes: &lanes,
+            coordinators: &coordinators,
+            routes: &routes,
+            authenticated_command: &authenticated,
+            module_input: &input,
+            accepted: &forged,
+            release_route_binding: &bound,
+            receipt: LaneModuleReceiptEnvelopeV1 {
+                receipt_kind: ReceiptKindV1::SUCCINCT,
+                receipt_bytes: b"untrusted-receipt-must-not-reach-verifier",
+            },
+        },
+        &verifier,
+    );
+
+    // Assert: the historical structural envelope check retains precedence,
+    // and no cryptographic verifier authority is invoked.
+    assert_eq!(
+        result.unwrap_err(),
+        AbiErrorV1::InvalidBinding("lane module structural binding")
+    );
+    assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
 fn inactive_profile_reject_precedes_coherent_foreign_output_rejection() {
     // Arrange
     let (mut profile, lanes, coordinators, routes) = profile();

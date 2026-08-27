@@ -107,6 +107,9 @@ pub struct ManagedAssetLifecycleLaneModuleAcceptedV1 {
 
 impl ManagedAssetLifecycleLaneModuleAcceptedV1 {
     pub fn validate(&self) -> AbiResultV1<()> {
+        self.post_state.validate()?;
+        self.effects.validate_resource_bounds()?;
+        self.private_port.validate_resource_bounds()?;
         self.statement_root
             .validate("managed asset lane module statement", false)?;
         ManagedAssetLifecycleAcceptedV1 {
@@ -277,11 +280,10 @@ pub fn transition_managed_asset_lifecycle_lane_module_v1(
     )))
 }
 
-pub(crate) fn recompute_managed_asset_lifecycle_lane_module_accepted_v1(
+pub(crate) fn recompute_managed_asset_lifecycle_lane_module_from_validated_accepted_v1(
     module_input: &ManagedAssetLifecycleLaneModuleInputV1,
     accepted: &ManagedAssetLifecycleLaneModuleAcceptedV1,
 ) -> AbiResultV1<ManagedAssetLifecycleLaneModuleAcceptedV1> {
-    accepted.validate()?;
     match transition_managed_asset_lifecycle_lane_module_v1(module_input)? {
         ManagedAssetLifecycleLaneModuleResultV1::Accepted(expected)
             if expected.as_ref() == accepted =>

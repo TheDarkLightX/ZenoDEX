@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::asset_transfer_types::{AssetTransferStateV1, ACCOUNT_CUSTODY_DOMAIN_V1};
 use crate::canonical::{
     hash_global_v1, validate_token_v1, AbiErrorV1, AbiResultV1, RootV1, GLOBAL_SETTLEMENT_ABI_V1,
+    MAX_ASSET_BALANCE_ROWS_V1, MAX_ASSET_CUSTODY_ROWS_V1, MAX_ASSET_POLICY_ROWS_V1,
 };
 use crate::effects::GlobalEconomicEffectPlanV1;
 use crate::managed_asset_lifecycle_types::ManagedAssetLifecycleStateV1;
@@ -71,7 +72,23 @@ pub struct AssetLaneStateProjectionV1 {
 }
 
 impl AssetLaneStateProjectionV1 {
+    pub(crate) fn validate_resource_bounds(&self) -> AbiResultV1<()> {
+        if self.balances.len() > MAX_ASSET_BALANCE_ROWS_V1 {
+            return Err(AbiErrorV1::InvalidBounds("asset lane balance rows"));
+        }
+        if self.custody.len() > MAX_ASSET_CUSTODY_ROWS_V1 {
+            return Err(AbiErrorV1::InvalidBounds(
+                "asset lane declared accounting-location rows",
+            ));
+        }
+        if self.supplies.len() > MAX_ASSET_POLICY_ROWS_V1 {
+            return Err(AbiErrorV1::InvalidBounds("asset lane supply rows"));
+        }
+        Ok(())
+    }
+
     pub fn validate(&self) -> AbiResultV1<()> {
+        self.validate_resource_bounds()?;
         if self.schema != ASSET_LANE_STATE_PROJECTION_SCHEMA_V1 {
             return Err(AbiErrorV1::InvalidSchema);
         }
@@ -195,7 +212,13 @@ pub struct AssetLanePrivatePortV1 {
 }
 
 impl AssetLanePrivatePortV1 {
+    pub(crate) fn validate_resource_bounds(&self) -> AbiResultV1<()> {
+        self.pre_state.validate_resource_bounds()?;
+        self.post_state.validate_resource_bounds()
+    }
+
     pub fn validate(&self) -> AbiResultV1<()> {
+        self.validate_resource_bounds()?;
         if self.schema != ASSET_LANE_PRIVATE_PORT_SCHEMA_V1 {
             return Err(AbiErrorV1::InvalidSchema);
         }
