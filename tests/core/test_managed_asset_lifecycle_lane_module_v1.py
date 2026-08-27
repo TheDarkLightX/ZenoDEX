@@ -34,7 +34,11 @@ def _root(value: int) -> str:
     return f"0x{value:064x}"
 
 
-def _input(command_kind: str) -> ManagedAssetLifecycleLaneModuleInputV1:
+def _input(
+    command_kind: str,
+    *,
+    other_location_atoms: int = 0,
+) -> ManagedAssetLifecycleLaneModuleInputV1:
     is_issue = command_kind == MANAGED_ASSET_ISSUE_COMMAND_KIND_V1
     context = ManagedAssetLifecycleContextV1(
         chain_id="zeno-asset-test",
@@ -59,7 +63,7 @@ def _input(command_kind: str) -> ManagedAssetLifecycleLaneModuleInputV1:
             ),
         ),
         balances=(EconomicAmountV1("alice", "USD", "accounts", 10),),
-        supplies=(AssetSupplyV1("USD", 10),),
+        supplies=(AssetSupplyV1("USD", 10 + other_location_atoms),),
     )
     command = ManagedAssetLifecycleCommandV1(
         command_kind=command_kind,
@@ -73,7 +77,18 @@ def _input(command_kind: str) -> ManagedAssetLifecycleLaneModuleInputV1:
         command=command,
         asset_policy_registry_root=_root(11),
         fee_policy_registry_root=_root(12),
-        custody=(),
+        custody=(
+            (
+                EconomicAmountV1(
+                    "escrow",
+                    "USD",
+                    "strategy_escrow",
+                    other_location_atoms,
+                ),
+            )
+            if other_location_atoms
+            else ()
+        ),
     )
 
 
@@ -122,6 +137,30 @@ def test_issue_and_burn_outputs_own_ports_and_compose_without_fixture_rebinding(
     )
     assert isinstance(composed, AssetLaneCompositionAcceptedV1)
     assert composed.post_state == result.private_port.post_state
+
+
+def test_issue_with_other_accounting_location_composes_complete_conservation() -> None:
+    # Arrange
+    module_input = _input(
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+        other_location_atoms=5,
+    )
+
+    # Act
+    result = transition_managed_asset_lifecycle_lane_module_v1(module_input)
+
+    # Assert
+    assert isinstance(result, ManagedAssetLifecycleLaneModuleAcceptedV1)
+    conservation = result.effects.asset_conservation[0]
+    assert conservation.owned_and_custodied_pre_atoms == 15
+    assert conservation.owned_and_custodied_post_atoms == 22
+    composed = compose_asset_lane_single_v1(
+        _coordinator_context(),
+        result.module_journal,
+        result.private_port,
+        result.effects,
+    )
+    assert isinstance(composed, AssetLaneCompositionAcceptedV1)
 
 
 def test_zero_issue_rejects_without_port_effects_or_state_change() -> None:

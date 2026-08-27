@@ -169,7 +169,7 @@ fn burn_rejects_when_selected_account_is_short_even_if_supply_is_sufficient() {
 }
 
 #[test]
-fn accepted_and_rejected_public_values_enforce_their_constructor_invariants() {
+fn explicit_validation_rejects_empty_accepted_effects_and_nonempty_rejected_effects() {
     let accepted_result =
         transition_managed_asset_lifecycle_v1(&context(true), &state(0, 0), &command(true, 1))
             .expect("typed issue must evaluate");
@@ -184,7 +184,25 @@ fn accepted_and_rejected_public_values_enforce_their_constructor_invariants() {
     };
 
     accepted.effects = rejected.effects.clone();
-    assert!(accepted.validate().is_err());
-    rejected.post_state_root = root(99);
-    assert!(rejected.validate().is_err());
+    accepted.module_journal.effect_plan_root = accepted.effects.effect_plan_root().unwrap();
+    assert_eq!(
+        accepted.validate().unwrap_err(),
+        zenodex_global_settlement_abi_v1::AbiErrorV1::InvalidBinding(
+            "managed asset accepted effects empty"
+        )
+    );
+
+    let accepted_result =
+        transition_managed_asset_lifecycle_v1(&context(true), &state(0, 0), &command(true, 1))
+            .expect("typed issue must evaluate");
+    let ManagedAssetLifecycleResultV1::Accepted(accepted) = accepted_result else {
+        panic!("valid issue must accept")
+    };
+    rejected.effects = accepted.effects;
+    assert_eq!(
+        rejected.validate().unwrap_err(),
+        zenodex_global_settlement_abi_v1::AbiErrorV1::InvalidBinding(
+            "managed asset rejected transition no-op"
+        )
+    );
 }

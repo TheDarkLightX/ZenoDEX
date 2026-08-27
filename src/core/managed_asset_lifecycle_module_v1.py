@@ -275,6 +275,19 @@ def _snapshot_context(
 ) -> ManagedAssetLifecycleContextV1:
     if type(context) is not ManagedAssetLifecycleContextV1:
         raise TypeError("managed asset lifecycle context must be the exact typed value")
+    for field_name in (
+        "chain_id",
+        "deployment_root",
+        "profile_root",
+        "module_release_id",
+        "command_occurrence_id",
+        "subject_id",
+        "grant_root",
+    ):
+        if type(getattr(context, field_name)) is not str:
+            raise TypeError(f"managed asset context {field_name} must be an exact string")
+    if type(context.writer_epoch) is not int:
+        raise TypeError("managed asset context writer_epoch must be an exact integer")
     return ManagedAssetLifecycleContextV1(
         chain_id=context.chain_id,
         deployment_root=context.deployment_root,
@@ -285,6 +298,61 @@ def _snapshot_context(
         subject_id=context.subject_id,
         grant_root=context.grant_root,
     )
+
+
+def _snapshot_policy(
+    policy: ManagedAssetLifecyclePolicyV1,
+) -> ManagedAssetLifecyclePolicyV1:
+    if type(policy) is not ManagedAssetLifecyclePolicyV1:
+        raise TypeError("managed asset lifecycle policies must contain exact typed values")
+    if type(policy.asset) is not str:
+        raise TypeError("managed asset policy asset must be an exact string")
+    if type(policy.asset_class) is not ManagedAssetClassV1:
+        raise TypeError("managed asset policy class must be an exact closed value")
+    for field_name in (
+        "issue_authority_subject",
+        "issue_policy_root",
+        "burn_policy_root",
+    ):
+        value = getattr(policy, field_name)
+        if value is not None and type(value) is not str:
+            raise TypeError(f"managed asset policy {field_name} must be exact text")
+    if type(policy.enabled) is not bool:
+        raise TypeError("managed asset policy enabled must be an exact bool")
+    return ManagedAssetLifecyclePolicyV1(
+        asset=policy.asset,
+        asset_class=policy.asset_class,
+        issue_authority_subject=policy.issue_authority_subject,
+        issue_policy_root=policy.issue_policy_root,
+        burn_policy_root=policy.burn_policy_root,
+        enabled=policy.enabled,
+    )
+
+
+def _snapshot_balance(row: EconomicAmountV1) -> EconomicAmountV1:
+    if type(row) is not EconomicAmountV1:
+        raise TypeError("managed asset lifecycle balances must contain exact typed values")
+    for field_name in ("owner", "asset", "custody_domain"):
+        if type(getattr(row, field_name)) is not str:
+            raise TypeError(f"managed asset balance {field_name} must be an exact string")
+    if type(row.amount_atoms) is not int:
+        raise TypeError("managed asset balance amount must be an exact integer")
+    return EconomicAmountV1(
+        owner=row.owner,
+        asset=row.asset,
+        custody_domain=row.custody_domain,
+        amount_atoms=row.amount_atoms,
+    )
+
+
+def _snapshot_supply(row: AssetSupplyV1) -> AssetSupplyV1:
+    if type(row) is not AssetSupplyV1:
+        raise TypeError("managed asset lifecycle supplies must contain exact typed values")
+    if type(row.asset) is not str:
+        raise TypeError("managed asset supply asset must be an exact string")
+    if type(row.amount_atoms) is not int:
+        raise TypeError("managed asset supply amount must be an exact integer")
+    return AssetSupplyV1(asset=row.asset, amount_atoms=row.amount_atoms)
 
 
 def _snapshot_state(
@@ -298,38 +366,13 @@ def _snapshot_state(
         raise TypeError("managed asset lifecycle balances must be an exact tuple")
     if type(pre_state.supplies) is not tuple:
         raise TypeError("managed asset lifecycle supplies must be an exact tuple")
-    if any(type(policy) is not ManagedAssetLifecyclePolicyV1 for policy in pre_state.policies):
-        raise TypeError("managed asset lifecycle policies must contain exact typed values")
-    if any(type(row) is not EconomicAmountV1 for row in pre_state.balances):
-        raise TypeError("managed asset lifecycle balances must contain exact typed values")
-    if any(type(row) is not AssetSupplyV1 for row in pre_state.supplies):
-        raise TypeError("managed asset lifecycle supplies must contain exact typed values")
+    if type(pre_state.module_release_id) is not str:
+        raise TypeError("managed asset state release must be an exact string")
     return ManagedAssetLifecycleStateV1(
         module_release_id=pre_state.module_release_id,
-        policies=tuple(
-            ManagedAssetLifecyclePolicyV1(
-                asset=policy.asset,
-                asset_class=policy.asset_class,
-                issue_authority_subject=policy.issue_authority_subject,
-                issue_policy_root=policy.issue_policy_root,
-                burn_policy_root=policy.burn_policy_root,
-                enabled=policy.enabled,
-            )
-            for policy in pre_state.policies
-        ),
-        balances=tuple(
-            EconomicAmountV1(
-                owner=row.owner,
-                asset=row.asset,
-                custody_domain=row.custody_domain,
-                amount_atoms=row.amount_atoms,
-            )
-            for row in pre_state.balances
-        ),
-        supplies=tuple(
-            AssetSupplyV1(asset=row.asset, amount_atoms=row.amount_atoms)
-            for row in pre_state.supplies
-        ),
+        policies=tuple(_snapshot_policy(policy) for policy in pre_state.policies),
+        balances=tuple(_snapshot_balance(row) for row in pre_state.balances),
+        supplies=tuple(_snapshot_supply(row) for row in pre_state.supplies),
     )
 
 
@@ -338,6 +381,11 @@ def _snapshot_command(
 ) -> ManagedAssetLifecycleCommandV1:
     if type(command) is not ManagedAssetLifecycleCommandV1:
         raise TypeError("managed asset lifecycle command must be the exact typed value")
+    for field_name in ("command_kind", "asset", "account_owner"):
+        if type(getattr(command, field_name)) is not str:
+            raise TypeError(f"managed asset command {field_name} must be an exact string")
+    if type(command.amount_atoms) is not int:
+        raise TypeError("managed asset command amount must be an exact integer")
     return ManagedAssetLifecycleCommandV1(
         command_kind=command.command_kind,
         asset=command.asset,
