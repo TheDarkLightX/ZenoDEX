@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 from typing import Callable, cast
@@ -733,6 +736,54 @@ def test_git_environment_forbids_lazy_fetch_and_ambient_configuration() -> None:
     assert environment["GIT_NO_REPLACE_OBJECTS"] == "1"
     assert environment["GIT_OPTIONAL_LOCKS"] == "0"
     assert "HOME" not in environment
+
+
+def test_runtime_import_closure_contains_only_manifested_repository_files() -> None:
+    # Arrange
+    script = f'''\
+from pathlib import Path
+import sys
+root = Path({str(REPO_ROOT)!r}).resolve()
+sys.path.insert(0, str(root))
+import tools.check_current_tau_compatibility_v1
+paths = set()
+for module in sys.modules.values():
+    path = getattr(module, "__file__", None)
+    if path is None:
+        continue
+    try:
+        paths.add(str(Path(path).resolve().relative_to(root)))
+    except ValueError:
+        pass
+print("\\n".join(sorted(paths)))
+'''
+
+    # Act
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", script],
+        cwd=REPO_ROOT,
+        env={
+            "LC_ALL": "C",
+            "PATH": os.defpath,
+            "PYTHONDONTWRITEBYTECODE": "1",
+        },
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    # Assert
+    assert result.returncode == 0, result.stderr
+    assert tuple(result.stdout.splitlines()) == (
+        "tools/__init__.py",
+        "tools/build_current_tau_compatibility_v1.py",
+        "tools/check_current_tau_compatibility_v1.py",
+        "tools/current_tau_compatibility_core_v1.py",
+        "tools/current_tau_compatibility_pins_v1.py",
+        "tools/current_tau_replay_io_v1.py",
+        "tools/current_tau_source_analysis_v1.py",
+    )
 
 
 def test_checker_internal_fault_returns_complete_no_authority_report(
