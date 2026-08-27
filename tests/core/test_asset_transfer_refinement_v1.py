@@ -372,3 +372,26 @@ def test_oracle_rejects_duplicate_json_keys_and_unreadable_corpora(tmp_path: Pat
     report = check_asset_transfer_refinement_v1(missing)
     assert report["ok"] is False
     assert report["case_count"] == 0
+
+
+@pytest.mark.parametrize("container_kind", ("list", "dict"))
+def test_direct_parser_rejects_python_only_container_subclasses(
+    container_kind: str,
+) -> None:
+    # Arrange
+    class ListAlias(list[object]):
+        pass
+
+    class DictAlias(dict[str, object]):
+        pass
+
+    payload = json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
+    expected = payload["cases"][0]["expected"]
+    if container_kind == "list":
+        expected["post_balances"] = ListAlias(expected["post_balances"])
+    else:
+        expected["effect_rows"][0] = DictAlias(expected["effect_rows"][0])
+
+    # Act / Assert
+    with pytest.raises(RefinementCorpusErrorV1, match="exact JSON values"):
+        parse_asset_transfer_refinement_corpus_v1(payload)

@@ -165,6 +165,26 @@ def _list(value: Any, where: str) -> list[Any]:
     return value
 
 
+def _exact_json_value(value: Any, where: str) -> Any:
+    """Reject Python-only container/scalar aliases outside the decoded JSON domain."""
+
+    if type(value) in (str, int, bool) or value is None:
+        return value
+    if type(value) is list:
+        return [
+            _exact_json_value(item, f"{where}[{index}]")
+            for index, item in enumerate(value)
+        ]
+    if type(value) is dict:
+        if any(type(key) is not str for key in value):
+            _fail(f"{where} must use exact JSON string keys")
+        return {
+            key: _exact_json_value(item, f"{where}.{key}")
+            for key, item in value.items()
+        }
+    _fail(f"{where} must contain exact JSON values")
+
+
 def _each(parse: Parser) -> Parser:
     def parse_all(value: Any, where: str) -> tuple[Any, ...]:
         return tuple(parse(item, f"{where}[{i}]") for i, item in enumerate(_list(value, where)))
@@ -230,12 +250,12 @@ _REJECTED_SPEC: Final[dict[str, Parser]] = {
     "reject_code": _reject_code, "state_root_unchanged": _true,
 }
 # The accepted expectation deliberately carries no inner row schema:
-# `_check_case_semantics` pins every row, field, type and canonical spelling by
+# `_parse_case` pins every row, field, type and canonical spelling by
 # exact equality against the independently recomputed observation.
 _ACCEPTED_SPEC: Final[dict[str, Parser]] = dict.fromkeys(
     ("asset_conservation", "effect_rows", "fee_conservation", "occurrence_consumptions",
      "post_balances"),
-    lambda value, _where: value,
+    _exact_json_value,
 ) | {"external_outbox_enqueue": _empty_outbox, "outcome": _text}
 
 
