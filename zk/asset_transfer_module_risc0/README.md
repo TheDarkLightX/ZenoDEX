@@ -28,7 +28,10 @@ cargo test --locked -p zenodex-asset-transfer-module-risc0-host \
   -- --ignored --nocapture
 ```
 
-Recorded local evidence for the exact current guest:
+Historical local evidence recorded for the guest as built on the recorded
+date. The linked ABI crate source has changed since (host-side governed
+transfer-policy binding), these values have not been re-derived against the
+current source, and no current-image claim is made:
 
 ```text
 RISC0 version: 3.0.6
@@ -49,7 +52,7 @@ to preserve exact host/guest transition reuse. A future no-std extraction would
 be a new image and requires equivalence evidence.
 
 This crate is unmounted. No active `EconomicProfileSnapshotV1` selects its
-image, no lane coordinator or route composer consumes the receipt, and no
+image, no mounted lane coordinator or route composer consumes the receipt, and no
 ZenoLedger writer can publish it. A real module receipt proves only this exact
 asset-transfer transition; it does not establish whole-economy settlement,
 terminal completeness, migration, durability, or production readiness.

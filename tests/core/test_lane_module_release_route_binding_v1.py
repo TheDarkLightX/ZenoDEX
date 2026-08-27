@@ -18,6 +18,11 @@ from src.core.asset_transfer_lane_module_v1 import (
     AssetTransferLaneModuleInputV1,
     transition_asset_transfer_lane_module_v1,
 )
+from src.core.asset_transfer_policy_registry_v1 import (
+    ASSET_TRANSFER_ASSET_POLICY_KIND_V1,
+    ASSET_TRANSFER_FEE_POLICY_KIND_V1,
+    AssetTransferPolicyRegistryV1,
+)
 from src.core.asset_transfer_types_v1 import (
     ASSET_TRANSFER_COMMAND_KIND_V1,
     ASSET_TRANSFER_MODULE_SCHEMA_V1,
@@ -84,6 +89,7 @@ from src.core.lane_composition_receipt_verification_v1 import (
     verify_asset_lane_composition_receipt_v1,
 )
 from src.core.lane_module_receipt_verification_v1 import (
+    MAX_LANE_MODULE_RECEIPT_BYTES_V1,
     AssetTransferLaneModuleReceiptCandidateV1,
     LaneModuleReceiptEnvelopeV1,
     ManagedAssetLifecycleLaneModuleReceiptCandidateV1,
@@ -92,6 +98,7 @@ from src.core.lane_module_receipt_verification_v1 import (
     verify_managed_asset_lifecycle_lane_module_receipt_v1,
 )
 from src.core.lane_module_release_route_binding_v1 import (
+    AssetTransferReleaseRouteBindingCandidateV1,
     ManagedAssetLifecycleReleaseRouteBindingCandidateV1,
     ReleaseRouteBoundLaneTransitionV1,
     _bind_managed_asset_lifecycle_lane_output_structural_v1,
@@ -160,6 +167,10 @@ _COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1 = (
 _MANAGED_COMMAND_KINDS_V1 = (
     MANAGED_ASSET_BURN_COMMAND_KIND_V1,
     MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+)
+_TRANSFER_POLICY_KINDS_V1 = (
+    ASSET_TRANSFER_ASSET_POLICY_KIND_V1,
+    ASSET_TRANSFER_FEE_POLICY_KIND_V1,
 )
 
 
@@ -304,13 +315,17 @@ def _profile(
     asset_policy_registry: ManagedAssetPolicyRegistryV1 | None = None,
     managed_command_kinds: tuple[str, ...] = _MANAGED_COMMAND_KINDS_V1,
     route_issue_burn_policy_root: str | None = None,
+    transfer_policy_registry: AssetTransferPolicyRegistryV1 | None = None,
+    transfer_policy_kinds: tuple[str, ...] = _TRANSFER_POLICY_KINDS_V1,
 ) -> tuple[EconomicProfileSnapshotV1, dict[str, RouteReleaseV1]]:
     """Build the synthetic ACTIVE profile; managed bindings only when requested.
 
-    The default (no managed-asset policy registry) keeps the transfer golden
-    binding roots stable; managed tests use ``_managed_governance_v1``, whose
-    issue and burn routes carry the typed registry root as their
-    ``issue_burn_policy_root`` unless a test overrides it.
+    The default governs the fixture transfer policy registry for
+    ``asset_transfer`` and carries no managed-asset bindings, which keeps the
+    transfer golden binding roots stable; managed tests use
+    ``_managed_governance_v1``, whose issue and burn routes carry the typed
+    registry root as their ``issue_burn_policy_root`` unless a test overrides
+    it, and which carries no transfer bindings so its vectors stay stable.
     """
 
     lane_registry = _asset_lane_registry_v1()
@@ -361,6 +376,8 @@ def _profile(
         signature_verifier_registry,
         asset_policy_registry=asset_policy_registry,
         managed_command_kinds=managed_command_kinds,
+        transfer_policy_registry=transfer_policy_registry,
+        transfer_policy_kinds=transfer_policy_kinds,
     )
     profile = EconomicProfileSnapshotV1.build(
         authority_epoch=7,
@@ -413,12 +430,37 @@ def _authorization_registry_v1(
     return EconomicCommandAuthorizationRegistryV1(authorizations)
 
 
+def _transfer_policy_bindings_v1(
+    transfer_policy_registry: AssetTransferPolicyRegistryV1 | None,
+    transfer_policy_kinds: tuple[str, ...],
+) -> tuple[EconomicPolicyBindingV1, ...]:
+    """Bind each requested transfer policy kind to its domain-separated root."""
+
+    if not transfer_policy_kinds:
+        return ()
+    registry = (
+        _asset_transfer_policy_registry_v1()
+        if transfer_policy_registry is None
+        else transfer_policy_registry
+    )
+    roots = {
+        ASSET_TRANSFER_ASSET_POLICY_KIND_V1: registry.asset_policy_root,
+        ASSET_TRANSFER_FEE_POLICY_KIND_V1: registry.fee_policy_root,
+    }
+    return tuple(
+        EconomicPolicyBindingV1(policy_kind, ASSET_TRANSFER_COMMAND_KIND_V1, roots[policy_kind])
+        for policy_kind in transfer_policy_kinds
+    )
+
+
 def _authentication_policy_registry_v1(
     authorizations: EconomicCommandAuthorizationRegistryV1,
     signature_verifiers: EconomicCommandSignatureVerifierRegistryV1,
     *,
     asset_policy_registry: ManagedAssetPolicyRegistryV1 | None = None,
     managed_command_kinds: tuple[str, ...] = _MANAGED_COMMAND_KINDS_V1,
+    transfer_policy_registry: AssetTransferPolicyRegistryV1 | None = None,
+    transfer_policy_kinds: tuple[str, ...] = _TRANSFER_POLICY_KINDS_V1,
 ) -> EconomicPolicyRegistryV1:
     authentication_bindings = tuple(
         EconomicPolicyBindingV1(policy_kind, command_kind, policy_root)
@@ -448,10 +490,14 @@ def _authentication_policy_registry_v1(
             for command_kind in managed_command_kinds
         )
     )
+    transfer_bindings = _transfer_policy_bindings_v1(
+        transfer_policy_registry,
+        transfer_policy_kinds,
+    )
     return EconomicPolicyRegistryV1(
         tuple(
             sorted(
-                (*authentication_bindings, *managed_bindings),
+                (*authentication_bindings, *managed_bindings, *transfer_bindings),
                 key=lambda binding: (binding.policy_kind, binding.command_kind),
             )
         )
@@ -592,11 +638,19 @@ def _asset_input(
     occurrence: EconomicCommandOccurrenceV1,
     *,
     module_release_id: str | None = None,
+    asset_policy_registry: AssetTransferPolicyRegistryV1 | None = None,
 ) -> AssetTransferLaneModuleInputV1:
+    """Transfer input whose opaque roots are the governed registry's typed roots."""
+
     release_id = (
         profile.lane_registry.release_for(LaneIdV1.ASSET_TRANSFER).release_id
         if module_release_id is None
         else module_release_id
+    )
+    registry = (
+        _asset_transfer_policy_registry_v1()
+        if asset_policy_registry is None
+        else asset_policy_registry
     )
     return AssetTransferLaneModuleInputV1(
         context=AssetTransferContextV1(
@@ -611,7 +665,7 @@ def _asset_input(
         ),
         pre_state=AssetTransferStateV1(
             module_release_id=release_id,
-            policies=(AssetTransferPolicyV1("USD", "treasury", 2, True),),
+            policies=registry.policies,
             balances=(
                 EconomicAmountV1("alice", "USD", "accounts", 100),
                 EconomicAmountV1("bob", "USD", "accounts", 10),
@@ -627,9 +681,98 @@ def _asset_input(
             30,
             2,
         ),
-        asset_policy_registry_root=_root(11),
-        fee_policy_registry_root=_root(12),
+        asset_policy_registry_root=registry.asset_policy_root,
+        fee_policy_registry_root=registry.fee_policy_root,
         custody=(),
+    )
+
+
+def _asset_transfer_policy_v1() -> AssetTransferPolicyV1:
+    return AssetTransferPolicyV1("USD", "treasury", 2, True)
+
+
+def _asset_transfer_policy_registry_v1(
+    module_release_id: str | None = None,
+) -> AssetTransferPolicyRegistryV1:
+    """Governed USD transfer policy row bound to the fixture ASSET_TRANSFER release."""
+
+    return AssetTransferPolicyRegistryV1(
+        _asset_transfer_release_id_v1() if module_release_id is None else module_release_id,
+        (_asset_transfer_policy_v1(),),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _TransferGovernanceV1:
+    """One ACTIVE profile whose economic policy registry governs transfers."""
+
+    profile: EconomicProfileSnapshotV1
+    routes: dict[str, RouteReleaseV1]
+    policy_registry: EconomicPolicyRegistryV1
+    asset_policy_registry: AssetTransferPolicyRegistryV1
+
+
+def _transfer_governance_v1(
+    *,
+    asset_policy_registry: AssetTransferPolicyRegistryV1 | None = None,
+    transfer_policy_kinds: tuple[str, ...] = _TRANSFER_POLICY_KINDS_V1,
+) -> _TransferGovernanceV1:
+    governed = (
+        _asset_transfer_policy_registry_v1()
+        if asset_policy_registry is None
+        else asset_policy_registry
+    )
+    profile, routes = _profile(
+        transfer_policy_registry=governed,
+        transfer_policy_kinds=transfer_policy_kinds,
+    )
+    policy_registry = _authentication_policy_registry_v1(
+        _authorization_registry_v1(profile.route_registry),
+        _signature_verifier_registry_v1(),
+        transfer_policy_registry=governed,
+        transfer_policy_kinds=transfer_policy_kinds,
+    )
+    return _TransferGovernanceV1(profile, routes, policy_registry, governed)
+
+
+def _transfer_binding_candidate(
+    governance: _TransferGovernanceV1,
+    occurrence: EconomicCommandOccurrenceV1,
+    module_input: AssetTransferLaneModuleInputV1,
+    accepted: AssetTransferLaneModuleAcceptedV1,
+) -> AssetTransferReleaseRouteBindingCandidateV1:
+    return AssetTransferReleaseRouteBindingCandidateV1(
+        governance.profile,
+        governance.policy_registry,
+        governance.asset_policy_registry,
+        occurrence,
+        module_input,
+        accepted,
+    )
+
+
+def _transfer_receipt_candidate(
+    governance: _TransferGovernanceV1,
+    occurrence: EconomicCommandOccurrenceV1,
+    module_input: AssetTransferLaneModuleInputV1,
+    accepted: AssetTransferLaneModuleAcceptedV1,
+    bound: ReleaseRouteBoundLaneTransitionV1,
+    receipt: LaneModuleReceiptEnvelopeV1,
+) -> AssetTransferLaneModuleReceiptCandidateV1:
+    return AssetTransferLaneModuleReceiptCandidateV1(
+        governance.profile,
+        governance.policy_registry,
+        governance.asset_policy_registry,
+        _authenticate_occurrence_for_test(
+            governance.profile,
+            occurrence,
+            module_input.command,
+            policy_registry=governance.policy_registry,
+        ),
+        module_input,
+        accepted,
+        bound,
+        receipt,
     )
 
 
@@ -680,12 +823,14 @@ def _managed_governance_v1(
         asset_policy_registry=governed,
         managed_command_kinds=managed_command_kinds,
         route_issue_burn_policy_root=route_issue_burn_policy_root,
+        transfer_policy_kinds=(),
     )
     policy_registry = _authentication_policy_registry_v1(
         _authorization_registry_v1(profile.route_registry),
         _signature_verifier_registry_v1(),
         asset_policy_registry=governed,
         managed_command_kinds=managed_command_kinds,
+        transfer_policy_kinds=(),
     )
     return _ManagedGovernanceV1(profile, routes, policy_registry, governed)
 
@@ -767,17 +912,15 @@ def _managed_input(
 
 
 def test_asset_output_gets_opaque_active_profile_release_route_binding() -> None:
-    profile, routes = _profile()
+    governance = _transfer_governance_v1()
+    profile, routes = governance.profile, governance.routes
     occurrence = _occurrence(profile, routes[ASSET_TRANSFER_COMMAND_KIND_V1], subject_id="alice", grant_root=_root(7))
     module_input = _asset_input(profile, occurrence)
     accepted = transition_asset_transfer_lane_module_v1(module_input)
     assert isinstance(accepted, AssetTransferLaneModuleAcceptedV1)
 
     bound = bind_asset_transfer_lane_output_to_release_route_v1(
-        profile,
-        occurrence,
-        module_input,
-        accepted,
+        _transfer_binding_candidate(governance, occurrence, module_input, accepted)
     )
 
     assert bound.profile_id == profile.profile_id
@@ -790,7 +933,9 @@ def test_asset_output_gets_opaque_active_profile_release_route_binding() -> None
     assert bound.producer_module_schema == ASSET_TRANSFER_MODULE_SCHEMA_V1
     assert bound.route_lane_index == 0
     assert bound.port_schema_root == routes[ASSET_TRANSFER_COMMAND_KIND_V1].port_schema_roots[0]
-    assert bound.binding_root == "0xcff38651027da371035b33cb7173ba002b9b942e1dc11436485f69d25aebf9f7"
+    # Cross-language vector: the Rust route-binding suite asserts the same
+    # governed transfer binding root for the same fixture.
+    assert bound.binding_root == "0x3c81585faeffa442eb7d83cff4ccd3c158358a67766f63c8c8f00a579e736fba"
     with pytest.raises(AttributeError, match="immutable"):
         bound._profile_id = _root(999)
 
@@ -830,7 +975,8 @@ def test_authenticated_command_body_hashes_match_rust_golden_vectors() -> None:
 
 def test_same_kind_transfer_body_substitution_rejects_before_receipt_binding() -> None:
     # Arrange: Alice authenticated a transfer to Bob, while the module executes Mallory.
-    profile, routes = _profile()
+    governance = _transfer_governance_v1()
+    profile, routes = governance.profile, governance.routes
     occurrence = _occurrence(
         profile,
         routes[ASSET_TRANSFER_COMMAND_KIND_V1],
@@ -848,16 +994,14 @@ def test_same_kind_transfer_body_substitution_rejects_before_receipt_binding() -
     # Act / Assert: same command kind and valid economics cannot reuse Alice's body hash.
     with pytest.raises(ValueError, match="command body hash mismatch"):
         bind_asset_transfer_lane_output_to_release_route_v1(
-            profile,
-            occurrence,
-            substituted,
-            accepted,
+            _transfer_binding_candidate(governance, occurrence, substituted, accepted)
         )
 
 
 def test_hostile_transfer_command_subclass_cannot_forge_body_hash() -> None:
     # Arrange: a retained exact input and a subclass advertising Bob's hash.
-    profile, routes = _profile()
+    governance = _transfer_governance_v1()
+    profile, routes = governance.profile, governance.routes
     occurrence = _occurrence(
         profile,
         routes[ASSET_TRANSFER_COMMAND_KIND_V1],
@@ -893,10 +1037,7 @@ def test_hostile_transfer_command_subclass_cannot_forge_body_hash() -> None:
     object.__setattr__(retained, "command", forged)
     with pytest.raises(TypeError, match="command must have the exact typed value"):
         bind_asset_transfer_lane_output_to_release_route_v1(
-            profile,
-            occurrence,
-            retained,
-            accepted,
+            _transfer_binding_candidate(governance, occurrence, retained, accepted)
         )
 
 
@@ -1038,7 +1179,8 @@ def test_managed_issue_and_burn_bind_to_their_exact_governed_routes(
 
 
 def test_caller_selected_route_and_inactive_profile_fail_closed() -> None:
-    profile, routes = _profile()
+    governance = _transfer_governance_v1()
+    profile, routes = governance.profile, governance.routes
     route = routes[ASSET_TRANSFER_COMMAND_KIND_V1]
     occurrence = _occurrence(profile, route, subject_id="alice", grant_root=_root(7))
     wrong_route_occurrence = replace(occurrence, route_release_id=_root(998))
@@ -1048,10 +1190,12 @@ def test_caller_selected_route_and_inactive_profile_fail_closed() -> None:
 
     with pytest.raises(ValueError, match="caller-selected route"):
         bind_asset_transfer_lane_output_to_release_route_v1(
-            profile,
-            wrong_route_occurrence,
-            module_input,
-            accepted,
+            _transfer_binding_candidate(
+                governance,
+                wrong_route_occurrence,
+                module_input,
+                accepted,
+            )
         )
 
     valid_input = _asset_input(profile, occurrence)
@@ -1059,10 +1203,14 @@ def test_caller_selected_route_and_inactive_profile_fail_closed() -> None:
     assert isinstance(valid_accepted, AssetTransferLaneModuleAcceptedV1)
     with pytest.raises(ValueError, match="profile is not ACTIVE"):
         bind_asset_transfer_lane_output_to_release_route_v1(
-            replace(profile, status=ProfileStatusV1.SHADOW),
-            occurrence,
-            valid_input,
-            valid_accepted,
+            AssetTransferReleaseRouteBindingCandidateV1(
+                replace(profile, status=ProfileStatusV1.SHADOW),
+                governance.policy_registry,
+                governance.asset_policy_registry,
+                occurrence,
+                valid_input,
+                valid_accepted,
+            )
         )
 
 
@@ -1079,26 +1227,34 @@ def test_command_substitution_and_unregistered_module_release_fail_closed() -> N
             _managed_binding_candidate(governance, occurrence, burn_input, burn_accepted)
         )
 
+    transfer_governance = _transfer_governance_v1()
     transfer_occurrence = _occurrence(
-        profile,
-        routes[ASSET_TRANSFER_COMMAND_KIND_V1],
+        transfer_governance.profile,
+        transfer_governance.routes[ASSET_TRANSFER_COMMAND_KIND_V1],
         subject_id="alice",
         grant_root=_root(7),
     )
-    foreign_input = _asset_input(profile, transfer_occurrence, module_release_id=_root(997))
+    foreign_input = _asset_input(
+        transfer_governance.profile,
+        transfer_occurrence,
+        module_release_id=_root(997),
+    )
     foreign_accepted = transition_asset_transfer_lane_module_v1(foreign_input)
     assert isinstance(foreign_accepted, AssetTransferLaneModuleAcceptedV1)
     with pytest.raises(ValueError, match="module release mismatch"):
         bind_asset_transfer_lane_output_to_release_route_v1(
-            profile,
-            transfer_occurrence,
-            foreign_input,
-            foreign_accepted,
+            _transfer_binding_candidate(
+                transfer_governance,
+                transfer_occurrence,
+                foreign_input,
+                foreign_accepted,
+            )
         )
 
 
 def test_occurrence_subject_and_cross_domain_substitution_fail_closed() -> None:
-    profile, routes = _profile()
+    governance = _transfer_governance_v1()
+    profile, routes = governance.profile, governance.routes
     route = routes[ASSET_TRANSFER_COMMAND_KIND_V1]
     occurrence = _occurrence(profile, route, subject_id="alice", grant_root=_root(7))
     module_input = _asset_input(profile, occurrence)
@@ -1108,18 +1264,12 @@ def test_occurrence_subject_and_cross_domain_substitution_fail_closed() -> None:
     wrong_subject = replace(occurrence, subject_id="mallory")
     with pytest.raises(ValueError, match="subject mismatch"):
         bind_asset_transfer_lane_output_to_release_route_v1(
-            profile,
-            wrong_subject,
-            module_input,
-            accepted,
+            _transfer_binding_candidate(governance, wrong_subject, module_input, accepted)
         )
     wrong_chain = replace(occurrence, chain_id="other-chain")
     with pytest.raises(ValueError, match="chain id mismatch"):
         bind_asset_transfer_lane_output_to_release_route_v1(
-            profile,
-            wrong_chain,
-            module_input,
-            accepted,
+            _transfer_binding_candidate(governance, wrong_chain, module_input, accepted)
         )
 
 
@@ -1158,29 +1308,26 @@ class _RecordingModuleReceiptVerifier:
 
 
 def _accepted_transfer_with_binding() -> tuple[
-    EconomicProfileSnapshotV1,
+    _TransferGovernanceV1,
     EconomicCommandOccurrenceV1,
     AssetTransferLaneModuleInputV1,
     AssetTransferLaneModuleAcceptedV1,
     ReleaseRouteBoundLaneTransitionV1,
 ]:
-    profile, routes = _profile()
+    governance = _transfer_governance_v1()
     occurrence = _occurrence(
-        profile,
-        routes[ASSET_TRANSFER_COMMAND_KIND_V1],
+        governance.profile,
+        governance.routes[ASSET_TRANSFER_COMMAND_KIND_V1],
         subject_id="alice",
         grant_root=_root(7),
     )
-    module_input = _asset_input(profile, occurrence)
+    module_input = _asset_input(governance.profile, occurrence)
     accepted = transition_asset_transfer_lane_module_v1(module_input)
     assert isinstance(accepted, AssetTransferLaneModuleAcceptedV1)
     bound = bind_asset_transfer_lane_output_to_release_route_v1(
-        profile,
-        occurrence,
-        module_input,
-        accepted,
+        _transfer_binding_candidate(governance, occurrence, module_input, accepted)
     )
-    return profile, occurrence, module_input, accepted, bound
+    return governance, occurrence, module_input, accepted, bound
 
 
 def _accepted_managed_issue_with_binding() -> tuple[
@@ -1233,7 +1380,8 @@ def _structurally_rebind_managed_statement(
 
 
 def test_module_receipt_verification_uses_release_image_and_exact_journal() -> None:
-    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    governance, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    profile = governance.profile
     receipt_bytes = b"succinct-asset-transfer-module-receipt-v1"
     verifier = _RecordingModuleReceiptVerifier()
     authenticated = _authenticate_occurrence_for_test(
@@ -1242,15 +1390,17 @@ def test_module_receipt_verification_uses_release_image_and_exact_journal() -> N
         module_input.command,
     )
     assert authenticated.authentication_message_digest == (
-        "0x3e13b70eb1e4ca23683d911dd5179575069d275c83575fcf1723cde0429ab723"
+        "0x934c666d99583fb49c28b98d4f16149bc650666b7c4509dcff02b35f0129acc7"
     )
     assert authenticated.binding_root == (
-        "0xfe6a9ea24267f83b12ddfcd8c5ad87686d82c1ba148313f964b3ca534c81fb8a"
+        "0x7e3060ff5951838276290685c975b6e51638aa40cce3239989370482cdda4c38"
     )
 
     verified = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1(
             profile,
+            governance.policy_registry,
+            governance.asset_policy_registry,
             authenticated,
             module_input,
             accepted,
@@ -1271,7 +1421,7 @@ def test_module_receipt_verification_uses_release_image_and_exact_journal() -> N
     assert verified.receipt_digest == "0x" + hashlib.sha256(receipt_bytes).hexdigest()
     assert verified.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified.receipt_digest != accepted.module_journal.receipt_root
-    assert verified.binding_root == "0x9ca1eb63ba22b9a214266eea3a3ee2b9b7f1d09c92b202fa063ab06e7bf2dbdb"
+    assert verified.binding_root == "0xa398f2c330729ccbe8a927d7f96d9e3f14ec8bc56e97a6afeed9b79393d66353"
     with pytest.raises(AttributeError, match="immutable"):
         verified._receipt_digest = _root(999)
 
@@ -1325,7 +1475,7 @@ def test_managed_module_receipts_gain_only_release_image_bound_authority(
 
 
 def test_module_receipt_rejects_empty_nonsuccinct_and_verifier_failure() -> None:
-    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    governance, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
 
     for receipt_kind, receipt_bytes, message in (
         (ReceiptKindV1.SUCCINCT, b"", "non-empty"),
@@ -1334,13 +1484,9 @@ def test_module_receipt_rejects_empty_nonsuccinct_and_verifier_failure() -> None
         verifier = _RecordingModuleReceiptVerifier()
         with pytest.raises(ValueError, match=message):
             verify_asset_transfer_lane_module_receipt_v1(
-                AssetTransferLaneModuleReceiptCandidateV1(
-                    profile,
-                    _authenticate_occurrence_for_test(
-                        profile,
-                        occurrence,
-                        module_input.command,
-                    ),
+                _transfer_receipt_candidate(
+                    governance,
+                    occurrence,
                     module_input,
                     accepted,
                     bound,
@@ -1353,13 +1499,9 @@ def test_module_receipt_rejects_empty_nonsuccinct_and_verifier_failure() -> None
     rejecting_verifier = _RecordingModuleReceiptVerifier(reject=True)
     with pytest.raises(ValueError, match="test verifier rejected"):
         verify_asset_transfer_lane_module_receipt_v1(
-            AssetTransferLaneModuleReceiptCandidateV1(
-                profile,
-                _authenticate_occurrence_for_test(
-                    profile,
-                    occurrence,
-                    module_input.command,
-                ),
+            _transfer_receipt_candidate(
+                governance,
+                occurrence,
                 module_input,
                 accepted,
                 bound,
@@ -1373,8 +1515,47 @@ def test_module_receipt_rejects_empty_nonsuccinct_and_verifier_failure() -> None
     assert len(rejecting_verifier.calls) == 1
 
 
+def test_module_receipt_byte_ceiling_matches_rust_and_precedes_verifier_dispatch() -> None:
+    # Arrange
+    governance, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    at_limit = b"a" * MAX_LANE_MODULE_RECEIPT_BYTES_V1
+    at_limit_verifier = _RecordingModuleReceiptVerifier()
+
+    # Act: the exact limit remains admissible.
+    verify_asset_transfer_lane_module_receipt_v1(
+        _transfer_receipt_candidate(
+            governance,
+            occurrence,
+            module_input,
+            accepted,
+            bound,
+            LaneModuleReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, at_limit),
+        ),
+        at_limit_verifier,
+    )
+
+    # Assert, then release the large vector before allocating the one-over case.
+    assert len(at_limit_verifier.calls) == 1
+    del at_limit_verifier, at_limit
+    over_limit = b"a" * (MAX_LANE_MODULE_RECEIPT_BYTES_V1 + 1)
+    over_limit_verifier = _RecordingModuleReceiptVerifier()
+    with pytest.raises(ValueError, match="exceed.*byte ceiling"):
+        verify_asset_transfer_lane_module_receipt_v1(
+            _transfer_receipt_candidate(
+                governance,
+                occurrence,
+                module_input,
+                accepted,
+                bound,
+                LaneModuleReceiptEnvelopeV1(ReceiptKindV1.SUCCINCT, over_limit),
+            ),
+            over_limit_verifier,
+        )
+    assert over_limit_verifier.calls == []
+
+
 def test_structural_binding_cannot_authorize_a_mutated_module_journal() -> None:
-    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    governance, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
     with pytest.raises(ValueError, match="receipt root mismatch"):
         replace(
             accepted,
@@ -1391,9 +1572,11 @@ def test_structural_binding_cannot_authorize_a_mutated_module_journal() -> None:
     with pytest.raises(ValueError, match="command body hash mismatch"):
         verify_asset_transfer_lane_module_receipt_v1(
             AssetTransferLaneModuleReceiptCandidateV1(
-                profile,
+                governance.profile,
+                governance.policy_registry,
+                governance.asset_policy_registry,
                 _authenticate_occurrence_for_test(
-                    profile,
+                    governance.profile,
                     occurrence,
                     module_input.command,
                 ),
@@ -1413,7 +1596,7 @@ def test_structural_binding_cannot_authorize_a_mutated_module_journal() -> None:
 
 def test_transfer_accepted_output_cannot_be_rerooted_to_another_command() -> None:
     # Arrange: execute Mallory's payload, then advertise Bob's statement root.
-    profile, occurrence, authenticated, _, _ = _accepted_transfer_with_binding()
+    governance, occurrence, authenticated, _, _ = _accepted_transfer_with_binding()
     executed = replace(
         authenticated,
         command=replace(authenticated.command, recipient="mallory"),
@@ -1422,13 +1605,10 @@ def test_transfer_accepted_output_cannot_be_rerooted_to_another_command() -> Non
     assert isinstance(accepted, AssetTransferLaneModuleAcceptedV1)
     object.__setattr__(accepted, "statement_root", authenticated.statement_root)
 
-    # Act / Assert: full deterministic recomputation rejects the reroot.
+    # Act / Assert: the owned snapshot revalidates the rerooted output.
     with pytest.raises(ValueError, match="receipt root mismatch"):
         bind_asset_transfer_lane_output_to_release_route_v1(
-            profile,
-            occurrence,
-            authenticated,
-            accepted,
+            _transfer_binding_candidate(governance, occurrence, authenticated, accepted)
         )
 
 
@@ -1616,10 +1796,10 @@ def test_transfer_candidate_revalidates_retained_accepted_output_before_verifier
     mutation: str,
 ) -> None:
     # Arrange: retain a valid candidate, then mutate one accepted-output layer.
-    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
-    candidate = AssetTransferLaneModuleReceiptCandidateV1(
-        profile,
-        _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
+    governance, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    candidate = _transfer_receipt_candidate(
+        governance,
+        occurrence,
         module_input,
         accepted,
         bound,
@@ -1661,7 +1841,7 @@ def test_managed_candidate_revalidates_retained_accepted_output_before_verifier(
 
 def test_transfer_receipt_rejects_retained_command_subclass_before_verifier() -> None:
     # Arrange: construct the candidate, then mutate its retained input alias.
-    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    governance, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
     advertised_hash = module_input.command.command_body_hash
 
     class ForgedBodyHashCommand(AssetTransferCommandV1):
@@ -1669,9 +1849,9 @@ def test_transfer_receipt_rejects_retained_command_subclass_before_verifier() ->
         def command_body_hash(self) -> str:
             return advertised_hash
 
-    candidate = AssetTransferLaneModuleReceiptCandidateV1(
-        profile,
-        _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
+    candidate = _transfer_receipt_candidate(
+        governance,
+        occurrence,
         module_input,
         accepted,
         bound,
@@ -1744,10 +1924,12 @@ def test_verified_module_witness_rejects_public_construction() -> None:
 
 
 def test_raw_occurrence_cannot_enter_module_receipt_authority() -> None:
-    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    governance, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
     with pytest.raises(TypeError, match="authenticated economic command"):
         AssetTransferLaneModuleReceiptCandidateV1(
-            profile,
+            governance.profile,
+            governance.policy_registry,
+            governance.asset_policy_registry,
             occurrence,  # type: ignore[arg-type]
             module_input,
             accepted,
@@ -1757,13 +1939,15 @@ def test_raw_occurrence_cannot_enter_module_receipt_authority() -> None:
 
 
 def test_duck_typed_candidate_cannot_inject_authentication_root_at_verification() -> None:
-    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    governance, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
     forged_authentication = SimpleNamespace(
         occurrence=occurrence,
         binding_root=_root(98_001),
     )
     candidate = SimpleNamespace(
-        profile=profile,
+        profile=governance.profile,
+        policy_registry=governance.policy_registry,
+        asset_policy_registry=governance.asset_policy_registry,
         authenticated_command=forged_authentication,
         module_input=module_input,
         accepted=accepted,
@@ -1784,10 +1968,10 @@ def test_duck_typed_candidate_cannot_inject_authentication_root_at_verification(
 
 
 def test_mutated_candidate_cannot_inject_authentication_root_at_verification() -> None:
-    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
-    candidate = AssetTransferLaneModuleReceiptCandidateV1(
-        profile,
-        _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
+    governance, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    candidate = _transfer_receipt_candidate(
+        governance,
+        occurrence,
         module_input,
         accepted,
         bound,
@@ -1835,22 +2019,23 @@ def test_managed_candidate_cannot_inject_authentication_root_at_verification() -
     assert verifier.calls == []
 
 
-def _verified_transfer_and_coordinator_context() -> tuple[
-    EconomicProfileSnapshotV1,
+def _verified_transfer_governance_and_coordinator_context() -> tuple[
+    _TransferGovernanceV1,
     EconomicCommandOccurrenceV1,
     AssetTransferLaneModuleInputV1,
     AssetTransferLaneModuleAcceptedV1,
     VerifiedLaneModuleTransitionV1,
     AssetLaneCoordinatorContextV1,
 ]:
-    profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    governance, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
+    profile = governance.profile
     coordinator_release = profile.lane_coordinator_registry.release_for(
         LaneIdV1.ASSET_TRANSFER
     )
     verified = verify_asset_transfer_lane_module_receipt_v1(
-        AssetTransferLaneModuleReceiptCandidateV1(
-            profile,
-            _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
+        _transfer_receipt_candidate(
+            governance,
+            occurrence,
             module_input,
             accepted,
             bound,
@@ -1877,7 +2062,30 @@ def _verified_transfer_and_coordinator_context() -> tuple[
             ),
         ),
     )
-    return profile, occurrence, module_input, accepted, verified, coordinator_context
+    return governance, occurrence, module_input, accepted, verified, coordinator_context
+
+
+def _verified_transfer_and_coordinator_context() -> tuple[
+    EconomicProfileSnapshotV1,
+    EconomicCommandOccurrenceV1,
+    AssetTransferLaneModuleInputV1,
+    AssetTransferLaneModuleAcceptedV1,
+    VerifiedLaneModuleTransitionV1,
+    AssetLaneCoordinatorContextV1,
+]:
+    """Compatibility fixture retaining the historical profile-first shape."""
+
+    governance, occurrence, module_input, accepted, verified, coordinator_context = (
+        _verified_transfer_governance_and_coordinator_context()
+    )
+    return (
+        governance.profile,
+        occurrence,
+        module_input,
+        accepted,
+        verified,
+        coordinator_context,
+    )
 
 
 class _RecordingCompositionReceiptVerifier:
@@ -1964,7 +2172,7 @@ def test_verified_module_receipt_backs_only_exact_structural_lane_composition() 
     assert composition.module_receipt_digest == verified.receipt_digest
     assert composition.lane_journal_root != accepted.module_journal.journal_root
     assert composition.binding_root == (
-        "0x2b876b91b371e648dc5104f5641e58cc7990ef42be4121aed3ffac12bb2ebf19"
+        "0xde7d72f618133ee16bced50044c8198fcdf6b047c3037a5f7ac474242168845b"
     )
 
 
@@ -2037,7 +2245,7 @@ def test_lane_composition_receipt_uses_selected_image_and_exact_journal() -> Non
     )
     assert verified_composition.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified_composition.binding_root == (
-        "0x70363a4537639144d050cb091b67b04447e9615c2526eb70e110c76c112cf88a"
+        "0x059c6a971e386affd42808a2b762f1f33eef7812965de481fa4e38eda83e1d91"
     )
 
 
@@ -2114,37 +2322,33 @@ def test_verified_lane_composition_rejects_public_construction() -> None:
 
 
 def test_valid_module_receipt_cannot_back_a_different_lane_journal() -> None:
-    profile, occurrence, module_input, accepted, _, coordinator_context = (
-        _verified_transfer_and_coordinator_context()
+    # Arrange: a second valid journal under the same governed policy, produced
+    # from a different pre-state balance rather than an ungoverned fee row.
+    governance, occurrence, module_input, accepted, _, coordinator_context = (
+        _verified_transfer_governance_and_coordinator_context()
     )
+    profile = governance.profile
     substituted_input = replace(
         module_input,
         pre_state=replace(
             module_input.pre_state,
-            policies=(
-                replace(
-                    module_input.pre_state.policies[0],
-                    transfer_fee_atoms=1,
-                ),
+            balances=(
+                EconomicAmountV1("alice", "USD", "accounts", 100),
+                EconomicAmountV1("bob", "USD", "accounts", 11),
+                EconomicAmountV1("treasury", "USD", "accounts", 5),
             ),
+            supplies=(AssetSupplyV1("USD", 116),),
         ),
     )
     substituted = transition_asset_transfer_lane_module_v1(substituted_input)
     assert isinstance(substituted, AssetTransferLaneModuleAcceptedV1)
     substituted_bound = bind_asset_transfer_lane_output_to_release_route_v1(
-        profile,
-        occurrence,
-        substituted_input,
-        substituted,
+        _transfer_binding_candidate(governance, occurrence, substituted_input, substituted)
     )
     substituted_verified = verify_asset_transfer_lane_module_receipt_v1(
-        AssetTransferLaneModuleReceiptCandidateV1(
-            profile,
-            _authenticate_occurrence_for_test(
-                profile,
-                occurrence,
-                substituted_input.command,
-            ),
+        _transfer_receipt_candidate(
+            governance,
+            occurrence,
             substituted_input,
             substituted,
             substituted_bound,
@@ -2263,7 +2467,7 @@ def test_route_composition_receipt_uses_selected_image_and_exact_lane_witness() 
     assert verified_route.receipt_digest == "0x" + hashlib.sha256(receipt_bytes).hexdigest()
     assert verified_route.receipt_kind is ReceiptKindV1.SUCCINCT
     assert verified_route.binding_root == (
-        "0x2ad537543e4e87d7420cc0a2631855cf5565ada7c9798981e25697d44d7ea279"
+        "0x2d0169204490a146c2b52249d5d9df8ec77f2cf148ef057efad65228664c2151"
     )
 
 

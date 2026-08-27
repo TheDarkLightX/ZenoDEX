@@ -1,9 +1,12 @@
 """Deterministic research core for the `ASSET_TRANSFER` lane.
 
 This first module slice implements authenticated account-to-account transfer
-with a profile-bound flat fee. It does not implement issue, burn, external
-custody, release activation, or publication authority. Rejections return the
-exact pre-state root and an empty `GlobalEconomicEffectPlanV1`.
+with a flat fee read from the pre-state policy row. The transition consults no
+governed registry; release-route binding separately requires that row to be an
+exact member of the active profile's typed asset-transfer policy registry. It
+does not implement issue, burn, external custody, release activation, or
+publication authority. Rejections return the exact pre-state root and an empty
+`GlobalEconomicEffectPlanV1`.
 """
 
 from __future__ import annotations

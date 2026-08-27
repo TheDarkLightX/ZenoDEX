@@ -28,7 +28,8 @@ profile and exposes release-aware receipt verification that alone constructs
 opaque `VerifiedLaneCompositionV1`. A second unmounted RISC0 workspace proved
 one exact transfer module-to-lane composition by verifying the module receipt
 as an assumption and committing the canonical lane journal. The current
-content-derived active test-profile replay compiles, while its real receipt
+content-derived active test-profile source is statically coherent; the changed
+host fixture has not been rebuilt in this checkpoint. Its real receipt
 admission run is deferred to Runpod and no deployment profile admits it.
 
 The implementation is:
@@ -41,6 +42,9 @@ The implementation is:
 - `src/core/global_settlement_abi_v1.py`
 - `src/core/asset_transfer_types_v1.py`
 - `src/core/asset_transfer_module_v1.py`
+- `src/core/asset_transfer_policy_registry_v1.py`
+- `src/core/lane_module_release_route_binding_v1.py`
+- `src/core/lane_module_receipt_verification_v1.py`
 - `src/core/managed_asset_lifecycle_types_v1.py`
 - `src/core/managed_asset_lifecycle_module_v1.py`
 - `src/core/asset_lane_projection_v1.py`
@@ -59,6 +63,8 @@ Focused evidence is:
 - `tests/core/test_global_oracle_occurrence_authority_v1.py`
 - `tests/core/test_oracle_current_dispute_status_v1.py`
 - `tests/core/test_asset_transfer_module_v1.py`
+- `tests/core/test_asset_transfer_policy_membership_v1.py`
+- `tests/core/test_lane_module_release_route_binding_v1.py`
 - `tests/core/test_managed_asset_lifecycle_module_v1.py`
 - `tests/core/test_asset_lane_coordinator_v1.py`
 - `tests/core/test_asset_lane_coordinator_rejections_v1.py`
@@ -195,8 +201,12 @@ receipt admission. The transition
 accepts only when the context release matches the state release, the command
 kind and asset are registered, the asset is enabled, the sender is the
 authenticated subject, the recipient differs from the sender, the amount is
-positive, the profile-owned flat fee is within the caller's fee ceiling, and
-all signed-effect and unsigned-balance arithmetic is representable.
+positive, the flat fee carried by the pre-state policy row is within the
+caller's fee ceiling, and all signed-effect and unsigned-balance arithmetic is
+representable. The transition reads that policy row as state; release-route
+binding separately requires the row, and both opaque registry roots, to be
+exact members of the typed asset-transfer policy registry that the active
+profile's economic policy registry governs for `asset_transfer`.
 
 Acceptance returns a new immutable state, canonical account and fee effects,
 asset and fee conservation rows, one `ASSET_TRANSFER` lane write, one consumed
@@ -605,8 +615,9 @@ terminal, adapter, and evidence registries.
   source-scoped coordinator test. No governed route-composer or economic epoch
   receipt includes the resulting lane receipt yet.
 - The stable release-aware lane constructor and coordinator registry exist.
-  The current content-derived active test-profile fixture compiles, but its real
-  RISC0 replay was interrupted and has not produced a recorded
+  The changed content-derived active test-profile host fixture has not been
+  rebuilt in this checkpoint. Its earlier real RISC0 replay was interrupted and
+  has not produced a recorded
   `VerifiedLaneCompositionV1` binding root. No deployment-selected profile or
   authenticated verifier registry promotes the historical receipt.
 - The transfer core is not registered as an active `LaneModuleReleaseV1`,

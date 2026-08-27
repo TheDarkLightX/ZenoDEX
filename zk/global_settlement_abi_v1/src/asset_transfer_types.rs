@@ -41,7 +41,7 @@ pub struct AssetTransferPolicyV1 {
 }
 
 impl AssetTransferPolicyV1 {
-    fn validate(&self) -> AbiResultV1<()> {
+    pub(crate) fn validate(&self) -> AbiResultV1<()> {
         validate_token_v1(&self.asset, "asset transfer policy asset")?;
         validate_token_v1(&self.fee_owner, "asset transfer policy fee owner")
     }

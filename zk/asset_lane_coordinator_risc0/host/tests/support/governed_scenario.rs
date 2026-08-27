@@ -14,16 +14,15 @@ use super::authenticated_command::authenticate_occurrence_v1;
 use super::governed_registries::{release_aware_registries_v1, ReleaseAwareRegistriesV1};
 use super::{root, ReleaseAwareAssetLaneFixtureV1};
 
-fn asset_state(module_release_id: RootV1) -> AssetTransferStateV1 {
+/// Module state carrying exactly the governed policy rows.
+fn asset_state(
+    module_release_id: RootV1,
+    policies: Vec<AssetTransferPolicyV1>,
+) -> AssetTransferStateV1 {
     AssetTransferStateV1 {
         schema: ASSET_TRANSFER_MODULE_SCHEMA_V1.to_owned(),
         module_release_id,
-        policies: vec![AssetTransferPolicyV1 {
-            asset: "USD".to_owned(),
-            fee_owner: "treasury".to_owned(),
-            transfer_fee_atoms: 2,
-            enabled: true,
-        }],
+        policies,
         balances: vec![
             EconomicAmountV1 {
                 owner: "alice".to_owned(),
@@ -111,8 +110,11 @@ fn module_input(
         },
         pre_state,
         command,
-        asset_policy_registry_root: root(11),
-        fee_policy_registry_root: root(12),
+        asset_policy_registry_root: registries
+            .asset_policy_registry
+            .asset_policy_root()
+            .unwrap(),
+        fee_policy_registry_root: registries.asset_policy_registry.fee_policy_root().unwrap(),
         custody: vec![],
     }
 }
@@ -155,7 +157,10 @@ pub fn release_aware_asset_lane_fixture_v1(
         .unwrap()
         .release_id
         .clone();
-    let pre_state = asset_state(module_release_id.clone());
+    let pre_state = asset_state(
+        module_release_id.clone(),
+        registries.asset_policy_registry.policies.clone(),
+    );
     let command = command();
     let occurrence = occurrence(&registries, &pre_state, &command);
     let authenticated_command = authenticate_occurrence_v1(
@@ -163,6 +168,7 @@ pub fn release_aware_asset_lane_fixture_v1(
         &registries.routes,
         &occurrence,
         canonical_economic_command_body_bytes_v1(ASSET_TRANSFER_COMMAND_KIND_V1, &command).unwrap(),
+        &registries.policy_registry,
     );
     let module_input = module_input(
         &registries,
@@ -178,6 +184,8 @@ pub fn release_aware_asset_lane_fixture_v1(
         lanes: registries.lanes,
         coordinators: registries.coordinators,
         routes: registries.routes,
+        policy_registry: registries.policy_registry,
+        asset_policy_registry: registries.asset_policy_registry,
         occurrence,
         authenticated_command,
         guest_input: AssetLaneCoordinatorGuestInputV1 {

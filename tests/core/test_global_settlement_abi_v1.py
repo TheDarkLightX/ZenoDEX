@@ -23,6 +23,11 @@ from src.core.asset_transfer_lane_module_v1 import (
     AssetTransferLaneModuleInputV1,
     transition_asset_transfer_lane_module_v1,
 )
+from src.core.asset_transfer_policy_registry_v1 import (
+    ASSET_TRANSFER_ASSET_POLICY_KIND_V1,
+    ASSET_TRANSFER_FEE_POLICY_KIND_V1,
+    AssetTransferPolicyRegistryV1,
+)
 from src.core.asset_transfer_types_v1 import (
     ASSET_TRANSFER_COMMAND_KIND_V1,
     ASSET_TRANSFER_MODULE_SCHEMA_V1,
@@ -139,6 +144,7 @@ from src.core.lane_module_receipt_verification_v1 import (
     verify_asset_transfer_lane_module_receipt_v1,
 )
 from src.core.lane_module_release_route_binding_v1 import (
+    AssetTransferReleaseRouteBindingCandidateV1,
     bind_asset_transfer_lane_output_to_release_route_v1,
 )
 from src.core.receipt_backed_asset_lane_composition_v1 import (
@@ -327,11 +333,23 @@ def _source_manifest_for_state_v1(
     )
 
 
+def _asset_transfer_policy_registry_for_route_v1(
+    route: RouteReleaseV1,
+) -> AssetTransferPolicyRegistryV1:
+    """Governed USD transfer policy row bound to the route's ASSET_TRANSFER release."""
+
+    return AssetTransferPolicyRegistryV1(
+        route.module_release_ids[0],
+        (AssetTransferPolicyV1("USD", "treasury", 2, True),),
+    )
+
+
 def _policy_registry_for_route_v1(
     route: RouteReleaseV1,
     source_manifest: EconomicInitialStateSourceManifestV1 | None = None,
 ) -> EconomicPolicyRegistryV1:
     source_manifest = source_manifest or _genesis_source_manifest_v1()
+    transfer_registry = _asset_transfer_policy_registry_for_route_v1(route)
     authorization_registry = EconomicCommandAuthorizationRegistryV1(
         (
             EconomicCommandAuthorizationV1(
@@ -364,6 +382,16 @@ def _policy_registry_for_route_v1(
                         ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
                         route.command_kind,
                         signature_verifier_registry.registry_root,
+                    ),
+                    EconomicPolicyBindingV1(
+                        ASSET_TRANSFER_ASSET_POLICY_KIND_V1,
+                        route.command_kind,
+                        transfer_registry.asset_policy_root,
+                    ),
+                    EconomicPolicyBindingV1(
+                        ASSET_TRANSFER_FEE_POLICY_KIND_V1,
+                        route.command_kind,
+                        transfer_registry.fee_policy_root,
                     ),
                     m6_asset_precision_policy_binding_v1(),
                     m6_capability_policy_binding_v1(),
@@ -477,7 +505,22 @@ def _profile(
         terminal_registry_root=_root(415),
         status=status,
     )
+    _POLICY_REGISTRY_BY_PROFILE_ID_V1[profile.profile_id] = policy_registry
     return profile, route
+
+
+# Exact policy registry committed by ``_profile`` for each profile id, so the
+# governed transfer binder can be handed the registry the profile commits
+# without re-threading every source manifest through the module fixtures.
+_POLICY_REGISTRY_BY_PROFILE_ID_V1: dict[str, EconomicPolicyRegistryV1] = {}
+
+
+def _governed_policy_registry_for_profile_v1(
+    profile: EconomicProfileSnapshotV1,
+) -> EconomicPolicyRegistryV1:
+    registry = _POLICY_REGISTRY_BY_PROFILE_ID_V1[profile.profile_id]
+    assert registry.registry_root == profile.policy_registry_root
+    return registry
 
 
 def _state(profile: EconomicProfileSnapshotV1, *, height: int) -> GlobalEconomicStateV1:
@@ -765,30 +808,25 @@ def _authenticate_occurrence_for_test(
     )
     authorization_registry = EconomicCommandAuthorizationRegistryV1((authorization,))
     signature_verifier_registry = _signature_verifier_registry_v1()
-    policy_registry = EconomicPolicyRegistryV1(
-        tuple(
-            sorted(
-                (
-                    EconomicPolicyBindingV1(
-                        ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
-                        occurrence.command_kind,
-                        authorization_registry.registry_root,
-                    ),
-                    EconomicPolicyBindingV1(
-                        ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
-                        occurrence.command_kind,
-                        signature_verifier_registry.registry_root,
-                    ),
-                    m6_asset_precision_policy_binding_v1(),
-                    m6_capability_policy_binding_v1(),
-                    economic_initial_state_atom_coverage_policy_binding_v1(
-                        _genesis_source_manifest_v1()
-                    ),
-                ),
-                key=lambda binding: (binding.policy_kind, binding.command_kind),
-            )
+    # Authenticate under the exact policy registry the profile commits (which
+    # now also governs the transfer policy), and require its authorization and
+    # signature-verifier rows to be exactly the registries constructed here.
+    policy_registry = _governed_policy_registry_for_profile_v1(profile)
+    for policy_kind, expected_root in (
+        (
+            ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+            authorization_registry.registry_root,
+        ),
+        (
+            ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
+            signature_verifier_registry.registry_root,
+        ),
+    ):
+        binding = policy_registry.require_binding(
+            policy_kind=policy_kind,
+            command_kind=occurrence.command_kind,
         )
-    )
+        assert binding.policy_root == expected_root, policy_kind
     authenticated_intent = authenticate_economic_command_intent_v1(
         EconomicCommandAuthenticationCandidateV1(
             profile=profile,
@@ -882,6 +920,9 @@ def _asset_module_input_for_occurrence(
     occurrence: EconomicCommandOccurrenceV1,
     pre_module_state: AssetTransferStateV1,
 ) -> AssetTransferLaneModuleInputV1:
+    transfer_registry = _asset_transfer_policy_registry_for_route_v1(
+        profile.route_registry.routes[0]
+    )
     return AssetTransferLaneModuleInputV1(
         context=AssetTransferContextV1(
             chain_id=occurrence.chain_id,
@@ -902,8 +943,8 @@ def _asset_module_input_for_occurrence(
             amount_atoms=30,
             max_fee_atoms=2,
         ),
-        asset_policy_registry_root=_root(11),
-        fee_policy_registry_root=_root(12),
+        asset_policy_registry_root=transfer_registry.asset_policy_root,
+        fee_policy_registry_root=transfer_registry.fee_policy_root,
         custody=(),
     )
 
@@ -915,15 +956,25 @@ def _verified_asset_module_for_occurrence(
 ) -> tuple[AssetTransferLaneModuleAcceptedV1, VerifiedLaneModuleTransitionV1]:
     accepted = transition_asset_transfer_lane_module_v1(module_input)
     assert isinstance(accepted, AssetTransferLaneModuleAcceptedV1)
+    policy_registry = _governed_policy_registry_for_profile_v1(profile)
+    transfer_registry = _asset_transfer_policy_registry_for_route_v1(
+        profile.route_registry.routes[0]
+    )
     release_binding = bind_asset_transfer_lane_output_to_release_route_v1(
-        profile,
-        occurrence,
-        module_input,
-        accepted,
+        AssetTransferReleaseRouteBindingCandidateV1(
+            profile,
+            policy_registry,
+            transfer_registry,
+            occurrence,
+            module_input,
+            accepted,
+        )
     )
     verified_module = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1(
             profile,
+            policy_registry,
+            transfer_registry,
             _authenticate_occurrence_for_test(
                 profile,
                 occurrence,
@@ -1305,10 +1356,13 @@ def _global_state_from_asset_module(
     height: int,
     replay_state: tuple[ReplayStateV1, ...] = (),
 ) -> GlobalEconomicStateV1:
+    transfer_registry = _asset_transfer_policy_registry_for_route_v1(
+        profile.route_registry.routes[0]
+    )
     asset_lane_state = project_asset_transfer_state_v1(
         module_state,
-        asset_policy_registry_root=_root(11),
-        fee_policy_registry_root=_root(12),
+        asset_policy_registry_root=transfer_registry.asset_policy_root,
+        fee_policy_registry_root=transfer_registry.fee_policy_root,
     )
     lane_roots = tuple(
         LaneStateRootV1(
@@ -2636,13 +2690,16 @@ def test_epoch_two_route_state_evidence_has_stable_python_golden_roots() -> None
     )
     verified = verify_economic_epoch_v1(candidate, _RecordingReceiptVerifier())
 
+    # The fixture profile commits the governed transfer policy bindings and the
+    # lane projection carries the typed registry roots, so these Python-only
+    # golden roots moved with the governed transfer-policy slice.
     assert verified.route_state_projection_roots == (
-        "0x78b7b302ab293d7bb992779182e08673f45c531fcffa9a4f5a19f4e621fdbe80",
-        "0x0dd8dd74f449f56fa991baaafc61b76115f953874d7f0fc50be78510017836bc",
+        "0xd1a2a58a63258a7a198252aa21f02a357b8e92c5d2a834f96b5760d74a43af11",
+        "0xf1c2adcffaa0f7749ed2d32ff5ddf8a420a885b07a054ea325c62c3b05a86535",
     )
     assert verified.route_state_effect_refinement_roots == (
-        "0xf32bf976a6fd7a54a74054fa25cdd7364e7792fb6852eb480cf0ed60caf5a163",
-        "0xddb28263b51f66b4ee6a451a5301393ecd6c0afd5ea30fcb4ca8eee4b6f8a86e",
+        "0x8aa213472811ab1bff7d2d0c2aa75fc243d567e9af2b7795fc029df4a568af44",
+        "0x14f019489d07de475ee1d90e69afbc436d61650d5fe349d7efa99edbf08f84b0",
     )
 
 

@@ -22,6 +22,10 @@ from .asset_transfer_lane_module_v1 import (
     _snapshot_asset_transfer_lane_module_accepted_v1,
     _snapshot_asset_transfer_lane_module_input_v1,
 )
+from .asset_transfer_policy_registry_v1 import (
+    AssetTransferPolicyRegistryV1,
+    snapshot_asset_transfer_policy_registry_v1,
+)
 from .economic_command_authentication_v1 import AuthenticatedEconomicCommandV1
 from .global_economic_capability_profile_binding_v1 import (
     snapshot_economic_policy_registry_v1,
@@ -41,11 +45,12 @@ from .global_settlement_types_v1 import (
     hash_global_v1,
 )
 from .lane_module_release_route_binding_v1 import (
+    AssetTransferReleaseRouteBindingCandidateV1,
     ManagedAssetLifecycleReleaseRouteBindingCandidateV1,
     PerpsMarginReleaseRouteBindingCandidateV1,
     ReleaseRouteBoundLaneTransitionV1,
+    _bind_asset_transfer_lane_output_structural_v1,
     _bind_managed_asset_lifecycle_lane_output_structural_v1,
-    bind_asset_transfer_lane_output_to_release_route_v1,
     bind_perps_margin_lane_output_to_release_route_v1,
 )
 from .managed_asset_lifecycle_lane_module_v1 import (
@@ -57,6 +62,7 @@ from .managed_asset_lifecycle_lane_module_v1 import (
 )
 from .managed_asset_policy_registry_v1 import (
     ManagedAssetPolicyRegistryV1,
+    snapshot_exact_economic_policy_registry_v1,
     snapshot_managed_asset_policy_registry_v1,
 )
 from .perps_margin_lane_module_v1 import (
@@ -73,6 +79,7 @@ from .perps_market_policy_v1 import (
 VERIFIED_LANE_MODULE_TRANSITION_SCHEMA_V1: Final = (
     "zenodex/verified-lane-module-transition/v1"
 )
+MAX_LANE_MODULE_RECEIPT_BYTES_V1: Final = 16 * 1024 * 1024
 _VERIFIED_LANE_MODULE_TRANSITION_TOKEN = object()
 
 
@@ -91,6 +98,8 @@ class LaneModuleReceiptEnvelopeV1:
 @dataclass(frozen=True, slots=True)
 class AssetTransferLaneModuleReceiptCandidateV1:
     profile: EconomicProfileSnapshotV1
+    policy_registry: EconomicPolicyRegistryV1
+    asset_policy_registry: AssetTransferPolicyRegistryV1
     authenticated_command: AuthenticatedEconomicCommandV1
     module_input: AssetTransferLaneModuleInputV1
     accepted: AssetTransferLaneModuleAcceptedV1
@@ -100,6 +109,12 @@ class AssetTransferLaneModuleReceiptCandidateV1:
     def __post_init__(self) -> None:
         expected_types = (
             (self.profile, EconomicProfileSnapshotV1, "economic profile"),
+            (self.policy_registry, EconomicPolicyRegistryV1, "economic policy registry"),
+            (
+                self.asset_policy_registry,
+                AssetTransferPolicyRegistryV1,
+                "asset transfer policy registry",
+            ),
             (
                 self.authenticated_command,
                 AuthenticatedEconomicCommandV1,
@@ -318,6 +333,8 @@ def _verify_rebound_module_receipt_v1(
         raise ValueError("lane module verification requires a succinct receipt")
     if not candidate.receipt.receipt_bytes:
         raise ValueError("lane module receipt bytes must be non-empty bytes")
+    if len(candidate.receipt.receipt_bytes) > MAX_LANE_MODULE_RECEIPT_BYTES_V1:
+        raise ValueError("lane module receipt bytes exceed the ABI V1 byte ceiling")
 
     release = candidate.profile.lane_registry.release_for(candidate.rebound.lane_id)
     if release.release_id != candidate.rebound.module_release_id:
@@ -355,16 +372,27 @@ def verify_asset_transfer_lane_module_receipt_v1(
     candidate: AssetTransferLaneModuleReceiptCandidateV1,
     receipt_verifier: SuccinctReceiptVerifierV1,
 ) -> VerifiedLaneModuleTransitionV1:
-    """Verify one transfer receipt under its active release image and journal."""
+    """Verify one transfer receipt under its governed policy and release image.
+
+    The governed transfer policy and supplied structural binding are checked
+    before one deterministic transition recomputation and before any receipt
+    bytes reach the verifier port.
+    """
 
     owned = _snapshot_asset_transfer_receipt_candidate_v1(candidate)
     occurrence = owned.authenticated_command.occurrence
-    rebound = bind_asset_transfer_lane_output_to_release_route_v1(
-        owned.profile,
-        occurrence,
-        owned.module_input,
-        owned.accepted,
+    rebound = _bind_asset_transfer_lane_output_structural_v1(
+        AssetTransferReleaseRouteBindingCandidateV1(
+            owned.profile,
+            owned.policy_registry,
+            owned.asset_policy_registry,
+            occurrence,
+            owned.module_input,
+            owned.accepted,
+        )
     )
+    if owned.release_route_binding.binding_root != rebound.binding_root:
+        raise ValueError("lane module structural binding mismatch")
     _, expected = _recompute_asset_transfer_lane_module_accepted_v1(
         owned.module_input,
         owned.accepted,
@@ -467,6 +495,10 @@ def _snapshot_asset_transfer_receipt_candidate_v1(
         raise TypeError("asset transfer receipt candidate must have the exact type")
     return AssetTransferLaneModuleReceiptCandidateV1(
         profile=snapshot_economic_profile_v1(candidate.profile),
+        policy_registry=snapshot_exact_economic_policy_registry_v1(candidate.policy_registry),
+        asset_policy_registry=snapshot_asset_transfer_policy_registry_v1(
+            candidate.asset_policy_registry
+        ),
         authenticated_command=candidate.authenticated_command,
         module_input=_snapshot_asset_transfer_lane_module_input_v1(
             candidate.module_input
