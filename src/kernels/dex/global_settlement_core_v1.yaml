@@ -38,7 +38,9 @@ meta:
       consumed_i     occurrence identity i is already consumed (3 identities)
     Practical custody follows key control. This model makes no custody or title
     claim; the words above name accounting locations and control domains only.
-    Ghost variables (prefix g_) journal the last step for the invariants. The
+    AUTHORITATIVE_PROJECTION := the twelve asset quantities above, height, and
+    consumed_0..2. Ghost variables (prefix g_) are an evidence journal outside
+    that projection; they record the last step for the invariants. The
     transition never reads a ghost, except g_lane, which preserves itself on
     rejection.
 
@@ -77,7 +79,9 @@ meta:
       RC_INSUFFICIENT                 a post quantity would be negative
       RC_UNREPRESENTABLE              a post quantity would exceed the width (4)
                                       or height would exceed the horizon (3)
-    Rejection is an exact no-op: identical state and empty rows.
+    Rejection leaves the AUTHORITATIVE_PROJECTION unchanged and emits empty
+    economic rows. The evidence journal records the rejection (decision, code,
+    command, pre-state images), so no full-state or history no-op is claimed.
 
     Policy inputs are parameterized (fee_charged, fee_alloc, authority_ok) or
     blocked: fee percentages, burn floors, Oracle economics, margin rules, and
@@ -451,8 +455,9 @@ invariants:
         - { op: ">=", args: [{ var: "g_fee_alloc_b" }, { const: 0 }] }
         - { op: ">=", args: [{ var: "g_fee_residue_b" }, { const: 0 }] }
 
-  # LaneTransitionRejectedV1: a rejected step keeps the exact pre-state image,
-  # consumes nothing, advances nothing, and carries only empty rows.
+  # LaneTransitionRejectedV1: a rejected step keeps the AUTHORITATIVE_PROJECTION
+  # (both pre-state images, height, consumed flags), emits only empty economic
+  # rows, and carries a reject code. Ghost journal fields may change.
   - id: "inv_reject_exact_noop"
     kind: "safety"
     expr:

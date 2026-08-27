@@ -44,6 +44,8 @@ from typing import Any
 import pytest
 import yaml
 
+from src.core.global_settlement_types_v1 import ALL_LANE_IDS_V1
+
 ROOT = Path(__file__).resolve().parents[2]
 MODEL = ROOT / "src" / "kernels" / "dex" / "global_settlement_core_v1.yaml"
 BLUEPRINT = ROOT / "docs" / "research" / "ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md"
@@ -56,11 +58,17 @@ RETIRED_STATUS = "FORMAL_VERDICT_INCOMPLETE_ESSO_ABSENT"
 
 # Exact replay facts recorded in the blueprint.  The IR hash covers the model
 # file including ``meta``; the fingerprint covers the verified semantics.
-RECORDED_IR_HASH = "sha256:ec6a4c4518b6c5655082e487e816f4bd1411dfb74479afcd656783916d34090a"
+RECORDED_IR_HASH = "sha256:b7c2d3be028eca1bd4e1ed6276a77d8123e23d8946f69ccf64a46f8be4073c05"
 REVIEW_IR_HASH = "sha256:872a813305f2f34429c1f028918eb3e1bb5c5ce378c723501645c77b9098056b"
+REPAIR1_IR_HASH = "sha256:ec6a4c4518b6c5655082e487e816f4bd1411dfb74479afcd656783916d34090a"
+PRIOR_IR_HASHES = (REVIEW_IR_HASH, REPAIR1_IR_HASH)
 RECORDED_FINGERPRINT = "58a1a345fed1f25c7d98e22452764b9dccfc2df82ac66217b7b109dc58389c43"
 RECORDED_ESSO_CODE_HASH = "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
 RECORDED_OBLIGATIONS = frozenset({"init_implies_inv", "inductive_step"})
+RECORDED_SOLVERS = ("z3", "cvc5")
+RECORDED_MODEL_ID = "global_settlement_core_v1"
+MODEL_RELATIVE = "src/kernels/dex/global_settlement_core_v1.yaml"
+ADMISSION_STATUS = "BLOCKED_THV1_PACKET_ABSENT"
 
 # Enforced source pins: blueprint row, this table, and the file must agree.
 # Claim grade is source-pin evidence, never refinement evidence.
@@ -78,7 +86,7 @@ ENFORCED_PINS = {
         "a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045"
     ),
     "src/kernels/dex/global_settlement_core_v1.yaml": (
-        "f3ede1340db83376d10b7d473fb58df20f9185e5ef4dc773acbf3fe40f0365b6"
+        "dabacaf6eff5d5106393aabebb0d3171c94776ad3f1f3a240f9d2a550658d1ca"
     ),
 }
 
@@ -103,7 +111,7 @@ PARTITIONS = ("payer", "rest", "fee_alloc", "fee_residue", "obligation")
 CORE_A = tuple(f"{name}_a" for name in (*PARTITIONS, "supply"))
 CORE_B = tuple(f"{name}_b" for name in (*PARTITIONS, "supply"))
 CONTROL = ("height", "consumed_0", "consumed_1", "consumed_2")
-OBSERVED = CORE_A + CORE_B + CONTROL
+AUTHORITATIVE_PROJECTION = CORE_A + CORE_B + CONTROL
 ROWS = ("issue", "burn", "fee_charged", "fee_alloc", "fee_residue")
 
 REJECT_CODES = (
@@ -513,7 +521,7 @@ def spec_failures(
     if effects["accepted"] is not accepted:
         failures.append("effects.accepted disagrees with the decision")
     if not accepted:
-        for name in OBSERVED:
+        for name in AUTHORITATIVE_PROJECTION:
             if post[name] != pre[name]:
                 failures.append(f"reject mutated {name}")
         for asset in ("a", "b"):
@@ -565,12 +573,155 @@ def spec_failures(
     return failures
 
 
+# --------------------------------------------------------------------------- #
+# Independently coded reference oracle (never reads the YAML or the interpreter).
+# --------------------------------------------------------------------------- #
+
+ROW_FIELDS = tuple(f"{row}_{asset}" for asset in ("a", "b") for row in ROWS)
+LANE_SYMBOLS = tuple(lane.value for lane in ALL_LANE_IDS_V1)
+COMMAND_SYMBOLS = (
+    "CMD_TRANSFER",
+    "CMD_ISSUE",
+    "CMD_BURN",
+    "CMD_OPEN_OBLIGATION",
+    "CMD_DRAIN_OBLIGATION",
+    "CMD_UNKNOWN",
+)
+
+
+def authoritative(state: dict[str, Any]) -> tuple[Any, ...]:
+    """The AUTHORITATIVE_PROJECTION of a state: economic quantities and control."""
+
+    return tuple(state[name] for name in AUTHORITATIVE_PROJECTION)
+
+
+@dataclass(frozen=True)
+class OracleOutcome:
+    accepted: bool
+    reject_code: str
+    command: str
+    lane: str | None
+    projection: tuple[Any, ...]
+    rows: tuple[int, ...]
+
+
+def reference_step(
+    pre: dict[str, Any],
+    params: dict[str, Any],
+    *,
+    width: int,
+    horizon: int,
+) -> OracleOutcome:
+    """Reference decision and transition oracle written from the blueprint tables.
+
+    It computes the candidate movement per accounting location, walks the reject
+    precedence list, and builds the authoritative post projection and rows
+    directly.  It shares no code with the YAML interpreter.
+    """
+
+    kind = params["command_kind"]
+    asset = "a" if params["asset"] == 0 else "b"
+    amount = params["amount"]
+    fee = params["fee_charged"]
+    alloc = params["fee_alloc"]
+    balance = {name: pre[f"{name}_{asset}"] for name in (*PARTITIONS, "supply")}
+    movement = dict.fromkeys(balance, 0)
+    movement["payer"] -= fee
+    movement["fee_alloc"] += alloc
+    movement["fee_residue"] += fee - alloc
+    if kind == KIND_TRANSFER:
+        movement["payer"] -= amount
+        movement["rest"] += amount
+    elif kind == KIND_ISSUE:
+        movement["payer"] += amount
+        movement["supply"] += amount
+    elif kind == KIND_BURN:
+        movement["payer"] -= amount
+        movement["supply"] -= amount
+    elif kind == KIND_OPEN:
+        movement["payer"] -= amount
+        movement["obligation"] += amount
+    elif kind == KIND_DRAIN:
+        movement["payer"] += amount
+        movement["obligation"] -= amount
+    candidate = {name: balance[name] + movement[name] for name in balance}
+    precedence = (
+        ("RC_UNKNOWN_LANE", params["lane_index"] < len(LANE_SYMBOLS)),
+        ("RC_UNKNOWN_COMMAND", kind < KIND_UNKNOWN),
+        ("RC_DUPLICATE_OCCURRENCE", pre[f"consumed_{params['occurrence']}"] is False),
+        ("RC_STALE_REPLAY", params["bound_height"] == pre["height"]),
+        ("RC_UNAUTHORIZED", params["authority_ok"] is True),
+        ("RC_MISSING_TERMINAL_OBLIGATION", kind != KIND_DRAIN or balance["obligation"] > 0),
+        ("RC_ZERO_AMOUNT", amount > 0),
+        ("RC_FEE_RECONCILIATION", alloc <= fee),
+        (
+            "RC_INSUFFICIENT",
+            min(candidate["payer"], candidate["obligation"], candidate["supply"]) >= 0,
+        ),
+        ("RC_UNREPRESENTABLE", pre["height"] < horizon and max(candidate.values()) <= width),
+    )
+    code = next((name for name, holds in precedence if not holds), "RC_NONE")
+    accepted = code == "RC_NONE"
+    projection = dict(zip(AUTHORITATIVE_PROJECTION, authoritative(pre), strict=True))
+    rows = dict.fromkeys(ROW_FIELDS, 0)
+    if accepted:
+        for name, value in candidate.items():
+            projection[f"{name}_{asset}"] = value
+        projection["height"] = pre["height"] + 1
+        projection[f"consumed_{params['occurrence']}"] = True
+        rows[f"issue_{asset}"] = amount if kind == KIND_ISSUE else 0
+        rows[f"burn_{asset}"] = amount if kind == KIND_BURN else 0
+        rows[f"fee_charged_{asset}"] = fee
+        rows[f"fee_alloc_{asset}"] = alloc
+        rows[f"fee_residue_{asset}"] = fee - alloc
+    return OracleOutcome(
+        accepted=accepted,
+        reject_code=code,
+        command=COMMAND_SYMBOLS[min(kind, KIND_UNKNOWN)],
+        lane=LANE_SYMBOLS[params["lane_index"]] if accepted else None,
+        projection=tuple(projection[name] for name in AUTHORITATIVE_PROJECTION),
+        rows=tuple(rows[name] for name in ROW_FIELDS),
+    )
+
+
+def oracle_failures(
+    pre: dict[str, Any],
+    params: dict[str, Any],
+    post: dict[str, Any],
+    effects: dict[str, Any],
+    *,
+    width: int,
+    horizon: int,
+) -> list[str]:
+    """Compare the complete authoritative post/effect tuple against the oracle."""
+
+    expected = reference_step(pre, params, width=width, horizon=horizon)
+    failures: list[str] = []
+    if effects["accepted"] is not expected.accepted:
+        failures.append("oracle:accepted")
+    if effects["reject_code"] != expected.reject_code:
+        failures.append("oracle:reject_code")
+    if effects["command"] != expected.command:
+        failures.append("oracle:command")
+    if expected.accepted and effects["lane"] != expected.lane:
+        failures.append("oracle:lane")
+    if effects["post_height"] != expected.projection[AUTHORITATIVE_PROJECTION.index("height")]:
+        failures.append("oracle:post_height")
+    for name, value in zip(AUTHORITATIVE_PROJECTION, expected.projection, strict=True):
+        if post[name] != value:
+            failures.append(f"oracle:{name}")
+    for name, value in zip(ROW_FIELDS, expected.rows, strict=True):
+        if effects[name] != value:
+            failures.append(f"oracle:{name}")
+    return failures
+
+
 def check_step(
     model: BoundedModel,
     pre: dict[str, Any],
     params: dict[str, Any],
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None, list[str]]:
-    """Step and return (post, effects, failures) with invariant and spec failures."""
+    """Step and return (post, effects, failures) from invariants, spec, and oracle."""
 
     try:
         post, effects = model.step(pre, params)
@@ -578,6 +729,16 @@ def check_step(
         return None, None, [f"domain:{exc}"]
     failures = [f"invariant:{name}" for name in model.failing_invariants(post)]
     failures.extend(spec_failures(pre, params, post, effects))
+    failures.extend(
+        oracle_failures(
+            pre,
+            params,
+            post,
+            effects,
+            width=model.domains["supply_a"].hi,
+            horizon=model.domains["height"].hi,
+        )
+    )
     return post, effects, failures
 
 
@@ -780,6 +941,63 @@ def mutant_reject_with_effects(doc: dict[str, Any]) -> None:
     _update(doc, "fee_alloc_a")["expr"]["else"] = _op("+", _var("fee_alloc_a"), fee)
 
 
+def mutant_destination_bucket_swap(doc: dict[str, Any]) -> None:
+    """A transfer credits the fee-allocation location instead of ``rest``.
+
+    Atoms stay conserved and every YAML invariant holds; only the reference
+    oracle reveals the wrong destination.
+    """
+
+    _update(doc, "rest_a")["expr"]["then"] = _var("rest_a")
+    alloc = _update(doc, "fee_alloc_a")["expr"]
+    alloc["then"] = _op(
+        "+",
+        alloc["then"],
+        _ite(_is_kind(KIND_TRANSFER), _param("amount"), _const(0)),
+    )
+
+
+def mutant_issue_row_suppressed(doc: dict[str, Any]) -> None:
+    """Holdings and supply increase on issue but the emitted ISSUE row is suppressed."""
+
+    _update(doc, "g_issue_a")["expr"] = _const(0)
+
+
+def _bypass_accept_condition(doc: dict[str, Any], condition: dict[str, Any]) -> None:
+    args = _accept(doc)["args"]
+    args[args.index(condition)] = {"bool": True}
+
+
+def mutant_authority_guard_bypass(doc: dict[str, Any]) -> None:
+    """Acceptance no longer requires the authorization premise."""
+
+    _bypass_accept_condition(doc, _param("authority_ok"))
+
+
+def mutant_stale_replay_bypass(doc: dict[str, Any]) -> None:
+    """Acceptance no longer requires the bound height to be current."""
+
+    _bypass_accept_condition(doc, _op("=", _param("bound_height"), _var("height")))
+
+
+def mutant_wrong_occurrence_consumed(doc: dict[str, Any]) -> None:
+    """Accepting occurrence 0 marks identity 1 as consumed and vice versa."""
+
+    for var, wrong in (("consumed_0", 1), ("consumed_1", 0)):
+        marker = _update(doc, var)["expr"]["args"][1]["args"][1]
+        marker["args"][1] = _const(wrong)
+
+
+def mutant_reject_precedence_drift(doc: dict[str, Any]) -> None:
+    """Stale replay is reported before duplicate occurrence when both fail."""
+
+    chain = _update(doc, "g_reject_code")["expr"]
+    duplicate = chain["else"]["else"]
+    stale = duplicate["else"]
+    duplicate["cond"], stale["cond"] = stale["cond"], duplicate["cond"]
+    duplicate["then"], stale["then"] = stale["then"], duplicate["then"]
+
+
 MUTANTS: dict[str, Callable[[dict[str, Any]], None]] = {
     "MUT_CROSS_ASSET_SCALAR_SUM": mutant_cross_asset_scalar_sum,
     "MUT_OMITTED_BURN": mutant_omitted_burn,
@@ -787,6 +1005,12 @@ MUTANTS: dict[str, Callable[[dict[str, Any]], None]] = {
     "MUT_OMITTED_RESIDUE": mutant_omitted_residue,
     "MUT_OMITTED_RESIDUE_ROW": mutant_omitted_residue_row,
     "MUT_REJECT_WITH_EFFECTS": mutant_reject_with_effects,
+    "MUT_DESTINATION_BUCKET_SWAP": mutant_destination_bucket_swap,
+    "MUT_ISSUE_ROW_SUPPRESSED": mutant_issue_row_suppressed,
+    "MUT_AUTHORITY_GUARD_BYPASS": mutant_authority_guard_bypass,
+    "MUT_STALE_REPLAY_BYPASS": mutant_stale_replay_bypass,
+    "MUT_WRONG_OCCURRENCE_CONSUMED": mutant_wrong_occurrence_consumed,
+    "MUT_REJECT_PRECEDENCE_DRIFT": mutant_reject_precedence_drift,
 }
 
 
@@ -824,8 +1048,6 @@ def ripr(
 def test_model_declares_exactly_the_twelve_stable_lane_ids_in_canonical_order(
     model: BoundedModel,
 ) -> None:
-    from src.core.global_settlement_types_v1 import ALL_LANE_IDS_V1
-
     # Arrange
     expected = tuple(lane.value for lane in ALL_LANE_IDS_V1)
 
@@ -870,7 +1092,7 @@ def test_every_state_var_is_initialised_observed_and_updated_consistently(
     assert sorted(updates) == sorted(model.state_vars), "every state var has exactly one update"
     assert tuple(doc["observables"]["state_vars"]) == model.state_vars
     assert tuple(doc["observables"]["effects"]) == tuple(name for name, _ in model.effects)
-    assert set(OBSERVED) <= set(model.state_vars)
+    assert set(AUTHORITATIVE_PROJECTION) <= set(model.state_vars)
     assert all(model.roles[name] == "data" for name in CORE_A + CORE_B)
 
 
@@ -945,20 +1167,24 @@ def test_blueprint_records_the_durable_status_and_no_authority() -> None:
     for authority in ("Production", "Settlement", "Release", "Value-moving"):
         assert f"{authority} authority: `NONE`" in text, authority
     assert "external to this checkout" in _prose(text) and "/path/to/ESSO" in text
+    admission_line = next(line for line in text.splitlines() if line.startswith("Admission:"))
+    assert ADMISSION_STATUS in admission_line and "admission-blocking" in _prose(text)
     machine_specific = "/" + "home/"
     for name, body in _durable_texts().items():
         assert machine_specific not in body, name
 
 
 def test_blueprint_records_the_exact_esso_replay_facts() -> None:
-    text = BLUEPRINT.read_text(encoding="utf-8")
+    text = _prose(BLUEPRINT.read_text(encoding="utf-8"))
     facts = (
         RECORDED_IR_HASH,
-        REVIEW_IR_HASH,
+        *PRIOR_IR_HASHES,
         RECORDED_FINGERPRINT,
         RECORDED_ESSO_CODE_HASH,
         *sorted(RECORDED_OBLIGATIONS),
         "Inductive(k=1)",
+        "inductiveness of the invariant conjunction",
+        "not independent proofs of each invariant",
     )
     for fact in facts:
         assert fact in text, fact
@@ -1023,8 +1249,55 @@ def test_blueprint_gap_table_lists_every_known_divergence() -> None:
         "known GAP, not a runtime-refinement pass",
         "invariant conjunction",
         "No per-invariant obligation was run",
+        "command-lane routing",
+        "unknown-asset policy",
+        "authentication derivation",
+        "terminal-obligation identities",
     ):
         assert phrase in text, phrase
+
+
+def test_blueprint_and_model_define_the_authoritative_projection(model: BoundedModel) -> None:
+    texts = {name: _prose(body) for name, body in _durable_texts().items()}
+    for name in ("blueprint", "model"):
+        assert "AUTHORITATIVE_PROJECTION" in texts[name], name
+    for field in AUTHORITATIVE_PROJECTION:
+        assert f"`{field}`" in texts["blueprint"], field
+    assert "no full-state or history no-op" in texts["blueprint"]
+    assert len(AUTHORITATIVE_PROJECTION) == 16
+    assert set(AUTHORITATIVE_PROJECTION) <= set(model.state_vars)
+    assert not any(name.startswith("g_") for name in AUTHORITATIVE_PROJECTION)
+
+
+def test_rejection_changes_only_the_evidence_journal(model: BoundedModel) -> None:
+    # Arrange: a funded state and a command rejected for a stale replay identity.
+    pre = make_state(model, payer_a=1, supply_a=1, height=1)
+    params = command(pre, KIND_TRANSFER, amount=1, bound_height=0)
+
+    # Act
+    post, effects, failures = check_step(model, pre, params)
+
+    # Assert: the authoritative projection and economic rows are unchanged, while
+    # the evidence journal records the rejection, so the full state differs.
+    assert failures == [] and effects["reject_code"] == "RC_STALE_REPLAY"
+    assert authoritative(post) == authoritative(pre)
+    assert all(effects[name] == 0 for name in ROW_FIELDS)
+    changed = {name for name in model.state_vars if post[name] != pre[name]}
+    assert changed and all(name.startswith("g_") for name in changed), changed
+    assert {"g_decision", "g_reject_code", "g_pre_height"} <= changed
+
+
+def test_reference_oracle_matches_the_model_on_every_table_case_and_a_fresh_box(
+    model: BoundedModel,
+) -> None:
+    cases = [(pre, params) for _, pre, params in (*_accept_cases(model), *_reject_cases(model))]
+    for pre, params in cases:
+        post, effects, failures = check_step(model, pre, params)
+        assert failures == [], failures
+        expected = reference_step(pre, params, width=4, horizon=3)
+        assert authoritative(post) == expected.projection
+        assert tuple(effects[name] for name in ROW_FIELDS) == expected.rows
+    assert violations(model, random_box(model, seed=2027, samples=3000), limit=1) == []
 
 
 def test_gap_01_every_modeled_command_accepts_on_every_registered_lane(model: BoundedModel) -> None:
@@ -1143,6 +1416,262 @@ def test_gap_07_model_accepts_carried_residue_that_source_refinement_rejects(
 
 
 # --------------------------------------------------------------------------- #
+# Fail-closed admission of ESSO evidence.
+# --------------------------------------------------------------------------- #
+
+
+class EvidenceRejected(AssertionError):
+    """ESSO evidence was missing, extra, reordered, malformed, or not the recorded replay."""
+
+
+def _require(condition: bool, reason: str) -> None:
+    if not condition:
+        raise EvidenceRejected(reason)
+
+
+def admit_esso_evidence(validate_payload: Any, verify_payload: Any) -> dict[str, Any]:
+    """Admit exactly the recorded replay shape; reject every deviation."""
+
+    _require(isinstance(validate_payload, dict), "validate payload is not an object")
+    _require(validate_payload.get("command") == "validate", "validate command mismatch")
+    _require(validate_payload.get("ok") is True, "validate is not ok")
+    _require(validate_payload.get("errors") == [], "validate reported errors")
+    _require(validate_payload.get("ir_hash") == RECORDED_IR_HASH, "validate IR hash mismatch")
+    _require(str(validate_payload.get("model", "")).endswith(MODEL_RELATIVE), "validate model path")
+
+    verify = verify_payload
+    _require(isinstance(verify, dict), "verify payload is not an object")
+    _require(verify.get("command") == "verify-multi", "verify command mismatch")
+    _require(verify.get("ok") is True, "verify is not ok")
+    _require(verify.get("determinism") is True, "verify is not deterministic")
+    _require(verify.get("reference") is None, "reference must be null")
+    _require(verify.get("solvers") == list(RECORDED_SOLVERS), "solver list is not exactly z3,cvc5")
+    trials = verify.get("determinism_trials")
+    _require(_is_int(trials) and trials >= 2, "determinism trials must be an int >= 2")
+    fingerprints = verify.get("fingerprints")
+    _require(isinstance(fingerprints, list) and len(fingerprints) == trials, "fingerprint count")
+    _require(
+        all(isinstance(item, str) and re.fullmatch(r"[0-9a-f]{64}", item) for item in fingerprints),
+        "malformed fingerprint",
+    )
+    _require(len(set(fingerprints)) == 1, "fingerprints differ across trials")
+    model = verify.get("model")
+    _require(isinstance(model, dict) and model.get("ir_hash") == RECORDED_IR_HASH, "verify IR hash")
+    _require(str(model.get("path", "")).endswith(MODEL_RELATIVE), "verify model path")
+
+    queries = verify.get("queries")
+    _require(isinstance(queries, dict), "queries is not an object")
+    _require(set(queries) == set(RECORDED_OBLIGATIONS), "query set is not exactly the two obligations")
+    _require(len(queries) == 2, "query count is not two")
+    for name, query in queries.items():
+        _require(isinstance(query, dict) and query.get("query") == name, f"{name}: malformed query")
+        _require(query.get("final_result") == "unsat", f"{name}: final result is not unsat")
+        _require(query.get("agreed") is True, f"{name}: solvers did not agree")
+        _require(query.get("needs_review") is False, f"{name}: needs review")
+        for solver in RECORDED_SOLVERS:
+            result = query.get(solver)
+            _require(isinstance(result, dict), f"{name}/{solver}: missing result")
+            _require(result.get("result") == "unsat", f"{name}/{solver}: not unsat")
+            _require(result.get("error") is None, f"{name}/{solver}: solver error")
+            _require(result.get("model") is None, f"{name}/{solver}: counterexample present")
+            _require(result.get("solver") == solver, f"{name}/{solver}: solver label")
+            _require(result.get("query") == name, f"{name}/{solver}: query label")
+
+    report = verify.get("report")
+    _require(isinstance(report, dict), "report is not an object")
+    _require(report.get("verdict") == "VERIFIED", "verdict is not VERIFIED")
+    _require(report.get("solvers_agreed") is True, "report solvers_agreed is not true")
+    _require(report.get("disagreements") == [], "report lists disagreements")
+    _require(report.get("failed_queries") == 0, "failed queries")
+    _require(report.get("inconclusive_queries") == 0, "inconclusive queries")
+    _require(report.get("total_queries") == 2, "total queries is not two")
+    _require(report.get("passed_queries") == 2, "passed queries is not two")
+    for flag in ("z3_passed", "cvc5_passed", "cvc5_available"):
+        _require(report.get(flag) is True, f"report {flag} is not true")
+    _require(report.get("model_id") == RECORDED_MODEL_ID, "report model id")
+    _require(
+        report.get("ir_hash") == RECORDED_IR_HASH.removeprefix("sha256:")[:16],
+        "report short IR hash mismatch",
+    )
+    scope = report.get("scope")
+    _require(isinstance(scope, dict), "scope is not an object")
+    _require(scope.get("kind") == "inductive", "scope kind is not inductive")
+    _require(scope.get("k") == 1 and not isinstance(scope.get("k"), bool), "scope k is not 1")
+    _require(scope.get("badge") == "Inductive(k=1)", "scope badge is not Inductive(k=1)")
+    _require(scope.get("fail_closed") is True, "scope is not fail-closed")
+    tools = report.get("tool_versions")
+    _require(isinstance(tools, dict), "tool versions missing")
+    code_hash = tools.get("esso_code_hash")
+    _require(isinstance(code_hash, str) and re.fullmatch(r"[0-9a-f]{40}", code_hash) is not None, "code hash")
+    _require(code_hash == RECORDED_ESSO_CODE_HASH, "toolchain revision differs from the recorded replay")
+    _require(fingerprints[0] == RECORDED_FINGERPRINT, "fingerprint differs from the recorded replay")
+    return {
+        "ir_hash": RECORDED_IR_HASH,
+        "fingerprint": fingerprints[0],
+        "esso_code_hash": code_hash,
+        "obligations": tuple(sorted(queries)),
+        "trials": trials,
+    }
+
+
+def recorded_validate_payload() -> dict[str, Any]:
+    return {
+        "command": "validate",
+        "errors": [],
+        "ir_hash": RECORDED_IR_HASH,
+        "model": MODEL_RELATIVE,
+        "ok": True,
+    }
+
+
+def _recorded_query(name: str) -> dict[str, Any]:
+    def solver(tag: str) -> dict[str, Any]:
+        return {"error": None, "model": None, "query": name, "result": "unsat", "solver": tag, "time_ms": 1.0}
+
+    return {
+        "agreed": True,
+        "cvc5": solver("cvc5"),
+        "final_result": "unsat",
+        "needs_review": False,
+        "query": name,
+        "z3": solver("z3"),
+    }
+
+
+def recorded_verify_payload() -> dict[str, Any]:
+    """The recorded replay shape (domain caps omitted; admission does not read them)."""
+
+    return {
+        "artifacts": {"bundle": None, "kani": None, "output": None},
+        "command": "verify-multi",
+        "determinism": True,
+        "determinism_trials": 2,
+        "equiv_trace_k": None,
+        "fingerprints": [RECORDED_FINGERPRINT, RECORDED_FINGERPRINT],
+        "model": {"ir_hash": RECORDED_IR_HASH, "path": MODEL_RELATIVE},
+        "ok": True,
+        "queries": {name: _recorded_query(name) for name in ("inductive_step", "init_implies_inv")},
+        "reference": None,
+        "report": {
+            "cvc5_available": True,
+            "cvc5_passed": True,
+            "disagreements": [],
+            "failed_queries": 0,
+            "inconclusive_queries": 0,
+            "ir_hash": RECORDED_IR_HASH.removeprefix("sha256:")[:16],
+            "model_id": RECORDED_MODEL_ID,
+            "notes": ["Cross-verified by Z3 and CVC5"],
+            "passed_queries": 2,
+            "scope": {
+                "badge": "Inductive(k=1)",
+                "fail_closed": True,
+                "k": 1,
+                "kind": "inductive",
+                "solver_seed": 0,
+                "solver_timeout_ms": 5000,
+                "time": "unbounded",
+            },
+            "solvers_agreed": True,
+            "tool_versions": {
+                "esso_code_hash": RECORDED_ESSO_CODE_HASH,
+                "solvers": {"cvc5": "This is cvc5 version 1.1.2", "z3": "4.15.4"},
+            },
+            "total_queries": 2,
+            "verdict": "VERIFIED",
+            "z3_passed": True,
+        },
+        "solvers": list(RECORDED_SOLVERS),
+        "timeout_ms": 5000,
+    }
+
+
+def _tamper(name: str, apply: Callable[[dict[str, Any], dict[str, Any]], None]) -> tuple[str, Callable[[dict[str, Any], dict[str, Any]], None]]:
+    return name, apply
+
+
+def _set_query(verify: dict[str, Any], name: str, path: tuple[str, ...], value: Any) -> None:
+    node: Any = verify["queries"][name]
+    for key in path[:-1]:
+        node = node[key]
+    node[path[-1]] = value
+
+
+EVIDENCE_TAMPERS = (
+    _tamper("validate_error_present", lambda v, w: v.__setitem__("errors", ["unbound var"])),
+    _tamper("validate_not_ok", lambda v, w: v.__setitem__("ok", False)),
+    _tamper("validate_ir_hash_drift", lambda v, w: v.__setitem__("ir_hash", REPAIR1_IR_HASH)),
+    _tamper("validate_wrong_command", lambda v, w: v.__setitem__("command", "verify-multi")),
+    _tamper("validate_other_model", lambda v, w: v.__setitem__("model", "src/kernels/dex/other.yaml")),
+    _tamper("verify_not_ok", lambda v, w: w.__setitem__("ok", False)),
+    _tamper("verify_not_deterministic", lambda v, w: w.__setitem__("determinism", False)),
+    _tamper("verify_reference_present", lambda v, w: w.__setitem__("reference", {"model": "x"})),
+    _tamper("verify_solvers_reordered", lambda v, w: w.__setitem__("solvers", ["cvc5", "z3"])),
+    _tamper("verify_solver_missing", lambda v, w: w.__setitem__("solvers", ["z3"])),
+    _tamper("verify_fingerprints_differ", lambda v, w: w["fingerprints"].__setitem__(1, "0" * 64)),
+    _tamper("verify_fingerprint_count", lambda v, w: w["fingerprints"].pop()),
+    _tamper("verify_fingerprint_malformed", lambda v, w: w["fingerprints"].__setitem__(0, "not-hex")),
+    _tamper("verify_fingerprint_not_recorded", lambda v, w: w.__setitem__("fingerprints", ["1" * 64, "1" * 64])),
+    _tamper("verify_ir_hash_drift", lambda v, w: w["model"].__setitem__("ir_hash", REVIEW_IR_HASH)),
+    _tamper("verify_query_missing", lambda v, w: w["queries"].pop("inductive_step")),
+    _tamper("verify_query_extra", lambda v, w: w["queries"].__setitem__("inductive_step_2", _recorded_query("inductive_step_2"))),
+    _tamper("verify_query_renamed", lambda v, w: _set_query(w, "inductive_step", ("query",), "inductive_stp")),
+    _tamper("verify_query_sat", lambda v, w: _set_query(w, "inductive_step", ("final_result",), "sat")),
+    _tamper("verify_query_unknown", lambda v, w: _set_query(w, "init_implies_inv", ("final_result",), "unknown")),
+    _tamper("verify_query_not_agreed", lambda v, w: _set_query(w, "inductive_step", ("agreed",), False)),
+    _tamper("verify_query_needs_review", lambda v, w: _set_query(w, "inductive_step", ("needs_review",), True)),
+    _tamper("verify_solver_result_sat", lambda v, w: _set_query(w, "inductive_step", ("cvc5", "result"), "sat")),
+    _tamper("verify_solver_error", lambda v, w: _set_query(w, "inductive_step", ("z3", "error"), "timeout")),
+    _tamper("verify_solver_counterexample", lambda v, w: _set_query(w, "inductive_step", ("z3", "model"), {"payer_a": 5})),
+    _tamper("verify_solver_result_missing", lambda v, w: w["queries"]["init_implies_inv"].pop("cvc5")),
+    _tamper("verify_verdict_drift", lambda v, w: w["report"].__setitem__("verdict", "VERIFIED_WITH_REVIEW")),
+    _tamper("verify_disagreement_listed", lambda v, w: w["report"].__setitem__("disagreements", ["inductive_step"])),
+    _tamper("verify_failed_query", lambda v, w: w["report"].__setitem__("failed_queries", 1)),
+    _tamper("verify_inconclusive_query", lambda v, w: w["report"].__setitem__("inconclusive_queries", 1)),
+    _tamper("verify_total_queries", lambda v, w: w["report"].__setitem__("total_queries", 3)),
+    _tamper("verify_passed_queries", lambda v, w: w["report"].__setitem__("passed_queries", 1)),
+    _tamper("verify_cvc5_unavailable", lambda v, w: w["report"].__setitem__("cvc5_available", False)),
+    _tamper("verify_model_id_drift", lambda v, w: w["report"].__setitem__("model_id", "other_model")),
+    _tamper("verify_report_ir_hash_drift", lambda v, w: w["report"].__setitem__("ir_hash", "0" * 16)),
+    _tamper("verify_scope_k2", lambda v, w: w["report"]["scope"].__setitem__("k", 2)),
+    _tamper("verify_scope_badge", lambda v, w: w["report"]["scope"].__setitem__("badge", "Inductive(k=2)")),
+    _tamper("verify_scope_kind", lambda v, w: w["report"]["scope"].__setitem__("kind", "bmc")),
+    _tamper("verify_scope_not_fail_closed", lambda v, w: w["report"]["scope"].__setitem__("fail_closed", False)),
+    _tamper("verify_toolchain_revision", lambda v, w: w["report"]["tool_versions"].__setitem__("esso_code_hash", "f" * 40)),
+    _tamper("verify_toolchain_hash_malformed", lambda v, w: w["report"]["tool_versions"].__setitem__("esso_code_hash", "abc")),
+    _tamper("verify_payload_emptied", lambda v, w: w.clear()),
+)
+
+
+def test_recorded_esso_evidence_is_admitted() -> None:
+    admitted = admit_esso_evidence(recorded_validate_payload(), recorded_verify_payload())
+    assert admitted == {
+        "ir_hash": RECORDED_IR_HASH,
+        "fingerprint": RECORDED_FINGERPRINT,
+        "esso_code_hash": RECORDED_ESSO_CODE_HASH,
+        "obligations": ("inductive_step", "init_implies_inv"),
+        "trials": 2,
+    }
+
+
+@pytest.mark.parametrize("name,apply", EVIDENCE_TAMPERS, ids=[name for name, _ in EVIDENCE_TAMPERS])
+def test_esso_evidence_admission_fails_closed(
+    name: str, apply: Callable[[dict[str, Any], dict[str, Any]], None]
+) -> None:
+    validate_payload = recorded_validate_payload()
+    verify_payload = recorded_verify_payload()
+    apply(validate_payload, verify_payload)
+    with pytest.raises(EvidenceRejected):
+        admit_esso_evidence(validate_payload, verify_payload)
+
+
+def test_esso_evidence_admission_rejects_non_object_payloads() -> None:
+    with pytest.raises(EvidenceRejected):
+        admit_esso_evidence([], recorded_verify_payload())
+    with pytest.raises(EvidenceRejected):
+        admit_esso_evidence(recorded_validate_payload(), "VERIFIED")
+
+
+# --------------------------------------------------------------------------- #
 # ESSO evidence (skipped = INCOMPLETE on this host, never a pass).
 # --------------------------------------------------------------------------- #
 
@@ -1209,21 +1738,14 @@ def test_esso_verify_multi_reports_verified_or_evidence_is_incomplete(model: Bou
     assert report["solvers_agreed"] is True, report
     assert report["failed_queries"] == 0, report
     assert report["inconclusive_queries"] == 0, report
-    assert payload["model"]["ir_hash"] == RECORDED_IR_HASH, payload["model"]
-    # GAP-08: exactly two obligations over the invariant conjunction.
-    queries = payload["queries"]
-    assert set(queries) == set(RECORDED_OBLIGATIONS), sorted(queries)
-    assert f"inductive_{model.action_id}" in queries
-    for name in RECORDED_OBLIGATIONS:
-        assert queries[name]["final_result"] == "unsat", (name, queries[name])
-        assert queries[name]["agreed"] is True, (name, queries[name])
-    scope = report["scope"]
-    assert (scope["kind"], scope["k"], scope["badge"]) == ("inductive", 1, "Inductive(k=1)")
-    trials = int(payload["determinism_trials"])
-    fingerprints = list(payload["fingerprints"])
-    assert len(fingerprints) == trials and len(set(fingerprints)) == 1, fingerprints
-    if report["tool_versions"]["esso_code_hash"] == RECORDED_ESSO_CODE_HASH:
-        assert fingerprints == [RECORDED_FINGERPRINT] * trials, fingerprints
+    assert f"inductive_{model.action_id}" in payload["queries"]
+    # Fail-closed admission of the live evidence against the recorded replay
+    # (GAP-08: exactly the two obligations over the invariant conjunction).
+    validate = _run_esso("validate", str(MODEL), timeout=120)
+    assert validate.returncode == 0, validate.stderr or validate.stdout
+    admitted = admit_esso_evidence(json.loads(validate.stdout), payload)
+    assert admitted["obligations"] == ("inductive_step", "init_implies_inv")
+    assert admitted["fingerprint"] == RECORDED_FINGERPRINT
 
 
 # --------------------------------------------------------------------------- #
@@ -1351,7 +1873,7 @@ def test_each_reject_class_is_an_exact_noop_with_empty_rows(model: BoundedModel,
     # Assert
     assert failures == []
     assert effects["accepted"] is False and effects["reject_code"] == code
-    assert {name: post[name] for name in OBSERVED} == {name: pre[name] for name in OBSERVED}
+    assert {name: post[name] for name in AUTHORITATIVE_PROJECTION} == {name: pre[name] for name in AUTHORITATIVE_PROJECTION}
     assert all(effects[f"{row}_{asset}"] == 0 for row in ROWS for asset in ("a", "b"))
     assert post["g_decision"] == "DEC_REJECTED"
     assert post["g_pre_root_a"] == root(pre, "a") == root(post, "a")
@@ -1459,7 +1981,7 @@ def test_bva_duplicate_occurrence_and_last_fresh_identity(model: BoundedModel) -
     assert fresh_failures == [] and fresh["accepted"] is True and post["consumed_2"] is True
     again, replay, replay_failures = check_step(model, post, command(post, KIND_TRANSFER, occurrence=2))
     assert replay_failures == [] and replay["reject_code"] == "RC_DUPLICATE_OCCURRENCE"
-    assert again is not None and {n: again[n] for n in OBSERVED} == {n: post[n] for n in OBSERVED}
+    assert again is not None and {n: again[n] for n in AUTHORITATIVE_PROJECTION} == {n: post[n] for n in AUTHORITATIVE_PROJECTION}
 
 
 def test_bva_stale_replay_identity_in_both_directions(model: BoundedModel) -> None:
@@ -1565,7 +2087,7 @@ def test_bounded_progress_reaches_the_horizon_then_every_command_rejects_totally
         params = command(state, kind, amount=1, occurrence=0)
         post, effects, failures = check_step(model, state, params)
         assert failures == [] and effects["accepted"] is False
-        assert {n: post[n] for n in OBSERVED} == {n: state[n] for n in OBSERVED}
+        assert {n: post[n] for n in AUTHORITATIVE_PROJECTION} == {n: state[n] for n in AUTHORITATIVE_PROJECTION}
 
 
 def _accepted(
@@ -1675,21 +2197,133 @@ def test_mutant_reject_with_effects_breaks_exact_noop_but_not_scalar_conservatio
     assert "invariant:inv_owned_equals_supply_a" not in check_step(mutant, pre, params)[2]
 
 
-def test_every_named_mutant_is_killed_by_the_bounded_accept_box(doc: dict[str, Any]) -> None:
-    """The honest model survives the same box in
-    ``test_bounded_accept_box_preserves_every_invariant_and_spec_equation``."""
+def test_mutant_destination_bucket_swap_is_killed_only_by_the_reference_oracle(
+    doc: dict[str, Any], model: BoundedModel
+) -> None:
+    mutant = mutant_model(doc, "MUT_DESTINATION_BUCKET_SWAP")
+    pre = make_state(model, payer_a=1, supply_a=1)
+    params = command(pre, KIND_TRANSFER, amount=1)
+    post = ripr(model, mutant, pre, params, revealed_by={"oracle:rest_a", "oracle:fee_alloc_a"})
+    assert (post["payer_a"], post["rest_a"], post["fee_alloc_a"]) == (0, 0, 1)
+    assert owned(post, "a") == post["supply_a"] == 1, "atoms are conserved at the wrong destination"
+    labels = check_step(mutant, pre, params)[2]
+    assert not any(label.startswith("invariant:") for label in labels), labels
+
+
+def test_mutant_issue_row_suppressed_breaks_the_step_equations(
+    doc: dict[str, Any], model: BoundedModel
+) -> None:
+    mutant = mutant_model(doc, "MUT_ISSUE_ROW_SUPPRESSED")
+    pre = model.init_state()
+    params = command(pre, KIND_ISSUE, amount=1)
+    post = ripr(
+        model,
+        mutant,
+        pre,
+        params,
+        revealed_by={"invariant:inv_owned_step_a", "invariant:inv_supply_step_a", "oracle:issue_a"},
+    )
+    assert post["g_issue_a"] == 0 and owned(post, "a") == post["supply_a"] == 1
+
+
+def test_mutant_authority_guard_bypass_accepts_an_unauthorized_command(
+    doc: dict[str, Any], model: BoundedModel
+) -> None:
+    mutant = mutant_model(doc, "MUT_AUTHORITY_GUARD_BYPASS")
+    pre = make_state(model, payer_a=1, supply_a=1)
+    params = command(pre, KIND_BURN, amount=1, authority_ok=False)
+    post = ripr(
+        model,
+        mutant,
+        pre,
+        params,
+        revealed_by={"invariant:inv_accept_advances_one", "oracle:accepted", "oracle:supply_a"},
+    )
+    assert post["g_decision"] == "DEC_ACCEPTED" and post["g_reject_code"] == "RC_UNAUTHORIZED"
+    assert post["supply_a"] == 0 and post["height"] == 1
+
+
+def test_mutant_stale_replay_bypass_accepts_a_stale_identity(
+    doc: dict[str, Any], model: BoundedModel
+) -> None:
+    mutant = mutant_model(doc, "MUT_STALE_REPLAY_BYPASS")
+    pre = make_state(model, payer_a=1, supply_a=1, height=1)
+    params = command(pre, KIND_TRANSFER, amount=1, bound_height=0)
+    post = ripr(
+        model,
+        mutant,
+        pre,
+        params,
+        revealed_by={"invariant:inv_accept_advances_one", "oracle:accepted", "oracle:height"},
+    )
+    assert post["g_decision"] == "DEC_ACCEPTED" and post["g_reject_code"] == "RC_STALE_REPLAY"
+    assert post["height"] == 2
+
+
+def test_mutant_wrong_occurrence_consumed_permits_a_replay(
+    doc: dict[str, Any], model: BoundedModel
+) -> None:
+    mutant = mutant_model(doc, "MUT_WRONG_OCCURRENCE_CONSUMED")
+    pre = make_state(model, payer_a=2, supply_a=2)
+    params = command(pre, KIND_TRANSFER, amount=1, occurrence=0)
+    post = ripr(
+        model,
+        mutant,
+        pre,
+        params,
+        revealed_by={
+            "consumed_0 is not the exact union with the occurrence",
+            "consumed_1 is not the exact union with the occurrence",
+            "oracle:consumed_0",
+            "oracle:consumed_1",
+        },
+    )
+    assert (post["consumed_0"], post["consumed_1"]) == (False, True)
+    labels = check_step(mutant, pre, params)[2]
+    assert not any(label.startswith("invariant:") for label in labels), (
+        "every YAML invariant holds: exactly one identity was newly consumed"
+    )
+    # Consequence: the mutant accepts the same occurrence identity twice while
+    # the honest model rejects the second attempt as a duplicate.
+    again = command(post, KIND_TRANSFER, amount=1, occurrence=0)
+    _, replayed, _ = check_step(mutant, post, again)
+    assert replayed["accepted"] is True
+    honest_post, _, _ = check_step(model, pre, params)
+    _, honest, honest_failures = check_step(
+        model, honest_post, command(honest_post, KIND_TRANSFER, amount=1, occurrence=0)
+    )
+    assert honest_failures == [] and honest["reject_code"] == "RC_DUPLICATE_OCCURRENCE"
+
+
+def test_mutant_reject_precedence_drift_reports_the_lower_priority_code(
+    doc: dict[str, Any], model: BoundedModel
+) -> None:
+    mutant = mutant_model(doc, "MUT_REJECT_PRECEDENCE_DRIFT")
+    pre = make_state(model, payer_a=1, supply_a=1, consumed_0=True, height=1)
+    both = command(pre, KIND_TRANSFER, amount=1, occurrence=0, bound_height=0)
+    post = ripr(model, mutant, pre, both, revealed_by={"oracle:reject_code"})
+    assert post["g_reject_code"] == "RC_STALE_REPLAY"
+    assert check_step(model, pre, both)[1]["reject_code"] == "RC_DUPLICATE_OCCURRENCE"
+    # A single failure is reported identically, so only the precedence witness reveals it.
+    _, single, single_failures = check_step(mutant, pre, command(pre, KIND_TRANSFER, amount=1, occurrence=0))
+    assert single_failures == [] and single["reject_code"] == "RC_DUPLICATE_OCCURRENCE"
+
+
+def test_every_named_mutant_is_killed_by_the_bounded_boxes(doc: dict[str, Any]) -> None:
+    """The honest model survives the same boxes in the bounded sweep tests."""
 
     killed: dict[str, list[str]] = {}
     for name in MUTANTS:
         mutant = mutant_model(doc, name)
-        found = violations(mutant, accept_box(mutant), limit=1)
+        box = itertools.chain(
+            random_box(mutant, seed=20260826, samples=1500),
+            accept_box(mutant),
+        )
+        found = violations(mutant, box, limit=1)
         assert found, name
         killed[name] = sorted(found[0]["failures"])
     assert set(killed) == set(MUTANTS)
-    # A kill is revealed either by a named invariant or by the post-state
-    # leaving the declared domain (for example a reject that drives payer_a
-    # below zero under MUT_REJECT_WITH_EFFECTS).
-    revealing = ("invariant:", "domain:")
+    revealing = ("invariant:", "domain:", "oracle:", "consumed_")
     assert all(
         any(label.startswith(revealing) for label in labels) for labels in killed.values()
     ), killed
