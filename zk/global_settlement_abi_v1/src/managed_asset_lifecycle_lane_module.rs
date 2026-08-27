@@ -184,6 +184,23 @@ fn private_port(
     Ok(port)
 }
 
+fn complete_effects(
+    base_effects: &GlobalEconomicEffectPlanV1,
+    private_port: &AssetLanePrivatePortV1,
+) -> AbiResultV1<GlobalEconomicEffectPlanV1> {
+    let mut effects = base_effects.clone();
+    for row in &mut effects.asset_conservation {
+        row.owned_and_custodied_pre_atoms = private_port
+            .pre_state
+            .owned_and_custodied_atoms(&row.asset)?;
+        row.owned_and_custodied_post_atoms = private_port
+            .post_state
+            .owned_and_custodied_atoms(&row.asset)?;
+    }
+    effects.validate()?;
+    Ok(effects)
+}
+
 fn bound_journal(
     base_accepted: &ManagedAssetLifecycleAcceptedV1,
     private_port: &AssetLanePrivatePortV1,
@@ -218,13 +235,20 @@ pub fn transition_managed_asset_lifecycle_lane_module_v1(
         &module_input.pre_state,
         &module_input.command,
     )?;
-    let base_accepted = match base_result {
+    let mut base_accepted = match base_result {
         ManagedAssetLifecycleResultV1::Accepted(accepted) => *accepted,
         ManagedAssetLifecycleResultV1::Rejected(rejected) => {
             return Ok(ManagedAssetLifecycleLaneModuleResultV1::Rejected(rejected));
         }
     };
-    let private_port = private_port(module_input, &base_accepted)?;
+    let mut private_port = private_port(module_input, &base_accepted)?;
+    let effects = complete_effects(&base_accepted.effects, &private_port)?;
+    let effect_plan_root = effects.effect_plan_root()?;
+    base_accepted.effects = effects;
+    base_accepted.module_journal.effect_plan_root = effect_plan_root.clone();
+    base_accepted.validate()?;
+    private_port.module_effect_plan_root = effect_plan_root;
+    private_port.validate()?;
     let statement_root = module_input.statement_root()?;
     let bound_receipt_root = receipt_root(
         &statement_root,

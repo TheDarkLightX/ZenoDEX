@@ -320,6 +320,27 @@ def _private_port(
     )
 
 
+def _complete_effects(
+    base_effects: GlobalEconomicEffectPlanV1,
+    private_port: AssetLanePrivatePortV1,
+) -> GlobalEconomicEffectPlanV1:
+    return replace(
+        base_effects,
+        asset_conservation=tuple(
+            replace(
+                row,
+                owned_and_custodied_pre_atoms=(
+                    private_port.pre_state.owned_and_custodied_atoms(row.asset)
+                ),
+                owned_and_custodied_post_atoms=(
+                    private_port.post_state.owned_and_custodied_atoms(row.asset)
+                ),
+            )
+            for row in base_effects.asset_conservation
+        ),
+    )
+
+
 def _bound_journal(
     statement_root: str,
     base_result: ManagedAssetLifecycleAcceptedV1,
@@ -359,6 +380,19 @@ def _transition_owned_managed_asset_lifecycle_lane_module_v1(
     if isinstance(base_result, ManagedAssetLifecycleRejectedV1):
         return base_result
     private_port = _private_port(owned_input, base_result)
+    effects = _complete_effects(base_result.effects, private_port)
+    private_port = replace(
+        private_port,
+        module_effect_plan_root=effects.effect_plan_root,
+    )
+    base_result = ManagedAssetLifecycleAcceptedV1(
+        post_state=base_result.post_state,
+        effects=effects,
+        module_journal=replace(
+            base_result.module_journal,
+            effect_plan_root=effects.effect_plan_root,
+        ),
+    )
     statement_root = owned_input.statement_root
     return ManagedAssetLifecycleLaneModuleAcceptedV1(
         statement_root,
