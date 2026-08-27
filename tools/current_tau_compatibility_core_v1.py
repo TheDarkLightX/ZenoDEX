@@ -535,7 +535,7 @@ def build_current_tau_compatibility_artifact_v1(
             "value_movement_authority": "NONE",
         },
         "replay_command": (
-            "python3 -I -P tools/check_current_tau_compatibility_v1.py --tau-testnet-repo "
+            "python3 -I -S -P tools/check_current_tau_compatibility_v1.py --tau-testnet-repo "
             "<exact-local-current-tau-testnet-clone> --tau-lang-repo "
             "<exact-local-tau-lang-clone> --historical-bridge-repo "
             "<exact-local-historical-bridge-checkout>"

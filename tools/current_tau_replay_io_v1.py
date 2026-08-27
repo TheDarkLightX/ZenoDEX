@@ -10,10 +10,12 @@ import shutil
 import signal
 import stat
 import subprocess
+import sys
 import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from types import ModuleType
 from typing import Final, NoReturn
 
 GIT_OUTPUT_MAX_BYTES_V1: Final = 65_536
@@ -52,6 +54,32 @@ def _filesystem_reject_v1(prefix: str, path: Path, exc: OSError) -> NoReturn:
     }
     suffix = suffix_by_errno.get(exc.errno, "IO_ERROR") if exc.errno is not None else "IO_ERROR"
     _shell_reject(f"{prefix}_{suffix}", str(path), f"{type(exc).__name__}; errno={exc.errno}")
+
+
+def _unbound_runtime_repository_imports_v1(
+    root: Path,
+    allowed_paths: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Return exact repository modules executing outside the source manifest."""
+
+    try:
+        resolved_root = root.resolve(strict=True)
+    except OSError as exc:
+        _filesystem_reject_v1("RUNTIME_ROOT", root, exc)
+    allowed = frozenset(allowed_paths)
+    observed: set[str] = set()
+    for module in tuple(sys.modules.values()):
+        if type(module) is not ModuleType:
+            continue
+        path_value = module.__dict__.get("__file__")
+        if type(path_value) is not str:
+            continue
+        try:
+            relative = Path(path_value).resolve(strict=True).relative_to(resolved_root)
+        except (OSError, ValueError):
+            continue
+        observed.add(relative.as_posix())
+    return tuple(sorted(observed - allowed))
 
 
 def _git_binary_v1() -> str:

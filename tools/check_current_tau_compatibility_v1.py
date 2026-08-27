@@ -11,7 +11,11 @@ import sys as _bootstrap_sys
 def _require_isolated_python_main_v1() -> None:
     """Fail before repository imports unless Python excluded ambient paths."""
 
-    if not _bootstrap_sys.flags.isolated or not _bootstrap_sys.flags.safe_path:
+    if (
+        not _bootstrap_sys.flags.isolated
+        or not _bootstrap_sys.flags.no_site
+        or not _bootstrap_sys.flags.safe_path
+    ):
         _bootstrap_sys.stdout.write(
             '{"artifact_root":null,"artifact_sha256":"",'
             '"current_tau_compatible":false,"findings":'
@@ -64,10 +68,14 @@ from tools.current_tau_compatibility_core_v1 import (  # noqa: E402
     check_current_tau_compatibility_artifact_v1,
     decode_json_object_v1,
 )
+from tools.current_tau_compatibility_pins_v1 import (  # noqa: E402
+    IMPLEMENTATION_SOURCE_PATHS_V1,
+)
 from tools.current_tau_replay_io_v1 import (  # noqa: E402
     FailClosedArgumentParserV1,
     ShellRejectV1,
     _read_bounded_regular_file_v1,
+    _unbound_runtime_repository_imports_v1,
 )
 
 
@@ -129,6 +137,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tau-lang-repo", type=Path, required=True)
     parser.add_argument("--historical-bridge-repo", type=Path)
     try:
+        if _bootstrap_sys.flags.isolated and _bootstrap_sys.flags.no_site:
+            unbound = _unbound_runtime_repository_imports_v1(
+                REPO_ROOT,
+                IMPLEMENTATION_SOURCE_PATHS_V1,
+            )
+            if unbound:
+                report = _failure_report(
+                    "IMPLEMENTATION_RUNTIME_SOURCE_UNBOUND",
+                    unbound[0],
+                )
+                print(json.dumps(report, sort_keys=True))
+                return 1
         args = parser.parse_args(argv)
         bridge_repo = args.historical_bridge_repo or args.tau_testnet_repo
         paths = TauReplayPathsV1(

@@ -11,7 +11,11 @@ import sys as _bootstrap_sys
 def _require_isolated_python_main_v1() -> None:
     """Fail before repository imports unless Python excluded ambient paths."""
 
-    if not _bootstrap_sys.flags.isolated or not _bootstrap_sys.flags.safe_path:
+    if (
+        not _bootstrap_sys.flags.isolated
+        or not _bootstrap_sys.flags.no_site
+        or not _bootstrap_sys.flags.safe_path
+    ):
         _bootstrap_sys.stdout.write(
             '{"finding":"PYTHON_NOT_ISOLATED","o002_implemented":false,'
             '"o003a_evidence_complete":false,"ok":false,'
@@ -83,20 +87,24 @@ from tools.current_tau_replay_io_v1 import (  # noqa: E402
     _git_tree_v1,
     _read_bounded_regular_file_v1,
     _run_git_v1,
+    _unbound_runtime_repository_imports_v1,
 )
 from tools.current_tau_source_analysis_v1 import (  # noqa: E402
     LEGACY_OPERATION_KEYS_V1,
     class_methods_v1,
     command_registry_keys_v1,
+    compose_service_environment_value_v1,
     force_test_requires_test_env_v1,
     historical_apply_app_tx_bridge_v1,
     historical_force_test_enters_mock_v1,
     legacy_prefix_parser_accepts_v1,
     literal_int_set_v1,
     literal_string_assignments_v1,
+    python_env_default_v1,
     require_success_envelope_v1,
+    shell_forwards_force_test_v1,
     signing_vector_sha256_v1,
-    single_profile_value_v1,
+    source_references_identifier_v1,
     success_envelope_sha256_v1,
     success_envelope_v1,
     user_tx_signing_fields_v1,
@@ -125,9 +133,40 @@ class ReplaySourcesV1:
     current_tau_pin: SourcePinV1
     current_tau_lang_pin: SourcePinV1
     historical_pin: SourcePinV1
-    implementation: dict[str, bytes]
-    current_tau: dict[str, bytes]
-    historical: dict[str, bytes]
+    implementation: SourceCorpusV1
+    current_tau: SourceCorpusV1
+    historical: SourceCorpusV1
+
+
+@dataclass(frozen=True, slots=True)
+class SourceCorpusV1:
+    entries: tuple[tuple[str, bytes], ...]
+
+    def __post_init__(self) -> None:
+        if type(self.entries) is not tuple:
+            raise TypeError("source corpus entries must be an exact tuple")
+        paths: list[str] = []
+        for entry in self.entries:
+            if (
+                type(entry) is not tuple
+                or len(entry) != 2
+                or type(entry[0]) is not str
+                or type(entry[1]) is not bytes
+            ):
+                raise TypeError("source corpus entries must be exact (str, bytes) pairs")
+            paths.append(entry[0])
+        if paths != sorted(paths) or len(paths) != len(set(paths)):
+            raise ValueError("source corpus paths must be unique and sorted")
+
+    @classmethod
+    def from_dict(cls, sources: dict[str, bytes]) -> SourceCorpusV1:
+        return cls(tuple(sorted(sources.items())))
+
+    def __getitem__(self, path: str) -> bytes:
+        for candidate, raw in self.entries:
+            if candidate == path:
+                return raw
+        raise KeyError(path)
 
 
 @dataclass(frozen=True)
@@ -173,7 +212,7 @@ def _source_pin_v1(
     commit: str,
     expected_tree_listing_sha256: str | None,
     expected_sources: tuple[tuple[str, str], ...],
-) -> tuple[SourcePinV1, dict[str, bytes]]:
+) -> tuple[SourcePinV1, SourceCorpusV1]:
     tree = _git_tree_v1(repo, commit)
     tree_listing_sha256 = _git_tree_listing_sha256_v1(repo, commit)
     if (
@@ -192,7 +231,10 @@ def _source_pin_v1(
             _reject("SOURCE_SHA256_DRIFT", path, "exact upstream source bytes drift")
         sources[path] = raw
         observed_hashes.append((path, observed_sha))
-    return SourcePinV1(commit, tree, tree_listing_sha256, tuple(observed_hashes)), sources
+    return (
+        SourcePinV1(commit, tree, tree_listing_sha256, tuple(observed_hashes)),
+        SourceCorpusV1.from_dict(sources),
+    )
 
 
 def _git_tree_listing_sha256_v1(repo: Path, commit: str) -> str:
@@ -242,6 +284,11 @@ def _implementation_source_hashes_v1(
         (path, _sha256_v1(_git_source_bytes_v1(root, commit, path)))
         for path in IMPLEMENTATION_SOURCE_PATHS_V1
     )
+
+
+def _require_unchanged_head_v1(root: Path, captured_head: str) -> None:
+    if _git_head_v1(root) != captured_head:
+        _reject("HEAD_CHANGED_DURING_CAPTURE", "HEAD", "Git HEAD changed during replay")
 
 
 def _require_worktree_sources_match_v1(
@@ -340,7 +387,15 @@ def _rpc_facts_v1(sources: ReplaySourcesV1) -> RpcFactsV1:
         sources.historical["app/container.py"], "historical:app/container.py"
     )
     current_absent = (
-        "apply_app_tx",
+        *(
+            ()
+            if source_references_identifier_v1(
+                sources.current_tau["commands/createblock.py"],
+                "current:commands/createblock.py",
+                "apply_app_tx",
+            )
+            else ("apply_app_tx",)
+        ),
         *(name for name in names[1:] if name not in current_registry),
     )
     historical_apply = (
@@ -366,21 +421,22 @@ def _rpc_facts_v1(sources: ReplaySourcesV1) -> RpcFactsV1:
 
 def _profile_facts_v1(sources: ReplaySourcesV1) -> ProfileFactsV1:
     compose = sources.implementation["docker-compose.local-testnet.yml"]
-    runner_text = sources.implementation["tools/run_local_tau_node_container.sh"].decode("utf-8")
-    e2e_text = sources.implementation["tools/tau_testnet_local_e2e.py"].decode("utf-8")
+    runner = sources.implementation["tools/run_local_tau_node_container.sh"]
+    e2e = sources.implementation["tools/tau_testnet_local_e2e.py"]
     return ProfileFactsV1(
-        force_test=single_profile_value_v1(
+        force_test=compose_service_environment_value_v1(
             compose,
             "docker-compose.local-testnet.yml",
+            "tau-local",
             "TAU_FORCE_TEST",
         ),
-        runner_forwards_force_test=(
-            '"${TAU_FORCE_TEST:-1}" == "1"' in runner_text and "ARGS+=(--force-test)" in runner_text
+        runner_forwards_force_test=shell_forwards_force_test_v1(
+            runner,
+            "tools/run_local_tau_node_container.sh",
         ),
-        default_tau_env=(
-            "development"
-            if 'env.setdefault("TAU_ENV", env.get("TAU_ENV", "development"))' in e2e_text
-            else ""
+        default_tau_env=python_env_default_v1(
+            e2e,
+            "tools/tau_testnet_local_e2e.py",
         ),
         current_requires_test_env=force_test_requires_test_env_v1(
             sources.current_tau["tau_manager.py"],
@@ -519,8 +575,7 @@ def load_current_tau_compatibility_snapshot_v1(
         current_tau_force_test_requires_test_env=profile.current_requires_test_env,
         historical_bridge_force_test_enters_mock_mode=profile.historical_enters_mock,
     )
-    if _git_head_v1(paths.root) != captured_head:
-        _reject("HEAD_CHANGED_DURING_CAPTURE", "HEAD", "Git HEAD changed during replay")
+    _require_unchanged_head_v1(paths.root, captured_head)
     return snapshot
 
 
@@ -543,6 +598,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--historical-bridge-repo", type=Path)
     parser.add_argument("--check", action="store_true")
     try:
+        if _bootstrap_sys.flags.isolated and _bootstrap_sys.flags.no_site:
+            unbound = _unbound_runtime_repository_imports_v1(
+                REPO_ROOT,
+                IMPLEMENTATION_SOURCE_PATHS_V1,
+            )
+            if unbound:
+                _reject(
+                    "IMPLEMENTATION_RUNTIME_SOURCE_UNBOUND",
+                    unbound[0],
+                    "runtime repository import is absent from source manifest",
+                )
         args = parser.parse_args(argv)
         paths = TauReplayPathsV1(
             args.root,

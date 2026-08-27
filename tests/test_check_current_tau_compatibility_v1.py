@@ -47,9 +47,13 @@ from tools.current_tau_compatibility_core_v1 import (
 )
 from tools.current_tau_compatibility_pins_v1 import (
     IMPLEMENTATION_EVIDENCE_PATHS_V1,
+    IMPLEMENTATION_SOURCE_PATHS_V1,
     LOCAL_PROFILE_SOURCE_SHA256_V1,
 )
-from tools.current_tau_replay_io_v1 import _git_environment_v1
+from tools.current_tau_replay_io_v1 import (
+    _git_environment_v1,
+    _unbound_runtime_repository_imports_v1,
+)
 
 _UNUSED_PATHS = TauReplayPathsV1(
     REPO_ROOT,
@@ -208,6 +212,8 @@ def test_mutation_given_reserved_stream_source_byte_changes_when_classified_then
 def test_mutation_given_tx_type_source_byte_is_removed_when_classified_then_rejects() -> None:
     # Arrange
     source = b"""\
+import json
+
 def _get_signing_message_bytes(payload):
     tx_type = payload.get("tx_type", "user_tx")
     signing_dict = {
@@ -400,6 +406,49 @@ def test_rejection_given_profile_runtime_path_is_unbound_then_typed_rejects(
     assert raised.value.code == "PROFILE_TAU_SOURCE_UNBOUND"
 
 
+def test_stateful_replay_given_head_changes_during_capture_then_typed_rejects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    captured_head = "a" * 40
+    monkeypatch.setattr(builder_module, "_git_head_v1", lambda _root: "b" * 40)
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        builder_module._require_unchanged_head_v1(REPO_ROOT, captured_head)
+    assert raised.value.code == "HEAD_CHANGED_DURING_CAPTURE"
+
+
+def test_rejection_given_evidence_commit_changes_extra_path_then_typed_rejects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    captured_head = "a" * 40
+    evidence_commit = "b" * 40
+    parent = "c" * 40
+    calls = 0
+
+    def fake_run_git(
+        _root: Path,
+        _args: tuple[str, ...],
+        **_kwargs: object,
+    ) -> tuple[int, str, str]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return 0, f"{evidence_commit}\n", ""
+        return 0, f"{builder_module.JSON_OUTPUT}\nextra.py\n", ""
+
+    monkeypatch.setattr(builder_module, "_run_git_v1", fake_run_git)
+    monkeypatch.setattr(builder_module, "_git_is_ancestor_v1", lambda *_args: True)
+    monkeypatch.setattr(builder_module, "_git_scalar_v1", lambda *_args: parent)
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        builder_module._implementation_subject_commit_v1(REPO_ROOT, captured_head)
+    assert raised.value.code == "EVIDENCE_COMMIT_SHAPE"
+
+
 def test_given_profile_runtime_path_resolves_to_reviewed_source_then_binding_accepts(
     tmp_path: Path,
 ) -> None:
@@ -561,9 +610,38 @@ def test_mutation_given_reserved_stream_set_is_mutated_then_ast_rejects(method: 
     assert raised.value.code == "INT_SET_SHAPE"
 
 
+def test_mutation_given_reserved_stream_is_destructured_and_cleared_then_ast_rejects() -> None:
+    # Arrange
+    source = b'''\
+RESERVED_STREAMS = {0, 1, 2}
+(alias,) = (RESERVED_STREAMS,)
+alias.clear()
+'''
+    namespace: dict[str, object] = {}
+    exec(source, namespace)  # noqa: S102 - fixed mutation vector is the independent oracle.
+    assert namespace["RESERVED_STREAMS"] == set()
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.literal_int_set_v1(source, "mutant:tau_defs.py", "RESERVED_STREAMS")
+    assert raised.value.code == "INT_SET_SHAPE"
+
+
+def test_mutation_given_reserved_stream_uses_unbound_clear_then_ast_rejects() -> None:
+    # Arrange
+    source = b"RESERVED_STREAMS = {0, 1, 2}\nset.clear(RESERVED_STREAMS)\n"
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.literal_int_set_v1(source, "mutant:tau_defs.py", "RESERVED_STREAMS")
+    assert raised.value.code == "INT_SET_SHAPE"
+
+
 def test_mutation_given_signing_field_is_deleted_before_return_then_ast_rejects() -> None:
     # Arrange
     source = b'''\
+import json
+
 def _get_signing_message_bytes(payload):
     tx_type = payload.get("tx_type", "user_tx")
     signing_dict = {
@@ -590,6 +668,8 @@ def _get_signing_message_bytes(payload):
 def test_mutation_given_signing_has_nested_early_return_then_ast_rejects() -> None:
     # Arrange
     source = b'''\
+import json
+
 def _get_signing_message_bytes(payload):
     signing_dict = {
         "sender_pubkey": payload["sender_pubkey"],
@@ -614,6 +694,8 @@ def _get_signing_message_bytes(payload):
 def test_mutation_given_signing_dict_is_cleared_then_ast_rejects() -> None:
     # Arrange
     source = b'''\
+import json
+
 def _get_signing_message_bytes(payload):
     signing_dict = {"sender_pubkey": payload["sender_pubkey"]}
     signing_dict.clear()
@@ -631,6 +713,8 @@ def _get_signing_message_bytes(payload):
 def test_mutation_given_signing_dict_is_aliased_then_ast_rejects() -> None:
     # Arrange
     source = b'''\
+import json
+
 def _get_signing_message_bytes(payload):
     signing_dict = {"sender_pubkey": payload["sender_pubkey"]}
     alias = signing_dict
@@ -644,6 +728,84 @@ def _get_signing_message_bytes(payload):
             source, "mutant:sendtx.py", "_get_signing_message_bytes"
         )
     assert raised.value.code == "SIGNING_MUTATION_SHAPE"
+
+
+def test_mutation_given_signing_dict_uses_unbound_clear_then_ast_rejects() -> None:
+    # Arrange
+    source = b'''\
+import json
+
+def _get_signing_message_bytes(payload):
+    signing_dict = {"sender_pubkey": payload["sender_pubkey"]}
+    dict.clear(signing_dict)
+    return json.dumps(signing_dict, sort_keys=True, separators=(",", ":")).encode()
+'''
+    namespace: dict[str, object] = {"json": json}
+    exec(source, namespace)  # noqa: S102 - fixed mutation vector is the independent oracle.
+    signing_function = cast(Callable[[dict[str, str]], bytes], namespace["_get_signing_message_bytes"])
+    assert signing_function({"sender_pubkey": "alice"}) == b"{}"
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.user_tx_signing_fields_v1(
+            source, "mutant:sendtx.py", "_get_signing_message_bytes"
+        )
+    assert raised.value.code == "SIGNING_MUTATION_SHAPE"
+
+
+def test_mutation_given_signing_field_is_overwritten_at_top_level_then_ast_rejects() -> None:
+    # Arrange
+    source = b'''\
+import json
+
+def _get_signing_message_bytes(payload):
+    signing_dict = {"sender_pubkey": payload["sender_pubkey"]}
+    signing_dict["sender_pubkey"] = "mallory"
+    return json.dumps(signing_dict, sort_keys=True, separators=(",", ":")).encode()
+'''
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.user_tx_signing_fields_v1(
+            source, "mutant:sendtx.py", "_get_signing_message_bytes"
+        )
+    assert raised.value.code == "SIGNING_MUTATION_SHAPE"
+
+
+def test_mutation_given_signing_field_reads_wrong_payload_key_then_ast_rejects() -> None:
+    # Arrange
+    source = b'''\
+import json
+
+def _get_signing_message_bytes(payload):
+    signing_dict = {"sender_pubkey": payload["fee_limit"]}
+    return json.dumps(signing_dict, sort_keys=True, separators=(",", ":")).encode()
+'''
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.user_tx_signing_fields_v1(
+            source, "mutant:sendtx.py", "_get_signing_message_bytes"
+        )
+    assert raised.value.code == "SIGNING_VALUE_BINDING"
+
+
+def test_mutation_given_signing_json_is_not_compact_then_ast_rejects() -> None:
+    # Arrange
+    source = b'''\
+import json
+
+def _get_signing_message_bytes(payload):
+    signing_dict = {"sender_pubkey": payload["sender_pubkey"]}
+    return json.dumps(signing_dict, sort_keys=True).encode()
+'''
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.user_tx_signing_fields_v1(
+            source, "mutant:sendtx.py", "_get_signing_message_bytes"
+        )
+    assert raised.value.code == "SIGNING_RETURN_SHAPE"
 
 
 def test_mutation_given_success_envelope_is_dead_code_then_ast_rejects() -> None:
@@ -716,6 +878,32 @@ def success_response(command, data):
     assert raised.value.code == "SUCCESS_ENVELOPE_SHAPE"
 
 
+def test_mutation_given_success_envelope_uses_forged_globals_then_ast_rejects() -> None:
+    # Arrange
+    source = b'''\
+command = "forged-command"
+data = {"forged": True}
+def success_response(actual_command, actual_data):
+    return json.dumps(
+        {"status": "ok", "command": command, "data": dict(data)},
+        separators=(",", ":"),
+    )
+'''
+    namespace: dict[str, object] = {"json": json}
+    exec(source, namespace)  # noqa: S102 - fixed mutation vector is the independent oracle.
+    response = cast(Callable[[str, dict[str, object]], str], namespace["success_response"])
+    assert json.loads(response("sendtx", {"tx_hash": "expected"})) == {
+        "status": "ok",
+        "command": "forged-command",
+        "data": {"forged": True},
+    }
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.require_success_envelope_v1(source, "mutant:api_response.py")
+    assert raised.value.code == "SUCCESS_ENVELOPE_SHAPE"
+
+
 def test_mutation_given_current_force_test_has_extra_true_path_then_analyzer_rejects() -> None:
     # Arrange
     source = b'''\
@@ -756,6 +944,46 @@ def is_force_test_enabled():
     ) is False
 
 
+def test_mutation_given_current_runtime_env_is_reassigned_then_analyzer_rejects() -> None:
+    # Arrange
+    source = b'''\
+def is_force_test_enabled():
+    requested = os.environ.get("TAU_FORCE_TEST", "0") == "1"
+    if not requested:
+        return False
+    runtime_env = getattr(getattr(config, "settings", None), "env", None) or os.environ.get("TAU_ENV", "development")
+    runtime_env = "test"
+    if runtime_env == "test":
+        return True
+    return False
+'''
+
+    # Act / Assert
+    assert analysis_module.force_test_requires_test_env_v1(
+        source, "mutant:tau_manager.py"
+    ) is False
+
+
+def test_mutation_given_current_force_request_is_reassigned_then_analyzer_rejects() -> None:
+    # Arrange
+    source = b'''\
+def is_force_test_enabled():
+    requested = os.environ.get("TAU_FORCE_TEST", "0") == "1"
+    requested = True
+    if not requested:
+        return False
+    runtime_env = getattr(getattr(config, "settings", None), "env", None) or os.environ.get("TAU_ENV", "development")
+    if runtime_env == "test":
+        return True
+    return False
+'''
+
+    # Act / Assert
+    assert analysis_module.force_test_requires_test_env_v1(
+        source, "mutant:tau_manager.py"
+    ) is False
+
+
 def test_mutation_given_historical_force_condition_is_negated_then_analyzer_rejects() -> None:
     # Arrange
     source = b'''\
@@ -764,6 +992,41 @@ def start_and_manage_tau_process():
     if os.environ.get("TAU_FORCE_TEST", "0") != "1":
         tau_test_mode = True
         return
+'''
+
+    # Act / Assert
+    assert analysis_module.historical_force_test_enters_mock_v1(
+        source, "mutant:tau_manager.py"
+    ) is False
+
+
+def test_mutation_given_historical_mock_flag_is_reset_then_analyzer_rejects() -> None:
+    # Arrange
+    source = b'''\
+def start_and_manage_tau_process():
+    global tau_test_mode
+    tau_test_mode = False
+    if os.environ.get("TAU_FORCE_TEST", "0") == "1":
+        tau_test_mode = True
+        tau_test_mode = False
+        return
+'''
+
+    # Act / Assert
+    assert analysis_module.historical_force_test_enters_mock_v1(
+        source, "mutant:tau_manager.py"
+    ) is False
+
+
+def test_mutation_given_historical_mock_flag_is_set_after_return_then_analyzer_rejects() -> None:
+    # Arrange
+    source = b'''\
+def start_and_manage_tau_process():
+    global tau_test_mode
+    tau_test_mode = False
+    if os.environ.get("TAU_FORCE_TEST", "0") == "1":
+        return
+        tau_test_mode = True
 '''
 
     # Act / Assert
@@ -823,6 +1086,183 @@ class ServiceContainer:
     assert raised.value.code == "COMMAND_REGISTRY_MUTATION"
 
 
+def test_mutation_given_command_registry_uses_destructured_alias_then_rejects() -> None:
+    # Arrange
+    source = b'''\
+class ServiceContainer:
+    @classmethod
+    def build(cls, overrides=None):
+        command_handlers = overrides or {"sendtx": handler}
+        (alias,) = (command_handlers,)
+        alias["getappstate"] = handler
+        return cls(command_handlers=command_handlers)
+'''
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.command_registry_keys_v1(source, "mutant:app/container.py")
+    assert raised.value.code == "COMMAND_REGISTRY_MUTATION"
+
+
+def test_mutation_given_command_registry_uses_unbound_clear_then_rejects() -> None:
+    # Arrange
+    source = b'''\
+class ServiceContainer:
+    @classmethod
+    def build(cls, overrides=None):
+        command_handlers = overrides or {"sendtx": handler}
+        dict.clear(command_handlers)
+        return cls(command_handlers=command_handlers)
+'''
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.command_registry_keys_v1(source, "mutant:app/container.py")
+    assert raised.value.code == "COMMAND_REGISTRY_MUTATION"
+
+
+def test_mutation_given_command_registry_escapes_through_holder_then_rejects() -> None:
+    # Arrange
+    source = b'''\
+class ServiceContainer:
+    @classmethod
+    def build(cls, overrides=None):
+        command_handlers = overrides or {"sendtx": handler}
+        holder = {"handlers": command_handlers}
+        return cls(command_handlers=holder["handlers"])
+'''
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.command_registry_keys_v1(source, "mutant:app/container.py")
+    assert raised.value.code == "COMMAND_REGISTRY_MUTATION"
+
+
+def test_compose_profile_reads_only_exact_service_environment_path() -> None:
+    # Arrange
+    source = b'''\
+services:
+  decoy:
+    environment:
+      TAU_FORCE_TEST: "0"
+  tau-local:
+    environment:
+      TAU_FORCE_TEST: "1"
+'''
+
+    # Act
+    observed = analysis_module.compose_service_environment_value_v1(
+        source, "docker-compose.yml", "tau-local", "TAU_FORCE_TEST"
+    )
+
+    # Assert
+    assert observed == "1"
+
+
+def test_mutation_given_compose_profile_duplicates_exact_key_then_rejects() -> None:
+    # Arrange
+    source = b'''\
+services:
+  tau-local:
+    environment:
+      TAU_FORCE_TEST: "1"
+      TAU_FORCE_TEST: "0"
+'''
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.compose_service_environment_value_v1(
+            source, "docker-compose.yml", "tau-local", "TAU_FORCE_TEST"
+        )
+    assert raised.value.code == "PROFILE_YAML_SHAPE"
+
+
+def test_mutation_given_runner_resets_arguments_after_force_flag_then_rejects() -> None:
+    # Arrange
+    source = b'''\
+ARGS=(tau)
+if [[ "${TAU_FORCE_TEST:-1}" == "1" ]]; then
+  ARGS+=(--force-test)
+fi
+ARGS=(tau)
+exec python "${ARGS[@]}"
+'''
+
+    # Act / Assert
+    assert analysis_module.shell_forwards_force_test_v1(source, "runner.sh") is False
+
+
+def test_mutation_given_e2e_overwrites_tau_env_after_default_then_rejects() -> None:
+    # Arrange
+    source = b'''\
+def _configure_tau_server_env(env, *, args, root):
+    env.setdefault("TAU_ENV", env.get("TAU_ENV", "development"))
+    env["TAU_ENV"] = "test"
+'''
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.python_env_default_v1(source, "tau_testnet_local_e2e.py")
+    assert raised.value.code == "PROFILE_ENV_DEFAULT_DRIFT"
+
+
+def test_mutation_given_current_createblock_references_apply_app_tx_then_rpc_rejects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    source = b'''\
+def createblock(bridge):
+    return bridge.apply_app_tx()
+'''
+    assert analysis_module.source_references_identifier_v1(
+        source, "mutant:commands/createblock.py", "apply_app_tx"
+    ) is True
+    snapshot = _snapshot()
+    sources = builder_module.ReplaySourcesV1(
+        implementation_pin=snapshot.implementation,
+        current_tau_pin=snapshot.current_tau,
+        current_tau_lang_pin=snapshot.current_tau_lang,
+        historical_pin=snapshot.historical_bridge,
+        implementation=builder_module.SourceCorpusV1.from_dict(
+            {"src/integration/tau_net_client.py": b"local"}
+        ),
+        current_tau=builder_module.SourceCorpusV1.from_dict(
+            {
+                "app/container.py": b"current-registry",
+                "commands/createblock.py": source,
+            }
+        ),
+        historical=builder_module.SourceCorpusV1.from_dict(
+            {
+                "app/container.py": b"historical-registry",
+                "commands/createblock.py": b"historical-bridge",
+            }
+        ),
+    )
+    monkeypatch.setattr(
+        builder_module,
+        "command_registry_keys_v1",
+        lambda raw, _path: ("getappstate",) if raw == b"historical-registry" else (),
+    )
+    monkeypatch.setattr(builder_module, "historical_apply_app_tx_bridge_v1", lambda *_: True)
+    monkeypatch.setattr(
+        builder_module,
+        "class_methods_v1",
+        lambda *_: {"getappstate", "getstateproof"},
+    )
+
+    # Act
+    facts = builder_module._rpc_facts_v1(sources)
+
+    # Assert
+    assert facts.current_absent == ("getappstate", "getstateproof")
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        build_current_tau_compatibility_artifact_v1(
+            replace(snapshot, current_rpc_names_absent=facts.current_absent)
+        )
+    assert raised.value.code == "CURRENT_RPC_ABSENCE_DRIFT"
+
+
 def test_mutation_given_bridge_call_is_dead_then_analyzer_rejects() -> None:
     # Arrange
     source = b'''\
@@ -862,6 +1302,18 @@ def test_git_environment_forbids_lazy_fetch_and_ambient_configuration() -> None:
     assert "HOME" not in environment
 
 
+def test_source_corpus_is_sorted_owned_and_immutable() -> None:
+    # Arrange / Act
+    corpus = builder_module.SourceCorpusV1.from_dict({"b.py": b"b", "a.py": b"a"})
+
+    # Assert
+    assert corpus.entries == (("a.py", b"a"), ("b.py", b"b"))
+    assert corpus["a.py"] == b"a"
+    with pytest.raises(AttributeError):
+        corpus.entries = ()
+    assert not hasattr(corpus, "__dict__")
+
+
 def test_runtime_import_closure_contains_only_manifested_repository_files() -> None:
     # Arrange
     script = f'''\
@@ -884,7 +1336,7 @@ print("\\n".join(sorted(paths)))
 
     # Act
     result = subprocess.run(
-        [sys.executable, "-I", "-c", script],
+        [sys.executable, "-I", "-S", "-P", "-c", script],
         cwd=REPO_ROOT,
         env={
             "LC_ALL": "C",
@@ -899,7 +1351,8 @@ print("\\n".join(sorted(paths)))
 
     # Assert
     assert result.returncode == 0, result.stderr
-    assert tuple(result.stdout.splitlines()) == (
+    observed = tuple(result.stdout.splitlines())
+    assert observed == (
         "tools/__init__.py",
         "tools/build_current_tau_compatibility_v1.py",
         "tools/check_current_tau_compatibility_v1.py",
@@ -908,6 +1361,22 @@ print("\\n".join(sorted(paths)))
         "tools/current_tau_replay_io_v1.py",
         "tools/current_tau_source_analysis_v1.py",
     )
+    assert set(observed) <= set(IMPLEMENTATION_SOURCE_PATHS_V1)
+
+
+def test_runtime_import_closure_detects_manifest_omission() -> None:
+    # Arrange
+    omitted = tuple(
+        path
+        for path in IMPLEMENTATION_SOURCE_PATHS_V1
+        if path != "tools/current_tau_source_analysis_v1.py"
+    )
+
+    # Act
+    unbound = _unbound_runtime_repository_imports_v1(REPO_ROOT, omitted)
+
+    # Assert
+    assert "tools/current_tau_source_analysis_v1.py" in unbound
 
 
 @pytest.mark.parametrize(
@@ -928,6 +1397,42 @@ def test_cli_given_nonisolated_python_then_fails_before_repository_imports(
     # Act
     result = subprocess.run(
         [sys.executable, str(script)],
+        cwd=tmp_path,
+        env={"LC_ALL": "C", "PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"},
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    report = json.loads(result.stdout)
+
+    # Assert
+    assert result.returncode == 1
+    if finding_key == "findings":
+        assert report[finding_key][0]["code"] == "PYTHON_NOT_ISOLATED"
+    else:
+        assert report[finding_key] == "PYTHON_NOT_ISOLATED"
+    _assert_no_authority(report)
+
+
+@pytest.mark.parametrize(
+    ("script_name", "finding_key"),
+    (
+        ("check_current_tau_compatibility_v1.py", "findings"),
+        ("build_current_tau_compatibility_v1.py", "finding"),
+    ),
+)
+def test_cli_given_site_initialization_enabled_then_fails_closed(
+    script_name: str,
+    finding_key: str,
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    script = REPO_ROOT / "tools" / script_name
+
+    # Act
+    result = subprocess.run(
+        [sys.executable, "-I", "-P", str(script)],
         cwd=tmp_path,
         env={"LC_ALL": "C", "PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"},
         check=False,
@@ -974,6 +1479,7 @@ def test_cli_given_hostile_repo_module_then_isolated_checker_uses_stdlib(
         [
             sys.executable,
             "-I",
+            "-S",
             "-P",
             str(temp_tools / "check_current_tau_compatibility_v1.py"),
         ],

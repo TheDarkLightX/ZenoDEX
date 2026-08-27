@@ -19,16 +19,6 @@ LEGACY_OPERATION_KEYS_V1: Final = (
     "_PROOF_MINING_OPS_KEY",
     "_ZUSD_MONETARY_OPS_KEY",
 )
-_SAMPLE_PAYLOAD_V1: Final = {
-    "sender_pubkey": "11" * 48,
-    "sequence_number": 7,
-    "expiration_time": 1_700_000_000,
-    "fee_limit": "10",
-    "tx_type": "user_tx",
-    "operations": {"5": "{}"},
-}
-
-
 def _reject(code: str, path: str, detail: str) -> NoReturn:
     raise CurrentTauCompatibilityRejectV1(code, path, detail)
 
@@ -47,6 +37,46 @@ def _function_v1(tree: ast.Module, name: str, path: str) -> ast.FunctionDef:
     if len(matches) != 1:
         _reject("FUNCTION_SHAPE", path, f"expected one function {name}")
     return matches[0]
+
+
+def _has_exact_parameters_v1(
+    function: ast.FunctionDef,
+    names: tuple[str, ...],
+) -> bool:
+    arguments = function.args
+    positional = (*arguments.posonlyargs, *arguments.args)
+    return (
+        tuple(argument.arg for argument in positional) == names
+        and not arguments.kwonlyargs
+        and arguments.vararg is None
+        and arguments.kwarg is None
+        and not arguments.defaults
+        and not arguments.kw_defaults
+    )
+
+
+def _parent_map_v1(root: ast.AST) -> dict[ast.AST, ast.AST]:
+    return {
+        child: parent
+        for parent in ast.walk(root)
+        for child in ast.iter_child_nodes(parent)
+    }
+
+
+def source_references_identifier_v1(raw: bytes, path: str, identifier: str) -> bool:
+    """Conservatively classify any executable identifier/string reference as present."""
+
+    tree = python_tree_v1(raw, path)
+    return any(
+        (isinstance(node, ast.Name) and node.id == identifier)
+        or (isinstance(node, ast.Attribute) and node.attr == identifier)
+        or (
+            isinstance(node, ast.Constant)
+            and type(node.value) is str
+            and node.value == identifier
+        )
+        for node in ast.walk(tree)
+    )
 
 
 def literal_int_set_v1(raw: bytes, path: str, name: str) -> tuple[int, ...]:
@@ -68,32 +98,14 @@ def literal_int_set_v1(raw: bytes, path: str, name: str) -> tuple[int, ...]:
                 and isinstance(node.value, ast.Set)
             ):
                 matches.append(node.value)
-    writes = sum(
-        isinstance(node, ast.Name)
-        and node.id == name
-        and isinstance(node.ctx, (ast.Store, ast.Del))
-        for node in ast.walk(tree)
-    )
-    writes += sum(
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == name
-        and node.func.attr
-        in {
-            "add",
-            "clear",
-            "difference_update",
-            "discard",
-            "intersection_update",
-            "pop",
-            "remove",
-            "symmetric_difference_update",
-            "update",
-        }
-        for node in ast.walk(tree)
-    )
-    if len(matches) != 1 or writes != 1:
+    references = [
+        node for node in ast.walk(tree) if isinstance(node, ast.Name) and node.id == name
+    ]
+    if (
+        len(matches) != 1
+        or len(references) != 1
+        or not isinstance(references[0].ctx, ast.Store)
+    ):
         _reject("INT_SET_SHAPE", path, f"expected one sole literal write for {name}")
     values: list[int] = []
     for element in matches[0].elts:
@@ -143,14 +155,18 @@ def _dict_assignment_keys_v1(function: ast.FunctionDef, variable: str, path: str
     if len(matches) != 1:
         _reject("SIGNING_DICT_SHAPE", path, f"expected one {variable} literal")
     keys: set[str] = set()
-    for key in matches[0].keys:
+    for key, value in zip(matches[0].keys, matches[0].values, strict=True):
         if not isinstance(key, ast.Constant) or type(key.value) is not str:
             _reject("SIGNING_DICT_KEY", path, "signing keys must be exact strings")
+        if key.value in keys:
+            _reject("SIGNING_DICT_KEY", path, "signing keys must be unique")
+        if not _payload_field_binding_v1(value, key.value):
+            _reject("SIGNING_VALUE_BINDING", path, f"{key.value} is not bound to payload")
         keys.add(key.value)
     return keys
 
 
-def _user_tx_branch_keys_v1(function: ast.FunctionDef, variable: str) -> set[str]:
+def _user_tx_branch_keys_v1(function: ast.FunctionDef, variable: str, path: str) -> set[str]:
     keys: set[str] = set()
     for node in function.body:
         if not isinstance(node, ast.If):
@@ -159,11 +175,9 @@ def _user_tx_branch_keys_v1(function: ast.FunctionDef, variable: str) -> set[str
         if not _is_user_tx_test_v1(test):
             continue
         for child in node.body:
-            target = (
-                child.targets[0]
-                if isinstance(child, ast.Assign) and len(child.targets) == 1
-                else None
-            )
+            if not isinstance(child, ast.Assign) or len(child.targets) != 1:
+                continue
+            target = child.targets[0]
             if (
                 isinstance(target, ast.Subscript)
                 and isinstance(target.value, ast.Name)
@@ -171,8 +185,39 @@ def _user_tx_branch_keys_v1(function: ast.FunctionDef, variable: str) -> set[str
                 and isinstance(target.slice, ast.Constant)
                 and type(target.slice.value) is str
             ):
+                if not _payload_field_binding_v1(child.value, target.slice.value):
+                    _reject(
+                        "SIGNING_VALUE_BINDING",
+                        path,
+                        f"{target.slice.value} is not bound to payload",
+                    )
                 keys.add(target.slice.value)
     return keys
+
+
+def _payload_field_binding_v1(value: ast.expr, field: str) -> bool:
+    if field == "tx_type":
+        return isinstance(value, ast.Name) and value.id == "tx_type"
+    if (
+        isinstance(value, ast.Subscript)
+        and isinstance(value.value, ast.Name)
+        and value.value.id == "payload"
+        and isinstance(value.slice, ast.Constant)
+        and type(value.slice.value) is str
+    ):
+        return value.slice.value == field
+    return (
+        isinstance(value, ast.Call)
+        and isinstance(value.func, ast.Attribute)
+        and isinstance(value.func.value, ast.Name)
+        and value.func.value.id == "payload"
+        and value.func.attr == "get"
+        and len(value.args) in {1, 2}
+        and isinstance(value.args[0], ast.Constant)
+        and type(value.args[0].value) is str
+        and value.args[0].value == field
+        and not value.keywords
+    )
 
 
 def _is_user_tx_test_v1(test: ast.expr) -> bool:
@@ -189,7 +234,10 @@ def _is_user_tx_test_v1(test: ast.expr) -> bool:
 
 
 def user_tx_signing_fields_v1(raw: bytes, path: str, function_name: str) -> tuple[str, ...]:
-    function = _function_v1(python_tree_v1(raw, path), function_name, path)
+    tree = python_tree_v1(raw, path)
+    function = _function_v1(tree, function_name, path)
+    if not _has_exact_parameters_v1(function, ("payload",)):
+        _reject("SIGNING_FUNCTION_SHAPE", path, "signing function must take only payload")
     top_level_returns = [
         index for index, node in enumerate(function.body) if isinstance(node, ast.Return)
     ]
@@ -198,22 +246,6 @@ def user_tx_signing_fields_v1(raw: bytes, path: str, function_name: str) -> tupl
         _reject("SIGNING_RETURN_SHAPE", path, "expected one final top-level return")
     if any(isinstance(node, (ast.Delete, ast.Raise)) for node in ast.walk(function)):
         _reject("SIGNING_MUTATION_SHAPE", path, "delete and raise are forbidden")
-    forbidden_mutator = any(
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "signing_dict"
-        and node.func.attr in {"clear", "pop", "popitem", "setdefault", "update"}
-        for node in ast.walk(function)
-    )
-    aliased = any(
-        isinstance(node, (ast.Assign, ast.AnnAssign))
-        and isinstance(node.value, ast.Name)
-        and node.value.id == "signing_dict"
-        for node in ast.walk(function)
-    )
-    if forbidden_mutator or aliased:
-        _reject("SIGNING_MUTATION_SHAPE", path, "signing projection may not be aliased or mutated")
     signing_assignments = [
         index
         for index, node in enumerate(function.body)
@@ -239,9 +271,79 @@ def user_tx_signing_fields_v1(raw: bytes, path: str, function_name: str) -> tupl
         final_return.value
     ):
         _reject("SIGNING_RETURN_SHAPE", path, "final return must encode canonical signing JSON")
+    if _uses_canonical_json_v1(final_return.value):
+        if not _canonicalizer_binding_is_closed_v1(tree):
+            _reject("SIGNING_RETURN_SHAPE", path, "canonical JSON binding is not closed")
+    elif not _json_binding_is_closed_v1(tree):
+        _reject("SIGNING_RETURN_SHAPE", path, "json binding is not closed")
+    if not _signing_dict_uses_are_closed_v1(function, final_return):
+        _reject("SIGNING_MUTATION_SHAPE", path, "signing projection use escaped closed grammar")
+    if any(
+        isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Subscript)
+            and isinstance(target.value, ast.Name)
+            and target.value.id == "signing_dict"
+            for target in node.targets
+        )
+        for node in function.body
+    ):
+        _reject("SIGNING_MUTATION_SHAPE", path, "top-level signing overwrite is forbidden")
     keys = _dict_assignment_keys_v1(function, "signing_dict", path)
-    keys.update(_user_tx_branch_keys_v1(function, "signing_dict"))
+    if "tx_type" in keys and not any(
+        _assignment_matches_v1(node, 'payload.get("tx_type", "user_tx")')
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == "tx_type"
+        for node in function.body
+        if isinstance(node, ast.Assign)
+    ):
+        _reject("SIGNING_VALUE_BINDING", path, "tx_type local binding drift")
+    keys.update(_user_tx_branch_keys_v1(function, "signing_dict", path))
     return tuple(sorted(keys))
+
+
+def _signing_dict_uses_are_closed_v1(
+    function: ast.FunctionDef,
+    final_return: ast.Return,
+) -> bool:
+    parents = _parent_map_v1(function)
+    return_call = final_return.value
+    if not isinstance(return_call, ast.Call):
+        return False
+    payload_call: ast.expr = return_call
+    if isinstance(return_call.func, ast.Attribute) and return_call.func.attr == "encode":
+        payload_call = return_call.func.value
+    if not isinstance(payload_call, ast.Call):
+        return False
+    uses = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Name) and node.id == "signing_dict"
+    ]
+    stores = [node for node in uses if isinstance(node.ctx, ast.Store)]
+    if len(stores) != 1:
+        return False
+    for node in uses:
+        if isinstance(node.ctx, ast.Store):
+            continue
+        parent = parents.get(node)
+        if (
+            parent is payload_call
+            and node in payload_call.args
+            and payload_call.args == [node]
+        ):
+            continue
+        if (
+            isinstance(parent, ast.Subscript)
+            and parent.value is node
+            and isinstance(parent.ctx, ast.Store)
+            and isinstance(parent.slice, ast.Constant)
+            and type(parent.slice.value) is str
+        ):
+            continue
+        return False
+    return True
 
 
 def _is_signing_return_v1(value: ast.expr | None) -> bool:
@@ -253,6 +355,7 @@ def _is_signing_return_v1(value: ast.expr | None) -> bool:
         and len(value.args) == 1
         and isinstance(value.args[0], ast.Name)
         and value.args[0].id == "signing_dict"
+        and not value.keywords
     ):
         return True
     return (
@@ -266,7 +369,57 @@ def _is_signing_return_v1(value: ast.expr | None) -> bool:
         and len(value.func.value.args) == 1
         and isinstance(value.func.value.args[0], ast.Name)
         and value.func.value.args[0].id == "signing_dict"
+        and not value.args
+        and not value.keywords
+        and _json_dump_keywords_are_canonical_v1(value.func.value)
     )
+
+
+def _uses_canonical_json_v1(value: ast.expr | None) -> bool:
+    return (
+        isinstance(value, ast.Call)
+        and isinstance(value.func, ast.Name)
+        and value.func.id == "canonical_json_bytes"
+    )
+
+
+def _json_dump_keywords_are_canonical_v1(call: ast.Call) -> bool:
+    keywords = {keyword.arg: keyword.value for keyword in call.keywords if keyword.arg is not None}
+    sort_keys = keywords.get("sort_keys")
+    separators = keywords.get("separators")
+    return (
+        len(keywords) == 2
+        and isinstance(sort_keys, ast.Constant)
+        and sort_keys.value is True
+        and separators is not None
+        and _is_compact_json_separators_v1(separators)
+    )
+
+
+def _canonicalizer_binding_is_closed_v1(tree: ast.Module) -> bool:
+    imports = [
+        alias
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom)
+        and node.module is not None
+        and node.module.endswith("state.canonical")
+        for alias in node.names
+        if alias.name == "canonical_json_bytes"
+        and alias.asname in {None, "canonical_json_bytes"}
+    ]
+    writes = _name_store_count_v1(tree, "canonical_json_bytes")
+    return len(imports) == 1 and writes == 0
+
+
+def _json_binding_is_closed_v1(tree: ast.Module) -> bool:
+    imports = [
+        alias
+        for node in tree.body
+        if isinstance(node, ast.Import)
+        for alias in node.names
+        if alias.name == "json" and alias.asname in {None, "json"}
+    ]
+    return len(imports) == 1 and _name_store_count_v1(tree, "json") == 0
 
 
 def class_methods_v1(raw: bytes, path: str, class_name: str) -> set[str]:
@@ -281,6 +434,8 @@ def class_methods_v1(raw: bytes, path: str, class_name: str) -> set[str]:
 
 def require_success_envelope_v1(raw: bytes, path: str) -> None:
     function = _function_v1(python_tree_v1(raw, path), "success_response", path)
+    if not _has_exact_parameters_v1(function, ("command", "data")):
+        _reject("SUCCESS_ENVELOPE_SHAPE", path, "success response parameters drift")
     if any(isinstance(node, ast.Raise) for node in ast.walk(function)):
         _reject("SUCCESS_ENVELOPE_SHAPE", path, "raise is forbidden")
     statements = [
@@ -352,7 +507,12 @@ def _is_compact_json_separators_v1(value: ast.expr) -> bool:
 
 def force_test_requires_test_env_v1(raw: bytes, path: str) -> bool:
     function = _function_v1(python_tree_v1(raw, path), "is_force_test_enabled", path)
-    if any(isinstance(node, ast.Raise) for node in ast.walk(function)):
+    if (
+        not _has_exact_parameters_v1(function, ())
+        or any(isinstance(node, ast.Raise) for node in ast.walk(function))
+        or _name_store_count_v1(function, "requested") != 1
+        or _name_store_count_v1(function, "runtime_env") != 1
+    ):
         return False
     body = function.body
     requested = _named_assignment_index_v1(body, "requested")
@@ -419,6 +579,15 @@ def _named_assignment_index_v1(body: list[ast.stmt], name: str) -> int:
     )
 
 
+def _name_store_count_v1(root: ast.AST, name: str) -> int:
+    return sum(
+        isinstance(node, ast.Name)
+        and node.id == name
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+        for node in ast.walk(root)
+    )
+
+
 def _assignment_matches_v1(statement: ast.stmt, expected_expression: str) -> bool:
     if not isinstance(statement, ast.Assign):
         return False
@@ -443,6 +612,46 @@ def historical_force_test_enters_mock_v1(raw: bytes, path: str) -> bool:
         "start_and_manage_tau_process",
         path,
     )
+    tau_test_assignments = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == "tau_test_mode"
+    ]
+    false_assignments = [
+        node
+        for node in tau_test_assignments
+        if isinstance(node.value, ast.Constant) and node.value.value is False
+    ]
+    if (
+        not _has_exact_parameters_v1(function, ())
+        or len(tau_test_assignments) != _name_store_count_v1(function, "tau_test_mode")
+        or len(false_assignments) != 1
+        or any(
+            not isinstance(node.value, ast.Constant)
+            or type(node.value.value) is not bool
+            for node in tau_test_assignments
+        )
+        or any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in {"eval", "exec", "globals", "locals", "setattr"}
+            for node in ast.walk(function)
+        )
+    ):
+        return False
+    initial_false = next(
+        (
+            index
+            for index, node in enumerate(function.body)
+            if node is false_assignments[0]
+        ),
+        -1,
+    )
+    if initial_false < 0:
+        return False
     prior_return = False
     matches = 0
     for node in function.body:
@@ -450,19 +659,27 @@ def historical_force_test_enters_mock_v1(raw: bytes, path: str) -> bool:
             prior_return = True
         if not isinstance(node, ast.If):
             continue
-        assigns_mock = any(
-            isinstance(child, ast.Assign)
+        mock_assignments = [
+            index
+            for index, child in enumerate(node.body)
+            if isinstance(child, ast.Assign)
             and any(
                 isinstance(target, ast.Name) and target.id == "tau_test_mode"
                 for target in child.targets
             )
             and isinstance(child.value, ast.Constant)
             and child.value.value is True
-            for child in node.body
+        ]
+        direct_returns = [
+            index for index, child in enumerate(node.body) if isinstance(child, ast.Return)
+        ]
+        ordered_mock_return = (
+            len(mock_assignments) == 1
+            and len(direct_returns) == 1
+            and mock_assignments[0] < direct_returns[0]
         )
-        direct_return = any(isinstance(child, ast.Return) for child in node.body)
-        if assigns_mock and direct_return and _is_force_test_env_condition_v1(node.test):
-            if prior_return:
+        if ordered_mock_return and _is_force_test_env_condition_v1(node.test):
+            if prior_return or initial_false >= function.body.index(node):
                 return False
             matches += 1
     return matches == 1
@@ -542,13 +759,12 @@ def command_registry_keys_v1(raw: bytes, path: str) -> tuple[str, ...]:
         and node.func.attr in {"clear", "pop", "popitem", "setdefault", "update"}
         for node in ast.walk(builds[0])
     )
-    aliases = sum(
-        isinstance(node, (ast.Assign, ast.AnnAssign))
-        and isinstance(node.value, ast.Name)
-        and node.value.id == "command_handlers"
-        for node in ast.walk(builds[0])
-    )
-    if name_writes != 1 or subscript_writes or mutator_calls or aliases:
+    if (
+        name_writes != 1
+        or subscript_writes
+        or mutator_calls
+        or not _command_registry_uses_are_closed_v1(builds[0])
+    ):
         _reject("COMMAND_REGISTRY_MUTATION", path, "registry changes after construction")
     keys: list[str] = []
     for key in dictionaries[0].keys:
@@ -558,6 +774,39 @@ def command_registry_keys_v1(raw: bytes, path: str) -> tuple[str, ...]:
     if len(keys) != len(set(keys)):
         _reject("COMMAND_REGISTRY_DUPLICATE", path, "duplicate command key")
     return tuple(keys)
+
+
+def _command_registry_uses_are_closed_v1(function: ast.FunctionDef) -> bool:
+    parents = _parent_map_v1(function)
+    uses = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Name) and node.id == "command_handlers"
+    ]
+    stores = [node for node in uses if isinstance(node.ctx, ast.Store)]
+    if len(stores) != 1:
+        return False
+    for node in uses:
+        if isinstance(node.ctx, ast.Store):
+            continue
+        parent = parents.get(node)
+        if (
+            isinstance(parent, ast.keyword)
+            and parent.arg == "command_handlers"
+            and parent.value is node
+        ):
+            continue
+        if (
+            isinstance(parent, ast.Call)
+            and isinstance(parent.func, ast.Name)
+            and parent.func.id == "cls"
+            and node in parent.args
+            and isinstance(parents.get(parent), ast.Return)
+            and function.body[-1] is parents[parent]
+        ):
+            continue
+        return False
+    return True
 
 
 def historical_apply_app_tx_bridge_v1(raw: bytes, path: str) -> bool:
@@ -593,8 +842,128 @@ def single_profile_value_v1(raw: bytes, path: str, key: str) -> str:
     return matches[0]
 
 
+def compose_service_environment_value_v1(
+    raw: bytes,
+    path: str,
+    service: str,
+    key: str,
+) -> str:
+    """Read one double-quoted scalar from an exact Compose service environment path."""
+
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        _reject("PROFILE_YAML_SHAPE", path, type(exc).__name__)
+    if "\t" in text or "<<:" in text:
+        _reject("PROFILE_YAML_SHAPE", path, "tabs and merge keys are forbidden")
+    stack: dict[int, str] = {}
+    matches: list[str] = []
+    mapping_line = re.compile(r"^([A-Za-z0-9_.-]+):(?:\s*(.*))?$")
+    for raw_line in text.splitlines():
+        if not raw_line.strip() or raw_line.lstrip().startswith("#"):
+            continue
+        indent = len(raw_line) - len(raw_line.lstrip(" "))
+        content = raw_line[indent:]
+        parsed = mapping_line.fullmatch(content)
+        if parsed is None:
+            continue
+        for old_indent in tuple(stack):
+            if old_indent >= indent:
+                del stack[old_indent]
+        yaml_key, scalar = parsed.groups()
+        parents = tuple(stack[level] for level in sorted(stack))
+        scalar = scalar or ""
+        if parents == ("services", service, "environment") and yaml_key == key:
+            if (
+                len(scalar) < 2
+                or not scalar.startswith('"')
+                or not scalar.endswith('"')
+                or '"' in scalar[1:-1]
+            ):
+                _reject("PROFILE_YAML_VALUE", path, f"{key} must be a simple quoted scalar")
+            matches.append(scalar[1:-1])
+        if not scalar:
+            stack[indent] = yaml_key
+    if len(matches) != 1:
+        _reject("PROFILE_YAML_SHAPE", path, f"expected one services.{service}.environment.{key}")
+    return matches[0]
+
+
+def shell_forwards_force_test_v1(raw: bytes, path: str) -> bool:
+    try:
+        lines = [
+            line.strip()
+            for line in raw.decode("utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+    except UnicodeDecodeError:
+        return False
+    condition = 'if [[ "${TAU_FORCE_TEST:-1}" == "1" ]]; then'
+    matching = [index for index, line in enumerate(lines) if line == condition]
+    if len(matching) != 1:
+        return False
+    index = matching[0]
+    if lines[index : index + 3] != [condition, "ARGS+=(--force-test)", "fi"]:
+        return False
+    if sum("TAU_FORCE_TEST" in line for line in lines) != 1:
+        return False
+    if sum("--force-test" in line for line in lines) != 1:
+        return False
+    if any(
+        line.startswith("ARGS=") or line.startswith("unset ARGS")
+        for line in lines[index + 3 :]
+    ):
+        return False
+    return any(line == 'exec python "${ARGS[@]}"' for line in lines[index + 3 :])
+
+
+def python_env_default_v1(raw: bytes, path: str) -> str:
+    tree = python_tree_v1(raw, path)
+    function = _function_v1(tree, "_configure_tau_server_env", path)
+    arguments = function.args
+    positional = (*arguments.posonlyargs, *arguments.args)
+    if not (
+        tuple(argument.arg for argument in positional) == ("env",)
+        and tuple(argument.arg for argument in arguments.kwonlyargs) == ("args", "root")
+        and arguments.vararg is None
+        and arguments.kwarg is None
+        and not arguments.defaults
+        and arguments.kw_defaults == [None, None]
+    ):
+        _reject("PROFILE_ENV_DEFAULT_DRIFT", path, "environment helper signature drift")
+    expected = ast.parse(
+        'env.setdefault("TAU_ENV", env.get("TAU_ENV", "development"))',
+        mode="eval",
+    ).body
+    matches = [
+        node
+        for node in function.body
+        if isinstance(node, ast.Expr)
+        and ast.dump(node.value, include_attributes=False)
+        == ast.dump(expected, include_attributes=False)
+    ]
+    tau_env_constants = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Constant)
+        and type(node.value) is str
+        and node.value == "TAU_ENV"
+    ]
+    if len(matches) != 1 or len(tau_env_constants) != 2:
+        _reject("PROFILE_ENV_DEFAULT_DRIFT", path, "TAU_ENV helper default flow drift")
+    return "development"
+
+
 def signing_vector_sha256_v1(fields: tuple[str, ...]) -> str:
-    payload = {key: _SAMPLE_PAYLOAD_V1[key] for key in fields}
+    sample_payload = {
+        "sender_pubkey": "11" * 48,
+        "sequence_number": 7,
+        "expiration_time": 1_700_000_000,
+        "fee_limit": "10",
+        "tx_type": "user_tx",
+        "operations": {"5": "{}"},
+    }
+    payload = {key: sample_payload[key] for key in fields}
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(raw).hexdigest()
 
