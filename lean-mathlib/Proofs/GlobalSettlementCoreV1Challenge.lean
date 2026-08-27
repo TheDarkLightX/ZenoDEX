@@ -6,12 +6,12 @@ import Proofs.GlobalSettlementCoreV1
 This module is the admission challenge for `Proofs.GlobalSettlementCoreV1`. It
 does two jobs.
 
-**Signature binding.** Each `challenge_*` theorem restates an intended result
-with its type written out in full and discharges it with the corresponding
-theorem from the core module. If a core statement is later weakened,
-renamed, or has a hypothesis added, this module stops compiling. The bindings
-cover `Accepted` evidence construction, the full plan identities and
-associativity, the reduced rejection equalities, per-asset projection and
+**Typed challenge statements.** Each `challenge_*` theorem restates an intended
+result with its type written out in full. Selected statements close with named
+core theorems, so incompatible changes to those theorem signatures stop this
+module from compiling; others exercise the core's public definitions directly.
+Together they cover `Accepted` evidence construction, the full plan identities
+and associativity, the reduced rejection equalities, per-asset projection and
 application, and the rejection of a net-preserving issue/burn substitution.
 
 **Executable comparison output.** `challengeReportV1` is a deterministic
@@ -43,7 +43,8 @@ open Proofs.GlobalSettlementCoreV1
 
 /-! ## 1. Bound signatures
 
-Each statement below is written out in full and closed by the core theorem. -/
+Each statement below is written out in full. Named core theorems are used where
+the challenge is intended to bind their signatures. -/
 
 /-- `Accepted` is constructed from exactly these four obligations. -/
 theorem challenge_accepted_evidence_construction :

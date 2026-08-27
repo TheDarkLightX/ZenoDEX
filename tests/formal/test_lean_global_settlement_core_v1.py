@@ -92,7 +92,7 @@ UNMODELED_ACCEPTED_FIELDS = (
     "terminal_obligations",
 )
 
-FORBIDDEN_PROOF_TOKENS = ("sorry", "admit", "axiom", "unsafe")
+FORBIDDEN_PROOF_TOKENS = ("sorry", "admit", "axiom", "constant", "unsafe")
 
 REPORT_PROBE = """import Proofs.GlobalSettlementCoreV1Challenge
 
@@ -174,6 +174,13 @@ def test_claim_surface_is_explicit_and_clean() -> None:
     for claim in CHALLENGE_CLAIMS:
         assert re.search(rf"\btheorem\s+{re.escape(claim)}\b", challenge) is not None
     assert "import Proofs.GlobalSettlementCoreV1" in challenge
+    challenge_prose = " ".join(challenge.split())
+    overbroad_signature_claim = (
+        "Each `challenge_*` theorem restates an intended result with its type written out "
+        "in full and discharges it with the corresponding theorem"
+    )
+    assert overbroad_signature_claim not in challenge_prose
+    assert "others exercise the core's public definitions directly" in challenge_prose
 
 
 # --------------------------------------------------------------------------

@@ -1,7 +1,8 @@
 # ZenoDEX Global Functional Core Formal Blueprint V1
 
 Date: 2026-08-26 (repair 1: 2026-08-27; closure repair 2: 2026-08-27; naming
-repair 3: 2026-08-27)
+repair 3: 2026-08-27; admission-coherence repair 4: 2026-08-27; Max-review
+repair 5: 2026-08-27)
 
 Task: `FORMAL-MODEL-001` (`rlm-subagent-task/v1`, role `implementer`)
 
@@ -10,17 +11,21 @@ Implementation base: `f7e851565e063fb3e74b060a9c45f27b8621a8d7`
 Candidate history: `f04bf4760a941966bf19e8c3c289b3c0d6c1feeb` (initial,
 reviewed and replayed independently), `4233884ba7244dbc4d084585d2c3f17756e34a3f`
 (repair 1), `e091ccb01f357e8f968e0e413e27746c2265b2dd` (closure repair 2),
-and the commit that carries this revision (naming repair 3: the rejection
-invariant is named `inv_reject_projection_noop_and_empty_rows` so that its
-name states exactly the authoritative-projection no-op plus empty rows that it
-establishes; the commit hash cannot truthfully appear inside its own file).
-No commit was amended.
+`7804b050c` (naming repair 3), `b88c6e20f` (combined formal-evidence
+admission), `6f3de0fb7483fe8aa4b45bb287c8eedbd28beecc` (clean-worktree
+Lean test-order repair), and the commit that carries admission-coherence
+repair 4 and Max-review repair 5. The rejection invariant is named
+`inv_reject_projection_noop_and_empty_rows` so that its name states exactly
+the authoritative-projection no-op plus empty rows that it establishes. The
+hash of the commit carrying this revision cannot truthfully appear inside its
+own file. No commit was amended.
 
 Status: `RESEARCH_ONLY_UNMOUNTED`, `BOUNDED_ESSO_VERIFIED_RESEARCH_ONLY`
 
-Admission: `BLOCKED_THV1_PACKET_ABSENT` (admission-blocking until an
-integrator adds the Test Hygiene Contract V1 evidence packet with the final
-source hashes)
+Admission: `FORMAL_EVIDENCE_ADMITTED_RESEARCH_ONLY` under
+`THV1-20260826-global-settlement-formal-core-v1`
+
+Integration admission: `BLOCKED_SUBJECT_RECEIPT_AND_MAX_REVIEW`
 
 Production authority: `NONE`
 
@@ -32,12 +37,12 @@ Value-moving authority: `NONE`
 
 Claim grade: bounded verification of the model file in this repository by an
 external replay of the private ESSO toolchain, admitted fail-closed by the
-test module. Source pins are informative source-pin evidence, not refinement
-evidence. This document is not a proof of the runtime, a verifier receipt, a
-release, a migration certificate, a settlement authorization, or a whole-DEX
-safety claim, and it remains advisory until the independent reviews, the
-local replay in the Evidence section, and the missing evidence packet are
-recorded together.
+test module and the source-bound Test Hygiene Contract V1 packet. Source pins
+are source-pin evidence, not refinement evidence. This document is not a
+proof of the runtime, a verifier receipt, a release, a migration certificate,
+a settlement authorization, or a whole-DEX safety claim. Integration remains
+blocked until a separate machine-readable receipt binds the exact post-repair
+subject commit and an independent Max review admits that subject.
 
 ## Result
 
@@ -52,7 +57,7 @@ runtime work:
   reference decision and transition oracle compared on the complete
   authoritative post/effect tuple, AAA scenarios, boundary cases,
   reject-is-no-op cases scoped to the `AUTHORITATIVE_PROJECTION`, sequential
-  composition, bounded sweeps, twelve named semantic mutants with RIPR
+  composition, bounded sweeps, fourteen named semantic mutants with RIPR
   evidence and exact killers, the divergence witnesses of the gap table, and
   a fail-closed admission function for ESSO evidence with negative admission
   tests.
@@ -73,9 +78,11 @@ of each invariant (`GAP-08`). It establishes nothing about the Python or Rust
 runtime, and the model is a finite abstraction with the divergences tabled as
 `GAP-01` to `GAP-08` below. On a host without the toolchain the two ESSO tests
 skip; that host's run is `INCOMPLETE`, and a skip is never a pass. The durable
-status rests on the recorded replay, and the tests admit live tool output only
-when it matches the recorded IR hash, fingerprint, obligation set, scope, and
-toolchain revision exactly.
+  status rests on the recorded replay and the current live replay. The tests
+  admit provided tool output only when its closed schema, IR hash, fingerprint,
+  obligation set, solver configuration and versions, scope, and toolchain
+  revision match exactly. This structural admission does not authenticate who
+  produced a historical payload and is not a signed replay receipt.
 
 ## Source pins
 
@@ -136,9 +143,11 @@ Pinned semantics, by source location on the base:
   non-canonical and rejects any nonzero `carried_residue_atoms` with
   `economic refinement fee residue has no state-bearing mapping`
   (`src/core/global_economic_state_effect_refinement_v1.py:249-252`); the
-  Rust mirror rejects nonzero residue with
+  Rust mirror source rejects nonzero residue with
   `economic refinement fee residue unmapped`
   (`zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs:186-194`).
+  The executable GAP-07 witness invokes the Python check; this task source-pins
+  and inspects the Rust rule without executing it.
   Epoch composition sums per-asset fee, allocation, and residue totals with
   checked unsigned 128-bit arithmetic
   (`src/core/epoch_effect_composition_v1.py:112-129`) and rejects
@@ -321,10 +330,11 @@ no claim is made that they are the exact source codes.
 
 ## Divergence and gap table
 
-Every known divergence between the model and the pinned source. Each row
-names the test that witnesses the divergence in the model or checks the
-documented fact. None of these rows is closed by this blueprint, and no
-policy is invented to close them.
+These are eight primary divergences between the model and the pinned source,
+not a complete correspondence inventory. Each row names the test that
+witnesses the divergence in the model or checks the documented fact. Additional
+omissions are recorded in Refinement and Nonclaims. None of these rows is
+closed by this blueprint, and no policy is invented to close one.
 
 | ID | Divergence | Consequence | Witness |
 | --- | --- | --- | --- |
@@ -334,8 +344,8 @@ policy is invented to close them.
 | `GAP-04` | A terminal obligation is aggregate atoms only (`obligation_X`); detailed terminal-obligation identities are unmodeled. | No obligation object ID, claimant, creating release ID, status registry (`OPEN`, `DRAINED`, `TOMBSTONED`), or terminal totality theorem exists in the model; a partial drain of aggregate atoms is accepted. | `test_gap_04_terminal_obligations_are_aggregate_atoms_only` |
 | `GAP-05` | Width 4 atoms, height horizon 3, and three occurrence IDs. | These prove only the finite model. They prove nothing about u128 atoms, i128 deltas, u64 heights, or the 64-command epoch bounds. | `test_gap_05_finite_widths_are_model_bounds_not_production_widths` |
 | `GAP-06` | `g_pre_root_X` is a base-5 mixed-radix image of six bounded quantities. | It is injective only over the bounded per-asset tuple (five atoms in one location collides with one atom in the next) and is not a canonical runtime hash or SHA-256 root. | `test_gap_06_base5_pre_state_image_is_injective_only_over_the_bounded_tuple` |
-| `GAP-07` | `fee_residue_X` is a normative candidate accounting location required by the whole-program plan (fee charged equals allocations plus carried residue). | The current Python and Rust state-effect refinement rejects any nonzero `carried_residue_atoms` (`no state-bearing mapping`) until an exact versioned mapping exists. This is a known GAP, not a runtime-refinement pass; the model accepts residue that the runtime refinement currently rejects, and residue ownership is not selected. | `test_gap_07_model_accepts_carried_residue_that_source_refinement_rejects` |
-| `GAP-08` | ESSO proved `init_implies_inv` and `inductive_step` only. | These establish initialization and one-step inductiveness of the declared invariant conjunction, not independent proofs of each invariant. No per-invariant obligation was run, so no invariant is claimed to be inductive on its own. | `test_esso_verify_multi_reports_verified_or_evidence_is_incomplete`, `test_blueprint_gap_table_lists_every_known_divergence` |
+| `GAP-07` | `fee_residue_X` is a normative candidate accounting location required by the whole-program plan (fee charged equals allocations plus carried residue). | The executable Python state-effect refinement witness rejects nonzero `carried_residue_atoms` (`no state-bearing mapping`). The source-pinned Rust mirror contains the parallel rejection but is not executed by this suite. This is a known GAP, not a runtime-refinement pass; residue ownership is not selected. | `test_gap_07_model_accepts_carried_residue_that_source_refinement_rejects` |
+| `GAP-08` | ESSO proved `init_implies_inv` and `inductive_step` only. | These establish initialization and one-step inductiveness of the declared invariant conjunction, not independent proofs of each invariant. No per-invariant obligation was run, so no invariant is claimed to be inductive on its own. | `test_esso_verify_multi_reports_verified_or_evidence_is_incomplete`, `test_blueprint_gap_table_lists_eight_primary_divergences` |
 
 ## Safety
 
@@ -409,18 +419,20 @@ table above: it computes the candidate movement per accounting location, walks
 the reject precedence list, and builds the authoritative post projection and
 the ten rows directly. It does not read the YAML, does not call the
 interpreter, and reuses none of the model's transition branches. Every
-`check_step` call compares the model against it on the complete authoritative
-post/effect tuple: decision, reject code, command symbol, lane symbol on
-acceptance, post height, all sixteen projection fields, and the ten rows.
+`check_step` call compares the model against it on the complete declared
+authoritative post/effect tuple: decision, reject code, command symbol, lane
+symbol on acceptance and rejection, post height, four disclosed post
+owned/supply values, all sixteen projection fields, and the ten rows.
 Disagreement is reported as `oracle:<field>`.
 
 Compared cases: the accept box (17,010 steps), the random box (seed
 `20260826`, 4,000 samples), a second random box (seed `2027`, 3,000
 samples), every accept-table and reject-table case, and every scenario in
 the test module. The honest model agrees with the oracle on all of them. The
-oracle is the exact killer of `MUT_DESTINATION_BUCKET_SWAP`, which conserves
-atoms and satisfies every YAML invariant while crediting the wrong
-accounting location.
+oracle is the exact killer of `MUT_DESTINATION_BUCKET_SWAP`,
+`MUT_POST_EFFECT_PROJECTION_DRIFT`, and `MUT_REJECT_LANE_DRIFT`. These defects
+can preserve the accounting invariants while changing an accounting location
+or a disclosed effect.
 
 ## Refinement
 
@@ -467,8 +479,8 @@ premise, and the fee policy collapsed into two parameters.
 
 Each mutant is a structure-preserving edit of the loaded YAML applied by the
 test module. For every mutant the honest model passes the witness, the mutant
-reaches the edited node, infects the post-state, propagates to an observed
-field, and is revealed by the named exact killer (RIPR). The bounded boxes
+reaches the edited node, infects the post-state or effect output, propagates to
+an observed field, and is revealed by the named exact killer (RIPR). The bounded boxes
 also kill every mutant (`test_every_named_mutant_is_killed_by_the_bounded_boxes`).
 
 | Mutant | Defect | Minimal witness | Exact killer | Note |
@@ -485,6 +497,8 @@ also kill every mutant (`test_every_named_mutant_is_killed_by_the_bounded_boxes`
 | `MUT_STALE_REPLAY_BYPASS` | acceptance no longer requires the bound height to be current | `height = 1`, `payer_a = supply_a = 1`; `TRANSFER(a, 1, bound_height 0)` is accepted | `inv_accept_advances_one` (accepted with `RC_STALE_REPLAY`), `oracle:accepted`, `oracle:height` | |
 | `MUT_WRONG_OCCURRENCE_CONSUMED` | accepting occurrence 0 marks identity 1 (and vice versa) | `payer_a = supply_a = 2`; `TRANSFER(a, 1, occurrence 0)` marks `consumed_1` | spec union check, `oracle:consumed_0`, `oracle:consumed_1` | every YAML invariant holds (exactly one identity was newly consumed); the mutant then accepts occurrence 0 a second time where the honest model rejects `RC_DUPLICATE_OCCURRENCE` |
 | `MUT_REJECT_PRECEDENCE_DRIFT` | stale replay is reported before duplicate occurrence | `consumed_0`, `height = 1`; `TRANSFER(a, 1, occurrence 0, bound_height 0)` reports `RC_STALE_REPLAY` | `oracle:reject_code`, the precedence test | single failures are reported identically, so only the precedence witness reveals the drift |
+| `MUT_POST_EFFECT_PROJECTION_DRIFT` | the state is correct but disclosed `post_owned_a` is forged as zero | `payer_a = supply_a = 1`; accepted `TRANSFER(a, 1)` | `oracle:post_owned_a` | state invariants cannot inspect an effect-only defect |
+| `MUT_REJECT_LANE_DRIFT` | a rejection overwrites the previously recorded lane | prior `g_lane = SPOT_LIQUIDITY`; zero-amount transfer rejects | `oracle:lane` | requires a non-default prior lane witness |
 
 ## ESSO evidence admission
 
@@ -493,7 +507,7 @@ admits ESSO output fail-closed. It requires, and otherwise raises
 `EvidenceRejected`: a `validate` payload with `ok: true`, no errors, the
 recorded IR hash, and the model path; a `verify-multi` payload with `ok`,
 `determinism: true`, `reference: null`, solvers exactly `["z3", "cvc5"]` in
-that order, at least two determinism trials, one fingerprint per trial, every
+that order, exactly two determinism trials, timeout 5000 ms, one fingerprint per trial, every
 fingerprint well-formed and identical, the recorded IR hash on the model
 entry, exactly the two obligations `init_implies_inv` and `inductive_step`
 with exactly two query results, each `unsat` with `agreed: true`, no
@@ -502,9 +516,11 @@ model; a report with verdict `VERIFIED`, `solvers_agreed: true`, no
 disagreements, zero failed and inconclusive queries, exactly two total and
 passed queries, `z3_passed`, `cvc5_passed`, `cvc5_available`, the recorded
 model id and short IR hash, scope exactly `kind: inductive`, `k: 1`,
-`badge: Inductive(k=1)`, `fail_closed: true`, and the recorded toolchain
-revision `esso_code_hash` together with the recorded fingerprint. Missing,
-extra, renamed, reordered, or malformed evidence is rejected; the negative
+`badge: Inductive(k=1)`, `fail_closed: true`, seed 0, timeout 5000 ms,
+unbounded time scope, the recorded Z3 and CVC5 versions, and the recorded
+toolchain revision `esso_code_hash` together with the recorded fingerprint.
+Every object has a closed field set. Missing, extra, renamed, reordered, or
+malformed evidence is rejected; the negative
 admission tests (`test_esso_evidence_admission_fails_closed`) tamper each of
 these conditions in turn. A new toolchain revision therefore requires a
 re-recorded replay in this document and in the test constants before its
@@ -513,6 +529,12 @@ output can be admitted.
 Query objects are compared as an exact set with an exact count; the order of
 keys inside the JSON object is not semantic. The solver list and the
 fingerprint list are ordered and compared as lists.
+
+This parser validates the structure and declared provenance fields of a
+provided JSON payload. A fixture can reproduce that shape, so parser acceptance
+does not authenticate the process or person that produced historical output.
+The live ESSO tests execute the source-pinned command in the current worktree;
+neither path is a cryptographic replay receipt.
 
 ## Evidence
 
@@ -635,6 +657,104 @@ git diff --check
 The timings above were measured on this tree before this evidence block was
 filled in; the counts are unchanged by that edit.
 
+### Integrator admission and clean-worktree repair replay
+
+The combined admission commit added the Lean proof targets, placeholder
+scanner, ESSO model, tests, blueprint, and
+`THV1-20260826-global-settlement-formal-core-v1`. A clean admission worktree
+then exposed a test-order defect: direct warning checks could execute before
+Lake initialized the imported modules, and first-use initialization text could
+appear on stderr. Commit `6f3de0fb7483fe8aa4b45bb287c8eedbd28beecc`
+introduced a module-scoped build fixture before the direct warning checks and
+refreshed the test source hash in the THV1 packet. The proof statements and
+ESSO model did not change.
+
+```text
+PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm python3 -m pytest -q -p no:cacheprovider \
+  tests/formal/test_lean_global_settlement_core_v1.py \
+  tests/formal/test_scan_lean_proof_placeholders_v1.py
+  -> 42 passed in 14.72s
+
+PYTHONDONTWRITEBYTECODE=1 python3 tools/check_test_hygiene_v1.py --json
+  -> ok true, 43 packets, zero changed paths in static mode
+
+PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO \
+  python3 tools/run_test_hygiene_gate_v1.py \
+  --base-ref f7e851565e063fb3e74b060a9c45f27b8621a8d7 --json
+  -> 78 passed in 28.29s, ok true, 10 changed paths,
+     7 critical paths covered by
+     THV1-20260826-global-settlement-formal-core-v1
+```
+
+Admission-coherence repair 4 changes only this blueprint, its regression test,
+the Max-review scanner and challenge repairs, their adversarial regressions,
+and the corresponding THV1 source pins. Its pre-commit tree replay produced:
+
+```text
+PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm python3 -m pytest -q -p no:cacheprovider \
+  tests/formal/test_lean_global_settlement_core_v1.py \
+  tests/formal/test_scan_lean_proof_placeholders_v1.py
+  -> 44 passed in 46.04s
+
+PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO \
+  python3 -m pytest -q -p no:cacheprovider \
+  tests/formal/test_esso_global_settlement_core_v1.py -rs
+  -> 109 passed in 30.93s, no skips
+
+PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO \
+  python3 tools/run_test_hygiene_gate_v1.py \
+  --base-ref f7e851565e063fb3e74b060a9c45f27b8621a8d7 --json
+  -> 83 passed in 30.88s, ok true, 10 changed paths,
+     7 critical paths covered by
+     THV1-20260826-global-settlement-formal-core-v1
+
+python3 -m ruff check tools/scan_lean_proof_placeholders_v1.py \
+  tests/formal/test_esso_global_settlement_core_v1.py \
+  tests/formal/test_lean_global_settlement_core_v1.py \
+  tests/formal/test_scan_lean_proof_placeholders_v1.py
+  -> All checks passed!
+```
+
+The exact post-repair commit, tree, changed-file inventory, and packet digest
+must be bound by a separate machine-readable receipt because a file cannot
+include the hash of its own carrying commit.
+
+### Max-review repair 5 replay
+
+The independent Max reviews found that the reference oracle omitted four
+declared post-state effects and compared the lane only on acceptance; the ESSO
+evidence parser admitted undeclared fields and did not bind timeout, seed,
+domain caps, or solver versions; the gap table claimed completeness; and the
+Lean placeholder scanner omitted `constant` declarations and accepted
+unterminated block comments and strings. Repair 5 closes those bounded defects:
+
+- the oracle compares all nineteen declared effects and preserves a non-default
+  prior lane on rejection;
+- two new semantic mutants cover effect-only post projection drift and rejected
+  lane drift, bringing the named mutant set to fourteen;
+- the ESSO parser uses closed field sets, exact two-trial, 5000 ms, seed-zero,
+  domain-cap, solver-version, toolchain-hash, IR-hash, and fingerprint binding;
+- the parser fixture is explicitly named as a fixture and carries no historical
+  provenance claim;
+- the divergence table is eight primary divergences and explicitly remains an
+  incomplete correspondence inventory;
+- the Lean scanner rejects `constant` declarations and malformed lexical
+  enclosures, with retained negative tests.
+
+```text
+PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO \
+  python3 -m pytest -q -p no:cacheprovider \
+  tests/formal/test_esso_global_settlement_core_v1.py -rs
+  -> 128 passed in 43.30s, no skips
+
+PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO \
+  python3 tools/run_test_hygiene_gate_v1.py \
+  --base-ref f7e851565e063fb3e74b060a9c45f27b8621a8d7 --json
+  -> 104 passed in 39.43s, ok true, 10 changed paths,
+     7 critical paths covered by
+     THV1-20260826-global-settlement-formal-core-v1
+```
+
 Local toolchain facts: Python 3.12.3, pytest 7.4.4, PyYAML 6.0.1, ruff
 0.16.0, z3 4.15.4, cvc5 1.1.2. ESSO is external to this checkout; the
 replays above used `PYTHONPATH=/path/to/ESSO` with the private toolchain at
@@ -694,11 +814,15 @@ three files.
   runtime.
 - The refinement between this model and the Python or Rust source is by
   inspection only. There is no theorem, simulation relation, generated
-  reference, or parity vector, and `GAP-01` to `GAP-08` list known
-  divergences: command-lane routing, unknown-asset policy, authentication
+  reference, or parity vector. `GAP-01` to `GAP-08` list eight primary
+  divergences, not a complete correspondence inventory: command-lane routing, unknown-asset policy, authentication
   derivation, terminal-obligation identities, finite widths, the base-5
   image, the fee-residue refinement gap, and the conjunction scope of the
   solver result. None is closed here and no policy is invented to close one.
+- Additional correspondence omissions include single-subject aggregation,
+  the collapsed two-parameter fee policy, informative-only reject-code mapping
+  without source reject-order proof, and all omitted runtime artifacts named
+  below.
 - The bounded sweeps cover the stated boxes only. They are not exhaustive over
   the declared domain and are not a proof.
 - The reject-code mapping to source codes is informative. The model neither
@@ -709,23 +833,20 @@ three files.
 - Canonical bytes, roots, receipts, journals, routes, epochs, Oracle
   occurrences, the external outbox, migration, and durable publication are
   outside the model.
-- Admission-blocking: the Test Hygiene Contract V1 requires a `THV1-*.json`
-  evidence packet for changes under `tests/formal/**`. This task's write
-  boundary is three files, so no packet exists and
-  `tools/check_test_hygiene_v1.py` and `tools/run_test_hygiene_gate_v1.py`
-  were not run. Admission of this candidate is blocked
-  (`BLOCKED_THV1_PACKET_ABSENT`) until an integrator adds the packet with the
-  final source hashes of the three files.
-- Commits are not pushed and are bound to no receipt; their hashes live
-  outside these files. Further independent review may require a further
-  repair commit.
+- The Test Hygiene Contract V1 packet is present and source-bound, and the
+  frozen-base gate passed after the clean-worktree repair. This admits only
+  the packet's research claim scope.
+- This blueprint cannot bind the hash of its own carrying commit. A separate
+  machine-readable admission receipt must bind the post-repair subject commit,
+  tree, changed inventory, and packet digest before integration review.
 
 ## Next safest step
 
-Add the Test Hygiene Contract V1 packet with the final source hashes
-(integrator action), then record the pending independent review. If it
-raises a blocker, repair in a further commit without amending. Before any
-FCIS runtime work, close or explicitly carry each `GAP-*` row into the
-runtime obligations, starting with the exact versioned residue mapping
-(`GAP-07`) and command-lane routing (`GAP-01`). Do not derive runtime code
-from the `authority_ok` premise (`GAP-03`).
+Issue the separate subject-bound admission receipt, then complete the pending
+independent Max review. If it raises a blocker, repair in a further commit
+without amending. Before FCIS runtime work, close or explicitly carry each
+`GAP-*` row into the runtime obligations, starting with a restricted runtime
+refinement that accepts only the already supported zero-residue,
+`ASSET_TRANSFER` transfer/issue/burn domain. Residue ownership (`GAP-07`) and
+general command-lane routing (`GAP-01`) remain policy decisions. Do not derive
+runtime code from the `authority_ok` premise (`GAP-03`).

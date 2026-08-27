@@ -33,6 +33,7 @@ import hashlib
 import importlib.util
 import itertools
 import json
+import math
 import os
 import random
 import re
@@ -40,6 +41,7 @@ import subprocess
 import sys
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -71,7 +73,31 @@ RECORDED_OBLIGATIONS = frozenset({"init_implies_inv", "inductive_step"})
 RECORDED_SOLVERS = ("z3", "cvc5")
 RECORDED_MODEL_ID = "global_settlement_core_v1"
 MODEL_RELATIVE = "src/kernels/dex/global_settlement_core_v1.yaml"
-ADMISSION_STATUS = "BLOCKED_THV1_PACKET_ABSENT"
+RECORDED_TIMEOUT_MS = 5000
+RECORDED_SOLVER_SEED = 0
+RECORDED_SOLVER_VERSIONS = {
+    "cvc5": "This is cvc5 version 1.1.2",
+    "z3": "4.15.4",
+}
+RECORDED_DOMAIN_CAPS_SHA256 = "189dcdf052398beb00960e43a87f381d40bbae85f39a0e2be749af3c72cffc46"
+RECORDED_ENVIRONMENT_MODEL = {
+    "adversary": "may choose any declared command each step with any in-domain parameters",
+    "command_space": ["step"],
+    "notes": [
+        "No concurrency, reordering, or interleaving beyond repeated calls to step(state, command).",
+        "All behavior is defined by the ESSO kernel semantics (guards, simultaneous updates, canonicalizer, invariants).",
+    ],
+    "scheduler": "sequential",
+}
+ADMISSION_STATUS = "FORMAL_EVIDENCE_ADMITTED_RESEARCH_ONLY"
+THV1_PACKET = (
+    ROOT
+    / "tests"
+    / "evidence"
+    / "test_hygiene"
+    / "THV1-20260826-global-settlement-formal-core-v1.json"
+)
+THV1_EVIDENCE_ID = "THV1-20260826-global-settlement-formal-core-v1"
 
 # Enforced source pins: blueprint row, this table, and the file must agree.
 # Claim grade is source-pin evidence, never refinement evidence.
@@ -581,6 +607,7 @@ def spec_failures(
 # --------------------------------------------------------------------------- #
 
 ROW_FIELDS = tuple(f"{row}_{asset}" for asset in ("a", "b") for row in ROWS)
+POST_EFFECT_FIELDS = ("post_owned_a", "post_supply_a", "post_owned_b", "post_supply_b")
 LANE_SYMBOLS = tuple(lane.value for lane in ALL_LANE_IDS_V1)
 COMMAND_SYMBOLS = (
     "CMD_TRANSFER",
@@ -605,6 +632,7 @@ class OracleOutcome:
     command: str
     lane: str | None
     projection: tuple[Any, ...]
+    post_effects: tuple[int, ...]
     rows: tuple[int, ...]
 
 
@@ -677,12 +705,19 @@ def reference_step(
         rows[f"fee_charged_{asset}"] = fee
         rows[f"fee_alloc_{asset}"] = alloc
         rows[f"fee_residue_{asset}"] = fee - alloc
+    post_effects = (
+        sum(int(projection[f"{name}_a"]) for name in PARTITIONS),
+        int(projection["supply_a"]),
+        sum(int(projection[f"{name}_b"]) for name in PARTITIONS),
+        int(projection["supply_b"]),
+    )
     return OracleOutcome(
         accepted=accepted,
         reject_code=code,
         command=COMMAND_SYMBOLS[min(kind, KIND_UNKNOWN)],
-        lane=LANE_SYMBOLS[params["lane_index"]] if accepted else None,
+        lane=LANE_SYMBOLS[params["lane_index"]] if accepted else pre["g_lane"],
         projection=tuple(projection[name] for name in AUTHORITATIVE_PROJECTION),
+        post_effects=post_effects,
         rows=tuple(rows[name] for name in ROW_FIELDS),
     )
 
@@ -706,12 +741,15 @@ def oracle_failures(
         failures.append("oracle:reject_code")
     if effects["command"] != expected.command:
         failures.append("oracle:command")
-    if expected.accepted and effects["lane"] != expected.lane:
+    if effects["lane"] != expected.lane:
         failures.append("oracle:lane")
     if effects["post_height"] != expected.projection[AUTHORITATIVE_PROJECTION.index("height")]:
         failures.append("oracle:post_height")
     for name, value in zip(AUTHORITATIVE_PROJECTION, expected.projection, strict=True):
         if post[name] != value:
+            failures.append(f"oracle:{name}")
+    for name, value in zip(POST_EFFECT_FIELDS, expected.post_effects, strict=True):
+        if effects[name] != value:
             failures.append(f"oracle:{name}")
     for name, value in zip(ROW_FIELDS, expected.rows, strict=True):
         if effects[name] != value:
@@ -816,6 +854,7 @@ def random_box(
         state["height"] = rng.randint(0, model.domains["height"].hi)
         for i in range(3):
             state[f"consumed_{i}"] = rng.random() < 0.5
+        state["g_lane"] = rng.choice(model.enums["LaneId"])
         params = {name: rng.choice(domain.values()) for name, domain in model.param_domains.items()}
         yield state, params
 
@@ -1001,6 +1040,18 @@ def mutant_reject_precedence_drift(doc: dict[str, Any]) -> None:
     duplicate["then"], stale["then"] = stale["then"], duplicate["then"]
 
 
+def mutant_post_effect_projection_drift(doc: dict[str, Any]) -> None:
+    """The state is correct while the disclosed post-owned effect is forged."""
+
+    doc["actions"][0]["effects"]["post_owned_a"] = _const(0)
+
+
+def mutant_reject_lane_drift(doc: dict[str, Any]) -> None:
+    """A rejection overwrites the prior evidence lane instead of preserving it."""
+
+    _update(doc, "g_lane")["expr"]["else"] = {"enum": "ASSET_TRANSFER"}
+
+
 MUTANTS: dict[str, Callable[[dict[str, Any]], None]] = {
     "MUT_CROSS_ASSET_SCALAR_SUM": mutant_cross_asset_scalar_sum,
     "MUT_OMITTED_BURN": mutant_omitted_burn,
@@ -1014,6 +1065,8 @@ MUTANTS: dict[str, Callable[[dict[str, Any]], None]] = {
     "MUT_STALE_REPLAY_BYPASS": mutant_stale_replay_bypass,
     "MUT_WRONG_OCCURRENCE_CONSUMED": mutant_wrong_occurrence_consumed,
     "MUT_REJECT_PRECEDENCE_DRIFT": mutant_reject_precedence_drift,
+    "MUT_POST_EFFECT_PROJECTION_DRIFT": mutant_post_effect_projection_drift,
+    "MUT_REJECT_LANE_DRIFT": mutant_reject_lane_drift,
 }
 
 
@@ -1033,12 +1086,16 @@ def ripr(
 ) -> dict[str, Any]:
     """Assert reach, infect, propagate, and reveal for one minimal witness."""
 
-    honest_post, _, honest_failures = check_step(honest, pre, params)
+    honest_post, honest_effects, honest_failures = check_step(honest, pre, params)
     assert honest_failures == [], honest_failures
-    mutant_post, _, mutant_failures = check_step(mutant, pre, params)
-    assert mutant_post is not None, mutant_failures
-    infected = {name for name in honest_post if honest_post[name] != mutant_post[name]}
-    assert infected, "the mutant did not infect the post-state on the witness"
+    mutant_post, mutant_effects, mutant_failures = check_step(mutant, pre, params)
+    assert honest_post is not None and honest_effects is not None
+    assert mutant_post is not None and mutant_effects is not None, mutant_failures
+    infected_state = {name for name in honest_post if honest_post[name] != mutant_post[name]}
+    infected_effects = {
+        name for name in honest_effects if honest_effects[name] != mutant_effects[name]
+    }
+    assert infected_state or infected_effects, "the mutant did not infect an observable"
     assert revealed_by <= set(mutant_failures), (revealed_by, mutant_failures)
     return mutant_post
 
@@ -1171,7 +1228,11 @@ def test_blueprint_records_the_durable_status_and_no_authority() -> None:
         assert f"{authority} authority: `NONE`" in text, authority
     assert "external to this checkout" in _prose(text) and "/path/to/ESSO" in text
     admission_line = next(line for line in text.splitlines() if line.startswith("Admission:"))
-    assert ADMISSION_STATUS in admission_line and "admission-blocking" in _prose(text)
+    assert ADMISSION_STATUS in admission_line
+    assert "BLOCKED_THV1_PACKET_ABSENT" not in text
+    packet = json.loads(THV1_PACKET.read_text(encoding="utf-8"))
+    assert packet["evidence_id"] == THV1_EVIDENCE_ID
+    assert "Research-only" in packet["claim_scope"]
     machine_specific = "/" + "home/"
     for name, body in _durable_texts().items():
         assert machine_specific not in body, name
@@ -1234,10 +1295,12 @@ def test_authority_ok_is_an_abstract_authorization_premise(model: BoundedModel) 
         assert denied_failures == [] and denied["reject_code"] == "RC_UNAUTHORIZED", name
 
 
-def test_blueprint_gap_table_lists_every_known_divergence() -> None:
+def test_blueprint_gap_table_lists_eight_primary_divergences() -> None:
     text = _prose(BLUEPRINT.read_text(encoding="utf-8"))
     for gap_id in GAP_IDS:
         assert gap_id in text, gap_id
+    assert "eight primary divergences" in text
+    assert "not a complete correspondence inventory" in text
     for phrase in (
         "route compatibility",
         "AllowedRoute",
@@ -1304,8 +1367,42 @@ def test_reference_oracle_matches_the_model_on_every_table_case_and_a_fresh_box(
         assert failures == [], failures
         expected = reference_step(pre, params, width=4, horizon=3)
         assert authoritative(post) == expected.projection
+        assert tuple(effects[name] for name in POST_EFFECT_FIELDS) == expected.post_effects
         assert tuple(effects[name] for name in ROW_FIELDS) == expected.rows
     assert violations(model, random_box(model, seed=2027, samples=3000), limit=1) == []
+
+
+def test_oracle_checks_every_declared_effect_and_rejected_lane_preservation(
+    model: BoundedModel,
+) -> None:
+    pre = make_state(
+        model,
+        payer_a=1,
+        supply_a=1,
+        g_lane="SPOT_LIQUIDITY",
+    )
+    params = command(pre, KIND_TRANSFER, amount=0)
+    post, effects = model.step(pre, params)
+    assert oracle_failures(pre, params, post, effects, width=4, horizon=3) == []
+
+    wrong_owned = dict(effects, post_owned_a=effects["post_owned_a"] + 1)
+    assert "oracle:post_owned_a" in oracle_failures(
+        pre,
+        params,
+        post,
+        wrong_owned,
+        width=4,
+        horizon=3,
+    )
+    wrong_lane = dict(effects, lane="ASSET_TRANSFER")
+    assert "oracle:lane" in oracle_failures(
+        pre,
+        params,
+        post,
+        wrong_lane,
+        width=4,
+        horizon=3,
+    )
 
 
 def test_gap_01_every_modeled_command_accepts_on_every_registered_lane(model: BoundedModel) -> None:
@@ -1437,25 +1534,90 @@ def _require(condition: bool, reason: str) -> None:
         raise EvidenceRejected(reason)
 
 
+def _require_exact_keys(value: Any, expected: set[str], label: str) -> dict[str, Any]:
+    _require(type(value) is dict, f"{label} is not an exact object")
+    _require(set(value) == expected, f"{label} fields differ")
+    return value
+
+
+def _canonical_json_sha256(value: Any) -> str:
+    encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _expected_domain_caps_fixture() -> dict[str, Any]:
+    source = yaml.safe_load(MODEL.read_text(encoding="utf-8"))
+    enums = {item["id"]: item["type"]["symbols"] for item in source["types"]}
+
+    def domain(node: dict[str, Any]) -> dict[str, Any]:
+        if "ref" in node:
+            return {"kind": "enum", "symbols": list(enums[node["ref"]])}
+        if node["kind"] == "int":
+            return {"kind": "int", "max": node["max"], "min": node["min"]}
+        return {"kind": node["kind"]}
+
+    return {
+        "log2_state_space_upper_bound": 113.58836538230338,
+        "params": {
+            action["id"]: {item["id"]: domain(item["type"]) for item in action["params"]}
+            for action in source["actions"]
+        },
+        "state_vars": {item["id"]: domain(item["type"]) for item in source["state_vars"]},
+    }
+
+
 def admit_esso_evidence(validate_payload: Any, verify_payload: Any) -> dict[str, Any]:
     """Admit exactly the recorded replay shape; reject every deviation."""
 
-    _require(isinstance(validate_payload, dict), "validate payload is not an object")
+    validate_payload = _require_exact_keys(
+        validate_payload,
+        {"command", "errors", "ir_hash", "model", "ok"},
+        "validate payload",
+    )
     _require(validate_payload.get("command") == "validate", "validate command mismatch")
     _require(validate_payload.get("ok") is True, "validate is not ok")
     _require(validate_payload.get("errors") == [], "validate reported errors")
     _require(validate_payload.get("ir_hash") == RECORDED_IR_HASH, "validate IR hash mismatch")
     _require(str(validate_payload.get("model", "")).endswith(MODEL_RELATIVE), "validate model path")
 
-    verify = verify_payload
-    _require(isinstance(verify, dict), "verify payload is not an object")
+    verify = _require_exact_keys(
+        verify_payload,
+        {
+            "artifacts",
+            "command",
+            "determinism",
+            "determinism_trials",
+            "equiv_trace_k",
+            "fingerprints",
+            "model",
+            "ok",
+            "queries",
+            "reference",
+            "report",
+            "solvers",
+            "timeout_ms",
+        },
+        "verify payload",
+    )
     _require(verify.get("command") == "verify-multi", "verify command mismatch")
     _require(verify.get("ok") is True, "verify is not ok")
     _require(verify.get("determinism") is True, "verify is not deterministic")
     _require(verify.get("reference") is None, "reference must be null")
+    _require(verify.get("equiv_trace_k") is None, "equivalence trace must be null")
+    artifacts = _require_exact_keys(
+        verify.get("artifacts"),
+        {"bundle", "kani", "output", "report_json", "report_md", "smtlib_dir"},
+        "artifacts",
+    )
+    _require(all(value is None for value in artifacts.values()), "artifacts must be null")
     _require(verify.get("solvers") == list(RECORDED_SOLVERS), "solver list is not exactly z3,cvc5")
+    _require(
+        type(verify.get("timeout_ms")) is int
+        and verify.get("timeout_ms") == RECORDED_TIMEOUT_MS,
+        "solver timeout differs from the recorded replay",
+    )
     trials = verify.get("determinism_trials")
-    _require(_is_int(trials) and trials >= 2, "determinism trials must be an int >= 2")
+    _require(_is_int(trials) and trials == 2, "determinism trials must be exactly two")
     fingerprints = verify.get("fingerprints")
     _require(isinstance(fingerprints, list) and len(fingerprints) == trials, "fingerprint count")
     _require(
@@ -1463,30 +1625,69 @@ def admit_esso_evidence(validate_payload: Any, verify_payload: Any) -> dict[str,
         "malformed fingerprint",
     )
     _require(len(set(fingerprints)) == 1, "fingerprints differ across trials")
-    model = verify.get("model")
-    _require(isinstance(model, dict) and model.get("ir_hash") == RECORDED_IR_HASH, "verify IR hash")
+    model = _require_exact_keys(verify.get("model"), {"ir_hash", "path"}, "verify model")
+    _require(model.get("ir_hash") == RECORDED_IR_HASH, "verify IR hash")
     _require(str(model.get("path", "")).endswith(MODEL_RELATIVE), "verify model path")
 
     queries = verify.get("queries")
-    _require(isinstance(queries, dict), "queries is not an object")
+    _require(type(queries) is dict, "queries is not an exact object")
     _require(set(queries) == set(RECORDED_OBLIGATIONS), "query set is not exactly the two obligations")
     _require(len(queries) == 2, "query count is not two")
     for name, query in queries.items():
-        _require(isinstance(query, dict) and query.get("query") == name, f"{name}: malformed query")
+        query = _require_exact_keys(
+            query,
+            {"agreed", "cvc5", "final_result", "needs_review", "query", "z3"},
+            f"{name} query",
+        )
+        _require(query.get("query") == name, f"{name}: malformed query")
         _require(query.get("final_result") == "unsat", f"{name}: final result is not unsat")
         _require(query.get("agreed") is True, f"{name}: solvers did not agree")
         _require(query.get("needs_review") is False, f"{name}: needs review")
         for solver in RECORDED_SOLVERS:
-            result = query.get(solver)
-            _require(isinstance(result, dict), f"{name}/{solver}: missing result")
+            result = _require_exact_keys(
+                query.get(solver),
+                {"error", "model", "query", "result", "solver", "time_ms"},
+                f"{name}/{solver} result",
+            )
             _require(result.get("result") == "unsat", f"{name}/{solver}: not unsat")
             _require(result.get("error") is None, f"{name}/{solver}: solver error")
             _require(result.get("model") is None, f"{name}/{solver}: counterexample present")
             _require(result.get("solver") == solver, f"{name}/{solver}: solver label")
             _require(result.get("query") == name, f"{name}/{solver}: query label")
+            time_ms = result.get("time_ms")
+            _require(
+                type(time_ms) in {int, float}
+                and math.isfinite(time_ms)
+                and time_ms >= 0,
+                f"{name}/{solver}: invalid timing",
+            )
 
-    report = verify.get("report")
-    _require(isinstance(report, dict), "report is not an object")
+    report = _require_exact_keys(
+        verify.get("report"),
+        {
+            "cvc5_available",
+            "cvc5_passed",
+            "disagreements",
+            "environment_model",
+            "failed_queries",
+            "inconclusive_queries",
+            "ir_hash",
+            "kani_path",
+            "lean_path",
+            "model_id",
+            "notes",
+            "passed_queries",
+            "scope",
+            "smtlib_path",
+            "solvers_agreed",
+            "timestamp",
+            "tool_versions",
+            "total_queries",
+            "verdict",
+            "z3_passed",
+        },
+        "report",
+    )
     _require(report.get("verdict") == "VERIFIED", "verdict is not VERIFIED")
     _require(report.get("solvers_agreed") is True, "report solvers_agreed is not true")
     _require(report.get("disagreements") == [], "report lists disagreements")
@@ -1497,21 +1698,66 @@ def admit_esso_evidence(validate_payload: Any, verify_payload: Any) -> dict[str,
     for flag in ("z3_passed", "cvc5_passed", "cvc5_available"):
         _require(report.get(flag) is True, f"report {flag} is not true")
     _require(report.get("model_id") == RECORDED_MODEL_ID, "report model id")
+    _require(report.get("notes") == ["Cross-verified by Z3 and CVC5"], "report notes differ")
+    _require(report.get("environment_model") == RECORDED_ENVIRONMENT_MODEL, "environment model differs")
+    for path_name in ("kani_path", "lean_path", "smtlib_path"):
+        _require(report.get(path_name) is None, f"report {path_name} must be null")
+    timestamp = report.get("timestamp")
+    _require(type(timestamp) is str, "report timestamp is not a string")
+    try:
+        parsed_timestamp = datetime.fromisoformat(timestamp)
+    except ValueError as exc:
+        raise EvidenceRejected("report timestamp is not ISO-8601") from exc
+    _require(parsed_timestamp.tzinfo is not None, "report timestamp has no timezone")
     _require(
         report.get("ir_hash") == RECORDED_IR_HASH.removeprefix("sha256:")[:16],
         "report short IR hash mismatch",
     )
-    scope = report.get("scope")
-    _require(isinstance(scope, dict), "scope is not an object")
+    scope = _require_exact_keys(
+        report.get("scope"),
+        {
+            "badge",
+            "domain_caps",
+            "fail_closed",
+            "k",
+            "kind",
+            "solver_seed",
+            "solver_timeout_ms",
+            "time",
+        },
+        "scope",
+    )
     _require(scope.get("kind") == "inductive", "scope kind is not inductive")
     _require(scope.get("k") == 1 and not isinstance(scope.get("k"), bool), "scope k is not 1")
     _require(scope.get("badge") == "Inductive(k=1)", "scope badge is not Inductive(k=1)")
     _require(scope.get("fail_closed") is True, "scope is not fail-closed")
-    tools = report.get("tool_versions")
-    _require(isinstance(tools, dict), "tool versions missing")
+    _require(scope.get("solver_seed") == RECORDED_SOLVER_SEED, "solver seed differs")
+    _require(
+        scope.get("solver_timeout_ms") == RECORDED_TIMEOUT_MS,
+        "scope solver timeout differs",
+    )
+    _require(scope.get("time") == "unbounded", "scope time differs")
+    _require(
+        _canonical_json_sha256(scope.get("domain_caps")) == RECORDED_DOMAIN_CAPS_SHA256,
+        "scope domain caps differ",
+    )
+    tools = _require_exact_keys(
+        report.get("tool_versions"),
+        {"cargo", "esso_code_hash", "platform", "python", "rustfmt", "solvers"},
+        "tool versions",
+    )
     code_hash = tools.get("esso_code_hash")
     _require(isinstance(code_hash, str) and re.fullmatch(r"[0-9a-f]{40}", code_hash) is not None, "code hash")
     _require(code_hash == RECORDED_ESSO_CODE_HASH, "toolchain revision differs from the recorded replay")
+    solver_versions = _require_exact_keys(
+        tools.get("solvers"),
+        set(RECORDED_SOLVER_VERSIONS),
+        "solver versions",
+    )
+    _require(solver_versions == RECORDED_SOLVER_VERSIONS, "solver versions differ")
+    for tool_name in ("cargo", "platform", "python", "rustfmt"):
+        value = tools.get(tool_name)
+        _require(type(value) is str and bool(value.strip()), f"{tool_name} provenance missing")
     _require(fingerprints[0] == RECORDED_FINGERPRINT, "fingerprint differs from the recorded replay")
     return {
         "ir_hash": RECORDED_IR_HASH,
@@ -1522,7 +1768,7 @@ def admit_esso_evidence(validate_payload: Any, verify_payload: Any) -> dict[str,
     }
 
 
-def recorded_validate_payload() -> dict[str, Any]:
+def expected_validate_payload_fixture() -> dict[str, Any]:
     return {
         "command": "validate",
         "errors": [],
@@ -1532,7 +1778,7 @@ def recorded_validate_payload() -> dict[str, Any]:
     }
 
 
-def _recorded_query(name: str) -> dict[str, Any]:
+def _expected_query_fixture(name: str) -> dict[str, Any]:
     def solver(tag: str) -> dict[str, Any]:
         return {"error": None, "model": None, "query": name, "result": "unsat", "solver": tag, "time_ms": 1.0}
 
@@ -1546,11 +1792,18 @@ def _recorded_query(name: str) -> dict[str, Any]:
     }
 
 
-def recorded_verify_payload() -> dict[str, Any]:
-    """The recorded replay shape (domain caps omitted; admission does not read them)."""
+def expected_verify_payload_fixture() -> dict[str, Any]:
+    """Deterministic valid parser fixture; never evidence of a historical run."""
 
     return {
-        "artifacts": {"bundle": None, "kani": None, "output": None},
+        "artifacts": {
+            "bundle": None,
+            "kani": None,
+            "output": None,
+            "report_json": None,
+            "report_md": None,
+            "smtlib_dir": None,
+        },
         "command": "verify-multi",
         "determinism": True,
         "determinism_trials": 2,
@@ -1558,20 +1811,27 @@ def recorded_verify_payload() -> dict[str, Any]:
         "fingerprints": [RECORDED_FINGERPRINT, RECORDED_FINGERPRINT],
         "model": {"ir_hash": RECORDED_IR_HASH, "path": MODEL_RELATIVE},
         "ok": True,
-        "queries": {name: _recorded_query(name) for name in ("inductive_step", "init_implies_inv")},
+        "queries": {
+            name: _expected_query_fixture(name)
+            for name in ("inductive_step", "init_implies_inv")
+        },
         "reference": None,
         "report": {
             "cvc5_available": True,
             "cvc5_passed": True,
             "disagreements": [],
+            "environment_model": copy.deepcopy(RECORDED_ENVIRONMENT_MODEL),
             "failed_queries": 0,
             "inconclusive_queries": 0,
             "ir_hash": RECORDED_IR_HASH.removeprefix("sha256:")[:16],
+            "kani_path": None,
+            "lean_path": None,
             "model_id": RECORDED_MODEL_ID,
             "notes": ["Cross-verified by Z3 and CVC5"],
             "passed_queries": 2,
             "scope": {
                 "badge": "Inductive(k=1)",
+                "domain_caps": _expected_domain_caps_fixture(),
                 "fail_closed": True,
                 "k": 1,
                 "kind": "inductive",
@@ -1579,9 +1839,15 @@ def recorded_verify_payload() -> dict[str, Any]:
                 "solver_timeout_ms": 5000,
                 "time": "unbounded",
             },
+            "smtlib_path": None,
             "solvers_agreed": True,
+            "timestamp": "2026-08-27T04:48:41.211478+00:00",
             "tool_versions": {
+                "cargo": "cargo 1.87.0 (99624be96 2025-05-06)",
                 "esso_code_hash": RECORDED_ESSO_CODE_HASH,
+                "platform": "Linux-7.0.0-28-generic-x86_64-with-glibc2.39",
+                "python": "3.12.3 (main, Jun 19 2026, 12:46:00) [GCC 13.3.0]",
+                "rustfmt": "rustfmt 1.8.0-stable (17067e9ac6 2025-05-09)",
                 "solvers": {"cvc5": "This is cvc5 version 1.1.2", "z3": "4.15.4"},
             },
             "total_queries": 2,
@@ -1605,12 +1871,17 @@ def _set_query(verify: dict[str, Any], name: str, path: tuple[str, ...], value: 
 
 
 EVIDENCE_TAMPERS = (
+    _tamper("validate_extra_field", lambda v, w: v.__setitem__("forged", True)),
     _tamper("validate_error_present", lambda v, w: v.__setitem__("errors", ["unbound var"])),
     _tamper("validate_not_ok", lambda v, w: v.__setitem__("ok", False)),
     _tamper("validate_ir_hash_drift", lambda v, w: v.__setitem__("ir_hash", REPAIR1_IR_HASH)),
     _tamper("validate_wrong_command", lambda v, w: v.__setitem__("command", "verify-multi")),
     _tamper("validate_other_model", lambda v, w: v.__setitem__("model", "src/kernels/dex/other.yaml")),
     _tamper("verify_not_ok", lambda v, w: w.__setitem__("ok", False)),
+    _tamper("verify_extra_field", lambda v, w: w.__setitem__("forged", True)),
+    _tamper("verify_artifacts_extra_field", lambda v, w: w["artifacts"].__setitem__("forged", None)),
+    _tamper("verify_timeout_drift", lambda v, w: w.__setitem__("timeout_ms", 4999)),
+    _tamper("verify_trial_count_drift", lambda v, w: w.__setitem__("determinism_trials", 3)),
     _tamper("verify_not_deterministic", lambda v, w: w.__setitem__("determinism", False)),
     _tamper("verify_reference_present", lambda v, w: w.__setitem__("reference", {"model": "x"})),
     _tamper("verify_solvers_reordered", lambda v, w: w.__setitem__("solvers", ["cvc5", "z3"])),
@@ -1621,7 +1892,12 @@ EVIDENCE_TAMPERS = (
     _tamper("verify_fingerprint_not_recorded", lambda v, w: w.__setitem__("fingerprints", ["1" * 64, "1" * 64])),
     _tamper("verify_ir_hash_drift", lambda v, w: w["model"].__setitem__("ir_hash", REVIEW_IR_HASH)),
     _tamper("verify_query_missing", lambda v, w: w["queries"].pop("inductive_step")),
-    _tamper("verify_query_extra", lambda v, w: w["queries"].__setitem__("inductive_step_2", _recorded_query("inductive_step_2"))),
+    _tamper(
+        "verify_query_extra",
+        lambda v, w: w["queries"].__setitem__(
+            "inductive_step_2", _expected_query_fixture("inductive_step_2")
+        ),
+    ),
     _tamper("verify_query_renamed", lambda v, w: _set_query(w, "inductive_step", ("query",), "inductive_stp")),
     _tamper("verify_query_sat", lambda v, w: _set_query(w, "inductive_step", ("final_result",), "sat")),
     _tamper("verify_query_unknown", lambda v, w: _set_query(w, "init_implies_inv", ("final_result",), "unknown")),
@@ -1632,6 +1908,12 @@ EVIDENCE_TAMPERS = (
     _tamper("verify_solver_counterexample", lambda v, w: _set_query(w, "inductive_step", ("z3", "model"), {"payer_a": 5})),
     _tamper("verify_solver_result_missing", lambda v, w: w["queries"]["init_implies_inv"].pop("cvc5")),
     _tamper("verify_verdict_drift", lambda v, w: w["report"].__setitem__("verdict", "VERIFIED_WITH_REVIEW")),
+    _tamper("verify_report_extra_field", lambda v, w: w["report"].__setitem__("forged", True)),
+    _tamper(
+        "verify_environment_model_drift",
+        lambda v, w: w["report"]["environment_model"].__setitem__("scheduler", "parallel"),
+    ),
+    _tamper("verify_timestamp_malformed", lambda v, w: w["report"].__setitem__("timestamp", "now")),
     _tamper("verify_disagreement_listed", lambda v, w: w["report"].__setitem__("disagreements", ["inductive_step"])),
     _tamper("verify_failed_query", lambda v, w: w["report"].__setitem__("failed_queries", 1)),
     _tamper("verify_inconclusive_query", lambda v, w: w["report"].__setitem__("inconclusive_queries", 1)),
@@ -1644,14 +1926,45 @@ EVIDENCE_TAMPERS = (
     _tamper("verify_scope_badge", lambda v, w: w["report"]["scope"].__setitem__("badge", "Inductive(k=2)")),
     _tamper("verify_scope_kind", lambda v, w: w["report"]["scope"].__setitem__("kind", "bmc")),
     _tamper("verify_scope_not_fail_closed", lambda v, w: w["report"]["scope"].__setitem__("fail_closed", False)),
+    _tamper("verify_scope_seed_drift", lambda v, w: w["report"]["scope"].__setitem__("solver_seed", 1)),
+    _tamper(
+        "verify_scope_timeout_drift",
+        lambda v, w: w["report"]["scope"].__setitem__("solver_timeout_ms", 4999),
+    ),
+    _tamper("verify_scope_extra_field", lambda v, w: w["report"]["scope"].__setitem__("forged", True)),
+    _tamper(
+        "verify_scope_domain_caps_drift",
+        lambda v, w: w["report"]["scope"]["domain_caps"].__setitem__(
+            "log2_state_space_upper_bound", 0
+        ),
+    ),
     _tamper("verify_toolchain_revision", lambda v, w: w["report"]["tool_versions"].__setitem__("esso_code_hash", "f" * 40)),
     _tamper("verify_toolchain_hash_malformed", lambda v, w: w["report"]["tool_versions"].__setitem__("esso_code_hash", "abc")),
+    _tamper(
+        "verify_solver_version_drift",
+        lambda v, w: w["report"]["tool_versions"]["solvers"].__setitem__("z3", "4.15.5"),
+    ),
+    _tamper(
+        "verify_tool_versions_extra_field",
+        lambda v, w: w["report"]["tool_versions"].__setitem__("forged", "x"),
+    ),
+    _tamper(
+        "verify_query_extra_field",
+        lambda v, w: w["queries"]["inductive_step"].__setitem__("forged", True),
+    ),
+    _tamper(
+        "verify_solver_result_extra_field",
+        lambda v, w: w["queries"]["inductive_step"]["z3"].__setitem__("forged", True),
+    ),
     _tamper("verify_payload_emptied", lambda v, w: w.clear()),
 )
 
 
-def test_recorded_esso_evidence_is_admitted() -> None:
-    admitted = admit_esso_evidence(recorded_validate_payload(), recorded_verify_payload())
+def test_expected_esso_evidence_shape_is_admitted() -> None:
+    admitted = admit_esso_evidence(
+        expected_validate_payload_fixture(),
+        expected_verify_payload_fixture(),
+    )
     assert admitted == {
         "ir_hash": RECORDED_IR_HASH,
         "fingerprint": RECORDED_FINGERPRINT,
@@ -1665,8 +1978,8 @@ def test_recorded_esso_evidence_is_admitted() -> None:
 def test_esso_evidence_admission_fails_closed(
     name: str, apply: Callable[[dict[str, Any], dict[str, Any]], None]
 ) -> None:
-    validate_payload = recorded_validate_payload()
-    verify_payload = recorded_verify_payload()
+    validate_payload = expected_validate_payload_fixture()
+    verify_payload = expected_verify_payload_fixture()
     apply(validate_payload, verify_payload)
     with pytest.raises(EvidenceRejected):
         admit_esso_evidence(validate_payload, verify_payload)
@@ -1674,9 +1987,9 @@ def test_esso_evidence_admission_fails_closed(
 
 def test_esso_evidence_admission_rejects_non_object_payloads() -> None:
     with pytest.raises(EvidenceRejected):
-        admit_esso_evidence([], recorded_verify_payload())
+        admit_esso_evidence([], expected_verify_payload_fixture())
     with pytest.raises(EvidenceRejected):
-        admit_esso_evidence(recorded_validate_payload(), "VERIFIED")
+        admit_esso_evidence(expected_validate_payload_fixture(), "VERIFIED")
 
 
 # --------------------------------------------------------------------------- #
@@ -2319,6 +2632,30 @@ def test_mutant_reject_precedence_drift_reports_the_lower_priority_code(
     # A single failure is reported identically, so only the precedence witness reveals it.
     _, single, single_failures = check_step(mutant, pre, command(pre, KIND_TRANSFER, amount=1, occurrence=0))
     assert single_failures == [] and single["reject_code"] == "RC_DUPLICATE_OCCURRENCE"
+
+
+def test_mutant_post_effect_projection_drift_is_killed_only_by_the_oracle(
+    doc: dict[str, Any], model: BoundedModel
+) -> None:
+    mutant = mutant_model(doc, "MUT_POST_EFFECT_PROJECTION_DRIFT")
+    pre = make_state(model, payer_a=1, supply_a=1)
+    params = command(pre, KIND_TRANSFER, amount=1)
+    ripr(model, mutant, pre, params, revealed_by={"oracle:post_owned_a"})
+
+
+def test_mutant_reject_lane_drift_requires_a_nondefault_prior_lane(
+    doc: dict[str, Any], model: BoundedModel
+) -> None:
+    mutant = mutant_model(doc, "MUT_REJECT_LANE_DRIFT")
+    pre = make_state(
+        model,
+        payer_a=1,
+        supply_a=1,
+        g_lane="SPOT_LIQUIDITY",
+    )
+    params = command(pre, KIND_TRANSFER, amount=0)
+    post = ripr(model, mutant, pre, params, revealed_by={"oracle:lane"})
+    assert post["g_lane"] == "ASSET_TRANSFER"
 
 
 def test_every_named_mutant_is_killed_by_the_bounded_boxes(doc: dict[str, Any]) -> None:

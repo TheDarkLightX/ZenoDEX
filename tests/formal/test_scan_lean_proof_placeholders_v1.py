@@ -107,6 +107,14 @@ def test_axiom_declaration_blocks_by_default(tmp_path: Path) -> None:
     assert "lean_axiom_declaration" in {m["rule"] for m in payload["matches"]}
 
 
+def test_constant_declaration_blocks_by_default(tmp_path: Path) -> None:
+    body = "constant trustMe : 1 = 2\n"
+    target = _write(tmp_path, "Constant.lean", body)
+    code, payload = _run(str(target))
+    assert code == 1
+    assert "lean_constant_declaration" in {m["rule"] for m in payload["matches"]}
+
+
 def test_attributed_and_modified_axiom_declaration_blocks(tmp_path: Path) -> None:
     body = "@[simp] private axiom trustMe : 1 = 2\n"
     target = _write(tmp_path, "AxiomModified.lean", body)
@@ -116,7 +124,7 @@ def test_attributed_and_modified_axiom_declaration_blocks(tmp_path: Path) -> Non
 
 
 def test_allow_axioms_flag_relaxes_only_the_axiom_rule(tmp_path: Path) -> None:
-    body = "axiom trustMe : 1 = 2\n"
+    body = "axiom trustMe : 1 = 2\nconstant trustMeToo : 2 = 3\n"
     target = _write(tmp_path, "AxiomAllowed.lean", body)
     code, payload = _run(str(target), "--allow-axioms")
     assert code == 0
@@ -152,11 +160,22 @@ def test_nested_block_comment_is_stripped(tmp_path: Path) -> None:
     assert code == 0, payload
 
 
-def test_unterminated_block_comment_swallows_rest(tmp_path: Path) -> None:
+def test_unterminated_block_comment_fails_closed(tmp_path: Path) -> None:
     body = "/- open comment\ntheorem bad : 1 = 1 := by sorry\n"
     target = _write(tmp_path, "Unterminated.lean", body)
     code, payload = _run(str(target))
-    assert code == 0, payload
+    assert code == 2
+    assert payload["blocked"] is True
+    assert "unterminated block comment" in payload["error"]
+
+
+def test_unterminated_string_fails_closed(tmp_path: Path) -> None:
+    body = 'def hidden : String := "sorry\n'
+    target = _write(tmp_path, "UnterminatedString.lean", body)
+    code, payload = _run(str(target))
+    assert code == 2
+    assert payload["blocked"] is True
+    assert "unterminated string literal" in payload["error"]
 
 
 def test_missing_path_fails_closed(tmp_path: Path) -> None:

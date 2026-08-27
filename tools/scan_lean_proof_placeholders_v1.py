@@ -8,9 +8,9 @@ admission gating:
 1.  It strips Lean comments and string literals before applying token rules, so
     ordinary prose in a doc comment (``-- we admit nothing here``) does not
     block, while a real ``sorry`` in tactic position does.
-2.  ``axiom`` and ``unsafe`` are matched in *declaration position* only, after
-    optional attributes and modifiers, so the words are not flagged inside
-    identifiers or prose.
+2.  ``axiom``, ``constant``, and ``unsafe`` are matched in *declaration
+    position* only, after optional attributes and modifiers, so the words are
+    not flagged inside identifiers or prose.
 3.  Every path problem is an error, not a skip. A missing path, an explicitly
     passed non-proof file, an unreadable file, an empty or whitespace-only
     proof file, or a directory containing no proof files all exit non-zero. A
@@ -50,6 +50,8 @@ TOKEN_RULES: dict[str, re.Pattern[str]] = {
 
 AXIOM_RULE_NAME = "lean_axiom_declaration"
 AXIOM_RULE = re.compile(_DECL_PREFIX + r"axiom\b", re.MULTILINE)
+CONSTANT_RULE_NAME = "lean_constant_declaration"
+CONSTANT_RULE = re.compile(_DECL_PREFIX + r"constant\b", re.MULTILINE)
 
 
 @dataclass(frozen=True)
@@ -131,6 +133,10 @@ def strip_lean_noncode(text: str) -> str:
             continue
         out.append(char)
         index += 1
+    if depth != 0:
+        raise ScanError("unterminated block comment")
+    if in_string:
+        raise ScanError("unterminated string literal")
     return "".join(out)
 
 
@@ -144,6 +150,7 @@ def scan_text(path: str, text: str, *, check_axioms: bool) -> list[Match]:
     rules = dict(TOKEN_RULES)
     if check_axioms:
         rules[AXIOM_RULE_NAME] = AXIOM_RULE
+        rules[CONSTANT_RULE_NAME] = CONSTANT_RULE
     matches: list[Match] = []
     for rule_name, pattern in rules.items():
         for found in pattern.finditer(code):
@@ -195,7 +202,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--allow-axioms",
         action="store_true",
-        help="Do not flag axiom declarations. Axiom checking is on by default.",
+        help=(
+            "Do not flag axiom or constant declarations. "
+            "Unproved-declaration checking is on by default."
+        ),
     )
     return parser
 
