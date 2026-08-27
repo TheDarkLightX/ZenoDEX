@@ -43,12 +43,11 @@ sender is debited `amount + fee`, the recipient is credited `amount`, and the
 fee owner is credited `fee`, with the three credits summed on one principal
 when roles alias. The width check (`EFFECT_DELTA_OVERFLOW`) is applied to the
 aggregated values and to the fee itself, exactly as the Python
-`_transfer_deltas` does. The Rust `prepare_transfer` checks the intermediate
-`amount + fee` before aggregation, so its `EFFECT_DELTA_OVERFLOW` boundary is
-one atom tighter than the Python one and it rejects the aliased
-`fee owner = sender` case whenever `amount + fee > MAX_DELTA_ATOMS_V1`; this
-file follows the Python aggregation, and `widthMinDelta_accepted` and
-`widthAliasSender_accepted` are the two witnesses of that residual mismatch.
+`_transfer_deltas` does. The current Rust `prepare_transfer` mirrors the final
+role-specific aggregation. Its `checked_negative_sum` helper admits magnitude
+`2^127` as `i128::MIN` and rejects larger magnitudes. The
+`widthMinDelta_accepted` and `widthAliasSender_accepted` theorems pin the two
+alias-sensitive boundaries shared by the current Python and Rust cores.
 
 ## Balance rejection rule
 
@@ -59,11 +58,10 @@ Under the width premises only the sender can go negative and only the
 recipient or a distinct fee owner can overflow, so this is the same rule as
 "sender insufficiency wins over every recipient or fee-owner overflow", and
 `roleOrdered_eq_intended` proves it coincides with the Python role-ordered
-loop (sender, recipient, distinct fee owner) on well-formed inputs. The Rust
-`post_balances` iterates a `BTreeMap`, i.e. in lexical principal order, and
-can return `BALANCE_OVERFLOW` where Python returns `INSUFFICIENT_BALANCE`
-when the recipient sorts before an insufficient sender; that is a known
-implementation counterexample outside this file's scope and is not modeled.
+loop (sender, recipient, distinct fee owner) on well-formed inputs. The current
+Rust `post_balances` performs a negative-delta preflight followed by a
+nonnegative-delta preflight before applying any delta. This gives debit
+insufficiency the same fixed priority independently of canonical map order.
 `balanceOverflow_unreachable` additionally shows that from a pre-state whose
 enumerated account total is covered by supply the overflow code can never be
 reached at all.
@@ -1036,13 +1034,12 @@ def overflowNeighbor : Scenario :=
 def effectDeltaOverflow : Scenario :=
   scenario treasury 0 true [(alice, twoPow127)] twoPow127 releaseA alice
     assetTransferCommandKind usd alice bob twoPow127 0
-/-- Sender delta exactly `i128Min`: Python admits it, Rust's pre-aggregation
-`checked_add` does not. -/
+/-- Sender delta exactly `i128Min`, admitted by both current runtime cores. -/
 def widthMinDelta : Scenario :=
   scenario treasury 1 true [(alice, twoPow127)] twoPow127 releaseA alice
     assetTransferCommandKind usd alice bob i128Max 1
-/-- Fee owner equals sender with `amount + fee > i128Max`: the aggregated
-sender delta is `-amount`, admitted by Python, rejected by Rust. -/
+/-- Fee owner equals sender with `amount + fee > i128Max`: the final sender
+delta is `-amount`, so the pre-aggregation sum does not constrain this role. -/
 def widthAliasSender : Scenario :=
   scenario alice i128Max true [(alice, i128Max)] i128Max releaseA alice
     assetTransferCommandKind usd alice bob i128Max i128Max
