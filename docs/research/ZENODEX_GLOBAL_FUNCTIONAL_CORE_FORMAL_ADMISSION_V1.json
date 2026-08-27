@@ -4,9 +4,9 @@
   "created_date": "2026-08-27",
   "status": "SUBJECT_RECORDED_PENDING_FINAL_MAX_REVIEW",
   "base_commit": "f7e851565e063fb3e74b060a9c45f27b8621a8d7",
-  "subject_commit": "8c0ce776f4a77acd334d27951a8e13241c5a4818",
-  "subject_parent": "f9cfd70d8dcf592c6f10a234d6a185b208e9e974",
-  "subject_tree": "c722ee77451da095aab61d4e2817f1266f47ea6c",
+  "subject_commit": "9c309ce9398a2b163fcbfa449cbce01796a67587",
+  "subject_parent": "a1f619a4d597b6ce5f3b8935ddbf9c3713acf85b",
+  "subject_tree": "cabd423625e8dd5836da2061f64b32653006db9c",
   "subject_worktree_clean": true,
   "subject_diff_file_count": 11,
   "subject_formal_file_count": 10,
@@ -17,7 +17,7 @@
     {
       "status": "A",
       "path": "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
-      "git_blob": "23033831708535781395a1f03a40b77b2049ccb2"
+      "git_blob": "fa221b9dfa95a118436e2dec225ac73bffc0bcde"
     },
     {
       "status": "M",
@@ -42,12 +42,12 @@
     {
       "status": "A",
       "path": "tests/evidence/test_hygiene/THV1-20260826-global-settlement-formal-core-v1.json",
-      "git_blob": "f38ecaf52c44a9ccdf71bd9150d0aaf16bc37231"
+      "git_blob": "75fa79bbe7a1cab96abd7ff014cb521caf1527f9"
     },
     {
       "status": "A",
       "path": "tests/formal/test_esso_global_settlement_core_v1.py",
-      "git_blob": "2877b6e731fc9286a145c955f7231bcbd6d078af"
+      "git_blob": "2b0b8d10b44d56ac3fdeb3f073c998f554355204"
     },
     {
       "status": "A",
@@ -68,7 +68,7 @@
   "test_hygiene_evidence": {
     "evidence_id": "THV1-20260826-global-settlement-formal-core-v1",
     "path": "tests/evidence/test_hygiene/THV1-20260826-global-settlement-formal-core-v1.json",
-    "sha256": "040f04be46536b2019e85d424aa9e32fc018ff0e0732c0c5e6a6c0c983d470d5"
+    "sha256": "283d6629242cc7c9eb0e34eb0fa106bc15a590facbcad5b234321a225cfe9659"
   },
   "formal_subject": {
     "esso_model_sha256": "121972779c7ac2f06dee1a6970498ab6b8e17c80c3050342648d8d2d432a2b7d",
@@ -93,11 +93,11 @@
     },
     {
       "command": "PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO python3 -m pytest -q -p no:cacheprovider tests/formal/test_esso_global_settlement_core_v1.py -rs",
-      "result": "128 passed in 43.30s; no skips"
+      "result": "135 passed in 38.57s; no skips"
     },
     {
       "command": "PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO python3 tools/run_test_hygiene_gate_v1.py --base-ref f7e851565e063fb3e74b060a9c45f27b8621a8d7 --json",
-      "result": "106 passed in 41.33s; ok true; 7 critical paths covered"
+      "result": "113 passed in 41.92s; ok true; 7 critical paths covered"
     },
     {
       "command": "python3 -m ruff check tools/scan_lean_proof_placeholders_v1.py tests/formal/test_esso_global_settlement_core_v1.py tests/formal/test_lean_global_settlement_core_v1.py tests/formal/test_scan_lean_proof_placeholders_v1.py",
@@ -115,7 +115,8 @@
     "reclassified GAP-01 through GAP-08 as eight primary divergences rather than a complete correspondence inventory",
     "stated that structural payload admission does not authenticate historical provenance",
     "added a transitive Lean #print axioms allowlist gate for every named core and challenge theorem",
-    "recorded the unmodeled height, terminal-obligation, transfer-subject, self-transfer, fee, managed-asset, grant, aggregation, and rejection-order semantics"
+    "recorded the unmodeled height, terminal-obligation, transfer-subject, self-transfer, fee, managed-asset, grant, aggregation, and rejection-order semantics",
+    "rejected Boolean and float aliases for every fixed integer ESSO evidence counter and solver-control field"
   ],
   "authority": {
     "production": false,
