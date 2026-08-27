@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""Replay and check the exact research-only current-Tau incompatibility artifact."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+from typing import Final
+
+REPO_ROOT: Final = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from src.core.current_tau_compatibility_v1 import (  # noqa: E402
+    CHECK_SCHEMA_V1,
+    CurrentTauCompatibilityRejectV1,
+    check_current_tau_compatibility_artifact_v1,
+)
+from tools.build_current_tau_compatibility_v1 import (  # noqa: E402
+    JSON_OUTPUT,
+    MAX_ARTIFACT_BYTES_V1,
+    TauReplayPathsV1,
+    load_current_tau_compatibility_snapshot_v1,
+)
+from tools.build_m6_normative_requirements_v1 import (  # noqa: E402
+    ShellRejectV1,
+    _read_bounded_regular_file_v1,
+)
+from tools.m6_normative_requirements_v1 import (  # noqa: E402
+    RequirementsRejectV1,
+    canonical_json_bytes_v1,
+    decode_json_object_v1,
+)
+
+
+def _failure_report(code: str, path: str) -> dict[str, object]:
+    return {
+        "schema": CHECK_SCHEMA_V1,
+        "ok": False,
+        "findings": [{"code": code, "path": path}],
+        "artifact_sha256": "",
+        "artifact_root": None,
+        "o003a_evidence_complete": False,
+        "route_quarantine_implemented": False,
+        "current_tau_compatible": False,
+        "production_authority": "NONE",
+        "release_authority": "NONE",
+        "settlement_authority": "NONE",
+        "value_movement_authority": "NONE",
+        "value_movement_claim_allowed": False,
+        "o002_implemented": False,
+        "vm_gates_closed": [],
+    }
+
+
+def check_current_tau_compatibility_v1(
+    *,
+    paths: TauReplayPathsV1,
+    artifact_path: Path | None = None,
+) -> dict[str, object]:
+    """Recompute source facts, then compare one canonical artifact byte-for-byte."""
+
+    source = artifact_path or paths.root / JSON_OUTPUT
+    try:
+        raw_artifact = _read_bounded_regular_file_v1(
+            source,
+            MAX_ARTIFACT_BYTES_V1,
+            "current Tau compatibility artifact",
+        )
+        artifact = decode_json_object_v1(raw_artifact, "current Tau compatibility artifact")
+        if canonical_json_bytes_v1(artifact) != raw_artifact:
+            return _failure_report("NONCANONICAL_ARTIFACT", str(source))
+        snapshot = load_current_tau_compatibility_snapshot_v1(paths)
+        return check_current_tau_compatibility_artifact_v1(
+            artifact,
+            raw_artifact,
+            snapshot,
+        )
+    except (CurrentTauCompatibilityRejectV1, RequirementsRejectV1, ShellRejectV1) as exc:
+        return _failure_report(exc.code, exc.path)
+    except (MemoryError, OSError, RecursionError, TypeError, ValueError) as exc:
+        return _failure_report("CHECKER_INPUT_ERROR", type(exc).__name__)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=REPO_ROOT)
+    parser.add_argument("--tau-testnet-repo", type=Path, required=True)
+    parser.add_argument("--tau-lang-repo", type=Path, required=True)
+    parser.add_argument("--historical-bridge-repo", type=Path)
+    args = parser.parse_args(argv)
+    bridge_repo = args.historical_bridge_repo or args.tau_testnet_repo
+    paths = TauReplayPathsV1(
+        args.root,
+        args.tau_testnet_repo,
+        args.tau_lang_repo,
+        bridge_repo,
+    )
+    report = check_current_tau_compatibility_v1(
+        paths=paths,
+    )
+    print(json.dumps(report, sort_keys=True))
+    return 0 if report["ok"] is True else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

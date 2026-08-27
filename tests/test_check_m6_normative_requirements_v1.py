@@ -1694,6 +1694,7 @@ def test_git_binary_ignores_ambient_path_and_environment_is_closed(
     assert environment == {
         "GIT_CONFIG_GLOBAL": "/dev/null",
         "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_NO_LAZY_FETCH": "1",
         "GIT_NO_REPLACE_OBJECTS": "1",
         "HOME": "/dev/null",
         "LC_ALL": "C",
