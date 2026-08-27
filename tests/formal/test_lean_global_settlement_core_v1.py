@@ -74,6 +74,8 @@ CHALLENGE_CLAIMS = (
     "not_wellFormed_of_planWellFormedOn_false",
 )
 
+ALLOWED_STANDARD_AXIOMS = frozenset({"propext", "Quot.sound", "Classical.choice"})
+
 # GlobalEconomicEffectPlanV1 fields with no analogue in the proof.
 UNMODELED_PLAN_FIELDS = (
     "fee_conservation",
@@ -161,6 +163,44 @@ def test_lean_targets_have_no_placeholders_with_axiom_checking() -> None:
     assert payload["match_count"] == 0
     assert payload["axiom_check"] is True
     assert len(payload["scanned_files"]) == 2
+
+
+def _axiom_dependencies(output: str) -> set[str]:
+    dependencies: set[str] = set()
+    for body in re.findall(r"depends on axioms:\s*\[([^\]]*)\]", output, flags=re.DOTALL):
+        dependencies.update(item.strip() for item in body.split(",") if item.strip())
+    return dependencies
+
+
+def test_all_named_claims_depend_only_on_standard_lean_axioms(
+    tmp_path: Path,
+    built_challenge: None,
+) -> None:
+    qualified = (
+        *(f"Proofs.GlobalSettlementCoreV1.{name}" for name in CORE_CLAIMS),
+        *(
+            f"Proofs.GlobalSettlementCoreV1Challenge.{name}"
+            for name in CHALLENGE_CLAIMS
+        ),
+    )
+    probe = tmp_path / "AxiomDependencies.lean"
+    probe.write_text(
+        "import Proofs.GlobalSettlementCoreV1Challenge\n\n"
+        + "\n".join(f"#print axioms {name}" for name in qualified)
+        + "\n",
+        encoding="utf-8",
+    )
+    result = _lean("env", "lean", str(probe))
+    assert result.returncode == 0, result.stdout + result.stderr
+    for name in qualified:
+        assert f"'{name}'" in result.stdout, name
+    dependencies = _axiom_dependencies(result.stdout)
+    assert dependencies <= ALLOWED_STANDARD_AXIOMS, dependencies
+
+
+def test_axiom_dependency_parser_reveals_project_defined_axiom() -> None:
+    output = "'Demo.bad' depends on axioms: [propext, Demo.trustMe]"
+    assert _axiom_dependencies(output) - ALLOWED_STANDARD_AXIOMS == {"Demo.trustMe"}
 
 
 def test_claim_surface_is_explicit_and_clean() -> None:

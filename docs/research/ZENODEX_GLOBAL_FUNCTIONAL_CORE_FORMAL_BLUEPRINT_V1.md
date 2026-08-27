@@ -739,7 +739,9 @@ unterminated block comments and strings. Repair 5 closes those bounded defects:
 - the divergence table is eight primary divergences and explicitly remains an
   incomplete correspondence inventory;
 - the Lean scanner rejects `constant` declarations and malformed lexical
-  enclosures, with retained negative tests.
+  enclosures, with retained negative tests; a separate `#print axioms` gate
+  checks every named core and challenge theorem against the allowed Lean
+  standard set `propext`, `Quot.sound`, and `Classical.choice`.
 
 ```text
 PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO \
@@ -750,7 +752,7 @@ PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO \
 PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO \
   python3 tools/run_test_hygiene_gate_v1.py \
   --base-ref f7e851565e063fb3e74b060a9c45f27b8621a8d7 --json
-  -> 104 passed in 39.43s, ok true, 10 changed paths,
+  -> 106 passed in 40.21s, ok true, 11 changed paths,
      7 critical paths covered by
      THV1-20260826-global-settlement-formal-core-v1
 ```
@@ -815,14 +817,20 @@ three files.
 - The refinement between this model and the Python or Rust source is by
   inspection only. There is no theorem, simulation relation, generated
   reference, or parity vector. `GAP-01` to `GAP-08` list eight primary
-  divergences, not a complete correspondence inventory: command-lane routing, unknown-asset policy, authentication
-  derivation, terminal-obligation identities, finite widths, the base-5
-  image, the fee-residue refinement gap, and the conjunction scope of the
-  solver result. None is closed here and no policy is invented to close one.
+  divergences, not a complete correspondence inventory: command-lane routing,
+  unknown-asset policy, authentication derivation, terminal-obligation
+  identities, finite widths, the base-5 image, the fee-residue refinement gap,
+  and the conjunction scope of the solver result. None is closed here and no
+  policy is invented to close one.
 - Additional correspondence omissions include single-subject aggregation,
   the collapsed two-parameter fee policy, informative-only reject-code mapping
-  without source reject-order proof, and all omitted runtime artifacts named
-  below.
+  without source reject-order proof, model height advancement per accepted
+  command versus runtime first-route and whole-epoch advancement, modeled
+  aggregate terminal-obligation mutation versus the current runtime
+  refinement's frozen terminal field, concrete transfer subject,
+  self-transfer, and fee guards, managed issue/burn asset-class and grant
+  checks collapsed into abstract premises, and all omitted runtime artifacts
+  named below.
 - The bounded sweeps cover the stated boxes only. They are not exhaustive over
   the declared domain and are not a proof.
 - The reject-code mapping to source codes is informative. The model neither

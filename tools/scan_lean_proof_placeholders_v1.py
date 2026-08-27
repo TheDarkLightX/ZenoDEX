@@ -8,9 +8,10 @@ admission gating:
 1.  It strips Lean comments and string literals before applying token rules, so
     ordinary prose in a doc comment (``-- we admit nothing here``) does not
     block, while a real ``sorry`` in tactic position does.
-2.  ``axiom``, ``constant``, and ``unsafe`` are matched in *declaration
-    position* only, after optional attributes and modifiers, so the words are
-    not flagged inside identifiers or prose.
+2.  Local ``axiom``, ``constant``, and ``unsafe`` declarations are matched in
+    *declaration position* only, after optional attributes and modifiers, so
+    the words are not flagged inside identifiers or prose. Transitive imported
+    dependencies require a separate Lean ``#print axioms`` gate.
 3.  Every path problem is an error, not a skip. A missing path, an explicitly
     passed non-proof file, an unreadable file, an empty or whitespace-only
     proof file, or a directory containing no proof files all exit non-zero. A
