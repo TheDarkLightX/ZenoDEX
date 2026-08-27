@@ -1,11 +1,13 @@
 use serde::Serialize;
 
 use crate::asset_transfer_lane_module::{
-    AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
+    recompute_asset_transfer_lane_module_accepted_v1, AssetTransferLaneModuleAcceptedV1,
+    AssetTransferLaneModuleInputV1,
 };
 use crate::canonical::{hash_global_v1, AbiErrorV1, AbiResultV1, RootV1};
 use crate::global_oracle_price_occurrence::VerifiedGlobalOraclePriceV1;
 use crate::managed_asset_lifecycle_lane_module::{
+    recompute_managed_asset_lifecycle_lane_module_accepted_v1,
     ManagedAssetLifecycleLaneModuleAcceptedV1, ManagedAssetLifecycleLaneModuleInputV1,
 };
 use crate::perps_margin_lane_module::{
@@ -258,13 +260,7 @@ pub fn bind_asset_transfer_lane_output_to_release_route_v1(
     accepted: &AssetTransferLaneModuleAcceptedV1,
 ) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
     module_input.validate()?;
-    accepted.validate()?;
-    let statement_root = module_input.statement_root()?;
-    if accepted.statement_root != statement_root {
-        return Err(AbiErrorV1::InvalidBinding(
-            "asset transfer accepted statement",
-        ));
-    }
+    let expected = recompute_asset_transfer_lane_module_accepted_v1(module_input, accepted)?;
     bind_candidate_v1(
         profile,
         lanes,
@@ -274,8 +270,8 @@ pub fn bind_asset_transfer_lane_output_to_release_route_v1(
         BindingCandidateV1 {
             actual_command_kind: &module_input.command.command_kind,
             command_body_hash: module_input.command.command_body_hash()?,
-            statement_root: &accepted.statement_root,
-            producer_module_schema: &accepted.private_port.producer_module_schema,
+            statement_root: &expected.statement_root,
+            producer_module_schema: &expected.private_port.producer_module_schema,
             context: ModuleContextBindingV1 {
                 chain_id: &module_input.context.chain_id,
                 deployment_root: &module_input.context.deployment_root,
@@ -286,7 +282,7 @@ pub fn bind_asset_transfer_lane_output_to_release_route_v1(
                 subject_id: &module_input.context.subject_id,
                 grant_root: &module_input.context.grant_root,
             },
-            module_journal: &accepted.module_journal,
+            module_journal: &expected.module_journal,
         },
     )
 }
@@ -301,13 +297,8 @@ pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
     accepted: &ManagedAssetLifecycleLaneModuleAcceptedV1,
 ) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
     module_input.validate()?;
-    accepted.validate()?;
-    let statement_root = module_input.statement_root()?;
-    if accepted.statement_root != statement_root {
-        return Err(AbiErrorV1::InvalidBinding(
-            "managed asset accepted statement",
-        ));
-    }
+    let expected =
+        recompute_managed_asset_lifecycle_lane_module_accepted_v1(module_input, accepted)?;
     bind_candidate_v1(
         profile,
         lanes,
@@ -317,8 +308,8 @@ pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
         BindingCandidateV1 {
             actual_command_kind: &module_input.command.command_kind,
             command_body_hash: module_input.command.command_body_hash()?,
-            statement_root: &accepted.statement_root,
-            producer_module_schema: &accepted.private_port.producer_module_schema,
+            statement_root: &expected.statement_root,
+            producer_module_schema: &expected.private_port.producer_module_schema,
             context: ModuleContextBindingV1 {
                 chain_id: &module_input.context.chain_id,
                 deployment_root: &module_input.context.deployment_root,
@@ -329,7 +320,7 @@ pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
                 subject_id: &module_input.context.subject_id,
                 grant_root: &module_input.context.grant_root,
             },
-            module_journal: &accepted.module_journal,
+            module_journal: &expected.module_journal,
         },
     )
 }

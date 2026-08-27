@@ -245,3 +245,21 @@ pub fn transition_asset_transfer_lane_module_v1(
         accepted,
     )))
 }
+
+pub(crate) fn recompute_asset_transfer_lane_module_accepted_v1(
+    module_input: &AssetTransferLaneModuleInputV1,
+    accepted: &AssetTransferLaneModuleAcceptedV1,
+) -> AbiResultV1<AssetTransferLaneModuleAcceptedV1> {
+    accepted.validate()?;
+    match transition_asset_transfer_lane_module_v1(module_input)? {
+        AssetTransferLaneModuleResultV1::Accepted(expected) if expected.as_ref() == accepted => {
+            Ok(*expected)
+        }
+        AssetTransferLaneModuleResultV1::Accepted(_) => Err(AbiErrorV1::InvalidBinding(
+            "asset transfer supplied acceptance differs from recomputation",
+        )),
+        AssetTransferLaneModuleResultV1::Rejected(_) => Err(AbiErrorV1::InvalidBinding(
+            "asset transfer supplied acceptance recomputes to rejection",
+        )),
+    }
+}
