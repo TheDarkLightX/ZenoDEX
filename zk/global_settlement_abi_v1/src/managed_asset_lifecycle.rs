@@ -32,14 +32,14 @@ fn reject(
     pre_state: &ManagedAssetLifecycleStateV1,
 ) -> AbiResultV1<ManagedAssetLifecycleResultV1> {
     let root = pre_state.state_root()?;
-    Ok(ManagedAssetLifecycleResultV1::Rejected(Box::new(
-        ManagedAssetLifecycleRejectedV1 {
-            code,
-            pre_state_root: root.clone(),
-            post_state_root: root,
-            effects: empty_effects(),
-        },
-    )))
+    let rejected = ManagedAssetLifecycleRejectedV1 {
+        code,
+        pre_state_root: root.clone(),
+        post_state_root: root,
+        effects: empty_effects(),
+    };
+    rejected.validate()?;
+    Ok(ManagedAssetLifecycleResultV1::Rejected(Box::new(rejected)))
 }
 
 struct PreparedLifecycleV1<'a> {
@@ -109,9 +109,20 @@ fn authorize<'a>(
     if command.amount_atoms == 0 {
         return Err(ManagedAssetLifecycleRejectCodeV1::ZERO_AMOUNT);
     }
-    let amount = i128::try_from(command.amount_atoms)
-        .map_err(|_| ManagedAssetLifecycleRejectCodeV1::EFFECT_DELTA_OVERFLOW)?;
-    let signed_amount = if is_issue { amount } else { -amount };
+    let signed_amount = if is_issue {
+        i128::try_from(command.amount_atoms)
+            .map_err(|_| ManagedAssetLifecycleRejectCodeV1::EFFECT_DELTA_OVERFLOW)?
+    } else {
+        const I128_MIN_MAGNITUDE: u128 = 1_u128 << 127;
+        if command.amount_atoms == I128_MIN_MAGNITUDE {
+            i128::MIN
+        } else {
+            i128::try_from(command.amount_atoms)
+                .ok()
+                .and_then(i128::checked_neg)
+                .ok_or(ManagedAssetLifecycleRejectCodeV1::EFFECT_DELTA_OVERFLOW)?
+        }
+    };
     Ok(PreparedLifecycleV1 {
         context,
         pre_state,

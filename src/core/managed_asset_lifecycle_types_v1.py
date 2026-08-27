@@ -148,19 +148,10 @@ class ManagedAssetLifecycleStateV1:
             if balance.asset not in totals:
                 raise ValueError("managed asset balance references an unknown asset")
             totals[balance.asset] += balance.amount_atoms
-        policies = {policy.asset: policy for policy in self.policies}
         for supply in self.supplies:
             account_total = totals[supply.asset]
             if account_total > supply.amount_atoms:
                 raise ValueError("managed asset account balances exceed supply")
-            if (
-                policies[supply.asset].asset_class
-                is ManagedAssetClassV1.REGISTERED_ORDINARY_TOKEN
-                and account_total != supply.amount_atoms
-            ):
-                raise ValueError(
-                    "registered ordinary token supply must equal account balances"
-                )
 
     @property
     def state_root(self) -> str:

@@ -172,18 +172,11 @@ impl ManagedAssetLifecycleStateV1 {
                 ))?;
             totals.insert(balance.asset.as_str(), total);
         }
-        for (supply, policy) in self.supplies.iter().zip(&self.policies) {
+        for supply in &self.supplies {
             let account_total = totals.remove(supply.asset.as_str()).unwrap_or(0);
             if account_total > supply.amount_atoms {
                 return Err(AbiErrorV1::Conservation(
                     "managed asset account balances exceed supply",
-                ));
-            }
-            if policy.asset_class == ManagedAssetClassV1::REGISTERED_ORDINARY_TOKEN
-                && account_total != supply.amount_atoms
-            {
-                return Err(AbiErrorV1::Conservation(
-                    "registered ordinary token account supply closure",
                 ));
             }
         }
@@ -281,6 +274,11 @@ impl ManagedAssetLifecycleAcceptedV1 {
     pub fn validate(&self) -> AbiResultV1<()> {
         self.post_state.validate()?;
         self.effects.validate()?;
+        if self.effects.is_empty() {
+            return Err(AbiErrorV1::InvalidBinding(
+                "managed asset accepted effects empty",
+            ));
+        }
         self.module_journal.validate()?;
         if self.module_journal.lane_id != LaneIdV1::ASSET_TRANSFER
             || self.module_journal.module_release_id != self.post_state.module_release_id
@@ -306,6 +304,22 @@ pub struct ManagedAssetLifecycleRejectedV1 {
     pub pre_state_root: RootV1,
     pub post_state_root: RootV1,
     pub effects: GlobalEconomicEffectPlanV1,
+}
+
+impl ManagedAssetLifecycleRejectedV1 {
+    pub fn validate(&self) -> AbiResultV1<()> {
+        self.pre_state_root
+            .validate("managed asset rejected pre-state", false)?;
+        self.post_state_root
+            .validate("managed asset rejected post-state", false)?;
+        self.effects.validate()?;
+        if self.pre_state_root != self.post_state_root || !self.effects.is_empty() {
+            return Err(AbiErrorV1::InvalidBinding(
+                "managed asset rejected transition no-op",
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
