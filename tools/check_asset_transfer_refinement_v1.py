@@ -1,22 +1,16 @@
 #!/usr/bin/env python3
 """Independent oracle for the bounded `ASSET_TRANSFER` refinement corpus.
 
-This module is deliberately standalone: it never imports or calls either runtime
-transition, and it recomputes every expected observation in
-``tests/data/asset_transfer_refinement_v1.json`` from the recorded
-context/pre-state/command under the scoped rejection precedence
-
-    RELEASE_MISMATCH -> UNKNOWN_COMMAND -> UNKNOWN_ASSET -> DISABLED_ASSET ->
-    UNAUTHORIZED_SUBJECT -> SELF_TRANSFER -> ZERO_AMOUNT -> FEE_LIMIT_EXCEEDED ->
-    EFFECT_DELTA_OVERFLOW -> sender insufficiency ->
-    recipient/distinct-fee-owner BALANCE_OVERFLOW
-
-with account deltas aggregated before any signed 128-bit width check.
+This module never imports or calls either runtime transition. It recomputes every
+expected observation in ``tests/data/asset_transfer_refinement_v1.json`` from the
+recorded context/pre-state/command under ``REJECT_PRECEDENCE_V1``, with every role
+delta aggregated before the signed 128-bit width check and with debit
+insufficiency ranked above credit overflow independently of principal spelling.
 
 Authority: bounded executable research evidence only. Nothing here creates
-production, settlement, release, migration, proof, or value-moving authority,
-and ``custody_domain`` is an accounting-location/control-domain label rather
-than a claim of possession or legal title.
+production, settlement, release, migration, proof, or value-moving authority, and
+``custody_domain`` is an accounting-location/control-domain label rather than a
+claim of possession or legal title.
 """
 
 from __future__ import annotations
@@ -24,7 +18,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
@@ -39,6 +33,7 @@ COMMAND_KIND_V1: Final = "asset_transfer"
 CUSTODY_DOMAIN_V1: Final = "accounts"
 ACCOUNT_MOVEMENT_V1: Final = "ACCOUNT_MOVEMENT"
 FEE_ALLOCATION_V1: Final = "FEE_ALLOCATION"
+DEFECT_KILLED_V1: Final = "killed_by_this_corpus"
 
 MAX_ATOMS_V1: Final = (1 << 128) - 1
 MIN_DELTA_ATOMS_V1: Final = -(1 << 127)
@@ -47,136 +42,27 @@ MAX_WRITER_EPOCH_V1: Final = (1 << 64) - 1
 MAX_TOKEN_BYTES_V1: Final = 160
 
 REJECT_PRECEDENCE_V1: Final = (
-    "RELEASE_MISMATCH",
-    "UNKNOWN_COMMAND",
-    "UNKNOWN_ASSET",
-    "DISABLED_ASSET",
-    "UNAUTHORIZED_SUBJECT",
-    "SELF_TRANSFER",
-    "ZERO_AMOUNT",
-    "FEE_LIMIT_EXCEEDED",
-    "EFFECT_DELTA_OVERFLOW",
-    "INSUFFICIENT_BALANCE",
-    "BALANCE_OVERFLOW",
+    "RELEASE_MISMATCH", "UNKNOWN_COMMAND", "UNKNOWN_ASSET", "DISABLED_ASSET",
+    "UNAUTHORIZED_SUBJECT", "SELF_TRANSFER", "ZERO_AMOUNT", "FEE_LIMIT_EXCEEDED",
+    "EFFECT_DELTA_OVERFLOW", "INSUFFICIENT_BALANCE", "BALANCE_OVERFLOW",
 )
 # `UNKNOWN_ASSET` and `DISABLED_ASSET` cannot be violated by one command at once,
 # so their pairwise witness carries a disabled-policy lure instead.
 MUTUALLY_EXCLUSIVE_PAIRS_V1: Final = (("UNKNOWN_ASSET", "DISABLED_ASSET"),)
-CROSS_LANGUAGE_VALUES_V1: Final = ("agree", "rust_defect_pending_repair")
 FEE_OWNER_ROLES_V1: Final = ("distinct", "none", "recipient", "sender")
 ACCEPTED_FEE_OWNER_ROLES_V1: Final = ("distinct", "recipient", "sender")
 REQUIRED_OBSERVATIONS_V1: Final = (
-    "accepted_asset_conservation",
-    "accepted_effect_rows",
-    "accepted_empty_external_outbox",
-    "accepted_fee_conservation",
-    "accepted_lane_write_pre_post_binding",
-    "accepted_occurrence_consumptions",
-    "accepted_post_balances",
-    "deterministic_repeated_replay",
-    "rejection_code",
-    "rejection_empty_effect_plan",
-    "rejection_pre_post_root_equality",
+    "accepted_asset_conservation", "accepted_effect_rows", "accepted_empty_external_outbox",
+    "accepted_fee_conservation", "accepted_lane_write_pre_post_binding",
+    "accepted_occurrence_consumptions", "accepted_post_balances", "deterministic_repeated_replay",
+    "rejection_code", "rejection_empty_effect_plan", "rejection_pre_post_root_equality",
 )
 
-_CORPUS_KEYS: Final = (
-    "authority",
-    "cases",
-    "checked_observations",
-    "class_vocabulary",
-    "corpus_version",
-    "deterministic_replay_repetitions",
-    "nonclaims",
-    "regeneration",
-    "reject_precedence",
-    "required_boundary_classes",
-    "required_fee_owner_roles",
-    "scalar_encoding",
-    "schema",
-    "unreachable_codes",
-    "validation_command",
-)
-_AUTHORITY_KEYS: Final = (
-    "migration_authority",
-    "production_authority",
-    "proof_authority",
-    "release_authority",
-    "settlement_authority",
-    "value_movement_authority",
-)
-_SCALAR_ENCODING_KEYS: Final = (
-    "atom_fields",
-    "boolean_fields",
-    "delta_fields",
-    "root_fields",
-    "small_integer_fields",
-)
-_UNREACHABLE_KEYS: Final = ("code", "reason")
-_CASE_KEYS: Final = (
-    "case_id",
-    "classes",
-    "command",
-    "context",
-    "cross_language",
-    "expected",
-    "fee_owner_role",
-    "precedence_pair",
-    "pre_state",
-    "rust_observed_code",
-    "title",
-)
-_CONTEXT_KEYS: Final = (
-    "chain_id",
-    "command_occurrence_id",
-    "deployment_root",
-    "grant_root",
-    "module_release_id",
-    "profile_root",
-    "subject_id",
-    "writer_epoch",
-)
-_STATE_KEYS: Final = ("balances", "module_release_id", "policies", "supplies")
-_POLICY_KEYS: Final = ("asset", "enabled", "fee_owner", "transfer_fee_atoms")
-_BALANCE_KEYS: Final = ("amount_atoms", "asset", "custody_domain", "owner")
-_SUPPLY_KEYS: Final = ("amount_atoms", "asset")
-_COMMAND_KEYS: Final = (
-    "amount_atoms",
-    "asset",
-    "command_kind",
-    "max_fee_atoms",
-    "recipient",
-    "sender",
-)
-_ACCEPTED_KEYS: Final = (
-    "asset_conservation",
-    "effect_rows",
-    "external_outbox_enqueue",
-    "fee_conservation",
-    "occurrence_consumptions",
-    "outcome",
-    "post_balances",
-)
-_REJECTED_KEYS: Final = ("effects_empty", "outcome", "reject_code", "state_root_unchanged")
-_EFFECT_ROW_KEYS: Final = ("asset", "custody_domain", "delta_atoms", "kind", "principal")
-_FEE_ROW_KEYS: Final = (
-    "asset",
-    "carried_residue_atoms",
-    "current_allocations_atoms",
-    "fee_charged_atoms",
-)
-_CONSERVATION_KEYS: Final = (
-    "asset",
-    "authorized_burn_atoms",
-    "authorized_issue_atoms",
-    "owned_and_custodied_post_atoms",
-    "owned_and_custodied_pre_atoms",
-    "supply_post_atoms",
-    "supply_pre_atoms",
-)
-
+_TOKEN_RE: Final = re.compile(r"\A[\x21-\x7e]+\Z")
 _ATOMS_RE: Final = re.compile(r"\A(?:0|[1-9][0-9]*)\Z")
-_DELTA_RE: Final = re.compile(r"\A(?:0|-?[1-9][0-9]*)\Z")
 _ROOT_RE: Final = re.compile(r"\A0x[0-9a-f]{64}\Z")
+
+Parser = Callable[[Any, str], Any]
 
 
 class RefinementCorpusErrorV1(ValueError):
@@ -196,21 +82,7 @@ def _reject_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     return result
 
 
-def _mapping(value: object, *, keys: Sequence[str], where: str) -> Mapping[str, Any]:
-    if type(value) is not dict:
-        _fail(f"{where} must be a JSON object")
-    if tuple(sorted(value)) != tuple(sorted(keys)):
-        _fail(f"{where} must carry exactly the fields {sorted(keys)}")
-    return value
-
-
-def _list(value: object, *, where: str) -> list[Any]:
-    if type(value) is not list:
-        _fail(f"{where} must be a JSON array")
-    return value
-
-
-def _text(value: object, *, where: str) -> str:
+def _text(value: Any, where: str) -> str:
     if type(value) is not str:
         _fail(f"{where} must be a JSON string")
     if not value:
@@ -218,63 +90,153 @@ def _text(value: object, *, where: str) -> str:
     return value
 
 
-def _token(value: object, *, where: str) -> str:
-    text = _text(value, where=where)
-    if len(text.encode("utf-8")) > MAX_TOKEN_BYTES_V1:
-        _fail(f"{where} exceeds {MAX_TOKEN_BYTES_V1} UTF-8 bytes")
-    if any(ord(char) < 0x21 or ord(char) > 0x7E for char in text):
-        _fail(f"{where} must use printable ASCII")
+def _token(value: Any, where: str) -> str:
+    text = _text(value, where)
+    if not _TOKEN_RE.fullmatch(text) or len(text.encode("utf-8")) > MAX_TOKEN_BYTES_V1:
+        _fail(f"{where} must be printable ASCII of at most {MAX_TOKEN_BYTES_V1} bytes")
     return text
 
 
-def _root(value: object, *, where: str) -> str:
-    text = _text(value, where=where)
-    if not _ROOT_RE.fullmatch(text):
+def _root(value: Any, where: str) -> str:
+    if not _ROOT_RE.fullmatch(_text(value, where)):
         _fail(f"{where} must be a lowercase 0x-prefixed 32-byte hex root")
-    return text
+    return str(value)
 
 
-def _atoms(value: object, *, where: str) -> int:
-    text = _text(value, where=where)
-    if not _ATOMS_RE.fullmatch(text):
-        _fail(f"{where} must be a canonical unsigned base-10 atom string")
-    atoms = int(text)
-    if atoms > MAX_ATOMS_V1:
-        _fail(f"{where} must fit an unsigned 128-bit integer")
+def _atoms(value: Any, where: str) -> int:
+    text = _text(value, where)
+    if not _ATOMS_RE.fullmatch(text) or int(text) > MAX_ATOMS_V1:
+        _fail(f"{where} must be a canonical unsigned base-10 atom string below 2^128")
+    return int(text)
+
+
+def _positive_atoms(value: Any, where: str) -> int:
+    atoms = _atoms(value, where)
+    if atoms == 0:
+        _fail(f"{where} must be omitted rather than carry a zero balance")
     return atoms
 
 
-def _delta(value: object, *, where: str) -> int:
-    text = _text(value, where=where)
-    if not _DELTA_RE.fullmatch(text):
-        _fail(f"{where} must be a canonical signed base-10 delta string")
-    delta = int(text)
-    if not MIN_DELTA_ATOMS_V1 <= delta <= MAX_DELTA_ATOMS_V1:
-        _fail(f"{where} must fit a signed 128-bit integer")
-    return delta
-
-
-def _flag(value: object, *, where: str) -> bool:
+def _flag(value: Any, where: str) -> bool:
     if type(value) is not bool:
         _fail(f"{where} must be a JSON boolean")
     return value
 
 
-def _small_int(value: object, *, where: str, maximum: int) -> int:
+def _boolean(expected: bool, reason: str) -> Parser:
+    def parse(value: Any, where: str) -> bool:
+        if _flag(value, where) is not expected:
+            _fail(f"{where} must be {str(expected).lower()} {reason}")
+        return expected
+
+    return parse
+
+
+def _epoch(value: Any, where: str) -> int:
     if type(value) is not int:
         _fail(f"{where} must be a JSON integer with exact int type")
-    if not 0 <= value <= maximum:
-        _fail(f"{where} must lie in [0, {maximum}]")
+    if not 0 <= value <= MAX_WRITER_EPOCH_V1:
+        _fail(f"{where} must lie in [0, {MAX_WRITER_EPOCH_V1}]")
     return value
 
 
-def _sorted_unique_tokens(value: object, *, where: str) -> tuple[str, ...]:
-    items = tuple(_token(item, where=f"{where} entry") for item in _list(value, where=where))
-    if not items:
-        _fail(f"{where} must not be empty")
-    if items != tuple(sorted(set(items))):
-        _fail(f"{where} must be sorted and unique")
-    return items
+def _member(allowed: tuple[str, ...], noun: str) -> Parser:
+    def parse(value: Any, where: str) -> str:
+        text = _text(value, where)
+        if text not in allowed:
+            _fail(f"{where} is not a declared {noun}: expected one of {sorted(allowed)}")
+        return text
+
+    return parse
+
+
+_true: Final[Parser] = _boolean(True, "for a rejection")
+_false: Final[Parser] = _boolean(False, "for research-only evidence")
+_schema: Final[Parser] = _member((CORPUS_SCHEMA_V1,), "corpus schema")
+_reject_code: Final[Parser] = _member(REJECT_PRECEDENCE_V1, "reject code")
+_custody_domain: Final[Parser] = _member((CUSTODY_DOMAIN_V1,), "custody domain")
+_fee_owner_role: Final[Parser] = _member(FEE_OWNER_ROLES_V1, "fee owner role")
+_defect_status: Final[Parser] = _member((DEFECT_KILLED_V1,), "prior defect status")
+
+
+def _list(value: Any, where: str) -> list[Any]:
+    if type(value) is not list:
+        _fail(f"{where} must be a JSON array")
+    return value
+
+
+def _each(parse: Parser) -> Parser:
+    def parse_all(value: Any, where: str) -> tuple[Any, ...]:
+        return tuple(parse(item, f"{where}[{i}]") for i, item in enumerate(_list(value, where)))
+
+    return parse_all
+
+
+_texts: Final[Parser] = _each(_text)
+
+
+def _tokens(value: Any, where: str) -> tuple[str, ...]:
+    items: tuple[str, ...] = _texts(value, where)
+    if not items or items != tuple(sorted(set(items))):
+        _fail(f"{where} must be a nonempty array of tokens, sorted and unique")
+    return tuple(_token(item, where) for item in items)
+
+
+def _empty_outbox(value: Any, where: str) -> tuple[()]:
+    if _list(value, where):
+        _fail(f"{where} must stay empty for this lane")
+    return ()
+
+
+def _fields(spec: Mapping[str, Parser]) -> Parser:
+    """Build a parser for a closed JSON object: exactly these keys, exactly typed."""
+
+    def parse(value: Any, where: str) -> dict[str, Any]:
+        if type(value) is not dict:
+            _fail(f"{where} must be a JSON object")
+        if tuple(sorted(value)) != tuple(sorted(spec)):
+            _fail(f"{where} must carry exactly the fields {sorted(spec)}")
+        return {key: field(value[key], f"{where}.{key}") for key, field in spec.items()}
+
+    return parse
+
+
+def _rows_of(spec: Mapping[str, Parser]) -> Parser:
+    return _each(_fields(spec))
+
+
+_CONTEXT_SPEC: Final[dict[str, Parser]] = {
+    "chain_id": _token, "subject_id": _token, "writer_epoch": _epoch,
+    "command_occurrence_id": _root, "deployment_root": _root, "grant_root": _root,
+    "module_release_id": _root, "profile_root": _root,
+}
+_COMMAND_SPEC: Final[dict[str, Parser]] = {
+    "amount_atoms": _atoms, "asset": _token, "command_kind": _token,
+    "max_fee_atoms": _atoms, "recipient": _token, "sender": _token,
+}
+_STATE_SPEC: Final[dict[str, Parser]] = {
+    "module_release_id": _root,
+    "balances": _rows_of({
+        "amount_atoms": _positive_atoms, "asset": _token,
+        "custody_domain": _custody_domain, "owner": _token,
+    }),
+    "policies": _rows_of(
+        {"asset": _token, "enabled": _flag, "fee_owner": _token, "transfer_fee_atoms": _atoms}
+    ),
+    "supplies": _rows_of({"amount_atoms": _atoms, "asset": _token}),
+}
+_REJECTED_SPEC: Final[dict[str, Parser]] = {
+    "effects_empty": _true, "outcome": _text,
+    "reject_code": _reject_code, "state_root_unchanged": _true,
+}
+# The accepted expectation deliberately carries no inner row schema:
+# `_check_case_semantics` pins every row, field, type and canonical spelling by
+# exact equality against the independently recomputed observation.
+_ACCEPTED_SPEC: Final[dict[str, Parser]] = dict.fromkeys(
+    ("asset_conservation", "effect_rows", "fee_conservation", "occurrence_consumptions",
+     "post_balances"),
+    lambda value, _where: value,
+) | {"external_outbox_enqueue": _empty_outbox, "outcome": _text}
 
 
 @dataclass(frozen=True, slots=True)
@@ -304,10 +266,8 @@ class RefinementCaseV1:
     case_id: str
     title: str
     classes: tuple[str, ...]
-    cross_language: str
     fee_owner_role: str
     precedence_pair: tuple[str, str] | None
-    rust_observed_code: str | None
     context: Mapping[str, Any]
     pre_state: Mapping[str, Any]
     command: Mapping[str, Any]
@@ -326,105 +286,84 @@ class RefinementCaseV1:
 
 @dataclass(frozen=True, slots=True)
 class AssetTransferRefinementCorpusV1:
-    schema: str
-    corpus_version: int
     validation_command: str
-    regeneration: str
-    reject_precedence: tuple[str, ...]
     unreachable_codes: Mapping[str, str]
     deterministic_replay_repetitions: int
-    required_fee_owner_roles: tuple[str, ...]
-    class_vocabulary: tuple[str, ...]
-    required_boundary_classes: tuple[str, ...]
     checked_observations: tuple[str, ...]
     nonclaims: tuple[str, ...]
+    prior_defects: tuple[Mapping[str, Any], ...]
     cases: tuple[RefinementCaseV1, ...]
 
 
-def _parse_pre_state(raw: object, *, where: str) -> RefinementPreStateV1:
-    state = _mapping(raw, keys=_STATE_KEYS, where=where)
-    policies: list[RefinementPolicyV1] = []
-    for index, row in enumerate(_list(state["policies"], where=f"{where}.policies")):
-        marker = f"{where}.policies[{index}]"
-        fields = _mapping(row, keys=_POLICY_KEYS, where=marker)
-        policies.append(
-            RefinementPolicyV1(
-                asset=_token(fields["asset"], where=f"{marker}.asset"),
-                fee_owner=_token(fields["fee_owner"], where=f"{marker}.fee_owner"),
-                transfer_fee_atoms=_atoms(
-                    fields["transfer_fee_atoms"], where=f"{marker}.transfer_fee_atoms"
-                ),
-                enabled=_flag(fields["enabled"], where=f"{marker}.enabled"),
-            )
-        )
-    assets = tuple(policy.asset for policy in policies)
-    if not assets:
-        _fail(f"{where}.policies must not be empty")
-    if assets != tuple(sorted(set(assets))):
-        _fail(f"{where}.policies must be sorted and unique by asset")
-
-    supplies: dict[str, int] = {}
-    supply_rows = _list(state["supplies"], where=f"{where}.supplies")
-    for index, row in enumerate(supply_rows):
-        marker = f"{where}.supplies[{index}]"
-        fields = _mapping(row, keys=_SUPPLY_KEYS, where=marker)
-        supplies[_token(fields["asset"], where=f"{marker}.asset")] = _atoms(
-            fields["amount_atoms"], where=f"{marker}.amount_atoms"
-        )
-    if tuple(supplies) != assets or len(supply_rows) != len(assets):
-        _fail(f"{where}.supplies must cover exactly the policy assets in policy order")
-
-    balances: dict[tuple[str, str], int] = {}
-    previous_key: tuple[str, str, str] | None = None
-    for index, row in enumerate(_list(state["balances"], where=f"{where}.balances")):
-        marker = f"{where}.balances[{index}]"
-        fields = _mapping(row, keys=_BALANCE_KEYS, where=marker)
-        owner = _token(fields["owner"], where=f"{marker}.owner")
-        asset = _token(fields["asset"], where=f"{marker}.asset")
-        domain = _token(fields["custody_domain"], where=f"{marker}.custody_domain")
-        atoms = _atoms(fields["amount_atoms"], where=f"{marker}.amount_atoms")
-        if domain != CUSTODY_DOMAIN_V1:
-            _fail(f"{marker}.custody_domain must be {CUSTODY_DOMAIN_V1!r}")
-        if atoms == 0:
-            _fail(f"{marker} must be omitted rather than carry a zero balance")
-        if asset not in supplies:
-            _fail(f"{marker}.asset has no lane policy")
-        key = (asset, owner, domain)
-        if previous_key is not None and previous_key >= key:
-            _fail(f"{where}.balances must be sorted and unique by (asset, owner, custody_domain)")
-        previous_key = key
-        balances[(asset, owner)] = atoms
-
-    for asset, supply_atoms in supplies.items():
-        total = sum(atoms for (row_asset, _), atoms in balances.items() if row_asset == asset)
-        if total > supply_atoms:
-            _fail(f"{where} account total for {asset!r} exceeds supply")
-
-    return RefinementPreStateV1(
-        module_release_id=_root(state["module_release_id"], where=f"{where}.module_release_id"),
-        policies=tuple(policies),
-        balances=MappingProxyType(balances),
-        supplies=MappingProxyType(supplies),
+def _parse_pre_state(raw: Any, where: str) -> RefinementPreStateV1:
+    state = _fields(_STATE_SPEC)(raw, where)
+    policies = tuple(
+        RefinementPolicyV1(row["asset"], row["fee_owner"], row["transfer_fee_atoms"], row["enabled"])
+        for row in state["policies"]
     )
+    assets = tuple(policy.asset for policy in policies)
+    if not assets or assets != tuple(sorted(set(assets))):
+        _fail(f"{where}.policies must be nonempty and sorted and unique by asset")
+    supplies = {row["asset"]: row["amount_atoms"] for row in state["supplies"]}
+    if tuple(supplies) != assets or len(state["supplies"]) != len(assets):
+        _fail(f"{where}.supplies must cover exactly the policy assets in policy order")
+    keys = [(row["asset"], row["owner"], row["custody_domain"]) for row in state["balances"]]
+    if keys != sorted(set(keys)):
+        _fail(f"{where}.balances must be sorted and unique by (asset, owner, custody_domain)")
+    balances = {(row["asset"], row["owner"]): row["amount_atoms"] for row in state["balances"]}
+    if any(asset not in supplies for asset, _ in balances):
+        _fail(f"{where}.balances carries an asset with no lane policy")
+    for asset, supply_atoms in supplies.items():
+        if sum(a for (row_asset, _), a in balances.items() if row_asset == asset) > supply_atoms:
+            _fail(f"{where} account total for {asset!r} exceeds supply")
+    proxies = (MappingProxyType(balances), MappingProxyType(supplies))
+    return RefinementPreStateV1(state["module_release_id"], policies, *proxies)
 
 
-def _parse_context(raw: object, *, where: str) -> Mapping[str, Any]:
-    context = _mapping(raw, keys=_CONTEXT_KEYS, where=where)
-    _token(context["chain_id"], where=f"{where}.chain_id")
-    _token(context["subject_id"], where=f"{where}.subject_id")
-    _small_int(context["writer_epoch"], where=f"{where}.writer_epoch", maximum=MAX_WRITER_EPOCH_V1)
-    for field in ("deployment_root", "profile_root", "module_release_id", "command_occurrence_id", "grant_root"):
-        _root(context[field], where=f"{where}.{field}")
-    return context
+def _parse_expected(raw: Any, where: str) -> dict[str, Any]:
+    if type(raw) is not dict:
+        _fail(f"{where} must be a JSON object")
+    outcome = _text(raw.get("outcome"), f"{where}.outcome")
+    if outcome not in ("accepted", "rejected"):
+        _fail(f"{where}.outcome must be 'accepted' or 'rejected'")
+    return _fields(_REJECTED_SPEC if outcome == "rejected" else _ACCEPTED_SPEC)(raw, where)
 
 
-def _parse_command(raw: object, *, where: str) -> Mapping[str, Any]:
-    command = _mapping(raw, keys=_COMMAND_KEYS, where=where)
-    for field in ("command_kind", "asset", "sender", "recipient"):
-        _token(command[field], where=f"{where}.{field}")
-    _atoms(command["amount_atoms"], where=f"{where}.amount_atoms")
-    _atoms(command["max_fee_atoms"], where=f"{where}.max_fee_atoms")
-    return command
+def _parse_precedence_pair(value: Any, where: str) -> tuple[str, str] | None:
+    if value is None:
+        return None
+    entries: tuple[str, ...] = _each(_reject_code)(value, where)
+    if len(entries) != 2:
+        _fail(f"{where} must name exactly two reject codes")
+    first, second = entries
+    if REJECT_PRECEDENCE_V1.index(second) - REJECT_PRECEDENCE_V1.index(first) != 1:
+        _fail(f"{where} must name adjacent reject classes")
+    return (first, second)
+
+
+_CASE_SPEC: Final[dict[str, Parser]] = {
+    "case_id": _token, "title": _text, "classes": _tokens,
+    "command": _fields(_COMMAND_SPEC), "context": _fields(_CONTEXT_SPEC),
+    "expected": _parse_expected, "fee_owner_role": _fee_owner_role,
+    "precedence_pair": _parse_precedence_pair, "pre_state": _parse_pre_state,
+}
+_CORPUS_SPEC: Final[dict[str, Parser]] = {
+    "authority": _fields(dict.fromkeys(
+        ("migration_authority", "production_authority", "proof_authority", "release_authority",
+         "settlement_authority", "value_movement_authority"), _false)),
+    "scalar_encoding": _fields(dict.fromkeys(
+        ("atom_fields", "boolean_fields", "delta_fields", "root_fields", "small_integer_fields"),
+        _text)),
+    "prior_defects": _rows_of(
+        {"defect": _text, "regression_case_ids": _tokens, "status": _defect_status}
+    ),
+    "unreachable_codes": _rows_of({"code": _reject_code, "reason": _text}),
+    "cases": _list, "checked_observations": _tokens, "class_vocabulary": _tokens,
+    "corpus_version": _epoch, "deterministic_replay_repetitions": _epoch,
+    "nonclaims": _texts, "regeneration": _text, "reject_precedence": _texts,
+    "required_boundary_classes": _tokens, "required_fee_owner_roles": _tokens,
+    "schema": _schema, "validation_command": _text,
+}
 
 
 def _aggregated_deltas(
@@ -432,10 +371,8 @@ def _aggregated_deltas(
 ) -> tuple[tuple[str, ...], dict[str, int]]:
     """Aggregate every role delta before any signed 128-bit width check."""
 
-    sender = str(command["sender"])
-    recipient = str(command["recipient"])
-    amount = int(str(command["amount_atoms"]))
-    fee = policy.transfer_fee_atoms
+    sender, recipient = str(command["sender"]), str(command["recipient"])
+    amount, fee = int(command["amount_atoms"]), policy.transfer_fee_atoms
     deltas = {sender: -(amount + fee), recipient: amount}
     deltas[policy.fee_owner] = deltas.get(policy.fee_owner, 0) + fee
     order = [sender]
@@ -446,44 +383,37 @@ def _aggregated_deltas(
     return tuple(order), deltas
 
 
-def _post_balance(state: RefinementPreStateV1, asset: str, owner: str, delta: int) -> int:
-    return state.balances.get((asset, owner), 0) + delta
-
-
 def violated_codes_v1(case: RefinementCaseV1) -> frozenset[str]:
     """Independently name every reject condition the case violates at once."""
 
     context, state, command = case.context, case.parsed_pre_state, case.command
-    asset = str(command["asset"])
-    amount = int(str(command["amount_atoms"]))
+    asset, amount = str(command["asset"]), int(command["amount_atoms"])
     policy = state.policy_for(asset)
-    violated: set[str] = set()
-    if context["module_release_id"] != state.module_release_id:
-        violated.add("RELEASE_MISMATCH")
-    if command["command_kind"] != COMMAND_KIND_V1:
-        violated.add("UNKNOWN_COMMAND")
-    if policy is None:
-        violated.add("UNKNOWN_ASSET")
-    elif not policy.enabled:
-        violated.add("DISABLED_ASSET")
-    if command["sender"] != context["subject_id"]:
-        violated.add("UNAUTHORIZED_SUBJECT")
-    if command["sender"] == command["recipient"]:
-        violated.add("SELF_TRANSFER")
-    if amount == 0:
-        violated.add("ZERO_AMOUNT")
-    if policy is None:
-        return frozenset(violated)
-    if policy.transfer_fee_atoms > int(str(command["max_fee_atoms"])):
-        violated.add("FEE_LIMIT_EXCEEDED")
-    if command["sender"] == command["recipient"] or amount == 0:
+    fee = 0 if policy is None else policy.transfer_fee_atoms
+    violated = {
+        code
+        for code, hit in (
+            ("RELEASE_MISMATCH", context["module_release_id"] != state.module_release_id),
+            ("UNKNOWN_COMMAND", command["command_kind"] != COMMAND_KIND_V1),
+            ("UNKNOWN_ASSET", policy is None),
+            ("DISABLED_ASSET", policy is not None and not policy.enabled),
+            ("UNAUTHORIZED_SUBJECT", command["sender"] != context["subject_id"]),
+            ("SELF_TRANSFER", command["sender"] == command["recipient"]),
+            ("ZERO_AMOUNT", amount == 0),
+            ("FEE_LIMIT_EXCEEDED", policy is not None and fee > int(command["max_fee_atoms"])),
+        )
+        if hit
+    }
+    # An unknown asset, a self transfer and a zero amount leave no role deltas to
+    # aggregate, and each already outranks every width or balance class below.
+    if policy is None or violated & {"SELF_TRANSFER", "ZERO_AMOUNT"}:
         return frozenset(violated)
     order, deltas = _aggregated_deltas(command, policy)
-    widths = (*deltas.values(), policy.transfer_fee_atoms)
+    widths = (*deltas.values(), fee)
     if any(width < MIN_DELTA_ATOMS_V1 or width > MAX_DELTA_ATOMS_V1 for width in widths):
         violated.add("EFFECT_DELTA_OVERFLOW")
     for owner in order:
-        post = _post_balance(state, asset, owner, deltas[owner])
+        post = state.balances.get((asset, owner), 0) + deltas[owner]
         if post < 0:
             violated.add("INSUFFICIENT_BALANCE")
         elif post > MAX_ATOMS_V1:
@@ -491,426 +421,194 @@ def violated_codes_v1(case: RefinementCaseV1) -> frozenset[str]:
     return frozenset(violated)
 
 
-def intended_observation_v1(case: RefinementCaseV1) -> dict[str, Any]:
-    """Recompute the intended observation from the recorded inputs alone."""
-
-    context, state, command = case.context, case.parsed_pre_state, case.command
-    asset = str(command["asset"])
-    amount = int(str(command["amount_atoms"]))
-
-    def rejected(code: str) -> dict[str, Any]:
-        return {
-            "outcome": "rejected",
-            "reject_code": code,
-            "effects_empty": True,
-            "state_root_unchanged": True,
-        }
-
-    if context["module_release_id"] != state.module_release_id:
-        return rejected("RELEASE_MISMATCH")
-    if command["command_kind"] != COMMAND_KIND_V1:
-        return rejected("UNKNOWN_COMMAND")
-    policy = state.policy_for(asset)
-    if policy is None:
-        return rejected("UNKNOWN_ASSET")
-    if not policy.enabled:
-        return rejected("DISABLED_ASSET")
-    if command["sender"] != context["subject_id"]:
-        return rejected("UNAUTHORIZED_SUBJECT")
-    if command["sender"] == command["recipient"]:
-        return rejected("SELF_TRANSFER")
-    if amount == 0:
-        return rejected("ZERO_AMOUNT")
-    if policy.transfer_fee_atoms > int(str(command["max_fee_atoms"])):
-        return rejected("FEE_LIMIT_EXCEEDED")
-
+def _accepted_observation(case: RefinementCaseV1, policy: RefinementPolicyV1) -> dict[str, Any]:
+    state, command = case.parsed_pre_state, case.command
+    asset, fee = str(command["asset"]), policy.transfer_fee_atoms
     order, deltas = _aggregated_deltas(command, policy)
-    widths = (*deltas.values(), policy.transfer_fee_atoms)
-    if any(width < MIN_DELTA_ATOMS_V1 or width > MAX_DELTA_ATOMS_V1 for width in widths):
-        return rejected("EFFECT_DELTA_OVERFLOW")
-
-    post_atoms = dict(state.balances)
+    post = dict(state.balances)
     for owner in order:
-        value = post_atoms.get((asset, owner), 0) + deltas[owner]
-        if value < 0:
-            return rejected("INSUFFICIENT_BALANCE")
-        if value > MAX_ATOMS_V1:
-            return rejected("BALANCE_OVERFLOW")
-        if value == 0:
-            post_atoms.pop((asset, owner), None)
-        else:
-            post_atoms[(asset, owner)] = value
-
-    fee = policy.transfer_fee_atoms
+        value = post.pop((asset, owner), 0) + deltas[owner]
+        if value:
+            post[(asset, owner)] = value
     rows = [
-        {
-            "kind": ACCOUNT_MOVEMENT_V1,
-            "principal": owner,
-            "asset": asset,
-            "custody_domain": CUSTODY_DOMAIN_V1,
-            "delta_atoms": str(delta),
-        }
+        {"kind": ACCOUNT_MOVEMENT_V1, "principal": owner, "asset": asset,
+         "custody_domain": CUSTODY_DOMAIN_V1, "delta_atoms": str(delta)}
         for owner, delta in deltas.items()
-        if delta != 0
+        if delta
     ]
     if fee:
-        rows.append(
-            {
-                "kind": FEE_ALLOCATION_V1,
-                "principal": policy.fee_owner,
-                "asset": asset,
-                "custody_domain": CUSTODY_DOMAIN_V1,
-                "delta_atoms": str(fee),
-            }
-        )
+        rows.append({"kind": FEE_ALLOCATION_V1, "principal": policy.fee_owner, "asset": asset,
+                     "custody_domain": CUSTODY_DOMAIN_V1, "delta_atoms": str(fee)})
     rows.sort(key=lambda row: (row["kind"], row["asset"], row["principal"], row["custody_domain"]))
+    fee_rows = [{"asset": asset, "fee_charged_atoms": str(fee),
+                 "current_allocations_atoms": str(fee), "carried_residue_atoms": "0"}]
+    supply = str(state.supplies[asset])
+    post_total = sum(atoms for (row_asset, _), atoms in post.items() if row_asset == asset)
     return {
         "outcome": "accepted",
         "post_balances": [
-            {
-                "owner": owner,
-                "asset": row_asset,
-                "custody_domain": CUSTODY_DOMAIN_V1,
-                "amount_atoms": str(atoms),
-            }
-            for (row_asset, owner), atoms in sorted(post_atoms.items())
+            {"owner": owner, "asset": row_asset, "custody_domain": CUSTODY_DOMAIN_V1,
+             "amount_atoms": str(atoms)}
+            for (row_asset, owner), atoms in sorted(post.items())
         ],
         "effect_rows": rows,
-        "fee_conservation": (
-            [
-                {
-                    "asset": asset,
-                    "fee_charged_atoms": str(fee),
-                    "current_allocations_atoms": str(fee),
-                    "carried_residue_atoms": "0",
-                }
-            ]
-            if fee
-            else []
-        ),
+        "fee_conservation": fee_rows if fee else [],
         "asset_conservation": {
-            "asset": asset,
-            "owned_and_custodied_pre_atoms": str(state.account_total(asset)),
-            "owned_and_custodied_post_atoms": str(
-                sum(atoms for (row_asset, _), atoms in post_atoms.items() if row_asset == asset)
-            ),
-            "supply_pre_atoms": str(state.supplies[asset]),
-            "supply_post_atoms": str(state.supplies[asset]),
-            "authorized_issue_atoms": "0",
-            "authorized_burn_atoms": "0",
+            "asset": asset, "owned_and_custodied_pre_atoms": str(state.account_total(asset)),
+            "owned_and_custodied_post_atoms": str(post_total),
+            "supply_pre_atoms": supply, "supply_post_atoms": supply,
+            "authorized_issue_atoms": "0", "authorized_burn_atoms": "0",
         },
-        "occurrence_consumptions": [str(context["command_occurrence_id"])],
+        "occurrence_consumptions": [str(case.context["command_occurrence_id"])],
         "external_outbox_enqueue": [],
     }
 
 
-def _parse_expected(raw: object, *, where: str, precedence: tuple[str, ...]) -> Mapping[str, Any]:
-    if type(raw) is not dict:
-        _fail(f"{where} must be a JSON object")
-    outcome = _text(raw.get("outcome"), where=f"{where}.outcome")
-    if outcome == "rejected":
-        expected = _mapping(raw, keys=_REJECTED_KEYS, where=where)
-        code = _text(expected["reject_code"], where=f"{where}.reject_code")
-        if code not in precedence:
-            _fail(f"{where}.reject_code is not a declared reject code")
-        if not _flag(expected["effects_empty"], where=f"{where}.effects_empty"):
-            _fail(f"{where}.effects_empty must be true for a rejection")
-        if not _flag(expected["state_root_unchanged"], where=f"{where}.state_root_unchanged"):
-            _fail(f"{where}.state_root_unchanged must be true for a rejection")
-        return expected
-    if outcome != "accepted":
-        _fail(f"{where}.outcome must be 'accepted' or 'rejected'")
-    expected = _mapping(raw, keys=_ACCEPTED_KEYS, where=where)
-    for index, row in enumerate(_list(expected["post_balances"], where=f"{where}.post_balances")):
-        marker = f"{where}.post_balances[{index}]"
-        fields = _mapping(row, keys=_BALANCE_KEYS, where=marker)
-        _token(fields["owner"], where=f"{marker}.owner")
-        _token(fields["asset"], where=f"{marker}.asset")
-        _token(fields["custody_domain"], where=f"{marker}.custody_domain")
-        if _atoms(fields["amount_atoms"], where=f"{marker}.amount_atoms") == 0:
-            _fail(f"{marker} must be omitted rather than carry a zero balance")
-    for index, row in enumerate(_list(expected["effect_rows"], where=f"{where}.effect_rows")):
-        marker = f"{where}.effect_rows[{index}]"
-        fields = _mapping(row, keys=_EFFECT_ROW_KEYS, where=marker)
-        if _text(fields["kind"], where=f"{marker}.kind") not in (
-            ACCOUNT_MOVEMENT_V1,
-            FEE_ALLOCATION_V1,
-        ):
-            _fail(f"{marker}.kind is outside the corpus effect vocabulary")
-        _token(fields["principal"], where=f"{marker}.principal")
-        _token(fields["asset"], where=f"{marker}.asset")
-        _token(fields["custody_domain"], where=f"{marker}.custody_domain")
-        if _delta(fields["delta_atoms"], where=f"{marker}.delta_atoms") == 0:
-            _fail(f"{marker}.delta_atoms must be nonzero")
-    for index, row in enumerate(
-        _list(expected["fee_conservation"], where=f"{where}.fee_conservation")
-    ):
-        marker = f"{where}.fee_conservation[{index}]"
-        fields = _mapping(row, keys=_FEE_ROW_KEYS, where=marker)
-        _token(fields["asset"], where=f"{marker}.asset")
-        for field in ("fee_charged_atoms", "current_allocations_atoms", "carried_residue_atoms"):
-            _atoms(fields[field], where=f"{marker}.{field}")
-    conservation = _mapping(
-        expected["asset_conservation"], keys=_CONSERVATION_KEYS, where=f"{where}.asset_conservation"
-    )
-    _token(conservation["asset"], where=f"{where}.asset_conservation.asset")
-    for field in _CONSERVATION_KEYS[1:]:
-        _atoms(conservation[field], where=f"{where}.asset_conservation.{field}")
-    for index, value in enumerate(
-        _list(expected["occurrence_consumptions"], where=f"{where}.occurrence_consumptions")
-    ):
-        _root(value, where=f"{where}.occurrence_consumptions[{index}]")
-    if _list(expected["external_outbox_enqueue"], where=f"{where}.external_outbox_enqueue"):
-        _fail(f"{where}.external_outbox_enqueue must stay empty for this lane")
-    return expected
+def intended_observation_v1(case: RefinementCaseV1) -> dict[str, Any]:
+    """Recompute the intended observation from the recorded inputs alone."""
+
+    violated = violated_codes_v1(case)
+    if (first := next((code for code in REJECT_PRECEDENCE_V1 if code in violated), None)) is not None:
+        return {"outcome": "rejected", "reject_code": first,
+                "effects_empty": True, "state_root_unchanged": True}
+    policy = case.parsed_pre_state.policy_for(str(case.command["asset"]))
+    if policy is None:
+        _fail(f"case {case.case_id!r} has no lane policy yet violates no reject condition")
+    return _accepted_observation(case, policy)
 
 
-def _fee_owner_role(case_command: Mapping[str, Any], state: RefinementPreStateV1) -> str:
-    policy = state.policy_for(str(case_command["asset"]))
+def _implied_fee_owner_role(command: Mapping[str, Any], state: RefinementPreStateV1) -> str:
+    policy = state.policy_for(str(command["asset"]))
     if policy is None:
         return "none"
-    is_sender = policy.fee_owner == case_command["sender"]
-    is_recipient = policy.fee_owner == case_command["recipient"]
+    is_sender = policy.fee_owner == command["sender"]
+    is_recipient = policy.fee_owner == command["recipient"]
     if is_sender and is_recipient:
         _fail("fee owner alias is ambiguous: sender, recipient and fee owner coincide")
     if is_sender:
         return "sender"
-    if is_recipient:
-        return "recipient"
-    return "distinct"
+    return "recipient" if is_recipient else "distinct"
 
 
-def _parse_case(
-    raw: object, *, index: int, vocabulary: tuple[str, ...], precedence: tuple[str, ...]
-) -> RefinementCaseV1:
-    where = f"cases[{index}]"
-    fields = _mapping(raw, keys=_CASE_KEYS, where=where)
-    case_id = _token(fields["case_id"], where=f"{where}.case_id")
-    where = f"case {case_id!r}"
-    classes = _sorted_unique_tokens(fields["classes"], where=f"{where}.classes")
-    unknown = tuple(name for name in classes if name not in vocabulary)
+def _parse_case(raw: Any, index: int, vocabulary: tuple[str, ...], unreachable: Mapping[str, str]) -> RefinementCaseV1:
+    """Parse one case, then confront it with the independently recomputed oracle."""
+
+    fields = _fields(_CASE_SPEC)(raw, f"cases[{index}]")
+    where = f"case {fields['case_id']!r}"
+    unknown = tuple(name for name in fields["classes"] if name not in vocabulary)
     if unknown:
         _fail(f"{where}.classes uses aliases outside the closed vocabulary: {list(unknown)}")
-    cross_language = _text(fields["cross_language"], where=f"{where}.cross_language")
-    if cross_language not in CROSS_LANGUAGE_VALUES_V1:
-        _fail(f"{where}.cross_language must be one of {list(CROSS_LANGUAGE_VALUES_V1)}")
-
-    context = _parse_context(fields["context"], where=f"{where}.context")
-    parsed_pre_state = _parse_pre_state(fields["pre_state"], where=f"{where}.pre_state")
-    command = _parse_command(fields["command"], where=f"{where}.command")
-    expected = _parse_expected(fields["expected"], where=f"{where}.expected", precedence=precedence)
-
-    role = _text(fields["fee_owner_role"], where=f"{where}.fee_owner_role")
-    if role not in FEE_OWNER_ROLES_V1:
-        _fail(f"{where}.fee_owner_role must be one of {list(FEE_OWNER_ROLES_V1)}")
-    if role != _fee_owner_role(command, parsed_pre_state):
-        _fail(f"{where}.fee_owner_role does not match the fee owner alias implied by the inputs")
-
-    pair_value = fields["precedence_pair"]
-    pair: tuple[str, str] | None = None
-    if pair_value is not None:
-        entries = tuple(
-            _text(entry, where=f"{where}.precedence_pair entry")
-            for entry in _list(pair_value, where=f"{where}.precedence_pair")
-        )
-        if len(entries) != 2:
-            _fail(f"{where}.precedence_pair must name exactly two reject codes")
-        pair = (entries[0], entries[1])
-    if (pair is not None) != ("precedence_pair" in classes):
+    if (fields["precedence_pair"] is not None) != ("precedence_pair" in fields["classes"]):
         _fail(f"{where} must declare the precedence_pair class exactly when it carries a pair")
-
-    observed = fields["rust_observed_code"]
-    rust_observed_code: str | None = None
-    if observed is not None:
-        rust_observed_code = _text(observed, where=f"{where}.rust_observed_code")
-        if rust_observed_code not in precedence:
-            _fail(f"{where}.rust_observed_code is not a declared reject code")
-    if (rust_observed_code is not None) != (cross_language == "rust_defect_pending_repair"):
-        _fail(f"{where}.rust_observed_code must be set exactly for a recorded Rust defect")
-
-    return RefinementCaseV1(
-        case_id=case_id,
-        title=_text(fields["title"], where=f"{where}.title"),
-        classes=classes,
-        cross_language=cross_language,
-        fee_owner_role=role,
-        precedence_pair=pair,
-        rust_observed_code=rust_observed_code,
-        context=MappingProxyType(dict(context)),
-        pre_state=MappingProxyType(dict(fields["pre_state"])),
-        command=MappingProxyType(dict(command)),
-        expected=MappingProxyType(dict(expected)),
-        parsed_pre_state=parsed_pre_state,
+    if fields["fee_owner_role"] != _implied_fee_owner_role(fields["command"], fields["pre_state"]):
+        _fail(f"{where}.fee_owner_role does not match the fee owner alias implied by the inputs")
+    case = RefinementCaseV1(
+        case_id=fields["case_id"], title=fields["title"], classes=fields["classes"],
+        fee_owner_role=fields["fee_owner_role"], precedence_pair=fields["precedence_pair"],
+        context=MappingProxyType(fields["context"]), command=MappingProxyType(fields["command"]),
+        pre_state=MappingProxyType(dict(raw["pre_state"])),
+        expected=MappingProxyType(dict(raw["expected"])), parsed_pre_state=fields["pre_state"],
     )
-
-
-def _check_case_semantics(case: RefinementCaseV1, unreachable: Mapping[str, str]) -> None:
-    where = f"case {case.case_id!r}"
     intended = intended_observation_v1(case)
     if intended != dict(case.expected):
         _fail(f"{where} expectation drifts from the independent oracle: {intended}")
-    violated = violated_codes_v1(case)
-    if case.outcome == "rejected":
-        first = next(code for code in REJECT_PRECEDENCE_V1 if code in violated)
-        if first != case.reject_code:
-            _fail(f"{where} precedence scan yields {first} but the corpus records {case.reject_code}")
-        if case.reject_code in unreachable:
-            _fail(f"{where} expects {case.reject_code}, which the corpus declares unreachable")
-    elif violated:
-        _fail(f"{where} is recorded as accepted but violates {sorted(violated)}")
-    if case.rust_observed_code is not None and case.rust_observed_code == case.reject_code:
-        _fail(f"{where}.rust_observed_code must differ from the intended reject code")
-
-    if case.precedence_pair is None:
-        return
-    first, second = case.precedence_pair
-    if first not in REJECT_PRECEDENCE_V1 or second not in REJECT_PRECEDENCE_V1:
-        _fail(f"{where}.precedence_pair names an undeclared reject code")
-    if REJECT_PRECEDENCE_V1.index(second) - REJECT_PRECEDENCE_V1.index(first) != 1:
-        _fail(f"{where}.precedence_pair must name adjacent reject classes")
-    if case.reject_code != first:
-        _fail(f"{where}.precedence_pair must lead with the recorded reject code")
-    if (first, second) in MUTUALLY_EXCLUSIVE_PAIRS_V1:
-        if all(policy.enabled for policy in case.parsed_pre_state.policies):
-            _fail(f"{where} must carry a disabled-policy lure for the {second} half of the pair")
-        return
-    if second not in violated:
-        _fail(f"{where} must violate {second} as well as {first}")
+    if case.reject_code in unreachable:
+        _fail(f"{where} expects {case.reject_code}, which the corpus declares unreachable")
+    if case.precedence_pair is not None:
+        first, second = case.precedence_pair
+        if case.reject_code != first:
+            _fail(f"{where}.precedence_pair must lead with the recorded reject code")
+        if case.precedence_pair in MUTUALLY_EXCLUSIVE_PAIRS_V1:
+            if all(policy.enabled for policy in case.parsed_pre_state.policies):
+                _fail(f"{where} must carry a disabled-policy lure for the {second} half of the pair")
+        elif second not in violated_codes_v1(case):
+            _fail(f"{where} must violate {second} as well as {first}")
+    return case
 
 
-def parse_asset_transfer_refinement_corpus_v1(payload: object) -> AssetTransferRefinementCorpusV1:
+def _check_corpus_coverage(
+    cases: tuple[RefinementCaseV1, ...], corpus: Mapping[str, Any], unreachable: Mapping[str, str]
+) -> None:
+    used = {name for case in cases for name in case.classes}
+    absent = tuple(name for name in corpus["required_boundary_classes"] if name not in used)
+    if absent:
+        _fail(f"corpus is missing required boundary classes: {list(absent)}")
+    dead = tuple(name for name in corpus["class_vocabulary"] if name not in used)
+    if dead:
+        _fail(f"corpus.class_vocabulary carries unused aliases: {list(dead)}")
+    codes, pairs = {c.reject_code for c in cases}, {c.precedence_pair for c in cases}
+    for code in REJECT_PRECEDENCE_V1:
+        if code not in unreachable and code not in codes:
+            _fail(f"reject code {code} is neither covered by a case nor declared unreachable")
+    for pair in zip(REJECT_PRECEDENCE_V1[:-1], REJECT_PRECEDENCE_V1[1:], strict=True):
+        if pair not in pairs:
+            _fail(f"adjacent precedence pair {pair} has no witness case")
+    roles = {case.fee_owner_role for case in cases if case.outcome == "accepted"}
+    missing = tuple(role for role in corpus["required_fee_owner_roles"] if role not in roles)
+    if missing:
+        _fail(f"corpus lacks accepted fee owner roles: {list(missing)}")
+    known = {case.case_id for case in cases}
+    for defect in corpus["prior_defects"]:
+        lost = tuple(name for name in defect["regression_case_ids"] if name not in known)
+        if lost:
+            _fail(f"prior defect {defect['defect']!r} lost its regression cases: {list(lost)}")
+
+
+def parse_asset_transfer_refinement_corpus_v1(payload: Any) -> AssetTransferRefinementCorpusV1:
     """Parse and fully validate a refinement corpus payload, failing closed."""
 
-    corpus = _mapping(payload, keys=_CORPUS_KEYS, where="corpus")
-    if corpus["schema"] != CORPUS_SCHEMA_V1:
-        _fail(f"corpus.schema must be {CORPUS_SCHEMA_V1!r}")
-    if _small_int(corpus["corpus_version"], where="corpus.corpus_version", maximum=1) != 1:
+    corpus = _fields(_CORPUS_SPEC)(payload, "corpus")
+    if corpus["corpus_version"] != 1:
         _fail("corpus.corpus_version must be 1")
-    authority = _mapping(corpus["authority"], keys=_AUTHORITY_KEYS, where="corpus.authority")
-    for field in _AUTHORITY_KEYS:
-        if _flag(authority[field], where=f"corpus.authority.{field}"):
-            _fail(f"corpus.authority.{field} must be false for research-only evidence")
-    _mapping(corpus["scalar_encoding"], keys=_SCALAR_ENCODING_KEYS, where="corpus.scalar_encoding")
-    validation_command = _text(corpus["validation_command"], where="corpus.validation_command")
-    if "check_asset_transfer_refinement_v1.py" not in validation_command:
+    if "check_asset_transfer_refinement_v1.py" not in corpus["validation_command"]:
         _fail("corpus.validation_command must name this oracle")
-    regeneration = _text(corpus["regeneration"], where="corpus.regeneration")
-
-    precedence = tuple(
-        _text(code, where="corpus.reject_precedence entry")
-        for code in _list(corpus["reject_precedence"], where="corpus.reject_precedence")
-    )
-    if precedence != REJECT_PRECEDENCE_V1:
+    if corpus["reject_precedence"] != REJECT_PRECEDENCE_V1:
         _fail("corpus.reject_precedence must equal the scoped precedence encoded by this oracle")
-
-    unreachable: dict[str, str] = {}
-    for index, row in enumerate(_list(corpus["unreachable_codes"], where="corpus.unreachable_codes")):
-        marker = f"corpus.unreachable_codes[{index}]"
-        fields = _mapping(row, keys=_UNREACHABLE_KEYS, where=marker)
-        code = _text(fields["code"], where=f"{marker}.code")
-        if code not in precedence:
-            _fail(f"{marker}.code is not a declared reject code")
-        if code in unreachable:
-            _fail(f"{marker}.code is declared unreachable twice")
-        unreachable[code] = _text(fields["reason"], where=f"{marker}.reason")
-
-    repetitions = _small_int(
-        corpus["deterministic_replay_repetitions"],
-        where="corpus.deterministic_replay_repetitions",
-        maximum=16,
-    )
-    if repetitions < 2:
-        _fail("corpus.deterministic_replay_repetitions must be at least 2")
-
-    roles = _sorted_unique_tokens(
-        corpus["required_fee_owner_roles"], where="corpus.required_fee_owner_roles"
-    )
-    if roles != tuple(sorted(ACCEPTED_FEE_OWNER_ROLES_V1)):
-        _fail("corpus.required_fee_owner_roles must require distinct, recipient and sender")
-
-    vocabulary = _sorted_unique_tokens(corpus["class_vocabulary"], where="corpus.class_vocabulary")
-    required = _sorted_unique_tokens(
-        corpus["required_boundary_classes"], where="corpus.required_boundary_classes"
-    )
-    missing_vocabulary = tuple(name for name in required if name not in vocabulary)
-    if missing_vocabulary:
-        _fail(f"corpus.required_boundary_classes escapes the vocabulary: {list(missing_vocabulary)}")
-    observations = _sorted_unique_tokens(
-        corpus["checked_observations"], where="corpus.checked_observations"
-    )
-    if observations != REQUIRED_OBSERVATIONS_V1:
+    if corpus["checked_observations"] != REQUIRED_OBSERVATIONS_V1:
         _fail("corpus.checked_observations must equal the closed observation set")
-    nonclaims = tuple(
-        _text(claim, where="corpus.nonclaims entry")
-        for claim in _list(corpus["nonclaims"], where="corpus.nonclaims")
-    )
-    if len(nonclaims) < 4:
+    if corpus["required_fee_owner_roles"] != tuple(sorted(ACCEPTED_FEE_OWNER_ROLES_V1)):
+        _fail("corpus.required_fee_owner_roles must require distinct, recipient and sender")
+    if not 2 <= corpus["deterministic_replay_repetitions"] <= 16:
+        _fail("corpus.deterministic_replay_repetitions must lie in [2, 16]")
+    if len(corpus["nonclaims"]) < 4:
         _fail("corpus.nonclaims must state at least four explicit nonclaims")
+    if not corpus["prior_defects"]:
+        _fail("corpus.prior_defects must record the defects this corpus keeps dead")
+    vocabulary = corpus["class_vocabulary"]
+    escaped = tuple(name for name in corpus["required_boundary_classes"] if name not in vocabulary)
+    if escaped:
+        _fail(f"corpus.required_boundary_classes escapes the vocabulary: {list(escaped)}")
+    unreachable: dict[str, str] = {}
+    for row in corpus["unreachable_codes"]:
+        if row["code"] in unreachable:
+            _fail(f"corpus.unreachable_codes declares {row['code']} unreachable twice")
+        unreachable[row["code"]] = row["reason"]
 
-    raw_cases = _list(corpus["cases"], where="corpus.cases")
-    if not raw_cases:
-        _fail("corpus.cases must not be empty")
     cases: list[RefinementCaseV1] = []
     seen: set[str] = set()
-    for index, raw_case in enumerate(raw_cases):
-        case = _parse_case(raw_case, index=index, vocabulary=vocabulary, precedence=precedence)
+    for index, raw_case in enumerate(corpus["cases"]):
+        case = _parse_case(raw_case, index, vocabulary, unreachable)
         if case.case_id in seen:
             _fail(f"duplicate case id: {case.case_id}")
         seen.add(case.case_id)
-        _check_case_semantics(case, unreachable)
         cases.append(case)
-
-    used_classes = {name for case in cases for name in case.classes}
-    absent = tuple(name for name in required if name not in used_classes)
-    if absent:
-        _fail(f"corpus is missing required boundary classes: {list(absent)}")
-    dead = tuple(name for name in vocabulary if name not in used_classes)
-    if dead:
-        _fail(f"corpus.class_vocabulary carries unused aliases: {list(dead)}")
-
-    covered_codes = {case.reject_code for case in cases if case.reject_code is not None}
-    for code in precedence:
-        if code in unreachable:
-            continue
-        if code not in covered_codes:
-            _fail(f"reject code {code} is neither covered by a case nor declared unreachable")
-    covered_pairs = {case.precedence_pair for case in cases if case.precedence_pair is not None}
-    for first, second in zip(precedence[:-1], precedence[1:], strict=True):
-        if (first, second) not in covered_pairs:
-            _fail(f"adjacent precedence pair ({first}, {second}) has no witness case")
-
-    accepted_roles = {case.fee_owner_role for case in cases if case.outcome == "accepted"}
-    missing_roles = tuple(role for role in roles if role not in accepted_roles)
-    if missing_roles:
-        _fail(f"corpus lacks accepted fee owner roles: {list(missing_roles)}")
-    if not any(case.cross_language == "rust_defect_pending_repair" for case in cases):
-        _fail("corpus must retain the recorded cross-language counterexample")
-
+    _check_corpus_coverage(tuple(cases), corpus, unreachable)
     return AssetTransferRefinementCorpusV1(
-        schema=CORPUS_SCHEMA_V1,
-        corpus_version=1,
-        validation_command=validation_command,
-        regeneration=regeneration,
-        reject_precedence=precedence,
+        validation_command=corpus["validation_command"],
         unreachable_codes=MappingProxyType(unreachable),
-        deterministic_replay_repetitions=repetitions,
-        required_fee_owner_roles=roles,
-        class_vocabulary=vocabulary,
-        required_boundary_classes=required,
-        checked_observations=observations,
-        nonclaims=nonclaims,
+        deterministic_replay_repetitions=corpus["deterministic_replay_repetitions"],
+        checked_observations=corpus["checked_observations"], nonclaims=corpus["nonclaims"],
+        prior_defects=tuple(MappingProxyType(row) for row in corpus["prior_defects"]),
         cases=tuple(cases),
     )
 
 
-def load_asset_transfer_refinement_corpus_v1(
-    corpus_path: Path = CORPUS_PATH,
-) -> AssetTransferRefinementCorpusV1:
+def load_asset_transfer_refinement_corpus_v1(path: Path = CORPUS_PATH) -> AssetTransferRefinementCorpusV1:
     """Read and validate the corpus file, failing closed on duplicate JSON keys."""
 
     try:
         payload = json.loads(
-            corpus_path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_keys
+            path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_keys
         )
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         _fail(f"corpus cannot be loaded: {type(exc).__name__}: {exc}")
@@ -924,25 +622,14 @@ def check_asset_transfer_refinement_v1(corpus_path: Path = CORPUS_PATH) -> dict[
         corpus = load_asset_transfer_refinement_corpus_v1(corpus_path)
     except RefinementCorpusErrorV1 as exc:
         findings.append(str(exc))
+    cases = () if corpus is None else corpus.cases
+    defects = () if corpus is None else corpus.prior_defects
     return {
-        "schema": CHECK_SCHEMA_V1,
-        "ok": not findings,
-        "findings": findings,
-        "corpus_path": str(corpus_path),
-        "case_count": 0 if corpus is None else len(corpus.cases),
-        "accepted_cases": 0
-        if corpus is None
-        else sum(1 for case in corpus.cases if case.outcome == "accepted"),
-        "rejected_cases": 0
-        if corpus is None
-        else sum(1 for case in corpus.cases if case.outcome == "rejected"),
-        "cross_language_counterexamples": []
-        if corpus is None
-        else sorted(
-            case.case_id
-            for case in corpus.cases
-            if case.cross_language == "rust_defect_pending_repair"
-        ),
+        "schema": CHECK_SCHEMA_V1, "ok": not findings, "findings": findings,
+        "corpus_path": str(corpus_path), "case_count": len(cases),
+        "accepted_cases": sum(1 for case in cases if case.outcome == "accepted"),
+        "rejected_cases": sum(1 for case in cases if case.outcome == "rejected"),
+        "prior_defect_regressions": sorted({n for d in defects for n in d["regression_case_ids"]}),
         "unreachable_codes": [] if corpus is None else sorted(corpus.unreachable_codes),
         "validation_command": None if corpus is None else corpus.validation_command,
         "production_authority": False,

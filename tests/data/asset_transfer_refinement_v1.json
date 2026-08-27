@@ -47,6 +47,7 @@
     "bva_fee_owner_overflow",
     "bva_i128_max_delta",
     "bva_i128_max_delta_plus_one",
+    "bva_i128_min_delta",
     "bva_i128_min_minus_one_delta",
     "bva_i128_min_plus_one_delta",
     "bva_insufficient_sender_by_one",
@@ -54,6 +55,9 @@
     "bva_max_fee_plus_one",
     "bva_one_atom",
     "bva_recipient_overflow",
+    "bva_recipient_owned_aggregate_plus_one",
+    "bva_sender_owned_fee_at_i128_max",
+    "bva_sender_owned_fee_plus_one",
     "bva_u128_max_balance",
     "bva_u128_max_balance_plus_one",
     "bva_zero_amount",
@@ -75,6 +79,7 @@
     "bva_fee_owner_overflow",
     "bva_i128_max_delta",
     "bva_i128_max_delta_plus_one",
+    "bva_i128_min_delta",
     "bva_i128_min_minus_one_delta",
     "bva_i128_min_plus_one_delta",
     "bva_insufficient_sender_by_one",
@@ -82,6 +87,9 @@
     "bva_max_fee_plus_one",
     "bva_one_atom",
     "bva_recipient_overflow",
+    "bva_recipient_owned_aggregate_plus_one",
+    "bva_sender_owned_fee_at_i128_max",
+    "bva_sender_owned_fee_plus_one",
     "bva_u128_max_balance",
     "bva_u128_max_balance_plus_one",
     "bva_zero_amount",
@@ -115,18 +123,42 @@
     "No claim is made about canonical encodings, hash-domain separation, or serialization agreement across languages.",
     "The corpus covers single-asset states and one command per pre-state only; multi-asset states, command sequencing, concurrency, and authorization beyond the subject_id equality performed by the transitions are out of scope.",
     "BALANCE_OVERFLOW is declared unreachable only over this corpus under the stated pre-state invariant; no universal unreachability proof is claimed.",
-    "Case precedence-insufficient-balance-over-recipient-overflow-sender-sorts-last records a confirmed pre-existing Rust defect. This branch does not repair runtime code, so the corresponding Rust refinement assertion is an expected failing counterexample until the transition is repaired.",
-    "Two further latent Python/Rust divergence regions were observed while authoring this corpus and are deliberately excluded from it: an aggregated sender delta of exactly -2^127, and a fee owner aliasing the sender when amount+fee exceeds 2^127-1. The corpus makes no claim about either region."
+    "prior_defects records only defects that were observed while authoring this corpus and that the named regression cases now keep dead; it is not a claim that every past or remaining defect of either transition is enumerated, nor that the recorded prose is an authoritative history."
+  ],
+  "prior_defects": [
+    {
+      "defect": "Rust scanned a lexicographically ordered delta map, so when an underfunded sender and an overflowing credited principal were both present the public reject code depended on how the principals were spelled: a sender sorting after its recipient reported BALANCE_OVERFLOW where the intended rule reports INSUFFICIENT_BALANCE. Python already applied the intended semantic role order.",
+      "status": "killed_by_this_corpus",
+      "regression_case_ids": [
+        "precedence-insufficient-balance-over-recipient-overflow-sender-sorts-first",
+        "precedence-insufficient-balance-over-recipient-overflow-sender-sorts-last"
+      ]
+    },
+    {
+      "defect": "Rust summed amount and fee in the signed i128 domain, so a debit magnitude of exactly 2^127 overflowed before it could be negated to the representable lower bound: the exact i128::MIN sender delta a distinct fee owner can produce was rejected with EFFECT_DELTA_OVERFLOW while Python accepted it.",
+      "status": "killed_by_this_corpus",
+      "regression_case_ids": [
+        "accept-distinct-fee-owner-exact-i128-min-sender-delta",
+        "reject-distinct-debit-one-atom-below-i128-min"
+      ]
+    },
+    {
+      "defect": "Rust width-checked amount plus fee once for every fee-owner role, before aggregating an owner that aliases the sender, so a sender-owned fee with amount = fee = 2^127-1 was rejected with EFFECT_DELTA_OVERFLOW even though the aggregated sender delta is only -(2^127-1). Python aggregated every role delta first and accepted. The repair split the sender-owned, recipient-owned and distinct-owner branches, so these regression cases pin both the newly accepted sender-owned boundary and the unchanged recipient-owned rejection one atom past 2^127-1.",
+      "status": "killed_by_this_corpus",
+      "regression_case_ids": [
+        "accept-sender-owned-fee-at-i128-max",
+        "reject-recipient-owned-aggregate-one-atom-above-i128-max",
+        "reject-sender-owned-fee-one-atom-above-i128-max"
+      ]
+    }
   ],
   "cases": [
     {
       "case_id": "accept-third-party-fee-baseline",
       "title": "Third-party fee owner accepts and projects conservation rows",
       "classes": ["accept", "account_total_conservation", "effect_rows", "empty_external_outbox", "normalized_balances", "supply_conservation", "third_party_fee"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -162,10 +194,8 @@
       "case_id": "accept-fee-owner-is-sender",
       "title": "Fee owner aliasing the sender aggregates to a single net debit",
       "classes": ["accept", "aggregated_delta", "effect_rows", "normalized_balances"],
-      "cross_language": "agree",
       "fee_owner_role": "sender",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -200,10 +230,8 @@
       "case_id": "accept-fee-owner-is-recipient",
       "title": "Fee owner aliasing the recipient aggregates to a single net credit",
       "classes": ["accept", "aggregated_delta", "effect_rows", "normalized_balances"],
-      "cross_language": "agree",
       "fee_owner_role": "recipient",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -238,10 +266,8 @@
       "case_id": "accept-zero-fee-distinct-owner",
       "title": "Zero fee suppresses the fee row and the fee conservation row",
       "classes": ["accept", "effect_rows", "empty_external_outbox", "zero_fee"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -275,10 +301,8 @@
       "case_id": "accept-one-atom-transfer",
       "title": "One atom is the smallest accepted amount",
       "classes": ["accept", "bva_one_atom", "zero_fee"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -312,10 +336,8 @@
       "case_id": "accept-exact-sender-balance-normalizes-row",
       "title": "Spending the exact sender balance drops the zero row from the post state",
       "classes": ["accept", "bva_exact_sender_balance", "normalized_balances"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -350,10 +372,8 @@
       "case_id": "accept-fee-equal-to-max-fee-limit",
       "title": "A policy fee exactly equal to max_fee_atoms is inside the limit",
       "classes": ["accept", "bva_max_fee_at_limit", "third_party_fee"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -389,10 +409,8 @@
       "case_id": "accept-i128-max-delta-boundary",
       "title": "Aggregated deltas of exactly 2^127-1 and -(2^127-1) stay inside the signed width",
       "classes": ["accept", "account_total_conservation", "bva_i128_max_delta", "bva_i128_min_plus_one_delta", "supply_conservation", "zero_fee"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -422,10 +440,8 @@
       "case_id": "accept-u128-max-recipient-balance",
       "title": "A recipient post balance of exactly 2^128-1 is accepted",
       "classes": ["accept", "bva_u128_max_balance", "normalized_balances", "zero_fee"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -456,10 +472,8 @@
       "case_id": "accept-new-fee-owner-balance-row",
       "title": "A fee owner without a pre balance gains a canonically ordered post row",
       "classes": ["accept", "effect_rows", "normalized_balances", "third_party_fee"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -491,13 +505,77 @@
       }
     },
     {
+      "case_id": "accept-distinct-fee-owner-exact-i128-min-sender-delta",
+      "title": "A distinct fee owner may drive the aggregated sender delta to exactly -2^127",
+      "classes": ["accept", "account_total_conservation", "aggregated_delta", "bva_i128_min_delta", "effect_rows", "normalized_balances", "supply_conservation", "third_party_fee"],
+      "fee_owner_role": "distinct",
+      "precedence_pair": null,
+      "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
+      "pre_state": {
+        "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+        "policies": [{"asset": "USD", "fee_owner": "treasury", "transfer_fee_atoms": "1", "enabled": true}],
+        "balances": [
+          {"owner": "alice", "asset": "USD", "custody_domain": "accounts", "amount_atoms": "170141183460469231731687303715884105728"}
+        ],
+        "supplies": [{"asset": "USD", "amount_atoms": "170141183460469231731687303715884105728"}]
+      },
+      "command": {"command_kind": "asset_transfer", "asset": "USD", "sender": "alice", "recipient": "bob", "amount_atoms": "170141183460469231731687303715884105727", "max_fee_atoms": "1"},
+      "expected": {
+        "outcome": "accepted",
+        "post_balances": [
+          {"owner": "bob", "asset": "USD", "custody_domain": "accounts", "amount_atoms": "170141183460469231731687303715884105727"},
+          {"owner": "treasury", "asset": "USD", "custody_domain": "accounts", "amount_atoms": "1"}
+        ],
+        "effect_rows": [
+          {"kind": "ACCOUNT_MOVEMENT", "principal": "alice", "asset": "USD", "custody_domain": "accounts", "delta_atoms": "-170141183460469231731687303715884105728"},
+          {"kind": "ACCOUNT_MOVEMENT", "principal": "bob", "asset": "USD", "custody_domain": "accounts", "delta_atoms": "170141183460469231731687303715884105727"},
+          {"kind": "ACCOUNT_MOVEMENT", "principal": "treasury", "asset": "USD", "custody_domain": "accounts", "delta_atoms": "1"},
+          {"kind": "FEE_ALLOCATION", "principal": "treasury", "asset": "USD", "custody_domain": "accounts", "delta_atoms": "1"}
+        ],
+        "fee_conservation": [{"asset": "USD", "fee_charged_atoms": "1", "current_allocations_atoms": "1", "carried_residue_atoms": "0"}],
+        "asset_conservation": {"asset": "USD", "owned_and_custodied_pre_atoms": "170141183460469231731687303715884105728", "owned_and_custodied_post_atoms": "170141183460469231731687303715884105728", "supply_pre_atoms": "170141183460469231731687303715884105728", "supply_post_atoms": "170141183460469231731687303715884105728", "authorized_issue_atoms": "0", "authorized_burn_atoms": "0"},
+        "occurrence_consumptions": ["0x0000000000000000000000000000000000000000000000000000000000000004"],
+        "external_outbox_enqueue": []
+      }
+    },
+    {
+      "case_id": "accept-sender-owned-fee-at-i128-max",
+      "title": "A sender-owned fee of 2^127-1 on an amount of 2^127-1 is accepted after alias aggregation",
+      "classes": ["accept", "aggregated_delta", "bva_i128_max_delta", "bva_max_fee_at_limit", "bva_sender_owned_fee_at_i128_max", "effect_rows", "normalized_balances"],
+      "fee_owner_role": "sender",
+      "precedence_pair": null,
+      "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
+      "pre_state": {
+        "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+        "policies": [{"asset": "USD", "fee_owner": "alice", "transfer_fee_atoms": "170141183460469231731687303715884105727", "enabled": true}],
+        "balances": [
+          {"owner": "alice", "asset": "USD", "custody_domain": "accounts", "amount_atoms": "170141183460469231731687303715884105727"}
+        ],
+        "supplies": [{"asset": "USD", "amount_atoms": "170141183460469231731687303715884105727"}]
+      },
+      "command": {"command_kind": "asset_transfer", "asset": "USD", "sender": "alice", "recipient": "bob", "amount_atoms": "170141183460469231731687303715884105727", "max_fee_atoms": "170141183460469231731687303715884105727"},
+      "expected": {
+        "outcome": "accepted",
+        "post_balances": [
+          {"owner": "bob", "asset": "USD", "custody_domain": "accounts", "amount_atoms": "170141183460469231731687303715884105727"}
+        ],
+        "effect_rows": [
+          {"kind": "ACCOUNT_MOVEMENT", "principal": "alice", "asset": "USD", "custody_domain": "accounts", "delta_atoms": "-170141183460469231731687303715884105727"},
+          {"kind": "ACCOUNT_MOVEMENT", "principal": "bob", "asset": "USD", "custody_domain": "accounts", "delta_atoms": "170141183460469231731687303715884105727"},
+          {"kind": "FEE_ALLOCATION", "principal": "alice", "asset": "USD", "custody_domain": "accounts", "delta_atoms": "170141183460469231731687303715884105727"}
+        ],
+        "fee_conservation": [{"asset": "USD", "fee_charged_atoms": "170141183460469231731687303715884105727", "current_allocations_atoms": "170141183460469231731687303715884105727", "carried_residue_atoms": "0"}],
+        "asset_conservation": {"asset": "USD", "owned_and_custodied_pre_atoms": "170141183460469231731687303715884105727", "owned_and_custodied_post_atoms": "170141183460469231731687303715884105727", "supply_pre_atoms": "170141183460469231731687303715884105727", "supply_post_atoms": "170141183460469231731687303715884105727", "authorized_issue_atoms": "0", "authorized_burn_atoms": "0"},
+        "occurrence_consumptions": ["0x0000000000000000000000000000000000000000000000000000000000000004"],
+        "external_outbox_enqueue": []
+      }
+    },
+    {
       "case_id": "reject-release-mismatch",
       "title": "A context release that differs from the lane release rejects first",
       "classes": ["exact_no_op_rejection", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000063", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -516,10 +594,8 @@
       "case_id": "precedence-release-mismatch-over-unknown-command",
       "title": "Release mismatch outranks an unknown command kind",
       "classes": ["exact_no_op_rejection", "precedence_pair", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": ["RELEASE_MISMATCH", "UNKNOWN_COMMAND"],
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000063", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -538,10 +614,8 @@
       "case_id": "reject-unknown-command",
       "title": "Only the exact asset_transfer command kind is admitted",
       "classes": ["exact_no_op_rejection", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -560,10 +634,8 @@
       "case_id": "precedence-unknown-command-over-unknown-asset",
       "title": "Unknown command kind outranks an unknown asset",
       "classes": ["exact_no_op_rejection", "precedence_pair", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "none",
       "precedence_pair": ["UNKNOWN_COMMAND", "UNKNOWN_ASSET"],
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -582,10 +654,8 @@
       "case_id": "reject-unknown-asset",
       "title": "An asset without a lane policy is unknown",
       "classes": ["exact_no_op_rejection", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "none",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -604,10 +674,8 @@
       "case_id": "precedence-unknown-asset-over-disabled-asset",
       "title": "Unknown asset outranks a disabled policy for a different asset",
       "classes": ["exact_no_op_rejection", "precedence_pair", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "none",
       "precedence_pair": ["UNKNOWN_ASSET", "DISABLED_ASSET"],
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -626,10 +694,8 @@
       "case_id": "reject-disabled-asset",
       "title": "A disabled policy blocks the transfer",
       "classes": ["exact_no_op_rejection", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -648,10 +714,8 @@
       "case_id": "precedence-disabled-asset-over-unauthorized-subject",
       "title": "Disabled asset outranks a subject that does not match the sender",
       "classes": ["exact_no_op_rejection", "precedence_pair", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": ["DISABLED_ASSET", "UNAUTHORIZED_SUBJECT"],
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "mallory", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -670,10 +734,8 @@
       "case_id": "reject-unauthorized-subject",
       "title": "Only the authenticated subject may spend as the sender",
       "classes": ["exact_no_op_rejection", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "mallory", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -692,10 +754,8 @@
       "case_id": "precedence-unauthorized-subject-over-self-transfer",
       "title": "Unauthorized subject outranks a self transfer",
       "classes": ["exact_no_op_rejection", "precedence_pair", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": ["UNAUTHORIZED_SUBJECT", "SELF_TRANSFER"],
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "mallory", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -714,10 +774,8 @@
       "case_id": "reject-self-transfer",
       "title": "A sender may not be its own recipient",
       "classes": ["exact_no_op_rejection", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -736,10 +794,8 @@
       "case_id": "precedence-self-transfer-over-zero-amount",
       "title": "Self transfer outranks a zero amount",
       "classes": ["exact_no_op_rejection", "precedence_pair", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": ["SELF_TRANSFER", "ZERO_AMOUNT"],
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -758,10 +814,8 @@
       "case_id": "reject-zero-amount",
       "title": "Zero atoms is not a transfer",
       "classes": ["bva_zero_amount", "exact_no_op_rejection", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -780,10 +834,8 @@
       "case_id": "precedence-zero-amount-over-fee-limit-exceeded",
       "title": "Zero amount outranks a fee above the accepted limit",
       "classes": ["exact_no_op_rejection", "precedence_pair", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": ["ZERO_AMOUNT", "FEE_LIMIT_EXCEEDED"],
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -802,10 +854,8 @@
       "case_id": "reject-fee-limit-exceeded-by-one-atom",
       "title": "A policy fee one atom above max_fee_atoms is refused",
       "classes": ["bva_max_fee_plus_one", "exact_no_op_rejection", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -824,10 +874,8 @@
       "case_id": "precedence-fee-limit-exceeded-over-effect-delta-overflow",
       "title": "Fee limit outranks an amount that cannot fit the signed effect width",
       "classes": ["exact_no_op_rejection", "precedence_pair", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": ["FEE_LIMIT_EXCEEDED", "EFFECT_DELTA_OVERFLOW"],
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -846,10 +894,8 @@
       "case_id": "reject-effect-delta-overflow-above-i128-max",
       "title": "A credit delta of 2^127 exceeds the signed effect width",
       "classes": ["bva_i128_max_delta_plus_one", "exact_no_op_rejection", "reject", "zero_fee"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -866,10 +912,8 @@
       "case_id": "precedence-effect-delta-overflow-over-insufficient-balance",
       "title": "Signed effect width is checked before any balance is touched",
       "classes": ["exact_no_op_rejection", "precedence_pair", "reject", "zero_fee"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": ["EFFECT_DELTA_OVERFLOW", "INSUFFICIENT_BALANCE"],
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -885,35 +929,65 @@
       "expected": {"outcome": "rejected", "reject_code": "EFFECT_DELTA_OVERFLOW", "effects_empty": true, "state_root_unchanged": true}
     },
     {
-      "case_id": "reject-effect-delta-overflow-below-i128-min",
-      "title": "An aggregated sender debit of -(2^127+1) is below the signed effect width",
-      "classes": ["bva_i128_min_minus_one_delta", "exact_no_op_rejection", "reject"],
-      "cross_language": "agree",
+      "case_id": "reject-distinct-debit-one-atom-below-i128-min",
+      "title": "First invalid neighbour of the exact i128::MIN debit: -(2^127+1) is one atom too wide",
+      "classes": ["bva_i128_min_minus_one_delta", "exact_no_op_rejection", "reject", "third_party_fee"],
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
         "policies": [{"asset": "USD", "fee_owner": "treasury", "transfer_fee_atoms": "2", "enabled": true}],
         "balances": [
-          {"owner": "alice", "asset": "USD", "custody_domain": "accounts", "amount_atoms": "100"},
-          {"owner": "bob", "asset": "USD", "custody_domain": "accounts", "amount_atoms": "10"},
-          {"owner": "treasury", "asset": "USD", "custody_domain": "accounts", "amount_atoms": "5"}
+          {"owner": "alice", "asset": "USD", "custody_domain": "accounts", "amount_atoms": "170141183460469231731687303715884105729"}
         ],
-        "supplies": [{"asset": "USD", "amount_atoms": "115"}]
+        "supplies": [{"asset": "USD", "amount_atoms": "170141183460469231731687303715884105729"}]
       },
       "command": {"command_kind": "asset_transfer", "asset": "USD", "sender": "alice", "recipient": "bob", "amount_atoms": "170141183460469231731687303715884105727", "max_fee_atoms": "2"},
+      "expected": {"outcome": "rejected", "reject_code": "EFFECT_DELTA_OVERFLOW", "effects_empty": true, "state_root_unchanged": true}
+    },
+    {
+      "case_id": "reject-sender-owned-fee-one-atom-above-i128-max",
+      "title": "First invalid neighbour of the sender-owned fee row: a fee of 2^127 is one atom too wide",
+      "classes": ["bva_sender_owned_fee_plus_one", "exact_no_op_rejection", "reject"],
+      "fee_owner_role": "sender",
+      "precedence_pair": null,
+      "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
+      "pre_state": {
+        "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+        "policies": [{"asset": "USD", "fee_owner": "alice", "transfer_fee_atoms": "170141183460469231731687303715884105728", "enabled": true}],
+        "balances": [
+          {"owner": "alice", "asset": "USD", "custody_domain": "accounts", "amount_atoms": "170141183460469231731687303715884105727"}
+        ],
+        "supplies": [{"asset": "USD", "amount_atoms": "170141183460469231731687303715884105727"}]
+      },
+      "command": {"command_kind": "asset_transfer", "asset": "USD", "sender": "alice", "recipient": "bob", "amount_atoms": "170141183460469231731687303715884105727", "max_fee_atoms": "170141183460469231731687303715884105728"},
+      "expected": {"outcome": "rejected", "reject_code": "EFFECT_DELTA_OVERFLOW", "effects_empty": true, "state_root_unchanged": true}
+    },
+    {
+      "case_id": "reject-recipient-owned-aggregate-one-atom-above-i128-max",
+      "title": "First invalid neighbour of the recipient-owned aggregate: a credit of 2^127 is one atom too wide",
+      "classes": ["bva_recipient_owned_aggregate_plus_one", "exact_no_op_rejection", "reject"],
+      "fee_owner_role": "recipient",
+      "precedence_pair": null,
+      "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
+      "pre_state": {
+        "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
+        "policies": [{"asset": "USD", "fee_owner": "bob", "transfer_fee_atoms": "1", "enabled": true}],
+        "balances": [
+          {"owner": "alice", "asset": "USD", "custody_domain": "accounts", "amount_atoms": "170141183460469231731687303715884105728"}
+        ],
+        "supplies": [{"asset": "USD", "amount_atoms": "170141183460469231731687303715884105728"}]
+      },
+      "command": {"command_kind": "asset_transfer", "asset": "USD", "sender": "alice", "recipient": "bob", "amount_atoms": "170141183460469231731687303715884105727", "max_fee_atoms": "1"},
       "expected": {"outcome": "rejected", "reject_code": "EFFECT_DELTA_OVERFLOW", "effects_empty": true, "state_root_unchanged": true}
     },
     {
       "case_id": "reject-insufficient-sender-by-one-atom",
       "title": "A sender one atom short of amount plus fee is insufficient",
       "classes": ["bva_insufficient_sender_by_one", "exact_no_op_rejection", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": null,
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "alice", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -932,10 +1006,8 @@
       "case_id": "precedence-insufficient-balance-over-recipient-overflow-sender-sorts-first",
       "title": "Sender insufficiency outranks a recipient credit past 2^128-1 when the sender name sorts first",
       "classes": ["bva_recipient_overflow", "bva_u128_max_balance_plus_one", "exact_no_op_rejection", "precedence_pair", "principal_spelling_independence", "reject", "zero_fee"],
-      "cross_language": "agree",
       "fee_owner_role": "sender",
       "precedence_pair": ["INSUFFICIENT_BALANCE", "BALANCE_OVERFLOW"],
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "aa-sender", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -950,12 +1022,10 @@
     },
     {
       "case_id": "precedence-insufficient-balance-over-recipient-overflow-sender-sorts-last",
-      "title": "Same obligation with the sender name sorting last: minimized cross-language counterexample",
+      "title": "Same obligation with the sender name sorting last: minimized principal-order regression",
       "classes": ["bva_recipient_overflow", "bva_u128_max_balance_plus_one", "exact_no_op_rejection", "precedence_pair", "principal_spelling_independence", "reject", "zero_fee"],
-      "cross_language": "rust_defect_pending_repair",
       "fee_owner_role": "sender",
       "precedence_pair": ["INSUFFICIENT_BALANCE", "BALANCE_OVERFLOW"],
-      "rust_observed_code": "BALANCE_OVERFLOW",
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "zz-sender", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",
@@ -972,10 +1042,8 @@
       "case_id": "precedence-insufficient-balance-over-fee-owner-overflow",
       "title": "Sender insufficiency outranks a distinct fee owner credit past 2^128-1",
       "classes": ["bva_fee_owner_overflow", "exact_no_op_rejection", "precedence_pair", "reject"],
-      "cross_language": "agree",
       "fee_owner_role": "distinct",
       "precedence_pair": ["INSUFFICIENT_BALANCE", "BALANCE_OVERFLOW"],
-      "rust_observed_code": null,
       "context": {"chain_id": "zeno-asset-refinement", "deployment_root": "0x0000000000000000000000000000000000000000000000000000000000000001", "profile_root": "0x0000000000000000000000000000000000000000000000000000000000000002", "writer_epoch": 7, "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003", "command_occurrence_id": "0x0000000000000000000000000000000000000000000000000000000000000004", "subject_id": "aa-sender", "grant_root": "0x0000000000000000000000000000000000000000000000000000000000000005"},
       "pre_state": {
         "module_release_id": "0x0000000000000000000000000000000000000000000000000000000000000003",

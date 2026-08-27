@@ -12,9 +12,8 @@ release, migration, proof, or value-moving authority is created here, and
 
 from __future__ import annotations
 
-import copy
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +32,7 @@ from src.core.asset_transfer_module_v1 import (
 from src.core.global_settlement_types_v1 import (
     AssetSupplyV1,
     EconomicAmountV1,
+    GlobalEconomicEffectPlanV1,
     LaneIdV1,
     LaneWriteV1,
 )
@@ -45,130 +45,82 @@ from tools.check_asset_transfer_refinement_v1 import (
     parse_asset_transfer_refinement_corpus_v1,
 )
 
+# Importing this module is itself the unmutated control for the hostile mutations
+# below: the committed corpus must load and validate before any test runs.
 CORPUS = load_asset_transfer_refinement_corpus_v1()
 CASES_BY_ID = {case.case_id: case for case in CORPUS.cases}
-COUNTEREXAMPLE_ID = "precedence-insufficient-balance-over-recipient-overflow-sender-sorts-last"
-MIRROR_ID = "precedence-insufficient-balance-over-recipient-overflow-sender-sorts-first"
+ACCEPTED_IDS = sorted(case.case_id for case in CORPUS.cases if case.outcome == "accepted")
+REJECTED_IDS = sorted(case.case_id for case in CORPUS.cases if case.outcome == "rejected")
+
+BASE_ID = "accept-third-party-fee-baseline"
+ZERO_ID = "reject-zero-amount"
+SELF_ID = "reject-self-transfer"
+PAIR_ID = "precedence-self-transfer-over-zero-amount"
+LURE_ID = "precedence-unknown-asset-over-disabled-asset"
+ORDER_FIRST_ID = "precedence-insufficient-balance-over-recipient-overflow-sender-sorts-first"
+ORDER_LAST_ID = "precedence-insufficient-balance-over-recipient-overflow-sender-sorts-last"
+# Repaired region, its first invalid neighbour one fee atom away, accepted sender delta.
+WIDTH_BOUNDARY_PAIRS = (
+    ("accept-distinct-fee-owner-exact-i128-min-sender-delta",
+     "reject-distinct-debit-one-atom-below-i128-min", -(1 << 127)),
+    ("accept-sender-owned-fee-at-i128-max",
+     "reject-sender-owned-fee-one-atom-above-i128-max", -((1 << 127) - 1)),
+)
 
 
-def _typed_context(raw: dict[str, Any]) -> AssetTransferContextV1:
-    return AssetTransferContextV1(
-        chain_id=raw["chain_id"],
-        deployment_root=raw["deployment_root"],
-        profile_root=raw["profile_root"],
-        writer_epoch=raw["writer_epoch"],
-        module_release_id=raw["module_release_id"],
-        command_occurrence_id=raw["command_occurrence_id"],
-        subject_id=raw["subject_id"],
-        grant_root=raw["grant_root"],
-    )
+_BALANCE_FIELDS = ("owner", "asset", "custody_domain", "amount_atoms")
+_EFFECT_FIELDS = ("kind", "principal", "asset", "custody_domain", "delta_atoms")
+_FEE_FIELDS = ("asset", "fee_charged_atoms", "current_allocations_atoms", "carried_residue_atoms")
+_CONSERVATION_FIELDS = (
+    "asset", "owned_and_custodied_pre_atoms", "owned_and_custodied_post_atoms", "supply_pre_atoms",
+    "supply_post_atoms", "authorized_issue_atoms", "authorized_burn_atoms",
+)
 
 
 def _typed_state(raw: dict[str, Any]) -> AssetTransferStateV1:
     return AssetTransferStateV1(
         module_release_id=raw["module_release_id"],
-        policies=tuple(
-            AssetTransferPolicyV1(
-                row["asset"], row["fee_owner"], int(row["transfer_fee_atoms"]), row["enabled"]
-            )
-            for row in raw["policies"]
-        ),
-        balances=tuple(
-            EconomicAmountV1(
-                row["owner"], row["asset"], row["custody_domain"], int(row["amount_atoms"])
-            )
-            for row in raw["balances"]
-        ),
-        supplies=tuple(
-            AssetSupplyV1(row["asset"], int(row["amount_atoms"])) for row in raw["supplies"]
-        ),
-    )
-
-
-def _typed_command(raw: dict[str, Any]) -> AssetTransferCommandV1:
-    return AssetTransferCommandV1(
-        command_kind=raw["command_kind"],
-        asset=raw["asset"],
-        sender=raw["sender"],
-        recipient=raw["recipient"],
-        amount_atoms=int(raw["amount_atoms"]),
-        max_fee_atoms=int(raw["max_fee_atoms"]),
+        policies=tuple(AssetTransferPolicyV1(r["asset"], r["fee_owner"], int(r["transfer_fee_atoms"]), r["enabled"]) for r in raw["policies"]),
+        balances=tuple(EconomicAmountV1(r["owner"], r["asset"], r["custody_domain"], int(r["amount_atoms"])) for r in raw["balances"]),
+        supplies=tuple(AssetSupplyV1(r["asset"], int(r["amount_atoms"])) for r in raw["supplies"]),
     )
 
 
 def _apply(case: RefinementCaseV1) -> tuple[AssetTransferStateV1, AssetTransferResultV1]:
+    # The parsed context and command field sets match the typed constructors exactly.
     pre_state = _typed_state(dict(case.pre_state))
-    result = transition_asset_transfer_v1(
-        _typed_context(dict(case.context)), pre_state, _typed_command(dict(case.command))
-    )
-    return pre_state, result
+    context = AssetTransferContextV1(**dict(case.context))
+    command = AssetTransferCommandV1(**dict(case.command))
+    return pre_state, transition_asset_transfer_v1(context, pre_state, command)
+
+
+def _rows(rows: Iterable[Any], fields: tuple[str, ...]) -> list[dict[str, str]]:
+    # Project runtime rows onto the exact scalar shape the corpus records.
+    return [
+        {name: str(getattr(getattr(row, name), "value", getattr(row, name))) for name in fields}
+        for row in rows
+    ]
 
 
 def _observed(pre_state: AssetTransferStateV1, result: AssetTransferResultV1) -> dict[str, Any]:
-    """Encode the runtime outcome in the exact shape the corpus records."""
-
     if isinstance(result, AssetTransferRejectedV1):
+        roots = (result.pre_state_root, result.post_state_root)
         return {
-            "outcome": "rejected",
-            "reject_code": result.code.value,
+            "outcome": "rejected", "reject_code": result.code.value,
             "effects_empty": result.effects.is_empty,
-            "state_root_unchanged": (
-                result.pre_state_root == pre_state.state_root
-                and result.post_state_root == pre_state.state_root
-            ),
+            "state_root_unchanged": all(root == pre_state.state_root for root in roots),
         }
     assert isinstance(result, AssetTransferAcceptedV1)
-    conservation = result.effects.asset_conservation[0]
+    effects = result.effects
     return {
         "outcome": "accepted",
-        "post_balances": [
-            {
-                "owner": row.owner,
-                "asset": row.asset,
-                "custody_domain": row.custody_domain,
-                "amount_atoms": str(row.amount_atoms),
-            }
-            for row in result.post_state.balances
-        ],
-        "effect_rows": [
-            {
-                "kind": row.kind.value,
-                "principal": row.principal,
-                "asset": row.asset,
-                "custody_domain": row.custody_domain,
-                "delta_atoms": str(row.delta_atoms),
-            }
-            for row in result.effects.rows
-        ],
-        "fee_conservation": [
-            {
-                "asset": row.asset,
-                "fee_charged_atoms": str(row.fee_charged_atoms),
-                "current_allocations_atoms": str(row.current_allocations_atoms),
-                "carried_residue_atoms": str(row.carried_residue_atoms),
-            }
-            for row in result.effects.fee_conservation
-        ],
-        "asset_conservation": {
-            "asset": conservation.asset,
-            "owned_and_custodied_pre_atoms": str(conservation.owned_and_custodied_pre_atoms),
-            "owned_and_custodied_post_atoms": str(conservation.owned_and_custodied_post_atoms),
-            "supply_pre_atoms": str(conservation.supply_pre_atoms),
-            "supply_post_atoms": str(conservation.supply_post_atoms),
-            "authorized_issue_atoms": str(conservation.authorized_issue_atoms),
-            "authorized_burn_atoms": str(conservation.authorized_burn_atoms),
-        },
-        "occurrence_consumptions": list(result.effects.occurrence_consumptions),
-        "external_outbox_enqueue": list(result.effects.external_outbox_enqueue),
+        "post_balances": _rows(result.post_state.balances, _BALANCE_FIELDS),
+        "effect_rows": _rows(effects.rows, _EFFECT_FIELDS),
+        "fee_conservation": _rows(effects.fee_conservation, _FEE_FIELDS),
+        "asset_conservation": _rows(effects.asset_conservation, _CONSERVATION_FIELDS)[0],
+        "occurrence_consumptions": list(effects.occurrence_consumptions),
+        "external_outbox_enqueue": list(effects.external_outbox_enqueue),
     }
-
-
-def _payload() -> dict[str, Any]:
-    return json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
-
-
-def _case_payload(payload: dict[str, Any], case_id: str) -> dict[str, Any]:
-    return next(case for case in payload["cases"] if case["case_id"] == case_id)
 
 
 def test_committed_corpus_passes_the_independent_oracle() -> None:
@@ -177,67 +129,43 @@ def test_committed_corpus_passes_the_independent_oracle() -> None:
 
     # Assert
     assert report["ok"] is True, report["findings"]
-    assert report["findings"] == []
-    assert report["case_count"] == len(CORPUS.cases)
-    assert report["accepted_cases"] + report["rejected_cases"] == len(CORPUS.cases)
+    assert report["accepted_cases"] + report["rejected_cases"] == report["case_count"] == len(CORPUS.cases)
     assert report["unreachable_codes"] == ["BALANCE_OVERFLOW"]
-    assert report["cross_language_counterexamples"] == [COUNTEREXAMPLE_ID]
     assert report["production_authority"] is False
-    assert CORPUS.validation_command.startswith("python3 tools/check_asset_transfer_refinement_v1.py")
+    assert CORPUS.validation_command.startswith("python3 tools/check_asset_transfer_refinement_v1")
 
 
 @pytest.mark.parametrize("case_id", sorted(CASES_BY_ID))
-def test_python_transition_refines_every_corpus_case(case_id: str) -> None:
+def test_python_transition_refines_every_corpus_case_on_every_replay(case_id: str) -> None:
     # Arrange
     case = CASES_BY_ID[case_id]
+    repetitions = CORPUS.deterministic_replay_repetitions
 
     # Act
-    pre_state, result = _apply(case)
+    observations = [_observed(*_apply(case)) for _ in range(repetitions)]
 
     # Assert
-    assert _observed(pre_state, result) == dict(case.expected)
+    assert observations and all(o == dict(case.expected) for o in observations)
 
 
-@pytest.mark.parametrize("case_id", sorted(CASES_BY_ID))
-def test_repeated_replay_of_the_pure_transition_is_deterministic(case_id: str) -> None:
-    # Arrange
-    case = CASES_BY_ID[case_id]
-
-    # Act
-    observations = [_observed(*_apply(case)) for _ in range(CORPUS.deterministic_replay_repetitions)]
-
-    # Assert
-    assert CORPUS.deterministic_replay_repetitions >= 2
-    assert all(observation == observations[0] for observation in observations)
-    assert observations[0] == dict(case.expected)
-
-
-@pytest.mark.parametrize(
-    "case_id", sorted(case.case_id for case in CORPUS.cases if case.outcome == "rejected")
-)
+@pytest.mark.parametrize("case_id", REJECTED_IDS)
 def test_every_rejection_is_an_exact_no_op_with_empty_effects(case_id: str) -> None:
     # Arrange
     case = CASES_BY_ID[case_id]
     pre_root = _typed_state(dict(case.pre_state)).state_root
 
     # Act
-    pre_state, result = _apply(case)
+    result = _apply(case)[1]
 
     # Assert
     assert isinstance(result, AssetTransferRejectedV1)
     assert result.code.value == case.reject_code
     assert result.pre_state_root == pre_root
     assert result.post_state_root == pre_root
-    assert result.effects.is_empty
-    assert result.effects.rows == ()
-    assert result.effects.lane_writes == ()
-    assert result.effects.occurrence_consumptions == ()
-    assert pre_state.state_root == pre_root
+    assert result.effects == GlobalEconomicEffectPlanV1.empty()
 
 
-@pytest.mark.parametrize(
-    "case_id", sorted(case.case_id for case in CORPUS.cases if case.outcome == "accepted")
-)
+@pytest.mark.parametrize("case_id", ACCEPTED_IDS)
 def test_accepted_cases_conserve_supply_totals_and_bind_the_lane_write(case_id: str) -> None:
     # Arrange
     case = CASES_BY_ID[case_id]
@@ -251,7 +179,6 @@ def test_accepted_cases_conserve_supply_totals_and_bind_the_lane_write(case_id: 
     pre_total = sum(row.amount_atoms for row in pre_state.balances if row.asset == asset)
     post_total = sum(row.amount_atoms for row in result.post_state.balances if row.asset == asset)
     assert pre_total == post_total
-    assert pre_state.supply_atoms(asset) == result.post_state.supply_atoms(asset)
     assert result.post_state.supplies == pre_state.supplies
     assert result.post_state.policies == pre_state.policies
     assert all(row.amount_atoms > 0 for row in result.post_state.balances)
@@ -260,273 +187,175 @@ def test_accepted_cases_conserve_supply_totals_and_bind_the_lane_write(case_id: 
         LaneWriteV1(LaneIdV1.ASSET_TRANSFER, pre_state.state_root, result.post_state.state_root),
     )
     assert result.module_journal.lane_id is LaneIdV1.ASSET_TRANSFER
-    assert sum(row.delta_atoms for row in result.effects.rows if row.kind.value == "ACCOUNT_MOVEMENT") == 0
+    movements = [row for row in result.effects.rows if row.kind.value == "ACCOUNT_MOVEMENT"]
+    assert sum(row.delta_atoms for row in movements) == 0
+    keys = [row.key for row in result.effects.rows]
+    assert keys == sorted(set(keys))
+    assert all(row.delta_atoms != 0 for row in result.effects.rows)
 
 
 def test_reject_precedence_is_independent_of_principal_spelling() -> None:
-    """Mutation killer: a lexicographic post-balance scan reverses this pair."""
+    """Mutation killer: a lexicographic post-balance scan reverses one half of this pair."""
 
     # Arrange
-    mirror, counterexample = CASES_BY_ID[MIRROR_ID], CASES_BY_ID[COUNTEREXAMPLE_ID]
+    first, last = CASES_BY_ID[ORDER_FIRST_ID], CASES_BY_ID[ORDER_LAST_ID]
 
     # Act
-    mirror_result = _apply(mirror)[1]
-    counterexample_result = _apply(counterexample)[1]
+    results = (_apply(first)[1], _apply(last)[1])
 
     # Assert
-    assert isinstance(mirror_result, AssetTransferRejectedV1)
-    assert isinstance(counterexample_result, AssetTransferRejectedV1)
-    assert mirror_result.code.value == "INSUFFICIENT_BALANCE"
-    assert counterexample_result.code.value == "INSUFFICIENT_BALANCE"
-    assert mirror.command["sender"] < mirror.command["recipient"]
-    assert counterexample.command["sender"] > counterexample.command["recipient"]
-    assert counterexample.rust_observed_code == "BALANCE_OVERFLOW"
+    assert first.command["sender"] < first.command["recipient"]
+    assert last.command["sender"] > last.command["recipient"]
+    for result in results:
+        assert isinstance(result, AssetTransferRejectedV1)
+        assert result.code.value == "INSUFFICIENT_BALANCE"
 
 
-def test_accepted_effect_rows_are_canonically_ordered_and_nonzero() -> None:
-    """Mutation killer: unsorted or zero-delta effect rows must not survive."""
+@pytest.mark.parametrize(
+    ("accepted_id", "rejected_id", "sender_delta_atoms"),
+    WIDTH_BOUNDARY_PAIRS,
+    ids=[pair[0] for pair in WIDTH_BOUNDARY_PAIRS],
+)
+def test_repaired_width_regions_flip_at_exactly_one_fee_atom(
+    accepted_id: str, rejected_id: str, sender_delta_atoms: int
+) -> None:
+    """Mutation killer: an off-by-one signed width bound flips one half of each pair."""
 
     # Arrange
-    accepted = [case for case in CORPUS.cases if case.outcome == "accepted"]
+    accepted, rejected = CASES_BY_ID[accepted_id], CASES_BY_ID[rejected_id]
+    fees = [int(c.pre_state["policies"][0]["transfer_fee_atoms"]) for c in (accepted, rejected)]
 
-    # Act / Assert
-    assert accepted
-    for case in accepted:
-        rows = _apply(case)[1].effects.rows
-        keys = [row.key for row in rows]
-        assert keys == sorted(keys)
-        assert len(keys) == len(set(keys))
-        assert all(row.delta_atoms != 0 for row in rows)
+    # Act
+    accepted_result, rejected_result = _apply(accepted)[1], _apply(rejected)[1]
+
+    # Assert
+    assert fees[1] == fees[0] + 1
+    assert accepted.command["amount_atoms"] == rejected.command["amount_atoms"]
+    assert isinstance(accepted_result, AssetTransferAcceptedV1)
+    assert accepted_result.effects.rows[0].delta_atoms == sender_delta_atoms
+    assert isinstance(rejected_result, AssetTransferRejectedV1)
+    assert rejected_result.code.value == "EFFECT_DELTA_OVERFLOW"
 
 
 def test_corpus_states_only_the_bounded_claims_it_checks() -> None:
     # Arrange / Act / Assert
     assert "deterministic_repeated_replay" in CORPUS.checked_observations
-    assert not any(
-        observation.endswith("_root") or "journal" in observation
-        for observation in CORPUS.checked_observations
-    )
-    assert any("no universal Python/Rust equivalence" in claim for claim in CORPUS.nonclaims)
-    assert any("value-moving authority" in claim for claim in CORPUS.nonclaims)
-    assert any("accounting-location" in claim for claim in CORPUS.nonclaims)
-    assert any("exact bytes" in claim for claim in CORPUS.nonclaims)
+    assert not any(o.endswith("_root") or "journal" in o for o in CORPUS.checked_observations)
+    for fragment in ("no universal Python/Rust equivalence", "value-moving authority",
+                     "accounting-location", "exact bytes", "prior_defects records only defects"):
+        assert any(fragment in claim for claim in CORPUS.nonclaims), fragment
     assert CORPUS.unreachable_codes["BALANCE_OVERFLOW"]
+    assert CORPUS.prior_defects
+    for defect in CORPUS.prior_defects:
+        assert defect["status"] == "killed_by_this_corpus"
+        assert all(case_id in CASES_BY_ID for case_id in defect["regression_case_ids"])
 
 
-def _mutate_duplicate_case_id(payload: dict[str, Any]) -> None:
-    payload["cases"][1]["case_id"] = payload["cases"][0]["case_id"]
+Mutation = Callable[[dict[str, Any]], None]
+DRIFT = "drifts from the independent oracle"
 
 
-def _mutate_unknown_corpus_field(payload: dict[str, Any]) -> None:
-    payload["opaque_authority"] = True
+def _at(payload: dict[str, Any], case_id: str | None, path: str) -> tuple[Any, Any]:
+    """Resolve a dotted path to its container and final key, rooted at a case or the corpus."""
+
+    node: Any = payload
+    if case_id is not None:
+        node = next(case for case in node["cases"] if case["case_id"] == case_id)
+    steps = [int(step) if step.isdigit() else step for step in path.split(".")]
+    for step in steps[:-1]:
+        node = node[step]
+    return node, steps[-1]
 
 
-def _mutate_unknown_case_field(payload: dict[str, Any]) -> None:
-    payload["cases"][0]["settlement_hint"] = "yes"
+def _set(case_id: str | None, path: str, value: Any) -> Mutation:
+    def mutate(payload: dict[str, Any]) -> None:
+        node, key = _at(payload, case_id, path)
+        node[key] = value
+
+    return mutate
 
 
-def _mutate_atoms_as_json_int(payload: dict[str, Any]) -> None:
-    payload["cases"][0]["command"]["amount_atoms"] = 30
+def _append(case_id: str | None, path: str, value: Any) -> Mutation:
+    def mutate(payload: dict[str, Any]) -> None:
+        node, key = _at(payload, case_id, path)
+        items = [*node[key], value]
+        node[key] = sorted(items) if all(isinstance(item, str) for item in items) else items
+
+    return mutate
 
 
-def _mutate_bool_as_writer_epoch(payload: dict[str, Any]) -> None:
-    payload["cases"][0]["context"]["writer_epoch"] = True
+def _swap(case_id: str | None, path: str, left: int, right: int) -> Mutation:
+    def mutate(payload: dict[str, Any]) -> None:
+        node, key = _at(payload, case_id, path)
+        node[key][left], node[key][right] = node[key][right], node[key][left]
+
+    return mutate
 
 
-def _mutate_integral_float_writer_epoch(payload: dict[str, Any]) -> None:
-    payload["cases"][0]["context"]["writer_epoch"] = 7.0
+def _drop_case(case_id: str) -> Mutation:
+    def mutate(payload: dict[str, Any]) -> None:
+        payload["cases"] = [case for case in payload["cases"] if case["case_id"] != case_id]
+
+    return mutate
 
 
-def _mutate_int_as_enabled_flag(payload: dict[str, Any]) -> None:
-    payload["cases"][0]["pre_state"]["policies"][0]["enabled"] = 1
-
-
-def _mutate_leading_zero_atoms(payload: dict[str, Any]) -> None:
-    payload["cases"][0]["command"]["amount_atoms"] = "030"
-
-
-def _mutate_signed_atoms(payload: dict[str, Any]) -> None:
-    payload["cases"][0]["command"]["amount_atoms"] = "-30"
-
-
-def _mutate_uppercase_root(payload: dict[str, Any]) -> None:
-    payload["cases"][0]["context"]["deployment_root"] = "0x" + "AB" * 32
-
-
-def _mutate_undeclared_reject_code(payload: dict[str, Any]) -> None:
-    _case_payload(payload, "reject-zero-amount")["expected"]["reject_code"] = "NOT_A_CODE"
-
-
-def _mutate_flipped_reject_code(payload: dict[str, Any]) -> None:
-    _case_payload(payload, "reject-zero-amount")["expected"]["reject_code"] = "SELF_TRANSFER"
-
-
-def _mutate_accepted_post_balance(payload: dict[str, Any]) -> None:
-    case = _case_payload(payload, "accept-third-party-fee-baseline")
-    case["expected"]["post_balances"][0]["amount_atoms"] = "69"
-
-
-def _mutate_class_outside_vocabulary(payload: dict[str, Any]) -> None:
-    case = payload["cases"][0]
-    case["classes"] = sorted([*case["classes"], "zz_undeclared_alias"])
-
-
-def _mutate_drop_required_boundary_case(payload: dict[str, Any]) -> None:
-    payload["cases"] = [
-        case for case in payload["cases"] if case["case_id"] != "accept-one-atom-transfer"
-    ]
-
-
-def _mutate_dead_vocabulary_alias(payload: dict[str, Any]) -> None:
-    payload["class_vocabulary"] = sorted([*payload["class_vocabulary"], "zz_never_used"])
-
-
-def _mutate_fee_owner_role(payload: dict[str, Any]) -> None:
-    _case_payload(payload, "accept-third-party-fee-baseline")["fee_owner_role"] = "sender"
-
-
-def _mutate_ambiguous_fee_owner_alias(payload: dict[str, Any]) -> None:
-    case = _case_payload(payload, "reject-self-transfer")
-    case["pre_state"]["policies"][0]["fee_owner"] = "alice"
-
-
-def _mutate_unsorted_pre_state_balances(payload: dict[str, Any]) -> None:
-    balances = _case_payload(payload, "reject-zero-amount")["pre_state"]["balances"]
-    balances[0], balances[1] = balances[1], balances[0]
-
-
-def _mutate_zero_pre_state_balance(payload: dict[str, Any]) -> None:
-    _case_payload(payload, "reject-zero-amount")["pre_state"]["balances"][0]["amount_atoms"] = "0"
-
-
-def _mutate_balances_above_supply(payload: dict[str, Any]) -> None:
-    _case_payload(payload, "reject-zero-amount")["pre_state"]["supplies"][0]["amount_atoms"] = "114"
-
-
-def _mutate_reordered_precedence(payload: dict[str, Any]) -> None:
-    precedence = payload["reject_precedence"]
-    precedence[9], precedence[10] = precedence[10], precedence[9]
-
-
-def _mutate_unreachable_claim_over_a_covered_code(payload: dict[str, Any]) -> None:
-    payload["unreachable_codes"].append(
-        {"code": "INSUFFICIENT_BALANCE", "reason": "unsupported claim"}
-    )
-
-
-def _mutate_drop_the_counterexample(payload: dict[str, Any]) -> None:
-    case = _case_payload(payload, COUNTEREXAMPLE_ID)
-    case["cross_language"] = "agree"
-    case["rust_observed_code"] = None
-
-
-def _mutate_nonadjacent_precedence_pair(payload: dict[str, Any]) -> None:
-    case = _case_payload(payload, "precedence-self-transfer-over-zero-amount")
-    case["precedence_pair"] = ["SELF_TRANSFER", "FEE_LIMIT_EXCEEDED"]
-
-
-def _mutate_drop_a_pair_witness(payload: dict[str, Any]) -> None:
-    payload["cases"] = [
-        case
-        for case in payload["cases"]
-        if case["case_id"] != "precedence-self-transfer-over-zero-amount"
-    ]
-
-
-def _mutate_remove_the_disabled_policy_lure(payload: dict[str, Any]) -> None:
-    case = _case_payload(payload, "precedence-unknown-asset-over-disabled-asset")
-    case["pre_state"]["policies"][0]["enabled"] = True
-
-
-def _mutate_nonempty_external_outbox(payload: dict[str, Any]) -> None:
-    case = _case_payload(payload, "accept-third-party-fee-baseline")
-    case["expected"]["external_outbox_enqueue"] = [{"effect_id": "0x" + "11" * 32}]
-
-
-def _mutate_claimed_production_authority(payload: dict[str, Any]) -> None:
-    payload["authority"]["production_authority"] = True
-
-
-HOSTILE_MUTATIONS: tuple[tuple[str, Callable[[dict[str, Any]], None], str], ...] = (
-    ("duplicate_case_id", _mutate_duplicate_case_id, "duplicate case id"),
-    ("unknown_corpus_field", _mutate_unknown_corpus_field, "must carry exactly the fields"),
-    ("unknown_case_field", _mutate_unknown_case_field, "must carry exactly the fields"),
-    ("atoms_as_json_int", _mutate_atoms_as_json_int, "must be a JSON string"),
-    ("bool_as_writer_epoch", _mutate_bool_as_writer_epoch, "exact int type"),
-    ("integral_float_writer_epoch", _mutate_integral_float_writer_epoch, "exact int type"),
-    ("int_as_enabled_flag", _mutate_int_as_enabled_flag, "must be a JSON boolean"),
-    ("leading_zero_atoms", _mutate_leading_zero_atoms, "canonical unsigned base-10 atom string"),
-    ("signed_atoms", _mutate_signed_atoms, "canonical unsigned base-10 atom string"),
-    ("uppercase_root", _mutate_uppercase_root, "lowercase 0x-prefixed 32-byte hex root"),
-    ("undeclared_reject_code", _mutate_undeclared_reject_code, "not a declared reject code"),
-    ("flipped_reject_code", _mutate_flipped_reject_code, "drifts from the independent oracle"),
-    ("accepted_post_balance", _mutate_accepted_post_balance, "drifts from the independent oracle"),
-    ("class_outside_vocabulary", _mutate_class_outside_vocabulary, "outside the closed vocabulary"),
-    (
-        "drop_required_boundary_case",
-        _mutate_drop_required_boundary_case,
-        "missing required boundary classes",
+HOSTILE_MUTATIONS: dict[str, tuple[Mutation, str]] = {
+    "duplicate_case_id": (_set(None, "cases.1.case_id", BASE_ID), "duplicate case id"),
+    "unknown_corpus_field": (_set(None, "opaque_authority", True), "carry exactly the fields"),
+    "unknown_case_field": (_set(BASE_ID, "settlement_hint", "y"), "carry exactly the fields"),
+    "atoms_as_json_int": (_set(BASE_ID, "command.amount_atoms", 30), "must be a JSON string"),
+    "bool_as_writer_epoch": (_set(BASE_ID, "context.writer_epoch", True), "exact int type"),
+    "float_writer_epoch": (_set(BASE_ID, "context.writer_epoch", 7.0), "exact int type"),
+    "int_as_enabled_flag": (_set(BASE_ID, "pre_state.policies.0.enabled", 1), "a JSON boolean"),
+    "leading_zero_atoms": (_set(BASE_ID, "command.amount_atoms", "030"), "canonical unsigned"),
+    "signed_atoms": (_set(BASE_ID, "command.amount_atoms", "-30"), "canonical unsigned"),
+    "uppercase_root": (_set(BASE_ID, "context.grant_root", "0x" + "AB" * 32), "lowercase 0x-pre"),
+    "undeclared_reject_code": (_set(ZERO_ID, "expected.reject_code", "N"), "declared reject code"),
+    "flipped_reject_code": (_set(ZERO_ID, "expected.reject_code", "SELF_TRANSFER"), DRIFT),
+    "accepted_post_balance": (_set(BASE_ID, "expected.post_balances.0.amount_atoms", "69"), DRIFT),
+    "accepted_effect_row_order": (_swap(BASE_ID, "expected.effect_rows", 0, 1), DRIFT),
+    "class_outside_vocabulary": (_append(BASE_ID, "classes", "zz_alias"), "outside the closed voc"),
+    "dead_vocabulary_alias": (_append(None, "class_vocabulary", "zz_unused"), "unused aliases"),
+    "drop_required_boundary_case": (_drop_case("accept-one-atom-transfer"), "required boundary"),
+    "fee_owner_role": (_set(BASE_ID, "fee_owner_role", "sender"), "match the fee owner alias"),
+    "ambiguous_fee_owner": (_set(SELF_ID, "pre_state.policies.0.fee_owner", "alice"), "ambiguous"),
+    "unsorted_pre_state_balances": (_swap(ZERO_ID, "pre_state.balances", 0, 1), "sorted and unique"),
+    "zero_pre_state_balance": (_set(ZERO_ID, "pre_state.balances.0.amount_atoms", "0"), "zero bal"),
+    "balances_above_supply": (_set(ZERO_ID, "pre_state.supplies.0.amount_atoms", "114"), "supply"),
+    "reordered_precedence": (_swap(None, "reject_precedence", 9, 10), "the scoped precedence"),
+    "unreachable_over_covered_code": (
+        _append(None, "unreachable_codes", {"code": "INSUFFICIENT_BALANCE", "reason": "no"}),
+        "declares unreachable",
     ),
-    ("dead_vocabulary_alias", _mutate_dead_vocabulary_alias, "unused aliases"),
-    ("fee_owner_role", _mutate_fee_owner_role, "does not match the fee owner alias"),
-    ("ambiguous_fee_owner_alias", _mutate_ambiguous_fee_owner_alias, "alias is ambiguous"),
-    ("unsorted_pre_state_balances", _mutate_unsorted_pre_state_balances, "must be sorted and unique"),
-    ("zero_pre_state_balance", _mutate_zero_pre_state_balance, "rather than carry a zero balance"),
-    ("balances_above_supply", _mutate_balances_above_supply, "exceeds supply"),
-    ("reordered_precedence", _mutate_reordered_precedence, "must equal the scoped precedence"),
-    (
-        "unreachable_claim_over_a_covered_code",
-        _mutate_unreachable_claim_over_a_covered_code,
-        "which the corpus declares unreachable",
+    "drop_a_prior_defect_regression": (_drop_case(ORDER_LAST_ID), "lost its regression cases"),
+    "reopen_a_prior_defect": (_set(None, "prior_defects.0.status", "open"), "prior defect status"),
+    "nonadjacent_precedence_pair": (
+        _set(PAIR_ID, "precedence_pair", ["SELF_TRANSFER", "FEE_LIMIT_EXCEEDED"]),
+        "adjacent reject classes",
     ),
-    (
-        "drop_the_counterexample",
-        _mutate_drop_the_counterexample,
-        "must retain the recorded cross-language counterexample",
+    "drop_a_pair_witness": (_drop_case(PAIR_ID), "has no witness case"),
+    "remove_the_disabled_lure": (_set(LURE_ID, "pre_state.policies.0.enabled", True), "lure"),
+    "nonempty_external_outbox": (
+        _set(BASE_ID, "expected.external_outbox_enqueue", [{"id": "0x11"}]),
+        "must stay empty for this lane",
     ),
-    (
-        "nonadjacent_precedence_pair",
-        _mutate_nonadjacent_precedence_pair,
-        "must name adjacent reject classes",
-    ),
-    ("drop_a_pair_witness", _mutate_drop_a_pair_witness, "has no witness case"),
-    (
-        "remove_the_disabled_policy_lure",
-        _mutate_remove_the_disabled_policy_lure,
-        "must carry a disabled-policy lure",
-    ),
-    ("nonempty_external_outbox", _mutate_nonempty_external_outbox, "must stay empty for this lane"),
-    (
-        "claimed_production_authority",
-        _mutate_claimed_production_authority,
-        "must be false for research-only evidence",
-    ),
-)
+    "claimed_production_authority": (_set(None, "authority.production_authority", True), "be false"),
+}
 
 
 @pytest.mark.parametrize(
-    ("mutation", "expected_message"),
-    [(mutate, message) for _, mutate, message in HOSTILE_MUTATIONS],
-    ids=[name for name, _, _ in HOSTILE_MUTATIONS],
+    ("mutation", "expected_message"), HOSTILE_MUTATIONS.values(), ids=HOSTILE_MUTATIONS
 )
 def test_oracle_fails_closed_on_hostile_fixture_mutations(
-    mutation: Callable[[dict[str, Any]], None], expected_message: str
+    mutation: Mutation, expected_message: str
 ) -> None:
     # Arrange
-    payload = copy.deepcopy(_payload())
+    payload = json.loads(CORPUS_PATH.read_text(encoding="utf-8"))
     mutation(payload)
 
     # Act / Assert
     with pytest.raises(RefinementCorpusErrorV1, match=expected_message):
         parse_asset_transfer_refinement_corpus_v1(payload)
-
-
-def test_unmutated_payload_still_parses_so_the_mutations_are_the_cause() -> None:
-    # Arrange / Act
-    corpus = parse_asset_transfer_refinement_corpus_v1(copy.deepcopy(_payload()))
-
-    # Assert
-    assert len(corpus.cases) == len(CORPUS.cases)
 
 
 def test_oracle_rejects_duplicate_json_keys_and_unreadable_corpora(tmp_path: Path) -> None:
