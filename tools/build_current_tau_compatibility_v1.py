@@ -273,7 +273,7 @@ def _implementation_subject_commit_v1(root: Path, captured_head: str) -> str:
             evidence_commit,
             "artifact commit must change exactly the compatibility artifact",
         )
-    return parent
+    return parent if evidence_commit == captured_head else captured_head
 
 
 def _implementation_source_hashes_v1(

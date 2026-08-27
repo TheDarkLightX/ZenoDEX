@@ -449,6 +449,37 @@ def test_rejection_given_evidence_commit_changes_extra_path_then_typed_rejects(
     assert raised.value.code == "EVIDENCE_COMMIT_SHAPE"
 
 
+def test_given_valid_prior_evidence_and_new_source_head_then_subject_is_new_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    captured_head = "a" * 40
+    evidence_commit = "b" * 40
+    parent = "c" * 40
+    calls = 0
+
+    def fake_run_git(
+        _root: Path,
+        _args: tuple[str, ...],
+        **_kwargs: object,
+    ) -> tuple[int, str, str]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return 0, f"{evidence_commit}\n", ""
+        return 0, f"{builder_module.JSON_OUTPUT}\n", ""
+
+    monkeypatch.setattr(builder_module, "_run_git_v1", fake_run_git)
+    monkeypatch.setattr(builder_module, "_git_is_ancestor_v1", lambda *_args: True)
+    monkeypatch.setattr(builder_module, "_git_scalar_v1", lambda *_args: parent)
+
+    # Act
+    observed = builder_module._implementation_subject_commit_v1(REPO_ROOT, captured_head)
+
+    # Assert
+    assert observed == captured_head
+
+
 def test_given_profile_runtime_path_resolves_to_reviewed_source_then_binding_accepts(
     tmp_path: Path,
 ) -> None:
@@ -772,6 +803,43 @@ def _get_signing_message_bytes(payload):
     assert raised.value.code == "SIGNING_MUTATION_SHAPE"
 
 
+def test_mutation_given_user_branch_contains_hidden_overwrite_then_ast_rejects() -> None:
+    # Arrange
+    source = b'''\
+import json
+
+def _get_signing_message_bytes(payload):
+    tx_type = payload.get("tx_type", "user_tx")
+    signing_dict = {
+        "sender_pubkey": payload["sender_pubkey"],
+        "tx_type": tx_type,
+    }
+    if tx_type == "user_tx":
+        signing_dict["operations"] = payload.get("operations", {})
+        if True:
+            signing_dict["sender_pubkey"] = "mallory"
+    return json.dumps(signing_dict, sort_keys=True, separators=(",", ":")).encode()
+'''
+    namespace: dict[str, object] = {}
+    exec(source, namespace)  # noqa: S102 - fixed mutation vector is the independent oracle.
+    signing_function = cast(
+        Callable[[dict[str, object]], bytes], namespace["_get_signing_message_bytes"]
+    )
+    observed = json.loads(
+        signing_function(
+            {"sender_pubkey": "alice", "tx_type": "user_tx", "operations": {}}
+        )
+    )
+    assert observed["sender_pubkey"] == "mallory"
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.user_tx_signing_fields_v1(
+            source, "mutant:sendtx.py", "_get_signing_message_bytes"
+        )
+    assert raised.value.code == "SIGNING_CONTROL_FLOW"
+
+
 def test_mutation_given_signing_field_reads_wrong_payload_key_then_ast_rejects() -> None:
     # Arrange
     source = b'''\
@@ -904,6 +972,36 @@ def success_response(actual_command, actual_data):
     assert raised.value.code == "SUCCESS_ENVELOPE_SHAPE"
 
 
+def test_mutation_given_success_envelope_json_binding_is_replaced_then_ast_rejects() -> None:
+    # Arrange
+    source = b'''\
+import json
+real_json = json
+
+class ForgedJson:
+    @staticmethod
+    def dumps(_value, **_kwargs):
+        return real_json.dumps({"status": "forged"})
+
+json = ForgedJson()
+
+def success_response(command, data):
+    return json.dumps(
+        {"status": "ok", "command": command, "data": dict(data)},
+        separators=(",", ":"),
+    )
+'''
+    namespace: dict[str, object] = {}
+    exec(source, namespace)  # noqa: S102 - fixed mutation vector is the independent oracle.
+    response = cast(Callable[[str, dict[str, object]], str], namespace["success_response"])
+    assert json.loads(response("sendtx", {})) == {"status": "forged"}
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.require_success_envelope_v1(source, "mutant:api_response.py")
+    assert raised.value.code == "SUCCESS_ENVELOPE_SHAPE"
+
+
 def test_mutation_given_current_force_test_has_extra_true_path_then_analyzer_rejects() -> None:
     # Arrange
     source = b'''\
@@ -984,6 +1082,29 @@ def is_force_test_enabled():
     ) is False
 
 
+def test_mutation_given_current_force_module_binding_is_replaced_then_rejects() -> None:
+    # Arrange
+    source = b'''\
+import config
+import os
+os = forged_os
+
+def is_force_test_enabled():
+    requested = os.environ.get("TAU_FORCE_TEST", "0") == "1"
+    if not requested:
+        return False
+    runtime_env = getattr(getattr(config, "settings", None), "env", None) or os.environ.get("TAU_ENV", "development")
+    if runtime_env == "test":
+        return True
+    return False
+'''
+
+    # Act / Assert
+    assert analysis_module.force_test_requires_test_env_v1(
+        source, "mutant:tau_manager.py"
+    ) is False
+
+
 def test_mutation_given_historical_force_condition_is_negated_then_analyzer_rejects() -> None:
     # Arrange
     source = b'''\
@@ -1027,6 +1148,26 @@ def start_and_manage_tau_process():
     if os.environ.get("TAU_FORCE_TEST", "0") == "1":
         return
         tau_test_mode = True
+'''
+
+    # Act / Assert
+    assert analysis_module.historical_force_test_enters_mock_v1(
+        source, "mutant:tau_manager.py"
+    ) is False
+
+
+def test_mutation_given_historical_os_binding_is_replaced_then_analyzer_rejects() -> None:
+    # Arrange
+    source = b'''\
+import os
+os = forged_os
+
+def start_and_manage_tau_process():
+    global tau_test_mode
+    tau_test_mode = False
+    if os.environ.get("TAU_FORCE_TEST", "0") == "1":
+        tau_test_mode = True
+        return
 '''
 
     # Act / Assert
@@ -1192,6 +1333,21 @@ exec python "${ARGS[@]}"
     assert analysis_module.shell_forwards_force_test_v1(source, "runner.sh") is False
 
 
+def test_mutation_given_runner_executes_before_force_flag_then_analyzer_rejects() -> None:
+    # Arrange
+    source = b'''\
+ARGS=(tau)
+exec python "${ARGS[@]}"
+if [[ "${TAU_FORCE_TEST:-1}" == "1" ]]; then
+  ARGS+=(--force-test)
+fi
+exec python "${ARGS[@]}"
+'''
+
+    # Act / Assert
+    assert analysis_module.shell_forwards_force_test_v1(source, "runner.sh") is False
+
+
 def test_mutation_given_e2e_overwrites_tau_env_after_default_then_rejects() -> None:
     # Arrange
     source = b'''\
@@ -1310,7 +1466,7 @@ def test_source_corpus_is_sorted_owned_and_immutable() -> None:
     assert corpus.entries == (("a.py", b"a"), ("b.py", b"b"))
     assert corpus["a.py"] == b"a"
     with pytest.raises(AttributeError):
-        corpus.entries = ()
+        corpus.entries = ()  # type: ignore[misc]
     assert not hasattr(corpus, "__dict__")
 
 

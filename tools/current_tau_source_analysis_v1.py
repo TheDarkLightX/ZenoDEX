@@ -63,6 +63,17 @@ def _parent_map_v1(root: ast.AST) -> dict[ast.AST, ast.AST]:
     }
 
 
+def _module_import_binding_is_closed_v1(tree: ast.Module, name: str) -> bool:
+    imports = [
+        alias
+        for node in tree.body
+        if isinstance(node, ast.Import)
+        for alias in node.names
+        if alias.name == name and alias.asname in {None, name}
+    ]
+    return len(imports) == 1 and _name_store_count_v1(tree, name) == 0
+
+
 def source_references_identifier_v1(raw: bytes, path: str, identifier: str) -> bool:
     """Conservatively classify any executable identifier/string reference as present."""
 
@@ -176,22 +187,23 @@ def _user_tx_branch_keys_v1(function: ast.FunctionDef, variable: str, path: str)
             continue
         for child in node.body:
             if not isinstance(child, ast.Assign) or len(child.targets) != 1:
-                continue
+                _reject("SIGNING_CONTROL_FLOW", path, "user transaction branch is not closed")
             target = child.targets[0]
-            if (
+            if not (
                 isinstance(target, ast.Subscript)
                 and isinstance(target.value, ast.Name)
                 and target.value.id == variable
                 and isinstance(target.slice, ast.Constant)
                 and type(target.slice.value) is str
             ):
-                if not _payload_field_binding_v1(child.value, target.slice.value):
-                    _reject(
-                        "SIGNING_VALUE_BINDING",
-                        path,
-                        f"{target.slice.value} is not bound to payload",
-                    )
-                keys.add(target.slice.value)
+                _reject("SIGNING_CONTROL_FLOW", path, "user signing write shape drift")
+            if not _payload_field_binding_v1(child.value, target.slice.value):
+                _reject(
+                    "SIGNING_VALUE_BINDING",
+                    path,
+                    f"{target.slice.value} is not bound to payload",
+                )
+            keys.add(target.slice.value)
     return keys
 
 
@@ -259,7 +271,14 @@ def user_tx_signing_fields_v1(raw: bytes, path: str, function_name: str) -> tupl
         for index, node in enumerate(function.body)
         if isinstance(node, ast.If) and _is_user_tx_test_v1(node.test)
     ]
-    if len(signing_assignments) != 1 or len(user_branches) > 1:
+    top_level_branches = [
+        index for index, node in enumerate(function.body) if isinstance(node, ast.If)
+    ]
+    if (
+        len(signing_assignments) != 1
+        or len(user_branches) > 1
+        or top_level_branches != user_branches
+    ):
         _reject("SIGNING_CONTROL_FLOW", path, "signing assignment or user branch drift")
     branch_is_ordered = not user_branches or (
         signing_assignments[0] < user_branches[0] < top_level_returns[0]
@@ -412,14 +431,7 @@ def _canonicalizer_binding_is_closed_v1(tree: ast.Module) -> bool:
 
 
 def _json_binding_is_closed_v1(tree: ast.Module) -> bool:
-    imports = [
-        alias
-        for node in tree.body
-        if isinstance(node, ast.Import)
-        for alias in node.names
-        if alias.name == "json" and alias.asname in {None, "json"}
-    ]
-    return len(imports) == 1 and _name_store_count_v1(tree, "json") == 0
+    return _module_import_binding_is_closed_v1(tree, "json")
 
 
 def class_methods_v1(raw: bytes, path: str, class_name: str) -> set[str]:
@@ -433,7 +445,10 @@ def class_methods_v1(raw: bytes, path: str, class_name: str) -> set[str]:
 
 
 def require_success_envelope_v1(raw: bytes, path: str) -> None:
-    function = _function_v1(python_tree_v1(raw, path), "success_response", path)
+    tree = python_tree_v1(raw, path)
+    function = _function_v1(tree, "success_response", path)
+    if not _json_binding_is_closed_v1(tree):
+        _reject("SUCCESS_ENVELOPE_SHAPE", path, "json binding is not closed")
     if not _has_exact_parameters_v1(function, ("command", "data")):
         _reject("SUCCESS_ENVELOPE_SHAPE", path, "success response parameters drift")
     if any(isinstance(node, ast.Raise) for node in ast.walk(function)):
@@ -506,9 +521,12 @@ def _is_compact_json_separators_v1(value: ast.expr) -> bool:
 
 
 def force_test_requires_test_env_v1(raw: bytes, path: str) -> bool:
-    function = _function_v1(python_tree_v1(raw, path), "is_force_test_enabled", path)
+    tree = python_tree_v1(raw, path)
+    function = _function_v1(tree, "is_force_test_enabled", path)
     if (
         not _has_exact_parameters_v1(function, ())
+        or not _module_import_binding_is_closed_v1(tree, "os")
+        or not _module_import_binding_is_closed_v1(tree, "config")
         or any(isinstance(node, ast.Raise) for node in ast.walk(function))
         or _name_store_count_v1(function, "requested") != 1
         or _name_store_count_v1(function, "runtime_env") != 1
@@ -607,8 +625,9 @@ def _body_is_single_bool_return_v1(body: list[ast.stmt], expected: bool) -> bool
 
 
 def historical_force_test_enters_mock_v1(raw: bytes, path: str) -> bool:
+    tree = python_tree_v1(raw, path)
     function = _function_v1(
-        python_tree_v1(raw, path),
+        tree,
         "start_and_manage_tau_process",
         path,
     )
@@ -627,6 +646,7 @@ def historical_force_test_enters_mock_v1(raw: bytes, path: str) -> bool:
     ]
     if (
         not _has_exact_parameters_v1(function, ())
+        or not _module_import_binding_is_closed_v1(tree, "os")
         or len(tau_test_assignments) != _name_store_count_v1(function, "tau_test_mode")
         or len(false_assignments) != 1
         or any(
@@ -914,7 +934,8 @@ def shell_forwards_force_test_v1(raw: bytes, path: str) -> bool:
         for line in lines[index + 3 :]
     ):
         return False
-    return any(line == 'exec python "${ARGS[@]}"' for line in lines[index + 3 :])
+    exec_lines = [position for position, line in enumerate(lines) if line.startswith("exec ")]
+    return exec_lines == [len(lines) - 1] and lines[-1] == 'exec python "${ARGS[@]}"'
 
 
 def python_env_default_v1(raw: bytes, path: str) -> str:
