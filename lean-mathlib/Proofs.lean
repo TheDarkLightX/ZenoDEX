@@ -125,6 +125,8 @@ import Proofs.KPoolMultisetQuotient
 import Proofs.LiquidityRebalancerBounds
 import Proofs.LpMintOptimalBounds
 import Proofs.LPValueAlgebra
+import Proofs.ManagedAssetPolicyAuthorityV1
+import Proofs.ManagedAssetPolicyAuthorityV1Challenge
 import Proofs.MEVResistanceBound
 import Proofs.MEVResistanceOptimality
 import Proofs.PriceManipulationCostBound
