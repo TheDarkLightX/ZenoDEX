@@ -1,0 +1,207 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260827-zz-managed-asset-policy-binding-precedence-correction",
+  "created_date": "2026-08-27",
+  "claim_scope": "Evidence correction for THV1-20260827-managed-asset-policy-binding-precedence. A new regression constructs a semantically foreign managed issue output with its matching structural route witness, then demonstrates that receipt admission reaches deterministic transition recomputation, rejects the foreign acceptance, and never invokes the cryptographic verifier. This packet preserves the earlier packet unchanged and replaces its inaccurate trust-bypass mutation attribution. The underlying managed issue and self-burn policy binding remains an unmounted bounded authority-binding slice.",
+  "change_kind": "evidence_correction",
+  "risk_class": "authority",
+  "invariant_ids": [
+    "GSABI-V1-MANAGED-POLICY-ROOT-CONTENT-DERIVED",
+    "GSABI-V1-MANAGED-POLICY-PROFILE-GOVERNED",
+    "GSABI-V1-MANAGED-POLICY-MODULE-RELEASE-BOUND",
+    "GSABI-V1-MANAGED-POLICY-EXACT-MEMBER",
+    "GSABI-V1-MANAGED-POLICY-ROUTE-ROOT-BOUND",
+    "GSABI-V1-MANAGED-POLICY-ONE-OWNED-SNAPSHOT",
+    "GSABI-V1-MANAGED-POLICY-DIRECT-TRANSITION-NO-AUTHORITY",
+    "GSABI-V1-MANAGED-POLICY-STRUCTURAL-PRECEDENCE",
+    "GSABI-V1-MANAGED-POLICY-SEMANTIC-RECOMPUTATION",
+    "GSABI-V1-MANAGED-POLICY-ONE-TRANSITION-RECOMPUTATION",
+    "GSABI-V1-MANAGED-POLICY-REJECT-BEFORE-VERIFIER"
+  ],
+  "failure_modes": [
+    "a managed issue or self-burn executes under policy rows absent from the active profile policy registry",
+    "the same policy rows are replayed under another module release",
+    "a route admits a managed command under a different issue_burn_policy_root",
+    "a retained mutable or hostile value changes between governance membership and route binding",
+    "a coherent foreign output reaches semantic recomputation before its mismatched supplied structural witness is rejected",
+    "a coherent foreign output with a matching structural witness bypasses deterministic semantic recomputation",
+    "receipt admission recomputes the economic transition zero or more than one times",
+    "a wrong policy, structural binding, or recomputed acceptance reaches cryptographic receipt verification",
+    "a direct deterministic transition is mistaken for release, proof, settlement, or publication authority",
+    "Python and Rust derive different registry or route roots"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/lane_module_receipt_verification_v1.py",
+      "sha256": "d75b7f57d8db0a792336b87857e6f0d69d9b837335276bb9a717559f027881db"
+    },
+    {
+      "path": "src/core/lane_module_release_route_binding_v1.py",
+      "sha256": "17648b62d19a0a282b2a84a4ccc09e287d6c651362c1b1d5ac65a9c3949d36d6"
+    },
+    {
+      "path": "src/core/managed_asset_policy_registry_v1.py",
+      "sha256": "8e0cb30a530cb796a8fdf388dca74d85d1aee79e28063f36ff239f6c2f1bd22f"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_module_receipt_verification.rs",
+      "sha256": "83bd1244859a9293ba218a2c2537947b22827203393abab35de27ea9f41873ea"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lane_module_release_route_binding.rs",
+      "sha256": "d8b4024c490a09bf273cc43c916d494865ad2d2292aa09474cc179de60e22ce0"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/lib.rs",
+      "sha256": "997b7bfcbd3ad95b3b0f2e3797be53faa34557e833393bdcb35ccc8ac398cc26"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/managed_asset_lifecycle_types.rs",
+      "sha256": "33620989420de792f73e0d181ff8828e9c379f0d052f6e3d9633380da69e2835"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/managed_asset_policy_registry.rs",
+      "sha256": "4fc70471b792c7eef679f013d478e0119c241c54015a6883ffe8318ad110581c"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/lane_module_release_route_binding.rs",
+      "sha256": "4810f6072f7f7b6853d7dfb7ba0f1d4a959978afd4908b4834fb91c6f400ef26"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/managed_asset_policy_membership.rs",
+      "sha256": "5311265c20ebcd3435292d71d58aff8443ada1f9cf601df02d27dce0df9a3175"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_lane_module_release_route_binding_v1.py",
+      "sha256": "13e5569a0772ee9f3fc234a887d75d3544de964474b2e87980d9d375666ddff0",
+      "node_ids": [
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_module_receipts_gain_only_release_image_bound_authority",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_accepted_output_cannot_be_rerooted_to_another_command",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_candidate_revalidates_retained_accepted_output_before_verifier",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_receipt_structural_binding_rejects_coherent_foreign_output_first",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_receipt_recomputation_rejects_structurally_bound_foreign_output",
+        "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_receipt_recomputes_the_transition_exactly_once"
+      ]
+    },
+    {
+      "path": "tests/core/test_managed_asset_policy_membership_v1.py",
+      "sha256": "8acbe0c9967429d8c77de8ece0c6c28d0fcda788fd3907e38a7ebeb1ece819b3",
+      "node_ids": [
+        "tests/core/test_managed_asset_policy_membership_v1.py::test_registry_root_binds_the_module_release_with_cross_language_vectors",
+        "tests/core/test_managed_asset_policy_membership_v1.py::test_registry_cardinality_bva_accepts_bound_and_rejects_one_over",
+        "tests/core/test_managed_asset_policy_membership_v1.py::test_direct_transition_stays_authority_free_and_binding_pins_the_governed_root",
+        "tests/core/test_managed_asset_policy_membership_v1.py::test_policy_registry_outside_the_profile_rejects_before_route_binding",
+        "tests/core/test_managed_asset_policy_membership_v1.py::test_same_policy_rows_under_another_module_release_reject_at_membership",
+        "tests/core/test_managed_asset_policy_membership_v1.py::test_wrong_route_issue_burn_policy_root_never_reaches_the_verifier",
+        "tests/core/test_managed_asset_policy_membership_v1.py::test_binder_reads_one_owned_snapshot_across_membership_and_route_binding",
+        "tests/core/test_managed_asset_policy_membership_v1.py::test_retained_candidate_alias_mutations_are_rejected_at_the_snapshot"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "differential",
+    "mutation",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Tests arrange exact typed profile, policy, route, occurrence, module-input, accepted-output, retained binding, and forged structurally matching values; act through one binder or receipt admission; and assert exact roots, members, rejection precedence, transition counts, witness absence, and verifier call counts. Cross-language vectors provide an independent differential oracle for canonical roots."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "The functional core is immutable. Wrong profile roots, module releases, members, state policy fields, route roots, retained aliases, coherent foreign outputs, and hostile subclasses reject before any verified witness or verifier call exists. Direct transition results remain authority-free."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "managed_policy_registry_cardinality",
+      "points": [
+        "empty_registry_rejects_every_asset",
+        "one_member_accepts",
+        "exact_max_members_accept",
+        "max_plus_one_rejects"
+      ]
+    },
+    {
+      "name": "profile_and_module_release_binding",
+      "points": [
+        "exact_outer_policy_registry_and_module_release_accept",
+        "foreign_outer_policy_registry_rejects",
+        "same_rows_under_foreign_module_release_reject"
+      ]
+    },
+    {
+      "name": "route_issue_burn_policy_root",
+      "points": [
+        "exact_route_root_accepts",
+        "wrong_route_root_rejects_before_witness",
+        "wrong_route_root_rejects_before_verifier"
+      ]
+    },
+    {
+      "name": "owned_snapshot_boundary",
+      "points": [
+        "immutable_exact_values_accept",
+        "hostile_subclass_rejects",
+        "post_snapshot_alias_mutation_rejects"
+      ]
+    },
+    {
+      "name": "receipt_admission_precedence",
+      "points": [
+        "foreign_output_with_honest_binding_rejects_structurally",
+        "foreign_output_with_matching_binding_rejects_semantically",
+        "honest_output_recomputes_once",
+        "verifier_receives_only_fully_bound_recomputed_output"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "omit the active profile outer policy registry root comparison",
+      "killed_by": "tests/core/test_managed_asset_policy_membership_v1.py::test_policy_registry_outside_the_profile_rejects_before_route_binding"
+    },
+    {
+      "description": "permit identical policy rows to cross a module release boundary",
+      "killed_by": "tests/core/test_managed_asset_policy_membership_v1.py::test_same_policy_rows_under_another_module_release_reject_at_membership"
+    },
+    {
+      "description": "omit the route issue_burn_policy_root check before receipt verification",
+      "killed_by": "tests/core/test_managed_asset_policy_membership_v1.py::test_wrong_route_issue_burn_policy_root_never_reaches_the_verifier"
+    },
+    {
+      "description": "split membership and route binding across mutable caller-owned aliases",
+      "killed_by": "tests/core/test_managed_asset_policy_membership_v1.py::test_binder_reads_one_owned_snapshot_across_membership_and_route_binding"
+    },
+    {
+      "description": "trust a structurally bound supplied acceptance instead of deterministic semantic recomputation",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_receipt_recomputation_rejects_structurally_bound_foreign_output"
+    },
+    {
+      "description": "recompute before rejecting a coherent foreign supplied structural binding",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_receipt_structural_binding_rejects_coherent_foreign_output_first"
+    },
+    {
+      "description": "perform zero or two economic transition recomputations during one receipt admission",
+      "killed_by": "tests/core/test_lane_module_release_route_binding_v1.py::test_managed_receipt_recomputes_the_transition_exactly_once"
+    },
+    {
+      "description": "treat a direct managed lifecycle transition as verified release-route authority",
+      "killed_by": "tests/core/test_managed_asset_policy_membership_v1.py::test_direct_transition_stays_authority_free_and_binding_pins_the_governed_root"
+    }
+  ],
+  "nonclaims": [
+    "This packet corrects an evidence attribution. It does not modify or erase the earlier append-only packet.",
+    "This packet does not establish a managed-asset RISC0 guest, real receipt, recursive route, economic epoch, settlement, publication, migration, or production authority.",
+    "The Python and Rust vectors provide bounded differential evidence, not a universal refinement theorem.",
+    "The policy registry binds accounting rules and authorization predicates. It does not establish legal custody, title, possession, or claimant key control.",
+    "Named mutation killers are reviewed semantic mutants; no automated mutation campaign is claimed.",
+    "Passing the pinned Python nodes does not replace separately recorded Rust, Clippy, formatting, mypy, or broader test results.",
+    "M6 remains research-only and unmounted. Whole-economy value-movement safety and production readiness remain unclaimed."
+  ]
+}
