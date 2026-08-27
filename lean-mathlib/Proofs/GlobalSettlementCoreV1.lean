@@ -948,6 +948,16 @@ theorem thinBook_holdingsMatchSupply : HoldingsMatchSupply thinBook := by
   intro a
   rfl
 
+/-- Applying `burnPlan` to `thinBook` drives the accounted-holdings column to
+`-60`, so the post-state is not non-negative. -/
+theorem thinBook_burn_post_not_nonNegative :
+    ¬ NonNegative (applyPlan thinBook burnPlan) := by
+  intro hcontra
+  have h := (hcontra zusd).1
+  have hval : (applyPlan thinBook burnPlan).accountedHoldings zusd = -60 := rfl
+  rw [hval] at h
+  exact absurd h (by decide)
+
 /-- The countermodel: well-formed plan, non-negative pre-state, negative
 post-state. Hence non-negativity is preserved only under the explicit
 admission premise. -/
@@ -956,14 +966,9 @@ theorem nonNegativity_premise_is_necessary :
     PlanRowsWellFormed burnPlan ∧
     NonNegative thinBook ∧
     Applies thinBook burnPlan (applyPlan thinBook burnPlan) ∧
-    ¬ NonNegative (applyPlan thinBook burnPlan) := by
-  refine ⟨burnPlan_wellFormed, burnPlan_rowsWellFormed, thinBook_nonNegative,
-    applyPlan_applies thinBook burnPlan, ?_⟩
-  intro hcontra
-  have h := (hcontra zusd).1
-  have hval : (applyPlan thinBook burnPlan).accountedHoldings zusd = -60 := rfl
-  rw [hval] at h
-  exact absurd h (by decide)
+    ¬ NonNegative (applyPlan thinBook burnPlan) :=
+  ⟨burnPlan_wellFormed, burnPlan_rowsWellFormed, thinBook_nonNegative,
+    applyPlan_applies thinBook burnPlan, thinBook_burn_post_not_nonNegative⟩
 
 /-- Conservation still holds in the countermodel: the rejected-by-underflow
 plan is not unsound, it is merely inadmissible. -/
