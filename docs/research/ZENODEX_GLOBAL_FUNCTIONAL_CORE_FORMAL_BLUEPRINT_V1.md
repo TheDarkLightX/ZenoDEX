@@ -1,6 +1,7 @@
 # ZenoDEX Global Functional Core Formal Blueprint V1
 
-Date: 2026-08-26 (repair 1: 2026-08-27; closure repair 2: 2026-08-27)
+Date: 2026-08-26 (repair 1: 2026-08-27; closure repair 2: 2026-08-27; naming
+repair 3: 2026-08-27)
 
 Task: `FORMAL-MODEL-001` (`rlm-subagent-task/v1`, role `implementer`)
 
@@ -8,9 +9,12 @@ Implementation base: `f7e851565e063fb3e74b060a9c45f27b8621a8d7`
 
 Candidate history: `f04bf4760a941966bf19e8c3c289b3c0d6c1feeb` (initial,
 reviewed and replayed independently), `4233884ba7244dbc4d084585d2c3f17756e34a3f`
-(repair 1), and the commit that carries this revision (closure repair 2,
-whose hash cannot truthfully appear inside its own file). No commit was
-amended.
+(repair 1), `e091ccb01f357e8f968e0e413e27746c2265b2dd` (closure repair 2),
+and the commit that carries this revision (naming repair 3: the rejection
+invariant is named `inv_reject_projection_noop_and_empty_rows` so that its
+name states exactly the authoritative-projection no-op plus empty rows that it
+establishes; the commit hash cannot truthfully appear inside its own file).
+No commit was amended.
 
 Status: `RESEARCH_ONLY_UNMOUNTED`, `BOUNDED_ESSO_VERIFIED_RESEARCH_ONLY`
 
@@ -88,7 +92,8 @@ means this blueprint must be re-reviewed before it is trusted. Rows marked
 | `src/core/global_economic_state_effect_refinement_v1.py` | `9e70b85ffc24e77fd7abf7a7a1e6aed8017f0f6ceac8d61e6c45e6f6dece7338` | enforced |
 | `zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs` | `81dfe788c02767d080c3a2dc1cadd814ad3e489cbbc2b6fbf66ecf21ee77ee01` | enforced |
 | `src/core/epoch_effect_composition_v1.py` | `a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045` | enforced |
-| `src/kernels/dex/global_settlement_core_v1.yaml` (subject, this revision) | `dabacaf6eff5d5106393aabebb0d3171c94776ad3f1f3a240f9d2a550658d1ca` | enforced |
+| `src/kernels/dex/global_settlement_core_v1.yaml` (subject, this revision) | `121972779c7ac2f06dee1a6970498ab6b8e17c80c3050342648d8d2d432a2b7d` | enforced |
+| `src/kernels/dex/global_settlement_core_v1.yaml` (subject at `e091ccb01`) | `dabacaf6eff5d5106393aabebb0d3171c94776ad3f1f3a240f9d2a550658d1ca` | informative |
 | `src/kernels/dex/global_settlement_core_v1.yaml` (subject at `4233884ba`) | `f3ede1340db83376d10b7d473fb58df20f9185e5ef4dc773acbf3fe40f0365b6` | informative |
 | `src/kernels/dex/global_settlement_core_v1.yaml` (subject at `f04bf4760`) | `9dc7f7657e0f4248e1d4720c6ef3ce655411e7d48cf36429a5e5fa3691b52440` | informative |
 | `src/core/global_settlement_abi_v1.py` | `c02a137fdd2e892a5a4529b99e6ee4054394b4b68e863c2c24fc2ec2346846e5` | informative |
@@ -347,7 +352,7 @@ the Python sweeps likewise start from pre-states that satisfy all invariants.
 | `inv_supply_step_a`, `inv_supply_step_b` | `supply_X = supply_pre_X + issue_X - burn_X` for the last step |
 | `inv_fee_step_a`, `inv_fee_step_b` | `fee_charged_X = fee_alloc_X + fee_residue_X` for the last step |
 | `inv_step_rows_nonnegative` | canonical rows are unsigned atoms |
-| `inv_reject_exact_noop` | a rejected step keeps the `AUTHORITATIVE_PROJECTION` (both pre-state images, height, and consumed flags), emits zero rows, and carries a reject code; evidence journal fields may change |
+| `inv_reject_projection_noop_and_empty_rows` | a rejected step keeps the `AUTHORITATIVE_PROJECTION` (both pre-state images, height, and consumed flags), emits zero economic rows, and carries a reject code; evidence-journal, full-state, and history fields may change, and no full-state or history no-op is claimed |
 | `inv_accept_advances_one` | an accepted step advances height by one, consumes exactly one fresh occurrence, and carries no reject code |
 | `inv_consumed_monotone` | a consumed occurrence identity is never released |
 
@@ -362,7 +367,7 @@ Required semantics and where they are established:
 - Fee charged equals allocations plus carried residue, per asset:
   `inv_fee_step_*`.
 - Rejection leaves the `AUTHORITATIVE_PROJECTION` unchanged with empty
-  economic rows: `inv_reject_exact_noop`, the per-code no-op tests, and the
+  economic rows: `inv_reject_projection_noop_and_empty_rows`, the per-code no-op tests, and the
   oracle.
 - Accepted steps require non-negative post quantities: the acceptance
   conjunction (`c_nonnegative_post`) and `RC_INSUFFICIENT`.
@@ -372,7 +377,7 @@ Required semantics and where they are established:
   cumulative equations over a three-step trace.
 - Unknown lane, unknown command, duplicate occurrence, stale replay identity,
   and missing terminal obligation reject: the reject table and
-  `test_each_reject_class_is_an_exact_noop_with_empty_rows`.
+  `test_each_reject_class_is_an_authoritative_projection_noop_with_empty_rows`.
 
 ## Liveness
 
@@ -473,7 +478,7 @@ also kill every mutant (`test_every_named_mutant_is_killed_by_the_bounded_boxes`
 | `MUT_OMITTED_BURN_ROW` | the explicit `BURN` row is omitted | same witness; `owned_a = supply_a = 0` with `burn_a = 0` | `inv_owned_step_a`, `inv_supply_step_a` | supply changed without a row |
 | `MUT_OMITTED_RESIDUE` | the unallocated fee remainder is dropped | `payer_a = supply_a = 2`; `TRANSFER(a, amount 1, fee 1, alloc 0)` gives `owned_a = 1`, `supply_a = 2` | `inv_owned_equals_supply_a`, `inv_owned_step_a` | the fee row alone still reconciles (1 = 0 + 1); only holdings conservation reveals the loss |
 | `MUT_OMITTED_RESIDUE_ROW` | residue reaches its accounting location but the fee row omits it | same witness; `fee_residue_a = 1` with row residue 0 | `inv_fee_step_a` | |
-| `MUT_REJECT_WITH_EFFECTS` | a rejected step still moves the fee | `payer_a = supply_a = 1`; `TRANSFER(a, amount 0, fee 1)` is `RC_ZERO_AMOUNT` yet `payer_a = 0`, `fee_alloc_a = 1` | `inv_reject_exact_noop` | `owned_a = supply_a` still holds, so conservation alone cannot reveal it |
+| `MUT_REJECT_WITH_EFFECTS` | a rejected step still moves the fee | `payer_a = supply_a = 1`; `TRANSFER(a, amount 0, fee 1)` is `RC_ZERO_AMOUNT` yet `payer_a = 0`, `fee_alloc_a = 1` | `inv_reject_projection_noop_and_empty_rows` | `owned_a = supply_a` still holds, so conservation alone cannot reveal it |
 | `MUT_DESTINATION_BUCKET_SWAP` | a transfer credits `fee_alloc_a` instead of `rest_a` | `payer_a = supply_a = 1`; `TRANSFER(a, 1)` gives `rest_a = 0`, `fee_alloc_a = 1` | reference oracle (`oracle:rest_a`, `oracle:fee_alloc_a`) | atoms are conserved and every YAML invariant holds; only the oracle reveals the wrong destination |
 | `MUT_ISSUE_ROW_SUPPRESSED` | the emitted `ISSUE` row is suppressed | genesis; `ISSUE(a, 1)` gives `owned_a = supply_a = 1` with `issue_a = 0` | `inv_owned_step_a`, `inv_supply_step_a`, `oracle:issue_a` | supply changed without a row |
 | `MUT_AUTHORITY_GUARD_BYPASS` | acceptance no longer requires the authorization premise | `payer_a = supply_a = 1`; `BURN(a, 1, authority_ok = false)` is accepted | `inv_accept_advances_one` (accepted with `RC_UNAUTHORIZED`), `oracle:accepted`, `oracle:supply_a` | |
@@ -547,7 +552,7 @@ verify-multi -> VERIFIED, fingerprints 58a1a345fed1f25c7d98e22452764b9dccfc2df82
 pytest (with ESSO) -> 56 passed; pytest (toolchain absent) -> 54 passed, 2 skipped
 ```
 
-### Closure repair 2 replay (this revision)
+### Closure repair 2 replay (`e091ccb01`)
 
 The closure repair changed only `meta.notes` and comments in the model
 (`AUTHORITATIVE_PROJECTION` wording); the loaded model is identical to the
@@ -576,6 +581,48 @@ PYTHONPATH=/path/to/ESSO python3 -m ESSO verify-multi src/kernels/dex/global_set
 PYTHONPATH=/path/to/ESSO PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider \
   tests/formal/test_esso_global_settlement_core_v1.py -rs
   -> 109 passed in 30.30s   (no skips: both ESSO tests ran and the live evidence was admitted)
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider \
+  tests/formal/test_esso_global_settlement_core_v1.py -rs      (toolchain absent)
+  -> 107 passed, 2 skipped: "ESSO toolchain absent ...: formal verdict INCOMPLETE; a skip is not a pass"
+python3 -m ruff check tests/formal/test_esso_global_settlement_core_v1.py
+  -> All checks passed!
+git diff --check
+  -> clean (no output)
+```
+
+The timings above were measured on that tree before its evidence block was
+filled in; the counts are unchanged by that edit.
+
+### Naming repair 3 replay (this revision)
+
+The naming repair renamed the rejection invariant to
+`inv_reject_projection_noop_and_empty_rows` in the YAML, the blueprint, and
+the tests, and renamed the related test functions and phrases to say
+authoritative-projection no-op plus empty rows. The loaded model is identical
+to closure repair 2 outside that identifier (`python3 -c` comparison with the
+identifier normalised printed `True`; `meta` unchanged). The IR hash covers
+invariant identifiers, so it changed; the verification fingerprint did not,
+because the checked semantics did not.
+
+Subject: `src/kernels/dex/global_settlement_core_v1.yaml` at SHA-256
+`121972779c7ac2f06dee1a6970498ab6b8e17c80c3050342648d8d2d432a2b7d`.
+
+```text
+PYTHONPATH=/path/to/ESSO python3 -m ESSO validate src/kernels/dex/global_settlement_core_v1.yaml
+  -> ok true, ir_hash sha256:889e3f9fb616fdd01c4d40a15f8cec80916ff992a8b2d6b39b8d1b305ba5e829
+
+PYTHONPATH=/path/to/ESSO python3 -m ESSO verify-multi src/kernels/dex/global_settlement_core_v1.yaml \
+  --solvers z3,cvc5 --determinism-trials 2 --timeout-ms 5000
+  -> ok true, determinism true,
+     fingerprints 58a1a345fed1f25c7d98e22452764b9dccfc2df82ac66217b7b109dc58389c43 (both trials),
+     init_implies_inv unsat (z3, cvc5), inductive_step unsat (z3, cvc5),
+     verdict VERIFIED, solvers_agreed true, failed_queries 0, inconclusive_queries 0,
+     passed_queries 2, total_queries 2, scope Inductive(k=1), fail_closed true,
+     reference null, esso_code_hash 7f80c6216be85c827e8d1cc2fa08ee3107a74588
+
+PYTHONPATH=/path/to/ESSO PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider \
+  tests/formal/test_esso_global_settlement_core_v1.py -rs
+  -> 109 passed in 32.30s   (no skips: both ESSO tests ran and the live evidence was admitted)
 PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider \
   tests/formal/test_esso_global_settlement_core_v1.py -rs      (toolchain absent)
   -> 107 passed, 2 skipped: "ESSO toolchain absent ...: formal verdict INCOMPLETE; a skip is not a pass"

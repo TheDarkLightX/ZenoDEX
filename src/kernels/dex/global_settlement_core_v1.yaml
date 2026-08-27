@@ -458,7 +458,7 @@ invariants:
   # LaneTransitionRejectedV1: a rejected step keeps the AUTHORITATIVE_PROJECTION
   # (both pre-state images, height, consumed flags), emits only empty economic
   # rows, and carries a reject code. Ghost journal fields may change.
-  - id: "inv_reject_exact_noop"
+  - id: "inv_reject_projection_noop_and_empty_rows"
     kind: "safety"
     expr:
       op: "or"

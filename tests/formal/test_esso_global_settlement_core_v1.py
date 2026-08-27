@@ -13,7 +13,9 @@ Evidence families (Test Hygiene Contract V1 vocabulary):
   INCOMPLETE.  A skip is never a pass.
 - ``stateful``, ``boundary``, ``negative_regression``, ``mutation``, ``replay``:
   a pure-Python interpreter of the same YAML (the executable bounded model)
-  drives AAA scenarios, BVA cases, reject-is-exact-no-op cases, bounded sweeps,
+  drives AAA scenarios, BVA cases, reject-is-authoritative-projection-no-op-plus-
+  empty-rows cases (evidence-journal, full-state, and history fields may
+  change on rejection), bounded sweeps,
   and named semantic mutants with RIPR (reach, infect, propagate, reveal)
   evidence.  The interpreter evaluates updates simultaneously over the
   pre-state and effects over the post-state.
@@ -58,10 +60,11 @@ RETIRED_STATUS = "FORMAL_VERDICT_INCOMPLETE_ESSO_ABSENT"
 
 # Exact replay facts recorded in the blueprint.  The IR hash covers the model
 # file including ``meta``; the fingerprint covers the verified semantics.
-RECORDED_IR_HASH = "sha256:b7c2d3be028eca1bd4e1ed6276a77d8123e23d8946f69ccf64a46f8be4073c05"
+RECORDED_IR_HASH = "sha256:889e3f9fb616fdd01c4d40a15f8cec80916ff992a8b2d6b39b8d1b305ba5e829"
 REVIEW_IR_HASH = "sha256:872a813305f2f34429c1f028918eb3e1bb5c5ce378c723501645c77b9098056b"
 REPAIR1_IR_HASH = "sha256:ec6a4c4518b6c5655082e487e816f4bd1411dfb74479afcd656783916d34090a"
-PRIOR_IR_HASHES = (REVIEW_IR_HASH, REPAIR1_IR_HASH)
+CLOSURE2_IR_HASH = "sha256:b7c2d3be028eca1bd4e1ed6276a77d8123e23d8946f69ccf64a46f8be4073c05"
+PRIOR_IR_HASHES = (REVIEW_IR_HASH, REPAIR1_IR_HASH, CLOSURE2_IR_HASH)
 RECORDED_FINGERPRINT = "58a1a345fed1f25c7d98e22452764b9dccfc2df82ac66217b7b109dc58389c43"
 RECORDED_ESSO_CODE_HASH = "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
 RECORDED_OBLIGATIONS = frozenset({"init_implies_inv", "inductive_step"})
@@ -86,7 +89,7 @@ ENFORCED_PINS = {
         "a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045"
     ),
     "src/kernels/dex/global_settlement_core_v1.yaml": (
-        "dabacaf6eff5d5106393aabebb0d3171c94776ad3f1f3a240f9d2a550658d1ca"
+        "121972779c7ac2f06dee1a6970498ab6b8e17c80c3050342648d8d2d432a2b7d"
     ),
 }
 
@@ -138,7 +141,7 @@ INVARIANT_IDS = (
     "inv_fee_step_a",
     "inv_fee_step_b",
     "inv_step_rows_nonnegative",
-    "inv_reject_exact_noop",
+    "inv_reject_projection_noop_and_empty_rows",
     "inv_accept_advances_one",
     "inv_consumed_monotone",
 )
@@ -1264,6 +1267,11 @@ def test_blueprint_and_model_define_the_authoritative_projection(model: BoundedM
     for field in AUTHORITATIVE_PROJECTION:
         assert f"`{field}`" in texts["blueprint"], field
     assert "no full-state or history no-op" in texts["blueprint"]
+    # The retired invariant name overclaimed a full-state no-op; it must not return.
+    retired_name = "inv_reject_" + "exact_noop"
+    for name, body in texts.items():
+        assert retired_name not in body, name
+    assert "inv_reject_projection_noop_and_empty_rows" in INVARIANT_IDS
     assert len(AUTHORITATIVE_PROJECTION) == 16
     assert set(AUTHORITATIVE_PROJECTION) <= set(model.state_vars)
     assert not any(name.startswith("g_") for name in AUTHORITATIVE_PROJECTION)
@@ -1862,7 +1870,9 @@ def _reject_cases(model: BoundedModel) -> list[tuple[str, dict[str, Any], dict[s
 
 
 @pytest.mark.parametrize("code", REJECT_CODES)
-def test_each_reject_class_is_an_exact_noop_with_empty_rows(model: BoundedModel, code: str) -> None:
+def test_each_reject_class_is_an_authoritative_projection_noop_with_empty_rows(
+    model: BoundedModel, code: str
+) -> None:
     # Arrange
     cases = {name: (pre, params) for name, pre, params in _reject_cases(model)}
     pre, params = cases[code]
@@ -2038,7 +2048,9 @@ def test_bounded_accept_box_preserves_every_invariant_and_spec_equation(model: B
     assert found == [], found[:1]
 
 
-def test_bounded_random_box_is_total_and_rejects_are_exact_noops(model: BoundedModel) -> None:
+def test_bounded_random_box_is_total_and_rejects_are_projection_noops_with_empty_rows(
+    model: BoundedModel,
+) -> None:
     box = random_box(model, seed=20260826, samples=4000)
     found = violations(model, box, limit=1)
     assert found == [], found[:1]
@@ -2184,13 +2196,13 @@ def test_mutant_omitted_residue_row_breaks_fee_reconciliation(
     assert post["fee_residue_a"] == 1 and post["g_fee_residue_a"] == 0
 
 
-def test_mutant_reject_with_effects_breaks_exact_noop_but_not_scalar_conservation(
+def test_mutant_reject_with_effects_breaks_projection_noop_but_not_scalar_conservation(
     doc: dict[str, Any], model: BoundedModel
 ) -> None:
     mutant = mutant_model(doc, "MUT_REJECT_WITH_EFFECTS")
     pre = make_state(model, payer_a=1, supply_a=1)
     params = command(pre, KIND_TRANSFER, amount=0, fee_charged=1, fee_alloc=0)
-    post = ripr(model, mutant, pre, params, revealed_by={"invariant:inv_reject_exact_noop"})
+    post = ripr(model, mutant, pre, params, revealed_by={"invariant:inv_reject_projection_noop_and_empty_rows"})
     assert post["g_decision"] == "DEC_REJECTED" and post["g_reject_code"] == "RC_ZERO_AMOUNT"
     assert (post["payer_a"], post["fee_alloc_a"]) == (0, 1)
     assert owned(post, "a") == post["supply_a"] == 1, "conservation alone cannot reveal this defect"
