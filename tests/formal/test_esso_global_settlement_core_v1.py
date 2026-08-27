@@ -1540,6 +1540,10 @@ def _require_exact_keys(value: Any, expected: set[str], label: str) -> dict[str,
     return value
 
 
+def _require_exact_int(value: Any, expected: int, reason: str) -> None:
+    _require(type(value) is int and value == expected, reason)
+
+
 def _canonical_json_sha256(value: Any) -> str:
     encoded = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
     return hashlib.sha256(encoded).hexdigest()
@@ -1617,7 +1621,7 @@ def admit_esso_evidence(validate_payload: Any, verify_payload: Any) -> dict[str,
         "solver timeout differs from the recorded replay",
     )
     trials = verify.get("determinism_trials")
-    _require(_is_int(trials) and trials == 2, "determinism trials must be exactly two")
+    _require_exact_int(trials, 2, "determinism trials must be exactly integer two")
     fingerprints = verify.get("fingerprints")
     _require(isinstance(fingerprints, list) and len(fingerprints) == trials, "fingerprint count")
     _require(
@@ -1691,10 +1695,10 @@ def admit_esso_evidence(validate_payload: Any, verify_payload: Any) -> dict[str,
     _require(report.get("verdict") == "VERIFIED", "verdict is not VERIFIED")
     _require(report.get("solvers_agreed") is True, "report solvers_agreed is not true")
     _require(report.get("disagreements") == [], "report lists disagreements")
-    _require(report.get("failed_queries") == 0, "failed queries")
-    _require(report.get("inconclusive_queries") == 0, "inconclusive queries")
-    _require(report.get("total_queries") == 2, "total queries is not two")
-    _require(report.get("passed_queries") == 2, "passed queries is not two")
+    _require_exact_int(report.get("failed_queries"), 0, "failed queries")
+    _require_exact_int(report.get("inconclusive_queries"), 0, "inconclusive queries")
+    _require_exact_int(report.get("total_queries"), 2, "total queries is not integer two")
+    _require_exact_int(report.get("passed_queries"), 2, "passed queries is not integer two")
     for flag in ("z3_passed", "cvc5_passed", "cvc5_available"):
         _require(report.get(flag) is True, f"report {flag} is not true")
     _require(report.get("model_id") == RECORDED_MODEL_ID, "report model id")
@@ -1728,13 +1732,18 @@ def admit_esso_evidence(validate_payload: Any, verify_payload: Any) -> dict[str,
         "scope",
     )
     _require(scope.get("kind") == "inductive", "scope kind is not inductive")
-    _require(scope.get("k") == 1 and not isinstance(scope.get("k"), bool), "scope k is not 1")
+    _require_exact_int(scope.get("k"), 1, "scope k is not integer one")
     _require(scope.get("badge") == "Inductive(k=1)", "scope badge is not Inductive(k=1)")
     _require(scope.get("fail_closed") is True, "scope is not fail-closed")
-    _require(scope.get("solver_seed") == RECORDED_SOLVER_SEED, "solver seed differs")
-    _require(
-        scope.get("solver_timeout_ms") == RECORDED_TIMEOUT_MS,
-        "scope solver timeout differs",
+    _require_exact_int(
+        scope.get("solver_seed"),
+        RECORDED_SOLVER_SEED,
+        "solver seed differs or is not an exact integer",
+    )
+    _require_exact_int(
+        scope.get("solver_timeout_ms"),
+        RECORDED_TIMEOUT_MS,
+        "scope solver timeout differs or is not an exact integer",
     )
     _require(scope.get("time") == "unbounded", "scope time differs")
     _require(
@@ -1916,20 +1925,48 @@ EVIDENCE_TAMPERS = (
     _tamper("verify_timestamp_malformed", lambda v, w: w["report"].__setitem__("timestamp", "now")),
     _tamper("verify_disagreement_listed", lambda v, w: w["report"].__setitem__("disagreements", ["inductive_step"])),
     _tamper("verify_failed_query", lambda v, w: w["report"].__setitem__("failed_queries", 1)),
+    _tamper(
+        "verify_failed_query_bool_type_drift",
+        lambda v, w: w["report"].__setitem__("failed_queries", False),
+    ),
     _tamper("verify_inconclusive_query", lambda v, w: w["report"].__setitem__("inconclusive_queries", 1)),
+    _tamper(
+        "verify_inconclusive_query_float_type_drift",
+        lambda v, w: w["report"].__setitem__("inconclusive_queries", 0.0),
+    ),
     _tamper("verify_total_queries", lambda v, w: w["report"].__setitem__("total_queries", 3)),
+    _tamper(
+        "verify_total_queries_float_type_drift",
+        lambda v, w: w["report"].__setitem__("total_queries", 2.0),
+    ),
     _tamper("verify_passed_queries", lambda v, w: w["report"].__setitem__("passed_queries", 1)),
+    _tamper(
+        "verify_passed_queries_float_type_drift",
+        lambda v, w: w["report"].__setitem__("passed_queries", 2.0),
+    ),
     _tamper("verify_cvc5_unavailable", lambda v, w: w["report"].__setitem__("cvc5_available", False)),
     _tamper("verify_model_id_drift", lambda v, w: w["report"].__setitem__("model_id", "other_model")),
     _tamper("verify_report_ir_hash_drift", lambda v, w: w["report"].__setitem__("ir_hash", "0" * 16)),
     _tamper("verify_scope_k2", lambda v, w: w["report"]["scope"].__setitem__("k", 2)),
+    _tamper(
+        "verify_scope_k_float_type_drift",
+        lambda v, w: w["report"]["scope"].__setitem__("k", 1.0),
+    ),
     _tamper("verify_scope_badge", lambda v, w: w["report"]["scope"].__setitem__("badge", "Inductive(k=2)")),
     _tamper("verify_scope_kind", lambda v, w: w["report"]["scope"].__setitem__("kind", "bmc")),
     _tamper("verify_scope_not_fail_closed", lambda v, w: w["report"]["scope"].__setitem__("fail_closed", False)),
     _tamper("verify_scope_seed_drift", lambda v, w: w["report"]["scope"].__setitem__("solver_seed", 1)),
     _tamper(
+        "verify_scope_seed_bool_type_drift",
+        lambda v, w: w["report"]["scope"].__setitem__("solver_seed", False),
+    ),
+    _tamper(
         "verify_scope_timeout_drift",
         lambda v, w: w["report"]["scope"].__setitem__("solver_timeout_ms", 4999),
+    ),
+    _tamper(
+        "verify_scope_timeout_float_type_drift",
+        lambda v, w: w["report"]["scope"].__setitem__("solver_timeout_ms", 5000.0),
     ),
     _tamper("verify_scope_extra_field", lambda v, w: w["report"]["scope"].__setitem__("forged", True)),
     _tamper(

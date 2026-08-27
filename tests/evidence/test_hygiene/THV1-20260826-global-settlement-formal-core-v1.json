@@ -19,7 +19,7 @@
     "issue and burn are admitted only by a net delta, allowing a paired issue-burn substitution",
     "an accepted abstract outcome can be constructed without well-formedness, application, and non-negativity evidence",
     "a rejected bounded step mutates an authoritative accounting or replay field or emits an economic row",
-    "an ESSO result with a changed IR, solver disagreement, extra or missing query, inconclusive result, changed toolchain revision, or changed fingerprint is admitted",
+    "an ESSO result with a changed IR, solver disagreement, extra or missing query, inconclusive result, changed toolchain revision, changed fingerprint, or Boolean/float alias for fixed integer metadata is admitted",
     "a proof placeholder, local custom axiom or constant declaration, transitive project-defined axiom dependency, unsafe declaration, malformed lexical enclosure, missing proof, or empty proof file passes the repository gates",
     "bounded model behavior drifts from the independent reference transition while its internal invariants still pass"
   ],
@@ -46,7 +46,7 @@
     },
     {
       "path": "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
-      "sha256": "4d4f3c631c941abc1896b068e725c7d31a45d8351a8fcadef232dab6dbe6ae59"
+      "sha256": "977ec3829dfbef2c3e676cc72e864552c2080174944f55d157c2d3a046faac87"
     }
   ],
   "removed_paths": [],
@@ -86,7 +86,7 @@
     },
     {
       "path": "tests/formal/test_esso_global_settlement_core_v1.py",
-      "sha256": "99a58ae3a123d94fe3ad81d9d9f2f43865a8465b5d72ffb15549fe8d45abdc08",
+      "sha256": "d4abacf13e91f67ed5c57985c0264ddbd28d121af79f6853c554814a65f6bb1c",
       "node_ids": [
         "tests/formal/test_esso_global_settlement_core_v1.py::test_model_declares_exactly_the_twelve_stable_lane_ids_in_canonical_order",
         "tests/formal/test_esso_global_settlement_core_v1.py::test_blueprint_records_the_durable_status_and_no_authority",
@@ -190,6 +190,10 @@
     {
       "description": "overwrite a nondefault prior lane on rejection",
       "killed_by": "tests/formal/test_esso_global_settlement_core_v1.py::test_mutant_reject_lane_drift_requires_a_nondefault_prior_lane"
+    },
+    {
+      "description": "replace fixed integer ESSO evidence metadata with equal-valued Boolean or float aliases",
+      "killed_by": "tests/formal/test_esso_global_settlement_core_v1.py::test_esso_evidence_admission_fails_closed"
     }
   ],
   "nonclaims": [

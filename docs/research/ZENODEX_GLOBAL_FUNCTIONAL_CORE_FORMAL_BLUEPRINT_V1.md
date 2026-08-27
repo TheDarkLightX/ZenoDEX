@@ -757,6 +757,29 @@ PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO \
      THV1-20260826-global-settlement-formal-core-v1
 ```
 
+### Max-review repair 6 replay
+
+The final ESSO review found that Python cross-type equality could admit
+malformed fixed numeric metadata. In particular, Boolean `false` compared
+equal to integer zero, and integral-valued floats compared equal to their
+integer counterparts. Repair 6 adds exact built-in integer type checks for
+the four query counters and the recorded induction depth, solver seed, and
+solver timeout. Seven retained negative cases exercise those aliases.
+
+The provenance gate also rejected a live replay from a different ESSO
+revision before admission. Replaying with the pinned ESSO code hash
+`7f80c6216be85c827e8d1cc2fa08ee3107a74588` produced:
+
+```text
+PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/pinned/ESSO \
+  python3 -m pytest -q -p no:cacheprovider \
+  tests/formal/test_esso_global_settlement_core_v1.py -rs
+  -> 135 passed in 38.57s, no skips
+
+python3 -m ruff check tests/formal/test_esso_global_settlement_core_v1.py
+  -> All checks passed!
+```
+
 Local toolchain facts: Python 3.12.3, pytest 7.4.4, PyYAML 6.0.1, ruff
 0.16.0, z3 4.15.4, cvc5 1.1.2. ESSO is external to this checkout; the
 replays above used `PYTHONPATH=/path/to/ESSO` with the private toolchain at
