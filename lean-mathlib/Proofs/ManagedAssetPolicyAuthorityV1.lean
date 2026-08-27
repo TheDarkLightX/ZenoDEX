@@ -1,115 +1,146 @@
 /-!
-# Managed ordinary-token issue and self-burn — authority core V1
+# Managed ordinary-token issue and self-burn — bounded policy-helper authority V1
 
-A machine-checked model of the *authorization decision* for the two generic
-managed-asset commands of `transition_managed_asset_lifecycle_v1` in
-`src/core/managed_asset_lifecycle_module_v1.py` (mirrored by
-`zk/global_settlement_abi_v1/src/managed_asset_lifecycle.rs`), together with the
-policy-registry-root binding that `src/core/asset_lane_coordinator_v1.py` checks
-on the lane projection. Everything here is an abstraction chosen to be provable;
-the gap to the runtime is spelled out below rather than left implicit.
+A machine-checked model of one *bounded* authorization predicate: the four
+governed-policy helper functions plus the lifecycle authorization core, and one
+named binder check. The runtime candidate read for this file is exact commit
+`da979883f61648b1a2698f47794b27f5946b2cdb`.
 
-## The modeled surface
+## Exactly what is abstracted
 
-Exactly one decision: *may this context act on this command against this state
-under this active profile*. Eight things are modeled and nothing else:
+Four functions and one check, named so the boundary is checkable:
 
-* the **exact command kind**, as a two-element closed enumeration plus a parser
-  from the raw wire string. `MANAGED_ASSET_ISSUE_COMMAND_KIND_V1` and
-  `MANAGED_ASSET_BURN_COMMAND_KIND_V1` are the only two accepted strings;
-* the **active profile policy binding**: the profile snapshot must be `ACTIVE`,
-  the context must name that profile, and the presented policy-registry root
-  must be the root the profile governs (`EconomicProfileSnapshotV1.status`,
-  `.profile_id`, `.policy_registry_root`);
-* the **typed managed policy registry root**: the registry value carried by the
-  module state declares a root, and that declared root must equal the presented
-  root (the lane input's `asset_policy_registry_root`, compared by the
-  coordinator's `POLICY_ROOT_MISMATCH` check);
-* the **unique asset member**: the policy used must be a member of that registry
-  and the *only* member naming the command's asset. The Python constructor
-  enforces this with `_require_ordered_objects(..., key="asset")`; here it is a
-  typed witness (`UniqueMember`) that the deterministic lookup produces from an
-  explicit no-duplicate premise;
-* the **module release**: `ManagedAssetLifecycleContextV1.module_release_id` must
-  equal `ManagedAssetLifecycleStateV1.module_release_id`;
-* the **subject**: `ManagedAssetLifecycleContextV1.subject_id`;
-* the **owner**: `ManagedAssetLifecycleCommandV1.account_owner`;
-* the **grant**: `ManagedAssetLifecycleContextV1.grant_root`.
+* `require_governed_managed_asset_policy_registry_v1`,
+  `require_managed_asset_policy_membership_v1`, and
+  `require_managed_asset_route_policy_root_v1` in
+  `src/core/managed_asset_policy_registry_v1.py`;
+* `_authorize` in `src/core/managed_asset_lifecycle_module_v1.py`, up to and
+  excluding its `ZERO_AMOUNT` check;
+* the single check `candidate.actual_command_kind != occurrence.command_kind`
+  from `_bind_candidate_v1` in
+  `src/core/lane_module_release_route_binding_v1.py`, imported because without
+  it this model would authorize a query whose outer binding and route are
+  selected for one command kind while the lifecycle grant rule runs for the
+  other. It is imported as the `commandKindAgrees` obligation and is the *only*
+  binder check modeled.
 
-The kind-specific rule is the point of the file. For issue, the subject must be
-the policy's named issue-authority subject and the grant must be the policy's
-issue policy root. For self-burn, the subject must be the command's own account
-owner and the grant must be the policy's self-burn policy root.
+**This is a bounded policy-helper claim. It is not the controlled release-route
+admission path.** See "The rest of the binder is not modeled" below.
 
-These obligations are an **unordered conjunction**. The runtime spreads the
-corresponding checks across three layers — profile activation in the commit
-path, the profile and policy-registry roots in the asset lane coordinator, and
-the release, kind, member, class, subject, and grant in the lifecycle module —
-and it returns the *first* failing check as a typed code. Neither that layering
-nor that precedence is modeled here, and no theorem below says which layer
-enforces which obligation.
+## The two-level binding
 
-## Making the paired authority unrepresentable
+Governance is not one root. It is an outer registry bound to the profile, whose
+*per-command-kind* binding names the inner registry:
 
-`ManagedAssetLifecyclePolicyV1` stores `issue_authority_subject` and
-`issue_policy_root` as two independent `str | None` fields and repairs the
-pairing with a runtime cross-field check (`_require_optional_authority`). Here
-the pair is one typed value, `Option IssueAuthority`, so a policy naming a
-subject without a root, or a root without a subject, cannot be written down.
-`IssueAuthorityMatches` is then a single equality against
-`some ⟨ctx.subject, ctx.grantRoot⟩`: a check that matched the subject while
-ignoring the root is not expressible as a weakening of that equality.
+```text
+profile.policy_registry_root
+  = EconomicPolicyRegistryV1.registry_root                       -- outer
+      .require_binding("managed_asset_policy_v1", occurrence.command_kind)
+        .policy_root
+          = ManagedAssetPolicyRegistryV1.registry_root           -- inner
+              = digest{schema, module_release_id, policies}
+```
 
-## Deterministic checker and typed witness
+The lane input's `asset_policy_registry_root` and the governed route's
+`RouteReleaseV1.issue_burn_policy_root` must equal that same inner root. The
+inner registry *selects* the `ASSET_TRANSFER` module release, which both
+`ManagedAssetLifecycleContextV1.module_release_id` and
+`ManagedAssetLifecycleStateV1.module_release_id` must equal.
 
-`authorizes` is a total `Bool` checker over the modeled fields. `Authorized` is
-the typed witness with one field per modeled obligation.
-`authorizes_eq_true_iff` proves the checker decides exactly the witness, under
-the state well-formedness premise `NoDuplicateAssets`. The checker owns
-promotion; every pinning theorem below reads the witness.
+Because the outer binding key is `(policy_kind, command_kind)`, the runtime
+**permits** issue and self-burn to name different inner registries. Nothing here
+requires them to be equal, and `bundle_pins_each_kind_separately` is stated so
+that one per-query witness is never read as pinning both kinds.
 
-## Roots are opaque identifiers
+## Two policy rows, not one
 
-`Root` is `String`. Roots are compared by equality and nothing else. No hash is
-computed, and **no cryptographic property is claimed**: not preimage
-resistance, not collision resistance, and not injectivity from a root to the
-registry contents it names. Two distinct registries may carry the same declared
-`registryRoot` in this model. Every theorem that "pins the registry" pins the
-registry *value the checker consulted* together with the equality of its
-declared root to the profile-governed root. Recovering the registry contents
-from the root is exactly the step this file does not take, and
-`staleRegistrySharingRoot` in the challenge module is the concrete reason the
-module-release check stays load-bearing.
+This is the correction that matters most. `require_managed_asset_policy_membership_v1`
+requires the command asset to have a *governed registry* member and requires
+every carried pre-state row to equal its registry counterpart. But `_authorize`
+then reads `_policy_for(pre_state, command.asset)` — the **pre-state** row — and
+evaluates class, enabled, subject, and grant from it.
 
-## Not modeled at all
+So the model carries both `Query.registryMember` and `Query.stateMember`,
+requires each to exist, and evaluates every downstream rule from the *state*
+member exactly as `_authorize` does.
+`authorized_state_member_is_governed` then derives that the two coincide, from
+state conformance rather than by assumption. Without the state-side membership
+obligation an empty pre-state policy list would satisfy conformance vacuously
+while `_authorize` returns `UNKNOWN_ASSET`; the challenge module rejects that
+query.
 
-No amounts, balances, supplies, or supply/balance ceilings; no `u128` or `i128`
-width discipline; no conservation, effect rows, or asset conservation rows; no
-canonical ordering, deduplication, or byte encoding; no state roots, effect plan
-roots, private ports, journals, or receipts; no `chain_id`, `deployment_root`,
-`writer_epoch`, `command_occurrence_id`, or replay and occurrence discipline; no
-fee policy registry; no signature or authentication derivation; no cross-layer
-composition of the commit path, the lane coordinator, and the lifecycle module;
-and no `ManagedAssetLifecycleRejectCodeV1` enumeration, wire strings, or
-rejection precedence. Rejection here is the *absence* of a witness, stated as
-the implications in section 9, not a code.
+## Roots are digests of content, with a narrow pairwise premise
+
+`ManagedAssetPolicyRegistryV1.registry_root` is `hash_global_v1` over
+`{schema, module_release_id, policies}`, so `Digests` carries an uninterpreted
+content-to-root function. Equal content gives equal roots, for free and
+truthfully.
+
+The converse is not free, and this file does **not** assume any global
+injectivity. `NoCollisionOn d r₁ r₂` is a premise about *one specific pair of
+canonical preimages*: it says those two do not collide under that digest.
+`noCollision_pins_registry` is the only place a registry value is recovered from
+a root, and it carries that pairwise premise. Nothing here claims, implies, or
+requires that `hash_global_v1` or SHA-256 is injective; `authorized_pins_root_not_value`
+is the unconditional conclusion available without any such premise.
+
+## The rest of the binder is not modeled
+
+`_bind_candidate_v1` performs several checks beyond the one imported above, and
+**none of them is modeled, abstracted, replaced, or discharged here**:
+
+* the active-profile requirement (`profile.status is ProfileStatusV1.ACTIVE`);
+* the command body hash equality
+  (`candidate.command_body_hash != occurrence.command_body_hash`);
+* the exact context binding (`_require_exact_context_binding`);
+* the exact journal binding (`_require_exact_journal_binding`: chain id,
+  deployment root, journal profile root against `profile.profile_id`, journal
+  occurrence id, and writer epoch against `profile.authority_epoch`);
+* the release checks, meaning the route ordered-lane index, the lane registry
+  release, the agreement of `journal.module_release_id`,
+  `route.module_release_ids[index]`, and `context.module_release_id` with that
+  release, and `command_variants` membership;
+* the statement root and the release witness it returns.
+
+Consequently `EconomicProfileSnapshotV1.status` is deliberately **not** an
+obligation below: no function this file abstracts inspects it, and adding it
+would be an invented gate. A query being `Authorized` here means the bounded
+policy-helper predicate holds, and nothing more.
+
+## Scope: what is NOT modeled
+
+No amount, balance, supply, or width; no `ZERO_AMOUNT`, `EFFECT_DELTA_OVERFLOW`,
+`INSUFFICIENT_BALANCE`, `BALANCE_OVERFLOW`, or `SUPPLY_OVERFLOW`; no
+conservation, effect rows, or asset conservation rows; no post-state and no
+state transition at all. No receipts, journals, private ports, effect-plan
+roots, or state roots. No canonical byte encoding, ordering, or deduplication.
+No replay, nonce, or occurrence consumption. No signature or authentication
+derivation. No fee policy registry. No rejection codes:
+`ManagedAssetLifecycleRejectCodeV1`, its wire strings, and its precedence are
+absent, and rejection here is the absence of a witness. No runtime refinement:
+no theorem below relates this model to the Python or Rust sources, and none can,
+because nothing here executes them.
+
+The obligations are an **unordered conjunction**. The runtime raises on the
+first failing check and spreads these checks across several functions. Neither
+that ordering nor that layering is modeled.
 
 ## Accounting wording
 
 `accountsLocation` is the accounting-location label the managed-asset rows carry
 (`ACCOUNT_CUSTODY_DOMAIN_V1`, value `"accounts"`). It is an accounting location
 and an accounting control domain label only. Nothing in this file asserts
-custody, possession, title, control, key control, or any enforceable claim over
-any asset by any party. Practical control of an asset follows key control, which
-is outside this file entirely; `accountsLocation` is read by no theorem here.
+custody, possession, title, control, or key control over any asset by any party.
+Practical control of an asset follows key control, which is outside this file
+entirely, and no theorem here reads `accountsLocation`.
 
 ## What is NOT claimed
 
-No cryptographic injectivity of any root or identifier; no refinement between
-this model and the Python or Rust runtime; no settlement, conservation, or
-replay safety; no economic-policy correctness; no release, migration,
-publication, or value-moving authority; and no production readiness. This is
-research-only structural evidence about one authorization predicate.
+No cryptographic property of any digest; no refinement between this model and
+any runtime; no settlement, conservation, or replay safety; no economic-policy
+correctness; no release, migration, publication, or value-moving authority; and
+no production readiness. This is research-only structural evidence about one
+bounded authorization predicate.
 -/
 
 namespace Proofs
@@ -117,50 +148,43 @@ namespace ManagedAssetPolicyAuthorityV1
 
 /-! ## 1. Opaque identifiers
 
-Uninterpreted tokens. The runtime's token syntax (`_require_token`) and root
-syntax (`_require_root`, 66-character lowercase `0x`-prefixed hex) are not
-modeled: a `String` here may be empty, oversized, or non-ASCII. -/
+Uninterpreted tokens. The runtime's `_require_token` and `_require_root` shape
+discipline is not modeled: a `String` here may be empty, oversized, or
+non-ASCII. -/
 
 abbrev Root := String
 abbrev Subject := String
 abbrev Asset := String
+abbrev Token := String
 abbrev AccountingLocation := String
 
-/-- The accounting-location label managed-asset rows carry
-(`ACCOUNT_CUSTODY_DOMAIN_V1`). Accounting label only; no theorem reads it and
-nothing here asserts custody, possession, title, control, or key control. -/
+/-- `ACCOUNT_CUSTODY_DOMAIN_V1`. Accounting label only; read by no theorem. -/
 def accountsLocation : AccountingLocation := "accounts"
 
-/-! ## 2. Exact command kind
+/-- `MANAGED_ASSET_POLICY_KIND_V1`, the outer binding's policy kind. -/
+def managedAssetPolicyKind : Token := "managed_asset_policy_v1"
 
-The closed pair `{MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
-MANAGED_ASSET_BURN_COMMAND_KIND_V1}`, plus the parser from the raw wire string
-carried by `ManagedAssetLifecycleCommandV1.command_kind`. -/
+/-! ## 2. Exact command kind -/
 
-/-- The two generic managed-asset command kinds. -/
 inductive CommandKind where
   | issue
   | burn
   deriving DecidableEq, Repr
 
-/-- The stable wire string for each kind. -/
+/-- `MANAGED_ASSET_ISSUE_COMMAND_KIND_V1` and
+`MANAGED_ASSET_BURN_COMMAND_KIND_V1`. -/
 def CommandKind.code : CommandKind → String
   | .issue => "managed_asset_issue"
   | .burn => "managed_asset_burn"
 
 def allCommandKinds : List CommandKind := [.issue, .burn]
 
-theorem allCommandKinds_length : allCommandKinds.length = 2 := rfl
-
 theorem allCommandKinds_codes :
     allCommandKinds.map CommandKind.code =
       ["managed_asset_issue", "managed_asset_burn"] := rfl
 
-/-- The enumeration is complete: there is no third generic kind. -/
 theorem allCommandKinds_complete (k : CommandKind) : k ∈ allCommandKinds := by
   cases k <;> decide
-
-theorem issue_ne_burn : CommandKind.issue ≠ CommandKind.burn := by decide
 
 theorem issue_code_ne_burn_code :
     CommandKind.issue.code ≠ CommandKind.burn.code := by decide
@@ -170,7 +194,8 @@ theorem CommandKind.code_injective {a b : CommandKind} (h : a.code = b.code) : a
     | rfl
     | exact absurd h (by decide)
 
-/-- The wire-kind parser. Only the two exact strings are accepted. -/
+/-- The wire-kind parser. Only the two exact strings are accepted; this is also
+`_MANAGED_ASSET_ROUTE_COMMAND_KINDS_V1` membership. -/
 def parseCommandKind (s : String) : Option CommandKind :=
   if s = CommandKind.issue.code then some CommandKind.issue
   else if s = CommandKind.burn.code then some CommandKind.burn
@@ -179,8 +204,7 @@ def parseCommandKind (s : String) : Option CommandKind :=
 theorem parseCommandKind_code (k : CommandKind) : parseCommandKind k.code = some k := by
   cases k <;> decide
 
-/-- Exactness of the kind: a wire string parses to a kind iff it *is* that
-kind's code. -/
+/-- Exactness: a wire string parses to a kind iff it *is* that kind's code. -/
 theorem parseCommandKind_eq_some_iff {s : String} {k : CommandKind} :
     parseCommandKind s = some k ↔ s = k.code := by
   constructor
@@ -201,8 +225,8 @@ theorem parseCommandKind_eq_some_iff {s : String} {k : CommandKind} :
     subst h
     exact parseCommandKind_code k
 
-/-- One wire string never names both kinds. This is the wire-level half of the
-issue-versus-burn confusion exclusion. -/
+/-- One wire string never names both kinds. This is a statement about a single
+string, not about a governance registry. -/
 theorem parseCommandKind_no_kind_confusion (s : String) :
     ¬ (parseCommandKind s = some CommandKind.issue ∧
        parseCommandKind s = some CommandKind.burn) := by
@@ -210,12 +234,10 @@ theorem parseCommandKind_no_kind_confusion (s : String) :
   rw [h1] at h2
   exact absurd h2 (by decide)
 
-/-! ## 3. Asset class
+/-! ## 3. Asset class and release status -/
 
-`ManagedAssetClassV1`. Only `REGISTERED_ORDINARY_TOKEN` may carry the generic
-issue and self-burn authority; every other class must route supply changes
-through its own named economic transition. -/
-
+/-- `ManagedAssetClassV1`. Only `REGISTERED_ORDINARY_TOKEN` may carry the generic
+issue and self-burn authority. -/
 inductive AssetClass where
   | tauNativeCoin
   | canonicalZusd
@@ -237,8 +259,6 @@ def allAssetClasses : List AssetClass :=
   [ .tauNativeCoin, .canonicalZusd, .lpShare, .zdexProtocolToken,
     .sealedBidPaymentOrInventory, .registeredOrdinaryToken ]
 
-theorem allAssetClasses_length : allAssetClasses.length = 6 := rfl
-
 theorem allAssetClasses_codes :
     allAssetClasses.map AssetClass.code =
       [ "tau_native_coin", "canonical_zusd", "lp_share", "zdex_protocol_token",
@@ -247,20 +267,50 @@ theorem allAssetClasses_codes :
 theorem allAssetClasses_complete (c : AssetClass) : c ∈ allAssetClasses := by
   cases c <;> decide
 
-/-! ## 4. Policies and the typed registry
+/-- `ReleaseStatusV1`. Only `ACTIVE_NEW` yields a route for new objects. -/
+inductive ReleaseStatus where
+  | candidate
+  | shadow
+  | activeNew
+  | drainOnly
+  | verifyOnly
+  | retired
+  | revoked
+  deriving DecidableEq, Repr
+
+def ReleaseStatus.code : ReleaseStatus → String
+  | .candidate => "CANDIDATE"
+  | .shadow => "SHADOW"
+  | .activeNew => "ACTIVE_NEW"
+  | .drainOnly => "DRAIN_ONLY"
+  | .verifyOnly => "VERIFY_ONLY"
+  | .retired => "RETIRED"
+  | .revoked => "REVOKED"
+
+def allReleaseStatuses : List ReleaseStatus :=
+  [ .candidate, .shadow, .activeNew, .drainOnly, .verifyOnly, .retired, .revoked ]
+
+theorem allReleaseStatuses_codes :
+    allReleaseStatuses.map ReleaseStatus.code =
+      [ "CANDIDATE", "SHADOW", "ACTIVE_NEW", "DRAIN_ONLY", "VERIFY_ONLY",
+        "RETIRED", "REVOKED" ] := rfl
+
+theorem allReleaseStatuses_complete (s : ReleaseStatus) : s ∈ allReleaseStatuses := by
+  cases s <;> decide
+
+/-! ## 4. Policies, the inner registry, and the outer registry
 
 The generic issue authority is one typed value, so the runtime's cross-field
-"subject and policy root must be present together" invariant is unrepresentable
-here rather than checked. -/
+"subject and policy root must be present together" invariant
+(`_require_optional_authority`) is unrepresentable here rather than checked. -/
 
-/-- The paired generic issue authority: a named subject *and* the policy root
-that subject must present. Neither half exists without the other. -/
+/-- The paired generic issue authority. Neither half exists without the other. -/
 structure IssueAuthority where
   subject : Subject
   policyRoot : Root
   deriving DecidableEq, Repr
 
-/-- One `ManagedAssetLifecyclePolicyV1`, restricted to the authority fields. -/
+/-- One `ManagedAssetLifecyclePolicyV1`, authority fields only. -/
 structure ManagedPolicy where
   asset : Asset
   assetClass : AssetClass
@@ -269,35 +319,139 @@ structure ManagedPolicy where
   enabled : Bool
   deriving DecidableEq, Repr
 
-/-- A managed policy registry: a declared root and its members. The root is an
-opaque identifier; it is *not* computed from `members` and does not determine
-them. See the header. -/
+/-- `ManagedAssetPolicyRegistryV1`: the canonical preimage whose digest is the
+inner registry root. It selects the `ASSET_TRANSFER` module release. -/
 structure ManagedPolicyRegistry where
-  registryRoot : Root
-  members : List ManagedPolicy
+  moduleReleaseId : Root
+  policies : List ManagedPolicy
   deriving DecidableEq, Repr
 
-/-- The state well-formedness the Python constructor establishes with
-`_require_ordered_objects(..., key="asset")`: at most one policy per asset. -/
-def NoDuplicateAssets (ps : List ManagedPolicy) : Prop :=
-  ∀ p ∈ ps, ∀ q ∈ ps, p.asset = q.asset → p = q
+/-- `EconomicPolicyBindingV1`. -/
+structure PolicyBinding where
+  policyKind : Token
+  commandKind : Token
+  policyRoot : Root
+  deriving DecidableEq, Repr
 
-instance decidableNoDuplicateAssets (ps : List ManagedPolicy) :
-    Decidable (NoDuplicateAssets ps) :=
-  inferInstanceAs (Decidable (∀ p ∈ ps, ∀ q ∈ ps, p.asset = q.asset → p = q))
+/-- `EconomicPolicyRegistryV1`: the outer governed registry. -/
+structure EconomicPolicyRegistry where
+  bindings : List PolicyBinding
+  deriving DecidableEq, Repr
 
-/-- The deterministic member lookup, mirroring the runtime's first-match scan
-over `state.policies`. -/
+/-- `RouteReleaseV1`, authority fields only. The lane list, module release ids,
+port schemas, image id, budgets, and evidence statuses are not modeled. -/
+structure RouteRelease where
+  routeReleaseId : Root
+  commandKind : Token
+  issueBurnPolicyRoot : Root
+  status : ReleaseStatus
+  acceptsNewObjects : Bool
+  deriving DecidableEq, Repr
+
+/-- `RouteRegistryV1`, restricted to its route list. -/
+structure RouteRegistry where
+  routes : List RouteRelease
+  deriving DecidableEq, Repr
+
+/-- `EconomicProfileSnapshotV1`, authority fields only. `profile_id` is not
+proved here to be the exact content-derived id, and `status`, the lane and
+coordinator registries, proof shape root, image id, verifier, migration, and
+terminal registry roots, and the authority epoch are not modeled. -/
+structure Profile where
+  profileId : Root
+  policyRegistryRoot : Root
+  routeRegistry : RouteRegistry
+  deriving DecidableEq, Repr
+
+/-- `EconomicCommandOccurrenceV1`, restricted to the two fields the governed
+policy helpers read. -/
+structure Occurrence where
+  commandKind : Token
+  routeReleaseId : Root
+  deriving DecidableEq, Repr
+
+/-- `ManagedAssetLifecycleContextV1` deciding fields, together with the lane
+input's `asset_policy_registry_root`. -/
+structure Context where
+  policyRegistryRoot : Root
+  moduleReleaseId : Root
+  subject : Subject
+  grantRoot : Root
+  deriving DecidableEq, Repr
+
+/-- The authority projection of `ManagedAssetLifecycleStateV1`: the release it
+executes under and the policy rows it carries. Balances and supplies are out of
+scope. -/
+structure ModuleState where
+  moduleReleaseId : Root
+  policies : List ManagedPolicy
+  deriving DecidableEq, Repr
+
+/-- The authority projection of `ManagedAssetLifecycleCommandV1`. The raw wire
+kind is kept unparsed so "unknown command" stays representable, and the amount
+is absent because this file decides authority only. -/
+structure Command where
+  commandKind : String
+  asset : Asset
+  accountOwner : Subject
+  deriving DecidableEq, Repr
+
+/-! ## 5. The content digest and the narrow no-collision premise -/
+
+/-- An uninterpreted content-to-root function standing in for `hash_global_v1`
+on the two canonical preimages this model hashes. -/
+structure Digests where
+  outer : EconomicPolicyRegistry → Root
+  managed : ManagedPolicyRegistry → Root
+
+/-- The narrow premise this model actually needs: *these two* canonical
+preimages do not collide under this digest. It is a hypothesis about one
+specific pair. It is never discharged here, and it is emphatically **not** a
+claim that `hash_global_v1` or SHA-256 is injective. -/
+def NoCollisionOn (d : Digests) (r₁ r₂ : ManagedPolicyRegistry) : Prop :=
+  d.managed r₁ = d.managed r₂ → r₁ = r₂
+
+instance decidableNoCollisionOn (d : Digests) (r₁ r₂ : ManagedPolicyRegistry) :
+    Decidable (NoCollisionOn d r₁ r₂) :=
+  inferInstanceAs (Decidable (d.managed r₁ = d.managed r₂ → r₁ = r₂))
+
+/-- The free direction: equal registry content gives equal roots. -/
+theorem managed_root_of_eq (d : Digests) {r₁ r₂ : ManagedPolicyRegistry} (h : r₁ = r₂) :
+    d.managed r₁ = d.managed r₂ := congrArg d.managed h
+
+theorem outer_root_of_eq (d : Digests) {r₁ r₂ : EconomicPolicyRegistry} (h : r₁ = r₂) :
+    d.outer r₁ = d.outer r₂ := congrArg d.outer h
+
+/-! ## 6. Deterministic lookups
+
+Each mirrors a runtime first-match scan whose uniqueness the constructor
+establishes (`_require_ordered_objects`, sorted-unique registry keys). -/
+
+/-- `ManagedAssetPolicyRegistryV1.policy_for`, and also the lifecycle module's
+`_policy_for` over the pre-state rows. -/
 def lookupPolicy (asset : Asset) : List ManagedPolicy → Option ManagedPolicy
   | [] => none
   | p :: rest => if p.asset = asset then some p else lookupPolicy asset rest
 
-/-- The typed unique-member witness: `p` is a member of the registry, it names
-the asset, and it is the only member that does. -/
-structure UniqueMember (r : ManagedPolicyRegistry) (a : Asset) (p : ManagedPolicy) : Prop where
-  mem : p ∈ r.members
-  asset : p.asset = a
-  unique : ∀ q ∈ r.members, q.asset = a → q = p
+/-- `EconomicPolicyRegistryV1.require_binding`, as a total lookup. -/
+def lookupBinding (policyKind commandKind : Token) : List PolicyBinding → Option PolicyBinding
+  | [] => none
+  | b :: rest =>
+      if b.policyKind = policyKind ∧ b.commandKind = commandKind then some b
+      else lookupBinding policyKind commandKind rest
+
+/-- `RouteRegistryV1.route_for_command`. The runtime takes the *first* route
+whose command kind matches and raises if that route is not `ACTIVE_NEW`, does
+not accept new objects, or does not match the caller's claimed route release id;
+it does not fall through to a later matching route. `none` models the raise. -/
+def routeForCommand (commandKind : Token) (claimedRouteReleaseId : Root) :
+    List RouteRelease → Option RouteRelease
+  | [] => none
+  | r :: rest =>
+      if r.commandKind = commandKind then
+        (if r.status = ReleaseStatus.activeNew ∧ r.acceptsNewObjects = true ∧
+            r.routeReleaseId = claimedRouteReleaseId then some r else none)
+      else routeForCommand commandKind claimedRouteReleaseId rest
 
 theorem lookupPolicy_mem {a : Asset} :
     ∀ {ps : List ManagedPolicy} {p : ManagedPolicy}, lookupPolicy a ps = some p → p ∈ ps
@@ -322,576 +476,656 @@ theorem lookupPolicy_asset {a : Asset} :
           exact hq
       · exact lookupPolicy_asset h
 
-theorem lookupPolicy_ne_none_of_mem {a : Asset} :
-    ∀ {ps : List ManagedPolicy} {p : ManagedPolicy}, p ∈ ps → p.asset = a →
-      lookupPolicy a ps ≠ none
-  | [], _, h, _ => by simp at h
-  | q :: rest, p, hmem, hasset => by
-      simp only [lookupPolicy]
-      by_cases hq : q.asset = a
-      · rw [if_pos hq]
-        simp
-      · rw [if_neg hq]
-        rcases List.mem_cons.mp hmem with rfl | h
-        · exact absurd hasset hq
-        · exact lookupPolicy_ne_none_of_mem h hasset
+theorem lookupBinding_spec {pk ck : Token} :
+    ∀ {bs : List PolicyBinding} {b : PolicyBinding},
+      lookupBinding pk ck bs = some b → b ∈ bs ∧ b.policyKind = pk ∧ b.commandKind = ck
+  | [], _, h => by simp [lookupBinding] at h
+  | c :: rest, b, h => by
+      simp only [lookupBinding] at h
+      split at h
+      · next hc =>
+          rw [Option.some.injEq] at h
+          subst h
+          exact ⟨List.mem_cons_self, hc.1, hc.2⟩
+      · obtain ⟨hm, h1, h2⟩ := lookupBinding_spec h
+        exact ⟨List.mem_cons_of_mem c hm, h1, h2⟩
 
-/-- Under the no-duplicate premise the deterministic lookup produces the typed
-unique-member witness. -/
-theorem uniqueMember_of_lookup {r : ManagedPolicyRegistry} {a : Asset} {p : ManagedPolicy}
-    (hnd : NoDuplicateAssets r.members) (hl : lookupPolicy a r.members = some p) :
-    UniqueMember r a p :=
-  { mem := lookupPolicy_mem hl
-    asset := lookupPolicy_asset hl
-    unique := fun q hq hqa =>
-      hnd q hq p (lookupPolicy_mem hl) (hqa.trans (lookupPolicy_asset hl).symm) }
+theorem routeForCommand_spec {ck : Token} {rid : Root} :
+    ∀ {rs : List RouteRelease} {r : RouteRelease},
+      routeForCommand ck rid rs = some r →
+        r ∈ rs ∧ r.commandKind = ck ∧ r.status = ReleaseStatus.activeNew ∧
+        r.acceptsNewObjects = true ∧ r.routeReleaseId = rid
+  | [], _, h => by simp [routeForCommand] at h
+  | s :: rest, r, h => by
+      simp only [routeForCommand] at h
+      split at h
+      · next hck =>
+          split at h
+          · next hok =>
+              rw [Option.some.injEq] at h
+              subst h
+              exact ⟨List.mem_cons_self, hck, hok.1, hok.2.1, hok.2.2⟩
+          · simp at h
+      · obtain ⟨hm, h1, h2, h3, h4⟩ := routeForCommand_spec h
+        exact ⟨List.mem_cons_of_mem s hm, h1, h2, h3, h4⟩
 
-/-- Conversely the witness pins the lookup result exactly. -/
-theorem lookupPolicy_eq_some_of_uniqueMember {r : ManagedPolicyRegistry} {a : Asset}
-    {p : ManagedPolicy} (h : UniqueMember r a p) : lookupPolicy a r.members = some p := by
-  cases hl : lookupPolicy a r.members with
-  | none => exact absurd hl (lookupPolicy_ne_none_of_mem h.mem h.asset)
-  | some q =>
-      rw [h.unique q (lookupPolicy_mem hl) (lookupPolicy_asset hl)]
+/-! ## 7. The authorization query -/
 
-/-- The unique-member witness is unique. -/
-theorem uniqueMember_unique {r : ManagedPolicyRegistry} {a : Asset} {p q : ManagedPolicy}
-    (hp : UniqueMember r a p) (hq : UniqueMember r a q) : p = q :=
-  hq.unique p hp.mem hp.asset
+structure Query where
+  digests : Digests
+  profile : Profile
+  outerRegistry : EconomicPolicyRegistry
+  managedRegistry : ManagedPolicyRegistry
+  occurrence : Occurrence
+  ctx : Context
+  state : ModuleState
+  cmd : Command
 
-/-! ## 5. Profile, state, context, command
+/-- The inner registry root: the digest of the governed registry content. -/
+def Query.managedRoot (q : Query) : Root := q.digests.managed q.managedRegistry
 
-The deciding fields only. `EconomicProfileSnapshotV1`'s lane, coordinator,
-route, verifier, migration, and terminal registries, its proof shape root, root
-image id, and authority epoch are not modeled, and `profile_id` is *not* proved
-here to be the exact content-derived id. -/
+/-- The **governed registry** row for the command's asset, if any. This is what
+`require_managed_asset_policy_membership_v1` requires to exist. -/
+def Query.registryMember (q : Query) : Option ManagedPolicy :=
+  lookupPolicy q.cmd.asset q.managedRegistry.policies
 
-/-- `ProfileStatusV1`. -/
-inductive ProfileStatus where
-  | candidate
-  | shadow
-  | active
-  | retired
-  | revoked
+/-- The **pre-state** row for the command's asset, if any. This is the row
+`_authorize` actually reads, and every class, enabled, subject, and grant rule
+below is evaluated from it. -/
+def Query.stateMember (q : Query) : Option ManagedPolicy :=
+  lookupPolicy q.cmd.asset q.state.policies
+
+/-- The parsed lifecycle command kind, if any. -/
+def Query.kind (q : Query) : Option CommandKind := parseCommandKind q.cmd.commandKind
+
+/-- The outer binding the profile-governed registry supplies for this
+occurrence's command kind, if any. -/
+def Query.outerBinding (q : Query) : Option PolicyBinding :=
+  lookupBinding managedAssetPolicyKind q.occurrence.commandKind q.outerRegistry.bindings
+
+/-- The governed route for this occurrence, if any. -/
+def Query.route (q : Query) : Option RouteRelease :=
+  routeForCommand q.occurrence.commandKind q.occurrence.routeReleaseId
+    q.profile.routeRegistry.routes
+
+/-! ## 8. The obligation registry
+
+A closed enumeration and one total `Bool` checker per obligation. Adding a
+constructor strengthens every witness and forces every fixture to be
+re-decided. -/
+
+inductive Obligation where
+  /-- The outer registry is the one the profile governs. -/
+  | outerProfileRoot
+  /-- The outer binding for this command kind names the inner registry root. -/
+  | outerBindingRoot
+  /-- The governed route's `issue_burn_policy_root` is the inner registry root. -/
+  | routePolicyRoot
+  /-- The lane input's `asset_policy_registry_root` is the inner registry root. -/
+  | laneRegistryRoot
+  /-- The inner registry selects the release the context and pre-state execute under. -/
+  | moduleRelease
+  /-- Every carried pre-state policy is exactly its governed registry member. -/
+  | stateConformance
+  /-- The lifecycle wire kind is one of the two exact codes. -/
+  | commandKindExact
+  /-- The occurrence's command kind is the lifecycle command kind. Imported from
+  `_bind_candidate_v1`; the only binder check modeled. -/
+  | commandKindAgrees
+  /-- The command's asset has a governed registry member. -/
+  | registryAssetMember
+  /-- The command's asset has a pre-state policy row, which is the row
+  `_authorize` reads. -/
+  | stateAssetMember
+  /-- That pre-state row is a registered ordinary token. -/
+  | ordinaryClass
+  /-- That pre-state row is enabled. -/
+  | enabled
+  /-- The kind-specific subject rule, evaluated from the pre-state row. -/
+  | subject
+  /-- The kind-specific grant rule, evaluated from the pre-state row. -/
+  | grant
   deriving DecidableEq, Repr
 
-def ProfileStatus.code : ProfileStatus → String
-  | .candidate => "CANDIDATE"
-  | .shadow => "SHADOW"
-  | .active => "ACTIVE"
-  | .retired => "RETIRED"
-  | .revoked => "REVOKED"
+def allObligations : List Obligation :=
+  [ .outerProfileRoot, .outerBindingRoot, .routePolicyRoot, .laneRegistryRoot,
+    .moduleRelease, .stateConformance, .commandKindExact, .commandKindAgrees,
+    .registryAssetMember, .stateAssetMember, .ordinaryClass, .enabled,
+    .subject, .grant ]
 
-def allProfileStatuses : List ProfileStatus :=
-  [ .candidate, .shadow, .active, .retired, .revoked ]
+theorem allObligations_length : allObligations.length = 14 := rfl
 
-theorem allProfileStatuses_codes :
-    allProfileStatuses.map ProfileStatus.code =
-      ["CANDIDATE", "SHADOW", "ACTIVE", "RETIRED", "REVOKED"] := rfl
+theorem allObligations_complete (o : Obligation) : o ∈ allObligations := by
+  cases o <;> decide
 
-theorem allProfileStatuses_complete (s : ProfileStatus) : s ∈ allProfileStatuses := by
-  cases s <;> decide
+/-- The deterministic per-obligation checker. -/
+def obligationHolds (q : Query) : Obligation → Bool
+  | .outerProfileRoot => decide (q.digests.outer q.outerRegistry = q.profile.policyRegistryRoot)
+  | .outerBindingRoot =>
+      match q.outerBinding with
+      | none => false
+      | some b => decide (b.policyRoot = q.managedRoot)
+  | .routePolicyRoot =>
+      match parseCommandKind q.occurrence.commandKind with
+      | none => false
+      | some _ =>
+        match q.route with
+        | none => false
+        | some r => decide (r.issueBurnPolicyRoot = q.managedRoot)
+  | .laneRegistryRoot => decide (q.ctx.policyRegistryRoot = q.managedRoot)
+  | .moduleRelease =>
+      decide (q.managedRegistry.moduleReleaseId = q.ctx.moduleReleaseId) &&
+      decide (q.managedRegistry.moduleReleaseId = q.state.moduleReleaseId)
+  | .stateConformance =>
+      q.state.policies.all fun p =>
+        decide (lookupPolicy p.asset q.managedRegistry.policies = some p)
+  | .commandKindExact => decide (q.kind ≠ none)
+  | .commandKindAgrees => decide (q.occurrence.commandKind = q.cmd.commandKind)
+  | .registryAssetMember => decide (q.registryMember ≠ none)
+  | .stateAssetMember => decide (q.stateMember ≠ none)
+  | .ordinaryClass =>
+      match q.stateMember with
+      | none => false
+      | some p => decide (p.assetClass = AssetClass.registeredOrdinaryToken)
+  | .enabled =>
+      match q.stateMember with
+      | none => false
+      | some p => p.enabled
+  | .subject =>
+      match q.kind with
+      | none => false
+      | some k =>
+        match q.stateMember with
+        | none => false
+        | some p =>
+          match k with
+          | .issue =>
+            match p.issueAuthority with
+            | none => false
+            | some ia => decide (q.ctx.subject = ia.subject)
+          | .burn =>
+            match p.selfBurnPolicyRoot with
+            | none => false
+            | some _ => decide (q.ctx.subject = q.cmd.accountOwner)
+  | .grant =>
+      match q.kind with
+      | none => false
+      | some k =>
+        match q.stateMember with
+        | none => false
+        | some p =>
+          match k with
+          | .issue =>
+            match p.issueAuthority with
+            | none => false
+            | some ia => decide (q.ctx.grantRoot = ia.policyRoot)
+          | .burn =>
+            match p.selfBurnPolicyRoot with
+            | none => false
+            | some root => decide (q.ctx.grantRoot = root)
 
-/-- The governance side: which profile is active and which managed policy
-registry root it governs. -/
-structure ProfileSnapshot where
-  profileRoot : Root
-  managedPolicyRegistryRoot : Root
-  status : ProfileStatus
-  deriving DecidableEq, Repr
-
-/-- The authority projection of `ManagedAssetLifecycleStateV1`: the module
-release and the typed policy registry. Balances and supplies are out of scope. -/
-structure ModuleState where
-  moduleReleaseId : Root
-  registry : ManagedPolicyRegistry
-  deriving DecidableEq, Repr
-
-/-- The deciding fields of `ManagedAssetLifecycleContextV1` together with the
-lane input's `asset_policy_registry_root`. -/
-structure Context where
-  profileRoot : Root
-  policyRegistryRoot : Root
-  moduleReleaseId : Root
-  subject : Subject
-  grantRoot : Root
-  deriving DecidableEq, Repr
-
-/-- The authority projection of `ManagedAssetLifecycleCommandV1`. The raw wire
-kind is kept unparsed so that "unknown command" stays representable. -/
-structure Command where
-  commandKind : String
-  asset : Asset
-  accountOwner : Subject
-  deriving DecidableEq, Repr
-
-/-! ## 6. The kind-specific grant rule
-
-The whole point of the pairing in `IssueAuthority`: the issue rule is a *single*
-equality binding the subject and the grant together. -/
-
-/-- Issue: the policy's paired authority is exactly the subject and grant the
-context presents. -/
-def IssueAuthorityMatches (ctx : Context) (policy : ManagedPolicy) : Prop :=
-  policy.issueAuthority = some ⟨ctx.subject, ctx.grantRoot⟩
-
-/-- Self-burn: the subject is the command's own account owner and the grant is
-the policy's self-burn policy root. -/
-def SelfBurnGrantMatches (ctx : Context) (cmd : Command) (policy : ManagedPolicy) : Prop :=
-  ctx.subject = cmd.accountOwner ∧ policy.selfBurnPolicyRoot = some ctx.grantRoot
-
-instance decidableIssueAuthorityMatches (ctx : Context) (policy : ManagedPolicy) :
-    Decidable (IssueAuthorityMatches ctx policy) :=
-  inferInstanceAs (Decidable (policy.issueAuthority = some ⟨ctx.subject, ctx.grantRoot⟩))
-
-instance decidableSelfBurnGrantMatches (ctx : Context) (cmd : Command) (policy : ManagedPolicy) :
-    Decidable (SelfBurnGrantMatches ctx cmd policy) :=
-  inferInstanceAs
-    (Decidable (ctx.subject = cmd.accountOwner ∧ policy.selfBurnPolicyRoot = some ctx.grantRoot))
-
-/-- The grant rule selected by the exact command kind. -/
-def GrantMatches (ctx : Context) (cmd : Command) (kind : CommandKind)
-    (policy : ManagedPolicy) : Prop :=
-  match kind with
-  | .issue => IssueAuthorityMatches ctx policy
-  | .burn => SelfBurnGrantMatches ctx cmd policy
-
-instance decidableGrantMatches (ctx : Context) (cmd : Command) (kind : CommandKind)
-    (policy : ManagedPolicy) : Decidable (GrantMatches ctx cmd kind policy) :=
-  match kind with
-  | .issue => decidableIssueAuthorityMatches ctx policy
-  | .burn => decidableSelfBurnGrantMatches ctx cmd policy
-
-theorem grantMatches_issue (ctx : Context) (cmd : Command) (policy : ManagedPolicy) :
-    GrantMatches ctx cmd CommandKind.issue policy = IssueAuthorityMatches ctx policy := rfl
-
-theorem grantMatches_burn (ctx : Context) (cmd : Command) (policy : ManagedPolicy) :
-    GrantMatches ctx cmd CommandKind.burn policy = SelfBurnGrantMatches ctx cmd policy := rfl
-
-/-! ## 7. The typed authorization witness and the deterministic checker -/
-
-/-- One obligation per modeled field. There is no other constructor, so an
-authorization that skipped any of these is not expressible. -/
-structure Authorized (profile : ProfileSnapshot) (st : ModuleState) (ctx : Context)
-    (cmd : Command) (kind : CommandKind) (policy : ManagedPolicy) : Prop where
-  profileActive : profile.status = ProfileStatus.active
-  profileNamed : ctx.profileRoot = profile.profileRoot
-  registryRootGoverned : ctx.policyRegistryRoot = profile.managedPolicyRegistryRoot
-  registryRootBound : st.registry.registryRoot = ctx.policyRegistryRoot
-  releaseMatched : ctx.moduleReleaseId = st.moduleReleaseId
-  kindExact : parseCommandKind cmd.commandKind = some kind
-  member : UniqueMember st.registry cmd.asset policy
-  ordinaryClass : policy.assetClass = AssetClass.registeredOrdinaryToken
-  enabled : policy.enabled = true
-  grantMatched : GrantMatches ctx cmd kind policy
-
-/-- The context-and-policy half of the checker, once the kind has parsed and the
-member has been found. -/
-def contextAuthorizes (profile : ProfileSnapshot) (st : ModuleState) (ctx : Context)
-    (cmd : Command) (kind : CommandKind) (policy : ManagedPolicy) : Bool :=
-  decide (profile.status = ProfileStatus.active) &&
-  decide (ctx.profileRoot = profile.profileRoot) &&
-  decide (ctx.policyRegistryRoot = profile.managedPolicyRegistryRoot) &&
-  decide (st.registry.registryRoot = ctx.policyRegistryRoot) &&
-  decide (ctx.moduleReleaseId = st.moduleReleaseId) &&
-  decide (policy.assetClass = AssetClass.registeredOrdinaryToken) &&
-  policy.enabled &&
-  decide (GrantMatches ctx cmd kind policy)
+/-- The typed witness: every obligation in the closed registry holds. This is
+the bounded policy-helper predicate, not release-route admission. -/
+def Authorized (q : Query) : Prop := ∀ o : Obligation, obligationHolds q o = true
 
 /-- The total deterministic authorization checker. -/
-def authorizes (profile : ProfileSnapshot) (st : ModuleState) (ctx : Context)
-    (cmd : Command) : Bool :=
-  match parseCommandKind cmd.commandKind with
-  | none => false
-  | some kind =>
-    match lookupPolicy cmd.asset st.registry.members with
-    | none => false
-    | some policy => contextAuthorizes profile st ctx cmd kind policy
+def authorizes (q : Query) : Bool := allObligations.all (obligationHolds q)
 
-theorem contextAuthorizes_eq_true_iff (profile : ProfileSnapshot) (st : ModuleState)
-    (ctx : Context) (cmd : Command) (kind : CommandKind) (policy : ManagedPolicy) :
-    contextAuthorizes profile st ctx cmd kind policy = true ↔
-      profile.status = ProfileStatus.active ∧
-      ctx.profileRoot = profile.profileRoot ∧
-      ctx.policyRegistryRoot = profile.managedPolicyRegistryRoot ∧
-      st.registry.registryRoot = ctx.policyRegistryRoot ∧
-      ctx.moduleReleaseId = st.moduleReleaseId ∧
-      policy.assetClass = AssetClass.registeredOrdinaryToken ∧
-      policy.enabled = true ∧
-      GrantMatches ctx cmd kind policy := by
-  simp only [contextAuthorizes, Bool.and_eq_true, decide_eq_true_eq, and_assoc]
+/-- The same checker with a set of obligations removed. One definition covers
+every omission counterexample. -/
+def authorizesExcept (q : Query) (skip : Obligation → Bool) : Bool :=
+  allObligations.all fun o => skip o || obligationHolds q o
 
-/-- The checker decides exactly the typed witness. `NoDuplicateAssets` is the
-state well-formedness premise the runtime constructor establishes; without it a
-registry could carry two policies for one asset and the lookup would silently
-pick the first. -/
-theorem authorizes_eq_true_iff (profile : ProfileSnapshot) (st : ModuleState)
-    (ctx : Context) (cmd : Command) (hnd : NoDuplicateAssets st.registry.members) :
-    authorizes profile st ctx cmd = true ↔
-      ∃ (kind : CommandKind) (policy : ManagedPolicy),
-        Authorized profile st ctx cmd kind policy := by
-  cases hk : parseCommandKind cmd.commandKind with
+/-- The single-obligation omission. Only the independently omissible
+obligations have a counterexample of this shape. -/
+def authorizesOmitting (q : Query) (skipped : Obligation) : Bool :=
+  authorizesExcept q fun o => decide (o = skipped)
+
+/-- The coupled-set omission, needed for the three obligations whose failure
+forces other obligations to fail with them. -/
+def authorizesOmittingAll (q : Query) (skipped : List Obligation) : Bool :=
+  authorizesExcept q fun o => skipped.contains o
+
+theorem authorizes_eq_true_iff (q : Query) : authorizes q = true ↔ Authorized q := by
+  simp only [authorizes, List.all_eq_true]
+  constructor
+  · intro h o
+    exact h o (allObligations_complete o)
+  · intro h o _
+    exact h o
+
+/-- Rejection is the absence of a witness: one failing obligation is enough. -/
+theorem not_authorized_of_obligation_false {q : Query} {o : Obligation}
+    (h : obligationHolds q o = false) : ¬ Authorized q := by
+  intro hA
+  rw [hA o] at h
+  exact absurd h (by decide)
+
+theorem authorizes_eq_false_of_obligation_false {q : Query} {o : Obligation}
+    (h : obligationHolds q o = false) : authorizes q = false := by
+  cases hb : authorizes q with
+  | false => rfl
+  | true =>
+      exact absurd ((authorizes_eq_true_iff q).mp hb o) (by rw [h]; decide)
+
+/-- Omitting obligations only ever weakens the checker. -/
+theorem authorizesExcept_of_authorizes {q : Query} (skip : Obligation → Bool)
+    (h : authorizes q = true) : authorizesExcept q skip = true := by
+  simp only [authorizes, List.all_eq_true] at h
+  simp only [authorizesExcept, List.all_eq_true]
+  intro x hx
+  rw [h x hx, Bool.or_true]
+
+theorem authorizesOmitting_of_authorizes {q : Query} (o : Obligation)
+    (h : authorizes q = true) : authorizesOmitting q o = true :=
+  authorizesExcept_of_authorizes _ h
+
+/-! ## 9. The omission-counterexample shape -/
+
+/-- The weakened checker accepts, the real checker rejects, and no witness
+exists. `skip` may remove one obligation or a coupled set; the name of each
+instance in the challenge module says which. -/
+def OmissionCounterexampleFor (q : Query) (skip : Obligation → Bool) : Prop :=
+  authorizesExcept q skip = true ∧ authorizes q = false ∧ ¬ Authorized q
+
+/-- The single-obligation form. Only the independently omissible obligations
+have a counterexample of this shape. -/
+def SingleOmissionCounterexample (q : Query) (o : Obligation) : Prop :=
+  OmissionCounterexampleFor q fun x => decide (x = o)
+
+/-- The coupled-set form. -/
+def CoupledOmissionCounterexample (q : Query) (os : List Obligation) : Prop :=
+  OmissionCounterexampleFor q fun x => os.contains x
+
+theorem omissionCounterexampleFor_of {q : Query} {skip : Obligation → Bool}
+    {o : Obligation} (hweak : authorizesExcept q skip = true)
+    (hfail : obligationHolds q o = false) : OmissionCounterexampleFor q skip :=
+  ⟨hweak, authorizes_eq_false_of_obligation_false hfail,
+    not_authorized_of_obligation_false hfail⟩
+
+theorem singleOmission_of {q : Query} {o : Obligation}
+    (hweak : authorizesOmitting q o = true) (hfail : obligationHolds q o = false) :
+    SingleOmissionCounterexample q o :=
+  omissionCounterexampleFor_of hweak hfail
+
+theorem coupledOmission_of {q : Query} {os : List Obligation} {o : Obligation}
+    (hweak : authorizesOmittingAll q os = true) (hfail : obligationHolds q o = false) :
+    CoupledOmissionCounterexample q os :=
+  omissionCounterexampleFor_of hweak hfail
+
+/-- A counterexample witnesses that dropping those obligations is a strict
+weakening of the checker. -/
+theorem strictly_weaker_of_omission {q : Query} {skip : Obligation → Bool}
+    (h : OmissionCounterexampleFor q skip) :
+    ¬ (∀ r : Query, authorizesExcept r skip = authorizes r) := by
+  intro hall
+  have := hall q
+  rw [h.1, h.2.1] at this
+  exact absurd this (by decide)
+
+/-! ## 10. Authorization pins the two-level binding -/
+
+theorem authorized_pins_outer_profile_root {q : Query} (h : Authorized q) :
+    q.digests.outer q.outerRegistry = q.profile.policyRegistryRoot := by
+  have hb := h .outerProfileRoot
+  simpa only [obligationHolds, decide_eq_true_eq] using hb
+
+theorem authorized_pins_outer_binding {q : Query} (h : Authorized q) :
+    ∃ b : PolicyBinding, q.outerBinding = some b ∧
+      b.policyKind = managedAssetPolicyKind ∧
+      b.commandKind = q.occurrence.commandKind ∧
+      b.policyRoot = q.managedRoot := by
+  have hb := h .outerBindingRoot
+  simp only [obligationHolds] at hb
+  split at hb
+  · exact absurd hb (by simp)
+  · next b hl =>
+      have hspec := lookupBinding_spec hl
+      refine ⟨b, hl, hspec.2.1, hspec.2.2, ?_⟩
+      simpa only [decide_eq_true_eq] using hb
+
+theorem authorized_pins_route_policy_root {q : Query} (h : Authorized q) :
+    ∃ r : RouteRelease, q.route = some r ∧
+      r.commandKind = q.occurrence.commandKind ∧
+      r.status = ReleaseStatus.activeNew ∧
+      r.acceptsNewObjects = true ∧
+      r.routeReleaseId = q.occurrence.routeReleaseId ∧
+      r.issueBurnPolicyRoot = q.managedRoot := by
+  have hb := h .routePolicyRoot
+  simp only [obligationHolds] at hb
+  split at hb
+  · exact absurd hb (by simp)
+  · split at hb
+    · exact absurd hb (by simp)
+    · next r hr =>
+        have hspec := routeForCommand_spec hr
+        refine ⟨r, hr, hspec.2.1, hspec.2.2.1, hspec.2.2.2.1, hspec.2.2.2.2, ?_⟩
+        simpa only [decide_eq_true_eq] using hb
+
+theorem authorized_pins_lane_registry_root {q : Query} (h : Authorized q) :
+    q.ctx.policyRegistryRoot = q.managedRoot := by
+  have hb := h .laneRegistryRoot
+  simpa only [obligationHolds, decide_eq_true_eq] using hb
+
+/-- The occurrence's command kind is one of the two exact managed kinds, which
+is the `_MANAGED_ASSET_ROUTE_COMMAND_KINDS_V1` guard. -/
+theorem authorized_occurrence_kind_is_managed {q : Query} (h : Authorized q) :
+    ∃ k : CommandKind, parseCommandKind q.occurrence.commandKind = some k := by
+  have hb := h .routePolicyRoot
+  simp only [obligationHolds] at hb
+  split at hb
+  · exact absurd hb (by simp)
+  · next k hk => exact ⟨k, hk⟩
+
+/-- The imported binder check: the occurrence's command kind *is* the lifecycle
+command kind, so the outer binding and the route are selected for the same kind
+the grant rule runs for. -/
+theorem authorized_command_kinds_agree {q : Query} (h : Authorized q) :
+    q.occurrence.commandKind = q.cmd.commandKind := by
+  have hb := h .commandKindAgrees
+  simpa only [obligationHolds, decide_eq_true_eq] using hb
+
+/-- The full two-level binding for **this query's one command kind**: the outer
+registry is the profile's, its binding for that kind names the inner root, and
+the lane input and the governed route name that same inner root. This says
+nothing about the other command kind's binding or route. -/
+theorem authorized_pins_two_level_binding {q : Query} (h : Authorized q) :
+    q.digests.outer q.outerRegistry = q.profile.policyRegistryRoot ∧
+    (∃ b : PolicyBinding, q.outerBinding = some b ∧
+      b.commandKind = q.cmd.commandKind ∧ b.policyRoot = q.managedRoot) ∧
+    (∃ r : RouteRelease, q.route = some r ∧
+      r.commandKind = q.cmd.commandKind ∧ r.issueBurnPolicyRoot = q.managedRoot) ∧
+    q.ctx.policyRegistryRoot = q.managedRoot := by
+  have hk := authorized_command_kinds_agree h
+  obtain ⟨b, hb, -, hbk, hbr⟩ := authorized_pins_outer_binding h
+  obtain ⟨r, hr, hrk, -, -, -, hrr⟩ := authorized_pins_route_policy_root h
+  exact ⟨authorized_pins_outer_profile_root h, ⟨b, hb, hbk.trans hk, hbr⟩,
+    ⟨r, hr, hrk.trans hk, hrr⟩, authorized_pins_lane_registry_root h⟩
+
+/-- All three root observations for this query's kind agree, so an adversary
+must move every one of them together. -/
+theorem authorized_roots_agree {q : Query} (h : Authorized q)
+    {b : PolicyBinding} (hb : q.outerBinding = some b)
+    {r : RouteRelease} (hr : q.route = some r) :
+    q.ctx.policyRegistryRoot = b.policyRoot ∧
+    b.policyRoot = r.issueBurnPolicyRoot := by
+  obtain ⟨b', hb', -, -, hbr⟩ := authorized_pins_outer_binding h
+  obtain ⟨r', hr', -, -, -, -, hrr⟩ := authorized_pins_route_policy_root h
+  rw [hb] at hb'
+  rw [hr] at hr'
+  rw [Option.some.injEq] at hb' hr'
+  subst hb'
+  subst hr'
+  exact ⟨(authorized_pins_lane_registry_root h).trans hbr.symm, hbr.trans hrr.symm⟩
+
+/-! ## 11. Governance binds each command kind separately
+
+The outer binding key is `(policy_kind, command_kind)` and routes are per
+command kind, so the runtime **permits** issue and self-burn to name different
+inner registries. Nothing in this file requires them to be equal. -/
+
+/-- Two authorized queries, one issue and one self-burn, each pin *their own*
+binding and route. No conclusion relates the issue inner root to the burn inner
+root, and none is available: the challenge module exhibits a governance bundle
+authorizing both kinds against different inner registries. -/
+theorem bundle_pins_each_kind_separately {qI qB : Query}
+    (hI : Authorized qI) (hB : Authorized qB)
+    (hkI : qI.cmd.commandKind = CommandKind.issue.code)
+    (hkB : qB.cmd.commandKind = CommandKind.burn.code) :
+    (∃ b : PolicyBinding, qI.outerBinding = some b ∧
+      b.commandKind = CommandKind.issue.code ∧ b.policyRoot = qI.managedRoot) ∧
+    (∃ b : PolicyBinding, qB.outerBinding = some b ∧
+      b.commandKind = CommandKind.burn.code ∧ b.policyRoot = qB.managedRoot) ∧
+    (∃ r : RouteRelease, qI.route = some r ∧
+      r.commandKind = CommandKind.issue.code ∧ r.issueBurnPolicyRoot = qI.managedRoot) ∧
+    (∃ r : RouteRelease, qB.route = some r ∧
+      r.commandKind = CommandKind.burn.code ∧ r.issueBurnPolicyRoot = qB.managedRoot) := by
+  obtain ⟨-, ⟨bI, hbI, hbIk, hbIr⟩, ⟨rI, hrI, hrIk, hrIr⟩, -⟩ :=
+    authorized_pins_two_level_binding hI
+  obtain ⟨-, ⟨bB, hbB, hbBk, hbBr⟩, ⟨rB, hrB, hrBk, hrBr⟩, -⟩ :=
+    authorized_pins_two_level_binding hB
+  exact ⟨⟨bI, hbI, hbIk.trans hkI, hbIr⟩, ⟨bB, hbB, hbBk.trans hkB, hbBr⟩,
+    ⟨rI, hrI, hrIk.trans hkI, hrIr⟩, ⟨rB, hrB, hrBk.trans hkB, hrBr⟩⟩
+
+/-- Within **one** command kind and one outer registry the binding is the same,
+so the inner root is the same. This is the only agreement available, and it is
+deliberately not stated across kinds. -/
+theorem outer_binding_root_agrees_within_one_kind {q₁ q₂ : Query}
+    (h₁ : Authorized q₁) (h₂ : Authorized q₂)
+    (hkind : q₁.cmd.commandKind = q₂.cmd.commandKind)
+    (hreg : q₁.outerRegistry = q₂.outerRegistry) :
+    q₁.managedRoot = q₂.managedRoot := by
+  have e₁ := authorized_command_kinds_agree h₁
+  have e₂ := authorized_command_kinds_agree h₂
+  have hsame : q₁.outerBinding = q₂.outerBinding := by
+    simp only [Query.outerBinding, e₁, e₂, hkind, hreg]
+  obtain ⟨b₁, hb₁, -, -, hr₁⟩ := authorized_pins_outer_binding h₁
+  obtain ⟨b₂, hb₂, -, -, hr₂⟩ := authorized_pins_outer_binding h₂
+  rw [hsame, hb₂, Option.some.injEq] at hb₁
+  subst hb₁
+  rw [← hr₁, ← hr₂]
+
+/-! ## 12. Module release, state conformance, and the two policy rows -/
+
+/-- The inner registry selects the release, and both the context and the
+pre-state execute under exactly that release. -/
+theorem authorized_pins_module_release {q : Query} (h : Authorized q) :
+    q.managedRegistry.moduleReleaseId = q.ctx.moduleReleaseId ∧
+    q.managedRegistry.moduleReleaseId = q.state.moduleReleaseId ∧
+    q.ctx.moduleReleaseId = q.state.moduleReleaseId := by
+  have hb := h .moduleRelease
+  simp only [obligationHolds, Bool.and_eq_true, decide_eq_true_eq] at hb
+  exact ⟨hb.1, hb.2, hb.1.symm.trans hb.2⟩
+
+/-- Every policy row the pre-state carries is exactly its governed member. -/
+theorem authorized_pins_state_conformance {q : Query} (h : Authorized q) :
+    ∀ p ∈ q.state.policies, lookupPolicy p.asset q.managedRegistry.policies = some p := by
+  have hb := h .stateConformance
+  simp only [obligationHolds, List.all_eq_true, decide_eq_true_eq] at hb
+  exact hb
+
+theorem authorized_registryMember_exists {q : Query} (h : Authorized q) :
+    ∃ p : ManagedPolicy, q.registryMember = some p := by
+  have hb := h .registryAssetMember
+  simp only [obligationHolds, decide_eq_true_eq, ne_eq] at hb
+  cases hp : q.registryMember with
+  | none => exact absurd hp hb
+  | some p => exact ⟨p, rfl⟩
+
+/-- The pre-state row `_authorize` reads exists. Without this obligation an
+empty pre-state policy list would satisfy conformance vacuously. -/
+theorem authorized_stateMember_exists {q : Query} (h : Authorized q) :
+    ∃ p : ManagedPolicy, q.stateMember = some p := by
+  have hb := h .stateAssetMember
+  simp only [obligationHolds, decide_eq_true_eq, ne_eq] at hb
+  cases hp : q.stateMember with
+  | none => exact absurd hp hb
+  | some p => exact ⟨p, rfl⟩
+
+theorem authorized_kind_exists {q : Query} (h : Authorized q) :
+    ∃ k : CommandKind, q.kind = some k := by
+  have hb := h .commandKindExact
+  simp only [obligationHolds, decide_eq_true_eq, ne_eq] at hb
+  cases hk : q.kind with
+  | none => exact absurd hk hb
+  | some k => exact ⟨k, rfl⟩
+
+/-- The row `_authorize` reads **is** the governed registry member. Derived from
+state conformance, not assumed. -/
+theorem authorized_state_member_is_governed {q : Query} (h : Authorized q)
+    {p : ManagedPolicy} (hp : q.stateMember = some p) : q.registryMember = some p := by
+  have hc := authorized_pins_state_conformance h p (lookupPolicy_mem hp)
+  rw [lookupPolicy_asset hp] at hc
+  exact hc
+
+/-- The pre-state row is a member of both lists, names the command's asset, and
+is a governed, enabled, registered ordinary token. -/
+theorem authorized_pins_member {q : Query} (h : Authorized q) {p : ManagedPolicy}
+    (hp : q.stateMember = some p) :
+    p ∈ q.state.policies ∧ p ∈ q.managedRegistry.policies ∧ p.asset = q.cmd.asset ∧
+    q.registryMember = some p ∧
+    p.assetClass = AssetClass.registeredOrdinaryToken ∧ p.enabled = true := by
+  have hgov := authorized_state_member_is_governed h hp
+  have h1 := h .ordinaryClass
+  have h2 := h .enabled
+  simp only [obligationHolds, hp, decide_eq_true_eq] at h1 h2
+  exact ⟨lookupPolicy_mem hp, lookupPolicy_mem hgov, lookupPolicy_asset hp, hgov, h1, h2⟩
+
+/-- `ManagedAssetLifecyclePolicyV1.__post_init__` forbids generic authority on
+any class other than `REGISTERED_ORDINARY_TOKEN`. This model does not enforce
+that at construction; the predicate is named so its consequence below is
+visible. -/
+def PolicyClassDisciplined (p : ManagedPolicy) : Prop :=
+  p.assetClass ≠ AssetClass.registeredOrdinaryToken →
+    p.issueAuthority = none ∧ p.selfBurnPolicyRoot = none
+
+/-- Under the constructor's class discipline the `ordinaryClass` obligation is
+already implied by the subject rule: a non-ordinary policy carries no issue
+authority and no self-burn root, so no subject matches. The obligation is
+therefore defence in depth against a policy row the Python constructor would
+already reject. -/
+theorem ordinaryClass_redundant_under_class_discipline {q : Query} {p : ManagedPolicy}
+    (hp : q.stateMember = some p) (hdisc : PolicyClassDisciplined p)
+    (hkind : obligationHolds q .commandKindExact = true)
+    (hsubject : obligationHolds q .subject = true) :
+    p.assetClass = AssetClass.registeredOrdinaryToken := by
+  by_cases hcls : p.assetClass = AssetClass.registeredOrdinaryToken
+  · exact hcls
+  · exfalso
+    obtain ⟨hia, hsb⟩ := hdisc hcls
+    simp only [obligationHolds, decide_eq_true_eq, ne_eq] at hkind
+    cases hk : q.kind with
+    | none => exact hkind hk
+    | some k =>
+        cases k with
+        | issue => simp [obligationHolds, hk, hp, hia] at hsubject
+        | burn => simp [obligationHolds, hk, hp, hsb] at hsubject
+
+/-- Issue: the pre-state row's paired issue authority is exactly the subject and
+grant the context presents. -/
+theorem authorized_issue_pins_authority {q : Query} (h : Authorized q) {p : ManagedPolicy}
+    (hk : q.kind = some CommandKind.issue) (hp : q.stateMember = some p) :
+    p.issueAuthority = some ⟨q.ctx.subject, q.ctx.grantRoot⟩ := by
+  cases hia : p.issueAuthority with
   | none =>
-      constructor
-      · intro h
-        simp [authorizes, hk] at h
-      · rintro ⟨kind, policy, hA⟩
-        rw [hA.kindExact] at hk
-        simp at hk
-  | some kind =>
-      cases hl : lookupPolicy cmd.asset st.registry.members with
-      | none =>
-          constructor
-          · intro h
-            simp [authorizes, hk, hl] at h
-          · rintro ⟨kind', policy, hA⟩
-            rw [lookupPolicy_eq_some_of_uniqueMember hA.member] at hl
-            simp at hl
-      | some policy =>
-          have hunfold : authorizes profile st ctx cmd
-              = contextAuthorizes profile st ctx cmd kind policy := by
-            simp [authorizes, hk, hl]
-          rw [hunfold, contextAuthorizes_eq_true_iff]
-          constructor
-          · rintro ⟨h1, h2, h3, h4, h5, h6, h7, h8⟩
-            exact ⟨kind, policy,
-              { profileActive := h1
-                profileNamed := h2
-                registryRootGoverned := h3
-                registryRootBound := h4
-                releaseMatched := h5
-                kindExact := hk
-                member := uniqueMember_of_lookup hnd hl
-                ordinaryClass := h6
-                enabled := h7
-                grantMatched := h8 }⟩
-          · rintro ⟨kind', policy', hA⟩
-            have hkind : kind' = kind := by
-              rw [hA.kindExact] at hk
-              exact Option.some.injEq _ _ ▸ hk
-            have hpolicy : policy' = policy := by
-              rw [lookupPolicy_eq_some_of_uniqueMember hA.member] at hl
-              exact Option.some.injEq _ _ ▸ hl
-            subst hkind
-            subst hpolicy
-            exact ⟨hA.profileActive, hA.profileNamed, hA.registryRootGoverned,
-              hA.registryRootBound, hA.releaseMatched, hA.ordinaryClass, hA.enabled,
-              hA.grantMatched⟩
-
-/-! ## 8. Authorization pins the governed registry, the member, the release, and
-the kind-specific grant -/
-
-/-- The active-profile policy binding, pinned. The registry the checker
-consulted declares exactly the root the active profile governs, and the context
-presented that same root. -/
-theorem authorized_pins_governed_registry_root {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy : ManagedPolicy}
-    (h : Authorized profile st ctx cmd kind policy) :
-    profile.status = ProfileStatus.active ∧
-    ctx.profileRoot = profile.profileRoot ∧
-    ctx.policyRegistryRoot = profile.managedPolicyRegistryRoot ∧
-    st.registry.registryRoot = profile.managedPolicyRegistryRoot :=
-  ⟨h.profileActive, h.profileNamed, h.registryRootGoverned,
-    h.registryRootBound.trans h.registryRootGoverned⟩
-
-/-- The unique asset member, pinned: the policy is a member of the governed
-registry, it names the command's asset, and no other member does. -/
-theorem authorized_pins_unique_member {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy : ManagedPolicy}
-    (h : Authorized profile st ctx cmd kind policy) :
-    policy ∈ st.registry.members ∧
-    policy.asset = cmd.asset ∧
-    (∀ q ∈ st.registry.members, q.asset = cmd.asset → q = policy) :=
-  ⟨h.member.mem, h.member.asset, h.member.unique⟩
-
-/-- Any registry member naming the command's asset *is* the authorized policy. -/
-theorem authorized_member_eq {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy q : ManagedPolicy}
-    (h : Authorized profile st ctx cmd kind policy)
-    (hq : q ∈ st.registry.members) (hqa : q.asset = cmd.asset) : q = policy :=
-  h.member.unique q hq hqa
-
-/-- The authorized policy is unique. -/
-theorem authorized_policy_unique {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {k₁ k₂ : CommandKind} {p₁ p₂ : ManagedPolicy}
-    (h₁ : Authorized profile st ctx cmd k₁ p₁) (h₂ : Authorized profile st ctx cmd k₂ p₂) :
-    p₁ = p₂ :=
-  uniqueMember_unique h₁.member h₂.member
-
-/-- The authorized kind is unique, because the wire kind parses deterministically. -/
-theorem authorized_kind_unique {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {k₁ k₂ : CommandKind} {p₁ p₂ : ManagedPolicy}
-    (h₁ : Authorized profile st ctx cmd k₁ p₁) (h₂ : Authorized profile st ctx cmd k₂ p₂) :
-    k₁ = k₂ := by
-  have h := h₁.kindExact.symm.trans h₂.kindExact
-  exact (Option.some.injEq _ _ ▸ h)
-
-/-- The module release, pinned. -/
-theorem authorized_pins_module_release {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy : ManagedPolicy}
-    (h : Authorized profile st ctx cmd kind policy) :
-    ctx.moduleReleaseId = st.moduleReleaseId :=
-  h.releaseMatched
-
-/-- The exact wire command kind, pinned. -/
-theorem authorized_pins_command_kind {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy : ManagedPolicy}
-    (h : Authorized profile st ctx cmd kind policy) :
-    cmd.commandKind = kind.code :=
-  parseCommandKind_eq_some_iff.mp h.kindExact
-
-/-- Generic authority is confined to registered ordinary tokens. -/
-theorem authorized_requires_ordinary_class {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy : ManagedPolicy}
-    (h : Authorized profile st ctx cmd kind policy) :
-    policy.assetClass = AssetClass.registeredOrdinaryToken ∧ policy.enabled = true :=
-  ⟨h.ordinaryClass, h.enabled⟩
-
-/-- Issue: the subject is the policy's named issue-authority subject and the
-grant is that authority's policy root, as one paired value. -/
-theorem authorized_issue_pins_authority {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {policy : ManagedPolicy}
-    (h : Authorized profile st ctx cmd CommandKind.issue policy) :
-    policy.issueAuthority = some ⟨ctx.subject, ctx.grantRoot⟩ ∧
-    ∃ ia : IssueAuthority,
-      policy.issueAuthority = some ia ∧
-      ctx.subject = ia.subject ∧ ctx.grantRoot = ia.policyRoot :=
-  ⟨h.grantMatched, ⟨⟨ctx.subject, ctx.grantRoot⟩, h.grantMatched, rfl, rfl⟩⟩
+      have hs := h .subject
+      simp [obligationHolds, hk, hp, hia] at hs
+  | some ia =>
+      have hs := h .subject
+      have hg := h .grant
+      simp only [obligationHolds, hk, hp, hia, decide_eq_true_eq] at hs hg
+      rw [hs, hg]
 
 /-- Self-burn: the subject is the command's own account owner and the grant is
-the policy's self-burn policy root. -/
-theorem authorized_burn_pins_owner_and_grant {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {policy : ManagedPolicy}
-    (h : Authorized profile st ctx cmd CommandKind.burn policy) :
-    ctx.subject = cmd.accountOwner ∧
-    policy.selfBurnPolicyRoot = some ctx.grantRoot ∧
-    ∃ root : Root,
-      policy.selfBurnPolicyRoot = some root ∧
-      ctx.subject = cmd.accountOwner ∧ ctx.grantRoot = root :=
-  ⟨h.grantMatched.1, h.grantMatched.2, ⟨ctx.grantRoot, h.grantMatched.2, h.grantMatched.1, rfl⟩⟩
+the pre-state row's self-burn policy root. -/
+theorem authorized_burn_pins_owner_and_grant {q : Query} (h : Authorized q)
+    {p : ManagedPolicy} (hk : q.kind = some CommandKind.burn) (hp : q.stateMember = some p) :
+    q.ctx.subject = q.cmd.accountOwner ∧
+    p.selfBurnPolicyRoot = some q.ctx.grantRoot := by
+  cases hr : p.selfBurnPolicyRoot with
+  | none =>
+      have hs := h .subject
+      simp [obligationHolds, hk, hp, hr] at hs
+  | some root =>
+      have hs := h .subject
+      have hg := h .grant
+      simp only [obligationHolds, hk, hp, hr, decide_eq_true_eq] at hs hg
+      exact ⟨hs, by rw [hg]⟩
 
-/-- The full pin, as one citable statement. -/
-theorem authorized_pins_everything {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy : ManagedPolicy}
-    (h : Authorized profile st ctx cmd kind policy) :
-    profile.status = ProfileStatus.active ∧
-    ctx.profileRoot = profile.profileRoot ∧
-    st.registry.registryRoot = profile.managedPolicyRegistryRoot ∧
-    (policy ∈ st.registry.members ∧ policy.asset = cmd.asset ∧
-      ∀ q ∈ st.registry.members, q.asset = cmd.asset → q = policy) ∧
-    ctx.moduleReleaseId = st.moduleReleaseId ∧
-    cmd.commandKind = kind.code ∧
-    policy.assetClass = AssetClass.registeredOrdinaryToken ∧
-    (kind = CommandKind.issue →
-      policy.issueAuthority = some ⟨ctx.subject, ctx.grantRoot⟩) ∧
-    (kind = CommandKind.burn →
-      ctx.subject = cmd.accountOwner ∧ policy.selfBurnPolicyRoot = some ctx.grantRoot) := by
-  refine ⟨h.profileActive, h.profileNamed,
-    h.registryRootBound.trans h.registryRootGoverned,
-    ⟨h.member.mem, h.member.asset, h.member.unique⟩,
-    h.releaseMatched, authorized_pins_command_kind h, h.ordinaryClass, ?_, ?_⟩
-  · intro hk
-    subst hk
-    exact h.grantMatched
-  · intro hk
-    subst hk
-    exact h.grantMatched
+/-- The exact lifecycle wire kind. -/
+theorem authorized_pins_command_kind {q : Query} (h : Authorized q) :
+    ∃ k : CommandKind, q.kind = some k ∧ q.cmd.commandKind = k.code := by
+  obtain ⟨k, hk⟩ := authorized_kind_exists h
+  exact ⟨k, hk, parseCommandKind_eq_some_iff.mp hk⟩
 
-/-! ## 9. Rejection implications
+/-! ## 13. Recovering a registry value needs the pairwise no-collision premise
 
-Rejection is the absence of a witness. Each statement is the contrapositive of
-one modeled obligation. -/
+The lane input carries a root, not a registry. Root equality recovers registry
+equality exactly when *those two* preimages do not collide, and that is a
+hypothesis about the pair, never a global injectivity claim. -/
 
-/-- Wrong root, presented: a context that presents a policy-registry root other
-than the one the active profile governs is not authorized, for any kind and any
-policy. -/
-theorem wrong_presented_registry_root_not_authorized {profile : ProfileSnapshot}
-    {st : ModuleState} {ctx : Context} {cmd : Command} {kind : CommandKind}
-    {policy : ManagedPolicy}
-    (hne : ctx.policyRegistryRoot ≠ profile.managedPolicyRegistryRoot) :
-    ¬ Authorized profile st ctx cmd kind policy :=
-  fun h => hne h.registryRootGoverned
+/-- Under the pairwise no-collision premise for the two compared canonical
+preimages, two authorized queries sharing a digest and presenting the same lane
+registry root use the same governed registry, hence the same selected module
+release and the same policy rows. -/
+theorem noCollision_pins_registry {d : Digests} {q₁ q₂ : Query}
+    (hnc : NoCollisionOn d q₁.managedRegistry q₂.managedRegistry)
+    (h₁ : Authorized q₁) (h₂ : Authorized q₂)
+    (hd₁ : q₁.digests = d) (hd₂ : q₂.digests = d)
+    (hroot : q₁.ctx.policyRegistryRoot = q₂.ctx.policyRegistryRoot) :
+    q₁.managedRegistry = q₂.managedRegistry ∧
+    q₁.managedRegistry.moduleReleaseId = q₂.managedRegistry.moduleReleaseId ∧
+    q₁.managedRegistry.policies = q₂.managedRegistry.policies := by
+  have e₁ := authorized_pins_lane_registry_root h₁
+  have e₂ := authorized_pins_lane_registry_root h₂
+  simp only [Query.managedRoot, hd₁] at e₁
+  simp only [Query.managedRoot, hd₂] at e₂
+  have hreg : q₁.managedRegistry = q₂.managedRegistry :=
+    hnc (by rw [← e₁, ← e₂, hroot])
+  exact ⟨hreg, congrArg ManagedPolicyRegistry.moduleReleaseId hreg,
+    congrArg ManagedPolicyRegistry.policies hreg⟩
 
-/-- Wrong root, carried: a module state whose registry declares a root other
-than the one the active profile governs is not authorized. -/
-theorem wrong_registry_root_not_authorized {profile : ProfileSnapshot}
-    {st : ModuleState} {ctx : Context} {cmd : Command} {kind : CommandKind}
-    {policy : ManagedPolicy}
-    (hne : st.registry.registryRoot ≠ profile.managedPolicyRegistryRoot) :
-    ¬ Authorized profile st ctx cmd kind policy :=
-  fun h => hne (h.registryRootBound.trans h.registryRootGoverned)
+/-- Without any premise, only root equality is available. This is the
+unconditional conclusion, and the challenge module exhibits a colliding pair
+that realizes the gap between it and the previous theorem. -/
+theorem authorized_pins_root_not_value {q₁ q₂ : Query} (h₁ : Authorized q₁)
+    (h₂ : Authorized q₂) (hd : q₁.digests.managed = q₂.digests.managed)
+    (hroot : q₁.ctx.policyRegistryRoot = q₂.ctx.policyRegistryRoot) :
+    q₁.digests.managed q₁.managedRegistry = q₁.digests.managed q₂.managedRegistry := by
+  have e₁ := authorized_pins_lane_registry_root h₁
+  have e₂ := authorized_pins_lane_registry_root h₂
+  simp only [Query.managedRoot] at e₁ e₂
+  rw [← e₁, hroot, e₂, hd]
 
-/-- Wrong release: a context naming a module release other than the state's is
-not authorized. -/
-theorem wrong_release_not_authorized {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy : ManagedPolicy}
-    (hne : ctx.moduleReleaseId ≠ st.moduleReleaseId) :
-    ¬ Authorized profile st ctx cmd kind policy :=
-  fun h => hne h.releaseMatched
+/-! ## 14. Issue-versus-burn separation
 
-/-- Wrong profile: a context naming a profile other than the active one is not
-authorized. -/
-theorem wrong_profile_not_authorized {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy : ManagedPolicy}
-    (hne : ctx.profileRoot ≠ profile.profileRoot) :
-    ¬ Authorized profile st ctx cmd kind policy :=
-  fun h => hne h.profileNamed
+Two narrow statements only. Neither says a governance registry must bind the
+two kinds to one inner registry, because the runtime does not require that. -/
 
-/-- A profile that is not `ACTIVE` authorizes nothing. -/
-theorem inactive_profile_not_authorized {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy : ManagedPolicy}
-    (hne : profile.status ≠ ProfileStatus.active) :
-    ¬ Authorized profile st ctx cmd kind policy :=
-  fun h => hne h.profileActive
-
-/-- An unparseable wire kind authorizes nothing. -/
-theorem unknown_command_kind_not_authorized {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy : ManagedPolicy}
-    (hnone : parseCommandKind cmd.commandKind = none) :
-    ¬ Authorized profile st ctx cmd kind policy := by
-  intro h
-  rw [h.kindExact] at hnone
-  simp at hnone
-
-/-- An asset with no member in the governed registry authorizes nothing. -/
-theorem foreign_asset_not_authorized {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy : ManagedPolicy}
-    (hnone : ∀ q ∈ st.registry.members, q.asset ≠ cmd.asset) :
-    ¬ Authorized profile st ctx cmd kind policy :=
-  fun h => hnone policy h.member.mem h.member.asset
-
-/-- A protocol-managed class authorizes nothing through this generic path. -/
-theorem non_ordinary_class_not_authorized {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {kind : CommandKind} {policy : ManagedPolicy}
-    (hne : policy.assetClass ≠ AssetClass.registeredOrdinaryToken) :
-    ¬ Authorized profile st ctx cmd kind policy :=
-  fun h => hne h.ordinaryClass
-
-/-- Wrong grant, issue: a grant root other than the policy's issue policy root
-is not authorized, even from the named authority subject. -/
-theorem wrong_issue_grant_not_authorized {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {policy : ManagedPolicy} {ia : IssueAuthority}
-    (hia : policy.issueAuthority = some ia) (hne : ctx.grantRoot ≠ ia.policyRoot) :
-    ¬ Authorized profile st ctx cmd CommandKind.issue policy := by
-  intro h
-  have hg : policy.issueAuthority = some ⟨ctx.subject, ctx.grantRoot⟩ := h.grantMatched
-  rw [hia, Option.some.injEq] at hg
-  exact hne (by rw [hg])
-
-/-- Wrong subject, issue: a subject other than the policy's named issue
-authority subject is not authorized, even holding the right grant root. -/
-theorem wrong_issue_subject_not_authorized {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {policy : ManagedPolicy} {ia : IssueAuthority}
-    (hia : policy.issueAuthority = some ia) (hne : ctx.subject ≠ ia.subject) :
-    ¬ Authorized profile st ctx cmd CommandKind.issue policy := by
-  intro h
-  have hg : policy.issueAuthority = some ⟨ctx.subject, ctx.grantRoot⟩ := h.grantMatched
-  rw [hia, Option.some.injEq] at hg
-  exact hne (by rw [hg])
-
-/-- Issue with no configured authority is not authorized. -/
-theorem issue_disabled_not_authorized {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {policy : ManagedPolicy}
-    (hnone : policy.issueAuthority = none) :
-    ¬ Authorized profile st ctx cmd CommandKind.issue policy := by
-  intro h
-  have hg : policy.issueAuthority = some ⟨ctx.subject, ctx.grantRoot⟩ := h.grantMatched
-  rw [hnone] at hg
-  simp at hg
-
-/-- Wrong grant, self-burn: a grant root other than the policy's self-burn
-policy root is not authorized, even from the account owner. -/
-theorem wrong_selfBurn_grant_not_authorized {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {policy : ManagedPolicy} {root : Root}
-    (hroot : policy.selfBurnPolicyRoot = some root) (hne : ctx.grantRoot ≠ root) :
-    ¬ Authorized profile st ctx cmd CommandKind.burn policy := by
-  intro h
-  have hg : policy.selfBurnPolicyRoot = some ctx.grantRoot := h.grantMatched.2
-  rw [hroot, Option.some.injEq] at hg
-  exact hne hg.symm
-
-/-- A self-burn from an account the subject does not own is not authorized. -/
-theorem foreign_owner_selfBurn_not_authorized {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {policy : ManagedPolicy}
-    (hne : ctx.subject ≠ cmd.accountOwner) :
-    ¬ Authorized profile st ctx cmd CommandKind.burn policy :=
-  fun h => hne h.grantMatched.1
-
-/-- Self-burn with no configured policy root is not authorized. -/
-theorem burn_disabled_not_authorized {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {policy : ManagedPolicy}
-    (hnone : policy.selfBurnPolicyRoot = none) :
-    ¬ Authorized profile st ctx cmd CommandKind.burn policy := by
-  intro h
-  have hg : policy.selfBurnPolicyRoot = some ctx.grantRoot := h.grantMatched.2
-  rw [hnone] at hg
-  simp at hg
-
-/-! ## 10. Issue-versus-burn confusion exclusion
-
-Three separate exclusions: at the wire kind, at the grant root, and at the
-subject-versus-owner rule. -/
+/-- One lifecycle command never carries both kinds. This is a statement about a
+single command's wire string. -/
+theorem lifecycle_kind_is_exclusive {q : Query}
+    (h₁ : q.kind = some CommandKind.issue) (h₂ : q.kind = some CommandKind.burn) : False :=
+  parseCommandKind_no_kind_confusion q.cmd.commandKind ⟨h₁, h₂⟩
 
 /-- If one context authorizes both an issue and a self-burn against the same
-policy, then the policy's issue policy root and self-burn policy root coincide
-and the issue-authority subject is the burned account's owner. Equivalently, a
-policy that separates those roots cannot have both authorized from one context. -/
-theorem issue_and_burn_from_one_context_forces_shared_grant {profile : ProfileSnapshot}
-    {st : ModuleState} {ctx : Context} {cmdI cmdB : Command} {policy : ManagedPolicy}
-    {ia : IssueAuthority} {root : Root}
-    (hia : policy.issueAuthority = some ia) (hroot : policy.selfBurnPolicyRoot = some root)
-    (hI : Authorized profile st ctx cmdI CommandKind.issue policy)
-    (hB : Authorized profile st ctx cmdB CommandKind.burn policy) :
-    ia.policyRoot = root ∧ ia.subject = cmdB.accountOwner := by
-  have hgI : policy.issueAuthority = some ⟨ctx.subject, ctx.grantRoot⟩ := hI.grantMatched
-  rw [hia, Option.some.injEq] at hgI
-  have hgB : policy.selfBurnPolicyRoot = some ctx.grantRoot := hB.grantMatched.2
-  rw [hroot, Option.some.injEq] at hgB
-  have hsub : ctx.subject = cmdB.accountOwner := hB.grantMatched.1
-  constructor
-  · rw [hgI, ← hgB]
-  · rw [hgI, ← hsub]
+pre-state row, that row's issue policy root and self-burn policy root coincide
+and the issue-authority subject is the burned account's owner. This is about one
+policy row under one context; it is not a claim about governance bindings. -/
+theorem issue_and_burn_from_one_context_forces_shared_grant {q₁ q₂ : Query}
+    {p : ManagedPolicy} {ia : IssueAuthority} {root : Root}
+    (hia : p.issueAuthority = some ia) (hroot : p.selfBurnPolicyRoot = some root)
+    (hctx : q₁.ctx = q₂.ctx)
+    (h₁ : Authorized q₁) (hk₁ : q₁.kind = some CommandKind.issue)
+    (hp₁ : q₁.stateMember = some p)
+    (h₂ : Authorized q₂) (hk₂ : q₂.kind = some CommandKind.burn)
+    (hp₂ : q₂.stateMember = some p) :
+    ia.policyRoot = root ∧ ia.subject = q₂.cmd.accountOwner := by
+  have hI := authorized_issue_pins_authority h₁ hk₁ hp₁
+  obtain ⟨hsub, hburn⟩ := authorized_burn_pins_owner_and_grant h₂ hk₂ hp₂
+  rw [hia, Option.some.injEq] at hI
+  rw [hroot, Option.some.injEq] at hburn
+  subst hI
+  exact ⟨by simp [hctx, hburn], by simp [hctx, hsub]⟩
 
-/-- Grant-root exclusion: when the issue and self-burn policy roots differ, one
-context never authorizes both kinds against the same policy. -/
-theorem distinct_grant_roots_exclude_kind_confusion {profile : ProfileSnapshot}
-    {st : ModuleState} {ctx : Context} {cmdI cmdB : Command} {policy : ManagedPolicy}
-    {ia : IssueAuthority} {root : Root}
-    (hia : policy.issueAuthority = some ia) (hroot : policy.selfBurnPolicyRoot = some root)
-    (hne : ia.policyRoot ≠ root) :
-    ¬ (Authorized profile st ctx cmdI CommandKind.issue policy ∧
-       Authorized profile st ctx cmdB CommandKind.burn policy) := by
-  rintro ⟨hI, hB⟩
-  exact hne (issue_and_burn_from_one_context_forces_shared_grant hia hroot hI hB).1
+/-- Grant-root separation: a policy row that separates its issue and self-burn
+policy roots is never authorized for both kinds from one context. -/
+theorem distinct_grant_roots_separate_the_two_kinds {q₁ q₂ : Query}
+    {p : ManagedPolicy} {ia : IssueAuthority} {root : Root}
+    (hia : p.issueAuthority = some ia) (hroot : p.selfBurnPolicyRoot = some root)
+    (hne : ia.policyRoot ≠ root) (hctx : q₁.ctx = q₂.ctx)
+    (hk₁ : q₁.kind = some CommandKind.issue) (hp₁ : q₁.stateMember = some p)
+    (hk₂ : q₂.kind = some CommandKind.burn) (hp₂ : q₂.stateMember = some p) :
+    ¬ (Authorized q₁ ∧ Authorized q₂) := by
+  rintro ⟨h₁, h₂⟩
+  exact hne (issue_and_burn_from_one_context_forces_shared_grant hia hroot hctx
+    h₁ hk₁ hp₁ h₂ hk₂ hp₂).1
 
-/-- Subject-versus-owner exclusion: an issue-authorized context cannot self-burn
-an account the policy's issue-authority subject does not own. -/
-theorem issue_context_cannot_selfBurn_foreign_account {profile : ProfileSnapshot}
-    {st : ModuleState} {ctx : Context} {cmdI cmdB : Command} {policy : ManagedPolicy}
-    {ia : IssueAuthority} (hia : policy.issueAuthority = some ia)
-    (hI : Authorized profile st ctx cmdI CommandKind.issue policy)
-    (hne : ia.subject ≠ cmdB.accountOwner) :
-    ¬ Authorized profile st ctx cmdB CommandKind.burn policy := by
-  intro hB
-  exact hne (issue_and_burn_from_one_context_forces_shared_grant hia
-    (by
-      have hg : policy.selfBurnPolicyRoot = some ctx.grantRoot := hB.grantMatched.2
-      exact hg)
-    hI hB).2
-
-/-- Wire-kind exclusion: one command never carries both kinds, so an
-authorization is for exactly one of issue and self-burn. -/
-theorem authorized_kind_is_exclusive {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {p₁ p₂ : ManagedPolicy}
-    (h₁ : Authorized profile st ctx cmd CommandKind.issue p₁)
-    (h₂ : Authorized profile st ctx cmd CommandKind.burn p₂) : False := by
-  exact parseCommandKind_no_kind_confusion cmd.commandKind ⟨h₁.kindExact, h₂.kindExact⟩
-
-/-! ## 11. The supply-effect kind the authorization selects
+/-! ## 15. The supply-effect kind the authorization selects
 
 The runtime picks `EconomicEffectKindV1.ISSUE` or `.BURN` from the command kind.
-Only that selection is modeled; no delta, amount, row, or conservation claim is
-made here. -/
+Only that selection is modeled: no delta, amount, row, plan, or conservation
+claim is made. -/
 
 inductive SupplyEffectKind where
   | issue
@@ -912,35 +1146,16 @@ theorem authorizedSupplyEffectKind_injective {a b : CommandKind}
     | rfl
     | exact absurd h (by decide)
 
-/-- An issue authorization selects the `ISSUE` supply effect and the exact issue
-wire kind. -/
-theorem authorized_issue_selects_issue_effect {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {policy : ManagedPolicy}
-    (h : Authorized profile st ctx cmd CommandKind.issue policy) :
-    (authorizedSupplyEffectKind CommandKind.issue).code = "ISSUE" ∧
-    cmd.commandKind = "managed_asset_issue" :=
-  ⟨rfl, authorized_pins_command_kind h⟩
-
-/-- A self-burn authorization selects the `BURN` supply effect and the exact
-burn wire kind. -/
-theorem authorized_burn_selects_burn_effect {profile : ProfileSnapshot} {st : ModuleState}
-    {ctx : Context} {cmd : Command} {policy : ManagedPolicy}
-    (h : Authorized profile st ctx cmd CommandKind.burn policy) :
-    (authorizedSupplyEffectKind CommandKind.burn).code = "BURN" ∧
-    cmd.commandKind = "managed_asset_burn" :=
-  ⟨rfl, authorized_pins_command_kind h⟩
-
 theorem supplyEffectKind_codes_differ :
     (authorizedSupplyEffectKind CommandKind.issue).code ≠
       (authorizedSupplyEffectKind CommandKind.burn).code := by decide
 
-/-! ## 12. Source comparison
+/-! ## 16. Source comparison
 
-The forged-authorization counterexamples live in
-`Proofs.ManagedAssetPolicyAuthorityV1Challenge`, which binds selected theorem
-signatures and exhibits, for each of the registry-root, module-release, and
-grant checks, a concrete input that the checker with that check removed accepts
-and that this file's checker and witness both reject. -/
+The omission counterexamples, the empty pre-state rejection, the
+issue-occurrence-with-burn-command rejection, the split-kind bundle, and the
+colliding-pair fixture live in
+`Proofs.ManagedAssetPolicyAuthorityV1Challenge`. -/
 
 end ManagedAssetPolicyAuthorityV1
 end Proofs
