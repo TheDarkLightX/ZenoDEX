@@ -1,0 +1,1051 @@
+# [FORMAL-MODEL-001] GlobalSettlementABI V1 structural functional core, bounded model.
+ir_version: "esso-ir/v1"
+meta:
+  model_id: "global_settlement_core_v1"
+  created_by: "zenodex"
+  notes: |
+    Research-only bounded model of the structural GlobalSettlementABI V1
+    functional-core step:
+
+      Step(S, C) = Reject(code) | Accept(S_post, rows)
+
+    Source pins (repository base f7e851565e063fb3e74b060a9c45f27b8621a8d7):
+    - src/core/global_settlement_types_v1.py: LaneIdV1 (exactly 12 lanes in
+      canonical order), AssetConservationRowV1, FeeConservationRowV1,
+      GlobalEconomicEffectPlanV1, LaneTransitionRejectedV1 (rejection keeps the
+      exact pre-state root and carries the empty effect plan), and
+      GlobalEconomicStateV1 (height, replay_state, terminal_obligations).
+    - docs/research/GLOBAL_SETTLEMENT_ABI_V1_REFERENCE_20260805.md
+      (conservation equations, closed lane registry, reject-is-no-op).
+    Blueprint:
+      docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md
+    Executable bounded model and evidence:
+      tests/formal/test_esso_global_settlement_core_v1.py
+
+    State. Two assets (a, b). Every same-ledger atom of one asset sits in exactly
+    one of five disjoint accounting partitions:
+      payer_X        account balance of the authenticated subject
+      rest_X         every other account balance
+      fee_alloc_X    named custody holding current fee allocations
+      fee_residue_X  named custody holding explicitly carried fee residue
+      obligation_X   named custody backing OPEN terminal obligations
+      supply_X       committed supply
+      owned_X := payer_X + rest_X + fee_alloc_X + fee_residue_X + obligation_X
+      height         consensus height (u64 in source; 0..3 here)
+      consumed_i     occurrence identity i is already consumed (3 identities)
+    Ghost variables (prefix g_) journal the last step for the invariants. The
+    transition never reads a ghost, except g_lane, which preserves itself on
+    rejection.
+
+    Command. One total action `step` with parameters:
+      command_kind   0 TRANSFER, 1 ISSUE, 2 BURN, 3 OPEN_OBLIGATION,
+                     4 DRAIN_OBLIGATION, 5 = outside the closed command set
+      asset          0 = a, 1 = b
+      lane_index     0..11 = LaneId in canonical order, 12 = outside the registry
+      bound_height   replay identity: the height the command binds
+      occurrence     occurrence identity 0..2
+      amount         atoms moved, issued, burned, opened, or drained
+      fee_charged    fee atoms charged by the fee policy (parameterized input)
+      fee_alloc      fee atoms allocated now (parameterized input);
+                     fee_charged - fee_alloc is the explicitly carried residue
+      authority_ok   verifier-produced authorization fact (abstraction; never a
+                     caller-supplied runtime authority)
+
+    Accepted transfer:        payer -= amount + fee_charged; rest += amount
+    Accepted issue:           payer += amount - fee_charged; supply += amount
+    Accepted burn:            payer -= amount + fee_charged; supply -= amount
+    Accepted open obligation: payer -= amount + fee_charged; obligation += amount
+    Accepted drain:           payer += amount - fee_charged; obligation -= amount
+    Every accepted step:      fee_alloc += fee_alloc; fee_residue += fee_charged
+                              - fee_alloc; height += 1; one occurrence consumed.
+
+    Reject table (priority order; the first failing condition names the code):
+      RC_UNKNOWN_LANE                 lane_index > 11
+      RC_UNKNOWN_COMMAND              command_kind > 4
+      RC_DUPLICATE_OCCURRENCE         occurrence already consumed
+      RC_STALE_REPLAY                 bound_height != height
+      RC_UNAUTHORIZED                 authority_ok is false
+      RC_MISSING_TERMINAL_OBLIGATION  drain while no OPEN obligation atoms exist
+      RC_ZERO_AMOUNT                  amount = 0
+      RC_FEE_RECONCILIATION           fee_alloc > fee_charged
+      RC_INSUFFICIENT                 a post quantity would be negative
+      RC_UNREPRESENTABLE              a post quantity would exceed the width (4)
+                                      or height would exceed the horizon (3)
+    Rejection is an exact no-op: identical state and empty rows.
+
+    Policy inputs are parameterized (fee_charged, fee_alloc, authority_ok) or
+    blocked: fee percentages, burn floors, Oracle economics, margin rules, and
+    governance decisions are not represented and are not selected here.
+
+    Nonclaims: production, settlement, release, or value-moving authority;
+    whole-DEX safety; a refinement theorem against the Python or Rust source;
+    cryptographic bindings; route, epoch, or proof semantics; liveness beyond
+    the finite horizon.
+
+observables:
+  state_vars:
+    - "payer_a"
+    - "rest_a"
+    - "fee_alloc_a"
+    - "fee_residue_a"
+    - "obligation_a"
+    - "supply_a"
+    - "payer_b"
+    - "rest_b"
+    - "fee_alloc_b"
+    - "fee_residue_b"
+    - "obligation_b"
+    - "supply_b"
+    - "height"
+    - "consumed_0"
+    - "consumed_1"
+    - "consumed_2"
+    - "g_decision"
+    - "g_reject_code"
+    - "g_command"
+    - "g_lane"
+    - "g_pre_height"
+    - "g_pre_consumed_0"
+    - "g_pre_consumed_1"
+    - "g_pre_consumed_2"
+    - "g_pre_root_a"
+    - "g_pre_root_b"
+    - "g_owned_pre_a"
+    - "g_owned_pre_b"
+    - "g_supply_pre_a"
+    - "g_supply_pre_b"
+    - "g_issue_a"
+    - "g_burn_a"
+    - "g_fee_charged_a"
+    - "g_fee_alloc_a"
+    - "g_fee_residue_a"
+    - "g_issue_b"
+    - "g_burn_b"
+    - "g_fee_charged_b"
+    - "g_fee_alloc_b"
+    - "g_fee_residue_b"
+  effects:
+    - "accepted"
+    - "reject_code"
+    - "command"
+    - "lane"
+    - "post_height"
+    - "post_owned_a"
+    - "post_supply_a"
+    - "post_owned_b"
+    - "post_supply_b"
+    - "issue_a"
+    - "burn_a"
+    - "fee_charged_a"
+    - "fee_alloc_a"
+    - "fee_residue_a"
+    - "issue_b"
+    - "burn_b"
+    - "fee_charged_b"
+    - "fee_alloc_b"
+    - "fee_residue_b"
+
+types:
+  # Exactly the twelve stable lane identifiers of LaneIdV1, in canonical order.
+  - id: "LaneId"
+    type:
+      kind: "enum"
+      symbols:
+        - "ASSET_TRANSFER"
+        - "SPOT_LIQUIDITY"
+        - "FARM_INCENTIVES"
+        - "ZDEX_TOKENOMICS"
+        - "ZUSD_MONETARY"
+        - "PERPS_MARKET"
+        - "ORACLE_MARKET"
+        - "SEALED_AUCTION"
+        - "STRATEGY_ESCROW"
+        - "PROOF_REWARDS"
+        - "EXTERNAL_CUSTODY"
+        - "GOVERNANCE_MIGRATION"
+  - id: "CommandKind"
+    type:
+      kind: "enum"
+      symbols:
+        - "CMD_TRANSFER"
+        - "CMD_ISSUE"
+        - "CMD_BURN"
+        - "CMD_OPEN_OBLIGATION"
+        - "CMD_DRAIN_OBLIGATION"
+        - "CMD_UNKNOWN"
+  - id: "Decision"
+    type:
+      kind: "enum"
+      symbols: ["DEC_GENESIS", "DEC_ACCEPTED", "DEC_REJECTED"]
+  - id: "RejectCode"
+    type:
+      kind: "enum"
+      symbols:
+        - "RC_NONE"
+        - "RC_UNKNOWN_LANE"
+        - "RC_UNKNOWN_COMMAND"
+        - "RC_DUPLICATE_OCCURRENCE"
+        - "RC_STALE_REPLAY"
+        - "RC_UNAUTHORIZED"
+        - "RC_MISSING_TERMINAL_OBLIGATION"
+        - "RC_ZERO_AMOUNT"
+        - "RC_FEE_RECONCILIATION"
+        - "RC_INSUFFICIENT"
+        - "RC_UNREPRESENTABLE"
+
+state_vars:
+  # Asset a partitions and supply (unsigned 128-bit atoms in source; 0..4 here).
+  - { id: "payer_a", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "rest_a", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "fee_alloc_a", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "fee_residue_a", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "obligation_a", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "supply_a", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  # Asset b partitions and supply.
+  - { id: "payer_b", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "rest_b", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "fee_alloc_b", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "fee_residue_b", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "obligation_b", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "supply_b", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  # Control state: height and the consumed occurrence identities.
+  - { id: "height", role: "control", type: { kind: "int", min: 0, max: 3 } }
+  - { id: "consumed_0", role: "control", type: { kind: "bool" } }
+  - { id: "consumed_1", role: "control", type: { kind: "bool" } }
+  - { id: "consumed_2", role: "control", type: { kind: "bool" } }
+  # Ghost journal of the last step (write-only for the transition).
+  - { id: "g_decision", role: "control", type: { ref: "Decision" } }
+  - { id: "g_reject_code", role: "control", type: { ref: "RejectCode" } }
+  - { id: "g_command", role: "control", type: { ref: "CommandKind" } }
+  - { id: "g_lane", role: "control", type: { ref: "LaneId" } }
+  - { id: "g_pre_height", role: "control", type: { kind: "int", min: 0, max: 3 } }
+  - { id: "g_pre_consumed_0", role: "control", type: { kind: "bool" } }
+  - { id: "g_pre_consumed_1", role: "control", type: { kind: "bool" } }
+  - { id: "g_pre_consumed_2", role: "control", type: { kind: "bool" } }
+  # Mixed-radix (base 5) image of the six asset quantities: an exact pre-state root.
+  - { id: "g_pre_root_a", role: "data", type: { kind: "int", min: 0, max: 15624 } }
+  - { id: "g_pre_root_b", role: "data", type: { kind: "int", min: 0, max: 15624 } }
+  - { id: "g_owned_pre_a", role: "data", type: { kind: "int", min: 0, max: 20 } }
+  - { id: "g_owned_pre_b", role: "data", type: { kind: "int", min: 0, max: 20 } }
+  - { id: "g_supply_pre_a", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_supply_pre_b", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  # Canonical per-asset rows of the last step: ISSUE, BURN, and the fee row.
+  - { id: "g_issue_a", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_burn_a", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_fee_charged_a", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_fee_alloc_a", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_fee_residue_a", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_issue_b", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_burn_b", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_fee_charged_b", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_fee_alloc_b", role: "data", type: { kind: "int", min: 0, max: 4 } }
+  - { id: "g_fee_residue_b", role: "data", type: { kind: "int", min: 0, max: 4 } }
+
+init:
+  # Genesis is empty: every atom must enter through an explicit ISSUE row.
+  - { var: "payer_a", expr: { const: 0 } }
+  - { var: "rest_a", expr: { const: 0 } }
+  - { var: "fee_alloc_a", expr: { const: 0 } }
+  - { var: "fee_residue_a", expr: { const: 0 } }
+  - { var: "obligation_a", expr: { const: 0 } }
+  - { var: "supply_a", expr: { const: 0 } }
+  - { var: "payer_b", expr: { const: 0 } }
+  - { var: "rest_b", expr: { const: 0 } }
+  - { var: "fee_alloc_b", expr: { const: 0 } }
+  - { var: "fee_residue_b", expr: { const: 0 } }
+  - { var: "obligation_b", expr: { const: 0 } }
+  - { var: "supply_b", expr: { const: 0 } }
+  - { var: "height", expr: { const: 0 } }
+  - { var: "consumed_0", expr: { bool: false } }
+  - { var: "consumed_1", expr: { bool: false } }
+  - { var: "consumed_2", expr: { bool: false } }
+  - { var: "g_decision", expr: { enum: "DEC_GENESIS" } }
+  - { var: "g_reject_code", expr: { enum: "RC_NONE" } }
+  - { var: "g_command", expr: { enum: "CMD_UNKNOWN" } }
+  - { var: "g_lane", expr: { enum: "ASSET_TRANSFER" } }
+  - { var: "g_pre_height", expr: { const: 0 } }
+  - { var: "g_pre_consumed_0", expr: { bool: false } }
+  - { var: "g_pre_consumed_1", expr: { bool: false } }
+  - { var: "g_pre_consumed_2", expr: { bool: false } }
+  - { var: "g_pre_root_a", expr: { const: 0 } }
+  - { var: "g_pre_root_b", expr: { const: 0 } }
+  - { var: "g_owned_pre_a", expr: { const: 0 } }
+  - { var: "g_owned_pre_b", expr: { const: 0 } }
+  - { var: "g_supply_pre_a", expr: { const: 0 } }
+  - { var: "g_supply_pre_b", expr: { const: 0 } }
+  - { var: "g_issue_a", expr: { const: 0 } }
+  - { var: "g_burn_a", expr: { const: 0 } }
+  - { var: "g_fee_charged_a", expr: { const: 0 } }
+  - { var: "g_fee_alloc_a", expr: { const: 0 } }
+  - { var: "g_fee_residue_a", expr: { const: 0 } }
+  - { var: "g_issue_b", expr: { const: 0 } }
+  - { var: "g_burn_b", expr: { const: 0 } }
+  - { var: "g_fee_charged_b", expr: { const: 0 } }
+  - { var: "g_fee_alloc_b", expr: { const: 0 } }
+  - { var: "g_fee_residue_b", expr: { const: 0 } }
+
+invariants:
+  # Every quantity stays inside the declared width; height stays inside the horizon.
+  - id: "inv_core_bounds"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "payer_a" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "payer_a" }, { const: 4 }] }
+        - { op: ">=", args: [{ var: "rest_a" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "rest_a" }, { const: 4 }] }
+        - { op: ">=", args: [{ var: "fee_alloc_a" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "fee_alloc_a" }, { const: 4 }] }
+        - { op: ">=", args: [{ var: "fee_residue_a" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "fee_residue_a" }, { const: 4 }] }
+        - { op: ">=", args: [{ var: "obligation_a" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "obligation_a" }, { const: 4 }] }
+        - { op: ">=", args: [{ var: "supply_a" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "supply_a" }, { const: 4 }] }
+        - { op: ">=", args: [{ var: "payer_b" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "payer_b" }, { const: 4 }] }
+        - { op: ">=", args: [{ var: "rest_b" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "rest_b" }, { const: 4 }] }
+        - { op: ">=", args: [{ var: "fee_alloc_b" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "fee_alloc_b" }, { const: 4 }] }
+        - { op: ">=", args: [{ var: "fee_residue_b" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "fee_residue_b" }, { const: 4 }] }
+        - { op: ">=", args: [{ var: "obligation_b" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "obligation_b" }, { const: 4 }] }
+        - { op: ">=", args: [{ var: "supply_b" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "supply_b" }, { const: 4 }] }
+        - { op: ">=", args: [{ var: "height" }, { const: 0 }] }
+        - { op: "<=", args: [{ var: "height" }, { const: 3 }] }
+
+  # Per-asset accounted holdings equal committed supply (AssetLaneStateProjectionV1).
+  - id: "inv_owned_equals_supply_a"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - &owned_a
+          op: "+"
+          args:
+            - op: "+"
+              args:
+                - op: "+"
+                  args:
+                    - op: "+"
+                      args:
+                        - { var: "payer_a" }
+                        - { var: "rest_a" }
+                    - { var: "fee_alloc_a" }
+                - { var: "fee_residue_a" }
+            - { var: "obligation_a" }
+        - { var: "supply_a" }
+  - id: "inv_owned_equals_supply_b"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - &owned_b
+          op: "+"
+          args:
+            - op: "+"
+              args:
+                - op: "+"
+                  args:
+                    - op: "+"
+                      args:
+                        - { var: "payer_b" }
+                        - { var: "rest_b" }
+                    - { var: "fee_alloc_b" }
+                - { var: "fee_residue_b" }
+            - { var: "obligation_b" }
+        - { var: "supply_b" }
+
+  # AssetConservationRowV1 for the last step, per asset:
+  #   owned_post = owned_pre + authorized_issue - authorized_burn
+  #   supply_post = supply_pre + authorized_issue - authorized_burn
+  - id: "inv_owned_step_a"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - *owned_a
+        - op: "-"
+          args:
+            - { op: "+", args: [{ var: "g_owned_pre_a" }, { var: "g_issue_a" }] }
+            - { var: "g_burn_a" }
+  - id: "inv_owned_step_b"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - *owned_b
+        - op: "-"
+          args:
+            - { op: "+", args: [{ var: "g_owned_pre_b" }, { var: "g_issue_b" }] }
+            - { var: "g_burn_b" }
+  - id: "inv_supply_step_a"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "supply_a" }
+        - op: "-"
+          args:
+            - { op: "+", args: [{ var: "g_supply_pre_a" }, { var: "g_issue_a" }] }
+            - { var: "g_burn_a" }
+  - id: "inv_supply_step_b"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "supply_b" }
+        - op: "-"
+          args:
+            - { op: "+", args: [{ var: "g_supply_pre_b" }, { var: "g_issue_b" }] }
+            - { var: "g_burn_b" }
+
+  # FeeConservationRowV1 for the last step, per asset:
+  #   fee_charged = current_allocations + carried_residue
+  - id: "inv_fee_step_a"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "g_fee_charged_a" }
+        - { op: "+", args: [{ var: "g_fee_alloc_a" }, { var: "g_fee_residue_a" }] }
+  - id: "inv_fee_step_b"
+    kind: "safety"
+    expr:
+      op: "="
+      args:
+        - { var: "g_fee_charged_b" }
+        - { op: "+", args: [{ var: "g_fee_alloc_b" }, { var: "g_fee_residue_b" }] }
+
+  # Canonical rows are unsigned atoms.
+  - id: "inv_step_rows_nonnegative"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: ">=", args: [{ var: "g_issue_a" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "g_burn_a" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "g_fee_charged_a" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "g_fee_alloc_a" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "g_fee_residue_a" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "g_issue_b" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "g_burn_b" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "g_fee_charged_b" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "g_fee_alloc_b" }, { const: 0 }] }
+        - { op: ">=", args: [{ var: "g_fee_residue_b" }, { const: 0 }] }
+
+  # LaneTransitionRejectedV1: a rejected step keeps the exact pre-state root,
+  # consumes nothing, advances nothing, and carries only empty rows.
+  - id: "inv_reject_exact_noop"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "!=", args: [{ var: "g_decision" }, { enum: "DEC_REJECTED" }] }
+        - op: "and"
+          args:
+            - op: "="
+              args:
+                - &root_a
+                  op: "+"
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "+"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "+"
+                                  args:
+                                    - { var: "payer_a" }
+                                    - { op: "*", args: [{ const: 5 }, { var: "rest_a" }] }
+                                - { op: "*", args: [{ const: 25 }, { var: "fee_alloc_a" }] }
+                            - { op: "*", args: [{ const: 125 }, { var: "fee_residue_a" }] }
+                        - { op: "*", args: [{ const: 625 }, { var: "obligation_a" }] }
+                    - { op: "*", args: [{ const: 3125 }, { var: "supply_a" }] }
+                - { var: "g_pre_root_a" }
+            - op: "="
+              args:
+                - &root_b
+                  op: "+"
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "+"
+                          args:
+                            - op: "+"
+                              args:
+                                - op: "+"
+                                  args:
+                                    - { var: "payer_b" }
+                                    - { op: "*", args: [{ const: 5 }, { var: "rest_b" }] }
+                                - { op: "*", args: [{ const: 25 }, { var: "fee_alloc_b" }] }
+                            - { op: "*", args: [{ const: 125 }, { var: "fee_residue_b" }] }
+                        - { op: "*", args: [{ const: 625 }, { var: "obligation_b" }] }
+                    - { op: "*", args: [{ const: 3125 }, { var: "supply_b" }] }
+                - { var: "g_pre_root_b" }
+            - { op: "=", args: [{ var: "height" }, { var: "g_pre_height" }] }
+            - { op: "not", args: [{ op: "xor", args: [{ var: "consumed_0" }, { var: "g_pre_consumed_0" }] }] }
+            - { op: "not", args: [{ op: "xor", args: [{ var: "consumed_1" }, { var: "g_pre_consumed_1" }] }] }
+            - { op: "not", args: [{ op: "xor", args: [{ var: "consumed_2" }, { var: "g_pre_consumed_2" }] }] }
+            - { op: "=", args: [{ var: "g_issue_a" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "g_burn_a" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "g_fee_charged_a" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "g_fee_alloc_a" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "g_fee_residue_a" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "g_issue_b" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "g_burn_b" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "g_fee_charged_b" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "g_fee_alloc_b" }, { const: 0 }] }
+            - { op: "=", args: [{ var: "g_fee_residue_b" }, { const: 0 }] }
+            - { op: "!=", args: [{ var: "g_reject_code" }, { enum: "RC_NONE" }] }
+
+  # An accepted step advances height by one, consumes exactly one fresh
+  # occurrence identity, and carries no reject code.
+  - id: "inv_accept_advances_one"
+    kind: "safety"
+    expr:
+      op: "or"
+      args:
+        - { op: "!=", args: [{ var: "g_decision" }, { enum: "DEC_ACCEPTED" }] }
+        - op: "and"
+          args:
+            - op: "="
+              args:
+                - { var: "height" }
+                - { op: "+", args: [{ var: "g_pre_height" }, { const: 1 }] }
+            - { op: "=", args: [{ var: "g_reject_code" }, { enum: "RC_NONE" }] }
+            - op: "="
+              args:
+                - op: "+"
+                  args:
+                    - op: "+"
+                      args:
+                        - op: "ite"
+                          cond:
+                            op: "and"
+                            args:
+                              - { var: "consumed_0" }
+                              - { op: "not", args: [{ var: "g_pre_consumed_0" }] }
+                          then: { const: 1 }
+                          else: { const: 0 }
+                        - op: "ite"
+                          cond:
+                            op: "and"
+                            args:
+                              - { var: "consumed_1" }
+                              - { op: "not", args: [{ var: "g_pre_consumed_1" }] }
+                          then: { const: 1 }
+                          else: { const: 0 }
+                    - op: "ite"
+                      cond:
+                        op: "and"
+                        args:
+                          - { var: "consumed_2" }
+                          - { op: "not", args: [{ var: "g_pre_consumed_2" }] }
+                      then: { const: 1 }
+                      else: { const: 0 }
+                - { const: 1 }
+
+  # A consumed occurrence identity is never released (replay_state is append-only).
+  - id: "inv_consumed_monotone"
+    kind: "safety"
+    expr:
+      op: "and"
+      args:
+        - { op: "=>", args: [{ var: "g_pre_consumed_0" }, { var: "consumed_0" }] }
+        - { op: "=>", args: [{ var: "g_pre_consumed_1" }, { var: "consumed_1" }] }
+        - { op: "=>", args: [{ var: "g_pre_consumed_2" }, { var: "consumed_2" }] }
+
+actions:
+  - id: "step"
+    params:
+      - { id: "command_kind", type: { kind: "int", min: 0, max: 5 } }
+      - { id: "asset", type: { kind: "int", min: 0, max: 1 } }
+      - { id: "lane_index", type: { kind: "int", min: 0, max: 12 } }
+      - { id: "bound_height", type: { kind: "int", min: 0, max: 3 } }
+      - { id: "occurrence", type: { kind: "int", min: 0, max: 2 } }
+      - { id: "amount", type: { kind: "int", min: 0, max: 4 } }
+      - { id: "fee_charged", type: { kind: "int", min: 0, max: 4 } }
+      - { id: "fee_alloc", type: { kind: "int", min: 0, max: 4 } }
+      - { id: "authority_ok", type: { kind: "bool" } }
+    # The step is total: every command has exactly one typed outcome.
+    guard: { bool: true }
+    updates:
+      # Decision. This update defines the acceptance conjunction and every
+      # shared sub-expression (YAML anchors) reused by the remaining updates.
+      - var: "g_decision"
+        expr:
+          op: "ite"
+          cond: &accept
+            op: "and"
+            args:
+              - &c_lane { op: "<=", args: [{ param: "lane_index" }, { const: 11 }] }
+              - &c_command { op: "<=", args: [{ param: "command_kind" }, { const: 4 }] }
+              - &c_fresh
+                op: "or"
+                args:
+                  - op: "and"
+                    args:
+                      - { op: "=", args: [{ param: "occurrence" }, { const: 0 }] }
+                      - { op: "not", args: [{ var: "consumed_0" }] }
+                  - op: "and"
+                    args:
+                      - { op: "=", args: [{ param: "occurrence" }, { const: 1 }] }
+                      - { op: "not", args: [{ var: "consumed_1" }] }
+                  - op: "and"
+                    args:
+                      - { op: "=", args: [{ param: "occurrence" }, { const: 2 }] }
+                      - { op: "not", args: [{ var: "consumed_2" }] }
+              - &c_current { op: "=", args: [{ param: "bound_height" }, { var: "height" }] }
+              - &c_authority { param: "authority_ok" }
+              - &c_obligation_present
+                op: "or"
+                args:
+                  - op: "not"
+                    args:
+                      - &is_drain { op: "=", args: [{ param: "command_kind" }, { const: 4 }] }
+                  - op: ">"
+                    args:
+                      - &sel_obligation
+                        op: "ite"
+                        cond: &is_a { op: "=", args: [{ param: "asset" }, { const: 0 }] }
+                        then: { var: "obligation_a" }
+                        else: { var: "obligation_b" }
+                      - { const: 0 }
+              - &c_positive_amount { op: ">=", args: [{ param: "amount" }, { const: 1 }] }
+              - &c_fee_reconciles { op: "<=", args: [{ param: "fee_alloc" }, { param: "fee_charged" }] }
+              - &c_nonnegative_post
+                op: "and"
+                args:
+                  - op: ">="
+                    args:
+                      - &payer_post
+                        op: "-"
+                        args:
+                          - op: "+"
+                            args:
+                              - &sel_payer
+                                op: "ite"
+                                cond: *is_a
+                                then: { var: "payer_a" }
+                                else: { var: "payer_b" }
+                              - &signed_amount
+                                op: "ite"
+                                cond:
+                                  op: "or"
+                                  args:
+                                    - &is_issue { op: "=", args: [{ param: "command_kind" }, { const: 1 }] }
+                                    - *is_drain
+                                then: { param: "amount" }
+                                else: { op: "-", args: [{ const: 0 }, { param: "amount" }] }
+                          - { param: "fee_charged" }
+                      - { const: 0 }
+                  - op: ">="
+                    args:
+                      - &obligation_post
+                        op: "+"
+                        args:
+                          - *sel_obligation
+                          - op: "ite"
+                            cond: &is_open { op: "=", args: [{ param: "command_kind" }, { const: 3 }] }
+                            then: { param: "amount" }
+                            else:
+                              op: "ite"
+                              cond: *is_drain
+                              then: { op: "-", args: [{ const: 0 }, { param: "amount" }] }
+                              else: { const: 0 }
+                      - { const: 0 }
+                  - op: ">="
+                    args:
+                      - &supply_post
+                        op: "+"
+                        args:
+                          - &sel_supply
+                            op: "ite"
+                            cond: *is_a
+                            then: { var: "supply_a" }
+                            else: { var: "supply_b" }
+                          - op: "ite"
+                            cond: *is_issue
+                            then: { param: "amount" }
+                            else:
+                              op: "ite"
+                              cond: &is_burn { op: "=", args: [{ param: "command_kind" }, { const: 2 }] }
+                              then: { op: "-", args: [{ const: 0 }, { param: "amount" }] }
+                              else: { const: 0 }
+                      - { const: 0 }
+              - &c_representable_post
+                op: "and"
+                args:
+                  - { op: "<", args: [{ var: "height" }, { const: 3 }] }
+                  - { op: "<=", args: [*payer_post, { const: 4 }] }
+                  - op: "<="
+                    args:
+                      - &rest_post
+                        op: "+"
+                        args:
+                          - &sel_rest
+                            op: "ite"
+                            cond: *is_a
+                            then: { var: "rest_a" }
+                            else: { var: "rest_b" }
+                          - op: "ite"
+                            cond: &is_transfer { op: "=", args: [{ param: "command_kind" }, { const: 0 }] }
+                            then: { param: "amount" }
+                            else: { const: 0 }
+                      - { const: 4 }
+                  - op: "<="
+                    args:
+                      - &alloc_post
+                        op: "+"
+                        args:
+                          - &sel_fee_alloc
+                            op: "ite"
+                            cond: *is_a
+                            then: { var: "fee_alloc_a" }
+                            else: { var: "fee_alloc_b" }
+                          - { param: "fee_alloc" }
+                      - { const: 4 }
+                  - op: "<="
+                    args:
+                      - &residue_post
+                        op: "+"
+                        args:
+                          - &sel_fee_residue
+                            op: "ite"
+                            cond: *is_a
+                            then: { var: "fee_residue_a" }
+                            else: { var: "fee_residue_b" }
+                          - &carried_residue { op: "-", args: [{ param: "fee_charged" }, { param: "fee_alloc" }] }
+                      - { const: 4 }
+                  - { op: "<=", args: [*obligation_post, { const: 4 }] }
+                  - { op: "<=", args: [*supply_post, { const: 4 }] }
+          then: { enum: "DEC_ACCEPTED" }
+          else: { enum: "DEC_REJECTED" }
+
+      # Closed reject code in priority order.
+      - var: "g_reject_code"
+        expr:
+          op: "ite"
+          cond: { op: "not", args: [*c_lane] }
+          then: { enum: "RC_UNKNOWN_LANE" }
+          else:
+            op: "ite"
+            cond: { op: "not", args: [*c_command] }
+            then: { enum: "RC_UNKNOWN_COMMAND" }
+            else:
+              op: "ite"
+              cond: { op: "not", args: [*c_fresh] }
+              then: { enum: "RC_DUPLICATE_OCCURRENCE" }
+              else:
+                op: "ite"
+                cond: { op: "not", args: [*c_current] }
+                then: { enum: "RC_STALE_REPLAY" }
+                else:
+                  op: "ite"
+                  cond: { op: "not", args: [*c_authority] }
+                  then: { enum: "RC_UNAUTHORIZED" }
+                  else:
+                    op: "ite"
+                    cond: { op: "not", args: [*c_obligation_present] }
+                    then: { enum: "RC_MISSING_TERMINAL_OBLIGATION" }
+                    else:
+                      op: "ite"
+                      cond: { op: "not", args: [*c_positive_amount] }
+                      then: { enum: "RC_ZERO_AMOUNT" }
+                      else:
+                        op: "ite"
+                        cond: { op: "not", args: [*c_fee_reconciles] }
+                        then: { enum: "RC_FEE_RECONCILIATION" }
+                        else:
+                          op: "ite"
+                          cond: { op: "not", args: [*c_nonnegative_post] }
+                          then: { enum: "RC_INSUFFICIENT" }
+                          else:
+                            op: "ite"
+                            cond: { op: "not", args: [*c_representable_post] }
+                            then: { enum: "RC_UNREPRESENTABLE" }
+                            else: { enum: "RC_NONE" }
+
+      # Closed command kind of the command that was stepped.
+      - var: "g_command"
+        expr:
+          op: "ite"
+          cond: *is_transfer
+          then: { enum: "CMD_TRANSFER" }
+          else:
+            op: "ite"
+            cond: *is_issue
+            then: { enum: "CMD_ISSUE" }
+            else:
+              op: "ite"
+              cond: *is_burn
+              then: { enum: "CMD_BURN" }
+              else:
+                op: "ite"
+                cond: *is_open
+                then: { enum: "CMD_OPEN_OBLIGATION" }
+                else:
+                  op: "ite"
+                  cond: *is_drain
+                  then: { enum: "CMD_DRAIN_OBLIGATION" }
+                  else: { enum: "CMD_UNKNOWN" }
+
+      # Lane of the last accepted lane write (the closed registry in canonical order).
+      - var: "g_lane"
+        expr:
+          op: "ite"
+          cond: *accept
+          then:
+            op: "ite"
+            cond: { op: "=", args: [{ param: "lane_index" }, { const: 0 }] }
+            then: { enum: "ASSET_TRANSFER" }
+            else:
+              op: "ite"
+              cond: { op: "=", args: [{ param: "lane_index" }, { const: 1 }] }
+              then: { enum: "SPOT_LIQUIDITY" }
+              else:
+                op: "ite"
+                cond: { op: "=", args: [{ param: "lane_index" }, { const: 2 }] }
+                then: { enum: "FARM_INCENTIVES" }
+                else:
+                  op: "ite"
+                  cond: { op: "=", args: [{ param: "lane_index" }, { const: 3 }] }
+                  then: { enum: "ZDEX_TOKENOMICS" }
+                  else:
+                    op: "ite"
+                    cond: { op: "=", args: [{ param: "lane_index" }, { const: 4 }] }
+                    then: { enum: "ZUSD_MONETARY" }
+                    else:
+                      op: "ite"
+                      cond: { op: "=", args: [{ param: "lane_index" }, { const: 5 }] }
+                      then: { enum: "PERPS_MARKET" }
+                      else:
+                        op: "ite"
+                        cond: { op: "=", args: [{ param: "lane_index" }, { const: 6 }] }
+                        then: { enum: "ORACLE_MARKET" }
+                        else:
+                          op: "ite"
+                          cond: { op: "=", args: [{ param: "lane_index" }, { const: 7 }] }
+                          then: { enum: "SEALED_AUCTION" }
+                          else:
+                            op: "ite"
+                            cond: { op: "=", args: [{ param: "lane_index" }, { const: 8 }] }
+                            then: { enum: "STRATEGY_ESCROW" }
+                            else:
+                              op: "ite"
+                              cond: { op: "=", args: [{ param: "lane_index" }, { const: 9 }] }
+                              then: { enum: "PROOF_REWARDS" }
+                              else:
+                                op: "ite"
+                                cond: { op: "=", args: [{ param: "lane_index" }, { const: 10 }] }
+                                then: { enum: "EXTERNAL_CUSTODY" }
+                                else: { enum: "GOVERNANCE_MIGRATION" }
+          else: { var: "g_lane" }
+
+      # Control state.
+      - var: "height"
+        expr:
+          op: "ite"
+          cond: *accept
+          then: { op: "+", args: [{ var: "height" }, { const: 1 }] }
+          else: { var: "height" }
+      - var: "consumed_0"
+        expr:
+          op: "or"
+          args:
+            - { var: "consumed_0" }
+            - { op: "and", args: [*accept, { op: "=", args: [{ param: "occurrence" }, { const: 0 }] }] }
+      - var: "consumed_1"
+        expr:
+          op: "or"
+          args:
+            - { var: "consumed_1" }
+            - { op: "and", args: [*accept, { op: "=", args: [{ param: "occurrence" }, { const: 1 }] }] }
+      - var: "consumed_2"
+        expr:
+          op: "or"
+          args:
+            - { var: "consumed_2" }
+            - { op: "and", args: [*accept, { op: "=", args: [{ param: "occurrence" }, { const: 2 }] }] }
+
+      # Pre-state journal (updates are simultaneous, so these read the pre-state).
+      - { var: "g_pre_height", expr: { var: "height" } }
+      - { var: "g_pre_consumed_0", expr: { var: "consumed_0" } }
+      - { var: "g_pre_consumed_1", expr: { var: "consumed_1" } }
+      - { var: "g_pre_consumed_2", expr: { var: "consumed_2" } }
+      - { var: "g_pre_root_a", expr: *root_a }
+      - { var: "g_pre_root_b", expr: *root_b }
+      - { var: "g_owned_pre_a", expr: *owned_a }
+      - { var: "g_owned_pre_b", expr: *owned_b }
+      - { var: "g_supply_pre_a", expr: { var: "supply_a" } }
+      - { var: "g_supply_pre_b", expr: { var: "supply_b" } }
+
+      # Asset a partitions: touched only by an accepted command on asset a.
+      - var: "payer_a"
+        expr:
+          op: "ite"
+          cond: &touch_a { op: "and", args: [*accept, *is_a] }
+          then: *payer_post
+          else: { var: "payer_a" }
+      - var: "rest_a"
+        expr:
+          op: "ite"
+          cond: *touch_a
+          then: *rest_post
+          else: { var: "rest_a" }
+      - var: "fee_alloc_a"
+        expr:
+          op: "ite"
+          cond: *touch_a
+          then: *alloc_post
+          else: { var: "fee_alloc_a" }
+      - var: "fee_residue_a"
+        expr:
+          op: "ite"
+          cond: *touch_a
+          then: *residue_post
+          else: { var: "fee_residue_a" }
+      - var: "obligation_a"
+        expr:
+          op: "ite"
+          cond: *touch_a
+          then: *obligation_post
+          else: { var: "obligation_a" }
+      - var: "supply_a"
+        expr:
+          op: "ite"
+          cond: *touch_a
+          then: *supply_post
+          else: { var: "supply_a" }
+
+      # Asset b partitions: touched only by an accepted command on asset b.
+      - var: "payer_b"
+        expr:
+          op: "ite"
+          cond: &touch_b
+            op: "and"
+            args:
+              - *accept
+              - &is_b { op: "=", args: [{ param: "asset" }, { const: 1 }] }
+          then: *payer_post
+          else: { var: "payer_b" }
+      - var: "rest_b"
+        expr:
+          op: "ite"
+          cond: *touch_b
+          then: *rest_post
+          else: { var: "rest_b" }
+      - var: "fee_alloc_b"
+        expr:
+          op: "ite"
+          cond: *touch_b
+          then: *alloc_post
+          else: { var: "fee_alloc_b" }
+      - var: "fee_residue_b"
+        expr:
+          op: "ite"
+          cond: *touch_b
+          then: *residue_post
+          else: { var: "fee_residue_b" }
+      - var: "obligation_b"
+        expr:
+          op: "ite"
+          cond: *touch_b
+          then: *obligation_post
+          else: { var: "obligation_b" }
+      - var: "supply_b"
+        expr:
+          op: "ite"
+          cond: *touch_b
+          then: *supply_post
+          else: { var: "supply_b" }
+
+      # Canonical per-asset rows of this step (explicit ISSUE, BURN, and fee rows).
+      - var: "g_issue_a"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [*touch_a, *is_issue] }
+          then: { param: "amount" }
+          else: { const: 0 }
+      - var: "g_burn_a"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [*touch_a, *is_burn] }
+          then: { param: "amount" }
+          else: { const: 0 }
+      - var: "g_fee_charged_a"
+        expr:
+          op: "ite"
+          cond: *touch_a
+          then: { param: "fee_charged" }
+          else: { const: 0 }
+      - var: "g_fee_alloc_a"
+        expr:
+          op: "ite"
+          cond: *touch_a
+          then: { param: "fee_alloc" }
+          else: { const: 0 }
+      - var: "g_fee_residue_a"
+        expr:
+          op: "ite"
+          cond: *touch_a
+          then: *carried_residue
+          else: { const: 0 }
+      - var: "g_issue_b"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [*touch_b, *is_issue] }
+          then: { param: "amount" }
+          else: { const: 0 }
+      - var: "g_burn_b"
+        expr:
+          op: "ite"
+          cond: { op: "and", args: [*touch_b, *is_burn] }
+          then: { param: "amount" }
+          else: { const: 0 }
+      - var: "g_fee_charged_b"
+        expr:
+          op: "ite"
+          cond: *touch_b
+          then: { param: "fee_charged" }
+          else: { const: 0 }
+      - var: "g_fee_alloc_b"
+        expr:
+          op: "ite"
+          cond: *touch_b
+          then: { param: "fee_alloc" }
+          else: { const: 0 }
+      - var: "g_fee_residue_b"
+        expr:
+          op: "ite"
+          cond: *touch_b
+          then: *carried_residue
+          else: { const: 0 }
+
+    # Observables of the step (evaluated on the post-state).
+    effects:
+      accepted: { op: "=", args: [{ var: "g_decision" }, { enum: "DEC_ACCEPTED" }] }
+      reject_code: { var: "g_reject_code" }
+      command: { var: "g_command" }
+      lane: { var: "g_lane" }
+      post_height: { var: "height" }
+      post_owned_a: *owned_a
+      post_supply_a: { var: "supply_a" }
+      post_owned_b: *owned_b
+      post_supply_b: { var: "supply_b" }
+      issue_a: { var: "g_issue_a" }
+      burn_a: { var: "g_burn_a" }
+      fee_charged_a: { var: "g_fee_charged_a" }
+      fee_alloc_a: { var: "g_fee_alloc_a" }
+      fee_residue_a: { var: "g_fee_residue_a" }
+      issue_b: { var: "g_issue_b" }
+      burn_b: { var: "g_burn_b" }
+      fee_charged_b: { var: "g_fee_charged_b" }
+      fee_alloc_b: { var: "g_fee_alloc_b" }
+      fee_residue_b: { var: "g_fee_residue_b" }
