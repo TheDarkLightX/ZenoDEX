@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
+import src.core.managed_asset_lifecycle_lane_module_v1 as managed_lane_module
 from src.core.asset_lane_coordinator_v1 import compose_asset_lane_single_v1
 from src.core.asset_lane_projection_v1 import (
     AssetLaneCompositionAcceptedV1,
@@ -74,6 +75,7 @@ from src.core.global_settlement_types_v1 import (
     RouteReleaseV1,
     canonical_economic_command_body_bytes_v1,
     canonical_global_bytes_v1,
+    hash_global_v1,
 )
 from src.core.lane_composition_receipt_verification_v1 import (
     LaneCompositionReceiptCandidateV1,
@@ -1207,6 +1209,28 @@ def _accepted_managed_issue_with_binding() -> tuple[
     return governance, occurrence, module_input, accepted, bound
 
 
+def _structurally_rebind_managed_statement(
+    accepted: ManagedAssetLifecycleLaneModuleAcceptedV1,
+    statement_root: str,
+) -> ManagedAssetLifecycleLaneModuleAcceptedV1:
+    receipt_root = hash_global_v1(
+        "managed-asset-lifecycle-lane-module-receipt-v1",
+        {
+            "statement_root": statement_root,
+            "pre_state_root": accepted.module_journal.pre_lane_root,
+            "post_state_root": accepted.module_journal.post_lane_root,
+            "effect_plan_root": accepted.effects.effect_plan_root,
+            "private_port_root": accepted.private_port.port_root,
+            "terminal_obligations_root": accepted.private_port.terminal_obligations_root,
+        },
+    )
+    return replace(
+        accepted,
+        statement_root=statement_root,
+        module_journal=replace(accepted.module_journal, receipt_root=receipt_root),
+    )
+
+
 def test_module_receipt_verification_uses_release_image_and_exact_journal() -> None:
     profile, occurrence, module_input, accepted, bound = _accepted_transfer_with_binding()
     receipt_bytes = b"succinct-asset-transfer-module-receipt-v1"
@@ -1426,6 +1450,96 @@ def test_managed_accepted_output_cannot_be_rerooted_to_another_command() -> None
         bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
             _managed_binding_candidate(governance, occurrence, authenticated, accepted)
         )
+
+
+def test_managed_receipt_structural_binding_rejects_coherent_foreign_output_first() -> None:
+    # Arrange: retain the honest release-route witness while supplying a
+    # coherent amount+1 output whose public statement is rebound to the honest
+    # input. Rust exercises the same vector and rejection precedence.
+    governance, occurrence, module_input, accepted, bound = (
+        _accepted_managed_issue_with_binding()
+    )
+    foreign_input = replace(
+        module_input,
+        command=replace(
+            module_input.command,
+            amount_atoms=module_input.command.amount_atoms + 1,
+        ),
+    )
+    foreign = transition_managed_asset_lifecycle_lane_module_v1(foreign_input)
+    assert isinstance(foreign, ManagedAssetLifecycleLaneModuleAcceptedV1)
+    forged = _structurally_rebind_managed_statement(
+        foreign,
+        module_input.statement_root,
+    )
+    candidate = _managed_receipt_candidate(
+        governance,
+        occurrence,
+        module_input,
+        forged,
+        bound,
+        LaneModuleReceiptEnvelopeV1(
+            ReceiptKindV1.SUCCINCT,
+            b"coherent-foreign-managed-output",
+        ),
+    )
+    verifier = _RecordingModuleReceiptVerifier()
+
+    # Act / Assert: structural binding has precedence over deterministic
+    # recomputation, and the cryptographic verifier is never invoked.
+    with pytest.raises(ValueError, match="lane module structural binding mismatch"):
+        verify_managed_asset_lifecycle_lane_module_receipt_v1(candidate, verifier)
+    assert verifier.calls == []
+
+
+def test_managed_receipt_recomputes_the_transition_exactly_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange: build the honest structural witness before instrumenting the
+    # deterministic transition used by receipt admission.
+    governance, occurrence, module_input, accepted, bound = (
+        _accepted_managed_issue_with_binding()
+    )
+    real_transition = (
+        managed_lane_module._transition_owned_managed_asset_lifecycle_lane_module_v1
+    )
+    transition_calls: list[ManagedAssetLifecycleLaneModuleInputV1] = []
+
+    def counted_transition(
+        owned_input: ManagedAssetLifecycleLaneModuleInputV1,
+    ) -> ManagedAssetLifecycleLaneModuleAcceptedV1:
+        transition_calls.append(owned_input)
+        result = real_transition(owned_input)
+        assert isinstance(result, ManagedAssetLifecycleLaneModuleAcceptedV1)
+        return result
+
+    monkeypatch.setattr(
+        managed_lane_module,
+        "_transition_owned_managed_asset_lifecycle_lane_module_v1",
+        counted_transition,
+    )
+    verifier = _RecordingModuleReceiptVerifier()
+
+    # Act
+    verify_managed_asset_lifecycle_lane_module_receipt_v1(
+        _managed_receipt_candidate(
+            governance,
+            occurrence,
+            module_input,
+            accepted,
+            bound,
+            LaneModuleReceiptEnvelopeV1(
+                ReceiptKindV1.SUCCINCT,
+                b"one-managed-transition",
+            ),
+        ),
+        verifier,
+    )
+
+    # Assert: structural policy/binding checks are transition-free; admission
+    # recomputes the economic transition once before one verifier call.
+    assert len(transition_calls) == 1
+    assert len(verifier.calls) == 1
 
 
 def _mutate_retained_accepted_output(accepted: object, mutation: str) -> None:

@@ -402,6 +402,30 @@ def _require_managed_asset_policy_binding_v1(
     )
 
 
+def _bind_managed_asset_lifecycle_lane_output_structural_v1(
+    owned: ManagedAssetLifecycleReleaseRouteBindingCandidateV1,
+) -> ReleaseRouteBoundLaneTransitionV1:
+    """Bind one already-owned managed output before transition recomputation."""
+
+    owned_input = owned.module_input
+    accepted = owned.accepted
+    if accepted.statement_root != owned_input.statement_root:
+        raise ValueError("managed asset accepted statement mismatch")
+    _require_managed_asset_policy_binding_v1(owned, owned_input)
+    return _bind_candidate_v1(
+        owned.profile,
+        owned.occurrence,
+        _BindingCandidateV1(
+            owned_input.command.command_kind,
+            owned_input.command.command_body_hash,
+            accepted.statement_root,
+            accepted.private_port.producer_module_schema,
+            owned_input.context,
+            accepted.module_journal,
+        ),
+    )
+
+
 def bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
     candidate: ManagedAssetLifecycleReleaseRouteBindingCandidateV1,
 ) -> ReleaseRouteBoundLaneTransitionV1:
@@ -416,23 +440,12 @@ def bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
     """
 
     owned = _snapshot_managed_asset_route_binding_candidate_v1(candidate)
-    owned_input, expected = _recompute_managed_asset_lifecycle_lane_module_accepted_v1(
+    bound = _bind_managed_asset_lifecycle_lane_output_structural_v1(owned)
+    _recompute_managed_asset_lifecycle_lane_module_accepted_v1(
         owned.module_input,
         owned.accepted,
     )
-    _require_managed_asset_policy_binding_v1(owned, owned_input)
-    return _bind_candidate_v1(
-        owned.profile,
-        owned.occurrence,
-        _BindingCandidateV1(
-            owned_input.command.command_kind,
-            owned_input.command.command_body_hash,
-            expected.statement_root,
-            expected.private_port.producer_module_schema,
-            owned_input.context,
-            expected.module_journal,
-        ),
-    )
+    return bound
 
 
 @dataclass(frozen=True, slots=True)

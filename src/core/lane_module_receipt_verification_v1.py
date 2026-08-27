@@ -44,8 +44,8 @@ from .lane_module_release_route_binding_v1 import (
     ManagedAssetLifecycleReleaseRouteBindingCandidateV1,
     PerpsMarginReleaseRouteBindingCandidateV1,
     ReleaseRouteBoundLaneTransitionV1,
+    _bind_managed_asset_lifecycle_lane_output_structural_v1,
     bind_asset_transfer_lane_output_to_release_route_v1,
-    bind_managed_asset_lifecycle_lane_output_to_release_route_v1,
     bind_perps_margin_lane_output_to_release_route_v1,
 )
 from .managed_asset_lifecycle_lane_module_v1 import (
@@ -388,13 +388,14 @@ def verify_managed_asset_lifecycle_lane_module_receipt_v1(
 ) -> VerifiedLaneModuleTransitionV1:
     """Verify one ordinary-token issue or burn receipt under its release image.
 
-    The rebound structural binding recomputes governed managed-asset policy
-    registry membership before any receipt bytes reach the verifier port.
+    The governed policy and supplied structural binding are checked before one
+    deterministic transition recomputation and before any receipt bytes reach
+    the verifier port.
     """
 
     owned = _snapshot_managed_lifecycle_receipt_candidate_v1(candidate)
     occurrence = owned.authenticated_command.occurrence
-    rebound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
+    rebound = _bind_managed_asset_lifecycle_lane_output_structural_v1(
         ManagedAssetLifecycleReleaseRouteBindingCandidateV1(
             owned.profile,
             owned.policy_registry,
@@ -404,6 +405,8 @@ def verify_managed_asset_lifecycle_lane_module_receipt_v1(
             owned.accepted,
         )
     )
+    if owned.release_route_binding.binding_root != rebound.binding_root:
+        raise ValueError("lane module structural binding mismatch")
     _, expected = _recompute_managed_asset_lifecycle_lane_module_accepted_v1(
         owned.module_input,
         owned.accepted,

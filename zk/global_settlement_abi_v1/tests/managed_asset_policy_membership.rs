@@ -22,6 +22,8 @@ const FIXED_RELEASE_REGISTRY_ROOT_V1: &str =
 const OTHER_RELEASE_REGISTRY_ROOT_V1: &str =
     "0x155c41281d66c0d34d6d1d2443468a264f123801944cab0174b683001c6ce86a";
 
+type PolicyMutationCase = (&'static str, fn(&mut ManagedAssetLifecyclePolicyV1));
+
 fn root(value: u64) -> RootV1 {
     RootV1::parse(format!("0x{value:064x}"), "test root", false).expect("test root must parse")
 }
@@ -889,7 +891,7 @@ fn ungoverned_issuer_substitution_rejects_at_membership() {
 #[test]
 fn state_policy_field_substitutions_reject_at_membership() {
     let governance = governance();
-    let cases: [(&str, fn(&mut ManagedAssetLifecyclePolicyV1)); 3] = [
+    let cases: [PolicyMutationCase; 3] = [
         (BURN, |policy: &mut ManagedAssetLifecyclePolicyV1| {
             policy.issue_authority_subject = Some("mallory".to_owned())
         }),
