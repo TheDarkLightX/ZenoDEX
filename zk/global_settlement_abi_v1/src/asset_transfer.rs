@@ -63,6 +63,21 @@ fn post_balances(
         .iter()
         .map(|row| ((row.asset.clone(), row.owner.clone()), row.amount_atoms))
         .collect::<BTreeMap<_, _>>();
+
+    // Reject by semantic failure class before applying any delta. Iterating the
+    // BTreeMap directly used to make the public reject code depend on the
+    // lexical spelling of principals whenever an underfunded sender and an
+    // overflowing credit were both present. Debit insufficiency has fixed
+    // priority over credit overflow, independent of canonical map order.
+    for (owner, delta) in deltas.iter().filter(|(_, delta)| **delta < 0) {
+        let key = (asset.to_owned(), owner.clone());
+        apply_delta(values.get(&key).copied().unwrap_or(0), *delta)?;
+    }
+    for (owner, delta) in deltas.iter().filter(|(_, delta)| **delta >= 0) {
+        let key = (asset.to_owned(), owner.clone());
+        apply_delta(values.get(&key).copied().unwrap_or(0), *delta)?;
+    }
+
     for (owner, delta) in deltas {
         let key = (asset.to_owned(), owner.clone());
         let post = apply_delta(values.get(&key).copied().unwrap_or(0), *delta)?;
