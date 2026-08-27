@@ -1,0 +1,131 @@
+{
+  "schema": "zenodex/global-functional-core-formal-admission/v1",
+  "receipt_id": "GFCFAV1-20260827-global-settlement-core-v1",
+  "created_date": "2026-08-27",
+  "status": "SUBJECT_RECORDED_PENDING_FINAL_MAX_REVIEW",
+  "base_commit": "f7e851565e063fb3e74b060a9c45f27b8621a8d7",
+  "subject_commit": "20ded633e61e5cd4c6aec2d3a23266d68f5a72f8",
+  "subject_parent": "6f3de0fb7483fe8aa4b45bb287c8eedbd28beecc",
+  "subject_tree": "730563ae4f1dac5c65bf969b7ded27408033bba2",
+  "subject_worktree_clean": true,
+  "changed_file_count": 10,
+  "changed_files": [
+    {
+      "status": "A",
+      "path": "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
+      "git_blob": "214b6bdb717176bebd31c1b16e86ca48436de1f1"
+    },
+    {
+      "status": "M",
+      "path": "lean-mathlib/Proofs.lean",
+      "git_blob": "375ebf0cf06c4445394ca31c21f8a9cb9a93c151"
+    },
+    {
+      "status": "A",
+      "path": "lean-mathlib/Proofs/GlobalSettlementCoreV1.lean",
+      "git_blob": "f549c1dd5b2af459f9f1cca232f93bd0aee23af1"
+    },
+    {
+      "status": "A",
+      "path": "lean-mathlib/Proofs/GlobalSettlementCoreV1Challenge.lean",
+      "git_blob": "ac2da57382bc1108b893bf993f5a28c7dbc371d5"
+    },
+    {
+      "status": "A",
+      "path": "src/kernels/dex/global_settlement_core_v1.yaml",
+      "git_blob": "3caa30db4c14766fc2d74341ed545c534b5d6cf7"
+    },
+    {
+      "status": "A",
+      "path": "tests/evidence/test_hygiene/THV1-20260826-global-settlement-formal-core-v1.json",
+      "git_blob": "7f23932984e9b7d6c18290b10679abeab28ac511"
+    },
+    {
+      "status": "A",
+      "path": "tests/formal/test_esso_global_settlement_core_v1.py",
+      "git_blob": "2877b6e731fc9286a145c955f7231bcbd6d078af"
+    },
+    {
+      "status": "A",
+      "path": "tests/formal/test_lean_global_settlement_core_v1.py",
+      "git_blob": "143cc4e5c74d0bc60fa7fe67e47409fc16565062"
+    },
+    {
+      "status": "A",
+      "path": "tests/formal/test_scan_lean_proof_placeholders_v1.py",
+      "git_blob": "33e03a2884261c02b8a0e00b4b36c22b1ce1893a"
+    },
+    {
+      "status": "A",
+      "path": "tools/scan_lean_proof_placeholders_v1.py",
+      "git_blob": "554b3065edbb775635d8c45d663c3f2c021b786e"
+    }
+  ],
+  "test_hygiene_evidence": {
+    "evidence_id": "THV1-20260826-global-settlement-formal-core-v1",
+    "path": "tests/evidence/test_hygiene/THV1-20260826-global-settlement-formal-core-v1.json",
+    "sha256": "c9a1e92ab7bab2ce1097a816a47949b54f2f6d40e4c030fa18a880f9131375eb"
+  },
+  "formal_subject": {
+    "esso_model_sha256": "121972779c7ac2f06dee1a6970498ab6b8e17c80c3050342648d8d2d432a2b7d",
+    "esso_ir_hash": "sha256:889e3f9fb616fdd01c4d40a15f8cec80916ff992a8b2d6b39b8d1b305ba5e829",
+    "esso_semantic_fingerprint": "58a1a345fed1f25c7d98e22452764b9dccfc2df82ac66217b7b109dc58389c43",
+    "esso_code_hash": "7f80c6216be85c827e8d1cc2fa08ee3107a74588",
+    "lean_core_blob": "f549c1dd5b2af459f9f1cca232f93bd0aee23af1",
+    "lean_challenge_blob": "ac2da57382bc1108b893bf993f5a28c7dbc371d5"
+  },
+  "evidence": [
+    {
+      "command": "PYTHONPATH=/path/to/ESSO python3 -m ESSO validate src/kernels/dex/global_settlement_core_v1.yaml",
+      "result": "ok true; exact recorded IR hash"
+    },
+    {
+      "command": "PYTHONPATH=/path/to/ESSO python3 -m ESSO verify-multi src/kernels/dex/global_settlement_core_v1.yaml --solvers z3,cvc5 --determinism-trials 2 --timeout-ms 5000",
+      "result": "VERIFIED; init_implies_inv and inductive_step unsat under Z3 and CVC5; solver agreement true; exact fingerprint and tool hash"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm python3 -m pytest -q -p no:cacheprovider tests/formal/test_lean_global_settlement_core_v1.py tests/formal/test_scan_lean_proof_placeholders_v1.py",
+      "result": "44 passed in 46.04s"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO python3 -m pytest -q -p no:cacheprovider tests/formal/test_esso_global_settlement_core_v1.py -rs",
+      "result": "128 passed in 43.30s; no skips"
+    },
+    {
+      "command": "PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO python3 tools/run_test_hygiene_gate_v1.py --base-ref f7e851565e063fb3e74b060a9c45f27b8621a8d7 --json",
+      "result": "104 passed in 37.77s; ok true; 7 critical paths covered"
+    },
+    {
+      "command": "python3 -m ruff check tools/scan_lean_proof_placeholders_v1.py tests/formal/test_esso_global_settlement_core_v1.py tests/formal/test_lean_global_settlement_core_v1.py tests/formal/test_scan_lean_proof_placeholders_v1.py",
+      "result": "All checks passed"
+    }
+  ],
+  "review_repairs": [
+    "removed stale THV1-absent admission status",
+    "made the Lean gate reproducible from a clean worktree",
+    "blocked constant declarations and malformed lexical enclosures in the Lean placeholder scanner",
+    "narrowed challenge-module signature-binding claims",
+    "completed the independent oracle over every declared effect including rejected-lane preservation",
+    "added effect-only and rejected-lane semantic mutants",
+    "closed ESSO evidence object schemas and bound trial count, timeout, seed, domain caps, solver versions, tool hash, IR hash, and fingerprint",
+    "reclassified GAP-01 through GAP-08 as eight primary divergences rather than a complete correspondence inventory",
+    "stated that structural payload admission does not authenticate historical provenance"
+  ],
+  "authority": {
+    "production": false,
+    "settlement": false,
+    "release": false,
+    "migration": false,
+    "receipt_verification": false,
+    "value_movement": false
+  },
+  "nonclaims": [
+    "This receipt binds a research-only formal subject and grants no production, settlement, release, migration, receipt-verification, or value-moving authority.",
+    "The Lean model is a structural abstraction and does not prove the Python, Rust, RISC0, Tau, or mounted runtime.",
+    "The ESSO result covers initialization and one-step inductiveness of one finite invariant conjunction, not independent induction of every invariant.",
+    "The ESSO evidence parser validates closed payload structure and declared provenance fields; it does not cryptographically authenticate historical tool output.",
+    "Command-lane routing, unknown-asset policy, authorization derivation, terminal-obligation identities, production widths, canonical roots, fee-residue ownership, mixed-lane composition, migration, outbox settlement, and whole-DEX value-movement safety remain open.",
+    "The aggregate Proofs.lean build remains outside the admitted claim because of a pre-existing missing import outside this change."
+  ],
+  "next_gate": "Independent Max review of this exact subject-bound receipt and subject commit"
+}
