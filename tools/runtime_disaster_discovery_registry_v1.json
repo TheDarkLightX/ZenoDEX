@@ -1,0 +1,453 @@
+{
+  "schema": "zenodex/whole-economy-disaster-coverage-registry/v1",
+  "registry_version": 1,
+  "status": "RESEARCH_ONLY_DENOMINATOR_INCOMPLETE",
+  "claim_ceiling": "RESEARCH_ONLY_NO_AUTHORITY",
+  "implementation_base": {
+    "commit": "c52c71d01a3edf3e298a840d41345abdc2d6d26d",
+    "tree": "7978c0df78428e806e5f19281df537fe1cfc7451",
+    "note": "The implementation base is the subject under diagnosis. The commit that adds this registry and checker is a later assurance artifact and never rewrites the historical 0/967 baseline recorded in the whole-program plan."
+  },
+  "source_pins": [
+    {
+      "path": "config/proof_profiles/zeno_ledger_profiles.json",
+      "role": "PROFILE_RELEASE",
+      "git_mode": "100644",
+      "blob_oid": "54eba0c38397bd0fa0ce2023bb606f0e21ab199c",
+      "sha256": "b3e4e3479c6f82e35267b0eeb08392be876c3d98f5f48de084f970aaf32719d5",
+      "byte_size": 2378
+    },
+    {
+      "path": "docs/research/ZENODEX_M6_CAPABILITY_MANIFEST_V1.json",
+      "role": "SEMANTIC_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "989965363d73b514362f36ce0088f7ba27c8825a",
+      "sha256": "34930be9d4d69c4c46c7c97f57fd492d4c95061f8960f936261a8a3415d5db95",
+      "byte_size": 6565
+    },
+    {
+      "path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json",
+      "role": "SEMANTIC_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "6da997fe32f39a4c1bf0c89a3f6dfc87a16f863f",
+      "sha256": "8bbd05a875317fb75e4853f7babc3a91351e581f6d1ec7ed75db0e660ae4542f",
+      "byte_size": 37512
+    },
+    {
+      "path": "docs/zenodex/shapeforge_promoted/zenodex_world_model.seed.json",
+      "role": "SEMANTIC_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "7c1b896c2f68fe6aa2da7497ac1f5061518d56e4",
+      "sha256": "d382544a431a200f7b0ef2303a5ab5595ef067387d34466cb2a8f82fac966789",
+      "byte_size": 311979
+    },
+    {
+      "path": "lean-mathlib/lean-toolchain",
+      "role": "TOOLCHAIN",
+      "git_mode": "100644",
+      "blob_oid": "5249182c0dd885dfd2c6fb87ed4b4113a2449a6c",
+      "sha256": "d55ca0039a5479db5b38919d005b2c427b89b3be4f0184a20f2f4eae931f5bdb",
+      "byte_size": 25
+    },
+    {
+      "path": "pyproject.toml",
+      "role": "TOOLCHAIN",
+      "git_mode": "100644",
+      "blob_oid": "7457c5cc7aef1c2f7abca8396eb50646101ec090",
+      "sha256": "232c294680d1dacdb03d8a9320b59cf14fdc780fbb7c5d364f52e224f281fa75",
+      "byte_size": 1512
+    },
+    {
+      "path": "requirements-agents.lock.txt",
+      "role": "TOOLCHAIN",
+      "git_mode": "100644",
+      "blob_oid": "c011881518e9970a3efb3cdd8b86ad009001da9b",
+      "sha256": "79b5a7622c1c670e9d16e67d0b5a7fab395604392d7a3829b3d8ef2bae105011",
+      "byte_size": 59178
+    },
+    {
+      "path": "requirements-core.lock.txt",
+      "role": "TOOLCHAIN",
+      "git_mode": "100644",
+      "blob_oid": "4025d909915241e04f39856f060a96c4d14b760c",
+      "sha256": "5eb655035d6277b1ce9819880bad15e612d06cb82ede7b7076413eac807581da",
+      "byte_size": 33756
+    },
+    {
+      "path": "requirements-dev.lock.txt",
+      "role": "TOOLCHAIN",
+      "git_mode": "100644",
+      "blob_oid": "1b4af36d7c677a4e6042ff76ccfc98910ef61808",
+      "sha256": "a7b2cfe02fa4df0e24980e23a8f3fff254e72438384e8d4b30ce1ac4d8a90a06",
+      "byte_size": 124229
+    },
+    {
+      "path": "tools/acceptance_tcb_dangerous_surfaces.json",
+      "role": "SEMANTIC_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "f4c205c1978876fafd7bbc2d163195aad321a7f2",
+      "sha256": "fe25b8a293bad905df99aab24ee85d393a47e370d1951f8194d1e048dcfd964d",
+      "byte_size": 8978
+    },
+    {
+      "path": "tools/adversarial_hardening_pokayoke_matrix.json",
+      "role": "SEMANTIC_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "bc380fd3d5f4673f18734c5ad16de5d63dce64e8",
+      "sha256": "fab3671447b8e416a089e069485e6ee69c30e15066402f5b8ca6464e762ee316",
+      "byte_size": 32513
+    },
+    {
+      "path": "tools/check_runtime_disaster_discovery_receipt.py",
+      "role": "CHECKER_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "858a84491f08205d57f41dadfc6cde8b048b3b5f",
+      "sha256": "a3b706cae9f10abf717f8b0f3bc97416f320b1c9ede0c646df35b6f053d26d9c",
+      "byte_size": 9890
+    },
+    {
+      "path": "tools/m6_writer_inventory_manifest_v1.json",
+      "role": "SEMANTIC_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "e3e007002b93d79053690cf9a85443f9cef05436",
+      "sha256": "a0f8bd4c11660aa4d614a089b252ac5403d7cee0d4cb73454afc121a4bfa0b9f",
+      "byte_size": 43304
+    },
+    {
+      "path": "tools/run_runtime_disaster_discovery.py",
+      "role": "CHECKER_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "b2626277a4a3138ea23ecf4bffc50c09e7896157",
+      "sha256": "e4f29954c88b85b9bf7b46a78ca845d2442e1723a1e3f7c0fb4295535822acb9",
+      "byte_size": 11168
+    },
+    {
+      "path": "tools/runtime_disaster_discovery.py",
+      "role": "CHECKER_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "2be6209f2cfa9529c6711795b192b42351a631d8",
+      "sha256": "4a09ea1461b966435e90a530fb2c6b59f85ec74340e8fcc5fe4f2ee5acdb430e",
+      "byte_size": 10341
+    },
+    {
+      "path": "tools/runtime_disaster_discovery_evidence_v1.py",
+      "role": "CHECKER_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "26e178d8610e3c30f90422b569bc353d7d84c718",
+      "sha256": "1d88cababa2bd1e524b7a207748e87544d27b1e6bc668c601968d26b841ae7bf",
+      "byte_size": 33428
+    },
+    {
+      "path": "tools/runtime_disaster_discovery_inventory_v1.py",
+      "role": "CHECKER_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "872c52932911797136518daebacf948b0919ac6c",
+      "sha256": "479cbcc1a07cf4f6b198f5ea77f9529284bb8f307ef95ee0d59fdbdb24847dff",
+      "byte_size": 37008
+    },
+    {
+      "path": "tools/runtime_disaster_discovery_packet_v1.py",
+      "role": "CHECKER_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "57267935e13118975405141a9db040f7af8721d8",
+      "sha256": "0a7918b4198361ae10cd1e63c1511378812646d1e28eb5c8d494c8b268729e98",
+      "byte_size": 25367
+    },
+    {
+      "path": "tools/runtime_disaster_discovery_ports_v1.py",
+      "role": "CHECKER_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "1d5f844ef1f998e95ee99108baa9742dff1af22e",
+      "sha256": "97291b2be6312b366b25ac647b2879e47981692cf4165a2b51c0199906465ea0",
+      "byte_size": 22387
+    },
+    {
+      "path": "tools/runtime_disaster_discovery_primitives_v1.py",
+      "role": "CHECKER_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "5359e0447e1b3fb6ad947125837a75ac6b36bfce",
+      "sha256": "28fd4a90a0747039915d1bb630d1f817949b3f30c6ef58b81aa99f276125b554",
+      "byte_size": 15920
+    },
+    {
+      "path": "tools/runtime_disaster_discovery_registry_v1.py",
+      "role": "CHECKER_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "d9a07d71fc8dd1a259b9c1069522d717c1dce69b",
+      "sha256": "a05f07b1919dc5c7f84d7a6cdfa811e997a79df065e2c35441e1c7621d131b1f",
+      "byte_size": 36149
+    },
+    {
+      "path": "tools/runtime_disaster_discovery_sources_v1.py",
+      "role": "CHECKER_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "e29a8381a0ff346c1c6700ca15442a9f9ddeeaab",
+      "sha256": "89dbe3200969cbc4572796cabc7f2651082aeeac070f1351316d28729b1f90f5",
+      "byte_size": 9656
+    },
+    {
+      "path": "tools/runtime_disaster_discovery_subject_v1.py",
+      "role": "CHECKER_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "4652cbacafcc1afbb058046c9e6abc32893a0d47",
+      "sha256": "9656474acb0b0bb7269c7ff572e9fb7147526c247237361e5e7ce02a95333d5a",
+      "byte_size": 5130
+    },
+    {
+      "path": "tools/runtime_disaster_discovery_vocabulary_v1.py",
+      "role": "CHECKER_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "a851dfb499add6047b7fd33d4357fd458e65e1d0",
+      "sha256": "e1d5cca2b1f77e7c57da81b4852bf05278b087ed78672c3c58dd8dc1b09c4830",
+      "byte_size": 11469
+    },
+    {
+      "path": "tools/stateful_scenario_bridge.py",
+      "role": "SEMANTIC_SOURCE",
+      "git_mode": "100644",
+      "blob_oid": "4dba10cbc61f222c5c7ba7625498f92dc0154e56",
+      "sha256": "ad8e65d74c53343bc7c3aae829ef1babbf0bb39abeb607a3ee89e14df60c4b8a",
+      "byte_size": 292986
+    }
+  ],
+  "universe": {
+    "lifecycle_phases": [
+      {
+        "phase_id": "ADMISSION",
+        "definition": "A typed command occurrence is parsed, authenticated, authorized, and admitted or rejected before any accounting row changes."
+      },
+      {
+        "phase_id": "ACTIVATION",
+        "definition": "A value object, position, vault, pool, query, auction, strategy, task, or registration is created and becomes live."
+      },
+      {
+        "phase_id": "ACCRUAL",
+        "definition": "Funding, emission, fee, reward, interest, or bond accrual updates accounting locations without an external claim."
+      },
+      {
+        "phase_id": "TRANSFER",
+        "definition": "Value moves between accounting locations or control domains inside one epoch."
+      },
+      {
+        "phase_id": "CLAIM",
+        "definition": "A claimant withdraws, redeems, is paid out, or is refunded from an accounting location."
+      },
+      {
+        "phase_id": "PUBLICATION",
+        "definition": "A verified economic epoch is atomically published and its external-only effects enter the outbox."
+      },
+      {
+        "phase_id": "LIQUIDATION_RECOVERY",
+        "definition": "Liquidation, auto-deleveraging, bankruptcy resolution, dispute, slash, clawback, or recovery-mode transitions."
+      },
+      {
+        "phase_id": "TERMINAL_CLOSE",
+        "definition": "Close, cancel, expire, drain, or otherwise reach the terminal lifecycle state with every liability atom disposed."
+      },
+      {
+        "phase_id": "MIGRATION_RETIREMENT",
+        "definition": "Schema migration, writer epoch rotation, release activation, and retirement of a superseded writer or profile."
+      }
+    ],
+    "invariant_families": [
+      {
+        "family_id": "VALUE_CONSERVATION",
+        "definition": "Per-asset issue, burn, transfer, and residue equations balance for every accepted transition.",
+        "aggregate": false,
+        "contributes_to_vm_gates": [
+          "VM-03",
+          "VM-04"
+        ]
+      },
+      {
+        "family_id": "AUTHORIZATION_AUTHORITY",
+        "definition": "Only the authenticated claimant or governed authority can move the value it controls; advisory and LLM outputs grant nothing.",
+        "aggregate": false,
+        "contributes_to_vm_gates": [
+          "VM-08"
+        ]
+      },
+      {
+        "family_id": "REPLAY_OCCURRENCE_UNIQUENESS",
+        "definition": "Each command occurrence, nonce, nullifier, or receipt is consumed at most once across batches, restarts, and retries.",
+        "aggregate": false,
+        "contributes_to_vm_gates": [
+          "VM-10"
+        ]
+      },
+      {
+        "family_id": "CANONICAL_ENCODING_BINDING",
+        "definition": "Hashes, journals, receipts, and roots bind exact canonical bytes; aliases, width tricks, and reorderings reject.",
+        "aggregate": false,
+        "contributes_to_vm_gates": [
+          "VM-02"
+        ]
+      },
+      {
+        "family_id": "ORDERED_EPOCHS",
+        "definition": "Epoch validity composes only along the single authoritative order; epoch-local freshness never admits cross-epoch settlement.",
+        "aggregate": true,
+        "contributes_to_vm_gates": [
+          "VM-06"
+        ]
+      },
+      {
+        "family_id": "PROFILE_RELEASE_COEXISTENCE",
+        "definition": "Exactly one release-selected profile, image, and route set is authoritative; caller-selected or stale profiles reject.",
+        "aggregate": true,
+        "contributes_to_vm_gates": [
+          "VM-08",
+          "VM-11"
+        ]
+      },
+      {
+        "family_id": "MIGRATION_WRITER_RETIREMENT",
+        "definition": "A retired writer, schema, or epoch cannot mutate authoritative state after cut-over; migration is certified and fenced.",
+        "aggregate": true,
+        "contributes_to_vm_gates": [
+          "VM-01",
+          "VM-11"
+        ]
+      },
+      {
+        "family_id": "ATOMIC_PUBLICATION",
+        "definition": "State, history, receipts, and outbox rows publish atomically through the sole publisher or not at all.",
+        "aggregate": true,
+        "contributes_to_vm_gates": [
+          "VM-09"
+        ]
+      },
+      {
+        "family_id": "OUTBOX_FINALITY",
+        "definition": "External-only effects are idempotent, acknowledged, and reconciled against external finality before any irreversible release.",
+        "aggregate": true,
+        "contributes_to_vm_gates": [
+          "VM-10"
+        ]
+      },
+      {
+        "family_id": "RECOVERY_ADMIN",
+        "definition": "Crash, restart, operator, and recovery paths preserve invariants and cannot create, destroy, or reassign value.",
+        "aggregate": true,
+        "contributes_to_vm_gates": [
+          "VM-10",
+          "VM-11"
+        ]
+      },
+      {
+        "family_id": "SIDE_COVERT_CHANNELS",
+        "definition": "Timing, ordering, error shape, metadata, retry, and observer surfaces leak bounded information and admit no covert authority.",
+        "aggregate": true,
+        "contributes_to_vm_gates": [
+          "VM-08"
+        ]
+      },
+      {
+        "family_id": "RESOURCE_CEILINGS",
+        "definition": "Every loop, frontier, journal, cycle, and byte budget is bounded and exhaustion is a first-class rejected disaster state.",
+        "aggregate": true,
+        "contributes_to_vm_gates": [
+          "VM-05",
+          "VM-06"
+        ]
+      }
+    ],
+    "attack_families": [
+      {
+        "attack_family_id": "UNSPECIFIED",
+        "definition": "No attack family has been specified for this cell; the row stays at UNSPECIFIED_SEMANTICS."
+      },
+      {
+        "attack_family_id": "ADVERSARY_MALLORY",
+        "definition": "A malicious trader or client submits hostile, stale, aliased, or replayed inputs."
+      },
+      {
+        "attack_family_id": "SEQUENCER_REORDERING",
+        "definition": "A sequencer reorders, delays, censors, or duplicates admitted commands within allowed windows."
+      },
+      {
+        "attack_family_id": "PROOF_AGGREGATOR",
+        "definition": "A prover or aggregator substitutes journals, receipts, images, or child manifests."
+      },
+      {
+        "attack_family_id": "ORACLE_REPORTER",
+        "definition": "A reporter supplies stale, disputed, or manipulated price or finality observations."
+      },
+      {
+        "attack_family_id": "GOVERNANCE_OPERATOR",
+        "definition": "An operator or autonomous governance agent attempts publication, release, or parameter authority it does not hold."
+      },
+      {
+        "attack_family_id": "COLLUDING_COALITION",
+        "definition": "Several roles coordinate across lanes, epochs, or profiles to extract value."
+      },
+      {
+        "attack_family_id": "ENVIRONMENT_FAULT",
+        "definition": "Crash, partial failure, resource exhaustion, or toolchain drift rather than an intentional actor."
+      }
+    ],
+    "closure_modes": [
+      {
+        "closure_mode_id": "UNSPECIFIED",
+        "definition": "No closure mode has been specified for this cell."
+      },
+      {
+        "closure_mode_id": "BOUNDED_TEST_SEARCH",
+        "definition": "A registered bounded search with named mutants; success yields at most NOT_WITNESSED_IN_TESTS."
+      },
+      {
+        "closure_mode_id": "MODEL_PROOF",
+        "definition": "An exact bound theorem over a formal model yields MODEL_PROVED_UNREACHABLE."
+      },
+      {
+        "closure_mode_id": "CONSTRUCTION_PROOF",
+        "definition": "A typestate or construction certificate yields UNREACHABLE_BY_CONSTRUCTION."
+      },
+      {
+        "closure_mode_id": "RUNTIME_REFINEMENT",
+        "definition": "A model proof plus exact refinement evidence yields RUNTIME_REFINEMENT_CLOSED."
+      },
+      {
+        "closure_mode_id": "DISABLED_NO_WRITER",
+        "definition": "A no-writer proof for an explicit exclusion yields DISABLED_PROVED_NO_WRITER."
+      }
+    ],
+    "bounds_profiles": [],
+    "bad_predicates": [],
+    "mutants": [],
+    "formal_obligations": []
+  },
+  "applicability_registry": {
+    "state": "INCOMPLETE",
+    "decisions": []
+  },
+  "composition_registry": {
+    "state": "INCOMPLETE",
+    "cells": []
+  },
+  "runner_registry": {
+    "runners": []
+  },
+  "oracle_registry": {
+    "oracles": []
+  },
+  "denominator_floor": {
+    "capabilities": 103,
+    "routes": 4,
+    "exclusions": 4,
+    "applicability_cells": 11988
+  },
+  "historical_baseline": {
+    "strict_release_closure": "0_OF_967_MANIFEST_DERIVED_MINIMUM_EVIDENCE_CELLS",
+    "minimum_release_evidence_cell_count": 967,
+    "source_path": "docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json",
+    "rule": "The 0/967 baseline is an immutable diagnosis of implementation base c52c71d01. This registry adds a finer 11,988-cell applicability denominator and never rewrites, replaces, or reinterprets the historical count."
+  },
+  "nonclaims": [
+    "Every applicability cell is APPLICABILITY_UNKNOWN in V1; no predicate, runner, oracle, proof, or closure is fabricated.",
+    "The lifecycle-phase and invariant-family enumerations are closed vocabulary for the grid; they do not assert that any cell applies.",
+    "Source-derived inventory entries are composition inputs awaiting an explicit composition registry; they are not closed obligations.",
+    "This registry grants no economic safety, proof, release, mount, settlement, writer, migration, finality, or production authority.",
+    "Accounting locations and control domains never imply legal custody, title, possession, or key control."
+  ]
+}
