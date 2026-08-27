@@ -96,14 +96,14 @@ LOCAL_PROFILE_SOURCE_SHA256_V1: Final = (
 )
 
 IMPLEMENTATION_EVIDENCE_PATHS_V1: Final = (
-    "src/core/current_tau_compatibility_pins_v1.py",
-    "src/core/current_tau_compatibility_v1.py",
+    "tools/__init__.py",
+    "tools/current_tau_compatibility_pins_v1.py",
+    "tools/current_tau_compatibility_core_v1.py",
+    "tools/current_tau_replay_io_v1.py",
     "tests/test_check_current_tau_compatibility_v1.py",
     "tools/build_current_tau_compatibility_v1.py",
     "tools/check_current_tau_compatibility_v1.py",
     "tools/current_tau_source_analysis_v1.py",
-    "tools/build_m6_normative_requirements_v1.py",
-    "tests/test_check_m6_normative_requirements_v1.py",
 )
 IMPLEMENTATION_SOURCE_PATHS_V1: Final = tuple(
     path for path, _digest in LOCAL_PROFILE_SOURCE_SHA256_V1

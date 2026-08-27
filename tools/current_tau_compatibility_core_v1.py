@@ -8,10 +8,9 @@ It returns one research-only incompatibility artifact or a typed rejection.
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from typing import NoReturn
-
-from src.state.canonical import canonical_json_bytes
 
 from .current_tau_compatibility_pins_v1 import (
     ACTIVE_PLAN_COMMIT_V1,
@@ -97,6 +96,74 @@ class CurrentTauCompatibilitySnapshotV1:
 
 def _reject(code: str, path: str, detail: str) -> NoReturn:
     raise CurrentTauCompatibilityRejectV1(code, path, detail)
+
+
+def _validate_json_value_v1(value: object, *, depth: int = 0) -> None:
+    if depth > 64:
+        _reject("JSON_DEPTH", "artifact", "JSON depth exceeds 64")
+    if value is None or type(value) in {bool, int, str}:
+        if type(value) is str and len(value) > 131_072:
+            _reject("JSON_STRING_LIMIT", "artifact", "string exceeds character ceiling")
+        return
+    if type(value) is list:
+        for item in value:
+            _validate_json_value_v1(item, depth=depth + 1)
+        return
+    if type(value) is dict:
+        for key, item in value.items():
+            if type(key) is not str:
+                _reject("JSON_KEY_TYPE", "artifact", "object keys must be exact strings")
+            _validate_json_value_v1(item, depth=depth + 1)
+        return
+    _reject("JSON_VALUE_TYPE", "artifact", f"unsupported exact type {type(value).__name__}")
+
+
+def canonical_json_bytes_v1(value: object) -> bytes:
+    """Encode the closed evidence value language deterministically."""
+
+    _validate_json_value_v1(value)
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        allow_nan=False,
+    ).encode("utf-8")
+
+
+def decode_json_object_v1(raw: bytes, label: str) -> dict[str, object]:
+    """Decode one duplicate-free JSON object with no floating-point values."""
+
+    def reject_float(_value: str) -> NoReturn:
+        _reject("JSON_FLOAT", label, "floating-point values are forbidden")
+
+    def parse_integer(value: str) -> int:
+        if len(value.lstrip("-")) > 256:
+            _reject("JSON_INTEGER_LIMIT", label, "integer digit ceiling exceeded")
+        return int(value)
+
+    def exact_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        result: dict[str, object] = {}
+        for key, value in pairs:
+            if key in result:
+                _reject("JSON_DUPLICATE_KEY", label, key)
+            result[key] = value
+        return result
+
+    try:
+        decoded = json.loads(
+            raw.decode("utf-8"),
+            parse_float=reject_float,
+            parse_constant=reject_float,
+            parse_int=parse_integer,
+            object_pairs_hook=exact_object,
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        _reject("JSON_DECODE", label, type(exc).__name__)
+    if type(decoded) is not dict:
+        _reject("JSON_ROOT_TYPE", label, "root must be an object")
+    _validate_json_value_v1(decoded)
+    return decoded
 
 
 def _require_exact(value: object, expected: object, code: str, path: str) -> None:
@@ -383,7 +450,9 @@ def _signature_witness(snapshot: CurrentTauCompatibilitySnapshotV1) -> dict[str,
 def _rpc_witness(snapshot: CurrentTauCompatibilitySnapshotV1) -> dict[str, object]:
     return {
         "witness_id": "rpc_surface_differential",
-        "current_tau_removed_rpc_names": list(snapshot.current_rpc_names_absent),
+        "current_tau_absent_historical_bridge_callable": snapshot.current_rpc_names_absent[0],
+        "current_tau_absent_historical_rpc_command": snapshot.current_rpc_names_absent[1],
+        "current_tau_absent_local_client_only_expectation": snapshot.current_rpc_names_absent[2],
         "historical_client_rpc_methods": list(snapshot.local_client_rpc_methods),
         "current_success_envelope_sha256": snapshot.current_success_envelope_sha256,
         "historical_prefix_parser_accepts_current_envelope": (
@@ -479,7 +548,7 @@ def build_current_tau_compatibility_artifact_v1(
         ],
     }
     artifact["artifact_root"] = hashlib.sha256(
-        b"zenodex/current-tau-compatibility-root/v1\x00" + canonical_json_bytes(artifact)
+        b"zenodex/current-tau-compatibility-root/v1\x00" + canonical_json_bytes_v1(artifact)
     ).hexdigest()
     return artifact
 
@@ -500,7 +569,7 @@ def check_current_tau_compatibility_artifact_v1(
 ) -> dict[str, object]:
     """Compare untrusted artifact bytes to the sole pure source projection."""
 
-    expected = canonical_json_bytes(build_current_tau_compatibility_artifact_v1(snapshot))
+    expected = canonical_json_bytes_v1(build_current_tau_compatibility_artifact_v1(snapshot))
     observed_sha = hashlib.sha256(raw_artifact).hexdigest()
     if type(artifact) is not dict or raw_artifact != expected:
         return _check_report(

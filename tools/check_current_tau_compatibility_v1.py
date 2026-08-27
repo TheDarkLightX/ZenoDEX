@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import sys
 from pathlib import Path
@@ -13,25 +12,23 @@ REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.core.current_tau_compatibility_v1 import (  # noqa: E402
-    CHECK_SCHEMA_V1,
-    CurrentTauCompatibilityRejectV1,
-    check_current_tau_compatibility_artifact_v1,
-)
 from tools.build_current_tau_compatibility_v1 import (  # noqa: E402
     JSON_OUTPUT,
     MAX_ARTIFACT_BYTES_V1,
     TauReplayPathsV1,
     load_current_tau_compatibility_snapshot_v1,
 )
-from tools.build_m6_normative_requirements_v1 import (  # noqa: E402
+from tools.current_tau_compatibility_core_v1 import (  # noqa: E402
+    CHECK_SCHEMA_V1,
+    CurrentTauCompatibilityRejectV1,
+    canonical_json_bytes_v1,
+    check_current_tau_compatibility_artifact_v1,
+    decode_json_object_v1,
+)
+from tools.current_tau_replay_io_v1 import (  # noqa: E402
+    FailClosedArgumentParserV1,
     ShellRejectV1,
     _read_bounded_regular_file_v1,
-)
-from tools.m6_normative_requirements_v1 import (  # noqa: E402
-    RequirementsRejectV1,
-    canonical_json_bytes_v1,
-    decode_json_object_v1,
 )
 
 
@@ -78,29 +75,34 @@ def check_current_tau_compatibility_v1(
             raw_artifact,
             snapshot,
         )
-    except (CurrentTauCompatibilityRejectV1, RequirementsRejectV1, ShellRejectV1) as exc:
+    except (CurrentTauCompatibilityRejectV1, ShellRejectV1) as exc:
         return _failure_report(exc.code, exc.path)
     except (MemoryError, OSError, RecursionError, TypeError, ValueError) as exc:
         return _failure_report("CHECKER_INPUT_ERROR", type(exc).__name__)
+    except Exception:
+        return _failure_report("CHECKER_INTERNAL_ERROR", "internal")
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = FailClosedArgumentParserV1(description=__doc__)
     parser.add_argument("--root", type=Path, default=REPO_ROOT)
     parser.add_argument("--tau-testnet-repo", type=Path, required=True)
     parser.add_argument("--tau-lang-repo", type=Path, required=True)
     parser.add_argument("--historical-bridge-repo", type=Path)
-    args = parser.parse_args(argv)
-    bridge_repo = args.historical_bridge_repo or args.tau_testnet_repo
-    paths = TauReplayPathsV1(
-        args.root,
-        args.tau_testnet_repo,
-        args.tau_lang_repo,
-        bridge_repo,
-    )
-    report = check_current_tau_compatibility_v1(
-        paths=paths,
-    )
+    try:
+        args = parser.parse_args(argv)
+        bridge_repo = args.historical_bridge_repo or args.tau_testnet_repo
+        paths = TauReplayPathsV1(
+            args.root,
+            args.tau_testnet_repo,
+            args.tau_lang_repo,
+            bridge_repo,
+        )
+        report = check_current_tau_compatibility_v1(paths=paths)
+    except ShellRejectV1 as exc:
+        report = _failure_report(exc.code, exc.path)
+    except Exception:
+        report = _failure_report("CHECKER_INTERNAL_ERROR", "internal")
     print(json.dumps(report, sort_keys=True))
     return 0 if report["ok"] is True else 1
 

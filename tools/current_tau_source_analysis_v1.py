@@ -8,7 +8,7 @@ import json
 import re
 from typing import Final, NoReturn
 
-from src.core.current_tau_compatibility_v1 import CurrentTauCompatibilityRejectV1
+from tools.current_tau_compatibility_core_v1 import CurrentTauCompatibilityRejectV1
 
 LEGACY_OPERATION_KEYS_V1: Final = (
     "_DEX_INTENTS_KEY",
@@ -52,7 +52,6 @@ def _function_v1(tree: ast.Module, name: str, path: str) -> ast.FunctionDef:
 def literal_int_set_v1(raw: bytes, path: str, name: str) -> tuple[int, ...]:
     tree = python_tree_v1(raw, path)
     matches: list[ast.Set] = []
-    writes = 0
     for node in tree.body:
         if isinstance(node, ast.Assign):
             targets = node.targets
@@ -63,22 +62,26 @@ def literal_int_set_v1(raw: bytes, path: str, name: str) -> tuple[int, ...]:
         else:
             targets = []
         if any(isinstance(target, ast.Name) and target.id == name for target in targets):
-            writes += 1
             if (
                 isinstance(node, ast.Assign)
                 and len(node.targets) == 1
                 and isinstance(node.value, ast.Set)
             ):
                 matches.append(node.value)
-        if (
-            isinstance(node, ast.Expr)
-            and isinstance(node.value, ast.Call)
-            and isinstance(node.value.func, ast.Attribute)
-            and isinstance(node.value.func.value, ast.Name)
-            and node.value.func.value.id == name
-            and node.value.func.attr in {"add", "clear", "discard", "pop", "remove", "update"}
-        ):
-            writes += 1
+    writes = sum(
+        isinstance(node, ast.Name)
+        and node.id == name
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+        for node in ast.walk(tree)
+    )
+    writes += sum(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == name
+        and node.func.attr in {"add", "clear", "discard", "pop", "remove", "update"}
+        for node in ast.walk(tree)
+    )
     if len(matches) != 1 or writes != 1:
         _reject("INT_SET_SHAPE", path, f"expected one sole literal write for {name}")
     values: list[int] = []
@@ -179,7 +182,8 @@ def user_tx_signing_fields_v1(raw: bytes, path: str, function_name: str) -> tupl
     top_level_returns = [
         index for index, node in enumerate(function.body) if isinstance(node, ast.Return)
     ]
-    if top_level_returns != [len(function.body) - 1]:
+    all_returns = [node for node in ast.walk(function) if isinstance(node, ast.Return)]
+    if top_level_returns != [len(function.body) - 1] or len(all_returns) != 1:
         _reject("SIGNING_RETURN_SHAPE", path, "expected one final top-level return")
     if any(isinstance(node, ast.Delete) for node in ast.walk(function)):
         _reject("SIGNING_MUTATION_SHAPE", path, "delete is forbidden in signing projection")
@@ -318,6 +322,14 @@ def force_test_requires_test_env_v1(raw: bytes, path: str) -> bool:
         or len(test_guards) != 1
         or requested < 0
         or runtime_env < 0
+        or not _assignment_matches_v1(
+            body[requested], 'os.environ.get("TAU_FORCE_TEST", "0") == "1"'
+        )
+        or not _assignment_matches_v1(
+            body[runtime_env],
+            'getattr(getattr(config, "settings", None), "env", None) '
+            'or os.environ.get("TAU_ENV", "development")',
+        )
         or not requested < requested_guards[0][0] < runtime_env < test_guards[0][0]
         or len(returns) != 3
         or not _body_is_single_bool_return_v1(requested_guards[0][1].body, False)
@@ -341,6 +353,15 @@ def _named_assignment_index_v1(body: list[ast.stmt], name: str) -> int:
             and node.targets[0].id == name
         ),
         -1,
+    )
+
+
+def _assignment_matches_v1(statement: ast.stmt, expected_expression: str) -> bool:
+    if not isinstance(statement, ast.Assign):
+        return False
+    expected = ast.parse(expected_expression, mode="eval").body
+    return ast.dump(statement.value, include_attributes=False) == ast.dump(
+        expected, include_attributes=False
     )
 
 
@@ -435,6 +456,29 @@ def command_registry_keys_v1(raw: bytes, path: str) -> tuple[str, ...]:
         dictionaries.append(node.value.values[1])
     if len(dictionaries) != 1:
         _reject("COMMAND_REGISTRY_SHAPE", path, "expected one reachable literal registry")
+    name_writes = sum(
+        isinstance(node, ast.Name)
+        and node.id == "command_handlers"
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+        for node in ast.walk(builds[0])
+    )
+    subscript_writes = sum(
+        isinstance(node, ast.Subscript)
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+        and isinstance(node.value, ast.Name)
+        and node.value.id == "command_handlers"
+        for node in ast.walk(builds[0])
+    )
+    mutator_calls = sum(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "command_handlers"
+        and node.func.attr in {"clear", "pop", "popitem", "setdefault", "update"}
+        for node in ast.walk(builds[0])
+    )
+    if name_writes != 1 or subscript_writes or mutator_calls:
+        _reject("COMMAND_REGISTRY_MUTATION", path, "registry changes after construction")
     keys: list[str] = []
     for key in dictionaries[0].keys:
         if not isinstance(key, ast.Constant) or type(key.value) is not str:
@@ -447,21 +491,26 @@ def command_registry_keys_v1(raw: bytes, path: str) -> tuple[str, ...]:
 
 def historical_apply_app_tx_bridge_v1(raw: bytes, path: str) -> bool:
     function = _function_v1(python_tree_v1(raw, path), "_call_app_bridge", path)
-    calls = [
+    statements = [
         node
-        for node in ast.walk(function)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "bridge"
-        and node.func.attr == "apply_app_tx"
+        for node in function.body
+        if not (
+            isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Constant)
+            and type(node.value.value) is str
+        )
     ]
-    if len(calls) != 1:
+    if not statements or not isinstance(statements[0], ast.Try) or not statements[0].body:
         return False
-    for statement in function.body:
-        if isinstance(statement, ast.Try):
-            return any(calls[0] is child for child in ast.walk(statement))
-    return False
+    first = statements[0].body[0]
+    return (
+        isinstance(first, ast.Assign)
+        and isinstance(first.value, ast.Call)
+        and isinstance(first.value.func, ast.Attribute)
+        and isinstance(first.value.func.value, ast.Name)
+        and first.value.func.value.id == "bridge"
+        and first.value.func.attr == "apply_app_tx"
+    )
 
 
 def single_profile_value_v1(raw: bytes, path: str, key: str) -> str:
@@ -488,3 +537,30 @@ def success_envelope_v1() -> str:
 
 def success_envelope_sha256_v1() -> str:
     return hashlib.sha256(success_envelope_v1().encode()).hexdigest()
+
+
+def legacy_prefix_parser_accepts_v1(raw: bytes, response: object, path: str) -> bool:
+    function = _function_v1(
+        python_tree_v1(raw, path), "tau_rpc_response_is_success", path
+    )
+    statements = [
+        node
+        for node in function.body
+        if not (
+            isinstance(node, ast.Expr)
+            and isinstance(node.value, ast.Constant)
+            and type(node.value.value) is str
+        )
+    ]
+    source_shape = ast.unparse(ast.Module(body=statements, type_ignores=[]))
+    required_fragments = (
+        "if not isinstance(response, str):\n    return False",
+        "text = response.strip().upper()",
+        'text == \'SUCCESS\' or text.startswith(\'SUCCESS:\') or text.startswith(\'SUCCESS \')',
+    )
+    if len(statements) != 3 or any(part not in source_shape for part in required_fragments):
+        _reject("LEGACY_RPC_PARSER_SHAPE", path, "legacy success parser drift")
+    if type(response) is not str:
+        return False
+    text = response.strip().upper()
+    return text == "SUCCESS" or text.startswith("SUCCESS:") or text.startswith("SUCCESS ")

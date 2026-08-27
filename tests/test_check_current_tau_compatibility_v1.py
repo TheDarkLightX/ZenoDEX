@@ -7,11 +7,11 @@ from typing import Callable, cast
 
 import pytest
 
-from src.core.current_tau_compatibility_pins_v1 import (
-    IMPLEMENTATION_EVIDENCE_PATHS_V1,
-    LOCAL_PROFILE_SOURCE_SHA256_V1,
-)
-from src.core.current_tau_compatibility_v1 import (
+from tools import build_current_tau_compatibility_v1 as builder_module
+from tools import check_current_tau_compatibility_v1 as checker_module
+from tools import current_tau_source_analysis_v1 as analysis_module
+from tools.build_current_tau_compatibility_v1 import REPO_ROOT, TauReplayPathsV1
+from tools.current_tau_compatibility_core_v1 import (
     ACTIVE_PLAN_SHA256_V1,
     ACTIVE_REGISTRY_SHA256_V1,
     ADMISSION_RECEIPT_PAYLOAD_SHA256_V1,
@@ -41,10 +41,11 @@ from src.core.current_tau_compatibility_v1 import (
     SourcePinV1,
     build_current_tau_compatibility_artifact_v1,
 )
-from tools import build_current_tau_compatibility_v1 as builder_module
-from tools import check_current_tau_compatibility_v1 as checker_module
-from tools import current_tau_source_analysis_v1 as analysis_module
-from tools.build_current_tau_compatibility_v1 import REPO_ROOT, TauReplayPathsV1
+from tools.current_tau_compatibility_pins_v1 import (
+    IMPLEMENTATION_EVIDENCE_PATHS_V1,
+    LOCAL_PROFILE_SOURCE_SHA256_V1,
+)
+from tools.current_tau_replay_io_v1 import _git_environment_v1
 
 _UNUSED_PATHS = TauReplayPathsV1(
     REPO_ROOT,
@@ -122,6 +123,20 @@ def _assert_no_authority(report: dict[str, object]) -> None:
     assert report["vm_gates_closed"] == []
 
 
+def _assert_success_without_promotion(report: dict[str, object]) -> None:
+    assert report["ok"] is True
+    assert report["o003a_evidence_complete"] is True
+    assert report["o002_implemented"] is False
+    assert report["route_quarantine_implemented"] is False
+    assert report["current_tau_compatible"] is False
+    assert report["production_authority"] == "NONE"
+    assert report["release_authority"] == "NONE"
+    assert report["settlement_authority"] == "NONE"
+    assert report["value_movement_authority"] == "NONE"
+    assert report["value_movement_claim_allowed"] is False
+    assert report["vm_gates_closed"] == []
+
+
 def _write_canonical(tmp_path: Path, value: object) -> Path:
     target = tmp_path / "compatibility.json"
     target.write_text(json.dumps(value, sort_keys=True, separators=(",", ":")), encoding="utf-8")
@@ -147,13 +162,7 @@ def test_bdd_given_exact_sources_when_replayed_then_o003a_evidence_is_research_c
     )
 
     # Assert
-    assert report["ok"] is True
-    assert report["o003a_evidence_complete"] is True
-    assert report["current_tau_compatible"] is False
-    assert report["route_quarantine_implemented"] is False
-    assert report["vm_gates_closed"] == []
-    assert report["value_movement_claim_allowed"] is False
-    assert report["release_authority"] == "NONE"
+    _assert_success_without_promotion(report)
 
 
 def test_differential_given_current_and_historical_signing_when_built_then_hashes_diverge() -> None:
@@ -402,6 +411,84 @@ def test_given_profile_runtime_path_resolves_to_reviewed_source_then_binding_acc
     builder_module._require_profile_tau_source_bound_v1(paths)
 
 
+def test_mutation_given_profile_binding_call_is_deleted_then_loader_test_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    head = "a" * 40
+    monkeypatch.setattr(builder_module, "_git_head_v1", lambda _root: head)
+    monkeypatch.setattr(
+        builder_module,
+        "_implementation_subject_commit_v1",
+        lambda _root, _head: head,
+    )
+    monkeypatch.setattr(builder_module, "_git_is_ancestor_v1", lambda *_args: True)
+
+    def reject_binding(_paths: TauReplayPathsV1) -> None:
+        raise CurrentTauCompatibilityRejectV1(
+            "PROFILE_TAU_SOURCE_UNBOUND", "external/tau-testnet", "test sentinel"
+        )
+
+    monkeypatch.setattr(builder_module, "_require_profile_tau_source_bound_v1", reject_binding)
+    monkeypatch.setattr(
+        builder_module,
+        "_load_sources_v1",
+        lambda *_args: (_ for _ in ()).throw(AssertionError("binding guard skipped")),
+    )
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        builder_module.load_current_tau_compatibility_snapshot_v1(_UNUSED_PATHS)
+    assert raised.value.code == "PROFILE_TAU_SOURCE_UNBOUND"
+
+
+def test_mutation_given_historical_checkout_guard_call_is_deleted_then_loader_test_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    pin = SourcePinV1("a" * 40, "b" * 40, "c" * 64, ())
+    monkeypatch.setattr(builder_module, "_implementation_source_hashes_v1", lambda *_args: ())
+    monkeypatch.setattr(builder_module, "_source_pin_v1", lambda *_args: (pin, {}))
+
+    def reject_checkout(_repo: Path) -> None:
+        raise CurrentTauCompatibilityRejectV1(
+            "HISTORICAL_BRIDGE_HEAD_DRIFT", "historical_bridge.HEAD", "test sentinel"
+        )
+
+    monkeypatch.setattr(
+        builder_module, "_require_historical_bridge_checkout_v1", reject_checkout
+    )
+    monkeypatch.setattr(builder_module, "_require_worktree_sources_match_v1", lambda *_args: None)
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        builder_module._load_sources_v1(_UNUSED_PATHS, "a" * 40)
+    assert raised.value.code == "HISTORICAL_BRIDGE_HEAD_DRIFT"
+
+
+def test_mutation_given_historical_worktree_guard_is_deleted_then_helper_test_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange
+    monkeypatch.setattr(
+        builder_module,
+        "_git_head_v1",
+        lambda _root: HISTORICAL_BRIDGE_COMMIT_V1,
+    )
+
+    def reject_worktree(*_args: object) -> None:
+        raise CurrentTauCompatibilityRejectV1(
+            "WORKTREE_SOURCE_DRIFT", "tau_manager.py", "test sentinel"
+        )
+
+    monkeypatch.setattr(builder_module, "_require_worktree_sources_match_v1", reject_worktree)
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        builder_module._require_historical_bridge_checkout_v1(Path("historical"))
+    assert raised.value.code == "WORKTREE_SOURCE_DRIFT"
+
+
 def test_mutation_given_active_registry_bytes_drift_when_loaded_then_shell_rejects(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -442,6 +529,20 @@ def test_mutation_given_reserved_stream_is_overwritten_then_ast_rejects() -> Non
     assert raised.value.code == "INT_SET_SHAPE"
 
 
+def test_mutation_given_nested_reserved_stream_overwrite_then_ast_rejects() -> None:
+    # Arrange
+    source = (
+        b"RESERVED_STREAMS = {0, 1, 2}\n"
+        b"if True:\n"
+        b"    RESERVED_STREAMS = set()\n"
+    )
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.literal_int_set_v1(source, "mutant:tau_defs.py", "RESERVED_STREAMS")
+    assert raised.value.code == "INT_SET_SHAPE"
+
+
 def test_mutation_given_signing_field_is_deleted_before_return_then_ast_rejects() -> None:
     # Arrange
     source = b'''\
@@ -466,6 +567,30 @@ def _get_signing_message_bytes(payload):
             source, "mutant:sendtx.py", "_get_signing_message_bytes"
         )
     assert raised.value.code == "SIGNING_MUTATION_SHAPE"
+
+
+def test_mutation_given_signing_has_nested_early_return_then_ast_rejects() -> None:
+    # Arrange
+    source = b'''\
+def _get_signing_message_bytes(payload):
+    signing_dict = {
+        "sender_pubkey": payload["sender_pubkey"],
+        "sequence_number": payload["sequence_number"],
+        "expiration_time": payload["expiration_time"],
+        "operations": payload["operations"],
+        "fee_limit": payload["fee_limit"],
+    }
+    if True:
+        return b"legacy"
+    return json.dumps(signing_dict, sort_keys=True, separators=(",", ":")).encode()
+'''
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.user_tx_signing_fields_v1(
+            source, "mutant:sendtx.py", "_get_signing_message_bytes"
+        )
+    assert raised.value.code == "SIGNING_RETURN_SHAPE"
 
 
 def test_mutation_given_success_envelope_is_dead_code_then_ast_rejects() -> None:
@@ -493,6 +618,25 @@ def is_force_test_enabled():
     if runtime_env == "test":
         return True
     if runtime_env == "development":
+        return True
+    return False
+'''
+
+    # Act / Assert
+    assert analysis_module.force_test_requires_test_env_v1(
+        source, "mutant:tau_manager.py"
+    ) is False
+
+
+def test_mutation_given_current_runtime_env_is_constant_test_then_analyzer_rejects() -> None:
+    # Arrange
+    source = b'''\
+def is_force_test_enabled():
+    requested = os.environ.get("TAU_FORCE_TEST", "0") == "1"
+    if not requested:
+        return False
+    runtime_env = "test"
+    if runtime_env == "test":
         return True
     return False
 '''
@@ -535,9 +679,129 @@ class ServiceContainer:
     assert raised.value.code == "COMMAND_REGISTRY_KEY"
 
 
+def test_mutation_given_command_is_added_after_registry_then_analyzer_rejects() -> None:
+    # Arrange
+    source = b'''\
+class ServiceContainer:
+    @classmethod
+    def build(cls, overrides=None):
+        command_handlers = overrides or {"sendtx": handler}
+        command_handlers["get" + "appstate"] = handler
+        return cls(command_handlers)
+'''
+
+    # Act / Assert
+    with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
+        analysis_module.command_registry_keys_v1(source, "mutant:app/container.py")
+    assert raised.value.code == "COMMAND_REGISTRY_MUTATION"
+
+
+def test_mutation_given_bridge_call_is_dead_then_analyzer_rejects() -> None:
+    # Arrange
+    source = b'''\
+def _call_app_bridge(bridge):
+    try:
+        if False:
+            bridge.apply_app_tx()
+        return None
+    except Exception:
+        return None
+'''
+
+    # Act / Assert
+    assert analysis_module.historical_apply_app_tx_bridge_v1(
+        source, "mutant:createblock.py"
+    ) is False
+
+
 def test_builder_failure_report_closes_every_authority_surface() -> None:
     # Arrange / Act
     report = builder_module._builder_failure_report_v1("GIT_OBJECT_MISSING")
 
     # Assert
+    _assert_no_authority(report)
+
+
+def test_git_environment_forbids_lazy_fetch_and_ambient_configuration() -> None:
+    # Arrange / Act
+    environment = _git_environment_v1()
+
+    # Assert
+    assert environment["GIT_NO_LAZY_FETCH"] == "1"
+    assert environment["GIT_CONFIG_GLOBAL"] == "/dev/null"
+    assert environment["GIT_CONFIG_NOSYSTEM"] == "1"
+    assert environment["GIT_NO_REPLACE_OBJECTS"] == "1"
+    assert environment["GIT_OPTIONAL_LOCKS"] == "0"
+    assert "HOME" not in environment
+
+
+def test_checker_internal_fault_returns_complete_no_authority_report(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Arrange
+    artifact_path = _write_canonical(tmp_path, _artifact())
+    monkeypatch.setattr(
+        checker_module,
+        "load_current_tau_compatibility_snapshot_v1",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("injected")),
+    )
+
+    # Act
+    report = checker_module.check_current_tau_compatibility_v1(
+        paths=_UNUSED_PATHS, artifact_path=artifact_path
+    )
+
+    # Assert
+    findings = cast(list[dict[str, object]], report["findings"])
+    assert findings[0]["code"] == "CHECKER_INTERNAL_ERROR"
+    _assert_no_authority(report)
+
+
+def test_cli_missing_arguments_returns_typed_no_authority_reports(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Arrange / Act
+    checker_status = checker_module.main([])
+    checker_report = json.loads(capsys.readouterr().out)
+    builder_status = builder_module.main([])
+    builder_report = json.loads(capsys.readouterr().out)
+
+    # Assert
+    assert checker_status == 1
+    assert checker_report["findings"][0]["code"] == "CLI_INPUT"
+    _assert_no_authority(checker_report)
+    assert builder_status == 1
+    assert builder_report["finding"] == "CLI_INPUT"
+    _assert_no_authority(builder_report)
+
+
+def test_builder_internal_fault_returns_complete_no_authority_report(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    # Arrange
+    monkeypatch.setattr(
+        builder_module,
+        "build_current_tau_compatibility_bytes_v1",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("injected")),
+    )
+
+    # Act
+    status = builder_module.main(
+        [
+            "--check",
+            "--tau-testnet-repo",
+            "current",
+            "--tau-lang-repo",
+            "lang",
+            "--historical-bridge-repo",
+            "historical",
+        ]
+    )
+    report = json.loads(capsys.readouterr().out)
+
+    # Assert
+    assert status == 1
+    assert report["finding"] == "BUILDER_INTERNAL_ERROR"
     _assert_no_authority(report)

@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import sys
@@ -15,7 +14,14 @@ REPO_ROOT: Final = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.core.current_tau_compatibility_pins_v1 import (  # noqa: E402
+from tools.current_tau_compatibility_core_v1 import (  # noqa: E402
+    CurrentTauCompatibilityRejectV1,
+    CurrentTauCompatibilitySnapshotV1,
+    SourcePinV1,
+    build_current_tau_compatibility_artifact_v1,
+    canonical_json_bytes_v1,
+)
+from tools.current_tau_compatibility_pins_v1 import (  # noqa: E402
     ACTIVE_PLAN_COMMIT_V1,
     ACTIVE_PLAN_SHA256_V1,
     ACTIVE_REGISTRY_SHA256_V1,
@@ -32,14 +38,8 @@ from src.core.current_tau_compatibility_pins_v1 import (  # noqa: E402
     HISTORICAL_BRIDGE_TREE_LISTING_SHA256_V1,
     IMPLEMENTATION_SOURCE_PATHS_V1,
 )
-from src.core.current_tau_compatibility_v1 import (  # noqa: E402
-    CurrentTauCompatibilityRejectV1,
-    CurrentTauCompatibilitySnapshotV1,
-    SourcePinV1,
-    build_current_tau_compatibility_artifact_v1,
-)
-from src.integration.tau_net_client import tau_rpc_response_is_success  # noqa: E402
-from tools.build_m6_normative_requirements_v1 import (  # noqa: E402
+from tools.current_tau_replay_io_v1 import (  # noqa: E402
+    FailClosedArgumentParserV1,
     ShellRejectV1,
     _atomic_replace_regular_file_v1,
     _git_head_v1,
@@ -56,6 +56,7 @@ from tools.current_tau_source_analysis_v1 import (  # noqa: E402
     force_test_requires_test_env_v1,
     historical_apply_app_tx_bridge_v1,
     historical_force_test_enters_mock_v1,
+    legacy_prefix_parser_accepts_v1,
     literal_int_set_v1,
     literal_string_assignments_v1,
     require_success_envelope_v1,
@@ -65,7 +66,6 @@ from tools.current_tau_source_analysis_v1 import (  # noqa: E402
     success_envelope_v1,
     user_tx_signing_fields_v1,
 )
-from tools.m6_normative_requirements_v1 import canonical_json_bytes_v1  # noqa: E402
 
 JSON_OUTPUT: Final = Path("docs/research/ZENODEX_CURRENT_TAU_COMPATIBILITY_V1.json")
 MAX_SOURCE_BYTES_V1: Final = 131_072
@@ -246,17 +246,7 @@ def _load_sources_v1(paths: TauReplayPathsV1, implementation_commit: str) -> Rep
         HISTORICAL_BRIDGE_TREE_LISTING_SHA256_V1,
         HISTORICAL_BRIDGE_SOURCE_SHA256_V1,
     )
-    if _git_head_v1(paths.historical_bridge_repo) != HISTORICAL_BRIDGE_COMMIT_V1:
-        _reject(
-            "HISTORICAL_BRIDGE_HEAD_DRIFT",
-            "historical_bridge.HEAD",
-            "selected bridge checkout is not the pinned historical source",
-        )
-    _require_worktree_sources_match_v1(
-        paths.historical_bridge_repo,
-        HISTORICAL_BRIDGE_SOURCE_SHA256_V1,
-        "historical bridge",
-    )
+    _require_historical_bridge_checkout_v1(paths.historical_bridge_repo)
     _require_worktree_sources_match_v1(
         paths.root,
         implementation_sources,
@@ -270,6 +260,20 @@ def _load_sources_v1(paths: TauReplayPathsV1, implementation_commit: str) -> Rep
         implementation,
         current_tau,
         historical,
+    )
+
+
+def _require_historical_bridge_checkout_v1(historical_bridge_repo: Path) -> None:
+    if _git_head_v1(historical_bridge_repo) != HISTORICAL_BRIDGE_COMMIT_V1:
+        _reject(
+            "HISTORICAL_BRIDGE_HEAD_DRIFT",
+            "historical_bridge.HEAD",
+            "selected bridge checkout is not the pinned historical source",
+        )
+    _require_worktree_sources_match_v1(
+        historical_bridge_repo,
+        HISTORICAL_BRIDGE_SOURCE_SHA256_V1,
+        "historical bridge",
     )
 
 
@@ -466,7 +470,11 @@ def load_current_tau_compatibility_snapshot_v1(
         current_signing_sha256=signing_vector_sha256_v1(signing.current_fields),
         local_signing_sha256=signing_vector_sha256_v1(signing.local_fields),
         current_success_envelope_sha256=success_envelope_sha256_v1(),
-        local_prefix_parser_accepts_current_envelope=tau_rpc_response_is_success(envelope),
+        local_prefix_parser_accepts_current_envelope=legacy_prefix_parser_accepts_v1(
+            sources.implementation["src/integration/tau_net_client.py"],
+            envelope,
+            "implementation:src/integration/tau_net_client.py",
+        ),
         current_rpc_names_absent=rpc.current_absent,
         local_client_rpc_methods=rpc.local_methods,
         historical_bridge_rpc_names_present=rpc.historical_present,
@@ -493,20 +501,20 @@ def build_current_tau_compatibility_bytes_v1(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = FailClosedArgumentParserV1(description=__doc__)
     parser.add_argument("--root", type=Path, default=REPO_ROOT)
     parser.add_argument("--tau-testnet-repo", type=Path, required=True)
     parser.add_argument("--tau-lang-repo", type=Path, required=True)
     parser.add_argument("--historical-bridge-repo", type=Path)
     parser.add_argument("--check", action="store_true")
-    args = parser.parse_args(argv)
-    paths = TauReplayPathsV1(
-        args.root,
-        args.tau_testnet_repo,
-        args.tau_lang_repo,
-        args.historical_bridge_repo or args.tau_testnet_repo,
-    )
     try:
+        args = parser.parse_args(argv)
+        paths = TauReplayPathsV1(
+            args.root,
+            args.tau_testnet_repo,
+            args.tau_lang_repo,
+            args.historical_bridge_repo or args.tau_testnet_repo,
+        )
         generation_source_commit = None if args.check else _git_head_v1(args.root)
         data = build_current_tau_compatibility_bytes_v1(
             paths, generation_source_commit=generation_source_commit
@@ -532,6 +540,9 @@ def main(argv: list[str] | None = None) -> int:
             else type(exc).__name__
         )
         print(json.dumps(_builder_failure_report_v1(code), sort_keys=True))
+        return 1
+    except Exception:
+        print(json.dumps(_builder_failure_report_v1("BUILDER_INTERNAL_ERROR"), sort_keys=True))
         return 1
 
 
