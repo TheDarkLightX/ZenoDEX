@@ -4,7 +4,9 @@ use crate::asset_lane_projection::{
     project_managed_asset_lifecycle_state_v1, AssetLanePrivatePortV1,
     ASSET_LANE_PRIVATE_PORT_SCHEMA_V1,
 };
-use crate::canonical::{hash_global_v1, AbiErrorV1, AbiResultV1, RootV1, ZERO_ROOT_V1};
+use crate::canonical::{
+    hash_global_v1, AbiErrorV1, AbiResultV1, RootV1, MAX_ASSET_CUSTODY_ROWS_V1, ZERO_ROOT_V1,
+};
 use crate::effects::GlobalEconomicEffectPlanV1;
 use crate::managed_asset_lifecycle::transition_managed_asset_lifecycle_v1;
 use crate::managed_asset_lifecycle_types::{
@@ -42,6 +44,11 @@ impl ManagedAssetLifecycleLaneModuleInputV1 {
             .validate("managed asset lane module asset policy registry", false)?;
         self.fee_policy_registry_root
             .validate("managed asset lane module fee policy registry", false)?;
+        if self.custody.len() > MAX_ASSET_CUSTODY_ROWS_V1 {
+            return Err(AbiErrorV1::InvalidBounds(
+                "managed asset lane module custody rows",
+            ));
+        }
         project_managed_asset_lifecycle_state_v1(
             &self.pre_state,
             &self.asset_policy_registry_root,

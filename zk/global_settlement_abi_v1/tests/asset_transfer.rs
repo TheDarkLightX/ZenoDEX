@@ -1,9 +1,10 @@
 use zenodex_global_settlement_abi_v1::{
-    canonical_bytes_v1, hash_bytes_sha256_v1, transition_asset_transfer_v1, AssetSupplyV1,
-    AssetTransferAcceptedV1, AssetTransferCommandV1, AssetTransferContextV1, AssetTransferPolicyV1,
-    AssetTransferRejectCodeV1, AssetTransferResultV1, AssetTransferStateV1, EconomicAmountV1,
-    EconomicEffectKindV1, LaneIdV1, RootV1, ACCOUNT_CUSTODY_DOMAIN_V1,
-    ASSET_TRANSFER_COMMAND_KIND_V1, ASSET_TRANSFER_MODULE_SCHEMA_V1, ZERO_ROOT_V1,
+    canonical_bytes_v1, hash_bytes_sha256_v1, transition_asset_transfer_v1, AbiErrorV1,
+    AssetSupplyV1, AssetTransferAcceptedV1, AssetTransferCommandV1, AssetTransferContextV1,
+    AssetTransferPolicyV1, AssetTransferRejectCodeV1, AssetTransferResultV1, AssetTransferStateV1,
+    EconomicAmountV1, EconomicEffectKindV1, LaneIdV1, RootV1, ACCOUNT_CUSTODY_DOMAIN_V1,
+    ASSET_TRANSFER_COMMAND_KIND_V1, ASSET_TRANSFER_MODULE_SCHEMA_V1, MAX_ASSET_BALANCE_ROWS_V1,
+    MAX_ASSET_POLICY_ROWS_V1, ZERO_ROOT_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -336,4 +337,71 @@ fn strict_decode_rejects_unknown_transfer_fields() {
         .expect("command must be an object")
         .insert("opaque_authority".to_owned(), serde_json::Value::Bool(true));
     assert!(serde_json::from_value::<AssetTransferCommandV1>(value).is_err());
+}
+
+#[test]
+fn state_row_bounds_accept_maximum_and_reject_next_neighbors() {
+    // Arrange: policy/supply rows at the exact limit.
+    let mut policy_bounded = state(true, 0);
+    policy_bounded.policies = (0..MAX_ASSET_POLICY_ROWS_V1)
+        .map(|index| AssetTransferPolicyV1 {
+            asset: format!("ASSET{index:03}"),
+            fee_owner: "treasury".to_owned(),
+            transfer_fee_atoms: 0,
+            enabled: true,
+        })
+        .collect();
+    policy_bounded.supplies = policy_bounded
+        .policies
+        .iter()
+        .map(|policy| AssetSupplyV1 {
+            asset: policy.asset.clone(),
+            amount_atoms: 0,
+        })
+        .collect();
+    policy_bounded.balances.clear();
+
+    // Act / Assert
+    assert!(policy_bounded.validate().is_ok());
+    let mut policy_over = policy_bounded;
+    policy_over.policies.push(AssetTransferPolicyV1 {
+        asset: format!("ASSET{MAX_ASSET_POLICY_ROWS_V1:03}"),
+        fee_owner: "treasury".to_owned(),
+        transfer_fee_atoms: 0,
+        enabled: true,
+    });
+    policy_over.supplies.push(AssetSupplyV1 {
+        asset: format!("ASSET{MAX_ASSET_POLICY_ROWS_V1:03}"),
+        amount_atoms: 0,
+    });
+    assert_eq!(
+        policy_over.validate().unwrap_err(),
+        AbiErrorV1::InvalidBounds("asset transfer policy or supply rows")
+    );
+
+    // Arrange: balance rows at the exact limit.
+    let mut balance_bounded = state(true, 0);
+    balance_bounded.balances = (0..MAX_ASSET_BALANCE_ROWS_V1)
+        .map(|index| EconomicAmountV1 {
+            owner: format!("owner-{index:04}"),
+            asset: "USD".to_owned(),
+            custody_domain: ACCOUNT_CUSTODY_DOMAIN_V1.to_owned(),
+            amount_atoms: 1,
+        })
+        .collect();
+    balance_bounded.supplies[0].amount_atoms = MAX_ASSET_BALANCE_ROWS_V1 as u128;
+
+    // Act / Assert
+    assert!(balance_bounded.validate().is_ok());
+    balance_bounded.balances.push(EconomicAmountV1 {
+        owner: "owner-over".to_owned(),
+        asset: "USD".to_owned(),
+        custody_domain: ACCOUNT_CUSTODY_DOMAIN_V1.to_owned(),
+        amount_atoms: 1,
+    });
+    balance_bounded.supplies[0].amount_atoms += 1;
+    assert_eq!(
+        balance_bounded.validate().unwrap_err(),
+        AbiErrorV1::InvalidBounds("asset transfer balance rows")
+    );
 }

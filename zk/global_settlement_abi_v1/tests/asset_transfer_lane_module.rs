@@ -1,11 +1,11 @@
 use zenodex_global_settlement_abi_v1::{
-    compose_asset_lane_single_v1, transition_asset_transfer_lane_module_v1,
+    compose_asset_lane_single_v1, transition_asset_transfer_lane_module_v1, AbiErrorV1,
     AssetLaneCompositionResultV1, AssetLaneCoordinatorContextV1, AssetLaneModuleCompatibilityV1,
     AssetSupplyV1, AssetTransferCommandV1, AssetTransferContextV1, AssetTransferLaneModuleInputV1,
     AssetTransferLaneModuleResultV1, AssetTransferPolicyV1, AssetTransferRejectCodeV1,
     AssetTransferStateV1, EconomicAmountV1, RootV1, ASSET_LANE_COORDINATOR_SCHEMA_V1,
     ASSET_TRANSFER_COMMAND_KIND_V1, ASSET_TRANSFER_LANE_MODULE_INPUT_SCHEMA_V1,
-    ASSET_TRANSFER_MODULE_SCHEMA_V1, ZERO_ROOT_V1,
+    ASSET_TRANSFER_MODULE_SCHEMA_V1, MAX_ASSET_CUSTODY_ROWS_V1, ZERO_ROOT_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -134,6 +134,40 @@ fn rejection_has_no_port_and_is_exact_no_op() {
     assert_eq!(rejected.code, AssetTransferRejectCodeV1::ZERO_AMOUNT);
     assert_eq!(rejected.pre_state_root, rejected.post_state_root);
     assert!(rejected.effects.is_empty());
+}
+
+#[test]
+fn custody_row_bound_accepts_maximum_and_rejects_next_neighbor() {
+    // Arrange
+    let mut at_limit = module_input(30);
+    at_limit.custody = (0..MAX_ASSET_CUSTODY_ROWS_V1)
+        .map(|index| EconomicAmountV1 {
+            owner: format!("escrow-{index:04}"),
+            asset: "USD".to_owned(),
+            custody_domain: "strategy_escrow".to_owned(),
+            amount_atoms: 1,
+        })
+        .collect();
+    at_limit.pre_state.supplies[0].amount_atoms += MAX_ASSET_CUSTODY_ROWS_V1 as u128;
+
+    // Act / Assert
+    assert!(matches!(
+        transition_asset_transfer_lane_module_v1(&at_limit).unwrap(),
+        AssetTransferLaneModuleResultV1::Accepted(_)
+    ));
+
+    let mut over_limit = at_limit;
+    over_limit.custody.push(EconomicAmountV1 {
+        owner: "escrow-over".to_owned(),
+        asset: "USD".to_owned(),
+        custody_domain: "strategy_escrow".to_owned(),
+        amount_atoms: 1,
+    });
+    over_limit.pre_state.supplies[0].amount_atoms += 1;
+    assert_eq!(
+        transition_asset_transfer_lane_module_v1(&over_limit).unwrap_err(),
+        AbiErrorV1::InvalidBounds("asset transfer lane module custody rows")
+    );
 }
 
 #[test]
