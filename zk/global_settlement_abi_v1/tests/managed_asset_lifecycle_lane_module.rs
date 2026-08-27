@@ -1,5 +1,5 @@
 use zenodex_global_settlement_abi_v1::{
-    compose_asset_lane_single_v1, transition_managed_asset_lifecycle_lane_module_v1,
+    compose_asset_lane_single_v1, transition_managed_asset_lifecycle_lane_module_v1, AbiErrorV1,
     AssetLaneCompositionResultV1, AssetLaneCoordinatorContextV1, AssetLaneModuleCompatibilityV1,
     AssetSupplyV1, EconomicAmountV1, ManagedAssetClassV1, ManagedAssetLifecycleCommandV1,
     ManagedAssetLifecycleContextV1, ManagedAssetLifecycleLaneModuleInputV1,
@@ -7,7 +7,7 @@ use zenodex_global_settlement_abi_v1::{
     ManagedAssetLifecycleRejectCodeV1, ManagedAssetLifecycleStateV1, RootV1,
     ASSET_LANE_COORDINATOR_SCHEMA_V1, MANAGED_ASSET_BURN_COMMAND_KIND_V1,
     MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, MANAGED_ASSET_LIFECYCLE_LANE_MODULE_INPUT_SCHEMA_V1,
-    MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1,
+    MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1, MAX_ASSET_CUSTODY_ROWS_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -126,6 +126,40 @@ fn zero_issue_rejects_without_port_effects_or_state_change() {
     );
     assert_eq!(rejected.pre_state_root, rejected.post_state_root);
     assert!(rejected.effects.is_empty());
+}
+
+#[test]
+fn custody_row_bound_accepts_maximum_and_rejects_next_neighbor() {
+    // Arrange
+    let mut at_limit = module_input(MANAGED_ASSET_ISSUE_COMMAND_KIND_V1);
+    at_limit.custody = (0..MAX_ASSET_CUSTODY_ROWS_V1)
+        .map(|index| EconomicAmountV1 {
+            owner: format!("escrow-{index:04}"),
+            asset: "USD".to_owned(),
+            custody_domain: "strategy_escrow".to_owned(),
+            amount_atoms: 1,
+        })
+        .collect();
+    at_limit.pre_state.supplies[0].amount_atoms += MAX_ASSET_CUSTODY_ROWS_V1 as u128;
+
+    // Act / Assert
+    assert!(matches!(
+        transition_managed_asset_lifecycle_lane_module_v1(&at_limit).unwrap(),
+        ManagedAssetLifecycleLaneModuleResultV1::Accepted(_)
+    ));
+
+    let mut over_limit = at_limit;
+    over_limit.custody.push(EconomicAmountV1 {
+        owner: "escrow-over".to_owned(),
+        asset: "USD".to_owned(),
+        custody_domain: "strategy_escrow".to_owned(),
+        amount_atoms: 1,
+    });
+    over_limit.pre_state.supplies[0].amount_atoms += 1;
+    assert_eq!(
+        transition_managed_asset_lifecycle_lane_module_v1(&over_limit).unwrap_err(),
+        AbiErrorV1::InvalidBounds("managed asset lane module custody rows")
+    );
 }
 
 #[test]

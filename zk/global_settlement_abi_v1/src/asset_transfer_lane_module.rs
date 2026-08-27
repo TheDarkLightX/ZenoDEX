@@ -9,7 +9,9 @@ use crate::asset_transfer_types::{
     AssetTransferRejectedV1, AssetTransferResultV1, AssetTransferStateV1,
     ASSET_TRANSFER_MODULE_SCHEMA_V1,
 };
-use crate::canonical::{hash_global_v1, AbiErrorV1, AbiResultV1, RootV1, ZERO_ROOT_V1};
+use crate::canonical::{
+    hash_global_v1, AbiErrorV1, AbiResultV1, RootV1, MAX_ASSET_CUSTODY_ROWS_V1, ZERO_ROOT_V1,
+};
 use crate::effects::GlobalEconomicEffectPlanV1;
 use crate::proof::LaneModuleTransitionJournalV1;
 use crate::state::EconomicAmountV1;
@@ -41,6 +43,11 @@ impl AssetTransferLaneModuleInputV1 {
             .validate("asset transfer lane module asset policy registry", false)?;
         self.fee_policy_registry_root
             .validate("asset transfer lane module fee policy registry", false)?;
+        if self.custody.len() > MAX_ASSET_CUSTODY_ROWS_V1 {
+            return Err(AbiErrorV1::InvalidBounds(
+                "asset transfer lane module custody rows",
+            ));
+        }
         project_asset_transfer_state_v1(
             &self.pre_state,
             &self.asset_policy_registry_root,

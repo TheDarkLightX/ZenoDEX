@@ -1275,32 +1275,68 @@ fn coherent_transfer_output_for_another_amount_rejects_before_route_binding() {
 
 #[test]
 fn coherent_managed_output_for_another_amount_rejects_before_route_binding() {
-    // Arrange
     let (profile, lanes, coordinators, routes) = profile();
+    for (command_kind, subject_id, grant_root) in [
+        (MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, "issuer", root(5)),
+        (MANAGED_ASSET_BURN_COMMAND_KIND_V1, "alice", root(6)),
+    ] {
+        // Arrange
+        let occurrence = occurrence(&profile, &routes, command_kind, subject_id, grant_root);
+        let input = managed_input(&profile, &lanes, &occurrence, command_kind);
+        let mut foreign_input = input.clone();
+        foreign_input.command.amount_atoms += 1;
+        let ManagedAssetLifecycleLaneModuleResultV1::Accepted(mut forged) =
+            transition_managed_asset_lifecycle_lane_module_v1(&foreign_input).unwrap()
+        else {
+            panic!("foreign managed command must remain economically valid")
+        };
+        structurally_rebind_managed_statement(&mut forged, input.statement_root().unwrap());
+
+        // Act
+        let result = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
+            &profile,
+            &lanes,
+            &coordinators,
+            &routes,
+            &occurrence,
+            &input,
+            &forged,
+        );
+
+        // Assert
+        assert_eq!(
+            result.unwrap_err(),
+            AbiErrorV1::InvalidBinding(
+                "managed lifecycle supplied acceptance differs from recomputation"
+            )
+        );
+    }
+}
+
+#[test]
+fn inactive_profile_reject_precedes_coherent_foreign_output_rejection() {
+    // Arrange
+    let (mut profile, lanes, coordinators, routes) = profile();
     let occurrence = occurrence(
         &profile,
         &routes,
-        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
-        "issuer",
-        root(5),
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        "alice",
+        root(7),
     );
-    let input = managed_input(
-        &profile,
-        &lanes,
-        &occurrence,
-        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
-    );
+    let input = asset_input(&profile, &lanes, &occurrence, None);
     let mut foreign_input = input.clone();
     foreign_input.command.amount_atoms += 1;
-    let ManagedAssetLifecycleLaneModuleResultV1::Accepted(mut forged) =
-        transition_managed_asset_lifecycle_lane_module_v1(&foreign_input).unwrap()
+    let AssetTransferLaneModuleResultV1::Accepted(mut forged) =
+        transition_asset_transfer_lane_module_v1(&foreign_input).unwrap()
     else {
-        panic!("foreign managed command must remain economically valid")
+        panic!("foreign transfer must remain economically valid")
     };
-    structurally_rebind_managed_statement(&mut forged, input.statement_root().unwrap());
+    structurally_rebind_transfer_statement(&mut forged, input.statement_root().unwrap());
+    profile.status = ProfileStatusV1::SHADOW;
 
     // Act
-    let result = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
+    let result = bind_asset_transfer_lane_output_to_release_route_v1(
         &profile,
         &lanes,
         &coordinators,
@@ -1313,9 +1349,7 @@ fn coherent_managed_output_for_another_amount_rejects_before_route_binding() {
     // Assert
     assert_eq!(
         result.unwrap_err(),
-        AbiErrorV1::InvalidBinding(
-            "managed lifecycle supplied acceptance differs from recomputation"
-        )
+        AbiErrorV1::InvalidBinding("economic profile is not active")
     );
 }
 
@@ -2734,77 +2768,6 @@ fn module_receipt_verification_uses_release_image_and_exact_journal() {
 }
 
 #[test]
-fn coherent_foreign_transfer_rejects_before_receipt_verifier_invocation() {
-    // Arrange
-    let (profile, lanes, coordinators, routes) = profile();
-    let occurrence = occurrence(
-        &profile,
-        &routes,
-        ASSET_TRANSFER_COMMAND_KIND_V1,
-        "alice",
-        root(7),
-    );
-    let input = asset_input(&profile, &lanes, &occurrence, None);
-    let AssetTransferLaneModuleResultV1::Accepted(honest) =
-        transition_asset_transfer_lane_module_v1(&input).unwrap()
-    else {
-        panic!("valid transfer must accept")
-    };
-    let bound = bind_asset_transfer_lane_output_to_release_route_v1(
-        &profile,
-        &lanes,
-        &coordinators,
-        &routes,
-        &occurrence,
-        &input,
-        &honest,
-    )
-    .unwrap();
-    let mut foreign_input = input.clone();
-    foreign_input.command.amount_atoms += 1;
-    let AssetTransferLaneModuleResultV1::Accepted(mut forged) =
-        transition_asset_transfer_lane_module_v1(&foreign_input).unwrap()
-    else {
-        panic!("foreign transfer must remain economically valid")
-    };
-    structurally_rebind_transfer_statement(&mut forged, input.statement_root().unwrap());
-    let authenticated = authenticate_occurrence(
-        &profile,
-        &routes,
-        &occurrence,
-        canonical_economic_command_body_bytes_v1(&input.command.command_kind, &input.command)
-            .unwrap(),
-    );
-    let verifier = RecordingModuleReceiptVerifier::default();
-
-    // Act
-    let result = verify_asset_transfer_lane_module_receipt_v1(
-        AssetTransferLaneModuleReceiptCandidateV1 {
-            profile: &profile,
-            lanes: &lanes,
-            coordinators: &coordinators,
-            routes: &routes,
-            authenticated_command: &authenticated,
-            module_input: &input,
-            accepted: &forged,
-            release_route_binding: &bound,
-            receipt: LaneModuleReceiptEnvelopeV1 {
-                receipt_kind: ReceiptKindV1::SUCCINCT,
-                receipt_bytes: b"structurally-forged-transfer-receipt",
-            },
-        },
-        &verifier,
-    );
-
-    // Assert
-    assert_eq!(
-        result.unwrap_err(),
-        AbiErrorV1::InvalidBinding("asset transfer supplied acceptance differs from recomputation")
-    );
-    assert!(verifier.calls.borrow().is_empty());
-}
-
-#[test]
 fn managed_module_receipts_gain_release_image_bound_authority() {
     let (profile, lanes, coordinators, routes) = profile();
     for (command_kind, subject_id, grant_root) in [
@@ -2863,84 +2826,6 @@ fn managed_module_receipts_gain_release_image_bound_authority() {
         assert_eq!(verified.statement_root(), &input.statement_root().unwrap());
         assert_eq!(verifier.calls.borrow().len(), 1);
     }
-}
-
-#[test]
-fn coherent_foreign_managed_output_rejects_before_receipt_verifier_invocation() {
-    // Arrange
-    let (profile, lanes, coordinators, routes) = profile();
-    let occurrence = occurrence(
-        &profile,
-        &routes,
-        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
-        "issuer",
-        root(5),
-    );
-    let input = managed_input(
-        &profile,
-        &lanes,
-        &occurrence,
-        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
-    );
-    let ManagedAssetLifecycleLaneModuleResultV1::Accepted(honest) =
-        transition_managed_asset_lifecycle_lane_module_v1(&input).unwrap()
-    else {
-        panic!("valid managed issue must accept")
-    };
-    let bound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-        &profile,
-        &lanes,
-        &coordinators,
-        &routes,
-        &occurrence,
-        &input,
-        &honest,
-    )
-    .unwrap();
-    let mut foreign_input = input.clone();
-    foreign_input.command.amount_atoms += 1;
-    let ManagedAssetLifecycleLaneModuleResultV1::Accepted(mut forged) =
-        transition_managed_asset_lifecycle_lane_module_v1(&foreign_input).unwrap()
-    else {
-        panic!("foreign managed issue must remain economically valid")
-    };
-    structurally_rebind_managed_statement(&mut forged, input.statement_root().unwrap());
-    let authenticated = authenticate_occurrence(
-        &profile,
-        &routes,
-        &occurrence,
-        canonical_economic_command_body_bytes_v1(&input.command.command_kind, &input.command)
-            .unwrap(),
-    );
-    let verifier = RecordingModuleReceiptVerifier::default();
-
-    // Act
-    let result = verify_managed_asset_lifecycle_lane_module_receipt_v1(
-        ManagedAssetLifecycleLaneModuleReceiptCandidateV1 {
-            profile: &profile,
-            lanes: &lanes,
-            coordinators: &coordinators,
-            routes: &routes,
-            authenticated_command: &authenticated,
-            module_input: &input,
-            accepted: &forged,
-            release_route_binding: &bound,
-            receipt: LaneModuleReceiptEnvelopeV1 {
-                receipt_kind: ReceiptKindV1::SUCCINCT,
-                receipt_bytes: b"structurally-forged-managed-receipt",
-            },
-        },
-        &verifier,
-    );
-
-    // Assert
-    assert_eq!(
-        result.unwrap_err(),
-        AbiErrorV1::InvalidBinding(
-            "managed lifecycle supplied acceptance differs from recomputation"
-        )
-    );
-    assert!(verifier.calls.borrow().is_empty());
 }
 
 #[test]
@@ -3013,6 +2898,55 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
         );
         assert!(verifier.calls.borrow().is_empty());
     }
+
+    let at_limit = vec![0xa5; MAX_ECONOMIC_RECEIPT_BYTES_V1];
+    let at_limit_verifier = RecordingModuleReceiptVerifier::default();
+    verify_asset_transfer_lane_module_receipt_v1(
+        AssetTransferLaneModuleReceiptCandidateV1 {
+            profile: &profile,
+            lanes: &lanes,
+            coordinators: &coordinators,
+            routes: &routes,
+            authenticated_command: &authenticated,
+            module_input: &input,
+            accepted: &accepted,
+            release_route_binding: &bound,
+            receipt: LaneModuleReceiptEnvelopeV1 {
+                receipt_kind: ReceiptKindV1::SUCCINCT,
+                receipt_bytes: &at_limit,
+            },
+        },
+        &at_limit_verifier,
+    )
+    .expect("receipt at the exact byte ceiling must remain admissible");
+    assert_eq!(at_limit_verifier.calls.borrow().len(), 1);
+    drop(at_limit_verifier);
+    drop(at_limit);
+
+    let over_limit = vec![0xa5; MAX_ECONOMIC_RECEIPT_BYTES_V1 + 1];
+    let over_limit_verifier = RecordingModuleReceiptVerifier::default();
+    assert_eq!(
+        verify_asset_transfer_lane_module_receipt_v1(
+            AssetTransferLaneModuleReceiptCandidateV1 {
+                profile: &profile,
+                lanes: &lanes,
+                coordinators: &coordinators,
+                routes: &routes,
+                authenticated_command: &authenticated,
+                module_input: &input,
+                accepted: &accepted,
+                release_route_binding: &bound,
+                receipt: LaneModuleReceiptEnvelopeV1 {
+                    receipt_kind: ReceiptKindV1::SUCCINCT,
+                    receipt_bytes: &over_limit,
+                },
+            },
+            &over_limit_verifier,
+        )
+        .unwrap_err(),
+        AbiErrorV1::InvalidBounds("lane module receipt bytes")
+    );
+    assert!(over_limit_verifier.calls.borrow().is_empty());
 
     let mut substituted_input = input.clone();
     substituted_input.command.amount_atoms = 29;

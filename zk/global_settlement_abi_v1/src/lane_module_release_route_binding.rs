@@ -259,9 +259,39 @@ pub fn bind_asset_transfer_lane_output_to_release_route_v1(
     module_input: &AssetTransferLaneModuleInputV1,
     accepted: &AssetTransferLaneModuleAcceptedV1,
 ) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
+    let (bound, _) = bind_asset_transfer_lane_output_with_recomputed_v1(
+        profile,
+        lanes,
+        coordinators,
+        routes,
+        occurrence,
+        module_input,
+        accepted,
+    )?;
+    Ok(bound)
+}
+
+pub(crate) fn bind_asset_transfer_lane_output_with_recomputed_v1(
+    profile: &EconomicProfileSnapshotV1,
+    lanes: &LaneRegistryV1,
+    coordinators: &LaneCoordinatorRegistryV1,
+    routes: &RouteRegistryV1,
+    occurrence: &EconomicCommandOccurrenceV1,
+    module_input: &AssetTransferLaneModuleInputV1,
+    accepted: &AssetTransferLaneModuleAcceptedV1,
+) -> AbiResultV1<(
+    ReleaseRouteBoundLaneTransitionV1,
+    AssetTransferLaneModuleAcceptedV1,
+)> {
     module_input.validate()?;
-    let expected = recompute_asset_transfer_lane_module_accepted_v1(module_input, accepted)?;
-    bind_candidate_v1(
+    accepted.validate()?;
+    let statement_root = module_input.statement_root()?;
+    if accepted.statement_root != statement_root {
+        return Err(AbiErrorV1::InvalidBinding(
+            "asset transfer accepted statement",
+        ));
+    }
+    let bound = bind_candidate_v1(
         profile,
         lanes,
         coordinators,
@@ -270,8 +300,8 @@ pub fn bind_asset_transfer_lane_output_to_release_route_v1(
         BindingCandidateV1 {
             actual_command_kind: &module_input.command.command_kind,
             command_body_hash: module_input.command.command_body_hash()?,
-            statement_root: &expected.statement_root,
-            producer_module_schema: &expected.private_port.producer_module_schema,
+            statement_root: &accepted.statement_root,
+            producer_module_schema: &accepted.private_port.producer_module_schema,
             context: ModuleContextBindingV1 {
                 chain_id: &module_input.context.chain_id,
                 deployment_root: &module_input.context.deployment_root,
@@ -282,9 +312,11 @@ pub fn bind_asset_transfer_lane_output_to_release_route_v1(
                 subject_id: &module_input.context.subject_id,
                 grant_root: &module_input.context.grant_root,
             },
-            module_journal: &expected.module_journal,
+            module_journal: &accepted.module_journal,
         },
-    )
+    )?;
+    let expected = recompute_asset_transfer_lane_module_accepted_v1(module_input, accepted)?;
+    Ok((bound, expected))
 }
 
 pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
@@ -296,10 +328,39 @@ pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
     module_input: &ManagedAssetLifecycleLaneModuleInputV1,
     accepted: &ManagedAssetLifecycleLaneModuleAcceptedV1,
 ) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
+    let (bound, _) = bind_managed_asset_lifecycle_lane_output_with_recomputed_v1(
+        profile,
+        lanes,
+        coordinators,
+        routes,
+        occurrence,
+        module_input,
+        accepted,
+    )?;
+    Ok(bound)
+}
+
+pub(crate) fn bind_managed_asset_lifecycle_lane_output_with_recomputed_v1(
+    profile: &EconomicProfileSnapshotV1,
+    lanes: &LaneRegistryV1,
+    coordinators: &LaneCoordinatorRegistryV1,
+    routes: &RouteRegistryV1,
+    occurrence: &EconomicCommandOccurrenceV1,
+    module_input: &ManagedAssetLifecycleLaneModuleInputV1,
+    accepted: &ManagedAssetLifecycleLaneModuleAcceptedV1,
+) -> AbiResultV1<(
+    ReleaseRouteBoundLaneTransitionV1,
+    ManagedAssetLifecycleLaneModuleAcceptedV1,
+)> {
     module_input.validate()?;
-    let expected =
-        recompute_managed_asset_lifecycle_lane_module_accepted_v1(module_input, accepted)?;
-    bind_candidate_v1(
+    accepted.validate()?;
+    let statement_root = module_input.statement_root()?;
+    if accepted.statement_root != statement_root {
+        return Err(AbiErrorV1::InvalidBinding(
+            "managed asset accepted statement",
+        ));
+    }
+    let bound = bind_candidate_v1(
         profile,
         lanes,
         coordinators,
@@ -308,8 +369,8 @@ pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
         BindingCandidateV1 {
             actual_command_kind: &module_input.command.command_kind,
             command_body_hash: module_input.command.command_body_hash()?,
-            statement_root: &expected.statement_root,
-            producer_module_schema: &expected.private_port.producer_module_schema,
+            statement_root: &accepted.statement_root,
+            producer_module_schema: &accepted.private_port.producer_module_schema,
             context: ModuleContextBindingV1 {
                 chain_id: &module_input.context.chain_id,
                 deployment_root: &module_input.context.deployment_root,
@@ -320,9 +381,12 @@ pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
                 subject_id: &module_input.context.subject_id,
                 grant_root: &module_input.context.grant_root,
             },
-            module_journal: &expected.module_journal,
+            module_journal: &accepted.module_journal,
         },
-    )
+    )?;
+    let expected =
+        recompute_managed_asset_lifecycle_lane_module_accepted_v1(module_input, accepted)?;
+    Ok((bound, expected))
 }
 
 fn require_perps_oracle_price_binding_v1(

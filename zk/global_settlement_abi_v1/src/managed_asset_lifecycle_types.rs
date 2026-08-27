@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::asset_transfer_types::ACCOUNT_CUSTODY_DOMAIN_V1;
 use crate::canonical::{
     hash_economic_command_body_v1, hash_global_v1, validate_token_v1, AbiErrorV1, AbiResultV1,
-    RootV1,
+    RootV1, MAX_ASSET_BALANCE_ROWS_V1, MAX_ASSET_POLICY_ROWS_V1,
 };
 use crate::effects::GlobalEconomicEffectPlanV1;
 use crate::proof::LaneModuleTransitionJournalV1;
@@ -109,6 +109,16 @@ impl ManagedAssetLifecycleStateV1 {
         }
         self.module_release_id
             .validate("managed asset module release id", false)?;
+        if self.policies.len() > MAX_ASSET_POLICY_ROWS_V1
+            || self.supplies.len() > MAX_ASSET_POLICY_ROWS_V1
+        {
+            return Err(AbiErrorV1::InvalidBounds(
+                "managed asset policy or supply rows",
+            ));
+        }
+        if self.balances.len() > MAX_ASSET_BALANCE_ROWS_V1 {
+            return Err(AbiErrorV1::InvalidBounds("managed asset balance rows"));
+        }
         self.validate_policy_supply_coverage()?;
         self.validate_balances()
     }

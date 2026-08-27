@@ -1,22 +1,21 @@
 use serde::Serialize;
 
 use crate::asset_transfer_lane_module::{
-    recompute_asset_transfer_lane_module_accepted_v1, AssetTransferLaneModuleAcceptedV1,
-    AssetTransferLaneModuleInputV1,
+    AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
 };
 use crate::canonical::{
     canonical_bytes_v1, hash_bytes_sha256_v1, hash_global_v1, AbiErrorV1, AbiResultV1, RootV1,
+    MAX_ECONOMIC_RECEIPT_BYTES_V1,
 };
 use crate::economic_command_authentication::AuthenticatedEconomicCommandV1;
 use crate::global_oracle_price_occurrence::VerifiedGlobalOraclePriceV1;
 use crate::lane_module_release_route_binding::{
-    bind_asset_transfer_lane_output_to_release_route_v1,
-    bind_managed_asset_lifecycle_lane_output_to_release_route_v1,
+    bind_asset_transfer_lane_output_with_recomputed_v1,
+    bind_managed_asset_lifecycle_lane_output_with_recomputed_v1,
     bind_perps_margin_lane_output_to_release_route_v1, PerpsMarginReleaseRouteBindingCandidateV1,
     ReleaseRouteBoundLaneTransitionV1,
 };
 use crate::managed_asset_lifecycle_lane_module::{
-    recompute_managed_asset_lifecycle_lane_module_accepted_v1,
     ManagedAssetLifecycleLaneModuleAcceptedV1, ManagedAssetLifecycleLaneModuleInputV1,
 };
 use crate::perps_margin_lane_module::{
@@ -200,6 +199,9 @@ fn verify_rebound_module_receipt_v1(
     if candidate.receipt.receipt_bytes.is_empty() {
         return Err(AbiErrorV1::InvalidBounds("lane module receipt bytes"));
     }
+    if candidate.receipt.receipt_bytes.len() > MAX_ECONOMIC_RECEIPT_BYTES_V1 {
+        return Err(AbiErrorV1::InvalidBounds("lane module receipt bytes"));
+    }
 
     let release = candidate
         .lanes
@@ -253,16 +255,12 @@ pub fn verify_asset_transfer_lane_module_receipt_v1(
     receipt_verifier: &dyn LaneModuleSuccinctReceiptVerifierV1,
 ) -> AbiResultV1<VerifiedLaneModuleTransitionV1> {
     let occurrence = candidate.authenticated_command.occurrence();
-    let rebound = bind_asset_transfer_lane_output_to_release_route_v1(
+    let (rebound, expected) = bind_asset_transfer_lane_output_with_recomputed_v1(
         candidate.profile,
         candidate.lanes,
         candidate.coordinators,
         candidate.routes,
         occurrence,
-        candidate.module_input,
-        candidate.accepted,
-    )?;
-    let expected = recompute_asset_transfer_lane_module_accepted_v1(
         candidate.module_input,
         candidate.accepted,
     )?;
@@ -284,16 +282,12 @@ pub fn verify_managed_asset_lifecycle_lane_module_receipt_v1(
     receipt_verifier: &dyn LaneModuleSuccinctReceiptVerifierV1,
 ) -> AbiResultV1<VerifiedLaneModuleTransitionV1> {
     let occurrence = candidate.authenticated_command.occurrence();
-    let rebound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
+    let (rebound, expected) = bind_managed_asset_lifecycle_lane_output_with_recomputed_v1(
         candidate.profile,
         candidate.lanes,
         candidate.coordinators,
         candidate.routes,
         occurrence,
-        candidate.module_input,
-        candidate.accepted,
-    )?;
-    let expected = recompute_managed_asset_lifecycle_lane_module_accepted_v1(
         candidate.module_input,
         candidate.accepted,
     )?;
