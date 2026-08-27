@@ -23,16 +23,21 @@ meta:
       tests/formal/test_esso_global_settlement_core_v1.py
 
     State. Two assets (a, b). Every same-ledger atom of one asset sits in exactly
-    one of five disjoint accounting partitions:
+    one of five disjoint accounting locations (accounting control domains):
       payer_X        account balance of the authenticated subject
       rest_X         every other account balance
-      fee_alloc_X    named custody holding current fee allocations
-      fee_residue_X  named custody holding explicitly carried fee residue
-      obligation_X   named custody backing OPEN terminal obligations
+      fee_alloc_X    protocol-controlled accounting location for current fee
+                     allocations
+      fee_residue_X  accounting location for explicitly carried fee residue (a
+                     normative candidate location; see blueprint GAP-07)
+      obligation_X   accounting location recording the aggregate atoms of OPEN
+                     terminal obligations
       supply_X       committed supply
       owned_X := payer_X + rest_X + fee_alloc_X + fee_residue_X + obligation_X
       height         consensus height (u64 in source; 0..3 here)
       consumed_i     occurrence identity i is already consumed (3 identities)
+    Practical custody follows key control. This model makes no custody or title
+    claim; the words above name accounting locations and control domains only.
     Ghost variables (prefix g_) journal the last step for the invariants. The
     transition never reads a ghost, except g_lane, which preserves itself on
     rejection.
@@ -48,8 +53,9 @@ meta:
       fee_charged    fee atoms charged by the fee policy (parameterized input)
       fee_alloc      fee atoms allocated now (parameterized input);
                      fee_charged - fee_alloc is the explicitly carried residue
-      authority_ok   verifier-produced authorization fact (abstraction; never a
-                     caller-supplied runtime authority)
+      authority_ok   abstract authorization premise. It is not an opaque
+                     witness and not caller authority; no runtime refinement
+                     may pass this Boolean directly (see blueprint GAP-03)
 
     Accepted transfer:        payer -= amount + fee_charged; rest += amount
     Accepted issue:           payer += amount - fee_charged; supply += amount
@@ -78,9 +84,15 @@ meta:
     governance decisions are not represented and are not selected here.
 
     Nonclaims: production, settlement, release, or value-moving authority;
-    whole-DEX safety; a refinement theorem against the Python or Rust source;
-    cryptographic bindings; route, epoch, or proof semantics; liveness beyond
-    the finite horizon.
+    whole-DEX safety; custody or title; a refinement theorem against the
+    Python or Rust source; cryptographic bindings; route, epoch, or proof
+    semantics; liveness beyond the finite horizon. Known divergences from the
+    source (route compatibility unmodeled, asset domain exactly a/b, authority
+    as an unconstrained premise, aggregate-only terminal obligations, finite
+    widths 4/3/3, base-5 pre-state images that are not canonical hashes, and
+    the fee-residue refinement gap) are tabled in the blueprint as GAP-01 to
+    GAP-08. Formal status and exact replay evidence are recorded in the
+    blueprint, never in this file, because the IR hash covers this file.
 
 observables:
   state_vars:
@@ -222,7 +234,8 @@ state_vars:
   - { id: "g_pre_consumed_0", role: "control", type: { kind: "bool" } }
   - { id: "g_pre_consumed_1", role: "control", type: { kind: "bool" } }
   - { id: "g_pre_consumed_2", role: "control", type: { kind: "bool" } }
-  # Mixed-radix (base 5) image of the six asset quantities: an exact pre-state root.
+  # Base-5 mixed-radix image of the six asset quantities: an exact pre-state
+  # image for the bounded tuple only, not a canonical runtime hash.
   - { id: "g_pre_root_a", role: "data", type: { kind: "int", min: 0, max: 15624 } }
   - { id: "g_pre_root_b", role: "data", type: { kind: "int", min: 0, max: 15624 } }
   - { id: "g_owned_pre_a", role: "data", type: { kind: "int", min: 0, max: 20 } }
@@ -438,7 +451,7 @@ invariants:
         - { op: ">=", args: [{ var: "g_fee_alloc_b" }, { const: 0 }] }
         - { op: ">=", args: [{ var: "g_fee_residue_b" }, { const: 0 }] }
 
-  # LaneTransitionRejectedV1: a rejected step keeps the exact pre-state root,
+  # LaneTransitionRejectedV1: a rejected step keeps the exact pre-state image,
   # consumes nothing, advances nothing, and carries only empty rows.
   - id: "inv_reject_exact_noop"
     kind: "safety"

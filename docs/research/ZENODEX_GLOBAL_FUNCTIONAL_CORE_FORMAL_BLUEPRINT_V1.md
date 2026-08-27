@@ -1,12 +1,16 @@
 # ZenoDEX Global Functional Core Formal Blueprint V1
 
-Date: 2026-08-26
+Date: 2026-08-26 (repair 1: 2026-08-27)
 
 Task: `FORMAL-MODEL-001` (`rlm-subagent-task/v1`, role `implementer`)
 
 Implementation base: `f7e851565e063fb3e74b060a9c45f27b8621a8d7`
 
-Status: `RESEARCH_ONLY_UNMOUNTED`, `FORMAL_VERDICT_INCOMPLETE_ESSO_ABSENT`
+Initial candidate: `f04bf4760a941966bf19e8c3c289b3c0d6c1feeb` (reviewed and
+replayed independently; repaired by the commit that carries this revision,
+whose hash cannot truthfully appear inside its own file)
+
+Status: `RESEARCH_ONLY_UNMOUNTED`, `BOUNDED_ESSO_VERIFIED_RESEARCH_ONLY`
 
 Production authority: `NONE`
 
@@ -16,10 +20,13 @@ Release authority: `NONE`
 
 Value-moving authority: `NONE`
 
-This document is advisory until an independent Max review and a local replay
-of the commands in the Evidence section. It is not a proof, a verifier
-receipt, a release, a migration certificate, a settlement authorization, or a
-whole-DEX safety claim.
+Claim grade: bounded verification of the model file in this repository by an
+external replay of the private ESSO toolchain. Source pins are informative
+source-pin evidence, not refinement evidence. This document is not a proof of
+the runtime, a verifier receipt, a release, a migration certificate, a
+settlement authorization, or a whole-DEX safety claim, and it remains
+advisory until the independent reviews and the local replay in the Evidence
+section are recorded together.
 
 ## Result
 
@@ -32,39 +39,55 @@ runtime work:
 - `tests/formal/test_esso_global_settlement_core_v1.py` is the executable
   bounded model: a strict interpreter of the same YAML that runs AAA
   scenarios, boundary cases, reject-is-exact-no-op cases, sequential
-  composition, bounded sweeps, and six named semantic mutants with RIPR
-  evidence. It also carries the ESSO `validate` and `verify-multi`
-  invocations.
+  composition, bounded sweeps, six named semantic mutants with RIPR evidence,
+  the divergence witnesses of the gap table, and the ESSO `validate` and
+  `verify-multi` invocations with the recorded replay facts bound to the tool
+  output.
 - This document records the source pins, the model, its safety, liveness,
-  refinement, and nonclaim sections, the retained counterexamples, the model
-  bounds, and the exact commands with their results.
+  refinement, divergence, and nonclaim sections, the retained
+  counterexamples, the model bounds, and the exact commands with their
+  results.
 
-The ESSO toolchain is absent from this checkout (`external/ESSO` does not
-exist and `python3 -m ESSO` reports `No module named ESSO`), so the two ESSO
-tests skip. That skip is recorded as `INCOMPLETE`. It is not a pass, and no
-solver-backed formal verdict is claimed here. The executable bounded model
-passed locally (43 passed, 2 skipped).
+`BOUNDED_ESSO_VERIFIED_RESEARCH_ONLY` means exactly this: ESSO is external to
+this checkout (it is a private toolchain that `docs/PRODUCTION_GATE.md`
+forbids vendoring), and an exact external replay of `python3 -m ESSO validate`
+and `python3 -m ESSO verify-multi` on this model returned `ok: true` and the
+verdict `VERIFIED` for two obligations, `init_implies_inv` and
+`inductive_step` (scope badge `Inductive(k=1)`), cross-checked by z3 and cvc5
+over two deterministic trials. Those obligations establish initialization and
+one-step inductiveness of the declared invariant conjunction. They do not
+establish anything about the Python or Rust runtime, and the model is a finite
+abstraction with the divergences tabled as `GAP-01` to `GAP-08` below. On a
+host without the toolchain the two ESSO tests skip; that host's run is
+`INCOMPLETE`, and a skip is never a pass. The durable status rests on the
+recorded replay, and the tests bind the recorded IR hash, fingerprint, and
+obligation set to the tool output whenever the toolchain is present.
 
 ## Source pins
 
 The repository base is `f7e851565e063fb3e74b060a9c45f27b8621a8d7`. SHA-256
-values were computed on that base. The first row is enforced by
-`test_blueprint_pins_base_commit_and_semantic_source_hash`; drift there means
-this blueprint must be re-reviewed before it is trusted. The remaining rows are
-informative pins.
+values were computed on that base. Rows marked `enforced` are checked by
+`test_blueprint_pins_base_commit_and_semantic_source_hashes`, which compares
+the value below, the value embedded in the test, and the file on disk; drift
+means this blueprint must be re-reviewed before it is trusted. Rows marked
+`informative` are source-pin evidence only. No row is refinement evidence.
 
-| Pinned source | SHA-256 |
-| --- | --- |
-| `src/core/global_settlement_types_v1.py` | `df06cbff2800ed7e2a1a296766cd132a86fdcce51c5d8a9da3a01791344c16b0` |
-| `src/core/global_settlement_abi_v1.py` | `c02a137fdd2e892a5a4529b99e6ee4054394b4b68e863c2c24fc2ec2346846e5` |
-| `src/core/asset_transfer_module_v1.py` | `d8ac43bf64f08ea1a8318c21c4f0f6d1c5ef4baf7bb6e91820e29a2762695aef` |
-| `src/core/managed_asset_lifecycle_module_v1.py` | `4e116ee9b875834dfae96f0c526a1043453c1d262c2e96a610d498d01cc5dc15` |
-| `src/core/asset_lane_coordinator_v1.py` | `6047468214d835ff9d6d9823d845df4ef0c4a1cd6d94f098911377daaf4996ae` |
-| `docs/research/GLOBAL_SETTLEMENT_ABI_V1_REFERENCE_20260805.md` | `294d61cc85da08cfb93a3f44ce815bffa5e6b9776f390395adf2db3859de010d` |
-| `docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json` | `eedf486571e3d628294c0ad965fe46d0589565478a4db9104141d5537b3a5684` |
-| `docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.md` | `f865f36b59a0bdfb5ce95fbefeb36ab64e6b37f4e94144b3f1a3404806a580d1` |
-| `docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md` | `32985ee88b0b15a0b6ef1408e60ac1767f93e20eade434090011e144ecd56990` |
-| `src/kernels/dex/global_settlement_core_v1.yaml` (subject) | `9dc7f7657e0f4248e1d4720c6ef3ce655411e7d48cf36429a5e5fa3691b52440` |
+| Pinned source | SHA-256 | Grade |
+| --- | --- | --- |
+| `src/core/global_settlement_types_v1.py` | `df06cbff2800ed7e2a1a296766cd132a86fdcce51c5d8a9da3a01791344c16b0` | enforced |
+| `src/core/global_economic_state_effect_refinement_v1.py` | `9e70b85ffc24e77fd7abf7a7a1e6aed8017f0f6ceac8d61e6c45e6f6dece7338` | enforced |
+| `zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs` | `81dfe788c02767d080c3a2dc1cadd814ad3e489cbbc2b6fbf66ecf21ee77ee01` | enforced |
+| `src/core/epoch_effect_composition_v1.py` | `a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045` | enforced |
+| `src/kernels/dex/global_settlement_core_v1.yaml` (subject, this revision) | `f3ede1340db83376d10b7d473fb58df20f9185e5ef4dc773acbf3fe40f0365b6` | enforced |
+| `src/kernels/dex/global_settlement_core_v1.yaml` (subject at `f04bf4760`) | `9dc7f7657e0f4248e1d4720c6ef3ce655411e7d48cf36429a5e5fa3691b52440` | informative |
+| `src/core/global_settlement_abi_v1.py` | `c02a137fdd2e892a5a4529b99e6ee4054394b4b68e863c2c24fc2ec2346846e5` | informative |
+| `src/core/asset_transfer_module_v1.py` | `d8ac43bf64f08ea1a8318c21c4f0f6d1c5ef4baf7bb6e91820e29a2762695aef` | informative |
+| `src/core/managed_asset_lifecycle_module_v1.py` | `4e116ee9b875834dfae96f0c526a1043453c1d262c2e96a610d498d01cc5dc15` | informative |
+| `src/core/asset_lane_coordinator_v1.py` | `6047468214d835ff9d6d9823d845df4ef0c4a1cd6d94f098911377daaf4996ae` | informative |
+| `docs/research/GLOBAL_SETTLEMENT_ABI_V1_REFERENCE_20260805.md` | `294d61cc85da08cfb93a3f44ce815bffa5e6b9776f390395adf2db3859de010d` | informative |
+| `docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json` | `eedf486571e3d628294c0ad965fe46d0589565478a4db9104141d5537b3a5684` | informative |
+| `docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.md` | `f865f36b59a0bdfb5ce95fbefeb36ab64e6b37f4e94144b3f1a3404806a580d1` | informative |
+| `docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md` | `32985ee88b0b15a0b6ef1408e60ac1767f93e20eade434090011e144ecd56990` | informative |
 
 Pinned semantics, by source location on the base:
 
@@ -77,8 +100,9 @@ Pinned semantics, by source location on the base:
 - Global state: `GlobalEconomicStateV1` commits `height`, unique
   `replay_state` rows whose occurrence ids must be unique, and canonically
   ordered `terminal_obligations` (`:1273-1344`, uniqueness `:1323-1331`,
-  obligations `:1332-1337`). `TerminalObligationV1` carries `OPEN`,
-  `DRAINED`, or `TOMBSTONED` status (`:1190-1223`).
+  obligations `:1332-1337`). `TerminalObligationV1` carries an obligation id,
+  lane, claimant, asset, amount, and `OPEN`, `DRAINED`, or `TOMBSTONED`
+  status (`:1190-1223`).
 - Effect rows: `ISSUE` rows are positive, `BURN` rows are negative, every row
   is nonzero (`:1438-1471`).
 - Conservation rows: `AssetConservationRowV1` requires
@@ -92,14 +116,22 @@ Pinned semantics, by source location on the base:
 - Rejection: `LaneTransitionRejectedV1` must keep the exact pre-state root and
   carry the empty effect plan (`:1754-1785`); the closed transition reject
   codes are `LaneTransitionRejectCodeV1` (`:1700-1707`).
+- State-effect refinement: `_require_fee_mirror_v1` rejects a zero fee row as
+  non-canonical and rejects any nonzero `carried_residue_atoms` with
+  `economic refinement fee residue has no state-bearing mapping`
+  (`src/core/global_economic_state_effect_refinement_v1.py:249-252`); the
+  Rust mirror rejects nonzero residue with `economic refinement fee residue
+  unmapped` (`zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs:186-194`).
+  Epoch composition sums per-asset fee, allocation, and residue totals with
+  checked unsigned 128-bit arithmetic
+  (`src/core/epoch_effect_composition_v1.py:112-129`) and rejects
+  disconnected conservation and lane-write histories (`:91`, `:141`).
 - Module reject orders used as informative anchors:
   `src/core/asset_transfer_module_v1.py:126-161` (`UNKNOWN_COMMAND`,
   `UNAUTHORIZED_SUBJECT`, `ZERO_AMOUNT`, `EFFECT_DELTA_OVERFLOW`,
   `INSUFFICIENT_BALANCE`, `BALANCE_OVERFLOW`) and
   `src/core/perps_margin_module_v1.py:111-222` (`ACCOUNT_MISSING`,
-  `NONCE_MISMATCH`, `ZERO_AMOUNT`, `INSUFFICIENT_COLLATERAL`). Epoch
-  composition rejects disconnected conservation and lane-write histories
-  (`src/core/epoch_effect_composition_v1.py:91,141`).
+  `NONCE_MISMATCH`, `ZERO_AMOUNT`, `INSUFFICIENT_COLLATERAL`).
 - Whole-program plan: obligation `O-008` (phase P3) requires per-asset
   conservation across all 12 lanes and reject-no-op evidence
   (`docs/research/ZENODEX_WHOLE_PROGRAM_PLAN_V2.json:437-446`). Policy
@@ -110,12 +142,22 @@ Pinned semantics, by source location on the base:
   (`docs/research/ZENODEX_WHOLE_VALUE_MOVEMENT_FORMAL_SAFETY_CLAIM_V1.md:58-63,
   146-160, 193-206`).
 
+## Accounting language
+
+Practical custody follows key control. This blueprint, the model, and the
+tests make no custody or title claim. The words accounting location,
+accounting control domain, partition, and claimant entitlement describe
+protocol bookkeeping only. The identifiers `custody_domain`, `custody`, and
+`owned_and_custodied_pre_atoms` appear in this document only as serialized
+ABI field names. `test_durable_artifacts_use_legally_neutral_accounting_language`
+rejects possession-implying phrases in the three durable files.
+
 ## Scope
 
 In scope: the structural step of the global functional core, abstracted to
-two assets, one authenticated subject account per asset, four named custody
-partitions, a closed command set, a closed lane registry, a bounded height,
-and a bounded occurrence identity space.
+two assets, one authenticated subject account per asset, four further
+accounting locations per asset, a closed command set, a closed lane registry,
+a bounded height, and a bounded occurrence identity space.
 
 Out of scope: canonical bytes and roots, receipts, proof journals, routes and
 lane composition, epochs, Oracle occurrences, external outbox, migration,
@@ -126,15 +168,16 @@ durable publication, cryptographic authentication, and every economic policy.
 ### State
 
 Two assets `a` and `b`. For each asset `X` every same-ledger atom sits in
-exactly one of five disjoint accounting partitions, and the model tracks the
+exactly one of five disjoint accounting locations, and the model tracks the
 committed supply:
 
 ```text
 payer_X        account balance of the authenticated subject
 rest_X         every other account balance
-fee_alloc_X    named custody holding current fee allocations
-fee_residue_X  named custody holding explicitly carried fee residue
-obligation_X   named custody backing OPEN terminal obligations
+fee_alloc_X    protocol-controlled accounting location for current fee allocations
+fee_residue_X  accounting location for explicitly carried fee residue (GAP-07)
+obligation_X   accounting location recording the aggregate atoms of OPEN
+               terminal obligations (GAP-04)
 supply_X       committed supply
 owned_X      := payer_X + rest_X + fee_alloc_X + fee_residue_X + obligation_X
 ```
@@ -142,10 +185,10 @@ owned_X      := payer_X + rest_X + fee_alloc_X + fee_residue_X + obligation_X
 Control state is `height` (0..3) and three occurrence-consumed flags
 `consumed_0..2`. Ghost variables (prefix `g_`) journal the last step: the
 decision, the reject code, the command kind, the lane of the last accepted
-write, the pre-state height and consumed flags, a mixed-radix pre-state root
-per asset, the pre-state owned and supply totals per asset, and the
-`ISSUE`, `BURN`, and fee rows per asset. The transition never reads a ghost
-except `g_lane`, which preserves itself on rejection; a structural test
+write, the pre-state height and consumed flags, a base-5 mixed-radix
+pre-state image per asset, the pre-state owned and supply totals per asset,
+and the `ISSUE`, `BURN`, and fee rows per asset. The transition never reads a
+ghost except `g_lane`, which preserves itself on rejection; a structural test
 enforces this so the ghost journal cannot influence acceptance.
 
 ### Command
@@ -155,14 +198,20 @@ One total action `step`. Its parameters are the command fields:
 | Parameter | Domain | Meaning |
 | --- | --- | --- |
 | `command_kind` | 0..5 | 0 `CMD_TRANSFER`, 1 `CMD_ISSUE`, 2 `CMD_BURN`, 3 `CMD_OPEN_OBLIGATION`, 4 `CMD_DRAIN_OBLIGATION`, 5 outside the closed set |
-| `asset` | 0..1 | 0 = `a`, 1 = `b` |
-| `lane_index` | 0..12 | 0..11 index the twelve `LaneId` symbols in canonical order; 12 is outside the registry |
+| `asset` | 0..1 | 0 = `a`, 1 = `b` (GAP-02) |
+| `lane_index` | 0..12 | 0..11 index the twelve `LaneId` symbols in canonical order; 12 is outside the registry (GAP-01) |
 | `bound_height` | 0..3 | replay identity bound by the command |
 | `occurrence` | 0..2 | occurrence identity |
 | `amount` | 0..4 | atoms moved, issued, burned, opened, or drained |
 | `fee_charged` | 0..4 | fee atoms charged by the fee policy (parameterized) |
 | `fee_alloc` | 0..4 | fee atoms allocated now (parameterized); `fee_charged - fee_alloc` is carried residue |
-| `authority_ok` | bool | verifier-produced authorization fact; an abstraction, never a caller-supplied runtime authority |
+| `authority_ok` | bool | abstract authorization premise (GAP-03) |
+
+`authority_ok` is an abstract authorization premise. It is not an opaque
+witness, not caller authority, and not an authenticated grant. No runtime
+refinement may pass this Boolean directly; a refinement must derive it from an
+authenticated subject, grant, and release binding that this model does not
+represent.
 
 The twelve lane symbols are exactly `ASSET_TRANSFER`, `SPOT_LIQUIDITY`,
 `FARM_INCENTIVES`, `ZDEX_TOKENOMICS`, `ZUSD_MONETARY`, `PERPS_MARKET`,
@@ -190,7 +239,7 @@ every accepted step:
         fee row = (fee_charged, fee_alloc, fee_charged - fee_alloc)
 ```
 
-The untouched asset keeps every partition and emits zero rows.
+The untouched asset keeps every accounting location and emits zero rows.
 
 ### Reject table
 
@@ -225,14 +274,31 @@ no claim is made that they are the exact source codes.
 | accounts per asset | subject account plus one aggregate | unbounded |
 | lanes | exactly 12 plus one unregistered index | exactly 12 |
 | command kinds | 5 closed plus one unknown | per-release closed set |
-| pre-state root | base-5 mixed radix over six quantities (max 15624) | SHA-256 canonical root |
+| pre-state image | base-5 mixed radix over six quantities (max 15624) | SHA-256 canonical root |
+
+## Divergence and gap table
+
+Every known divergence between the model and the pinned source. Each row
+names the test that witnesses the divergence in the model or checks the
+documented fact. None of these rows is closed by this blueprint.
+
+| ID | Divergence | Consequence | Witness |
+| --- | --- | --- | --- |
+| `GAP-01` | All five modeled commands can currently pair with any registered lane index 0..11; route compatibility between a command kind and a lane is unmodeled. | No `AllowedRoute` claim exists. Route selection, route-lane binding, and caller-claim mismatch rejection remain outside the model. | `test_gap_01_every_modeled_command_accepts_on_every_registered_lane` |
+| `GAP-02` | `asset` is exactly `a` or `b`. | The unknown-asset rejection (`UNKNOWN_ASSET`, `DISABLED_ASSET`) is outside the model; no asset registry or policy exists here. | `test_gap_02_asset_domain_is_exactly_a_and_b` |
+| `GAP-03` | `authority_ok` is an unconstrained Boolean premise. | It is not an authenticated grant, subject binding, or opaque witness. Flipping it alone flips every command between `RC_UNAUTHORIZED` and acceptance. No runtime refinement may pass it directly. | `test_authority_ok_is_an_abstract_authorization_premise` |
+| `GAP-04` | A terminal obligation is aggregate atoms only (`obligation_X`). | No obligation object ID, claimant, creating release ID, status registry (`OPEN`, `DRAINED`, `TOMBSTONED`), or terminal totality theorem exists in the model; a partial drain of aggregate atoms is accepted. | `test_gap_04_terminal_obligations_are_aggregate_atoms_only` |
+| `GAP-05` | Width 4 atoms, height horizon 3, and three occurrence IDs. | These prove only the finite model. They prove nothing about u128 atoms, i128 deltas, u64 heights, or the 64-command epoch bounds. | `test_gap_05_finite_widths_are_model_bounds_not_production_widths` |
+| `GAP-06` | `g_pre_root_X` is a base-5 mixed-radix image of six bounded quantities. | It is injective only over the bounded per-asset tuple (five atoms in one location collides with one atom in the next) and is not a canonical runtime hash or SHA-256 root. | `test_gap_06_base5_pre_state_image_is_injective_only_over_the_bounded_tuple` |
+| `GAP-07` | `fee_residue_X` is a normative candidate accounting location required by the whole-program plan (fee charged equals allocations plus carried residue). | The current Python and Rust state-effect refinement rejects any nonzero `carried_residue_atoms` (`no state-bearing mapping`) until an exact versioned mapping exists. This is a known GAP, not a runtime-refinement pass; the model accepts residue that the runtime refinement currently rejects. | `test_gap_07_model_accepts_carried_residue_that_source_refinement_rejects` |
+| `GAP-08` | ESSO proved `init_implies_inv` and `inductive_step` only. | These establish initialization and one-step inductiveness of the declared invariant conjunction. No per-invariant obligation was run, so no invariant is claimed to be inductive on its own. | `test_esso_verify_multi_reports_verified_or_evidence_is_incomplete`, `test_blueprint_gap_table_lists_every_known_divergence` |
 
 ## Safety
 
 Every property is a state invariant checked at genesis and preserved by the
-single step action. Each invariant is written to be inductive on its own so
-the result does not depend on whether a checker assumes the conjunction or one
-invariant at a time.
+single step action. Each invariant is written with the intent that it could
+be inductive on its own, but ESSO checked only the conjunction (`GAP-08`);
+the Python sweeps likewise start from pre-states that satisfy all invariants.
 
 | Invariant | Meaning |
 | --- | --- |
@@ -242,7 +308,7 @@ invariant at a time.
 | `inv_supply_step_a`, `inv_supply_step_b` | `supply_X = supply_pre_X + issue_X - burn_X` for the last step |
 | `inv_fee_step_a`, `inv_fee_step_b` | `fee_charged_X = fee_alloc_X + fee_residue_X` for the last step |
 | `inv_step_rows_nonnegative` | canonical rows are unsigned atoms |
-| `inv_reject_exact_noop` | a rejected step keeps both pre-state roots, height, and consumed flags, emits zero rows, and carries a reject code |
+| `inv_reject_exact_noop` | a rejected step keeps both pre-state images, height, and consumed flags, emits zero rows, and carries a reject code |
 | `inv_accept_advances_one` | an accepted step advances height by one, consumes exactly one fresh occurrence, and carries no reject code |
 | `inv_consumed_monotone` | a consumed occurrence identity is never released |
 
@@ -260,8 +326,9 @@ Required semantics and where they are established:
 - Accepted steps require non-negative post quantities: the acceptance
   conjunction (`c_nonnegative_post`) and `RC_INSUFFICIENT`.
 - Sequential composition preserves the per-asset equations: the invariants
-  are inductive, and `test_sequential_composition_preserves_per_asset_equations`
-  checks the cumulative equations over a three-step trace.
+  are inductive as a conjunction, and
+  `test_sequential_composition_preserves_per_asset_equations` checks the
+  cumulative equations over a three-step trace.
 - Unknown lane, unknown command, duplicate occurrence, stale replay identity,
   and missing terminal obligation reject: the reject table and
   `test_each_reject_class_is_an_exact_noop_with_empty_rows`.
@@ -293,37 +360,40 @@ progress beyond the finite horizon.
 The intended direction is that the source step refines the model step after
 abstraction. The correspondence is by inspection of the pinned source; no
 refinement theorem, simulation relation, or generated-reference parity exists
-yet.
+yet, and the gap table lists where the correspondence is known to be
+incomplete.
 
 | Model | Source |
 | --- | --- |
 | `payer_X`, `rest_X` | `GlobalEconomicStateV1.balances` rows for the asset |
-| `fee_alloc_X`, `fee_residue_X`, `obligation_X` | `GlobalEconomicStateV1.custody` rows and `terminal_obligations` amounts |
+| `fee_alloc_X`, `fee_residue_X`, `obligation_X` | `GlobalEconomicStateV1.custody` rows (field name) and `terminal_obligations` amounts; residue has no runtime mapping yet (`GAP-07`) |
 | `supply_X` | `GlobalEconomicStateV1.supplies` |
 | `height`, `bound_height` | `GlobalEconomicStateV1.height` and the command's bound pre-state identity |
 | `consumed_i`, `occurrence` | `replay_state` occurrence ids and `occurrence_consumptions` |
-| `lane_index`, `g_lane` | `LaneIdV1` and the lane of the single module-local `LaneWriteV1` |
+| `lane_index`, `g_lane` | `LaneIdV1` and the lane of the single module-local `LaneWriteV1` (`GAP-01`) |
 | `g_issue_X`, `g_burn_X` | `ISSUE` and `BURN` rows and `AssetConservationRowV1.authorized_*` |
 | `g_fee_*_X` | `FEE_ALLOCATION` rows and `FeeConservationRowV1` |
-| `g_pre_root_X` | the exact pre-state root that a rejection must preserve |
+| `g_pre_root_X` | the exact pre-state root that a rejection must preserve (`GAP-06`) |
+| `authority_ok` | the authenticated subject, grant, and release checks of a module (`GAP-03`) |
 | `RC_*` | the module reject codes and `LaneTransitionRejectCodeV1` (informative) |
 
 Abstractions that a future refinement argument must discharge: the single
 subject account, two assets, three occurrence identities, small widths, the
 absence of canonical bytes and hashes, the absence of route and lane
-composition, the collapse of module context checks into `authority_ok`, and
-the fee policy collapsed into two parameters.
+composition, the collapse of module context checks into the `authority_ok`
+premise, and the fee policy collapsed into two parameters.
 
 ## Policy inputs: parameterized or blocked
 
 | Input | Treatment | Plan reference |
 | --- | --- | --- |
 | fee amount and allocation split | parameterized as `fee_charged` and `fee_alloc`; no percentage is selected | `UP-01`, `UP-12`, `UP-13` |
+| residue ownership and disposition | blocked; the model carries residue in an accounting location and selects no owner (`GAP-07`) | `UP-01`, `UP-12` |
 | burn floor or retained-supply rule | blocked; the model only checks explicit burn rows and non-negative supply | `UP-14`, `UP-20` |
-| issue and burn authority | parameterized as `authority_ok`; no grant policy is selected | `UP-13` |
+| issue and burn authority | parameterized as the `authority_ok` premise; no grant policy is selected | `UP-13` |
 | Oracle economics | blocked; no Oracle occurrence exists in the model | `UP-06` |
-| margin rules | blocked; only the terminal-obligation shape of a close is modelled | `UP-05` |
-| governance decisions and route selection | blocked; only registry membership of the twelve lanes is checked | `UP-10`, `UP-16` |
+| margin rules | blocked; only the aggregate terminal-obligation shape is modelled | `UP-05` |
+| governance decisions and route selection | blocked; only registry membership of the twelve lanes is checked (`GAP-01`) | `UP-10`, `UP-16` |
 | replay domains beyond height and occurrence identity | blocked | `UP-16` |
 
 ## Counterexamples and semantic mutants
@@ -341,63 +411,92 @@ also kills every mutant
 | `MUT_OMITTED_BURN` | supply is not decremented on burn | `payer_a = supply_a = 1`; `BURN(a, 1)` gives `owned_a = 0`, `supply_a = 1` | `inv_owned_equals_supply_a`, `inv_supply_step_a` | implicit burn |
 | `MUT_OMITTED_BURN_ROW` | the explicit `BURN` row is omitted | same witness; `owned_a = supply_a = 0` with `burn_a = 0` | `inv_owned_step_a`, `inv_supply_step_a` | supply changed without a row |
 | `MUT_OMITTED_RESIDUE` | the unallocated fee remainder is dropped | `payer_a = supply_a = 2`; `TRANSFER(a, amount 1, fee 1, alloc 0)` gives `owned_a = 1`, `supply_a = 2` | `inv_owned_equals_supply_a`, `inv_owned_step_a` | the fee row alone still reconciles (1 = 0 + 1); only holdings conservation reveals the loss |
-| `MUT_OMITTED_RESIDUE_ROW` | residue is custodied but the fee row omits it | same witness; `fee_residue_a = 1` with row residue 0 | `inv_fee_step_a` | |
+| `MUT_OMITTED_RESIDUE_ROW` | residue reaches its accounting location but the fee row omits it | same witness; `fee_residue_a = 1` with row residue 0 | `inv_fee_step_a` | |
 | `MUT_REJECT_WITH_EFFECTS` | a rejected step still moves the fee | `payer_a = supply_a = 1`; `TRANSFER(a, amount 0, fee 1)` is `RC_ZERO_AMOUNT` yet `payer_a = 0`, `fee_alloc_a = 1` | `inv_reject_exact_noop` | `owned_a = supply_a` still holds, so conservation alone cannot reveal it |
 
 ## Evidence
 
-Commands were run on the base from the repository root. Each command was
-invoked separately.
+### Independent review replay (initial candidate `f04bf4760`)
+
+Subject: `src/kernels/dex/global_settlement_core_v1.yaml` at SHA-256
+`9dc7f7657e0f4248e1d4720c6ef3ce655411e7d48cf36429a5e5fa3691b52440`.
 
 ```text
-python3 -m ESSO --help
-  -> /usr/bin/python3: No module named ESSO   (toolchain absent; no verdict)
+PYTHONPATH=/path/to/ESSO python3 -m ESSO validate src/kernels/dex/global_settlement_core_v1.yaml
+  -> ok true, ir_hash sha256:872a813305f2f34429c1f028918eb3e1bb5c5ce378c723501645c77b9098056b
 
-python3 -c "import ESSO, sys; print(ESSO.__file__)"
-  -> ModuleNotFoundError: No module named 'ESSO'
+PYTHONPATH=/path/to/ESSO python3 -m ESSO verify-multi src/kernels/dex/global_settlement_core_v1.yaml \
+  --solvers z3,cvc5 --determinism-trials 2 --timeout-ms 5000
+  -> ok true, determinism true,
+     fingerprints 58a1a345fed1f25c7d98e22452764b9dccfc2df82ac66217b7b109dc58389c43 (both trials),
+     init_implies_inv unsat (z3, cvc5), inductive_step unsat (z3, cvc5),
+     verdict VERIFIED, solvers_agreed true, failed_queries 0, inconclusive_queries 0,
+     scope Inductive(k=1), esso_code_hash 7f80c6216be85c827e8d1cc2fa08ee3107a74588
 
-python3 -c "import yaml; d=yaml.safe_load(open('src/kernels/dex/global_settlement_core_v1.yaml')); ..."
-  -> 40 40 13 9 40 19 40 19   (state vars, inits, invariants, params, updates, effects, observed vars, observed effects)
-
-PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider \
-  tests/formal/test_esso_global_settlement_core_v1.py -rs
-  -> 43 passed, 2 skipped
-     SKIPPED: ESSO toolchain absent (no external/ESSO checkout, no importable
-     ESSO): formal verdict INCOMPLETE; a skip is not a pass   (x2)
-
+PYTHONPATH=/path/to/ESSO python3 -m pytest -q tests/formal/test_esso_global_settlement_core_v1.py
+  -> 45 passed in 18.07s
 python3 -m ruff check tests/formal/test_esso_global_settlement_core_v1.py
   -> All checks passed!
 ```
 
-Local toolchain facts: Python 3.12.3, pytest 7.4.4, PyYAML 6.0.1, ruff
-0.16.0; `z3` and `cvc5` binaries are on `PATH`; the `ESSO` package is not
-installed and `external/ESSO` is absent.
+### Repair replay (this revision)
 
-The ESSO invocation that the repository uses (`src/fire/verifier/esso_kernels_v1.py`,
-`tests/formal/test_esso_settlement_witness_lifecycle_v1.py`) and that must be
-replayed on a host with the private toolchain is:
+The repair changed only `meta.notes` and comments in the model; the loaded
+model is identical to the initial candidate outside `meta`
+(`python3 -c` comparison of the two YAML documents with `meta` removed
+printed `True`). The IR hash covers `meta`, so it changed; the verification
+fingerprint did not, because the verified semantics did not.
 
-```bash
-PYTHONPATH=external/ESSO python3 -m ESSO validate \
-  src/kernels/dex/global_settlement_core_v1.yaml
-PYTHONPATH=external/ESSO python3 -m ESSO verify-multi \
-  src/kernels/dex/global_settlement_core_v1.yaml \
+Subject: `src/kernels/dex/global_settlement_core_v1.yaml` at SHA-256
+`f3ede1340db83376d10b7d473fb58df20f9185e5ef4dc773acbf3fe40f0365b6`.
+
+```text
+PYTHONPATH=/path/to/ESSO python3 -m ESSO validate src/kernels/dex/global_settlement_core_v1.yaml
+  -> ok true, ir_hash sha256:ec6a4c4518b6c5655082e487e816f4bd1411dfb74479afcd656783916d34090a
+
+PYTHONPATH=/path/to/ESSO python3 -m ESSO verify-multi src/kernels/dex/global_settlement_core_v1.yaml \
   --solvers z3,cvc5 --determinism-trials 2 --timeout-ms 5000
+  -> ok true, determinism true,
+     fingerprints 58a1a345fed1f25c7d98e22452764b9dccfc2df82ac66217b7b109dc58389c43 (both trials),
+     init_implies_inv unsat (z3, cvc5), inductive_step unsat (z3, cvc5),
+     verdict VERIFIED, solvers_agreed true, failed_queries 0, inconclusive_queries 0,
+     passed_queries 2, total_queries 2, scope Inductive(k=1), fail_closed true,
+     esso_code_hash 7f80c6216be85c827e8d1cc2fa08ee3107a74588, z3 4.15.4, cvc5 1.1.2
+
+PYTHONPATH=/path/to/ESSO PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider \
+  tests/formal/test_esso_global_settlement_core_v1.py -rs
+  -> 56 passed in 19.83s   (no skips: the two ESSO tests ran against the toolchain)
+PYTHONDONTWRITEBYTECODE=1 python3 -m pytest -q -p no:cacheprovider \
+  tests/formal/test_esso_global_settlement_core_v1.py -rs      (toolchain absent)
+  -> 54 passed, 2 skipped: "ESSO toolchain absent ...: formal verdict INCOMPLETE; a skip is not a pass"
+python3 -m ruff check tests/formal/test_esso_global_settlement_core_v1.py
+  -> All checks passed!
+git diff --check
+  -> clean (no output)
 ```
 
-Acceptance on that host means `validate` returns `ok: true` and
-`verify-multi` returns `ok: true`, `determinism: true`, `report.verdict ==
-"VERIFIED"`, `report.solvers_agreed == true`, `report.failed_queries == 0`,
-and `report.inconclusive_queries == 0`. Until that replay is recorded, the
-formal status of the YAML is `INCOMPLETE`. The test module encodes exactly
-these checks and skips, rather than passes, when the toolchain is absent.
+Local toolchain facts: Python 3.12.3, pytest 7.4.4, PyYAML 6.0.1, ruff
+0.16.0, z3 4.15.4, cvc5 1.1.2. ESSO is external to this checkout; the
+replays above used `PYTHONPATH=/path/to/ESSO` with the private toolchain at
+code hash `7f80c6216be85c827e8d1cc2fa08ee3107a74588`.
+
+Acceptance on a replay host means `validate` returns `ok: true` with the
+recorded `ir_hash`, and `verify-multi` returns `ok: true`, `determinism:
+true`, `report.verdict == "VERIFIED"`, `report.solvers_agreed == true`,
+`report.failed_queries == 0`, `report.inconclusive_queries == 0`, exactly the
+obligations `init_implies_inv` and `inductive_step` with `final_result ==
+"unsat"`, and scope `Inductive(k=1)`. The recorded fingerprint applies under
+the recorded ESSO code hash; a different toolchain revision must still
+produce identical fingerprints across its determinism trials. The test module
+encodes exactly these checks and skips, rather than passes, when the toolchain
+is absent.
 
 Bounded model sweeps executed by the test module:
 
 - accept box: 21 asset-`a` states (every partition of at most two atoms over
-  the five buckets) x 3 asset-`b` fixtures x 5 command kinds x 2 assets x 27
-  parameter triples (`amount`, `fee_charged`, `fee_alloc` in `{0, 1, 2}`) =
-  17,010 steps, current context, no violation;
+  the five accounting locations) x 3 asset-`b` fixtures x 5 command kinds x 2
+  assets x 27 parameter triples (`amount`, `fee_charged`, `fee_alloc` in
+  `{0, 1, 2}`) = 17,010 steps, current context, no violation;
 - random box: seed `20260826`, 4,000 samples over the full declared domain,
   including unknown lanes, unknown commands, consumed occurrences, stale
   heights, missing authority, and the height horizon, no violation;
@@ -406,37 +505,41 @@ Bounded model sweeps executed by the test module:
 Test design: every scenario test is Arrange, Act, Assert with exact
 observables. Boundary cases cover zero amount, one atom, the payer balance at
 the exact boundary and one atom short, the maximum neighbour (`3 + 1 = 4`)
-and the overflow boundary (`4 + 1`), the `rest` partition reaching the width
+and the overflow boundary (`4 + 1`), the `rest` location reaching the width
 exactly, the height horizon neighbour and the horizon, duplicate occurrence
 and the last fresh identity, and stale replay identity in both directions.
 Mutation tests follow RIPR: reach, infect, propagate, reveal. Direct
 specification checks (`spec_failures`) are evaluated next to the YAML
 invariants so a defect in the invariants and a defect in the transition are
-both observable.
+both observable. Regression tests bind the durable status, the recorded
+replay facts, the enforced pins, the neutral accounting language, and the gap
+table to the three files.
 
 ## Nonclaims and residual risk
 
 - No production, settlement, release, or value-moving authority is granted or
-  implied. No whole-DEX safety claim is made.
-- No solver-backed verdict exists for the YAML. The ESSO toolchain is absent
-  here; the two ESSO tests are skipped and recorded as `INCOMPLETE`.
+  implied. No whole-DEX safety claim is made. No custody or title claim is
+  made.
+- `BOUNDED_ESSO_VERIFIED_RESEARCH_ONLY` covers the model file only: two
+  obligations over the invariant conjunction, at the recorded IR hash, under
+  the recorded ESSO code hash. It says nothing about the runtime.
 - The executable bounded model is a pure-Python interpreter of an `esso-ir/v1`
   subset written for this task. Its assumptions about ESSO semantics
   (simultaneous updates over the pre-state, effects over the post-state,
-  Euclidean `div` and `mod`) are taken from existing kernels and
-  `tools/esso_gpu_semantics.py`; they are not verified against the private
-  toolchain. Passing the interpreter does not establish that ESSO validates or
-  verifies the file.
+  Euclidean `div` and `mod`) match the environment model ESSO reported
+  (`guards, simultaneous updates, canonicalizer, invariants`) but are not
+  otherwise verified against the private toolchain.
 - The refinement between this model and the Python or Rust source is by
   inspection only. There is no theorem, simulation relation, generated
-  reference, or parity vector.
+  reference, or parity vector, and `GAP-01` to `GAP-08` list known
+  divergences, including the fee-residue refinement gap.
 - The bounded sweeps cover the stated boxes only. They are not exhaustive over
   the declared domain and are not a proof.
 - The reject-code mapping to source codes is informative. The model neither
   proves nor claims the source's reject order.
-- Fee percentages, burn floors, retained-supply rules, Oracle economics,
-  margin rules, authority grants, route selection, and governance are not
-  represented and remain unselected.
+- Fee percentages, residue ownership, burn floors, retained-supply rules,
+  Oracle economics, margin rules, authority grants, route selection, and
+  governance are not represented and remain unselected.
 - Canonical bytes, roots, receipts, journals, routes, epochs, Oracle
   occurrences, the external outbox, migration, and durable publication are
   outside the model.
@@ -445,15 +548,16 @@ both observable.
   so no packet was created and `tools/check_test_hygiene_v1.py` and
   `tools/run_test_hygiene_gate_v1.py` were not run. Creating that packet is an
   integrator action.
-- The commit introducing these files is not pushed and is bound to no receipt;
-  its hash lives outside these files. An independent Max review and a local
-  replay of the Evidence commands are required before any downstream use.
+- Commits are not pushed and are bound to no receipt; their hashes live
+  outside these files. The second model-specific independent review is
+  pending and may require a further repair commit.
 
 ## Next safest step
 
-Replay the ESSO `validate` and `verify-multi` commands on a host with
-`external/ESSO`, record the JSON payloads, and only then mark the formal
-status of `global_settlement_core_v1.yaml` as verified. Keep the three-file
-boundary until the integrator adds the test-hygiene packet. Do not derive
-FCIS runtime code from this blueprint until the ESSO replay and the
-independent review are recorded.
+Record the pending model-specific review. If it raises a blocker, repair in a
+further commit without amending. Keep the three-file boundary until the
+integrator adds the test-hygiene packet. Before any FCIS runtime work, close
+or explicitly carry each `GAP-*` row into the runtime obligations, starting
+with the exact versioned residue mapping (`GAP-07`) and route compatibility
+(`GAP-01`). Do not derive runtime code from the `authority_ok` premise
+(`GAP-03`).

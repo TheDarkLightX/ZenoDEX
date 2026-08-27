@@ -3,9 +3,13 @@
 
 Evidence families (Test Hygiene Contract V1 vocabulary):
 
-- ``formal``: ``python3 -m ESSO validate`` and ``python3 -m ESSO verify-multi``.
-  When the private toolchain is absent (no ``external/ESSO`` checkout and no
-  importable ``ESSO`` package) those tests SKIP and the formal verdict is
+- ``formal``: ``python3 -m ESSO validate`` and ``python3 -m ESSO verify-multi``
+  against the private toolchain, which is external to this checkout
+  (``PYTHONPATH=/path/to/ESSO`` or an ``external/ESSO`` checkout).  The
+  durable status ``BOUNDED_ESSO_VERIFIED_RESEARCH_ONLY`` rests on the exact
+  replay recorded in the blueprint; the tests below bind the recorded IR hash,
+  fingerprint, and obligation set to the tool output whenever the toolchain is
+  present.  When it is absent those tests SKIP and that host's run is
   INCOMPLETE.  A skip is never a pass.
 - ``stateful``, ``boundary``, ``negative_regression``, ``mutation``, ``replay``:
   a pure-Python interpreter of the same YAML (the executable bounded model)
@@ -46,6 +50,39 @@ BLUEPRINT = ROOT / "docs" / "research" / "ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_
 TYPES_SOURCE = ROOT / "src" / "core" / "global_settlement_types_v1.py"
 EXTERNAL_ESSO = ROOT / "external" / "ESSO"
 BASE_COMMIT = "f7e851565e063fb3e74b060a9c45f27b8621a8d7"
+INITIAL_CANDIDATE_COMMIT = "f04bf4760a941966bf19e8c3c289b3c0d6c1feeb"
+DURABLE_STATUS = "BOUNDED_ESSO_VERIFIED_RESEARCH_ONLY"
+RETIRED_STATUS = "FORMAL_VERDICT_INCOMPLETE_ESSO_ABSENT"
+
+# Exact replay facts recorded in the blueprint.  The IR hash covers the model
+# file including ``meta``; the fingerprint covers the verified semantics.
+RECORDED_IR_HASH = "sha256:ec6a4c4518b6c5655082e487e816f4bd1411dfb74479afcd656783916d34090a"
+REVIEW_IR_HASH = "sha256:872a813305f2f34429c1f028918eb3e1bb5c5ce378c723501645c77b9098056b"
+RECORDED_FINGERPRINT = "58a1a345fed1f25c7d98e22452764b9dccfc2df82ac66217b7b109dc58389c43"
+RECORDED_ESSO_CODE_HASH = "7f80c6216be85c827e8d1cc2fa08ee3107a74588"
+RECORDED_OBLIGATIONS = frozenset({"init_implies_inv", "inductive_step"})
+
+# Enforced source pins: blueprint row, this table, and the file must agree.
+# Claim grade is source-pin evidence, never refinement evidence.
+ENFORCED_PINS = {
+    "src/core/global_settlement_types_v1.py": (
+        "df06cbff2800ed7e2a1a296766cd132a86fdcce51c5d8a9da3a01791344c16b0"
+    ),
+    "src/core/global_economic_state_effect_refinement_v1.py": (
+        "9e70b85ffc24e77fd7abf7a7a1e6aed8017f0f6ceac8d61e6c45e6f6dece7338"
+    ),
+    "zk/global_settlement_abi_v1/src/global_economic_state_effect_refinement.rs": (
+        "81dfe788c02767d080c3a2dc1cadd814ad3e489cbbc2b6fbf66ecf21ee77ee01"
+    ),
+    "src/core/epoch_effect_composition_v1.py": (
+        "a678e459c3d57462c20fb787160c5e1ef9ed0706e62c293449b21a978efdd045"
+    ),
+    "src/kernels/dex/global_settlement_core_v1.yaml": (
+        "f3ede1340db83376d10b7d473fb58df20f9185e5ef4dc773acbf3fe40f0365b6"
+    ),
+}
+
+GAP_IDS = tuple(f"GAP-{index:02d}" for index in range(1, 9))
 
 ESSO_SKIP_REASON = (
     "ESSO toolchain absent (no external/ESSO checkout, no importable ESSO): "
@@ -726,13 +763,13 @@ def mutant_omitted_residue(doc: dict[str, Any]) -> None:
 
 
 def mutant_omitted_residue_row(doc: dict[str, Any]) -> None:
-    """Residue atoms are carried in custody but the fee row omits the residue term."""
+    """Residue atoms reach the residue accounting location but the fee row omits them."""
 
     _update(doc, "g_fee_residue_a")["expr"] = _const(0)
 
 
 def mutant_reject_with_effects(doc: dict[str, Any]) -> None:
-    """A rejected step still moves the fee from the payer into the fee custody.
+    """A rejected step still moves the fee from the payer into the fee-allocation location.
 
     Holdings and supply stay equal, so conservation alone cannot reveal it; the
     exact pre-root no-op invariant does.
@@ -857,17 +894,19 @@ def test_ghost_journal_is_write_only_for_the_transition(doc: dict[str, Any]) -> 
         assert ghosts <= allowed, (item["var"], ghosts)
 
 
-def test_blueprint_pins_base_commit_and_semantic_source_hash() -> None:
+def test_blueprint_pins_base_commit_and_semantic_source_hashes() -> None:
     text = BLUEPRINT.read_text(encoding="utf-8")
-    assert BASE_COMMIT in text
-    match = re.search(r"`src/core/global_settlement_types_v1\.py`\s*\|\s*`([0-9a-f]{64})`", text)
-    assert match is not None, "blueprint must pin src/core/global_settlement_types_v1.py"
-    actual = hashlib.sha256(TYPES_SOURCE.read_bytes()).hexdigest()
-    assert match.group(1) == actual, (
-        "semantic source drift: re-review FORMAL-MODEL-001 against "
-        "src/core/global_settlement_types_v1.py before trusting the blueprint"
-    )
-    assert "src/kernels/dex/global_settlement_core_v1.yaml" in text
+    assert BASE_COMMIT in text and INITIAL_CANDIDATE_COMMIT in text
+    assert TYPES_SOURCE.as_posix().endswith(next(iter(ENFORCED_PINS)))
+    for relative, expected in ENFORCED_PINS.items():
+        row = re.search(r"`" + re.escape(relative) + r"`[^|\n]*\|\s*`([0-9a-f]{64})`", text)
+        assert row is not None, f"blueprint must pin {relative}"
+        assert row.group(1) == expected, (relative, "blueprint pin differs from the test pin")
+        actual = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
+        assert actual == expected, (
+            relative,
+            "semantic source drift: re-review FORMAL-MODEL-001 before trusting the blueprint",
+        )
     assert "tests/formal/test_esso_global_settlement_core_v1.py" in text
 
 
@@ -884,8 +923,227 @@ def test_blueprint_names_every_lane_invariant_reject_code_and_mutant(model: Boun
     assert "INCOMPLETE" in text and "ESSO" in text
 
 
+def _durable_texts() -> dict[str, str]:
+    return {
+        "blueprint": BLUEPRINT.read_text(encoding="utf-8"),
+        "model": MODEL.read_text(encoding="utf-8"),
+        "tests": Path(__file__).read_text(encoding="utf-8"),
+    }
+
+
+def _prose(body: str) -> str:
+    """Collapse line wrapping so multi-word phrases match across line breaks."""
+
+    return " ".join(body.split())
+
+
+def test_blueprint_records_the_durable_status_and_no_authority() -> None:
+    text = BLUEPRINT.read_text(encoding="utf-8")
+    status_line = next(line for line in text.splitlines() if line.startswith("Status:"))
+    assert "RESEARCH_ONLY_UNMOUNTED" in status_line and DURABLE_STATUS in status_line
+    assert RETIRED_STATUS not in text
+    for authority in ("Production", "Settlement", "Release", "Value-moving"):
+        assert f"{authority} authority: `NONE`" in text, authority
+    assert "external to this checkout" in _prose(text) and "/path/to/ESSO" in text
+    machine_specific = "/" + "home/"
+    for name, body in _durable_texts().items():
+        assert machine_specific not in body, name
+
+
+def test_blueprint_records_the_exact_esso_replay_facts() -> None:
+    text = BLUEPRINT.read_text(encoding="utf-8")
+    facts = (
+        RECORDED_IR_HASH,
+        REVIEW_IR_HASH,
+        RECORDED_FINGERPRINT,
+        RECORDED_ESSO_CODE_HASH,
+        *sorted(RECORDED_OBLIGATIONS),
+        "Inductive(k=1)",
+    )
+    for fact in facts:
+        assert fact in text, fact
+    assert RECORDED_IR_HASH not in MODEL.read_text(encoding="utf-8"), (
+        "the IR hash covers the model file and must never be recorded inside it"
+    )
+
+
+def test_durable_artifacts_use_legally_neutral_accounting_language() -> None:
+    word = "cust" + "ody"
+    forbidden = (
+        f"named {word}",
+        f"{word} holding",
+        f"{word} backing",
+        f"in {word}",
+        f"takes {word}",
+        f"has {word}",
+        "cust" + "odied",
+        "cust" + "odial",
+        "cust" + "odian",
+    )
+    texts = {name: _prose(body) for name, body in _durable_texts().items()}
+    for name, body in texts.items():
+        # Serialized ABI identifiers and code spans may be quoted as field names only.
+        prose = re.sub(r"`[^`]*`", "", body).lower()
+        hits = [phrase for phrase in forbidden if phrase in prose]
+        assert hits == [], (name, hits)
+    for name in ("blueprint", "model"):
+        assert "Practical custody follows key control" in texts[name], name
+        assert "no custody or title claim" in texts[name], name
+
+
+def test_authority_ok_is_an_abstract_authorization_premise(model: BoundedModel) -> None:
+    texts = {name: _prose(body) for name, body in _durable_texts().items()}
+    for name in ("blueprint", "model"):
+        for phrase in ("abstract authorization premise", "not an opaque witness", "not caller authority"):
+            assert phrase in texts[name], (name, phrase)
+    assert model.param_domains["authority_ok"] == Domain("bool")
+    # GAP-03: nothing but the bare Boolean decides authorization.
+    for name, pre, params in _accept_cases(model):
+        _, granted, granted_failures = check_step(model, pre, params)
+        _, denied, denied_failures = check_step(model, pre, dict(params, authority_ok=False))
+        assert granted_failures == [] and granted["accepted"] is True, name
+        assert denied_failures == [] and denied["reject_code"] == "RC_UNAUTHORIZED", name
+
+
+def test_blueprint_gap_table_lists_every_known_divergence() -> None:
+    text = _prose(BLUEPRINT.read_text(encoding="utf-8"))
+    for gap_id in GAP_IDS:
+        assert gap_id in text, gap_id
+    for phrase in (
+        "route compatibility",
+        "AllowedRoute",
+        "unknown-asset",
+        "unconstrained Boolean",
+        "aggregate atoms",
+        "u128",
+        "epoch",
+        "injective",
+        "canonical runtime hash",
+        "no state-bearing mapping",
+        "known GAP, not a runtime-refinement pass",
+        "invariant conjunction",
+        "No per-invariant obligation was run",
+    ):
+        assert phrase in text, phrase
+
+
+def test_gap_01_every_modeled_command_accepts_on_every_registered_lane(model: BoundedModel) -> None:
+    lanes = model.enums["LaneId"]
+    for name, pre, params in _accept_cases(model):
+        for index, lane in enumerate(lanes):
+            _, effects, failures = check_step(model, pre, dict(params, lane_index=index))
+            assert failures == [] and effects["accepted"] is True, (name, lane)
+            assert effects["lane"] == lane
+        _, effects, failures = check_step(model, pre, dict(params, lane_index=len(lanes)))
+        assert failures == [] and effects["reject_code"] == "RC_UNKNOWN_LANE", name
+
+
+def test_gap_02_asset_domain_is_exactly_a_and_b(model: BoundedModel) -> None:
+    assert model.param_domains["asset"] == Domain("int", 0, 1)
+    assert not any(code.endswith("_ASSET") for code in model.enums["RejectCode"])
+    assert {name[-1] for name in CORE_A + CORE_B} == {"a", "b"}
+
+
+def test_gap_04_terminal_obligations_are_aggregate_atoms_only(model: BoundedModel) -> None:
+    obligation_vars = [name for name in model.state_vars if "obligation" in name]
+    assert obligation_vars == ["obligation_a", "obligation_b"]
+    assert all(model.domains[name].kind == "int" for name in obligation_vars)
+    foreign = ("claimant", "obligation_id", "release", "status", "tombstone")
+    assert not any(token in name for name in model.state_vars for token in foreign)
+    empty = model.init_state()
+    _, missing, missing_failures = check_step(model, empty, command(empty, KIND_DRAIN, amount=1))
+    assert missing_failures == [] and missing["reject_code"] == "RC_MISSING_TERMINAL_OBLIGATION"
+    obliged = make_state(model, obligation_a=2, supply_a=2)
+    post, partial, partial_failures = check_step(model, obliged, command(obliged, KIND_DRAIN, amount=1))
+    assert partial_failures == [] and partial["accepted"] is True
+    assert (post["obligation_a"], post["payer_a"]) == (1, 1), "aggregate atoms drain without object identity"
+
+
+def test_gap_05_finite_widths_are_model_bounds_not_production_widths(model: BoundedModel) -> None:
+    from src.core.global_settlement_types_v1 import (
+        MAX_ATOMS_V1,
+        MAX_DELTA_ATOMS_V1,
+        MAX_EPOCH_COMMANDS_V1,
+        MAX_U64_V1,
+    )
+
+    width = model.domains["supply_a"].hi
+    horizon = model.domains["height"].hi
+    identities = model.param_domains["occurrence"].hi + 1
+    assert (width, horizon, identities) == (4, 3, 3)
+    assert all(model.domains[name].hi == width for name in CORE_A + CORE_B)
+    assert model.param_domains["amount"].hi == width
+    assert width < MAX_DELTA_ATOMS_V1 < MAX_ATOMS_V1
+    assert horizon < MAX_U64_V1 and identities < MAX_EPOCH_COMMANDS_V1
+
+
+def test_gap_06_base5_pre_state_image_is_injective_only_over_the_bounded_tuple(
+    model: BoundedModel,
+) -> None:
+    width = model.domains["supply_a"].hi
+    names = tuple(f"{name}_a" for name in (*PARTITIONS, "supply"))
+    images: dict[int, tuple[int, ...]] = {}
+    for values in itertools.product(range(width + 1), repeat=len(names)):
+        image = root(dict(zip(names, values, strict=True)), "a")
+        assert image not in images, (values, images.get(image))
+        images[image] = values
+    assert len(images) == (width + 1) ** len(names)
+    assert max(images) == model.domains["g_pre_root_a"].hi
+    # One atom past the width collides with one atom in the next location, so
+    # the image is not injective outside the bounded tuple and is not a hash.
+    overflow = dict(zip(names, (width + 1, 0, 0, 0, 0, 0), strict=True))
+    neighbour = dict(zip(names, (0, 1, 0, 0, 0, 0), strict=True))
+    assert root(overflow, "a") == root(neighbour, "a")
+
+
+def test_gap_07_model_accepts_carried_residue_that_source_refinement_rejects(
+    model: BoundedModel,
+) -> None:
+    from src.core.global_economic_state_effect_refinement_v1 import _require_fee_mirror_v1
+    from src.core.global_settlement_types_v1 import (
+        EconomicEffectKindV1,
+        EconomicEffectRowV1,
+        FeeConservationRowV1,
+        GlobalEconomicEffectPlanV1,
+    )
+
+    # Model side: carried residue is an accepted accounting location.
+    pre = make_state(model, payer_a=2, supply_a=2)
+    params = command(pre, KIND_TRANSFER, amount=1, fee_charged=1, fee_alloc=0)
+    post, effects, failures = check_step(model, pre, params)
+    assert failures == [] and effects["accepted"] is True
+    assert post["fee_residue_a"] == 1 and effects["fee_residue_a"] == 1
+
+    # Source side: the pinned refinement check (refinement_v1.py:249-252)
+    # rejects the same nonzero residue as unmapped.  Zero residue with a
+    # mirrored allocation passes the same check.
+    residue_plan = GlobalEconomicEffectPlanV1(
+        rows=(),
+        asset_conservation=(),
+        fee_conservation=(FeeConservationRowV1("A", 1, 0, 1),),
+        lane_writes=(),
+        occurrence_consumptions=(),
+        external_outbox_enqueue=(),
+    )
+    with pytest.raises(ValueError, match="fee residue has no state-bearing mapping"):
+        _require_fee_mirror_v1(residue_plan)
+    mirrored_rows = tuple(
+        EconomicEffectRowV1(kind, "fee-vault", "A", "protocol", 1)
+        for kind in (EconomicEffectKindV1.ACCOUNT_MOVEMENT, EconomicEffectKindV1.FEE_ALLOCATION)
+    )
+    mirrored_plan = GlobalEconomicEffectPlanV1(
+        rows=mirrored_rows,
+        asset_conservation=(),
+        fee_conservation=(FeeConservationRowV1("A", 1, 1, 0),),
+        lane_writes=(),
+        occurrence_consumptions=(),
+        external_outbox_enqueue=(),
+    )
+    _require_fee_mirror_v1(mirrored_plan)
+
+
 # --------------------------------------------------------------------------- #
-# ESSO evidence (skipped = INCOMPLETE, never a pass).
+# ESSO evidence (skipped = INCOMPLETE on this host, never a pass).
 # --------------------------------------------------------------------------- #
 
 
@@ -923,6 +1181,10 @@ def test_esso_validate_reports_ok_or_evidence_is_incomplete() -> None:
     assert result.returncode == 0, result.stderr or result.stdout
     payload = json.loads(result.stdout)
     assert payload["ok"] is True, payload
+    assert payload["ir_hash"] == RECORDED_IR_HASH, (
+        "IR hash drift: the model changed since the recorded replay; update the blueprint",
+        payload,
+    )
 
 
 @pytest.mark.skipif(not _esso_available(), reason=ESSO_SKIP_REASON)
@@ -947,10 +1209,21 @@ def test_esso_verify_multi_reports_verified_or_evidence_is_incomplete(model: Bou
     assert report["solvers_agreed"] is True, report
     assert report["failed_queries"] == 0, report
     assert report["inconclusive_queries"] == 0, report
-    queries = payload.get("queries", {})
-    for name in ("init_implies_inv", f"inductive_{model.action_id}"):
-        if name in queries:
-            assert queries[name]["final_result"] == "unsat", (name, queries[name])
+    assert payload["model"]["ir_hash"] == RECORDED_IR_HASH, payload["model"]
+    # GAP-08: exactly two obligations over the invariant conjunction.
+    queries = payload["queries"]
+    assert set(queries) == set(RECORDED_OBLIGATIONS), sorted(queries)
+    assert f"inductive_{model.action_id}" in queries
+    for name in RECORDED_OBLIGATIONS:
+        assert queries[name]["final_result"] == "unsat", (name, queries[name])
+        assert queries[name]["agreed"] is True, (name, queries[name])
+    scope = report["scope"]
+    assert (scope["kind"], scope["k"], scope["badge"]) == ("inductive", 1, "Inductive(k=1)")
+    trials = int(payload["determinism_trials"])
+    fingerprints = list(payload["fingerprints"])
+    assert len(fingerprints) == trials and len(set(fingerprints)) == 1, fingerprints
+    if report["tool_versions"]["esso_code_hash"] == RECORDED_ESSO_CODE_HASH:
+        assert fingerprints == [RECORDED_FINGERPRINT] * trials, fingerprints
 
 
 # --------------------------------------------------------------------------- #
