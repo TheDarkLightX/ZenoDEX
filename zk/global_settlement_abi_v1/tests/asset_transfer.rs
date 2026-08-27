@@ -238,6 +238,41 @@ fn rejection_precedence_is_typed_and_exact_no_op() {
 }
 
 #[test]
+fn sender_insufficiency_precedes_credit_overflow_independent_of_principal_order() {
+    for (sender, recipient) in [
+        ("z_sender", "a_recipient"),
+        ("a_sender", "z_recipient"),
+    ] {
+        // Arrange: the sender has no balance and tries to credit an
+        // already-maximal recipient. Both balance failures are reachable. The
+        // two cases reverse lexical role order as a metamorphic rename.
+        let mut pre_state = state(true, 0);
+        pre_state.balances = vec![EconomicAmountV1 {
+            owner: recipient.to_owned(),
+            asset: "USD".to_owned(),
+            custody_domain: ACCOUNT_CUSTODY_DOMAIN_V1.to_owned(),
+            amount_atoms: u128::MAX,
+        }];
+        pre_state.supplies[0].amount_atoms = u128::MAX;
+        let mut transfer_context = context();
+        transfer_context.subject_id = sender.to_owned();
+        let mut transfer_command = command();
+        transfer_command.sender = sender.to_owned();
+        transfer_command.recipient = recipient.to_owned();
+        transfer_command.amount_atoms = 1;
+        transfer_command.max_fee_atoms = 0;
+
+        // Act.
+        let code = reject_code(&transfer_context, &pre_state, &transfer_command);
+
+        // Assert: semantic role order owns rejection precedence. Principal
+        // spelling must not change the observable result, and sender
+        // insufficiency prevents inspection of credit-side balance failures.
+        assert_eq!(code, AssetTransferRejectCodeV1::INSUFFICIENT_BALANCE);
+    }
+}
+
+#[test]
 fn transfer_rejects_effect_width_before_balance_mutation() {
     let amount_atoms = 1_u128 << 127;
     let mut wide_state = state(true, 0);
