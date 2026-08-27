@@ -41,6 +41,7 @@ from .global_settlement_types_v1 import (
     hash_global_v1,
 )
 from .lane_module_release_route_binding_v1 import (
+    ManagedAssetLifecycleReleaseRouteBindingCandidateV1,
     PerpsMarginReleaseRouteBindingCandidateV1,
     ReleaseRouteBoundLaneTransitionV1,
     bind_asset_transfer_lane_output_to_release_route_v1,
@@ -53,6 +54,10 @@ from .managed_asset_lifecycle_lane_module_v1 import (
     _recompute_managed_asset_lifecycle_lane_module_accepted_v1,
     _snapshot_managed_asset_lifecycle_lane_module_accepted_v1,
     _snapshot_managed_asset_lifecycle_lane_module_input_v1,
+)
+from .managed_asset_policy_registry_v1 import (
+    ManagedAssetPolicyRegistryV1,
+    snapshot_managed_asset_policy_registry_v1,
 )
 from .perps_margin_lane_module_v1 import (
     PerpsMarginLaneModuleInputV1,
@@ -117,6 +122,8 @@ class AssetTransferLaneModuleReceiptCandidateV1:
 @dataclass(frozen=True, slots=True)
 class ManagedAssetLifecycleLaneModuleReceiptCandidateV1:
     profile: EconomicProfileSnapshotV1
+    policy_registry: EconomicPolicyRegistryV1
+    asset_policy_registry: ManagedAssetPolicyRegistryV1
     authenticated_command: AuthenticatedEconomicCommandV1
     module_input: ManagedAssetLifecycleLaneModuleInputV1
     accepted: ManagedAssetLifecycleLaneModuleAcceptedV1
@@ -126,6 +133,12 @@ class ManagedAssetLifecycleLaneModuleReceiptCandidateV1:
     def __post_init__(self) -> None:
         expected_types = (
             (self.profile, EconomicProfileSnapshotV1, "economic profile"),
+            (self.policy_registry, EconomicPolicyRegistryV1, "economic policy registry"),
+            (
+                self.asset_policy_registry,
+                ManagedAssetPolicyRegistryV1,
+                "managed asset policy registry",
+            ),
             (
                 self.authenticated_command,
                 AuthenticatedEconomicCommandV1,
@@ -373,15 +386,23 @@ def verify_managed_asset_lifecycle_lane_module_receipt_v1(
     candidate: ManagedAssetLifecycleLaneModuleReceiptCandidateV1,
     receipt_verifier: SuccinctReceiptVerifierV1,
 ) -> VerifiedLaneModuleTransitionV1:
-    """Verify one ordinary-token issue or burn receipt under its release image."""
+    """Verify one ordinary-token issue or burn receipt under its release image.
+
+    The rebound structural binding recomputes governed managed-asset policy
+    registry membership before any receipt bytes reach the verifier port.
+    """
 
     owned = _snapshot_managed_lifecycle_receipt_candidate_v1(candidate)
     occurrence = owned.authenticated_command.occurrence
     rebound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-        owned.profile,
-        occurrence,
-        owned.module_input,
-        owned.accepted,
+        ManagedAssetLifecycleReleaseRouteBindingCandidateV1(
+            owned.profile,
+            owned.policy_registry,
+            owned.asset_policy_registry,
+            occurrence,
+            owned.module_input,
+            owned.accepted,
+        )
     )
     _, expected = _recompute_managed_asset_lifecycle_lane_module_accepted_v1(
         owned.module_input,
@@ -460,6 +481,10 @@ def _snapshot_managed_lifecycle_receipt_candidate_v1(
         raise TypeError("managed lifecycle receipt candidate must have the exact type")
     return ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
         profile=snapshot_economic_profile_v1(candidate.profile),
+        policy_registry=snapshot_economic_policy_registry_v1(candidate.policy_registry),
+        asset_policy_registry=snapshot_managed_asset_policy_registry_v1(
+            candidate.asset_policy_registry
+        ),
         authenticated_command=candidate.authenticated_command,
         module_input=_snapshot_managed_asset_lifecycle_lane_module_input_v1(
             candidate.module_input

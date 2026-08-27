@@ -14,7 +14,8 @@ use crate::global_oracle_price_occurrence::VerifiedGlobalOraclePriceV1;
 use crate::lane_module_release_route_binding::{
     bind_asset_transfer_lane_output_structural_v1,
     bind_managed_asset_lifecycle_lane_output_structural_v1,
-    bind_perps_margin_lane_output_to_release_route_v1, PerpsMarginReleaseRouteBindingCandidateV1,
+    bind_perps_margin_lane_output_to_release_route_v1,
+    ManagedAssetLifecycleReleaseRouteBindingCandidateV1, PerpsMarginReleaseRouteBindingCandidateV1,
     ReleaseRouteBoundLaneTransitionV1,
 };
 use crate::managed_asset_lifecycle_lane_module::{
@@ -22,6 +23,7 @@ use crate::managed_asset_lifecycle_lane_module::{
     ManagedAssetLifecycleLaneModuleAcceptedV1, ManagedAssetLifecycleLaneModuleInputV1,
     RecomputedManagedAssetLifecycleLaneModuleV1,
 };
+use crate::managed_asset_policy_registry::ManagedAssetPolicyRegistryV1;
 use crate::perps_margin_lane_module::{
     recompute_perps_margin_accepted_v1, PerpsMarginLaneModuleInputV1,
 };
@@ -69,6 +71,8 @@ pub struct AssetTransferLaneModuleReceiptCandidateV1<'a> {
 
 pub struct ManagedAssetLifecycleLaneModuleReceiptCandidateV1<'a> {
     pub profile: &'a EconomicProfileSnapshotV1,
+    pub policy_registry: &'a EconomicPolicyRegistryV1,
+    pub asset_policy_registry: &'a ManagedAssetPolicyRegistryV1,
     pub lanes: &'a LaneRegistryV1,
     pub coordinators: &'a LaneCoordinatorRegistryV1,
     pub routes: &'a RouteRegistryV1,
@@ -313,15 +317,18 @@ pub fn verify_managed_asset_lifecycle_lane_module_receipt_v1(
     receipt_verifier: &dyn LaneModuleSuccinctReceiptVerifierV1,
 ) -> AbiResultV1<VerifiedLaneModuleTransitionV1> {
     let occurrence = candidate.authenticated_command.occurrence();
-    let rebound = bind_managed_asset_lifecycle_lane_output_structural_v1(
-        candidate.profile,
-        candidate.lanes,
-        candidate.coordinators,
-        candidate.routes,
+    let structural_candidate = ManagedAssetLifecycleReleaseRouteBindingCandidateV1 {
+        profile: candidate.profile,
+        policy_registry: candidate.policy_registry,
+        asset_policy_registry: candidate.asset_policy_registry,
+        lanes: candidate.lanes,
+        coordinators: candidate.coordinators,
+        routes: candidate.routes,
         occurrence,
-        candidate.module_input,
-        candidate.accepted,
-    )?;
+        module_input: candidate.module_input,
+        accepted: candidate.accepted,
+    };
+    let rebound = bind_managed_asset_lifecycle_lane_output_structural_v1(&structural_candidate)?;
     require_exact_release_route_binding_v1(candidate.release_route_binding, &rebound)?;
     let expected = recompute_managed_asset_lifecycle_lane_module_from_validated_accepted_v1(
         candidate.module_input,

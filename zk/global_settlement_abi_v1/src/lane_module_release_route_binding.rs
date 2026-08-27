@@ -10,6 +10,10 @@ use crate::managed_asset_lifecycle_lane_module::{
     recompute_managed_asset_lifecycle_lane_module_from_validated_accepted_v1,
     ManagedAssetLifecycleLaneModuleAcceptedV1, ManagedAssetLifecycleLaneModuleInputV1,
 };
+use crate::managed_asset_policy_registry::{
+    require_governed_managed_asset_policy_registry_v1, require_managed_asset_policy_membership_v1,
+    require_managed_asset_route_policy_root_v1, ManagedAssetPolicyRegistryV1,
+};
 use crate::perps_margin_lane_module::{
     recompute_perps_margin_accepted_v1, PerpsMarginLaneModuleInputV1,
 };
@@ -315,40 +319,62 @@ pub(crate) fn bind_asset_transfer_lane_output_structural_v1(
     )
 }
 
-pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-    profile: &EconomicProfileSnapshotV1,
-    lanes: &LaneRegistryV1,
-    coordinators: &LaneCoordinatorRegistryV1,
-    routes: &RouteRegistryV1,
-    occurrence: &EconomicCommandOccurrenceV1,
-    module_input: &ManagedAssetLifecycleLaneModuleInputV1,
-    accepted: &ManagedAssetLifecycleLaneModuleAcceptedV1,
-) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
-    let bound = bind_managed_asset_lifecycle_lane_output_structural_v1(
-        profile,
-        lanes,
-        coordinators,
-        routes,
-        occurrence,
-        module_input,
-        accepted,
+/// Exact inputs for one governed ordinary-token issue or burn binding.
+pub struct ManagedAssetLifecycleReleaseRouteBindingCandidateV1<'a> {
+    pub profile: &'a EconomicProfileSnapshotV1,
+    pub policy_registry: &'a EconomicPolicyRegistryV1,
+    pub asset_policy_registry: &'a ManagedAssetPolicyRegistryV1,
+    pub lanes: &'a LaneRegistryV1,
+    pub coordinators: &'a LaneCoordinatorRegistryV1,
+    pub routes: &'a RouteRegistryV1,
+    pub occurrence: &'a EconomicCommandOccurrenceV1,
+    pub module_input: &'a ManagedAssetLifecycleLaneModuleInputV1,
+    pub accepted: &'a ManagedAssetLifecycleLaneModuleAcceptedV1,
+}
+
+fn require_managed_asset_policy_binding_v1(
+    candidate: &ManagedAssetLifecycleReleaseRouteBindingCandidateV1<'_>,
+) -> AbiResultV1<()> {
+    require_governed_managed_asset_policy_registry_v1(
+        candidate.profile,
+        candidate.policy_registry,
+        candidate.occurrence,
+        candidate.asset_policy_registry,
     )?;
+    require_managed_asset_policy_membership_v1(
+        candidate.asset_policy_registry,
+        candidate.module_input,
+    )?;
+    require_managed_asset_route_policy_root_v1(
+        candidate.routes,
+        candidate.occurrence,
+        candidate.asset_policy_registry,
+    )?;
+    Ok(())
+}
+
+/// Bind one accepted ordinary-token issue or burn to its governed route.
+///
+/// The command asset and every carried state policy must be exact members of
+/// the typed managed-asset policy registry that the active profile governs
+/// for the command kind, and the selected route's issue/burn policy root must
+/// be that registry's root, before the route witness is constructed.
+pub fn bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
+    candidate: ManagedAssetLifecycleReleaseRouteBindingCandidateV1<'_>,
+) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
+    let bound = bind_managed_asset_lifecycle_lane_output_structural_v1(&candidate)?;
     recompute_managed_asset_lifecycle_lane_module_from_validated_accepted_v1(
-        module_input,
-        accepted,
+        candidate.module_input,
+        candidate.accepted,
     )?;
     Ok(bound)
 }
 
 pub(crate) fn bind_managed_asset_lifecycle_lane_output_structural_v1(
-    profile: &EconomicProfileSnapshotV1,
-    lanes: &LaneRegistryV1,
-    coordinators: &LaneCoordinatorRegistryV1,
-    routes: &RouteRegistryV1,
-    occurrence: &EconomicCommandOccurrenceV1,
-    module_input: &ManagedAssetLifecycleLaneModuleInputV1,
-    accepted: &ManagedAssetLifecycleLaneModuleAcceptedV1,
+    candidate: &ManagedAssetLifecycleReleaseRouteBindingCandidateV1<'_>,
 ) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
+    let module_input = candidate.module_input;
+    let accepted = candidate.accepted;
     module_input.validate()?;
     accepted.validate()?;
     let statement_root = module_input.statement_root()?;
@@ -357,12 +383,13 @@ pub(crate) fn bind_managed_asset_lifecycle_lane_output_structural_v1(
             "managed asset accepted statement",
         ));
     }
+    require_managed_asset_policy_binding_v1(candidate)?;
     bind_candidate_v1(
-        profile,
-        lanes,
-        coordinators,
-        routes,
-        occurrence,
+        candidate.profile,
+        candidate.lanes,
+        candidate.coordinators,
+        candidate.routes,
+        candidate.occurrence,
         BindingCandidateV1 {
             actual_command_kind: &module_input.command.command_kind,
             command_body_hash: module_input.command.command_body_hash()?,

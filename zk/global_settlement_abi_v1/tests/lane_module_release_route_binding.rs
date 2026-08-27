@@ -231,6 +231,15 @@ fn coordinator_release(lane_id: LaneIdV1, ordinal: u64) -> LaneCoordinatorReleas
 }
 
 fn route(command_kind: &str, index: u64, release_id: &RootV1) -> RouteReleaseV1 {
+    route_with_issue_burn_policy_root(command_kind, index, release_id, root(511))
+}
+
+fn route_with_issue_burn_policy_root(
+    command_kind: &str,
+    index: u64,
+    release_id: &RootV1,
+    issue_burn_policy_root: RootV1,
+) -> RouteReleaseV1 {
     let ordered_lanes = vec![LaneIdV1::ASSET_TRANSFER];
     let module_release_ids = vec![release_id.clone()];
     let dependency_roles = vec!["VALUE_OWNER".to_owned()];
@@ -240,7 +249,6 @@ fn route(command_kind: &str, index: u64, release_id: &RootV1) -> RouteReleaseV1 
     let source_root = root(540 + index);
     let toolchain_root = root(550 + index);
     let oracle_policy_root = root(510);
-    let issue_burn_policy_root = root(511);
     let content = json!({
         "schema": GLOBAL_SETTLEMENT_ABI_V1,
         "command_kind": command_kind,
@@ -501,6 +509,22 @@ fn profile() -> (
             .map(|(index, lane)| coordinator_release(*lane, index as u64 + 1))
             .collect(),
     };
+    let authorizations = authorization_registry(&routes);
+    let signature_verifiers = signature_verifier_registry();
+    let policy_registry_root =
+        authentication_policy_registry(&authorizations, &signature_verifiers)
+            .registry_root()
+            .unwrap();
+    let profile = asset_profile_snapshot(&lanes, &coordinators, &routes, policy_registry_root);
+    (profile, lanes, coordinators, routes)
+}
+
+fn asset_profile_snapshot(
+    lanes: &LaneRegistryV1,
+    coordinators: &LaneCoordinatorRegistryV1,
+    routes: &RouteRegistryV1,
+    policy_registry_root: RootV1,
+) -> EconomicProfileSnapshotV1 {
     let lane_registry_root = lanes.registry_root().unwrap();
     let lane_coordinator_registry_root = coordinators.registry_root().unwrap();
     let route_registry_root = routes.registry_root().unwrap();
@@ -508,12 +532,6 @@ fn profile() -> (
     let root_image_id = root(521);
     let verifier_registry_root = root(522);
     let migration_registry_root = root(523);
-    let authorizations = authorization_registry(&routes);
-    let signature_verifiers = signature_verifier_registry();
-    let policy_registry_root =
-        authentication_policy_registry(&authorizations, &signature_verifiers)
-            .registry_root()
-            .unwrap();
     let terminal_registry_root = root(525);
     let content = json!({
         "schema": GLOBAL_SETTLEMENT_ABI_V1,
@@ -544,9 +562,135 @@ fn profile() -> (
         status: ProfileStatusV1::ACTIVE,
     };
     profile
-        .validate_registries(&lanes, &coordinators, &routes)
+        .validate_registries(lanes, coordinators, routes)
         .expect("test profile must bind registries");
-    (profile, lanes, coordinators, routes)
+    profile
+}
+
+fn managed_asset_policy() -> ManagedAssetLifecyclePolicyV1 {
+    ManagedAssetLifecyclePolicyV1 {
+        asset: "USD".to_owned(),
+        asset_class: ManagedAssetClassV1::REGISTERED_ORDINARY_TOKEN,
+        issue_authority_subject: Some("issuer".to_owned()),
+        issue_policy_root: Some(root(5)),
+        burn_policy_root: Some(root(6)),
+        enabled: true,
+    }
+}
+
+fn managed_asset_policy_registry(module_release_id: &RootV1) -> ManagedAssetPolicyRegistryV1 {
+    ManagedAssetPolicyRegistryV1 {
+        schema: MANAGED_ASSET_POLICY_REGISTRY_SCHEMA_V1.to_owned(),
+        module_release_id: module_release_id.clone(),
+        policies: vec![managed_asset_policy()],
+    }
+}
+
+fn managed_policy_registry(
+    authorizations: &EconomicCommandAuthorizationRegistryV1,
+    signature_verifiers: &EconomicCommandSignatureVerifierRegistryV1,
+    asset_policy_registry: &ManagedAssetPolicyRegistryV1,
+) -> EconomicPolicyRegistryV1 {
+    let mut registry = authentication_policy_registry(authorizations, signature_verifiers);
+    for command_kind in [
+        MANAGED_ASSET_BURN_COMMAND_KIND_V1,
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+    ] {
+        registry.bindings.push(EconomicPolicyBindingV1 {
+            policy_kind: MANAGED_ASSET_POLICY_KIND_V1.to_owned(),
+            command_kind: command_kind.to_owned(),
+            policy_root: asset_policy_registry.registry_root().unwrap(),
+        });
+    }
+    registry.bindings.sort_by(|left, right| {
+        (&left.policy_kind, &left.command_kind).cmp(&(&right.policy_kind, &right.command_kind))
+    });
+    registry.validate().unwrap();
+    registry
+}
+
+/// One ACTIVE profile whose economic policy registry governs managed assets.
+struct ManagedGovernance {
+    profile: EconomicProfileSnapshotV1,
+    lanes: LaneRegistryV1,
+    coordinators: LaneCoordinatorRegistryV1,
+    routes: RouteRegistryV1,
+    policy_registry: EconomicPolicyRegistryV1,
+    asset_policy_registry: ManagedAssetPolicyRegistryV1,
+}
+
+fn managed_governance() -> ManagedGovernance {
+    managed_governance_with(None)
+}
+
+/// Managed issue and burn routes own the typed registry root as their
+/// `issue_burn_policy_root` unless a test overrides it.
+fn managed_governance_with(route_issue_burn_policy_root: Option<RootV1>) -> ManagedGovernance {
+    let (_, lanes, coordinators, _) = profile();
+    let asset_release_id = lanes
+        .release_for(LaneIdV1::ASSET_TRANSFER)
+        .unwrap()
+        .release_id
+        .clone();
+    let asset_policy_registry = managed_asset_policy_registry(&asset_release_id);
+    let managed_policy_root = route_issue_burn_policy_root
+        .unwrap_or_else(|| asset_policy_registry.registry_root().unwrap());
+    let routes = RouteRegistryV1 {
+        schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
+        routes: vec![
+            route(ASSET_TRANSFER_COMMAND_KIND_V1, 0, &asset_release_id),
+            route_with_issue_burn_policy_root(
+                MANAGED_ASSET_BURN_COMMAND_KIND_V1,
+                1,
+                &asset_release_id,
+                managed_policy_root.clone(),
+            ),
+            route_with_issue_burn_policy_root(
+                MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+                2,
+                &asset_release_id,
+                managed_policy_root,
+            ),
+        ],
+    };
+    let policy_registry = managed_policy_registry(
+        &authorization_registry(&routes),
+        &signature_verifier_registry(),
+        &asset_policy_registry,
+    );
+    let profile = asset_profile_snapshot(
+        &lanes,
+        &coordinators,
+        &routes,
+        policy_registry.registry_root().unwrap(),
+    );
+    ManagedGovernance {
+        profile,
+        lanes,
+        coordinators,
+        routes,
+        policy_registry,
+        asset_policy_registry,
+    }
+}
+
+fn managed_binding_candidate<'a>(
+    governance: &'a ManagedGovernance,
+    occurrence: &'a EconomicCommandOccurrenceV1,
+    module_input: &'a ManagedAssetLifecycleLaneModuleInputV1,
+    accepted: &'a ManagedAssetLifecycleLaneModuleAcceptedV1,
+) -> ManagedAssetLifecycleReleaseRouteBindingCandidateV1<'a> {
+    ManagedAssetLifecycleReleaseRouteBindingCandidateV1 {
+        profile: &governance.profile,
+        policy_registry: &governance.policy_registry,
+        asset_policy_registry: &governance.asset_policy_registry,
+        lanes: &governance.lanes,
+        coordinators: &governance.coordinators,
+        routes: &governance.routes,
+        occurrence,
+        module_input,
+        accepted,
+    }
 }
 
 fn perps_lane_release(lane_id: LaneIdV1, ordinal: u64) -> LaneModuleReleaseV1 {
@@ -955,6 +1099,9 @@ fn managed_input(
         .release_id
         .clone();
     let is_issue = command_kind == MANAGED_ASSET_ISSUE_COMMAND_KIND_V1;
+    let asset_policy_registry_root = managed_asset_policy_registry(&release_id)
+        .registry_root()
+        .unwrap();
     ManagedAssetLifecycleLaneModuleInputV1 {
         schema: MANAGED_ASSET_LIFECYCLE_LANE_MODULE_INPUT_SCHEMA_V1.to_owned(),
         context: ManagedAssetLifecycleContextV1 {
@@ -970,14 +1117,7 @@ fn managed_input(
         pre_state: ManagedAssetLifecycleStateV1 {
             schema: MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1.to_owned(),
             module_release_id: release_id,
-            policies: vec![ManagedAssetLifecyclePolicyV1 {
-                asset: "USD".to_owned(),
-                asset_class: ManagedAssetClassV1::REGISTERED_ORDINARY_TOKEN,
-                issue_authority_subject: Some("issuer".to_owned()),
-                issue_policy_root: Some(root(5)),
-                burn_policy_root: Some(root(6)),
-                enabled: true,
-            }],
+            policies: vec![managed_asset_policy()],
             balances: vec![EconomicAmountV1 {
                 owner: "alice".to_owned(),
                 asset: "USD".to_owned(),
@@ -995,7 +1135,7 @@ fn managed_input(
             account_owner: "alice".to_owned(),
             amount_atoms: if is_issue { 7 } else { 4 },
         },
-        asset_policy_registry_root: root(11),
+        asset_policy_registry_root,
         fee_policy_registry_root: root(12),
         custody: vec![],
     }
@@ -1094,25 +1234,73 @@ fn asset_issue_and_burn_outputs_bind_to_exact_active_profile_routes() {
         "0xcff38651027da371035b33cb7173ba002b9b942e1dc11436485f69d25aebf9f7"
     );
 
+    let governance = managed_governance();
+    // Cross-language vector: the Python route-binding suite asserts the same
+    // release-bound registry root for the same fixture.
+    assert_eq!(
+        &governance.asset_policy_registry.module_release_id,
+        &lanes
+            .release_for(LaneIdV1::ASSET_TRANSFER)
+            .unwrap()
+            .release_id
+    );
+    assert_eq!(
+        governance
+            .asset_policy_registry
+            .registry_root()
+            .unwrap()
+            .as_str(),
+        "0xba06d1d7425a1dff6633b077ad7da33eb7ff681a8623607e9cbda353d87c2879"
+    );
+    // Managed issue/burn routes own that registry root as issue_burn_policy_root.
+    for (command_kind, expected_route_release_id) in [
+        (
+            MANAGED_ASSET_BURN_COMMAND_KIND_V1,
+            "0xf9a0bf0ff296f198c5da915b0e612dcec24eee16b5fb7c65168b63c8b1db4fbc",
+        ),
+        (
+            MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+            "0x13a98232cd5861c444fc022c3419967dc488f99ad636202599621f586344962f",
+        ),
+    ] {
+        let route = governance
+            .routes
+            .route_for_command(command_kind, None)
+            .unwrap();
+        assert_eq!(
+            route.issue_burn_policy_root,
+            governance.asset_policy_registry.registry_root().unwrap()
+        );
+        assert_eq!(route.route_release_id.as_str(), expected_route_release_id);
+    }
+    assert_eq!(
+        governance.profile.profile_id.as_str(),
+        "0x8f65206657c02a3677706d7835b94da55e653c45d04abf035e4acd9fdc7a12bd"
+    );
     for (command_kind, subject_id, grant_root) in [
         (MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, "issuer", root(5)),
         (MANAGED_ASSET_BURN_COMMAND_KIND_V1, "alice", root(6)),
     ] {
-        let occurrence = occurrence(&profile, &routes, command_kind, subject_id, grant_root);
-        let input = managed_input(&profile, &lanes, &occurrence, command_kind);
+        let occurrence = occurrence(
+            &governance.profile,
+            &governance.routes,
+            command_kind,
+            subject_id,
+            grant_root,
+        );
+        let input = managed_input(
+            &governance.profile,
+            &governance.lanes,
+            &occurrence,
+            command_kind,
+        );
         let ManagedAssetLifecycleLaneModuleResultV1::Accepted(accepted) =
             transition_managed_asset_lifecycle_lane_module_v1(&input).unwrap()
         else {
             panic!("valid managed lifecycle command must accept")
         };
         let bound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-            &profile,
-            &lanes,
-            &coordinators,
-            &routes,
-            &occurrence,
-            &input,
-            &accepted,
+            managed_binding_candidate(&governance, &occurrence, &input, &accepted),
         )
         .expect("valid managed lifecycle output must bind");
         assert_eq!(bound.statement_root(), &input.statement_root().unwrap());
@@ -1197,7 +1385,7 @@ fn same_kind_transfer_body_substitution_rejects_before_receipt_binding() {
 
 #[test]
 fn same_kind_managed_body_substitution_rejects_before_receipt_binding() {
-    let (profile, lanes, coordinators, routes) = profile();
+    let governance = managed_governance();
     for (command_kind, subject_id) in [
         (MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, "issuer"),
         (MANAGED_ASSET_BURN_COMMAND_KIND_V1, "alice"),
@@ -1208,8 +1396,19 @@ fn same_kind_managed_body_substitution_rejects_before_receipt_binding() {
         } else {
             root(6)
         };
-        let occurrence = occurrence(&profile, &routes, command_kind, subject_id, grant_root);
-        let mut input = managed_input(&profile, &lanes, &occurrence, command_kind);
+        let occurrence = occurrence(
+            &governance.profile,
+            &governance.routes,
+            command_kind,
+            subject_id,
+            grant_root,
+        );
+        let mut input = managed_input(
+            &governance.profile,
+            &governance.lanes,
+            &occurrence,
+            command_kind,
+        );
         input.command.amount_atoms += 1;
         let ManagedAssetLifecycleLaneModuleResultV1::Accepted(accepted) =
             transition_managed_asset_lifecycle_lane_module_v1(&input).unwrap()
@@ -1220,13 +1419,7 @@ fn same_kind_managed_body_substitution_rejects_before_receipt_binding() {
         // Act / Assert
         assert_eq!(
             bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-                &profile,
-                &lanes,
-                &coordinators,
-                &routes,
-                &occurrence,
-                &input,
-                &accepted,
+                managed_binding_candidate(&governance, &occurrence, &input, &accepted),
             )
             .unwrap_err(),
             AbiErrorV1::InvalidBinding("lane module command body hash")
@@ -1275,14 +1468,25 @@ fn coherent_transfer_output_for_another_amount_rejects_before_route_binding() {
 
 #[test]
 fn coherent_managed_output_for_another_amount_rejects_before_route_binding() {
-    let (profile, lanes, coordinators, routes) = profile();
+    let governance = managed_governance();
     for (command_kind, subject_id, grant_root) in [
         (MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, "issuer", root(5)),
         (MANAGED_ASSET_BURN_COMMAND_KIND_V1, "alice", root(6)),
     ] {
         // Arrange
-        let occurrence = occurrence(&profile, &routes, command_kind, subject_id, grant_root);
-        let input = managed_input(&profile, &lanes, &occurrence, command_kind);
+        let occurrence = occurrence(
+            &governance.profile,
+            &governance.routes,
+            command_kind,
+            subject_id,
+            grant_root,
+        );
+        let input = managed_input(
+            &governance.profile,
+            &governance.lanes,
+            &occurrence,
+            command_kind,
+        );
         let mut foreign_input = input.clone();
         foreign_input.command.amount_atoms += 1;
         let ManagedAssetLifecycleLaneModuleResultV1::Accepted(mut forged) =
@@ -1294,13 +1498,7 @@ fn coherent_managed_output_for_another_amount_rejects_before_route_binding() {
 
         // Act
         let result = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-            &profile,
-            &lanes,
-            &coordinators,
-            &routes,
-            &occurrence,
-            &input,
-            &forged,
+            managed_binding_candidate(&governance, &occurrence, &input, &forged),
         );
 
         // Assert
@@ -1388,28 +1586,33 @@ fn receipt_structural_binding_rejects_a_coherent_foreign_output_before_recomputa
 
 #[test]
 fn managed_receipt_structural_binding_rejects_coherent_foreign_outputs_first() {
-    let (profile, lanes, coordinators, routes) = profile();
+    let governance = managed_governance();
     for (command_kind, subject_id, grant_root) in [
         (MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, "issuer", root(5)),
         (MANAGED_ASSET_BURN_COMMAND_KIND_V1, "alice", root(6)),
     ] {
         // Arrange: retain the honest route binding while supplying a coherent
         // amount+1 output rebound to the honest statement.
-        let occurrence = occurrence(&profile, &routes, command_kind, subject_id, grant_root);
-        let input = managed_input(&profile, &lanes, &occurrence, command_kind);
+        let occurrence = occurrence(
+            &governance.profile,
+            &governance.routes,
+            command_kind,
+            subject_id,
+            grant_root,
+        );
+        let input = managed_input(
+            &governance.profile,
+            &governance.lanes,
+            &occurrence,
+            command_kind,
+        );
         let ManagedAssetLifecycleLaneModuleResultV1::Accepted(accepted) =
             transition_managed_asset_lifecycle_lane_module_v1(&input).unwrap()
         else {
             panic!("valid managed lifecycle command must accept")
         };
         let bound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-            &profile,
-            &lanes,
-            &coordinators,
-            &routes,
-            &occurrence,
-            &input,
-            &accepted,
+            managed_binding_candidate(&governance, &occurrence, &input, &accepted),
         )
         .unwrap();
         let mut foreign_input = input.clone();
@@ -1420,22 +1623,25 @@ fn managed_receipt_structural_binding_rejects_coherent_foreign_outputs_first() {
             panic!("foreign managed command must remain economically valid")
         };
         structurally_rebind_managed_statement(&mut forged, input.statement_root().unwrap());
-        let authenticated = authenticate_occurrence(
-            &profile,
-            &routes,
+        let authenticated = authenticate_occurrence_with_policy_registry(
+            &governance.profile,
+            &governance.routes,
             &occurrence,
             canonical_economic_command_body_bytes_v1(&input.command.command_kind, &input.command)
                 .unwrap(),
+            &governance.policy_registry,
         );
         let verifier = RecordingModuleReceiptVerifier::default();
 
         // Act
         let result = verify_managed_asset_lifecycle_lane_module_receipt_v1(
             ManagedAssetLifecycleLaneModuleReceiptCandidateV1 {
-                profile: &profile,
-                lanes: &lanes,
-                coordinators: &coordinators,
-                routes: &routes,
+                profile: &governance.profile,
+                policy_registry: &governance.policy_registry,
+                asset_policy_registry: &governance.asset_policy_registry,
+                lanes: &governance.lanes,
+                coordinators: &governance.coordinators,
+                routes: &governance.routes,
                 authenticated_command: &authenticated,
                 module_input: &input,
                 accepted: &forged,
@@ -1585,17 +1791,17 @@ fn caller_route_profile_domain_and_release_substitutions_fail_closed() {
 
 #[test]
 fn managed_issue_occurrence_cannot_authorize_a_burn_output() {
-    let (profile, lanes, coordinators, routes) = profile();
+    let governance = managed_governance();
     let issue_occurrence = occurrence(
-        &profile,
-        &routes,
+        &governance.profile,
+        &governance.routes,
         MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
         "alice",
         root(6),
     );
     let burn_input = managed_input(
-        &profile,
-        &lanes,
+        &governance.profile,
+        &governance.lanes,
         &issue_occurrence,
         MANAGED_ASSET_BURN_COMMAND_KIND_V1,
     );
@@ -1605,15 +1811,12 @@ fn managed_issue_occurrence_cannot_authorize_a_burn_output() {
         panic!("valid self-burn must accept")
     };
     assert_eq!(
-        bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-            &profile,
-            &lanes,
-            &coordinators,
-            &routes,
+        bind_managed_asset_lifecycle_lane_output_to_release_route_v1(managed_binding_candidate(
+            &governance,
             &issue_occurrence,
             &burn_input,
-            &burn,
-        )
+            &burn
+        ),)
         .unwrap_err(),
         AbiErrorV1::InvalidBinding("lane module command kind")
     );
@@ -2913,43 +3116,51 @@ fn module_receipt_verification_uses_release_image_and_exact_journal() {
 
 #[test]
 fn managed_module_receipts_gain_release_image_bound_authority() {
-    let (profile, lanes, coordinators, routes) = profile();
+    let governance = managed_governance();
     for (command_kind, subject_id, grant_root) in [
         (MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, "issuer", root(5)),
         (MANAGED_ASSET_BURN_COMMAND_KIND_V1, "alice", root(6)),
     ] {
-        let occurrence = occurrence(&profile, &routes, command_kind, subject_id, grant_root);
-        let input = managed_input(&profile, &lanes, &occurrence, command_kind);
+        let occurrence = occurrence(
+            &governance.profile,
+            &governance.routes,
+            command_kind,
+            subject_id,
+            grant_root,
+        );
+        let input = managed_input(
+            &governance.profile,
+            &governance.lanes,
+            &occurrence,
+            command_kind,
+        );
         let ManagedAssetLifecycleLaneModuleResultV1::Accepted(accepted) =
             transition_managed_asset_lifecycle_lane_module_v1(&input).unwrap()
         else {
             panic!("valid managed lifecycle command must accept")
         };
         let bound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-            &profile,
-            &lanes,
-            &coordinators,
-            &routes,
-            &occurrence,
-            &input,
-            &accepted,
+            managed_binding_candidate(&governance, &occurrence, &input, &accepted),
         )
         .unwrap();
         let verifier = RecordingModuleReceiptVerifier::default();
-        let authenticated = authenticate_occurrence(
-            &profile,
-            &routes,
+        let authenticated = authenticate_occurrence_with_policy_registry(
+            &governance.profile,
+            &governance.routes,
             &occurrence,
             canonical_economic_command_body_bytes_v1(&input.command.command_kind, &input.command)
                 .unwrap(),
+            &governance.policy_registry,
         );
 
         let verified = verify_managed_asset_lifecycle_lane_module_receipt_v1(
             ManagedAssetLifecycleLaneModuleReceiptCandidateV1 {
-                profile: &profile,
-                lanes: &lanes,
-                coordinators: &coordinators,
-                routes: &routes,
+                profile: &governance.profile,
+                policy_registry: &governance.policy_registry,
+                asset_policy_registry: &governance.asset_policy_registry,
+                lanes: &governance.lanes,
+                coordinators: &governance.coordinators,
+                routes: &governance.routes,
                 authenticated_command: &authenticated,
                 module_input: &input,
                 accepted: &accepted,
@@ -2970,6 +3181,104 @@ fn managed_module_receipts_gain_release_image_bound_authority() {
         assert_eq!(verified.statement_root(), &input.statement_root().unwrap());
         assert_eq!(verifier.calls.borrow().len(), 1);
     }
+}
+
+#[test]
+fn managed_receipt_rejects_wrong_route_issue_burn_policy_root_before_verifier() {
+    // Arrange: the governed profile's issue and burn routes carry a stale
+    // route-owned issue/burn policy root instead of the typed registry root.
+    let governance = managed_governance_with(Some(root(511)));
+    let stale_occurrence = occurrence(
+        &governance.profile,
+        &governance.routes,
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+        "issuer",
+        root(5),
+    );
+    let input = managed_input(
+        &governance.profile,
+        &governance.lanes,
+        &stale_occurrence,
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+    );
+    let ManagedAssetLifecycleLaneModuleResultV1::Accepted(accepted) =
+        transition_managed_asset_lifecycle_lane_module_v1(&input).unwrap()
+    else {
+        panic!("valid managed issue must accept")
+    };
+    assert_eq!(
+        bind_managed_asset_lifecycle_lane_output_to_release_route_v1(managed_binding_candidate(
+            &governance,
+            &stale_occurrence,
+            &input,
+            &accepted
+        ),)
+        .unwrap_err(),
+        AbiErrorV1::InvalidBinding("managed asset route issue/burn policy root")
+    );
+    // A witness minted under the exact governed profile cannot stand in for it.
+    let governed = managed_governance();
+    let governed_occurrence = occurrence(
+        &governed.profile,
+        &governed.routes,
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+        "issuer",
+        root(5),
+    );
+    let governed_input = managed_input(
+        &governed.profile,
+        &governed.lanes,
+        &governed_occurrence,
+        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
+    );
+    let ManagedAssetLifecycleLaneModuleResultV1::Accepted(governed_accepted) =
+        transition_managed_asset_lifecycle_lane_module_v1(&governed_input).unwrap()
+    else {
+        panic!("valid governed issue must accept")
+    };
+    let witness =
+        bind_managed_asset_lifecycle_lane_output_to_release_route_v1(managed_binding_candidate(
+            &governed,
+            &governed_occurrence,
+            &governed_input,
+            &governed_accepted,
+        ))
+        .unwrap();
+    let verifier = RecordingModuleReceiptVerifier::default();
+    let authenticated = authenticate_occurrence_with_policy_registry(
+        &governance.profile,
+        &governance.routes,
+        &stale_occurrence,
+        canonical_economic_command_body_bytes_v1(&input.command.command_kind, &input.command)
+            .unwrap(),
+        &governance.policy_registry,
+    );
+
+    // Act / Assert: the rebind rejects before any receipt bytes reach the verifier.
+    assert_eq!(
+        verify_managed_asset_lifecycle_lane_module_receipt_v1(
+            ManagedAssetLifecycleLaneModuleReceiptCandidateV1 {
+                profile: &governance.profile,
+                policy_registry: &governance.policy_registry,
+                asset_policy_registry: &governance.asset_policy_registry,
+                lanes: &governance.lanes,
+                coordinators: &governance.coordinators,
+                routes: &governance.routes,
+                authenticated_command: &authenticated,
+                module_input: &input,
+                accepted: &accepted,
+                release_route_binding: &witness,
+                receipt: LaneModuleReceiptEnvelopeV1 {
+                    receipt_kind: ReceiptKindV1::SUCCINCT,
+                    receipt_bytes: b"wrong-route-policy-root",
+                },
+            },
+            &verifier,
+        )
+        .unwrap_err(),
+        AbiErrorV1::InvalidBinding("managed asset route issue/burn policy root")
+    );
+    assert_eq!(verifier.calls.borrow().len(), 0);
 }
 
 #[test]
