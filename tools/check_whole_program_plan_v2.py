@@ -52,6 +52,17 @@ EXPECTED_FINDING_STATUSES = (
     "OPEN_BLOCKER",
     "OPEN_BLOCKER",
 )
+REQUIRED_RELEASE_STATUSES = (
+    "SPECIFIED",
+    "IMPLEMENTED",
+    "PROVED",
+    "MOUNTED",
+    "TESTED",
+    "TERMINAL_COMPLETE",
+    "MIGRATABLE",
+    "NO_BYPASS",
+    "RELEASE_BACKED",
+)
 EXPECTED_TAU_COMMIT = "0b038824c8583a1a902ef54369d3d0ecf3384cf5"
 EXPECTED_TAU_TREE = "445d77a77b451a0babe5b25c2d66bc45ee20ef29"
 EXPECTED_TAU_SOURCE_SHA256 = {
@@ -111,6 +122,39 @@ EXPECTED_VM_GATE_PROMOTION = {
         "safety claim passes on one exact subject."
     ),
     "individual_obligation_maximum": "CONTRIBUTES_TO",
+}
+EXPECTED_COMPLETENESS_ESTIMATION_POLICY = {
+    "observed_closure_metric": (
+        "Count exact-subject promoted evidence cells over the manifest-derived minimum. "
+        "Report the numerator and denominator; do not use it as a product maturity score."
+    ),
+    "scope_discovery_metric": (
+        "Use overlap among preregistered independent top-down, bottom-up, and "
+        "adversarial discovery campaigns as diagnostic capture-recapture input only."
+    ),
+    "numeric_discovery_preconditions": [
+        "one shared canonical obligation identity",
+        "independent campaign role packets and source sets",
+        "complete positive and negative finding inventories",
+        "comparable bounded semantic domain",
+        "recorded overlap and newly discovered obligation counts",
+    ],
+    "gap_record_required_fields": [
+        "obligation_id",
+        "semantic_axes",
+        "severity",
+        "reachability",
+        "minimized_counterexample_or_discovery_contract",
+        "closure_layer",
+        "evidence_lane",
+        "exact_subject",
+        "owner",
+        "claim_ceiling",
+    ],
+    "production_rule": (
+        "A numerical estimate never promotes a value-movement gate. Exact closure evidence "
+        "for every required cell and all aggregate VM-gate conjuncts remains mandatory."
+    ),
 }
 EXPECTED_TAU_INTEGRATION_RULE = (
     "Treat legacy Python bridge execution as a historical research oracle. Current "
@@ -191,6 +235,68 @@ def _exact_ids(rows: object, field: str) -> tuple[object, ...]:
     if type(rows) is not list or any(type(row) is not dict for row in rows):
         return ()
     return tuple(row.get(field) for row in rows)
+
+
+def _manifest_scope_counts(
+    capability_manifest: Mapping[str, object],
+    findings: list[str],
+) -> tuple[int, int, int, int, int]:
+    capability_keys: list[tuple[str, str]] = []
+    lane_ids: list[str] = []
+    lanes = capability_manifest.get("lanes")
+    if type(lanes) is not list or not lanes:
+        findings.append("capability manifest lanes must be a nonempty list")
+    else:
+        for lane in lanes:
+            if type(lane) is not dict:
+                findings.append("capability manifest lane rows must be objects")
+                continue
+            lane_id = lane.get("lane_id")
+            capabilities = lane.get("capabilities")
+            if type(lane_id) is not str or not lane_id:
+                findings.append("capability manifest lane id must be a nonempty string")
+                continue
+            lane_ids.append(lane_id)
+            if (
+                type(capabilities) is not list
+                or not capabilities
+                or any(type(value) is not str or not value for value in capabilities)
+                or len(capabilities) != len(set(capabilities))
+            ):
+                findings.append(f"capability manifest lane is not closed and unique: {lane_id}")
+                continue
+            capability_keys.extend((lane_id, value) for value in capabilities)
+    if len(lane_ids) != len(set(lane_ids)):
+        findings.append("capability manifest lane ids must be unique")
+
+    routes = capability_manifest.get("required_cross_lane_routes")
+    route_ids = routes if type(routes) is list else []
+    if (
+        not route_ids
+        or any(type(value) is not str or not value for value in route_ids)
+        or len(route_ids) != len(set(route_ids))
+    ):
+        findings.append("required cross-lane routes must be nonempty and unique")
+
+    exclusions = capability_manifest.get("explicit_exclusions")
+    exclusion_ids = _exact_ids(exclusions, "capability")
+    if (
+        type(exclusions) is not list
+        or not exclusions
+        or any(type(value) is not str or not value for value in exclusion_ids)
+        or len(exclusion_ids) != len(set(exclusion_ids))
+    ):
+        findings.append("explicit exclusions must be nonempty and unique")
+
+    lane_count = len(lane_ids)
+    capability_count = len(capability_keys)
+    route_count = len(route_ids)
+    exclusion_count = len(exclusion_ids)
+    evidence_cell_count = (
+        (capability_count + route_count) * len(REQUIRED_RELEASE_STATUSES)
+        + exclusion_count
+    )
+    return lane_count, capability_count, route_count, exclusion_count, evidence_cell_count
 
 
 def _claim_vm_gate_pairs(source: str) -> tuple[tuple[str, str], ...]:
@@ -467,6 +573,8 @@ def check_whole_program_plan_v2(
         findings.append("value-movement gate titles drift from the normative safety claim")
     if plan.get("vm_gate_promotion") != EXPECTED_VM_GATE_PROMOTION:
         findings.append("aggregate VM-gate promotion rule drift")
+    if plan.get("completeness_estimation_policy") != EXPECTED_COMPLETENESS_ESTIMATION_POLICY:
+        findings.append("semantic completeness estimation policy drift")
     obligations = plan.get("next_obligations")
     if _exact_ids(obligations, "obligation_id") != EXPECTED_OBLIGATIONS:
         findings.append("next-obligation set or order drift")
@@ -529,6 +637,14 @@ def check_whole_program_plan_v2(
     if _exact_ids(plan.get("unresolved_semantic_decisions"), "decision_id") != EXPECTED_POLICIES:
         findings.append("unresolved semantic-decision set or order drift")
 
+    (
+        lane_count,
+        capability_count,
+        required_route_count,
+        explicit_exclusion_count,
+        minimum_release_evidence_cell_count,
+    ) = _manifest_scope_counts(capability_manifest, findings)
+
     verdict = plan.get("baseline_verdict")
     if type(verdict) is not dict or verdict.get("closed_value_movement_gates") != 0:
         findings.append("baseline verdict must not claim a closed value-movement gate")
@@ -536,9 +652,35 @@ def check_whole_program_plan_v2(
         findings.append("value-movement gate count drift")
     if type(verdict) is not dict or any(
         (
+            verdict.get("architecture_inventory")
+            != (
+                f"{lane_count}_LANES_{capability_count}_CAPABILITIES_"
+                f"{required_route_count}_REQUIRED_ROUTES_"
+                f"{explicit_exclusion_count}_EXCLUSIONS"
+            ),
             verdict.get("strict_release_closure")
-            != "0_OF_966_MANIFEST_DERIVED_MINIMUM_EVIDENCE_CELLS",
-            verdict.get("minimum_release_evidence_cell_count") != 966,
+            != (
+                f"0_OF_{minimum_release_evidence_cell_count}_"
+                "MANIFEST_DERIVED_MINIMUM_EVIDENCE_CELLS"
+            ),
+            verdict.get("minimum_release_evidence_cell_count")
+            != minimum_release_evidence_cell_count,
+            verdict.get("minimum_release_evidence_cell_formula")
+            != (
+                f"({capability_count} capabilities + {required_route_count} routes) * "
+                f"{len(REQUIRED_RELEASE_STATUSES)} required statuses + "
+                f"{explicit_exclusion_count} exclusion certificates"
+            ),
+            verdict.get("required_release_statuses")
+            != list(REQUIRED_RELEASE_STATUSES),
+            verdict.get("required_route_count") != required_route_count,
+            verdict.get("explicit_exclusion_count") != explicit_exclusion_count,
+            verdict.get("promoted_release_evidence_cell_count") != 0,
+            verdict.get("unclosed_release_evidence_cell_count")
+            != minimum_release_evidence_cell_count,
+            verdict.get("observed_release_closure_basis_points") != 0,
+            verdict.get("scope_discovery_confidence")
+            != "NOT_NUMERICALLY_ESTIMABLE_REQUIREMENTS_INCOMPLETE",
             "PERCENT" in json.dumps(verdict, sort_keys=True),
         )
     ):
@@ -549,16 +691,6 @@ def check_whole_program_plan_v2(
         if forbidden in serialized:
             findings.append(f"forbidden plan text present: {forbidden}")
 
-    capability_count = 0
-    manifest_lanes = capability_manifest.get("lanes")
-    if type(manifest_lanes) is list:
-        for row in manifest_lanes:
-            if type(row) is not dict:
-                continue
-            capabilities = row.get("capabilities")
-            if type(capabilities) is list:
-                capability_count += len(capabilities)
-
     return {
         "schema": "zenodex/whole-program-plan-check/v2.1",
         "ok": not findings,
@@ -566,7 +698,11 @@ def check_whole_program_plan_v2(
         "production_authority": "NONE",
         "release_ready": False,
         "subject_tree_verified": subject_tree_verified,
+        "lane_count": lane_count,
         "capability_count": capability_count,
+        "required_route_count": required_route_count,
+        "explicit_exclusion_count": explicit_exclusion_count,
+        "minimum_release_evidence_cell_count": minimum_release_evidence_cell_count,
         "value_movement_gate_count": 12,
         "closed_value_movement_gate_count": 0,
         "findings": findings,
