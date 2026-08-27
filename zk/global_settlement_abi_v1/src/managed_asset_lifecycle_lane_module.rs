@@ -159,6 +159,18 @@ pub enum ManagedAssetLifecycleLaneModuleResultV1 {
     Rejected(Box<ManagedAssetLifecycleRejectedV1>),
 }
 
+/// Opaque evidence that the accepted value exactly matches one deterministic
+/// transition of the supplied input.
+pub(crate) struct RecomputedManagedAssetLifecycleLaneModuleV1 {
+    accepted: ManagedAssetLifecycleLaneModuleAcceptedV1,
+}
+
+impl RecomputedManagedAssetLifecycleLaneModuleV1 {
+    pub(crate) fn module_journal(&self) -> &LaneModuleTransitionJournalV1 {
+        &self.accepted.module_journal
+    }
+}
+
 fn private_port(
     module_input: &ManagedAssetLifecycleLaneModuleInputV1,
     base_accepted: &ManagedAssetLifecycleAcceptedV1,
@@ -283,12 +295,14 @@ pub fn transition_managed_asset_lifecycle_lane_module_v1(
 pub(crate) fn recompute_managed_asset_lifecycle_lane_module_from_validated_accepted_v1(
     module_input: &ManagedAssetLifecycleLaneModuleInputV1,
     accepted: &ManagedAssetLifecycleLaneModuleAcceptedV1,
-) -> AbiResultV1<ManagedAssetLifecycleLaneModuleAcceptedV1> {
+) -> AbiResultV1<RecomputedManagedAssetLifecycleLaneModuleV1> {
     match transition_managed_asset_lifecycle_lane_module_v1(module_input)? {
         ManagedAssetLifecycleLaneModuleResultV1::Accepted(expected)
             if expected.as_ref() == accepted =>
         {
-            Ok(*expected)
+            Ok(RecomputedManagedAssetLifecycleLaneModuleV1 {
+                accepted: *expected,
+            })
         }
         ManagedAssetLifecycleLaneModuleResultV1::Accepted(_) => Err(AbiErrorV1::InvalidBinding(
             "managed lifecycle supplied acceptance differs from recomputation",

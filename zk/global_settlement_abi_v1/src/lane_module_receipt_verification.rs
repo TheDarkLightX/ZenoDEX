@@ -3,6 +3,7 @@ use serde::Serialize;
 use crate::asset_transfer_lane_module::{
     recompute_asset_transfer_lane_module_from_validated_accepted_v1,
     AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
+    RecomputedAssetTransferLaneModuleV1,
 };
 use crate::canonical::{
     canonical_bytes_v1, hash_bytes_sha256_v1, hash_global_v1, AbiErrorV1, AbiResultV1, RootV1,
@@ -19,6 +20,7 @@ use crate::lane_module_release_route_binding::{
 use crate::managed_asset_lifecycle_lane_module::{
     recompute_managed_asset_lifecycle_lane_module_from_validated_accepted_v1,
     ManagedAssetLifecycleLaneModuleAcceptedV1, ManagedAssetLifecycleLaneModuleInputV1,
+    RecomputedManagedAssetLifecycleLaneModuleV1,
 };
 use crate::perps_margin_lane_module::{
     recompute_perps_margin_accepted_v1, PerpsMarginLaneModuleInputV1,
@@ -182,9 +184,25 @@ fn sha256_root_v1(bytes: &[u8], field: &'static str) -> AbiResultV1<RootV1> {
 struct ReboundLaneModuleReceiptCandidateV1<'a> {
     lanes: &'a LaneRegistryV1,
     authenticated_command_binding_root: RootV1,
-    module_journal: &'a LaneModuleTransitionJournalV1,
+    recomputed: RecomputedLaneModuleReceiptJournalV1<'a>,
     rebound: ReleaseRouteBoundLaneTransitionV1,
     receipt: LaneModuleReceiptEnvelopeV1<'a>,
+}
+
+enum RecomputedLaneModuleReceiptJournalV1<'a> {
+    AssetTransfer(&'a RecomputedAssetTransferLaneModuleV1),
+    ManagedAssetLifecycle(&'a RecomputedManagedAssetLifecycleLaneModuleV1),
+    PerpsMargin(&'a PerpsMarginAcceptedV1),
+}
+
+impl RecomputedLaneModuleReceiptJournalV1<'_> {
+    fn module_journal(&self) -> &LaneModuleTransitionJournalV1 {
+        match self {
+            Self::AssetTransfer(recomputed) => recomputed.module_journal(),
+            Self::ManagedAssetLifecycle(recomputed) => recomputed.module_journal(),
+            Self::PerpsMargin(recomputed) => &recomputed.module_journal,
+        }
+    }
 }
 
 fn verify_rebound_module_receipt_v1(
@@ -214,8 +232,9 @@ fn verify_rebound_module_receipt_v1(
         ));
     }
 
-    candidate.module_journal.validate()?;
-    let journal_bytes = canonical_bytes_v1(candidate.module_journal)?;
+    let module_journal = candidate.recomputed.module_journal();
+    module_journal.validate()?;
+    let journal_bytes = canonical_bytes_v1(module_journal)?;
     let journal_len = u64::try_from(journal_bytes.len())
         .map_err(|_| AbiErrorV1::InvalidBounds("lane module canonical journal bytes"))?;
     if journal_len > release.max_journal_bytes {
@@ -281,7 +300,7 @@ pub fn verify_asset_transfer_lane_module_receipt_v1(
         ReboundLaneModuleReceiptCandidateV1 {
             lanes: candidate.lanes,
             authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
-            module_journal: &expected.module_journal,
+            recomputed: RecomputedLaneModuleReceiptJournalV1::AssetTransfer(&expected),
             rebound,
             receipt: candidate.receipt,
         },
@@ -312,7 +331,7 @@ pub fn verify_managed_asset_lifecycle_lane_module_receipt_v1(
         ReboundLaneModuleReceiptCandidateV1 {
             lanes: candidate.lanes,
             authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
-            module_journal: &expected.module_journal,
+            recomputed: RecomputedLaneModuleReceiptJournalV1::ManagedAssetLifecycle(&expected),
             rebound,
             receipt: candidate.receipt,
         },
@@ -345,7 +364,7 @@ pub fn verify_perps_margin_lane_module_receipt_v1(
         ReboundLaneModuleReceiptCandidateV1 {
             lanes: candidate.lanes,
             authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
-            module_journal: &expected.module_journal,
+            recomputed: RecomputedLaneModuleReceiptJournalV1::PerpsMargin(&expected),
             rebound,
             receipt: candidate.receipt,
         },
