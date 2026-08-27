@@ -206,3 +206,23 @@ fn explicit_validation_rejects_empty_accepted_effects_and_nonempty_rejected_effe
         )
     );
 }
+
+#[test]
+fn explicit_validation_rejects_rejected_state_root_change() {
+    // Arrange
+    let rejected_result =
+        transition_managed_asset_lifecycle_v1(&context(true), &state(0, 0), &command(true, 0))
+            .expect("typed zero issue must evaluate");
+    let ManagedAssetLifecycleResultV1::Rejected(mut rejected) = rejected_result else {
+        panic!("zero issue must reject")
+    };
+    rejected.post_state_root = root(99);
+
+    // Act / Assert
+    assert_eq!(
+        rejected.validate().unwrap_err(),
+        zenodex_global_settlement_abi_v1::AbiErrorV1::InvalidBinding(
+            "managed asset rejected transition no-op"
+        )
+    );
+}

@@ -224,7 +224,7 @@ managed_asset_issue(asset, account_owner, amount_atoms)
 managed_asset_burn(asset, account_owner, amount_atoms)
 ```
 
-Its closed policy registry uses the six source-bound M6 asset classes. Generic
+Its closed state-policy rows use the six source-bound M6 asset classes. Generic
 supply authority is representable only for `registered_ordinary_token`.
 Native coin, canonical zUSD, LP shares, ZDEX, and sealed-bid payment or
 inventory assets reject both generic commands so their named economic modules
@@ -238,11 +238,13 @@ root. Disabled, unknown, foreign-release, wrong-subject, wrong-profile, zero,
 insufficient, or unrepresentable commands return the exact pre-state root and
 an empty effect plan.
 
-Acceptance changes account holdings and supply by the same atom count, emits
-paired account and `ISSUE` or `BURN` rows, proves the common asset-conservation
-projection, consumes one occurrence, and creates no outbox work. Python and
-Rust independently lock issue and burn to twelve canonical-byte hashes and ten
-domain-separated roots. The tests cover every protocol-managed asset class,
+Base-core acceptance changes account holdings and supply by the same atom count,
+emits paired account and `ISSUE` or `BURN` rows, consumes one occurrence, and
+creates no outbox work. The deterministic lane wrapper adds declared accounting
+locations to the complete conservation projection and rebinds the effect,
+private-port, journal, and receipt roots before coordinator admission. Python
+and Rust independently lock issue and burn to twelve canonical-byte hashes and
+ten domain-separated roots. The tests cover every protocol-managed asset class,
 authority substitution, signed-effect width, supply overflow, strict decode,
 and journal-binding mutation.
 
