@@ -53,7 +53,7 @@
   "test_pins": [
     {
       "path": "tests/formal/test_lean_global_settlement_core_v1.py",
-      "sha256": "6f4f84746d86ae7e1aba0e8de24d8898a647dd3c527eed7d507475cbbd0d0658",
+      "sha256": "5e66d746621007eebb5c33d74aed31e7bd3ec6ee1c0971c6c77b2a598f48d362",
       "node_ids": [
         "tests/formal/test_lean_global_settlement_core_v1.py::test_lean_target_compiles_without_warnings",
         "tests/formal/test_lean_global_settlement_core_v1.py::test_lean_targets_have_no_placeholders_with_axiom_checking",

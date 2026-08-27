@@ -123,8 +123,18 @@ def _lean(*args: str, timeout: int = 600) -> subprocess.CompletedProcess[str]:
 # --------------------------------------------------------------------------
 
 
+@pytest.fixture(scope="module")
+def built_challenge() -> None:
+    """Build imports before direct warning checks, including in a clean worktree."""
+    build = _lean("build", CHALLENGE_MODULE)
+    assert build.returncode == 0, build.stdout + build.stderr
+
+
 @pytest.mark.parametrize("target", [PROOF, CHALLENGE], ids=["core", "challenge"])
-def test_lean_target_compiles_without_warnings(target: Path) -> None:
+def test_lean_target_compiles_without_warnings(
+    target: Path,
+    built_challenge: None,
+) -> None:
     result = _lean("env", "lean", "-DwarningAsError=true", str(target))
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.strip() == ""
@@ -246,9 +256,10 @@ def test_proof_keeps_legal_neutral_wording_and_bounded_claims() -> None:
 
 
 @pytest.fixture(scope="module")
-def report(tmp_path_factory: pytest.TempPathFactory) -> dict[str, list[list[str]]]:
-    build = _lean("build", CHALLENGE_MODULE)
-    assert build.returncode == 0, build.stdout + build.stderr
+def report(
+    tmp_path_factory: pytest.TempPathFactory,
+    built_challenge: None,
+) -> dict[str, list[list[str]]]:
     probe = tmp_path_factory.mktemp("challenge") / "Report.lean"
     probe.write_text(REPORT_PROBE, encoding="utf-8")
     result = _lean("env", "lean", str(probe))
