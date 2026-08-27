@@ -182,7 +182,7 @@ def test_base_transition_revalidates_retained_command_values() -> None:
     object.__setattr__(command, "amount_atoms", True)
 
     # Act / Assert
-    with pytest.raises(ValueError, match="managed asset command amount"):
+    with pytest.raises(TypeError, match="managed asset command amount"):
         transition_managed_asset_lifecycle_v1(
             _context(issue=True),
             _state(account_atoms=0, supply_atoms=0),
@@ -196,7 +196,7 @@ def test_base_transition_revalidates_nested_retained_policy_values() -> None:
     object.__setattr__(pre_state.policies[0], "enabled", 1)
 
     # Act / Assert
-    with pytest.raises(TypeError, match="managed asset lifecycle policy enabled"):
+    with pytest.raises(TypeError, match="managed asset policy enabled"):
         transition_managed_asset_lifecycle_v1(
             _context(issue=True),
             pre_state,
@@ -219,4 +219,22 @@ def test_base_transition_rejects_substituted_policy_container_before_iteration()
             _context(issue=True),
             pre_state,
             _command(issue=True, amount_atoms=1),
+        )
+
+
+def test_base_transition_rejects_retained_string_subclass_without_method_dispatch() -> None:
+    # Arrange
+    class ExplodingText(str):
+        def __len__(self) -> int:
+            raise AssertionError("hostile retained scalar hook must not execute")
+
+    command = _command(issue=True, amount_atoms=1)
+    object.__setattr__(command, "asset", ExplodingText("USD"))
+
+    # Act / Assert
+    with pytest.raises(TypeError, match="command asset must be an exact string"):
+        transition_managed_asset_lifecycle_v1(
+            _context(issue=True),
+            _state(account_atoms=0, supply_atoms=0),
+            command,
         )

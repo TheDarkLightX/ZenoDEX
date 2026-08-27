@@ -1,16 +1,18 @@
 use zenodex_global_settlement_abi_v1::{
     canonical_bytes_v1, compose_asset_lane_single_v1, hash_bytes_sha256_v1,
-    project_asset_transfer_state_v1, project_managed_asset_lifecycle_state_v1,
-    transition_asset_transfer_v1, transition_managed_asset_lifecycle_v1,
-    AssetLaneCompositionResultV1, AssetLaneCoordinatorContextV1, AssetLaneCoordinatorRejectCodeV1,
+    project_asset_transfer_state_v1, transition_asset_transfer_v1,
+    transition_managed_asset_lifecycle_lane_module_v1, AssetLaneCompositionResultV1,
+    AssetLaneCoordinatorContextV1, AssetLaneCoordinatorRejectCodeV1,
     AssetLaneModuleCompatibilityV1, AssetLanePrivatePortV1, AssetSupplyV1, AssetTransferCommandV1,
     AssetTransferContextV1, AssetTransferPolicyV1, AssetTransferResultV1, AssetTransferStateV1,
     EconomicAmountV1, EconomicEffectKindV1, EconomicEffectRowV1, ExternalOutboxEnqueueV1,
     GlobalEconomicEffectPlanV1, LaneIdV1, LaneWriteV1, ManagedAssetClassV1,
-    ManagedAssetLifecycleCommandV1, ManagedAssetLifecycleContextV1, ManagedAssetLifecyclePolicyV1,
-    ManagedAssetLifecycleResultV1, ManagedAssetLifecycleStateV1, RootV1,
+    ManagedAssetLifecycleCommandV1, ManagedAssetLifecycleContextV1,
+    ManagedAssetLifecycleLaneModuleInputV1, ManagedAssetLifecycleLaneModuleResultV1,
+    ManagedAssetLifecyclePolicyV1, ManagedAssetLifecycleStateV1, RootV1,
     ASSET_TRANSFER_COMMAND_KIND_V1, ASSET_TRANSFER_MODULE_SCHEMA_V1, GLOBAL_SETTLEMENT_ABI_V1,
-    MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1, ZERO_ROOT_V1,
+    MANAGED_ASSET_ISSUE_COMMAND_KIND_V1, MANAGED_ASSET_LIFECYCLE_LANE_MODULE_INPUT_SCHEMA_V1,
+    MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1, ZERO_ROOT_V1,
 };
 
 fn root(value: u64) -> RootV1 {
@@ -267,7 +269,7 @@ fn lifecycle_issue_uses_the_same_complete_lane_projection() {
         }],
         supplies: vec![AssetSupplyV1 {
             asset: "USD".to_owned(),
-            amount_atoms: 10,
+            amount_atoms: 15,
         }],
     };
     let command = ManagedAssetLifecycleCommandV1 {
@@ -276,27 +278,25 @@ fn lifecycle_issue_uses_the_same_complete_lane_projection() {
         account_owner: "alice".to_owned(),
         amount_atoms: 7,
     };
-    let ManagedAssetLifecycleResultV1::Accepted(accepted) =
-        transition_managed_asset_lifecycle_v1(&context, &state, &command).unwrap()
+    let custody = vec![EconomicAmountV1 {
+        owner: "escrow".to_owned(),
+        asset: "USD".to_owned(),
+        custody_domain: "strategy_escrow".to_owned(),
+        amount_atoms: 5,
+    }];
+    let module_input = ManagedAssetLifecycleLaneModuleInputV1 {
+        schema: MANAGED_ASSET_LIFECYCLE_LANE_MODULE_INPUT_SCHEMA_V1.to_owned(),
+        context,
+        pre_state: state,
+        command,
+        asset_policy_registry_root: root(11),
+        fee_policy_registry_root: root(12),
+        custody,
+    };
+    let ManagedAssetLifecycleLaneModuleResultV1::Accepted(accepted) =
+        transition_managed_asset_lifecycle_lane_module_v1(&module_input).unwrap()
     else {
         panic!("fixture issue must accept")
-    };
-    let port = AssetLanePrivatePortV1 {
-        schema: "zenodex/asset-lane-private-port/v1".to_owned(),
-        producer_module_schema: MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1.to_owned(),
-        module_release_id: root(6),
-        command_occurrence_id: root(7),
-        pre_state: project_managed_asset_lifecycle_state_v1(&state, &root(11), &root(12), vec![])
-            .unwrap(),
-        post_state: project_managed_asset_lifecycle_state_v1(
-            &accepted.post_state,
-            &root(11),
-            &root(12),
-            vec![],
-        )
-        .unwrap(),
-        module_effect_plan_root: accepted.effects.effect_plan_root().unwrap(),
-        terminal_obligations_root: RootV1::parse(ZERO_ROOT_V1, "terminal root", true).unwrap(),
     };
     let mut coordinator = coordinator_context();
     coordinator.command_occurrence_id = root(7);
@@ -304,15 +304,25 @@ fn lifecycle_issue_uses_the_same_complete_lane_projection() {
         module_release_id: root(6),
         module_schema: MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1.to_owned(),
     }];
-    let mut journal = accepted.module_journal.clone();
-    journal.private_port_root = port.port_root().unwrap();
-    journal.receipt_root = root(30);
-    let result =
-        compose_asset_lane_single_v1(&coordinator, &journal, &port, &accepted.effects).unwrap();
+    let result = compose_asset_lane_single_v1(
+        &coordinator,
+        &accepted.module_journal,
+        &accepted.private_port,
+        &accepted.effects,
+    )
+    .unwrap();
     let AssetLaneCompositionResultV1::Accepted(composed) = result else {
         panic!("bound issue must compose")
     };
-    assert_eq!(composed.post_state.supply_atoms("USD").unwrap(), 17);
+    assert_eq!(composed.post_state.supply_atoms("USD").unwrap(), 22);
+    assert_eq!(
+        composed.effects.asset_conservation[0].owned_and_custodied_pre_atoms,
+        15
+    );
+    assert_eq!(
+        composed.effects.asset_conservation[0].owned_and_custodied_post_atoms,
+        22
+    );
     assert_eq!(
         composed.effects.asset_conservation[0].authorized_issue_atoms,
         7
