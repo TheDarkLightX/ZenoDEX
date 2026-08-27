@@ -13,6 +13,7 @@ from .global_economic_proof_v1 import LaneModuleTransitionJournalV1
 from .global_settlement_types_v1 import (
     MAX_ATOMS_V1,
     MAX_DELTA_ATOMS_V1,
+    MIN_DELTA_ATOMS_V1,
     ZERO_ROOT_V1,
     AssetConservationRowV1,
     AssetSupplyV1,
@@ -106,7 +107,10 @@ def _authorize(
         return ManagedAssetLifecycleRejectCodeV1.AUTHORITY_PROFILE_MISMATCH
     if command.amount_atoms == 0:
         return ManagedAssetLifecycleRejectCodeV1.ZERO_AMOUNT
-    if command.amount_atoms > MAX_DELTA_ATOMS_V1:
+    max_signed_magnitude = (
+        MAX_DELTA_ATOMS_V1 if is_issue else -MIN_DELTA_ATOMS_V1
+    )
+    if command.amount_atoms > max_signed_magnitude:
         return ManagedAssetLifecycleRejectCodeV1.EFFECT_DELTA_OVERFLOW
     signed_amount = command.amount_atoms if is_issue else -command.amount_atoms
     return _PreparedLifecycleV1(
@@ -266,6 +270,82 @@ def _accept(
     return ManagedAssetLifecycleAcceptedV1(post_state, effects, module_journal)
 
 
+def _snapshot_context(
+    context: ManagedAssetLifecycleContextV1,
+) -> ManagedAssetLifecycleContextV1:
+    if type(context) is not ManagedAssetLifecycleContextV1:
+        raise TypeError("managed asset lifecycle context must be the exact typed value")
+    return ManagedAssetLifecycleContextV1(
+        chain_id=context.chain_id,
+        deployment_root=context.deployment_root,
+        profile_root=context.profile_root,
+        writer_epoch=context.writer_epoch,
+        module_release_id=context.module_release_id,
+        command_occurrence_id=context.command_occurrence_id,
+        subject_id=context.subject_id,
+        grant_root=context.grant_root,
+    )
+
+
+def _snapshot_state(
+    pre_state: ManagedAssetLifecycleStateV1,
+) -> ManagedAssetLifecycleStateV1:
+    if type(pre_state) is not ManagedAssetLifecycleStateV1:
+        raise TypeError("managed asset lifecycle pre-state must be the exact typed value")
+    if type(pre_state.policies) is not tuple:
+        raise TypeError("managed asset lifecycle policies must be an exact tuple")
+    if type(pre_state.balances) is not tuple:
+        raise TypeError("managed asset lifecycle balances must be an exact tuple")
+    if type(pre_state.supplies) is not tuple:
+        raise TypeError("managed asset lifecycle supplies must be an exact tuple")
+    if any(type(policy) is not ManagedAssetLifecyclePolicyV1 for policy in pre_state.policies):
+        raise TypeError("managed asset lifecycle policies must contain exact typed values")
+    if any(type(row) is not EconomicAmountV1 for row in pre_state.balances):
+        raise TypeError("managed asset lifecycle balances must contain exact typed values")
+    if any(type(row) is not AssetSupplyV1 for row in pre_state.supplies):
+        raise TypeError("managed asset lifecycle supplies must contain exact typed values")
+    return ManagedAssetLifecycleStateV1(
+        module_release_id=pre_state.module_release_id,
+        policies=tuple(
+            ManagedAssetLifecyclePolicyV1(
+                asset=policy.asset,
+                asset_class=policy.asset_class,
+                issue_authority_subject=policy.issue_authority_subject,
+                issue_policy_root=policy.issue_policy_root,
+                burn_policy_root=policy.burn_policy_root,
+                enabled=policy.enabled,
+            )
+            for policy in pre_state.policies
+        ),
+        balances=tuple(
+            EconomicAmountV1(
+                owner=row.owner,
+                asset=row.asset,
+                custody_domain=row.custody_domain,
+                amount_atoms=row.amount_atoms,
+            )
+            for row in pre_state.balances
+        ),
+        supplies=tuple(
+            AssetSupplyV1(asset=row.asset, amount_atoms=row.amount_atoms)
+            for row in pre_state.supplies
+        ),
+    )
+
+
+def _snapshot_command(
+    command: ManagedAssetLifecycleCommandV1,
+) -> ManagedAssetLifecycleCommandV1:
+    if type(command) is not ManagedAssetLifecycleCommandV1:
+        raise TypeError("managed asset lifecycle command must be the exact typed value")
+    return ManagedAssetLifecycleCommandV1(
+        command_kind=command.command_kind,
+        asset=command.asset,
+        account_owner=command.account_owner,
+        amount_atoms=command.amount_atoms,
+    )
+
+
 def transition_managed_asset_lifecycle_v1(
     context: ManagedAssetLifecycleContextV1,
     pre_state: ManagedAssetLifecycleStateV1,
@@ -273,12 +353,9 @@ def transition_managed_asset_lifecycle_v1(
 ) -> ManagedAssetLifecycleResultV1:
     """Apply one profile-bound generic issue or self-burn transition."""
 
-    if not isinstance(context, ManagedAssetLifecycleContextV1):
-        raise TypeError("managed asset lifecycle context must be typed")
-    if not isinstance(pre_state, ManagedAssetLifecycleStateV1):
-        raise TypeError("managed asset lifecycle pre-state must be typed")
-    if not isinstance(command, ManagedAssetLifecycleCommandV1):
-        raise TypeError("managed asset lifecycle command must be typed")
+    context = _snapshot_context(context)
+    pre_state = _snapshot_state(pre_state)
+    command = _snapshot_command(command)
     prepared = _authorize(context, pre_state, command)
     if isinstance(prepared, ManagedAssetLifecycleRejectCodeV1):
         return _reject(prepared, pre_state)

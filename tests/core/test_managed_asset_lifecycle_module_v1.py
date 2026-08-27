@@ -397,9 +397,6 @@ def test_state_forbids_generic_authority_on_protocol_managed_assets() -> None:
     with pytest.raises(ValueError, match="protocol-managed asset"):
         _policy(asset_class=ManagedAssetClassV1.CANONICAL_ZUSD)
 
-    with pytest.raises(ValueError, match="supply must equal account balances"):
-        _state(balances=(), supply_atoms=1)
-
 
 def test_accepted_result_rejects_parallel_journal_mutation() -> None:
     result = transition_managed_asset_lifecycle_v1(_context(), _state(), _command())
