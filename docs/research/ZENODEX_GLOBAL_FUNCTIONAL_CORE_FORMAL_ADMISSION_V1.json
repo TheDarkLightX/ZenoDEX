@@ -4,16 +4,20 @@
   "created_date": "2026-08-27",
   "status": "SUBJECT_RECORDED_PENDING_FINAL_MAX_REVIEW",
   "base_commit": "f7e851565e063fb3e74b060a9c45f27b8621a8d7",
-  "subject_commit": "20ded633e61e5cd4c6aec2d3a23266d68f5a72f8",
-  "subject_parent": "6f3de0fb7483fe8aa4b45bb287c8eedbd28beecc",
-  "subject_tree": "730563ae4f1dac5c65bf969b7ded27408033bba2",
+  "subject_commit": "8c0ce776f4a77acd334d27951a8e13241c5a4818",
+  "subject_parent": "f9cfd70d8dcf592c6f10a234d6a185b208e9e974",
+  "subject_tree": "c722ee77451da095aab61d4e2817f1266f47ea6c",
   "subject_worktree_clean": true,
-  "changed_file_count": 10,
+  "subject_diff_file_count": 11,
+  "subject_formal_file_count": 10,
+  "excluded_metadata_paths": [
+    "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_ADMISSION_V1.json"
+  ],
   "changed_files": [
     {
       "status": "A",
       "path": "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
-      "git_blob": "214b6bdb717176bebd31c1b16e86ca48436de1f1"
+      "git_blob": "23033831708535781395a1f03a40b77b2049ccb2"
     },
     {
       "status": "M",
@@ -38,7 +42,7 @@
     {
       "status": "A",
       "path": "tests/evidence/test_hygiene/THV1-20260826-global-settlement-formal-core-v1.json",
-      "git_blob": "7f23932984e9b7d6c18290b10679abeab28ac511"
+      "git_blob": "f38ecaf52c44a9ccdf71bd9150d0aaf16bc37231"
     },
     {
       "status": "A",
@@ -48,7 +52,7 @@
     {
       "status": "A",
       "path": "tests/formal/test_lean_global_settlement_core_v1.py",
-      "git_blob": "143cc4e5c74d0bc60fa7fe67e47409fc16565062"
+      "git_blob": "2e7be09c2adc75ef21af8d94e64d0e63ce67df06"
     },
     {
       "status": "A",
@@ -58,13 +62,13 @@
     {
       "status": "A",
       "path": "tools/scan_lean_proof_placeholders_v1.py",
-      "git_blob": "554b3065edbb775635d8c45d663c3f2c021b786e"
+      "git_blob": "42ab6c0c34bb376ea945d75f8a696581c076547b"
     }
   ],
   "test_hygiene_evidence": {
     "evidence_id": "THV1-20260826-global-settlement-formal-core-v1",
     "path": "tests/evidence/test_hygiene/THV1-20260826-global-settlement-formal-core-v1.json",
-    "sha256": "c9a1e92ab7bab2ce1097a816a47949b54f2f6d40e4c030fa18a880f9131375eb"
+    "sha256": "040f04be46536b2019e85d424aa9e32fc018ff0e0732c0c5e6a6c0c983d470d5"
   },
   "formal_subject": {
     "esso_model_sha256": "121972779c7ac2f06dee1a6970498ab6b8e17c80c3050342648d8d2d432a2b7d",
@@ -85,7 +89,7 @@
     },
     {
       "command": "PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm python3 -m pytest -q -p no:cacheprovider tests/formal/test_lean_global_settlement_core_v1.py tests/formal/test_scan_lean_proof_placeholders_v1.py",
-      "result": "44 passed in 46.04s"
+      "result": "46 passed in 18.90s; every named core and challenge theorem passed a transitive #print axioms allowlist gate"
     },
     {
       "command": "PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO python3 -m pytest -q -p no:cacheprovider tests/formal/test_esso_global_settlement_core_v1.py -rs",
@@ -93,7 +97,7 @@
     },
     {
       "command": "PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO python3 tools/run_test_hygiene_gate_v1.py --base-ref f7e851565e063fb3e74b060a9c45f27b8621a8d7 --json",
-      "result": "104 passed in 37.77s; ok true; 7 critical paths covered"
+      "result": "106 passed in 41.33s; ok true; 7 critical paths covered"
     },
     {
       "command": "python3 -m ruff check tools/scan_lean_proof_placeholders_v1.py tests/formal/test_esso_global_settlement_core_v1.py tests/formal/test_lean_global_settlement_core_v1.py tests/formal/test_scan_lean_proof_placeholders_v1.py",
@@ -109,7 +113,9 @@
     "added effect-only and rejected-lane semantic mutants",
     "closed ESSO evidence object schemas and bound trial count, timeout, seed, domain caps, solver versions, tool hash, IR hash, and fingerprint",
     "reclassified GAP-01 through GAP-08 as eight primary divergences rather than a complete correspondence inventory",
-    "stated that structural payload admission does not authenticate historical provenance"
+    "stated that structural payload admission does not authenticate historical provenance",
+    "added a transitive Lean #print axioms allowlist gate for every named core and challenge theorem",
+    "recorded the unmodeled height, terminal-obligation, transfer-subject, self-transfer, fee, managed-asset, grant, aggregation, and rejection-order semantics"
   ],
   "authority": {
     "production": false,
