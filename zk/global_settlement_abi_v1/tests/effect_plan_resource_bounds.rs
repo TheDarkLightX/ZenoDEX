@@ -224,3 +224,51 @@ fn asset_lane_projection_rejects_each_maximum_plus_one_before_row_traversal() {
         AbiErrorV1::InvalidBounds("asset lane supply rows")
     );
 }
+
+#[test]
+fn asset_lane_projection_accepts_all_exact_resource_maxima() {
+    // Arrange: 256 assets with 16 account rows and 16 declared
+    // accounting-location rows each reach all three independent ceilings.
+    let mut balances = Vec::with_capacity(MAX_ASSET_BALANCE_ROWS_V1);
+    let mut accounting_locations = Vec::with_capacity(MAX_ASSET_CUSTODY_ROWS_V1);
+    let mut supplies = Vec::with_capacity(MAX_ASSET_POLICY_ROWS_V1);
+    for asset_index in 0..MAX_ASSET_POLICY_ROWS_V1 {
+        let asset = format!("ASSET-{asset_index:03}");
+        for owner_index in 0..16 {
+            balances.push(EconomicAmountV1 {
+                owner: format!("account-{owner_index:02}"),
+                asset: asset.clone(),
+                custody_domain: "accounts".to_owned(),
+                amount_atoms: 1,
+            });
+            accounting_locations.push(EconomicAmountV1 {
+                owner: format!("pool-{owner_index:02}"),
+                asset: asset.clone(),
+                custody_domain: "pools".to_owned(),
+                amount_atoms: 1,
+            });
+        }
+        supplies.push(AssetSupplyV1 {
+            asset,
+            amount_atoms: 32,
+        });
+    }
+    let projection = AssetLaneStateProjectionV1 {
+        schema: ASSET_LANE_STATE_PROJECTION_SCHEMA_V1.to_owned(),
+        asset_policy_registry_root: root(1),
+        fee_policy_registry_root: root(2),
+        balances,
+        custody: accounting_locations,
+        supplies,
+    };
+
+    // Act
+    let result = projection.validate();
+
+    // Assert: changing any projection ceiling from `>` to `>=` rejects this
+    // exact-limit witness.
+    assert_eq!(projection.balances.len(), MAX_ASSET_BALANCE_ROWS_V1);
+    assert_eq!(projection.custody.len(), MAX_ASSET_CUSTODY_ROWS_V1);
+    assert_eq!(projection.supplies.len(), MAX_ASSET_POLICY_ROWS_V1);
+    assert_eq!(result, Ok(()));
+}

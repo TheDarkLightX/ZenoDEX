@@ -158,6 +158,18 @@ pub enum AssetTransferLaneModuleResultV1 {
     Rejected(Box<AssetTransferRejectedV1>),
 }
 
+/// Opaque evidence that the accepted value exactly matches one deterministic
+/// transition of the supplied input.
+pub(crate) struct RecomputedAssetTransferLaneModuleV1 {
+    accepted: AssetTransferLaneModuleAcceptedV1,
+}
+
+impl RecomputedAssetTransferLaneModuleV1 {
+    pub(crate) fn module_journal(&self) -> &LaneModuleTransitionJournalV1 {
+        &self.accepted.module_journal
+    }
+}
+
 fn private_port(
     module_input: &AssetTransferLaneModuleInputV1,
     base_accepted: &AssetTransferAcceptedV1,
@@ -259,10 +271,12 @@ pub fn transition_asset_transfer_lane_module_v1(
 pub(crate) fn recompute_asset_transfer_lane_module_from_validated_accepted_v1(
     module_input: &AssetTransferLaneModuleInputV1,
     accepted: &AssetTransferLaneModuleAcceptedV1,
-) -> AbiResultV1<AssetTransferLaneModuleAcceptedV1> {
+) -> AbiResultV1<RecomputedAssetTransferLaneModuleV1> {
     match transition_asset_transfer_lane_module_v1(module_input)? {
         AssetTransferLaneModuleResultV1::Accepted(expected) if expected.as_ref() == accepted => {
-            Ok(*expected)
+            Ok(RecomputedAssetTransferLaneModuleV1 {
+                accepted: *expected,
+            })
         }
         AssetTransferLaneModuleResultV1::Accepted(_) => Err(AbiErrorV1::InvalidBinding(
             "asset transfer supplied acceptance differs from recomputation",
