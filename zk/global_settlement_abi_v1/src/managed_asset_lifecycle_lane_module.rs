@@ -245,3 +245,23 @@ pub fn transition_managed_asset_lifecycle_lane_module_v1(
         accepted,
     )))
 }
+
+pub(crate) fn recompute_managed_asset_lifecycle_lane_module_accepted_v1(
+    module_input: &ManagedAssetLifecycleLaneModuleInputV1,
+    accepted: &ManagedAssetLifecycleLaneModuleAcceptedV1,
+) -> AbiResultV1<ManagedAssetLifecycleLaneModuleAcceptedV1> {
+    accepted.validate()?;
+    match transition_managed_asset_lifecycle_lane_module_v1(module_input)? {
+        ManagedAssetLifecycleLaneModuleResultV1::Accepted(expected)
+            if expected.as_ref() == accepted =>
+        {
+            Ok(*expected)
+        }
+        ManagedAssetLifecycleLaneModuleResultV1::Accepted(_) => Err(AbiErrorV1::InvalidBinding(
+            "managed lifecycle supplied acceptance differs from recomputation",
+        )),
+        ManagedAssetLifecycleLaneModuleResultV1::Rejected(_) => Err(AbiErrorV1::InvalidBinding(
+            "managed lifecycle supplied acceptance recomputes to rejection",
+        )),
+    }
+}

@@ -1,7 +1,8 @@
 use serde::Serialize;
 
 use crate::asset_transfer_lane_module::{
-    AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
+    recompute_asset_transfer_lane_module_accepted_v1, AssetTransferLaneModuleAcceptedV1,
+    AssetTransferLaneModuleInputV1,
 };
 use crate::canonical::{
     canonical_bytes_v1, hash_bytes_sha256_v1, hash_global_v1, AbiErrorV1, AbiResultV1, RootV1,
@@ -15,6 +16,7 @@ use crate::lane_module_release_route_binding::{
     ReleaseRouteBoundLaneTransitionV1,
 };
 use crate::managed_asset_lifecycle_lane_module::{
+    recompute_managed_asset_lifecycle_lane_module_accepted_v1,
     ManagedAssetLifecycleLaneModuleAcceptedV1, ManagedAssetLifecycleLaneModuleInputV1,
 };
 use crate::perps_margin_lane_module::{
@@ -260,11 +262,15 @@ pub fn verify_asset_transfer_lane_module_receipt_v1(
         candidate.module_input,
         candidate.accepted,
     )?;
+    let expected = recompute_asset_transfer_lane_module_accepted_v1(
+        candidate.module_input,
+        candidate.accepted,
+    )?;
     verify_rebound_module_receipt_v1(
         ReboundLaneModuleReceiptCandidateV1 {
             lanes: candidate.lanes,
             authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
-            module_journal: &candidate.accepted.module_journal,
+            module_journal: &expected.module_journal,
             release_route_binding: candidate.release_route_binding,
             rebound,
             receipt: candidate.receipt,
@@ -287,11 +293,15 @@ pub fn verify_managed_asset_lifecycle_lane_module_receipt_v1(
         candidate.module_input,
         candidate.accepted,
     )?;
+    let expected = recompute_managed_asset_lifecycle_lane_module_accepted_v1(
+        candidate.module_input,
+        candidate.accepted,
+    )?;
     verify_rebound_module_receipt_v1(
         ReboundLaneModuleReceiptCandidateV1 {
             lanes: candidate.lanes,
             authenticated_command_binding_root: candidate.authenticated_command.binding_root()?,
-            module_journal: &candidate.accepted.module_journal,
+            module_journal: &expected.module_journal,
             release_route_binding: candidate.release_route_binding,
             rebound,
             receipt: candidate.receipt,
