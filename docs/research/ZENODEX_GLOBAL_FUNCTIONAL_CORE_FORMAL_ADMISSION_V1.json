@@ -4,9 +4,9 @@
   "created_date": "2026-08-27",
   "status": "SUBJECT_RECORDED_PENDING_FINAL_MAX_REVIEW",
   "base_commit": "f7e851565e063fb3e74b060a9c45f27b8621a8d7",
-  "subject_commit": "9c309ce9398a2b163fcbfa449cbce01796a67587",
-  "subject_parent": "a1f619a4d597b6ce5f3b8935ddbf9c3713acf85b",
-  "subject_tree": "cabd423625e8dd5836da2061f64b32653006db9c",
+  "subject_commit": "2b7bb6d1b263c419df4efbd2e905cb7562f3ebb0",
+  "subject_parent": "b89520c32f57c111ab29352b2a4a342335156778",
+  "subject_tree": "d739247882d32bf33901e23fb84385770e7f18e1",
   "subject_worktree_clean": true,
   "subject_diff_file_count": 11,
   "subject_formal_file_count": 10,
@@ -17,7 +17,7 @@
     {
       "status": "A",
       "path": "docs/research/ZENODEX_GLOBAL_FUNCTIONAL_CORE_FORMAL_BLUEPRINT_V1.md",
-      "git_blob": "fa221b9dfa95a118436e2dec225ac73bffc0bcde"
+      "git_blob": "fa455ceafec36bc0fed90ed983949730ce647d1b"
     },
     {
       "status": "M",
@@ -27,7 +27,7 @@
     {
       "status": "A",
       "path": "lean-mathlib/Proofs/GlobalSettlementCoreV1.lean",
-      "git_blob": "f549c1dd5b2af459f9f1cca232f93bd0aee23af1"
+      "git_blob": "bbbd64143d642b663b1f66e8be53a13b75d12b39"
     },
     {
       "status": "A",
@@ -42,7 +42,7 @@
     {
       "status": "A",
       "path": "tests/evidence/test_hygiene/THV1-20260826-global-settlement-formal-core-v1.json",
-      "git_blob": "75fa79bbe7a1cab96abd7ff014cb521caf1527f9"
+      "git_blob": "c813f8eab3a3ca006b13954489c129b5c77c68a0"
     },
     {
       "status": "A",
@@ -52,7 +52,7 @@
     {
       "status": "A",
       "path": "tests/formal/test_lean_global_settlement_core_v1.py",
-      "git_blob": "2e7be09c2adc75ef21af8d94e64d0e63ce67df06"
+      "git_blob": "58b59ab7872ea8981181d39c0b24c8d3a17b3002"
     },
     {
       "status": "A",
@@ -68,14 +68,14 @@
   "test_hygiene_evidence": {
     "evidence_id": "THV1-20260826-global-settlement-formal-core-v1",
     "path": "tests/evidence/test_hygiene/THV1-20260826-global-settlement-formal-core-v1.json",
-    "sha256": "283d6629242cc7c9eb0e34eb0fa106bc15a590facbcad5b234321a225cfe9659"
+    "sha256": "e195af78dc91688d5358dece48c51e66bf2faf89bf387cf65ea6945ed41055a1"
   },
   "formal_subject": {
     "esso_model_sha256": "121972779c7ac2f06dee1a6970498ab6b8e17c80c3050342648d8d2d432a2b7d",
     "esso_ir_hash": "sha256:889e3f9fb616fdd01c4d40a15f8cec80916ff992a8b2d6b39b8d1b305ba5e829",
     "esso_semantic_fingerprint": "58a1a345fed1f25c7d98e22452764b9dccfc2df82ac66217b7b109dc58389c43",
     "esso_code_hash": "7f80c6216be85c827e8d1cc2fa08ee3107a74588",
-    "lean_core_blob": "f549c1dd5b2af459f9f1cca232f93bd0aee23af1",
+    "lean_core_blob": "bbbd64143d642b663b1f66e8be53a13b75d12b39",
     "lean_challenge_blob": "ac2da57382bc1108b893bf993f5a28c7dbc371d5"
   },
   "evidence": [
@@ -89,15 +89,15 @@
     },
     {
       "command": "PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm python3 -m pytest -q -p no:cacheprovider tests/formal/test_lean_global_settlement_core_v1.py tests/formal/test_scan_lean_proof_placeholders_v1.py",
-      "result": "46 passed in 18.90s; every named core and challenge theorem passed a transitive #print axioms allowlist gate"
+      "result": "47 passed in 20.54s; the explicit 34-claim surface passed a transitive #print axioms allowlist gate"
     },
     {
       "command": "PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO python3 -m pytest -q -p no:cacheprovider tests/formal/test_esso_global_settlement_core_v1.py -rs",
-      "result": "135 passed in 38.57s; no skips"
+      "result": "135 passed in 41.72s; no skips"
     },
     {
       "command": "PYTHONDONTWRITEBYTECODE=1 TMPDIR=/dev/shm PYTHONPATH=/path/to/ESSO python3 tools/run_test_hygiene_gate_v1.py --base-ref f7e851565e063fb3e74b060a9c45f27b8621a8d7 --json",
-      "result": "113 passed in 41.92s; ok true; 7 critical paths covered"
+      "result": "114 passed in 42.53s; ok true; 7 critical paths covered"
     },
     {
       "command": "python3 -m ruff check tools/scan_lean_proof_placeholders_v1.py tests/formal/test_esso_global_settlement_core_v1.py tests/formal/test_lean_global_settlement_core_v1.py tests/formal/test_scan_lean_proof_placeholders_v1.py",
@@ -114,9 +114,10 @@
     "closed ESSO evidence object schemas and bound trial count, timeout, seed, domain caps, solver versions, tool hash, IR hash, and fingerprint",
     "reclassified GAP-01 through GAP-08 as eight primary divergences rather than a complete correspondence inventory",
     "stated that structural payload admission does not authenticate historical provenance",
-    "added a transitive Lean #print axioms allowlist gate for every named core and challenge theorem",
+    "added a transitive Lean #print axioms allowlist gate for the explicit 34-claim surface",
     "recorded the unmodeled height, terminal-obligation, transfer-subject, self-transfer, fee, managed-asset, grant, aggregation, and rejection-order semantics",
-    "rejected Boolean and float aliases for every fixed integer ESSO evidence counter and solver-control field"
+    "rejected Boolean and float aliases for every fixed integer ESSO evidence counter and solver-control field",
+    "narrowed the source-comparison prose to selected theorem-signature bindings and added a claim-ceiling regression"
   ],
   "authority": {
     "production": false,
