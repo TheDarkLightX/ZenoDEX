@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from types import SimpleNamespace
 
 import pytest
@@ -90,6 +90,7 @@ from src.core.lane_module_receipt_verification_v1 import (
     verify_managed_asset_lifecycle_lane_module_receipt_v1,
 )
 from src.core.lane_module_release_route_binding_v1 import (
+    ManagedAssetLifecycleReleaseRouteBindingCandidateV1,
     ReleaseRouteBoundLaneTransitionV1,
     bind_asset_transfer_lane_output_to_release_route_v1,
     bind_managed_asset_lifecycle_lane_output_to_release_route_v1,
@@ -108,6 +109,10 @@ from src.core.managed_asset_lifecycle_types_v1 import (
     ManagedAssetLifecycleContextV1,
     ManagedAssetLifecyclePolicyV1,
     ManagedAssetLifecycleStateV1,
+)
+from src.core.managed_asset_policy_registry_v1 import (
+    MANAGED_ASSET_POLICY_KIND_V1,
+    ManagedAssetPolicyRegistryV1,
 )
 from src.core.receipt_backed_asset_lane_composition_v1 import (
     LaneCompositionAuthorityLevelV1,
@@ -148,6 +153,10 @@ def _active_evidence() -> tuple[EvidenceStatusV1, ...]:
 
 _COMMAND_SIGNATURE_VERIFIER_ARTIFACT_V1 = (
     b"lane-binding-command-signature-verifier-test-artifact-v1"
+)
+_MANAGED_COMMAND_KINDS_V1 = (
+    MANAGED_ASSET_BURN_COMMAND_KIND_V1,
+    MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
 )
 
 
@@ -262,13 +271,46 @@ def _coordinator_release(lane_id: LaneIdV1, ordinal: int) -> LaneCoordinatorRele
     )
 
 
-def _profile() -> tuple[EconomicProfileSnapshotV1, dict[str, RouteReleaseV1]]:
-    lane_registry = LaneRegistryV1(
+def _asset_lane_registry_v1() -> LaneRegistryV1:
+    return LaneRegistryV1(
         tuple(
             _lane_release(lane_id, ordinal)
             for ordinal, lane_id in enumerate(ALL_LANE_IDS_V1, start=1)
         )
     )
+
+
+def _asset_transfer_release_id_v1() -> str:
+    return _asset_lane_registry_v1().release_for(LaneIdV1.ASSET_TRANSFER).release_id
+
+
+def _route_issue_burn_policy_root_v1(
+    command_kind: str,
+    asset_policy_registry: ManagedAssetPolicyRegistryV1 | None,
+    override: str | None,
+) -> str:
+    """Managed issue/burn routes own the governed registry root; others keep a stub."""
+
+    if command_kind not in _MANAGED_COMMAND_KINDS_V1 or asset_policy_registry is None:
+        return _root(511)
+    return asset_policy_registry.registry_root if override is None else override
+
+
+def _profile(
+    *,
+    asset_policy_registry: ManagedAssetPolicyRegistryV1 | None = None,
+    managed_command_kinds: tuple[str, ...] = _MANAGED_COMMAND_KINDS_V1,
+    route_issue_burn_policy_root: str | None = None,
+) -> tuple[EconomicProfileSnapshotV1, dict[str, RouteReleaseV1]]:
+    """Build the synthetic ACTIVE profile; managed bindings only when requested.
+
+    The default (no managed-asset policy registry) keeps the transfer golden
+    binding roots stable; managed tests use ``_managed_governance_v1``, whose
+    issue and burn routes carry the typed registry root as their
+    ``issue_burn_policy_root`` unless a test overrides it.
+    """
+
+    lane_registry = _asset_lane_registry_v1()
     lane_coordinator_registry = LaneCoordinatorRegistryV1(
         tuple(
             _coordinator_release(lane_id, ordinal)
@@ -289,7 +331,11 @@ def _profile() -> tuple[EconomicProfileSnapshotV1, dict[str, RouteReleaseV1]]:
             source_root=_root(540 + index),
             toolchain_root=_root(550 + index),
             oracle_policy_root=_root(510),
-            issue_burn_policy_root=_root(511),
+            issue_burn_policy_root=_route_issue_burn_policy_root_v1(
+                command_kind,
+                asset_policy_registry,
+                route_issue_burn_policy_root,
+            ),
             max_cycles=2_000_000,
             max_journal_bytes=131_072,
             status=ReleaseStatusV1.ACTIVE_NEW,
@@ -310,6 +356,8 @@ def _profile() -> tuple[EconomicProfileSnapshotV1, dict[str, RouteReleaseV1]]:
     policy_registry = _authentication_policy_registry_v1(
         authorization_registry,
         signature_verifier_registry,
+        asset_policy_registry=asset_policy_registry,
+        managed_command_kinds=managed_command_kinds,
     )
     profile = EconomicProfileSnapshotV1.build(
         authority_epoch=7,
@@ -365,31 +413,42 @@ def _authorization_registry_v1(
 def _authentication_policy_registry_v1(
     authorizations: EconomicCommandAuthorizationRegistryV1,
     signature_verifiers: EconomicCommandSignatureVerifierRegistryV1,
+    *,
+    asset_policy_registry: ManagedAssetPolicyRegistryV1 | None = None,
+    managed_command_kinds: tuple[str, ...] = _MANAGED_COMMAND_KINDS_V1,
 ) -> EconomicPolicyRegistryV1:
+    authentication_bindings = tuple(
+        EconomicPolicyBindingV1(policy_kind, command_kind, policy_root)
+        for command_kind in sorted(
+            authorization.command_kind for authorization in authorizations.authorizations
+        )
+        for policy_kind, policy_root in (
+            (
+                ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+                authorizations.registry_root,
+            ),
+            (
+                ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
+                signature_verifiers.registry_root,
+            ),
+        )
+    )
+    managed_bindings = (
+        ()
+        if asset_policy_registry is None
+        else tuple(
+            EconomicPolicyBindingV1(
+                MANAGED_ASSET_POLICY_KIND_V1,
+                command_kind,
+                asset_policy_registry.registry_root,
+            )
+            for command_kind in managed_command_kinds
+        )
+    )
     return EconomicPolicyRegistryV1(
         tuple(
             sorted(
-                (
-                    EconomicPolicyBindingV1(
-                        policy_kind,
-                        command_kind,
-                        policy_root,
-                    )
-                    for command_kind in sorted(
-                        authorization.command_kind
-                        for authorization in authorizations.authorizations
-                    )
-                    for policy_kind, policy_root in (
-                        (
-                            ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
-                            authorizations.registry_root,
-                        ),
-                        (
-                            ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
-                            signature_verifiers.registry_root,
-                        ),
-                    )
-                ),
+                (*authentication_bindings, *managed_bindings),
                 key=lambda binding: (binding.policy_kind, binding.command_kind),
             )
         )
@@ -417,13 +476,16 @@ def _authenticate_occurrence_for_test(
     profile: EconomicProfileSnapshotV1,
     occurrence: EconomicCommandOccurrenceV1,
     command: AssetTransferCommandV1 | ManagedAssetLifecycleCommandV1,
+    *,
+    policy_registry: EconomicPolicyRegistryV1 | None = None,
 ) -> AuthenticatedEconomicCommandV1:
     authorization_registry = _authorization_registry_v1(profile.route_registry)
     signature_verifier_registry = _signature_verifier_registry_v1()
-    policy_registry = _authentication_policy_registry_v1(
-        authorization_registry,
-        signature_verifier_registry,
-    )
+    if policy_registry is None:
+        policy_registry = _authentication_policy_registry_v1(
+            authorization_registry,
+            signature_verifier_registry,
+        )
     authorization = authorization_registry.authorization_for(
         occurrence,
         signer_key_id=f"{occurrence.subject_id}-key-1",
@@ -568,6 +630,104 @@ def _asset_input(
     )
 
 
+def _managed_asset_policy_v1() -> ManagedAssetLifecyclePolicyV1:
+    return ManagedAssetLifecyclePolicyV1(
+        asset="USD",
+        asset_class=ManagedAssetClassV1.REGISTERED_ORDINARY_TOKEN,
+        issue_authority_subject="issuer",
+        issue_policy_root=_root(5),
+        burn_policy_root=_root(6),
+        enabled=True,
+    )
+
+
+def _managed_asset_policy_registry_v1(
+    module_release_id: str | None = None,
+) -> ManagedAssetPolicyRegistryV1:
+    """Governed USD policy row bound to the fixture ASSET_TRANSFER release."""
+
+    return ManagedAssetPolicyRegistryV1(
+        _asset_transfer_release_id_v1() if module_release_id is None else module_release_id,
+        (_managed_asset_policy_v1(),),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _ManagedGovernanceV1:
+    """One ACTIVE profile whose economic policy registry governs managed assets."""
+
+    profile: EconomicProfileSnapshotV1
+    routes: dict[str, RouteReleaseV1]
+    policy_registry: EconomicPolicyRegistryV1
+    asset_policy_registry: ManagedAssetPolicyRegistryV1
+
+
+def _managed_governance_v1(
+    *,
+    asset_policy_registry: ManagedAssetPolicyRegistryV1 | None = None,
+    managed_command_kinds: tuple[str, ...] = _MANAGED_COMMAND_KINDS_V1,
+    route_issue_burn_policy_root: str | None = None,
+) -> _ManagedGovernanceV1:
+    governed = (
+        _managed_asset_policy_registry_v1()
+        if asset_policy_registry is None
+        else asset_policy_registry
+    )
+    profile, routes = _profile(
+        asset_policy_registry=governed,
+        managed_command_kinds=managed_command_kinds,
+        route_issue_burn_policy_root=route_issue_burn_policy_root,
+    )
+    policy_registry = _authentication_policy_registry_v1(
+        _authorization_registry_v1(profile.route_registry),
+        _signature_verifier_registry_v1(),
+        asset_policy_registry=governed,
+        managed_command_kinds=managed_command_kinds,
+    )
+    return _ManagedGovernanceV1(profile, routes, policy_registry, governed)
+
+
+def _managed_binding_candidate(
+    governance: _ManagedGovernanceV1,
+    occurrence: EconomicCommandOccurrenceV1,
+    module_input: ManagedAssetLifecycleLaneModuleInputV1,
+    accepted: ManagedAssetLifecycleLaneModuleAcceptedV1,
+) -> ManagedAssetLifecycleReleaseRouteBindingCandidateV1:
+    return ManagedAssetLifecycleReleaseRouteBindingCandidateV1(
+        governance.profile,
+        governance.policy_registry,
+        governance.asset_policy_registry,
+        occurrence,
+        module_input,
+        accepted,
+    )
+
+
+def _managed_receipt_candidate(
+    governance: _ManagedGovernanceV1,
+    occurrence: EconomicCommandOccurrenceV1,
+    module_input: ManagedAssetLifecycleLaneModuleInputV1,
+    accepted: ManagedAssetLifecycleLaneModuleAcceptedV1,
+    bound: ReleaseRouteBoundLaneTransitionV1,
+    receipt: LaneModuleReceiptEnvelopeV1,
+) -> ManagedAssetLifecycleLaneModuleReceiptCandidateV1:
+    return ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
+        governance.profile,
+        governance.policy_registry,
+        governance.asset_policy_registry,
+        _authenticate_occurrence_for_test(
+            governance.profile,
+            occurrence,
+            module_input.command,
+            policy_registry=governance.policy_registry,
+        ),
+        module_input,
+        accepted,
+        bound,
+        receipt,
+    )
+
+
 def _managed_input(
     profile: EconomicProfileSnapshotV1,
     occurrence: EconomicCommandOccurrenceV1,
@@ -587,16 +747,7 @@ def _managed_input(
         ),
         pre_state=ManagedAssetLifecycleStateV1(
             module_release_id=release_id,
-            policies=(
-                ManagedAssetLifecyclePolicyV1(
-                    asset="USD",
-                    asset_class=ManagedAssetClassV1.REGISTERED_ORDINARY_TOKEN,
-                    issue_authority_subject="issuer",
-                    issue_policy_root=_root(5),
-                    burn_policy_root=_root(6),
-                    enabled=True,
-                ),
-            ),
+            policies=(_managed_asset_policy_v1(),),
             balances=(EconomicAmountV1("alice", "USD", "accounts", 10),),
             supplies=(AssetSupplyV1("USD", 10),),
         ),
@@ -606,7 +757,7 @@ def _managed_input(
             account_owner="alice",
             amount_atoms=7 if command_kind == MANAGED_ASSET_ISSUE_COMMAND_KIND_V1 else 4,
         ),
-        asset_policy_registry_root=_root(11),
+        asset_policy_registry_root=_managed_asset_policy_registry_v1().registry_root,
         fee_policy_registry_root=_root(12),
         custody=(),
     )
@@ -748,10 +899,11 @@ def test_hostile_transfer_command_subclass_cannot_forge_body_hash() -> None:
 
 def test_hostile_managed_command_subclass_cannot_forge_body_hash() -> None:
     # Arrange: a retained exact input and a subclass advertising the approved hash.
-    profile, routes = _profile()
+    governance = _managed_governance_v1()
+    profile = governance.profile
     occurrence = _occurrence(
         profile,
-        routes[MANAGED_ASSET_ISSUE_COMMAND_KIND_V1],
+        governance.routes[MANAGED_ASSET_ISSUE_COMMAND_KIND_V1],
         subject_id="issuer",
         grant_root=_root(5),
     )
@@ -790,10 +942,7 @@ def test_hostile_managed_command_subclass_cannot_forge_body_hash() -> None:
     object.__setattr__(retained, "command", forged)
     with pytest.raises(TypeError, match="command must have the exact typed value"):
         bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-            profile,
-            occurrence,
-            retained,
-            accepted,
+            _managed_binding_candidate(governance, occurrence, retained, accepted)
         )
 
 
@@ -805,11 +954,12 @@ def test_same_kind_managed_body_substitution_rejects_before_receipt_binding(
     command_kind: str,
 ) -> None:
     # Arrange
-    profile, routes = _profile()
+    governance = _managed_governance_v1()
+    profile = governance.profile
     subject = "issuer" if command_kind == MANAGED_ASSET_ISSUE_COMMAND_KIND_V1 else "alice"
     occurrence = _occurrence(
         profile,
-        routes[command_kind],
+        governance.routes[command_kind],
         subject_id=subject,
         grant_root=(
             _root(5)
@@ -831,10 +981,7 @@ def test_same_kind_managed_body_substitution_rejects_before_receipt_binding(
     # Act / Assert
     with pytest.raises(ValueError, match="command body hash mismatch"):
         bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-            profile,
-            occurrence,
-            substituted,
-            accepted,
+            _managed_binding_candidate(governance, occurrence, substituted, accepted)
         )
 
 
@@ -850,22 +997,41 @@ def test_managed_issue_and_burn_bind_to_their_exact_governed_routes(
     subject_id: str,
     grant_root: str,
 ) -> None:
-    profile, routes = _profile()
+    governance = _managed_governance_v1()
+    profile, routes = governance.profile, governance.routes
     occurrence = _occurrence(profile, routes[command_kind], subject_id=subject_id, grant_root=grant_root)
     module_input = _managed_input(profile, occurrence, command_kind)
     accepted = transition_managed_asset_lifecycle_lane_module_v1(module_input)
     assert isinstance(accepted, ManagedAssetLifecycleLaneModuleAcceptedV1)
 
     bound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-        profile,
-        occurrence,
-        module_input,
-        accepted,
+        _managed_binding_candidate(governance, occurrence, module_input, accepted)
     )
 
     assert bound.route_release_id == routes[command_kind].route_release_id
     assert bound.statement_root == module_input.statement_root
     assert bound.producer_module_schema == MANAGED_ASSET_LIFECYCLE_MODULE_SCHEMA_V1
+    # Cross-language vector: the Rust route-binding suite asserts the same
+    # release-bound registry root for the same fixture.
+    assert governance.asset_policy_registry.module_release_id == (
+        profile.lane_registry.release_for(LaneIdV1.ASSET_TRANSFER).release_id
+    )
+    assert governance.asset_policy_registry.registry_root == (
+        "0xba06d1d7425a1dff6633b077ad7da33eb7ff681a8623607e9cbda353d87c2879"
+    )
+    # Managed issue/burn routes own that registry root as issue_burn_policy_root.
+    assert routes[command_kind].issue_burn_policy_root == (
+        governance.asset_policy_registry.registry_root
+    )
+    assert routes[MANAGED_ASSET_BURN_COMMAND_KIND_V1].route_release_id == (
+        "0xf9a0bf0ff296f198c5da915b0e612dcec24eee16b5fb7c65168b63c8b1db4fbc"
+    )
+    assert routes[MANAGED_ASSET_ISSUE_COMMAND_KIND_V1].route_release_id == (
+        "0x13a98232cd5861c444fc022c3419967dc488f99ad636202599621f586344962f"
+    )
+    assert profile.profile_id == (
+        "0x8f65206657c02a3677706d7835b94da55e653c45d04abf035e4acd9fdc7a12bd"
+    )
 
 
 def test_caller_selected_route_and_inactive_profile_fail_closed() -> None:
@@ -898,7 +1064,8 @@ def test_caller_selected_route_and_inactive_profile_fail_closed() -> None:
 
 
 def test_command_substitution_and_unregistered_module_release_fail_closed() -> None:
-    profile, routes = _profile()
+    governance = _managed_governance_v1()
+    profile, routes = governance.profile, governance.routes
     issue_route = routes[MANAGED_ASSET_ISSUE_COMMAND_KIND_V1]
     occurrence = _occurrence(profile, issue_route, subject_id="alice", grant_root=_root(6))
     burn_input = _managed_input(profile, occurrence, MANAGED_ASSET_BURN_COMMAND_KIND_V1)
@@ -906,10 +1073,7 @@ def test_command_substitution_and_unregistered_module_release_fail_closed() -> N
     assert isinstance(burn_accepted, ManagedAssetLifecycleLaneModuleAcceptedV1)
     with pytest.raises(ValueError, match="command kind mismatch"):
         bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-            profile,
-            occurrence,
-            burn_input,
-            burn_accepted,
+            _managed_binding_candidate(governance, occurrence, burn_input, burn_accepted)
         )
 
     transfer_occurrence = _occurrence(
@@ -1017,33 +1181,30 @@ def _accepted_transfer_with_binding() -> tuple[
 
 
 def _accepted_managed_issue_with_binding() -> tuple[
-    EconomicProfileSnapshotV1,
+    _ManagedGovernanceV1,
     EconomicCommandOccurrenceV1,
     ManagedAssetLifecycleLaneModuleInputV1,
     ManagedAssetLifecycleLaneModuleAcceptedV1,
     ReleaseRouteBoundLaneTransitionV1,
 ]:
-    profile, routes = _profile()
+    governance = _managed_governance_v1()
     occurrence = _occurrence(
-        profile,
-        routes[MANAGED_ASSET_ISSUE_COMMAND_KIND_V1],
+        governance.profile,
+        governance.routes[MANAGED_ASSET_ISSUE_COMMAND_KIND_V1],
         subject_id="issuer",
         grant_root=_root(5),
     )
     module_input = _managed_input(
-        profile,
+        governance.profile,
         occurrence,
         MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
     )
     accepted = transition_managed_asset_lifecycle_lane_module_v1(module_input)
     assert isinstance(accepted, ManagedAssetLifecycleLaneModuleAcceptedV1)
     bound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-        profile,
-        occurrence,
-        module_input,
-        accepted,
+        _managed_binding_candidate(governance, occurrence, module_input, accepted)
     )
-    return profile, occurrence, module_input, accepted, bound
+    return governance, occurrence, module_input, accepted, bound
 
 
 def test_module_receipt_verification_uses_release_image_and_exact_journal() -> None:
@@ -1102,7 +1263,8 @@ def test_managed_module_receipts_gain_only_release_image_bound_authority(
     subject_id: str,
     grant_root: str,
 ) -> None:
-    profile, routes = _profile()
+    governance = _managed_governance_v1()
+    profile, routes = governance.profile, governance.routes
     occurrence = _occurrence(
         profile,
         routes[command_kind],
@@ -1113,17 +1275,14 @@ def test_managed_module_receipts_gain_only_release_image_bound_authority(
     accepted = transition_managed_asset_lifecycle_lane_module_v1(module_input)
     assert isinstance(accepted, ManagedAssetLifecycleLaneModuleAcceptedV1)
     bound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-        profile,
-        occurrence,
-        module_input,
-        accepted,
+        _managed_binding_candidate(governance, occurrence, module_input, accepted)
     )
     verifier = _RecordingModuleReceiptVerifier()
 
     verified = verify_managed_asset_lifecycle_lane_module_receipt_v1(
-        ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
-            profile,
-            _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
+        _managed_receipt_candidate(
+            governance,
+            occurrence,
             module_input,
             accepted,
             bound,
@@ -1250,7 +1409,7 @@ def test_transfer_accepted_output_cannot_be_rerooted_to_another_command() -> Non
 
 def test_managed_accepted_output_cannot_be_rerooted_to_another_command() -> None:
     # Arrange: execute an eight-atom issue, then advertise the seven-atom statement.
-    profile, occurrence, authenticated, _, _ = _accepted_managed_issue_with_binding()
+    governance, occurrence, authenticated, _, _ = _accepted_managed_issue_with_binding()
     executed = replace(
         authenticated,
         command=replace(
@@ -1265,10 +1424,7 @@ def test_managed_accepted_output_cannot_be_rerooted_to_another_command() -> None
     # Act / Assert
     with pytest.raises(ValueError, match="receipt root mismatch"):
         bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-            profile,
-            occurrence,
-            authenticated,
-            accepted,
+            _managed_binding_candidate(governance, occurrence, authenticated, accepted)
         )
 
 
@@ -1317,12 +1473,12 @@ def test_managed_candidate_revalidates_retained_accepted_output_before_verifier(
     mutation: str,
 ) -> None:
     # Arrange
-    profile, occurrence, module_input, accepted, bound = (
+    governance, occurrence, module_input, accepted, bound = (
         _accepted_managed_issue_with_binding()
     )
-    candidate = ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
-        profile,
-        _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
+    candidate = _managed_receipt_candidate(
+        governance,
+        occurrence,
         module_input,
         accepted,
         bound,
@@ -1377,25 +1533,8 @@ def test_transfer_receipt_rejects_retained_command_subclass_before_verifier() ->
 
 def test_managed_receipt_rejects_retained_command_subclass_before_verifier() -> None:
     # Arrange
-    profile, routes = _profile()
-    occurrence = _occurrence(
-        profile,
-        routes[MANAGED_ASSET_ISSUE_COMMAND_KIND_V1],
-        subject_id="issuer",
-        grant_root=_root(5),
-    )
-    module_input = _managed_input(
-        profile,
-        occurrence,
-        MANAGED_ASSET_ISSUE_COMMAND_KIND_V1,
-    )
-    accepted = transition_managed_asset_lifecycle_lane_module_v1(module_input)
-    assert isinstance(accepted, ManagedAssetLifecycleLaneModuleAcceptedV1)
-    bound = bind_managed_asset_lifecycle_lane_output_to_release_route_v1(
-        profile,
-        occurrence,
-        module_input,
-        accepted,
+    governance, occurrence, module_input, accepted, bound = (
+        _accepted_managed_issue_with_binding()
     )
     advertised_hash = module_input.command.command_body_hash
 
@@ -1404,9 +1543,9 @@ def test_managed_receipt_rejects_retained_command_subclass_before_verifier() -> 
         def command_body_hash(self) -> str:
             return advertised_hash
 
-    candidate = ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
-        profile,
-        _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
+    candidate = _managed_receipt_candidate(
+        governance,
+        occurrence,
         module_input,
         accepted,
         bound,
@@ -1504,10 +1643,12 @@ def test_mutated_candidate_cannot_inject_authentication_root_at_verification() -
 
 
 def test_managed_candidate_cannot_inject_authentication_root_at_verification() -> None:
-    profile, occurrence, module_input, accepted, bound = _accepted_managed_issue_with_binding()
-    candidate = ManagedAssetLifecycleLaneModuleReceiptCandidateV1(
-        profile,
-        _authenticate_occurrence_for_test(profile, occurrence, module_input.command),
+    governance, occurrence, module_input, accepted, bound = (
+        _accepted_managed_issue_with_binding()
+    )
+    candidate = _managed_receipt_candidate(
+        governance,
+        occurrence,
         module_input,
         accepted,
         bound,

@@ -65,7 +65,7 @@ pub struct ManagedAssetLifecyclePolicyV1 {
 }
 
 impl ManagedAssetLifecyclePolicyV1 {
-    fn validate(&self) -> AbiResultV1<()> {
+    pub(crate) fn validate(&self) -> AbiResultV1<()> {
         validate_token_v1(&self.asset, "managed asset lifecycle policy asset")?;
         if self.issue_authority_subject.is_some() != self.issue_policy_root.is_some() {
             return Err(AbiErrorV1::InvalidBinding(
