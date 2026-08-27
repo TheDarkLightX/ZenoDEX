@@ -2899,7 +2899,7 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
         assert!(verifier.calls.borrow().is_empty());
     }
 
-    let at_limit = vec![0xa5; MAX_ECONOMIC_RECEIPT_BYTES_V1];
+    let at_limit = vec![0xa5; MAX_LANE_MODULE_RECEIPT_BYTES_V1];
     let at_limit_verifier = RecordingModuleReceiptVerifier::default();
     verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1 {
@@ -2923,7 +2923,7 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
     drop(at_limit_verifier);
     drop(at_limit);
 
-    let over_limit = vec![0xa5; MAX_ECONOMIC_RECEIPT_BYTES_V1 + 1];
+    let over_limit = vec![0xa5; MAX_LANE_MODULE_RECEIPT_BYTES_V1 + 1];
     let over_limit_verifier = RecordingModuleReceiptVerifier::default();
     assert_eq!(
         verify_asset_transfer_lane_module_receipt_v1(
