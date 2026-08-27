@@ -1,12 +1,14 @@
 use serde_json::{json, Value};
 use zenodex_global_settlement_abi_v1::{
-    hash_global_v1, EconomicProfileSnapshotV1, EvidenceStatusV1, LaneCoordinatorRegistryV1,
+    hash_global_v1, AssetTransferPolicyRegistryV1, AssetTransferPolicyV1, EconomicPolicyRegistryV1,
+    EconomicProfileSnapshotV1, EvidenceStatusV1, LaneCoordinatorRegistryV1,
     LaneCoordinatorReleaseV1, LaneIdV1, LaneModuleReleaseV1, LaneRegistryV1, ProfileStatusV1,
     ReleaseStatusV1, RootV1, RouteRegistryV1, RouteReleaseV1, ALL_LANE_IDS_V1,
-    ASSET_TRANSFER_COMMAND_KIND_V1, GLOBAL_SETTLEMENT_ABI_V1,
+    ASSET_TRANSFER_COMMAND_KIND_V1, ASSET_TRANSFER_POLICY_REGISTRY_SCHEMA_V1,
+    GLOBAL_SETTLEMENT_ABI_V1,
 };
 
-use super::authenticated_command::authentication_policy_registry_root_v1;
+use super::authenticated_command::governed_policy_registry_v1;
 use super::root;
 
 pub(super) struct ReleaseAwareRegistriesV1 {
@@ -14,6 +16,22 @@ pub(super) struct ReleaseAwareRegistriesV1 {
     pub lanes: LaneRegistryV1,
     pub coordinators: LaneCoordinatorRegistryV1,
     pub routes: RouteRegistryV1,
+    pub policy_registry: EconomicPolicyRegistryV1,
+    pub asset_policy_registry: AssetTransferPolicyRegistryV1,
+}
+
+/// Governed USD transfer policy row bound to the fixture ASSET_TRANSFER release.
+fn asset_transfer_policy_registry(module_release_id: &RootV1) -> AssetTransferPolicyRegistryV1 {
+    AssetTransferPolicyRegistryV1 {
+        schema: ASSET_TRANSFER_POLICY_REGISTRY_SCHEMA_V1.to_owned(),
+        module_release_id: module_release_id.clone(),
+        policies: vec![AssetTransferPolicyV1 {
+            asset: "USD".to_owned(),
+            fee_owner: "treasury".to_owned(),
+            transfer_fee_atoms: 2,
+            enabled: true,
+        }],
+    }
 }
 
 fn synthetic_active_evidence_for_closed_test_profile() -> Vec<EvidenceStatusV1> {
@@ -274,12 +292,12 @@ fn active_profile(
     lanes: &LaneRegistryV1,
     coordinators: &LaneCoordinatorRegistryV1,
     routes: &RouteRegistryV1,
+    policy_registry_root: RootV1,
 ) -> EconomicProfileSnapshotV1 {
     let lane_registry_root = lanes.registry_root().unwrap();
     let lane_coordinator_registry_root = coordinators.registry_root().unwrap();
     let route_registry_root = routes.registry_root().unwrap();
     let roots = [root(600), root(601), root(602), root(603), root(605)];
-    let policy_registry_root = authentication_policy_registry_root_v1(routes);
     let content = json!({
         "schema": GLOBAL_SETTLEMENT_ABI_V1,
         "authority_epoch": 7,
@@ -315,7 +333,19 @@ pub(super) fn release_aware_registries_v1(
     coordinator_image: &RootV1,
 ) -> ReleaseAwareRegistriesV1 {
     let (lanes, coordinators, routes) = closed_registries(module_image, coordinator_image);
-    let profile = active_profile(&lanes, &coordinators, &routes);
+    let asset_release_id = lanes
+        .release_for(LaneIdV1::ASSET_TRANSFER)
+        .unwrap()
+        .release_id
+        .clone();
+    let asset_policy_registry = asset_transfer_policy_registry(&asset_release_id);
+    let policy_registry = governed_policy_registry_v1(&routes, &asset_policy_registry);
+    let profile = active_profile(
+        &lanes,
+        &coordinators,
+        &routes,
+        policy_registry.registry_root().unwrap(),
+    );
     profile
         .validate_registries(&lanes, &coordinators, &routes)
         .unwrap();
@@ -324,5 +354,7 @@ pub(super) fn release_aware_registries_v1(
         lanes,
         coordinators,
         routes,
+        policy_registry,
+        asset_policy_registry,
     }
 }

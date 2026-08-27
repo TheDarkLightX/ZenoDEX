@@ -8,6 +8,7 @@ mod asset_lane_coordinator;
 mod asset_lane_projection;
 mod asset_transfer;
 mod asset_transfer_lane_module;
+mod asset_transfer_policy_registry;
 mod asset_transfer_types;
 mod canonical;
 mod economic_command_authentication;
@@ -74,6 +75,7 @@ pub use asset_lane_coordinator::*;
 pub use asset_lane_projection::*;
 pub use asset_transfer::*;
 pub use asset_transfer_lane_module::*;
+pub use asset_transfer_policy_registry::*;
 pub use asset_transfer_types::*;
 pub use canonical::{
     canonical_bytes_v1, canonical_economic_command_body_bytes_v1, hash_bytes_sha256_v1,

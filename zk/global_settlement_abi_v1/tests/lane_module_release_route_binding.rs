@@ -393,16 +393,15 @@ impl EconomicCommandSignatureVerifierBackendV1 for AcceptingCommandSignatureVeri
     }
 }
 
+/// Authenticate under the default transfer-governed policy registry that
+/// `profile()` commits for its routes.
 fn authenticate_occurrence(
     profile: &EconomicProfileSnapshotV1,
     routes: &RouteRegistryV1,
     occurrence: &EconomicCommandOccurrenceV1,
     command_body_bytes: Vec<u8>,
 ) -> AuthenticatedEconomicCommandV1 {
-    let authorization_registry = authorization_registry(routes);
-    let signature_verifier_registry = signature_verifier_registry();
-    let policy_registry =
-        authentication_policy_registry(&authorization_registry, &signature_verifier_registry);
+    let policy_registry = transfer_registries(routes).policy_registry;
     authenticate_occurrence_with_policy_registry(
         profile,
         routes,
@@ -470,12 +469,183 @@ fn authenticate_occurrence_with_policy_registry(
     bind_authenticated_intent_to_occurrence_v1(&authenticated_intent, occurrence).unwrap()
 }
 
-fn profile() -> (
-    EconomicProfileSnapshotV1,
-    LaneRegistryV1,
-    LaneCoordinatorRegistryV1,
-    RouteRegistryV1,
-) {
+const TRANSFER_POLICY_KINDS: &[&str] = &[
+    ASSET_TRANSFER_ASSET_POLICY_KIND_V1,
+    ASSET_TRANSFER_FEE_POLICY_KIND_V1,
+];
+
+fn asset_transfer_policy() -> AssetTransferPolicyV1 {
+    AssetTransferPolicyV1 {
+        asset: "USD".to_owned(),
+        fee_owner: "treasury".to_owned(),
+        transfer_fee_atoms: 2,
+        enabled: true,
+    }
+}
+
+fn asset_transfer_policy_registry(module_release_id: &RootV1) -> AssetTransferPolicyRegistryV1 {
+    AssetTransferPolicyRegistryV1 {
+        schema: ASSET_TRANSFER_POLICY_REGISTRY_SCHEMA_V1.to_owned(),
+        module_release_id: module_release_id.clone(),
+        policies: vec![asset_transfer_policy()],
+    }
+}
+
+/// Authentication bindings plus the requested governed transfer policy
+/// bindings, each carrying its own domain-separated registry root.
+fn transfer_policy_registry(
+    authorizations: &EconomicCommandAuthorizationRegistryV1,
+    signature_verifiers: &EconomicCommandSignatureVerifierRegistryV1,
+    asset_policy_registry: &AssetTransferPolicyRegistryV1,
+    kinds: &[&str],
+) -> EconomicPolicyRegistryV1 {
+    let mut registry = authentication_policy_registry(authorizations, signature_verifiers);
+    for kind in kinds {
+        let policy_root = if *kind == ASSET_TRANSFER_ASSET_POLICY_KIND_V1 {
+            asset_policy_registry.asset_policy_root().unwrap()
+        } else {
+            asset_policy_registry.fee_policy_root().unwrap()
+        };
+        registry.bindings.push(EconomicPolicyBindingV1 {
+            policy_kind: (*kind).to_owned(),
+            command_kind: ASSET_TRANSFER_COMMAND_KIND_V1.to_owned(),
+            policy_root,
+        });
+    }
+    registry.bindings.sort_by(|left, right| {
+        (&left.policy_kind, &left.command_kind).cmp(&(&right.policy_kind, &right.command_kind))
+    });
+    registry.validate().unwrap();
+    registry
+}
+
+/// The governed transfer registries an ACTIVE transfer profile commits.
+struct TransferRegistries {
+    policy_registry: EconomicPolicyRegistryV1,
+    asset_policy_registry: AssetTransferPolicyRegistryV1,
+}
+
+fn transfer_registries_with(
+    routes: &RouteRegistryV1,
+    policies: Vec<AssetTransferPolicyV1>,
+    kinds: &[&str],
+) -> TransferRegistries {
+    let route = routes
+        .route_for_command(ASSET_TRANSFER_COMMAND_KIND_V1, None)
+        .expect("transfer route must exist");
+    let asset_policy_registry = AssetTransferPolicyRegistryV1 {
+        schema: ASSET_TRANSFER_POLICY_REGISTRY_SCHEMA_V1.to_owned(),
+        module_release_id: route.module_release_ids[0].clone(),
+        policies,
+    };
+    let policy_registry = transfer_policy_registry(
+        &authorization_registry(routes),
+        &signature_verifier_registry(),
+        &asset_policy_registry,
+        kinds,
+    );
+    TransferRegistries {
+        policy_registry,
+        asset_policy_registry,
+    }
+}
+
+/// The exact registries `profile()` commits: the USD fixture row under both
+/// transfer policy kinds.
+fn transfer_registries(routes: &RouteRegistryV1) -> TransferRegistries {
+    transfer_registries_with(routes, vec![asset_transfer_policy()], TRANSFER_POLICY_KINDS)
+}
+
+#[derive(Clone, Copy)]
+struct TransferGovernanceRefs<'a> {
+    profile: &'a EconomicProfileSnapshotV1,
+    lanes: &'a LaneRegistryV1,
+    coordinators: &'a LaneCoordinatorRegistryV1,
+    routes: &'a RouteRegistryV1,
+    registries: &'a TransferRegistries,
+}
+
+fn transfer_binding_candidate<'a>(
+    refs: &TransferGovernanceRefs<'a>,
+    occurrence: &'a EconomicCommandOccurrenceV1,
+    module_input: &'a AssetTransferLaneModuleInputV1,
+    accepted: &'a AssetTransferLaneModuleAcceptedV1,
+) -> AssetTransferReleaseRouteBindingCandidateV1<'a> {
+    AssetTransferReleaseRouteBindingCandidateV1 {
+        profile: refs.profile,
+        policy_registry: &refs.registries.policy_registry,
+        asset_policy_registry: &refs.registries.asset_policy_registry,
+        lanes: refs.lanes,
+        coordinators: refs.coordinators,
+        routes: refs.routes,
+        occurrence,
+        module_input,
+        accepted,
+    }
+}
+
+fn bind_transfer(
+    refs: &TransferGovernanceRefs<'_>,
+    occurrence: &EconomicCommandOccurrenceV1,
+    module_input: &AssetTransferLaneModuleInputV1,
+    accepted: &AssetTransferLaneModuleAcceptedV1,
+) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
+    bind_asset_transfer_lane_output_to_release_route_v1(transfer_binding_candidate(
+        refs,
+        occurrence,
+        module_input,
+        accepted,
+    ))
+}
+
+fn transfer_receipt_candidate<'a>(
+    refs: &TransferGovernanceRefs<'a>,
+    authenticated_command: &'a AuthenticatedEconomicCommandV1,
+    module_input: &'a AssetTransferLaneModuleInputV1,
+    accepted: &'a AssetTransferLaneModuleAcceptedV1,
+    release_route_binding: &'a ReleaseRouteBoundLaneTransitionV1,
+    receipt_bytes: &'a [u8],
+) -> AssetTransferLaneModuleReceiptCandidateV1<'a> {
+    AssetTransferLaneModuleReceiptCandidateV1 {
+        profile: refs.profile,
+        policy_registry: &refs.registries.policy_registry,
+        asset_policy_registry: &refs.registries.asset_policy_registry,
+        lanes: refs.lanes,
+        coordinators: refs.coordinators,
+        routes: refs.routes,
+        authenticated_command,
+        module_input,
+        accepted,
+        release_route_binding,
+        receipt: LaneModuleReceiptEnvelopeV1 {
+            receipt_kind: ReceiptKindV1::SUCCINCT,
+            receipt_bytes,
+        },
+    }
+}
+
+/// One ACTIVE profile whose economic policy registry governs transfers.
+struct TransferGovernance {
+    profile: EconomicProfileSnapshotV1,
+    lanes: LaneRegistryV1,
+    coordinators: LaneCoordinatorRegistryV1,
+    routes: RouteRegistryV1,
+    registries: TransferRegistries,
+}
+
+impl TransferGovernance {
+    fn refs(&self) -> TransferGovernanceRefs<'_> {
+        TransferGovernanceRefs {
+            profile: &self.profile,
+            lanes: &self.lanes,
+            coordinators: &self.coordinators,
+            routes: &self.routes,
+            registries: &self.registries,
+        }
+    }
+}
+
+fn asset_registries() -> (LaneRegistryV1, LaneCoordinatorRegistryV1, RouteRegistryV1) {
     let lanes = LaneRegistryV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
         releases: ALL_LANE_IDS_V1
@@ -509,14 +679,46 @@ fn profile() -> (
             .map(|(index, lane)| coordinator_release(*lane, index as u64 + 1))
             .collect(),
     };
-    let authorizations = authorization_registry(&routes);
-    let signature_verifiers = signature_verifier_registry();
-    let policy_registry_root =
-        authentication_policy_registry(&authorizations, &signature_verifiers)
-            .registry_root()
-            .unwrap();
-    let profile = asset_profile_snapshot(&lanes, &coordinators, &routes, policy_registry_root);
-    (profile, lanes, coordinators, routes)
+    (lanes, coordinators, routes)
+}
+
+fn transfer_governance_with(
+    policies: Vec<AssetTransferPolicyV1>,
+    kinds: &[&str],
+) -> TransferGovernance {
+    let (lanes, coordinators, routes) = asset_registries();
+    let registries = transfer_registries_with(&routes, policies, kinds);
+    let profile = asset_profile_snapshot(
+        &lanes,
+        &coordinators,
+        &routes,
+        registries.policy_registry.registry_root().unwrap(),
+    );
+    TransferGovernance {
+        profile,
+        lanes,
+        coordinators,
+        routes,
+        registries,
+    }
+}
+
+/// The default ACTIVE profile governs the USD fixture transfer row under both
+/// transfer policy kinds; `transfer_registries(&routes)` recomputes exactly
+/// the registries it commits.
+fn profile() -> (
+    EconomicProfileSnapshotV1,
+    LaneRegistryV1,
+    LaneCoordinatorRegistryV1,
+    RouteRegistryV1,
+) {
+    let governance = transfer_governance_with(vec![asset_transfer_policy()], TRANSFER_POLICY_KINDS);
+    (
+        governance.profile,
+        governance.lanes,
+        governance.coordinators,
+        governance.routes,
+    )
 }
 
 fn asset_profile_snapshot(
@@ -1020,13 +1222,15 @@ fn asset_input(
     occurrence: &EconomicCommandOccurrenceV1,
     module_release_id: Option<RootV1>,
 ) -> AssetTransferLaneModuleInputV1 {
-    let release_id = module_release_id.unwrap_or_else(|| {
-        lanes
-            .release_for(LaneIdV1::ASSET_TRANSFER)
-            .unwrap()
-            .release_id
-            .clone()
-    });
+    let governed_release_id = lanes
+        .release_for(LaneIdV1::ASSET_TRANSFER)
+        .unwrap()
+        .release_id
+        .clone();
+    let release_id = module_release_id.unwrap_or_else(|| governed_release_id.clone());
+    // The opaque roots are the governed registry's typed roots, so an input
+    // executed under a foreign release still advertises the governed roots.
+    let registry = asset_transfer_policy_registry(&governed_release_id);
     AssetTransferLaneModuleInputV1 {
         schema: ASSET_TRANSFER_LANE_MODULE_INPUT_SCHEMA_V1.to_owned(),
         context: AssetTransferContextV1 {
@@ -1042,12 +1246,7 @@ fn asset_input(
         pre_state: AssetTransferStateV1 {
             schema: ASSET_TRANSFER_MODULE_SCHEMA_V1.to_owned(),
             module_release_id: release_id,
-            policies: vec![AssetTransferPolicyV1 {
-                asset: "USD".to_owned(),
-                fee_owner: "treasury".to_owned(),
-                transfer_fee_atoms: 2,
-                enabled: true,
-            }],
+            policies: registry.policies.clone(),
             balances: vec![
                 EconomicAmountV1 {
                     owner: "alice".to_owned(),
@@ -1081,8 +1280,8 @@ fn asset_input(
             amount_atoms: 30,
             max_fee_atoms: 2,
         },
-        asset_policy_registry_root: root(11),
-        fee_policy_registry_root: root(12),
+        asset_policy_registry_root: registry.asset_policy_root().unwrap(),
+        fee_policy_registry_root: registry.fee_policy_root().unwrap(),
         custody: vec![],
     }
 }
@@ -1212,16 +1411,16 @@ fn asset_issue_and_burn_outputs_bind_to_exact_active_profile_routes() {
     else {
         panic!("valid transfer must accept")
     };
-    let bound = bind_asset_transfer_lane_output_to_release_route_v1(
-        &profile,
-        &lanes,
-        &coordinators,
-        &routes,
-        &transfer_occurrence,
-        &transfer_input,
-        &transfer,
-    )
-    .expect("valid transfer output must bind");
+    let registries = transfer_registries(&routes);
+    let refs = TransferGovernanceRefs {
+        profile: &profile,
+        lanes: &lanes,
+        coordinators: &coordinators,
+        routes: &routes,
+        registries: &registries,
+    };
+    let bound = bind_transfer(&refs, &transfer_occurrence, &transfer_input, &transfer)
+        .expect("valid transfer output must bind");
     assert_eq!(bound.profile_id(), &profile.profile_id);
     assert_eq!(bound.lane_id(), LaneIdV1::ASSET_TRANSFER);
     assert_eq!(bound.route_lane_index(), 0);
@@ -1229,9 +1428,47 @@ fn asset_issue_and_burn_outputs_bind_to_exact_active_profile_routes() {
         bound.statement_root(),
         &transfer_input.statement_root().unwrap()
     );
+    // Cross-language vectors: the Python route-binding and membership suites
+    // assert the same governed transfer binding root, registry roots, profile
+    // id, and route release id for the same fixture.
     assert_eq!(
         bound.binding_root().unwrap().as_str(),
-        "0xcff38651027da371035b33cb7173ba002b9b942e1dc11436485f69d25aebf9f7"
+        "0x3c81585faeffa442eb7d83cff4ccd3c158358a67766f63c8c8f00a579e736fba"
+    );
+    assert_eq!(
+        registries
+            .asset_policy_registry
+            .asset_policy_root()
+            .unwrap()
+            .as_str(),
+        "0x410c0a5f51ec3b51ee53bf95eae3c11df09004bbe60be9b04a45f106c823fda7"
+    );
+    assert_eq!(
+        registries
+            .asset_policy_registry
+            .fee_policy_root()
+            .unwrap()
+            .as_str(),
+        "0xeb173aa23a9cbcb7db7e08d255068789dc081a056cac27f51cafa389b966dbd1"
+    );
+    assert_eq!(
+        profile.profile_id.as_str(),
+        "0x96b4fff45570fc2da3f522030cc06bb140390a99cb1fba7986a34cb11a9f298c"
+    );
+    assert_eq!(
+        bound.route_release_id().as_str(),
+        "0x2bba8b7eaf9df0e6d28b0f27933995a1872be2c41fed5a7b5ea0ee3f8ba01b1d"
+    );
+    assert_eq!(
+        transfer_input.asset_policy_registry_root,
+        registries
+            .asset_policy_registry
+            .asset_policy_root()
+            .unwrap()
+    );
+    assert_eq!(
+        transfer_input.fee_policy_registry_root,
+        registries.asset_policy_registry.fee_policy_root().unwrap()
     );
 
     let governance = managed_governance();
@@ -1366,19 +1603,18 @@ fn same_kind_transfer_body_substitution_rejects_before_receipt_binding() {
     else {
         panic!("substituted transfer remains economically valid")
     };
+    let registries = transfer_registries(&routes);
+    let refs = TransferGovernanceRefs {
+        profile: &profile,
+        lanes: &lanes,
+        coordinators: &coordinators,
+        routes: &routes,
+        registries: &registries,
+    };
 
     // Act / Assert
     assert_eq!(
-        bind_asset_transfer_lane_output_to_release_route_v1(
-            &profile,
-            &lanes,
-            &coordinators,
-            &routes,
-            &occurrence,
-            &input,
-            &accepted,
-        )
-        .unwrap_err(),
+        bind_transfer(&refs, &occurrence, &input, &accepted).unwrap_err(),
         AbiErrorV1::InvalidBinding("lane module command body hash")
     );
 }
@@ -1439,6 +1675,14 @@ fn coherent_transfer_output_for_another_amount_rejects_before_route_binding() {
         root(7),
     );
     let input = asset_input(&profile, &lanes, &occurrence, None);
+    let registries = transfer_registries(&routes);
+    let refs = TransferGovernanceRefs {
+        profile: &profile,
+        lanes: &lanes,
+        coordinators: &coordinators,
+        routes: &routes,
+        registries: &registries,
+    };
     let mut foreign_input = input.clone();
     foreign_input.command.amount_atoms += 1;
     let AssetTransferLaneModuleResultV1::Accepted(mut forged) =
@@ -1449,15 +1693,7 @@ fn coherent_transfer_output_for_another_amount_rejects_before_route_binding() {
     structurally_rebind_transfer_statement(&mut forged, input.statement_root().unwrap());
 
     // Act
-    let result = bind_asset_transfer_lane_output_to_release_route_v1(
-        &profile,
-        &lanes,
-        &coordinators,
-        &routes,
-        &occurrence,
-        &input,
-        &forged,
-    );
+    let result = bind_transfer(&refs, &occurrence, &input, &forged);
 
     // Assert
     assert_eq!(
@@ -1524,21 +1760,20 @@ fn receipt_structural_binding_rejects_a_coherent_foreign_output_before_recomputa
         root(7),
     );
     let input = asset_input(&profile, &lanes, &occurrence, None);
+    let registries = transfer_registries(&routes);
+    let refs = TransferGovernanceRefs {
+        profile: &profile,
+        lanes: &lanes,
+        coordinators: &coordinators,
+        routes: &routes,
+        registries: &registries,
+    };
     let AssetTransferLaneModuleResultV1::Accepted(accepted) =
         transition_asset_transfer_lane_module_v1(&input).unwrap()
     else {
         panic!("valid transfer must accept")
     };
-    let bound = bind_asset_transfer_lane_output_to_release_route_v1(
-        &profile,
-        &lanes,
-        &coordinators,
-        &routes,
-        &occurrence,
-        &input,
-        &accepted,
-    )
-    .unwrap();
+    let bound = bind_transfer(&refs, &occurrence, &input, &accepted).unwrap();
     let mut foreign_input = input.clone();
     foreign_input.command.amount_atoms += 1;
     let AssetTransferLaneModuleResultV1::Accepted(mut forged) =
@@ -1560,6 +1795,8 @@ fn receipt_structural_binding_rejects_a_coherent_foreign_output_before_recomputa
     let result = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1 {
             profile: &profile,
+            policy_registry: &registries.policy_registry,
+            asset_policy_registry: &registries.asset_policy_registry,
             lanes: &lanes,
             coordinators: &coordinators,
             routes: &routes,
@@ -1666,7 +1903,7 @@ fn managed_receipt_structural_binding_rejects_coherent_foreign_outputs_first() {
 #[test]
 fn inactive_profile_reject_precedes_coherent_foreign_output_rejection() {
     // Arrange
-    let (mut profile, lanes, coordinators, routes) = profile();
+    let (profile, lanes, coordinators, routes) = profile();
     let occurrence = occurrence(
         &profile,
         &routes,
@@ -1675,6 +1912,14 @@ fn inactive_profile_reject_precedes_coherent_foreign_output_rejection() {
         root(7),
     );
     let input = asset_input(&profile, &lanes, &occurrence, None);
+    let registries = transfer_registries(&routes);
+    let refs = TransferGovernanceRefs {
+        profile: &profile,
+        lanes: &lanes,
+        coordinators: &coordinators,
+        routes: &routes,
+        registries: &registries,
+    };
     let mut foreign_input = input.clone();
     foreign_input.command.amount_atoms += 1;
     let AssetTransferLaneModuleResultV1::Accepted(mut forged) =
@@ -1683,18 +1928,15 @@ fn inactive_profile_reject_precedes_coherent_foreign_output_rejection() {
         panic!("foreign transfer must remain economically valid")
     };
     structurally_rebind_transfer_statement(&mut forged, input.statement_root().unwrap());
-    profile.status = ProfileStatusV1::SHADOW;
+    let mut inactive = profile.clone();
+    inactive.status = ProfileStatusV1::SHADOW;
+    let inactive_refs = TransferGovernanceRefs {
+        profile: &inactive,
+        ..refs
+    };
 
     // Act
-    let result = bind_asset_transfer_lane_output_to_release_route_v1(
-        &profile,
-        &lanes,
-        &coordinators,
-        &routes,
-        &occurrence,
-        &input,
-        &forged,
-    );
+    let result = bind_transfer(&inactive_refs, &occurrence, &input, &forged);
 
     // Assert
     assert_eq!(
@@ -1714,6 +1956,14 @@ fn caller_route_profile_domain_and_release_substitutions_fail_closed() {
         root(7),
     );
     let input = asset_input(&profile, &lanes, &occurrence, None);
+    let registries = transfer_registries(&routes);
+    let refs = TransferGovernanceRefs {
+        profile: &profile,
+        lanes: &lanes,
+        coordinators: &coordinators,
+        routes: &routes,
+        registries: &registries,
+    };
     let AssetTransferLaneModuleResultV1::Accepted(accepted) =
         transition_asset_transfer_lane_module_v1(&input).unwrap()
     else {
@@ -1723,51 +1973,30 @@ fn caller_route_profile_domain_and_release_substitutions_fail_closed() {
     let mut wrong_route = occurrence.clone();
     wrong_route.route_release_id = root(998);
     assert_eq!(
-        bind_asset_transfer_lane_output_to_release_route_v1(
-            &profile,
-            &lanes,
-            &coordinators,
-            &routes,
-            &wrong_route,
-            &input,
-            &accepted,
-        )
-        .unwrap_err(),
+        bind_transfer(&refs, &wrong_route, &input, &accepted).unwrap_err(),
         AbiErrorV1::InvalidBinding("caller-selected route does not match governed route")
     );
 
     let mut inactive = profile.clone();
     inactive.status = ProfileStatusV1::SHADOW;
+    let inactive_refs = TransferGovernanceRefs {
+        profile: &inactive,
+        ..refs
+    };
     assert_eq!(
-        bind_asset_transfer_lane_output_to_release_route_v1(
-            &inactive,
-            &lanes,
-            &coordinators,
-            &routes,
-            &occurrence,
-            &input,
-            &accepted,
-        )
-        .unwrap_err(),
+        bind_transfer(&inactive_refs, &occurrence, &input, &accepted).unwrap_err(),
         AbiErrorV1::InvalidBinding("economic profile is not active")
     );
 
     let mut wrong_chain = occurrence.clone();
     wrong_chain.chain_id = "other-chain".to_owned();
     assert_eq!(
-        bind_asset_transfer_lane_output_to_release_route_v1(
-            &profile,
-            &lanes,
-            &coordinators,
-            &routes,
-            &wrong_chain,
-            &input,
-            &accepted,
-        )
-        .unwrap_err(),
+        bind_transfer(&refs, &wrong_chain, &input, &accepted).unwrap_err(),
         AbiErrorV1::InvalidBinding("lane module chain id")
     );
 
+    // A foreign module release now rejects at governed policy membership, which
+    // precedes the release-route module release comparison.
     let foreign_input = asset_input(&profile, &lanes, &occurrence, Some(root(997)));
     let AssetTransferLaneModuleResultV1::Accepted(foreign) =
         transition_asset_transfer_lane_module_v1(&foreign_input).unwrap()
@@ -1775,17 +2004,8 @@ fn caller_route_profile_domain_and_release_substitutions_fail_closed() {
         panic!("internally consistent foreign release must evaluate")
     };
     assert_eq!(
-        bind_asset_transfer_lane_output_to_release_route_v1(
-            &profile,
-            &lanes,
-            &coordinators,
-            &routes,
-            &occurrence,
-            &foreign_input,
-            &foreign,
-        )
-        .unwrap_err(),
-        AbiErrorV1::InvalidBinding("lane module release mismatch")
+        bind_transfer(&refs, &occurrence, &foreign_input, &foreign).unwrap_err(),
+        AbiErrorV1::InvalidBinding("asset transfer policy registry module release")
     );
 }
 
@@ -2818,11 +3038,24 @@ struct VerifiedAssetLaneFixture {
     lanes: LaneRegistryV1,
     coordinators: LaneCoordinatorRegistryV1,
     routes: RouteRegistryV1,
+    registries: TransferRegistries,
     occurrence: EconomicCommandOccurrenceV1,
     input: AssetTransferLaneModuleInputV1,
     accepted: Box<AssetTransferLaneModuleAcceptedV1>,
     verified: VerifiedLaneModuleTransitionV1,
     context: AssetLaneCoordinatorContextV1,
+}
+
+impl VerifiedAssetLaneFixture {
+    fn refs(&self) -> TransferGovernanceRefs<'_> {
+        TransferGovernanceRefs {
+            profile: &self.profile,
+            lanes: &self.lanes,
+            coordinators: &self.coordinators,
+            routes: &self.routes,
+            registries: &self.registries,
+        }
+    }
 }
 
 fn asset_lane_coordinator_context(
@@ -2873,21 +3106,20 @@ fn verified_asset_lane_fixture_with_state_at(
     if let Some(pre_state) = module_pre_state {
         input.pre_state = pre_state;
     }
+    let registries = transfer_registries(&routes);
+    let refs = TransferGovernanceRefs {
+        profile: &profile,
+        lanes: &lanes,
+        coordinators: &coordinators,
+        routes: &routes,
+        registries: &registries,
+    };
     let AssetTransferLaneModuleResultV1::Accepted(accepted) =
         transition_asset_transfer_lane_module_v1(&input).unwrap()
     else {
         panic!("valid transfer must accept")
     };
-    let bound = bind_asset_transfer_lane_output_to_release_route_v1(
-        &profile,
-        &lanes,
-        &coordinators,
-        &routes,
-        &occurrence,
-        &input,
-        &accepted,
-    )
-    .unwrap();
+    let bound = bind_transfer(&refs, &occurrence, &input, &accepted).unwrap();
     let authenticated = authenticate_occurrence(
         &profile,
         &routes,
@@ -2898,6 +3130,8 @@ fn verified_asset_lane_fixture_with_state_at(
     let verified = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1 {
             profile: &profile,
+            policy_registry: &registries.policy_registry,
+            asset_policy_registry: &registries.asset_policy_registry,
             lanes: &lanes,
             coordinators: &coordinators,
             routes: &routes,
@@ -2920,6 +3154,7 @@ fn verified_asset_lane_fixture_with_state_at(
         lanes,
         coordinators,
         routes,
+        registries,
         occurrence,
         input,
         accepted,
@@ -3019,21 +3254,20 @@ fn module_receipt_verification_uses_release_image_and_exact_journal() {
         root(7),
     );
     let input = asset_input(&profile, &lanes, &occurrence, None);
+    let registries = transfer_registries(&routes);
+    let refs = TransferGovernanceRefs {
+        profile: &profile,
+        lanes: &lanes,
+        coordinators: &coordinators,
+        routes: &routes,
+        registries: &registries,
+    };
     let AssetTransferLaneModuleResultV1::Accepted(accepted) =
         transition_asset_transfer_lane_module_v1(&input).unwrap()
     else {
         panic!("valid transfer must accept")
     };
-    let bound = bind_asset_transfer_lane_output_to_release_route_v1(
-        &profile,
-        &lanes,
-        &coordinators,
-        &routes,
-        &occurrence,
-        &input,
-        &accepted,
-    )
-    .unwrap();
+    let bound = bind_transfer(&refs, &occurrence, &input, &accepted).unwrap();
     let verifier = RecordingModuleReceiptVerifier::default();
     let receipt_bytes = b"succinct-asset-transfer-module-receipt-v1";
     let authenticated = authenticate_occurrence(
@@ -3045,16 +3279,18 @@ fn module_receipt_verification_uses_release_image_and_exact_journal() {
     );
     assert_eq!(
         authenticated.authentication_message_digest().as_str(),
-        "0x3e13b70eb1e4ca23683d911dd5179575069d275c83575fcf1723cde0429ab723"
+        "0x934c666d99583fb49c28b98d4f16149bc650666b7c4509dcff02b35f0129acc7"
     );
     assert_eq!(
         authenticated.binding_root().unwrap().as_str(),
-        "0xfe6a9ea24267f83b12ddfcd8c5ad87686d82c1ba148313f964b3ca534c81fb8a"
+        "0x7e3060ff5951838276290685c975b6e51638aa40cce3239989370482cdda4c38"
     );
 
     let verified = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1 {
             profile: &profile,
+            policy_registry: &registries.policy_registry,
+            asset_policy_registry: &registries.asset_policy_registry,
             lanes: &lanes,
             coordinators: &coordinators,
             routes: &routes,
@@ -3102,11 +3338,11 @@ fn module_receipt_verification_uses_release_image_and_exact_journal() {
     );
     assert_eq!(
         verified.binding_root().unwrap().as_str(),
-        "0x9ca1eb63ba22b9a214266eea3a3ee2b9b7f1d09c92b202fa063ab06e7bf2dbdb"
+        "0xa398f2c330729ccbe8a927d7f96d9e3f14ec8bc56e97a6afeed9b79393d66353"
     );
     assert_eq!(
         verified.module_journal_digest().as_str(),
-        "0x29442191f6a152ce848ba7250210ee860e2c31d52988f81f3b9e5539ca1ece27"
+        "0x4c4e16b91b7002240bd72373e7d3af1eb860fb6f8e2fdd5e84fc775f5357583e"
     );
     assert_eq!(
         verified.receipt_digest().as_str(),
@@ -3281,6 +3517,330 @@ fn managed_receipt_rejects_wrong_route_issue_burn_policy_root_before_verifier() 
     assert_eq!(verifier.calls.borrow().len(), 0);
 }
 
+fn transfer_command_body_bytes(input: &AssetTransferLaneModuleInputV1) -> Vec<u8> {
+    canonical_economic_command_body_bytes_v1(&input.command.command_kind, &input.command).unwrap()
+}
+
+#[test]
+fn transfer_receipt_with_ungoverned_fee_row_never_reaches_verifier() {
+    // Arrange: the governed row is treasury/2; Mallory executes under mallory/1
+    // while retaining both opaque registry roots and the honest witness.
+    // Python exercises the same minimized witness and rejection precedence.
+    let governance = transfer_governance_with(vec![asset_transfer_policy()], TRANSFER_POLICY_KINDS);
+    let refs = governance.refs();
+    let transfer_occurrence = occurrence(
+        &governance.profile,
+        &governance.routes,
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        "alice",
+        root(7),
+    );
+    let input = asset_input(
+        &governance.profile,
+        &governance.lanes,
+        &transfer_occurrence,
+        None,
+    );
+    let AssetTransferLaneModuleResultV1::Accepted(accepted) =
+        transition_asset_transfer_lane_module_v1(&input).unwrap()
+    else {
+        panic!("valid transfer must accept")
+    };
+    let bound = bind_transfer(&refs, &transfer_occurrence, &input, &accepted).unwrap();
+    let mut rogue_input = input.clone();
+    rogue_input.pre_state.policies[0] = AssetTransferPolicyV1 {
+        asset: "USD".to_owned(),
+        fee_owner: "mallory".to_owned(),
+        transfer_fee_atoms: 1,
+        enabled: true,
+    };
+    let AssetTransferLaneModuleResultV1::Accepted(rogue) =
+        transition_asset_transfer_lane_module_v1(&rogue_input).unwrap()
+    else {
+        panic!("the ungoverned fee row still executes")
+    };
+    assert_eq!(rogue.post_state.balance_atoms("mallory", "USD"), 1);
+    assert_eq!(
+        rogue_input.asset_policy_registry_root,
+        input.asset_policy_registry_root
+    );
+    assert_eq!(
+        rogue_input.fee_policy_registry_root,
+        input.fee_policy_registry_root
+    );
+    let authenticated = authenticate_occurrence(
+        &governance.profile,
+        &governance.routes,
+        &transfer_occurrence,
+        transfer_command_body_bytes(&input),
+    );
+    let verifier = RecordingModuleReceiptVerifier::default();
+    let member_mismatch =
+        AbiErrorV1::InvalidBinding("asset transfer state policy is not a governed member");
+
+    // Act / Assert: governed membership rejects before any witness or verifier.
+    assert_eq!(
+        bind_transfer(&refs, &transfer_occurrence, &rogue_input, &rogue).unwrap_err(),
+        member_mismatch
+    );
+    assert_eq!(
+        verify_asset_transfer_lane_module_receipt_v1(
+            transfer_receipt_candidate(
+                &refs,
+                &authenticated,
+                &rogue_input,
+                &rogue,
+                &bound,
+                b"mallory-fee-policy",
+            ),
+            &verifier,
+        )
+        .unwrap_err(),
+        member_mismatch
+    );
+    assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
+fn transfer_receipt_stale_roots_after_policy_rotation_never_reach_verifier() {
+    // Arrange: an output executed and witnessed under the old profile is
+    // presented to a profile whose governed fee owner rotated.
+    let old = transfer_governance_with(vec![asset_transfer_policy()], TRANSFER_POLICY_KINDS);
+    let old_refs = old.refs();
+    let occurrence = occurrence(
+        &old.profile,
+        &old.routes,
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        "alice",
+        root(7),
+    );
+    let input = asset_input(&old.profile, &old.lanes, &occurrence, None);
+    let AssetTransferLaneModuleResultV1::Accepted(accepted) =
+        transition_asset_transfer_lane_module_v1(&input).unwrap()
+    else {
+        panic!("valid transfer must accept")
+    };
+    let old_witness = bind_transfer(&old_refs, &occurrence, &input, &accepted).unwrap();
+    let authenticated = authenticate_occurrence(
+        &old.profile,
+        &old.routes,
+        &occurrence,
+        transfer_command_body_bytes(&input),
+    );
+    let mut rotated = asset_transfer_policy();
+    rotated.fee_owner = "vault".to_owned();
+    let new = transfer_governance_with(vec![rotated], TRANSFER_POLICY_KINDS);
+    assert_ne!(new.profile.profile_id, old.profile.profile_id);
+    let new_refs = new.refs();
+    let verifier = RecordingModuleReceiptVerifier::default();
+    let fee_root_mismatch =
+        AbiErrorV1::InvalidBinding("asset transfer lane module fee policy root");
+
+    // Act / Assert: the stale fee root rejects at membership before the old
+    // witness or any receipt bytes are compared.
+    assert_eq!(
+        bind_transfer(&new_refs, &occurrence, &input, &accepted).unwrap_err(),
+        fee_root_mismatch
+    );
+    assert_eq!(
+        verify_asset_transfer_lane_module_receipt_v1(
+            transfer_receipt_candidate(
+                &new_refs,
+                &authenticated,
+                &input,
+                &accepted,
+                &old_witness,
+                b"stale-roots",
+            ),
+            &verifier,
+        )
+        .unwrap_err(),
+        fee_root_mismatch
+    );
+    assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
+fn old_profile_authentication_with_coherent_rotated_policy_never_reaches_witness_or_verifier() {
+    // Arrange: P1 owns the rotated policy, both roots, the context, and the
+    // accepted output. The authenticated occurrence and occurrence id remain P0.
+    let old = transfer_governance_with(vec![asset_transfer_policy()], TRANSFER_POLICY_KINDS);
+    let old_refs = old.refs();
+    let occurrence = occurrence(
+        &old.profile,
+        &old.routes,
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        "alice",
+        root(7),
+    );
+    let old_input = asset_input(&old.profile, &old.lanes, &occurrence, None);
+    let AssetTransferLaneModuleResultV1::Accepted(old_accepted) =
+        transition_asset_transfer_lane_module_v1(&old_input).unwrap()
+    else {
+        panic!("valid P0 transfer must accept")
+    };
+    let old_witness = bind_transfer(&old_refs, &occurrence, &old_input, &old_accepted).unwrap();
+    let authenticated = authenticate_occurrence(
+        &old.profile,
+        &old.routes,
+        &occurrence,
+        transfer_command_body_bytes(&old_input),
+    );
+
+    let mut rotated = asset_transfer_policy();
+    rotated.fee_owner = "vault".to_owned();
+    let new = transfer_governance_with(vec![rotated], TRANSFER_POLICY_KINDS);
+    let new_refs = new.refs();
+    let mut spliced_input = asset_input(&new.profile, &new.lanes, &occurrence, None);
+    spliced_input.context.profile_root = new.profile.profile_id.clone();
+    spliced_input.pre_state.policies = new.registries.asset_policy_registry.policies.clone();
+    spliced_input.asset_policy_registry_root = new
+        .registries
+        .asset_policy_registry
+        .asset_policy_root()
+        .unwrap();
+    spliced_input.fee_policy_registry_root = new
+        .registries
+        .asset_policy_registry
+        .fee_policy_root()
+        .unwrap();
+    for balance in &mut spliced_input.pre_state.balances {
+        if balance.owner == "treasury" {
+            balance.owner = "vault".to_owned();
+        }
+    }
+    let AssetTransferLaneModuleResultV1::Accepted(spliced_accepted) =
+        transition_asset_transfer_lane_module_v1(&spliced_input).unwrap()
+    else {
+        panic!("coherent P1 transfer must accept")
+    };
+    let verifier = RecordingModuleReceiptVerifier::default();
+    let profile_mismatch = AbiErrorV1::InvalidBinding("lane module occurrence profile root");
+
+    // Act / Assert
+    assert_eq!(
+        bind_transfer(&new_refs, &occurrence, &spliced_input, &spliced_accepted).unwrap_err(),
+        profile_mismatch
+    );
+    assert_eq!(
+        verify_asset_transfer_lane_module_receipt_v1(
+            transfer_receipt_candidate(
+                &new_refs,
+                &authenticated,
+                &spliced_input,
+                &spliced_accepted,
+                &old_witness,
+                b"p0-auth-p1-policy",
+            ),
+            &verifier,
+        )
+        .unwrap_err(),
+        profile_mismatch
+    );
+    assert!(verifier.calls.borrow().is_empty());
+}
+
+#[test]
+fn transfer_receipt_registry_substitution_and_missing_binding_never_reach_verifier() {
+    // Arrange: the honest fixture, a substituted typed registry, and a profile
+    // that governs only the asset policy kind.
+    let governance = transfer_governance_with(vec![asset_transfer_policy()], TRANSFER_POLICY_KINDS);
+    let refs = governance.refs();
+    let transfer_occurrence = occurrence(
+        &governance.profile,
+        &governance.routes,
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        "alice",
+        root(7),
+    );
+    let input = asset_input(
+        &governance.profile,
+        &governance.lanes,
+        &transfer_occurrence,
+        None,
+    );
+    let AssetTransferLaneModuleResultV1::Accepted(accepted) =
+        transition_asset_transfer_lane_module_v1(&input).unwrap()
+    else {
+        panic!("valid transfer must accept")
+    };
+    let bound = bind_transfer(&refs, &transfer_occurrence, &input, &accepted).unwrap();
+    let authenticated = authenticate_occurrence(
+        &governance.profile,
+        &governance.routes,
+        &transfer_occurrence,
+        transfer_command_body_bytes(&input),
+    );
+    let mut substituted = governance.registries.asset_policy_registry.clone();
+    substituted.policies[0].transfer_fee_atoms = 1;
+    let verifier = RecordingModuleReceiptVerifier::default();
+
+    // Act / Assert: the substituted registry keeps the asset root and changes
+    // the fee root, so the fee binding comparison rejects.
+    let mut candidate =
+        transfer_receipt_candidate(&refs, &authenticated, &input, &accepted, &bound, b"r");
+    candidate.asset_policy_registry = &substituted;
+    assert_eq!(
+        verify_asset_transfer_lane_module_receipt_v1(candidate, &verifier).unwrap_err(),
+        AbiErrorV1::InvalidBinding("asset transfer fee policy root")
+    );
+    assert!(verifier.calls.borrow().is_empty());
+
+    // Arrange / Act / Assert: one governed binding is never enough.
+    let one_binding = transfer_governance_with(
+        vec![asset_transfer_policy()],
+        &[ASSET_TRANSFER_ASSET_POLICY_KIND_V1],
+    );
+    let one_refs = one_binding.refs();
+    let one_occurrence = occurrence(
+        &one_binding.profile,
+        &one_binding.routes,
+        ASSET_TRANSFER_COMMAND_KIND_V1,
+        "alice",
+        root(7),
+    );
+    let one_input = asset_input(
+        &one_binding.profile,
+        &one_binding.lanes,
+        &one_occurrence,
+        None,
+    );
+    let AssetTransferLaneModuleResultV1::Accepted(one_accepted) =
+        transition_asset_transfer_lane_module_v1(&one_input).unwrap()
+    else {
+        panic!("valid transfer must accept")
+    };
+    let one_authenticated = authenticate_occurrence_with_policy_registry(
+        &one_binding.profile,
+        &one_binding.routes,
+        &one_occurrence,
+        transfer_command_body_bytes(&one_input),
+        &one_binding.registries.policy_registry,
+    );
+    let binding_absent = AbiErrorV1::InvalidBinding("economic policy binding absent from registry");
+    let one_verifier = RecordingModuleReceiptVerifier::default();
+    assert_eq!(
+        bind_transfer(&one_refs, &one_occurrence, &one_input, &one_accepted).unwrap_err(),
+        binding_absent
+    );
+    assert_eq!(
+        verify_asset_transfer_lane_module_receipt_v1(
+            transfer_receipt_candidate(
+                &one_refs,
+                &one_authenticated,
+                &one_input,
+                &one_accepted,
+                &bound,
+                b"one-binding",
+            ),
+            &one_verifier,
+        )
+        .unwrap_err(),
+        binding_absent
+    );
+    assert!(one_verifier.calls.borrow().is_empty());
+}
+
 #[test]
 fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
     let (profile, lanes, coordinators, routes) = profile();
@@ -3292,21 +3852,20 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
         root(7),
     );
     let input = asset_input(&profile, &lanes, &occurrence, None);
+    let registries = transfer_registries(&routes);
+    let refs = TransferGovernanceRefs {
+        profile: &profile,
+        lanes: &lanes,
+        coordinators: &coordinators,
+        routes: &routes,
+        registries: &registries,
+    };
     let AssetTransferLaneModuleResultV1::Accepted(accepted) =
         transition_asset_transfer_lane_module_v1(&input).unwrap()
     else {
         panic!("valid transfer must accept")
     };
-    let bound = bind_asset_transfer_lane_output_to_release_route_v1(
-        &profile,
-        &lanes,
-        &coordinators,
-        &routes,
-        &occurrence,
-        &input,
-        &accepted,
-    )
-    .unwrap();
+    let bound = bind_transfer(&refs, &occurrence, &input, &accepted).unwrap();
     let authenticated = authenticate_occurrence(
         &profile,
         &routes,
@@ -3332,6 +3891,8 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
             verify_asset_transfer_lane_module_receipt_v1(
                 AssetTransferLaneModuleReceiptCandidateV1 {
                     profile: &profile,
+                    policy_registry: &registries.policy_registry,
+                    asset_policy_registry: &registries.asset_policy_registry,
                     lanes: &lanes,
                     coordinators: &coordinators,
                     routes: &routes,
@@ -3357,6 +3918,8 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
     verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1 {
             profile: &profile,
+            policy_registry: &registries.policy_registry,
+            asset_policy_registry: &registries.asset_policy_registry,
             lanes: &lanes,
             coordinators: &coordinators,
             routes: &routes,
@@ -3382,6 +3945,8 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
         verify_asset_transfer_lane_module_receipt_v1(
             AssetTransferLaneModuleReceiptCandidateV1 {
                 profile: &profile,
+                policy_registry: &registries.policy_registry,
+                asset_policy_registry: &registries.asset_policy_registry,
                 lanes: &lanes,
                 coordinators: &coordinators,
                 routes: &routes,
@@ -3413,6 +3978,8 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
         verify_asset_transfer_lane_module_receipt_v1(
             AssetTransferLaneModuleReceiptCandidateV1 {
                 profile: &profile,
+                policy_registry: &registries.policy_registry,
+                asset_policy_registry: &registries.asset_policy_registry,
                 lanes: &lanes,
                 coordinators: &coordinators,
                 routes: &routes,
@@ -3440,6 +4007,8 @@ fn module_receipt_rejects_empty_nonsuccinct_mutated_and_verifier_failure() {
         verify_asset_transfer_lane_module_receipt_v1(
             AssetTransferLaneModuleReceiptCandidateV1 {
                 profile: &profile,
+                policy_registry: &registries.policy_registry,
+                asset_policy_registry: &registries.asset_policy_registry,
                 lanes: &lanes,
                 coordinators: &coordinators,
                 routes: &routes,
@@ -3497,25 +4066,25 @@ fn exact_verified_module_receipt_backs_structural_lane_composition() {
     );
     assert_eq!(
         composition.binding_root().unwrap().as_str(),
-        "0x2b876b91b371e648dc5104f5641e58cc7990ef42be4121aed3ffac12bb2ebf19"
+        "0xde7d72f618133ee16bced50044c8198fcdf6b047c3037a5f7ac474242168845b"
     );
 }
 
 #[test]
 fn valid_module_receipt_for_another_journal_rejects() {
+    // Arrange: a second valid journal under the same governed policy, produced
+    // from a different pre-state balance rather than an ungoverned fee row.
     let fixture = verified_asset_lane_fixture();
     let mut substituted_input = fixture.input.clone();
-    substituted_input.pre_state.policies[0].transfer_fee_atoms = 1;
+    substituted_input.pre_state.balances[1].amount_atoms = 11;
+    substituted_input.pre_state.supplies[0].amount_atoms = 116;
     let AssetTransferLaneModuleResultV1::Accepted(substituted) =
         transition_asset_transfer_lane_module_v1(&substituted_input).unwrap()
     else {
         panic!("valid substituted transfer must accept")
     };
-    let substituted_bound = bind_asset_transfer_lane_output_to_release_route_v1(
-        &fixture.profile,
-        &fixture.lanes,
-        &fixture.coordinators,
-        &fixture.routes,
+    let substituted_bound = bind_transfer(
+        &fixture.refs(),
         &fixture.occurrence,
         &substituted_input,
         &substituted,
@@ -3534,6 +4103,8 @@ fn valid_module_receipt_for_another_journal_rejects() {
     let substituted_verified = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1 {
             profile: &fixture.profile,
+            policy_registry: &fixture.registries.policy_registry,
+            asset_policy_registry: &fixture.registries.asset_policy_registry,
             lanes: &fixture.lanes,
             coordinators: &fixture.coordinators,
             routes: &fixture.routes,
@@ -3713,11 +4284,11 @@ fn lane_composition_receipt_uses_governed_image_and_exact_journal() {
     assert_eq!(verified.receipt_kind(), ReceiptKindV1::SUCCINCT);
     assert_eq!(
         verified.lane_journal_digest().as_str(),
-        "0xa816ced98e9cc76f03db860e9c006abeb94e24af824cfabdaf8c34b9f2553887"
+        "0xa1f3c8dea5c1128f577be2fa2792bc50296b305d1926c6c499af39913abe8134"
     );
     assert_eq!(
         verified.binding_root().unwrap().as_str(),
-        "0x70363a4537639144d050cb091b67b04447e9615c2526eb70e110c76c112cf88a"
+        "0x059c6a971e386affd42808a2b762f1f33eef7812965de481fa4e38eda83e1d91"
     );
 }
 
@@ -3991,11 +4562,11 @@ fn assert_verified_route_receipt(
     assert_eq!(verified.receipt_kind(), ReceiptKindV1::SUCCINCT);
     assert_eq!(
         verified.route_journal_digest().as_str(),
-        "0xf2f76c6bb741756403a9e8f175ea45aaad7237564bb3d4abac9c7dd906fb4aa4"
+        "0x66e8b22cc5dbf2b924deee342e983cf0bfb6d4911e30f1c5760feda3a8bd60c0"
     );
     assert_eq!(
         verified.binding_root().unwrap().as_str(),
-        "0x2ad537543e4e87d7420cc0a2631855cf5565ada7c9798981e25697d44d7ea279"
+        "0x2d0169204490a146c2b52249d5d9df8ec77f2cf148ef057efad65228664c2151"
     );
 }
 
@@ -4304,8 +4875,15 @@ fn epoch_global_state(
     height: u64,
     replay_state: Vec<ReplayStateV1>,
 ) -> GlobalEconomicStateV1 {
-    let asset_lane = project_asset_transfer_state_v1(module_state, &root(11), &root(12), vec![])
-        .expect("test asset state must project");
+    let transfer_registry = asset_transfer_policy_registry(&module_state.module_release_id);
+    assert_eq!(transfer_registry.policies, module_state.policies);
+    let asset_lane = project_asset_transfer_state_v1(
+        module_state,
+        &transfer_registry.asset_policy_root().unwrap(),
+        &transfer_registry.fee_policy_root().unwrap(),
+        vec![],
+    )
+    .expect("test asset state must project");
     GlobalEconomicStateV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
         chain_id: "zeno-release-route-test".to_owned(),
@@ -4707,13 +5285,13 @@ fn economic_epoch_two_route_state_evidence_has_stable_rust_golden_roots() {
         verified.route_state_projection_roots().unwrap(),
         vec![
             RootV1::parse(
-                "0xa18197bd27c1df20b692235f53d72e890bb4b284036f9de364b32f5fcd33c01c",
+                "0x22f9ad725ade82167a8c896d391c8e8f4da4871f26f42be6cb6af5ad0e8f1824",
                 "projection golden",
                 false,
             )
             .unwrap(),
             RootV1::parse(
-                "0x6c5cc40fc5f9e6695b0c837c0e6cc80bf3906fbb671638e60b5a21627d829b7a",
+                "0xd4b998eaf8b75a0aadf94e91ff12f2876b7916246d805158a012af98f8afdcee",
                 "projection golden",
                 false,
             )
@@ -4724,13 +5302,13 @@ fn economic_epoch_two_route_state_evidence_has_stable_rust_golden_roots() {
         verified.route_state_effect_refinement_roots().unwrap(),
         vec![
             RootV1::parse(
-                "0x91f049eb44f4df45db533665d66ef600fb08e8290f8869a0dc1b3073181091a4",
+                "0x673900afa1a4da52bdb8345fb5c4d26cf283e60537b4f60fa5de3812a8c26c81",
                 "refinement golden",
                 false,
             )
             .unwrap(),
             RootV1::parse(
-                "0x36352e46e8c04852f7189689d5e13a36fd05208954fedc8702e1534124217d04",
+                "0xed90dde7cca5beb632c14e526d6872f04e5853e13f85f82215effe9e57383e2f",
                 "refinement golden",
                 false,
             )

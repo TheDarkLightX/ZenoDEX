@@ -2,15 +2,16 @@ use zenodex_global_settlement_abi_v1::{
     authenticate_economic_command_intent_v1, bind_authenticated_intent_to_occurrence_v1,
     bind_economic_command_signature_verifier_deployment_v1,
     command_signature_verifier_backend_protocol_root_v1,
-    command_signature_verifier_implementation_root_v1, AbiErrorV1, AuthenticatedEconomicCommandV1,
-    CommandSignatureVerifierEvidenceArtifactV1, CommandSignatureVerifierEvidenceStatusV1,
-    EconomicCommandAuthenticationCandidateV1, EconomicCommandAuthenticationEnvelopeV1,
-    EconomicCommandAuthorizationRegistryV1, EconomicCommandAuthorizationV1,
-    EconomicCommandIntentV1, EconomicCommandOccurrenceV1,
+    command_signature_verifier_implementation_root_v1, AbiErrorV1, AssetTransferPolicyRegistryV1,
+    AuthenticatedEconomicCommandV1, CommandSignatureVerifierEvidenceArtifactV1,
+    CommandSignatureVerifierEvidenceStatusV1, EconomicCommandAuthenticationCandidateV1,
+    EconomicCommandAuthenticationEnvelopeV1, EconomicCommandAuthorizationRegistryV1,
+    EconomicCommandAuthorizationV1, EconomicCommandIntentV1, EconomicCommandOccurrenceV1,
     EconomicCommandSignatureVerifierBackendV1, EconomicCommandSignatureVerifierEvidenceManifestV1,
     EconomicCommandSignatureVerifierRegistryV1, EconomicCommandSignatureVerifierReleaseV1,
     EconomicPolicyBindingV1, EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, ReleaseStatusV1,
-    RootV1, RouteRegistryV1, ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
+    RouteRegistryV1, ASSET_TRANSFER_ASSET_POLICY_KIND_V1, ASSET_TRANSFER_COMMAND_KIND_V1,
+    ASSET_TRANSFER_FEE_POLICY_KIND_V1, ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1,
     ECONOMIC_COMMAND_AUTHENTICATION_SCHEMA_V1, ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1,
     GLOBAL_SETTLEMENT_ABI_V1,
 };
@@ -123,7 +124,12 @@ fn authorization_registry(routes: &RouteRegistryV1) -> EconomicCommandAuthorizat
     }
 }
 
-fn authentication_policy_registry(routes: &RouteRegistryV1) -> EconomicPolicyRegistryV1 {
+/// Authentication bindings plus the two governed transfer policy bindings that
+/// the release-route binder requires for `asset_transfer`.
+pub(super) fn governed_policy_registry_v1(
+    routes: &RouteRegistryV1,
+    asset_policy_registry: &AssetTransferPolicyRegistryV1,
+) -> EconomicPolicyRegistryV1 {
     let authorizations = authorization_registry(routes);
     let signature_verifiers = signature_verifier_registry();
     let command_kind = routes
@@ -132,27 +138,37 @@ fn authentication_policy_registry(routes: &RouteRegistryV1) -> EconomicPolicyReg
         .expect("asset lane host fixture route must exist")
         .command_kind
         .clone();
-    EconomicPolicyRegistryV1 {
+    let mut bindings = vec![
+        EconomicPolicyBindingV1 {
+            policy_kind: ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1.to_owned(),
+            command_kind: command_kind.clone(),
+            policy_root: authorizations.registry_root().unwrap(),
+        },
+        EconomicPolicyBindingV1 {
+            policy_kind: ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1.to_owned(),
+            command_kind,
+            policy_root: signature_verifiers.registry_root().unwrap(),
+        },
+        EconomicPolicyBindingV1 {
+            policy_kind: ASSET_TRANSFER_ASSET_POLICY_KIND_V1.to_owned(),
+            command_kind: ASSET_TRANSFER_COMMAND_KIND_V1.to_owned(),
+            policy_root: asset_policy_registry.asset_policy_root().unwrap(),
+        },
+        EconomicPolicyBindingV1 {
+            policy_kind: ASSET_TRANSFER_FEE_POLICY_KIND_V1.to_owned(),
+            command_kind: ASSET_TRANSFER_COMMAND_KIND_V1.to_owned(),
+            policy_root: asset_policy_registry.fee_policy_root().unwrap(),
+        },
+    ];
+    bindings.sort_by(|left, right| {
+        (&left.policy_kind, &left.command_kind).cmp(&(&right.policy_kind, &right.command_kind))
+    });
+    let registry = EconomicPolicyRegistryV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
-        bindings: vec![
-            EconomicPolicyBindingV1 {
-                policy_kind: ECONOMIC_COMMAND_AUTHENTICATION_POLICY_KIND_V1.to_owned(),
-                command_kind: command_kind.clone(),
-                policy_root: authorizations.registry_root().unwrap(),
-            },
-            EconomicPolicyBindingV1 {
-                policy_kind: ECONOMIC_COMMAND_SIGNATURE_VERIFIER_POLICY_KIND_V1.to_owned(),
-                command_kind,
-                policy_root: signature_verifiers.registry_root().unwrap(),
-            },
-        ],
-    }
-}
-
-pub(super) fn authentication_policy_registry_root_v1(routes: &RouteRegistryV1) -> RootV1 {
-    authentication_policy_registry(routes)
-        .registry_root()
-        .unwrap()
+        bindings,
+    };
+    registry.validate().unwrap();
+    registry
 }
 
 struct AcceptingCommandSignatureVerifierV1;
@@ -169,15 +185,16 @@ impl EconomicCommandSignatureVerifierBackendV1 for AcceptingCommandSignatureVeri
     }
 }
 
+/// Authenticate under the exact policy registry the fixture profile commits.
 pub(super) fn authenticate_occurrence_v1(
     profile: &EconomicProfileSnapshotV1,
     routes: &RouteRegistryV1,
     occurrence: &EconomicCommandOccurrenceV1,
     command_body_bytes: Vec<u8>,
+    policy_registry: &EconomicPolicyRegistryV1,
 ) -> AuthenticatedEconomicCommandV1 {
     let authorization_registry = authorization_registry(routes);
     let signature_verifier_registry = signature_verifier_registry();
-    let policy_registry = authentication_policy_registry(routes);
     let authorization = authorization_registry
         .authorization_for(occurrence, "alice-key-1")
         .unwrap();
@@ -207,7 +224,7 @@ pub(super) fn authenticate_occurrence_v1(
         &EconomicCommandAuthenticationCandidateV1 {
             profile,
             routes,
-            policy_registry: &policy_registry,
+            policy_registry,
             authorization_registry: &authorization_registry,
             signature_verifier_registry: &signature_verifier_registry,
             intent: &intent,

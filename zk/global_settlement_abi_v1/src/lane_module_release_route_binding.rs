@@ -4,6 +4,10 @@ use crate::asset_transfer_lane_module::{
     recompute_asset_transfer_lane_module_from_validated_accepted_v1,
     AssetTransferLaneModuleAcceptedV1, AssetTransferLaneModuleInputV1,
 };
+use crate::asset_transfer_policy_registry::{
+    require_asset_transfer_policy_membership_v1,
+    require_governed_asset_transfer_policy_registry_v1, AssetTransferPolicyRegistryV1,
+};
 use crate::canonical::{hash_global_v1, AbiErrorV1, AbiResultV1, RootV1};
 use crate::global_oracle_price_occurrence::VerifiedGlobalOraclePriceV1;
 use crate::managed_asset_lifecycle_lane_module::{
@@ -143,6 +147,11 @@ fn require_context_binding(
     occurrence: &EconomicCommandOccurrenceV1,
     context: &ModuleContextBindingV1<'_>,
 ) -> AbiResultV1<()> {
+    if occurrence.profile_root != profile.profile_id {
+        return Err(AbiErrorV1::InvalidBinding(
+            "lane module occurrence profile root",
+        ));
+    }
     if context.subject_id != occurrence.subject_id {
         return Err(AbiErrorV1::InvalidBinding("lane module subject"));
     }
@@ -254,37 +263,59 @@ fn bind_candidate_v1(
     })
 }
 
-pub fn bind_asset_transfer_lane_output_to_release_route_v1(
-    profile: &EconomicProfileSnapshotV1,
-    lanes: &LaneRegistryV1,
-    coordinators: &LaneCoordinatorRegistryV1,
-    routes: &RouteRegistryV1,
-    occurrence: &EconomicCommandOccurrenceV1,
-    module_input: &AssetTransferLaneModuleInputV1,
-    accepted: &AssetTransferLaneModuleAcceptedV1,
-) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
-    let bound = bind_asset_transfer_lane_output_structural_v1(
-        profile,
-        lanes,
-        coordinators,
-        routes,
-        occurrence,
-        module_input,
-        accepted,
+/// Exact inputs for one governed asset-transfer binding.
+pub struct AssetTransferReleaseRouteBindingCandidateV1<'a> {
+    pub profile: &'a EconomicProfileSnapshotV1,
+    pub policy_registry: &'a EconomicPolicyRegistryV1,
+    pub asset_policy_registry: &'a AssetTransferPolicyRegistryV1,
+    pub lanes: &'a LaneRegistryV1,
+    pub coordinators: &'a LaneCoordinatorRegistryV1,
+    pub routes: &'a RouteRegistryV1,
+    pub occurrence: &'a EconomicCommandOccurrenceV1,
+    pub module_input: &'a AssetTransferLaneModuleInputV1,
+    pub accepted: &'a AssetTransferLaneModuleAcceptedV1,
+}
+
+fn require_asset_transfer_policy_binding_v1(
+    candidate: &AssetTransferReleaseRouteBindingCandidateV1<'_>,
+) -> AbiResultV1<()> {
+    require_governed_asset_transfer_policy_registry_v1(
+        candidate.profile,
+        candidate.lanes,
+        candidate.policy_registry,
+        candidate.occurrence,
+        candidate.asset_policy_registry,
     )?;
-    recompute_asset_transfer_lane_module_from_validated_accepted_v1(module_input, accepted)?;
+    require_asset_transfer_policy_membership_v1(
+        candidate.asset_policy_registry,
+        candidate.module_input,
+    )?;
+    Ok(())
+}
+
+/// Bind one accepted transfer output to its governed active route.
+///
+/// Both opaque input roots must be the domain-separated roots of the typed
+/// transfer policy registry that the active profile governs for
+/// `asset_transfer`, and the command asset plus every carried state policy
+/// must be exact members, before the route witness is constructed and exactly
+/// one deterministic transition recomputation confirms the supplied acceptance.
+pub fn bind_asset_transfer_lane_output_to_release_route_v1(
+    candidate: AssetTransferReleaseRouteBindingCandidateV1<'_>,
+) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
+    let bound = bind_asset_transfer_lane_output_structural_v1(&candidate)?;
+    recompute_asset_transfer_lane_module_from_validated_accepted_v1(
+        candidate.module_input,
+        candidate.accepted,
+    )?;
     Ok(bound)
 }
 
 pub(crate) fn bind_asset_transfer_lane_output_structural_v1(
-    profile: &EconomicProfileSnapshotV1,
-    lanes: &LaneRegistryV1,
-    coordinators: &LaneCoordinatorRegistryV1,
-    routes: &RouteRegistryV1,
-    occurrence: &EconomicCommandOccurrenceV1,
-    module_input: &AssetTransferLaneModuleInputV1,
-    accepted: &AssetTransferLaneModuleAcceptedV1,
+    candidate: &AssetTransferReleaseRouteBindingCandidateV1<'_>,
 ) -> AbiResultV1<ReleaseRouteBoundLaneTransitionV1> {
+    let module_input = candidate.module_input;
+    let accepted = candidate.accepted;
     module_input.validate()?;
     accepted.validate()?;
     let statement_root = module_input.statement_root()?;
@@ -293,12 +324,13 @@ pub(crate) fn bind_asset_transfer_lane_output_structural_v1(
             "asset transfer accepted statement",
         ));
     }
+    require_asset_transfer_policy_binding_v1(candidate)?;
     bind_candidate_v1(
-        profile,
-        lanes,
-        coordinators,
-        routes,
-        occurrence,
+        candidate.profile,
+        candidate.lanes,
+        candidate.coordinators,
+        candidate.routes,
+        candidate.occurrence,
         BindingCandidateV1 {
             actual_command_kind: &module_input.command.command_kind,
             command_body_hash: module_input.command.command_body_hash()?,

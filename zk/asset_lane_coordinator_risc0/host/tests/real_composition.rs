@@ -29,10 +29,11 @@ use zenodex_global_settlement_abi_v1::{
     bind_asset_transfer_lane_output_to_release_route_v1,
     compose_receipt_backed_asset_lane_single_v1, verify_asset_lane_composition_receipt_v1,
     verify_asset_transfer_lane_module_receipt_v1, AssetTransferLaneModuleReceiptCandidateV1,
-    LaneCompositionReceiptCandidateV1, LaneCompositionReceiptEnvelopeV1,
-    LaneCompositionSuccinctReceiptVerifierV1, LaneIdV1, LaneModuleReceiptEnvelopeV1,
-    ReceiptBackedAssetLaneCompositionCandidateV1, ReceiptBackedAssetLaneCompositionV1,
-    ReceiptKindV1, ReleaseRouteBoundLaneTransitionV1, RootV1, VerifiedLaneCompositionV1,
+    AssetTransferReleaseRouteBindingCandidateV1, LaneCompositionReceiptCandidateV1,
+    LaneCompositionReceiptEnvelopeV1, LaneCompositionSuccinctReceiptVerifierV1, LaneIdV1,
+    LaneModuleReceiptEnvelopeV1, ReceiptBackedAssetLaneCompositionCandidateV1,
+    ReceiptBackedAssetLaneCompositionV1, ReceiptKindV1, ReleaseRouteBoundLaneTransitionV1, RootV1,
+    VerifiedLaneCompositionV1,
 };
 
 struct ReleaseAwareLaneProofV1 {
@@ -70,13 +71,17 @@ fn bind_release_route_v1(
     prepared: &PreparedAssetLaneCoordinatorV1,
 ) -> ReleaseRouteBoundLaneTransitionV1 {
     bind_asset_transfer_lane_output_to_release_route_v1(
-        &fixture.profile,
-        &fixture.lanes,
-        &fixture.coordinators,
-        &fixture.routes,
-        &fixture.occurrence,
-        &fixture.guest_input.module_input,
-        &prepared.module_accepted,
+        AssetTransferReleaseRouteBindingCandidateV1 {
+            profile: &fixture.profile,
+            policy_registry: &fixture.policy_registry,
+            asset_policy_registry: &fixture.asset_policy_registry,
+            lanes: &fixture.lanes,
+            coordinators: &fixture.coordinators,
+            routes: &fixture.routes,
+            occurrence: &fixture.occurrence,
+            module_input: &fixture.guest_input.module_input,
+            accepted: &prepared.module_accepted,
+        },
     )
     .unwrap()
 }
@@ -91,6 +96,8 @@ fn verify_module_and_compose_v1(
     let verified_module = verify_asset_transfer_lane_module_receipt_v1(
         AssetTransferLaneModuleReceiptCandidateV1 {
             profile: &fixture.profile,
+            policy_registry: &fixture.policy_registry,
+            asset_policy_registry: &fixture.asset_policy_registry,
             lanes: &fixture.lanes,
             coordinators: &fixture.coordinators,
             routes: &fixture.routes,

@@ -14,6 +14,14 @@ from .asset_transfer_lane_module_v1 import (
     AssetTransferLaneModuleAcceptedV1,
     AssetTransferLaneModuleInputV1,
     _recompute_asset_transfer_lane_module_accepted_v1,
+    _snapshot_asset_transfer_lane_module_accepted_v1,
+    _snapshot_asset_transfer_lane_module_input_v1,
+)
+from .asset_transfer_policy_registry_v1 import (
+    AssetTransferPolicyRegistryV1,
+    require_asset_transfer_policy_membership_v1,
+    require_governed_asset_transfer_policy_registry_v1,
+    snapshot_asset_transfer_policy_registry_v1,
 )
 from .global_economic_profile_snapshot_v1 import snapshot_economic_profile_v1
 from .global_economic_proof_v1 import (
@@ -207,6 +215,8 @@ def _require_exact_context_binding(
     candidate: _BindingCandidateV1,
 ) -> None:
     context = candidate.context
+    if occurrence.profile_root != profile.profile_id:
+        raise ValueError("lane module occurrence profile root mismatch")
     bindings = (
         (context.subject_id, occurrence.subject_id, "subject"),
         (context.grant_root, occurrence.grant_root, "grant root"),
@@ -289,38 +299,123 @@ def _bind_candidate_v1(
     )
 
 
-def bind_asset_transfer_lane_output_to_release_route_v1(
-    profile: EconomicProfileSnapshotV1,
+def _snapshot_exact_occurrence_v1(
     occurrence: EconomicCommandOccurrenceV1,
-    module_input: AssetTransferLaneModuleInputV1,
-    accepted: AssetTransferLaneModuleAcceptedV1,
-) -> ReleaseRouteBoundLaneTransitionV1:
-    """Bind one accepted transfer output to its governed active route."""
-
-    if type(profile) is not EconomicProfileSnapshotV1:
-        raise TypeError("economic profile must have the exact typed value")
+) -> EconomicCommandOccurrenceV1:
     if type(occurrence) is not EconomicCommandOccurrenceV1:
         raise TypeError("economic command occurrence must have the exact typed value")
-    if type(module_input) is not AssetTransferLaneModuleInputV1:
-        raise TypeError("asset transfer lane input must have the exact typed value")
-    if type(accepted) is not AssetTransferLaneModuleAcceptedV1:
-        raise TypeError("asset transfer accepted output must have the exact typed value")
-    owned_input, expected = _recompute_asset_transfer_lane_module_accepted_v1(
-        module_input,
-        accepted,
+    return _snapshot_occurrence_v1(occurrence)
+
+
+@dataclass(frozen=True, slots=True)
+class AssetTransferReleaseRouteBindingCandidateV1:
+    """Exact typed inputs for one governed asset-transfer binding."""
+
+    profile: EconomicProfileSnapshotV1
+    policy_registry: EconomicPolicyRegistryV1
+    asset_policy_registry: AssetTransferPolicyRegistryV1
+    occurrence: EconomicCommandOccurrenceV1
+    module_input: AssetTransferLaneModuleInputV1
+    accepted: AssetTransferLaneModuleAcceptedV1
+
+    def __post_init__(self) -> None:
+        expected_types = (
+            (self.profile, EconomicProfileSnapshotV1),
+            (self.policy_registry, EconomicPolicyRegistryV1),
+            (self.asset_policy_registry, AssetTransferPolicyRegistryV1),
+            (self.occurrence, EconomicCommandOccurrenceV1),
+            (self.module_input, AssetTransferLaneModuleInputV1),
+            (self.accepted, AssetTransferLaneModuleAcceptedV1),
+        )
+        if any(type(value) is not expected for value, expected in expected_types):
+            raise TypeError("asset transfer route binding requires exact typed inputs")
+
+
+def _snapshot_asset_transfer_route_binding_candidate_v1(
+    candidate: AssetTransferReleaseRouteBindingCandidateV1,
+) -> AssetTransferReleaseRouteBindingCandidateV1:
+    """Own every candidate value exactly once, before any lookup or binding.
+
+    Governed lookup, membership, and the route witness all read these owned
+    values, so a retained alias mutated between steps cannot split the
+    transaction into inconsistent reads.
+    """
+
+    if type(candidate) is not AssetTransferReleaseRouteBindingCandidateV1:
+        raise TypeError("asset transfer route candidate must have the exact type")
+    return AssetTransferReleaseRouteBindingCandidateV1(
+        profile=snapshot_economic_profile_v1(candidate.profile),
+        policy_registry=snapshot_exact_economic_policy_registry_v1(candidate.policy_registry),
+        asset_policy_registry=snapshot_asset_transfer_policy_registry_v1(
+            candidate.asset_policy_registry
+        ),
+        occurrence=_snapshot_exact_occurrence_v1(candidate.occurrence),
+        module_input=_snapshot_asset_transfer_lane_module_input_v1(candidate.module_input),
+        accepted=_snapshot_asset_transfer_lane_module_accepted_v1(candidate.accepted),
     )
+
+
+def _require_asset_transfer_policy_binding_v1(
+    owned: AssetTransferReleaseRouteBindingCandidateV1,
+    owned_input: AssetTransferLaneModuleInputV1,
+) -> None:
+    governed_registry = require_governed_asset_transfer_policy_registry_v1(
+        profile=owned.profile,
+        policy_registry=owned.policy_registry,
+        occurrence=owned.occurrence,
+        asset_policy_registry=owned.asset_policy_registry,
+    )
+    require_asset_transfer_policy_membership_v1(
+        asset_policy_registry=governed_registry,
+        module_input=owned_input,
+    )
+
+
+def _bind_asset_transfer_lane_output_structural_v1(
+    owned: AssetTransferReleaseRouteBindingCandidateV1,
+) -> ReleaseRouteBoundLaneTransitionV1:
+    """Bind one already-owned transfer output before transition recomputation."""
+
+    owned_input = owned.module_input
+    accepted = owned.accepted
+    if accepted.statement_root != owned_input.statement_root:
+        raise ValueError("asset transfer accepted statement mismatch")
+    _require_asset_transfer_policy_binding_v1(owned, owned_input)
     return _bind_candidate_v1(
-        profile,
-        occurrence,
+        owned.profile,
+        owned.occurrence,
         _BindingCandidateV1(
             owned_input.command.command_kind,
             owned_input.command.command_body_hash,
-            expected.statement_root,
-            expected.private_port.producer_module_schema,
+            accepted.statement_root,
+            accepted.private_port.producer_module_schema,
             owned_input.context,
-            expected.module_journal,
+            accepted.module_journal,
         ),
     )
+
+
+def bind_asset_transfer_lane_output_to_release_route_v1(
+    candidate: AssetTransferReleaseRouteBindingCandidateV1,
+) -> ReleaseRouteBoundLaneTransitionV1:
+    """Bind one accepted transfer output to its governed active route.
+
+    One owned snapshot of the profile, occurrence, both policy registries,
+    input, and accepted output is taken first and used throughout. Both opaque
+    input roots must be the domain-separated roots of the typed transfer policy
+    registry that the active profile governs for ``asset_transfer``, and the
+    command asset plus every carried state policy must be exact members, before
+    the route witness is constructed and exactly one deterministic transition
+    recomputation confirms the supplied acceptance.
+    """
+
+    owned = _snapshot_asset_transfer_route_binding_candidate_v1(candidate)
+    bound = _bind_asset_transfer_lane_output_structural_v1(owned)
+    _recompute_asset_transfer_lane_module_accepted_v1(
+        owned.module_input,
+        owned.accepted,
+    )
+    return bound
 
 
 @dataclass(frozen=True, slots=True)
@@ -345,14 +440,6 @@ class ManagedAssetLifecycleReleaseRouteBindingCandidateV1:
         )
         if any(type(value) is not expected for value, expected in expected_types):
             raise TypeError("managed asset lifecycle route binding requires exact typed inputs")
-
-
-def _snapshot_exact_occurrence_v1(
-    occurrence: EconomicCommandOccurrenceV1,
-) -> EconomicCommandOccurrenceV1:
-    if type(occurrence) is not EconomicCommandOccurrenceV1:
-        raise TypeError("economic command occurrence must have the exact typed value")
-    return _snapshot_occurrence_v1(occurrence)
 
 
 def _snapshot_managed_asset_route_binding_candidate_v1(
@@ -638,6 +725,7 @@ def bind_perps_margin_lane_output_to_release_route_v1(
 __all__ = [
     "RELEASE_ROUTE_BOUND_LANE_TRANSITION_SCHEMA_V1",
     "ReleaseRouteBoundLaneTransitionV1",
+    "AssetTransferReleaseRouteBindingCandidateV1",
     "ManagedAssetLifecycleReleaseRouteBindingCandidateV1",
     "PerpsMarginReleaseRouteBindingCandidateV1",
     "bind_asset_transfer_lane_output_to_release_route_v1",
