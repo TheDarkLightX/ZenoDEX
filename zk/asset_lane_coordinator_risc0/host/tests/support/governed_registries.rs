@@ -6,6 +6,7 @@ use zenodex_global_settlement_abi_v1::{
     ASSET_TRANSFER_COMMAND_KIND_V1, GLOBAL_SETTLEMENT_ABI_V1,
 };
 
+use super::authenticated_command::authentication_policy_registry_root_v1;
 use super::root;
 
 pub(super) struct ReleaseAwareRegistriesV1 {
@@ -277,14 +278,8 @@ fn active_profile(
     let lane_registry_root = lanes.registry_root().unwrap();
     let lane_coordinator_registry_root = coordinators.registry_root().unwrap();
     let route_registry_root = routes.registry_root().unwrap();
-    let roots = [
-        root(600),
-        root(601),
-        root(602),
-        root(603),
-        root(604),
-        root(605),
-    ];
+    let roots = [root(600), root(601), root(602), root(603), root(605)];
+    let policy_registry_root = authentication_policy_registry_root_v1(routes);
     let content = json!({
         "schema": GLOBAL_SETTLEMENT_ABI_V1,
         "authority_epoch": 7,
@@ -295,8 +290,8 @@ fn active_profile(
         "root_image_id": roots[1],
         "verifier_registry_root": roots[2],
         "migration_registry_root": roots[3],
-        "policy_registry_root": roots[4],
-        "terminal_registry_root": roots[5],
+        "policy_registry_root": policy_registry_root,
+        "terminal_registry_root": roots[4],
     });
     EconomicProfileSnapshotV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
@@ -309,8 +304,8 @@ fn active_profile(
         root_image_id: roots[1].clone(),
         verifier_registry_root: roots[2].clone(),
         migration_registry_root: roots[3].clone(),
-        policy_registry_root: roots[4].clone(),
-        terminal_registry_root: roots[5].clone(),
+        policy_registry_root,
+        terminal_registry_root: roots[4].clone(),
         status: ProfileStatusV1::ACTIVE,
     }
 }

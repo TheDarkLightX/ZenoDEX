@@ -2,14 +2,15 @@ use zenodex_asset_lane_coordinator_risc0_shared::{
     AssetLaneCoordinatorGuestInputV1, ASSET_LANE_COORDINATOR_GUEST_INPUT_SCHEMA_V1,
 };
 use zenodex_global_settlement_abi_v1::{
-    AssetLaneCoordinatorContextV1, AssetLaneModuleCompatibilityV1, AssetSupplyV1,
-    AssetTransferCommandV1, AssetTransferContextV1, AssetTransferLaneModuleInputV1,
-    AssetTransferPolicyV1, AssetTransferStateV1, EconomicAmountV1, EconomicCommandOccurrenceV1,
-    LaneIdV1, RootV1, ASSET_LANE_COORDINATOR_SCHEMA_V1, ASSET_TRANSFER_COMMAND_KIND_V1,
-    ASSET_TRANSFER_LANE_MODULE_INPUT_SCHEMA_V1, ASSET_TRANSFER_MODULE_SCHEMA_V1,
-    GLOBAL_SETTLEMENT_ABI_V1,
+    canonical_economic_command_body_bytes_v1, AssetLaneCoordinatorContextV1,
+    AssetLaneModuleCompatibilityV1, AssetSupplyV1, AssetTransferCommandV1, AssetTransferContextV1,
+    AssetTransferLaneModuleInputV1, AssetTransferPolicyV1, AssetTransferStateV1, EconomicAmountV1,
+    EconomicCommandOccurrenceV1, LaneIdV1, RootV1, ASSET_LANE_COORDINATOR_SCHEMA_V1,
+    ASSET_TRANSFER_COMMAND_KIND_V1, ASSET_TRANSFER_LANE_MODULE_INPUT_SCHEMA_V1,
+    ASSET_TRANSFER_MODULE_SCHEMA_V1, GLOBAL_SETTLEMENT_ABI_V1,
 };
 
+use super::authenticated_command::authenticate_occurrence_v1;
 use super::governed_registries::{release_aware_registries_v1, ReleaseAwareRegistriesV1};
 use super::{root, ReleaseAwareAssetLaneFixtureV1};
 
@@ -53,6 +54,7 @@ fn asset_state(module_release_id: RootV1) -> AssetTransferStateV1 {
 fn occurrence(
     registries: &ReleaseAwareRegistriesV1,
     pre_state: &AssetTransferStateV1,
+    command: &AssetTransferCommandV1,
 ) -> EconomicCommandOccurrenceV1 {
     let route = registries
         .routes
@@ -66,6 +68,7 @@ fn occurrence(
         tx_index: 2,
         op_index: 3,
         command_kind: ASSET_TRANSFER_COMMAND_KIND_V1.to_owned(),
+        command_body_hash: command.command_body_hash().unwrap(),
         route_release_id: route.route_release_id.clone(),
         subject_id: "alice".to_owned(),
         grant_root: root(5),
@@ -76,10 +79,22 @@ fn occurrence(
     }
 }
 
+fn command() -> AssetTransferCommandV1 {
+    AssetTransferCommandV1 {
+        command_kind: ASSET_TRANSFER_COMMAND_KIND_V1.to_owned(),
+        asset: "USD".to_owned(),
+        sender: "alice".to_owned(),
+        recipient: "bob".to_owned(),
+        amount_atoms: 30,
+        max_fee_atoms: 2,
+    }
+}
+
 fn module_input(
     registries: &ReleaseAwareRegistriesV1,
     occurrence: &EconomicCommandOccurrenceV1,
     pre_state: AssetTransferStateV1,
+    command: AssetTransferCommandV1,
     module_release_id: RootV1,
 ) -> AssetTransferLaneModuleInputV1 {
     AssetTransferLaneModuleInputV1 {
@@ -95,14 +110,7 @@ fn module_input(
             grant_root: occurrence.grant_root.clone(),
         },
         pre_state,
-        command: AssetTransferCommandV1 {
-            command_kind: ASSET_TRANSFER_COMMAND_KIND_V1.to_owned(),
-            asset: "USD".to_owned(),
-            sender: "alice".to_owned(),
-            recipient: "bob".to_owned(),
-            amount_atoms: 30,
-            max_fee_atoms: 2,
-        },
+        command,
         asset_policy_registry_root: root(11),
         fee_policy_registry_root: root(12),
         custody: vec![],
@@ -148,11 +156,19 @@ pub fn release_aware_asset_lane_fixture_v1(
         .release_id
         .clone();
     let pre_state = asset_state(module_release_id.clone());
-    let occurrence = occurrence(&registries, &pre_state);
+    let command = command();
+    let occurrence = occurrence(&registries, &pre_state, &command);
+    let authenticated_command = authenticate_occurrence_v1(
+        &registries.profile,
+        &registries.routes,
+        &occurrence,
+        canonical_economic_command_body_bytes_v1(ASSET_TRANSFER_COMMAND_KIND_V1, &command).unwrap(),
+    );
     let module_input = module_input(
         &registries,
         &occurrence,
         pre_state,
+        command,
         module_release_id.clone(),
     );
     let coordinator_context =
@@ -163,6 +179,7 @@ pub fn release_aware_asset_lane_fixture_v1(
         coordinators: registries.coordinators,
         routes: registries.routes,
         occurrence,
+        authenticated_command,
         guest_input: AssetLaneCoordinatorGuestInputV1 {
             schema: ASSET_LANE_COORDINATOR_GUEST_INPUT_SCHEMA_V1.to_owned(),
             module_input,

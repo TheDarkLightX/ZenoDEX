@@ -93,7 +93,7 @@ fn verify_module_and_compose_v1(
             lanes: &fixture.lanes,
             coordinators: &fixture.coordinators,
             routes: &fixture.routes,
-            occurrence: &fixture.occurrence,
+            authenticated_command: &fixture.authenticated_command,
             module_input: &fixture.guest_input.module_input,
             accepted: &prepared.module_accepted,
             release_route_binding: binding,
@@ -250,4 +250,33 @@ fn real_module_receipt_composes_into_the_exact_lane_journal() {
     assert_release_and_journal_bindings(&proof);
     assert_mutated_bindings_reject(&proof);
     report_proof_artifacts(&proof);
+}
+
+#[test]
+fn governed_fixture_binds_the_exact_authenticated_command_occurrence() {
+    // Arrange
+    let module_image_root = asset_transfer_module_image_root_v1().unwrap();
+    let lane_image_root = asset_lane_coordinator_image_root_v1().unwrap();
+
+    // Act
+    let fixture = release_aware_asset_lane_fixture_v1(module_image_root, lane_image_root);
+
+    // Assert
+    assert_eq!(
+        fixture.authenticated_command.occurrence(),
+        &fixture.occurrence
+    );
+    assert_eq!(
+        fixture.authenticated_command.occurrence_id(),
+        &fixture.occurrence.occurrence_id().unwrap()
+    );
+    assert_eq!(
+        fixture.occurrence.command_body_hash,
+        fixture
+            .guest_input
+            .module_input
+            .command
+            .command_body_hash()
+            .unwrap()
+    );
 }
