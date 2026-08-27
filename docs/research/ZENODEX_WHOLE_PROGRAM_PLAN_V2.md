@@ -26,18 +26,21 @@ with an approved typed delta, migration obligations, and compatibility policy.
 At the recorded implementation base, the candidate is a substantial research
 implementation. It is not a production or whole-program closure candidate.
 The architecture inventory contains 12 lanes, 103 capabilities, four required
-routes, and three exclusions. Strict release closure is 0 of a
-manifest-derived minimum of 966 evidence cells:
+routes, and four exclusions. Strict release closure is 0 of a
+manifest-derived minimum of 967 evidence cells:
 
 ```text
-103 capabilities * 9 required statuses
-  + 4 routes * 9 required statuses
-  + 3 exclusion certificates
-  = 966 minimum cells
+(103 capabilities + 4 routes) * 9 required statuses
+  + 4 exclusion certificates
+  = 967 minimum cells
 ```
 
-The denominator expands when requirements, terminal behavior, migration, or
-evidence rows create more obligations. The checked value-movement ledger is
+The denominator is derived from the manifest and expands when requirements,
+terminal behavior, migration, or evidence rows create more obligations. Zero
+promoted cells describes release evidence at the immutable baseline. It is not
+a product implementation estimate. Scope-discovery confidence is not yet
+numerically estimable because the requirements registry is explicitly
+incomplete. The checked value-movement ledger is
 stale and requires exact-subject reconciliation. At the baseline, zero of the
 12 value-movement gates has `PASS` evidence. Component percentages remain
 planning estimates outside this normative plan and cannot promote a claim.
@@ -82,6 +85,43 @@ The following decisions are fixed for this program:
   Separate Zeno-domain authentication is required before
   an observation can become an `EconomicCommandOccurrenceV1`. ZenoLedger
   ordering and publication remain authoritative.
+
+## Completeness estimation and gap closure
+
+Two measurements are required because release closure and requirement discovery
+answer different questions.
+
+```text
+observed_release_closure
+  = promoted_exact_subject_evidence_cells
+    / manifest_derived_required_evidence_cells
+```
+
+This is a release-evidence ratio. It is never a product implementation score.
+The denominator is derived from the capability manifest and may only grow when
+new requirements, routes, exclusions, terminal paths, migrations, or evidence
+obligations are discovered.
+
+Scope-discovery confidence is measured from preregistered independent campaigns:
+
+- a top-down pass from user stories, specifications, actors, and lifecycle rules;
+- a bottom-up pass from reachable writers, effects, adapters, durable sinks, and
+  authority checks;
+- an adversarial pass from semantic mutants, stateful histories, symbolic models,
+  and named disaster states.
+
+Campaigns use one canonical obligation identity and retain their complete
+positive and negative finding inventories. Their overlap may feed a diagnostic
+capture-recapture estimate of unseen obligations only when campaign independence,
+bounded-domain comparability, and complete inventories are recorded. Otherwise
+the status is `NOT_NUMERICALLY_ESTIMABLE`. Such an estimate has no promotion
+authority.
+
+Every confirmed gap records its semantic axes, severity, reachability, minimized
+counterexample or explicit discovery contract, closure layer, evidence lane,
+exact subject, owner, and claim ceiling. A gap closes only when the repair and
+its mutation-killing evidence pass on the exact integrated subject. Aggregate
+value-movement gates still require every conjunct of the formal safety claim.
 
 ## Current blockers
 

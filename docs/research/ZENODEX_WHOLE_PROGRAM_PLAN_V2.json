@@ -212,14 +212,21 @@
   },
   "baseline_verdict": {
     "candidate_disposition": "NO_GO_FOR_PRODUCTION_OR_WHOLE_PROGRAM_CLOSURE",
-    "architecture_inventory": "12_LANES_103_CAPABILITIES_4_REQUIRED_ROUTES_3_EXCLUSIONS",
-    "strict_release_closure": "0_OF_966_MANIFEST_DERIVED_MINIMUM_EVIDENCE_CELLS",
-    "minimum_release_evidence_cell_count": 966,
-    "minimum_release_evidence_cell_formula": "103 capabilities * 9 required statuses + 4 routes * 9 required statuses + 3 exclusion certificates",
+    "architecture_inventory": "12_LANES_103_CAPABILITIES_4_REQUIRED_ROUTES_4_EXCLUSIONS",
+    "strict_release_closure": "0_OF_967_MANIFEST_DERIVED_MINIMUM_EVIDENCE_CELLS",
+    "minimum_release_evidence_cell_count": 967,
+    "minimum_release_evidence_cell_formula": "(103 capabilities + 4 routes) * 9 required statuses + 4 exclusion certificates",
+    "required_release_statuses": ["SPECIFIED", "IMPLEMENTED", "PROVED", "MOUNTED", "TESTED", "TERMINAL_COMPLETE", "MIGRATABLE", "NO_BYPASS", "RELEASE_BACKED"],
+    "required_route_count": 4,
+    "explicit_exclusion_count": 4,
+    "promoted_release_evidence_cell_count": 0,
+    "unclosed_release_evidence_cell_count": 967,
+    "observed_release_closure_basis_points": 0,
+    "scope_discovery_confidence": "NOT_NUMERICALLY_ESTIMABLE_REQUIREMENTS_INCOMPLETE",
     "current_ledger_status": "STALE_REQUIRES_EXACT_SUBJECT_RECONCILIATION",
     "closed_value_movement_gates": 0,
     "value_movement_gate_count": 12,
-    "estimate_warning": "This is an immutable diagnosis of the implementation base. Live progress belongs in exact-subject obligation and value-movement ledgers. The 966-cell count is a manifest-derived minimum and expands when requirement, evidence, migration, or terminal rows create additional obligations.",
+    "estimate_warning": "This is an immutable diagnosis of the implementation base. Live progress belongs in exact-subject obligation and value-movement ledgers. The 967-cell count is a manifest-derived minimum and expands when requirement, evidence, migration, or terminal rows create additional obligations. Zero promoted cells is a release-evidence result, not a product implementation estimate.",
     "immediate_blockers": [
       "The bridge-backed stream-8 perps and stream-11 zUSD monetary APIs remain mounted despite incompatibility with current Tau.",
       "The stream-11 zUSD monetary API also lacks a verifier-owned execution clock for ordinary execution.",
@@ -483,6 +490,30 @@
   "vm_gate_promotion": {
     "rule": "No individual obligation may close a VM gate. Aggregate deterministic gate checkers promote a VM gate only after every conjunct in the formal safety claim passes on one exact subject.",
     "individual_obligation_maximum": "CONTRIBUTES_TO"
+  },
+  "completeness_estimation_policy": {
+    "observed_closure_metric": "Count exact-subject promoted evidence cells over the manifest-derived minimum. Report the numerator and denominator; do not use it as a product maturity score.",
+    "scope_discovery_metric": "Use overlap among preregistered independent top-down, bottom-up, and adversarial discovery campaigns as diagnostic capture-recapture input only.",
+    "numeric_discovery_preconditions": [
+      "one shared canonical obligation identity",
+      "independent campaign role packets and source sets",
+      "complete positive and negative finding inventories",
+      "comparable bounded semantic domain",
+      "recorded overlap and newly discovered obligation counts"
+    ],
+    "gap_record_required_fields": [
+      "obligation_id",
+      "semantic_axes",
+      "severity",
+      "reachability",
+      "minimized_counterexample_or_discovery_contract",
+      "closure_layer",
+      "evidence_lane",
+      "exact_subject",
+      "owner",
+      "claim_ceiling"
+    ],
+    "production_rule": "A numerical estimate never promotes a value-movement gate. Exact closure evidence for every required cell and all aggregate VM-gate conjuncts remains mandatory."
   },
   "coordination_protocol": {
     "active_candidate_count": 1,

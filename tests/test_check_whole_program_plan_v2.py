@@ -42,7 +42,11 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
         "production_authority": "NONE",
         "release_ready": False,
         "subject_tree_verified": True,
+        "lane_count": 12,
         "capability_count": 103,
+        "required_route_count": 4,
+        "explicit_exclusion_count": 4,
+        "minimum_release_evidence_cell_count": 967,
         "value_movement_gate_count": 12,
         "closed_value_movement_gate_count": 0,
         "findings": [],
@@ -147,6 +151,12 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
             "aggregate VM-gate promotion rule drift",
         ),
         (
+            lambda plan: plan["completeness_estimation_policy"].update(
+                {"production_rule": "A high estimate closes VM-01."}
+            ),
+            "semantic completeness estimation policy drift",
+        ),
+        (
             lambda plan: plan["upstream_dependencies"][0].update(
                 {"observed_tree": "0" * 40}
             ),
@@ -214,6 +224,12 @@ def test_whole_program_plan_v2_binds_scope_without_granting_authority() -> None:
         (
             lambda plan: plan["baseline_verdict"].update(
                 {"strict_release_closure": "0_PERCENT"}
+            ),
+            "manifest-derived release denominator or baseline telemetry drift",
+        ),
+        (
+            lambda plan: plan["baseline_verdict"].update(
+                {"minimum_release_evidence_cell_count": 966}
             ),
             "manifest-derived release denominator or baseline telemetry drift",
         ),
