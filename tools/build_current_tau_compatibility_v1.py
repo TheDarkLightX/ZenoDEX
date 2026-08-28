@@ -37,6 +37,47 @@ def _require_isolated_python_main_v1() -> None:
         and "dist-packages" not in entry
     ]
     _bootstrap_sys.path[:] = [*trusted_runtime_paths, repo_root]
+    allowed_repository_exec = frozenset(
+        {
+            "tools/__init__.py",
+            "tools/build_current_tau_compatibility_v1.py",
+            "tools/check_current_tau_compatibility_v1.py",
+            "tools/current_tau_compatibility_core_v1.py",
+            "tools/current_tau_compatibility_pins_v1.py",
+            "tools/current_tau_replay_io_v1.py",
+            "tools/current_tau_source_analysis_v1.py",
+        }
+    )
+
+    def reject_unbound_runtime_source() -> None:
+        _bootstrap_sys.stdout.write(
+            '{"finding":"IMPLEMENTATION_RUNTIME_SOURCE_UNBOUND",'
+            '"o002_implemented":false,"o003a_evidence_complete":false,"ok":false,'
+            '"production_authority":"NONE","release_authority":"NONE",'
+            '"settlement_authority":"NONE","value_movement_authority":"NONE",'
+            '"value_movement_claim_allowed":false,"vm_gates_closed":[]}\n'
+        )
+        _bootstrap_sys.stdout.flush()
+        bootstrap_os._exit(1)
+
+    def audit_repository_exec(event: str, args: tuple[object, ...]) -> None:
+        if event != "exec" or not args:
+            return
+        filename = getattr(args[0], "co_filename", None)
+        if type(filename) is not str or not bootstrap_os.path.isabs(filename):
+            return
+        resolved = bootstrap_os.path.realpath(filename)
+        try:
+            common = bootstrap_os.path.commonpath((repo_root, resolved))
+        except ValueError:
+            return
+        if common != repo_root:
+            return
+        relative = bootstrap_os.path.relpath(resolved, repo_root)
+        if relative not in allowed_repository_exec:
+            reject_unbound_runtime_source()
+
+    _bootstrap_sys.addaudithook(audit_repository_exec)
 
 
 if __name__ == "__main__":
@@ -102,6 +143,7 @@ from tools.current_tau_source_analysis_v1 import (  # noqa: E402
     literal_string_assignments_v1,
     python_env_default_v1,
     require_success_envelope_v1,
+    server_uses_default_command_registry_v1,
     shell_forwards_force_test_v1,
     signing_vector_sha256_v1,
     source_references_identifier_v1,
@@ -291,6 +333,28 @@ def _require_unchanged_head_v1(root: Path, captured_head: str) -> None:
         _reject("HEAD_CHANGED_DURING_CAPTURE", "HEAD", "Git HEAD changed during replay")
 
 
+def _require_capture_unchanged_v1(
+    paths: TauReplayPathsV1,
+    captured_head: str,
+    snapshot: CurrentTauCompatibilitySnapshotV1,
+) -> None:
+    _require_unchanged_head_v1(paths.root, captured_head)
+    _require_worktree_sources_match_v1(
+        paths.root,
+        snapshot.implementation.source_sha256,
+        "implementation final",
+    )
+    _require_historical_bridge_checkout_v1(paths.historical_bridge_repo)
+    plan, registry, admission, payload = _load_active_plan_binding_v1(paths.root)
+    if (
+        plan != snapshot.active_plan_sha256
+        or registry != snapshot.active_registry_sha256
+        or admission != snapshot.admission_receipt_sha256
+        or payload != snapshot.admission_receipt_payload_sha256
+    ):
+        _reject("CAPTURE_CHANGED_DURING_REPLAY", "active plan", "binding changed during replay")
+
+
 def _require_worktree_sources_match_v1(
     root: Path,
     expected_sources: tuple[tuple[str, str], ...],
@@ -386,17 +450,25 @@ def _rpc_facts_v1(sources: ReplaySourcesV1) -> RpcFactsV1:
     historical_registry = command_registry_keys_v1(
         sources.historical["app/container.py"], "historical:app/container.py"
     )
+    current_server_uses_default_registry = server_uses_default_command_registry_v1(
+        sources.current_tau["server.py"], "current:server.py"
+    )
     current_absent = (
         *(
             ()
-            if source_references_identifier_v1(
+            if not current_server_uses_default_registry
+            or source_references_identifier_v1(
                 sources.current_tau["commands/createblock.py"],
                 "current:commands/createblock.py",
                 "apply_app_tx",
             )
             else ("apply_app_tx",)
         ),
-        *(name for name in names[1:] if name not in current_registry),
+        *(
+            name
+            for name in names[1:]
+            if current_server_uses_default_registry and name not in current_registry
+        ),
     )
     historical_apply = (
         ("apply_app_tx",)
@@ -575,7 +647,7 @@ def load_current_tau_compatibility_snapshot_v1(
         current_tau_force_test_requires_test_env=profile.current_requires_test_env,
         historical_bridge_force_test_enters_mock_mode=profile.historical_enters_mock,
     )
-    _require_unchanged_head_v1(paths.root, captured_head)
+    _require_capture_unchanged_v1(paths, captured_head, snapshot)
     return snapshot
 
 

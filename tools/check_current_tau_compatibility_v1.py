@@ -41,6 +41,51 @@ def _require_isolated_python_main_v1() -> None:
         and "dist-packages" not in entry
     ]
     _bootstrap_sys.path[:] = [*trusted_runtime_paths, repo_root]
+    allowed_repository_exec = frozenset(
+        {
+            "tools/__init__.py",
+            "tools/build_current_tau_compatibility_v1.py",
+            "tools/check_current_tau_compatibility_v1.py",
+            "tools/current_tau_compatibility_core_v1.py",
+            "tools/current_tau_compatibility_pins_v1.py",
+            "tools/current_tau_replay_io_v1.py",
+            "tools/current_tau_source_analysis_v1.py",
+        }
+    )
+
+    def reject_unbound_runtime_source() -> None:
+        _bootstrap_sys.stdout.write(
+            '{"artifact_root":null,"artifact_sha256":"",'
+            '"current_tau_compatible":false,"findings":'
+            '[{"code":"IMPLEMENTATION_RUNTIME_SOURCE_UNBOUND","path":"runtime"}],'
+            '"o002_implemented":false,"o003a_evidence_complete":false,"ok":false,'
+            '"production_authority":"NONE","release_authority":"NONE",'
+            '"route_quarantine_implemented":false,"schema":'
+            '"zenodex/current-tau-compatibility-check/v1",'
+            '"settlement_authority":"NONE","value_movement_authority":"NONE",'
+            '"value_movement_claim_allowed":false,"vm_gates_closed":[]}\n'
+        )
+        _bootstrap_sys.stdout.flush()
+        bootstrap_os._exit(1)
+
+    def audit_repository_exec(event: str, args: tuple[object, ...]) -> None:
+        if event != "exec" or not args:
+            return
+        filename = getattr(args[0], "co_filename", None)
+        if type(filename) is not str or not bootstrap_os.path.isabs(filename):
+            return
+        resolved = bootstrap_os.path.realpath(filename)
+        try:
+            common = bootstrap_os.path.commonpath((repo_root, resolved))
+        except ValueError:
+            return
+        if common != repo_root:
+            return
+        relative = bootstrap_os.path.relpath(resolved, repo_root)
+        if relative not in allowed_repository_exec:
+            reject_unbound_runtime_source()
+
+    _bootstrap_sys.addaudithook(audit_repository_exec)
 
 
 if __name__ == "__main__":

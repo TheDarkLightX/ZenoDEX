@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import errno
+import importlib.machinery
 import os
 import selectors
 import shutil
@@ -15,10 +16,10 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from types import ModuleType
+from types import FunctionType, ModuleType
 from typing import Final, NoReturn
 
-GIT_OUTPUT_MAX_BYTES_V1: Final = 65_536
+GIT_OUTPUT_MAX_BYTES_V1: Final = 262_144
 GIT_TIMEOUT_SECONDS_V1: Final = 5.0
 _READ_CHUNK_BYTES_V1: Final = 65_536
 
@@ -71,14 +72,30 @@ def _unbound_runtime_repository_imports_v1(
     for module in tuple(sys.modules.values()):
         if type(module) is not ModuleType:
             continue
+        candidates: set[str] = set()
         path_value = module.__dict__.get("__file__")
-        if type(path_value) is not str:
-            continue
-        try:
-            relative = Path(path_value).resolve(strict=True).relative_to(resolved_root)
-        except (OSError, ValueError):
-            continue
-        observed.add(relative.as_posix())
+        if type(path_value) is str:
+            candidates.add(path_value)
+        spec = module.__dict__.get("__spec__")
+        if type(spec) is importlib.machinery.ModuleSpec and type(spec.origin) is str:
+            candidates.add(spec.origin)
+        for value in tuple(module.__dict__.values()):
+            if type(value) is FunctionType and type(value.__code__.co_filename) is str:
+                candidates.add(value.__code__.co_filename)
+            if type(value) is not type or value.__dict__.get("__module__") != module.__name__:
+                continue
+            for class_value in tuple(value.__dict__.values()):
+                if (
+                    type(class_value) is FunctionType
+                    and type(class_value.__code__.co_filename) is str
+                ):
+                    candidates.add(class_value.__code__.co_filename)
+        for candidate in candidates:
+            try:
+                relative = Path(candidate).resolve(strict=True).relative_to(resolved_root)
+            except (OSError, ValueError):
+                continue
+            observed.add(relative.as_posix())
     return tuple(sorted(observed - allowed))
 
 

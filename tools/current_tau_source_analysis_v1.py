@@ -34,7 +34,27 @@ def _function_v1(tree: ast.Module, name: str, path: str) -> ast.FunctionDef:
     matches = [
         node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == name
     ]
-    if len(matches) != 1:
+    competing_bindings = [
+        node
+        for node in tree.body
+        if not (isinstance(node, ast.FunctionDef) and node.name == name)
+        and (
+            isinstance(node, (ast.AsyncFunctionDef, ast.ClassDef))
+            and node.name == name
+            or isinstance(node, (ast.Assign, ast.AnnAssign, ast.AugAssign, ast.Delete))
+            and any(
+                isinstance(target, ast.Name) and target.id == name
+                for target in (
+                    node.targets
+                    if isinstance(node, (ast.Assign, ast.Delete))
+                    else [node.target]
+                )
+            )
+            or isinstance(node, (ast.Import, ast.ImportFrom))
+            and any((alias.asname or alias.name.split(".", 1)[0]) == name for alias in node.names)
+        )
+    ]
+    if len(matches) != 1 or matches[0].decorator_list or competing_bindings:
         _reject("FUNCTION_SHAPE", path, f"expected one function {name}")
     return matches[0]
 
@@ -64,21 +84,56 @@ def _parent_map_v1(root: ast.AST) -> dict[ast.AST, ast.AST]:
 
 
 def _module_import_binding_is_closed_v1(tree: ast.Module, name: str) -> bool:
-    imports = [
-        alias
-        for node in tree.body
-        if isinstance(node, ast.Import)
-        for alias in node.names
-        if alias.name == name and alias.asname in {None, name}
-    ]
-    return len(imports) == 1 and _name_store_count_v1(tree, name) == 0
+    bindings: list[tuple[ast.stmt, ast.alias | None]] = []
+    for node in tree.body:
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                bound = alias.asname or alias.name.split(".", 1)[0]
+                if bound == name:
+                    bindings.append((node, alias))
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                bound = alias.asname or alias.name
+                if bound == name:
+                    bindings.append((node, alias))
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if node.name == name:
+                bindings.append((node, None))
+    return (
+        len(bindings) == 1
+        and isinstance(bindings[0][0], ast.Import)
+        and bindings[0][1] is not None
+        and bindings[0][1].name == name
+        and bindings[0][1].asname in {None, name}
+        and _name_store_count_v1(tree, name) == 0
+    )
+
+
+def _contains_dynamic_namespace_access_v1(root: ast.AST) -> bool:
+    return any(
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in {"eval", "exec", "globals", "locals", "setattr", "vars"}
+        for node in ast.walk(root)
+    )
+
+
+def _constant_string_v1(value: ast.expr) -> str | None:
+    if isinstance(value, ast.Constant) and type(value.value) is str:
+        return value.value
+    if isinstance(value, ast.BinOp) and isinstance(value.op, ast.Add):
+        left = _constant_string_v1(value.left)
+        right = _constant_string_v1(value.right)
+        if left is not None and right is not None:
+            return left + right
+    return None
 
 
 def source_references_identifier_v1(raw: bytes, path: str, identifier: str) -> bool:
     """Conservatively classify any executable identifier/string reference as present."""
 
     tree = python_tree_v1(raw, path)
-    return any(
+    direct = any(
         (isinstance(node, ast.Name) and node.id == identifier)
         or (isinstance(node, ast.Attribute) and node.attr == identifier)
         or (
@@ -88,10 +143,30 @@ def source_references_identifier_v1(raw: bytes, path: str, identifier: str) -> b
         )
         for node in ast.walk(tree)
     )
+    if direct:
+        return True
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "getattr"
+        ):
+            continue
+        if len(node.args) < 2:
+            return True
+        derived = _constant_string_v1(node.args[1])
+        if derived is None or derived == identifier:
+            return True
+    return any(
+        isinstance(node, ast.Attribute) and node.attr == "__getattribute__"
+        for node in ast.walk(tree)
+    )
 
 
 def literal_int_set_v1(raw: bytes, path: str, name: str) -> tuple[int, ...]:
     tree = python_tree_v1(raw, path)
+    if _contains_dynamic_namespace_access_v1(tree):
+        _reject("INT_SET_SHAPE", path, "dynamic namespace access is forbidden")
     matches: list[ast.Set] = []
     for node in tree.body:
         if isinstance(node, ast.Assign):
@@ -134,6 +209,8 @@ def literal_string_assignments_v1(
     names: tuple[str, ...],
 ) -> tuple[int, ...]:
     tree = python_tree_v1(raw, path)
+    if _contains_dynamic_namespace_access_v1(tree):
+        _reject("STREAM_CONSTANT_SHAPE", path, "dynamic namespace access is forbidden")
     values: dict[str, int] = {}
     for node in tree.body:
         if not isinstance(node, ast.Assign) or len(node.targets) != 1:
@@ -148,6 +225,15 @@ def literal_string_assignments_v1(
         values[target.id] = int(node.value.value)
     if tuple(values) != names:
         _reject("STREAM_CONSTANT_SHAPE", path, "historical operation stream constants drift")
+    for name in names:
+        stores = sum(
+            isinstance(node, ast.Name)
+            and node.id == name
+            and isinstance(node.ctx, (ast.Store, ast.Del))
+            for node in ast.walk(tree)
+        )
+        if stores != 1:
+            _reject("STREAM_CONSTANT_SHAPE", path, f"{name} must have one write")
     return tuple(values[name] for name in names)
 
 
@@ -250,6 +336,10 @@ def user_tx_signing_fields_v1(raw: bytes, path: str, function_name: str) -> tupl
     function = _function_v1(tree, function_name, path)
     if not _has_exact_parameters_v1(function, ("payload",)):
         _reject("SIGNING_FUNCTION_SHAPE", path, "signing function must take only payload")
+    if _contains_dynamic_namespace_access_v1(function):
+        _reject("SIGNING_MUTATION_SHAPE", path, "dynamic namespace access is forbidden")
+    if not _payload_uses_are_read_only_v1(function):
+        _reject("SIGNING_VALUE_BINDING", path, "payload access is not read-only")
     top_level_returns = [
         index for index, node in enumerate(function.body) if isinstance(node, ast.Return)
     ]
@@ -309,15 +399,18 @@ def user_tx_signing_fields_v1(raw: bytes, path: str, function_name: str) -> tupl
     ):
         _reject("SIGNING_MUTATION_SHAPE", path, "top-level signing overwrite is forbidden")
     keys = _dict_assignment_keys_v1(function, "signing_dict", path)
-    if "tx_type" in keys and not any(
-        _assignment_matches_v1(node, 'payload.get("tx_type", "user_tx")')
-        and len(node.targets) == 1
-        and isinstance(node.targets[0], ast.Name)
-        and node.targets[0].id == "tx_type"
-        for node in function.body
-        if isinstance(node, ast.Assign)
-    ):
-        _reject("SIGNING_VALUE_BINDING", path, "tx_type local binding drift")
+    if "tx_type" in keys:
+        tx_type_bindings = [
+            node
+            for node in function.body
+            if isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == "tx_type"
+            and _assignment_matches_v1(node, 'payload.get("tx_type", "user_tx")')
+        ]
+        if len(tx_type_bindings) != 1 or _name_store_count_v1(function, "tx_type") != 1:
+            _reject("SIGNING_VALUE_BINDING", path, "tx_type local binding drift")
     keys.update(_user_tx_branch_keys_v1(function, "signing_dict", path))
     return tuple(sorted(keys))
 
@@ -365,6 +458,35 @@ def _signing_dict_uses_are_closed_v1(
     return True
 
 
+def _payload_uses_are_read_only_v1(function: ast.FunctionDef) -> bool:
+    parents = _parent_map_v1(function)
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Name) or node.id != "payload":
+            continue
+        parent = parents.get(node)
+        if (
+            isinstance(parent, ast.Subscript)
+            and parent.value is node
+            and isinstance(parent.ctx, ast.Load)
+        ):
+            continue
+        if (
+            isinstance(parent, ast.Attribute)
+            and parent.value is node
+            and parent.attr == "get"
+            and isinstance(parents.get(parent), ast.Call)
+        ):
+            continue
+        if (
+            isinstance(parent, ast.Compare)
+            and any(comparator is node for comparator in parent.comparators)
+            and any(isinstance(operator, ast.In) for operator in parent.ops)
+        ):
+            continue
+        return False
+    return True
+
+
 def _is_signing_return_v1(value: ast.expr | None) -> bool:
     if not isinstance(value, ast.Call):
         return False
@@ -403,6 +525,8 @@ def _uses_canonical_json_v1(value: ast.expr | None) -> bool:
 
 
 def _json_dump_keywords_are_canonical_v1(call: ast.Call) -> bool:
+    if len(call.keywords) != 2 or any(keyword.arg is None for keyword in call.keywords):
+        return False
     keywords = {keyword.arg: keyword.value for keyword in call.keywords if keyword.arg is not None}
     sort_keys = keywords.get("sort_keys")
     separators = keywords.get("separators")
@@ -420,14 +544,20 @@ def _canonicalizer_binding_is_closed_v1(tree: ast.Module) -> bool:
         alias
         for node in tree.body
         if isinstance(node, ast.ImportFrom)
-        and node.module is not None
-        and node.module.endswith("state.canonical")
+        and node.module == "state.canonical"
+        and node.level == 2
         for alias in node.names
         if alias.name == "canonical_json_bytes"
         and alias.asname in {None, "canonical_json_bytes"}
     ]
+    conflicting_bindings = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        and node.name == "canonical_json_bytes"
+    ]
     writes = _name_store_count_v1(tree, "canonical_json_bytes")
-    return len(imports) == 1 and writes == 0
+    return len(imports) == 1 and not conflicting_bindings and writes == 0
 
 
 def _json_binding_is_closed_v1(tree: ast.Module) -> bool:
@@ -571,16 +701,36 @@ def force_test_requires_test_env_v1(raw: bytes, path: str) -> bool:
             'getattr(getattr(config, "settings", None), "env", None) '
             'or os.environ.get("TAU_ENV", "development")',
         )
-        or not requested < requested_guards[0][0] < runtime_env < test_guards[0][0]
+        or (requested, requested_guards[0][0], runtime_env, test_guards[0][0])
+        != (0, 1, 2, 3)
         or len(returns) != 3
         or not _body_is_single_bool_return_v1(requested_guards[0][1].body, False)
         or not _body_is_single_bool_return_v1(test_guards[0][1].body, True)
+        or len(body) != 6
+        or not _is_force_rejection_log_v1(body[4])
         or not isinstance(body[-1], ast.Return)
         or not isinstance(body[-1].value, ast.Constant)
         or body[-1].value.value is not False
     ):
         return False
     return True
+
+
+def _is_force_rejection_log_v1(statement: ast.stmt) -> bool:
+    return (
+        isinstance(statement, ast.Expr)
+        and isinstance(statement.value, ast.Call)
+        and isinstance(statement.value.func, ast.Attribute)
+        and isinstance(statement.value.func.value, ast.Name)
+        and statement.value.func.value.id == "logger"
+        and statement.value.func.attr == "error"
+        and len(statement.value.args) == 2
+        and isinstance(statement.value.args[0], ast.Constant)
+        and type(statement.value.args[0].value) is str
+        and isinstance(statement.value.args[1], ast.Name)
+        and statement.value.args[1].id == "runtime_env"
+        and not statement.value.keywords
+    )
 
 
 def _named_assignment_index_v1(body: list[ast.stmt], name: str) -> int:
@@ -672,34 +822,30 @@ def historical_force_test_enters_mock_v1(raw: bytes, path: str) -> bool:
     )
     if initial_false < 0:
         return False
-    prior_return = False
+    expected_force_branch = ast.parse(
+        '''\
+if os.environ.get("TAU_FORCE_TEST", "0") == "1":
+    logger.warning("TAU_FORCE_TEST enabled. Running in TEST MODE without Docker.")
+    tau_test_mode = True
+    tau_process_ready.set()
+    tau_ready.set()
+    while not server_should_stop.is_set():
+        time.sleep(0.05)
+    logger.info("Server shutdown requested, Tau manager exiting.")
+    return
+'''
+    ).body[0]
     matches = 0
-    for node in function.body:
-        if isinstance(node, ast.Return):
-            prior_return = True
+    for index, node in enumerate(function.body):
         if not isinstance(node, ast.If):
             continue
-        mock_assignments = [
-            index
-            for index, child in enumerate(node.body)
-            if isinstance(child, ast.Assign)
-            and any(
-                isinstance(target, ast.Name) and target.id == "tau_test_mode"
-                for target in child.targets
-            )
-            and isinstance(child.value, ast.Constant)
-            and child.value.value is True
-        ]
-        direct_returns = [
-            index for index, child in enumerate(node.body) if isinstance(child, ast.Return)
-        ]
-        ordered_mock_return = (
-            len(mock_assignments) == 1
-            and len(direct_returns) == 1
-            and mock_assignments[0] < direct_returns[0]
-        )
-        if ordered_mock_return and _is_force_test_env_condition_v1(node.test):
-            if prior_return or initial_false >= function.body.index(node):
+        if ast.dump(node, include_attributes=False) == ast.dump(
+            expected_force_branch, include_attributes=False
+        ):
+            if initial_false >= index or any(
+                isinstance(prior, (ast.If, ast.For, ast.While, ast.Try, ast.With, ast.Match))
+                for prior in function.body[:index]
+            ):
                 return False
             matches += 1
     return matches == 1
@@ -740,7 +886,9 @@ def command_registry_keys_v1(raw: bytes, path: str) -> tuple[str, ...]:
     ]
     if len(builds) != 1:
         _reject("COMMAND_REGISTRY_FUNCTION", path, "expected one build method")
-    if any(isinstance(node, ast.Raise) for node in ast.walk(builds[0])):
+    if any(isinstance(node, ast.Raise) for node in ast.walk(builds[0])) or (
+        _contains_dynamic_namespace_access_v1(builds[0])
+    ):
         _reject("COMMAND_REGISTRY_MUTATION", path, "raise is forbidden in registry construction")
     dictionaries: list[ast.Dict] = []
     for node in builds[0].body:
@@ -829,6 +977,48 @@ def _command_registry_uses_are_closed_v1(function: ast.FunctionDef) -> bool:
     return True
 
 
+def server_uses_default_command_registry_v1(raw: bytes, path: str) -> bool:
+    tree = python_tree_v1(raw, path)
+    try:
+        function = _function_v1(tree, "main", path)
+    except CurrentTauCompatibilityRejectV1:
+        return False
+    calls = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "ServiceContainer"
+        and node.func.attr == "build"
+    ]
+    if len(calls) != 1 or calls[0].args or len(calls[0].keywords) != 1:
+        return False
+    keyword = calls[0].keywords[0]
+    if keyword.arg != "overrides" or not isinstance(keyword.value, ast.Dict):
+        return False
+    keys = tuple(
+        key.value if isinstance(key, ast.Constant) and type(key.value) is str else None
+        for key in keyword.value.keys
+    )
+    if keys != ("logger", "ephemeral_identity"):
+        return False
+    return not any(
+        (
+            isinstance(node, ast.Attribute)
+            and node.attr == "command_handlers"
+            and isinstance(node.ctx, (ast.Store, ast.Del))
+        )
+        or (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.ctx, (ast.Store, ast.Del))
+            and isinstance(node.value, ast.Attribute)
+            and node.value.attr == "command_handlers"
+        )
+        for node in ast.walk(tree)
+    )
+
+
 def historical_apply_app_tx_bridge_v1(raw: bytes, path: str) -> bool:
     function = _function_v1(python_tree_v1(raw, path), "_call_app_bridge", path)
     statements = [
@@ -878,11 +1068,16 @@ def compose_service_environment_value_v1(
         _reject("PROFILE_YAML_SHAPE", path, "tabs and merge keys are forbidden")
     stack: dict[int, str] = {}
     matches: list[str] = []
+    block_scalar_indent: int | None = None
     mapping_line = re.compile(r"^([A-Za-z0-9_.-]+):(?:\s*(.*))?$")
     for raw_line in text.splitlines():
         if not raw_line.strip() or raw_line.lstrip().startswith("#"):
             continue
         indent = len(raw_line) - len(raw_line.lstrip(" "))
+        if block_scalar_indent is not None:
+            if indent > block_scalar_indent:
+                continue
+            block_scalar_indent = None
         content = raw_line[indent:]
         parsed = mapping_line.fullmatch(content)
         if parsed is None:
@@ -893,6 +1088,9 @@ def compose_service_environment_value_v1(
         yaml_key, scalar = parsed.groups()
         parents = tuple(stack[level] for level in sorted(stack))
         scalar = scalar or ""
+        if scalar in {"|", "|-", "|+", ">", ">-", ">+"}:
+            block_scalar_indent = indent
+            continue
         if parents == ("services", service, "environment") and yaml_key == key:
             if (
                 len(scalar) < 2
@@ -935,7 +1133,12 @@ def shell_forwards_force_test_v1(raw: bytes, path: str) -> bool:
     ):
         return False
     exec_lines = [position for position, line in enumerate(lines) if line.startswith("exec ")]
-    return exec_lines == [len(lines) - 1] and lines[-1] == 'exec python "${ARGS[@]}"'
+    exit_lines = [line for line in lines if line.startswith("exit ")]
+    return (
+        exit_lines == ["exit 2"]
+        and exec_lines == [len(lines) - 1]
+        and lines[-1] == 'exec python "${ARGS[@]}"'
+    )
 
 
 def python_env_default_v1(raw: bytes, path: str) -> str:
@@ -963,6 +1166,10 @@ def python_env_default_v1(raw: bytes, path: str) -> str:
         and ast.dump(node.value, include_attributes=False)
         == ast.dump(expected, include_attributes=False)
     ]
+    match_index = next(
+        (index for index, node in enumerate(function.body) if node in matches),
+        -1,
+    )
     tau_env_constants = [
         node
         for node in ast.walk(function)
@@ -970,9 +1177,54 @@ def python_env_default_v1(raw: bytes, path: str) -> str:
         and type(node.value) is str
         and node.value == "TAU_ENV"
     ]
-    if len(matches) != 1 or len(tau_env_constants) != 2:
+    env_mutators = [
+        node
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and (
+            isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "env"
+            and node.func.attr in {"clear", "pop", "popitem", "update"}
+            or isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "dict"
+            and node.func.attr in {"clear", "pop", "popitem", "update"}
+            and any(isinstance(argument, ast.Name) and argument.id == "env" for argument in node.args)
+        )
+    ]
+    if (
+        len(matches) != 1
+        or len(tau_env_constants) != 2
+        or env_mutators
+        or _contains_dynamic_namespace_access_v1(function)
+        or not _environment_uses_are_direct_v1(function)
+        or match_index < 0
+        or any(
+            isinstance(node, (ast.Return, ast.Raise, ast.If, ast.For, ast.While, ast.Try, ast.With, ast.Match))
+            for node in function.body[:match_index]
+        )
+    ):
         _reject("PROFILE_ENV_DEFAULT_DRIFT", path, "TAU_ENV helper default flow drift")
     return "development"
+
+
+def _environment_uses_are_direct_v1(function: ast.FunctionDef) -> bool:
+    parents = _parent_map_v1(function)
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Name) or node.id != "env":
+            continue
+        parent = parents.get(node)
+        if isinstance(parent, ast.Subscript) and parent.value is node:
+            continue
+        if (
+            isinstance(parent, ast.Attribute)
+            and parent.value is node
+            and parent.attr in {"get", "setdefault"}
+        ):
+            continue
+        return False
+    return True
 
 
 def signing_vector_sha256_v1(fields: tuple[str, ...]) -> str:
