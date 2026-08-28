@@ -8,27 +8,29 @@ use zenodex_global_settlement_abi_v1::{
     transition_zdex_fee_allocation_v1, verify_zdex_amm_purchase_receipt_v1,
     verify_zdex_burn_receipt_v1, verify_zdex_fee_allocation_receipt_v1,
     verify_zdex_tokenomics_fee_lane_receipt_v1, zdex_amm_purchase_port_schema_root_v1,
-    zdex_burn_port_schema_root_v1, zdex_fee_allocation_port_schema_root_v1, AbiErrorV1,
-    AbiResultV1, AssetConservationRowV1, EconomicCommandOccurrenceV1, EconomicEffectKindV1,
-    EconomicEffectRowV1, EconomicPolicyBindingV1, EconomicPolicyRegistryV1,
-    EconomicProfileSnapshotV1, EvidenceStatusV1, GlobalEconomicEffectPlanV1,
-    GovernedZDEXFeeAllocationProfileV1, LaneCoordinatorRegistryV1, LaneCoordinatorReleaseV1,
-    LaneIdV1, LaneModuleReleaseV1, LaneRegistryV1, LaneWriteV1, ProfileStatusV1, ReceiptKindV1,
-    ReleaseStatusV1, RootV1, RouteRegistryV1, RouteReleaseV1, VerifiedZDEXAMMPurchaseV1,
-    VerifiedZDEXBurnV1, VerifiedZDEXFeeAllocationV1, ZDEXAMMPurchaseJournalV1, ZDEXAmountBucketV1,
-    ZDEXBurnJournalV1, ZDEXBurnReceiptCandidateV1, ZDEXFeeAllocationCommandV1,
-    ZDEXFeeAllocationContextV1, ZDEXFeeAllocationOccurrenceV1, ZDEXFeeAllocationPolicyV1,
-    ZDEXFeeAllocationProfileRegistriesV1, ZDEXFeeAllocationReceiptCandidateV1,
-    ZDEXFeeAllocationResultV1, ZDEXFeeDestinationAmountV1, ZDEXFeeStateV1,
-    ZDEXLaneReceiptEnvelopeV1, ZDEXLaneSuccinctReceiptVerifierV1, ZDEXPurchaseBurnRouteCandidateV1,
-    ZDEXPurchaseBurnRouteProfileRegistriesV1, ZDEXPurchaseBurnRouteRejectCodeV1,
-    ZDEXPurchaseBurnRouteResultV1, ZDEXPurchaseReceiptCandidateV1, ZDEXSupplyStateV1,
+    zdex_burn_port_schema_root_v1, zdex_fee_allocation_port_schema_root_v1,
+    zdex_occurrence_burn_port_v1, zdex_pool_reserve_principal_v1, AbiErrorV1, AbiResultV1,
+    AssetConservationRowV1, EconomicCommandOccurrenceV1, EconomicEffectKindV1, EconomicEffectRowV1,
+    EconomicPolicyBindingV1, EconomicPolicyRegistryV1, EconomicProfileSnapshotV1, EvidenceStatusV1,
+    GlobalEconomicEffectPlanV1, GovernedZDEXFeeAllocationProfileV1, LaneCoordinatorRegistryV1,
+    LaneCoordinatorReleaseV1, LaneIdV1, LaneModuleReleaseV1, LaneRegistryV1, LaneWriteV1,
+    ProfileStatusV1, ReceiptKindV1, ReleaseStatusV1, RootV1, RouteRegistryV1, RouteReleaseV1,
+    VerifiedZDEXAMMPurchaseV1, VerifiedZDEXBurnV1, VerifiedZDEXFeeAllocationV1,
+    ZDEXAMMPurchaseJournalV1, ZDEXAmountBucketV1, ZDEXBurnJournalV1, ZDEXBurnReceiptCandidateV1,
+    ZDEXBuybackExecutionPolicyV1, ZDEXFeeAllocationCommandV1, ZDEXFeeAllocationContextV1,
+    ZDEXFeeAllocationOccurrenceV1, ZDEXFeeAllocationPolicyV1, ZDEXFeeAllocationProfileRegistriesV1,
+    ZDEXFeeAllocationReceiptCandidateV1, ZDEXFeeAllocationResultV1, ZDEXFeeDestinationAmountV1,
+    ZDEXFeeStateV1, ZDEXLaneReceiptEnvelopeV1, ZDEXLaneSuccinctReceiptVerifierV1,
+    ZDEXPurchaseBurnRouteCandidateV1, ZDEXPurchaseBurnRouteProfileRegistriesV1,
+    ZDEXPurchaseBurnRouteRejectCodeV1, ZDEXPurchaseBurnRouteResultV1,
+    ZDEXPurchaseReceiptCandidateV1, ZDEXSupplyStateV1,
     ZDEXTokenomicsFeeAllocationCoordinatorContextV1, ZDEXTokenomicsFeeAllocationLaneCandidateV1,
     ZDEXTokenomicsFeeLaneReceiptCandidateV1, ZDEXTokenomicsLaneCompositionResultV1,
     ZDEXTokenomicsLaneStateV1, ALL_LANE_IDS_V1, AMM_POOL_CUSTODY_DOMAIN_V1,
     FEE_ALLOCATION_OUTPUT_ROLE_V1, GLOBAL_SETTLEMENT_ABI_V1, PROTOCOL_BURN_CUSTODY_DOMAIN_V1,
     PROTOCOL_BUYBACK_CUSTODY_DOMAIN_V1, PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
     PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1, PROTOCOL_SUPPLY_CUSTODY_DOMAIN_V1,
+    ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1, ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1,
     ZDEX_FEE_ALLOCATION_POLICY_KIND_V1, ZDEX_FEE_DESTINATIONS_V1, ZDEX_SUPPLY_PRINCIPAL_V1,
     ZDEX_TOKENOMICS_FEE_ALLOCATION_COORDINATOR_SCHEMA_V1, ZDEX_TOKENOMICS_LANE_STATE_SCHEMA_V1,
 };
@@ -278,6 +280,7 @@ fn governed_shadow_profile(
     buyback_route: &RouteReleaseV1,
     allocation_route: &RouteReleaseV1,
     policy_root: &RootV1,
+    buyback_execution_policy_root: &RootV1,
 ) -> (
     EconomicProfileSnapshotV1,
     LaneRegistryV1,
@@ -313,11 +316,18 @@ fn governed_shadow_profile(
     };
     let policies = EconomicPolicyRegistryV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
-        bindings: vec![EconomicPolicyBindingV1 {
-            policy_kind: ZDEX_FEE_ALLOCATION_POLICY_KIND_V1.to_owned(),
-            command_kind: PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1.to_owned(),
-            policy_root: policy_root.clone(),
-        }],
+        bindings: vec![
+            EconomicPolicyBindingV1 {
+                policy_kind: ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1.to_owned(),
+                command_kind: PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1.to_owned(),
+                policy_root: buyback_execution_policy_root.clone(),
+            },
+            EconomicPolicyBindingV1 {
+                policy_kind: ZDEX_FEE_ALLOCATION_POLICY_KIND_V1.to_owned(),
+                command_kind: PROTOCOL_FEE_ALLOCATION_COMMAND_KIND_V1.to_owned(),
+                policy_root: policy_root.clone(),
+            },
+        ],
     };
     let lane_registry_root = lanes.registry_root().expect("lane registry root");
     let lane_coordinator_registry_root = coordinators
@@ -389,7 +399,7 @@ fn occurrence(
 }
 
 fn purchase_effects(journal: &ZDEXAMMPurchaseJournalV1) -> GlobalEconomicEffectPlanV1 {
-    GlobalEconomicEffectPlanV1 {
+    let mut plan = GlobalEconomicEffectPlanV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
         rows: vec![
             EconomicEffectRowV1 {
@@ -449,7 +459,22 @@ fn purchase_effects(journal: &ZDEXAMMPurchaseJournalV1) -> GlobalEconomicEffectP
         }],
         occurrence_consumptions: vec![journal.command_occurrence_id.clone()],
         external_outbox_enqueue: vec![],
-    }
+    };
+    plan.rows.sort_by(|left, right| {
+        (
+            left.asset.as_str(),
+            left.principal.as_str(),
+            left.custody_domain.as_str(),
+        )
+            .cmp(&(
+                right.asset.as_str(),
+                right.principal.as_str(),
+                right.custody_domain.as_str(),
+            ))
+    });
+    plan.asset_conservation
+        .sort_by(|left, right| left.asset.cmp(&right.asset));
+    plan
 }
 
 fn burn_effects(journal: &ZDEXBurnJournalV1) -> GlobalEconomicEffectPlanV1 {
@@ -538,6 +563,7 @@ struct Fixture {
     occurrence: EconomicCommandOccurrenceV1,
     allocation_occurrence: EconomicCommandOccurrenceV1,
     fee_policy: ZDEXFeeAllocationPolicyV1,
+    buyback_execution_policy: ZDEXBuybackExecutionPolicyV1,
     fee_state: ZDEXFeeStateV1,
     fee_post_state: ZDEXFeeStateV1,
     fee_effects: GlobalEconomicEffectPlanV1,
@@ -558,15 +584,42 @@ fn fixture() -> Fixture {
     let allocation_route = allocation_route_release(&burn_release);
     let fee_policy = candidate_zdex_fee_allocation_policy_v1();
     let fee_policy_root = fee_policy.policy_root().expect("fee policy root");
+    let buyback_execution_policy = ZDEXBuybackExecutionPolicyV1 {
+        schema: ZDEX_BUYBACK_EXECUTION_POLICY_SCHEMA_V1.to_owned(),
+        pool_id: root(602),
+        pool_definition_root: root(603),
+        quote_asset_id: root(600),
+        zdex_asset_id: root(601),
+    };
+    let buyback_execution_policy_root = buyback_execution_policy
+        .policy_root()
+        .expect("buyback execution policy root");
     let (profile, lanes, coordinators, routes, policies) = governed_shadow_profile(
         &spot_release,
         &burn_release,
         &route,
         &allocation_route,
         &fee_policy_root,
+        &buyback_execution_policy_root,
     );
     let mut occurrence = occurrence(&route, &profile);
     let occurrence_id = occurrence.occurrence_id().expect("occurrence id");
+    let quote_pool_bucket_id = zdex_pool_reserve_principal_v1(
+        &buyback_execution_policy.pool_id,
+        &buyback_execution_policy.quote_asset_id,
+    )
+    .expect("quote reserve principal");
+    let zdex_pool_bucket_id = zdex_pool_reserve_principal_v1(
+        &buyback_execution_policy.pool_id,
+        &buyback_execution_policy.zdex_asset_id,
+    )
+    .expect("ZDEX reserve principal");
+    let burn_bucket_id = zdex_occurrence_burn_port_v1(
+        &occurrence.profile_root,
+        &route.route_release_id,
+        &occurrence_id,
+    )
+    .expect("occurrence burn port");
     let mut purchase = ZDEXAMMPurchaseJournalV1 {
         schema: GLOBAL_SETTLEMENT_ABI_V1.to_owned(),
         chain_id: occurrence.chain_id.clone(),
@@ -581,9 +634,9 @@ fn fixture() -> Fixture {
         quote_asset_id: root(600),
         zdex_asset_id: root(601),
         quote_source_bucket_id: "protocol-fee-buyback-reserve".to_owned(),
-        quote_pool_bucket_id: "pool:quote".to_owned(),
-        zdex_pool_bucket_id: "pool:zdex".to_owned(),
-        burn_bucket_id: "protocol:zdex-burn-transient".to_owned(),
+        quote_pool_bucket_id,
+        zdex_pool_bucket_id,
+        burn_bucket_id,
         quote_amount_in_atoms: 125,
         purchased_zdex_atoms: 40,
         quote_source_pre_atoms: 1_000,
@@ -699,6 +752,12 @@ fn fixture() -> Fixture {
         .expect("buyback budget occurrence root");
     occurrence.consumed_object_ids = vec![purchase.buyback_budget_occurrence_root.to_string()];
     purchase.command_occurrence_id = occurrence.occurrence_id().expect("bound occurrence id");
+    purchase.burn_bucket_id = zdex_occurrence_burn_port_v1(
+        &occurrence.profile_root,
+        &route.route_release_id,
+        &purchase.command_occurrence_id,
+    )
+    .expect("bound occurrence burn port");
     let purchase_effects = purchase_effects(&purchase);
     purchase.effect_plan_root = purchase_effects
         .effect_plan_root()
@@ -778,6 +837,7 @@ fn fixture() -> Fixture {
         occurrence,
         allocation_occurrence,
         fee_policy,
+        buyback_execution_policy,
         fee_state,
         fee_post_state: fee_accepted.post_state,
         fee_effects: fee_accepted.effects,
@@ -801,6 +861,8 @@ fn compose(fixture: &Fixture) -> ZDEXPurchaseBurnRouteResultV1 {
             lanes: &fixture.lanes,
             coordinators: &fixture.coordinators,
             routes: &fixture.routes,
+            policies: &fixture.policies,
+            buyback_execution_policy: &fixture.buyback_execution_policy,
         },
     )
     .expect("purchase-burn profile must bind");
@@ -896,13 +958,20 @@ fn rust_matches_python_golden_composition_root_and_effects() {
     let ZDEXPurchaseBurnRouteResultV1::Accepted(accepted) = compose(&fixture) else {
         panic!("valid fixture must accept")
     };
+    let composition = accepted
+        .composition_journal_v2()
+        .expect("composition journal V2");
 
     assert_eq!(
-        accepted
-            .composition_root()
+        composition
+            .journal_root()
             .expect("composition root")
             .as_str(),
-        "0xe4016bdba019f681a033744d30632102d8d34c3efd50dd85289c4e564e3b0a7b"
+        "0x33f6ab97120d9b0aaa59ccf5cbde361d32aa7d0a3881fff97e38a6dcb8e0e152"
+    );
+    assert_eq!(
+        composition.buyback_execution_policy_root,
+        accepted.buyback_execution_policy_root
     );
     assert_eq!(
         zenodex_global_settlement_abi_v1::zdex_burn_port_schema_root_v1()
@@ -937,6 +1006,38 @@ fn rust_matches_python_golden_composition_root_and_effects() {
         .rows
         .iter()
         .all(|row| row.principal != fixture.purchase.burn_bucket_id));
+}
+
+#[test]
+fn composition_journal_v2_rejects_unknown_fields_and_wrong_cardinality() {
+    // Arrange.
+    let fixture = fixture();
+    let ZDEXPurchaseBurnRouteResultV1::Accepted(accepted) = compose(&fixture) else {
+        panic!("valid fixture must accept")
+    };
+    let journal = accepted
+        .composition_journal_v2()
+        .expect("composition journal V2");
+    let mut unknown_field = serde_json::to_value(&journal).expect("journal must serialize");
+    unknown_field
+        .as_object_mut()
+        .expect("journal JSON must be an object")
+        .insert("caller_pool_override".to_owned(), json!(root(990)));
+    let mut short = journal;
+    short.ordered_lane_journal_roots.pop();
+
+    // Act / Assert.
+    assert!(
+        serde_json::from_value::<
+            zenodex_global_settlement_abi_v1::ZDEXPurchaseBurnRouteCompositionJournalV2,
+        >(unknown_field)
+        .is_err(),
+        "unknown composition fields must reject"
+    );
+    assert!(
+        short.validate().is_err(),
+        "composition must bind exactly two lane journals"
+    );
 }
 
 #[test]
@@ -980,6 +1081,8 @@ fn foreign_route_rejects_governed_profile_without_effects() {
             lanes: &fixture.lanes,
             coordinators: &fixture.coordinators,
             routes: &fixture.routes,
+            policies: &fixture.policies,
+            buyback_execution_policy: &fixture.buyback_execution_policy,
         },
     )
     .expect("fixture purchase-burn profile must bind");
@@ -1008,6 +1111,182 @@ fn foreign_route_rejects_governed_profile_without_effects() {
     );
     assert!(rejected.effects.rows.is_empty());
     assert!(rejected.effects.occurrence_consumptions.is_empty());
+}
+
+#[test]
+fn caller_substituted_pool_buckets_reject_without_effects() {
+    // Arrange: keep the governed route, assets, budget, and amounts unchanged,
+    // while substituting only the two pool custody identities. Re-authentication
+    // models structurally valid lane receipts for an alternate same-asset pool.
+    let mut fixture = fixture();
+    fixture.purchase.quote_pool_bucket_id = "pool:attacker-quote".to_owned();
+    fixture.purchase.zdex_pool_bucket_id = "pool:attacker-zdex".to_owned();
+    reauthenticate_buyback_leaves(&mut fixture);
+
+    // Act.
+    let result = compose(&fixture);
+
+    // Assert: pool-selection authority belongs to governed policy, so a
+    // substituted pool pair must fail closed and emit no economic effects.
+    let ZDEXPurchaseBurnRouteResultV1::Rejected(rejected) = result else {
+        panic!("caller-substituted pool buckets must reject")
+    };
+    assert_eq!(
+        rejected.code,
+        ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_EXECUTION_POLICY_MISMATCH
+    );
+    assert!(rejected.effects.is_empty());
+}
+
+#[test]
+fn same_pair_alternate_pool_rejects_without_effects() {
+    // Arrange: authenticate both reserve principals for one alternate pool.
+    let mut fixture = fixture();
+    let alternate_pool = root(990);
+    fixture.purchase.quote_pool_bucket_id =
+        zdex_pool_reserve_principal_v1(&alternate_pool, &fixture.purchase.quote_asset_id)
+            .expect("alternate quote reserve");
+    fixture.purchase.zdex_pool_bucket_id =
+        zdex_pool_reserve_principal_v1(&alternate_pool, &fixture.purchase.zdex_asset_id)
+            .expect("alternate ZDEX reserve");
+    reauthenticate_buyback_leaves(&mut fixture);
+
+    // Act.
+    let result = compose(&fixture);
+
+    // Assert.
+    let ZDEXPurchaseBurnRouteResultV1::Rejected(rejected) = result else {
+        panic!("same-pair alternate pool must reject")
+    };
+    assert_eq!(
+        rejected.code,
+        ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_EXECUTION_POLICY_MISMATCH
+    );
+    assert!(rejected.effects.is_empty());
+}
+
+#[test]
+fn mixed_pool_reserve_keys_reject_without_effects() {
+    // Arrange: splice one output reserve principal from another pool.
+    let mut fixture = fixture();
+    fixture.purchase.zdex_pool_bucket_id =
+        zdex_pool_reserve_principal_v1(&root(990), &fixture.purchase.zdex_asset_id)
+            .expect("alternate ZDEX reserve");
+    reauthenticate_buyback_leaves(&mut fixture);
+
+    // Act.
+    let result = compose(&fixture);
+
+    // Assert.
+    let ZDEXPurchaseBurnRouteResultV1::Rejected(rejected) = result else {
+        panic!("mixed-pool reserve keys must reject")
+    };
+    assert_eq!(
+        rejected.code,
+        ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_EXECUTION_POLICY_MISMATCH
+    );
+    assert!(rejected.effects.is_empty());
+}
+
+#[test]
+fn occurrence_scoped_burn_ports_are_distinct_and_deterministic() {
+    // Arrange.
+    let fixture = fixture();
+
+    // Act.
+    let first = zdex_occurrence_burn_port_v1(
+        &fixture.occurrence.profile_root,
+        &fixture.route.route_release_id,
+        &fixture.purchase.command_occurrence_id,
+    )
+    .expect("first occurrence burn port");
+    let second = zdex_occurrence_burn_port_v1(
+        &fixture.occurrence.profile_root,
+        &fixture.route.route_release_id,
+        &root(991),
+    )
+    .expect("second occurrence burn port");
+
+    // Assert.
+    assert_eq!(first, fixture.purchase.burn_bucket_id);
+    assert_ne!(first, second);
+    assert_eq!(
+        first,
+        zdex_occurrence_burn_port_v1(
+            &fixture.occurrence.profile_root,
+            &fixture.route.route_release_id,
+            &fixture.purchase.command_occurrence_id,
+        )
+        .expect("replayed occurrence burn port")
+    );
+}
+
+#[test]
+fn every_governed_buyback_resource_substitution_rejects_without_effects() {
+    for field in [
+        "quote_asset",
+        "zdex_asset",
+        "quote_pool",
+        "zdex_pool",
+        "burn_bucket",
+    ] {
+        // Arrange.
+        let mut fixture = fixture();
+        match field {
+            "quote_asset" => fixture.purchase.quote_asset_id = root(991),
+            "zdex_asset" => fixture.purchase.zdex_asset_id = root(992),
+            "quote_pool" => {
+                fixture.purchase.quote_pool_bucket_id = "pool:alternate-quote".to_owned()
+            }
+            "zdex_pool" => fixture.purchase.zdex_pool_bucket_id = "pool:alternate-zdex".to_owned(),
+            "burn_bucket" => fixture.purchase.burn_bucket_id = "protocol:alternate-burn".to_owned(),
+            _ => unreachable!("closed test mutation"),
+        }
+        reauthenticate_buyback_leaves(&mut fixture);
+
+        // Act.
+        let result = compose(&fixture);
+
+        // Assert.
+        let ZDEXPurchaseBurnRouteResultV1::Rejected(rejected) = result else {
+            panic!("governed buyback resource substitution must reject: {field}")
+        };
+        assert_eq!(
+            rejected.code,
+            ZDEXPurchaseBurnRouteRejectCodeV1::BUYBACK_EXECUTION_POLICY_MISMATCH,
+            "mutation: {field}"
+        );
+        assert!(rejected.effects.is_empty(), "mutation: {field}");
+    }
+}
+
+#[test]
+fn unregistered_buyback_execution_policy_rejects_profile_binding() {
+    // Arrange.
+    let fixture = fixture();
+    let mut substituted = fixture.buyback_execution_policy.clone();
+    substituted.pool_id = root(990);
+
+    // Act.
+    let error = bind_zdex_purchase_burn_shadow_profile_v1(
+        &fixture.profile.profile_id,
+        fixture.profile.authority_epoch,
+        ZDEXPurchaseBurnRouteProfileRegistriesV1 {
+            profile: &fixture.profile,
+            lanes: &fixture.lanes,
+            coordinators: &fixture.coordinators,
+            routes: &fixture.routes,
+            policies: &fixture.policies,
+            buyback_execution_policy: &substituted,
+        },
+    )
+    .err()
+    .expect("unregistered buyback execution policy must reject");
+
+    // Assert.
+    assert!(error
+        .to_string()
+        .contains("ZDEX buyback execution policy binding"));
 }
 
 #[test]
@@ -1058,6 +1337,10 @@ fn self_consistent_alternative_release_graph_rejects_trusted_profile_anchor() {
         &alternative_buyback,
         &alternative_allocation,
         &policy_root,
+        &fixture
+            .buyback_execution_policy
+            .policy_root()
+            .expect("buyback execution policy root"),
     );
 
     let error = bind_zdex_fee_allocation_shadow_profile_v1(
@@ -1084,6 +1367,8 @@ fn self_consistent_alternative_release_graph_rejects_trusted_profile_anchor() {
             lanes: &lanes,
             coordinators: &coordinators,
             routes: &routes,
+            policies: &policies,
+            buyback_execution_policy: &fixture.buyback_execution_policy,
         },
     )
     .err()
@@ -1259,11 +1544,48 @@ fn policy_registry_root_matches_python_golden_vector() {
             .registry_root()
             .expect("policy registry root")
             .as_str(),
-        "0x67554f616a2cb0413e0b72d6789ae0e08382475943b4ad8a14e009bb0779d0a9"
+        "0x91935990f8290fcca1ed76bbd4ea11aaccc85d8067096e10ca3fb908f79cc759"
     );
     assert_eq!(
         canonical_bytes_v1(&fixture.policies).expect("policy registry bytes"),
-        br#"{"bindings":[{"command_kind":"protocol_fee_allocation","policy_kind":"zdex_fee_allocation","policy_root":"0xd810507e5d15fd874a2e75b6f32b71b47174a799b8015301700e4554614032c2"}],"schema":"zenodex/global-settlement-abi/v1"}"#
+        br#"{"bindings":[{"command_kind":"protocol_buy_and_burn","policy_kind":"zdex_buyback_execution_v1","policy_root":"0x4603d57180f7be6fc23dd39ffdf1da2eb1b6b19168dca37349875183e4296599"},{"command_kind":"protocol_fee_allocation","policy_kind":"zdex_fee_allocation","policy_root":"0xd810507e5d15fd874a2e75b6f32b71b47174a799b8015301700e4554614032c2"}],"schema":"zenodex/global-settlement-abi/v1"}"#
+    );
+}
+
+#[test]
+fn buyback_execution_policy_root_matches_python_golden_vector() {
+    let fixture = fixture();
+    assert_eq!(
+        fixture
+            .buyback_execution_policy
+            .policy_root()
+            .expect("buyback execution policy root")
+            .as_str(),
+        "0x4603d57180f7be6fc23dd39ffdf1da2eb1b6b19168dca37349875183e4296599"
+    );
+}
+
+#[test]
+fn buyback_execution_policy_decode_and_resource_aliases_fail_closed() {
+    // Arrange.
+    let fixture = fixture();
+    let mut unknown_field =
+        serde_json::to_value(&fixture.buyback_execution_policy).expect("policy must serialize");
+    unknown_field
+        .as_object_mut()
+        .expect("policy JSON must be an object")
+        .insert("caller_pool_override".to_owned(), json!("pool:attacker"));
+    let mut aliased = fixture.buyback_execution_policy.clone();
+    aliased.zdex_asset_id = aliased.quote_asset_id.clone();
+
+    // Act / Assert.
+    assert!(
+        serde_json::from_value::<ZDEXBuybackExecutionPolicyV1>(unknown_field).is_err(),
+        "unknown policy fields must reject"
+    );
+    assert!(
+        aliased.validate().is_err(),
+        "buyback direction requires distinct assets"
     );
 }
 
@@ -1788,7 +2110,7 @@ fn profile_selected_fee_leaf_and_coordinator_receipt_bind_one_complete_lane() {
     assert_eq!(
         verified.binding_root().unwrap(),
         RootV1::parse(
-            "0x0734719e8e80b95ece0dff339bef408d584610b67533e9aa74a9f2e52a11aca8",
+            "0x5a0edace975c58c0954cdaa2f73d72594b6d8e256e6ccc796daa75ba38cf6654",
             "fee lane verified binding root",
             false,
         )

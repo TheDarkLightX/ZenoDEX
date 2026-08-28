@@ -5,6 +5,9 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, replace
 
+from .global_economic_capability_profile_binding_v1 import (
+    snapshot_economic_policy_registry_v1,
+)
 from .global_economic_profile_snapshot_v1 import (
     _snapshot_coordinator_release_v1,
     _snapshot_lane_release_v1,
@@ -18,11 +21,11 @@ from .global_economic_refinement_snapshot_v1 import (
     _snapshot_occurrence_v1,
 )
 from .global_settlement_types_v1 import (
-    GLOBAL_SETTLEMENT_ABI_V1,
     MAX_DELTA_ATOMS_V1,
     MIN_DELTA_ATOMS_V1,
     AssetConservationRowV1,
     EconomicEffectRowV1,
+    EconomicPolicyRegistryV1,
     EconomicProfileSnapshotV1,
     GlobalEconomicEffectPlanV1,
     LaneCoordinatorReleaseV1,
@@ -32,6 +35,8 @@ from .global_settlement_types_v1 import (
     ProfileStatusV1,
     ReleaseStatusV1,
     RouteReleaseV1,
+    _require_nonnegative_int,
+    _require_root,
     canonical_global_bytes_v1,
     hash_global_v1,
 )
@@ -64,11 +69,15 @@ from .zdex_purchase_burn_route_types_v1 import (
     AMM_PURCHASE_OUTPUT_ROLE_V1,
     PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
     ZDEX_BURN_INPUT_ROLE_V1,
+    ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
     ZDEXAMMPurchaseJournalV1,
     ZDEXBurnJournalV1,
+    ZDEXBuybackExecutionPolicyV1,
     ZDEXPurchaseBurnRouteRejectCodeV1,
     zdex_amm_purchase_port_schema_root_v1,
     zdex_burn_port_schema_root_v1,
+    zdex_occurrence_burn_port_v1,
+    zdex_pool_reserve_principal_v1,
 )
 from .zdex_tokenomics_lane_v1 import (
     zdex_tokenomics_complete_lane_obligation_root_v1,
@@ -83,6 +92,8 @@ class _GovernedZDEXPurchaseBurnRouteFieldsV1:
     burn_module_release: LaneModuleReleaseV1
     purchase_coordinator_release: LaneCoordinatorReleaseV1
     burn_coordinator_release: LaneCoordinatorReleaseV1
+    policy_registry: EconomicPolicyRegistryV1
+    buyback_execution_policy: ZDEXBuybackExecutionPolicyV1
 
 
 class GovernedZDEXPurchaseBurnRouteV1:
@@ -199,6 +210,8 @@ def bind_zdex_purchase_burn_shadow_profile_v1(
     expected_profile_id: str,
     expected_authority_epoch: int,
     profile: EconomicProfileSnapshotV1,
+    policy_registry: EconomicPolicyRegistryV1,
+    buyback_execution_policy: ZDEXBuybackExecutionPolicyV1,
 ) -> GovernedZDEXPurchaseBurnRouteV1:
     """Own and select the exact SHADOW route graph from a trusted anchor."""
 
@@ -207,12 +220,24 @@ def bind_zdex_purchase_burn_shadow_profile_v1(
     if type(expected_authority_epoch) is not int:
         raise ValueError("ZDEX purchase-burn expected authority epoch mismatch")
     owned_profile = snapshot_economic_profile_v1(profile)
+    owned_policy_registry = snapshot_economic_policy_registry_v1(policy_registry)
+    if type(buyback_execution_policy) is not ZDEXBuybackExecutionPolicyV1:
+        raise TypeError("ZDEX buyback execution policy must be exact typed data")
+    owned_execution_policy = replace(buyback_execution_policy)
     if expected_profile_id != owned_profile.profile_id:
         raise ValueError("ZDEX purchase-burn expected profile mismatch")
     if expected_authority_epoch != owned_profile.authority_epoch:
         raise ValueError("ZDEX purchase-burn expected authority epoch mismatch")
     if owned_profile.status is not ProfileStatusV1.SHADOW:
         raise ValueError("ZDEX purchase-burn profile must remain SHADOW")
+    if owned_policy_registry.registry_root != owned_profile.policy_registry_root:
+        raise ValueError("ZDEX buyback economic policy registry mismatch")
+    execution_binding = owned_policy_registry.require_binding(
+        policy_kind=ZDEX_BUYBACK_EXECUTION_POLICY_KIND_V1,
+        command_kind=PROTOCOL_BUY_AND_BURN_COMMAND_KIND_V1,
+    )
+    if execution_binding.policy_root != owned_execution_policy.policy_root:
+        raise ValueError("ZDEX buyback execution policy binding mismatch")
     fields = _GovernedZDEXPurchaseBurnRouteFieldsV1(
         owned_profile,
         _registered_buyback_route_v1(owned_profile),
@@ -224,6 +249,8 @@ def bind_zdex_purchase_burn_shadow_profile_v1(
         owned_profile.lane_coordinator_registry.release_for(
             LaneIdV1.ZDEX_TOKENOMICS
         ),
+        owned_policy_registry,
+        owned_execution_policy,
     )
     _require_governed_route_shapes_v1(fields)
     return GovernedZDEXPurchaseBurnRouteV1(
@@ -244,6 +271,10 @@ def _snapshot_governed_route_v1(
         raise TypeError("ZDEX purchase-burn governed fields must be exact typed data")
     if type(fields.profile) is not EconomicProfileSnapshotV1:
         raise TypeError("ZDEX purchase-burn governed profile must be exact typed data")
+    if type(fields.policy_registry) is not EconomicPolicyRegistryV1:
+        raise TypeError("ZDEX purchase-burn policy registry must be exact typed data")
+    if type(fields.buyback_execution_policy) is not ZDEXBuybackExecutionPolicyV1:
+        raise TypeError("ZDEX purchase-burn execution policy must be exact typed data")
     trusted_profile_id, trusted_authority_epoch = _trusted_purchase_burn_anchor_v1(
         governed
     )
@@ -259,6 +290,8 @@ def _snapshot_governed_route_v1(
         expected_profile_id=trusted_profile_id,
         expected_authority_epoch=trusted_authority_epoch,
         profile=owned_profile,
+        policy_registry=fields.policy_registry,
+        buyback_execution_policy=fields.buyback_execution_policy,
     )
     owned_fields = owned._fields
     if (
@@ -272,6 +305,10 @@ def _snapshot_governed_route_v1(
         != owned_fields.purchase_coordinator_release
         or _snapshot_coordinator_release_v1(fields.burn_coordinator_release)
         != owned_fields.burn_coordinator_release
+        or snapshot_economic_policy_registry_v1(fields.policy_registry)
+        != owned_fields.policy_registry
+        or replace(fields.buyback_execution_policy)
+        != owned_fields.buyback_execution_policy
     ):
         raise _GovernedZDEXPurchaseBurnAnchorMismatchV1(
             "ZDEX purchase-burn governed selection changed"
@@ -421,26 +458,115 @@ class ZDEXPurchaseBurnRouteAcceptedV1:
     ordered_lane_journal_roots: tuple[str, str]
     ordered_verified_binding_roots: tuple[str, str]
     verified_budget_binding_root: str
+    buyback_execution_policy_root: str
     effects: GlobalEconomicEffectPlanV1
     terminal_obligations_root: str
 
     @property
-    def composition_root(self) -> str:
-        return hash_global_v1(
-            "zdex-purchase-burn-route-composition-v1",
-            {
-                "schema": GLOBAL_SETTLEMENT_ABI_V1,
-                "route_release_id": self.route_release_id,
-                "command_occurrence_id": self.command_occurrence_id,
-                "profile_root": self.profile_root,
-                "writer_epoch": self.writer_epoch,
-                "ordered_lane_journal_roots": self.ordered_lane_journal_roots,
-                "ordered_verified_binding_roots": self.ordered_verified_binding_roots,
-                "verified_budget_binding_root": self.verified_budget_binding_root,
-                "effect_plan_root": self.effects.effect_plan_root,
-                "terminal_obligations_root": self.terminal_obligations_root,
-            },
+    def composition_journal_v2(self) -> ZDEXPurchaseBurnRouteCompositionJournalV2:
+        return ZDEXPurchaseBurnRouteCompositionJournalV2(
+            schema=ZDEX_PURCHASE_BURN_ROUTE_COMPOSITION_SCHEMA_V2,
+            route_release_id=self.route_release_id,
+            command_occurrence_id=self.command_occurrence_id,
+            profile_root=self.profile_root,
+            writer_epoch=self.writer_epoch,
+            ordered_lane_journal_roots=self.ordered_lane_journal_roots,
+            ordered_verified_binding_roots=self.ordered_verified_binding_roots,
+            verified_budget_binding_root=self.verified_budget_binding_root,
+            buyback_execution_policy_root=self.buyback_execution_policy_root,
+            effect_plan_root=self.effects.effect_plan_root,
+            terminal_obligations_root=self.terminal_obligations_root,
         )
+
+
+ZDEX_PURCHASE_BURN_ROUTE_COMPOSITION_SCHEMA_V2 = (
+    "zenodex/zdex-purchase-burn-route-composition/v2"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class ZDEXPurchaseBurnRouteCompositionJournalV2:
+    schema: str
+    route_release_id: str
+    command_occurrence_id: str
+    profile_root: str
+    writer_epoch: int
+    ordered_lane_journal_roots: tuple[str, str]
+    ordered_verified_binding_roots: tuple[str, str]
+    verified_budget_binding_root: str
+    buyback_execution_policy_root: str
+    effect_plan_root: str
+    terminal_obligations_root: str
+
+    def __post_init__(self) -> None:
+        if type(self.schema) is not str or self.schema != (
+            ZDEX_PURCHASE_BURN_ROUTE_COMPOSITION_SCHEMA_V2
+        ):
+            raise ValueError("ZDEX route composition V2 schema mismatch")
+        _require_nonnegative_int(
+            self.writer_epoch,
+            name="ZDEX route composition V2 writer epoch",
+        )
+        for field_name in (
+            "route_release_id",
+            "command_occurrence_id",
+            "profile_root",
+            "verified_budget_binding_root",
+            "buyback_execution_policy_root",
+            "effect_plan_root",
+        ):
+            value = getattr(self, field_name)
+            if type(value) is not str:
+                raise TypeError(
+                    f"ZDEX route composition V2 {field_name} must be exact str"
+                )
+            _require_root(value, name=f"ZDEX route composition V2 {field_name}")
+        if type(self.terminal_obligations_root) is not str:
+            raise TypeError(
+                "ZDEX route composition V2 terminal obligations must be exact str"
+            )
+        _require_root(
+            self.terminal_obligations_root,
+            name="ZDEX route composition V2 terminal obligations",
+            allow_zero=True,
+        )
+        for field_name in (
+            "ordered_lane_journal_roots",
+            "ordered_verified_binding_roots",
+        ):
+            roots = getattr(self, field_name)
+            if type(roots) is not tuple or len(roots) != 2:
+                raise ValueError(
+                    f"ZDEX route composition V2 {field_name} must have two roots"
+                )
+            for root in roots:
+                if type(root) is not str:
+                    raise TypeError(
+                        f"ZDEX route composition V2 {field_name} must use exact str"
+                    )
+                _require_root(root, name=f"ZDEX route composition V2 {field_name}")
+
+    @property
+    def journal_root(self) -> str:
+        return hash_global_v1(
+            "zdex-purchase-burn-route-composition-v2",
+            self.to_canonical(),
+        )
+
+    def to_canonical(self) -> dict[str, object]:
+        return {
+            "schema": self.schema,
+            "route_release_id": self.route_release_id,
+            "command_occurrence_id": self.command_occurrence_id,
+            "profile_root": self.profile_root,
+            "writer_epoch": self.writer_epoch,
+            "ordered_lane_journal_roots": self.ordered_lane_journal_roots,
+            "ordered_verified_binding_roots": self.ordered_verified_binding_roots,
+            "verified_budget_binding_root": self.verified_budget_binding_root,
+            "buyback_execution_policy_root": self.buyback_execution_policy_root,
+            "effect_plan_root": self.effect_plan_root,
+            "terminal_obligations_root": self.terminal_obligations_root,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -767,6 +893,28 @@ def _economic_reject_code(
     purchase = candidate.purchase_journal
     burn = candidate.burn_journal
     budget = candidate.buyback_budget_occurrence
+    execution_policy = candidate.governed_profile._fields.buyback_execution_policy
+    expected_quote_pool_bucket = zdex_pool_reserve_principal_v1(
+        pool_id=execution_policy.pool_id,
+        asset_id=execution_policy.quote_asset_id,
+    )
+    expected_zdex_pool_bucket = zdex_pool_reserve_principal_v1(
+        pool_id=execution_policy.pool_id,
+        asset_id=execution_policy.zdex_asset_id,
+    )
+    expected_burn_bucket = zdex_occurrence_burn_port_v1(
+        profile_root=candidate.occurrence.profile_root,
+        route_release_id=candidate.route_release.route_release_id,
+        command_occurrence_id=candidate.occurrence.occurrence_id,
+    )
+    if (
+        purchase.quote_asset_id != execution_policy.quote_asset_id
+        or purchase.zdex_asset_id != execution_policy.zdex_asset_id
+        or purchase.quote_pool_bucket_id != expected_quote_pool_bucket
+        or purchase.zdex_pool_bucket_id != expected_zdex_pool_bucket
+        or purchase.burn_bucket_id != expected_burn_bucket
+    ):
+        return ZDEXPurchaseBurnRouteRejectCodeV1.BUYBACK_EXECUTION_POLICY_MISMATCH
     if purchase.zdex_asset_id != burn.zdex_asset_id:
         return ZDEXPurchaseBurnRouteRejectCodeV1.ASSET_MISMATCH
     if burn.purchase_occurrence_root != purchase.journal_root:
@@ -840,6 +988,7 @@ def compose_zdex_purchase_burn_route_v1(
             candidate.verified_burn.binding_root,
         ),
         candidate.verified_buyback_budget.binding_root,
+        candidate.governed_profile._fields.buyback_execution_policy.policy_root,
         effects,
         zdex_tokenomics_complete_lane_obligation_root_v1(),
     )
@@ -849,6 +998,7 @@ __all__ = [
     "GovernedZDEXPurchaseBurnRouteV1",
     "ZDEXPurchaseBurnRouteAcceptedV1",
     "ZDEXPurchaseBurnRouteCandidateV1",
+    "ZDEXPurchaseBurnRouteCompositionJournalV2",
     "ZDEXPurchaseBurnRouteRejectedV1",
     "ZDEXPurchaseBurnRouteResultV1",
     "bind_zdex_purchase_burn_shadow_profile_v1",
