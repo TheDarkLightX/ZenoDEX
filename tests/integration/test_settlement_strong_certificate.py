@@ -66,7 +66,11 @@ def _swap_context():
     return intent, settlement, balances, {pool_id: pool}
 
 
-def _four_swap_context():
+def _four_swap_context(
+    *,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: str | None = None,
+):
     pk = "0x" + "22" * 48
     asset0 = "0x" + "03" * 32
     asset1 = "0x" + "04" * 32
@@ -99,7 +103,14 @@ def _four_swap_context():
         for idx in range(4)
     ]
     intents = parse_intents({"2": intent_dicts})
-    settlement = compute_settlement(intents=intents, pools={pool_id: pool}, balances=balances, lp_balances=LPTable())
+    settlement = compute_settlement(
+        intents=intents,
+        pools={pool_id: pool},
+        balances=balances,
+        lp_balances=LPTable(),
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+    )
     return intents, settlement, balances, {pool_id: pool}
 
 
@@ -405,3 +416,48 @@ def test_build_settlement_price_history_certificate_hashes_canonical_trace() -> 
     assert cert.price_prev == 110
     assert cert.price_curr == 120
     assert len(cert.price_trace_sha256) == 64
+
+
+def test_strong_certificate_wrappers_preserve_protocol_fee_policy() -> None:
+    protocol_recipient = "0x" + "ff" * 48
+    intents, settlement, balances, pools = _four_swap_context(
+        protocol_fee_share_bps=10_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+    assert sum(fill.protocol_fee_paid for fill in settlement.fills) > 0
+    certificate = build_settlement_strong_certificate(
+        settlement=settlement,
+        proof_flags=SettlementProofFlags.all_true(),
+    )
+
+    ok, err = validate_settlement_strong_with_certificate(
+        settlement=settlement,
+        certificate=certificate,
+        intents=intents,
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=10_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+
+    assert ok is True
+    assert err is None
+
+    ok, err, replay_certificate = enforce_replay_bound_settlement_certificate(
+        settlement=settlement,
+        external_proof_flags=SettlementProofFlags.all_true(),
+        price_history=(100, 110, 120),
+        intents=intents,
+        pre_balances=balances,
+        pre_pools=pools,
+        pre_lp_balances=LPTable(),
+        mode="strong_replay",
+        protocol_fee_share_bps=10_000,
+        protocol_fee_recipient_pubkey=protocol_recipient,
+    )
+
+    assert ok is True
+    assert err is None
+    assert replay_certificate is not None

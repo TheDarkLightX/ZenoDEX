@@ -30,6 +30,8 @@ class _SettlementWitnessRequest:
     settlement_validation: str
     swap_ordering: str
     quote_bindings_validated: object
+    protocol_fee_share_bps: object
+    protocol_fee_recipient_pubkey: object
     packet_obj: object
 
 
@@ -67,6 +69,8 @@ def _extract_request(obj: dict[str, object]) -> _SettlementWitnessRequest:
         settlement_validation=str(obj.get("settlement_validation", "strong_replay")),
         swap_ordering=str(obj.get("swap_ordering", "greedy_ab_refined")),
         quote_bindings_validated=obj.get("quote_bindings_validated", False),
+        protocol_fee_share_bps=obj.get("protocol_fee_share_bps", 0),
+        protocol_fee_recipient_pubkey=obj.get("protocol_fee_recipient_pubkey"),
         packet_obj=obj.get("packet"),
     )
 
@@ -93,7 +97,43 @@ def _validate_core_inputs(
     if not isinstance(request.quote_bindings_validated, bool):
         _bad_request(write_json, "bad_quote_bindings_validated")
         return False
+    if (
+        not isinstance(request.protocol_fee_share_bps, int)
+        or isinstance(request.protocol_fee_share_bps, bool)
+        or not 0 <= request.protocol_fee_share_bps <= 10_000
+    ):
+        _bad_request(write_json, "bad_protocol_fee_share_bps")
+        return False
+    if request.protocol_fee_recipient_pubkey is not None and (
+        not isinstance(request.protocol_fee_recipient_pubkey, str)
+        or not request.protocol_fee_recipient_pubkey
+    ):
+        _bad_request(write_json, "bad_protocol_fee_recipient_pubkey")
+        return False
+    if request.protocol_fee_share_bps > 0 and request.protocol_fee_recipient_pubkey is None:
+        _bad_request(write_json, "missing_protocol_fee_recipient_pubkey")
+        return False
     return True
+
+
+def _require_protocol_fee_policy(
+    request: _SettlementWitnessRequest,
+) -> tuple[int, str | None]:
+    share = request.protocol_fee_share_bps
+    recipient = request.protocol_fee_recipient_pubkey
+    if (
+        not isinstance(share, int)
+        or isinstance(share, bool)
+        or not 0 <= share <= 10_000
+    ):
+        raise ValueError("bad_protocol_fee_share_bps")
+    if recipient is not None and (
+        not isinstance(recipient, str) or not recipient
+    ):
+        raise ValueError("bad_protocol_fee_recipient_pubkey")
+    if share > 0 and recipient is None:
+        raise ValueError("missing_protocol_fee_recipient_pubkey")
+    return share, recipient
 
 
 def _validate_price_inputs(
@@ -280,6 +320,7 @@ def _handle_build_request(
         build_settlement_witness_lifecycle_packet,
     )
 
+    protocol_fee_share_bps, protocol_fee_recipient = _require_protocol_fee_policy(request)
     packet = build_settlement_witness_lifecycle_packet(
         intents=context.intents,
         settlement=context.settlement,
@@ -291,6 +332,8 @@ def _handle_build_request(
         settlement_validation=request.settlement_validation,
         swap_ordering=request.swap_ordering,
         quote_bindings_validated=bool(request.quote_bindings_validated),
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient,
     )
     write_json(200, {"ok": True, "packet": packet.to_dict()})
 
@@ -305,6 +348,7 @@ def _handle_verify_request(
         verify_settlement_witness_lifecycle_packet_payload,
     )
 
+    protocol_fee_share_bps, protocol_fee_recipient = _require_protocol_fee_policy(request)
     ok, err = verify_settlement_witness_lifecycle_packet_payload(
         intents=context.intents,
         settlement=context.settlement,
@@ -317,6 +361,8 @@ def _handle_verify_request(
         settlement_validation=request.settlement_validation,
         swap_ordering=request.swap_ordering,
         quote_bindings_validated=bool(request.quote_bindings_validated),
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient,
     )
     write_json(200, {"ok": bool(ok), "error": err})
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import importlib.util
+import json
 import threading
 from http.client import HTTPConnection
 
@@ -293,6 +293,8 @@ def _settlement_witness_lifecycle_request(
     block_timestamp: int = 0,
     deadline: int = 9_999_999_999,
     price_history: list[int] | None = None,
+    protocol_fee_share_bps: int = 0,
+    protocol_fee_recipient_pubkey: str | None = None,
 ) -> tuple[dict, str]:
     from src.core.batch_clearing import compute_settlement
     from src.core.liquidity import create_pool
@@ -336,7 +338,14 @@ def _settlement_witness_lifecycle_request(
         )
         for idx in range(4)
     ]
-    settlement = compute_settlement(intents, {pool_id: pool}, balances, LPTable())
+    settlement = compute_settlement(
+        intents,
+        {pool_id: pool},
+        balances,
+        LPTable(),
+        protocol_fee_share_bps=protocol_fee_share_bps,
+        protocol_fee_recipient_pubkey=protocol_fee_recipient_pubkey,
+    )
     price_packet = build_settlement_spot_price_packet(
         entries=(
             SettlementSpotPriceEntry(asset=asset0, price=100, observed_epoch=95, age_epochs=5, source_id="oracle:a"),
@@ -382,6 +391,8 @@ def _settlement_witness_lifecycle_request(
         "price_history": list(price_history or [100, 110, 120]),
         "feature_extension_inputs": _feature_extension_inputs_payload(),
         "price_packet": price_packet.to_dict(),
+        "protocol_fee_share_bps": protocol_fee_share_bps,
+        "protocol_fee_recipient_pubkey": protocol_fee_recipient_pubkey,
     }
     return request, intents[0].intent_id
 
@@ -5258,3 +5269,69 @@ def test_api_server_exact_out_many_pool_certified_winner_packet_carries_projecti
         assert body2["ok"] is True
     finally:
         _stop_test_server(httpd, t)
+
+
+def test_api_server_witness_lifecycle_preserves_protocol_fee_policy() -> None:
+    httpd, thread, host, port = _start_test_server()
+    try:
+        protocol_recipient = "0x" + "ff" * 48
+        request, _ = _settlement_witness_lifecycle_request(
+            protocol_fee_share_bps=10_000,
+            protocol_fee_recipient_pubkey=protocol_recipient,
+        )
+        connection = HTTPConnection(host, port, timeout=2.0)
+        connection.request(
+            "POST",
+            "/api/dex/build_settlement_witness_lifecycle_packet",
+            body=json.dumps(request).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        response = connection.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+
+        assert response.status == 200
+        assert body["ok"] is True
+        packet = body["packet"]
+        assert packet["settled"] is True
+        assert packet["witness_valid"] is True
+
+        verify_request = dict(request)
+        verify_request["packet"] = packet
+        verify_connection = HTTPConnection(host, port, timeout=2.0)
+        verify_connection.request(
+            "POST",
+            "/api/dex/verify_settlement_witness_lifecycle_packet",
+            body=json.dumps(verify_request).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        verify_response = verify_connection.getresponse()
+        verify_body = json.loads(verify_response.read().decode("utf-8"))
+
+        assert verify_response.status == 200
+        assert verify_body["ok"] is True
+        assert verify_body["error"] is None
+    finally:
+        _stop_test_server(httpd, thread)
+
+
+def test_api_server_witness_lifecycle_rejects_fee_share_without_recipient() -> None:
+    httpd, thread, host, port = _start_test_server()
+    try:
+        request, _ = _settlement_witness_lifecycle_request()
+        request["protocol_fee_share_bps"] = 1
+        request.pop("protocol_fee_recipient_pubkey", None)
+        connection = HTTPConnection(host, port, timeout=2.0)
+        connection.request(
+            "POST",
+            "/api/dex/build_settlement_witness_lifecycle_packet",
+            body=json.dumps(request).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        response = connection.getresponse()
+        body = json.loads(response.read().decode("utf-8"))
+
+        assert response.status == 400
+        assert body["ok"] is False
+        assert body["error"] == "missing_protocol_fee_recipient_pubkey"
+    finally:
+        _stop_test_server(httpd, thread)
