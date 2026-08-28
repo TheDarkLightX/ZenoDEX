@@ -173,22 +173,26 @@ No public URL is created by the current command. A later profile must add an
 explicit release admission before any tunnel or host report can be produced.
 When an older output directory records retired value routes, every lifecycle
 command first stops its exact Compose project. A forced rebuild must also use a
-different `--ui-port`; this prevents a still-running managed tunnel from
-reattaching to the new local origin at the historical port. Before removing old
-state, the lifecycle writes a canonical quarantine marker that survives failed
-rebuilds, successful replacement, and later resets. A known retired loopback
-port is recorded in a host-global per-port registry, so another output directory
-cannot silently reattach a stale managed tunnel. Conflicting, malformed, or
-unreadable origin evidence creates an output-directory-specific all-ports
-quarantine. Every lifecycle command also stops a current-shaped manifest that
-reuses a quarantined port.
+different profile with independently verified origin migration evidence. The
+current lifecycle does not treat manifest fields as proof of a historical tunnel
+origin. Before removing old state, it writes a canonical host-global all-ports
+quarantine marker that survives failed rebuilds, successful replacement, later
+resets, different output directories, and changes to the `HOME` environment.
+Automatic fresh-port replacement remains unavailable after an unverified retired
+origin is observed. Every lifecycle command also stops a current-shaped manifest
+that reuses a quarantined origin. Missing manifests trigger verified quiescence
+of the collision-resistant derived project; a live collision-prone legacy project
+keeps the operation unsuccessful pending explicit recovery.
 
 Current manifests carry an exact local profile ID and content digest. Every
 Compose service carries the same labels. Before restart, status, smoke, logs,
 or release inspection, the lifecycle reads typed live-container snapshots and
-checks project, service, image, profile labels, and retired-route environment
-values. Any ambiguity or mismatch stops the exact output-directory-derived
-Compose project.
+checks the complete service set, immutable image IDs, commands, entrypoints,
+mounts, published ports, user, working directory, restart and root-filesystem
+policies, runtime state, profile labels, and retired-route environment values.
+Any ambiguity or mismatch stops the exact output-directory-derived Compose
+project. Existing restarts force container recreation from the trusted Compose
+source before post-start admission.
 
 Same-origin public routes:
 

@@ -31,6 +31,7 @@ class _Outcome:
 class _RunCall:
     command: tuple[str, ...]
     capture_output: bool
+    input_text: str | None = None
 
 
 def _install_subprocess_script(
@@ -46,6 +47,7 @@ def _install_subprocess_script(
         env: dict[str, str] | None,
         check: bool,
         capture_output: bool,
+        input: str | None,
         text: bool,
     ) -> subprocess.CompletedProcess[str]:
         if check:
@@ -54,7 +56,7 @@ def _install_subprocess_script(
             raise AssertionError("compose._run must request text output")
         if not scripted:
             raise AssertionError(f"unexpected subprocess call: {command!r}")
-        calls.append(_RunCall(tuple(command), capture_output))
+        calls.append(_RunCall(tuple(command), capture_output, input))
         outcome = scripted.pop(0)
         return subprocess.CompletedProcess(
             args=command,
@@ -74,6 +76,50 @@ def _compose_down(*, remove_volumes: bool = False) -> None:
         compose_files=[COMPOSE_FILE],
         remove_volumes=remove_volumes,
     )
+
+
+def test_compose_run_forwards_exact_stdin_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_subprocess_script(
+        monkeypatch,
+        [_Outcome(returncode=0, stdout="accepted")],
+    )
+
+    result = cm.compose_run(
+        engine=cm.ComposeEngine(binary="docker"),
+        project_name=PROJECT,
+        compose_files=[COMPOSE_FILE],
+        service="zenodex-api",
+        command=["-c", "print('ok')"],
+        extra_args=["-T"],
+        capture=True,
+        input_text='{"payload":"bound"}',
+    )
+
+    if result.stdout != "accepted":
+        raise AssertionError("compose run result was not returned")
+    expected = _RunCall(
+        (
+            "docker",
+            "compose",
+            "-p",
+            PROJECT,
+            "-f",
+            str(COMPOSE_FILE),
+            "run",
+            "--rm",
+            "--no-deps",
+            "-T",
+            "zenodex-api",
+            "-c",
+            "print('ok')",
+        ),
+        True,
+        '{"payload":"bound"}',
+    )
+    if calls != [expected]:
+        raise AssertionError(f"compose run did not preserve stdin: {calls!r}")
 
 
 def _inspect_record(*, environment: list[str] | None = None) -> dict[str, object]:

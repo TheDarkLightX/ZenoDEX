@@ -14,8 +14,10 @@ The orchestrator drives:
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+import pwd
 import re
 import secrets
 import shutil
@@ -29,9 +31,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
+from contextlib import contextmanager
 from dataclasses import dataclass
+from functools import wraps
 from pathlib import Path
-from typing import Any, Literal, Mapping
+from typing import Any, Callable, Iterator, Literal, Mapping, ParamSpec, TypeVar
+
+import yaml
 
 from src.integration.local_route_quarantine import (
     CURRENT_LOCAL_OPERATOR_PROFILE_DIGEST_V1,
@@ -43,7 +49,6 @@ from src.integration.local_route_quarantine import (
     current_local_operator_release_admission_v1,
     parse_retired_origin_quarantine_v1,
     refuse_current_local_operator_operation_v1,
-    retired_origin_quarantine_from_manifest_v1,
 )
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from tools.zeno_ledger_make_testnet_bundle import (
@@ -60,13 +65,26 @@ from . import nginx as ng
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_FILE = REPO_ROOT / "docker-compose.local-testnet.yml"
 NGINX_TEMPLATE = REPO_ROOT / ".docker" / "nginx.local-testnet.conf.template"
+
+
+def _canonical_user_home() -> Path:
+    """Return the effective user's account home without trusting `HOME`."""
+
+    return Path(pwd.getpwuid(os.geteuid()).pw_dir)
+
+
 HOST_GLOBAL_RETIRED_ORIGIN_QUARANTINE_DIR_V1 = (
-    Path.home()
+    _canonical_user_home()
     / ".local"
     / "state"
     / "zenodex"
     / "retired-loopback-origins-v1"
 )
+HOST_GLOBAL_ALL_PORTS_QUARANTINE_FILENAME_V1 = "all-loopback-ports.json"
+HOST_GLOBAL_LIFECYCLE_LOCK_FILENAME_V1 = ".lifecycle.lock"
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
 
 DEFAULT_UI_PORT = 18080
 DEFAULT_CHAIN_ID = "zeno-ledger-localtest-v0"
@@ -217,10 +235,19 @@ class _LocalManifestSnapshotV1:
 
 
 def _local_unknown_origin_quarantine_path(paths: mf.ManifestPaths) -> Path:
-    """Derive a local all-ports marker for one ambiguous output identity."""
+    """Return the legacy output-local marker path for migration diagnostics."""
 
     project = mf.compose_project_name(paths.out_dir)
     return paths.out_dir.parent / f".{project}.retired-origin-quarantine-v1.json"
+
+
+def _host_global_all_ports_quarantine_path() -> Path:
+    """Return the one host-global tombstone for every loopback UI port."""
+
+    return (
+        HOST_GLOBAL_RETIRED_ORIGIN_QUARANTINE_DIR_V1
+        / HOST_GLOBAL_ALL_PORTS_QUARANTINE_FILENAME_V1
+    )
 
 
 def _host_global_retired_origin_quarantine_path(port: int) -> Path:
@@ -236,11 +263,117 @@ def _retired_origin_quarantine_path(
     *,
     port: int | None = None,
 ) -> Path:
-    """Return a known host-global marker or local unknown-origin marker."""
+    """Return a host-global exact-port or all-port tombstone."""
 
     if port is None:
-        return _local_unknown_origin_quarantine_path(paths)
+        return _host_global_all_ports_quarantine_path()
     return _host_global_retired_origin_quarantine_path(port)
+
+
+def _open_directory_without_symlinks(
+    path: Path,
+    *,
+    create: bool = False,
+    require_private_final: bool = False,
+) -> int:
+    """Open an absolute directory by descriptor-walking every component."""
+
+    absolute = Path(path)
+    if not absolute.is_absolute() or absolute.name in (".", ".."):
+        raise ValueError("secure directory path must be absolute and normalized")
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory = getattr(os, "O_DIRECTORY", 0)
+    if nofollow == 0 or directory == 0:
+        raise RuntimeError("secure directory traversal requires O_NOFOLLOW and O_DIRECTORY")
+    flags = os.O_RDONLY | os.O_CLOEXEC | directory | nofollow
+    descriptor = os.open("/", flags)
+    try:
+        for component in absolute.parts[1:]:
+            if component in ("", ".", ".."):
+                raise ValueError("secure directory path contains an ambiguous component")
+            try:
+                child = os.open(component, flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                if not create:
+                    raise
+                try:
+                    os.mkdir(component, mode=0o700, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+                child = os.open(component, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        final_stat = os.fstat(descriptor)
+        if not stat.S_ISDIR(final_stat.st_mode):
+            raise NotADirectoryError(str(absolute))
+        if require_private_final:
+            if final_stat.st_uid != os.geteuid():
+                raise PermissionError("quarantine state directory has a foreign owner")
+            if stat.S_IMODE(final_stat.st_mode) & 0o077:
+                os.fchmod(descriptor, 0o700)
+                final_stat = os.fstat(descriptor)
+                if stat.S_IMODE(final_stat.st_mode) != 0o700:
+                    raise PermissionError(
+                        "quarantine state directory permissions could not be tightened"
+                    )
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+
+def _open_quarantine_state_directory(*, create: bool) -> int:
+    return _open_directory_without_symlinks(
+        HOST_GLOBAL_RETIRED_ORIGIN_QUARANTINE_DIR_V1,
+        create=create,
+        require_private_final=True,
+    )
+
+
+@contextmanager
+def _exclusive_local_lifecycle_lock() -> Iterator[None]:
+    """Serialize local admission, startup, rollback, and tombstone observation."""
+
+    directory_fd = _open_quarantine_state_directory(create=True)
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    lock_fd = -1
+    try:
+        lock_fd = os.open(
+            HOST_GLOBAL_LIFECYCLE_LOCK_FILENAME_V1,
+            os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | nofollow,
+            0o600,
+            dir_fd=directory_fd,
+        )
+        lock_stat = os.fstat(lock_fd)
+        if (
+            not stat.S_ISREG(lock_stat.st_mode)
+            or lock_stat.st_uid != os.geteuid()
+            or lock_stat.st_nlink != 1
+            or stat.S_IMODE(lock_stat.st_mode) & 0o077
+        ):
+            raise PermissionError("local lifecycle lock is not a private regular file")
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        if lock_fd >= 0:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_UN)
+            finally:
+                os.close(lock_fd)
+        os.close(directory_fd)
+
+
+def _serialized_local_lifecycle_operation(
+    operation: Callable[_P, _R],
+) -> Callable[_P, _R]:
+    """Make every externally reachable lifecycle operation honor one lock."""
+
+    @wraps(operation)
+    def serialized(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+        with _exclusive_local_lifecycle_lock():
+            return operation(*args, **kwargs)
+
+    return serialized
 
 
 def _reject_duplicate_json_keys(
@@ -260,14 +393,19 @@ def _read_stable_json_object(path: Path, *, max_bytes: int) -> _StableJsonObject
     nofollow = getattr(os, "O_NOFOLLOW", 0)
     if nofollow == 0:
         raise RuntimeError("stable quarantine loading requires O_NOFOLLOW")
-    descriptor = os.open(
-        path,
-        os.O_RDONLY | os.O_CLOEXEC | os.O_NONBLOCK | nofollow,
-    )
+    parent_fd = _open_directory_without_symlinks(path.parent)
+    descriptor = -1
     try:
+        descriptor = os.open(
+            path.name,
+            os.O_RDONLY | os.O_CLOEXEC | os.O_NONBLOCK | nofollow,
+            dir_fd=parent_fd,
+        )
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
             raise ValueError("quarantine path must be a regular file")
+        if before.st_nlink != 1:
+            raise ValueError("quarantine path must have exactly one hard link")
         if before.st_size < 1 or before.st_size > max_bytes:
             raise ValueError("quarantine file size is outside the accepted bound")
         body = bytearray()
@@ -307,7 +445,9 @@ def _read_stable_json_object(path: Path, *, max_bytes: int) -> _StableJsonObject
             mtime_ns=before.st_mtime_ns,
         )
     finally:
-        os.close(descriptor)
+        if descriptor >= 0:
+            os.close(descriptor)
+        os.close(parent_fd)
 
 
 def _load_retired_origin_quarantine_at(
@@ -316,12 +456,13 @@ def _load_retired_origin_quarantine_at(
     expected_out_dir: str | None,
     expected_compose_project: str | None,
 ) -> RetiredOriginQuarantineV1 | None:
-    if not os.path.lexists(path):
+    try:
+        stable = _read_stable_json_object(
+            path,
+            max_bytes=MAX_RETIRED_ORIGIN_QUARANTINE_BYTES_V1,
+        )
+    except FileNotFoundError:
         return None
-    stable = _read_stable_json_object(
-        path,
-        max_bytes=MAX_RETIRED_ORIGIN_QUARANTINE_BYTES_V1,
-    )
     marker = parse_retired_origin_quarantine_v1(
         stable.value,
         expected_out_dir=expected_out_dir,
@@ -337,18 +478,21 @@ def _load_retired_origin_quarantine(
     *,
     port: int | None,
 ) -> RetiredOriginQuarantineV1 | None:
-    local_marker = _load_retired_origin_quarantine_at(
-        _local_unknown_origin_quarantine_path(paths),
-        expected_out_dir=str(paths.out_dir),
-        expected_compose_project=mf.compose_project_name(paths.out_dir),
+    all_ports_marker = _load_retired_origin_quarantine_at(
+        _host_global_all_ports_quarantine_path(),
+        expected_out_dir=None,
+        expected_compose_project=None,
     )
-    if local_marker is not None:
+    if all_ports_marker is not None:
         if (
-            local_marker.origin is not None
-            or not local_marker.all_loopback_ports_quarantined
+            all_ports_marker.origin is not None
+            or not all_ports_marker.all_loopback_ports_quarantined
         ):
-            raise ValueError("local retired-origin marker must quarantine all ports")
-        return local_marker
+            raise ValueError("host-global all-port marker has invalid scope")
+        return all_ports_marker
+    legacy_local_path = _local_unknown_origin_quarantine_path(paths)
+    if os.path.lexists(legacy_local_path):
+        raise ValueError("legacy output-local all-port marker requires global migration")
     if port is None:
         return None
     global_marker = _load_retired_origin_quarantine_at(
@@ -381,18 +525,14 @@ def _persist_retired_origin_quarantine(
     """Persist the first origin marker atomically; conflicting markers fail closed."""
 
     path = (
-        _local_unknown_origin_quarantine_path(paths)
+        _host_global_all_ports_quarantine_path()
         if candidate.origin is None
         else _host_global_retired_origin_quarantine_path(candidate.origin.port)
     )
     existing = _load_retired_origin_quarantine_at(
         path,
-        expected_out_dir=(str(paths.out_dir) if candidate.origin is None else None),
-        expected_compose_project=(
-            mf.compose_project_name(paths.out_dir)
-            if candidate.origin is None
-            else None
-        ),
+        expected_out_dir=None,
+        expected_compose_project=None,
     )
     if existing is not None:
         same_global_port = (
@@ -406,12 +546,10 @@ def _persist_retired_origin_quarantine(
             raise ValueError("retired origin quarantine conflicts with its durable marker")
         return existing
 
-    path.parent.mkdir(parents=True, exist_ok=True)
     nofollow = getattr(os, "O_NOFOLLOW", 0)
     if nofollow == 0:
         raise RuntimeError("durable quarantine writing requires O_NOFOLLOW")
-    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | nofollow
-    directory_fd = os.open(path.parent, directory_flags)
+    directory_fd = _open_quarantine_state_directory(create=True)
     temporary_name = f".{path.name}.{secrets.token_hex(16)}.tmp"
     flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_CLOEXEC | nofollow
     descriptor = os.open(temporary_name, flags, 0o600, dir_fd=directory_fd)
@@ -460,6 +598,30 @@ def _persist_retired_origin_quarantine(
             source_stat.st_ino,
         ):
             raise ValueError("persisted retired-origin marker path changed")
+        canonical_directory_fd = _open_quarantine_state_directory(create=False)
+        try:
+            canonical_directory_stat = os.fstat(canonical_directory_fd)
+            original_directory_stat = os.fstat(directory_fd)
+            if (
+                canonical_directory_stat.st_dev,
+                canonical_directory_stat.st_ino,
+            ) != (
+                original_directory_stat.st_dev,
+                original_directory_stat.st_ino,
+            ):
+                raise ValueError("quarantine directory lost its canonical pathname")
+            canonical_marker_stat = os.stat(
+                path.name,
+                dir_fd=canonical_directory_fd,
+                follow_symlinks=False,
+            )
+            if (canonical_marker_stat.st_dev, canonical_marker_stat.st_ino) != (
+                source_stat.st_dev,
+                source_stat.st_ino,
+            ):
+                raise ValueError("persisted marker is absent from its canonical pathname")
+        finally:
+            os.close(canonical_directory_fd)
     finally:
         if destination_fd >= 0:
             os.close(destination_fd)
@@ -476,10 +638,14 @@ def _candidate_retired_origin_quarantine(
     paths: mf.ManifestPaths,
     manifest: Mapping[str, object],
 ) -> RetiredOriginQuarantineV1:
-    return retired_origin_quarantine_from_manifest_v1(
-        manifest,
-        expected_out_dir=str(paths.out_dir),
-        expected_compose_project=mf.compose_project_name(paths.out_dir),
+    """Return a host-global all-port marker for unverified historical state."""
+
+    del manifest
+    return RetiredOriginQuarantineV1(
+        out_dir=str(paths.out_dir),
+        compose_project=mf.compose_project_name(paths.out_dir),
+        origin=None,
+        all_loopback_ports_quarantined=True,
     )
 
 
@@ -516,6 +682,11 @@ def _quiesce_and_mark_detected_retired_route(
         engine_name=engine_name,
         remove_volumes=remove_volumes,
     )
+    if not _legacy_project_is_proved_absent(
+        paths=paths,
+        engine_name=engine_name,
+    ):
+        marker_ok = False
     return marker_ok
 
 
@@ -529,22 +700,91 @@ def _unknown_retired_manifest(paths: mf.ManifestPaths) -> dict[str, object]:
     }
 
 
+def _current_manifest_path_gap(
+    manifest: Mapping[str, object],
+    paths: mf.ManifestPaths,
+) -> str | None:
+    """Reject v3 manifests that redirect lifecycle I/O outside the selected root."""
+
+    expected_rendered = {
+        "nginx_conf": str(paths.rendered_nginx),
+        "runtime_config": str(paths.rendered_runtime_config),
+    }
+    expected_host = {
+        "fixtures_dir": str(paths.fixtures_dir),
+        "secrets_dir": str(paths.secrets_dir),
+        "oracle_home_dir": str(paths.oracle_home_dir),
+        "reports_dir": str(paths.reports_dir),
+    }
+    expected_fixtures = {
+        "key_bundle": str(paths.secrets_dir / "keys.json"),
+        "role_pubkeys": str(paths.fixtures_dir / "role_pubkeys.json"),
+        "oracle_authority_profile": str(
+            paths.fixtures_dir / "oracle_authority_profile.json"
+        ),
+        "perps_wallet_authority_profile": str(
+            paths.fixtures_dir / "perps_wallet_authority_profile.json"
+        ),
+        "autotrader_supervisor_profile": str(
+            paths.fixtures_dir / "autotrader_supervisor_profile.json"
+        ),
+        "guardian_quorum": str(paths.fixtures_dir / "guardians.json"),
+        "perps_wallet_recovery_exercise": str(
+            paths.fixtures_dir / "perps_wallet_recovery_exercise.json"
+        ),
+        "perps_wallet_rotation_exercise": str(
+            paths.fixtures_dir / "perps_wallet_rotation_exercise.json"
+        ),
+        "perps_wallet_device_approval_exercise": str(
+            paths.fixtures_dir / "perps_wallet_device_approval_exercise.json"
+        ),
+        "perps_wallet_signer_device_integration": str(
+            paths.fixtures_dir / "perps_wallet_signer_device_integration.json"
+        ),
+        "perps_wallet_signer_prompt_capture": str(
+            paths.fixtures_dir / "perps_wallet_signer_prompt_capture.json"
+        ),
+        "perps_wallet_signer_execution_exercise": str(
+            paths.fixtures_dir / "perps_wallet_signer_execution_exercise.json"
+        ),
+        "perps_wallet_encrypted_sss_backup": str(
+            paths.fixtures_dir / "perps_wallet_encrypted_sss_backup.json"
+        ),
+        "perps_wallet_encrypted_sss_recipient_keys": str(
+            paths.fixtures_dir / "perps_wallet_encrypted_sss_recipient_keys.json"
+        ),
+    }
+    bindings: tuple[tuple[str, object, dict[str, str]], ...] = (
+        ("rendered_paths", manifest.get("rendered_paths"), expected_rendered),
+        ("host_paths", manifest.get("host_paths"), expected_host),
+        ("fixture_paths", manifest.get("fixture_paths"), expected_fixtures),
+    )
+    for label, observed, expected in bindings:
+        if type(observed) is not dict or observed != expected:
+            return f"{label} does not exactly bind the selected output directory"
+    if manifest.get("ledger_bundle_manifest") != str(
+        paths.out_dir / "ledger" / "public_testnet_manifest.json"
+    ):
+        return "ledger_bundle_manifest does not bind the selected output directory"
+    return None
+
+
 def _load_local_manifest_snapshot(
     paths: mf.ManifestPaths,
 ) -> _LocalManifestSnapshotV1:
     """Read and classify one descriptor-bound manifest snapshot exactly once."""
 
-    if not os.path.lexists(paths.manifest_path):
-        return _LocalManifestSnapshotV1(
-            status="absent",
-            manifest=None,
-            stable_source=None,
-        )
     expected_project = mf.compose_project_name(paths.out_dir)
     try:
         stable = _read_stable_json_object(
             paths.manifest_path,
             max_bytes=MAX_PROOF_ARTIFACT_METADATA_BYTES,
+        )
+    except FileNotFoundError:
+        return _LocalManifestSnapshotV1(
+            status="absent",
+            manifest=None,
+            stable_source=None,
         )
     except (OSError, RuntimeError, UnicodeError, ValueError) as exc:
         _log(
@@ -571,11 +811,15 @@ def _load_local_manifest_snapshot(
             stable_source=stable,
         )
     raw_lanes = manifest.get("enabled_lanes")
+    path_gap = _current_manifest_path_gap(manifest, paths)
+    if path_gap is not None:
+        _log("quarantine", path_gap)
     if (
         manifest.get("schema") == mf.SCHEMA_V3
         and type(raw_lanes) is list
         and all(type(lane) is str for lane in raw_lanes)
         and all(lane in mf.LOCAL_TESTNET_MOUNTABLE_LANES for lane in raw_lanes)
+        and path_gap is None
         and not mf.validate_manifest(manifest)
     ):
         return _LocalManifestSnapshotV1(
@@ -596,24 +840,36 @@ def _manifest_snapshot_path_unchanged(
 ) -> bool:
     stable = snapshot.stable_source
     if snapshot.status == "absent":
-        return not os.path.lexists(paths.manifest_path)
+        try:
+            _read_stable_json_object(
+                paths.manifest_path,
+                max_bytes=MAX_PROOF_ARTIFACT_METADATA_BYTES,
+            )
+        except FileNotFoundError:
+            return True
+        except (OSError, RuntimeError, UnicodeError, ValueError):
+            return False
+        return False
     if stable is None:
         return False
     try:
-        current = os.stat(paths.manifest_path, follow_symlinks=False)
-    except OSError:
+        current = _read_stable_json_object(
+            paths.manifest_path,
+            max_bytes=MAX_PROOF_ARTIFACT_METADATA_BYTES,
+        )
+    except (OSError, RuntimeError, UnicodeError, ValueError):
         return False
-    return stat.S_ISREG(current.st_mode) and (
-        current.st_dev,
-        current.st_ino,
-        current.st_size,
-        current.st_mtime_ns,
+    return (
+        current.device,
+        current.inode,
+        current.size,
+        current.mtime_ns,
     ) == (
         stable.device,
         stable.inode,
         stable.size,
         stable.mtime_ns,
-    )
+    ) and current.body == stable.body
 
 
 def _quiesce_retired_route_stack(
@@ -642,6 +898,36 @@ def _quiesce_retired_route_stack(
     )
 
 
+def _legacy_project_is_proved_absent(
+    *,
+    paths: mf.ManifestPaths,
+    engine_name: str,
+) -> bool:
+    """Check the collision-prone legacy project without authorizing its deletion."""
+
+    engine = cm.detect_engine(engine_name)
+    legacy_project = mf.legacy_compose_project_name(paths.out_dir)
+    try:
+        containers = cm.inspect_project_containers(
+            engine=engine,
+            project_name=legacy_project,
+            env=None,
+        )
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        _log(
+            "quarantine",
+            f"legacy project absence is unproved: {type(exc).__name__}: {exc}",
+        )
+        return False
+    if containers:
+        _log(
+            "quarantine",
+            "collision-prone legacy Compose project remains live and requires explicit recovery",
+        )
+        return False
+    return True
+
+
 def _retired_route_quiescence_report(paths: mf.ManifestPaths) -> dict[str, Any]:
     admission = current_local_operator_release_admission_v1()
     return {
@@ -649,8 +935,8 @@ def _retired_route_quiescence_report(paths: mf.ManifestPaths) -> dict[str, Any]:
         "ok": False,
         "status": "retired_route_stack_stopped",
         "manifest_path": str(paths.manifest_path),
-        "local_unknown_origin_quarantine_path": str(
-            _local_unknown_origin_quarantine_path(paths)
+        "host_global_all_ports_quarantine_path": str(
+            _host_global_all_ports_quarantine_path()
         ),
         "host_global_origin_quarantine_dir": str(
             HOST_GLOBAL_RETIRED_ORIGIN_QUARANTINE_DIR_V1
@@ -723,15 +1009,251 @@ def _quiesce_if_retired_origin_blocks_manifest(
     return True
 
 
+_COMPOSE_VARIABLE_RE = re.compile(
+    r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?:(:-|:\?)([^}]*))?\}"
+)
+
+
+def _substitute_compose_text(value: str, environment: Mapping[str, str]) -> str:
+    """Resolve the variable forms used by the trusted local Compose source."""
+
+    if type(value) is not str:
+        raise TypeError("Compose value must be an exact string")
+
+    def replace(match: re.Match[str]) -> str:
+        name, operator, fallback = match.groups()
+        selected = environment.get(name)
+        if operator == ":-":
+            if selected is not None and selected != "":
+                return selected
+            return "" if fallback is None else fallback
+        if operator == ":?":
+            if selected in (None, ""):
+                raise ValueError(f"required Compose variable {name!r} is absent")
+            return str(selected)
+        if selected is None:
+            raise ValueError(f"Compose variable {name!r} is absent")
+        return selected
+
+    return _COMPOSE_VARIABLE_RE.sub(replace, value)
+
+
+def _trusted_compose_service_models() -> dict[str, dict[str, object]]:
+    decoded = yaml.safe_load(COMPOSE_FILE.read_text(encoding="utf-8"))
+    if type(decoded) is not dict or type(decoded.get("services")) is not dict:
+        raise ValueError("trusted local Compose source has no exact services object")
+    services = decoded["services"]
+    expected_names = frozenset(EXPECTED_LOCAL_TESTNET_SERVICE_IMAGES)
+    if frozenset(services) != expected_names:
+        raise ValueError("trusted local Compose service registry drifted from the profile")
+    result: dict[str, dict[str, object]] = {}
+    for name, service in services.items():
+        if type(name) is not str or type(service) is not dict:
+            raise ValueError("trusted local Compose service has an invalid shape")
+        result[name] = service
+    return result
+
+
+def _expected_mount_contracts(
+    *,
+    service: Mapping[str, object],
+    project: str,
+    environment: Mapping[str, str],
+) -> tuple[tuple[str, str, str | None, bool], ...]:
+    raw_volumes = service.get("volumes", [])
+    if type(raw_volumes) is not list or any(type(item) is not str for item in raw_volumes):
+        raise ValueError("trusted local Compose volumes must be exact short strings")
+    named_volumes = {
+        "zeno-local-testnet-data",
+        "tau-local-testnet-venv",
+        "tau-local-testnet-db",
+    }
+    contracts: list[tuple[str, str, str | None, bool]] = []
+    destinations: set[str] = set()
+    for raw_item in raw_volumes:
+        item = _substitute_compose_text(raw_item, environment)
+        parts = item.split(":")
+        if len(parts) not in (2, 3):
+            raise ValueError("trusted local Compose volume has an ambiguous shape")
+        source, destination = parts[:2]
+        options = tuple(parts[2].split(",")) if len(parts) == 3 else ()
+        if not source or not destination.startswith("/") or destination in destinations:
+            raise ValueError("trusted local Compose volume contract is invalid")
+        destinations.add(destination)
+        read_write = "ro" not in options
+        if source in named_volumes:
+            contracts.append(
+                ("volume", destination, f"{project}_{source}", read_write)
+            )
+            continue
+        source_path = Path(source)
+        if not source_path.is_absolute():
+            source_path = REPO_ROOT / source_path
+        contracts.append(
+            ("bind", destination, str(source_path.resolve(strict=False)), read_write)
+        )
+    return tuple(sorted(contracts, key=lambda item: item[1]))
+
+
+def _expected_published_ports(
+    *,
+    service: Mapping[str, object],
+    environment: Mapping[str, str],
+) -> tuple[tuple[int, str, str, int], ...]:
+    raw_ports = service.get("ports", [])
+    if type(raw_ports) is not list or any(type(item) is not str for item in raw_ports):
+        raise ValueError("trusted local Compose ports must be exact short strings")
+    ports: list[tuple[int, str, str, int]] = []
+    for raw_item in raw_ports:
+        item = _substitute_compose_text(raw_item, environment)
+        parts = item.rsplit(":", 2)
+        if len(parts) != 3:
+            raise ValueError("trusted local Compose port has an ambiguous shape")
+        host_ip, host_port_text, container_port_text = parts
+        protocol = "tcp"
+        if "/" in container_port_text:
+            container_port_text, protocol = container_port_text.split("/", 1)
+        host_port = int(host_port_text)
+        container_port = int(container_port_text)
+        if not (1 <= host_port <= 65535 and 1 <= container_port <= 65535):
+            raise ValueError("trusted local Compose port is outside the valid range")
+        ports.append((container_port, protocol, host_ip, host_port))
+    return tuple(sorted(ports))
+
+
+def _live_engine_fact_gap(
+    *,
+    service_name: str,
+    service_model: Mapping[str, object],
+    project: str,
+    environment: Mapping[str, str],
+    expected_image_id: str,
+    facts: cm.ProjectContainerEngineFacts | None,
+    require_running: bool,
+) -> str | None:
+    if facts is None:
+        return f"live engine facts are absent for {service_name!r}"
+    if facts.immutable_image_id != expected_image_id:
+        return f"immutable live image mismatch for {service_name!r}"
+    raw_command = service_model.get("command")
+    if type(raw_command) is not list or any(type(item) is not str for item in raw_command):
+        return f"trusted command contract is invalid for {service_name!r}"
+    expected_command = tuple(
+        _substitute_compose_text(item, environment) for item in raw_command
+    )
+    if facts.command.is_null or facts.command.values != expected_command:
+        return f"live command mismatch for {service_name!r}"
+    raw_entrypoint = service_model.get("entrypoint")
+    if type(raw_entrypoint) is not list or any(
+        type(item) is not str for item in raw_entrypoint
+    ):
+        return f"trusted entrypoint contract is invalid for {service_name!r}"
+    expected_entrypoint = tuple(
+        _substitute_compose_text(item, environment) for item in raw_entrypoint
+    )
+    if facts.entrypoint.is_null or facts.entrypoint.values != expected_entrypoint:
+        return f"live entrypoint mismatch for {service_name!r}"
+    expected_process = expected_entrypoint + expected_command
+    if (
+        not expected_process
+        or facts.path != expected_process[0]
+        or facts.args != expected_process[1:]
+    ):
+        return f"live executable and argument mismatch for {service_name!r}"
+    expected_working_dir = service_model.get("working_dir")
+    if expected_working_dir is not None and facts.working_dir != _substitute_compose_text(
+        str(expected_working_dir), environment
+    ):
+        return f"live working directory mismatch for {service_name!r}"
+    expected_user = service_model.get("user")
+    if expected_user is not None and facts.user != _substitute_compose_text(
+        str(expected_user), environment
+    ):
+        return f"live user mismatch for {service_name!r}"
+    expected_readonly = service_model.get("read_only", False)
+    if type(expected_readonly) is not bool or facts.readonly_rootfs is not expected_readonly:
+        return f"live root-filesystem mode mismatch for {service_name!r}"
+    expected_restart = service_model.get("restart", "no")
+    if facts.restart_policy.name != expected_restart:
+        return f"live restart policy mismatch for {service_name!r}"
+    expected_mounts = _expected_mount_contracts(
+        service=service_model,
+        project=project,
+        environment=environment,
+    )
+    observed_mounts = tuple(
+        (
+            mount.mount_type,
+            mount.destination,
+            mount.name if mount.mount_type == "volume" else mount.source,
+            mount.read_write,
+        )
+        for mount in facts.mounts
+    )
+    if observed_mounts != expected_mounts:
+        return f"live mount contract mismatch for {service_name!r}"
+    expected_bind_mounts = tuple(item for item in expected_mounts if item[0] == "bind")
+    observed_binds = tuple(
+        ("bind", bind.destination, bind.source, "ro" not in bind.options)
+        for bind in facts.binds.values
+    )
+    if observed_binds != expected_bind_mounts:
+        return f"live bind contract mismatch for {service_name!r}"
+    expected_ports = _expected_published_ports(
+        service=service_model,
+        environment=environment,
+    )
+    observed_configured = tuple(
+        (
+            binding.container_port.number,
+            binding.container_port.protocol,
+            binding.host_ip,
+            binding.host_port,
+        )
+        for binding in facts.configured_ports.bindings
+    )
+    observed_published = tuple(
+        (
+            binding.container_port.number,
+            binding.container_port.protocol,
+            binding.host_ip,
+            binding.host_port,
+        )
+        for binding in facts.published_ports.bindings
+    )
+    if observed_configured != expected_ports or observed_published != expected_ports:
+        return f"live published-port contract mismatch for {service_name!r}"
+    state = facts.state
+    if require_running and (
+        not state.running
+        or state.status != "running"
+        or state.paused
+        or state.restarting
+        or state.oom_killed
+        or state.dead
+        or state.pid <= 0
+        or state.error
+    ):
+        return f"live runtime state mismatch for {service_name!r}"
+    return None
+
+
 def _live_project_profile_gap(
     manifest: Mapping[str, Any],
     containers: tuple[cm.ProjectContainerSnapshot, ...],
+    *,
+    environment: Mapping[str, str] | None = None,
+    expected_image_ids: Mapping[str, str] | None = None,
+    allow_empty: bool = False,
+    require_running: bool = True,
 ) -> str | None:
     """Return the first exact live-container mismatch against the current profile."""
 
     expected_project = manifest.get("compose_project")
     expected_profile = manifest.get("local_operator_profile_id")
     expected_digest = manifest.get("local_operator_profile_digest")
+    if not containers:
+        return None if allow_empty else "live Compose service set is empty"
     seen_services: set[str] = set()
     for container in containers:
         service = container.compose_service
@@ -758,6 +1280,33 @@ def _live_project_profile_gap(
                 return f"retired route {name!r} is not exact false in {service!r}"
             if service != "zenodex-api" and value not in (None, "false", "0"):
                 return f"retired route {name!r} is enabled in {service!r}"
+    missing_services = sorted(
+        frozenset(EXPECTED_LOCAL_TESTNET_SERVICE_IMAGES) - seen_services
+    )
+    if missing_services:
+        return f"live Compose service set is incomplete: {missing_services!r}"
+    if environment is None or expected_image_ids is None:
+        return "live engine expectations are absent"
+    try:
+        service_models = _trusted_compose_service_models()
+    except (OSError, TypeError, ValueError, yaml.YAMLError) as exc:
+        return f"trusted Compose model is invalid: {type(exc).__name__}: {exc}"
+    for container in containers:
+        service = container.compose_service
+        expected_image_id = expected_image_ids.get(service)
+        if expected_image_id is None:
+            return f"immutable image expectation is absent for {service!r}"
+        engine_gap = _live_engine_fact_gap(
+            service_name=service,
+            service_model=service_models[service],
+            project=str(expected_project),
+            environment=environment,
+            expected_image_id=expected_image_id,
+            facts=container.engine_facts,
+            require_running=require_running,
+        )
+        if engine_gap is not None:
+            return engine_gap
     return None
 
 
@@ -767,17 +1316,51 @@ def _quiesce_if_live_project_profile_untrusted(
     manifest: Mapping[str, Any],
     engine_name: str,
     engine: cm.ComposeEngine | None = None,
+    allow_empty: bool = False,
+    require_running: bool = True,
 ) -> bool:
     """Inspect live container facts and quiesce on any ambiguity or mismatch."""
 
     selected_engine = engine or cm.detect_engine(engine_name)
+    gap: str | None
     try:
+        environment = _lifecycle_env_for_compose(dict(manifest), paths)
         containers = cm.inspect_project_containers(
             engine=selected_engine,
             project_name=str(manifest["compose_project"]),
-            env=_lifecycle_env_for_compose(dict(manifest), paths),
+            env=environment,
         )
-        gap = _live_project_profile_gap(manifest, containers)
+        basic_gap = _live_project_profile_gap(
+            manifest,
+            containers,
+            allow_empty=allow_empty,
+            require_running=require_running,
+        )
+        if (
+            basic_gap is not None
+            and basic_gap != "live engine expectations are absent"
+        ):
+            gap = basic_gap
+        else:
+            expected_image_ids: dict[str, str] = {}
+            if containers:
+                ids_by_reference: dict[str, str] = {}
+                for service, image_reference in EXPECTED_LOCAL_TESTNET_SERVICE_IMAGES.items():
+                    if image_reference not in ids_by_reference:
+                        ids_by_reference[image_reference] = cm.inspect_image_reference_id(
+                            engine=selected_engine,
+                            image_reference=image_reference,
+                            env=environment,
+                        )
+                    expected_image_ids[service] = ids_by_reference[image_reference]
+            gap = _live_project_profile_gap(
+                manifest,
+                containers,
+                environment=environment,
+                expected_image_ids=expected_image_ids,
+                allow_empty=allow_empty,
+                require_running=require_running,
+            )
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         gap = f"live container inspection failed: {type(exc).__name__}: {exc}"
     if gap is None:
@@ -791,7 +1374,26 @@ def _quiesce_if_live_project_profile_untrusted(
     return True
 
 
+def _out_dir_is_within_repository(out_dir: Path) -> bool:
+    """Return whether generated secrets would enter tau-local's `/work` mount."""
+
+    selected = out_dir.resolve(strict=False)
+    repository = REPO_ROOT.resolve(strict=True)
+    try:
+        selected.relative_to(repository)
+    except ValueError:
+        return False
+    return True
+
+
 def cmd_up(opts: UpOptions) -> int:
+    """Run local admission and startup under one host-global lifecycle lock."""
+
+    with _exclusive_local_lifecycle_lock():
+        return _cmd_up_under_lock(opts)
+
+
+def _cmd_up_under_lock(opts: UpOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
     manifest_snapshot = _load_local_manifest_snapshot(paths)
     retired_manifest = (
@@ -855,6 +1457,18 @@ def cmd_up(opts: UpOptions) -> int:
         _log(
             "quarantine",
             "requested UI port remains quarantined by a durable retired-origin marker",
+        )
+        return 2
+
+    if _out_dir_is_within_repository(paths.out_dir):
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        _log(
+            "quarantine",
+            "output directory is inside the repository mounted read-write by tau-local",
         )
         return 2
 
@@ -932,9 +1546,28 @@ def cmd_up(opts: UpOptions) -> int:
         return 2
 
     paths.out_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        rebound_paths = mf.ManifestPaths.from_out_dir(paths.out_dir)
+    except ValueError as exc:
+        _log("quarantine", f"output directory changed during creation: {exc}")
+        return 2
+    if rebound_paths.out_dir != paths.out_dir:
+        _log("quarantine", "output directory identity changed during creation")
+        return 2
     paths.reports_dir.mkdir(parents=True, exist_ok=True)
     cm.check_external_tau_testnet_present(REPO_ROOT)
     cm.check_host_port_free(opts.ui_port)
+    if manifest_snapshot.status == "absent":
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        if not _legacy_project_is_proved_absent(
+            paths=paths,
+            engine_name=opts.engine,
+        ):
+            return 2
     zk_posture = _resolve_zk_posture(opts.zk_mode)
     if zk_posture.get("ok") is not True:
         _log("preflight", str(zk_posture.get("zk_fallback_reason") or "ZK strict mode unavailable"))
@@ -1038,6 +1671,12 @@ def cmd_up(opts: UpOptions) -> int:
     )
     project = str(manifest["compose_project"])
 
+    if _quiesce_if_retired_origin_blocks_manifest(
+        paths=paths,
+        manifest=manifest,
+        engine_name=opts.engine,
+    ):
+        return 2
     _log("compose", f"compose up project={project}")
     cm.compose_up(
         engine=engine,
@@ -1046,6 +1685,12 @@ def cmd_up(opts: UpOptions) -> int:
         env=env,
         extra_args=["--build"],
     )
+    if _quiesce_if_retired_origin_blocks_manifest(
+        paths=paths,
+        manifest=manifest,
+        engine_name=opts.engine,
+    ):
+        return 2
     if _quiesce_if_live_project_profile_untrusted(
         paths=paths,
         manifest=manifest,
@@ -1114,23 +1759,37 @@ def _cmd_up_existing(*, opts: UpOptions, paths: mf.ManifestPaths, manifest: Mapp
     if zk_env_gap:
         _log("preflight", f"existing strict ZK manifest cannot be restarted: {zk_env_gap}")
         return 2
-    paths.reports_dir.mkdir(parents=True, exist_ok=True)
-    env = _runtime_env_for_existing_manifest(manifest=manifest, paths=paths)
     if _quiesce_if_live_project_profile_untrusted(
         paths=paths,
         manifest=manifest,
         engine_name=opts.engine,
         engine=engine,
+        allow_empty=True,
+        require_running=False,
     ):
         return 2
+    if _quiesce_if_retired_origin_blocks_manifest(
+        paths=paths,
+        manifest=manifest,
+        engine_name=opts.engine,
+    ):
+        return 2
+    paths.reports_dir.mkdir(parents=True, exist_ok=True)
+    env = _runtime_env_for_existing_manifest(manifest=manifest, paths=paths)
     _log("preflight", f"existing manifest detected; restarting compose project={project}")
     cm.compose_up(
         engine=engine,
         project_name=project,
         compose_files=[COMPOSE_FILE],
         env=env,
-        extra_args=["--build"],
+        extra_args=["--build", "--force-recreate"],
     )
+    if _quiesce_if_retired_origin_blocks_manifest(
+        paths=paths,
+        manifest=manifest,
+        engine_name=opts.engine,
+    ):
+        return 2
     if _quiesce_if_live_project_profile_untrusted(
         paths=paths,
         manifest=manifest,
@@ -1177,6 +1836,7 @@ def _existing_manifest_zk_request_gap(*, opts: UpOptions, manifest: Mapping[str,
     )
 
 
+@_serialized_local_lifecycle_operation
 def cmd_down(opts: DownOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
     manifest_snapshot = _load_local_manifest_snapshot(paths)
@@ -1205,8 +1865,23 @@ def cmd_down(opts: DownOptions) -> int:
     ):
         return 0
     if manifest is None:
-        _log("down", f"no manifest at {paths.manifest_path}; nothing to do")
-        return 0
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        _log(
+            "down",
+            f"no manifest at {paths.manifest_path}; verified derived project is stopped",
+        )
+        return (
+            0
+            if _legacy_project_is_proved_absent(
+                paths=paths,
+                engine_name=opts.engine,
+            )
+            else 2
+        )
     engine = cm.detect_engine(opts.engine)
     project = str(manifest["compose_project"])
     _log("down", f"compose down project={project} (preserving volumes and out-dir)")
@@ -1220,6 +1895,7 @@ def cmd_down(opts: DownOptions) -> int:
     return 0
 
 
+@_serialized_local_lifecycle_operation
 def cmd_status(opts: StatusOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
     manifest_snapshot = _load_local_manifest_snapshot(paths)
@@ -1256,9 +1932,18 @@ def cmd_status(opts: StatusOptions) -> int:
         )
         return 2
     if manifest is None:
-        report = {"ok": False, "status": "no_manifest", "manifest_path": str(paths.manifest_path)}
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        report = {
+            "ok": False,
+            "status": "no_manifest_project_quiesced",
+            "manifest_path": str(paths.manifest_path),
+        }
         _emit_status(report, as_json=opts.as_json)
-        return 1
+        return 2
     if not _manifest_snapshot_path_unchanged(paths, manifest_snapshot):
         _quiesce_retired_route_stack(
             paths=paths,
@@ -1314,6 +1999,7 @@ def cmd_status(opts: StatusOptions) -> int:
     return 0 if report["ok"] else 1
 
 
+@_serialized_local_lifecycle_operation
 def cmd_smoke(opts: SmokeOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
     manifest_snapshot = _load_local_manifest_snapshot(paths)
@@ -1344,14 +2030,19 @@ def cmd_smoke(opts: SmokeOptions) -> int:
         print(json.dumps(_retired_route_quiescence_report(paths), indent=2, sort_keys=True))
         return 2
     if manifest is None:
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
         no_manifest_report = {
             "ok": False,
-            "status": "no_manifest",
+            "status": "no_manifest_project_quiesced",
             "manifest_path": str(paths.manifest_path),
         }
         _write_json(paths.reports_dir / "local_smoke_report.json", no_manifest_report)
         print(json.dumps(no_manifest_report, indent=2, sort_keys=True))
-        return 1
+        return 2
     if not _manifest_snapshot_path_unchanged(paths, manifest_snapshot):
         _quiesce_retired_route_stack(
             paths=paths,
@@ -1432,6 +2123,7 @@ def cmd_smoke(opts: SmokeOptions) -> int:
     return 0 if report["ok"] else 1
 
 
+@_serialized_local_lifecycle_operation
 def cmd_release_smoke(opts: ReleaseSmokeOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
     manifest_snapshot = _load_local_manifest_snapshot(paths)
@@ -1464,6 +2156,12 @@ def cmd_release_smoke(opts: ReleaseSmokeOptions) -> int:
                 manifest=current_manifest,
                 engine_name=opts.engine,
             )
+        if current_manifest is None and not origin_blocked:
+            _quiesce_retired_route_stack(
+                paths=paths,
+                engine_name=opts.engine,
+                remove_volumes=False,
+            )
     admission = current_local_operator_release_admission_v1()
     report = {
         "schema": "zenodex.local_testnet.release_flow_smoke_report.v1",
@@ -1493,6 +2191,7 @@ def cmd_public_up(opts: PublicUpOptions) -> int:
     )
 
 
+@_serialized_local_lifecycle_operation
 def cmd_logs(opts: LogsOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
     manifest_snapshot = _load_local_manifest_snapshot(paths)
@@ -1523,8 +2222,16 @@ def cmd_logs(opts: LogsOptions) -> int:
         _log("quarantine", "retired-origin stack stopped; no logs are admitted")
         return 2
     if manifest is None:
-        _log("logs", f"no manifest at {paths.manifest_path}")
-        return 1
+        _quiesce_retired_route_stack(
+            paths=paths,
+            engine_name=opts.engine,
+            remove_volumes=False,
+        )
+        _log(
+            "logs",
+            f"no manifest at {paths.manifest_path}; derived project was quiesced",
+        )
+        return 2
     if not _manifest_snapshot_path_unchanged(paths, manifest_snapshot):
         _quiesce_retired_route_stack(
             paths=paths,
@@ -1553,6 +2260,7 @@ def cmd_logs(opts: LogsOptions) -> int:
     return 0
 
 
+@_serialized_local_lifecycle_operation
 def cmd_reset(opts: ResetOptions) -> int:
     paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
     manifest_snapshot = _load_local_manifest_snapshot(paths)
@@ -1597,7 +2305,7 @@ def cmd_reset(opts: ResetOptions) -> int:
         return 2
     try:
         _reset_stack(paths=paths, engine_name=opts.engine, manifest=manifest)
-    except OSError as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         _log("reset", f"stack state removal failed: {type(exc).__name__}: {exc}")
         return 2
     return 0
@@ -1650,15 +2358,141 @@ def _refuse_unsafe_reset_target(out_dir: Path) -> None:
         )
 
 
+def _remove_tree_contents_fd(directory_fd: int) -> None:
+    """Delete one opened directory tree without following pathname substitutions."""
+
+    nofollow = getattr(os, "O_NOFOLLOW", 0)
+    directory = getattr(os, "O_DIRECTORY", 0)
+    flags = os.O_RDONLY | os.O_CLOEXEC | directory | nofollow
+    for name in sorted(os.listdir(directory_fd)):
+        if name in (".", ".."):
+            raise OSError("directory listing contains an ambiguous entry")
+        entry_stat = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+        if stat.S_ISDIR(entry_stat.st_mode):
+            child_fd = os.open(name, flags, dir_fd=directory_fd)
+            try:
+                opened_stat = os.fstat(child_fd)
+                if (opened_stat.st_dev, opened_stat.st_ino) != (
+                    entry_stat.st_dev,
+                    entry_stat.st_ino,
+                ):
+                    raise OSError("operator directory entry changed before deletion")
+                _remove_tree_contents_fd(child_fd)
+                rebound_stat = os.stat(
+                    name,
+                    dir_fd=directory_fd,
+                    follow_symlinks=False,
+                )
+                if (rebound_stat.st_dev, rebound_stat.st_ino) != (
+                    opened_stat.st_dev,
+                    opened_stat.st_ino,
+                ):
+                    raise OSError("operator directory entry changed during deletion")
+            finally:
+                os.close(child_fd)
+            os.rmdir(name, dir_fd=directory_fd)
+        else:
+            os.unlink(name, dir_fd=directory_fd)
+    os.fsync(directory_fd)
+
+
 def _remove_out_dir_verified(out_dir: Path) -> None:
-    """Remove a selected operator directory and verify the pathname is gone."""
+    """Atomically select and delete the exact operator directory inode."""
 
     _refuse_unsafe_reset_target(out_dir)
-    if not os.path.lexists(out_dir):
-        return
-    shutil.rmtree(out_dir)
-    if os.path.lexists(out_dir):
-        raise OSError(f"operator output directory still exists after removal: {out_dir}")
+    parent_fd = _open_directory_without_symlinks(out_dir.parent)
+    selected_fd = -1
+    selected_identity: tuple[int, int] | None = None
+    tombstone_name = f".{out_dir.name}.{secrets.token_hex(16)}.deleting"
+    try:
+        try:
+            selected_stat = os.stat(
+                out_dir.name,
+                dir_fd=parent_fd,
+                follow_symlinks=False,
+            )
+        except FileNotFoundError:
+            return
+        if not stat.S_ISDIR(selected_stat.st_mode):
+            raise OSError("operator output path must be a real directory")
+        selected_identity = (selected_stat.st_dev, selected_stat.st_ino)
+        os.rename(
+            out_dir.name,
+            tombstone_name,
+            src_dir_fd=parent_fd,
+            dst_dir_fd=parent_fd,
+        )
+        rebound_stat = os.stat(
+            tombstone_name,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        if (rebound_stat.st_dev, rebound_stat.st_ino) != (
+            selected_stat.st_dev,
+            selected_stat.st_ino,
+        ):
+            raise OSError("operator output inode changed during quarantine rename")
+        nofollow = getattr(os, "O_NOFOLLOW", 0)
+        directory = getattr(os, "O_DIRECTORY", 0)
+        selected_fd = os.open(
+            tombstone_name,
+            os.O_RDONLY | os.O_CLOEXEC | directory | nofollow,
+            dir_fd=parent_fd,
+        )
+        opened_stat = os.fstat(selected_fd)
+        if (opened_stat.st_dev, opened_stat.st_ino) != (
+            selected_stat.st_dev,
+            selected_stat.st_ino,
+        ):
+            raise OSError("operator output inode changed before deletion")
+        _remove_tree_contents_fd(selected_fd)
+        final_stat = os.stat(
+            tombstone_name,
+            dir_fd=parent_fd,
+            follow_symlinks=False,
+        )
+        if (final_stat.st_dev, final_stat.st_ino) != (
+            selected_stat.st_dev,
+            selected_stat.st_ino,
+        ):
+            raise OSError("operator output inode changed during deletion")
+        os.close(selected_fd)
+        selected_fd = -1
+        os.rmdir(tombstone_name, dir_fd=parent_fd)
+        os.fsync(parent_fd)
+        try:
+            os.stat(out_dir.name, dir_fd=parent_fd, follow_symlinks=False)
+        except FileNotFoundError:
+            return
+        raise OSError(f"operator output directory was replaced during removal: {out_dir}")
+    except BaseException:
+        try:
+            tombstone_stat = os.stat(
+                tombstone_name,
+                dir_fd=parent_fd,
+                follow_symlinks=False,
+            )
+            try:
+                os.stat(out_dir.name, dir_fd=parent_fd, follow_symlinks=False)
+            except FileNotFoundError:
+                if selected_identity is not None and (
+                    tombstone_stat.st_dev,
+                    tombstone_stat.st_ino,
+                ) == selected_identity:
+                    os.rename(
+                        tombstone_name,
+                        out_dir.name,
+                        src_dir_fd=parent_fd,
+                        dst_dir_fd=parent_fd,
+                    )
+                    os.fsync(parent_fd)
+        except OSError:
+            pass
+        raise
+    finally:
+        if selected_fd >= 0:
+            os.close(selected_fd)
+        os.close(parent_fd)
 
 
 def _reset_stack(*, paths: mf.ManifestPaths, engine_name: str, manifest: Mapping[str, Any] | None) -> None:
@@ -1677,6 +2511,7 @@ def _reset_stack(*, paths: mf.ManifestPaths, engine_name: str, manifest: Mapping
                 f"refusing to reset {paths.out_dir}: no manifest, and the directory "
                 f"contains unrelated entries {sorted(unexpected)[:5]}. Move or empty it first."
             )
+    expected_project = mf.compose_project_name(paths.out_dir)
     if manifest is not None:
         expected_out_dir = str(paths.out_dir.resolve())
         project_name = manifest.get("compose_project")
@@ -1687,25 +2522,29 @@ def _reset_stack(*, paths: mf.ManifestPaths, engine_name: str, manifest: Mapping
                 "refusing automatic reset of legacy 32-bit Compose identity; "
                 "collision-safe migration evidence is required"
             )
-        expected_project = mf.compose_project_name(paths.out_dir)
         if project_name != expected_project:
             raise ValueError("refusing reset: manifest has unsafe identity binding")
-        engine = cm.detect_engine(engine_name)
-        reset_manifest = {
-            "ports": {"ui": DEFAULT_UI_PORT},
-            "chain_id": DEFAULT_CHAIN_ID,
-            "network_id": DEFAULT_NETWORK_ID,
-            "host_paths": {},
-            "rendered_paths": {},
-            "zk_required": False,
-        }
-        cm.compose_down(
-            engine=engine,
-            project_name=expected_project,
-            compose_files=[COMPOSE_FILE],
-            remove_volumes=True,
-            env=_lifecycle_env_for_compose(reset_manifest, paths),
-        )
+    engine = cm.detect_engine(engine_name)
+    reset_manifest = {
+        "ports": {"ui": DEFAULT_UI_PORT},
+        "chain_id": DEFAULT_CHAIN_ID,
+        "network_id": DEFAULT_NETWORK_ID,
+        "host_paths": {},
+        "rendered_paths": {},
+        "zk_required": False,
+    }
+    cm.compose_down(
+        engine=engine,
+        project_name=expected_project,
+        compose_files=[COMPOSE_FILE],
+        remove_volumes=True,
+        env=_lifecycle_env_for_compose(reset_manifest, paths),
+    )
+    if not _legacy_project_is_proved_absent(
+        paths=paths,
+        engine_name=engine_name,
+    ):
+        raise RuntimeError("collision-prone legacy project remains live")
     _remove_out_dir_verified(paths.out_dir)
 
 

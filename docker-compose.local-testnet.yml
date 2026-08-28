@@ -36,6 +36,7 @@ services:
     labels: &local_operator_profile_labels
       io.zenodex.local-operator-profile-id: ${ZENODEX_LOCAL_OPERATOR_PROFILE_ID:?ZENODEX_LOCAL_OPERATOR_PROFILE_ID must be set by the orchestrator}
       io.zenodex.local-operator-profile-digest: ${ZENODEX_LOCAL_OPERATOR_PROFILE_DIGEST:?ZENODEX_LOCAL_OPERATOR_PROFILE_DIGEST must be set by the orchestrator}
+    entrypoint: ["python"]
     command:
       - tools/zeno_ledger_multidocker_scenario.py
       - bootstrap
@@ -80,6 +81,7 @@ services:
       zeno-ledger-bootstrap:
         condition: service_started
     restart: on-failure
+    entrypoint: ["python"]
     command:
       - tools/zeno_ledger_multidocker_scenario.py
       - serve-node
@@ -140,6 +142,7 @@ services:
       zeno-ledger-writer:
         condition: service_started
     restart: on-failure
+    entrypoint: ["python"]
     command:
       - tools/zeno_ledger_multidocker_scenario.py
       - serve-node
@@ -193,6 +196,7 @@ services:
       zeno-ledger-writer:
         condition: service_started
     restart: on-failure
+    entrypoint: ["python"]
     command:
       - tools/zeno_ledger_multidocker_scenario.py
       - serve-node
@@ -239,6 +243,7 @@ services:
     image: zenodex/tau-local:local-testnet
     labels: *local_operator_profile_labels
     working_dir: /work
+    entrypoint: []
     command: ["bash", "tools/run_local_tau_node_container.sh"]
     environment:
       TAU_PORT: "65432"
@@ -286,6 +291,7 @@ services:
     image: zenodex/operator-tools:local
     labels: *local_operator_profile_labels
     user: "${HOST_UID:?HOST_UID must be set by the orchestrator}:${HOST_GID:?HOST_GID must be set by the orchestrator}"
+    entrypoint: ["python"]
     command:
       - tools/zenodex_oracle.py
       - serve
@@ -319,6 +325,7 @@ services:
         condition: service_started
       tau-local:
         condition: service_started
+    entrypoint: ["python"]
     command:
       - -m
       - src.integration.api_server
