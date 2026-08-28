@@ -1,0 +1,106 @@
+name: rust-fcis-policy
+
+on:
+  pull_request:
+    paths:
+      - "rust-runtime/**"
+      - "src/core/**"
+      - "src/state/**"
+      - "src/integration/perp_engine.py"
+      - "src/kernels/**"
+      - "src/tau_specs/**"
+      - "formal/**"
+      - "zk/**"
+      - "tools/*assurance_manifest.json"
+      - "docs/runtime/receipts/**"
+      - "config/deploy/**"
+      - "docs/runtime/RUST_FCIS_POLICY_V1.md"
+      - "docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json"
+      - "tools/check_rust_fcis_policy.py"
+      - "tests/tools/test_check_rust_fcis_policy.py"
+      - ".github/workflows/rust-fcis-policy.yml"
+  push:
+    branches:
+      - agent/rust-fcis-policy-inventory-20260722
+    paths:
+      - "rust-runtime/**"
+      - "src/core/**"
+      - "src/state/**"
+      - "src/integration/perp_engine.py"
+      - "src/kernels/**"
+      - "src/tau_specs/**"
+      - "formal/**"
+      - "zk/**"
+      - "tools/*assurance_manifest.json"
+      - "docs/runtime/receipts/**"
+      - "config/deploy/**"
+      - "docs/runtime/RUST_FCIS_POLICY_V1.md"
+      - "docs/runtime/RUST_VALUE_MOVEMENT_INVENTORY_V1.json"
+      - "tools/check_rust_fcis_policy.py"
+      - "tests/tools/test_check_rust_fcis_policy.py"
+      - ".github/workflows/rust-fcis-policy.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  policy-lint:
+    name: Rust FCIS Python lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+      - run: |
+          python -m ruff check \
+            tools/check_rust_fcis_policy.py \
+            tests/tools/test_check_rust_fcis_policy.py
+      - run: |
+          python -m ruff format --check \
+            tools/check_rust_fcis_policy.py \
+            tests/tools/test_check_rust_fcis_policy.py
+      - run: python -m py_compile tools/check_rust_fcis_policy.py
+
+  policy-validation:
+    name: Rust FCIS inventory validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --require-hashes -r requirements-dev.lock.txt
+      - run: python tools/check_rust_fcis_policy.py --pretty
+      - run: python -m pytest -q tests/tools/test_check_rust_fcis_policy.py
+
+  rust-core:
+    name: Exact-toolchain Rust core
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: rust-runtime
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Record exact toolchain
+        run: |
+          rustc --version --verbose
+          cargo --version --verbose
+          test "$(rustc --version | awk '{print $2}')" = "1.87.0"
+
+      - name: Locked metadata
+        run: cargo metadata --locked --format-version=1 > /dev/null
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+      - name: Debug tests
+        run: cargo test --workspace --all-features --locked
+
+      - name: Release tests
+        run: cargo test --workspace --all-features --release --locked
