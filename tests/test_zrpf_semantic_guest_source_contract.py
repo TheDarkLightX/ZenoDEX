@@ -12,6 +12,8 @@ VERIFIER_V2 = REPO_ROOT / "zk/zrpf_risc0/verifier/src/semantic_epoch_v2.rs"
 PROVER = REPO_ROOT / "zk/zrpf_risc0/harness/src/bin/prove_semantic_epoch.rs"
 SEMANTIC_SHARED_MANIFEST = REPO_ROOT / "zk/zrpf_risc0/semantic_shared/Cargo.toml"
 SEMANTIC_SHARED_LIB = REPO_ROOT / "zk/zrpf_risc0/semantic_shared/src/lib.rs"
+GENERIC_ZUSD_GUEST = REPO_ROOT / "zk/state_proof_risc0/methods/guest/src/main.rs"
+RECURSIVE_ZUSD_LEAF = REPO_ROOT / "zk/state_proof_risc0/methods/zusd_leaf/src/main.rs"
 ACTIVE_V2_IDENTITY_SOURCES = (
     GUEST,
     REPO_ROOT / "zk/zrpf_risc0/semantic_shared/src/codec_v2.rs",
@@ -185,3 +187,36 @@ def test_v2_prover_reports_have_explicit_schemas_and_profile_identity() -> None:
     assert "zenodex/zrpf_semantic_epoch_v2_proof_report/v1" in source
     assert "zenodex/zrpf_semantic_epoch_v2_duplicate_source_report/v1" in source
     assert '"receipt_profile_id": verified.receipt_profile().profile_id()' in source
+
+
+def test_generic_zusd_guest_checks_scoped_supply_without_narrowing_mcr() -> None:
+    source = GENERIC_ZUSD_GUEST.read_text(encoding="utf-8")
+    branch = source[source.index("ZenoProofInputV1::Zusd(input)") :]
+    markers = (
+        "validate_zusd_scoped_snapshot_conservation_v1(&input)",
+        "execute_zusd_transition_v1(input)",
+        "commit_journal(&journal)",
+    )
+    positions = [branch.index(marker) for marker in markers]
+    assert positions == sorted(positions)
+    assert "balance_supply != input.pre_state.total_debt_zusd_e8" in source
+    assert 'Err("zusd balance supply mismatch")' in source
+    assert "ZUSD_LIQUITY_V1_MINIMUM_MCR_BPS" not in source
+    assert "mcr_bps != 11_000" not in source
+
+
+def test_recursive_zusd_leaf_narrows_before_composition_and_commit() -> None:
+    source = RECURSIVE_ZUSD_LEAF.read_text(encoding="utf-8")
+    main = source[source.index("pub fn main()") :]
+    markers = (
+        "validate_zusd_recursive_baseline_input_v1(&input)",
+        "compose_zusd_recursive_leaf_summary_v1(input)",
+        "postcard::to_allocvec(&summary)",
+        "env::commit_slice(&journal_bytes)",
+    )
+    positions = [main.index(marker) for marker in markers]
+    assert positions == sorted(positions)
+    assert "if !input.zusd_input.pre_app_hash_present" in source
+    assert "mcr_bps != ZUSD_LIQUITY_V1_MINIMUM_MCR_BPS" in source
+    assert "const ZUSD_LIQUITY_V1_MINIMUM_MCR_BPS: u32 = 11_000;" in source
+    assert "balance_supply != input.pre_state.total_debt_zusd_e8" in source
