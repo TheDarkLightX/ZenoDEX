@@ -252,6 +252,19 @@ def cmd_up(opts: UpOptions) -> int:
     retired_manifest = _identity_bound_retired_route_manifest(paths)
     if retired_manifest is not None:
         if opts.force:
+            retired_ui_port = _manifest_ui_port(retired_manifest)
+            if opts.ui_port == retired_ui_port:
+                _quiesce_retired_route_stack(
+                    paths=paths,
+                    engine_name=opts.engine,
+                    remove_volumes=False,
+                )
+                _log(
+                    "quarantine",
+                    "stopped identity-bound stack; choose a different --ui-port before "
+                    "rebuilding so a stale managed tunnel cannot attach to the new origin",
+                )
+                return 2
             _refuse_unsafe_reset_target(paths.out_dir)
             _quiesce_retired_route_stack(
                 paths=paths,
@@ -753,8 +766,12 @@ def cmd_reset(opts: ResetOptions) -> int:
             engine_name=opts.engine,
             remove_volumes=True,
         )
-        shutil.rmtree(paths.out_dir, ignore_errors=True)
-        return 0
+        _log(
+            "quarantine",
+            "removed retired stack volumes and preserved its origin identity; "
+            "rebuild with --force on a different --ui-port",
+        )
+        return 2
     manifest = _load_manifest_if_present(paths.manifest_path)
     _reset_stack(paths=paths, engine_name=opts.engine, manifest=manifest)
     return 0

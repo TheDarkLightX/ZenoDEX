@@ -201,7 +201,7 @@ def test_manifest_rejects_retired_tau_value_lanes(tmp_path: Path, lane: str) -> 
         ("release_smoke", 2),
         ("public_up", 2),
         ("logs", 2),
-        ("reset", 0),
+        ("reset", 2),
     ),
 )
 def test_identity_bound_retired_route_manifest_is_quiesced_before_lifecycle(
@@ -306,13 +306,75 @@ def test_force_up_quiesces_and_removes_retired_route_state_before_rebuild(
     monkeypatch.setattr(lc.cm, "check_external_tau_testnet_present", stop_before_rebuild)
 
     with pytest.raises(RuntimeError, match="rebuild preflight reached"):
-        lc.cmd_up(lc.UpOptions(out_dir=tmp_path, force=True))
+        lc.cmd_up(lc.UpOptions(out_dir=tmp_path, force=True, ui_port=18081))
 
     assert len(calls) == 1
     assert calls[0]["project_name"] == mf.compose_project_name(tmp_path)
     assert calls[0]["remove_volumes"] is True
     assert tmp_path.is_dir()
     assert not manifest_path.exists()
+
+
+def test_force_up_quiesces_then_refuses_stale_tunnel_origin_port_rebind(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].append("PERPS_WALLET_API_ENABLED")
+    manifest_path = tmp_path / mf.MANIFEST_FILENAME
+    manifest_path.write_text(
+        json.dumps(body, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    calls: list[dict[str, object]] = []
+    preflight: list[str] = []
+
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(
+        lc.cm,
+        "check_external_tau_testnet_present",
+        lambda _repo_root: preflight.append("rebuild"),
+    )
+
+    code = lc.cmd_up(lc.UpOptions(out_dir=tmp_path, force=True, ui_port=18080))
+
+    assert code == 2
+    assert len(calls) == 1
+    assert calls[0]["project_name"] == mf.compose_project_name(tmp_path)
+    assert calls[0]["remove_volumes"] is False
+    assert manifest_path.is_file()
+    assert preflight == []
+
+
+def test_reset_preserves_retired_origin_identity_until_fresh_port_rebuild(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].append("ZUSD_MONETARY_WALLET_API_ENABLED")
+    manifest_path = tmp_path / mf.MANIFEST_FILENAME
+    manifest_path.write_text(
+        json.dumps(body, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    calls: list[dict[str, object]] = []
+
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+
+    code = lc.cmd_reset(lc.ResetOptions(out_dir=tmp_path))
+
+    assert code == 2
+    assert len(calls) == 1
+    assert calls[0]["remove_volumes"] is True
+    assert manifest_path.is_file()
 
 
 def test_manifest_mountable_lane_registry_excludes_retired_tau_routes() -> None:

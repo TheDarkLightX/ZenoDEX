@@ -171,6 +171,12 @@ python3 tools/zenoctl.py testnet local public-up \
 
 No public URL is created by the current command. A later profile must add an
 explicit release admission before any tunnel or host report can be produced.
+When an older output directory records retired value routes, every lifecycle
+command first stops its exact Compose project. A forced rebuild must also use a
+different `--ui-port`; this prevents a still-running managed tunnel from
+reattaching to the new local origin at the historical port. `reset` removes the
+retired Compose volumes while preserving the old manifest as an origin-identity
+marker, then returns a blocked status until that fresh-port rebuild occurs.
 
 Same-origin public routes:
 

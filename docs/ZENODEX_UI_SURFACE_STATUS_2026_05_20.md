@@ -21,7 +21,10 @@ exact `false` values.
 
 An identity-bound prior-profile stack that records any retired value route is
 stopped before `up`, `down`, `status`, `smoke`, `release-smoke`, `public-up`,
-`logs`, or `reset` proceeds. The current API container receives no mounted
+`logs`, or `reset` proceeds. A forced rebuild must choose a new UI port so a
+stale managed tunnel cannot reattach to the replacement local origin. The
+retired-route `reset` keeps the old manifest as an origin-identity marker after
+removing its Compose volumes. The current API container receives no mounted
 fixture directory and no perps authority, recovery, signer, or SSS
 reconstruction file. Retained historical donor helpers begin with the same
 typed current-profile refusal as their public replacements.
