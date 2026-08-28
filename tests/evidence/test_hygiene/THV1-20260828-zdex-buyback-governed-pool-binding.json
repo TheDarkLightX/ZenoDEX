@@ -1,0 +1,147 @@
+{
+  "schema": "zenodex/test-hygiene-evidence/v1",
+  "evidence_id": "THV1-20260828-zdex-buyback-governed-pool-binding",
+  "created_date": "2026-08-28",
+  "claim_scope": "The SHADOW ZDEX buyback outer composer selects one profile-governed pool identity, derives both reserve principals from that identity and the governed trade direction, derives an occurrence-scoped burn port, and commits the selected execution-policy root in a V2 route-composition journal. Substituted, same-pair alternate, and mixed-pool reserve principals reject with empty effects under the bounded fixture verifier.",
+  "change_kind": "bug_fix",
+  "risk_class": "critical",
+  "invariant_ids": [
+    "ZDEX-BUYBACK-GOVERNED-POOL-IDENTITY",
+    "ZDEX-BUYBACK-DERIVED-RESERVE-PRINCIPALS",
+    "ZDEX-BUYBACK-OCCURRENCE-SCOPED-BURN-PORT",
+    "ZDEX-BUYBACK-EXECUTION-POLICY-PROJECTION",
+    "ZDEX-BUYBACK-REJECT-WITHOUT-EFFECTS",
+    "ZDEX-BUYBACK-PYTHON-RUST-PARITY"
+  ],
+  "failure_modes": [
+    "a trigger caller substitutes arbitrary pool reserve identifiers",
+    "a trigger caller selects another pool with the same asset pair",
+    "reserve principals from two different pools are composed as one purchase",
+    "two command occurrences share one transient burn port",
+    "the accepted composition omits the profile-selected execution-policy root",
+    "a hostile Python string subclass executes equality or hash behavior at the policy boundary",
+    "Python and Rust disagree on the policy, registry, reserve, burn-port, or composition roots"
+  ],
+  "source_pins": [
+    {
+      "path": "src/core/zdex_purchase_burn_route_types_v1.py",
+      "sha256": "a8f899e3469d8c949df93eb875337fb29ee4ccd307c78f76bd1b3ad9f86906bb"
+    },
+    {
+      "path": "src/core/zdex_purchase_burn_route_v1.py",
+      "sha256": "b04c27db12cfe2dbbcf37b1ad58f2290a9d830b9a57b2c5c3ffbe0c601bd2a29"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_purchase_burn_route.rs",
+      "sha256": "1760c22565c588dbcd2b750566b31a704fd1cf4042d4a597dade8f3ef622b711"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/src/zdex_purchase_burn_types.rs",
+      "sha256": "890d249d7f1cf8378b8fc7550cf2e50312c962d337dfb9164f6d097db8f2382a"
+    },
+    {
+      "path": "zk/global_settlement_abi_v1/tests/zdex_purchase_burn_route.rs",
+      "sha256": "71fe7c10e1b37e5a2ce4d8bc1acc30e033b6f692ccd745f2616063560a448f51"
+    }
+  ],
+  "removed_paths": [],
+  "test_pins": [
+    {
+      "path": "tests/core/test_zdex_purchase_burn_route_v1.py",
+      "sha256": "083fa9a3d60d9321f27061485d0de1ebdd91352ff2976cce4bf3313bd6e8678a",
+      "node_ids": [
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_caller_substituted_pool_buckets_reject_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_same_pair_alternate_pool_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_mixed_pool_reserve_keys_reject_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_occurrence_scoped_burn_ports_are_distinct_and_deterministic",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_every_governed_buyback_resource_substitution_rejects_without_effects",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_unregistered_buyback_execution_policy_rejects_profile_binding",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_buyback_execution_policy_root_matches_rust_golden_vector",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_buyback_execution_policy_rejects_hostile_string_subclasses",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_python_rust_golden_composition_root_is_stable",
+        "tests/core/test_zdex_purchase_burn_route_v1.py::test_composition_journal_v2_rejects_unknown_fields_and_wrong_cardinality"
+      ]
+    }
+  ],
+  "evidence_families": [
+    "aaa_regression",
+    "negative_regression",
+    "boundary",
+    "mutation",
+    "differential",
+    "replay"
+  ],
+  "aaa": {
+    "status": "applied",
+    "reason": "Each new regression arranges one governed control or one isolated substitution, acts through the public binder or pure composer, and asserts the exact typed rejection plus empty effects or the exact canonical root."
+  },
+  "reject_is_noop": {
+    "status": "applied",
+    "reason": "Pool, asset, burn-port, and policy-binding substitutions return the canonical rejected result with an empty effect plan and no accepted occurrence consumption."
+  },
+  "boundary_dimensions": [
+    {
+      "name": "pool_selection_authority",
+      "points": [
+        "exact_profile_selected_pool_accepts",
+        "same_pair_alternate_pool_rejects",
+        "mixed_pool_reserve_principals_reject"
+      ]
+    },
+    {
+      "name": "transient_burn_port_scope",
+      "points": [
+        "same_occurrence_replay_derives_same_port",
+        "different_occurrence_derives_distinct_port"
+      ]
+    },
+    {
+      "name": "composition_journal_cardinality",
+      "points": [
+        "exact_two_lane_roots_accept",
+        "one_lane_root_rejects"
+      ]
+    },
+    {
+      "name": "policy_input_type",
+      "points": [
+        "exact_str_roots_accept",
+        "hostile_str_subclass_rejects_before_equality_or_hash"
+      ]
+    }
+  ],
+  "mutations": [
+    {
+      "description": "accept any caller-supplied pool reserve identifiers",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_caller_substituted_pool_buckets_reject_without_effects"
+    },
+    {
+      "description": "treat any existing same-asset pool as economically eligible",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_same_pair_alternate_pool_rejects_without_effects"
+    },
+    {
+      "description": "accept reserve principals derived from two different pools",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_mixed_pool_reserve_keys_reject_without_effects"
+    },
+    {
+      "description": "reuse one fixed transient burn port across command occurrences",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_occurrence_scoped_burn_ports_are_distinct_and_deterministic"
+    },
+    {
+      "description": "omit the selected buyback execution-policy root from the public composition journal",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_python_rust_golden_composition_root_is_stable"
+    },
+    {
+      "description": "allow hostile Python string subclasses through the policy boundary",
+      "killed_by": "tests/core/test_zdex_purchase_burn_route_v1.py::test_buyback_execution_policy_rejects_hostile_string_subclasses"
+    }
+  ],
+  "nonclaims": [
+    "No production, release, settlement, migration, writer, or value-moving authority is granted.",
+    "The purchase leaf does not yet prove that pool_definition_root names its authenticated pre-state pool object.",
+    "No minimum output, Oracle or TWAP occurrence, price-deviation bound, price-impact bound, or MEV-loss bound is established.",
+    "The focused tests use fixture receipt verifiers and do not demonstrate a real ZDEX purchase RISC0 guest receipt.",
+    "The V1 purchase journal remains byte-compatible; this packet promotes no historical V1 receipt to current authority.",
+    "ShapeForge supplied the named disaster state and obligation framing only; it supplied no acceptance evidence."
+  ]
+}
