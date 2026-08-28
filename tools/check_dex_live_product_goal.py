@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Audit mounted ZenoDEX live-product goal evidence."""
+"""Audit retained product evidence and current route-quarantine posture."""
 
 from __future__ import annotations
 
@@ -12,6 +12,11 @@ from pathlib import Path
 from typing import Any, Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from src.integration.local_route_quarantine import QUARANTINED_ROUTE_ENVIRONMENT_V1  # noqa: E402
+
 SCHEMA = "zenodex/dex_live_product_goal_audit/v1"
 
 
@@ -36,9 +41,9 @@ class ForbiddenCheck:
 ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
     AnchorCheck(
         area_id="mounted_ui_direction",
-        check_id="app_mounts_all_product_tabs",
+        check_id="app_retains_all_product_tabs",
         path="tools/dex-ui/src/App.jsx",
-        description="The intended ZenoDEX shell mounts spot, perps, zUSD, Oracle, Strategy, and Confidential tabs.",
+        description="The ZenoDEX shell retains spot, perps, zUSD, Oracle, Strategy, and Confidential tabs without granting route authority.",
         anchors=(
             "PerpTradingView",
             "StrategyWorkbench",
@@ -54,34 +59,33 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
     ),
     AnchorCheck(
         area_id="mounted_ui_direction",
-        check_id="readme_states_current_mounted_posture",
+        check_id="readme_retains_historical_product_inventory",
         path="tools/dex-ui/README.md",
-        description="The UI README records the current mounted live-product posture.",
+        description="The UI README distinguishes retained surfaces from currently admitted routes.",
         anchors=(
-            "Current mounted posture:",
+            "Current route posture:",
             "Swap and pools target the Zeno ledger spot path.",
             "Oracle can bind to the local `tools/zenodex-oracle serve` API.",
-            "stream-9 wallet transport path",
-            "stream-11 vault and",
-            "live stream-8 wallet panel",
-            "Strategy includes a receipt-backed AutoTrader local/testnet panel",
+            "stream-9 wallet and stream-11 monetary routes",
+            "retained stream-8 donor panel",
+            "Strategy retains a receipt-backed AutoTrader research panel",
             "Confidential exposes live operator posture through `GET /api/confidential/status`",
             "/api/confidential/attestation/*",
         ),
     ),
     AnchorCheck(
         area_id="mounted_ui_direction",
-        check_id="surface_status_matrix_tracks_all_tabs",
+        check_id="surface_status_matrix_tracks_historical_tabs",
         path="docs/ZENODEX_UI_SURFACE_STATUS_2026_05_20.md",
-        description="The surface matrix names every mounted live or bounded product surface and its evidence.",
+        description="The dated surface matrix labels its tab inventory as historical donor evidence.",
         anchors=(
+            "## Historical donor surface inventory",
             "| Swap / Pools | Yes |",
-            "| zUSD | Yes |",
+            "| zUSD | UI retained; stream-9 wallet and stream-11 monetary routes unmounted |",
             "| Oracle | Yes |",
-            "| Perpetuals | Yes |",
-            "| Strategy | Yes |",
+            "| Perpetuals | UI retained; stream-8 live wallet route unmounted |",
+            "| Strategy | UI retained; live route unmounted |",
             "| Confidential | Yes |",
-            "The mounted app is the intended ZenoDEX shell.",
         ),
     ),
     AnchorCheck(
@@ -137,9 +141,9 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
     ),
     AnchorCheck(
         area_id="transaction_surfaces_beyond_spot",
-        check_id="zusd_stream11_api_and_ui_are_mounted",
+        check_id="zusd_stream11_donor_api_is_retained",
         path="src/integration/zusd_monetary_wallet_api.py",
-        description="The stream-11 zUSD monetary wallet API is a live local/testnet transaction surface.",
+        description="The unmounted stream-11 zUSD monetary wallet implementation is retained as donor evidence.",
         anchors=(
             "stream-11 zUSD monetary",
             "ZUSD_MONETARY_WALLET_REQUIRE_ZK_PROOF",
@@ -153,21 +157,22 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
     ),
     AnchorCheck(
         area_id="transaction_surfaces_beyond_spot",
-        check_id="zusd_ui_mounts_token_and_monetary_surfaces",
+        check_id="zusd_ui_retains_gated_token_and_monetary_surfaces",
         path="tools/dex-ui/src/components/ZUSDWorkbench.jsx",
-        description="The zUSD tab mounts both token transport and monetary vault workbenches.",
+        description="The zUSD tab retains both donor components behind exact runtime presentation gates.",
         anchors=(
             "ZUSDMonetarySurface",
             "ZUSDTauWalletSurface",
-            "<ZUSDMonetarySurface />",
-            "<ZUSDTauWalletSurface />",
+            "zUSD value routes are quarantined",
+            "zusdMonetaryWalletEnabled && <ZUSDMonetarySurface />",
+            "zusdTauWalletEnabled && <ZUSDTauWalletSurface />",
         ),
     ),
     AnchorCheck(
         area_id="transaction_surfaces_beyond_spot",
-        check_id="perps_stream8_api_and_ui_are_mounted",
+        check_id="perps_stream8_donor_api_is_retained",
         path="src/integration/perps_wallet_api.py",
-        description="The stream-8 perps wallet API exposes signed local/testnet clearinghouse transactions.",
+        description="The unmounted stream-8 perps wallet implementation is retained as donor evidence.",
         anchors=(
             "PERPS_WALLET_TAU_HOST",
             "PERPS_WALLET_REQUIRE_PRODUCTION_ORACLE_AUTHORITY",
@@ -182,11 +187,12 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
     ),
     AnchorCheck(
         area_id="transaction_surfaces_beyond_spot",
-        check_id="perps_ui_mounts_live_wallet_surface",
+        check_id="perps_ui_retains_live_wallet_donor_surface",
         path="tools/dex-ui/src/components/perps/PerpTradingView.jsx",
-        description="The perps UI includes the live wallet surface alongside the preview grid.",
+        description="The perps UI retains its donor wallet component behind exact runtime presentation admission.",
         anchors=(
             "PerpLiveWalletSurface",
+            "!demoMode && perpsWalletEnabled && (",
             "<PerpLiveWalletSurface />",
         ),
     ),
@@ -194,7 +200,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="transaction_surfaces_beyond_spot",
         check_id="perps_ui_renders_oracle_authority_exercise_receipt",
         path="tools/dex-ui/src/components/perps/PerpLiveWalletSurface.jsx",
-        description="The mounted perps wallet renders the authority-exercise receipt when signed Oracle authority is bound to a submit.",
+        description="The retained perps donor surface renders authority-exercise receipt fields.",
         anchors=(
             "oracleAuthorityExercise",
             "oracle authority exercised",
@@ -209,9 +215,9 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
     ),
     AnchorCheck(
         area_id="transaction_surfaces_beyond_spot",
-        check_id="autotrader_live_api_and_ui_are_mounted",
+        check_id="autotrader_api_donor_retains_bounded_guards",
         path="src/integration/autotrader_live_api.py",
-        description="The Strategy surface has gated AutoTrader prepare, submit, execute-once, and bounded supervisor endpoints with template and action binding.",
+        description="The unmounted Strategy donor retains prepare, submit, execute-once, and bounded supervisor guards for future refinement.",
         anchors=(
             "/api/strategy/autotrader/execute-once",
             "/api/strategy/autotrader/supervisor/preflight",
@@ -229,7 +235,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="transaction_surfaces_beyond_spot",
         check_id="strategy_ui_has_submit_and_execute_smokes",
         path="tools/dex-ui/src/components/StrategyWorkbench.jsx",
-        description="The Strategy tab can run mounted browser smokes for prepare, submit, execute-once, and supervised local/testnet ticks.",
+        description="The retained Strategy donor includes browser test hooks for prepare, submit, execute-once, and supervised local/testnet ticks.",
         anchors=(
             "AutoTrader Live Prepare",
             "zenodexUiSmokeStrategyLive",
@@ -246,7 +252,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="transaction_surfaces_beyond_spot",
         check_id="beyond_spot_browser_and_backend_tests_exist",
         path="tests/integration/test_zusd_monetary_wallet_ui_bridge.py",
-        description="zUSD browser tests cover stream-11 monetary actions through the mounted tab.",
+        description="Retained stream-11 browser source records historical donor scenarios without current execution authority.",
         anchors=(
             "test_zusd_monetary_wallet_ui_smoke_through_browser",
             "test_zusd_monetary_wallet_browser_fails_closed_through_toxiproxy_limit_data",
@@ -257,7 +263,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="transaction_surfaces_beyond_spot",
         check_id="docker_tau_node_zusd_to_perps_test_exists",
         path="tests/integration/test_zusd_monetary_wallet_ui_docker.py",
-        description="A local Docker Tau-node browser lane mints zUSD and feeds perps collateral.",
+        description="The zUSD-to-perps Docker scenario is retained as an unmounted donor.",
         anchors=(
             "test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node",
             "perps",
@@ -268,7 +274,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="transaction_surfaces_beyond_spot",
         check_id="perps_browser_tests_cover_oracle_bridge",
         path="tests/integration/test_perps_wallet_ui_bridge.py",
-        description="Perps browser tests cover typed Oracle bridge settlement and Toxiproxy fail-closed behavior.",
+        description="Perps bridge browser scenarios are retained as unmounted donor evidence.",
         anchors=(
             "test_perps_wallet_ui_settle_epoch_builds_typed_oracle_bridge",
             "test_perps_wallet_ui_fails_closed_through_toxiproxy_limit_data",
@@ -277,9 +283,41 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
     ),
     AnchorCheck(
         area_id="transaction_surfaces_beyond_spot",
-        check_id="autotrader_browser_tests_cover_execute_once",
+        check_id="zusd_tau_browser_donor_is_quarantined",
+        path="tests/integration/test_zusd_tau_wallet_ui_bridge.py",
+        description="The zUSD Tau browser scenario is retained without current route authority.",
+        anchors=(
+            "test_zusd_tau_wallet_ui_smoke_through_browser",
+        ),
+    ),
+    AnchorCheck(
+        area_id="transaction_surfaces_beyond_spot",
+        check_id="zusd_tau_docker_donor_is_quarantined",
+        path="tests/integration/test_zusd_tau_wallet_ui_docker.py",
+        description="The zUSD Tau Docker scenario is retained without current route authority.",
+        anchors=(
+            "test_zusd_tau_wallet_ui_smoke_through_docker_tau_node",
+        ),
+    ),
+    AnchorCheck(
+        area_id="current_route_quarantine",
+        check_id="retired_value_route_browser_controls_are_quarantined",
+        path="tests/integration/test_retired_value_route_ui_quarantine.py",
+        description="A browser scenario attempts URL and fragment overrides and requires perps and zUSD signer controls to remain absent.",
+        anchors=(
+            "test_current_profile_hides_quarantined_value_route_controls",
+            "perpsPreviewWrites=true",
+            "operatorPrivkey=hostile-override",
+            "signerPrivkey=hostile-override",
+            'assert "Operator console" not in perps_dom',
+            'assert "Signer credential" not in zusd_dom',
+        ),
+    ),
+    AnchorCheck(
+        area_id="transaction_surfaces_beyond_spot",
+        check_id="autotrader_browser_donor_covers_execute_once",
         path="tests/integration/test_autotrader_live_ui_bridge.py",
-        description="AutoTrader browser tests cover mounted execute-once plus bounded supervisor replay-guard flows.",
+        description="Historical AutoTrader browser donors cover execute-once plus bounded supervisor replay-guard flows.",
         anchors=(
             "test_autotrader_live_execute_once_ui_smoke_through_browser",
             "test_autotrader_live_supervisor_ui_smoke_through_browser",
@@ -370,7 +408,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="assurance_depth",
         check_id="perps_proof_wrapper_submit_blocks_broadcast",
         path="tests/integration/test_perps_wallet_api.py",
-        description="Perps submit tests prove rejected required proof-wrapper checks block Tau sendtx.",
+        description="Retained perps test source names rejected proof-wrapper and Tau-send scenarios; execution is outside this lexical inventory.",
         anchors=(
             "test_submit_deposit_collateral_rejected_zk_proof_blocks_sendtx",
             "zk_reject_broadcasts_tx",
@@ -382,7 +420,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="assurance_depth",
         check_id="zusd_proof_wrapper_submit_blocks_broadcast",
         path="tests/integration/test_zusd_monetary_wallet_api.py",
-        description="zUSD monetary submit tests prove rejected required proof-wrapper checks block Tau sendtx.",
+        description="Retained zUSD test source names rejected proof-wrapper and Tau-send scenarios; execution is outside this lexical inventory.",
         anchors=(
             "test_submit_mint_rejected_zk_proof_blocks_sendtx",
             "zk_reject_broadcasts_tx",
@@ -394,7 +432,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="assurance_depth",
         check_id="perps_wallet_recovery_exercise_receipt",
         path="tests/integration/test_perps_wallet_api.py",
-        description="Perps wallet authority tests prove concrete recovery and rotation exercises produce public lifecycle receipts.",
+        description="Retained perps test source names recovery, rotation, and lifecycle-receipt scenarios; execution is outside this lexical inventory.",
         anchors=(
             "test_perps_wallet_recovery_exercise_ready_receipt",
             "test_perps_wallet_recovery_exercise_blocks_early_request",
@@ -419,7 +457,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="assurance_depth",
         check_id="perps_wallet_device_approval_receipt",
         path="tests/integration/test_perps_wallet_api.py",
-        description="Perps wallet authority tests prove public device-approval exercises and signer-device integration reports produce bounded receipts.",
+        description="Retained perps test source names device-approval and signer-device receipt scenarios; execution is outside this lexical inventory.",
         anchors=(
             "test_perps_wallet_device_approval_exercise_ready_receipt",
             "test_perps_wallet_device_approval_exercise_blocks_missing_user_presence",
@@ -445,7 +483,7 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
         area_id="assurance_depth",
         check_id="perps_wallet_recovery_exercise_browser_receipt",
         path="tests/integration/test_perps_wallet_ui_bridge.py",
-        description="Mounted perps browser smoke renders recovery, rotation, device approval, and signer-device receipts when present.",
+        description="Retained perps donor smoke preserves recovery and signer scenarios without mounted authority.",
         anchors=(
             "PERPS_WALLET_RECOVERY_EXERCISE_JSON",
             "recovery exercise ready",
@@ -482,6 +520,143 @@ ANCHOR_CHECKS: tuple[AnchorCheck, ...] = (
             "Additional stream `8`/`11` proof-wrapper submit fail-closed evidence",
         ),
     ),
+    AnchorCheck(
+        area_id="current_route_quarantine",
+        check_id="api_startup_refuses_stream8_and_stream11",
+        path="src/integration/api_server.py",
+        description="API startup has raw-environment admission and parsed-config backstops for stream 8 and stream 11.",
+        anchors=(
+            "quarantined_route_environment_rejections_v1(dict(os.environ))",
+            "PERPS_WALLET_API_ENABLED depends on the retired Tau",
+            "ZUSD_MONETARY_WALLET_API_ENABLED depends on the retired Tau",
+        ),
+    ),
+    AnchorCheck(
+        area_id="current_route_quarantine",
+        check_id="api_state_attachment_cannot_reenable_retired_routes",
+        path="src/integration/api_server.py",
+        description="Direct API state attachment rejects retired route flags before imports or server mutation.",
+        anchors=(
+            'refuse_current_local_operator_operation_v1("api_server_state_attachment")',
+            "httpd.perps_wallet_api_enabled = False",
+            "httpd.zusd_tau_wallet_api_enabled = False",
+            "httpd.zusd_monetary_wallet_api_enabled = False",
+        ),
+    ),
+    AnchorCheck(
+        area_id="current_route_quarantine",
+        check_id="retired_route_helpers_refuse_before_shell_effects",
+        path="tools/zenoctl_testnet_local/lifecycle.py",
+        description="Retained internal helpers refuse the current profile before compose, file, network, or process effects.",
+        anchors=(
+            'refuse_current_local_operator_operation_v1("seed_api_state")',
+            'refuse_current_local_operator_operation_v1("materialize_release_native_collateral")',
+            'refuse_current_local_operator_operation_v1("release_flow_smoke")',
+            'refuse_current_local_operator_operation_v1("perps_wallet_cycle_smoke")',
+            'refuse_current_local_operator_operation_v1("cloudflare_quick_tunnel")',
+            'refuse_current_local_operator_operation_v1("zusd_transfer_payload")',
+        ),
+    ),
+    AnchorCheck(
+        area_id="current_route_quarantine",
+        check_id="compose_disables_stream8_and_stream11_controls",
+        path="docker-compose.local-testnet.yml",
+        description="The checked-in compose profile disables route, signing, mining, and faucet controls.",
+        anchors=(
+            'PERPS_WALLET_API_ENABLED: "false"',
+            'PERPS_WALLET_ALLOW_LOCAL_SIGNING: "false"',
+            'PERPS_WALLET_AUTO_MINE: "false"',
+            'PERPS_WALLET_TESTNET_FAUCET_ENABLED: "false"',
+            'ZUSD_MONETARY_WALLET_API_ENABLED: "false"',
+            'ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING: "false"',
+            'ZUSD_MONETARY_WALLET_AUTO_MINE: "false"',
+        ),
+    ),
+    AnchorCheck(
+        area_id="current_route_quarantine",
+        check_id="runtime_config_disables_retired_value_route_ui",
+        path="tools/dex-ui/public/zenodex-config.json",
+        description="The checked-in runtime profile explicitly disables each retired value-route UI surface.",
+        anchors=(
+            '"perpsWalletUiEnabled": false',
+            '"zusdTauWalletUiEnabled": false',
+            '"zusdMonetaryWalletUiEnabled": false',
+        ),
+    ),
+    AnchorCheck(
+        area_id="current_route_quarantine",
+        check_id="runtime_value_route_presentation_is_exact_and_immutable",
+        path="tools/dex-ui/src/lib/api.js",
+        description="The UI snapshots only exact owned true flags and freezes the resulting presentation decision.",
+        anchors=(
+            "getRuntimeValueRoutePresentationV1",
+            "Object.prototype.hasOwnProperty.call(config, field)",
+            "config[field] === true",
+            "return Object.freeze(Object.fromEntries(",
+            "Backend route admission remains a",
+        ),
+    ),
+    AnchorCheck(
+        area_id="current_route_quarantine",
+        check_id="perps_ui_gate_resists_write_override",
+        path="tools/dex-ui/src/lib/PerpProvider.jsx",
+        description="Perps write requests and local defaults remain subordinate to exact runtime presentation admission.",
+        anchors=(
+            "demoMode || (perpsWalletEnabled && perpsPreviewWritesRequested)",
+            "perps_route_quarantined",
+            "else if (!perpsWalletEnabled)",
+        ),
+    ),
+    AnchorCheck(
+        area_id="current_route_quarantine",
+        check_id="ui_contract_checks_current_quarantine_flags",
+        path="tools/dex-ui/scripts/check-ui-contract.mjs",
+        description="The executable UI contract requires every current-profile quarantined route flag to exist and equal false.",
+        anchors=(
+            "current_quarantined_value_route_ui_flags",
+            "runtimeConfig[field] !== false",
+            "runtime config must keep ${field} exactly false",
+        ),
+    ),
+    AnchorCheck(
+        area_id="current_route_quarantine",
+        check_id="quarantine_has_named_negative_test_sources",
+        path="tests/integration/test_zenoctl_testnet_local.py",
+        description="The retained test source names manifest, smoke, direct-helper, and no-effect quarantine scenarios; this lexical check does not execute them.",
+        anchors=(
+            "test_manifest_rejects_retired_tau_value_lanes",
+            "test_release_smoke_rejects_before_manifest_or_runtime_effects",
+            "test_browser_smoke_cases_omit_quarantined_value_routes",
+            "test_compose_overlay_quarantines_retired_perps_and_zusd_monetary_routes",
+            "test_seed_api_state_rejects_current_profile_before_compose_effect",
+            "test_release_flow_helper_rejects_current_profile_before_file_or_network_effect",
+            "test_perps_cycle_helper_rejects_current_profile_before_network_effect",
+            "test_quick_tunnel_helper_rejects_current_profile_before_runner_or_process_effect",
+            "test_zusd_transfer_payload_rejects_current_profile_before_role_or_network_effect",
+        ),
+    ),
+    AnchorCheck(
+        area_id="current_route_quarantine",
+        check_id="operator_docs_state_current_quarantine",
+        path="docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md",
+        description="Operator documentation distinguishes current quarantine from historical donor evidence.",
+        anchors=(
+            "Current authority correction (2026-08-28)",
+            "They do not establish current route reachability, settlement authority, or production readiness.",
+            "The current profile refuses the retained perps wallet route",
+        ),
+    ),
+    AnchorCheck(
+        area_id="current_route_quarantine",
+        check_id="zusd_docs_state_current_quarantine",
+        path="docs/ZUSD_LIQUITY_PARITY_STATUS_2026_05_20.md",
+        description="The zUSD donor-status document identifies current stream 11 quarantine and its authority ceiling.",
+        anchors=(
+            "Current authority correction (2026-08-28)",
+            "The current profile keeps stream `11` unmounted.",
+            "does not establish current route reachability",
+        ),
+    ),
 )
 
 FORBIDDEN_CHECKS: tuple[ForbiddenCheck, ...] = (
@@ -495,24 +670,29 @@ FORBIDDEN_CHECKS: tuple[ForbiddenCheck, ...] = (
 )
 
 AREA_TITLES: dict[str, str] = {
-    "mounted_ui_direction": "Mounted UI Direction",
+    "mounted_ui_direction": "Retained UI Direction",
     "zeno_oracle_live": "ZenoOracle Live Mount",
-    "transaction_surfaces_beyond_spot": "Live Transaction Surfaces Beyond Spot",
+    "transaction_surfaces_beyond_spot": "Retained Transaction Donor Surfaces Beyond Spot",
     "assurance_depth": "Browser, Stateful, And Resilience Evidence",
+    "current_route_quarantine": "Current Stream 8 And Stream 11 Route Quarantine",
 }
 
 RESIDUAL_LIMITS: tuple[dict[str, str], ...] = (
     {
+        "id": "current_tau_route_rebind",
+        "description": "Stream 8 perps and stream 11 zUSD monetary remain unmounted until current-Tau ingress, verifier-owned execution time, route proof, and ZenoLedger publication bindings are implemented and admitted.",
+    },
+    {
         "id": "production_oracle_authority",
-        "description": "Mounted Oracle and perps surfaces now carry bounded signed authority exercise receipts for local or testnet operator flows, including receipt-binding and public-evidence binding hashes, but public-testnet exercise of a signed production Oracle authority profile remains open.",
+        "description": "Oracle and retained perps donor surfaces carry bounded signed authority-exercise evidence, while current perps route admission and public exercise of a signed production Oracle authority profile remain open.",
     },
     {
         "id": "hardware_wallet_ux",
-        "description": "Mounted perps status now carries bounded signer-device integration reports plus device-approval, recovery, and rotation receipts, but live OS prompt capture, hardware custody, and hardware-wallet execution remain open.",
+        "description": "Retained perps donor status carries bounded signer-device, device-approval, recovery, and rotation evidence; current route admission and live device execution remain open.",
     },
     {
         "id": "zk_wrapping",
-        "description": "zUSD and perps live paths can carry declared verifier and circuit artifact bindings alongside external proof-wrapper checks over proof-intent receipts, but production circuit artifacts and soundness evidence remain open.",
+        "description": "Retained zUSD and perps donors can carry declared verifier and circuit-artifact bindings, but current route proofs, production circuit artifacts, and soundness evidence remain open.",
     },
     {
         "id": "production_autotrader",
@@ -544,10 +724,11 @@ def check_anchor(check: AnchorCheck, *, root: Path = REPO_ROOT) -> dict[str, Any
         missing = [anchor for anchor in check.anchors if _normalize(anchor) not in normalized]
     return {
         "id": check.check_id,
-        "kind": "anchors",
+        "kind": "source_anchors",
         "path": check.path,
         "ok": error is None and not missing,
         "description": check.description,
+        "execution_verified": False,
         "missing": missing,
         "error": error,
     }
@@ -602,7 +783,15 @@ def audit_live_product_goal(*, root: Path = REPO_ROOT) -> dict[str, Any]:
         "schema": SCHEMA,
         "ok": ok,
         "goal_complete": False,
-        "status": "local_testnet_evidence_present_with_open_production_limits" if ok else "missing_required_goal_evidence",
+        "status": "source_inventory_present_with_quarantined_retired_tau_routes"
+        if ok
+        else "missing_required_source_inventory",
+        "source_anchor_inventory_only": True,
+        "test_execution_verified": False,
+        "production_authority": "NONE",
+        "vm_gates_closed": [],
+        "quarantined_route_authority": "NONE",
+        "quarantined_routes": list(QUARANTINED_ROUTE_ENVIRONMENT_V1),
         "areas": areas,
         "residual_limits": list(RESIDUAL_LIMITS),
     }
@@ -634,7 +823,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     elif report["ok"]:
-        print(f"dex live-product goal evidence ok: {report['status']}")
+        print(f"dex live-product source inventory ok: {report['status']}")
         print("residual limits:")
         for limit in report["residual_limits"]:
             print(f"- {limit['id']}: {limit['description']}")

@@ -6,7 +6,13 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const uiRoot = path.resolve(path.dirname(__filename), '..');
 const contractPath = path.join(uiRoot, 'public', 'zenodex-ui-contract.json');
+const runtimeConfigPath = path.join(uiRoot, 'public', 'zenodex-config.json');
 const packagePath = path.join(uiRoot, 'package.json');
+const REQUIRED_QUARANTINED_VALUE_ROUTE_UI_FLAGS = Object.freeze([
+  'perpsWalletUiEnabled',
+  'zusdTauWalletUiEnabled',
+  'zusdMonetaryWalletUiEnabled',
+]);
 
 function fail(message) {
   console.error(`ui-contract: ${message}`);
@@ -23,6 +29,26 @@ if (contract.schema !== 'zenodex.dex_ui.surface_contract.v1') {
 }
 if (typeof contract.version !== 'string' || contract.version.length === 0) {
   fail('contract version must be non-empty');
+}
+
+const runtimeConfig = readJson(runtimeConfigPath);
+const quarantineFields = contract.current_quarantined_value_route_ui_flags;
+if (
+  !Array.isArray(quarantineFields)
+  || quarantineFields.length !== REQUIRED_QUARANTINED_VALUE_ROUTE_UI_FLAGS.length
+  || quarantineFields.some((field, index) => field !== REQUIRED_QUARANTINED_VALUE_ROUTE_UI_FLAGS[index])
+) {
+  fail('current_quarantined_value_route_ui_flags must equal the exact closed current-profile registry');
+} else {
+  for (const field of quarantineFields) {
+    if (!Object.prototype.hasOwnProperty.call(runtimeConfig, field)) {
+      fail(`runtime config is missing quarantined value-route UI flag: ${field}`);
+      continue;
+    }
+    if (runtimeConfig[field] !== false) {
+      fail(`runtime config must keep ${field} exactly false in the current profile`);
+    }
+  }
 }
 
 for (const marker of contract.source_markers || []) {

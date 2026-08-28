@@ -5,6 +5,7 @@ import { PERP_DEMO_MARKETS, PERP_DEMO_POSITIONS, PERP_DEMO_HISTORY } from './per
 import {
     getRuntimeConfig,
     getRuntimeBooleanFlag,
+    getRuntimeValueRoutePresentationV1,
     apiGetPerpsWalletStatus,
     apiPreparePerpsWallet,
     apiSubmitPerpsWallet,
@@ -357,6 +358,7 @@ export function PerpProvider({ children, wallet, onTransaction }) {
     const { demoMode } = useDemoMode();
     const [state, dispatch] = useReducer(reducer, initialState);
     const runtimeConfig = getRuntimeConfig();
+    const { perpsWalletEnabled } = getRuntimeValueRoutePresentationV1(runtimeConfig);
     const localTestnetWritesDefault = runtimeConfig.deployment === 'local-testnet'
         || String(runtimeConfig.chainId || '').includes('localtest')
         || String(runtimeConfig.chainId || '').includes('local-testnet');
@@ -366,16 +368,23 @@ export function PerpProvider({ children, wallet, onTransaction }) {
         envKey: 'VITE_PERPS_PREVIEW_WRITES',
         defaultValue: localTestnetWritesDefault,
     }), [localTestnetWritesDefault]);
-    const writeEnabled = demoMode || perpsPreviewWritesRequested;
-    const writeLockReason = !writeEnabled
-        ? 'Trader writes require a production signer bridge or local-testnet write mode. The stream-8 wallet API supports deposit_collateral and set_position_pair; this browser lane will not submit without an explicit signer path.'
-        : '';
+    const writeEnabled = demoMode || (perpsWalletEnabled && perpsPreviewWritesRequested);
+    const writeLockReason = !demoMode && !perpsWalletEnabled
+        ? 'Perpetuals value actions are quarantined in this release profile. The retired stream-8 route cannot be enabled by URL or build-time flags.'
+        : !writeEnabled
+            ? 'Trader writes require a production signer bridge or an explicitly admitted local-testnet route.'
+            : '';
     const pubkey = wallet?.address ?? null;
     // Secure default: browser-held private keys are accepted only for local
     // testnet signing. Production paths must provide an external signed Tau
     // payload; raw private keys are never forwarded to the server.
     const walletPrivkey = wallet?.privkey ?? null;
-    const browserHotSigningAllowed = Boolean(walletPrivkey && wallet?.localTestnetGenerated && localTestnetWritesDefault);
+    const browserHotSigningAllowed = Boolean(
+        perpsWalletEnabled
+        && walletPrivkey
+        && wallet?.localTestnetGenerated
+        && localTestnetWritesDefault,
+    );
     const externalTauSigner = externalTauSignerFromWallet(wallet);
     // Forward ref so submitAction can refresh state after a live action
     // without forming a circular useCallback dependency.
@@ -413,6 +422,11 @@ export function PerpProvider({ children, wallet, onTransaction }) {
                 dispatch({ type: ACTIONS.SET_MARKETS, payload: PERP_DEMO_MARKETS });
                 dispatch({ type: ACTIONS.SET_POSITIONS, payload: PERP_DEMO_POSITIONS });
                 dispatch({ type: ACTIONS.SET_HISTORY, payload: PERP_DEMO_HISTORY });
+            } else if (!perpsWalletEnabled) {
+                if (seq !== loadSeqRef.current) return;
+                dispatch({ type: ACTIONS.SET_MARKETS, payload: [] });
+                dispatch({ type: ACTIONS.SET_POSITIONS, payload: {} });
+                dispatch({ type: ACTIONS.SET_HISTORY, payload: [] });
             } else {
                 // Live mode: read from the Tau-node-backed wallet status. This
                 // is the authoritative source. The legacy /api/perps/markets
@@ -463,7 +477,7 @@ export function PerpProvider({ children, wallet, onTransaction }) {
             if (seq !== loadSeqRef.current) return; // stale
             dispatch({ type: ACTIONS.SET_ERROR, payload: err.message });
         }
-    }, [demoMode, pubkey]);
+    }, [demoMode, perpsWalletEnabled, pubkey]);
 
     // Keep the ref pointing at the latest loadMarkets so submitAction can
     // refetch authoritative state after a live action without depending on it.
@@ -528,8 +542,11 @@ export function PerpProvider({ children, wallet, onTransaction }) {
     //   external signer and never sends raw private keys to the backend.
     const submitAction = useCallback(async (request) => {
         if (!writeEnabled) {
-            dispatch({ type: ACTIONS.SET_ERROR, payload: 'perps_preview_only' });
-            return { ok: false, error: 'perps_preview_only' };
+            const error = !demoMode && !perpsWalletEnabled
+                ? 'perps_route_quarantined'
+                : 'perps_preview_only';
+            dispatch({ type: ACTIONS.SET_ERROR, payload: error });
+            return { ok: false, error };
         }
         const callerPubkey = pubkeyRef.current;
         const actionLabel = request.label || request.walletAction || 'perps_action';
@@ -686,6 +703,7 @@ export function PerpProvider({ children, wallet, onTransaction }) {
         demoMode,
         externalTauSigner,
         onTransaction,
+        perpsWalletEnabled,
         pubkey,
         runtimeConfig.chainId,
         walletPrivkey,
@@ -782,6 +800,7 @@ export function PerpProvider({ children, wallet, onTransaction }) {
         positionDerived,
         writeEnabled,
         writeLockReason,
+        perpsWalletEnabled,
         perpsPreviewWritesRequested,
         loadMarkets,
         selectMarket,
@@ -789,7 +808,7 @@ export function PerpProvider({ children, wallet, onTransaction }) {
         withdrawCollateral,
         setPosition,
         depositInsurance,
-    }), [state, selectedMarket, currentPosition, positionDerived, writeEnabled, writeLockReason, perpsPreviewWritesRequested, loadMarkets, selectMarket, depositCollateral, withdrawCollateral, setPosition, depositInsurance]);
+    }), [state, selectedMarket, currentPosition, positionDerived, writeEnabled, writeLockReason, perpsWalletEnabled, perpsPreviewWritesRequested, loadMarkets, selectMarket, depositCollateral, withdrawCollateral, setPosition, depositInsurance]);
 
     return (
         <PerpContext.Provider value={value}>

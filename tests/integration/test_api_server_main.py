@@ -1,15 +1,215 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from dataclasses import replace
 from pathlib import Path
 
+import pytest
 import yaml
 
+from src.integration.local_route_quarantine import (
+    QUARANTINED_ROUTE_ENVIRONMENT_ALIASES_V1,
+    QUARANTINED_ROUTE_ENVIRONMENT_V1,
+    LocalRouteQuarantineRejectV1,
+    quarantined_route_environment_rejections_v1,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
+PREWARM_MODULES_V1 = (
+    "src.integration.api_server_settlement_parsers",
+    "src.integration.operations",
+    "src.integration.validation",
+    "src.integration.settlement_price_provenance",
+    "src.integration.settlement_price_attestation",
+    "src.integration.settlement_end_to_end_certificate_packet",
+    "src.integration.settlement_witness_lifecycle",
+    "src.integration.settlement_feature_extension_packet",
+    "src.integration.settlement_value_contract",
+    "src.integration.settlement_lp_value_contract",
+    "src.integration.settlement_endogenous_lp_value_packet",
+    "src.integration.settlement_value_packet",
+)
+
+
+@pytest.fixture(autouse=True)
+def _isolate_retired_tau_route_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in QUARANTINED_ROUTE_ENVIRONMENT_V1 + QUARANTINED_ROUTE_ENVIRONMENT_ALIASES_V1:
+        monkeypatch.delenv(name, raising=False)
 
 
 def _unexpected_server_construction(*_args, **_kwargs) -> None:
     raise AssertionError("startup refusal must precede server construction")
+
+
+def test_given_direct_state_attachment_when_retired_routes_are_enabled_then_rejects_before_effects() -> None:
+    # Arrange.
+    from src.integration import api_server
+
+    config = replace(
+        api_server._load_api_server_config(),
+        perps_wallet_enabled=True,
+        zusd_tau_wallet_enabled=True,
+        zusd_monetary_wallet_enabled=True,
+    )
+    server = type("InertServer", (), {})()
+
+    # Act.
+    with pytest.raises(RuntimeError, match="retired Tau value routes"):
+        api_server._attach_api_server_state(server, config)
+
+    # Assert.
+    assert vars(server) == {}
+
+
+def test_given_api_module_import_when_admission_has_not_run_then_prewarm_targets_remain_unloaded() -> None:
+    script = (
+        "import sys\n"
+        "import src.integration.api_server\n"
+        f"targets={PREWARM_MODULES_V1!r}\n"
+        "print('\\n'.join(name for name in targets if name in sys.modules))\n"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "\n"
+
+
+def test_given_legacy_package_export_when_explicitly_requested_then_only_its_module_loads() -> None:
+    script = (
+        "import sys\n"
+        "import src.integration\n"
+        "assert 'src.integration.operations' not in sys.modules\n"
+        "from src.integration import parse_intents\n"
+        "assert callable(parse_intents)\n"
+        "assert 'src.integration.operations' in sys.modules\n"
+    )
+
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=REPO_ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=20,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+@pytest.mark.parametrize("route_name", QUARANTINED_ROUTE_ENVIRONMENT_V1)
+@pytest.mark.parametrize("value", ("", "true", "TRUE", "1", "yes", " false ", "on"))
+def test_given_noncanonical_retired_route_value_when_api_starts_then_preflight_rejects_without_effect(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    route_name: str,
+    value: str,
+) -> None:
+    from src.integration import api_server
+
+    monkeypatch.setenv(route_name, value)
+    events: list[str] = []
+    monkeypatch.setattr(api_server, "_load_api_server_config", lambda: events.append("config"))
+    monkeypatch.setattr(api_server, "_prewarm_api_modules", lambda: events.append("prewarm"))
+    monkeypatch.setattr(api_server, "ThreadingHTTPServer", _unexpected_server_construction)
+
+    assert api_server.main([]) == 2
+    assert events == []
+    assert capsys.readouterr().out.splitlines() == [
+        "Refusing to start: retired Tau route environment variable "
+        f"{route_name!r} must be absent, exact 'false', or exact '0'."
+    ]
+
+
+@pytest.mark.parametrize("alias", QUARANTINED_ROUTE_ENVIRONMENT_ALIASES_V1)
+def test_given_retired_route_alias_when_api_starts_then_preflight_rejects_before_config(
+    monkeypatch: pytest.MonkeyPatch,
+    alias: str,
+) -> None:
+    from src.integration import api_server
+
+    monkeypatch.setenv(alias, "false")
+    events: list[str] = []
+    monkeypatch.setattr(api_server, "_load_api_server_config", lambda: events.append("config"))
+    monkeypatch.setattr(api_server, "ThreadingHTTPServer", _unexpected_server_construction)
+
+    assert api_server.main([]) == 2
+    assert events == []
+
+
+@pytest.mark.parametrize("value", ("false", "0"))
+def test_given_exact_disabled_retired_routes_when_checked_then_preflight_accepts(
+    value: str,
+) -> None:
+    environment = {name: value for name in QUARANTINED_ROUTE_ENVIRONMENT_V1}
+
+    assert quarantined_route_environment_rejections_v1(environment) == ()
+
+
+def test_given_hostile_retired_route_value_when_checked_then_no_dunder_executes() -> None:
+    class HostileValue:
+        def __eq__(self, _other: object) -> bool:
+            raise AssertionError("hostile equality executed")
+
+        def __hash__(self) -> int:
+            raise AssertionError("hostile hash executed")
+
+    environment = {QUARANTINED_ROUTE_ENVIRONMENT_V1[0]: HostileValue()}
+
+    assert quarantined_route_environment_rejections_v1(environment) == (
+        LocalRouteQuarantineRejectV1(
+            code="QUARANTINED_ROUTE_ENV_VALUE",
+            variable=QUARANTINED_ROUTE_ENVIRONMENT_V1[0],
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "expected"),
+    (
+        (
+            "perps_wallet_enabled",
+            "Refusing to start: PERPS_WALLET_API_ENABLED depends on the retired Tau "
+            "stream-8 application bridge; use a current-Tau ingress and ZenoLedger publication.",
+        ),
+        (
+            "zusd_monetary_wallet_enabled",
+            "Refusing to start: ZUSD_MONETARY_WALLET_API_ENABLED depends on the retired Tau "
+            "stream-11 application bridge and lacks a verifier-owned execution clock.",
+        ),
+    ),
+)
+def test_given_parsed_retired_route_enable_when_api_starts_then_backstop_rejects_without_effect(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    field_name: str,
+    expected: str,
+) -> None:
+    from src.integration import api_server
+
+    base_config = api_server._load_api_server_config()
+    if field_name == "perps_wallet_enabled":
+        config = replace(base_config, perps_wallet_enabled=True)
+    elif field_name == "zusd_monetary_wallet_enabled":
+        config = replace(base_config, zusd_monetary_wallet_enabled=True)
+    else:
+        raise AssertionError(f"unsupported retired route field: {field_name}")
+    events: list[str] = []
+    monkeypatch.setattr(api_server, "_load_api_server_config", lambda: config)
+    monkeypatch.setattr(api_server, "_prewarm_api_modules", lambda: events.append("prewarm"))
+    monkeypatch.setattr(api_server, "ThreadingHTTPServer", _unexpected_server_construction)
+
+    assert api_server.main([]) == 2
+    assert events == []
+    assert capsys.readouterr().out.splitlines() == [expected]
 
 
 def test_api_server_refuses_demo_routes_without_token_on_public_host(monkeypatch) -> None:
@@ -245,31 +445,45 @@ def test_local_testnet_profile_quarantines_zusd_tau_wallet_lane() -> None:
     assert "ZUSD_TAU_WALLET_API_ENABLED" not in lifecycle.LOCAL_TESTNET_ENABLED_LANES
 
 
-def test_operator_docs_do_not_advertise_quarantined_zusd_tau_wallet_as_mounted() -> None:
+def test_operator_docs_state_current_retired_tau_route_quarantine() -> None:
     ui_status = (REPO_ROOT / "docs/ZENODEX_UI_SURFACE_STATUS_2026_05_20.md").read_text(
         encoding="utf-8"
     )
     perps_plan = (REPO_ROOT / "docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md").read_text(
         encoding="utf-8"
     )
+    zusd_status = (REPO_ROOT / "docs/ZUSD_LIQUITY_PARITY_STATUS_2026_05_20.md").read_text(
+        encoding="utf-8"
+    )
     quickstart = (REPO_ROOT / "docs/LOCAL_TESTNET_QUICKSTART.md").read_text(encoding="utf-8")
+    ui_readme = (REPO_ROOT / "tools/dex-ui/README.md").read_text(encoding="utf-8")
     normalized_ui_status = " ".join(ui_status.split())
     normalized_perps_plan = " ".join(perps_plan.split())
+    normalized_zusd_status = " ".join(zusd_status.split())
     normalized_quickstart = " ".join(quickstart.split())
+    normalized_ui_readme = " ".join(ui_readme.split())
 
     prohibited_current_claims = (
         "Live Tau wallet plus monetary-vault lanes",
         "the mounted zUSD tab can submit through the Tau wallet bridge",
         "The mounted non-demo zUSD UI now exposes both the stream `9` TauToken wallet",
     )
-    combined = normalized_ui_status + normalized_perps_plan + normalized_quickstart
+    combined = (
+        normalized_ui_status
+        + normalized_perps_plan
+        + normalized_zusd_status
+        + normalized_quickstart
+    )
     for claim in prohibited_current_claims:
         assert claim not in combined
-    assert "Normal API startup refuses `/api/zusd/wallet/*`" in normalized_ui_status
-    assert "The stream `11` monetary-vault path remains mounted." in normalized_ui_status
-    assert (
-        "The stream `9` TauToken wallet transport path is unmounted."
-        in normalized_perps_plan
-    )
+    assert "Current authority correction (2026-08-28)" in normalized_ui_status
+    assert "stream `8` perps wallet, stream `9` zUSD wallet, stream `11` zUSD monetary" in normalized_ui_status
+    assert "They do not establish current route reachability, settlement authority, or production readiness." in normalized_perps_plan
+    assert "Historical Donor Evidence Ledger" in normalized_perps_plan
+    assert "The current profile keeps stream `11` unmounted." in normalized_zusd_status
+    assert "does not establish current route reachability" in normalized_zusd_status
     assert "Compose project: zenodex-local-testnet-v2-<hash32>" in normalized_quickstart
-    assert "The AutoTrader route and stream `9` zUSD Tau wallet are unmounted." in normalized_quickstart
+    assert "Perps, both zUSD routes, and AutoTrader are unmounted." in normalized_quickstart
+    assert "Current route posture:" in normalized_ui_readme
+    assert "Normal API startup refuses the stream-8 wallet route." in normalized_ui_readme
+    assert "Normal startup refuses both routes." in normalized_ui_readme

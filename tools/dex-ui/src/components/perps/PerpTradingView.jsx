@@ -39,6 +39,7 @@ function PerpTradingView({ wallet }) {
         error,
         writeEnabled,
         writeLockReason,
+        perpsWalletEnabled,
         perpsPreviewWritesRequested,
         loadMarkets,
         selectMarket,
@@ -98,14 +99,18 @@ function PerpTradingView({ wallet }) {
     // tucked behind a disclosure so it isn't mistaken for the trader UI.
     const previewLabel = demoMode
         ? 'Demo market replay'
-        : writeEnabled
-            ? 'Live · writes enabled'
-            : 'Live · signer required';
+        : !perpsWalletEnabled
+            ? 'Read-only · route quarantined'
+            : writeEnabled
+                ? 'Live · writes enabled'
+                : 'Live · signer required';
     const previewDetail = demoMode
         ? 'Uses bundled market, position, and history data. Orders stay inside the UI state model.'
-        : writeEnabled
-            ? 'Reads from the Tau node. Trader actions submit through the stream-8 wallet API.'
-            : 'Reads from the Tau node. Trader writes need an external signer or local-testnet write mode.';
+        : !perpsWalletEnabled
+            ? 'The current profile retains this market view for review while all perps value actions remain quarantined.'
+            : writeEnabled
+                ? 'Reads from the Tau node. Trader actions submit through the admitted wallet API.'
+                : 'Reads from the Tau node. Trader writes need an external signer or an admitted local-testnet route.';
 
     // While the wallet status round-trip is in flight we used to early-return
     // a full-page spinner, which left the user staring at a blank screen for
@@ -141,7 +146,9 @@ function PerpTradingView({ wallet }) {
 
             {!demoMode && !writeEnabled && (
                 <div className="perp-preview-lock" role="status">
-                    <div className="perp-preview-lock-title">External signer required</div>
+                    <div className="perp-preview-lock-title">
+                        {perpsWalletEnabled ? 'External signer required' : 'Perpetuals value actions are quarantined'}
+                    </div>
                     <p className="perp-preview-lock-text">{writeLockReason}</p>
                 </div>
             )}
@@ -247,18 +254,17 @@ function PerpTradingView({ wallet }) {
                 </div>
             )}
 
-            {/* Headline in both modes: the trader-facing perps grid.
-                In live mode the raw stream-8 operator console is available
-                behind a disclosure for market makers / operators. */}
+            {/* The retained market view remains visible in the current profile.
+                Signer controls appear only after explicit runtime admission. */}
             {previewGrid}
-            {!demoMode && (
+            {!demoMode && perpsWalletEnabled && (
                 <details className="perp-preview-disclosure">
                     <summary className="perp-preview-disclosure-summary">
                         <span className="perp-preview-disclosure-label">Operator console</span>
                         <span className="perp-preview-disclosure-hint">
-                            Raw stream-8 protocol primitives — init 2P market, advance epoch,
+                            Raw protocol primitives: init 2P market, advance epoch,
                             publish clearing price, settle epoch, partial liquidate. For market
-                            operators, not normal traders.
+                            operators.
                         </span>
                     </summary>
                     <div className="perp-preview-disclosure-body">

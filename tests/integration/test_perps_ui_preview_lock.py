@@ -6,11 +6,11 @@ import socket
 import subprocess
 import time
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
 import pytest
-
 
 ROOT = Path(__file__).resolve().parents[2]
 DEX_UI = ROOT / "tools" / "dex-ui"
@@ -44,10 +44,11 @@ def _wait_for_http(url: str, *, timeout_s: float = 30) -> None:
     raise AssertionError(f"server did not become ready at {url}: {last_error}")
 
 
-def test_perps_ui_defaults_to_read_only_preview_in_non_demo_mode(tmp_path: Path) -> None:
-    chrome = _chrome_binary()
-    if chrome is None:
+def test_perps_ui_defaults_to_quarantined_preview_in_non_demo_mode(tmp_path: Path) -> None:
+    chrome_candidate = _chrome_binary()
+    if chrome_candidate is None:
         pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    chrome = cast(str, chrome_candidate)
     if shutil.which("npm") is None:
         pytest.skip("npm is required for the browser UI smoke test")
     if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
@@ -105,10 +106,10 @@ def test_perps_ui_defaults_to_read_only_preview_in_non_demo_mode(tmp_path: Path)
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
         assert "Perpetuals" in dom
-        assert "Live · signer required" in dom
-        assert "External signer required" in dom
-        assert "production signer bridge" in dom
-        assert "Trader writes need an external signer" in dom
+        assert "Read-only · route quarantined" in dom
+        assert "Perpetuals value actions are quarantined" in dom
+        assert "Operator console" not in dom
+        assert "Local-testnet writes enabled" not in dom
     finally:
         vite_proc.terminate()
         api_proc.terminate()
@@ -120,10 +121,11 @@ def test_perps_ui_defaults_to_read_only_preview_in_non_demo_mode(tmp_path: Path)
                 proc.wait(timeout=5)
 
 
-def test_perps_ui_enables_trader_writes_for_local_testnet_config(tmp_path: Path) -> None:
-    chrome = _chrome_binary()
-    if chrome is None:
+def test_perps_ui_query_cannot_override_current_route_quarantine(tmp_path: Path) -> None:
+    chrome_candidate = _chrome_binary()
+    if chrome_candidate is None:
         pytest.skip("Chrome/Chromium is required for the browser UI smoke test")
+    chrome = cast(str, chrome_candidate)
     if shutil.which("npm") is None:
         pytest.skip("npm is required for the browser UI smoke test")
     if not (DEX_UI / "node_modules" / ".bin" / "vite").exists():
@@ -139,9 +141,6 @@ def test_perps_ui_enables_trader_writes_for_local_testnet_config(tmp_path: Path)
             "API_HOST": "127.0.0.1",
             "API_PORT": str(api_port),
             "PERPS_API_ENABLED": "true",
-            "PERPS_DEMO_API_UNSAFE_ENABLED": "true",
-            "ZENODEX_ENV": "local",
-            "PERPS_WALLET_API_ENABLED": "true",
             "ZENODEX_EXTERNAL_AUTH_ENFORCED": "1",
         },
         stdout=subprocess.DEVNULL,
@@ -163,13 +162,15 @@ def test_perps_ui_enables_trader_writes_for_local_testnet_config(tmp_path: Path)
     original_config = config_file.read_text(encoding="utf-8") if config_file.exists() else None
     try:
         config_file.write_text(
-            '{"apiBase":"","demoMode":false,"deployment":"local-testnet","chainId":"zeno-ledger-localtest-v0"}\n',
+            '{"apiBase":"","demoMode":false,"deployment":"local-testnet",'
+            '"chainId":"zeno-ledger-localtest-v0","perpsWalletUiEnabled":false,'
+            '"zusdTauWalletUiEnabled":false,"zusdMonetaryWalletUiEnabled":false}\n',
             encoding="utf-8",
         )
         _wait_for_http(f"http://127.0.0.1:{api_port}/health", timeout_s=30)
         _wait_for_http(f"http://127.0.0.1:{vite_port}", timeout_s=30)
 
-        query = urlencode({"tab": "perps", "demo": "false"})
+        query = urlencode({"tab": "perps", "demo": "false", "perpsPreviewWrites": "true"})
         chrome_profile = tmp_path / "chrome-profile-localtest"
         result = subprocess.run(
             [
@@ -190,9 +191,10 @@ def test_perps_ui_enables_trader_writes_for_local_testnet_config(tmp_path: Path)
         assert result.returncode == 0, result.stderr[-2000:]
         dom = result.stdout
         assert "Perpetuals" in dom
-        assert "Live · writes enabled" in dom
-        assert "Local-testnet writes enabled" in dom
-        assert "External signer required" not in dom
+        assert "Read-only · route quarantined" in dom
+        assert "Perpetuals value actions are quarantined" in dom
+        assert "Local-testnet writes enabled" not in dom
+        assert "Operator console" not in dom
     finally:
         if original_config is not None:
             config_file.write_text(original_config, encoding="utf-8")

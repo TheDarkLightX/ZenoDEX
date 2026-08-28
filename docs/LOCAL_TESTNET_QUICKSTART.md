@@ -1,17 +1,19 @@
 # Local-Testnet Quickstart
 
 One command brings up a real local-testnet stack of ZenoDEX against live
-local backends. Mounted actions exercise real local backends end-to-end on
-your machine. Retained UI surfaces can include routes that remain unavailable.
+local backends. The current profile mounts Spot, Oracle, and bounded
+Confidential test paths. Stream `8` perps, stream `9` zUSD wallet, stream `11`
+zUSD monetary, and AutoTrader are quarantined. Retained UI surfaces can include
+routes that remain unavailable.
 
 ## What this gives you
 
 | Service | Role |
 |---|---|
 | **3-node ZenoLedger** (writer + forwarder + read-only follower) | Live spot routes (`/api/pools`, `/api/swap`), block production / sync / replay |
-| **Local Tau node** | Settlement validation; zUSD monetary path; perps wallet path |
+| **Local Tau node** | Retained local settlement dependency; stream `8`, `9`, and `11` application routes are unmounted |
 | **Zeno Oracle service** | Oracle dashboard, freshness/reporter lifecycle, token-settlement |
-| **Stdlib API** | Mounted `/api/*` routes for zUSD monetary, perps wallet, and confidential operations. Normal startup refuses the zUSD Tau wallet and AutoTrader routes. |
+| **Stdlib API** | Health plus bounded Confidential operations; normal startup refuses stream `8`, stream `9`, stream `11`, and AutoTrader routes |
 | **UI + nginx** | The mounted dex-ui, single-origin path split, browser never sees bearer tokens |
 
 ## Prerequisites
@@ -41,10 +43,9 @@ From an installed operator bundle:
 zenodex-public-testnet
 ```
 
-That starts the full local stack from `~/.zenodex/public-testnet-v0.1.16`,
-runs the release-flow smoke, opens a Cloudflare Quick Tunnel, and opens the
-public UI URL in your default browser. Double-clicking
-`bin/zenodex-public-testnet.command` does the same on macOS.
+That workflow refuses before stack or tunnel effects because its release smoke
+requires quarantined stream `8` and stream `11`. The legacy
+`--no-release-smoke` flag cannot bypass the current profile admission.
 
 The manual local-only command remains:
 
@@ -73,8 +74,9 @@ ZenoDEX local-testnet is up.
   Key secrets:       /tmp/zen-local/secrets/keys.json
 ```
 
-Open <http://127.0.0.1:18080> in a browser. Mounted actions are wired to real
-local backends. The AutoTrader route and stream `9` zUSD Tau wallet are unmounted.
+Open <http://127.0.0.1:18080> in a browser. Spot, Oracle, and bounded
+Confidential test actions are wired to local backends. Perps, both zUSD routes,
+and AutoTrader are unmounted.
 
 ## Lifecycle
 
@@ -83,10 +85,10 @@ local backends. The AutoTrader route and stream `9` zUSD Tau wallet are unmounte
 | `zenoctl testnet local up --out-dir DIR [--zk-mode auto-strict\|strict\|open]` | Bring up the stack and seed initial state. If a manifest already exists in DIR, restart from the saved artifacts; pass `--force` to wipe and recreate. Default ZK posture is `auto-strict`. |
 | `zenoctl testnet local down --out-dir DIR` | Stop the stack. Preserves compose volumes, manifest, and fixtures. |
 | `zenoctl testnet local status --out-dir DIR [--json]` | Show stack health, per-service state, and per-lane readiness. |
-| `zenoctl testnet local smoke --out-dir DIR [--browser auto\|off\|required]` | Exercise live spot, zUSD monetary, perps, Oracle, confidential, and optional browser UI paths. AutoTrader and the stream `9` zUSD Tau wallet are omitted. Writes `<out-dir>/reports/local_smoke_report.json`. |
-| `zenoctl testnet local release-smoke --out-dir DIR` | Exercise the public v0.1.16 flow: verify startup-funded fixture accounts, faucet `tAGRS`, deposit fake native AGRS collateral, mint `zUSD`, deposit perps collateral, open long/short, settle perps state, swap `tAGRS/tZDEX`, and verify live height plus header/config hashes. Writes `<out-dir>/reports/release_flow_smoke_report.json`. |
-| `zenoctl testnet local public [--no-open] [--no-release-smoke]` | Point-and-click public mode. Uses `~/.zenodex/public-testnet-v0.1.16` by default, validates the release flow, starts the Quick Tunnel, and opens the public UI. |
-| `zenoctl testnet local public-up --out-dir DIR` | Bring up the same stack and expose it through a Cloudflare Quick Tunnel. Writes `<out-dir>/reports/public_testnet_host_report.json` after the public URL is known. |
+| `zenoctl testnet local smoke --out-dir DIR [--browser auto\|off\|required]` | Exercise Spot, Oracle, bounded Confidential, and optional browser checks. Stream `8`, stream `9`, stream `11`, and AutoTrader are omitted. Writes `<out-dir>/reports/local_smoke_report.json`. |
+| `zenoctl testnet local release-smoke --out-dir DIR` | Refuse deterministically because the historical release flow requires quarantined stream `8` and stream `11`; no manifest or runtime is accessed. |
+| `zenoctl testnet local public [--no-open] [--no-release-smoke]` | Retained command surface that refuses before stack or tunnel effects. The legacy bypass flag does not alter the canonical admission result. |
+| `zenoctl testnet local public-up --out-dir DIR` | Refuse before stack, tunnel, manifest, or host-report effects while the current profile is release-ineligible. |
 | `zenoctl testnet local logs --out-dir DIR [--service NAME] [--tail N]` | Stream or tail compose logs from one service or the whole stack. |
 | `zenoctl testnet local reset --out-dir DIR --force` | Destructive: stops the stack, removes compose volumes, and deletes the out-dir (manifest + fixtures + reports). `--force` is required. |
 
@@ -94,13 +96,11 @@ Running `up` a second time on the same `--out-dir` produces byte-identical
 fixture keys (seed derived from `abspath(out_dir) + chain_id`). To rotate,
 use `--seed <64-hex>` or `--random`.
 
-`--zk-mode auto-strict` uses the bundled local live-wrapper verifier for
-fake-value zUSD/perps write gates when no explicit verifier environment is set.
-`--zk-mode strict` refuses bring-up if the active verifier command or verifier
-plus circuit artifact hashes are incomplete. `--zk-mode open` disables the
-local proof-wrapper gate for non-production development. Local fixture custody
-and the bundled live-wrapper verifier always report
-`production_security_claim=false`.
+The retained `--zk-mode` settings describe historical proof-wrapper donor
+configuration. They do not enable stream `8`, stream `9`, or stream `11` in the
+current profile. Perps and both zUSD routes remain unmounted under every ZK
+mode. Local fixture key control and retained proof-wrapper evidence always
+report `production_security_claim=false`.
 
 ## Verify the Full Feature Path
 
@@ -118,12 +118,10 @@ Installed wrapper form:
 zenodex-local-testnet smoke --out-dir /tmp/zen-local --browser required
 ```
 
-This submits real local-testnet feature transactions through the running
-stack and then loads the UI in headless Chrome/Chromium. The backend checks
-cover spot swap, grouped transactions, zUSD monetary epoch advance, perps
-clearing-price publication, Oracle write flow, and confidential runtime
-execution. The browser checks cover the corresponding mounted actions.
-AutoTrader and the stream `9` zUSD Tau wallet remain outside this smoke path.
+This submits local-testnet Spot, Oracle, and bounded Confidential test
+transactions through the running stack and then loads their retained UI paths
+in headless Chrome/Chromium. Stream `8`, stream `9`, stream `11`, and
+AutoTrader remain outside this smoke path.
 
 Use `--browser off` for API-only verification on machines without Chrome.
 Use `--browser auto` to run UI checks when Chrome is available and skip them
@@ -131,15 +129,17 @@ otherwise.
 
 ## Public fake-value testnet
 
-For v0.1.16, the zero-cost public path is a Cloudflare Quick Tunnel over the
-full local-testnet stack:
+The v0.1.16 public release path is currently blocked:
 
 ```bash
 ./bin/zenodex-public-testnet
 ```
 
-The launcher starts or restarts the local stack, runs `release-smoke`, and then
-launches a Quick Tunnel through either local `cloudflared`:
+The launcher refuses before local stack or tunnel effects because
+`release-smoke` depends on quarantined routes. The legacy
+`--no-release-smoke` flag does not bypass current-profile admission. Operators
+must not expose a public tunnel for this retained profile. The commands below
+are historical examples only and are not part of the current launch path:
 
 ```bash
 cloudflared tunnel --url http://127.0.0.1:18080
@@ -169,11 +169,8 @@ python3 tools/zenoctl.py testnet local public-up \
   --open
 ```
 
-The public URL is session-stable. It remains usable while the `cloudflared`
-process or fallback container is running, and it changes when a new Quick
-Tunnel session is created.
-If a stable named HTTPS domain is configured later, record
-`public_config_url_posture: stable_named_url` in the release evidence.
+No public URL is created by the current command. A later profile must add an
+explicit release admission before any tunnel or host report can be produced.
 
 Same-origin public routes:
 
@@ -187,13 +184,10 @@ Same-origin public routes:
 | `/api/*`, `/tx` | Release-flow APIs and transaction submission paths. |
 
 Browser users do not receive bearer tokens. nginx injects local writer/API
-tokens server-side. Transaction-capable paths use the startup-funded fixture
-accounts or signed local test wallet payloads. The launcher pre-funds fixture
-accounts with fake native AGRS plus `tAGRS`/`tZDEX`, then the existing zUSD,
-perps, and spot pages can exercise the release flows. The assets are fake-value
-test assets: `tAGRS`, `tZDEX`, and collateralized `zUSD`.
+tokens server-side. This transport property does not admit perps or zUSD value
+routes. The retained v0.1.16 release flow cannot currently be exercised.
 
-After public bring-up, run the release-flow smoke:
+The following command is expected to return the typed quarantine rejection:
 
 ```bash
 python3 tools/zenoctl.py testnet local release-smoke \
@@ -207,15 +201,15 @@ python3 tools/check_public_testnet_v0_1_16_evidence.py \
   /path/to/public-testnet-v0.1.16-evidence.json
 ```
 
-Required v0.1.16 evidence:
+Historical v0.1.16 evidence requirements, not satisfied by the current profile:
 
 - Docker/local full-stack smoke report;
 - external laptop acceptance report from `zenodex-public-follower`;
 - second clean follower report from `zenodex-public-follower`;
 - phone/browser validation report over HTTPS;
 - release-flow transaction smoke JSON;
-- residual-limits statement covering fake value, no production value, no
-  mainnet custody, and session-stable Quick Tunnel limits when applicable.
+- residual-limits statement covering fake value, no production value, moves no
+  mainnet assets, and session-stable Quick Tunnel limits when applicable.
 
 External follower command:
 
@@ -232,8 +226,8 @@ tips, and `common_header_match: true`.
 | Tab / route | Backend | Notes |
 |---|---|---|
 | Spot pools | ZenoLedger writer (`/api/pools`, `/api/swap`) | Mutation auth: nginx injects the writer bearer; browser never holds it. |
-| zUSD monetary | Stdlib API (`/api/zusd/monetary/*`) | Mounted stream `11` actions talk to local Tau. Normal startup refuses `/api/zusd/wallet/*`. |
-| Perps wallet | Stdlib API (`/api/perps/wallet/*`) | Authoritative live path. The perps grid in the UI remains preview-only. |
+| zUSD monetary | Unmounted (`/api/zusd/monetary/*`) | Normal startup refuses the retired stream `11` application bridge. |
+| Perps wallet | Unmounted (`/api/perps/wallet/*`) | Normal startup refuses the retired stream `8` application bridge. The perps grid remains a retained preview. |
 | AutoTrader | Unmounted (`/api/strategy/autotrader/*` refused at startup) | UI retained; no local-testnet submission authority. |
 | Confidential | Stdlib API (`/api/confidential/*`) | Status and attestation routes. |
 | Oracle dashboard | Oracle service (`/api/oracle/*`) | Reverse-proxied through nginx (same-origin). |
@@ -293,9 +287,8 @@ tips, and `common_header_match: true`.
   backends or fails closed. Hardware custody evidence, strict ZK artifacts, and
   production promotion evidence remain separate gates. This is still a
   local-testnet fixture and sets `production_security_claim=false`.
-- **Public tunnel posture.** `public-up` intentionally exposes nginx through a
-  session-stable HTTPS tunnel. Use it only for fake-value testing. Do not expose
-  raw backend service ports.
+- **Public tunnel posture.** `public-up` currently refuses before resolving or
+  starting a tunnel. Historical tunnel instructions below are donor material.
 - **Fixture keys are local-only.** They are deterministic per-out-dir and
   marked with `non_claims` in their bundle. The browser/API runtime does not
   expose a fixture-key endpoint or fixture-role signing shortcut; signed smoke
@@ -304,11 +297,13 @@ tips, and `common_header_match: true`.
 
 ## Non-claims
 
-- The perps grid in the UI is preview-only; authoritative perps testing
-  uses the `/api/perps/wallet/*` panel.
-- `zenoctl testnet local up` is loopback-only. `zenoctl testnet local public-up`
-  is the shared fake-value testnet path for v0.1.16.
-- The public path has no production value, no mainnet custody, and no
+- The perps grid in the UI is preview-only. The `/api/perps/wallet/*` write
+  panel is retained donor code and is unmounted.
+- `zenoctl testnet local up` is loopback-only. The default
+  `zenoctl testnet local public-up` path refuses startup while the retained
+  v0.1.16 release flow depends on quarantined routes. The legacy
+  `--no-release-smoke` flag grants no bypass or release eligibility.
+- The public path has no production value, moves no mainnet assets, and has no
   production consensus claim.
 - The local Tau node uses `TAU_FORCE_TEST=1`; this is the local test mode
   and is not the production Tau settlement posture.

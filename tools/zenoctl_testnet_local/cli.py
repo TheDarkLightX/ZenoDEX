@@ -109,7 +109,7 @@ def register_subparser(testnet_sub: argparse._SubParsersAction) -> None:
 
     release_smoke = local_sub.add_parser(
         "release-smoke",
-        help="exercise the public v0.1.16 release flow and write release_flow_smoke_report.json",
+        help="refuse the historical v0.1.16 flow because required routes are quarantined",
     )
     release_smoke.add_argument("--out-dir", type=Path, required=True)
     release_smoke.add_argument("--engine", choices=["auto", "docker", "podman"], default="auto")
@@ -117,9 +117,18 @@ def register_subparser(testnet_sub: argparse._SubParsersAction) -> None:
 
     public_up = local_sub.add_parser(
         "public-up",
-        help="bring up the local-testnet stack and expose it through a Cloudflare Quick Tunnel",
+        help="refuse the historical public-host flow because required routes are quarantined",
+        description=(
+            "The current profile refuses before stack, browser, smoke, tunnel, or report effects. "
+            "These options remain visible only for compatibility with the historical command shape."
+        ),
     )
-    public_up.add_argument("--out-dir", type=Path, required=True, help="directory for manifest/fixtures/rendered configs")
+    public_up.add_argument(
+        "--out-dir",
+        type=Path,
+        required=True,
+        help="retained argument; refusal occurs before creating operator files",
+    )
     public_up.add_argument("--chain-id", default=lc.DEFAULT_CHAIN_ID)
     public_up.add_argument("--network-id", default=lc.DEFAULT_NETWORK_ID)
     public_up.add_argument("--ui-port", type=int, default=lc.DEFAULT_UI_PORT, help="host TCP port for the UI (loopback)")
@@ -130,19 +139,24 @@ def register_subparser(testnet_sub: argparse._SubParsersAction) -> None:
     public_up.add_argument(
         "--cloudflared-bin",
         default="cloudflared",
-        help="cloudflared binary name/path; default falls back to Docker/Podman cloudflared container",
+        help="retained argument; the current profile never starts cloudflared",
     )
-    public_up.add_argument("--open", dest="open_browser", action="store_true", help="open the public UI URL in the default browser")
+    public_up.add_argument(
+        "--open",
+        dest="open_browser",
+        action="store_true",
+        help="retained argument; the current profile never opens a browser",
+    )
     public_up.add_argument(
         "--release-smoke",
         dest="release_smoke_before_tunnel",
         action="store_true",
-        help="run the v0.1.16 release smoke before opening the public tunnel",
+        help="retained argument; the current profile does not run release smoke",
     )
     public_up.add_argument(
         "--tunnel-url",
         default=None,
-        help="use an already-created public tunnel URL and print the host report without starting cloudflared",
+        help="retained argument; the current profile does not emit a host report",
     )
     public_seed_grp = public_up.add_mutually_exclusive_group()
     public_seed_grp.add_argument("--seed", dest="seed_override_hex", default=None)
@@ -151,11 +165,10 @@ def register_subparser(testnet_sub: argparse._SubParsersAction) -> None:
 
     public = local_sub.add_parser(
         "public",
-        help="one-command public fake-value testnet: start stack, smoke it, open browser",
+        help="retained public workflow; currently refuses because release smoke needs quarantined routes",
         description=(
-            "Start the full local-testnet stack from a default operator data directory, "
-            "run the v0.1.16 release smoke, expose it through a Cloudflare Quick Tunnel, "
-            "and open the public UI URL in the default browser."
+            "The default public workflow refuses before stack or tunnel effects because "
+            "the v0.1.16 release smoke requires quarantined stream-8 and stream-11 routes."
         ),
     )
     public.add_argument(
@@ -193,7 +206,7 @@ def register_subparser(testnet_sub: argparse._SubParsersAction) -> None:
         dest="release_smoke_before_tunnel",
         action="store_false",
         default=True,
-        help="skip the release-flow smoke before opening the public tunnel",
+        help="skip the blocked historical release-flow smoke for limited research use",
     )
     public_seed_grp = public.add_mutually_exclusive_group()
     public_seed_grp.add_argument("--seed", dest="seed_override_hex", default=None)

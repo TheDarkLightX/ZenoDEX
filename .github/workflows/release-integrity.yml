@@ -1,257 +1,29 @@
-name: release-integrity
+name: release-integrity-blocked
 
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
 
 permissions:
-  contents: write
-  id-token: write
-  attestations: write
+  contents: read
 
 jobs:
-  release-integrity:
+  enforce-current-release-refusal:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install build and SBOM tooling
+      - name: Enforce current operator release admission
         run: |
-          python -m pip install --require-hashes -r requirements-dev.lock.txt
-          if [ -f tools/dex-ui/package-lock.json ]; then
-            (cd tools/dex-ui && npm ci)
-          fi
+          python3 tools/check_operator_packaging.py --pretty
 
-      - name: Run production gate
+      - name: Unreachable release guard
+        if: always()
         run: |
-          bash tools/prod_gate.sh --image-tag zenodex:release-integrity
-
-      - name: Run AutoGovNEXT governance lane gate
-        run: |
-          bash tools/run_autogovnext_governance_lane_assurance_gate.sh
-
-      - name: Run FIRE package + settlement replay gates
-        run: |
-          python3 tools/check_fire_snapshot_packages.py \
-            --snapshot-dir docs/fire_registry/devnet_v1 \
-            --require-replay-input \
-            --require-compile-receipt \
-            --require-kernel-receipt \
-            --require-kernel-eval-receipt \
-            --require-kernel-replay-receipt \
-            --require-kernel-settlement-receipt \
-            --require-proof-tree-cert \
-            --pretty
-          python3 tools/check_fire_settlement_replay_gate.py \
-            --snapshot-dir docs/fire_registry/devnet_v1 \
-            --output-dir internal/release_artifacts/fire_settlement_replay_gate \
-            --require-bundle-replay-input \
-            --pretty
-
-      - name: Run SHAPE_V1 ratchet
-        run: |
-          mkdir -p internal/release_artifacts/shapeforge
-          python3 tools/check_shape_v1_ratchet.py \
-            --output-cantor-bridge-report internal/release_artifacts/shapeforge/cantor-shapeforge-bridge.json \
-            --output-report internal/release_artifacts/shapeforge/shape-v1-ratchet.json
-
-      - name: Build SHAPE_V1 release bundle
-        run: |
-          python3 tools/build_shape_v1_release_bundle.py \
-            --ratchet-report internal/release_artifacts/shapeforge/shape-v1-ratchet.json \
-            --cantor-bridge-report internal/release_artifacts/shapeforge/cantor-shapeforge-bridge.json \
-            --output internal/release_artifacts/shapeforge/shape-v1-release-bundle.json
-
-      - name: Check SHAPE_V1 release bundle
-        run: |
-          python3 tools/check_shape_v1_release_bundle.py \
-            internal/release_artifacts/shapeforge/shape-v1-release-bundle.json \
-            --require-current
-
-      - name: Publish FIRE registry snapshot
-        env:
-          FIRE_REGISTRY_SIGNER_PRIVKEY: ${{ secrets.FIRE_REGISTRY_SIGNER_PRIVKEY }}
-          FIRE_REGISTRY_EXPECTED_SIGNER_PUBKEY: ${{ secrets.FIRE_REGISTRY_EXPECTED_SIGNER_PUBKEY }}
-        run: |
-          if [ -z "${FIRE_REGISTRY_SIGNER_PRIVKEY}" ]; then
-            echo "FIRE_REGISTRY_SIGNER_PRIVKEY missing; skipping FIRE registry publish"
-            exit 0
-          fi
-          if [ -z "${FIRE_REGISTRY_EXPECTED_SIGNER_PUBKEY}" ]; then
-            echo "FIRE_REGISTRY_EXPECTED_SIGNER_PUBKEY missing; refusing FIRE registry publish"
-            exit 1
-          fi
-          python3 tools/build_fire_registry_deployment_contract.py \
-            --output internal/release_artifacts/fire_registry/deployment_contract.json \
-            --snapshot-name "${GITHUB_REF_NAME:-workflow_dispatch}" \
-            --required-signer-pubkey "${FIRE_REGISTRY_EXPECTED_SIGNER_PUBKEY}" \
-            --description "Accept only the signed FIRE registry snapshot for the current release lane with replay, compile, kernel, kernel-eval, kernel-replay, kernel-settlement, and proof-tree bundle evidence." \
-            --pretty
-          python3 tools/publish_fire_registry_snapshot.py \
-            --output-dir internal/release_artifacts/fire_registry \
-            --snapshot-name "${GITHUB_REF_NAME:-workflow_dispatch}" \
-            --expected-signer-pubkey-env FIRE_REGISTRY_EXPECTED_SIGNER_PUBKEY \
-            --deployment-contract-file internal/release_artifacts/fire_registry/deployment_contract.json \
-            --emit-proof-tree-cert \
-            --pretty
-          python3 tools/check_fire_snapshot_packages.py \
-            --snapshot-dir internal/release_artifacts/fire_registry \
-            --require-replay-input \
-            --require-compile-receipt \
-            --require-kernel-receipt \
-            --require-kernel-eval-receipt \
-            --require-kernel-replay-receipt \
-            --require-kernel-settlement-receipt \
-            --require-proof-tree-cert \
-            --pretty
-          python3 tools/check_fire_registry_snapshot.py \
-            --metadata-file internal/release_artifacts/fire_registry/release_metadata.json \
-            --expected-snapshot-name "${GITHUB_REF_NAME:-workflow_dispatch}" \
-            --pretty
-          python3 tools/check_fire_registry_deployment_receipt.py \
-            --receipt-file internal/release_artifacts/fire_registry/deployment_receipt.json \
-            --require-current \
-            --pretty
-
-      - name: Generate SBOMs
-        run: |
-          mkdir -p internal/release_artifacts/sbom
-          cyclonedx-py requirements -i requirements-core.lock.txt -o internal/release_artifacts/sbom/requirements-core.cdx.json
-          cyclonedx-py requirements -i requirements-agents.lock.txt -o internal/release_artifacts/sbom/requirements-agents.cdx.json
-          if [ -f tools/dex-ui/package-lock.json ]; then
-            npx --yes @cyclonedx/cyclonedx-npm --output-file internal/release_artifacts/sbom/dex-ui.cdx.json
-          fi
-
-      - name: Build operator release bundle
-        run: |
-          set -euo pipefail
-          mkdir -p internal/release_artifacts/operator
-          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
-            version="${GITHUB_REF_NAME}"
-          else
-            short_sha="${GITHUB_SHA:0:8}"
-            version="dev-${short_sha:-local}"
-          fi
-          echo "operator_bundle_version=${version}" >>"${GITHUB_ENV}"
-          python3 tools/build_operator_release_bundle.py build \
-            --out-dir internal/release_artifacts/operator \
-            --version "${version}"
-          python3 tools/build_operator_release_bundle.py verify \
-            --manifest "internal/release_artifacts/operator/zenodex-operator-${version}.tar.gz.manifest.json"
-
-      - name: Compute combined SHA256SUMS
-        run: |
-          set -euo pipefail
-          mkdir -p internal/release_artifacts/checksums
-          : > internal/release_artifacts/checksums/SHA256SUMS
-          (
-            cd internal/release_artifacts/operator
-            for f in zenodex-operator-*.tar.gz zenodex-operator-*.tar.gz.manifest.json; do
-              [ -f "$f" ] && sha256sum "$f"
-            done
-          ) >> internal/release_artifacts/checksums/SHA256SUMS
-          (
-            cd internal/release_artifacts/sbom
-            for sbom in *.cdx.json; do
-              [ -f "$sbom" ] && sha256sum "$sbom"
-            done
-          ) >> internal/release_artifacts/checksums/SHA256SUMS
-          cat internal/release_artifacts/checksums/SHA256SUMS
-
-      - name: Upload release-integrity artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-integrity-artifacts
-          path: internal/release_artifacts/
-
-      - name: Attest SBOM provenance
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: "internal/release_artifacts/sbom/*.json"
-
-      - name: Attest operator bundle provenance
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: "internal/release_artifacts/operator/zenodex-operator-*.tar.gz"
-
-      - name: Stage GitHub Release assets
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          set -euo pipefail
-          mkdir -p internal/release_artifacts/release_assets
-          tag="${GITHUB_REF_NAME}"
-          cp \
-            "internal/release_artifacts/operator/zenodex-operator-${tag}.tar.gz" \
-            "internal/release_artifacts/operator/zenodex-operator-${tag}.tar.gz.manifest.json" \
-            "internal/release_artifacts/checksums/SHA256SUMS" \
-            internal/release_artifacts/release_assets/
-          for sbom in internal/release_artifacts/sbom/*.cdx.json; do
-            [ -f "$sbom" ] && cp "$sbom" internal/release_artifacts/release_assets/
-          done
-          ls -la internal/release_artifacts/release_assets/
-
-      - name: Create or update GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          tag="${GITHUB_REF_NAME}"
-          prerelease_flag=""
-          case "${tag}" in
-            *-*) prerelease_flag="--prerelease" ;;
-          esac
-          notes_file="$(mktemp)"
-          {
-            echo "ZenoDEX operator release ${tag}"
-            echo
-            echo "## Assets"
-            echo
-            echo "- \`zenodex-operator-${tag}.tar.gz\` — operator bundle (Python source, shell wrappers, Dockerfiles, lockfiles)"
-            echo "- \`zenodex-operator-${tag}.tar.gz.manifest.json\` — per-file SHA-256 manifest produced by \`tools/build_operator_release_bundle.py\`"
-            echo "- \`SHA256SUMS\` — checksums for tarball, manifest, and SBOMs"
-            echo "- \`*.cdx.json\` — CycloneDX SBOMs for core, agents, and (when present) dex-ui dependencies"
-            echo
-            echo "## Verify"
-            echo
-            echo '```'
-            echo "sha256sum -c SHA256SUMS"
-            echo "python3 tools/build_operator_release_bundle.py verify \\"
-            echo "  --manifest zenodex-operator-${tag}.tar.gz.manifest.json"
-            echo '```'
-            echo
-            echo "Release-integrity workflow run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          } > "${notes_file}"
-
-          if gh release view "${tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            gh release edit "${tag}" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --notes-file "${notes_file}" \
-              ${prerelease_flag}
-            gh release upload "${tag}" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --clobber \
-              internal/release_artifacts/release_assets/*
-          else
-            gh release create "${tag}" \
-              --repo "${GITHUB_REPOSITORY}" \
-              --title "ZenoDEX operator ${tag}" \
-              --notes-file "${notes_file}" \
-              ${prerelease_flag} \
-              internal/release_artifacts/release_assets/*
-          fi
+          test "${{ job.status }}" = "failure"
+          echo "Current operator profile remains release-ineligible."

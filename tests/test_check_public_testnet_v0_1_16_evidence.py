@@ -49,7 +49,10 @@ def _write_valid_fixture(tmp_path: Path, *, posture: str = "session_stable_quick
         },
     )
     _write_json(tmp_path / "release.json", _valid_release_smoke())
-    residual = "fake-value public testnet. no production value. no mainnet custody. session-stable Quick Tunnel URL."
+    residual = (
+        "fake-value public testnet. no production value. moves no mainnet assets. "
+        "session-stable Quick Tunnel URL."
+    )
     (tmp_path / "residual.md").write_text(residual + "\n", encoding="utf-8")
     public_url = (
         "https://sample.trycloudflare.com/public_network_config.json"
@@ -75,14 +78,42 @@ def _write_valid_fixture(tmp_path: Path, *, posture: str = "session_stable_quick
     return path
 
 
-def test_accepts_quick_tunnel_posture(tmp_path: Path) -> None:
+def test_valid_quick_tunnel_history_cannot_authorize_current_release(tmp_path: Path) -> None:
     report = check_evidence_manifest(_write_valid_fixture(tmp_path))
-    assert report["ok"] is True, report["errors"]
+    assert report["historical_evidence_valid"] is True, report["errors"]
+    assert report["current_release_eligible"] is False
+    assert report["ok"] is False
+    assert report["authority"] == "NONE"
+    assert report["vm_gates_closed"] == []
 
 
-def test_accepts_stable_named_url_posture(tmp_path: Path) -> None:
+def test_valid_named_url_history_cannot_authorize_current_release(tmp_path: Path) -> None:
     report = check_evidence_manifest(_write_valid_fixture(tmp_path, posture="stable_named_url"))
-    assert report["ok"] is True, report["errors"]
+    assert report["historical_evidence_valid"] is True, report["errors"]
+    assert report["current_release_eligible"] is False
+    assert report["ok"] is False
+
+
+def test_caller_claimed_current_bindings_cannot_override_local_quarantine(tmp_path: Path) -> None:
+    manifest_path = _write_valid_fixture(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.update(
+        {
+            "current_profile_id": "caller-forged-active-profile",
+            "current_release_eligible": True,
+            "source_commit": "f" * 40,
+            "quarantine_registry_hash": "f" * 64,
+            "manifest_hash": "f" * 64,
+        }
+    )
+    _write_json(manifest_path, manifest)
+
+    report = check_evidence_manifest(manifest_path)
+
+    assert report["historical_evidence_valid"] is True
+    assert report["current_profile_id"] == "local-testnet-retired-bridge-quarantine-v1"
+    assert report["current_release_eligible"] is False
+    assert report["status"] == "blocked_current_profile"
 
 
 def test_rejects_quick_tunnel_marked_stable(tmp_path: Path) -> None:

@@ -10,9 +10,19 @@ from pathlib import Path
 from typing import Any, Mapping
 from urllib.parse import urlparse
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from src.integration.local_route_quarantine import (  # noqa: E402
+    CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1,
+    CURRENT_LOCAL_OPERATOR_RELEASE_BLOCKER_V1,
+)
 
 SCHEMA = "zenodex.public_testnet_v0_1_16.evidence_manifest.v1"
 REPORT_SCHEMA = "zenodex.public_testnet_v0_1_16.evidence_check_report.v1"
+CURRENT_PROFILE_ID = CURRENT_LOCAL_OPERATOR_PROFILE_ID_V1
+CURRENT_RELEASE_BLOCKER = CURRENT_LOCAL_OPERATOR_RELEASE_BLOCKER_V1
 
 REQUIRED_ARTIFACTS = (
     "local_full_stack_smoke_report",
@@ -96,8 +106,10 @@ def _check_acceptance_report(path: Path, label: str, errors: list[str]) -> None:
         errors.append(f"{label} common_header_match must be true")
     if not isinstance(obj.get("network_config_hash"), str) or not str(obj.get("network_config_hash")).strip():
         errors.append(f"{label} network_config_hash must be a non-empty string")
-    local_tip = obj.get("local_tip") if isinstance(obj.get("local_tip"), Mapping) else {}
-    peer_tip = obj.get("peer_tip") if isinstance(obj.get("peer_tip"), Mapping) else {}
+    local_tip_raw = obj.get("local_tip")
+    peer_tip_raw = obj.get("peer_tip")
+    local_tip: Mapping[str, Any] = local_tip_raw if isinstance(local_tip_raw, Mapping) else {}
+    peer_tip: Mapping[str, Any] = peer_tip_raw if isinstance(peer_tip_raw, Mapping) else {}
     live_observed = (
         obj.get("live_observed") is True
         or (local_tip.get("live") is True and peer_tip.get("live") is True)
@@ -108,7 +120,8 @@ def _check_acceptance_report(path: Path, label: str, errors: list[str]) -> None:
 
 def _check_phone_browser(path: Path, errors: list[str]) -> None:
     obj = _load_json(path)
-    checks = obj.get("checks") if isinstance(obj.get("checks"), Mapping) else {}
+    checks_raw = obj.get("checks")
+    checks: Mapping[str, Any] = checks_raw if isinstance(checks_raw, Mapping) else {}
     loaded = (
         obj.get("public_ui_https_loaded") is True
         or obj.get("phone_browser_loaded") is True
@@ -148,7 +161,7 @@ def _check_residual_limits(path: Path, posture: str, errors: list[str]) -> None:
     if not text:
         errors.append("residual_limits_statement must be non-empty")
         return
-    for phrase in ("fake-value", "no production value", "no mainnet custody"):
+    for phrase in ("fake-value", "no production value", "moves no mainnet assets"):
         if phrase not in lowered:
             errors.append(f"residual_limits_statement must mention {phrase}")
     if posture == "session_stable_quick_tunnel" and "session-stable" not in lowered:
@@ -194,14 +207,21 @@ def check_evidence_manifest(manifest_path: Path) -> dict[str, Any]:
         except Exception as exc:
             errors.append(f"{key}: {type(exc).__name__}: {exc}")
 
-    ok = not errors
+    historical_evidence_valid = not errors
+    current_errors = [*errors, CURRENT_RELEASE_BLOCKER]
     return {
         "schema": REPORT_SCHEMA,
-        "ok": ok,
-        "status": "accepted" if ok else "rejected",
+        "ok": False,
+        "status": "blocked_current_profile",
+        "historical_evidence_valid": historical_evidence_valid,
+        "historical_status": "accepted" if historical_evidence_valid else "rejected",
+        "current_profile_id": CURRENT_PROFILE_ID,
+        "current_release_eligible": False,
+        "authority": "NONE",
+        "vm_gates_closed": [],
         "manifest_path": str(manifest_path),
         "artifacts": resolved,
-        "errors": errors,
+        "errors": current_errors,
     }
 
 

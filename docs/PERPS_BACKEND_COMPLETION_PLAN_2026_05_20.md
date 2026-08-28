@@ -8,7 +8,16 @@ permalink: autonomous-tau-dex-review/docs/perps-backend-completion-plan-2026-05-
 
 Date: 2026-05-20
 
-## Current Diagnosis
+Current authority correction (2026-08-28): normal API startup refuses
+`PERPS_WALLET_API_ENABLED` and `ZUSD_MONETARY_WALLET_API_ENABLED`. The
+checked-in local-testnet profile disables their local signing, automatic
+mining, and perps faucet controls. Its manifest, state seeding, readiness,
+feature smoke, browser smoke, and release smoke omit or reject stream `8` and
+stream `11`. The implementation and test history below remain donor evidence.
+They do not establish current route reachability, settlement authority, or
+production readiness.
+
+## Historical 2026-05-20 Diagnosis
 
 Perps is partially implemented in the backend.
 
@@ -59,7 +68,7 @@ pytest -q tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zu
 This proves collateral-minted zUSD can become transferable zUSD and then be
 posted into signed clearinghouse perps collateral.
 
-## What Is Still Missing
+## Historical 2026-05-20 Gaps
 
 The remaining blockers are packet-level network partition/latency chaos,
 hardware/OS wallet UX and recovery flows behind the public wallet-authority
@@ -72,19 +81,17 @@ checks, Tau RPC send-failure retry evidence, API-level node-restart replay
 evidence, and Docker Tau-node restart plus pause/retry evidence exist for the
 current local/testnet lane.
 
-The stream `9` TauToken wallet transport path is unmounted. Normal API startup
-refuses `/api/zusd/wallet/*` pending network-domain signature binding and
-durable submission reconciliation. The stream `11` monetary-vault path remains
-mounted. It is served by `src/integration/zusd_monetary_wallet_api.py` under
-`/api/zusd/monetary/*` and rendered by
-`tools/dex-ui/src/components/ZUSDMonetarySurface.jsx`.
+The 2026-05-20 donor described the stream `9` TauToken wallet transport path as
+unmounted and the stream `11` monetary-vault path as mounted. Under the current
+profile, normal API startup refuses both wallet routes. The retained stream
+`11` donor implementation and UI source provide research input only.
 
-The demo HTTP wrapper `src/integration/zusd_api.py` remains demo/development
-only. Product code should use stream `11` through the live monetary wallet API.
+The demo HTTP wrapper `src/integration/zusd_api.py` and the retained stream `11`
+wallet implementation grant no current product route or settlement authority.
 
-Perps now has a live product submission surface equivalent to the zUSD wallet
-transport. The mounted `/api/perps/*` route remains the demo route; the live lane
-is `/api/perps/wallet/*`.
+The 2026-05-20 donor described `/api/perps/wallet/*` as a live product
+submission surface and `/api/perps/*` as a demo route. The current profile
+refuses the retained perps wallet route and grants it no publication authority.
 
 ## Completion Requirements
 
@@ -358,7 +365,7 @@ Promotion order:
 5. Gate proof acceptance through `src/integration/proof_verifier.py` rather than
    trusting caller-supplied proof metadata.
 
-## Current Evidence
+## Historical Donor Evidence Ledger
 
 Passed on 2026-05-20:
 

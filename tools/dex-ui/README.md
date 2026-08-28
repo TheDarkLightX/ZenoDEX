@@ -9,24 +9,18 @@ permalink: autonomous-tau-dex-review/tools/dex-ui/readme
 Frontend for ZenoDEX: Swap, Pools, Perpetuals, zUSD, Strategy, ZenoOracle,
 and a Confidential tab for the TEE / sealed-bid feature surface.
 
-Current mounted posture:
+Current route posture:
 - Swap and pools target the Zeno ledger spot path.
 - Oracle can bind to the local `tools/zenodex-oracle serve` API.
-- zUSD in live mode targets the Tau-node-backed stream-9 wallet transport path.
-- The zUSD monetary panel targets the Tau-node-backed stream-11 vault and
-  stability-pool transaction path.
-- Perps has a read-only preview grid plus a live stream-8 wallet panel for
-  signed clearinghouse market init, collateral, position, epoch, oracle-price,
-  and settlement transactions. Local preview writes for the older `/api/perps/*`
-  lane require an explicit override and still do not represent authoritative
-  settlement.
-- Strategy includes a receipt-backed AutoTrader local/testnet panel for
-  prepare, gated submit, execute-once, and bounded supervisor flows through
-  `/api/strategy/autotrader/*`. It requires explicit risk acknowledgement plus
-  local/testnet enablement. The supervisor lane binds a public local/testnet
-  supervisor profile, requires an externally signed Tau envelope, and consumes
-  an execution key only after successful submit. Unattended production
-  execution and production chain submission remain outside the current claim.
+- zUSD components remain retained donor sources. The current tab shows a
+  read-only quarantine notice and does not mount signer or submission controls
+  for the stream-9 wallet and stream-11 monetary routes.
+- Perps has a read-only preview grid plus a retained stream-8 donor panel. The
+  current runtime gate hides that donor panel and ignores URL or build-time
+  write requests. Normal API startup refuses the stream-8 wallet route.
+- Strategy retains a receipt-backed AutoTrader research panel. Normal API
+  startup refuses `/api/strategy/autotrader/*` pending client-signed DEX intent
+  envelopes and reviewed publication bindings.
 - Confidential exposes live operator posture through `GET /api/confidential/status`
   plus bounded local/testnet attestation admission and redacted runtime receipt
   flows through `/api/confidential/attestation/*`. It is not the default swap
@@ -104,6 +98,13 @@ no durable submission journal or reconciliation protocol. Setting
 `ZUSD_TAU_WALLET_API_ENABLED=true` therefore makes the API server refuse to
 start. Keep this lane in direct, isolated shadow tests until both prerequisites
 exist.
+
+The checked-in `zenodex-config.json` also keeps
+`perpsWalletUiEnabled`, `zusdTauWalletUiEnabled`, and
+`zusdMonetaryWalletUiEnabled` exactly `false`. These are presentation gates,
+not settlement authority. The executable UI contract rejects a missing or
+non-false current-profile value, and the backend independently refuses the
+corresponding routes.
 
 The Tau node can run through the local-node Docker profile:
 
@@ -281,7 +282,9 @@ so operators can mirror or audit the exact static artifact they are serving.
 
 ## Security Notes (Dev API)
 
-Legacy in-memory `/api/perps/*` and `/api/zusd/*` demo routes are no longer mounted by the stdlib API. Wallet and monetary paths use Tau-node-backed transport bridges.
+Legacy in-memory `/api/perps/*` and `/api/zusd/*` demo routes are no longer
+mounted by the stdlib API. The Tau-node-backed wallet and monetary bridge
+implementations are retained donor code and are unmounted.
 
 The mounted perps preview grid reflects that boundary. In non-demo mode it is
 read-only by default, and it only enables local preview writes when one of these
@@ -298,8 +301,9 @@ and a durable submission-reconciliation protocol exists. Exercise it only
 through direct isolated shadow tests; local signing does not make the route
 mountable.
 
-`/api/zusd/monetary/*` and `/api/perps/wallet/*` are also Tau-node-backed local
-or testnet transport bridges. Keep them behind local or explicitly controlled
-auth, and only enable local signing in test environments.
+`/api/zusd/monetary/*` and `/api/perps/wallet/*` are retired Tau-node-backed
+transport bridges. Normal startup refuses both routes. Exercise their retained
+implementations only through isolated shadow tests with no publication
+authority.
 
 The API server refuses to start sensitive routes without either `ZENODEX_API_BEARER_TOKEN` or an explicitly declared external auth boundary.

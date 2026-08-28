@@ -12,10 +12,31 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from src.integration.local_route_quarantine import (  # noqa: E402
+    current_local_operator_release_admission_v1,
+)
 from tools.check_docker_hashlocked_install import evaluate_dockerfile  # noqa: E402
 
-
-REPORT_SCHEMA = "zenodex.operator_packaging_readiness.v0"
+REPORT_SCHEMA = "zenodex/operator_packaging_readiness/v1"
+HISTORICAL_RELEASE_REF_BLOCKER_V1 = (
+    "historical workflow refs remain an external repository-control blocker until "
+    "workflow disablement or equivalent tag and dispatch restrictions are independently verified"
+)
+SUPPORTED_OPERATOR_PATHS_V1 = (
+    "docker-compose",
+    "hashlocked-dockerfile",
+    "posix-wrapper",
+    "windows-cmd-wrapper-installer",
+    "light-client-checkpoint-verifier",
+    "proof-carrying-browser-bundle",
+    "browser-wallet-sync-sdk",
+    "single-command-local-testnet",
+    "single-command-public-follower",
+)
+RETAINED_BLOCKED_OPERATOR_PATHS_V1 = (
+    "single-click-public-testnet",
+    "github-release-assets",
+)
 
 
 REQUIRED_FILES = (
@@ -52,6 +73,17 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     errors: list[str] = []
 
+    path_overlap = sorted(
+        set(SUPPORTED_OPERATOR_PATHS_V1) & set(RETAINED_BLOCKED_OPERATOR_PATHS_V1)
+    )
+    _append_check(
+        checks,
+        errors,
+        check_id="supported_operator_paths_exclude_retained_blocked_paths",
+        ok=not path_overlap,
+        error=f"retained blocked operator paths advertised as supported: {path_overlap}",
+    )
+
     for relpath in REQUIRED_FILES:
         path = root / relpath
         ok = path.is_file()
@@ -65,28 +97,38 @@ def check_operator_packaging(root: Path = ROOT) -> dict[str, Any]:
     _check_zenoctl_light_client(root, checks, errors)
     _check_browser_sdk(root, checks, errors)
     _check_release_bundle_builder(root, checks, errors)
-    _check_release_integrity_publishes_operator_bundle(root, checks, errors)
+    _check_release_integrity_blocks_publication(root, checks, errors)
     _check_hashlocked_dockerfile(root, "Dockerfile.hashlocked", checks, errors)
     _check_hashlocked_dockerfile(root, "Dockerfile.operator-tools", checks, errors)
 
+    admission = current_local_operator_release_admission_v1()
+    packaging_integrity_ok = not errors
+    checks.append(
+        {
+            "id": "current_operator_release_admission",
+            "ok": admission.current_release_eligible,
+            "profile_id": admission.profile_id,
+            "authority": admission.authority,
+            "vm_gates_closed": list(admission.vm_gates_closed),
+        }
+    )
+
     return {
         "schema": REPORT_SCHEMA,
-        "ok": not errors,
+        "ok": packaging_integrity_ok and admission.current_release_eligible,
+        "status": "blocked_current_profile",
+        "packaging_integrity_ok": packaging_integrity_ok,
+        "current_profile_id": admission.profile_id,
+        "current_release_eligible": admission.current_release_eligible,
+        "authority": admission.authority,
+        "vm_gates_closed": list(admission.vm_gates_closed),
+        "release_blockers": [admission.blocker],
+        "repository_controls_verified": False,
+        "external_release_blockers": [HISTORICAL_RELEASE_REF_BLOCKER_V1],
         "errors": errors,
         "checks": checks,
-        "supported_operator_paths": [
-            "docker-compose",
-            "hashlocked-dockerfile",
-            "posix-wrapper",
-            "windows-cmd-wrapper-installer",
-            "light-client-checkpoint-verifier",
-            "proof-carrying-browser-bundle",
-            "browser-wallet-sync-sdk",
-            "single-command-local-testnet",
-            "single-click-public-testnet",
-            "single-command-public-follower",
-            "github-release-assets",
-        ],
+        "supported_operator_paths": list(SUPPORTED_OPERATOR_PATHS_V1),
+        "retained_blocked_operator_paths": list(RETAINED_BLOCKED_OPERATOR_PATHS_V1),
     }
 
 
@@ -312,13 +354,31 @@ def _check_release_bundle_builder(root: Path, checks: list[dict[str, Any]], erro
     if not path.is_file():
         return
     text = _read(path)
-    for token in ("build", "verify", "archive_sha256", "zenodex.operator_release_bundle.v0"):
+    for token in (
+        "OperatorReleaseAdmissionRejectV1",
+        "build_operator_candidate_bundle",
+        "verify_operator_candidate_manifest",
+        "UNADMITTED_CANDIDATE_NO_RELEASE_AUTHORITY",
+        "zenodex.operator_candidate_bundle.v1",
+        "archive_sha256",
+    ):
         _append_check(
             checks,
             errors,
             check_id=f"release_bundle_builder_contains:{token}",
             ok=token in text,
             error=f"tools/build_operator_release_bundle.py must contain {token}",
+        )
+    for forbidden in (
+        'SCHEMA = "zenodex.operator_release_bundle.v0"',
+        'archive_name = f"zenodex-operator-{_safe_version(version)}.tar.gz"',
+    ):
+        _append_check(
+            checks,
+            errors,
+            check_id=f"release_bundle_builder_omits:{forbidden}",
+            ok=forbidden not in text,
+            error=f"tools/build_operator_release_bundle.py retains release-labelled output: {forbidden}",
         )
     for token in (
         "docker-compose.local-testnet.yml",
@@ -335,22 +395,22 @@ def _check_release_bundle_builder(root: Path, checks: list[dict[str, Any]], erro
         )
 
 
-def _check_release_integrity_publishes_operator_bundle(root: Path, checks: list[dict[str, Any]], errors: list[str]) -> None:
+def _check_release_integrity_blocks_publication(
+    root: Path,
+    checks: list[dict[str, Any]],
+    errors: list[str],
+) -> None:
     path = root / ".github" / "workflows" / "release-integrity.yml"
     if not path.is_file():
         return
     text = _read(path)
     for token in (
-        "contents: write",
-        "Build operator release bundle",
-        "tools/build_operator_release_bundle.py build",
-        "tools/build_operator_release_bundle.py verify",
-        "Compute combined SHA256SUMS",
-        "Attest operator bundle provenance",
-        "Stage GitHub Release assets",
-        "Create or update GitHub Release",
-        "gh release upload",
-        "--clobber",
+        "name: release-integrity-blocked",
+        "contents: read",
+        "Enforce current operator release admission",
+        "python3 tools/check_operator_packaging.py --pretty",
+        "Unreachable release guard",
+        'test "${{ job.status }}" = "failure"',
     ):
         _append_check(
             checks,
@@ -358,6 +418,23 @@ def _check_release_integrity_publishes_operator_bundle(root: Path, checks: list[
             check_id=f"release_integrity_contains:{token}",
             ok=token in text,
             error=f".github/workflows/release-integrity.yml must contain {token}",
+        )
+    for forbidden in (
+        "contents: write",
+        "id-token: write",
+        "attestations: write",
+        "tools/build_operator_release_bundle.py build",
+        "gh release",
+        "actions/attest-build-provenance",
+        "actions/upload-artifact",
+        'tags:\n      - "v*"',
+    ):
+        _append_check(
+            checks,
+            errors,
+            check_id=f"release_integrity_omits:{forbidden}",
+            ok=forbidden not in text,
+            error=f"release-integrity retains blocked publication capability: {forbidden}",
         )
 
 

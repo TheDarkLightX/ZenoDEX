@@ -2,12 +2,18 @@
 
 Checked: 2026-05-20.
 
-## Current answer
+Current authority correction (2026-08-28): this document records historical
+donor implementation and tests. The current profile refuses the stream `11`
+zUSD monetary wallet route and grants it no settlement or publication
+authority. Statements below about mounted or live behavior describe the
+2026-05-20 donor state.
+
+## Historical 2026-05-20 answer
 
 zUSD is Liquity-like and SimplexBorrow-aligned. It is not an exact Liquity V1
 or Liquity V2 clone.
 
-The current implementation includes:
+The 2026-05-20 donor implementation includes:
 
 - 110% minimum collateral ratio (`mcr_bps = 11000`);
 - 150% recovery-mode threshold (`ccr_bps = 15000`);
@@ -20,7 +26,7 @@ The current implementation includes:
   bounty policy;
 - transferable app-level zUSD balances for Tau app-state use.
 
-The current implementation does not include:
+The 2026-05-20 donor implementation does not include:
 
 - Liquity V2's usual 5% primary liquidation penalty with borrower surplus
   collateral returned after the stability pool absorbs debt;
@@ -92,11 +98,11 @@ For backwards compatibility, it also accepts the older gas-named aliases:
 - `TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_FIXED_COLLATERAL_E8`
 - `TAU_DEX_ZUSD_LIQUIDATION_GAS_COMP_BPS`
 
-Both defaults are `0` for deterministic local tests. A live Tau fee model can
-turn compensation on without changing the action vocabulary or the mounted
-stream `11` transaction lane. The parameter pays the keeper from liquidated
-native collateral, independent of whether the external Tau transaction fee is
-called gas, fee, or another chain-cost term.
+Both defaults are `0` for deterministic local tests. In the historical donor,
+the parameter could turn compensation on without changing the action
+vocabulary. The current profile keeps stream `11` unmounted. The donor parameter
+pays the keeper from liquidated native collateral, independent of whether the
+external Tau transaction fee is called gas, fee, or another chain-cost term.
 
 The wallet API also carries a user-supplied `tx_fee_limit` into the signed Tau
 transaction envelope and reports whether the current native balance appears to
@@ -114,8 +120,8 @@ pytest -q tests/integration/test_zusd_monetary_wallet_api.py::test_status_report
 pytest -q tests/integration/test_zusd_monetary_wallet_ui_docker.py::test_zusd_monetary_wallet_ui_smoke_through_docker_tau_node -s
 ```
 
-The Docker browser smoke covers zUSD minting and a follow-on perps
-clearinghouse collateral deposit against a local Tau node. It confirms the
-mounted UI and transaction bridge preserve the minted zUSD balance semantics
-when the perps API signs and mines the Tau transactions. It does not prove a
-live Tau Net fee-debit rule.
+The historical Docker browser smoke covered zUSD minting and a follow-on perps
+clearinghouse collateral deposit against a local Tau node. It recorded donor
+UI and transaction-bridge behavior when the perps API signed and mined local
+Tau transactions. It did not prove a live Tau Net fee-debit rule and does not
+establish current route reachability.

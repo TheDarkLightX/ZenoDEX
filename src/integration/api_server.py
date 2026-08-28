@@ -26,12 +26,9 @@ from math import comb
 from typing import Any, Callable, Mapping, Optional, Sequence, Set
 from urllib.parse import urlsplit
 
-from src.integration.api_server_settlement_parsers import (
-    _parse_balance_table_payload,
-    _parse_lp_balances_payload,
-    _parse_price_history_payload,
-    _parse_settlement_feature_extension_inputs_payload,
-    _parse_settlement_proof_flags_payload,
+from src.integration.local_route_quarantine import (
+    quarantined_route_environment_rejections_v1,
+    refuse_current_local_operator_operation_v1,
 )
 from src.state.canonical import canonical_json_bytes
 
@@ -43,25 +40,66 @@ __all__ = (
     "_parse_settlement_proof_flags_payload",
 )
 
-# Prewarm the expensive attestation / LP-aware settlement modules at server
-# startup so their first request does not pay import latency inside the 2s API
-# timeout budget used by the focused regression suite.
-for _prewarm_module_name in (
-    "src.integration.operations",
-    "src.integration.settlement_price_provenance",
-    "src.integration.settlement_price_attestation",
-    "src.integration.settlement_end_to_end_certificate_packet",
-    "src.integration.settlement_witness_lifecycle",
-    "src.integration.settlement_feature_extension_packet",
-    "src.integration.settlement_value_contract",
-    "src.integration.settlement_lp_value_contract",
-    "src.integration.settlement_endogenous_lp_value_packet",
-    "src.integration.settlement_value_packet",
-):  # pragma: no cover - import latency hygiene only
-    try:
-        __import__(_prewarm_module_name)
-    except ImportError:
-        pass
+
+def _parse_balance_table_payload(payload: object) -> Any:
+    from src.integration.api_server_settlement_parsers import (  # pylint: disable=import-outside-toplevel
+        _parse_balance_table_payload as parse,
+    )
+
+    return parse(payload)
+
+
+def _parse_lp_balances_payload(payload: object) -> Any:
+    from src.integration.api_server_settlement_parsers import (  # pylint: disable=import-outside-toplevel
+        _parse_lp_balances_payload as parse,
+    )
+
+    return parse(payload)
+
+
+def _parse_price_history_payload(payload: object) -> tuple[int, int, int]:
+    from src.integration.api_server_settlement_parsers import (  # pylint: disable=import-outside-toplevel
+        _parse_price_history_payload as parse,
+    )
+
+    return parse(payload)
+
+
+def _parse_settlement_feature_extension_inputs_payload(payload: object) -> Any:
+    from src.integration.api_server_settlement_parsers import (  # pylint: disable=import-outside-toplevel
+        _parse_settlement_feature_extension_inputs_payload as parse,
+    )
+
+    return parse(payload)
+
+
+def _parse_settlement_proof_flags_payload(payload: object) -> Any:
+    from src.integration.api_server_settlement_parsers import (  # pylint: disable=import-outside-toplevel
+        _parse_settlement_proof_flags_payload as parse,
+    )
+
+    return parse(payload)
+
+def _prewarm_api_modules() -> None:
+    """Prewarm expensive modules only after startup admission succeeds."""
+
+    for module_name in (
+        "src.integration.api_server_settlement_parsers",
+        "src.integration.operations",
+        "src.integration.settlement_price_provenance",
+        "src.integration.settlement_price_attestation",
+        "src.integration.settlement_end_to_end_certificate_packet",
+        "src.integration.settlement_witness_lifecycle",
+        "src.integration.settlement_feature_extension_packet",
+        "src.integration.settlement_value_contract",
+        "src.integration.settlement_lp_value_contract",
+        "src.integration.settlement_endogenous_lp_value_packet",
+        "src.integration.settlement_value_packet",
+    ):  # pragma: no cover - import latency hygiene only
+        try:
+            __import__(module_name)
+        except ImportError:
+            pass
 
 
 def _env_int(name: str, default: int, *, lo: int, hi: int) -> int:
@@ -1056,6 +1094,16 @@ def _api_startup_refusal_lines(config: ApiServerConfig) -> Optional[list[str]]:
             "Refusing to start: ZUSD_TAU_WALLET_API_ENABLED requires Tau network-domain "
             "signature binding and durable submission reconciliation."
         ]
+    if config.perps_wallet_enabled:
+        return [
+            "Refusing to start: PERPS_WALLET_API_ENABLED depends on the retired Tau "
+            "stream-8 application bridge; use a current-Tau ingress and ZenoLedger publication."
+        ]
+    if config.zusd_monetary_wallet_enabled:
+        return [
+            "Refusing to start: ZUSD_MONETARY_WALLET_API_ENABLED depends on the retired Tau "
+            "stream-11 application bridge and lacks a verifier-owned execution clock."
+        ]
     if config.confidential_sealed_bid_asset_settlement_enabled:
         return [
             "Refusing to start: CONFIDENTIAL_SEALED_BID_LOCAL_LEDGER_SETTLEMENT_ENABLED "
@@ -1611,6 +1659,16 @@ def _print_refusal(lines: list[str]) -> None:
 
 
 def _attach_api_server_state(httpd: ThreadingHTTPServer, config: ApiServerConfig) -> None:
+    if type(config) is not ApiServerConfig or any(
+        value is not False
+        for value in (
+            config.perps_wallet_enabled,
+            config.zusd_tau_wallet_enabled,
+            config.zusd_monetary_wallet_enabled,
+        )
+    ):
+        refuse_current_local_operator_operation_v1("api_server_state_attachment")
+
     from src.integration.confidential_sealed_bid_api import (  # pylint: disable=import-outside-toplevel
         ConfidentialSealedBidTable,
         submit_confidential_sealed_bid_local_ledger_settlement,
@@ -1626,9 +1684,9 @@ def _attach_api_server_state(httpd: ThreadingHTTPServer, config: ApiServerConfig
         and _is_loopback_host(config.host)
     )
     httpd.api_host = config.host  # type: ignore[attr-defined]
-    httpd.perps_wallet_api_enabled = config.perps_wallet_enabled  # type: ignore[attr-defined]
-    httpd.zusd_tau_wallet_api_enabled = config.zusd_tau_wallet_enabled  # type: ignore[attr-defined]
-    httpd.zusd_monetary_wallet_api_enabled = config.zusd_monetary_wallet_enabled  # type: ignore[attr-defined]
+    httpd.perps_wallet_api_enabled = False  # type: ignore[attr-defined]
+    httpd.zusd_tau_wallet_api_enabled = False  # type: ignore[attr-defined]
+    httpd.zusd_monetary_wallet_api_enabled = False  # type: ignore[attr-defined]
     httpd.autotrader_live_api_enabled = config.autotrader_live_enabled  # type: ignore[attr-defined]
     httpd.autotrader_execution_keys = set()  # type: ignore[attr-defined]
     httpd.autotrader_supervisor_runs = {}  # type: ignore[attr-defined]
@@ -1909,11 +1967,12 @@ class _Handler(BaseHTTPRequestHandler):
                 cors_origin=cors_origin,
                 raw_body=raw_body,
             )
-        # No HTTP exposure for non-wallet /api/zusd/* routes. Signed
-        # production writes go through /api/zusd/wallet/* and
-        # /api/zusd/monetary/*. The in-memory audit-replay scaffold lives
-        # at src/integration/_zusd_audit_replay_state.py and is imported
-        # only by tools/check_* audit harnesses, never served.
+        # No HTTP exposure for non-wallet /api/zusd/* routes. The wallet and
+        # monetary handlers are retained historical donors; current-profile
+        # startup admission refuses both before server construction. The
+        # in-memory audit-replay scaffold lives at
+        # src/integration/_zusd_audit_replay_state.py and is imported only by
+        # tools/check_* audit harnesses, never served.
         return False
 
     def _maybe_handle_zusd_tau_wallet_api(
@@ -2312,12 +2371,18 @@ class _Handler(BaseHTTPRequestHandler):
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     _ = argv
+    environment_refusals = quarantined_route_environment_rejections_v1(dict(os.environ))
+    if environment_refusals:
+        _print_refusal([rejection.render() for rejection in environment_refusals])
+        return 2
+
     config = _load_api_server_config()
     refusal = _api_startup_refusal_lines(config) or _deploy_profile_refusal_lines(config)
     if refusal is not None:
         _print_refusal(refusal)
         return 2
 
+    _prewarm_api_modules()
     httpd = ThreadingHTTPServer((config.host, config.port), _Handler)
     _attach_api_server_state(httpd, config)
     _print_api_startup_banner(config)

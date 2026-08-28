@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { isLocalTestnetDeployment, readLocalSmokeFragmentSecret } from './api.js';
+import {
+  getRuntimeValueRoutePresentationV1,
+  isLocalTestnetDeployment,
+  readLocalSmokeFragmentSecret,
+} from './api.js';
 
 function withWindow(windowMock, fn) {
   const originalWindow = globalThis.window;
@@ -97,4 +101,72 @@ test('readLocalSmokeFragmentSecret returns empty when window is undefined (SSR)'
   withWindow(null, () => {
     assert.equal(readLocalSmokeFragmentSecret('signerPrivkey'), '');
   });
+});
+
+test('value route presentation fails closed for absent and malformed configuration', () => {
+  const malformedConfigs = [
+    undefined,
+    null,
+    '',
+    [],
+    {},
+    {
+      perpsWalletUiEnabled: 'true',
+      zusdTauWalletUiEnabled: 1,
+      zusdMonetaryWalletUiEnabled: Object(true),
+    },
+  ];
+
+  for (const runtimeConfig of malformedConfigs) {
+    assert.deepEqual(getRuntimeValueRoutePresentationV1(runtimeConfig), {
+      perpsWalletEnabled: false,
+      zusdTauWalletEnabled: false,
+      zusdMonetaryWalletEnabled: false,
+    });
+  }
+});
+
+test('value route presentation rejects inherited enable flags', () => {
+  const runtimeConfig = Object.create({
+    perpsWalletUiEnabled: true,
+    zusdTauWalletUiEnabled: true,
+    zusdMonetaryWalletUiEnabled: true,
+  });
+
+  assert.deepEqual(getRuntimeValueRoutePresentationV1(runtimeConfig), {
+    perpsWalletEnabled: false,
+    zusdTauWalletEnabled: false,
+    zusdMonetaryWalletEnabled: false,
+  });
+});
+
+test('value route presentation accepts only exact owned true flags', () => {
+  const presentation = getRuntimeValueRoutePresentationV1({
+    perpsWalletUiEnabled: true,
+    zusdTauWalletUiEnabled: false,
+    zusdMonetaryWalletUiEnabled: true,
+  });
+
+  assert.deepEqual(presentation, {
+    perpsWalletEnabled: true,
+    zusdTauWalletEnabled: false,
+    zusdMonetaryWalletEnabled: true,
+  });
+});
+
+test('value route presentation is an immutable snapshot', () => {
+  const runtimeConfig = {
+    perpsWalletUiEnabled: true,
+    zusdTauWalletUiEnabled: true,
+    zusdMonetaryWalletUiEnabled: true,
+  };
+
+  const presentation = getRuntimeValueRoutePresentationV1(runtimeConfig);
+  runtimeConfig.perpsWalletUiEnabled = false;
+
+  assert.equal(Object.isFrozen(presentation), true);
+  assert.equal(presentation.perpsWalletEnabled, true);
+  assert.throws(() => {
+    presentation.perpsWalletEnabled = false;
+  }, TypeError);
 });

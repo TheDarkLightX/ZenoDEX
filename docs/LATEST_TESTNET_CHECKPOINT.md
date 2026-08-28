@@ -2,8 +2,8 @@
 
 Checkpoint: `testnet-20260527T061624Z`
 
-This checkpoint packages the current local-testnet GUI, the executed
-ZenoLedger public-testnet bootstrap bundle, and an operator source archive.
+This is a historical checkpoint record. Its artifacts do not establish current
+release eligibility, settlement authority, or value-movement authority.
 
 Local artifact directory:
 
@@ -19,23 +19,27 @@ Artifacts:
   signing.
 - `zeno-ledger-public-testnet-20260527T061624Z.tar.gz` contains the executed
   public-testnet bootstrap bundle and core feature-suite evidence.
-- `operator/zenodex-operator-testnet-20260527T061624Z.tar.gz` contains the
-  operator source bundle and deterministic manifest.
+- `operator/zenodex-operator-testnet-20260527T061624Z.tar.gz` is a historical
+  operator source archive and deterministic manifest.
 - `SHA256SUMS` and `SHIPMENT_MANIFEST.json` bind the local files to hashes and
   replay commands.
 
-Build and verify from a checkout:
+Rebuild and verify an unadmitted candidate archive from the current checkout:
 
 ```bash
 npm run build --prefix tools/dex-ui
 python3 tools/zeno_ledger_make_public_testnet_bundle.py \
   --out-dir dist/zenodex-testnet-20260527T061624Z/public-testnet-bundle-v2
-python3 tools/build_operator_release_bundle.py build \
+python3 tools/build_operator_release_bundle.py candidate \
   --out-dir dist/zenodex-testnet-20260527T061624Z/operator \
   --version testnet-20260527T061624Z
 python3 tools/build_operator_release_bundle.py verify \
-  --manifest dist/zenodex-testnet-20260527T061624Z/operator/zenodex-operator-testnet-20260527T061624Z.tar.gz.manifest.json
+  --manifest dist/zenodex-testnet-20260527T061624Z/operator/zenodex-operator-candidate-testnet-20260527T061624Z.tar.gz.manifest.json
 ```
+
+The `build` subcommand refuses output under the current profile. The `candidate`
+subcommand exercises deterministic packaging only. Its files carry no release,
+settlement, or value-movement authority.
 
 Live local-testnet GUI check:
 

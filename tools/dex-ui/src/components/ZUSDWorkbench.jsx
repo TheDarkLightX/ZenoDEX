@@ -10,7 +10,12 @@ import {
 import { useDemoMode } from '../lib/DemoModeContext.jsx';
 import ZUSDTauWalletSurface from './ZUSDTauWalletSurface.jsx';
 import ZUSDMonetarySurface from './ZUSDMonetarySurface.jsx';
-import { apiGetZusdMonetaryStatus, apiSubmitZusdMonetary, readLocalSmokeFragmentSecret } from '../lib/api.js';
+import {
+  apiGetZusdMonetaryStatus,
+  apiSubmitZusdMonetary,
+  getRuntimeValueRoutePresentationV1,
+  readLocalSmokeFragmentSecret,
+} from '../lib/api.js';
 
 const E8 = 100_000_000;
 
@@ -388,14 +393,28 @@ function StabilityPoolPanel({ onClose }) {
 function ZUSDWorkbench() {
   const { demoMode } = useDemoMode();
   const [activePanel, setActivePanel] = useState(null);
+  const {
+    zusdTauWalletEnabled,
+    zusdMonetaryWalletEnabled,
+  } = getRuntimeValueRoutePresentationV1();
 
   if (!demoMode) {
     const isQuickMintSmoke = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('zenodexUiSmokeZusdQuickMint') === '1';
     return (
       <section className="zusd-workbench">
-        {isQuickMintSmoke && <MintPanel demoMode={false} showClose={false} />}
-        <ZUSDMonetarySurface />
-        <ZUSDTauWalletSurface />
+        {!zusdMonetaryWalletEnabled && !zusdTauWalletEnabled && (
+          <div className="panel zusd-action-panel" role="status">
+            <p className="zusd-kicker">Read-only release profile</p>
+            <h2>zUSD value routes are quarantined</h2>
+            <p className="zusd-subtitle">
+              Monetary and token-transfer submission controls remain unavailable until their
+              current Tau, release, proof, and durable reconciliation bindings pass admission.
+            </p>
+          </div>
+        )}
+        {isQuickMintSmoke && zusdMonetaryWalletEnabled && <MintPanel demoMode={false} showClose={false} />}
+        {zusdMonetaryWalletEnabled && <ZUSDMonetarySurface />}
+        {zusdTauWalletEnabled && <ZUSDTauWalletSurface />}
       </section>
     );
   }

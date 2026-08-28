@@ -15,6 +15,7 @@ Verifies:
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import socket
@@ -27,7 +28,6 @@ from typing import Mapping
 
 import pytest
 import yaml
-
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 COMPOSE_OVERLAY = REPO_ROOT / "docker-compose.local-testnet.yml"
@@ -57,7 +57,7 @@ def _valid_manifest_kwargs(out_dir: Path) -> dict:
             "operator_tools": "zenodex/operator-tools:local",
             "tau_local": "zenodex/tau-local:local-testnet",
         },
-        enabled_lanes=["DEX_API_ENABLED", "PERPS_WALLET_API_ENABLED"],
+        enabled_lanes=["DEX_API_ENABLED"],
         fixture_paths={
             "key_bundle": str(out_dir / "secrets" / "keys.json"),
             "oracle_authority_profile": str(out_dir / "fixtures" / "oracle_authority_profile.json"),
@@ -174,6 +174,119 @@ def test_manifest_rejects_quarantined_zusd_tau_wallet_lane(tmp_path: Path) -> No
     with pytest.raises(ValueError, match="unmountable lanes"):
         lc._load_manifest_if_present(path)
     assert lc._load_manifest_if_present(path, allow_invalid=True) is not None
+
+
+@pytest.mark.parametrize(
+    "lane",
+    ("PERPS_WALLET_API_ENABLED", "ZUSD_MONETARY_WALLET_API_ENABLED"),
+)
+def test_manifest_rejects_retired_tau_value_lanes(tmp_path: Path, lane: str) -> None:
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].append(lane)
+
+    assert mf.validate_manifest(body) == [
+        f"enabled_lanes contains unmountable lanes: [{lane!r}]"
+    ]
+
+
+def test_manifest_mountable_lane_registry_excludes_retired_tau_routes() -> None:
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    assert mf.LOCAL_TESTNET_MOUNTABLE_LANES == (
+        "DEX_API_ENABLED",
+        "CONFIDENTIAL_ATTESTATION_API_ENABLED",
+    )
+
+
+def test_lifecycle_source_has_no_retired_tau_route_reachability() -> None:
+    source = (REPO_ROOT / "tools/zenoctl_testnet_local/lifecycle.py").read_text(
+        encoding="utf-8"
+    )
+    module = ast.parse(source)
+    functions = {
+        node.name: node
+        for node in module.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+
+    cmd_up_calls = {
+        node.func.id
+        for node in ast.walk(functions["cmd_up"])
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    assert "_seed_api_state" not in cmd_up_calls
+
+    for function_name in (
+        "_collect_lane_readiness",
+        "_run_feature_smoke",
+        "_browser_smoke_cases",
+    ):
+        strings = {
+            node.value
+            for node in ast.walk(functions[function_name])
+            if isinstance(node, ast.Constant) and isinstance(node.value, str)
+        }
+        assert all("/api/perps/wallet" not in value for value in strings)
+        assert all("/api/zusd/monetary" not in value for value in strings)
+
+    release_calls = {
+        node.func.id
+        for node in ast.walk(functions["cmd_release_smoke"])
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+    }
+    assert release_calls.isdisjoint(
+        {
+            "_load_manifest_if_present",
+            "_runtime_env_for_existing_manifest",
+            "_write_json",
+        }
+    )
+
+
+def test_release_smoke_rejects_before_manifest_or_runtime_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    events: list[str] = []
+    monkeypatch.setattr(
+        lc,
+        "_load_manifest_if_present",
+        lambda *_args, **_kwargs: events.append("manifest"),
+    )
+
+    rc = lc.cmd_release_smoke(lc.ReleaseSmokeOptions(out_dir=tmp_path))
+
+    assert rc == 2
+    assert events == []
+    report = json.loads(capsys.readouterr().out)
+    assert report == {
+        "schema": "zenodex.local_testnet.release_flow_smoke_report.v1",
+        "ok": False,
+        "status": "blocked_current_profile",
+        "rejection_code": "LOCAL_RELEASE_SMOKE_REQUIRES_QUARANTINED_ROUTES",
+        "current_profile_id": "local-testnet-retired-bridge-quarantine-v1",
+        "current_release_eligible": False,
+        "authority": "NONE",
+        "vm_gates_closed": [],
+        "release_blocker": (
+            "current profile quarantines stream-8 perps, stream-9 zUSD wallet, "
+            "and stream-11 zUSD monetary routes; retained testnet artifacts "
+            "cannot authorize a current release"
+        ),
+        "quarantined_routes": [
+            "PERPS_WALLET_API_ENABLED",
+            "ZUSD_TAU_WALLET_API_ENABLED",
+            "ZUSD_MONETARY_WALLET_API_ENABLED",
+        ],
+        "value_movement_authority": "NONE",
+        "checks": {},
+    }
+    assert not (tmp_path / "reports").exists()
 
 
 def test_manifest_force_reset_rejects_invalid_identity_binding(tmp_path: Path) -> None:
@@ -531,7 +644,7 @@ def test_existing_manifest_rejects_requested_zk_mode_change(tmp_path: Path) -> N
     assert "use --force to recreate with --zk-mode strict" in gap
 
 
-def test_strict_browser_smoke_cases_include_local_fixture_zk_proof(
+def test_browser_smoke_cases_omit_quarantined_value_routes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from urllib.parse import parse_qs, urlsplit
@@ -552,24 +665,18 @@ def test_strict_browser_smoke_cases_include_local_fixture_zk_proof(
     cases = lc._browser_smoke_cases(
         ui_base="http://127.0.0.1:18080",
         roles=roles,
-        seed_report={"market_id": "perp:ch2p:test"},
         chain_id="chain",
-        zk_required=True,
     )
     by_name = {str(item["name"]): item for item in cases}
 
-    for name in ("zusd_monetary_ui", "perps_wallet_ui"):
-        query = parse_qs(urlsplit(str(by_name[name]["url"])).query)
-        proof = json.loads(query["zkProofJson"][0])
-        assert proof == {
-            "system": "local-testnet-live-wrapper-fixture-v1",
-            "production_security_claim": False,
-        }
-
     spot_query = parse_qs(urlsplit(str(by_name["spot_swap_ui"]["url"])).query)
     assert "zkProofJson" not in spot_query
+    assert set(by_name) == {"spot_swap_ui", "oracle_ui", "confidential_ui"}
     assert "autotrader_ui" not in by_name
     assert "zusd_wallet_ui" not in by_name
+    assert "zusd_monetary_ui" not in by_name
+    assert "zusd_quick_mint_ui" not in by_name
+    assert "perps_wallet_ui" not in by_name
 
 
 # ---------------------------------------------------------------------------
@@ -1706,7 +1813,7 @@ def test_compose_overlay_bootstrap_service_has_writer_token_for_controller_runs(
     service = doc["services"]["zeno-ledger-bootstrap"]
     env = service["environment"]
     assert "ZENO_LEDGER_WRITER_TOKEN" in env
-    assert env["ZENO_LEDGER_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}"
+    assert env["ZENO_LEDGER_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-ZDEX}"
     assert "/app/fixtures/role_pubkeys.json" in service["command"]
     assert "${FIXTURES_DIR:?FIXTURES_DIR must be set by the orchestrator}:/app/fixtures:ro" in service["volumes"]
     assert all("/app/local-secrets" not in volume for volume in service["volumes"])
@@ -1732,23 +1839,21 @@ def test_compose_overlay_tau_local_enables_balance_patch_for_local_state_bootstr
     env = doc["services"]["tau-local"]["environment"]
     assert env["TAU_ENABLE_FAUCET"] == "1"
     assert env["TAU_DEX_FAUCET"] == "1"
-    assert env["TAU_DEX_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}"
+    assert env["TAU_DEX_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-ZDEX}"
     assert env["TAU_DEX_ALLOW_MISSING_SETTLEMENT"] == "1"
     assert env["TAU_APP_BRIDGE_ALLOW_BALANCE_PATCH"] == "1"
 
 
-def test_compose_overlay_exposes_capped_local_testnet_faucets() -> None:
+def test_compose_overlay_quarantines_retired_perps_and_zusd_monetary_routes() -> None:
     doc = _load_compose_overlay()
     env = doc["services"]["zenodex-api"]["environment"]
-    assert env["TAU_DEX_TOKEN_SYMBOL"] == "${ZENO_LEDGER_TOKEN_SYMBOL:-tZDEX}"
-    assert env["PERPS_WALLET_TESTNET_FAUCET_ENABLED"] == "true"
-    assert env["PERPS_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY"].startswith("${TAU_DEX_TOKEN_OPERATOR_PUBKEY")
-    assert env["PERPS_WALLET_TESTNET_FAUCET_MAX_AMOUNT"] == "100000"
-    assert env["PERPS_WALLET_ALLOW_LOCAL_SIGNING"] == "true"
-    assert env["ZUSD_MONETARY_WALLET_TESTNET_FAUCET_ENABLED"] == "true"
-    assert env["ZUSD_MONETARY_WALLET_TESTNET_FAUCET_AUTHORITY_PUBKEY"].startswith("${TAU_DEX_TOKEN_OPERATOR_PUBKEY")
-    assert env["ZUSD_MONETARY_WALLET_TESTNET_FAUCET_SIGNER_PRIVKEY"].startswith("${TAU_DEX_TOKEN_OPERATOR_PRIVKEY")
-    assert env["ZUSD_MONETARY_WALLET_TESTNET_FAUCET_MAX_AMOUNT_E8"] == "1000"
+    assert env["PERPS_WALLET_API_ENABLED"] == "false"
+    assert env["PERPS_WALLET_ALLOW_LOCAL_SIGNING"] == "false"
+    assert env["PERPS_WALLET_AUTO_MINE"] == "false"
+    assert env["PERPS_WALLET_TESTNET_FAUCET_ENABLED"] == "false"
+    assert env["ZUSD_MONETARY_WALLET_API_ENABLED"] == "false"
+    assert env["ZUSD_MONETARY_WALLET_ALLOW_LOCAL_SIGNING"] == "false"
+    assert env["ZUSD_MONETARY_WALLET_AUTO_MINE"] == "false"
 
 
 def test_compose_overlay_autotrader_uses_persistent_execution_journal() -> None:
@@ -1757,20 +1862,15 @@ def test_compose_overlay_autotrader_uses_persistent_execution_journal() -> None:
     assert env["AUTOTRADER_LIVE_EXECUTION_JOURNAL_PATH"] == "/tmp/autotrader_execution_journal.jsonl"
 
 
-def test_seed_api_state_passes_private_fixture_material_on_stdin(monkeypatch) -> None:
+def test_seed_api_state_rejects_current_profile_before_compose_effect(monkeypatch) -> None:
     from tools.zenoctl_testnet_local import compose as cm
     from tools.zenoctl_testnet_local import lifecycle as lc
 
-    captured: dict[str, object] = {}
+    events: list[str] = []
 
     def fake_compose_run(**kwargs):
-        captured.update(kwargs)
-        report = {
-            "ok": True,
-            "chain_id": "zeno-ledger-localtest-v0",
-            "market_id": "perp:ch2p:localtest-zusd-perps-v1",
-        }
-        return subprocess.CompletedProcess(args=["compose"], returncode=0, stdout=json.dumps(report), stderr="")
+        events.append("compose_run")
+        raise AssertionError(f"quarantine must precede compose effect: {kwargs}")
 
     monkeypatch.setattr(lc.cm, "compose_run", fake_compose_run)
     roles = {
@@ -1778,47 +1878,28 @@ def test_seed_api_state_passes_private_fixture_material_on_stdin(monkeypatch) ->
         "bob": {"public_key": "0x" + "22" * 48, "privkey_int": 987654321},
     }
 
-    report = lc._seed_api_state(
-        engine=cm.ComposeEngine(binary="docker"),
-        project="zenodex-local-testnet-test",
-        env={},
-        roles=roles,
-        chain_id="zeno-ledger-localtest-v0",
-        tau_rpc_timeout_s=900.0,
-    )
+    with pytest.raises(RuntimeError, match="retired Tau value routes"):
+        lc._seed_api_state(
+            engine=cm.ComposeEngine(binary="docker"),
+            project="zenodex-local-testnet-test",
+            env={},
+            roles=roles,
+            chain_id="zeno-ledger-localtest-v0",
+            tau_rpc_timeout_s=900.0,
+        )
 
-    assert report["ok"] is True
-    command_text = json.dumps(captured["command"])
-    assert "123456789" not in command_text
-    assert "987654321" not in command_text
-    seed_script = captured["command"][1]
-    assert "wait_for_tau_rpc" in seed_script
-    assert 'client.rpc("hello version=1")' in seed_script
-    assert 'report["steps"]["tau_rpc_ready"] = wait_for_tau_rpc()' in seed_script
-    assert 'report["steps"]["materialize_fixture_native_balances"] = {}' in seed_script
-    assert 'report["steps"]["prefund_fixture_test_assets"] = send_and_mine(' in seed_script
-    assert '"amount": 1000000' in seed_script
-    assert '"amount": 25' in seed_script
-    assert captured["extra_args"] == ["-T"]
-    assert json.loads(str(captured["input_text"]))["roles"]["alice"]["privkey_int"] == 123456789
+    assert events == []
 
 
-def test_release_native_collateral_materializer_uses_prefunded_refiller(monkeypatch) -> None:
+def test_release_native_collateral_materializer_rejects_before_compose_effect(monkeypatch) -> None:
     from tools.zenoctl_testnet_local import compose as cm
     from tools.zenoctl_testnet_local import lifecycle as lc
 
-    captured: dict[str, object] = {}
+    events: list[str] = []
 
     def fake_compose_run(**kwargs):
-        captured.update(kwargs)
-        report = {
-            "ok": True,
-            "schema": "zenodex.local_testnet.release_native_collateral_materialize.v0",
-            "status": "accepted",
-            "refiller_role": "carol",
-            "balance_after_e8": 1000,
-        }
-        return subprocess.CompletedProcess(args=["compose"], returncode=0, stdout=json.dumps(report), stderr="")
+        events.append("compose_run")
+        raise AssertionError(f"quarantine must precede compose effect: {kwargs}")
 
     monkeypatch.setattr(lc.cm, "compose_run", fake_compose_run)
     roles = {
@@ -1827,25 +1908,16 @@ def test_release_native_collateral_materializer_uses_prefunded_refiller(monkeypa
         "bob": {"public_key": "0x" + "22" * 48, "privkey_int": 222},
     }
 
-    report = lc._materialize_release_native_collateral(
-        engine=cm.ComposeEngine(binary="docker"),
-        compose_project="zenodex-local-testnet-test",
-        env={},
-        roles=roles,
-        amount_e8=1000,
-    )
+    with pytest.raises(RuntimeError, match="retired Tau value routes"):
+        lc._materialize_release_native_collateral(
+            engine=cm.ComposeEngine(binary="docker"),
+            compose_project="zenodex-local-testnet-test",
+            env={},
+            roles=roles,
+            amount_e8=1000,
+        )
 
-    assert report["ok"] is True
-    payload = json.loads(str(captured["input_text"]))
-    assert payload["owner_pubkey"] == roles["alice"]["public_key"]
-    assert "owner_privkey_int" not in payload
-    assert "alice" not in payload["refiller_roles"]
-    assert payload["refiller_roles"]["carol"]["privkey_int"] == 333
-    assert payload["preferred_refiller_names"][0] == "carol"
-    script = captured["command"][1]
-    assert 'operations={"1": [[selected["rpc"], owner_rpc, str(needed_now)]]}' in script
-    assert 'operations={"1": [[owner_rpc, owner_rpc, str(needed)]]}' not in script
-    assert "no_release_native_refiller_with_sufficient_balance" in script
+    assert events == []
 
 
 def test_compose_overlay_requires_orchestrator_env() -> None:
@@ -2280,15 +2352,13 @@ def test_port_collision_check_accepts_free_port() -> None:
 def test_port_collision_check_accepts_recently_released_port() -> None:
     from tools.zenoctl_testnet_local import compose as cm
 
+    # A completed TCP connection can leave kernel-managed TIME_WAIT state and
+    # does not model release of a listener-only orchestration port. The
+    # occupied-listener case is covered by the preceding collision test.
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     listener.bind(("127.0.0.1", 0))
     listener.listen(1)
     port = listener.getsockname()[1]
-    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect(("127.0.0.1", port))
-    accepted, _ = listener.accept()
-    accepted.close()
-    client.close()
     listener.close()
 
     cm.check_host_port_free(port)  # no raise
@@ -2359,11 +2429,17 @@ def test_cli_testnet_local_public_help_documents_point_and_click_options() -> No
         assert flag in result.stdout, f"missing flag in public help: {flag}"
 
 
-def test_cli_testnet_local_public_up_help_documents_open_and_smoke_options() -> None:
+def test_cli_testnet_local_public_up_help_is_refusal_only() -> None:
     result = _zenoctl("testnet", "local", "public-up", "--help")
     assert result.returncode == 0, result.stderr
+    help_text = " ".join(result.stdout.split())
     for flag in ("--open", "--release-smoke", "--tunnel-url", "--cloudflared-bin"):
-        assert flag in result.stdout, f"missing flag in public-up help: {flag}"
+        assert flag in help_text, f"missing flag in public-up help: {flag}"
+    assert "refuses before stack, browser, smoke, tunnel, or report effects" in help_text
+    assert "never opens a browser" in help_text
+    assert "never starts cloudflared" in help_text
+    assert "does not run release smoke" in help_text
+    assert "does not emit a host report" in help_text
 
 
 def test_cli_public_defaults_to_point_and_click_posture(
@@ -2430,7 +2506,9 @@ def test_cli_rejects_seed_and_random_together(tmp_path: Path) -> None:
     assert "not allowed" in result.stderr.lower() or "argument" in result.stderr.lower()
 
 
-def test_public_up_fails_fast_when_cloudflared_missing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_public_up_rejects_current_profile_before_cloudflared_resolution(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     from tools.zenoctl_testnet_local import lifecycle as lc
 
     code = lc.cmd_public_up(
@@ -2442,8 +2520,245 @@ def test_public_up_fails_fast_when_cloudflared_missing(tmp_path: Path, capsys: p
     captured = capsys.readouterr()
 
     assert code == 2
-    assert "no Quick Tunnel runner found" in captured.err
+    report = json.loads(captured.out)
+    assert report["status"] == "blocked_current_profile"
+    assert report["current_release_eligible"] is False
+    assert report["authority"] == "NONE"
+    assert report["vm_gates_closed"] == []
+    assert captured.err == ""
     assert not (tmp_path / "local_testnet_manifest.json").exists()
+
+
+def test_public_release_workflow_rejects_before_stack_or_tunnel_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    events: list[str] = []
+    monkeypatch.setattr(lc, "cmd_up", lambda _opts: events.append("up"))
+    monkeypatch.setattr(
+        lc,
+        "_resolve_cloudflared_runner",
+        lambda *_args, **_kwargs: events.append("tunnel_lookup"),
+    )
+
+    code = lc.cmd_public_up(
+        lc.PublicUpOptions(
+            out_dir=tmp_path,
+            tunnel_url="https://public.example",
+            release_smoke_before_tunnel=True,
+        )
+    )
+
+    assert code == 2
+    assert events == []
+    report = json.loads(capsys.readouterr().out)
+    assert report["rejection_code"] == "LOCAL_RELEASE_SMOKE_REQUIRES_QUARANTINED_ROUTES"
+    assert not (tmp_path / "reports").exists()
+
+
+def test_public_up_without_release_smoke_flag_still_rejects_before_stack_or_tunnel_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    events: list[str] = []
+    monkeypatch.setattr(lc, "cmd_up", lambda _opts: events.append("up"))
+    monkeypatch.setattr(
+        lc,
+        "_resolve_cloudflared_runner",
+        lambda *_args, **_kwargs: events.append("tunnel_lookup"),
+    )
+
+    code = lc.cmd_public_up(
+        lc.PublicUpOptions(
+            out_dir=tmp_path,
+            tunnel_url="https://public.example",
+            release_smoke_before_tunnel=False,
+        )
+    )
+
+    assert code == 2
+    assert events == []
+    report = json.loads(capsys.readouterr().out)
+    assert report["status"] == "blocked_current_profile"
+    assert report["current_profile_id"] == "local-testnet-retired-bridge-quarantine-v1"
+    assert report["current_release_eligible"] is False
+    assert report["authority"] == "NONE"
+    assert report["vm_gates_closed"] == []
+    assert not (tmp_path / "reports").exists()
+
+
+def test_release_flow_helper_rejects_current_profile_before_file_or_network_effect(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Arrange.
+    from tools.zenoctl_testnet_local import compose as cm
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    events: list[str] = []
+
+    def record_read(*_args: object, **_kwargs: object) -> dict[str, object]:
+        events.append("read")
+        return {}
+
+    monkeypatch.setattr(
+        lc,
+        "_load_json_file",
+        record_read,
+    )
+    paths = lc.mf.ManifestPaths.from_out_dir(tmp_path)
+
+    # Act.
+    with pytest.raises(RuntimeError, match="retired Tau value routes"):
+        lc._run_release_flow_smoke(
+            ui_base="http://127.0.0.1:18080",
+            paths=paths,
+            manifest={"fixture_paths": {"key_bundle": str(tmp_path / "keys.json")}},
+            engine=cm.ComposeEngine(binary="docker"),
+            compose_project="zenodex-local-testnet-test",
+            env={},
+        )
+
+    # Assert.
+    assert events == []
+
+
+def test_perps_cycle_helper_rejects_current_profile_before_network_effect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange.
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    events: list[str] = []
+
+    def record_post(*_args: object, **_kwargs: object) -> dict[str, object]:
+        events.append("post")
+        return {}
+
+    monkeypatch.setattr(
+        lc,
+        "_post_json",
+        record_post,
+    )
+
+    # Act.
+    with pytest.raises(RuntimeError, match="retired Tau value routes"):
+        lc._run_perps_wallet_cycle_smoke(
+            ui_base="http://127.0.0.1:18080",
+            market_id="perp:retired",
+            roles={},
+            deadline=0,
+        )
+
+    # Assert.
+    assert events == []
+
+
+def test_quick_tunnel_helper_rejects_current_profile_before_runner_or_process_effect(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # Arrange.
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    events: list[str] = []
+    monkeypatch.setattr(
+        lc,
+        "_resolve_cloudflared_runner",
+        lambda *_args, **_kwargs: events.append("runner_lookup"),
+    )
+    paths = lc.mf.ManifestPaths.from_out_dir(tmp_path)
+
+    # Act.
+    with pytest.raises(RuntimeError, match="retired Tau value routes"):
+        lc._run_cloudflare_quick_tunnel(
+            opts=lc.PublicUpOptions(out_dir=tmp_path),
+            paths=paths,
+            manifest={"service_urls": {"ui": "http://127.0.0.1:18080"}},
+        )
+
+    # Assert.
+    assert events == []
+
+
+def test_zusd_transfer_payload_rejects_current_profile_before_role_or_network_effect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Arrange.
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    events: list[str] = []
+    monkeypatch.setattr(
+        lc,
+        "_post_json",
+        lambda *_args, **_kwargs: events.append("post_json"),
+    )
+
+    # Act.
+    with pytest.raises(RuntimeError, match="retired Tau value routes"):
+        lc._zusd_transfer_payload(ui_base="http://127.0.0.1:1", roles={}, deadline=0)
+
+    # Assert.
+    assert events == []
+
+
+def test_public_host_report_direct_call_cannot_probe_or_emit_accepted_release_claim(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    paths = lc.mf.ManifestPaths.from_out_dir(tmp_path)
+    effects: list[str] = []
+    monkeypatch.setattr(
+        lc,
+        "_safe_get_json",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("blocked profile must not probe a host")
+        ),
+    )
+    monkeypatch.setattr(
+        lc,
+        "_write_json",
+        lambda *_args, **_kwargs: effects.append("write_json"),
+    )
+
+    report = lc._write_public_host_report(
+        paths=paths,
+        manifest={"service_urls": {"ui": "http://127.0.0.1:18080"}},
+        public_url="https://public.example",
+        source="test",
+    )
+
+    assert report["ok"] is False
+    assert report["status"] == "blocked_current_profile"
+    assert report["current_release_eligible"] is False
+    assert report["authority"] == "NONE"
+    assert report["vm_gates_closed"] == []
+    assert effects == []
+    assert not paths.reports_dir.exists()
+
+
+def test_public_host_summary_cannot_describe_blocked_profile_as_ready() -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+
+    summary = lc._public_host_summary(
+        {
+            "ok": False,
+            "status": "blocked_current_profile",
+            "current_profile_id": "local-testnet-retired-bridge-quarantine-v1",
+        }
+    )
+
+    assert "unavailable" in summary
+    assert "ready" not in summary
+    assert "Authority: NONE" in summary
 
 
 def test_default_cloudflared_uses_container_runtime_when_binary_missing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -2790,6 +3105,8 @@ def test_lane_readiness_keeps_stack_ready_when_only_tokenomics_gate_blocks(
     }
     assert all("/api/strategy/autotrader/" not in url for url in requested_urls)
     assert all("/api/zusd/wallet/" not in url for url in requested_urls)
+    assert all("/api/zusd/monetary/" not in url for url in requested_urls)
+    assert all("/api/perps/wallet/" not in url for url in requested_urls)
 
 
 def test_feature_smoke_omits_quarantined_autotrader_and_zusd_tau_wallet_lanes(
@@ -2809,8 +3126,6 @@ def test_feature_smoke_omits_quarantined_autotrader_and_zusd_tau_wallet_lanes(
     def fake_load(_path: Path, *, label: str) -> dict:
         if label == "key bundle":
             return {"roles": roles}
-        if label == "api seed report":
-            return {"market_id": "perp:ch2p:test"}
         raise AssertionError(label)
 
     def fake_post(url: str, _payload: object) -> dict:
@@ -2823,7 +3138,6 @@ def test_feature_smoke_omits_quarantined_autotrader_and_zusd_tau_wallet_lanes(
     monkeypatch.setattr(lc, "_smoke_run_id", lambda: "run-1")
     monkeypatch.setattr(lc, "_build_signed_live_swap_payload", lambda **_kwargs: {})
     monkeypatch.setattr(lc, "_run_complex_grouped_transaction_smoke", lambda **_kwargs: {"ok": True})
-    monkeypatch.setattr(lc, "_run_perps_wallet_cycle_smoke", lambda **_kwargs: {"ok": True})
     monkeypatch.setattr(lc, "_run_oracle_write_smoke", lambda **_kwargs: {"ok": True})
     monkeypatch.setattr(lc, "_confidential_local_fixture_from_manifest", lambda **_kwargs: object())
     monkeypatch.setattr(lc, "_confidential_runtime_payload", lambda **_kwargs: {})
@@ -2843,6 +3157,10 @@ def test_feature_smoke_omits_quarantined_autotrader_and_zusd_tau_wallet_lanes(
     assert all("/api/strategy/autotrader/" not in url for url in posted_urls)
     assert "zusd_wallet_transfer" not in report["checks"]
     assert all("/api/zusd/wallet/" not in url for url in posted_urls)
+    assert "zusd_monetary_advance_epoch" not in report["checks"]
+    assert "perps_publish_clearing_price" not in report["checks"]
+    assert all("/api/zusd/monetary/" not in url for url in posted_urls)
+    assert all("/api/perps/wallet/" not in url for url in posted_urls)
 
 
 def test_runtime_env_for_existing_manifest_recovers_tokens_and_roles(tmp_path: Path) -> None:

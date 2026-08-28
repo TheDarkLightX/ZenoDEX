@@ -55,20 +55,24 @@ Run the packaging readiness check:
 python3 tools/check_operator_packaging.py --pretty
 ```
 
-Build a deterministic operator release bundle:
+Build a deterministic unadmitted operator candidate archive for format testing:
 
 ```bash
-python3 tools/build_operator_release_bundle.py build \
+python3 tools/build_operator_release_bundle.py candidate \
   --version dev \
   --out-dir /tmp/zenodex-release
 ```
 
-Verify the bundle manifest:
+Verify the candidate manifest:
 
 ```bash
 python3 tools/build_operator_release_bundle.py verify \
-  --manifest /tmp/zenodex-release/zenodex-operator-dev.tar.gz.manifest.json
+  --manifest /tmp/zenodex-release/zenodex-operator-candidate-dev.tar.gz.manifest.json
 ```
+
+The `build` subcommand refuses before writing files while the current operator
+profile is release-ineligible. Candidate archives grant no release or
+publication authority.
 
 ## 2. Operator Preflight
 
@@ -137,8 +141,10 @@ Tau + Oracle + stdlib API), use the dedicated `local` subcommand:
 python3 tools/zenoctl.py testnet local up --out-dir /tmp/zen-local
 ```
 
-Open <http://127.0.0.1:18080> when bring-up reports `phase=done`. Every UI
-tab hits a real local backend. See
+Open <http://127.0.0.1:18080> when bring-up reports `phase=done`. Spot and the
+bounded enabled research surfaces can reach local backends. Perps, both zUSD
+routes, and AutoTrader remain visible donor surfaces without mounted write
+backends. See
 [docs/LOCAL_TESTNET_QUICKSTART.md](LOCAL_TESTNET_QUICKSTART.md) for the
 full guide (lifecycle, fixture locations, what each tab is wired to,
 security posture).
@@ -152,9 +158,10 @@ zenodex-local-testnet up --out-dir /tmp/zen-local
 zenodex-local-testnet smoke --out-dir /tmp/zen-local --browser required
 ```
 
-`zenodex-public-testnet` is the point-and-click public path: it uses the
-default public-testnet directory, runs the release smoke, opens the public UI,
-and pre-funds the fixture test accounts before the browser opens.
+`zenodex-public-testnet` is a retained launcher. Its default historical release
+smoke now refuses before stack, tunnel, manifest, report, or browser effects
+because stream `8` and stream `11` are quarantined. Use the explicitly narrower
+research workflow only when no v0.1.16 release claim is intended.
 `zenodex-public-follower` is the outside-node path: it downloads the public
 config, hash-pins the bundle, replays bootstrap, pulls live blocks, and emits a
 common-header acceptance report.

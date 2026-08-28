@@ -1,10 +1,16 @@
 {
   "schema": "zenodex.dex_ui.surface_contract.v1",
-  "version": "dex-ui-production-facing-20260527-v2",
-  "purpose": "Pin the zUSD, swap, perps, wallet, and theme UI surfaces so stale Docker builds and missing user-facing capabilities fail fast.",
+  "version": "dex-ui-current-route-quarantine-20260828-v1",
+  "purpose": "Pin retained product surfaces and require current-profile perps and zUSD value-route controls to remain fail-closed.",
+  "current_quarantined_value_route_ui_flags": [
+    "perpsWalletUiEnabled",
+    "zusdTauWalletUiEnabled",
+    "zusdMonetaryWalletUiEnabled"
+  ],
   "required_capabilities": [
     "dark_light_theme_switcher",
     "live_mode_demo_disabled_by_runtime_config",
+    "current_profile_quarantines_retired_perps_and_zusd_controls",
     "perps_live_wallet_status_source",
     "perps_external_signer_wording",
     "perps_local_testnet_write_wording",
@@ -28,6 +34,36 @@
     "path": "src/lib/DemoModeProvider.jsx",
     "contains": "allowDemoMode",
     "reason": "local testnet can hard-disable demo mode"
+  },
+  {
+    "path": "src/lib/api.js",
+    "contains": "getRuntimeValueRoutePresentationV1",
+    "reason": "value-route presentation snapshots exact owned booleans and fails closed on malformed runtime config"
+  },
+  {
+    "path": "src/lib/PerpProvider.jsx",
+    "contains": "demoMode || (perpsWalletEnabled && perpsPreviewWritesRequested)",
+    "reason": "query and build-time write requests cannot override current perps route quarantine"
+  },
+  {
+    "path": "src/components/perps/PerpTradingView.jsx",
+    "contains": "!demoMode && perpsWalletEnabled && (",
+    "reason": "retired perps signer controls mount only after exact UI-route admission"
+  },
+  {
+    "path": "src/components/ZUSDWorkbench.jsx",
+    "contains": "zUSD value routes are quarantined",
+    "reason": "current zUSD surface renders a read-only quarantine notice"
+  },
+  {
+    "path": "src/components/ZUSDWorkbench.jsx",
+    "contains": "zusdMonetaryWalletEnabled && <ZUSDMonetarySurface />",
+    "reason": "zUSD monetary signer controls require exact UI-route admission"
+  },
+  {
+    "path": "src/components/ZUSDWorkbench.jsx",
+    "contains": "zusdTauWalletEnabled && <ZUSDTauWalletSurface />",
+    "reason": "zUSD token-transfer signer controls require exact UI-route admission"
   },
   {
     "path": "src/sdk/walletSignerPolicy.js",

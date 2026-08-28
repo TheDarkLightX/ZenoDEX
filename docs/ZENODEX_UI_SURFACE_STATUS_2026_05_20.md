@@ -1,43 +1,55 @@
 # ZenoDEX UI Surface Status (2026-05-20)
 
-This note records the mounted ZenoDEX UI posture as of 2026-05-20.
+This note records the UI surface inventory that existed on 2026-05-20.
 
-Current authority correction (2026-08-26): normal API startup now refuses the
-AutoTrader live route until client-signed DEX intent envelopes exist and are
-verified. The checked-in local-testnet profile, its enabled-lane manifest,
-readiness probes, feature smoke, and browser smoke all omit that route. The
-Strategy row below is retained as historical research coverage and does not
-describe a currently mounted value-submission lane.
+Current authority correction (2026-08-28): normal API startup refuses the
+stream `8` perps wallet, stream `9` zUSD wallet, stream `11` zUSD monetary, and
+AutoTrader live routes. The checked-in local-testnet manifest, seeding,
+readiness probes, feature smoke, and browser smoke omit those routes. Release
+smoke rejects before reading a manifest or contacting a runtime. The visible
+UI surfaces and dated evidence below remain historical donor or shadow
+evidence. They do not establish current value-submission reachability,
+settlement authority, or an end-user key-control workflow.
 
-## Mounted surfaces
+The current runtime profile sets the perps, zUSD token-transfer, and zUSD
+monetary UI route flags exactly `false`. Perps retains a read-only market view
+while hiding its operator console. The zUSD tab renders a read-only quarantine
+notice without mounting quick-mint, monetary, token-transfer, or signer
+controls. URL and build-time requests cannot override these current-profile
+gates.
+
+Every later use of "mounted" in this dated note describes the superseded
+2026-05-20 research profile.
+
+## Historical donor surface inventory
 
 | Surface | Mounted in UI | Default posture | Authoritative backend path | Browser evidence |
 | --- | --- | --- | --- | --- |
 | Swap / Pools | Yes | Live local/testnet spot lane | Yes, mounted spot path through local API and Tau-ledger flow | `tests/integration/test_dex_ui_live_bridge.py` |
-| zUSD | UI retained; monetary lane mounted, Tau wallet route unmounted | Stream `11` collateral mint, repay, redeem, Stability Pool, liquidation, and SP collateral claims remain mounted through `/api/zusd/monetary/*`. Normal API startup refuses `/api/zusd/wallet/*` pending network-domain signature binding and durable submission reconciliation. | Current monetary evidence: `tests/integration/test_zusd_monetary_wallet_ui_bridge.py`, `tests/integration/test_zusd_monetary_wallet_ui_docker.py`, `tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_zusd_monetary_stability_pool_liquidation_and_claim`. Historical stream `9` donor tests: `tests/integration/test_zusd_tau_wallet_ui_bridge.py`, `tests/integration/test_zusd_tau_wallet_ui_docker.py`. |
+| zUSD | UI retained; stream-9 wallet and stream-11 monetary routes unmounted | The current tab shows a read-only quarantine notice. Historical stream `11` monetary and stream `9` wallet components remain available as source donors behind exact false runtime gates. Normal API startup refuses both routes pending current network-domain, durable-reconciliation, route, and release bindings. | Current negative evidence: `tests/integration/test_retired_value_route_ui_quarantine.py`. Historical donor evidence: `tests/integration/test_zusd_monetary_wallet_ui_bridge.py`, `tests/integration/test_zusd_monetary_wallet_ui_docker.py`, `tests/integration/test_zusd_tau_wallet_ui_bridge.py`, and `tests/integration/test_zusd_tau_wallet_ui_docker.py`. |
 | Oracle | Yes | Live local operator console with authority preflight | Yes for local read/write API routes, dashboard reads, a write-enabled receipt flow, `/api/oracle/authority` production-authority preflight, and a bounded `/api/oracle/authority/exercise/evaluate` receipt lane with receipt-binding and public-evidence binding hashes. Public-testnet authority exercise still requires concrete public broadcast references. | `tests/integration/test_zeno_oracle_ui_bridge.py`, `tests/integration/test_zenodex_oracle_cli.py`, `tests/integration/test_zeno_oracle_authority.py` |
-| Perpetuals | Yes | Read-only preview plus live wallet panel in non-demo mode | Yes for stream `8` two-party clearinghouse init, collateral deposit/withdraw, signed position updates, epoch advance, oracle price publish, and settle through `/api/perps/wallet/*`. The mounted `/api/perps/*` path remains demo/development. | `tests/integration/test_perps_ui_preview_lock.py`, `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, `tests/integration/test_perps_stream8_resilience.py` |
+| Perpetuals | UI retained; stream-8 live wallet route unmounted | Read-only preview; current runtime hides the historical live-wallet donor panel | Historical stream `8` clearinghouse, collateral, position, epoch, Oracle, and settlement donors are retained behind an exact false runtime gate. Normal API startup refuses `/api/perps/wallet/*`. | Current negative evidence: `tests/integration/test_perps_ui_preview_lock.py` and `tests/integration/test_retired_value_route_ui_quarantine.py`. Historical donor evidence: `tests/integration/test_perps_wallet_api.py`, `tests/integration/test_perps_wallet_ui_bridge.py`, and `tests/integration/test_perps_stream8_resilience.py`. |
 | Strategy | UI retained; live route unmounted | Historical donor coverage only | Normal API startup refuses `/api/strategy/autotrader/*`, and the local-testnet manifest, readiness, feature smoke, and browser smoke omit it pending client-signed DEX intent envelopes and review. | Historical donor tests: `tests/integration/test_autotrader_live_api.py`, `tests/integration/test_autotrader_execution_journal.py`, `tests/integration/test_autotrader_live_ui_bridge.py` |
 | Confidential | Yes | Live operator-status plus local/testnet attestation and bounded runtime-receipt surface | Yes for status via `GET /api/confidential/status`, local/testnet external-verifier attestation receipts via `POST /api/confidential/attestation/verify`, stateful live-admission request consumption via `POST /api/confidential/attestation/admit`, and redacted bounded runtime receipts via `POST /api/confidential/attestation/execute`, now bound to public operator-status, measurement-allowlist, and verifier-configuration hashes. Runtime confidential privacy remains a non-claim. | `tests/integration/test_confidential_ui_bridge.py`, `tests/integration/test_api_server_confidential.py`, `tests/integration/test_zenodex_live_cross_stream_stateful.py` |
 
 ## Interpretation
 
-The mounted app is the intended ZenoDEX shell. The open gap is no longer shell
-selection.
+The visible app remains the intended ZenoDEX shell. Visible tabs grant no route,
+settlement, or release authority.
 
 The next product-complete backend promotions still required are:
 
-1. public-testnet exercise of a signed production Oracle authority profile, full wallet/key-manager UX, and proof/ZK promotion for the mounted perps live lane;
+1. public-testnet exercise of a signed production Oracle authority profile, full wallet/key-manager UX, and proof/ZK qualification before any perps live lane is mounted;
 2. client-signed DEX intent envelopes, durable ambiguous-outcome reconciliation, and a reviewed strategy route before AutoTrader may be mounted;
 3. confidential runtime privacy beyond the external-verifier attestation receipt, live-admission gate, and bounded redacted runtime receipt path.
 
-Normal API startup refuses `/api/zusd/wallet/*`. The stream `11`
-monetary-vault path remains mounted. The stream `9` transport implementation
-and its historical UI tests are direct shadow/donor material until the missing
-signature-domain and durable-reconciliation obligations close.
+Normal API startup refuses `/api/zusd/wallet/*` and
+`/api/zusd/monetary/*`. Both transport implementations and their historical UI
+tests are direct shadow/donor material until current network-domain,
+durable-reconciliation, route, and release obligations close.
 
-Perps now has focused backend and browser evidence for a mounted live wallet
-lane. Collateral-minted zUSD can be transferred and used as the quote collateral
+The perps donor has focused backend and browser evidence for an unmounted live
+wallet candidate. In the superseded profile, collateral-minted zUSD could be transferred and used as the quote collateral
 asset for signed clearinghouse collateral deposits, and the UI can submit signed
 stream `8` market init, oracle price publish, and opt-in isolated partial
 liquidation actions through `/api/perps/wallet/*`. Local typed Oracle bridge
@@ -55,7 +67,7 @@ now emits a deterministic `perps_stream8_live_wallet_v0` proof-intent receipt
 that binds chain id, stream key, operation hash, operation-stream hash,
 pre-submit app hash, optional post-submit app hash, Tau envelope hash, preflight
 result, sender, sequence, fee limit, signing mode, and a public state-delta
-witness for changed perps markets after submit. The mounted UI renders that
+witness for changed perps markets after submit. The retained donor UI renders that
 proof profile, receipt hash, delta-witness count, the perps wallet-authority
 preflight status, public recovery and rotation exercise receipts when present,
 and the perps-side Oracle authority preflight status.
@@ -73,7 +85,7 @@ Oracle profile validates and its chain id matches the perps wallet chain. The UI
 reports both authorities as blocked when profiles are absent, invalid, or missing
 a signer-registry BLS signature quorum over the authority profile hash, while
 keeping `zk_proof_verified=false` until a real RISC Zero or equivalent verifier
-is present. The mounted perps wallet now also surfaces `ZK Artifacts` and the
+is present. The retained perps wallet donor also surfaces `ZK Artifacts` and the
 wrapper binding hash when a submit carries declared verifier and circuit
 artifact metadata. The completion plan is recorded in
 `docs/PERPS_BACKEND_COMPLETION_PLAN_2026_05_20.md`. The main blockers are now
@@ -121,7 +133,7 @@ effect digest, receipt hashes, operator-status hash, measurement-allowlist
 hash, and verifier-binding hash. Runtime confidential privacy and in-process
 remote-attestation cryptography remain out of scope.
 
-## Current browser checks
+## Historical donor browser checks
 
 Run these from repo root:
 
@@ -135,19 +147,19 @@ pytest -q \
   tests/integration/test_confidential_ui_bridge.py
 ```
 
-These checks prove:
+These checks provide bounded test evidence that:
 
 - the mounted Oracle tab can bind to a real local Oracle service and execute a
   write-enabled local receipt flow when the service is started with
   `--allow-writes`, while an unreachable local Oracle service renders a
   fail-closed offline status and keeps authority blocked;
-- the mounted zUSD tab can submit stream `11` monetary-vault actions through the Tau-node-backed API, including the local Docker Tau node lane;
-- the mounted perps tab fails closed to read-only preview by default for the demo trading grid in non-demo mode;
-- the mounted perps wallet panel can submit signed stream `8` clearinghouse init
+- the retained zUSD donor exercised stream `11` monetary-vault actions through the historical Tau-node-backed API;
+- the retained perps tab fails closed to read-only preview by default for the demo trading grid in non-demo mode;
+- the retained perps wallet donor exercised signed stream `8` clearinghouse init
   and oracle price publish actions through the Tau-node-backed API;
 - the mounted confidential tab can load live operator posture from the stdlib API server and run a local/testnet external-verifier attestation admission smoke.
 
-Current backend-only perps bridge check:
+Historical backend-only perps bridge checks:
 
 ```bash
 pytest -q tests/integration/test_tau_testnet_dex_plugin.py::test_apply_app_tx_perps_accepts_zusd_token_as_quote_collateral

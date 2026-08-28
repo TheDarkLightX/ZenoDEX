@@ -8,8 +8,8 @@ The orchestrator drives:
   5. Write manifest at <out_dir>/local_testnet_manifest.json.
   6. `compose up -d` the local-testnet overlay.
   7. Wait for base service health through nginx.
-  8. Seed ledger/zUSD/perps state so the mounted tabs are actually usable.
-  9. Run lane readiness checks and print a short summary.
+  8. Run readiness checks for currently admitted local research surfaces.
+  9. Keep retained zUSD, perps, and AutoTrader donor routes uncalled.
 """
 
 from __future__ import annotations
@@ -32,6 +32,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
+from src.integration.local_route_quarantine import (
+    current_local_operator_release_admission_v1,
+    refuse_current_local_operator_operation_v1,
+)
 from src.integration.zusd_tau_token import derive_zusd_tau_asset_id
 from tools.zeno_ledger_make_testnet_bundle import (
     DEFAULT_RELEASE_TESTNET_TOKEN_SYMBOL,
@@ -336,17 +340,6 @@ def cmd_up(opts: UpOptions) -> int:
         )
         _write_json(paths.reports_dir / "ledger_controller_report.json", controller_report)
 
-        _log("seed", "seeding zUSD monetary state and perps market")
-        seed_report = _seed_api_state(
-            engine=engine,
-            project=project,
-            env=env,
-            roles=roles,
-            chain_id=opts.chain_id,
-            tau_rpc_timeout_s=max(float(opts.health_timeout_s), 900.0),
-        )
-        _write_json(paths.reports_dir / "api_seed_report.json", seed_report)
-
         readiness = _wait_for_lane_readiness(ui_base=ui_base, timeout_s=opts.health_timeout_s, manifest=manifest)
         _write_json(paths.reports_dir / "readiness_report.json", readiness)
     except Exception as exc:
@@ -573,106 +566,34 @@ def cmd_smoke(opts: SmokeOptions) -> int:
 
 
 def cmd_release_smoke(opts: ReleaseSmokeOptions) -> int:
-    paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
-    manifest = _load_manifest_if_present(paths.manifest_path)
-    if manifest is None:
-        report = {"ok": False, "status": "no_manifest", "manifest_path": str(paths.manifest_path)}
-        _write_json(paths.reports_dir / "release_flow_smoke_report.json", report)
-        print(json.dumps(report, indent=2, sort_keys=True))
-        return 1
-
-    engine = cm.detect_engine(opts.engine)
-    env = _runtime_env_for_existing_manifest(manifest=manifest, paths=paths)
-    services = cm.compose_ps_json(
-        engine=engine,
-        project_name=str(manifest["compose_project"]),
-        compose_files=[COMPOSE_FILE],
-        env=env,
-    )
-    ui_base = str(manifest["service_urls"]["ui"])
-    report: dict[str, Any] = {
+    _ = opts
+    admission = current_local_operator_release_admission_v1()
+    report = {
         "schema": "zenodex.local_testnet.release_flow_smoke_report.v1",
         "ok": False,
-        "status": "running",
-        "manifest_path": str(paths.manifest_path),
-        "compose_project": manifest["compose_project"],
-        "ui_url": ui_base,
-        "service_count": len(services),
-        "assets": {
-            "tAGRS": DEFAULT_TAGRS_ASSET_ID,
-            "tZDEX": DEFAULT_TZDEX_ASSET_ID,
-            "zUSD": derive_zusd_tau_asset_id(chain_id=str(manifest["chain_id"])),
-        },
+        "status": "blocked_current_profile",
+        "rejection_code": "LOCAL_RELEASE_SMOKE_REQUIRES_QUARANTINED_ROUTES",
+        "current_profile_id": admission.profile_id,
+        "current_release_eligible": admission.current_release_eligible,
+        "authority": admission.authority,
+        "vm_gates_closed": list(admission.vm_gates_closed),
+        "release_blocker": admission.blocker,
+        "quarantined_routes": [
+            "PERPS_WALLET_API_ENABLED",
+            "ZUSD_TAU_WALLET_API_ENABLED",
+            "ZUSD_MONETARY_WALLET_API_ENABLED",
+        ],
+        "value_movement_authority": "NONE",
         "checks": {},
     }
-    try:
-        report["checks"] = _run_release_flow_smoke(
-            ui_base=ui_base,
-            paths=paths,
-            manifest=manifest,
-            engine=engine,
-            compose_project=str(manifest["compose_project"]),
-            env=env,
-        )
-        report["ok"] = all(bool(item.get("ok")) for item in report["checks"].values())
-        report["status"] = "accepted" if report["ok"] else "rejected"
-    except Exception as exc:
-        report["ok"] = False
-        report["status"] = "rejected"
-        report["error"] = f"{type(exc).__name__}: {exc}"
-    _write_json(paths.reports_dir / "release_flow_smoke_report.json", report)
     print(json.dumps(report, indent=2, sort_keys=True))
-    return 0 if report["ok"] else 1
+    return 2
 
 
 def cmd_public_up(opts: PublicUpOptions) -> int:
-    if not opts.tunnel_url and _resolve_cloudflared_runner(opts.cloudflared_bin, engine=opts.engine) is None:
-        _log(
-            "public",
-            "no Quick Tunnel runner found. Install cloudflared, keep Docker/Podman on PATH, "
-            "or pass --tunnel-url after starting a tunnel.",
-        )
-        return 2
-    up_code = cmd_up(
-        UpOptions(
-            out_dir=opts.out_dir,
-            chain_id=opts.chain_id,
-            network_id=opts.network_id,
-            ui_port=opts.ui_port,
-            engine=opts.engine,
-            force=opts.force,
-            health_timeout_s=opts.health_timeout_s,
-            seed_override_hex=opts.seed_override_hex,
-            use_random_seed=opts.use_random_seed,
-            zk_mode=opts.zk_mode,
-        )
+    return cmd_release_smoke(
+        ReleaseSmokeOptions(out_dir=opts.out_dir, engine=opts.engine)
     )
-    if up_code != 0:
-        return up_code
-
-    paths = mf.ManifestPaths.from_out_dir(opts.out_dir)
-    manifest = _load_manifest_if_present(paths.manifest_path)
-    if manifest is None:
-        _log("public", f"manifest missing after up: {paths.manifest_path}")
-        return 1
-    if opts.release_smoke_before_tunnel:
-        _log("public", "running v0.1.16 release smoke before opening the public tunnel")
-        smoke_code = cmd_release_smoke(ReleaseSmokeOptions(out_dir=opts.out_dir, engine=opts.engine))
-        if smoke_code != 0:
-            _log("public", "release smoke failed; public tunnel was not opened")
-            return smoke_code
-    if opts.tunnel_url:
-        report = _write_public_host_report(
-            paths=paths,
-            manifest=manifest,
-            public_url=opts.tunnel_url,
-            source="provided",
-        )
-        sys.stderr.write(_public_host_summary(report))
-        if opts.open_browser and report.get("ok") is True:
-            _open_public_ui_url(str(report["public_ui_url"]))
-        return 0 if report.get("ok") is True else 1
-    return _run_cloudflare_quick_tunnel(opts=opts, paths=paths, manifest=manifest)
 
 
 def cmd_logs(opts: LogsOptions) -> int:
@@ -1582,6 +1503,21 @@ def _seed_api_state(
     chain_id: str,
     tau_rpc_timeout_s: float,
 ) -> dict[str, Any]:
+    _ = (engine, project, env, roles, chain_id, tau_rpc_timeout_s)
+    refuse_current_local_operator_operation_v1("seed_api_state")
+
+
+def _seed_api_state_historical_donor(
+    *,
+    engine: cm.ComposeEngine,
+    project: str,
+    env: dict[str, str],
+    roles: Mapping[str, Mapping[str, Any]],
+    chain_id: str,
+    tau_rpc_timeout_s: float,
+) -> dict[str, Any]:
+    """Retained unmounted seed implementation for later current-Tau refinement."""
+
     payload = {
         "chain_id": chain_id,
         "market_id": DEFAULT_MARKET_ID,
@@ -2204,28 +2140,29 @@ def _probe_ui_surface_contract(*, ui_base: str) -> dict[str, Any]:
 
 
 def _collect_lane_readiness(*, ui_base: str, manifest: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    enabled_lanes = frozenset(
+        LOCAL_TESTNET_ENABLED_LANES
+        if manifest is None
+        else tuple(manifest.get("enabled_lanes") or ())
+    )
     lanes = {
-        "spot": _safe_get_json(f"{ui_base}/api/pools"),
-        "zusd_monetary": _safe_get_json(f"{ui_base}/api/zusd/monetary/status"),
-        "perps_wallet": _safe_get_json(f"{ui_base}/api/perps/wallet/status", timeout_s=15.0),
         "oracle_health": _safe_get_json(f"{ui_base}/api/oracle/health"),
         "oracle_dashboard": _safe_get_json(f"{ui_base}/api/oracle/dashboard"),
-        "confidential": _safe_get_json(f"{ui_base}/api/confidential/status"),
     }
     checks = {
-        "spot": bool(lanes["spot"].get("ok")) and isinstance(lanes["spot"].get("pools"), list) and len(lanes["spot"]["pools"]) > 0,
-        "zusd_monetary": bool(lanes["zusd_monetary"].get("ok"))
-        and bool(((lanes["zusd_monetary"].get("status") or {}).get("node_reachable")))
-        and bool(((lanes["zusd_monetary"].get("status") or {}).get("monetary_state_present"))),
-        "perps_wallet": bool(lanes["perps_wallet"].get("ok"))
-        and bool(((lanes["perps_wallet"].get("status") or {}).get("node_reachable")))
-        and int(((lanes["perps_wallet"].get("status") or {}).get("market_count") or 0)) >= 1
-        and bool((((lanes["perps_wallet"].get("status") or {}).get("wallet_authority") or {}).get("ok")))
-        and bool((((lanes["perps_wallet"].get("status") or {}).get("oracle_authority") or {}).get("ok"))),
         "oracle_health": bool(lanes["oracle_health"].get("ok")),
         "oracle_dashboard": bool(lanes["oracle_dashboard"].get("ok")),
-        "confidential": bool(lanes["confidential"].get("ok")),
     }
+    if "DEX_API_ENABLED" in enabled_lanes:
+        lanes["spot"] = _safe_get_json(f"{ui_base}/api/pools")
+        checks["spot"] = (
+            bool(lanes["spot"].get("ok"))
+            and isinstance(lanes["spot"].get("pools"), list)
+            and len(lanes["spot"]["pools"]) > 0
+        )
+    if "CONFIDENTIAL_ATTESTATION_API_ENABLED" in enabled_lanes:
+        lanes["confidential"] = _safe_get_json(f"{ui_base}/api/confidential/status")
+        checks["confidential"] = bool(lanes["confidential"].get("ok"))
     key_management_authority = _key_management_authority_readiness(manifest=manifest, lanes=lanes)
     zk_posture = _zk_posture_from_manifest(manifest)
     tokenomics_authority_ready = bool(key_management_authority.get("tokenomics_authority_ready"))
@@ -2472,12 +2409,10 @@ def _contains_private_key_field(value: object) -> bool:
 def _run_feature_smoke(*, ui_base: str, paths: mf.ManifestPaths, manifest: Mapping[str, Any]) -> dict[str, Any]:
     key_bundle_path = Path(str(manifest["fixture_paths"]["key_bundle"]))
     roles = _role_materials(_load_json_file(key_bundle_path, label="key bundle"))
-    seed_report = _load_json_file(paths.reports_dir / "api_seed_report.json", label="api seed report")
     deadline = int(time.time()) + 3600
     run_id = _smoke_run_id()
     chain_id = str(manifest["chain_id"])
     confidential_fixture = _confidential_local_fixture_from_manifest(manifest=manifest, paths=paths)
-    zk_required = manifest.get("zk_required") is True
 
     # Fund Alice with release-facing test assets so spot swap tests succeed.
     alice_pubkey = _role_pubkey(roles, "alice")
@@ -2542,35 +2477,6 @@ def _run_feature_smoke(*, ui_base: str, paths: mf.ManifestPaths, manifest: Mappi
         ),
     )
     capture(
-        "zusd_monetary_advance_epoch",
-        lambda: _summarize_response(
-            _post_json(
-                f"{ui_base}/api/zusd/monetary/submit",
-                _with_local_fixture_zk_proof(
-                    {
-                        "action": "advance_epoch",
-                        "actor_pubkey": _role_pubkey(roles, "alice"),
-                        "delta": 1,
-                        "deadline": deadline,
-                        "tx_fee_limit": "0",
-                        "signer_privkey": _role_privkey_int(roles, "alice"),
-                    },
-                    zk_required=zk_required,
-                ),
-            ),
-        ),
-    )
-    capture(
-        "perps_publish_clearing_price",
-        lambda: _run_perps_wallet_cycle_smoke(
-            ui_base=ui_base,
-            market_id=str(seed_report["market_id"]),
-            roles=roles,
-            deadline=deadline,
-            zk_required=zk_required,
-        ),
-    )
-    capture(
         "oracle_write_flow",
         lambda: _run_oracle_write_smoke(ui_base=ui_base, run_id=run_id),
     )
@@ -2599,6 +2505,20 @@ def _materialize_release_native_collateral(
     roles: Mapping[str, Mapping[str, Any]],
     amount_e8: int,
 ) -> dict[str, Any]:
+    _ = (engine, compose_project, env, roles, amount_e8)
+    refuse_current_local_operator_operation_v1("materialize_release_native_collateral")
+
+
+def _materialize_release_native_collateral_historical_donor(
+    *,
+    engine: cm.ComposeEngine,
+    compose_project: str,
+    env: Mapping[str, str],
+    roles: Mapping[str, Mapping[str, Any]],
+    amount_e8: int,
+) -> dict[str, Any]:
+    """Retained unmounted collateral materializer for later route refinement."""
+
     owner = roles["alice"]
     preferred_refiller_names = [
         "carol",
@@ -2783,6 +2703,21 @@ def _run_release_flow_smoke(
     compose_project: str,
     env: Mapping[str, str],
 ) -> dict[str, Any]:
+    _ = (ui_base, paths, manifest, engine, compose_project, env)
+    refuse_current_local_operator_operation_v1("release_flow_smoke")
+
+
+def _run_release_flow_smoke_historical_donor(
+    *,
+    ui_base: str,
+    paths: mf.ManifestPaths,
+    manifest: Mapping[str, Any],
+    engine: cm.ComposeEngine,
+    compose_project: str,
+    env: Mapping[str, str],
+) -> dict[str, Any]:
+    """Retained unmounted release smoke for later route refinement."""
+
     key_bundle_path = Path(str(manifest["fixture_paths"]["key_bundle"]))
     roles = _role_materials(_load_json_file(key_bundle_path, label="key bundle"))
     seed_report = _load_json_file(paths.reports_dir / "api_seed_report.json", label="api seed report")
@@ -3042,14 +2977,11 @@ def _run_browser_smoke(
 
     key_bundle_path = Path(str(manifest["fixture_paths"]["key_bundle"]))
     roles = _role_materials(_load_json_file(key_bundle_path, label="key bundle"))
-    seed_report = _load_json_file(paths.reports_dir / "api_seed_report.json", label="api seed report")
     checks: dict[str, Any] = {}
     for item in _browser_smoke_cases(
         ui_base=ui_base,
         roles=roles,
-        seed_report=seed_report,
         chain_id=str(manifest["chain_id"]),
-        zk_required=manifest.get("zk_required") is True,
     ):
         checks[str(item["name"])] = _run_browser_case(
             chrome=chrome,
@@ -3102,16 +3034,10 @@ def _browser_smoke_cases(
     *,
     ui_base: str,
     roles: Mapping[str, Mapping[str, Any]],
-    seed_report: Mapping[str, Any],
     chain_id: str,
-    zk_required: bool = False,
 ) -> list[dict[str, Any]]:
     deadline = int(time.time()) + 3600
     alice = _role_pubkey(roles, "alice")
-    alice_priv = roles["alice"]["privkey_hex"]
-    oracle_auth = _role_pubkey(roles, "oracle_authority")
-    oracle_priv = roles["oracle_authority"]["privkey_hex"]
-    market_id = str(seed_report["market_id"])
     spot_payload = _build_signed_live_swap_payload(
         ui_base=ui_base,
         roles=roles,
@@ -3126,8 +3052,6 @@ def _browser_smoke_cases(
 
     def url(params: Mapping[str, str]) -> str:
         return f"{ui_base}/?{urllib.parse.urlencode(params)}"
-
-    zk_query = {"zkProofJson": _local_fixture_zk_proof_json()} if zk_required else {}
 
     return [
         {
@@ -3148,58 +3072,6 @@ def _browser_smoke_cases(
                 }
             ),
             "snippets": ("Swap Confirmed",),
-        },
-        {
-            "name": "zusd_monetary_ui",
-            "url": url(
-                {
-                    "tab": "zusd",
-                    "demo": "false",
-                    "zenodexUiSmokeZusdMonetary": "1",
-                    "zusdMonetaryAction": "advance_epoch",
-                    "actorPubkey": alice,
-                    "zusdDelta": "1",
-                    "zusdDeadline": str(deadline),
-                    "signerPrivkey": alice_priv,
-                    **zk_query,
-                }
-            ),
-            "snippets": ("zUSD Monetary Vault", "preflight accepted"),
-        },
-        {
-            "name": "zusd_quick_mint_ui",
-            "url": url(
-                {
-                    "tab": "zusd",
-                    "demo": "false",
-                    "zenodexUiSmokeZusdQuickMint": "1",
-                    "ownerPubkey": alice,
-                    "zusdCollateral": "0",
-                    "zusdMint": "1",
-                    "zusdDeadline": str(deadline),
-                    "zusdAcceptProtocolResponse": "1",
-                    "signerPrivkey": alice_priv,
-                }
-            ),
-            "snippets": ("Quick Mint zUSD", "mint request completed"),
-        },
-        {
-            "name": "perps_wallet_ui",
-            "url": url(
-                {
-                    "tab": "perps",
-                    "demo": "false",
-                    "zenodexUiSmokePerpsWallet": "1",
-                    "perpsWalletAction": "publish_clearing_price",
-                    "marketId": market_id,
-                    "priceE8": str(E8),
-                    "perpsDeadline": str(deadline),
-                    "oraclePubkey": oracle_auth,
-                    "oraclePrivkey": oracle_priv,
-                    **zk_query,
-                }
-            ),
-            "snippets": ("Live Perps Wallet", "submit accepted"),
         },
         {
             "name": "oracle_ui",
@@ -3278,6 +3150,24 @@ def _write_public_host_report(
     public_url: str,
     source: str,
 ) -> dict[str, Any]:
+    admission = current_local_operator_release_admission_v1()
+    if not admission.current_release_eligible:
+        report = {
+            "schema": "zenodex.local_testnet.public_host_report.v1",
+            "ok": False,
+            "status": "blocked_current_profile",
+            "current_profile_id": admission.profile_id,
+            "current_release_eligible": False,
+            "authority": admission.authority,
+            "vm_gates_closed": list(admission.vm_gates_closed),
+            "release_blocker": admission.blocker,
+            "public_url": public_url.rstrip("/"),
+            "manifest_path": str(paths.manifest_path),
+            "reports_dir": str(paths.reports_dir),
+            "source": source,
+            "production_security_claim": False,
+        }
+        return report
     public_base = public_url.rstrip("/")
     local_config_url = f"{manifest['service_urls']['ui']}/public_network_config.json"
     config = _safe_get_json(
@@ -3319,6 +3209,13 @@ def _write_public_host_report(
 
 
 def _public_host_summary(report: Mapping[str, Any]) -> str:
+    if report.get("ok") is not True:
+        return (
+            "\nZenoDEX public host unavailable.\n\n"
+            f"  Status:  {report.get('status')}\n"
+            f"  Profile: {report.get('current_profile_id')}\n"
+            "  Authority: NONE\n\n"
+        )
     lines = [
         "",
         "ZenoDEX public fake-value testnet host is ready.",
@@ -3337,7 +3234,7 @@ def _public_host_summary(report: Mapping[str, Any]) -> str:
             f"{report.get('public_network_config_url')} --skip-pull-live --no-require-live"
         ),
         "",
-        "  Fake-value warning: no production value, no mainnet custody.",
+        "  Fake-value warning: no production value; moves no mainnet assets.",
         "",
     ]
     return "\n".join(lines)
@@ -3363,6 +3260,18 @@ def _run_cloudflare_quick_tunnel(
     paths: mf.ManifestPaths,
     manifest: Mapping[str, Any],
 ) -> int:
+    _ = (opts, paths, manifest)
+    refuse_current_local_operator_operation_v1("cloudflare_quick_tunnel")
+
+
+def _run_cloudflare_quick_tunnel_historical_donor(
+    *,
+    opts: PublicUpOptions,
+    paths: mf.ManifestPaths,
+    manifest: Mapping[str, Any],
+) -> int:
+    """Retained unmounted public tunnel workflow for later release admission."""
+
     runner = _resolve_cloudflared_runner(opts.cloudflared_bin, engine=opts.engine)
     if runner is None:
         _log(
@@ -3786,6 +3695,18 @@ def _zusd_transfer_payload(
     roles: Mapping[str, Mapping[str, Any]],
     deadline: int,
 ) -> dict[str, Any]:
+    _ = (ui_base, roles, deadline)
+    refuse_current_local_operator_operation_v1("zusd_transfer_payload")
+
+
+def _zusd_transfer_payload_historical_donor(
+    *,
+    ui_base: str,
+    roles: Mapping[str, Mapping[str, Any]],
+    deadline: int,
+) -> dict[str, Any]:
+    """Retained unmounted stream-9 transfer smoke payload builder."""
+
     alice = _role_pubkey(roles, "alice")
     bob = _role_pubkey(roles, "bob")
     alice_inspect = _post_json(
@@ -3856,6 +3777,20 @@ def _run_perps_wallet_cycle_smoke(
     and a settled epoch before the next advance. This smoke publishes a price,
     settles it, then advances once so the browser/UI smoke can publish again.
     """
+    _ = (ui_base, market_id, roles, deadline, zk_required)
+    refuse_current_local_operator_operation_v1("perps_wallet_cycle_smoke")
+
+
+def _run_perps_wallet_cycle_smoke_historical_donor(
+    *,
+    ui_base: str,
+    market_id: str,
+    roles: Mapping[str, Mapping[str, Any]],
+    deadline: int,
+    zk_required: bool = False,
+) -> dict[str, Any]:
+    """Retained unmounted stream-8 perps cycle for later route refinement."""
+
     steps: dict[str, dict[str, Any]] = {}
 
     def submit(name: str, payload: Mapping[str, Any]) -> dict[str, Any]:

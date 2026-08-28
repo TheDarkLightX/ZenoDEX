@@ -6,6 +6,9 @@
   "allowDemoMode": false,
   "allowBrowserKeyGeneration": true,
   "allowDefaultExternalSigner": false,
+  "perpsWalletUiEnabled": false,
+  "zusdTauWalletUiEnabled": false,
+  "zusdMonetaryWalletUiEnabled": false,
   "temporaryBrowserKeygenForTesting": true,
   "temporaryBrowserKeygenExpires": "after Keys standalone app replaces browser signing",
   "zenoOracleApiBase": ""

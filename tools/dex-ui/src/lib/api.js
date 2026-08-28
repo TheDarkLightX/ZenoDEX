@@ -10,6 +10,29 @@ export function getRuntimeConfig() {
   return cfg && typeof cfg === 'object' ? cfg : {};
 }
 
+const VALUE_ROUTE_UI_FLAG_FIELDS_V1 = Object.freeze({
+  perpsWalletEnabled: 'perpsWalletUiEnabled',
+  zusdTauWalletEnabled: 'zusdTauWalletUiEnabled',
+  zusdMonetaryWalletEnabled: 'zusdMonetaryWalletUiEnabled',
+});
+
+export function getRuntimeValueRoutePresentationV1(runtimeConfig = getRuntimeConfig()) {
+  const config = runtimeConfig !== null
+    && typeof runtimeConfig === 'object'
+    && !Array.isArray(runtimeConfig)
+    ? runtimeConfig
+    : {};
+  const isExactOwnedTrue = (field) => Object.prototype.hasOwnProperty.call(config, field)
+    && config[field] === true;
+
+  // These flags control presentation only. Backend route admission remains a
+  // separate fail-closed boundary and cannot be granted by browser config.
+  return Object.freeze(Object.fromEntries(
+    Object.entries(VALUE_ROUTE_UI_FLAG_FIELDS_V1)
+      .map(([name, field]) => [name, isExactOwnedTrue(field)]),
+  ));
+}
+
 export function isLocalTestnetDeployment(runtimeConfig = getRuntimeConfig()) {
   const deployment = String(runtimeConfig?.deployment || '').toLowerCase();
   return deployment === 'local-testnet' || deployment === 'localtest';
