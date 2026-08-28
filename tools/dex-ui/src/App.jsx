@@ -2,7 +2,7 @@ import { useState, lazy, Suspense } from 'react';
 import './index.css';
 // Per-surface code-splitting: each tab is a separate chunk loaded on demand, so
 // the initial bundle only carries the default (Swap) surface + shell. The other
-// eight surfaces (incl. the large Oracle/zUSD/Perps dashboards) load when first
+// nine surfaces (incl. the large Oracle/zUSD/Perps dashboards) load when first
 // opened, cutting first-paint JS substantially.
 // One importer per tab id, shared by both lazy() and the hover/focus prefetch
 // below so warming a chunk on hover resolves the SAME module the click renders.
@@ -15,6 +15,7 @@ const SURFACE_IMPORTERS = {
   zusd: () => import('./components/ZUSDWorkbench.jsx'),
   oracle: () => import('./components/ZenoOracleDashboard.jsx'),
   confidential: () => import('./components/ConfidentialWorkbench.jsx'),
+  governance: () => import('./components/PerpsGovernanceSurface.jsx'),
   proofs: () => import('./components/ProofMiningWorkbench.jsx'),
 };
 // Prefetch a surface chunk (idempotent — dynamic import() caches the request).
@@ -30,6 +31,7 @@ const ConfidentialWorkbench = lazy(SURFACE_IMPORTERS.confidential);
 const StrategyWorkbench = lazy(SURFACE_IMPORTERS.strategy);
 const ZUSDWorkbench = lazy(SURFACE_IMPORTERS.zusd);
 const ZenoOracleDashboard = lazy(SURFACE_IMPORTERS.oracle);
+const PerpsGovernanceSurface = lazy(SURFACE_IMPORTERS.governance);
 const ProofMiningWorkbench = lazy(SURFACE_IMPORTERS.proofs);
 import { PerpProvider } from './lib/PerpProvider.jsx';
 import { DemoModeProvider } from './lib/DemoModeProvider.jsx';
@@ -50,6 +52,7 @@ const NAV_TABS = [
   { id: 'zusd', label: 'zUSD' },
   { id: 'oracle', label: 'Oracle' },
   { id: 'confidential', label: 'Confidential' },
+  { id: 'governance', label: 'Keys' },
 ];
 
 const ROUTE_TAB_IDS = new Set([...NAV_TABS.map((tab) => tab.id), 'proofs']);
@@ -204,6 +207,11 @@ function App() {
             </div>
           )}
 
+          {activeTab === 'governance' && (
+            <div className="animate-fade-in">
+              <PerpsGovernanceSurface />
+            </div>
+          )}
           </Suspense>
           </ErrorBoundary>
         </main>
