@@ -1324,15 +1324,17 @@ def _command_registry_uses_are_closed_v1(function: ast.FunctionDef) -> bool:
         if isinstance(node.ctx, ast.Store):
             continue
         parent = parents.get(node)
+        parent_call = parents.get(parent) if isinstance(parent, ast.keyword) else None
+        grandparent = parents.get(parent_call) if isinstance(parent_call, ast.Call) else None
         if (
             isinstance(parent, ast.keyword)
             and parent.arg == "command_handlers"
             and parent.value is node
-            and isinstance(parents.get(parent), ast.Call)
-            and isinstance(parents[parent].func, ast.Name)
-            and parents[parent].func.id == "cls"
-            and isinstance(parents.get(parents[parent]), ast.Return)
-            and function.body[-1] is parents[parents[parent]]
+            and isinstance(parent_call, ast.Call)
+            and isinstance(parent_call.func, ast.Name)
+            and parent_call.func.id == "cls"
+            and isinstance(grandparent, ast.Return)
+            and function.body[-1] is grandparent
         ):
             continue
         return False

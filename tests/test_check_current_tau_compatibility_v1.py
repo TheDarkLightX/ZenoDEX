@@ -1,14 +1,8 @@
 from __future__ import annotations
 
-import importlib.machinery
 import json
-import os
-import shutil
-import subprocess
-import sys
 from dataclasses import replace
 from pathlib import Path
-from types import ModuleType
 from typing import Callable, cast
 
 import pytest
@@ -51,14 +45,8 @@ from tools.current_tau_compatibility_core_v1 import (
     SourcePinV1,
     build_current_tau_compatibility_artifact_v1,
 )
-from tools.current_tau_compatibility_pins_v1 import (
-    REPLAY_IMPLEMENTATION_EVIDENCE_PATHS_V1,
-    RUNTIME_EXECUTABLE_SOURCE_PATHS_V1,
-)
-from tools.current_tau_replay_io_v1 import (
-    _git_environment_v1,
-    _unbound_runtime_repository_imports_v1,
-)
+from tools.current_tau_compatibility_pins_v1 import REPLAY_IMPLEMENTATION_EVIDENCE_PATHS_V1
+from tools.current_tau_replay_io_v1 import _git_environment_v1
 
 _UNUSED_PATHS = TauReplayPathsV1(
     REPO_ROOT,
@@ -239,7 +227,19 @@ def test_artifact_given_source_observations_when_built_then_keeps_external_trust
         "CONDITIONAL_ON_TRUSTED_INTERPRETER_FILESYSTEM_REPOSITORY_BYTES_AND_GIT_OBJECT_STORE"
     )
     assert replay_trust["in_repository_self_authentication"] == "NOT_CLAIMED"
-    assert replay_trust["post_bootstrap_code_object_binding"] == "DEFENSE_IN_DEPTH_ONLY"
+    assert replay_trust["frozen_source_observations"] == (
+        "PINNED_EXACT_GIT_BYTES_REJECT_REPIN_DRIFT"
+    )
+    assert replay_trust["repin_mutation_closure"] == "NOT_CLAIMED"
+    assert replay_trust["repin_mutant_blockers"] == [
+        "derived module and member aliases",
+        "nested mutable payload paths",
+        "computed RPC dispatch",
+        "dead-path server construction",
+        "historical-event aliasing",
+        "shell control transfer",
+        "import-closure coverage",
+    ]
     assert replay_trust["independent_bootstrap_prerequisite"] == "O-003A-INDEPENDENT-BOOTSTRAP"
     assert artifact["vm_ledger_contribution"] == {
         "contributes_to": [],
@@ -253,6 +253,30 @@ def test_artifact_given_source_observations_when_built_then_keeps_external_trust
     assert "do not describe a repaired current local profile" in cast(
         str, force_test["interpretation"]
     )
+
+
+def test_r9_given_replay_tools_when_inspected_then_no_in_repository_bootstrap_claim_remains() -> None:
+    # Arrange
+    source_paths = (
+        REPO_ROOT / "tools" / "build_current_tau_compatibility_v1.py",
+        REPO_ROOT / "tools" / "check_current_tau_compatibility_v1.py",
+    )
+    forbidden_markers = (
+        "_require_isolated_python_main_v1",
+        "SelectedRepositoryLoaderV1",
+        "SelectedRepositoryFinderV1",
+        "meta_path.insert",
+        "addaudithook",
+        "_unbound_runtime_repository_imports_v1",
+    )
+
+    # Act / Assert: selected-source observations are explicitly conditional on
+    # external premises, so these tools must not imply a self-authenticating
+    # bootstrap or a complete mutation-analysis boundary.
+    for source_path in source_paths:
+        source = source_path.read_text(encoding="utf-8")
+        for marker in forbidden_markers:
+            assert marker not in source
 
 
 def test_differential_given_current_and_historical_signing_when_built_then_hashes_diverge() -> None:
@@ -505,10 +529,23 @@ def test_stateful_replay_final_recheck_detects_implementation_source_drift(
         "_require_worktree_sources_match_v1",
         reject_changed_source,
     )
+    placeholder_binding = builder_module.ReplayCheckoutBindingV1(
+        role="unused",
+        configured_path=Path("unused"),
+        resolved_path=Path("unused"),
+        device=0,
+        inode=0,
+        commit="a" * 40,
+    )
 
     # Act / Assert
     with pytest.raises(CurrentTauCompatibilityRejectV1) as raised:
-        builder_module._require_capture_unchanged_v1(_UNUSED_PATHS, head, snapshot, ())
+        builder_module._require_capture_unchanged_v1(
+            _UNUSED_PATHS,
+            head,
+            snapshot,
+            (placeholder_binding, placeholder_binding, placeholder_binding),
+        )
     assert raised.value.code == "WORKTREE_SOURCE_DRIFT"
 
 
@@ -591,10 +628,19 @@ def test_regression_given_historical_profile_facts_when_loaded_then_git_object_s
     pin = SourcePinV1("a" * 40, "b" * 40, "c" * 64, ())
     observed: list[tuple[Path, str]] = []
     monkeypatch.setattr(builder_module, "_implementation_source_hashes_v1", lambda *_args: ())
+
+    def capture_source_pin(
+        repo: Path,
+        commit: str,
+        *_args: object,
+    ) -> tuple[SourcePinV1, builder_module.SourceCorpusV1]:
+        observed.append((repo, commit))
+        return pin, builder_module.SourceCorpusV1(())
+
     monkeypatch.setattr(
         builder_module,
         "_source_pin_v1",
-        lambda repo, commit, *_args: (observed.append((repo, commit)) or (pin, builder_module.SourceCorpusV1(()))),
+        capture_source_pin,
     )
     monkeypatch.setattr(builder_module, "_require_worktree_sources_match_v1", lambda *_args: None)
 
@@ -2404,396 +2450,6 @@ def test_source_corpus_is_sorted_owned_and_immutable() -> None:
     with pytest.raises(AttributeError):
         corpus.entries = ()  # type: ignore[misc]
     assert not hasattr(corpus, "__dict__")
-
-
-def test_runtime_import_closure_contains_only_manifested_repository_files() -> None:
-    # Arrange
-    script = f'''\
-from pathlib import Path
-import sys
-root = Path({str(REPO_ROOT)!r}).resolve()
-sys.path.insert(0, str(root))
-import tools.check_current_tau_compatibility_v1
-paths = set()
-for module in sys.modules.values():
-    path = getattr(module, "__file__", None)
-    if path is None:
-        continue
-    try:
-        paths.add(str(Path(path).resolve().relative_to(root)))
-    except ValueError:
-        pass
-print("\\n".join(sorted(paths)))
-'''
-
-    # Act
-    result = subprocess.run(
-        [sys.executable, "-I", "-S", "-P", "-c", script],
-        cwd=REPO_ROOT,
-        env={
-            "LC_ALL": "C",
-            "PATH": os.defpath,
-            "PYTHONDONTWRITEBYTECODE": "1",
-        },
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-
-    # Assert
-    assert result.returncode == 0, result.stderr
-    observed = tuple(result.stdout.splitlines())
-    assert observed == (
-        "tools/__init__.py",
-        "tools/build_current_tau_compatibility_v1.py",
-        "tools/check_current_tau_compatibility_v1.py",
-        "tools/current_tau_compatibility_core_v1.py",
-        "tools/current_tau_compatibility_pins_v1.py",
-        "tools/current_tau_replay_io_v1.py",
-        "tools/current_tau_source_analysis_v1.py",
-    )
-    assert set(observed) <= set(RUNTIME_EXECUTABLE_SOURCE_PATHS_V1)
-
-
-def test_runtime_import_closure_detects_manifest_omission() -> None:
-    # Arrange
-    omitted = tuple(
-        path
-        for path in RUNTIME_EXECUTABLE_SOURCE_PATHS_V1
-        if path != "tools/current_tau_source_analysis_v1.py"
-    )
-
-    # Act
-    unbound = _unbound_runtime_repository_imports_v1(REPO_ROOT, omitted)
-
-    # Assert
-    assert "tools/current_tau_source_analysis_v1.py" in unbound
-
-
-def test_runtime_import_closure_survives_module_file_erasure(tmp_path: Path) -> None:
-    # Arrange
-    source = tmp_path / "rogue.py"
-    source.write_text("VALUE = 1\n", encoding="utf-8")
-    name = "_zenodex_test_rogue_module"
-    module = ModuleType(name)
-    module.__file__ = str(source)
-    module.__spec__ = importlib.machinery.ModuleSpec(
-        name,
-        loader=None,
-        origin=str(source),
-    )
-    sys.modules[name] = module
-
-    try:
-        module.__file__ = None
-
-        # Act
-        unbound = _unbound_runtime_repository_imports_v1(tmp_path, ())
-
-        # Assert
-        assert unbound == ("rogue.py",)
-    finally:
-        sys.modules.pop(name, None)
-
-
-@pytest.mark.parametrize(
-    ("script_name", "finding_key"),
-    (
-        ("check_current_tau_compatibility_v1.py", "findings"),
-        ("build_current_tau_compatibility_v1.py", "finding"),
-    ),
-)
-def test_cli_given_nonisolated_python_then_fails_before_repository_imports(
-    script_name: str,
-    finding_key: str,
-    tmp_path: Path,
-) -> None:
-    # Arrange
-    script = REPO_ROOT / "tools" / script_name
-
-    # Act
-    result = subprocess.run(
-        [sys.executable, str(script)],
-        cwd=tmp_path,
-        env={"LC_ALL": "C", "PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"},
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    report = json.loads(result.stdout)
-
-    # Assert
-    assert result.returncode == 1
-    if finding_key == "findings":
-        assert report[finding_key][0]["code"] == "PYTHON_NOT_ISOLATED"
-    else:
-        assert report[finding_key] == "PYTHON_NOT_ISOLATED"
-    _assert_no_authority(report)
-
-
-@pytest.mark.parametrize(
-    ("script_name", "finding_key"),
-    (
-        ("check_current_tau_compatibility_v1.py", "findings"),
-        ("build_current_tau_compatibility_v1.py", "finding"),
-    ),
-)
-def test_cli_given_site_initialization_enabled_then_fails_closed(
-    script_name: str,
-    finding_key: str,
-    tmp_path: Path,
-) -> None:
-    # Arrange
-    script = REPO_ROOT / "tools" / script_name
-
-    # Act
-    result = subprocess.run(
-        [sys.executable, "-I", "-P", str(script)],
-        cwd=tmp_path,
-        env={"LC_ALL": "C", "PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"},
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    report = json.loads(result.stdout)
-
-    # Assert
-    assert result.returncode == 1
-    if finding_key == "findings":
-        assert report[finding_key][0]["code"] == "PYTHON_NOT_ISOLATED"
-    else:
-        assert report[finding_key] == "PYTHON_NOT_ISOLATED"
-    _assert_no_authority(report)
-
-
-def test_cli_given_hostile_repo_module_then_runtime_audit_blocks_execution(
-    tmp_path: Path,
-) -> None:
-    # Arrange
-    temp_tools = tmp_path / "tools"
-    temp_tools.mkdir()
-    for relative_path in (
-        "tools/__init__.py",
-        "tools/build_current_tau_compatibility_v1.py",
-        "tools/check_current_tau_compatibility_v1.py",
-        "tools/current_tau_compatibility_core_v1.py",
-        "tools/current_tau_compatibility_pins_v1.py",
-        "tools/current_tau_replay_io_v1.py",
-        "tools/current_tau_source_analysis_v1.py",
-    ):
-        source = REPO_ROOT / relative_path
-        shutil.copy2(source, tmp_path / relative_path)
-    marker = tmp_path / "hostile-imported"
-    (tmp_path / "hashlib.py").write_text(
-        f"from pathlib import Path\nPath({str(marker)!r}).write_text('forged')\n",
-        encoding="utf-8",
-    )
-
-    # Act
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-I",
-            "-S",
-            "-P",
-            str(temp_tools / "check_current_tau_compatibility_v1.py"),
-        ],
-        cwd=tmp_path,
-        env={"LC_ALL": "C", "PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"},
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    report = json.loads(result.stdout)
-
-    # Assert
-    assert result.returncode == 1
-    assert report["findings"][0]["code"] == "IMPLEMENTATION_RUNTIME_TRUST_ROOT_UNAVAILABLE"
-    assert not marker.exists()
-    _assert_no_authority(report)
-
-
-def test_cli_given_unmanifested_repository_module_then_audit_hook_blocks_execution(
-    tmp_path: Path,
-) -> None:
-    # Arrange
-    temp_tools = tmp_path / "tools"
-    temp_tools.mkdir()
-    for relative_path in (
-        "tools/__init__.py",
-        "tools/build_current_tau_compatibility_v1.py",
-        "tools/check_current_tau_compatibility_v1.py",
-        "tools/current_tau_compatibility_core_v1.py",
-        "tools/current_tau_compatibility_pins_v1.py",
-        "tools/current_tau_replay_io_v1.py",
-        "tools/current_tau_source_analysis_v1.py",
-    ):
-        shutil.copy2(REPO_ROOT / relative_path, tmp_path / relative_path)
-    marker = tmp_path / "rogue-executed"
-    (temp_tools / "rogue.py").write_text(
-        f"from pathlib import Path\nPath({str(marker)!r}).write_text('executed')\n",
-        encoding="utf-8",
-    )
-    package_path = temp_tools / "__init__.py"
-    package_path.write_text(
-        package_path.read_text(encoding="utf-8") + "\nimport tools.rogue\n",
-        encoding="utf-8",
-    )
-
-    # Act
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-I",
-            "-S",
-            "-P",
-            str(temp_tools / "check_current_tau_compatibility_v1.py"),
-        ],
-        cwd=tmp_path,
-        env={"LC_ALL": "C", "PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"},
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    report = json.loads(result.stdout)
-
-    # Assert
-    assert result.returncode == 1
-    assert report["findings"][0]["code"] == "IMPLEMENTATION_RUNTIME_TRUST_ROOT_UNAVAILABLE"
-    assert not marker.exists()
-    _assert_no_authority(report)
-
-
-def _copy_and_commit_runtime_subject_v1(tmp_path: Path) -> Path:
-    """Create a test-only externally selected Git subject for runtime RIPR tests."""
-
-    for relative_path in RUNTIME_EXECUTABLE_SOURCE_PATHS_V1:
-        target = tmp_path / relative_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(REPO_ROOT / relative_path, target)
-    for arguments in (
-        ("init", "-q"),
-        ("add", "tools"),
-        (
-            "-c",
-            "user.email=zenodex-test@example.invalid",
-            "-c",
-            "user.name=ZenoDEX Test",
-            "commit",
-            "-q",
-            "-m",
-            "runtime fixture",
-        ),
-    ):
-        subprocess.run(
-            ["git", "-C", str(tmp_path), *arguments],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-    return tmp_path / "tools" / "check_current_tau_compatibility_v1.py"
-
-
-def _run_isolated_runtime_subject_v1(script: Path, cwd: Path) -> tuple[int, dict[str, object]]:
-    result = subprocess.run(
-        [sys.executable, "-I", "-S", "-P", str(script)],
-        cwd=cwd,
-        env={"LC_ALL": "C", "PATH": os.defpath, "PYTHONDONTWRITEBYTECODE": "1"},
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    return result.returncode, cast(dict[str, object], json.loads(result.stdout))
-
-
-def test_ripr_given_externally_selected_git_subject_then_unmanifested_import_mutates_worktree_then_code_binding_rejects(
-    tmp_path: Path,
-) -> None:
-    # Arrange: commit the normal package, then inject a post-commit import.
-    script = _copy_and_commit_runtime_subject_v1(tmp_path)
-    marker = tmp_path / "rogue-executed"
-    package = tmp_path / "tools" / "__init__.py"
-    (tmp_path / "tools" / "rogue.py").write_text(
-        f"from pathlib import Path\nPath({str(marker)!r}).write_text('executed')\n",
-        encoding="utf-8",
-    )
-    package.write_text(package.read_text(encoding="utf-8") + "\nimport tools.rogue\n", encoding="utf-8")
-
-    # Act
-    status, report = _run_isolated_runtime_subject_v1(script, tmp_path)
-
-    # Assert: the selected-Git-source oracle kills the mutant before the rogue
-    # module can execute.  The test does not establish a production trust root.
-    assert status == 1
-    findings = cast(list[dict[str, object]], report["findings"])
-    assert findings[0]["code"] == "IMPLEMENTATION_RUNTIME_CODE_UNBOUND"
-    assert not marker.exists()
-    _assert_no_authority(report)
-
-
-def test_ripr_given_allowlisted_filename_then_compiled_foreign_text_then_code_object_oracle_rejects(
-    tmp_path: Path,
-) -> None:
-    # Arrange: the test fixture selects its Git subject externally, then asks
-    # exec() to run distinct text while claiming an allowlisted source filename.
-    marker = tmp_path / "forged-code-executed"
-    forged_filename = tmp_path / "tools" / "current_tau_source_analysis_v1.py"
-    package = tmp_path / "tools" / "__init__.py"
-    package.parent.mkdir()
-    for relative_path in RUNTIME_EXECUTABLE_SOURCE_PATHS_V1:
-        target = tmp_path / relative_path
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(REPO_ROOT / relative_path, target)
-    package.write_text(
-        package.read_text(encoding="utf-8")
-        + "\nexec(compile("
-        + repr(f"from pathlib import Path\nPath({str(marker)!r}).write_text('forged')\n")
-        + ", "
-        + repr(str(forged_filename))
-        + ", 'exec'))\n",
-        encoding="utf-8",
-    )
-    for arguments in (
-        ("init", "-q"),
-        ("add", "tools"),
-        (
-            "-c",
-            "user.email=zenodex-test@example.invalid",
-            "-c",
-            "user.name=ZenoDEX Test",
-            "commit",
-            "-q",
-            "-m",
-            "forged filename fixture",
-        ),
-    ):
-        subprocess.run(
-            ["git", "-C", str(tmp_path), *arguments],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-
-    # Act
-    status, report = _run_isolated_runtime_subject_v1(
-        tmp_path / "tools" / "check_current_tau_compatibility_v1.py",
-        tmp_path,
-    )
-
-    # Assert: filename allowlisting alone cannot forge the selected source.
-    assert status == 1
-    findings = cast(list[dict[str, object]], report["findings"])
-    assert findings[0]["code"] == "IMPLEMENTATION_RUNTIME_CODE_UNBOUND"
-    assert not marker.exists()
-    _assert_no_authority(report)
 
 
 def test_checker_internal_fault_returns_total_no_authority_report(

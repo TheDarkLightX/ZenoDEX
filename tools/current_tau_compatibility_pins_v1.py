@@ -118,19 +118,6 @@ REPLAY_IMPLEMENTATION_EVIDENCE_PATHS_V1: Final = (
     "tools/current_tau_source_analysis_v1.py",
 )
 
-# Executable files are a closed subset of the replay evidence.  The test file
-# remains bound as evidence, while the runtime import/capture guard admits only
-# code that can execute in the isolated replay process.
-RUNTIME_EXECUTABLE_SOURCE_PATHS_V1: Final = (
-    "tools/__init__.py",
-    "tools/build_current_tau_compatibility_v1.py",
-    "tools/check_current_tau_compatibility_v1.py",
-    "tools/current_tau_compatibility_core_v1.py",
-    "tools/current_tau_compatibility_pins_v1.py",
-    "tools/current_tau_replay_io_v1.py",
-    "tools/current_tau_source_analysis_v1.py",
-)
-
 # Compatibility aliases preserve callers from the pre-R8 naming while the
 # source pin layout carries the stronger explicit distinction above.
 LOCAL_PROFILE_SOURCE_SHA256_V1: Final = HISTORICAL_LOCAL_PROFILE_SOURCE_SHA256_V1

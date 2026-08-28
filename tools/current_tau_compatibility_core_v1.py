@@ -543,11 +543,21 @@ def build_current_tau_compatibility_artifact_v1(
                 "CONDITIONAL_ON_TRUSTED_INTERPRETER_FILESYSTEM_REPOSITORY_BYTES_AND_GIT_OBJECT_STORE"
             ),
             "in_repository_self_authentication": "NOT_CLAIMED",
-            "post_bootstrap_code_object_binding": "DEFENSE_IN_DEPTH_ONLY",
+            "frozen_source_observations": "PINNED_EXACT_GIT_BYTES_REJECT_REPIN_DRIFT",
+            "repin_mutation_closure": "NOT_CLAIMED",
+            "repin_mutant_blockers": [
+                "derived module and member aliases",
+                "nested mutable payload paths",
+                "computed RPC dispatch",
+                "dead-path server construction",
+                "historical-event aliasing",
+                "shell control transfer",
+                "import-closure coverage",
+            ],
             "independent_bootstrap_prerequisite": "O-003A-INDEPENDENT-BOOTSTRAP",
             "independent_bootstrap_scope": (
                 "OUT_OF_SCOPE: an external literal manifest digest must bind exact Git commit, "
-                "tree, mode, blob, SHA-256, size, and closed paths before isolated replay."
+                "tree, mode, blob, SHA-256, size, and closed paths before direct replay."
             ),
         },
         "vm_ledger_contribution": {
