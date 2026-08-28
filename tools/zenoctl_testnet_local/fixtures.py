@@ -21,6 +21,7 @@ import json
 import secrets
 import time
 from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -31,10 +32,10 @@ from src.integration.perps_wallet_authority import (
     PERPS_WALLET_RECOVERY_EXERCISE_SCHEMA_V1,
     PERPS_WALLET_ROTATION_EXERCISE_PAYLOAD_KIND,
     PERPS_WALLET_ROTATION_EXERCISE_SCHEMA_V1,
+    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_device_approval_environment_policy_v1,
     build_perps_wallet_device_approval_exercise_v1,
     build_perps_wallet_device_approval_use_policy_v1,
-    build_perps_wallet_authority_profile_v1,
     build_perps_wallet_signer_device_integration_v1,
     build_perps_wallet_signer_execution_exercise_v1,
     build_perps_wallet_signer_prompt_capture_v1,
@@ -55,11 +56,17 @@ from src.integration.zeno_key_manager import (
     SocialRecoveryPolicy,
     ZenoKeyManager,
 )
-from src.integration.zeno_key_manager_v0 import BACKEND_HARDWARE_WALLET_PLACEHOLDER, KeyBackendDescriptor
+from src.integration.zeno_key_manager_v0 import (
+    BACKEND_HARDWARE_WALLET_PLACEHOLDER,
+    KeyBackendDescriptor,
+)
 from src.integration.zeno_ledger_signature import build_bls_signed_artifact_envelope_v0
 from src.integration.zeno_ledger_signer_registry import build_signer_registry_v0
 from src.integration.zeno_ledger_v0 import hash_v0
-from src.integration.zeno_oracle_authority import ORACLE_AUTHORITY_PAYLOAD_KIND, build_oracle_authority_profile_v1
+from src.integration.zeno_oracle_authority import (
+    ORACLE_AUTHORITY_PAYLOAD_KIND,
+    build_oracle_authority_profile_v1,
+)
 
 try:
     from py_ecc.optimized_bls12_381 import curve_order as _BLS12_381_CURVE_ORDER
@@ -90,6 +97,11 @@ GUARDIAN_ROLES: tuple[str, ...] = ("guardian_1", "guardian_2", "guardian_3")
 # hashes (sha256 of the raw 32-byte seed) would be pinned here. Keep this
 # list tiny and committed; rotation needs a deliberate code change.
 PRODUCTION_KEY_DENYLIST_SHA256: frozenset[str] = frozenset()
+
+
+class FixtureOutputPathMode(str, Enum):
+    RESOLVED = "resolved"
+    DESCRIPTOR_ANCHORED = "descriptor_anchored"
 
 
 SCHEMA_KEY_BUNDLE = "zenodex.local_testnet.key_bundle.v0"
@@ -217,6 +229,7 @@ def generate_fixture_bundle(
     seed_override_hex: str | None = None,
     use_random: bool = False,
     created_at_ms: int | None = None,
+    output_path_mode: FixtureOutputPathMode = FixtureOutputPathMode.RESOLVED,
 ) -> FixtureBundle:
     """Generate and persist the full fixture bundle for a local-testnet
     stack. Returns paths to the written artifacts.
@@ -247,7 +260,19 @@ def generate_fixture_bundle(
     if created_at_ms is None:
         created_at_ms = int(time.time() * 1000)
 
-    fixtures_dir = Path(out_dir).resolve() / "fixtures"
+    output_root = Path(out_dir)
+    if output_path_mode is FixtureOutputPathMode.DESCRIPTOR_ANCHORED:
+        if (
+            output_root.parts[:4] != ("/", "proc", "self", "fd")
+            or len(output_root.parts) != 5
+            or not output_root.name.isdigit()
+        ):
+            raise ValueError("descriptor-anchored fixture root must be /proc/self/fd/N")
+    elif output_path_mode is FixtureOutputPathMode.RESOLVED:
+        output_root = output_root.resolve()
+    else:
+        raise ValueError("unsupported fixture output path mode")
+    fixtures_dir = output_root / "fixtures"
     fixtures_dir.mkdir(parents=True, exist_ok=True)
 
     role_pubkeys = {role: _pubkey_hex(privkey) for role, privkey in keys.items()}
@@ -348,7 +373,7 @@ def generate_fixture_bundle(
     )
 
     paths = FixtureBundle(
-        key_bundle=Path(out_dir).resolve() / "secrets" / "keys.json",
+        key_bundle=output_root / "secrets" / "keys.json",
         role_pubkeys=fixtures_dir / "role_pubkeys.json",
         oracle_authority_profile=fixtures_dir / "oracle_authority_profile.json",
         perps_wallet_authority_profile=fixtures_dir / "perps_wallet_authority_profile.json",

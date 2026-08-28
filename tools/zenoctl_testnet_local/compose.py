@@ -56,6 +56,39 @@ class ContainerStringVector:
 
 
 @dataclass(frozen=True, order=True)
+class ContainerHostOverride:
+    """One exact HostConfig.ExtraHosts mapping."""
+
+    host: str
+    address: str
+
+
+@dataclass(frozen=True)
+class ContainerHostOverrideVector:
+    """Exact distinction between null and list-valued host overrides."""
+
+    is_null: bool
+    values: tuple[ContainerHostOverride, ...]
+
+
+@dataclass(frozen=True, order=True)
+class ContainerDevice:
+    """One exact HostConfig.Devices mapping."""
+
+    path_on_host: str
+    path_in_container: str
+    cgroup_permissions: str
+
+
+@dataclass(frozen=True)
+class ContainerDeviceVector:
+    """Exact distinction between null and list-valued device mappings."""
+
+    is_null: bool
+    values: tuple[ContainerDevice, ...]
+
+
+@dataclass(frozen=True, order=True)
 class ContainerMount:
     """Canonical effective mount facts from one inspect record."""
 
@@ -145,7 +178,31 @@ class ProjectContainerEngineFacts:
     published_ports: ContainerPortBindings
     restart_policy: ContainerRestartPolicy
     readonly_rootfs: bool
+    network_mode: str
+    privileged: bool
+    cap_add: ContainerStringVector
+    cap_drop: ContainerStringVector
+    security_opt: ContainerStringVector
+    pid_mode: str
     state: ContainerState
+    extra_hosts: ContainerHostOverrideVector = ContainerHostOverrideVector(
+        is_null=True,
+        values=(),
+    )
+    devices: ContainerDeviceVector = ContainerDeviceVector(
+        is_null=False,
+        values=(),
+    )
+    attached_networks: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ImageReferenceEngineFacts:
+    """Immutable image identity plus its exact inherited environment."""
+
+    immutable_image_id: str
+    environment: tuple[tuple[str, str], ...]
+    exposed_ports: tuple[ContainerPort, ...]
 
 
 @dataclass(frozen=True)
@@ -339,13 +396,13 @@ def inspect_project_containers(
     return tuple(sorted(snapshots, key=lambda snapshot: snapshot.container_id))
 
 
-def inspect_image_reference_id(
+def inspect_image_reference(
     *,
     engine: ComposeEngine,
     image_reference: str,
     env: dict[str, str] | None = None,
-) -> str:
-    """Resolve one image reference to one canonical immutable engine image ID."""
+) -> ImageReferenceEngineFacts:
+    """Resolve one image reference to immutable identity and inherited facts."""
 
     if (
         type(image_reference) is not str
@@ -368,7 +425,32 @@ def inspect_image_reference_id(
     if type(decoded) is not list or len(decoded) != 1:
         raise RuntimeError("image inspect must return exactly one JSON object")
     record = _exact_object(decoded[0], context="image inspect entry")
-    return _canonical_image_id(record.get("Id"), context="image inspect entry")
+    config = _exact_object(record.get("Config"), context="image inspect Config")
+    return ImageReferenceEngineFacts(
+        immutable_image_id=_canonical_image_id(
+            record.get("Id"), context="image inspect entry"
+        ),
+        environment=_environment_entries(
+            config.get("Env"),
+            context="image inspect environment",
+        ),
+        exposed_ports=_exposed_ports(config.get("ExposedPorts")),
+    )
+
+
+def inspect_image_reference_id(
+    *,
+    engine: ComposeEngine,
+    image_reference: str,
+    env: dict[str, str] | None = None,
+) -> str:
+    """Resolve one image reference to one canonical immutable engine image ID."""
+
+    return inspect_image_reference(
+        engine=engine,
+        image_reference=image_reference,
+        env=env,
+    ).immutable_image_id
 
 
 def _query_project_container_ids(
@@ -467,6 +549,143 @@ def _string_vector(
         for item in cast(list[object], value)
     )
     return ContainerStringVector(is_null=False, values=values)
+
+
+def _host_overrides(value: object) -> ContainerHostOverrideVector:
+    if value is None:
+        return ContainerHostOverrideVector(is_null=True, values=())
+    if type(value) is not list:
+        raise RuntimeError(
+            "container inspect HostConfig.ExtraHosts must be null or an exact array"
+        )
+    decoded: list[ContainerHostOverride] = []
+    observed_hosts: set[str] = set()
+    for item in cast(list[object], value):
+        mapping = _exact_text(
+            item,
+            context="container inspect HostConfig.ExtraHosts item",
+            allow_empty=False,
+        )
+        host, separator, address = mapping.partition(":")
+        if (
+            not separator
+            or not host
+            or not address
+            or host != host.strip()
+            or address != address.strip()
+            or any(character.isspace() for character in host)
+        ):
+            raise RuntimeError("container inspect host override is malformed")
+        if host in observed_hosts:
+            raise RuntimeError("container inspect contains a duplicate host override")
+        observed_hosts.add(host)
+        decoded.append(ContainerHostOverride(host=host, address=address))
+    return ContainerHostOverrideVector(
+        is_null=False,
+        values=tuple(sorted(decoded)),
+    )
+
+
+def _devices(value: object) -> ContainerDeviceVector:
+    if value is None:
+        return ContainerDeviceVector(is_null=True, values=())
+    if type(value) is not list:
+        raise RuntimeError(
+            "container inspect HostConfig.Devices must be null or an exact array"
+        )
+    required_keys = frozenset(
+        {"PathOnHost", "PathInContainer", "CgroupPermissions"}
+    )
+    decoded: list[ContainerDevice] = []
+    destinations: set[str] = set()
+    for item in cast(list[object], value):
+        record = _exact_object(item, context="container inspect device")
+        _reject_unknown_keys(
+            record,
+            allowed=required_keys,
+            context="container inspect device",
+        )
+        if set(record) != required_keys:
+            raise RuntimeError("container inspect device has missing required keys")
+        path_on_host = _exact_text(
+            record["PathOnHost"],
+            context="container inspect device PathOnHost",
+            allow_empty=False,
+        )
+        path_in_container = _exact_text(
+            record["PathInContainer"],
+            context="container inspect device PathInContainer",
+            allow_empty=False,
+        )
+        if not path_on_host.startswith("/") or not path_in_container.startswith("/"):
+            raise RuntimeError("container inspect device paths must be absolute")
+        raw_permissions = _exact_text(
+            record["CgroupPermissions"],
+            context="container inspect device CgroupPermissions",
+            allow_empty=False,
+        )
+        permission_set = set(raw_permissions)
+        if not permission_set.issubset({"r", "w", "m"}) or len(
+            permission_set
+        ) != len(raw_permissions):
+            raise RuntimeError("container inspect device permissions are malformed")
+        if path_in_container in destinations:
+            raise RuntimeError("container inspect has a duplicate device destination")
+        destinations.add(path_in_container)
+        decoded.append(
+            ContainerDevice(
+                path_on_host=path_on_host,
+                path_in_container=path_in_container,
+                cgroup_permissions="".join(
+                    permission for permission in "rwm" if permission in permission_set
+                ),
+            )
+        )
+    return ContainerDeviceVector(
+        is_null=False,
+        values=tuple(sorted(decoded, key=lambda device: device.path_in_container)),
+    )
+
+
+def _attached_networks(value: object) -> tuple[str, ...]:
+    record = _exact_object(
+        value,
+        context="container inspect NetworkSettings.Networks",
+    )
+    names: list[str] = []
+    for raw_name, raw_settings in record.items():
+        name = _exact_text(
+            raw_name,
+            context="container inspect attached network name",
+            allow_empty=False,
+        )
+        if name != name.strip() or any(character.isspace() for character in name):
+            raise RuntimeError("container inspect attached network name is malformed")
+        _exact_object(
+            raw_settings,
+            context=f"container inspect attached network {name!r}",
+        )
+        names.append(name)
+    return tuple(sorted(names))
+
+
+def _environment_entries(
+    value: object,
+    *,
+    context: str,
+) -> tuple[tuple[str, str], ...]:
+    if type(value) is not list:
+        raise RuntimeError(f"{context} must be an exact string array")
+    parsed: dict[str, str] = {}
+    for raw_item in cast(list[object], value):
+        item = _exact_text(raw_item, context=f"{context} entry")
+        if "=" not in item:
+            raise RuntimeError(f"{context} entry has no value delimiter")
+        name, env_value = item.split("=", 1)
+        if _CANONICAL_ENVIRONMENT_NAME_RE.fullmatch(name) is None or name in parsed:
+            raise RuntimeError(f"{context} has an empty, malformed, or duplicate name")
+        parsed[name] = env_value
+    return tuple(sorted(parsed.items()))
 
 
 def _reject_unknown_keys(
@@ -619,6 +838,20 @@ def _container_port(value: object, *, context: str) -> ContainerPort:
     if number > 65_535:
         raise RuntimeError(f"{context} is outside the valid port range")
     return ContainerPort(number=number, protocol=matched.group(2))
+
+
+def _exposed_ports(value: object) -> tuple[ContainerPort, ...]:
+    if value is None:
+        return ()
+    record = _exact_object(value, context="image inspect Config.ExposedPorts")
+    ports: list[ContainerPort] = []
+    for key, marker in record.items():
+        if marker is not None:
+            raise RuntimeError("image exposed-port marker must be null")
+        ports.append(_container_port(key, context="image exposed port"))
+    if len(ports) != len(set(ports)):
+        raise RuntimeError("image inspect contains duplicate exposed ports")
+    return tuple(sorted(ports))
 
 
 def _port_bindings(value: object, *, context: str) -> ContainerPortBindings:
@@ -868,31 +1101,36 @@ def _project_container_snapshot(
         is None
     ):
         raise RuntimeError("container inspect profile digest is non-canonical")
-    if type(environment) is not list:
-        raise RuntimeError("container inspect entry has no exact environment list")
-    parsed_environment: dict[str, str] = {}
-    for raw_item in cast(list[object], environment):
-        item = _exact_text(raw_item, context="container inspect environment entry")
-        if "=" not in item:
-            raise RuntimeError("container inspect environment entry has no value delimiter")
-        name, env_value = item.split("=", 1)
-        if (
-            _CANONICAL_ENVIRONMENT_NAME_RE.fullmatch(name) is None
-            or name in parsed_environment
-        ):
-            raise RuntimeError("container inspect environment has an empty or duplicate name")
-        parsed_environment[name] = env_value
+    parsed_environment = _environment_entries(
+        environment,
+        context="container inspect environment",
+    )
 
     host_config = _exact_object(
         record.get("HostConfig"), context="container inspect HostConfig"
     )
     host_required = frozenset(
-        {"Binds", "PortBindings", "RestartPolicy", "ReadonlyRootfs"}
+        {
+            "Binds",
+            "ExtraHosts",
+            "Devices",
+            "PortBindings",
+            "RestartPolicy",
+            "ReadonlyRootfs",
+            "NetworkMode",
+            "Privileged",
+            "CapAdd",
+            "CapDrop",
+            "SecurityOpt",
+            "PidMode",
+        }
     )
     if not host_required.issubset(host_config):
         raise RuntimeError("container inspect HostConfig lacks required runtime facts")
     mounts = _mounts(record.get("Mounts"))
     binds = _binds(host_config["Binds"])
+    extra_hosts = _host_overrides(host_config["ExtraHosts"])
+    devices = _devices(host_config["Devices"])
     _cross_check_binds(binds, mounts)
     configured_ports = _port_bindings(
         host_config["PortBindings"], context="container inspect HostConfig.PortBindings"
@@ -901,14 +1139,44 @@ def _project_container_snapshot(
     readonly_rootfs = host_config["ReadonlyRootfs"]
     if type(readonly_rootfs) is not bool:
         raise RuntimeError("container inspect ReadonlyRootfs must be an exact boolean")
+    network_mode = _exact_text(
+        host_config["NetworkMode"],
+        context="container inspect HostConfig.NetworkMode",
+        allow_empty=False,
+    )
+    privileged = host_config["Privileged"]
+    if type(privileged) is not bool:
+        raise RuntimeError("container inspect Privileged must be an exact boolean")
+    cap_add = _string_vector(
+        host_config["CapAdd"],
+        context="container inspect HostConfig.CapAdd",
+        allow_null=True,
+    )
+    cap_drop = _string_vector(
+        host_config["CapDrop"],
+        context="container inspect HostConfig.CapDrop",
+        allow_null=True,
+    )
+    security_opt = _string_vector(
+        host_config["SecurityOpt"],
+        context="container inspect HostConfig.SecurityOpt",
+        allow_null=True,
+    )
+    pid_mode = _exact_text(
+        host_config["PidMode"],
+        context="container inspect HostConfig.PidMode",
+    )
     network_settings = _exact_object(
         record.get("NetworkSettings"), context="container inspect NetworkSettings"
     )
-    if "Ports" not in network_settings:
-        raise RuntimeError("container inspect NetworkSettings lacks Ports")
+    if not {"Ports", "Networks"}.issubset(network_settings):
+        raise RuntimeError(
+            "container inspect NetworkSettings lacks required runtime facts"
+        )
     published_ports = _port_bindings(
         network_settings["Ports"], context="container inspect NetworkSettings.Ports"
     )
+    attached_networks = _attached_networks(network_settings["Networks"])
     engine_facts = ProjectContainerEngineFacts(
         immutable_image_id=immutable_image_id,
         config_image=image,
@@ -924,7 +1192,16 @@ def _project_container_snapshot(
         published_ports=published_ports,
         restart_policy=restart_policy,
         readonly_rootfs=readonly_rootfs,
+        network_mode=network_mode,
+        privileged=privileged,
+        cap_add=cap_add,
+        cap_drop=cap_drop,
+        security_opt=security_opt,
+        pid_mode=pid_mode,
         state=state,
+        extra_hosts=extra_hosts,
+        devices=devices,
+        attached_networks=attached_networks,
     )
     return ProjectContainerSnapshot(
         container_id=container_id,
@@ -933,7 +1210,7 @@ def _project_container_snapshot(
         profile_id=decoded_labels[_LOCAL_PROFILE_ID_LABEL],
         profile_digest=decoded_labels[_LOCAL_PROFILE_DIGEST_LABEL],
         image=image,
-        environment=tuple(sorted(parsed_environment.items())),
+        environment=parsed_environment,
         engine_facts=engine_facts,
     )
 

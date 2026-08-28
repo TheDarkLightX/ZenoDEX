@@ -161,6 +161,8 @@ def _inspect_record(*, environment: list[str] | None = None) -> dict[str, object
         },
         "HostConfig": {
             "Binds": ["/srv/zenodex/config.json:/app/config.json:ro"],
+            "ExtraHosts": None,
+            "Devices": [],
             "PortBindings": {
                 "8000/tcp": [
                     {"HostIp": "127.0.0.1", "HostPort": "18080"},
@@ -171,6 +173,12 @@ def _inspect_record(*, environment: list[str] | None = None) -> dict[str, object
                 "MaximumRetryCount": 3,
             },
             "ReadonlyRootfs": True,
+            "NetworkMode": f"{PROJECT}_zenodex-local-testnet",
+            "Privileged": False,
+            "CapAdd": None,
+            "CapDrop": ["ALL"],
+            "SecurityOpt": ["no-new-privileges:true"],
+            "PidMode": "",
         },
         "Mounts": [
             {
@@ -187,7 +195,8 @@ def _inspect_record(*, environment: list[str] | None = None) -> dict[str, object
                 "8000/tcp": [
                     {"HostIp": "127.0.0.1", "HostPort": "18080"},
                 ]
-            }
+            },
+            "Networks": {f"{PROJECT}_zenodex-local-testnet": {}},
         },
     }
 
@@ -396,6 +405,22 @@ def test_inspect_project_containers_decodes_owned_typed_snapshot(
         raise AssertionError("snapshot lost restart policy")
     if not facts.readonly_rootfs:
         raise AssertionError("snapshot lost readonly-rootfs state")
+    if not facts.cap_add.is_null or facts.cap_add.values:
+        raise AssertionError("snapshot altered the empty added-capability set")
+    if facts.cap_drop.is_null or facts.cap_drop.values != ("ALL",):
+        raise AssertionError("snapshot lost the dropped-capability set")
+    if facts.security_opt.is_null or facts.security_opt.values != (
+        "no-new-privileges:true",
+    ):
+        raise AssertionError("snapshot lost security options")
+    if facts.pid_mode:
+        raise AssertionError("snapshot altered the private PID namespace")
+    if not facts.extra_hosts.is_null or facts.extra_hosts.values:
+        raise AssertionError("snapshot altered the empty host-override set")
+    if facts.devices.is_null or facts.devices.values:
+        raise AssertionError("snapshot altered the empty device set")
+    if facts.attached_networks != (f"{PROJECT}_zenodex-local-testnet",):
+        raise AssertionError("snapshot lost the attached-network identity")
     if not facts.state.running or facts.state.status != "running":
         raise AssertionError("snapshot lost running state")
     if facts.state.health_status != "healthy":
@@ -583,6 +608,111 @@ def test_project_container_snapshot_rejects_malformed_authority_shapes(
         cm._project_container_snapshot(record, expected_project=PROJECT)
 
 
+def test_project_container_snapshot_observes_canonical_host_overrides_devices_and_networks() -> None:
+    baseline = cm._project_container_snapshot(
+        _inspect_record(), expected_project=PROJECT
+    )
+    changed_record = _inspect_record()
+    host_config = cast(dict[str, object], changed_record["HostConfig"])
+    host_config["ExtraHosts"] = [
+        "zeta.internal:203.0.113.9",
+        "alpha.internal:2001:db8::1",
+    ]
+    host_config["Devices"] = [
+        {
+            "PathOnHost": "/dev/zenodex-z",
+            "PathInContainer": "/dev/zenodex-z",
+            "CgroupPermissions": "rwm",
+        },
+        {
+            "PathOnHost": "/dev/zenodex-a",
+            "PathInContainer": "/dev/zenodex-a",
+            "CgroupPermissions": "rw",
+        },
+    ]
+    network_settings = cast(dict[str, object], changed_record["NetworkSettings"])
+    network_settings["Networks"] = {
+        "zeta-network": {},
+        f"{PROJECT}_zenodex-local-testnet": {},
+        "alpha-network": {},
+    }
+
+    changed = cm._project_container_snapshot(changed_record, expected_project=PROJECT)
+
+    baseline_facts = baseline.engine_facts
+    changed_facts = changed.engine_facts
+    if baseline_facts is None or changed_facts is None:
+        raise AssertionError("strict decoder returned incomplete engine facts")
+    if changed_facts == baseline_facts:
+        raise AssertionError("authority-relevant engine changes were decoded away")
+    if tuple(item.host for item in changed_facts.extra_hosts.values) != (
+        "alpha.internal",
+        "zeta.internal",
+    ):
+        raise AssertionError("host overrides are not canonically ordered")
+    if tuple(item.path_in_container for item in changed_facts.devices.values) != (
+        "/dev/zenodex-a",
+        "/dev/zenodex-z",
+    ):
+        raise AssertionError("devices are not canonically ordered")
+    if changed_facts.attached_networks != (
+        "alpha-network",
+        f"{PROJECT}_zenodex-local-testnet",
+        "zeta-network",
+    ):
+        raise AssertionError("attached networks are not canonically ordered")
+
+
+@pytest.mark.parametrize(
+    ("parent", "field"),
+    (
+        ("HostConfig", "ExtraHosts"),
+        ("HostConfig", "Devices"),
+        ("NetworkSettings", "Networks"),
+    ),
+)
+def test_project_container_snapshot_rejects_omitted_authority_relevant_engine_fact(
+    parent: str,
+    field: str,
+) -> None:
+    record = _inspect_record()
+    container = cast(dict[str, object], record[parent])
+    del container[field]
+
+    with pytest.raises(RuntimeError, match="lacks required runtime facts"):
+        cm._project_container_snapshot(record, expected_project=PROJECT)
+
+
+@pytest.mark.parametrize(
+    ("path", "malformed"),
+    (
+        (("HostConfig", "ExtraHosts"), {"tau-local": "203.0.113.9"}),
+        (("HostConfig", "ExtraHosts"), ["missing-address"]),
+        (
+            ("HostConfig", "Devices"),
+            [
+                {
+                    "PathOnHost": "/dev/kvm",
+                    "PathInContainer": "/dev/kvm",
+                    "CgroupPermissions": ["r", "w"],
+                }
+            ],
+        ),
+        (("NetworkSettings", "Networks"), []),
+        (("NetworkSettings", "Networks"), {"attacker-network": []}),
+    ),
+)
+def test_project_container_snapshot_rejects_malformed_authority_relevant_engine_fact(
+    path: tuple[str, ...],
+    malformed: object,
+) -> None:
+    record = _inspect_record()
+    _replace_nested(record, path, malformed)
+
+    with pytest.raises(RuntimeError):
+        cm._project_container_snapshot(record, expected_project=PROJECT)
+
+
 def test_project_container_snapshot_rejects_duplicate_mount_destinations() -> None:
     record = _inspect_record()
     mounts = cast(list[object], record["Mounts"])
@@ -705,21 +835,47 @@ def test_inspect_project_containers_rejects_duplicate_json_keys(
         )
 
 
-def test_inspect_image_reference_id_accepts_one_canonical_immutable_id(
+def test_inspect_image_reference_accepts_immutable_id_and_exact_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = _install_subprocess_script(
         monkeypatch,
-        [_Outcome(returncode=0, stdout=json.dumps([{"Id": IMAGE_ID}]))],
+        [
+            _Outcome(
+                returncode=0,
+                stdout=json.dumps(
+                    [
+                        {
+                            "Id": IMAGE_ID,
+                            "Config": {
+                                "Env": [
+                                    "PYTHON_VERSION=3.11",
+                                    "PATH=/usr/local/bin:/usr/bin",
+                                ],
+                                "ExposedPorts": {"8000/tcp": None},
+                            },
+                        }
+                    ]
+                ),
+            )
+        ],
     )
 
-    observed = cm.inspect_image_reference_id(
+    observed = cm.inspect_image_reference(
         engine=cm.ComposeEngine(binary="docker"),
         image_reference=IMAGE_REFERENCE,
     )
 
-    if observed != IMAGE_ID:
-        raise AssertionError("image reference did not resolve to its immutable ID")
+    expected_facts = cm.ImageReferenceEngineFacts(
+        immutable_image_id=IMAGE_ID,
+        environment=(
+            ("PATH", "/usr/local/bin:/usr/bin"),
+            ("PYTHON_VERSION", "3.11"),
+        ),
+        exposed_ports=(cm.ContainerPort(number=8000, protocol="tcp"),),
+    )
+    if observed != expected_facts:
+        raise AssertionError("image reference facts were not decoded canonically")
     expected = _RunCall(
         ("docker", "image", "inspect", IMAGE_REFERENCE),
         True,
@@ -735,10 +891,19 @@ def test_inspect_image_reference_id_accepts_one_canonical_immutable_id(
         "{}",
         "[]",
         json.dumps([{"Id": "sha256:" + "D" * 64}]),
-        json.dumps([{"Id": IMAGE_ID}, {"Id": IMAGE_ID}]),
+        json.dumps([{"Id": IMAGE_ID, "Config": {"Env": ["PATH=/bin"]}}] * 2),
+        json.dumps([{"Id": IMAGE_ID, "Config": {"Env": None}}]),
+        json.dumps(
+            [
+                {
+                    "Id": IMAGE_ID,
+                    "Config": {"Env": ["PATH=/bin", "PATH=/hostile"]},
+                }
+            ]
+        ),
     ],
 )
-def test_inspect_image_reference_id_rejects_malformed_results(
+def test_inspect_image_reference_rejects_malformed_results(
     monkeypatch: pytest.MonkeyPatch,
     malformed_output: str | None,
 ) -> None:
@@ -748,13 +913,13 @@ def test_inspect_image_reference_id_rejects_malformed_results(
     )
 
     with pytest.raises(RuntimeError):
-        cm.inspect_image_reference_id(
+        cm.inspect_image_reference(
             engine=cm.ComposeEngine(binary="docker"),
             image_reference=IMAGE_REFERENCE,
         )
 
 
-def test_inspect_image_reference_id_rejects_query_failure(
+def test_inspect_image_reference_rejects_query_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _install_subprocess_script(
@@ -763,7 +928,7 @@ def test_inspect_image_reference_id_rejects_query_failure(
     )
 
     with pytest.raises(RuntimeError, match=r"command failed \(exit 125\)") as caught:
-        cm.inspect_image_reference_id(
+        cm.inspect_image_reference(
             engine=cm.ComposeEngine(binary="docker"),
             image_reference=IMAGE_REFERENCE,
         )

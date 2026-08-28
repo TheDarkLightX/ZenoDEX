@@ -90,7 +90,7 @@ and AutoTrader are unmounted.
 | `zenoctl testnet local public [--no-open] [--no-release-smoke]` | Retained command surface that creates no new stack or tunnel. It may stop an existing untrusted or retired project. The legacy bypass flag does not alter the canonical admission result. |
 | `zenoctl testnet local public-up --out-dir DIR` | Create no new stack, tunnel, manifest, or host report while the current profile is release-ineligible. It may stop an existing untrusted or retired project. |
 | `zenoctl testnet local logs --out-dir DIR [--service NAME] [--tail N]` | Stream or tail compose logs from one service or the whole stack. |
-| `zenoctl testnet local reset --out-dir DIR --force` | Destructive: stops the stack, removes compose volumes, and deletes the out-dir (manifest + fixtures + reports). `--force` is required. |
+| `zenoctl testnet local reset --out-dir DIR --force` | Destructive after canonical ownership admission: stops the stack, removes compose volumes, and deletes the selected out-dir. Missing or malformed ownership evidence preserves every nonempty directory and all volumes after no-volume quiescence. `--force` is required. |
 
 Running `up` a second time on the same `--out-dir` produces byte-identical
 fixture keys (seed derived from `abspath(out_dir) + chain_id`). To rotate,
@@ -180,19 +180,46 @@ quarantine marker that survives failed rebuilds, successful replacement, later
 resets, different output directories, and changes to the `HOME` environment.
 Automatic fresh-port replacement remains unavailable after an unverified retired
 origin is observed. Every lifecycle command also stops a current-shaped manifest
-that reuses a quarantined origin. Missing manifests trigger verified quiescence
-of the collision-resistant derived project; a live collision-prone legacy project
-keeps the operation unsuccessful pending explicit recovery.
+that reuses a quarantined origin. Canonical-directory rebinding makes marker
+persistence fail closed. Missing manifests stop the collision-resistant derived
+project before fallible startup preflight. The retired collision-prone legacy
+project name is stopped unconditionally and then inspected for absence. A stop
+failure or any remaining or ambiguous container keeps the operation unsuccessful
+and persists an all-port quarantine marker. This can stop an unrelated local
+Compose project in the rare case that it shares the retired 32-bit project name.
 
 Current manifests carry an exact local profile ID and content digest. Every
 Compose service carries the same labels. Before restart, status, smoke, logs,
 or release inspection, the lifecycle reads typed live-container snapshots and
 checks the complete service set, immutable image IDs, commands, entrypoints,
-mounts, published ports, user, working directory, restart and root-filesystem
-policies, runtime state, profile labels, and retired-route environment values.
+effective executables and arguments, exact image-plus-service environments,
+mounts, bound and unbound ports, user, working directory, restart,
+root-filesystem, network, privileged mode, added and dropped capabilities,
+security options, PID namespace, host overrides, device mappings, attached
+networks, runtime state, profile labels, and
+retired-route values. Existing-container inspection uses the recovered,
+hash-checked bearer tokens and role material that Compose actually used.
+Image-inherited private keys, bearer credentials, writer tokens, passwords,
+mnemonics, and equivalent authority-sensitive environment names are refused.
+Read-only status and inspection reconstruct this environment without refreshing
+operator artifacts. An admitted restart refreshes runtime artifacts immediately
+before controlled container recreation. Existing sensitive descendants and
+mount sources are opened without following symlinks, and refreshed files are
+replaced through anchored parent descriptors. Fresh fixture keys, Oracle identity
+material, rendered bearer-token configuration, and the manifest are written
+through an already-open private output-directory descriptor. A fresh output
+directory must be private and empty, including no preexisting child symlinks.
+Output-directory rebinding therefore cannot redirect those writes to a
+replacement pathname.
 Any ambiguity or mismatch stops the exact output-directory-derived Compose
-project. Existing restarts force container recreation from the trusted Compose
+project. Existing restarts force container recreation from the checked Compose
 source before post-start admission.
+
+The immutable IDs above are observations of images available to the selected
+local container engine. They are not signed release identities. This local
+research profile assumes integrity of the host account, selected worktree,
+Compose implementation, and container engine. It grants no production or
+value-moving authority.
 
 Same-origin public routes:
 
