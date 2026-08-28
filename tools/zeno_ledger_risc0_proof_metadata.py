@@ -74,6 +74,28 @@ def _header_root_hex(header: Mapping[str, Any], field: str) -> str:
     return _normalize_hex32(_require_str(header, field), name=f"header.{field}")
 
 
+def _header_app_hash_hex(header: Mapping[str, Any]) -> str:
+    return _normalize_hex32(_require_str(header, "app_hash"), name="header.app_hash")
+
+
+def _validate_risc0_header_public_inputs(
+    *,
+    proof: Mapping[str, Any],
+    header: Mapping[str, Any],
+) -> None:
+    """DbC: require Risc0 public outputs to bind the ZenoLedger header."""
+
+    meta = proof["meta"]
+    assert isinstance(meta, Mapping)
+    if meta["post_app_hash"] != _header_app_hash_hex(header):
+        raise ValueError("risc0 post_app_hash/header app_hash mismatch")
+    if meta["txs_commitment"] != _header_root_hex(header, "tx_root"):
+        raise ValueError("risc0 txs_commitment/header tx_root mismatch")
+    if meta["pre_app_hash"] == "":
+        return
+    if meta["pre_app_hash"] != _header_root_hex(header, "pre_state_root"):
+        raise ValueError("risc0 pre_app_hash/header pre_state_root mismatch")
+
 def _validate_risc0_tau_state_proof(envelope: Mapping[str, Any]) -> dict[str, Any]:
     expected = {"schema", "schema_version", "state_hash", "proof_type", "proof", "meta"}
     if set(envelope.keys()) != expected:
@@ -159,6 +181,7 @@ def build_risc0_proof_metadata_v0(
 
     proof = _validate_risc0_tau_state_proof(proof_envelope)
     validate_header_v0(dict(header))
+    _validate_risc0_header_public_inputs(proof=proof, header=header)
     meta = proof["meta"]
     assert isinstance(meta, Mapping)
 
@@ -200,7 +223,12 @@ def build_risc0_proof_metadata_v0(
     )
 
 
-def _run_risc0_verifier_cmd(*, command: Path, proof: Mapping[str, Any]) -> None:
+def _run_risc0_verifier_cmd(
+    *,
+    command: Path,
+    proof: Mapping[str, Any],
+    header: Mapping[str, Any],
+) -> None:
     if not command.is_file():
         raise ValueError("risc0 verifier command missing")
     request = {
@@ -210,6 +238,11 @@ def _run_risc0_verifier_cmd(*, command: Path, proof: Mapping[str, Any]) -> None:
         "proof": dict(proof),
         "tau_state": {"app_hash": proof["meta"]["post_app_hash"]},
         "context": {"app_hash_pre": proof["meta"]["pre_app_hash"]},
+        "zeno_ledger_header_binding": {
+            "app_hash": _header_app_hash_hex(header),
+            "pre_state_root": _header_root_hex(header, "pre_state_root"),
+            "tx_root": _header_root_hex(header, "tx_root"),
+        },
     }
     proc = subprocess.run(
         [str(command)],
@@ -321,15 +354,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.require_risc0_verifier and args.risc0_verify_cmd is None:
             raise ValueError("--require-risc0-verifier requires --risc0-verify-cmd")
         if args.risc0_verify_cmd is not None:
-            _run_risc0_verifier_cmd(command=args.risc0_verify_cmd, proof=normalized_proof)
+            _run_risc0_verifier_cmd(command=args.risc0_verify_cmd, proof=normalized_proof, header=header)
             risc0_verified = True
-        if args.require_post_app_hash_header_app_hash:
-            post_app_hash = normalized_proof["meta"]["post_app_hash"]
-            header_app_hash = str(header["app_hash"]).lower()
-            if header_app_hash.startswith("0x"):
-                header_app_hash = header_app_hash[2:]
-            if post_app_hash != header_app_hash:
-                raise ValueError("risc0 post_app_hash/header app_hash mismatch")
+        _validate_risc0_header_public_inputs(proof=normalized_proof, header=header)
         if args.require_post_app_hash_header_post_state_root:
             post_app_hash = normalized_proof["meta"]["post_app_hash"]
             if post_app_hash != _header_root_hex(header, "post_state_root"):
