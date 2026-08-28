@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-import subprocess
 import json
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -12,8 +13,11 @@ from tools.zenoctl_testnet_local import compose as cm
 PROJECT = "zenodex-local-quarantine"
 COMPOSE_FILE = Path("docker-compose.local.yml")
 CONTAINER_ID = "a" * 64
+SECOND_CONTAINER_ID = "c" * 64
 PROFILE_ID = "local-testnet-retired-bridge-quarantine-v1"
 PROFILE_DIGEST = "sha256:" + "b" * 64
+IMAGE_ID = "sha256:" + "d" * 64
+IMAGE_REFERENCE = "zenodex/operator-tools:local"
 
 
 @dataclass(frozen=True)
@@ -75,8 +79,27 @@ def _compose_down(*, remove_volumes: bool = False) -> None:
 def _inspect_record(*, environment: list[str] | None = None) -> dict[str, object]:
     return {
         "Id": CONTAINER_ID,
+        "Image": IMAGE_ID,
+        "Path": "/usr/local/bin/python3",
+        "Args": ["-m", "src.integration.api_server"],
+        "State": {
+            "Status": "running",
+            "Running": True,
+            "Paused": False,
+            "Restarting": False,
+            "OOMKilled": False,
+            "Dead": False,
+            "Pid": 4242,
+            "ExitCode": 0,
+            "Error": "",
+            "Health": {"Status": "healthy"},
+        },
         "Config": {
-            "Image": "zenodex/operator-tools:local",
+            "Image": IMAGE_REFERENCE,
+            "Cmd": ["-m", "src.integration.api_server"],
+            "Entrypoint": None,
+            "WorkingDir": "/app",
+            "User": "1000:1000",
             "Labels": {
                 "com.docker.compose.project": PROJECT,
                 "com.docker.compose.service": "zenodex-api",
@@ -90,7 +113,51 @@ def _inspect_record(*, environment: list[str] | None = None) -> dict[str, object
                 "ZUSD_MONETARY_WALLET_API_ENABLED=false",
             ],
         },
+        "HostConfig": {
+            "Binds": ["/srv/zenodex/config.json:/app/config.json:ro"],
+            "PortBindings": {
+                "8000/tcp": [
+                    {"HostIp": "127.0.0.1", "HostPort": "18080"},
+                ]
+            },
+            "RestartPolicy": {
+                "Name": "on-failure",
+                "MaximumRetryCount": 3,
+            },
+            "ReadonlyRootfs": True,
+        },
+        "Mounts": [
+            {
+                "Type": "bind",
+                "Source": "/srv/zenodex/config.json",
+                "Destination": "/app/config.json",
+                "Mode": "ro",
+                "RW": False,
+                "Propagation": "rprivate",
+            }
+        ],
+        "NetworkSettings": {
+            "Ports": {
+                "8000/tcp": [
+                    {"HostIp": "127.0.0.1", "HostPort": "18080"},
+                ]
+            }
+        },
     }
+
+
+def _replace_nested(
+    record: dict[str, object],
+    path: tuple[str, ...],
+    value: object,
+) -> None:
+    current = record
+    for component in path[:-1]:
+        child = current[component]
+        if type(child) is not dict:
+            raise AssertionError(f"test fixture path is not an object: {path!r}")
+        current = cast(dict[str, object], child)
+    current[path[-1]] = value
 
 
 def test_compose_down_rejects_nonzero_shutdown_before_query(
@@ -221,11 +288,12 @@ def test_compose_down_accepts_canonical_zero_survivor_result(
 def test_inspect_project_containers_decodes_owned_typed_snapshot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _install_subprocess_script(
+    calls = _install_subprocess_script(
         monkeypatch,
         [
             _Outcome(returncode=0, stdout=f"{CONTAINER_ID}\n"),
             _Outcome(returncode=0, stdout=json.dumps([_inspect_record()])),
+            _Outcome(returncode=0, stdout=f"{CONTAINER_ID}\n"),
         ],
     )
 
@@ -234,13 +302,77 @@ def test_inspect_project_containers_decodes_owned_typed_snapshot(
         project_name=PROJECT,
     )
 
-    assert len(snapshots) == 1
+    if len(snapshots) != 1:
+        raise AssertionError(f"expected one snapshot, got {snapshots!r}")
     snapshot = snapshots[0]
-    assert snapshot.container_id == CONTAINER_ID
-    assert snapshot.compose_service == "zenodex-api"
-    assert snapshot.profile_id == PROFILE_ID
-    assert snapshot.profile_digest == PROFILE_DIGEST
-    assert snapshot.environment_value("PERPS_WALLET_API_ENABLED") == "false"
+    if snapshot.container_id != CONTAINER_ID:
+        raise AssertionError("snapshot lost the canonical container ID")
+    if snapshot.compose_service != "zenodex-api":
+        raise AssertionError("snapshot lost the compose service")
+    if snapshot.profile_id != PROFILE_ID or snapshot.profile_digest != PROFILE_DIGEST:
+        raise AssertionError("snapshot lost the quarantine profile binding")
+    if snapshot.environment_value("PERPS_WALLET_API_ENABLED") != "false":
+        raise AssertionError("snapshot lost the exact route environment")
+
+    facts = snapshot.engine_facts
+    if facts is None:
+        raise AssertionError("engine-decoded snapshots must carry complete engine facts")
+    if facts.immutable_image_id != IMAGE_ID or facts.config_image != IMAGE_REFERENCE:
+        raise AssertionError("snapshot did not retain both image identities")
+    if facts.path != "/usr/local/bin/python3":
+        raise AssertionError("snapshot lost the actual executable path")
+    if facts.args != ("-m", "src.integration.api_server"):
+        raise AssertionError("snapshot lost the actual executable arguments")
+    if facts.command.is_null or facts.command.values != facts.args:
+        raise AssertionError("snapshot lost Config.Cmd list identity")
+    if not facts.entrypoint.is_null or facts.entrypoint.values:
+        raise AssertionError("snapshot collapsed a null Config.Entrypoint")
+    if facts.working_dir != "/app" or facts.user != "1000:1000":
+        raise AssertionError("snapshot lost working-directory or user facts")
+    if len(facts.mounts) != 1:
+        raise AssertionError("snapshot lost the effective mount")
+    mount = facts.mounts[0]
+    if (
+        mount.mount_type != "bind"
+        or mount.destination != "/app/config.json"
+        or mount.read_write
+    ):
+        raise AssertionError("snapshot altered effective mount semantics")
+    if facts.binds.is_null or len(facts.binds.values) != 1:
+        raise AssertionError("snapshot lost HostConfig.Binds")
+    configured = facts.configured_ports.bindings
+    published = facts.published_ports.bindings
+    if configured != published or len(published) != 1:
+        raise AssertionError("snapshot lost configured or published port bindings")
+    if published[0].host_port != 18_080:
+        raise AssertionError("snapshot altered the published host port")
+    if facts.restart_policy.name != "on-failure":
+        raise AssertionError("snapshot lost restart policy")
+    if not facts.readonly_rootfs:
+        raise AssertionError("snapshot lost readonly-rootfs state")
+    if not facts.state.running or facts.state.status != "running":
+        raise AssertionError("snapshot lost running state")
+    if facts.state.health_status != "healthy":
+        raise AssertionError("snapshot lost health state")
+    query = (
+        "docker",
+        "ps",
+        "--all",
+        "--quiet",
+        "--no-trunc",
+        "--filter",
+        f"label=com.docker.compose.project={PROJECT}",
+    )
+    expected_calls = [
+        _RunCall(query, True),
+        _RunCall(
+            ("docker", "inspect", "--type", "container", CONTAINER_ID),
+            True,
+        ),
+        _RunCall(query, True),
+    ]
+    if calls != expected_calls:
+        raise AssertionError(f"inspection was not query-inspect-query: {calls!r}")
 
 
 def test_inspect_project_containers_rejects_duplicate_environment_names(
@@ -291,3 +423,303 @@ def test_inspect_project_containers_rejects_query_inspect_set_mismatch(
             engine=cm.ComposeEngine(binary="docker"),
             project_name=PROJECT,
         )
+
+
+def test_inspect_project_containers_rejects_membership_change_after_inspect(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_subprocess_script(
+        monkeypatch,
+        [
+            _Outcome(returncode=0, stdout=f"{CONTAINER_ID}\n"),
+            _Outcome(returncode=0, stdout=json.dumps([_inspect_record()])),
+            _Outcome(
+                returncode=0,
+                stdout=f"{CONTAINER_ID}\n{SECOND_CONTAINER_ID}\n",
+            ),
+        ],
+    )
+
+    with pytest.raises(RuntimeError, match="membership changed"):
+        cm.inspect_project_containers(
+            engine=cm.ComposeEngine(binary="docker"),
+            project_name=PROJECT,
+        )
+
+
+def test_inspect_project_containers_rejects_empty_project_membership_race(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_subprocess_script(
+        monkeypatch,
+        [
+            _Outcome(returncode=0, stdout=""),
+            _Outcome(returncode=0, stdout=f"{CONTAINER_ID}\n"),
+        ],
+    )
+
+    with pytest.raises(RuntimeError, match="membership changed"):
+        cm.inspect_project_containers(
+            engine=cm.ComposeEngine(binary="docker"),
+            project_name=PROJECT,
+        )
+    if len(calls) != 2:
+        raise AssertionError("empty membership must be re-queried before acceptance")
+
+
+def test_inspect_project_containers_accepts_stably_empty_project(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_subprocess_script(
+        monkeypatch,
+        [
+            _Outcome(returncode=0, stdout=""),
+            _Outcome(returncode=0, stdout=""),
+        ],
+    )
+
+    observed = cm.inspect_project_containers(
+        engine=cm.ComposeEngine(binary="docker"),
+        project_name=PROJECT,
+    )
+    if observed:
+        raise AssertionError(f"stably empty project returned snapshots: {observed!r}")
+    if len(calls) != 2 or calls[0] != calls[1]:
+        raise AssertionError("empty project acceptance requires two identical queries")
+
+
+def test_inspect_project_containers_rejects_second_query_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_subprocess_script(
+        monkeypatch,
+        [
+            _Outcome(returncode=0, stdout=f"{CONTAINER_ID}\n"),
+            _Outcome(returncode=0, stdout=json.dumps([_inspect_record()])),
+            _Outcome(returncode=125, stdout="", stderr="daemon changed state"),
+        ],
+    )
+
+    with pytest.raises(RuntimeError, match=r"command failed \(exit 125\)"):
+        cm.inspect_project_containers(
+            engine=cm.ComposeEngine(binary="docker"),
+            project_name=PROJECT,
+        )
+
+
+@pytest.mark.parametrize(
+    ("path", "malformed"),
+    [
+        (("Image",), "sha256:" + "D" * 64),
+        (("Path",), None),
+        (("Args",), None),
+        (("Config", "Image"), 7),
+        (("Config", "Cmd"), "python3"),
+        (("Config", "Entrypoint"), False),
+        (("Config", "WorkingDir"), None),
+        (("Config", "User"), []),
+        (("HostConfig", "Binds"), {}),
+        (("HostConfig", "PortBindings"), []),
+        (("HostConfig", "ReadonlyRootfs"), 1),
+        (("Mounts",), None),
+        (("NetworkSettings", "Ports"), []),
+        (("State", "Running"), 1),
+    ],
+)
+def test_project_container_snapshot_rejects_malformed_authority_shapes(
+    path: tuple[str, ...],
+    malformed: object,
+) -> None:
+    record = _inspect_record()
+    _replace_nested(record, path, malformed)
+
+    with pytest.raises(RuntimeError):
+        cm._project_container_snapshot(record, expected_project=PROJECT)
+
+
+def test_project_container_snapshot_rejects_duplicate_mount_destinations() -> None:
+    record = _inspect_record()
+    mounts = cast(list[object], record["Mounts"])
+    duplicate = cast(dict[str, object], mounts[0]).copy()
+    duplicate["Source"] = "/srv/zenodex/other.json"
+    mounts.append(duplicate)
+
+    with pytest.raises(RuntimeError, match="duplicate mount destination"):
+        cm._project_container_snapshot(record, expected_project=PROJECT)
+
+
+def test_project_container_snapshot_rejects_duplicate_bind_destinations() -> None:
+    record = _inspect_record()
+    host_config = cast(dict[str, object], record["HostConfig"])
+    host_config["Binds"] = [
+        "/srv/zenodex/config.json:/app/config.json:ro",
+        "/srv/zenodex/other.json:/app/config.json:rw",
+    ]
+
+    with pytest.raises(RuntimeError, match="duplicate bind destination"):
+        cm._project_container_snapshot(record, expected_project=PROJECT)
+
+
+def test_project_container_snapshot_rejects_duplicate_port_bindings() -> None:
+    record = _inspect_record()
+    host_config = cast(dict[str, object], record["HostConfig"])
+    port_bindings = cast(dict[str, object], host_config["PortBindings"])
+    binding = {"HostIp": "127.0.0.1", "HostPort": "18080"}
+    port_bindings["8000/tcp"] = [binding, binding.copy()]
+
+    with pytest.raises(RuntimeError, match="duplicate port binding"):
+        cm._project_container_snapshot(record, expected_project=PROJECT)
+
+
+def test_project_container_snapshot_rejects_ambiguous_empty_binding_list() -> None:
+    record = _inspect_record()
+    host_config = cast(dict[str, object], record["HostConfig"])
+    port_bindings = cast(dict[str, object], host_config["PortBindings"])
+    port_bindings["8000/tcp"] = []
+
+    with pytest.raises(RuntimeError, match="empty binding list"):
+        cm._project_container_snapshot(record, expected_project=PROJECT)
+
+
+def test_project_container_snapshot_retains_null_and_empty_variants() -> None:
+    null_record = _inspect_record()
+    null_host_config = cast(dict[str, object], null_record["HostConfig"])
+    null_host_config["Binds"] = None
+    null_host_config["PortBindings"] = {"8000/tcp": None}
+    null_network = cast(dict[str, object], null_record["NetworkSettings"])
+    null_network["Ports"] = {"8000/tcp": None}
+
+    empty_record = _inspect_record()
+    empty_host_config = cast(dict[str, object], empty_record["HostConfig"])
+    empty_host_config["Binds"] = []
+    empty_host_config["PortBindings"] = {}
+    empty_network = cast(dict[str, object], empty_record["NetworkSettings"])
+    empty_network["Ports"] = {}
+
+    null_snapshot = cm._project_container_snapshot(
+        null_record, expected_project=PROJECT
+    )
+    empty_snapshot = cm._project_container_snapshot(
+        empty_record, expected_project=PROJECT
+    )
+    null_facts = null_snapshot.engine_facts
+    empty_facts = empty_snapshot.engine_facts
+    if null_facts is None or empty_facts is None:
+        raise AssertionError("strict decoder returned incomplete engine facts")
+    if not null_facts.binds.is_null or empty_facts.binds.is_null:
+        raise AssertionError("null and empty bind variants were collapsed")
+    expected_unbound = (cm.ContainerPort(number=8000, protocol="tcp"),)
+    if null_facts.configured_ports.unbound_ports != expected_unbound:
+        raise AssertionError("null port binding was not retained as unbound")
+    if empty_facts.configured_ports.unbound_ports:
+        raise AssertionError("empty port map was conflated with a null port binding")
+
+
+def test_project_container_snapshot_rejects_hostile_mount_extra_shape() -> None:
+    record = _inspect_record()
+    mounts = cast(list[object], record["Mounts"])
+    mount = cast(dict[str, object], mounts[0])
+    mount["AccessOverride"] = "rw"
+
+    with pytest.raises(RuntimeError, match="unsupported keys"):
+        cm._project_container_snapshot(record, expected_project=PROJECT)
+
+
+def test_project_container_snapshot_rejects_hostile_port_extra_shape() -> None:
+    record = _inspect_record()
+    host_config = cast(dict[str, object], record["HostConfig"])
+    ports = cast(dict[str, object], host_config["PortBindings"])
+    bindings = cast(list[object], ports["8000/tcp"])
+    binding = cast(dict[str, object], bindings[0])
+    binding["HostPath"] = "/run/authority.sock"
+
+    with pytest.raises(RuntimeError, match="unsupported keys"):
+        cm._project_container_snapshot(record, expected_project=PROJECT)
+
+
+def test_inspect_project_containers_rejects_duplicate_json_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    encoded = json.dumps([_inspect_record()])
+    needle = f'"Image": "{IMAGE_ID}"'
+    duplicate = f'{needle}, "Image": "{IMAGE_ID}"'
+    hostile = encoded.replace(needle, duplicate, 1)
+    _install_subprocess_script(
+        monkeypatch,
+        [
+            _Outcome(returncode=0, stdout=f"{CONTAINER_ID}\n"),
+            _Outcome(returncode=0, stdout=hostile),
+        ],
+    )
+
+    with pytest.raises(RuntimeError, match="duplicate"):
+        cm.inspect_project_containers(
+            engine=cm.ComposeEngine(binary="docker"),
+            project_name=PROJECT,
+        )
+
+
+def test_inspect_image_reference_id_accepts_one_canonical_immutable_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = _install_subprocess_script(
+        monkeypatch,
+        [_Outcome(returncode=0, stdout=json.dumps([{"Id": IMAGE_ID}]))],
+    )
+
+    observed = cm.inspect_image_reference_id(
+        engine=cm.ComposeEngine(binary="docker"),
+        image_reference=IMAGE_REFERENCE,
+    )
+
+    if observed != IMAGE_ID:
+        raise AssertionError("image reference did not resolve to its immutable ID")
+    expected = _RunCall(
+        ("docker", "image", "inspect", IMAGE_REFERENCE),
+        True,
+    )
+    if calls != [expected]:
+        raise AssertionError(f"unexpected image inspection command: {calls!r}")
+
+
+@pytest.mark.parametrize(
+    "malformed_output",
+    [
+        None,
+        "{}",
+        "[]",
+        json.dumps([{"Id": "sha256:" + "D" * 64}]),
+        json.dumps([{"Id": IMAGE_ID}, {"Id": IMAGE_ID}]),
+    ],
+)
+def test_inspect_image_reference_id_rejects_malformed_results(
+    monkeypatch: pytest.MonkeyPatch,
+    malformed_output: str | None,
+) -> None:
+    _install_subprocess_script(
+        monkeypatch,
+        [_Outcome(returncode=0, stdout=malformed_output)],
+    )
+
+    with pytest.raises(RuntimeError):
+        cm.inspect_image_reference_id(
+            engine=cm.ComposeEngine(binary="docker"),
+            image_reference=IMAGE_REFERENCE,
+        )
+
+
+def test_inspect_image_reference_id_rejects_query_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_subprocess_script(
+        monkeypatch,
+        [_Outcome(returncode=125, stdout="", stderr="image store unavailable")],
+    )
+
+    with pytest.raises(RuntimeError, match=r"command failed \(exit 125\)") as caught:
+        cm.inspect_image_reference_id(
+            engine=cm.ComposeEngine(binary="docker"),
+            image_reference=IMAGE_REFERENCE,
+        )
+    if "image store unavailable" not in str(caught.value):
+        raise AssertionError("image inspection failure omitted engine diagnostic")

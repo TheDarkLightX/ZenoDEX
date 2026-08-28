@@ -14,7 +14,7 @@ import urllib.request
 from contextlib import closing
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any, Iterable, Sequence, cast
 
 DEFAULT_UI_PORT = 18080
 DEFAULT_HEALTH_TIMEOUT_S = 60.0
@@ -25,6 +25,14 @@ _COMPOSE_SERVICE_LABEL = "com.docker.compose.service"
 _LOCAL_PROFILE_ID_LABEL = "io.zenodex.local-operator-profile-id"
 _LOCAL_PROFILE_DIGEST_LABEL = "io.zenodex.local-operator-profile-digest"
 _CANONICAL_CONTAINER_ID_RE = re.compile(r"[0-9a-f]{64}")
+_CANONICAL_IMAGE_ID_RE = re.compile(r"sha256:[0-9a-f]{64}")
+_CANONICAL_ENVIRONMENT_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_CANONICAL_PORT_KEY_RE = re.compile(r"([1-9][0-9]{0,4})/(tcp|udp|sctp)")
+_CANONICAL_HOST_PORT_RE = re.compile(r"[1-9][0-9]{0,4}")
+_RESTART_POLICY_NAMES = frozenset({"no", "always", "on-failure", "unless-stopped"})
+_CONTAINER_STATE_NAMES = frozenset(
+    {"created", "running", "paused", "restarting", "removing", "exited", "dead"}
+)
 
 
 @dataclass(frozen=True)
@@ -40,8 +48,115 @@ class ComposeEngine:
 
 
 @dataclass(frozen=True)
+class ContainerStringVector:
+    """Exact distinction between a JSON null and a JSON string array."""
+
+    is_null: bool
+    values: tuple[str, ...]
+
+
+@dataclass(frozen=True, order=True)
+class ContainerMount:
+    """Canonical effective mount facts from one inspect record."""
+
+    mount_type: str
+    source: str
+    destination: str
+    name: str | None
+    driver: str | None
+    mode: str
+    read_write: bool
+    propagation: str
+
+
+@dataclass(frozen=True, order=True)
+class ContainerBind:
+    """Canonical HostConfig.Binds entry."""
+
+    source: str
+    destination: str
+    options: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ContainerBindVector:
+    """Exact distinction between null and list-valued HostConfig.Binds."""
+
+    is_null: bool
+    values: tuple[ContainerBind, ...]
+
+
+@dataclass(frozen=True, order=True)
+class ContainerPort:
+    number: int
+    protocol: str
+
+
+@dataclass(frozen=True, order=True)
+class ContainerPortBinding:
+    container_port: ContainerPort
+    host_ip: str
+    host_port: int
+
+
+@dataclass(frozen=True)
+class ContainerPortBindings:
+    """Canonical port bindings, retaining null-valued unbound ports."""
+
+    unbound_ports: tuple[ContainerPort, ...]
+    bindings: tuple[ContainerPortBinding, ...]
+
+
+@dataclass(frozen=True)
+class ContainerRestartPolicy:
+    name: str
+    maximum_retry_count: int
+
+
+@dataclass(frozen=True)
+class ContainerState:
+    status: str
+    running: bool
+    paused: bool
+    restarting: bool
+    oom_killed: bool
+    dead: bool
+    pid: int
+    exit_code: int
+    error: str
+    health_status: str | None
+
+
+@dataclass(frozen=True)
+class ProjectContainerEngineFacts:
+    """Complete, strictly decoded execution facts from container inspect."""
+
+    immutable_image_id: str
+    config_image: str
+    path: str
+    args: tuple[str, ...]
+    command: ContainerStringVector
+    entrypoint: ContainerStringVector
+    working_dir: str
+    user: str
+    mounts: tuple[ContainerMount, ...]
+    binds: ContainerBindVector
+    configured_ports: ContainerPortBindings
+    published_ports: ContainerPortBindings
+    restart_policy: ContainerRestartPolicy
+    readonly_rootfs: bool
+    state: ContainerState
+
+
+@dataclass(frozen=True)
 class ProjectContainerSnapshot:
-    """Minimal owned view of one untrusted container-engine record."""
+    """Owned view of one untrusted container-engine record.
+
+    ``engine_facts`` is optional only to preserve the existing caller-constructed
+    test/API shape. Snapshots returned by :func:`inspect_project_containers`
+    always populate it; consumers requiring live-engine evidence must reject
+    ``None``.
+    """
 
     container_id: str
     compose_project: str
@@ -50,6 +165,7 @@ class ProjectContainerSnapshot:
     profile_digest: str
     image: str
     environment: tuple[tuple[str, str], ...]
+    engine_facts: ProjectContainerEngineFacts | None = None
 
     def environment_value(self, name: str) -> str | None:
         for key, value in self.environment:
@@ -186,33 +302,73 @@ def inspect_project_containers(
         project_name=project_name,
         env=env,
     )
-    if not container_ids:
-        return ()
+    snapshots: tuple[ProjectContainerSnapshot, ...] = ()
+    if container_ids:
+        result = _run(
+            [engine.binary, "inspect", "--type", "container", *container_ids],
+            env=env,
+            check=True,
+            capture=True,
+        )
+        decoded = _decode_container_engine_json(
+            result.stdout,
+            operation="container inspect",
+        )
+        if type(decoded) is not list:
+            raise RuntimeError("container inspect must return an exact JSON array")
+
+        snapshots = tuple(
+            _project_container_snapshot(item, expected_project=project_name)
+            for item in decoded
+        )
+        observed_ids = tuple(snapshot.container_id for snapshot in snapshots)
+        if len(observed_ids) != len(set(observed_ids)):
+            raise RuntimeError("container inspect returned duplicate container records")
+        if set(observed_ids) != set(container_ids):
+            raise RuntimeError(
+                "container inspect result does not match the project container query"
+            )
+
+    stable_ids = _query_project_container_ids(
+        engine=engine,
+        project_name=project_name,
+        env=env,
+    )
+    if set(stable_ids) != set(container_ids):
+        raise RuntimeError("project container membership changed during inspection")
+    return tuple(sorted(snapshots, key=lambda snapshot: snapshot.container_id))
+
+
+def inspect_image_reference_id(
+    *,
+    engine: ComposeEngine,
+    image_reference: str,
+    env: dict[str, str] | None = None,
+) -> str:
+    """Resolve one image reference to one canonical immutable engine image ID."""
+
+    if (
+        type(image_reference) is not str
+        or not image_reference
+        or image_reference.startswith("-")
+        or any(character.isspace() for character in image_reference)
+        or "\x00" in image_reference
+    ):
+        raise ValueError("image reference must be one non-option, whitespace-free string")
     result = _run(
-        [engine.binary, "inspect", "--type", "container", *container_ids],
+        [engine.binary, "image", "inspect", image_reference],
         env=env,
         check=True,
         capture=True,
     )
-    if type(result.stdout) is not str:
-        raise RuntimeError("container inspect returned no stdout")
-    try:
-        decoded = json.loads(result.stdout, object_pairs_hook=_reject_duplicate_json_keys)
-    except (TypeError, ValueError, json.JSONDecodeError) as exc:
-        raise RuntimeError(f"container inspect returned invalid JSON: {exc}") from None
-    if type(decoded) is not list:
-        raise RuntimeError("container inspect must return an exact JSON array")
-
-    snapshots = tuple(
-        _project_container_snapshot(item, expected_project=project_name)
-        for item in decoded
+    decoded = _decode_container_engine_json(
+        result.stdout,
+        operation="image inspect",
     )
-    observed_ids = tuple(snapshot.container_id for snapshot in snapshots)
-    if len(observed_ids) != len(set(observed_ids)):
-        raise RuntimeError("container inspect returned duplicate container records")
-    if set(observed_ids) != set(container_ids):
-        raise RuntimeError("container inspect result does not match the project container query")
-    return tuple(sorted(snapshots, key=lambda snapshot: snapshot.container_id))
+    if type(decoded) is not list or len(decoded) != 1:
+        raise RuntimeError("image inspect must return exactly one JSON object")
+    record = _exact_object(decoded[0], context="image inspect entry")
+    return _canonical_image_id(record.get("Id"), context="image inspect entry")
 
 
 def _query_project_container_ids(
@@ -233,16 +389,410 @@ def _query_project_container_ids(
     result = _run(query_cmd, env=env, check=True, capture=True)
     if result.stdout is None:
         raise RuntimeError("container query returned no stdout")
-    return _parse_canonical_container_ids(result.stdout)
+    return tuple(sorted(_parse_canonical_container_ids(result.stdout)))
 
 
 def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     decoded: dict[str, Any] = {}
     for key, value in pairs:
         if type(key) is not str or key in decoded:
-            raise ValueError("container inspect contains a duplicate or non-string key")
+            raise ValueError("container-engine JSON contains a duplicate or non-string key")
         decoded[key] = value
     return decoded
+
+
+def _reject_non_json_constant(value: str) -> None:
+    raise ValueError(f"container-engine JSON contains invalid constant {value!r}")
+
+
+def _decode_container_engine_json(output: object, *, operation: str) -> object:
+    if type(output) is not str:
+        raise RuntimeError(f"{operation} returned no stdout")
+    try:
+        return json.loads(
+            output,
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_non_json_constant,
+        )
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"{operation} returned invalid JSON: {exc}") from None
+
+
+def _exact_object(value: object, *, context: str) -> dict[str, object]:
+    if type(value) is not dict:
+        raise RuntimeError(f"{context} must be an exact JSON object")
+    record = cast(dict[object, object], value)
+    if any(type(key) is not str for key in record):
+        raise RuntimeError(f"{context} contains a non-string key")
+    return cast(dict[str, object], record)
+
+
+def _exact_text(
+    value: object,
+    *,
+    context: str,
+    allow_empty: bool = True,
+) -> str:
+    if type(value) is not str or (not allow_empty and not value):
+        requirement = "non-empty string" if not allow_empty else "string"
+        raise RuntimeError(f"{context} must be an exact {requirement}")
+    text = value
+    if any(character in text for character in ("\x00", "\r", "\n")):
+        raise RuntimeError(f"{context} contains a forbidden control character")
+    return text
+
+
+def _canonical_image_id(value: object, *, context: str) -> str:
+    image_id = _exact_text(value, context=f"{context} image ID", allow_empty=False)
+    if _CANONICAL_IMAGE_ID_RE.fullmatch(image_id) is None:
+        raise RuntimeError(f"{context} has a non-canonical immutable image ID")
+    return image_id
+
+
+def _string_vector(
+    value: object,
+    *,
+    context: str,
+    allow_null: bool,
+) -> ContainerStringVector:
+    if value is None:
+        if not allow_null:
+            raise RuntimeError(f"{context} must be an exact string array")
+        return ContainerStringVector(is_null=True, values=())
+    if type(value) is not list:
+        suffix = "null or an exact string array" if allow_null else "an exact string array"
+        raise RuntimeError(f"{context} must be {suffix}")
+    values = tuple(
+        _exact_text(item, context=f"{context} item")
+        for item in cast(list[object], value)
+    )
+    return ContainerStringVector(is_null=False, values=values)
+
+
+def _reject_unknown_keys(
+    record: dict[str, object],
+    *,
+    allowed: frozenset[str],
+    context: str,
+) -> None:
+    unknown = sorted(set(record).difference(allowed))
+    if unknown:
+        raise RuntimeError(f"{context} contains unsupported keys: {', '.join(unknown)}")
+
+
+def _mounts(value: object) -> tuple[ContainerMount, ...]:
+    if type(value) is not list:
+        raise RuntimeError("container inspect Mounts must be an exact array")
+    allowed_keys = frozenset(
+        {
+            "Type",
+            "Source",
+            "Destination",
+            "Name",
+            "Driver",
+            "Mode",
+            "RW",
+            "Propagation",
+        }
+    )
+    required_keys = frozenset(
+        {"Type", "Source", "Destination", "Mode", "RW", "Propagation"}
+    )
+    decoded: list[ContainerMount] = []
+    destinations: set[str] = set()
+    for item in cast(list[object], value):
+        record = _exact_object(item, context="container inspect mount")
+        _reject_unknown_keys(record, allowed=allowed_keys, context="container inspect mount")
+        if not required_keys.issubset(record):
+            raise RuntimeError("container inspect mount has missing required keys")
+        mount_type = _exact_text(
+            record["Type"], context="container inspect mount Type", allow_empty=False
+        )
+        source = _exact_text(record["Source"], context="container inspect mount Source")
+        destination = _exact_text(
+            record["Destination"],
+            context="container inspect mount Destination",
+            allow_empty=False,
+        )
+        if not destination.startswith("/"):
+            raise RuntimeError("container inspect mount destination must be absolute")
+        if destination in destinations:
+            raise RuntimeError("container inspect has a duplicate mount destination")
+        destinations.add(destination)
+        read_write = record["RW"]
+        if type(read_write) is not bool:
+            raise RuntimeError("container inspect mount RW must be an exact boolean")
+        name = (
+            _exact_text(record["Name"], context="container inspect mount Name")
+            if "Name" in record
+            else None
+        )
+        driver = (
+            _exact_text(record["Driver"], context="container inspect mount Driver")
+            if "Driver" in record
+            else None
+        )
+        decoded.append(
+            ContainerMount(
+                mount_type=mount_type,
+                source=source,
+                destination=destination,
+                name=name,
+                driver=driver,
+                mode=_exact_text(record["Mode"], context="container inspect mount Mode"),
+                read_write=read_write,
+                propagation=_exact_text(
+                    record["Propagation"],
+                    context="container inspect mount Propagation",
+                ),
+            )
+        )
+    return tuple(sorted(decoded, key=lambda mount: mount.destination))
+
+
+def _binds(value: object) -> ContainerBindVector:
+    if value is None:
+        return ContainerBindVector(is_null=True, values=())
+    if type(value) is not list:
+        raise RuntimeError("container inspect HostConfig.Binds must be null or an exact array")
+    decoded: list[ContainerBind] = []
+    destinations: set[str] = set()
+    for item in cast(list[object], value):
+        binding = _exact_text(
+            item,
+            context="container inspect HostConfig.Binds item",
+            allow_empty=False,
+        )
+        components = binding.split(":")
+        if len(components) not in (2, 3):
+            raise RuntimeError("container inspect bind has an ambiguous field count")
+        source, destination = components[:2]
+        if not source or not destination or not destination.startswith("/"):
+            raise RuntimeError("container inspect bind has a malformed source or destination")
+        raw_options = components[2].split(",") if len(components) == 3 else []
+        if any(not option for option in raw_options):
+            raise RuntimeError("container inspect bind contains an empty option")
+        if len(raw_options) != len(set(raw_options)):
+            raise RuntimeError("container inspect bind contains a duplicate option")
+        if "ro" in raw_options and "rw" in raw_options:
+            raise RuntimeError("container inspect bind contains conflicting access options")
+        if destination in destinations:
+            raise RuntimeError("container inspect has a duplicate bind destination")
+        destinations.add(destination)
+        decoded.append(
+            ContainerBind(
+                source=source,
+                destination=destination,
+                options=tuple(sorted(raw_options)),
+            )
+        )
+    return ContainerBindVector(
+        is_null=False,
+        values=tuple(sorted(decoded, key=lambda binding: binding.destination)),
+    )
+
+
+def _cross_check_binds(
+    binds: ContainerBindVector,
+    mounts: tuple[ContainerMount, ...],
+) -> None:
+    mounts_by_destination = {mount.destination: mount for mount in mounts}
+    for binding in binds.values:
+        mount = mounts_by_destination.get(binding.destination)
+        if (
+            mount is None
+            or mount.mount_type != "bind"
+            or mount.source != binding.source
+        ):
+            raise RuntimeError("container inspect bind disagrees with effective mounts")
+        requested_read_write = "ro" not in binding.options
+        if mount.read_write != requested_read_write:
+            raise RuntimeError("container inspect bind access disagrees with effective mounts")
+
+
+def _container_port(value: object, *, context: str) -> ContainerPort:
+    port_key = _exact_text(value, context=context, allow_empty=False)
+    matched = _CANONICAL_PORT_KEY_RE.fullmatch(port_key)
+    if matched is None:
+        raise RuntimeError(f"{context} is not a canonical container port")
+    number = int(matched.group(1))
+    if number > 65_535:
+        raise RuntimeError(f"{context} is outside the valid port range")
+    return ContainerPort(number=number, protocol=matched.group(2))
+
+
+def _port_bindings(value: object, *, context: str) -> ContainerPortBindings:
+    record = _exact_object(value, context=context)
+    unbound: list[ContainerPort] = []
+    bindings: list[ContainerPortBinding] = []
+    observed_bindings: set[ContainerPortBinding] = set()
+    observed_host_endpoints: set[tuple[str, int, str]] = set()
+    for port_key in sorted(record):
+        container_port = _container_port(port_key, context=f"{context} key")
+        raw_bindings = record[port_key]
+        if raw_bindings is None:
+            unbound.append(container_port)
+            continue
+        if type(raw_bindings) is not list:
+            raise RuntimeError(f"{context} value must be null or an exact binding array")
+        binding_items = cast(list[object], raw_bindings)
+        if not binding_items:
+            raise RuntimeError(f"{context} contains an ambiguous empty binding list")
+        for item in binding_items:
+            binding_record = _exact_object(item, context=f"{context} binding")
+            _reject_unknown_keys(
+                binding_record,
+                allowed=frozenset({"HostIp", "HostPort"}),
+                context=f"{context} binding",
+            )
+            if set(binding_record) != {"HostIp", "HostPort"}:
+                raise RuntimeError(f"{context} binding has missing required keys")
+            host_ip = _exact_text(
+                binding_record["HostIp"], context=f"{context} binding HostIp"
+            )
+            host_port_text = _exact_text(
+                binding_record["HostPort"],
+                context=f"{context} binding HostPort",
+                allow_empty=False,
+            )
+            if _CANONICAL_HOST_PORT_RE.fullmatch(host_port_text) is None:
+                raise RuntimeError(f"{context} binding has a non-canonical host port")
+            host_port = int(host_port_text)
+            if host_port > 65_535:
+                raise RuntimeError(f"{context} binding host port is out of range")
+            binding = ContainerPortBinding(
+                container_port=container_port,
+                host_ip=host_ip,
+                host_port=host_port,
+            )
+            if binding in observed_bindings:
+                raise RuntimeError(f"{context} contains a duplicate port binding")
+            observed_bindings.add(binding)
+            endpoint_host = "0.0.0.0" if host_ip == "" else host_ip
+            endpoint = (endpoint_host, host_port, container_port.protocol)
+            if endpoint in observed_host_endpoints:
+                raise RuntimeError(f"{context} contains a duplicate host port binding")
+            observed_host_endpoints.add(endpoint)
+            bindings.append(binding)
+    return ContainerPortBindings(
+        unbound_ports=tuple(sorted(unbound)),
+        bindings=tuple(sorted(bindings)),
+    )
+
+
+def _restart_policy(value: object) -> ContainerRestartPolicy:
+    record = _exact_object(value, context="container inspect restart policy")
+    _reject_unknown_keys(
+        record,
+        allowed=frozenset({"Name", "MaximumRetryCount"}),
+        context="container inspect restart policy",
+    )
+    if set(record) != {"Name", "MaximumRetryCount"}:
+        raise RuntimeError("container inspect restart policy has missing required keys")
+    name = _exact_text(
+        record["Name"],
+        context="container inspect restart policy Name",
+        allow_empty=False,
+    )
+    if name not in _RESTART_POLICY_NAMES:
+        raise RuntimeError("container inspect restart policy has an unsupported name")
+    maximum_retry_count = record["MaximumRetryCount"]
+    if (
+        type(maximum_retry_count) is not int
+        or maximum_retry_count < 0
+        or maximum_retry_count > 2_147_483_647
+    ):
+        raise RuntimeError("container inspect restart retry count is not a valid integer")
+    return ContainerRestartPolicy(
+        name=name,
+        maximum_retry_count=maximum_retry_count,
+    )
+
+
+def _container_state(value: object) -> ContainerState:
+    record = _exact_object(value, context="container inspect State")
+    required_keys = frozenset(
+        {
+            "Status",
+            "Running",
+            "Paused",
+            "Restarting",
+            "OOMKilled",
+            "Dead",
+            "Pid",
+            "ExitCode",
+            "Error",
+        }
+    )
+    _reject_unknown_keys(
+        record,
+        allowed=required_keys
+        | frozenset({"StartedAt", "FinishedAt", "Health"}),
+        context="container inspect State",
+    )
+    if not required_keys.issubset(record):
+        raise RuntimeError("container inspect State has missing required keys")
+    status = _exact_text(
+        record["Status"], context="container inspect State.Status", allow_empty=False
+    )
+    if status not in _CONTAINER_STATE_NAMES:
+        raise RuntimeError("container inspect State.Status is unsupported")
+    boolean_values: dict[str, bool] = {}
+    for key in ("Running", "Paused", "Restarting", "OOMKilled", "Dead"):
+        raw_value = record[key]
+        if type(raw_value) is not bool:
+            raise RuntimeError(f"container inspect State.{key} must be an exact boolean")
+        boolean_values[key] = raw_value
+    pid = record["Pid"]
+    exit_code = record["ExitCode"]
+    if type(pid) is not int or pid < 0 or pid > 2_147_483_647:
+        raise RuntimeError("container inspect State.Pid must be a non-negative integer")
+    if type(exit_code) is not int or exit_code < 0 or exit_code > 2_147_483_647:
+        raise RuntimeError("container inspect State.ExitCode must be a non-negative integer")
+    running = boolean_values["Running"]
+    paused = boolean_values["Paused"]
+    restarting = boolean_values["Restarting"]
+    dead = boolean_values["Dead"]
+    expected_live_status = (
+        "paused" if paused else "restarting" if restarting else "running"
+    )
+    if running:
+        if dead or status != expected_live_status or pid == 0:
+            raise RuntimeError("container inspect State contains inconsistent live facts")
+    elif paused or restarting or status in {"running", "paused", "restarting"}:
+        raise RuntimeError("container inspect State contains inconsistent stopped facts")
+    if dead != (status == "dead"):
+        raise RuntimeError("container inspect State contains inconsistent dead facts")
+
+    health_status: str | None = None
+    if "Health" in record:
+        health = _exact_object(record["Health"], context="container inspect State.Health")
+        _reject_unknown_keys(
+            health,
+            allowed=frozenset({"Status", "FailingStreak", "Log"}),
+            context="container inspect State.Health",
+        )
+        if "Status" not in health:
+            raise RuntimeError("container inspect State.Health has no Status")
+        health_status = _exact_text(
+            health["Status"],
+            context="container inspect State.Health.Status",
+            allow_empty=False,
+        )
+        if health_status not in {"starting", "healthy", "unhealthy", "none"}:
+            raise RuntimeError("container inspect State.Health.Status is unsupported")
+    return ContainerState(
+        status=status,
+        running=running,
+        paused=paused,
+        restarting=restarting,
+        oom_killed=boolean_values["OOMKilled"],
+        dead=dead,
+        pid=pid,
+        exit_code=exit_code,
+        error=_exact_text(record["Error"], context="container inspect State.Error"),
+        health_status=health_status,
+    )
 
 
 def _project_container_snapshot(
@@ -250,50 +800,141 @@ def _project_container_snapshot(
     *,
     expected_project: str,
 ) -> ProjectContainerSnapshot:
-    if type(value) is not dict:
-        raise RuntimeError("container inspect entry must be an exact JSON object")
-    record = value
+    record = _exact_object(value, context="container inspect entry")
     container_id = record.get("Id")
     config = record.get("Config")
-    if type(container_id) is not str or _CANONICAL_CONTAINER_ID_RE.fullmatch(container_id) is None:
+    if (
+        type(container_id) is not str
+        or _CANONICAL_CONTAINER_ID_RE.fullmatch(container_id) is None
+    ):
         raise RuntimeError("container inspect entry has a non-canonical container ID")
-    if type(config) is not dict:
-        raise RuntimeError("container inspect entry has no exact Config object")
-    image = config.get("Image")
+    immutable_image_id = _canonical_image_id(record.get("Image"), context="container inspect entry")
+    path = _exact_text(
+        record.get("Path"),
+        context="container inspect entry Path",
+        allow_empty=False,
+    )
+    args = _string_vector(
+        record.get("Args"),
+        context="container inspect entry Args",
+        allow_null=False,
+    ).values
+    state = _container_state(record.get("State"))
+    config = _exact_object(config, context="container inspect Config")
+    image = _exact_text(
+        config.get("Image"),
+        context="container inspect Config.Image",
+        allow_empty=False,
+    )
+    if "Cmd" not in config or "Entrypoint" not in config:
+        raise RuntimeError("container inspect Config lacks command or entrypoint facts")
+    command = _string_vector(
+        config["Cmd"],
+        context="container inspect Config.Cmd",
+        allow_null=True,
+    )
+    entrypoint = _string_vector(
+        config["Entrypoint"],
+        context="container inspect Config.Entrypoint",
+        allow_null=True,
+    )
+    working_dir = _exact_text(
+        config.get("WorkingDir"), context="container inspect Config.WorkingDir"
+    )
+    user = _exact_text(config.get("User"), context="container inspect Config.User")
     labels = config.get("Labels")
     environment = config.get("Env")
-    if type(image) is not str or not image:
-        raise RuntimeError("container inspect entry has no exact image reference")
-    if type(labels) is not dict:
-        raise RuntimeError("container inspect entry has no exact label object")
+    labels = _exact_object(labels, context="container inspect Config.Labels")
+    decoded_labels = {
+        _exact_text(key, context="container inspect label name", allow_empty=False): _exact_text(
+            item, context=f"container inspect label {key!r}"
+        )
+        for key, item in labels.items()
+    }
     required_labels = (
         _COMPOSE_PROJECT_LABEL,
         _COMPOSE_SERVICE_LABEL,
         _LOCAL_PROFILE_ID_LABEL,
         _LOCAL_PROFILE_DIGEST_LABEL,
     )
-    if any(type(labels.get(name)) is not str for name in required_labels):
+    if any(name not in decoded_labels for name in required_labels):
         raise RuntimeError("container inspect entry has missing or non-string profile labels")
-    if labels[_COMPOSE_PROJECT_LABEL] != expected_project:
+    if decoded_labels[_COMPOSE_PROJECT_LABEL] != expected_project:
         raise RuntimeError("container inspect project label mismatch")
-    if type(environment) is not list or any(type(item) is not str for item in environment):
+    if any(not decoded_labels[name] for name in required_labels):
+        raise RuntimeError("container inspect entry has an empty required profile label")
+    if (
+        _CANONICAL_IMAGE_ID_RE.fullmatch(decoded_labels[_LOCAL_PROFILE_DIGEST_LABEL])
+        is None
+    ):
+        raise RuntimeError("container inspect profile digest is non-canonical")
+    if type(environment) is not list:
         raise RuntimeError("container inspect entry has no exact environment list")
     parsed_environment: dict[str, str] = {}
-    for item in environment:
+    for raw_item in cast(list[object], environment):
+        item = _exact_text(raw_item, context="container inspect environment entry")
         if "=" not in item:
             raise RuntimeError("container inspect environment entry has no value delimiter")
         name, env_value = item.split("=", 1)
-        if not name or name in parsed_environment:
+        if (
+            _CANONICAL_ENVIRONMENT_NAME_RE.fullmatch(name) is None
+            or name in parsed_environment
+        ):
             raise RuntimeError("container inspect environment has an empty or duplicate name")
         parsed_environment[name] = env_value
+
+    host_config = _exact_object(
+        record.get("HostConfig"), context="container inspect HostConfig"
+    )
+    host_required = frozenset(
+        {"Binds", "PortBindings", "RestartPolicy", "ReadonlyRootfs"}
+    )
+    if not host_required.issubset(host_config):
+        raise RuntimeError("container inspect HostConfig lacks required runtime facts")
+    mounts = _mounts(record.get("Mounts"))
+    binds = _binds(host_config["Binds"])
+    _cross_check_binds(binds, mounts)
+    configured_ports = _port_bindings(
+        host_config["PortBindings"], context="container inspect HostConfig.PortBindings"
+    )
+    restart_policy = _restart_policy(host_config["RestartPolicy"])
+    readonly_rootfs = host_config["ReadonlyRootfs"]
+    if type(readonly_rootfs) is not bool:
+        raise RuntimeError("container inspect ReadonlyRootfs must be an exact boolean")
+    network_settings = _exact_object(
+        record.get("NetworkSettings"), context="container inspect NetworkSettings"
+    )
+    if "Ports" not in network_settings:
+        raise RuntimeError("container inspect NetworkSettings lacks Ports")
+    published_ports = _port_bindings(
+        network_settings["Ports"], context="container inspect NetworkSettings.Ports"
+    )
+    engine_facts = ProjectContainerEngineFacts(
+        immutable_image_id=immutable_image_id,
+        config_image=image,
+        path=path,
+        args=args,
+        command=command,
+        entrypoint=entrypoint,
+        working_dir=working_dir,
+        user=user,
+        mounts=mounts,
+        binds=binds,
+        configured_ports=configured_ports,
+        published_ports=published_ports,
+        restart_policy=restart_policy,
+        readonly_rootfs=readonly_rootfs,
+        state=state,
+    )
     return ProjectContainerSnapshot(
         container_id=container_id,
-        compose_project=labels[_COMPOSE_PROJECT_LABEL],
-        compose_service=labels[_COMPOSE_SERVICE_LABEL],
-        profile_id=labels[_LOCAL_PROFILE_ID_LABEL],
-        profile_digest=labels[_LOCAL_PROFILE_DIGEST_LABEL],
+        compose_project=decoded_labels[_COMPOSE_PROJECT_LABEL],
+        compose_service=decoded_labels[_COMPOSE_SERVICE_LABEL],
+        profile_id=decoded_labels[_LOCAL_PROFILE_ID_LABEL],
+        profile_digest=decoded_labels[_LOCAL_PROFILE_DIGEST_LABEL],
         image=image,
         environment=tuple(sorted(parsed_environment.items())),
+        engine_facts=engine_facts,
     )
 
 
