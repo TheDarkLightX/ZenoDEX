@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Tuple
 
-from .balances import Amount, AssetId
+from .balances import Amount, AssetId, _SnapshotSealMixin
 from .canonical import canonical_hex_fixed_allow_0x, canonical_json_bytes
 
 CURVE_TAG_CPMM = "CPMM"
@@ -364,8 +364,8 @@ def validate_pool_id_format(pool_id: object, *, allow_symbolic: bool) -> None:
         )
 
 
-@dataclass
-class PoolState:
+@dataclass(slots=True)
+class PoolState(_SnapshotSealMixin):
     """
     State of a DEX liquidity pool.
     
@@ -472,6 +472,35 @@ class PoolState:
             f"reserves=({self.reserve0}, {self.reserve1}), "
             f"lp_supply={self.lp_supply}, status={self.status.value})"
         )
+
+
+def copy_pool_state(
+    source: PoolState,
+    *,
+    reserve0: Amount | None = None,
+    reserve1: Amount | None = None,
+) -> PoolState:
+    """Return an exact mutable scratch copy of one pool value.
+
+    dataclasses.replace preserves subclasses. That is unsafe when a sealed
+    committed pool is copied for local settlement mutation.
+    """
+
+    if not isinstance(source, PoolState):
+        raise TypeError("source must be a PoolState")
+    return PoolState(
+        pool_id=source.pool_id,
+        asset0=source.asset0,
+        asset1=source.asset1,
+        reserve0=source.reserve0 if reserve0 is None else reserve0,
+        reserve1=source.reserve1 if reserve1 is None else reserve1,
+        fee_bps=source.fee_bps,
+        lp_supply=source.lp_supply,
+        status=source.status,
+        created_at=source.created_at,
+        curve_tag=source.curve_tag,
+        curve_params=source.curve_params,
+    )
 
 
 def validate_pool_identity(pool: PoolState, *, allow_symbolic: bool) -> None:

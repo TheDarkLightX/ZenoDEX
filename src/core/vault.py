@@ -11,11 +11,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping
 
-
 ACC_SCALE = 1_000_000
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class VaultState:
     """Vault state."""
 
@@ -202,4 +201,3 @@ def _unstake(state: VaultState, args: Mapping[str, Any]) -> VaultStepResult:
         staked_lp_shares=state.staked_lp_shares - amount,
     )
     return VaultStepResult(ok=True, state=new_state, effects={"delta_acc": 0, "harvested_reward": 0})
-

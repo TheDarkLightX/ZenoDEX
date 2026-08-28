@@ -2,19 +2,32 @@
 
 from __future__ import annotations
 
+import copy
 from dataclasses import replace
+from typing import Any, cast
 
 import src.core.settlement_strong_validator as strong_validator
-from src.core.batch_clearing import compute_settlement, validate_settlement
+from src.core.batch_clearing import apply_settlement_pure, compute_settlement, validate_settlement
 from src.core.dex import DexConfig, DexState
 from src.core.dex import step as dex_step
 from src.core.liquidity import create_pool
 from src.core.quote_receipts import pool_state_fingerprint
 from src.core.settlement import BalanceDelta, Fill, FillAction, LPDelta, ReserveDelta, Settlement
-from src.core.settlement_strong_validator import validate_settlement_strong
+from src.core.settlement_strong_validator import (
+    StrongSettlementRejectV1,
+    StrongSettlementStateCandidateV1,
+    evaluate_settlement_strong_committed_v1,
+    validate_settlement_strong,
+    validate_settlement_strong_committed_v1,
+)
 from src.state import BalanceTable, LPTable
 from src.state.intents import Intent, IntentKind
 from src.state.pools import PoolState, PoolStatus, compute_pool_id
+from src.state.state_snapshots import (
+    snapshot_balance_table,
+    snapshot_lp_table,
+    snapshot_pool_map,
+)
 
 
 def _iid(n: int) -> str:
@@ -162,7 +175,9 @@ def _setup_swap_exact_out_context(
     return pk, asset0, asset1, pool_id, pool, balances, intent, settlement
 
 
-def _setup_add_liquidity_context() -> tuple[str, str, str, str, PoolState, BalanceTable, LPTable, Intent, Settlement]:
+def _setup_add_liquidity_context() -> tuple[
+    str, str, str, str, PoolState, BalanceTable, LPTable, Intent, Settlement
+]:
     pk, asset0, asset1, pool_id, pool, balances, lp_balances = _setup_liquidity_context()
     intent = Intent(
         module="TauSwap",
@@ -183,7 +198,9 @@ def _setup_add_liquidity_context() -> tuple[str, str, str, str, PoolState, Balan
     return pk, asset0, asset1, pool_id, pool, balances, lp_balances, intent, settlement
 
 
-def _setup_remove_liquidity_context() -> tuple[str, str, str, str, PoolState, BalanceTable, LPTable, Intent, Settlement]:
+def _setup_remove_liquidity_context() -> tuple[
+    str, str, str, str, PoolState, BalanceTable, LPTable, Intent, Settlement
+]:
     pk, asset0, asset1, pool_id, pool, balances, lp_balances = _setup_liquidity_context()
     intent = Intent(
         module="TauSwap",
@@ -201,6 +218,248 @@ def _setup_remove_liquidity_context() -> tuple[str, str, str, str, PoolState, Ba
     )
     settlement = compute_settlement([intent], {pool_id: pool}, balances, lp_balances)
     return pk, asset0, asset1, pool_id, pool, balances, lp_balances, intent, settlement
+
+
+def test_exact_committed_validator_matches_legacy_facade_across_spot_actions() -> None:
+    _pk, _asset0, _asset1, create_balances, create_intent, create_settlement = (
+        _setup_create_pool_context()
+    )
+    *_swap_prefix, swap_pool, swap_balances, swap_intent, swap_settlement = _setup_swap_context()
+    swap_pool_id = swap_pool.pool_id
+    *_out_prefix, out_pool, out_balances, out_intent, out_settlement = (
+        _setup_swap_exact_out_context()
+    )
+    out_pool_id = out_pool.pool_id
+    (
+        *_add_prefix,
+        add_pool,
+        add_balances,
+        add_lp,
+        add_intent,
+        add_settlement,
+    ) = _setup_add_liquidity_context()
+    add_pool_id = add_pool.pool_id
+    (
+        *_remove_prefix,
+        remove_pool,
+        remove_balances,
+        remove_lp,
+        remove_intent,
+        remove_settlement,
+    ) = _setup_remove_liquidity_context()
+    remove_pool_id = remove_pool.pool_id
+
+    cases: tuple[
+        tuple[Settlement, Intent, BalanceTable, dict[str, PoolState], LPTable],
+        ...,
+    ] = (
+        (create_settlement, create_intent, create_balances, {}, LPTable()),
+        (
+            swap_settlement,
+            swap_intent,
+            swap_balances,
+            {swap_pool_id: swap_pool},
+            LPTable(),
+        ),
+        (
+            out_settlement,
+            out_intent,
+            out_balances,
+            {out_pool_id: out_pool},
+            LPTable(),
+        ),
+        (
+            add_settlement,
+            add_intent,
+            add_balances,
+            {add_pool_id: add_pool},
+            add_lp,
+        ),
+        (
+            remove_settlement,
+            remove_intent,
+            remove_balances,
+            {remove_pool_id: remove_pool},
+            remove_lp,
+        ),
+    )
+
+    for settlement, intent, balances, pools, lp_balances in cases:
+        exact_balances = snapshot_balance_table(balances)
+        exact_pools = snapshot_pool_map(pools)
+        exact_lp_balances = snapshot_lp_table(lp_balances)
+        legacy = validate_settlement_strong(
+            settlement=copy.deepcopy(settlement),
+            intents=[intent],
+            pre_balances=balances,
+            pre_pools=pools,
+            pre_lp_balances=lp_balances,
+        )
+        exact = validate_settlement_strong_committed_v1(
+            settlement=copy.deepcopy(settlement),
+            intents=[intent],
+            pre_balances=exact_balances,
+            pre_pools=exact_pools,
+            pre_lp_balances=exact_lp_balances,
+            now=700,
+            min_lp_position_age_seconds=0,
+            lp_duration_policy=None,
+        )
+        assert exact == legacy == (True, None)
+
+        evaluated = evaluate_settlement_strong_committed_v1(
+            settlement=copy.deepcopy(settlement),
+            intents=[intent],
+            pre_balances=exact_balances,
+            pre_pools=exact_pools,
+            pre_lp_balances=exact_lp_balances,
+            now=700,
+            min_lp_position_age_seconds=0,
+            lp_duration_policy=None,
+        )
+        assert type(evaluated) is StrongSettlementStateCandidateV1
+
+        legacy_next_balances, legacy_next_pools, legacy_next_lp = apply_settlement_pure(
+            copy.deepcopy(settlement),
+            balances,
+            pools,
+            lp_balances,
+        )
+        assert evaluated.balances == snapshot_balance_table(legacy_next_balances)
+        assert evaluated.pools == snapshot_pool_map(legacy_next_pools)
+        assert (
+            evaluated.lp_balances.balance_entries
+            == snapshot_lp_table(legacy_next_lp).balance_entries
+        )
+        for delta in settlement.lp_deltas:
+            if delta.delta_add > 0:
+                assert (
+                    evaluated.lp_balances.get_last_mint_timestamp(
+                        delta.pubkey,
+                        delta.pool_id,
+                    )
+                    == 700
+                )
+
+        # Evaluation owns a successor and cannot mutate or replace its exact pre-state.
+        assert exact_balances == snapshot_balance_table(balances)
+        assert exact_pools == snapshot_pool_map(pools)
+        assert exact_lp_balances == snapshot_lp_table(lp_balances)
+
+
+def test_exact_committed_evaluator_rejects_without_candidate_and_preserves_reason() -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+    tampered = replace(settlement, balance_deltas=[])
+    exact_balances = snapshot_balance_table(balances)
+    exact_pools = snapshot_pool_map({pool.pool_id: pool})
+    exact_lp_balances = snapshot_lp_table(LPTable())
+
+    evaluated = evaluate_settlement_strong_committed_v1(
+        settlement=tampered,
+        intents=[intent],
+        pre_balances=exact_balances,
+        pre_pools=exact_pools,
+        pre_lp_balances=exact_lp_balances,
+        now=700,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+    )
+
+    assert type(evaluated) is StrongSettlementRejectV1
+    assert evaluated.reason == "balance_deltas mismatch vs replay"
+    assert not hasattr(evaluated, "balances")
+    assert not hasattr(evaluated, "pools")
+    assert not hasattr(evaluated, "lp_balances")
+    assert validate_settlement_strong_committed_v1(
+        settlement=tampered,
+        intents=[intent],
+        pre_balances=exact_balances,
+        pre_pools=exact_pools,
+        pre_lp_balances=exact_lp_balances,
+        now=700,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+    ) == (False, evaluated.reason)
+
+
+def test_exact_committed_evaluator_applies_lp_age_to_the_emitted_candidate() -> None:
+    (
+        pk,
+        _asset0,
+        _asset1,
+        pool_id,
+        pool,
+        balances,
+        lp_balances,
+        intent,
+        settlement,
+    ) = _setup_remove_liquidity_context()
+    lp_balances.set_last_mint_timestamp(pk, pool_id, 695)
+    exact_balances = snapshot_balance_table(balances)
+    exact_pools = snapshot_pool_map({pool_id: pool})
+    exact_lp_balances = snapshot_lp_table(lp_balances)
+
+    evaluated = evaluate_settlement_strong_committed_v1(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=exact_balances,
+        pre_pools=exact_pools,
+        pre_lp_balances=exact_lp_balances,
+        now=700,
+        min_lp_position_age_seconds=6,
+        lp_duration_policy=None,
+    )
+
+    assert type(evaluated) is StrongSettlementRejectV1
+    assert evaluated.reason == (
+        "exact spot candidate rejected: position_locked:events.0.last_mint_timestamp"
+    )
+    assert not hasattr(evaluated, "lp_balances")
+    assert exact_lp_balances.get(pk, pool_id) == lp_balances.get(pk, pool_id)
+    assert exact_pools[pool_id].lp_supply == pool.lp_supply
+
+
+def test_exact_committed_validator_rejects_legacy_state_values() -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+    runtime_exact_validator = cast(Any, validate_settlement_strong_committed_v1)
+
+    ok, error = runtime_exact_validator(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool.pool_id: pool},
+        pre_lp_balances=LPTable(),
+        now=700,
+        min_lp_position_age_seconds=0,
+        lp_duration_policy=None,
+    )
+
+    assert ok is False
+    assert (
+        error
+        == "strong validator crashed: TypeError: replay balances must be exact committed state"
+    )
+
+
+def test_legacy_boolean_facade_never_constructs_the_duration_candidate(monkeypatch) -> None:
+    *_prefix, pool, balances, intent, settlement = _setup_swap_context()
+
+    def forbidden_candidate_builder(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("legacy validation crossed the exact candidate boundary")
+
+    monkeypatch.setattr(
+        strong_validator,
+        "_build_exact_spot_batch_v1",
+        forbidden_candidate_builder,
+    )
+
+    assert validate_settlement_strong(
+        settlement=settlement,
+        intents=[intent],
+        pre_balances=balances,
+        pre_pools={pool.pool_id: pool},
+        pre_lp_balances=LPTable(),
+    ) == (True, None)
 
 
 def test_quote_binding_error_without_context_returns_reason() -> None:
@@ -233,7 +492,9 @@ def test_validate_settlement_strong_fail_closed_on_internal_crash_with_detail(mo
     assert err == "strong validator crashed: RuntimeError: bad news"
 
 
-def test_validate_settlement_strong_fail_closed_on_internal_crash_without_detail(monkeypatch) -> None:
+def test_validate_settlement_strong_fail_closed_on_internal_crash_without_detail(
+    monkeypatch,
+) -> None:
     def _boom(**_kwargs: object) -> tuple[bool, str | None]:
         raise RuntimeError()
 
@@ -312,10 +573,13 @@ def test_aggregate_helpers_drop_zero_entries() -> None:
         [
             LPDelta(pubkey="0x" + "11" * 48, pool_id=_iid(2), delta_add=0, delta_sub=0),
             LPDelta(pubkey="0x" + "22" * 48, pool_id=_iid(2), delta_add=9, delta_sub=0),
+            LPDelta(pubkey="0x" + "33" * 48, pool_id=_iid(2), delta_add=4, delta_sub=0),
+            LPDelta(pubkey="0x" + "33" * 48, pool_id=_iid(2), delta_add=0, delta_sub=3),
         ]
     )
     assert aggregated_lp == [
-        LPDelta(pubkey="0x" + "22" * 48, pool_id=_iid(2), delta_add=9, delta_sub=0)
+        LPDelta(pubkey="0x" + "22" * 48, pool_id=_iid(2), delta_add=9, delta_sub=0),
+        LPDelta(pubkey="0x" + "33" * 48, pool_id=_iid(2), delta_add=4, delta_sub=3),
     ]
 
 
@@ -335,7 +599,9 @@ def test_check_canonical_deltas_rejects_invalid_balance_scalar_fields() -> None:
     assert ok is False
     assert err == "balance_deltas contains invalid delta_add"
 
-    settlement.balance_deltas = [BalanceDelta(pubkey=_iid(1), asset=_iid(2), delta_add=1, delta_sub=False)]
+    settlement.balance_deltas = [
+        BalanceDelta(pubkey=_iid(1), asset=_iid(2), delta_add=1, delta_sub=False)
+    ]
     ok, err = strong_validator._check_canonical_deltas(settlement)
     assert ok is False
     assert err == "balance_deltas contains invalid delta_sub"
@@ -357,7 +623,9 @@ def test_check_canonical_deltas_rejects_invalid_reserve_scalar_fields() -> None:
     assert ok is False
     assert err == "reserve_deltas contains invalid delta_add"
 
-    settlement.reserve_deltas = [ReserveDelta(pool_id=_iid(1), asset=_iid(2), delta_add=1, delta_sub=False)]
+    settlement.reserve_deltas = [
+        ReserveDelta(pool_id=_iid(1), asset=_iid(2), delta_add=1, delta_sub=False)
+    ]
     ok, err = strong_validator._check_canonical_deltas(settlement)
     assert ok is False
     assert err == "reserve_deltas contains invalid delta_sub"
@@ -450,7 +718,10 @@ def test_strong_validator_rejects_included_intents_mismatch() -> None:
         mode="strong_replay",
     )
     assert ok is False
-    assert err == f"settlement included_intents mismatch: missing=['{intent.intent_id}'] extra=['{_iid(999)}']"
+    assert (
+        err
+        == f"settlement included_intents mismatch: missing=['{intent.intent_id}'] extra=['{_iid(999)}']"
+    )
 
 
 def test_strong_validator_rejects_duplicate_included_intents() -> None:
@@ -538,7 +809,10 @@ def test_strong_validator_rejects_fill_action_mismatch() -> None:
         mode="strong_replay",
     )
     assert ok is False
-    assert err == f"Fill.action mismatch for intent_id={intent.intent_id}: FillAction.REJECT != FillAction.FILL"
+    assert (
+        err
+        == f"Fill.action mismatch for intent_id={intent.intent_id}: FillAction.REJECT != FillAction.FILL"
+    )
 
 
 def test_strong_validator_rejects_invalid_recipient() -> None:
@@ -839,6 +1113,7 @@ def test_strong_validator_rejects_remove_liquidity_on_inactive_pool() -> None:
     )
     assert ok is False
     assert err == f"pool not active for intent_id={intent.intent_id}: {PoolStatus.FROZEN}"
+
 
 def test_legacy_validate_allows_k_decrease_but_strong_rejects() -> None:
     pk = "0x" + "11" * 48
@@ -1234,7 +1509,10 @@ def test_strong_validator_accepts_exact_reciprocal_cow_netted_pair() -> None:
         module="TauSwap",
         version="0.1",
         batch_ref="",
-        included_intents=[(intent0.intent_id, FillAction.FILL), (intent1.intent_id, FillAction.FILL)],
+        included_intents=[
+            (intent0.intent_id, FillAction.FILL),
+            (intent1.intent_id, FillAction.FILL),
+        ],
         fills=[
             Fill(
                 intent_id=intent0.intent_id,
@@ -1438,7 +1716,9 @@ def test_strong_validator_rejects_ambiguous_and_nonreciprocal_cow_pairs() -> Non
             module="TauSwap",
             version="0.1",
             batch_ref="",
-            included_intents=[(intent.intent_id, FillAction.FILL) for intent, _amount_in, _amount_out in rows],
+            included_intents=[
+                (intent.intent_id, FillAction.FILL) for intent, _amount_in, _amount_out in rows
+            ],
             fills=[
                 Fill(
                     intent_id=intent.intent_id,
@@ -1712,7 +1992,10 @@ def test_strong_validator_rejects_quote_receipt_leg_index_without_hash() -> None
     assert err is not None
     assert "quote receipt transport metadata requires validated engine witness" in err
     assert f"intent_id='{intent.intent_id}'" in err
-    assert "strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation" in err
+    assert (
+        "strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation"
+        in err
+    )
 
 
 def test_strong_validator_rejects_invalid_quote_receipt_leg_index() -> None:
@@ -1843,7 +2126,10 @@ def test_strong_validator_rejects_unsanitized_quote_receipt_hash_without_engine_
     assert err is not None
     assert "quote receipt transport metadata requires validated engine witness" in err
     assert f"intent_id='{intent.intent_id}'" in err
-    assert "strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation" in err
+    assert (
+        "strip quote_receipt_hash and quote_receipt_leg_index after engine witness validation"
+        in err
+    )
 
 
 def test_strong_validator_rejects_duplicate_balance_delta_keys() -> None:
@@ -2273,7 +2559,9 @@ def test_strong_validator_accepts_reverse_direction_swap_exact_in() -> None:
 
 
 def test_strong_validator_accepts_reverse_direction_swap_exact_out() -> None:
-    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context(reverse=True)
+    _pk, _asset0, _asset1, pool_id, pool, balances, intent, settlement = (
+        _setup_swap_exact_out_context(reverse=True)
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -2328,7 +2616,11 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
     def _boom_exact_in(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
 
-    monkeypatch.setattr(strong_validator, "swap_exact_in_for_pool", _boom_exact_in)
+    monkeypatch.setattr(
+        strong_validator,
+        "swap_exact_in_for_committed_pool_v1",
+        _boom_exact_in,
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -2357,7 +2649,10 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
 
     slippage_intent = replace(
         intent,
-        fields={**intent.fields, "min_amount_out": int(settlement.fills[0].amount_out_filled or 0) + 1},
+        fields={
+            **intent.fields,
+            "min_amount_out": int(settlement.fills[0].amount_out_filled or 0) + 1,
+        },
     )
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -2400,7 +2695,9 @@ def test_strong_validator_rejects_exact_in_field_kernel_and_apply_failures(monke
 
 
 def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monkeypatch) -> None:
-    _pk, asset0, asset1, pool_id, pool, balances, intent, settlement = _setup_swap_exact_out_context()
+    _pk, asset0, asset1, pool_id, pool, balances, intent, settlement = (
+        _setup_swap_exact_out_context()
+    )
 
     invalid_amount_out_intent = replace(intent, fields={**intent.fields, "amount_out": False})
     ok, err = validate_settlement_strong(
@@ -2444,7 +2741,11 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
     def _boom_exact_out(*_args: object, **_kwargs: object) -> tuple[int, tuple[int, int]]:
         raise ValueError("boom")
 
-    monkeypatch.setattr(strong_validator, "swap_exact_out_for_pool", _boom_exact_out)
+    monkeypatch.setattr(
+        strong_validator,
+        "swap_exact_out_for_committed_pool_v1",
+        _boom_exact_out,
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[intent],
@@ -2518,7 +2819,9 @@ def test_strong_validator_rejects_exact_out_field_kernel_and_apply_failures(monk
 
 def test_strong_validator_exact_out_protocol_fee_credit_feeds_later_replay() -> None:
     protocol_recipient = "0x" + "99" * 48
-    pk, asset0, asset1, pool_id, pool, balances, _intent, _settlement = _setup_swap_exact_out_context()
+    pk, asset0, asset1, pool_id, pool, balances, _intent, _settlement = (
+        _setup_swap_exact_out_context()
+    )
     fee_source_intent = Intent(
         module="TauSwap",
         version="0.1",
@@ -2579,7 +2882,9 @@ def test_strong_validator_exact_out_protocol_fee_credit_feeds_later_replay() -> 
 
 def test_strong_validator_reverse_exact_out_protocol_fee_deltas_are_directional() -> None:
     protocol_recipient = "0x" + "99" * 48
-    pk, asset0, asset1, pool_id, pool, balances, intent, _settlement = _setup_swap_exact_out_context(reverse=True)
+    pk, asset0, asset1, pool_id, pool, balances, intent, _settlement = (
+        _setup_swap_exact_out_context(reverse=True)
+    )
     pool.reserve0 = 2_000_000
     pool.reserve1 = 3_000_000
     settlement = compute_settlement(
@@ -2616,7 +2921,9 @@ def test_strong_validator_reverse_exact_out_protocol_fee_deltas_are_directional(
 
 
 def test_strong_validator_exact_out_apply_error_leaves_inputs_unchanged() -> None:
-    _pk, asset0, asset1, pool_id, pool, _balances, intent, settlement = _setup_swap_exact_out_context()
+    _pk, asset0, asset1, pool_id, pool, _balances, intent, settlement = (
+        _setup_swap_exact_out_context()
+    )
     low_balances = BalanceTable()
     low_balances.set(intent.sender_pubkey, asset0, 1)
     low_balances.set(intent.sender_pubkey, asset1, 0)
@@ -2640,7 +2947,9 @@ def test_strong_validator_exact_out_apply_error_leaves_inputs_unchanged() -> Non
 
 
 def test_strong_proof_carrying_exact_out_uses_mutated_pool_for_later_fill() -> None:
-    _pk, _asset0, _asset1, pool_id, pool, balances, first_intent, _settlement = _setup_swap_exact_out_context()
+    _pk, _asset0, _asset1, pool_id, pool, balances, first_intent, _settlement = (
+        _setup_swap_exact_out_context()
+    )
     second_intent = replace(
         first_intent,
         intent_id=_iid(9092),
@@ -2686,7 +2995,9 @@ def test_strong_proof_carrying_exact_out_uses_mutated_pool_for_later_fill() -> N
 def test_strong_validator_rejects_create_pool_field_and_fill_failures() -> None:
     _pk, asset0, _asset1, balances, intent, settlement = _setup_create_pool_context()
 
-    missing_field_intent = replace(intent, fields={k: v for k, v in intent.fields.items() if k != "amount1"})
+    missing_field_intent = replace(
+        intent, fields={k: v for k, v in intent.fields.items() if k != "amount1"}
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[missing_field_intent],
@@ -2787,9 +3098,13 @@ def test_strong_validator_rejects_create_pool_field_and_fill_failures() -> None:
 
 
 def test_strong_validator_rejects_add_liquidity_field_fill_and_apply_failures() -> None:
-    pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = (
+        _setup_add_liquidity_context()
+    )
 
-    missing_field_intent = replace(intent, fields={k: v for k, v in intent.fields.items() if k != "amount1_desired"})
+    missing_field_intent = replace(
+        intent, fields={k: v for k, v in intent.fields.items() if k != "amount1_desired"}
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[missing_field_intent],
@@ -2837,7 +3152,9 @@ def test_strong_validator_rejects_add_liquidity_field_fill_and_apply_failures() 
     assert ok is False
     assert err == f"invalid amount1_min for intent_id={intent.intent_id}"
 
-    computation_error_intent = replace(intent, fields={**intent.fields, "amount0_min": intent.get_field("amount0_desired") + 1})
+    computation_error_intent = replace(
+        intent, fields={**intent.fields, "amount0_min": intent.get_field("amount0_desired") + 1}
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[computation_error_intent],
@@ -2906,9 +3223,13 @@ def test_strong_validator_rejects_add_liquidity_field_fill_and_apply_failures() 
 
 
 def test_strong_validator_rejects_remove_liquidity_field_fill_and_apply_failures() -> None:
-    pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_remove_liquidity_context()
+    pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = (
+        _setup_remove_liquidity_context()
+    )
 
-    missing_lp_amount_intent = replace(intent, fields={k: v for k, v in intent.fields.items() if k != "lp_amount"})
+    missing_lp_amount_intent = replace(
+        intent, fields={k: v for k, v in intent.fields.items() if k != "lp_amount"}
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[missing_lp_amount_intent],
@@ -2944,7 +3265,9 @@ def test_strong_validator_rejects_remove_liquidity_field_fill_and_apply_failures
     assert ok is False
     assert err == f"invalid amount1_min for intent_id={intent.intent_id}"
 
-    computation_error_intent = replace(intent, fields={**intent.fields, "amount0_min": pool.reserve0})
+    computation_error_intent = replace(
+        intent, fields={**intent.fields, "amount0_min": pool.reserve0}
+    )
     ok, err = validate_settlement_strong(
         settlement=settlement,
         intents=[computation_error_intent],
@@ -3025,7 +3348,9 @@ def test_strong_validator_rejects_replay_and_event_mismatches() -> None:
     assert ok is False
     assert err == "balance_deltas mismatch vs replay"
 
-    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = (
+        _setup_add_liquidity_context()
+    )
     settlement.reserve_deltas[0].delta_add += 1
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -3038,7 +3363,9 @@ def test_strong_validator_rejects_replay_and_event_mismatches() -> None:
     assert ok is False
     assert err == "reserve_deltas mismatch vs replay"
 
-    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = (
+        _setup_add_liquidity_context()
+    )
     settlement.lp_deltas[0].delta_add += 1
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -3066,7 +3393,9 @@ def test_strong_validator_rejects_replay_and_event_mismatches() -> None:
 
 
 def test_check_canonical_deltas_rejects_unsorted_and_zero_reserve_lp_entries() -> None:
-    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = (
+        _setup_add_liquidity_context()
+    )
     settlement.reserve_deltas = list(reversed(settlement.reserve_deltas))
     ok, err = validate_settlement_strong(
         settlement=settlement,
@@ -3079,7 +3408,9 @@ def test_check_canonical_deltas_rejects_unsorted_and_zero_reserve_lp_entries() -
     assert ok is False
     assert err == "reserve_deltas not sorted canonically"
 
-    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = (
+        _setup_add_liquidity_context()
+    )
     settlement.reserve_deltas.append(
         ReserveDelta(pool_id=pool_id, asset=pool.asset0, delta_add=0, delta_sub=0)
     )
@@ -3094,7 +3425,9 @@ def test_check_canonical_deltas_rejects_unsorted_and_zero_reserve_lp_entries() -
     assert ok is False
     assert err == "reserve_deltas contains a zero entry"
 
-    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = _setup_add_liquidity_context()
+    _pk, _asset0, _asset1, pool_id, pool, balances, lp_balances, intent, settlement = (
+        _setup_add_liquidity_context()
+    )
     settlement.lp_deltas.append(
         LPDelta(pubkey=intent.sender_pubkey, pool_id=pool_id, delta_add=0, delta_sub=0)
     )
@@ -3182,7 +3515,10 @@ def test_strong_validator_rejects_cow_netted_variants_and_legacy_failure() -> No
         allow_cow_netting=True,
     )
     assert ok is False
-    assert err == f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={exact_out_intent.intent_id}"
+    assert (
+        err
+        == f"COW_NETTED only supported for SWAP_EXACT_IN: intent_id={exact_out_intent.intent_id}"
+    )
 
     exact_in_intent = Intent(
         module="TauSwap",
@@ -3366,7 +3702,13 @@ def test_strong_validator_rejects_cow_netted_input_and_apply_errors() -> None:
     balances.set(pk1, asset0, 0)
     balances.set(pk1, asset1, 0)
 
-    def _settlement_for(intent_id: str, *, amount_in_filled: int = 100, amount_out_filled: int = 50, fee_paid: int = 0) -> Settlement:
+    def _settlement_for(
+        intent_id: str,
+        *,
+        amount_in_filled: int = 100,
+        amount_out_filled: int = 50,
+        fee_paid: int = 0,
+    ) -> Settlement:
         return Settlement(
             module="TauSwap",
             version="0.1",
@@ -3497,7 +3839,10 @@ def test_strong_validator_rejects_cow_netted_input_and_apply_errors() -> None:
         module="TauSwap",
         version="0.1",
         batch_ref="",
-        included_intents=[(base_intent.intent_id, FillAction.FILL), (counterparty_intent.intent_id, FillAction.FILL)],
+        included_intents=[
+            (base_intent.intent_id, FillAction.FILL),
+            (counterparty_intent.intent_id, FillAction.FILL),
+        ],
         fills=[
             Fill(
                 intent_id=base_intent.intent_id,

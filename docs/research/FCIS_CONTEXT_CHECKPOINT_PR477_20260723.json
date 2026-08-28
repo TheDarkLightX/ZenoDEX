@@ -1,0 +1,214 @@
+{
+  "active_pr_number": null,
+  "active_requirements": [
+    "FCIS-477-001",
+    "FCIS-477-002",
+    "FCIS-477-003",
+    "FCIS-477-004",
+    "FCIS-477-005",
+    "FCIS-477-006",
+    "FCIS-477-007",
+    "FCIS-477-008",
+    "FCIS-477-009",
+    "FCIS-477-010",
+    "FCIS-477-011",
+    "FCIS-477-012",
+    "FCIS-477-013",
+    "FCIS-477-014",
+    "FCIS-477-015",
+    "FCIS-477-016",
+    "FCIS-477-017",
+    "FCIS-477-018",
+    "FCIS-PROC-001",
+    "FCIS-PROC-002",
+    "FCIS-PROC-004",
+    "FCIS-PROC-005"
+  ],
+  "artifacts": [
+    "docs/specs/fcis_authority_snapshot_v1",
+    "docs/research/FCIS_PERPS_MARKET_REPLACEMENT_ESSO_INTENT_V1_20260723.json",
+    "docs/research/FCIS_PERPS_MARKET_REPLACEMENT_ESSO_DESIGN_EVIDENCE_V1_20260723.json",
+    "docs/research/FCIS_PERPS_MARKET_REPLACEMENT_REVIEW_20260723.md",
+    "independent read-only drift review of 510925c722fe02635ec477c3c74d48d02008db11"
+  ],
+  "base_head": "93c3d8a3fcd406efaae88645ddce01a8ccb07157",
+  "branch": "agent/fcis-pr454-reviewed-port-20260723",
+  "commands": [
+    "git status --short",
+    "git rev-parse HEAD",
+    "git merge-base HEAD 93c3d8a3fcd406efaae88645ddce01a8ccb07157",
+    "python3 docs/specs/fcis_authority_snapshot_v1/check_packet.py --json",
+    "python3 tools/check_fcis_authority_snapshot_contract.py --json",
+    "python3 -m pytest -q tests/state/test_snapshot_combinators.py -k 'out_of_range_integer_map_key or corrupted_enum_map_key or corrupted_nested_enum_key or pair_key_domain_preflight or oversized_map_key or aggregate_map_key_bytes'",
+    "python3 -m pytest -q tests/state",
+    "python3 -m pytest -q tests/tools/test_check_fcis_authority_snapshot_contract.py",
+    "python3 tools/check_production_boundary.py --json",
+    "python3 tools/permissionless_assurance.py status"
+  ],
+  "external_advisory_checks": [
+    {
+      "outcome": "state modules classified as canonical state and encoding utilities",
+      "source_binding": "external primary-checkout helper; advisory only",
+      "tool": "zenodex-style-map"
+    },
+    {
+      "outcome": "zero findings on the reviewed state-transition paths",
+      "source_binding": "external primary-checkout helper; advisory only",
+      "tool": "zenodex-security-redflags"
+    },
+    {
+      "outcome": "state_transitions identified as inherited large-file hotspot",
+      "source_binding": "external primary-checkout helper; advisory only",
+      "tool": "zenodex-design-metrics"
+    }
+  ],
+  "design_deviations": [],
+  "git_status_short": [
+    "?? docs/research/FCIS_CONTEXT_CHECKPOINT_PR477_20260723.json",
+    "?? docs/research/FCIS_PERPS_MARKET_REPLACEMENT_REVIEW_20260723.md"
+  ],
+  "github_head": null,
+  "head": "510925c722fe02635ec477c3c74d48d02008db11",
+  "gate_environment": {
+    "critical_python": "temporary environment using repository-locked pytest 9.0.3, pytest-cov 7.1.0, coverage 7.14.0, and ruff 0.15.13",
+    "mypy": "2.1.0"
+  },
+  "gate_results": {
+    "authority_checker": {
+      "aggregate_module_scanned": true,
+      "ok": true,
+      "tests_passed": 109
+    },
+    "critical_quality": {
+      "acceptance_tcb_passed": 539,
+      "coverage_floors_passed": true,
+      "critical_tests_passed": 782,
+      "ok": true
+    },
+    "fcis_packet": {
+      "bound_test_ids": 103,
+      "errors": [],
+      "ok": true,
+      "requirements": 39
+    },
+    "production_boundary": {
+      "ok": true
+    },
+    "state_tests": {
+      "passed": 508
+    }
+  },
+  "merge_base": "93c3d8a3fcd406efaae88645ddce01a8ccb07157",
+  "nonclaims": [
+    "No M5 DexState field switch is authorized by this checkpoint.",
+    "The exact batch support-root reader remains correlated with the legacy mixed helper and is not independent M4 parity evidence.",
+    "The ESSO design output is a proposal and obligation oracle, not implementation authority.",
+    "External style, red-flag, and hotspot helpers are advisory and are not source-pinned evidence.",
+    "Permissionless assurance still reports missing ESSO, Mathlib, Tau, and release lanes; the production assurance profile remains blocked.",
+    "No datastore linearizability, external delivery, Rust parity, or production-release claim is made."
+  ],
+  "production_claim_status": "blocked",
+  "repository": "TheDarkLightX/ZenoDEX",
+  "satisfied_requirements": [],
+  "schema": "zenodex/fcis-context-checkpoint/v1",
+  "spec_packet_files": [
+    {
+      "path": "ASSURANCE_FACTORIZATION_ADDENDUM.md",
+      "sha256": "e7adb1fd5d3d9c95a9df3034b332e8e825fd3d8030976d54be84092f481bd411"
+    },
+    {
+      "path": "AUDIT_FINDINGS.md",
+      "sha256": "8cec60d59d196e2921be7bfb349a44b6cc724e3023e10d5777dff2baf6539b38"
+    },
+    {
+      "path": "COMBINATOR_CONTRACT.md",
+      "sha256": "355cfd4ff5438823f60377dd2465d6fb88b3f54870cba2af151b44d8334cca71"
+    },
+    {
+      "path": "CONTEXT_DRIFT_PROTOCOL.md",
+      "sha256": "0eeeed88b3eb660a55a926f9d431163a2c2a474725e2552eac4b2b4dd270aae9"
+    },
+    {
+      "path": "DECISIONS.md",
+      "sha256": "54dcbacf567a80a8b6bc10933cb3cf83bd32b3fd32b4dcdf7da9362077a623fe"
+    },
+    {
+      "path": "DESIGN_PATTERN_AUDIT.md",
+      "sha256": "a7b0bc98ecad6cf9c4a8a279e3829f70c095fc271e734be06d4b718c060bcc25"
+    },
+    {
+      "path": "ERRATA.md",
+      "sha256": "a957ced3187548f2a5a7d5be26885ae68faced303baa1516414025c5cfb84d83"
+    },
+    {
+      "path": "IMPLEMENTATION_AGENT_PROMPT.md",
+      "sha256": "c8049d6ecda3f842621f7e9a9c2ec30a9959970194f1e658ccd1689a677f04d3"
+    },
+    {
+      "path": "IMPLEMENTATION_RUNBOOK.md",
+      "sha256": "b3317a44ae8d7b5561d7c97c47f164782cbc9492820697dcd8e3434351f32e93"
+    },
+    {
+      "path": "PR477_MOUNTED_MIGRATION.md",
+      "sha256": "1455d4ae7cc655fb16654ee926834d8bd5ea59e80037fb7963c4ccb23652dea3"
+    },
+    {
+      "path": "PR477_STATE_SCHEMA.md",
+      "sha256": "f712084577d917e60bafae33aa58f484edae3a213df648d502f068c634803fb4"
+    },
+    {
+      "path": "PR478_AUTHORITY_EFFECT_SCHEMA.md",
+      "sha256": "98d5a82f63095d8142ff673fe5b2f855c82b82a53d20b3483b24226ac80e0024"
+    },
+    {
+      "path": "README.md",
+      "sha256": "081c45ab637f3b85a96bafba54c5d264ede474cc4768c6c0eb0af421db13912b"
+    },
+    {
+      "path": "REVIEW_CHECKLIST.md",
+      "sha256": "c7764f9639c6bfc2dab0d7f34d19aabf243a6a11f3632e44b4e51806b28ba6d6"
+    },
+    {
+      "path": "TEST_MATRIX.md",
+      "sha256": "239b884276fdcbdedfd23785855907cfa7189342a54a3faa6e430fcdf2f3d972"
+    },
+    {
+      "path": "TEST_MATRIX_PR477_PR478.md",
+      "sha256": "8294c35c5c56c45e50336393be50a2d4ae69566429d091c34aedc72c59f8a1ac"
+    },
+    {
+      "path": "check_packet.py",
+      "sha256": "447b302e749e49c72b4b60e72c5b4f1abbd42eb2e68f9444dd02c7fa535d3ccb"
+    },
+    {
+      "path": "requirements.json",
+      "sha256": "c4aad5f7e55732f48fb647539dea5d4cd75368e7fe4d5aca82cda6426d6d0271"
+    }
+  ],
+  "spec_packet_sha256": "610ccd72996376f7afebb0f3ca5c0f8c60764622f6d0151daf000c1afded71ef",
+  "unverified_requirements": [
+    "FCIS-477-001",
+    "FCIS-477-002",
+    "FCIS-477-003",
+    "FCIS-477-004",
+    "FCIS-477-005",
+    "FCIS-477-006",
+    "FCIS-477-007",
+    "FCIS-477-008",
+    "FCIS-477-009",
+    "FCIS-477-010",
+    "FCIS-477-011",
+    "FCIS-477-012",
+    "FCIS-477-013",
+    "FCIS-477-014",
+    "FCIS-477-015",
+    "FCIS-477-016",
+    "FCIS-477-017",
+    "FCIS-477-018",
+    "FCIS-PROC-001",
+    "FCIS-PROC-002",
+    "FCIS-PROC-004",
+    "FCIS-PROC-005"
+  ],
+  "violated_requirements": []
+}

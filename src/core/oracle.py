@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class OracleState:
     """Minimal oracle freshness state."""
 
@@ -46,4 +46,3 @@ def update_price_timestamp(state: OracleState, current_timestamp: int) -> Oracle
     if current_timestamp < 0:
         raise ValueError(f"current_timestamp must be non-negative: {current_timestamp}")
     return replace(state, price_timestamp=current_timestamp)
-

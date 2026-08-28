@@ -1,0 +1,675 @@
+{
+  "schema": "zenodex/fcis-authority-snapshot-requirements/v1",
+  "design_lock_version": "1.2.0",
+  "claim_status": "blocked",
+  "audit_authority": {
+    "url": "https://zenodex-oracle-audit-v4.jazzy-harp-9002.chatgpt.site/",
+    "snapshot_schema": "zenodex/audit-snapshot/v6",
+    "target_commit": "e2efd360921c6b1872710e77e300fb57fd6f2cc7",
+    "snapshot_sha256": "aeb96a452355860ef2e2fa116fec46f18a0dee4b7b7bd3dc3de9ba80c982c507"
+  },
+  "required_pattern_ids": [
+    "FCIS-PAT-CLOSED-ADMISSION-V1",
+    "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+    "FCIS-PAT-PERSISTENT-TRANSITION-V1",
+    "FCIS-PAT-TYPESTATE-AUTHORITY-V1",
+    "FCIS-PAT-SAME-CANDIDATE-EFFECT-V1",
+    "FCIS-PAT-CHECKER-DERIVED-PROMOTION-V1"
+  ],
+  "audit_pattern_bindings": {
+    "cases": {
+      "STATE-ALIAS-001": [
+        "FCIS-PAT-CLOSED-ADMISSION-V1",
+        "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
+      ],
+      "STATE-ALIAS-002": [
+        "FCIS-PAT-CLOSED-ADMISSION-V1",
+        "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
+      ],
+      "STATE-ALIAS-003": [
+        "FCIS-PAT-CLOSED-ADMISSION-V1",
+        "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
+      ],
+      "STATE-ALIAS-004": [
+        "FCIS-PAT-CLOSED-ADMISSION-V1",
+        "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
+      ],
+      "STATE-ALIAS-005": [
+        "FCIS-PAT-CLOSED-ADMISSION-V1",
+        "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+        "FCIS-PAT-TYPESTATE-AUTHORITY-V1"
+      ],
+      "STATE-ALIAS-006": [
+        "FCIS-PAT-CLOSED-ADMISSION-V1",
+        "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1",
+        "FCIS-PAT-SAME-CANDIDATE-EFFECT-V1"
+      ]
+    },
+    "witnesses": {
+      "IMMUTABILITY-ALIAS-01": [
+        "FCIS-PAT-CLOSED-ADMISSION-V1",
+        "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
+      ],
+      "IMMUTABILITY-ALIAS-02": [
+        "FCIS-PAT-CLOSED-ADMISSION-V1",
+        "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
+      ],
+      "IMMUTABILITY-ALIAS-03": [
+        "FCIS-PAT-CLOSED-ADMISSION-V1",
+        "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
+      ],
+      "IMMUTABILITY-ALIAS-04": [
+        "FCIS-PAT-CLOSED-ADMISSION-V1",
+        "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1"
+      ],
+      "IMMUTABILITY-ALIAS-05": [
+        "FCIS-PAT-CLOSED-ADMISSION-V1",
+        "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+        "FCIS-PAT-TYPESTATE-AUTHORITY-V1"
+      ],
+      "IMMUTABILITY-ALIAS-06": [
+        "FCIS-PAT-CLOSED-ADMISSION-V1",
+        "FCIS-PAT-COMPOSITION-OWNERSHIP-V1",
+        "FCIS-PAT-PERSISTENT-TRANSITION-V1",
+        "FCIS-PAT-SAME-CANDIDATE-EFFECT-V1"
+      ]
+    }
+  },
+  "test_bindings": {
+    "FCIS-PROP-002": [
+      "FCIS-477-010"
+    ],
+    "FCIS-PROP-003": [
+      "FCIS-477-008"
+    ],
+    "FCIS-PROP-004": [
+      "FCIS-477-016"
+    ],
+    "FCIS-PROP-005": [
+      "FCIS-478-015"
+    ],
+    "FCIS-PROP-006": [
+      "FCIS-477-018",
+      "FCIS-478-016"
+    ],
+    "FCIS-PROP-009": [
+      "FCIS-478-015"
+    ],
+    "FCIS-T-477-001": [
+      "FCIS-477-010"
+    ],
+    "FCIS-T-477-004": [
+      "FCIS-477-010"
+    ],
+    "FCIS-T-477-006": [
+      "FCIS-477-010"
+    ],
+    "FCIS-T-477-007": [
+      "FCIS-477-010",
+      "FCIS-477-013"
+    ],
+    "FCIS-T-477-009": [
+      "FCIS-477-010"
+    ],
+    "FCIS-T-477-016": [
+      "FCIS-477-015"
+    ],
+    "FCIS-T-477-017": [
+      "FCIS-PROC-005"
+    ],
+    "FCIS-T-477-019": [
+      "FCIS-477-018"
+    ],
+    "FCIS-T-477-020": [
+      "FCIS-PROC-005"
+    ],
+    "FCIS-T-477-021": [
+      "FCIS-477-018",
+      "FCIS-PROC-005"
+    ],
+    "FCIS-T-477-022": [
+      "FCIS-477-010"
+    ],
+    "FCIS-T-477-023": [
+      "FCIS-477-018"
+    ],
+    "FCIS-T-478-005": [
+      "FCIS-478-015"
+    ],
+    "FCIS-T-COMB-004": [
+      "FCIS-477-006"
+    ],
+    "FCIS-T-COMB-015": [
+      "FCIS-477-008"
+    ],
+    "FCIS-T-COMB-019": [
+      "FCIS-477-017"
+    ],
+    "FCIS-T-COMB-023": [
+      "FCIS-477-004",
+      "FCIS-477-015"
+    ],
+    "FCIS-T-COMB-024": [
+      "FCIS-477-006",
+      "FCIS-477-017"
+    ],
+    "FCIS-T-OWNED-004": [
+      "FCIS-477-010",
+      "FCIS-478-002"
+    ],
+    "FCIS-T-OWNED-007": [
+      "FCIS-477-009",
+      "FCIS-477-010"
+    ],
+    "FCIS-T-STATIC-008": [
+      "FCIS-477-004",
+      "FCIS-477-015"
+    ]
+  },
+  "reviewed_heads": {
+    "pr_477": "fc2f9150c1eacfdb7f6e4272f2a8efbd5fdafe85",
+    "pr_478": "6dbb9b36237d982515777caae04a296d0ebac040"
+  },
+  "normative_files": [
+    "README.md",
+    "ERRATA.md",
+    "DECISIONS.md",
+    "ASSURANCE_FACTORIZATION_ADDENDUM.md",
+    "AUDIT_FINDINGS.md",
+    "DESIGN_PATTERN_AUDIT.md",
+    "COMBINATOR_CONTRACT.md",
+    "PR477_STATE_SCHEMA.md",
+    "PR477_MOUNTED_MIGRATION.md",
+    "PR478_AUTHORITY_EFFECT_SCHEMA.md",
+    "IMPLEMENTATION_RUNBOOK.md",
+    "TEST_MATRIX.md",
+    "TEST_MATRIX_PR477_PR478.md",
+    "CONTEXT_DRIFT_PROTOCOL.md",
+    "IMPLEMENTATION_AGENT_PROMPT.md",
+    "REVIEW_CHECKLIST.md",
+    "requirements.json",
+    "check_packet.py"
+  ],
+  "mounted_limits": {
+    "canonical_json_depth": 64,
+    "canonical_json_items": 200000,
+    "dex_state_bytes": 4000000,
+    "balances": 200000,
+    "pools": 50000,
+    "lp_balances_and_metadata": 200000,
+    "nonces": 200000,
+    "perps_markets": 10000,
+    "perps_accounts": 200000,
+    "default_string_characters": 4096,
+    "dex_intent_batch": 256
+  },
+  "forbidden_mechanisms": [
+    "open Any-to-Any authority copy",
+    "copy.copy or copy.deepcopy",
+    "pickle or caller-controlled copy protocol",
+    "reflective arbitrary dataclass or Enum admission",
+    "broad Mapping Sequence Iterable set or frozenset admission",
+    "broad isinstance for a declared authority source",
+    "mutable-base inheritance for committed values",
+    "public committed-to-mutable conversion",
+    "structural protocol at an authority-core entry",
+    "legacy mutable domain construction inside admission resolution",
+    "object.__new__ constructor bypass",
+    "unbounded recursive authority traversal",
+    "unregistered authority variant",
+    "canonical encoding detached from the owned type"
+  ],
+  "requirements": [
+    {
+      "id": "FCIS-477-001",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Replace open deep_freeze Any-to-Any behavior with the closed tagged admission algebra.",
+      "forbidden": ["Any-to-Any fallback", "unknown schema acceptance"],
+      "source_targets": ["src/state/snapshot_combinators.py", "src/state/state_snapshot_schema.py"],
+      "tests": ["FCIS-T-COMB-008", "FCIS-T-COMB-009", "FCIS-T-STATIC-003"],
+      "evidence": ["contract checker", "focused pytest"],
+      "claim_impact": "committed ownership remains blocked"
+    },
+    {
+      "id": "FCIS-477-002",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Admission executes no caller copy or reconstruction protocol.",
+      "forbidden": ["copy", "deepcopy", "pickle", "copy protocols"],
+      "source_targets": ["src/state/snapshot_combinators.py"],
+      "tests": ["FCIS-T-COMB-016", "FCIS-T-STATIC-001", "FCIS-T-STATIC-002"],
+      "evidence": ["hostile-hook counters", "AST checker"],
+      "claim_impact": "determinism and authority isolation remain blocked"
+    },
+    {
+      "id": "FCIS-477-003",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Only schema-declared exact built-in container sources are admitted.",
+      "forbidden": ["generic Mapping", "generic Iterable", "set order"],
+      "source_targets": ["src/state/snapshot_combinators.py"],
+      "tests": ["FCIS-T-COMB-006", "FCIS-T-COMB-007", "FCIS-T-STATIC-005"],
+      "evidence": ["hostile container tests"],
+      "claim_impact": "closed accepted language remains blocked"
+    },
+    {
+      "id": "FCIS-477-004",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Only registered exact records and enums are authoritative.",
+      "forbidden": ["arbitrary dataclass reflection", "arbitrary Enum reflection"],
+      "source_targets": ["src/state/state_snapshot_schema.py"],
+      "tests": ["FCIS-T-COMB-005", "FCIS-T-COMB-008", "FCIS-T-COMB-020", "FCIS-T-COMB-023", "FCIS-T-STATIC-006"],
+      "evidence": ["registry parameterization"],
+      "claim_impact": "schema closure remains blocked"
+    },
+    {
+      "id": "FCIS-477-005",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Registered constructors and invariants run through explicit trusted construction; no constructor bypass.",
+      "forbidden": ["object.__new__", "skipped post-init invariant"],
+      "source_targets": ["src/state/state_snapshots.py"],
+      "tests": ["FCIS-T-COMB-008", "FCIS-T-477-008", "FCIS-T-STATIC-007"],
+      "evidence": ["invalid-record rejection"],
+      "claim_impact": "representation invariants remain blocked"
+    },
+    {
+      "id": "FCIS-477-006",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "All scalar fields use exact primitive types and field-specific bounds; bool never satisfies integer fields.",
+      "forbidden": ["scalar subclass", "bool-as-int", "implicit conversion"],
+      "source_targets": ["src/state/state_snapshot_schema.py"],
+      "tests": ["FCIS-T-COMB-001", "FCIS-T-COMB-002", "FCIS-T-COMB-003", "FCIS-T-COMB-024", "FCIS-T-477-002", "FCIS-T-477-015"],
+      "evidence": ["boundary-value tests"],
+      "claim_impact": "exact state domain remains blocked"
+    },
+    {
+      "id": "FCIS-477-007",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Admission detects active cycles and enforces declared recursion limits without process escape.",
+      "forbidden": ["RecursionError escape", "unbounded recursion"],
+      "source_targets": ["src/state/snapshot_combinators.py"],
+      "tests": ["FCIS-T-COMB-010", "FCIS-T-COMB-011", "FCIS-T-COMB-012"],
+      "evidence": ["cycle and depth boundary tests"],
+      "claim_impact": "totality remains blocked"
+    },
+    {
+      "id": "FCIS-477-008",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Protocol maps use declared canonical key order and never accept unordered set semantics.",
+      "forbidden": ["set", "frozenset", "hash iteration order"],
+      "source_targets": ["src/state/owned_collections.py"],
+      "tests": ["FCIS-T-COMB-006", "FCIS-T-COMB-014", "FCIS-T-OWNED-005"],
+      "evidence": ["permutation property"],
+      "claim_impact": "canonical determinism remains blocked"
+    },
+    {
+      "id": "FCIS-477-009",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Owned collections are one-time constructed composition values and cannot be reinitialized.",
+      "forbidden": ["reentrant init mutation", "public unowned insertion"],
+      "source_targets": ["src/state/owned_collections.py"],
+      "tests": ["FCIS-T-OWNED-001", "FCIS-T-OWNED-002", "FCIS-T-OWNED-006"],
+      "evidence": ["reinitialization witness"],
+      "claim_impact": "transitive ownership remains blocked"
+    },
+    {
+      "id": "FCIS-477-010",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Committed balance, LP, nonce, and pool values do not inherit mutable tables or containers, and authority transitions return new committed values without public mutable projection.",
+      "forbidden": ["mutable-base inheritance", "base initializer bypass", "public to_scratch conversion", "mutable domain builder in the core"],
+      "source_targets": ["src/state/state_snapshots.py", "src/state/state_transitions.py"],
+      "tests": ["FCIS-T-477-003", "FCIS-T-477-005", "FCIS-T-477-009", "FCIS-T-477-016", "FCIS-T-477-023", "FCIS-T-OWNED-003", "FCIS-T-STATIC-004", "FCIS-T-STATIC-012", "FCIS-PROP-002"],
+      "evidence": ["MRO audit", "base-route regressions", "pure-update differential replay"],
+      "claim_impact": "state alias family remains blocked"
+    },
+    {
+      "id": "FCIS-477-011",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Already-owned-looking inputs are fully revalidated before reuse.",
+      "forbidden": ["trust by exact wrapper type alone"],
+      "source_targets": ["src/state/state_snapshots.py"],
+      "tests": ["FCIS-T-477-018", "FCIS-T-COMB-018"],
+      "evidence": ["corrupted-owned fixture"],
+      "claim_impact": "owned-state integrity remains blocked"
+    },
+    {
+      "id": "FCIS-477-012",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Raw table internals are exact-validated before semantic getters, setters, or normalizers execute.",
+      "forbidden": ["semantic method before exact validation"],
+      "source_targets": ["src/state/state_snapshots.py"],
+      "tests": ["FCIS-T-477-002", "FCIS-T-COMB-016"],
+      "evidence": ["hostile method counters"],
+      "claim_impact": "authority isolation remains blocked"
+    },
+    {
+      "id": "FCIS-477-013",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Pool fields are exact-validated before exact committed construction and pure pool invariant evaluation.",
+      "forbidden": ["constructor-driven normalization of untrusted field", "legacy mutable PoolState construction inside admission"],
+      "source_targets": ["src/state/state_snapshots.py", "src/state/state_snapshot_schema.py"],
+      "tests": ["FCIS-T-477-008"],
+      "evidence": ["hostile pool field tests"],
+      "claim_impact": "pool snapshot determinism remains blocked"
+    },
+    {
+      "id": "FCIS-477-014",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Vault, Oracle, fee accumulator, and perps each have explicit optional-module schemas.",
+      "forbidden": ["generic optional object snapshot"],
+      "source_targets": ["src/state/state_snapshot_schema.py", "src/state/state_snapshots.py"],
+      "tests": ["FCIS-T-477-010", "FCIS-T-477-011"],
+      "evidence": ["optional module registry tests"],
+      "claim_impact": "full DexState ownership remains blocked"
+    },
+    {
+      "id": "FCIS-477-015",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Every mounted perps market/account variant and nested field is exhaustively registered and exact-validated.",
+      "forbidden": ["partial perps registry", "broad nested mapping", "subclass behavior"],
+      "source_targets": ["src/state/state_snapshot_schema.py", "src/state/state_snapshots.py"],
+      "tests": ["FCIS-T-COMB-023", "FCIS-T-477-012", "FCIS-T-477-013", "FCIS-T-477-014", "FCIS-T-477-015"],
+      "evidence": ["perps variant drift test", "subclass witness"],
+      "claim_impact": "perps committed-state ownership remains blocked"
+    },
+    {
+      "id": "FCIS-477-016",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Admission returns stable typed codes and field paths under declared precedence.",
+      "forbidden": ["raw exception text", "insertion-order error selection"],
+      "source_targets": ["src/state/snapshot_combinators.py"],
+      "tests": ["FCIS-T-COMB-014", "FCIS-T-COMB-017"],
+      "evidence": ["rejection permutation property"],
+      "claim_impact": "deterministic rejection remains blocked"
+    },
+    {
+      "id": "FCIS-477-017",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Committed construction enforces the mounted depth, item, byte, collection, and string limits.",
+      "forbidden": ["decoder-only bounds", "unbounded constructor"],
+      "source_targets": ["src/state/snapshot_combinators.py", "src/state/state_snapshot_schema.py"],
+      "tests": ["FCIS-T-COMB-012", "FCIS-T-COMB-013", "FCIS-T-COMB-021", "FCIS-T-COMB-022", "FCIS-T-COMB-024", "FCIS-T-477-024"],
+      "evidence": ["production-limit boundary tests"],
+      "claim_impact": "bounded totality remains blocked"
+    },
+    {
+      "id": "FCIS-477-018",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "Tests and the AST checker cover the complete declared accepted language and each prior witness family.",
+      "forbidden": ["representative examples only", "dead checker rule"],
+      "source_targets": ["tests/state", "tests/core/test_dex_state_immutability.py", "tools/check_fcis_authority_snapshot_contract.py"],
+      "tests": ["FCIS-T-STATIC-001", "FCIS-T-STATIC-010", "FCIS-T-STATIC-011", "FCIS-T-STATIC-012", "FCIS-PROP-001", "FCIS-PROP-008"],
+      "evidence": ["checker mutation suite", "requirements coverage"],
+      "claim_impact": "PR 477 review readiness remains blocked"
+    },
+    {
+      "id": "FCIS-478-001",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Rebase on the reviewed final PR 477 head and use its single closed combinator implementation.",
+      "forbidden": ["stale parent", "forked helper"],
+      "source_targets": ["PR ancestry", "src/state/snapshot_combinators.py"],
+      "tests": ["FCIS-T-STATIC-010"],
+      "evidence": ["merge-base receipt", "complete PR 477 suite"],
+      "claim_impact": "PR 478 review readiness remains blocked"
+    },
+    {
+      "id": "FCIS-478-002",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Delete open deep_thaw_json; projections originate only from certified owned JSON.",
+      "forbidden": ["Any-to-Any thaw", "arbitrary mapping projection"],
+      "source_targets": ["src/state/owned_json.py"],
+      "tests": ["FCIS-T-478-001", "FCIS-T-478-002", "FCIS-T-478-006"],
+      "evidence": ["owned JSON projection tests"],
+      "claim_impact": "authority JSON ownership remains blocked"
+    },
+    {
+      "id": "FCIS-478-003",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Intent admission uses exact registered source and closed per-kind field schemas.",
+      "forbidden": ["Intent subtype admission", "plain mapping admission"],
+      "source_targets": ["src/state/intent_schema.py", "src/state/intent_snapshots.py"],
+      "tests": ["FCIS-T-478-007", "FCIS-T-478-008", "FCIS-T-478-009"],
+      "evidence": ["all-kind parameterization"],
+      "claim_impact": "signed command meaning remains blocked"
+    },
+    {
+      "id": "FCIS-478-004",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "OwnedIntentV1 is a distinct composition record with no mutable Intent base.",
+      "forbidden": ["FrozenIntent inheriting Intent", "set_field route"],
+      "source_targets": ["src/state/intent_snapshots.py"],
+      "tests": ["FCIS-T-478-010", "FCIS-T-478-011", "FCIS-T-STATIC-004"],
+      "evidence": ["MRO and mutation tests"],
+      "claim_impact": "authenticated intent immutability remains blocked"
+    },
+    {
+      "id": "FCIS-478-005",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Intent snapshotting executes no caller copy or conversion behavior.",
+      "forbidden": ["deepcopy fields", "caller hook"],
+      "source_targets": ["src/state/intent_snapshots.py"],
+      "tests": ["FCIS-T-COMB-016", "FCIS-T-478-009", "FCIS-T-STATIC-001"],
+      "evidence": ["hostile intent tests"],
+      "claim_impact": "intent admission determinism remains blocked"
+    },
+    {
+      "id": "FCIS-478-006",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Admitted intent batches are bounded owned tuples with canonical order.",
+      "forbidden": ["retained list", "post-admission reorder"],
+      "source_targets": ["src/state/intent_snapshots.py"],
+      "tests": ["FCIS-T-478-012", "FCIS-T-478-013", "FCIS-T-478-026"],
+      "evidence": ["batch alias and partition properties"],
+      "claim_impact": "batch command stability remains blocked"
+    },
+    {
+      "id": "FCIS-478-007",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Parser, snapshot, runtime, and checker import one exhaustive intent schema registry.",
+      "forbidden": ["duplicated field lists", "silent kind drift"],
+      "source_targets": ["src/state/intent_schema.py", "src/integration/operations.py"],
+      "tests": ["FCIS-T-478-014", "FCIS-PROP-008"],
+      "evidence": ["intent registry drift test"],
+      "claim_impact": "cross-layer intent refinement remains blocked"
+    },
+    {
+      "id": "FCIS-478-008",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Owned settlement, fill, and delta records are distinct from mutable runtime records.",
+      "forbidden": ["Frozen settlement mutable-base subtype"],
+      "source_targets": ["src/core/settlement_snapshots.py"],
+      "tests": ["FCIS-T-478-016", "FCIS-T-478-017", "FCIS-T-STATIC-004"],
+      "evidence": ["MRO and alias tests"],
+      "claim_impact": "effect-plan ownership remains blocked"
+    },
+    {
+      "id": "FCIS-478-009",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Implementation seal/cache/index metadata never enters protocol dataclass fields or canonical bytes.",
+      "forbidden": ["seal field in fields or asdict"],
+      "source_targets": ["src/core/settlement_snapshots.py"],
+      "tests": ["FCIS-T-478-019", "FCIS-T-478-024"],
+      "evidence": ["field inventory and receipt hash parity"],
+      "claim_impact": "canonical settlement schema remains blocked"
+    },
+    {
+      "id": "FCIS-478-010",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Settlement admission validates exact fields before trusted construction and never copies via caller behavior.",
+      "forbidden": ["deepcopy settlement child", "semantic hook before validation"],
+      "source_targets": ["src/core/settlement_schema.py", "src/core/settlement_snapshots.py"],
+      "tests": ["FCIS-T-478-017", "FCIS-T-478-018", "FCIS-T-STATIC-001"],
+      "evidence": ["hostile child tests"],
+      "claim_impact": "settlement determinism remains blocked"
+    },
+    {
+      "id": "FCIS-478-011",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Current events use bounded owned JSON and retain EVENT-TYPING-001 as an explicit open obligation.",
+      "forbidden": ["arbitrary unbounded event value", "false typed-event claim"],
+      "source_targets": ["src/core/settlement_schema.py", "src/state/owned_json.py"],
+      "tests": ["FCIS-T-478-020"],
+      "evidence": ["event JSON boundary tests"],
+      "claim_impact": "typed event refinement remains explicitly open"
+    },
+    {
+      "id": "FCIS-478-012",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Every fill and delta scalar has exact type, unit, sign, and bound admission.",
+      "forbidden": ["bool-as-int", "scalar subclass", "unchecked negative or overflow"],
+      "source_targets": ["src/core/settlement_schema.py"],
+      "tests": ["FCIS-T-478-018"],
+      "evidence": ["field boundary parameterization"],
+      "claim_impact": "settlement state domain remains blocked"
+    },
+    {
+      "id": "FCIS-478-013",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Existing owned intents and settlements are fully revalidated before reuse.",
+      "forbidden": ["trust by wrapper type alone"],
+      "source_targets": ["src/state/intent_snapshots.py", "src/core/settlement_snapshots.py"],
+      "tests": ["FCIS-T-477-018", "FCIS-T-478-017"],
+      "evidence": ["corrupted-owned fixtures"],
+      "claim_impact": "authority value integrity remains blocked"
+    },
+    {
+      "id": "FCIS-478-014",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "DexEffects accepts the exact owned settlement and derives consistent totals from the same evaluated candidate.",
+      "forbidden": ["broad settlement isinstance", "independent recomputation"],
+      "source_targets": ["src/core/dex.py", "src/core/settlement_snapshots.py"],
+      "tests": ["FCIS-T-478-021", "FCIS-T-478-022", "FCIS-T-478-023"],
+      "evidence": ["same-candidate integration tests"],
+      "claim_impact": "state/effect/receipt consistency remains blocked"
+    },
+    {
+      "id": "FCIS-478-015",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Owned JSON and authority snapshots enforce the strict decoder's depth, item, byte, and string bounds.",
+      "forbidden": ["decoder-only bounds", "unbounded snapshot"],
+      "source_targets": ["src/state/owned_json.py"],
+      "tests": ["FCIS-T-478-001", "FCIS-T-478-003", "FCIS-T-478-004"],
+      "evidence": ["raw and owned boundary parity"],
+      "claim_impact": "bounded authority parsing remains blocked"
+    },
+    {
+      "id": "FCIS-478-016",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "All #478 evidence is replayed after rebase at the exact final head and binds canonical/signature/effect artifacts.",
+      "forbidden": ["stale exact-head evidence", "inherited older parent result"],
+      "source_targets": ["PR ancestry", "CI evidence", "requirements.json"],
+      "tests": ["FCIS-T-478-015", "FCIS-T-478-024", "FCIS-T-478-025", "FCIS-PROP-010"],
+      "evidence": ["exact-head workflow and artifact hashes"],
+      "claim_impact": "PR 478 merge recommendation remains blocked"
+    },
+    {
+      "id": "FCIS-PROC-001",
+      "pr": 477,
+      "status": "OPEN",
+      "requirement": "PR 477 stops for independent review before PR 478 implementation begins.",
+      "forbidden": ["dependent implementation on unreviewed foundation"],
+      "source_targets": ["PR workflow"],
+      "tests": [],
+      "evidence": ["independent drift report", "reviewed final head"],
+      "claim_impact": "stack progression remains blocked"
+    },
+    {
+      "id": "FCIS-PROC-002",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Every checkpoint and final review binds the exact design-packet hash and source head.",
+      "forbidden": ["chat-only design memory", "older-head evidence"],
+      "source_targets": ["context checkpoint", "evidence ledger"],
+      "tests": ["FCIS-T-STATIC-009"],
+      "evidence": ["packet receipt", "source receipt"],
+      "claim_impact": "evidence promotion remains blocked"
+    },
+    {
+      "id": "FCIS-PROC-003",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Raw bytes, parsed, authenticated, authorized, evaluated, and committed phases remain distinct exact types.",
+      "forbidden": ["owned value treated as authentication witness", "earlier phase accepted by later API"],
+      "source_targets": ["src/state/intent_snapshots.py", "authentication and authorization callers"],
+      "tests": ["FCIS-T-478-015", "FCIS-PROP-007"],
+      "evidence": ["phase-negative type tests", "mypy"],
+      "claim_impact": "typed authority pipeline remains blocked"
+    },
+    {
+      "id": "FCIS-PROC-004",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "The overall production profile stays blocked until non-snapshot contracts close independently.",
+      "forbidden": ["claim promotion by implication"],
+      "source_targets": ["assurance profile", "PR descriptions"],
+      "tests": [],
+      "evidence": ["release-profile validator status"],
+      "claim_impact": "production release remains blocked"
+    },
+    {
+      "id": "FCIS-PROC-005",
+      "pr": 478,
+      "status": "OPEN",
+      "requirement": "Every admission and leaf reject returns no partial candidate, successor, patch, effect, nonce, or outbox value. Aggregate Reject returns only its canonical rejection receipt and no successor, authoritative effect, replay update, or outbox record.",
+      "forbidden": [
+        "partial candidate on reject",
+        "state or effect leakage on reject"
+      ],
+      "source_targets": [
+        "admission result types",
+        "core step results",
+        "integration transaction results"
+      ],
+      "tests": [
+        "FCIS-T-477-017",
+        "FCIS-T-477-020",
+        "FCIS-PROP-007"
+      ],
+      "evidence": [
+        "admission and leaf reject no-output property plus aggregate rejection-receipt-only tests"
+      ],
+      "claim_impact": "rejection atomicity remains blocked"
+    }
+  ]
+}

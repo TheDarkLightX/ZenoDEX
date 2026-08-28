@@ -30,14 +30,29 @@ and returns the post-reserves the caller may commit.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple, TypeAlias, cast
 
 from ..state.intents import Intent, IntentKind
+from ..state.owned_collections import OwnedMapV1
 from ..state.pools import PoolState, PoolStatus
-from .amm_dispatch import swap_exact_in_for_pool, swap_exact_out_for_pool
+from ..state.state_snapshot_values import (
+    FCIS_STATE_SCHEMA_REVISION_V1,
+    POOL_MAP_SCHEMA_ID_V1,
+    POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1,
+    CommittedPoolStateV1,
+)
+from .amm_dispatch import (
+    swap_exact_in_for_committed_pool_v1,
+    swap_exact_in_for_pool,
+    swap_exact_out_for_committed_pool_v1,
+    swap_exact_out_for_pool,
+)
 from .cpmm import compute_fee_total
 from .domain_limits import is_strict_int
-from .quote_receipts import pool_state_fingerprint
+from .quote_receipts import (
+    pool_state_fingerprint,
+    pool_state_fingerprint_committed_v1,
+)
 
 ROUTE_KIND_EXACT_IN = "exact_in"
 ROUTE_KIND_EXACT_OUT = "exact_out"
@@ -61,6 +76,79 @@ ROUTE_REJECT_LEG_QUOTE_MISMATCH = "ROUTE_LEG_QUOTE_MISMATCH"
 ROUTE_REJECT_SLIPPAGE = "SLIPPAGE"
 
 _ROUTE_INTENT_KINDS = (IntentKind.ROUTE_EXACT_IN, IntentKind.ROUTE_EXACT_OUT)
+
+_PoolValueV1: TypeAlias = PoolState | CommittedPoolStateV1
+_PoolMapV1: TypeAlias = Mapping[str, _PoolValueV1]
+
+
+def _require_committed_pool_map_v1(
+    pools: object,
+) -> OwnedMapV1[str, CommittedPoolStateV1]:
+    if type(pools) is not OwnedMapV1:
+        raise TypeError("pools must be an exact committed pool map")
+    exact_pools = cast(OwnedMapV1[str, CommittedPoolStateV1], pools)
+    if (
+        exact_pools.schema_revision != FCIS_STATE_SCHEMA_REVISION_V1
+        or exact_pools.schema_id != POOL_MAP_SCHEMA_ID_V1
+    ):
+        raise TypeError("committed pool map schema metadata mismatch")
+    return exact_pools
+
+
+def _pool_is_active_v1(pool: _PoolValueV1) -> bool:
+    if type(pool) is CommittedPoolStateV1:
+        return pool.status.member_ordinal == POOL_STATUS_ACTIVE_MEMBER_ORDINAL_V1
+    return pool.status == PoolStatus.ACTIVE
+
+
+def _pool_fingerprint_v1(pool: _PoolValueV1) -> str:
+    if type(pool) is CommittedPoolStateV1:
+        return pool_state_fingerprint_committed_v1(pool)
+    return pool_state_fingerprint(pool)
+
+
+def _swap_exact_in_for_route_pool_v1(
+    pool: _PoolValueV1,
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_in: int,
+) -> tuple[int, tuple[int, int]]:
+    if type(pool) is CommittedPoolStateV1:
+        return swap_exact_in_for_committed_pool_v1(
+            pool,
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            amount_in=amount_in,
+        )
+    return swap_exact_in_for_pool(
+        pool,
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_in=amount_in,
+    )
+
+
+def _swap_exact_out_for_route_pool_v1(
+    pool: _PoolValueV1,
+    *,
+    reserve_in: int,
+    reserve_out: int,
+    amount_out: int,
+) -> tuple[int, tuple[int, int]]:
+    if type(pool) is CommittedPoolStateV1:
+        return swap_exact_out_for_committed_pool_v1(
+            pool,
+            reserve_in=reserve_in,
+            reserve_out=reserve_out,
+            amount_out=amount_out,
+        )
+    return swap_exact_out_for_pool(
+        pool,
+        reserve_in=reserve_in,
+        reserve_out=reserve_out,
+        amount_out=amount_out,
+    )
 
 
 def is_route_intent_kind(kind: IntentKind) -> bool:
@@ -118,7 +206,7 @@ def _require_positive_int(value: Any) -> Optional[int]:
 
 
 def resolve_route_binding_from_receipt(
-    receipt: Mapping[str, Any],
+    receipt: object,
 ) -> Tuple[Optional[RouteBinding], Optional[str]]:
     """
     Resolve a RouteBinding from a VERIFIED quote receipt.
@@ -404,9 +492,29 @@ def route_binding_pins_snapshot(
     state) from a TAMPERED fingerprint (pins neither pre- nor current-state,
     forging a fake `ROUTE_POOL_STATE_DRIFT` to make a competing route win).
     """
-    for pool_id, fingerprint in binding.pool_fingerprints.items():
+    return _route_binding_pins_pool_map_v1(binding, pre_pools)
+
+
+def route_binding_pins_committed_snapshot_v1(
+    binding: RouteBinding,
+    pre_pools: OwnedMapV1[str, CommittedPoolStateV1],
+) -> bool:
+    """Check a route binding against one exact committed pool snapshot."""
+
+    return _route_binding_pins_pool_map_v1(
+        binding,
+        _require_committed_pool_map_v1(pre_pools),
+    )
+
+
+def _route_binding_pins_pool_map_v1(
+    binding: RouteBinding,
+    pre_pools: _PoolMapV1,
+) -> bool:
+    for pool_id in sorted(binding.pool_fingerprints):
+        fingerprint = binding.pool_fingerprints[pool_id]
         pool = pre_pools.get(pool_id)
-        if pool is None or pool_state_fingerprint(pool) != fingerprint:
+        if pool is None or _pool_fingerprint_v1(pool) != fingerprint:
             return False
     return True
 
@@ -435,6 +543,95 @@ class RouteReplayResult:
     total_fee_paid: int = 0
 
 
+def _route_pool_preflight_v1(
+    binding: RouteBinding,
+    pools: _PoolMapV1,
+    ordered_pool_ids: tuple[str, ...],
+) -> RouteReplayResult | None:
+    for pool_id in ordered_pool_ids:
+        pool = pools.get(pool_id)
+        if pool is None:
+            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_FOUND)
+        if not _pool_is_active_v1(pool):
+            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_ACTIVE)
+        if _pool_fingerprint_v1(pool) != binding.pool_fingerprints[pool_id]:
+            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_STATE_DRIFT)
+    return None
+
+
+def _initial_route_scratch_v1(
+    pools: _PoolMapV1,
+    ordered_pool_ids: tuple[str, ...],
+) -> dict[str, tuple[int, int]]:
+    return {
+        pool_id: (int(pools[pool_id].reserve0), int(pools[pool_id].reserve1))
+        for pool_id in ordered_pool_ids
+    }
+
+
+def _route_leg_reserves_v1(
+    pool: _PoolValueV1,
+    leg: RouteLegBinding,
+    reserves: tuple[int, int],
+) -> tuple[int, int, bool] | None:
+    reserve0, reserve1 = reserves
+    if leg.asset_in == pool.asset0 and leg.asset_out == pool.asset1:
+        return reserve0, reserve1, True
+    if leg.asset_in == pool.asset1 and leg.asset_out == pool.asset0:
+        return reserve1, reserve0, False
+    return None
+
+
+def _replay_route_leg_v1(
+    kind: str,
+    pool: _PoolValueV1,
+    leg: RouteLegBinding,
+    reserves: tuple[int, int],
+) -> RouteLegReplay | RouteReplayResult:
+    oriented = _route_leg_reserves_v1(pool, leg, reserves)
+    if oriented is None:
+        return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_INVALID_PARAMS)
+    reserve_in, reserve_out, dir_is_0_to_1 = oriented
+
+    try:
+        if kind == ROUTE_KIND_EXACT_IN:
+            quoted, (new_in, new_out) = _swap_exact_in_for_route_pool_v1(
+                pool,
+                reserve_in=reserve_in,
+                reserve_out=reserve_out,
+                amount_in=leg.amount_in,
+            )
+            expected_quote = leg.amount_out
+        else:
+            quoted, (new_in, new_out) = _swap_exact_out_for_route_pool_v1(
+                pool,
+                reserve_in=reserve_in,
+                reserve_out=reserve_out,
+                amount_out=leg.amount_out,
+            )
+            expected_quote = leg.amount_in
+    except (ArithmeticError, TypeError, ValueError):
+        return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH)
+    if quoted != expected_quote:
+        return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH)
+
+    new_reserve0, new_reserve1 = (
+        (int(new_in), int(new_out))
+        if dir_is_0_to_1
+        else (int(new_out), int(new_in))
+    )
+    return RouteLegReplay(
+        pool_id=leg.pool_id,
+        asset_in=leg.asset_in,
+        asset_out=leg.asset_out,
+        amount_in=leg.amount_in,
+        amount_out=leg.amount_out,
+        fee_paid=compute_fee_total(leg.amount_in, pool.fee_bps),
+        new_reserve0=new_reserve0,
+        new_reserve1=new_reserve1,
+    )
+
+
 def replay_route_legs(
     *,
     binding: RouteBinding,
@@ -454,95 +651,55 @@ def replay_route_legs(
       3. every leg's quoted amounts replay EXACTLY under the verified kernels,
          threading evolving reserves across legs that share a pool
     """
+    return _replay_route_legs_for_pool_map_v1(binding=binding, pools=pools)
+
+
+def replay_route_legs_committed_v1(
+    *,
+    binding: RouteBinding,
+    pools: OwnedMapV1[str, CommittedPoolStateV1],
+) -> RouteReplayResult:
+    """Replay a route against one exact immutable committed pool map."""
+
+    return _replay_route_legs_for_pool_map_v1(
+        binding=binding,
+        pools=_require_committed_pool_map_v1(pools),
+    )
+
+
+def _replay_route_legs_for_pool_map_v1(
+    *,
+    binding: RouteBinding,
+    pools: _PoolMapV1,
+) -> RouteReplayResult:
     # Phase 1: pool presence + status + snapshot fingerprints (vs current state).
-    for pool_id in binding.pool_fingerprints:
-        pool = pools.get(pool_id)
-        if pool is None:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_FOUND)
-        if pool.status != PoolStatus.ACTIVE:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_ACTIVE)
-        if pool_state_fingerprint(pool) != binding.pool_fingerprints[pool_id]:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_STATE_DRIFT)
+    # Fingerprint maps are semantically unordered. Sorting gives one rejection
+    # precedence independent of dict construction or collection internals.
+    ordered_pool_ids = tuple(sorted(binding.pool_fingerprints))
+    preflight = _route_pool_preflight_v1(binding, pools, ordered_pool_ids)
+    if preflight is not None:
+        return preflight
 
     # Phase 2: exact kernel replay on scratch reserves (thread across legs).
-    scratch: Dict[str, Tuple[int, int]] = {}
-    for pool_id in binding.pool_fingerprints:
-        pool = pools[pool_id]
-        scratch[pool_id] = (int(pool.reserve0), int(pool.reserve1))
+    scratch = _initial_route_scratch_v1(pools, ordered_pool_ids)
 
     replays: List[RouteLegReplay] = []
-    sum_in = 0
-    sum_out = 0
-    sum_fee = 0
     for leg in binding.legs:
         pool = pools.get(leg.pool_id)
         if pool is None or leg.pool_id not in scratch:
             return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_POOL_NOT_FOUND)
-        reserve0, reserve1 = scratch[leg.pool_id]
-        if leg.asset_in == pool.asset0 and leg.asset_out == pool.asset1:
-            reserve_in, reserve_out = reserve0, reserve1
-            dir_is_0_to_1 = True
-        elif leg.asset_in == pool.asset1 and leg.asset_out == pool.asset0:
-            reserve_in, reserve_out = reserve1, reserve0
-            dir_is_0_to_1 = False
-        else:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_INVALID_PARAMS)
-
-        try:
-            if binding.kind == ROUTE_KIND_EXACT_IN:
-                quoted_out, (new_in, new_out) = swap_exact_in_for_pool(
-                    pool,
-                    reserve_in=int(reserve_in),
-                    reserve_out=int(reserve_out),
-                    amount_in=int(leg.amount_in),
-                )
-                if int(quoted_out) != int(leg.amount_out):
-                    return RouteReplayResult(
-                        ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH
-                    )
-            else:
-                quoted_in, (new_in, new_out) = swap_exact_out_for_pool(
-                    pool,
-                    reserve_in=int(reserve_in),
-                    reserve_out=int(reserve_out),
-                    amount_out=int(leg.amount_out),
-                )
-                if int(quoted_in) != int(leg.amount_in):
-                    return RouteReplayResult(
-                        ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH
-                    )
-        except Exception:
-            return RouteReplayResult(ok=False, reject_reason=ROUTE_REJECT_LEG_QUOTE_MISMATCH)
-
-        if dir_is_0_to_1:
-            new_reserve0, new_reserve1 = int(new_in), int(new_out)
-        else:
-            new_reserve0, new_reserve1 = int(new_out), int(new_in)
-        scratch[leg.pool_id] = (new_reserve0, new_reserve1)
-
-        fee = int(compute_fee_total(int(leg.amount_in), int(pool.fee_bps)))
-        replays.append(
-            RouteLegReplay(
-                pool_id=leg.pool_id,
-                asset_in=leg.asset_in,
-                asset_out=leg.asset_out,
-                amount_in=int(leg.amount_in),
-                amount_out=int(leg.amount_out),
-                fee_paid=fee,
-                new_reserve0=new_reserve0,
-                new_reserve1=new_reserve1,
-            )
-        )
-        sum_in += int(leg.amount_in)
-        sum_out += int(leg.amount_out)
-        sum_fee += fee
+        replay = _replay_route_leg_v1(binding.kind, pool, leg, scratch[leg.pool_id])
+        if isinstance(replay, RouteReplayResult):
+            return replay
+        replays.append(replay)
+        scratch[leg.pool_id] = (replay.new_reserve0, replay.new_reserve1)
 
     return RouteReplayResult(
         ok=True,
         legs=tuple(replays),
-        total_amount_in=sum_in,
-        total_amount_out=sum_out,
-        total_fee_paid=sum_fee,
+        total_amount_in=sum(replay.amount_in for replay in replays),
+        total_amount_out=sum(replay.amount_out for replay in replays),
+        total_fee_paid=sum(replay.fee_paid for replay in replays),
     )
 
 

@@ -58,6 +58,9 @@ CRITICAL_TESTS=(
   tests/core/test_cpmm_u256_safety.py
   tests/core/test_liquidity.py
   tests/core/test_dex_v7_ref_parity.py
+  tests/core/test_fees_bva.py
+  tests/core/test_oracle_freshness_bva.py
+  tests/core/test_vault_ref_parity.py
   tests/core/test_batch_clearing.py
   tests/core/test_batch_clearing_coverage_edges.py
   tests/core/test_batch_auction_settler_v1_ref_parity.py
@@ -69,6 +72,7 @@ CRITICAL_TESTS=(
   tests/core/test_batch_clearing_global_refinement.py
   tests/core/test_dex_step.py
   tests/core/test_dex_step_candidate_settlement.py
+  tests/core/test_dex_state_immutability.py
   tests/core/test_quote_receipts.py
   tests/core/test_settlement.py
   tests/core/test_settlement_strong_validator.py
@@ -100,8 +104,12 @@ COVERAGE_TARGETS=(
   --cov=src.kernels.python.batch_auction_settler_v1_witness
   --cov=src.kernels.python.settlement_swap_runtime_v1
   --cov=src.state.balances
+  --cov=src.state.immutable_collections
   --cov=src.state.intents
   --cov=src.state.lp
+  --cov=src.state.nonces
+  --cov=src.state.pools
+  --cov=src.state.state_snapshots
   --cov=src.state.volatility
 )
 
@@ -118,9 +126,13 @@ echo "== critical: ruff =="
   src/core/liquidity.py \
   src/core/batch_clearing.py \
   src/core/dex.py \
+  src/core/fees.py \
+  src/core/oracle.py \
+  src/core/perps.py \
   src/core/quote_receipts.py \
   src/core/settlement.py \
   src/core/settlement_strong_validator.py \
+  src/core/vault.py \
   src/core/volatility_tier.py \
   src/core/perp_v2 \
   src/integration/perps_api.py \
@@ -128,8 +140,12 @@ echo "== critical: ruff =="
   src/kernels/python/batch_auction_settler_v1_witness.py \
   src/kernels/python/settlement_swap_runtime_v1.py \
   src/state/balances.py \
+  src/state/immutable_collections.py \
   src/state/intents.py \
   src/state/lp.py \
+  src/state/nonces.py \
+  src/state/pools.py \
+  src/state/state_snapshots.py \
   src/state/volatility.py \
   tests/core/test_domain_bounds.py \
   tests/test_check_test_hygiene_v1.py \
@@ -151,6 +167,7 @@ echo "== critical: ruff =="
   tests/core/test_volatility_tier_ref_parity.py \
   tests/core/test_dex_step.py \
   tests/core/test_dex_step_candidate_settlement.py \
+  tests/core/test_dex_state_immutability.py \
   tests/integration/test_dex_engine_helpers.py \
   tests/integration/test_operations_fuzz.py \
   tests/integration/test_proof_verifier_fuzz.py \
