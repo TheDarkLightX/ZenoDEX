@@ -516,8 +516,23 @@ def cmd_up(opts: UpOptions) -> int:
         )
         return 2
 
+    existing_manifest = (
+        _load_manifest_if_present(
+            paths.manifest_path,
+            allow_invalid=opts.force,
+        )
+        if retired_manifest is None
+        else None
+    )
+    effective_ui_port = opts.ui_port
+    if (
+        existing_manifest is not None
+        and not opts.force
+        and opts.ui_port == DEFAULT_UI_PORT
+    ):
+        effective_ui_port = _manifest_ui_port(existing_manifest)
     if retired_origin_quarantine is not None and retired_origin_quarantine.blocks_port(
-        opts.ui_port
+        effective_ui_port
     ):
         _quiesce_retired_route_stack(
             paths=paths,
@@ -550,7 +565,10 @@ def cmd_up(opts: UpOptions) -> int:
                 "stopped identity-bound stack with retired value routes; use --force to rebuild the current profile",
             )
             return 2
-    existing_manifest = _load_manifest_if_present(paths.manifest_path, allow_invalid=opts.force)
+        existing_manifest = _load_manifest_if_present(
+            paths.manifest_path,
+            allow_invalid=opts.force,
+        )
     if existing_manifest is not None:
         if (
             retired_origin_quarantine is not None

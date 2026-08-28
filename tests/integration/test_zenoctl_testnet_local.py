@@ -514,6 +514,52 @@ def test_reset_preserves_retired_origin_identity_until_fresh_port_rebuild(
     assert preflight == []
 
 
+def test_default_up_restarts_fresh_port_manifest_without_quiescing_replacement(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    retired_body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    retired_body["enabled_lanes"].append("ZUSD_MONETARY_WALLET_API_ENABLED")
+    manifest_path = tmp_path / mf.MANIFEST_FILENAME
+    manifest_path.write_text(
+        json.dumps(retired_body, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    down_calls: list[dict[str, object]] = []
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(
+        lc.cm,
+        "compose_down",
+        lambda **kwargs: down_calls.append(kwargs),
+    )
+    assert lc.cmd_reset(lc.ResetOptions(out_dir=tmp_path)) == 0
+    down_calls.clear()
+
+    fresh_kwargs = _valid_manifest_kwargs(tmp_path)
+    fresh_kwargs["ports"] = {"ui": 18_081}
+    fresh_kwargs["service_urls"] = {
+        **fresh_kwargs["service_urls"],
+        "ui": "http://127.0.0.1:18081",
+    }
+    mf.save_manifest(mf.build_manifest(**fresh_kwargs), manifest_path)
+    restarts: list[int] = []
+
+    def restart_existing(**kwargs: object) -> int:
+        manifest = kwargs["manifest"]
+        assert isinstance(manifest, Mapping)
+        restarts.append(lc._manifest_ui_port(manifest))
+        return 17
+
+    monkeypatch.setattr(lc, "_cmd_up_existing", restart_existing)
+
+    assert lc.cmd_up(lc.UpOptions(out_dir=tmp_path)) == 17
+    assert restarts == [18_081]
+    assert down_calls == []
+
+
 @pytest.mark.parametrize(
     ("operation", "expected_code"),
     (
