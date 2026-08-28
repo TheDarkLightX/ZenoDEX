@@ -1,0 +1,153 @@
+{
+  "schema": "zenodex/rust_fcis_baseline/v1",
+  "generated_date": "2026-07-22",
+  "base": {
+    "branch": "origin/main",
+    "sha": "44d7f0d2a36b2141b553af1df734926c9d559bca",
+    "reason": "only fetched history containing the current rust-runtime workspace",
+    "semantic_fix_stack_has_common_ancestor": false
+  },
+  "open_pr_dependencies": [
+    {
+      "number": 459,
+      "url": "https://github.com/TheDarkLightX/ZenoDEX/pull/459",
+      "base": "agent/state-alias-assurance-base-20260721",
+      "head": "agent/functional-core-owned-state-snapshots-20260719",
+      "head_sha": "43827b59132a002b26695179197180f2bc135b8a",
+      "mergeability": "MERGEABLE",
+      "ci": "GREEN_AT_OBSERVATION",
+      "relation": "required immutability semantic dependency on separate history"
+    },
+    {
+      "number": 460,
+      "url": "https://github.com/TheDarkLightX/ZenoDEX/pull/460",
+      "base": "agent/functional-core-owned-state-snapshots-20260719",
+      "head": "agent/functional-core-auth-effect-snapshots-20260719",
+      "head_sha": "7cfc303c34b499c0b553adad64aece06adf03afc",
+      "mergeability": "MERGEABLE",
+      "ci": "GREEN_AT_OBSERVATION",
+      "relation": "required authenticated-intent and immutable-effect semantic dependency"
+    },
+    {
+      "number": 466,
+      "url": "https://github.com/TheDarkLightX/ZenoDEX/pull/466",
+      "base": "agent/functional-core-auth-effect-snapshots-20260719",
+      "head": "agent/zusd-total-debt-cap-20260721",
+      "head_sha": "c8f19b95e0f7c35c2695da24edbe3a080a7ad0cf",
+      "mergeability": "CONFLICTING",
+      "ci": "NO_CHECKS_REPORTED",
+      "relation": "normative Python zUSD total-debt-cap repair"
+    },
+    {
+      "number": 467,
+      "url": "https://github.com/TheDarkLightX/ZenoDEX/pull/467",
+      "base": "agent/zusd-total-debt-cap-20260721",
+      "head": "agent/zusd-finalized-oracle-authority-20260721",
+      "head_sha": "ab1ae09b4989c6d4f0cff8c20f959f90ef095614",
+      "mergeability": "MERGEABLE",
+      "ci": "NO_CHECKS_REPORTED",
+      "relation": "normative Python finalized-Oracle liquidation repair"
+    },
+    {
+      "number": 470,
+      "url": "https://github.com/TheDarkLightX/ZenoDEX/pull/470",
+      "base": "agent/zusd-finalized-oracle-authority-20260721",
+      "head": "agent/zusd-vault-owner-lifecycle-20260721",
+      "head_sha": "66defcee735bd96bd72bacfb40fc073fbd2a9039",
+      "mergeability": "MERGEABLE",
+      "ci": "NO_CHECKS_REPORTED",
+      "relation": "normative Python vault ownership lifecycle repair"
+    },
+    {
+      "number": 471,
+      "url": "https://github.com/TheDarkLightX/ZenoDEX/pull/471",
+      "base": "main",
+      "head": "agent/theorem-ledger-formalization-20260721",
+      "head_sha": "3c5ee8b7487048a2dd0a370a64eeb1c294cd9c04",
+      "mergeability": "MERGEABLE",
+      "ci": "RED_DEPENDENCY_AUDITS",
+      "relation": "candidate formal typed-parser and deterministic-parallel evidence"
+    },
+    {
+      "number": 472,
+      "url": "https://github.com/TheDarkLightX/ZenoDEX/pull/472",
+      "base": "agent/theorem-ledger-formalization-20260721",
+      "head": "agent/rk-morph-esso-synthesis-20260721",
+      "head_sha": "185737d19a0577de472db36f0dfc6dfdffedb708",
+      "mergeability": "MERGEABLE",
+      "ci": "RED_LEAN_AND_DEPENDENCY_AUDITS",
+      "relation": "candidate ESSO atomic-commit and parallel footprint evidence"
+    }
+  ],
+  "production_authority": {
+    "production-strict": "all listed surfaces python_authority",
+    "public-testnet_rust_authority_full_cbc": ["balances", "burn_receipts", "fees_rewards_vaults", "replay_nonce"],
+    "public-testnet_demoted_partial_cbc": ["batch_clearing", "perps", "spot_amm_lp", "zusd"],
+    "unmounted": ["bridges_adapters", "fire_settlement", "governance_treasury", "migrations_emergency_recovery", "zenocover", "zrpf_atomic_settlement"]
+  },
+  "known_python_rust_divergences": [
+    {
+      "surface": "zusd",
+      "obligation": "global debt cap includes free plus Stability Pool debt",
+      "python_candidate_pr": 466,
+      "rust_status": "MISSING",
+      "safe_mode": "python_authority"
+    },
+    {
+      "surface": "zusd",
+      "obligation": "adverse authenticated Oracle observations remain finalizable",
+      "python_candidate_pr": 467,
+      "rust_status": "MISSING",
+      "safe_mode": "python_authority"
+    },
+    {
+      "surface": "zusd",
+      "obligation": "liquidation uses fresh finalized authority and pending mismatch fails closed",
+      "python_candidate_pr": 467,
+      "rust_status": "MISSING",
+      "safe_mode": "python_authority"
+    },
+    {
+      "surface": "zusd",
+      "obligation": "stable typed reject codes and normative precedence",
+      "python_candidate_pr": 467,
+      "rust_status": "MISSING_RAW_STRING_REJECT",
+      "safe_mode": "python_authority"
+    }
+  ],
+  "audit_registry": {
+    "url": "https://zenodex-oracle-audit-v4.jazzy-harp-9002.chatgpt.site/artifacts/v6/audit_snapshot_v6.json",
+    "schema": "zenodex audit snapshot V6",
+    "sha256": "aeb96a452355860ef2e2fa116fec46f18a0dee4b7b7bd3dc3de9ba80c982c507",
+    "target_commit": "e2efd360921c6b1872710e77e300fb57fd6f2cc7",
+    "reachable_from_main": false,
+    "main_at_generation": "44d7f0d2a36b2141b553af1df734926c9d559bca",
+    "global_finding_count": 23,
+    "case_count": 67,
+    "release_claims": {
+      "FullValueMovingCoverage": false,
+      "MainBranchPromotionVerified": false,
+      "ProductionReleaseAllowed": false
+    }
+  },
+  "formal_evidence": {
+    "current_main": {
+      "runtime_cbc_receipts": "docs/runtime/receipts/cbc_runtime_core_kani_v1",
+      "tau": "src/tau_specs and formal/tau",
+      "esso": "formal/esso and generated/runtime receipts where individually mapped",
+      "lean": "lean-mathlib and surface-specific finite theorems",
+      "grade_rule": "partial helper proof is not full public-transition CBC"
+    },
+    "unmerged": {
+      "pr_471": "typed parser and deterministic parallel theorem candidates; exact head CI red",
+      "pr_472": "ESSO atomic-commit model and footprint theorem candidates; exact head CI red"
+    }
+  },
+  "toolchain": {
+    "rustc": "1.96.0 (ac68faa20 2026-05-25)",
+    "cargo": "1.96.0 (30a34c682 2026-05-25)",
+    "cargo_deny": "0.20.2",
+    "cargo_vet": "0.10.2"
+  },
+  "claim_status": "blocked"
+}

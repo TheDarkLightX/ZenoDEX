@@ -33,3 +33,6 @@ num-bigint = "0.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["arbitrary_precision"] }
 proptest = "1"
+
+[profile.release]
+overflow-checks = true

@@ -58,28 +58,27 @@ def rust_env():
         os.environ["ZENODEX_RUNTIME_BIN"] = old
 
 
-def test_public_testnet_profile_promotes_perp_math():
+def test_public_testnet_profile_demotes_partial_cbc_perp_math():
     profile = load_deploy_profile("public-testnet")
     policy = load_authority_policy(profile)
 
-    assert policy.mode_for("perp_math") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-    assert "perp_math" in policy.promoted_surfaces
+    assert policy.mode_for("perp_math") is AuthorityMode.PYTHON_AUTHORITY
+    assert "perp_math" not in policy.promoted_surfaces
 
     broken = dict(profile)
     broken["runtime_authority_policy"] = dict(profile["runtime_authority_policy"])
+    broken["runtime_authority_policy"]["per_surface"] = dict(
+        profile["runtime_authority_policy"]["per_surface"]
+    )
+    broken["runtime_authority_policy"]["per_surface"]["perp_math"] = (
+        "rust_authority_with_python_shadow"
+    )
     broken["runtime_authority_policy"]["promoted_surfaces"] = [
-        "balances",
-        "burn_receipts",
-        "canonical",
-        "cpmm_settlement",
-        "fee_router",
-        "perp_stateful",
-        "replay_guard",
-        "state_root",
-        "zusd",
+        *profile["runtime_authority_policy"]["promoted_surfaces"],
+        "perp_math",
     ]
     conflicts = evaluate_deploy_profile_consistency(broken, {})
-    assert any("perp_math" in c and "half-configured Rust authority" in c for c in conflicts)
+    assert any("perp_math" in c and "partial-CBC surfaces" in c for c in conflicts)
 
 
 def test_stateless_stale_replay_is_deterministic(rust_env):

@@ -1,5 +1,13 @@
 # Rust Authority Migration — Status
 
+> **Superseded authority decision (2026-07-22):** Historical live-wiring claims
+> below no longer authorize partial-CBC Rust surfaces. Public testnet Rust
+> authority with Python shadow is limited to replay guard, balances, fee router,
+> and burn receipts. Canonical, CPMM, perps, state root, and zUSD are Python
+> authority until full public-transition evidence is complete. Production-
+> strict remains all Python authority. Exact facts are recorded in
+> `RUST_FCIS_BASELINE_20260722.json`.
+
 Living status for the Python→Rust authority promotion. Pairs with
 `RUST_AUTHORITY_PROMOTION_GATE.md` (the gate) and
 `RUST_RUNTIME_MIGRATION_PLAN.md` (the phase plan). The proof-grade view is

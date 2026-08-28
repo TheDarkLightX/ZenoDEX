@@ -466,24 +466,35 @@ def test_production_profile_rejects_half_configured_rust_authority():
         validate_authority_policy(policy, profile_id="production-strict")
 
 
-def test_production_profile_allows_promoted_surface():
+def test_production_profile_rejects_rust_authority_before_release_schema():
     policy = AuthorityPolicy(
         default=AuthorityMode.PYTHON_AUTHORITY,
         per_surface={"fee_router": AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW},
         promoted_surfaces=frozenset({"fee_router"}),
     )
-    # Does not raise.
-    validate_authority_policy(policy, profile_id="production-strict")
+    with pytest.raises(AuthorityError, match="explicit release profile/schema"):
+        validate_authority_policy(policy, profile_id="production-strict")
 
 
-def test_public_testnet_profile_requires_every_trusted_core_surface():
-    # perp_stateful is demoted to rust_shadow and excluded from the required
-    # rust-authority surfaces, so use fee_router to test the missing-surface check.
+def test_public_testnet_profile_requires_every_admitted_rust_surface():
+    # Partial-CBC surfaces are excluded from the required Rust-authority set, so
+    # use fee_router to test the missing-surface check.
     policy = _complete_public_testnet_policy(
         per_surface_overrides={"fee_router": None},
         promoted_surfaces=PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES - {"fee_router"},
     )
     with pytest.raises(AuthorityError, match="missing trusted-core authority surfaces"):
+        validate_authority_policy(policy, profile_id="public-testnet")
+
+
+def test_public_testnet_profile_rejects_partial_cbc_rust_repromotion():
+    policy = _complete_public_testnet_policy(
+        per_surface_overrides={
+            "zusd": AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
+        },
+        promoted_surfaces=PUBLIC_TESTNET_REQUIRED_RUST_AUTHORITY_SURFACES | {"zusd"},
+    )
+    with pytest.raises(AuthorityError, match="partial-CBC surfaces"):
         validate_authority_policy(policy, profile_id="public-testnet")
 
 
@@ -591,25 +602,20 @@ def test_real_deploy_profiles_load_and_validate():
             assert policy.default is AuthorityMode.PYTHON_AUTHORITY
             assert policy.mode_for("balances") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
             assert policy.mode_for("burn_receipts") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-            assert policy.mode_for("canonical") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-            assert policy.mode_for("cpmm_settlement") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
+            assert policy.mode_for("canonical") is AuthorityMode.PYTHON_AUTHORITY
+            assert policy.mode_for("cpmm_settlement") is AuthorityMode.PYTHON_AUTHORITY
             assert policy.mode_for("fee_router") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-            assert policy.mode_for("perp_math") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-            assert policy.mode_for("perp_stateful") is AuthorityMode.RUST_SHADOW
-            assert policy.mode_for("state_root") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
+            assert policy.mode_for("perp_math") is AuthorityMode.PYTHON_AUTHORITY
+            assert policy.mode_for("perp_stateful") is AuthorityMode.PYTHON_AUTHORITY
+            assert policy.mode_for("state_root") is AuthorityMode.PYTHON_AUTHORITY
             assert policy.mode_for("replay_guard") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-            assert policy.mode_for("zusd") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
+            assert policy.mode_for("zusd") is AuthorityMode.PYTHON_AUTHORITY
             assert policy.promoted_surfaces == frozenset(
                 {
                     "balances",
                     "burn_receipts",
-                    "canonical",
-                    "cpmm_settlement",
                     "fee_router",
-                    "perp_math",
                     "replay_guard",
-                    "state_root",
-                    "zusd",
                 }
             )
         if profile_id == "production-strict":

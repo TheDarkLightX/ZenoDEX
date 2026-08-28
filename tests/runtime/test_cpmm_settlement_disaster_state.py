@@ -86,28 +86,29 @@ def rust_env():
         os.environ["ZENODEX_RUNTIME_BIN"] = old
 
 
-def test_public_testnet_profile_promotes_cpmm_settlement():
+def test_public_testnet_profile_demotes_partial_cbc_cpmm_settlement():
     profile = load_deploy_profile("public-testnet")
     policy = load_authority_policy(profile)
 
-    assert policy.mode_for("cpmm_settlement") is AuthorityMode.RUST_AUTHORITY_WITH_PYTHON_SHADOW
-    assert "cpmm_settlement" in policy.promoted_surfaces
+    assert policy.mode_for("cpmm_settlement") is AuthorityMode.PYTHON_AUTHORITY
+    assert "cpmm_settlement" not in policy.promoted_surfaces
 
     broken = dict(profile)
     broken["runtime_authority_policy"] = dict(profile["runtime_authority_policy"])
+    broken["runtime_authority_policy"]["per_surface"] = dict(
+        profile["runtime_authority_policy"]["per_surface"]
+    )
+    broken["runtime_authority_policy"]["per_surface"]["cpmm_settlement"] = (
+        "rust_authority_with_python_shadow"
+    )
     broken["runtime_authority_policy"]["promoted_surfaces"] = [
-        "balances",
-        "burn_receipts",
-        "canonical",
-        "fee_router",
-        "perp_math",
-        "perp_stateful",
-        "replay_guard",
-        "state_root",
-        "zusd",
+        *profile["runtime_authority_policy"]["promoted_surfaces"],
+        "cpmm_settlement",
     ]
     conflicts = evaluate_deploy_profile_consistency(broken, {})
-    assert any("cpmm_settlement" in c and "half-configured Rust authority" in c for c in conflicts)
+    assert any(
+        "cpmm_settlement" in c and "partial-CBC surfaces" in c for c in conflicts
+    )
 
 
 def test_stateless_stale_quote_replay_is_deterministic(rust_env):
