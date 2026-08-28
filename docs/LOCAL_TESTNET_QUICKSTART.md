@@ -174,9 +174,13 @@ explicit release admission before any tunnel or host report can be produced.
 When an older output directory records retired value routes, every lifecycle
 command first stops its exact Compose project. A forced rebuild must also use a
 different `--ui-port`; this prevents a still-running managed tunnel from
-reattaching to the new local origin at the historical port. `reset` removes the
-retired Compose volumes while preserving the old manifest as an origin-identity
-marker, then returns a blocked status until that fresh-port rebuild occurs.
+reattaching to the new local origin at the historical port. Before removing old
+state, the lifecycle writes a canonical sibling origin-quarantine marker that
+survives failed rebuilds, successful replacement, and later resets. Conflicting,
+malformed, or unreadable origin evidence quarantines every port for that
+output-directory identity; the operator must then select a different output
+directory. Every lifecycle command also stops a current-shaped manifest that
+reuses a port named by that marker.
 
 Same-origin public routes:
 

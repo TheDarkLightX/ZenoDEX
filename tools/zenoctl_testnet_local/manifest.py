@@ -270,7 +270,7 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
             if key not in ports:
                 errors.append(f"ports missing required key: {key}")
         for key, value in ports.items():
-            if not isinstance(value, int) or not (1 <= value <= 65535):
+            if type(value) is not int or not (1 <= value <= 65535):
                 errors.append(f"ports[{key}] must be a TCP port in [1, 65535], got {value!r}")
 
     service_urls = manifest.get("service_urls")
@@ -283,6 +283,15 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
         for key, value in service_urls.items():
             if not isinstance(value, str) or not value:
                 errors.append(f"service_urls[{key}] must be non-empty string, got {value!r}")
+        ui_port = ports.get("ui") if isinstance(ports, Mapping) else None
+        ui_url = service_urls.get("ui")
+        if type(ui_port) is int and 1 <= ui_port <= 65535:
+            expected_ui_url = f"http://127.0.0.1:{ui_port}"
+            if ui_url != expected_ui_url:
+                errors.append(
+                    "service_urls[ui] must equal the canonical loopback origin "
+                    f"{expected_ui_url!r}, got {ui_url!r}"
+                )
 
     image_refs = manifest.get("image_refs")
     if not isinstance(image_refs, Mapping):

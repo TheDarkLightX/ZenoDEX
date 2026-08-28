@@ -114,6 +114,86 @@ def test_manifest_save_load_roundtrip(tmp_path: Path) -> None:
     assert loaded == body
 
 
+def test_manifest_rejects_boolean_ui_port(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["ports"]["ui"] = True
+
+    assert any("ports[ui]" in error for error in mf.validate_manifest(body))
+
+
+def test_manifest_rejects_split_ui_origin_port(tmp_path: Path) -> None:
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["ports"]["ui"] = 18081
+
+    assert any(
+        "service_urls[ui] must equal" in error
+        for error in mf.validate_manifest(body)
+    )
+
+
+@pytest.mark.parametrize("port", (1, 65_535))
+def test_retired_origin_port_bva_accepts_exact_bounds(port: int) -> None:
+    from src.integration.local_route_quarantine import CanonicalLoopbackOriginV1
+
+    origin = CanonicalLoopbackOriginV1(
+        scheme="http",
+        host="127.0.0.1",
+        port=port,
+    )
+
+    assert origin.port == port
+
+
+@pytest.mark.parametrize("port", (0, 65_536, True))
+def test_retired_origin_port_bva_rejects_neighbors_and_boolean(port: object) -> None:
+    from src.integration.local_route_quarantine import CanonicalLoopbackOriginV1
+
+    with pytest.raises(ValueError, match="exact TCP port"):
+        CanonicalLoopbackOriginV1(
+            scheme="http",
+            host="127.0.0.1",
+            port=port,  # type: ignore[arg-type]
+        )
+
+
+def test_retired_origin_decoder_rejects_unknown_fields_and_authority() -> None:
+    from src.integration.local_route_quarantine import (
+        CanonicalLoopbackOriginV1,
+        RetiredOriginQuarantineV1,
+        parse_retired_origin_quarantine_v1,
+    )
+
+    marker = RetiredOriginQuarantineV1(
+        out_dir="/tmp/zenodex-marker-test",
+        compose_project="zenodex-local-testnet-v2-test",
+        origin=CanonicalLoopbackOriginV1(
+            scheme="http",
+            host="127.0.0.1",
+            port=18_080,
+        ),
+        all_loopback_ports_quarantined=False,
+    )
+    with_unknown_field = {**marker.to_mapping(), "unexpected": True}
+    with_authority = {**marker.to_mapping(), "authority": "SETTLEMENT"}
+
+    with pytest.raises(ValueError, match="exact closed object"):
+        parse_retired_origin_quarantine_v1(
+            with_unknown_field,
+            expected_out_dir=marker.out_dir,
+            expected_compose_project=marker.compose_project,
+        )
+    with pytest.raises(ValueError, match="authority must be NONE"):
+        parse_retired_origin_quarantine_v1(
+            with_authority,
+            expected_out_dir=marker.out_dir,
+            expected_compose_project=marker.compose_project,
+        )
+
+
 def test_force_up_can_load_stale_manifest_for_reset(tmp_path: Path) -> None:
     from tools.zenoctl_testnet_local import lifecycle as lc
     from tools.zenoctl_testnet_local import manifest as mf
@@ -201,7 +281,7 @@ def test_manifest_rejects_retired_tau_value_lanes(tmp_path: Path, lane: str) -> 
         ("release_smoke", 2),
         ("public_up", 2),
         ("logs", 2),
-        ("reset", 2),
+        ("reset", 0),
     ),
 )
 def test_identity_bound_retired_route_manifest_is_quiesced_before_lifecycle(
@@ -313,6 +393,31 @@ def test_force_up_quiesces_and_removes_retired_route_state_before_rebuild(
     assert calls[0]["remove_volumes"] is True
     assert tmp_path.is_dir()
     assert not manifest_path.exists()
+    quarantine_path = lc._retired_origin_quarantine_path(
+        mf.ManifestPaths.from_out_dir(tmp_path)
+    )
+    assert quarantine_path.is_file()
+    quarantine = json.loads(quarantine_path.read_text(encoding="utf-8"))
+    assert quarantine["origin"] == {
+        "scheme": "http",
+        "host": "127.0.0.1",
+        "port": 18080,
+    }
+    assert quarantine["all_loopback_ports_quarantined"] is False
+    assert quarantine["authority"] == "NONE"
+    assert quarantine["release_eligible"] is False
+    assert quarantine["vm_gates_closed"] == []
+
+    preflight: list[str] = []
+    monkeypatch.setattr(
+        lc.cm,
+        "check_external_tau_testnet_present",
+        lambda _repo_root: preflight.append("historical-port-retry"),
+    )
+    assert lc.cmd_up(
+        lc.UpOptions(out_dir=tmp_path, force=True, ui_port=18080)
+    ) == 2
+    assert preflight == []
 
 
 def test_force_up_quiesces_then_refuses_stale_tunnel_origin_port_rebind(
@@ -369,11 +474,106 @@ def test_reset_preserves_retired_origin_identity_until_fresh_port_rebuild(
     monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
     monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
 
-    code = lc.cmd_reset(lc.ResetOptions(out_dir=tmp_path))
-
-    assert code == 2
+    assert lc.cmd_reset(lc.ResetOptions(out_dir=tmp_path)) == 0
     assert len(calls) == 1
     assert calls[0]["remove_volumes"] is True
+    assert not manifest_path.exists()
+    quarantine_path = lc._retired_origin_quarantine_path(
+        mf.ManifestPaths.from_out_dir(tmp_path)
+    )
+    assert quarantine_path.is_file()
+
+    current_body = mf.build_manifest(
+        **{
+            **_valid_manifest_kwargs(tmp_path),
+            "ports": {"ui": 18081},
+            "service_urls": {
+                **_valid_manifest_kwargs(tmp_path)["service_urls"],
+                "ui": "http://127.0.0.1:18081",
+            },
+        }
+    )
+    mf.save_manifest(current_body, manifest_path)
+
+    def reset_current_stack(**_kwargs: object) -> None:
+        import shutil
+
+        shutil.rmtree(tmp_path)
+
+    monkeypatch.setattr(lc, "_reset_stack", reset_current_stack)
+    assert lc.cmd_reset(lc.ResetOptions(out_dir=tmp_path)) == 0
+    assert quarantine_path.is_file()
+
+    preflight: list[str] = []
+    monkeypatch.setattr(
+        lc.cm,
+        "check_external_tau_testnet_present",
+        lambda _repo_root: preflight.append("historical-port-retry"),
+    )
+    assert lc.cmd_up(lc.UpOptions(out_dir=tmp_path, ui_port=18080)) == 2
+    assert preflight == []
+
+
+@pytest.mark.parametrize(
+    ("operation", "expected_code"),
+    (
+        ("up", 2),
+        ("down", 0),
+        ("status", 2),
+        ("smoke", 2),
+        ("release_smoke", 2),
+        ("public_up", 2),
+        ("logs", 2),
+        ("reset", 2),
+    ),
+)
+def test_current_manifest_rebound_to_retired_origin_is_quiesced_before_lifecycle(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+    expected_code: int,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    retired_body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    retired_body["enabled_lanes"].append("ZUSD_MONETARY_WALLET_API_ENABLED")
+    manifest_path = tmp_path / mf.MANIFEST_FILENAME
+    manifest_path.write_text(
+        json.dumps(retired_body, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+
+    assert lc.cmd_reset(lc.ResetOptions(out_dir=tmp_path)) == 0
+    calls.clear()
+    current_body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    mf.save_manifest(current_body, manifest_path)
+
+    if operation == "up":
+        code = lc.cmd_up(lc.UpOptions(out_dir=tmp_path))
+    elif operation == "down":
+        code = lc.cmd_down(lc.DownOptions(out_dir=tmp_path))
+    elif operation == "status":
+        code = lc.cmd_status(lc.StatusOptions(out_dir=tmp_path, as_json=True))
+    elif operation == "smoke":
+        code = lc.cmd_smoke(lc.SmokeOptions(out_dir=tmp_path, browser="off"))
+    elif operation == "release_smoke":
+        code = lc.cmd_release_smoke(lc.ReleaseSmokeOptions(out_dir=tmp_path))
+    elif operation == "public_up":
+        code = lc.cmd_public_up(lc.PublicUpOptions(out_dir=tmp_path))
+    elif operation == "logs":
+        code = lc.cmd_logs(lc.LogsOptions(out_dir=tmp_path))
+    elif operation == "reset":
+        code = lc.cmd_reset(lc.ResetOptions(out_dir=tmp_path))
+    else:
+        raise AssertionError(operation)
+
+    assert code == expected_code
+    assert len(calls) == 1
+    assert calls[0]["remove_volumes"] is False
     assert manifest_path.is_file()
 
 
@@ -410,6 +610,187 @@ def test_force_up_rejects_malformed_retired_origin_identity_after_quiescence(
     assert calls[0]["remove_volumes"] is False
     assert manifest_path.is_file()
     assert preflight == []
+    quarantine_path = lc._retired_origin_quarantine_path(
+        mf.ManifestPaths.from_out_dir(tmp_path)
+    )
+    quarantine = json.loads(quarantine_path.read_text(encoding="utf-8"))
+    assert quarantine["origin"] is None
+    assert quarantine["all_loopback_ports_quarantined"] is True
+
+
+def test_force_up_refuses_split_retired_tunnel_origin_fields(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].append("PERPS_WALLET_API_ENABLED")
+    body["ports"]["ui"] = 18081
+    manifest_path = tmp_path / mf.MANIFEST_FILENAME
+    manifest_path.write_text(
+        json.dumps(body, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    calls: list[dict[str, object]] = []
+    preflight: list[str] = []
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(
+        lc.cm,
+        "check_external_tau_testnet_present",
+        lambda _repo_root: preflight.append("rebuild"),
+    )
+
+    assert lc.cmd_up(
+        lc.UpOptions(out_dir=tmp_path, force=True, ui_port=18082)
+    ) == 2
+    assert len(calls) == 1
+    assert calls[0]["remove_volumes"] is False
+    assert manifest_path.is_file()
+    assert preflight == []
+    quarantine_path = lc._retired_origin_quarantine_path(
+        mf.ManifestPaths.from_out_dir(tmp_path)
+    )
+    quarantine = json.loads(quarantine_path.read_text(encoding="utf-8"))
+    assert quarantine["origin"] is None
+    assert quarantine["all_loopback_ports_quarantined"] is True
+
+
+def test_force_up_quiesces_malformed_lane_container_as_unknown_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"] = {"PERPS_WALLET_API_ENABLED": True}
+    manifest_path = tmp_path / mf.MANIFEST_FILENAME
+    manifest_path.write_text(
+        json.dumps(body, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    calls: list[dict[str, object]] = []
+    preflight: list[str] = []
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(
+        lc.cm,
+        "check_external_tau_testnet_present",
+        lambda _repo_root: preflight.append("rebuild"),
+    )
+
+    assert lc.cmd_up(
+        lc.UpOptions(out_dir=tmp_path, force=True, ui_port=18081)
+    ) == 2
+    assert len(calls) == 1
+    assert calls[0]["remove_volumes"] is False
+    assert manifest_path.is_file()
+    assert preflight == []
+
+
+def test_retired_origin_marker_symlink_quiesces_and_refuses_rebuild(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    body = mf.build_manifest(**_valid_manifest_kwargs(tmp_path))
+    body["enabled_lanes"].append("PERPS_WALLET_API_ENABLED")
+    manifest_path = tmp_path / mf.MANIFEST_FILENAME
+    manifest_path.write_text(
+        json.dumps(body, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    marker_path = lc._retired_origin_quarantine_path(
+        mf.ManifestPaths.from_out_dir(tmp_path)
+    )
+    hostile_target = marker_path.with_name("hostile-retired-origin.json")
+    hostile_target.write_text("{}\n", encoding="utf-8")
+    marker_path.symlink_to(hostile_target)
+    calls: list[dict[str, object]] = []
+    preflight: list[str] = []
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setattr(
+        lc.cm,
+        "check_external_tau_testnet_present",
+        lambda _repo_root: preflight.append("rebuild"),
+    )
+
+    assert lc.cmd_up(
+        lc.UpOptions(out_dir=tmp_path, force=True, ui_port=18081)
+    ) == 2
+    assert len(calls) == 1
+    assert calls[0]["remove_volumes"] is False
+    assert manifest_path.is_file()
+    assert preflight == []
+
+
+def test_dangling_retired_origin_marker_refuses_preflight_without_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    marker_path = lc._retired_origin_quarantine_path(
+        mf.ManifestPaths.from_out_dir(tmp_path)
+    )
+    marker_path.symlink_to(marker_path.with_name("missing-retired-origin.json"))
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+
+    def reject_preflight(_repo_root: Path) -> None:
+        raise RuntimeError("preflight reached through dangling tombstone")
+
+    monkeypatch.setattr(
+        lc.cm,
+        "check_external_tau_testnet_present",
+        reject_preflight,
+    )
+
+    assert lc.cmd_up(lc.UpOptions(out_dir=tmp_path, ui_port=18080)) == 2
+    assert len(calls) == 1
+    assert calls[0]["remove_volumes"] is False
+
+
+def test_dangling_manifest_quiesces_and_persists_unknown_origin_quarantine(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.zenoctl_testnet_local import lifecycle as lc
+    from tools.zenoctl_testnet_local import manifest as mf
+
+    manifest_path = tmp_path / mf.MANIFEST_FILENAME
+    manifest_path.symlink_to(tmp_path / "missing-manifest.json")
+    calls: list[dict[str, object]] = []
+    monkeypatch.setattr(lc.cm, "detect_engine", lambda _name: object())
+    monkeypatch.setattr(lc.cm, "compose_down", lambda **kwargs: calls.append(kwargs))
+
+    def reject_preflight(_repo_root: Path) -> None:
+        raise RuntimeError("preflight reached through dangling manifest")
+
+    monkeypatch.setattr(
+        lc.cm,
+        "check_external_tau_testnet_present",
+        reject_preflight,
+    )
+
+    assert lc.cmd_up(lc.UpOptions(out_dir=tmp_path, ui_port=18081)) == 2
+    assert len(calls) == 1
+    assert calls[0]["remove_volumes"] is False
+    assert manifest_path.is_symlink()
+    quarantine_path = lc._retired_origin_quarantine_path(
+        mf.ManifestPaths.from_out_dir(tmp_path)
+    )
+    quarantine = json.loads(quarantine_path.read_text(encoding="utf-8"))
+    assert quarantine["origin"] is None
+    assert quarantine["all_loopback_ports_quarantined"] is True
 
 
 def test_manifest_mountable_lane_registry_excludes_retired_tau_routes() -> None:
